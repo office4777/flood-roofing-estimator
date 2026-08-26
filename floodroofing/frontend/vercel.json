@@ -107,31 +107,178 @@
     }
   ],
   "redirects": [
-    { "source": "/landing.html", "destination": "/", "permanent": true },
-    { "source": "/pricing.html", "destination": "/pricing", "permanent": true },
-    { "source": "/early-access.html", "destination": "/early-access", "permanent": true },
-    { "source": "/features-measuring.html", "destination": "/features/roof-measuring", "permanent": true },
-    { "source": "/features-job-pack.html", "destination": "/features/job-pack", "permanent": true },
-    { "source": "/features-quotes.html", "destination": "/features/quotes", "permanent": true },
-    { "source": "/fergus.html", "destination": "/roofmap-and-fergus", "permanent": true },
-    { "source": "/about.html", "destination": "/about", "permanent": true },
-    { "source": "/guides-quote-a-re-roof.html", "destination": "/guides/how-to-quote-a-re-roof", "permanent": true },
-    { "source": "/terms.html", "destination": "/terms", "permanent": true },
-    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
-    { "source": "/signup.html", "destination": "/signup", "permanent": true }
+    {
+      "source": "/landing.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/pricing.html",
+      "destination": "/pricing",
+      "permanent": true
+    },
+    {
+      "source": "/early-access.html",
+      "destination": "/early-access",
+      "permanent": true
+    },
+    {
+      "source": "/features-measuring.html",
+      "destination": "/features/roof-measuring",
+      "permanent": true
+    },
+    {
+      "source": "/features-job-pack.html",
+      "destination": "/features/job-pack",
+      "permanent": true
+    },
+    {
+      "source": "/features-quotes.html",
+      "destination": "/features/quotes",
+      "permanent": true
+    },
+    {
+      "source": "/fergus.html",
+      "destination": "/roofmap-and-fergus",
+      "permanent": true
+    },
+    {
+      "source": "/about.html",
+      "destination": "/about",
+      "permanent": true
+    },
+    {
+      "source": "/guides-quote-a-re-roof.html",
+      "destination": "/guides/how-to-quote-a-re-roof",
+      "permanent": true
+    },
+    {
+      "source": "/guides.html",
+      "destination": "/guides",
+      "permanent": true
+    },
+    {
+      "source": "/guides-roof-flashings-explained.html",
+      "destination": "/guides/roof-flashings-explained",
+      "permanent": true
+    },
+    {
+      "source": "/guides-calculating-sheet-lengths.html",
+      "destination": "/guides/calculating-sheet-lengths",
+      "permanent": true
+    },
+    {
+      "source": "/guides-roof-pitch-explained.html",
+      "destination": "/guides/roof-pitch-explained",
+      "permanent": true
+    },
+    {
+      "source": "/guides-colorsteel-grades-compared.html",
+      "destination": "/guides/colorsteel-grades-compared",
+      "permanent": true
+    },
+    {
+      "source": "/tools-roof-pitch-calculator.html",
+      "destination": "/tools/roof-pitch-calculator",
+      "permanent": true
+    },
+    {
+      "source": "/tools-roofing-sheet-calculator.html",
+      "destination": "/tools/roofing-sheet-calculator",
+      "permanent": true
+    },
+    {
+      "source": "/terms.html",
+      "destination": "/terms",
+      "permanent": true
+    },
+    {
+      "source": "/privacy.html",
+      "destination": "/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/signup.html",
+      "destination": "/signup",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/landing.html" },
-    { "source": "/pricing", "destination": "/pricing.html" },
-    { "source": "/early-access", "destination": "/early-access.html" },
-    { "source": "/features/roof-measuring", "destination": "/features-measuring.html" },
-    { "source": "/features/job-pack", "destination": "/features-job-pack.html" },
-    { "source": "/features/quotes", "destination": "/features-quotes.html" },
-    { "source": "/roofmap-and-fergus", "destination": "/fergus.html" },
-    { "source": "/about", "destination": "/about.html" },
-    { "source": "/guides/how-to-quote-a-re-roof", "destination": "/guides-quote-a-re-roof.html" },
-    { "source": "/signup", "destination": "/signup.html" },
-    { "source": "/terms", "destination": "/terms.html" },
-    { "source": "/privacy", "destination": "/privacy.html" }
+    {
+      "source": "/",
+      "destination": "/landing.html"
+    },
+    {
+      "source": "/pricing",
+      "destination": "/pricing.html"
+    },
+    {
+      "source": "/early-access",
+      "destination": "/early-access.html"
+    },
+    {
+      "source": "/features/roof-measuring",
+      "destination": "/features-measuring.html"
+    },
+    {
+      "source": "/features/job-pack",
+      "destination": "/features-job-pack.html"
+    },
+    {
+      "source": "/features/quotes",
+      "destination": "/features-quotes.html"
+    },
+    {
+      "source": "/roofmap-and-fergus",
+      "destination": "/fergus.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about.html"
+    },
+    {
+      "source": "/guides/how-to-quote-a-re-roof",
+      "destination": "/guides-quote-a-re-roof.html"
+    },
+    {
+      "source": "/guides",
+      "destination": "/guides.html"
+    },
+    {
+      "source": "/guides/roof-flashings-explained",
+      "destination": "/guides-roof-flashings-explained.html"
+    },
+    {
+      "source": "/guides/calculating-sheet-lengths",
+      "destination": "/guides-calculating-sheet-lengths.html"
+    },
+    {
+      "source": "/guides/roof-pitch-explained",
+      "destination": "/guides-roof-pitch-explained.html"
+    },
+    {
+      "source": "/guides/colorsteel-grades-compared",
+      "destination": "/guides-colorsteel-grades-compared.html"
+    },
+    {
+      "source": "/tools/roof-pitch-calculator",
+      "destination": "/tools-roof-pitch-calculator.html"
+    },
+    {
+      "source": "/tools/roofing-sheet-calculator",
+      "destination": "/tools-roofing-sheet-calculator.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/signup.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    }
   ]
 }

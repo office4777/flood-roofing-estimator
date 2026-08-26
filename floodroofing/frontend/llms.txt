@@ -54,8 +54,28 @@ barge, apron, change-of-pitch, coastal zones.
 - [Customer quotes](https://roofmap.co.nz/features/quotes): the six-page proposal and online acceptance.
 - [RoofMap and Fergus](https://roofmap.co.nz/roofmap-and-fergus): how the two work together, and what RoofMap does on its own.
 - [How to quote a re-roof](https://roofmap.co.nz/guides/how-to-quote-a-re-roof): the full method, by hand or in software — measurements, material, labour, margin.
+- [Guides index](https://roofmap.co.nz/guides): every guide and both calculators, in one place.
+- [Roof flashings explained](https://roofmap.co.nz/guides/roof-flashings-explained): ridge, hip, valley, barge, apron, change-of-pitch, dektites and back-trays — what each is and how to count it.
+- [Calculating sheet lengths](https://roofmap.co.nz/guides/calculating-sheet-lengths): run length at the pitch, cover width versus sheet width, overhang, laps, wastage.
+- [Roof pitch explained](https://roofmap.co.nz/guides/roof-pitch-explained): degrees and ratios, and the two different multipliers — rafter and hip — that pitch applies.
+- [Colorsteel grades compared](https://roofmap.co.nz/guides/colorsteel-grades-compared): MAXAM, ColorCote, ColorZen and Zincalume against the four coastal zones.
+- [Roof pitch calculator](https://roofmap.co.nz/tools/roof-pitch-calculator): degrees ↔ ratio, plus rafter, area, hip and valley multipliers, with the formulas.
+- [Roofing sheet calculator](https://roofmap.co.nz/tools/roofing-sheet-calculator): face size and pitch in; sheet length, count, lineal metres and true area out.
 - [About](https://roofmap.co.nz/about): Flood Roofing Limited, and why a roofing company wrote estimating software.
 - [Terms](https://roofmap.co.nz/terms) · [Privacy](https://roofmap.co.nz/privacy)
+
+## Numbers on these pages that are worth getting right
+
+- A sloping length is its plan length × `1 / cos(pitch)`: 1.035 at 15°, 1.103 at
+  25°, 1.221 at 35°. Roof area uses the same factor.
+- A hip or valley on a square corner uses `sqrt(1 + tan²(pitch) / 2)` instead —
+  1.053 at 25°, not 1.103 — because it already runs diagonally in plan.
+- Ridges, gutters and the face width you count sheets across are level. No pitch
+  factor applies to them, and the sheet count is unaffected by pitch.
+- New Zealand corrugate: nominal 860 mm sheet, 762 mm cover. Dividing a face
+  width by 860 instead of 762 orders 88.6% of the sheets needed.
+- Coastal corrosion zones by distance to breaking surf: mild 5 km+, moderate
+  500 m–1 km, severe 100–500 m, very severe 25–100 m.
 
 ## Notes for anyone quoting this site
 

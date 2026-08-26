@@ -1,7 +1,7 @@
 // Whether the site can be found, and whether it can be quoted.
 //
-// The failure mode this suite exists for is silent rot. Nine pages each carry
-// the same twenty-odd head tags, hand-written. One page gets added without a
+// The failure mode this suite exists for is silent rot. Every page carries
+// the same twenty-odd head tags. One page gets added without a
 // canonical, or a title gets edited past the length Google will render, or a
 // new page never makes it into the sitemap — and nothing breaks. The site just
 // quietly stops being fully indexed, and nobody finds out for a quarter.
@@ -35,7 +35,14 @@ const PAGES = {
   '/features/job-pack':             'features-job-pack.html',
   '/features/quotes':               'features-quotes.html',
   '/roofmap-and-fergus':            'fergus.html',
+  '/guides':                        'guides.html',
   '/guides/how-to-quote-a-re-roof': 'guides-quote-a-re-roof.html',
+  '/guides/roof-flashings-explained':   'guides-roof-flashings-explained.html',
+  '/guides/calculating-sheet-lengths':  'guides-calculating-sheet-lengths.html',
+  '/guides/roof-pitch-explained':       'guides-roof-pitch-explained.html',
+  '/guides/colorsteel-grades-compared': 'guides-colorsteel-grades-compared.html',
+  '/tools/roof-pitch-calculator':       'tools-roof-pitch-calculator.html',
+  '/tools/roofing-sheet-calculator':    'tools-roofing-sheet-calculator.html',
   '/about':                         'about.html',
   '/terms':                         'terms.html',
   '/privacy':                       'privacy.html',
@@ -282,6 +289,103 @@ check('the guide answers the question in its first block',
   /class="answer"/.test(guide.html) && /six steps/i.test(guide.html));
 check('…and carries the specific numbers that get quoted',
   /1\.103/.test(guide.html) && /762/.test(guide.html) && /Colorsteel MAXAM/.test(guide.html));
+
+// Everything under /guides and /tools is a written page, and the whole reason
+// it exists is to be readable and quotable. These are the checks that a page
+// is not a stub with good metadata.
+const LIBRARY = Object.keys(PAGES).filter(u => /^\/(guides|tools)\//.test(u));
+const noAnswer = LIBRARY.filter(u => !/class="answer"/.test(seen[u].html));
+check('every guide and tool leads with an answer block', noAnswer.length === 0, noAnswer.join(' '));
+const thin = LIBRARY.filter(u => (seen[u].html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length) < 4000);
+check('…and none of them is a stub', thin.length === 0, thin.join(' '));
+const noByline = LIBRARY.filter(u => !/class="byline"/.test(seen[u].html) || !/Last reviewed/.test(seen[u].html));
+check('…and each says who wrote it and when it was last reviewed',
+  noByline.length === 0, noByline.join(' '));
+// A visible review date that disagrees with dateModified is worse than none:
+// the page tells a person one thing and a crawler another.
+const dateMismatch = LIBRARY.filter(u => {
+  const m = /Last reviewed ([0-9]{1,2}) ([A-Za-z]+) ([0-9]{4})/.exec(seen[u].html);
+  if (!m) return true;
+  const months = ['January','February','March','April','May','June','July',
+                  'August','September','October','November','December'];
+  const mm = String(months.indexOf(m[2]) + 1).padStart(2, '0');
+  const iso = m[3] + '-' + mm + '-' + String(m[1]).padStart(2, '0');
+  return !new RegExp('"dateModified":\\s*"' + iso + '"').test(seen[u].ld.join(''));
+});
+check('…and the visible date matches the one in the markup',
+  dateMismatch.length === 0, dateMismatch.join(' '));
+const noArticle = LIBRARY.filter(u => !JSON.stringify(ldTypes[u]).includes('Article'));
+check('…and every one of them is marked up as an Article', noArticle.length === 0, noArticle.join(' '));
+
+// The guides index has to actually list the guides, in markup as well as in
+// prose, or it is a page that exists only for a nav link.
+check('the guides index is a CollectionPage with an ItemList',
+  ldTypes['/guides'].includes('CollectionPage') &&
+  /"@type":\s*"ItemList"/.test(seen['/guides'].ld.join('')), ldTypes['/guides'].join(','));
+const indexLinks = seen['/guides'].internal.map(h => h.split(/[?#]/)[0]);
+const unlisted = LIBRARY.filter(u => !indexLinks.includes(u));
+check('…and links every guide and tool on the site', unlisted.length === 0, unlisted.join(' '));
+
+// The numbers these pages will be quoted for. Getting one wrong is worse than
+// not having written the page, because it will be repeated.
+const pitch = seen['/guides/roof-pitch-explained'].html;
+check('the pitch guide carries both multipliers, and they differ',
+  /1\.103/.test(pitch) && /1\.053/.test(pitch) && /1 \/ cos/.test(pitch));
+const sheets = seen['/guides/calculating-sheet-lengths'].html;
+check('the sheet guide carries the cover width, not the sheet width',
+  /762/.test(sheets) && /860/.test(sheets));
+const grades = seen['/guides/colorsteel-grades-compared'].html;
+check('the grades guide carries all four coastal zones',
+  /5 km/.test(grades) && /500 m/.test(grades) && /100/.test(grades) && /25/.test(grades) &&
+  /MAXAM/.test(grades) && /Zincalume/.test(grades));
+
+// A tool page whose explanation only appears after a script runs is a tool
+// page no crawler and no answer engine can read. The interactive part is a
+// convenience; the page has to answer the question without it.
+for (const [url, file] of Object.entries(PAGES)){
+  if (!/^\/tools\//.test(url)) continue;
+  const nojs = await b.newContext({ viewport: { width: 1400, height: 900 }, javaScriptEnabled: false });
+  const pg = await nojs.newPage();
+  await pg.goto(ORIGIN + url, { waitUntil: 'load' });
+  const v = await pg.evaluate(() => ({
+    words: document.body.innerText.replace(/\s+/g, ' ').trim().split(' ').length,
+    tables: document.querySelectorAll('table.data').length,
+    // Every output cell must already hold the answer for the default inputs.
+    blanks: Array.from(document.querySelectorAll('.calc-row b'))
+              .filter(el => !el.textContent.trim()).length,
+    filled: Array.from(document.querySelectorAll('.calc-row b')).map(el => el.textContent.trim()),
+  }));
+  await nojs.close();
+  check(url + ' explains itself with scripting off',
+    v.words > 700 && v.tables >= 2, v.words + ' words, ' + v.tables + ' tables');
+  check('…and shows its worked answer rather than empty boxes',
+    v.blanks === 0 && v.filled.length >= 5, v.filled.join(' | '));
+}
+
+// …and with scripting ON, the values it computes must be the ones already in
+// the markup. A default that recomputes to something different means the
+// static page and the live page disagree, and one of them is wrong.
+for (const [url, file] of Object.entries(PAGES)){
+  if (!/^\/tools\//.test(url)) continue;
+  const pg = await ctx.newPage();
+  await pg.goto(ORIGIN + url, { waitUntil: 'load' });
+  const before = await pg.evaluate(() =>
+    Array.from(document.querySelectorAll('.calc-row b')).map(el => el.textContent.trim()));
+  // Nudge the first input and put it back: that forces a full recompute.
+  const after = await pg.evaluate(() => {
+    const inp = document.querySelector('.calc input');
+    const was = inp.value;
+    inp.value = String(parseFloat(was) + 1);
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.value = was;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    return Array.from(document.querySelectorAll('.calc-row b')).map(el => el.textContent.trim());
+  });
+  await pg.close();
+  check('…and recomputes to exactly what the HTML already said',
+    JSON.stringify(before) === JSON.stringify(after),
+    JSON.stringify(before) + ' vs ' + JSON.stringify(after));
+}
 
 await ctx.close();
 await b.close();

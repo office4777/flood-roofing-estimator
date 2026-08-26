@@ -281,6 +281,10 @@ header.solid .nav-links a.nav-cta:hover{ background:var(--accent-deep); border-c
   background:var(--paper-2); border:1px solid var(--line); border-radius:5px; padding:1px 5px; color:var(--ink);
 }
 .prose .lede{ font-size:19px; color:var(--ink-2) }
+/* An index page is a set of cards, not a column of prose. The measure still
+   applies to the sentences; it should not apply to the grid. */
+.prose-wide{ max-width:none }
+.prose-wide > p,.prose-wide > h2,.prose-wide > h3,.prose-wide > ul,.prose-wide > ol{ max-width:74ch }
 
 /* ── tables ──────────────────────────────────────────────────────────
    Answer engines extract a table cleanly and paraphrase prose badly, so
@@ -350,4 +354,45 @@ table.data td strong{ color:var(--ink) }
 .sr-only-head{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
+/* ── calculators ─────────────────────────────────────────────────────
+   The interactive half of a tool page. Everything it computes is also
+   written out longhand in the prose beside it, so the page still answers
+   the question with scripting off — which is the only state a crawler or
+   an answer engine ever sees it in. */
+.calc{
+  background:var(--paper-2); border:1px solid var(--line); border-radius:16px;
+  padding:26px 26px 22px; margin:6px 0 8px;
+}
+.calc-in{ display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:end }
+.calc-in.wide{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px 18px; align-items:end }
+.calc-or{ font-size:14px; color:var(--muted); padding-bottom:13px; text-align:center }
+.calc .field{ margin-bottom:0 }
+.calc .field input{ background:#fff }
+.calc-out{
+  margin-top:22px; background:#fff; border:1px solid var(--line); border-radius:12px;
+  overflow:hidden;
+}
+.calc-row{
+  display:flex; gap:16px; align-items:baseline; justify-content:space-between;
+  padding:11px 16px; border-bottom:1px solid var(--line); font-size:15.5px;
+}
+.calc-row:last-child{ border-bottom:none }
+.calc-row span{ color:var(--body) }
+.calc-row b{ color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap }
+.calc-row.hi{ background:var(--paper-2) }
+.calc-row.hi b{ font-size:18px; color:var(--accent-deep) }
+.calc-f{
+  display:inline-block; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px; color:var(--muted); background:var(--paper-2);
+  border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap;
+}
+.calc-row.hi .calc-f{ background:#fff }
+.calc-note{ font-size:14px; color:var(--muted); line-height:1.55; margin-top:14px }
+@media (max-width:560px){
+  .calc{ padding:20px 18px 18px }
+  .calc-in{ grid-template-columns:1fr }
+  .calc-or{ padding:0; text-align:left }
+  .calc-row{ flex-direction:column; gap:2px }
 }

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roof pitch calculator — degrees and ratios</title>
+<meta name="description" content="Convert roof pitch between degrees and rise-over-run, and get the multipliers for rafter, sheet run, area, hip and valley lengths. Formulas shown.">
+<link rel="canonical" href="https://roofmap.co.nz/tools/roof-pitch-calculator">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+<meta name="theme-color" content="#0a1628">
+<link rel="icon" href="/brand/roofmap_icon.png">
+<link rel="apple-touch-icon" href="/brand/pwa-192.png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="RoofMap">
+<meta property="og:locale" content="en_NZ">
+<meta property="og:url" content="https://roofmap.co.nz/tools/roof-pitch-calculator">
+<meta property="og:title" content="Roof pitch calculator — degrees and ratios">
+<meta property="og:description" content="Convert roof pitch between degrees and rise-over-run, and get the multipliers for rafter, sheet run, area, hip and valley lengths. Formulas shown.">
+<meta property="og:image" content="https://roofmap.co.nz/brand/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RoofMap — quote a re-roof before you leave the driveway">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Roof pitch calculator — degrees and ratios">
+<meta name="twitter:description" content="Convert roof pitch between degrees and rise-over-run, and get the multipliers for rafter, sheet run, area, hip and valley lengths. Formulas shown.">
+<meta name="twitter:image" content="https://roofmap.co.nz/brand/og-card.png">
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": [
+        "Article",
+        "WebApplication"
+      ],
+      "@id": "https://roofmap.co.nz/tools/roof-pitch-calculator#article",
+      "headline": "Roof pitch calculator",
+      "description": "Convert roof pitch between degrees and rise-over-run, and get the multipliers for rafter, sheet run, area, hip and valley lengths. Formulas shown.",
+      "inLanguage": "en-NZ",
+      "datePublished": "2026-08-26",
+      "dateModified": "2026-08-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Flood Roofing Limited",
+        "url": "https://floodroofing.co.nz"
+      },
+      "publisher": {
+        "@id": "https://roofmap.co.nz/#organization"
+      },
+      "image": "https://roofmap.co.nz/brand/og-card.png",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://roofmap.co.nz/tools/roof-pitch-calculator"
+      },
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "Roof pitch"
+        },
+        {
+          "@type": "Thing",
+          "name": "Roof estimating"
+        }
+      ],
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Runs in any modern browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "NZD"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "RoofMap",
+          "item": "https://roofmap.co.nz/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://roofmap.co.nz/guides"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Roof pitch calculator",
+          "item": "https://roofmap.co.nz/tools/roof-pitch-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I convert roof pitch from degrees to a ratio?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The rise per unit of run is tan(pitch), so the ratio is 1 : 1/tan(pitch). At 25°, tan is 0.466, so the ratio is 1 : 2.14 — the roof rises 466 mm for every metre it runs.\n\nGoing the other way, pitch = atan(rise ÷ run)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What multiplier do I use for a hip or a valley?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "√(1 + tan²θ ⁄ 2) applied to the hip’s plan length, for two equally-pitched planes meeting at a square corner. At 25° that is 1.053.\n\nNot the rafter factor. The hip is already diagonal in plan, so the rafter factor over-states it — by about five per cent at 25°."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does the pitch factor apply to roof area?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, the rafter factor does. The roof is stretched in one direction only, so area scales by the same 1 / cos θ.\n\nA 120 m² footprint at 30° is 138.6 m² of roof — 18.6 m² of steel and underlay that a footprint estimate does not buy."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is this calculator accurate enough to order from?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The arithmetic is exact. What decides whether the order is right is the pitch and the plan lengths you put in, and both come off the roof.\n\nTake the pitch in more than one place, measure critical lengths on site before anything is cut, and treat any single number as something to sanity-check rather than trust."
+          }
+        }
+      ],
+      "@id": "https://roofmap.co.nz/tools/roof-pitch-calculator#faq"
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<header class="solid">
+  <div class="wrap nav">
+    <a class="brand" href="/"><img src="/brand/roofmap_icon.png" alt=""><span>RoofMap</span></a>
+    <nav class="nav-links">
+      <a href="/features/roof-measuring">What it does</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/guides">Guides</a>
+      <a href="/index.html">Sign in</a>
+      <a href="/early-access" class="nav-cta">Early access</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="/">RoofMap</a><span>›</span><a href="/guides">Guides</a><span>›</span>Roof pitch calculator</div>
+    <div class="eyebrow">Calculator</div>
+    <h1>Roof pitch calculator</h1>
+    <p class="stand">Enter a pitch in degrees or a rise over a run. It gives you the other one, plus the
+    multipliers for every sloping length on the roof — with the formulas, so you can check it.</p>
+    <p class="answer"><strong>A sloping length equals its plan length times <code>1 / cos(pitch)</code>.</strong>
+    A hip or valley on a square corner uses a different, smaller factor —
+    <code>√(1 + tan²(pitch) ⁄ 2)</code> — because it is already running diagonally across the
+    plan. Roof area uses the rafter factor. Ridges and gutters are level and use neither.</p>
+  </div>
+</section>
+
+<section style="padding-top:8px">
+  <div class="wrap">
+    <div class="prose">
+      <div class="calc" id="calc">
+        <div class="calc-in">
+          <div class="field">
+            <label for="cpDeg">Pitch, in degrees</label>
+            <input type="number" id="cpDeg" value="25" min="0" max="85" step="0.5" inputmode="decimal">
+          </div>
+          <div class="calc-or">or</div>
+          <div class="field">
+            <label for="cpRise">Rise, per 1.000 m of run</label>
+            <input type="number" id="cpRise" value="0.466" min="0" step="0.001" inputmode="decimal">
+          </div>
+        </div>
+        <div class="calc-out">
+          <div class="calc-row"><span>Pitch</span><b id="cpOutDeg">25.0°</b></div>
+          <div class="calc-row"><span>Rise per 1 m of run</span><b id="cpOutRise">0.466 m</b></div>
+          <div class="calc-row"><span>As a ratio</span><b id="cpOutRatio">1 : 2.14</b></div>
+          <div class="calc-row hi"><span>Rafter, sheet run, barge, area <span class="calc-f">1 / cos θ</span></span><b id="cpOutRaf">1.103</b></div>
+          <div class="calc-row hi"><span>Hip or valley, square corner <span class="calc-f">√(1 + tan²θ ⁄ 2)</span></span><b id="cpOutHip">1.053</b></div>
+          <div class="calc-row"><span>A 4.000 m plan rafter becomes</span><b id="cpOutEg">4.414 m</b></div>
+        </div>
+        <p class="calc-note">Ridge and gutter lengths are level — no factor applies to them.</p>
+      </div>
+
+      <h2>The worked example, by hand</h2>
+      <p>Those default numbers are a 25° roof, and here is the whole calculation without the
+        calculator:</p>
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>What</th><th>Formula</th><th>At 25°</th></tr></thead>
+        <tbody>
+          <tr><td>Rise per metre of run</td><td><code>tan θ</code></td><td>0.466 m</td></tr>
+          <tr><td>As a ratio</td><td><code>1 : 1 / tan θ</code></td><td>1 : 2.14</td></tr>
+          <tr><td>Rafter / sheet run / barge / area factor</td><td><code>1 / cos θ</code></td><td>1.103</td></tr>
+          <tr><td>Hip or valley factor, square corner</td><td><code>√(1 + tan²θ ⁄ 2)</code></td><td>1.053</td></tr>
+          <tr><td>A 4.000 m plan rafter</td><td><code>4.000 × 1.103</code></td><td>4.414 m</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>Which factor goes where</h2>
+      <p>Getting this wrong is the most common estimating error there is, so it is worth being
+        explicit about every line on a roof:</p>
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Measurement</th><th>Factor</th></tr></thead>
+        <tbody>
+          <tr><td>Sheet run, ridge to gutter</td><td><code>1 / cos θ</code></td></tr>
+          <tr><td>Rafter length</td><td><code>1 / cos θ</code></td></tr>
+          <tr><td>Barge, along a gable rake</td><td><code>1 / cos θ</code></td></tr>
+          <tr><td>Roof area from footprint area</td><td><code>1 / cos θ</code></td></tr>
+          <tr><td>Hip, from its plan length</td><td><code>√(1 + tan²θ ⁄ 2)</code></td></tr>
+          <tr><td>Valley, from its plan length</td><td><code>√(1 + tan²θ ⁄ 2)</code></td></tr>
+          <tr><td>Ridge</td><td>none — level</td></tr>
+          <tr><td>Gutter, fascia, eave</td><td>none — level</td></tr>
+          <tr><td>Face width, for counting sheets</td><td>none — level</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The hip and valley formula assumes the two planes meet at a square corner and share a
+        pitch. An odd-angled corner, or two roofs at different pitches meeting in a valley, needs
+        the geometry worked properly — the table is not a substitute for that.</p>
+
+      <h2>Why the hip factor is smaller</h2>
+      <p>A hip runs diagonally in plan as well as sloping. On a square corner its plan length is
+        already √2 times the run, so it has picked up most of its extra distance horizontally
+        before pitch is applied. At 25° a rafter gains 10.3 per cent and a hip gains 5.3 per cent.</p>
+      <p>Multiply a hip by the rafter factor and you over-order the longest, most expensive
+        flashing on the roof by about five per cent. The full explanation is in
+        <a href="/guides/roof-pitch-explained">roof pitch explained</a>.</p>
+
+      <h2>Measuring the pitch to put in</h2>
+      <p>A pitch gauge or a phone level on a rafter or a sheet, taken in more than one place —
+        old roofs sag, and a lean-to is usually not the same pitch as the roof it hangs off. Or
+        rise over run with a level and a tape: hold the level horizontal against the slope, measure
+        1 m along it, drop to the roof, and that vertical is the rise.</p>
+      <p>An aerial photo cannot give you pitch. It gives you the plan shape, which is everything
+        else.</p>
+
+      <div class="byline">
+        <img src="/brand/roofmap_icon.png" alt="" style="border-radius:9px;object-fit:contain;background:#f4f7fa;padding:5px">
+        <div>
+          <b>Flood Roofing Limited</b>
+          Roofing contractors, Northland · Last reviewed 26 August 2026
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <div class="sec-head" style="max-width:640px">
+      <div class="eyebrow">Questions</div>
+      <h2>Using this calculator.</h2>
+    </div>
+    <div class="faq" style="max-width:78ch">
+      <details open>
+        <summary>How do I convert roof pitch from degrees to a ratio?</summary>
+        <div class="a"><p>The rise per unit of run is tan(pitch), so the ratio is 1 : 1/tan(pitch). At 25°, tan is 0.466, so the ratio is 1 : 2.14 — the roof rises 466 mm for every metre it runs.</p><p>Going the other way, pitch = atan(rise ÷ run).</p></div>
+      </details>
+      <details>
+        <summary>What multiplier do I use for a hip or a valley?</summary>
+        <div class="a"><p>√(1 + tan²θ ⁄ 2) applied to the hip’s plan length, for two equally-pitched planes meeting at a square corner. At 25° that is 1.053.</p><p>Not the rafter factor. The hip is already diagonal in plan, so the rafter factor over-states it — by about five per cent at 25°.</p></div>
+      </details>
+      <details>
+        <summary>Does the pitch factor apply to roof area?</summary>
+        <div class="a"><p>Yes, the rafter factor does. The roof is stretched in one direction only, so area scales by the same 1 / cos θ.</p><p>A 120 m² footprint at 30° is 138.6 m² of roof — 18.6 m² of steel and underlay that a footprint estimate does not buy.</p></div>
+      </details>
+      <details>
+        <summary>Is this calculator accurate enough to order from?</summary>
+        <div class="a"><p>The arithmetic is exact. What decides whether the order is right is the pitch and the plan lengths you put in, and both come off the roof.</p><p>Take the pitch in more than one place, measure critical lengths on site before anything is cut, and treat any single number as something to sanity-check rather than trust.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head" style="max-width:640px"><h2>Next</h2></div>
+    <div class="next-grid">
+      <a class="next-card" href="/tools/roofing-sheet-calculator"><b>Roofing sheet calculator</b><span>Face size and pitch in, sheet length and count out.</span></a>
+      <a class="next-card" href="/guides/roof-pitch-explained"><b>Roof pitch explained</b><span>The long version — every length pitch changes, and the ones it does not.</span></a>
+      <a class="next-card" href="/features/roof-measuring"><b>Skip the arithmetic</b><span>Trace the roof over an aerial, enter the pitch once, and every length follows.</span></a>
+    </div>
+    <div class="cta-strip">
+      <h2>We are letting roofers in a batch at a time.</h2>
+      <p>Tell us about your setup and we will get you in, set up properly, with <strong>30% off your
+        first 12 months</strong> and the standard rate after that.</p>
+      <a class="btn btn-primary" href="/early-access">Request early access</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <a href="/">RoofMap</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/guides">Guides</a>
+    <a href="/about">About</a>
+    <a href="/terms">Terms</a>
+    <a href="/privacy">Privacy</a>
+    <span class="sp">Built by Flood Roofing, Northland</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var deg = document.getElementById('cpDeg'), rise = document.getElementById('cpRise');
+  if (!deg || !rise) return;
+  var out = function(id){ return document.getElementById(id); };
+  var f = function(x, n){ return x.toFixed(n); };
+  function paint(d){
+    var r = d * Math.PI / 180, t = Math.tan(r);
+    out('cpOutDeg').textContent   = f(d, 1) + '\u00b0';
+    out('cpOutRise').textContent  = f(t, 3) + ' m';
+    out('cpOutRatio').textContent = t > 0 ? '1 : ' + f(1 / t, 2) : 'flat';
+    out('cpOutRaf').textContent   = f(1 / Math.cos(r), 3);
+    out('cpOutHip').textContent   = f(Math.sqrt(1 + t * t / 2), 3);
+    out('cpOutEg').textContent    = f(4 / Math.cos(r), 3) + ' m';
+  }
+  function fromDeg(){
+    var d = parseFloat(deg.value);
+    if (!isFinite(d) || d < 0 || d >= 85) return;
+    rise.value = Math.tan(d * Math.PI / 180).toFixed(3);
+    paint(d);
+  }
+  function fromRise(){
+    var v = parseFloat(rise.value);
+    if (!isFinite(v) || v < 0) return;
+    var d = Math.atan(v) * 180 / Math.PI;
+    deg.value = Math.round(d * 10) / 10;
+    paint(d);
+  }
+  deg.addEventListener('input', fromDeg);
+  rise.addEventListener('input', fromRise);
+})();
+</script>
+
+</body>
+</html>
