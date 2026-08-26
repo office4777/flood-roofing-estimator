@@ -196,6 +196,27 @@ check('…adding up to the two roofs together',
   Math.abs(lab.group.roof - (lab.alone.roof + lab.r1.roof)) < 0.2,
   lab.group.roof + ' vs ' + r2(lab.alone.roof + lab.r1.roof));
 
+// ── the breakdown card shows one card per PRICE ────────────────────
+// It used to list every roof drawn, so a folded roof got its own card with its
+// own scaffolding line — money the quote does not charge. Same grouping as
+// the tabs, or the card and the quote say different things.
+const brk = await pg.evaluate(() => {
+  _setPricingRoof(0);
+  renderPerRoofBreakdown();
+  const box = document.getElementById('perRoofBreakdownCard');
+  const t = box ? box.textContent : '';
+  return {
+    cards: box ? box.querySelectorAll('[role="button"]').length : -1,
+    tabs: _pricingRoofTabIdxs().length,
+    // The main card has to say what it covers, not silently swallow it.
+    namesFolded: /Roof ?2/.test(t),
+  };
+});
+check('the breakdown lists one card per price, not one per roof drawn',
+  brk.cards === brk.tabs, brk.cards + ' cards for ' + brk.tabs + ' tabs');
+check('…and the main card still names the roof folded into it',
+  brk.namesFolded, JSON.stringify(brk));
+
 // ── the map lights up the whole group ──────────────────────────────
 await pg.evaluate(() => { _setPricingRoof(0); });
 await pg.waitForTimeout(800);

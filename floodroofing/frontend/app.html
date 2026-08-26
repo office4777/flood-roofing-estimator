@@ -1194,7 +1194,11 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
    reachable. Pulled out to the card edges + given a solid background and a
    soft shadow so scrolled content passes cleanly underneath it. */
 #tab-quote .js-proposal-print > .card-hd{
-  position:sticky; top:0; z-index:40;
+  /* --qbar-h is the action bar's measured height, kept current by a
+     ResizeObserver: the button row wraps to two and three lines as the window
+     narrows, so a hard-coded offset is right at exactly one window width. The
+     fallback only applies for the frame before the observer first fires. */
+  position:sticky; top:calc(var(--qbar-top, 0px) + var(--qbar-h, 64px)); z-index:40;
   margin:-14px -16px 10px; padding:12px 16px;
   background:var(--surface);
   border-bottom:1px solid var(--border);
@@ -2817,14 +2821,25 @@ html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!i
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
 /* Main scope picker sits directly under the action bar, above the proposal. */
 #tab-quote > .q-scopebar{order:1;margin-top:10px}
+/* Where the pinned Quote bars start. Zero on the desktop; in site mode the
+   fixed #phoneTopBar owns the top of the screen, so they start under it —
+   the same offset #jpToolbar already uses on the Job Pack tab. */
+:root{ --qbar-top:0px; }
+html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
 #tab-quote > .q-actionbar{
   order:1;
   position:sticky;
-  top:0;               /* stick to the top (global job bar removed) */
-  z-index:35;
+  top:var(--qbar-top, 0px);
+  /* Above the Proposal card header, which is also pinned. Both used to sit at
+     top:0, and the header — solid background, higher z-index — was painted
+     straight over the buttons: "the header buttons 'email quote' ect
+     disappear when scrolling down the page". They were never scrolled away,
+     they were underneath. The header now starts where this bar ends. */
+  z-index:50;
   background:#fff;
   box-shadow:0 4px 14px rgba(10,22,40,.06);
 }
+@media print{ #tab-quote > .q-actionbar{ position:static; box-shadow:none; } }
 #tab-quote > .js-proposal-print{order:2}
 .q-extras-head{margin:22px 2px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .q-extras-head span{font-size:11px;font-weight:400;color:var(--text3)}
@@ -4490,7 +4505,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- 1. SCAFFOLDING — its own tile, first. Rendered per-roof by calcLabour
        into #scaffoldWrap (split out of the labour table). -->
   <div class="card" id="scaffoldCard">
-    <div class="card-hd"><span class="tile-ic">🪜</span>Scaffolding<span class="tile-sub-note">Included in every quote · priced per roof</span></div>
+    <div class="card-hd"><span class="tile-ic">🪜</span>Scaffolding<span class="tile-sub-note">Included in every quote · one price for the main roof and everything part of it</span></div>
     <div id="scaffoldWrap"></div>
   </div>
 
@@ -9497,9 +9512,15 @@ function renderPerRoofBreakdown(){
   var money = function(v){ return '$' + (v || 0).toFixed(2); };
   // Read-only summary — each roof's numbers are edited in the Labour / Scaffold
   // / Material sections via the roof buttons; this card just totals them.
-  var cards = DRAW.roofs.map(function(r, i){
+  // One card per PRICE, not per roof drawn — the same grouping as the tabs
+  // above. A roof folded into the main one has no price of its own; listing
+  // it separately showed materials, labour and scaffolding the quote does not
+  // charge for, which is half of "the pricing tab doesnt match the quote".
+  var cards = _pricingRoofTabIdxs().map(function(i){
+    var r = DRAW.roofs[i] || {};
     var nm = r.name || ('Roof ' + (i + 1));
     var isBase = (i === 0);
+    var groupExtras = _pricingRoofGroupExtras(i);
     var mat = _materialsCostForRoofIdx(i) * gf;
     var lab = _labourPriceForRoof(i);
     var scaff = _scaffoldPriceForRoof(i);
@@ -9517,6 +9538,7 @@ function renderPerRoofBreakdown(){
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
         '<span style="font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isBase?'#0099cc':'#e08a2e')+';color:#fff">'+(isBase?'Base quote':'Optional extra')+'</span>'+
         '<strong style="font-size:13px">'+esc(nm)+'</strong>'+
+        (groupExtras.length ? '<span style="font-size:10px;color:var(--text2)">+ '+esc(groupExtras.join(', '))+'</span>' : '')+
         (onCur?'<span style="margin-left:auto;font-size:9px;font-weight:700;color:#0099cc">● EDITING</span>':'<span style="margin-left:auto;font-size:10px;color:var(--text2)">tap to edit</span>')+
       '</div>'+
       line('Materials <span style="font-size:10px">('+esc(gLbl)+')</span>', mat)+
@@ -9531,7 +9553,7 @@ function renderPerRoofBreakdown(){
     '</div>';
   }).join('');
   box.innerHTML = '<div class="card-hd"><span class="tile-ic">📊</span>Per-roof price breakdown'+
-    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour + scaffold</span></div>'+
+    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote, plus anything marked part of it · each separately-priced roof has its own materials + labour + scaffold</span></div>'+
     '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page. Guttering is priced per roof but sits outside the subtotal — the customer opts into it separately.</p>'+
     cards;
 }
@@ -50088,6 +50110,27 @@ renderInfoPanel();
 renderRoofSwitcher();
 
 // Size canvas: CSS sets width:100%+aspect-ratio, we just sync the resolution
+// The Quote tab pins two bars, one under the other: the action bar (Save,
+// Email Quote, Customer link) and the Proposal card's own header. The second
+// has to start where the first ends, and the first changes height whenever its
+// buttons wrap, so the offset is measured rather than guessed.
+(function _trackQuoteBarHeight(){
+  var bar = document.querySelector('#tab-quote > .q-actionbar');
+  if (!bar) return;
+  var apply = function(){
+    var h = Math.round(bar.getBoundingClientRect().height);
+    // 0 while the tab is display:none — keeping the last good value means
+    // switching back to the Quote tab does not flash a header at top:0.
+    if (h > 0) document.documentElement.style.setProperty('--qbar-h', h + 'px');
+  };
+  apply();
+  if (window.ResizeObserver) new ResizeObserver(apply).observe(bar);
+  else window.addEventListener('resize', apply);
+  // The bar is hidden until the Quote tab is opened, so its first real
+  // measurement only exists once it has been shown.
+  document.addEventListener('click', function(){ setTimeout(apply, 0); }, true);
+})();
+
 // Use ResizeObserver on the canvas itself - most reliable
 var _cv = document.getElementById('roofCanvas');
 if(window.ResizeObserver && _cv) {
