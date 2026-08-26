@@ -30,7 +30,7 @@ await pg.addInitScript(() => {
   // Two pipes, two different sizes — the case one dektite price cannot serve.
   localStorage.setItem('fr_dektites_v2', JSON.stringify([{qty:2,sizeMm:100},{qty:1,sizeMm:250}]));
 });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2500);
 
 // ── the size is picked from the pipe, not typed once ──────────────

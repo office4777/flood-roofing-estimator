@@ -33,7 +33,7 @@ async function boot(opts){
     if (o.done) localStorage.setItem('fr_setup_done','1');
     if (o.site) localStorage.setItem('fr_site_mode','on');
   }, opts || {});
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   // 1.4s first-run delay, then the guide waits up to 2s for a branding wizard
   // to show up before opening anyway. Clear both.
   await pg.waitForTimeout(5200);

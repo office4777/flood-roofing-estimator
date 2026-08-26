@@ -60,7 +60,7 @@ async function open(role){
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null');
     localStorage.setItem('fr_company', JSON.stringify({ id:'co1', name:'Flood Roofing', slug:'floodroofing', role:'owner' }));
   });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2500);
   await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-team', document.querySelector('[onclick*="set-team"]')); loadTeam(); });
   await pg.waitForTimeout(900);
@@ -205,7 +205,7 @@ await ipg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => 
     return j({ token:'t', user:{ id:'u9', email:'matt@floodroofing.co.nz' }, company:{ id:'co1', name:'Flood Roofing', slug:'floodroofing', role:'member' } }); }
   return j([]);
 });
-await ipg.goto('file://'+DIR+'/index.html?invite=abc123');
+await ipg.goto('file://'+DIR+'/app.html?invite=abc123');
 await ipg.waitForTimeout(2200);
 let iv = await ipg.evaluate(() => ({
   shown: getComputedStyle(document.getElementById('login-invite-view')).display !== 'none',

@@ -33,7 +33,7 @@ async function boot(width, seedWidth){
     localStorage.removeItem('fr_fergus_panel_w');
     if (w) localStorage.setItem('fr_sidepop_w', w);
   }, seedWidth || '');
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2600);
   await pg.evaluate(() => { gotoTab('roof'); _fergusPanelOpen(true); });
   await pg.waitForTimeout(700);

@@ -72,7 +72,7 @@ async function open(extras){
     localStorage.setItem('fr_setup_done','1');
     localStorage.setItem('fr_settings','null');
   });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2600);
   // mergeSettings is what every load path funnels a stored book through —
   // cloud, localStorage or defaults — so running it with the roofer's own

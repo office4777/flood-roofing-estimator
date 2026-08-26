@@ -29,7 +29,7 @@ async function boot(linked){
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null');
     if (lk) localStorage.setItem('fr_jms_linked','1'); else { localStorage.removeItem('fr_jms_linked'); localStorage.removeItem('fr_jms'); }
   }, linked);
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2500);
   return { ctx, pg };
 }

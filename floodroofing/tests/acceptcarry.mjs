@@ -57,7 +57,7 @@ async function run(){
       return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ quote: store.quote, branding:{} })});
     return r.fulfill({status:200,contentType:'application/json',body:'[]'});
   });
-  await pg.goto('file://'+DIR+'/index.html?q=tok&j=FR-30011');
+  await pg.goto('file://'+DIR+'/app.html?q=tok&j=FR-30011');
   await pg.waitForTimeout(3000);
   return { ctx, pg, store, posts };
 }

@@ -42,7 +42,7 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
   localStorage.setItem('fr_jp_preview','1');
   localStorage.setItem('fr_jp_gutter_include','1');
   localStorage.removeItem('fr_underlay_lines'); localStorage.removeItem('fr_screw_lines'); });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2800);
 await pg.evaluate((g) => {
   DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;

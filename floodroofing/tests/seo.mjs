@@ -53,7 +53,7 @@ const PAGES = {
 };
 // Deliberately out of the sitemap: a form nobody should land on from a search,
 // and the app.
-const NOINDEX = { '/signup': 'signup.html', '/index.html': 'index.html' };
+const NOINDEX = { '/signup': 'signup.html', '/app': 'app.html' };
 
 const TYPES = { '.html':'text/html','.css':'text/css','.png':'image/png','.jpg':'image/jpeg',
                 '.js':'text/javascript','.txt':'text/plain','.xml':'application/xml',
@@ -212,6 +212,32 @@ check('…and every one of them says what happens afterwards',
 check('…or a customer count',
   !/(trusted by|used by|join)\s+[\d,]+\s*(\+)?\s*(roofers|businesses|companies)/i.test(everything));
 
+// ── the root must serve the landing page ──────────────────────────
+// This is the check that did not exist, and the bug it would have caught was
+// as bad as they get: the app was called index.html and sat at the deploy
+// root. Vercel resolves the filesystem BEFORE it applies rewrites, so "/"
+// found that file and served 2.9 MB of noindex app to every visitor, and the
+// { "source": "/", "destination": "/landing.html" } rewrite never ran. Every
+// guide's breadcrumb, every canonical and the whole site structure pointed at
+// a homepage that told Google not to index it.
+//
+// Nothing may sit at a filesystem path that outranks a rewrite for "/".
+const rootFiles = (await readdir(DIR)).filter(f => /^index\.html?$/i.test(f));
+check('no index.html sits at the root, where it would outrank the "/" rewrite',
+  rootFiles.length === 0, rootFiles.join(' ') || 'clear');
+const vercelCfg = JSON.parse(await readFile(_j(DIR, 'vercel.json'), 'utf8'));
+const rootRw = (vercelCfg.rewrites || []).find(r => r.source === '/');
+check('…and "/" is rewritten to the landing page',
+  !!rootRw && rootRw.destination === '/landing.html', JSON.stringify(rootRw));
+// The app keeps its old URL as an alias so an installed PWA and any bookmark
+// still resolve. A redirect would work too, but a rewrite avoids the hop.
+const aliasRw = (vercelCfg.rewrites || []).find(r => r.source === '/index.html');
+check('…while /index.html still resolves, for anyone who has the app installed',
+  !!aliasRw && aliasRw.destination === '/app.html', JSON.stringify(aliasRw));
+const manifest = JSON.parse(await readFile(_j(DIR, 'manifest.webmanifest'), 'utf8'));
+check('…and the installed app launches at the URL the app actually lives at',
+  manifest.start_url === '/app', manifest.start_url);
+
 // ── robots.txt ────────────────────────────────────────────────────
 const robots = await readFile(_j(DIR, 'robots.txt'), 'utf8');
 check('robots.txt points at the sitemap', robots.includes('Sitemap: ' + SITE + '/sitemap.xml'));
@@ -251,7 +277,7 @@ for (const [url, file] of Object.entries(NOINDEX)){
     const m = document.querySelector('meta[name="robots"]');
     return m ? m.getAttribute('content') : null;
   });
-  check((url === '/index.html' ? 'the app' : 'the signup form') + ' is noindex',
+  check((url === '/app' ? 'the app' : 'the signup form') + ' is noindex',
     /noindex/.test(r || ''), url + ' → ' + r);
   await pg.close();
 }
@@ -260,8 +286,7 @@ for (const [url, file] of Object.entries(NOINDEX)){
 const dotHtml = [];
 for (const [url, p] of Object.entries(seen)){
   p.internal.forEach(h => {
-    // /index.html is the app and is meant to be linked as-is.
-    if (/\.html($|[?#])/.test(h) && !h.startsWith('/index.html')) dotHtml.push(url + ' → ' + h);
+    if (/\.html($|[?#])/.test(h)) dotHtml.push(url + ' → ' + h);
   });
 }
 check('no internal link takes a redirect hop through a .html URL',

@@ -28,7 +28,7 @@ async function open(){
   await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
     localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null');
     localStorage.removeItem('fr_jp_gutter_include'); });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2700);
   // A gable with gutter drawn on it — the state the bug needed.
   await pg.evaluate(() => {

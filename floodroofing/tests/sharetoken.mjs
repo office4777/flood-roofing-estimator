@@ -105,7 +105,7 @@ check('an ancient link is never handed a fresh window by falling back to now()',
   /sh\.sentAt \|\| first \|\| \(job \|\| \{\}\)\.created_at/.test(src));
 
 // ── the office stamps the anchor when it makes the link ───────────
-const app = await readFile(_j(_ROOT, 'frontend', 'index.html'), 'utf8');
+const app = await readFile(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
 check('the office stamps sentAt and sentTotal as it makes the link',
   /S\.quote\.share\.sentAt = new Date\(\)\.toISOString\(\)/.test(app) &&
   /S\.quote\.share\.sentTotal = Math\.round\(_sentTot \* 100\) \/ 100/.test(app));

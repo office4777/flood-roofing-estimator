@@ -29,13 +29,13 @@ async function open(settings){
   await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz', name:'Sam' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2600);
   return { ctx, pg };
 }
 
 // ── the shipped defaults are usable, not empty ──
-const src = await readFile(DIR + '/index.html', 'utf8');
+const src = await readFile(DIR + '/app.html', 'utf8');
 const defaults = src.slice(src.indexOf('function defaultSettings(){'), src.indexOf('function mergeSettings('));
 check('the price book ships with a price on every sheet variant',
   !/unit: 'm2', price: 0\b/.test(defaults) && /'0\.40g Colorsteel Maxam', unit: 'm2', price: \d/.test(defaults));

@@ -22,7 +22,7 @@ const TYPES = { '.html':'text/html', '.json':'application/json', '.png':'image/p
 const srv = http.createServer(async (req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]);
   try {
-    const buf = await readFile(DIR + (path === '/' ? '/index.html' : path));
+    const buf = await readFile(DIR + (path === '/' ? '/app.html' : path));
     res.writeHead(200, {'content-type': TYPES[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream'});
     res.end(buf);
   } catch(e){ res.writeHead(404); res.end(''); }
@@ -49,7 +49,7 @@ async function open(jobs){
   await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz', name:'Sam Tui' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
-  await pg.goto(`http://127.0.0.1:${PORT}/index.html`);
+  await pg.goto(`http://127.0.0.1:${PORT}/app.html`);
   await pg.waitForTimeout(3000);
   await pg.evaluate(() => { const w=document.getElementById('setupWizard'); if(w) w.remove(); });
   return { ctx, pg };

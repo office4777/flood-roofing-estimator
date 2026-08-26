@@ -20,7 +20,7 @@ const terms   = flat(await readFile(_j(DIR, 'terms.html'), 'utf8'));
 const privacy = flat(await readFile(_j(DIR, 'privacy.html'), 'utf8'));
 const landing = flat(await readFile(_j(DIR, 'landing.html'), 'utf8'));
 const server  = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
-const app     = await readFile(_j(DIR, 'index.html'), 'utf8');
+const app     = await readFile(_j(DIR, 'app.html'), 'utf8');
 
 // ── every third party the code actually calls is named in the policy ──
 // Each entry: the thing to look for in the source, and the name the policy

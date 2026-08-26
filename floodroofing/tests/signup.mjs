@@ -21,7 +21,7 @@ const TYPES = { '.html':'text/html', '.png':'image/png', '.jpg':'image/jpeg', '.
 const srv = http.createServer(async (req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]);
   // The app is 2.5 MB and irrelevant here — stub it, and record the hand-off.
-  if (path === '/index.html'){ res.writeHead(200,{'content-type':'text/html'}); return res.end('<title>app</title>'); }
+  if (path === '/app' || path === '/app.html'){ res.writeHead(200,{'content-type':'text/html'}); return res.end('<title>app</title>'); }
   try {
     const buf = await readFile(_j(DIR, path));
     res.writeHead(200, {'content-type': TYPES[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream'});
@@ -149,7 +149,7 @@ check('signing up posts the business, the person and the password',
   posts.length === 1 && posts[0].company === 'Acme Roofing Ltd' && posts[0].name === 'Sam' &&
   posts[0].email === 'sam@acmeroofing.co.nz' && !!posts[0].password,
   JSON.stringify(Object.assign({}, posts[0], { password:'***' })));
-check('…then opens the app, signed in', /\/index\.html$/.test(pg.url()), pg.url());
+check('…then opens the app, signed in', /\/app$/.test(pg.url()), pg.url());
 v = await pg.evaluate(() => ({ tok: localStorage.getItem('fr_token'), co: localStorage.getItem('fr_company') }));
 check('…with the session and the business stored', v.tok === 'tok' && /Acme Roofing/.test(v.co || ''));
 await ctx.close();
@@ -157,7 +157,7 @@ await ctx.close();
 // ── somebody already signed in is not asked to sign up again ──
 ({ ctx, pg } = await open('signup.html', 1360, 900, true));
 await pg.waitForTimeout(400);
-check('a signed-in visitor is sent to the app instead', /\/index\.html$/.test(pg.url()), pg.url());
+check('a signed-in visitor is sent to the app instead', /\/app$/.test(pg.url()), pg.url());
 await ctx.close();
 
 // …unless they asked to LOOK at the page — the owner checking their own
@@ -210,11 +210,11 @@ check('…and /signup, /terms and /privacy are addresses you can say out loud',
 
 const manifest = JSON.parse(await rf(_j(DIR, 'manifest.webmanifest'), 'utf8'));
 check('an installed RoofMap still launches the app, not the sales pitch',
-  manifest.start_url === '/index.html', manifest.start_url);
+  manifest.start_url === '/app', manifest.start_url);
 const sw = await rf(_j(DIR, 'sw.js'), 'utf8');
 const precache = (sw.match(/var PRECACHE = \[([\s\S]*?)\];/) || [])[1] || '';
 check('…and the offline shell caches the app, not the landing page',
-  /'\/index\.html'/.test(precache) && !/^\s*'\/',/m.test(precache),
+  /'\/app'/.test(precache) && !/^\s*'\/',/m.test(precache),
   precache.replace(/\/\/[^\n]*/g,'').split(',').map(x=>x.trim()).filter(Boolean).join(' '));
 
 // A signed-in person arriving at the root is forwarded into the app by the

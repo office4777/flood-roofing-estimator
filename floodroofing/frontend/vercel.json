@@ -229,6 +229,14 @@
       "destination": "/landing.html"
     },
     {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/app.html"
+    },
+    {
       "source": "/pricing",
       "destination": "/pricing.html"
     },

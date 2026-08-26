@@ -29,13 +29,13 @@ async function open(settings, opts){
   await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz', name:'Sam' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2600);
   return { ctx, pg };
 }
 
 // ── the shipped defaults carry nobody's identity ──
-const src = await readFile(DIR + '/index.html', 'utf8');
+const src = await readFile(DIR + '/app.html', 'utf8');
 const defaults = src.slice(src.indexOf('function defaultSettings(){'), src.indexOf('function mergeSettings('));
 // Suppliers belong to a business too. Three real Whangarei merchant reps —
 // names and direct emails — used to ship to every account with one set as the
@@ -127,7 +127,7 @@ await cpg.route('**/flood-roofing-estimator-production.up.railway.app/**', r =>
   r.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'Quote not found'})}));
 await cpg.addInitScript(() => { localStorage.setItem('fr_settings', JSON.stringify({
   branding:{ company_name:'Acme Roofing Ltd', phone:'09 123 4567', email:'office@acmeroofing.co.nz' } })); });
-await cpg.goto('file://'+DIR+'/index.html?q=deadtoken');
+await cpg.goto('file://'+DIR+'/app.html?q=deadtoken');
 await cpg.waitForTimeout(4000);
 const ct = await cpg.evaluate(() => (document.body.textContent||'').replace(/\s+/g,' '));
 // A dead link is precisely the case where we DON'T know whose quote it was —

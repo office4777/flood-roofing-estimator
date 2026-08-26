@@ -10,8 +10,12 @@
      a search engine to index, and letting a crawler pull it burns crawl budget
      that belongs to the marketing pages. robots.txt disallows it as well; this
      meta is the half that still works if someone links straight to it.
-     NB: the file must stay at /index.html — sw.js precaches that exact path
-     and manifest.webmanifest uses it as start_url. -->
+     The app lives at /app (served from app.html). It must NOT be called
+     index.html: Vercel checks the filesystem before applying rewrites, so an
+     index.html at the deploy root wins "/" outright and the landing page
+     never gets served. sw.js precaches /app and manifest.webmanifest uses it
+     as start_url; /index.html stays as a rewrite alias for old bookmarks and
+     for anyone with the app already installed. -->
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">

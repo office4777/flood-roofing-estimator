@@ -23,7 +23,7 @@ await pg.addInitScript(() => {
   localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null');
   localStorage.setItem('fr_site_mode','on');
 });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2400);
 
 // A drawn roof, so we can prove the pad never touches it.

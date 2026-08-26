@@ -30,7 +30,7 @@ async function open(sub){
   await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'bob@acmeroofing.co.nz', name:'Bob' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
-  await pg.goto('file://' + _j(DIR, 'index.html'));
+  await pg.goto('file://' + _j(DIR, 'app.html'));
   await pg.waitForTimeout(2600);
   await pg.evaluate(() => { const w=document.getElementById('setupWizard'); if(w) w.remove(); });
   const txt = await pg.evaluate(() => {

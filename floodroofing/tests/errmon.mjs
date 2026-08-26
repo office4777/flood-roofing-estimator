@@ -109,7 +109,7 @@ check('a caller gets an incident id, not a stack trace',
 alerts.length = 0;
 r = await fetch(BASE + '/client-error', { method:'POST', headers:{'Content-Type':'application/json'},
   body: JSON.stringify({ message:"Cannot read properties of null (reading 'getContext')",
-    stack:"TypeError: ...\n    at drawRoof (index.html:14002:9)", url:'https://roofmap.co.nz/index.html',
+    stack:"TypeError: ...\n    at drawRoof (index.html:14002:9)", url:'https://roofmap.co.nz/app',
     where:'roof', company:'Acme Roofing', user:'bob@acmeroofing.co.nz' }) });
 check('a browser can report a crash without being signed in', r.status === 200);
 await settle();

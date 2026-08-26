@@ -32,7 +32,7 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
   localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null');
   // Edit mode — the delete is editor furniture and is meant to be off the PDF.
   localStorage.setItem('fr_jp_preview','0'); });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2700);
 
 // A gable with barges down both sides, so there are auto-derived flashings

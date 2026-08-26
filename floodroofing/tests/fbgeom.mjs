@@ -34,7 +34,7 @@ await pg.addInitScript(() => {
   localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null');
   localStorage.setItem('fr_user', JSON.stringify({ email:'roofer@example.co.nz' }));
 });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2400);
 
 // A job with a roof AND the things that must not travel with it.

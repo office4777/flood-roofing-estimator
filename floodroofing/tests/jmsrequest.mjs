@@ -43,7 +43,7 @@ async function open(branding){
     localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd' })); });
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(3000);
   return { ctx, pg, errs };
 }

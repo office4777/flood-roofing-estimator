@@ -9,6 +9,8 @@ Allow: /
 
 # The app itself. 2.9 MB of JavaScript behind a login — nothing to index, and
 # crawling it burns crawl budget that belongs to the pages that do sell.
+Disallow: /app
+Disallow: /app.html
 Disallow: /index.html
 Disallow: /sheet-plan.js
 Disallow: /help-bot.js

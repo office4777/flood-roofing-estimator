@@ -14,15 +14,15 @@
  * Bump SW_VERSION when the precache list changes; old caches are dropped
  * on activate.
  */
-var SW_VERSION = 'roofmap-v3';
+var SW_VERSION = 'roofmap-v4';
 var SHELL = SW_VERSION + '-shell';
 var ASSETS = SW_VERSION + '-assets';
 var NET_TIMEOUT = 5000;   // ms before we fall back to the cached copy
 
 var PRECACHE = [
   // NOT '/' — the root serves the landing page now, and the offline shell is
-  // the app. index.html is what an installed RoofMap launches.
-  '/index.html',
+  // the app. /app is what an installed RoofMap launches.
+  '/app',
   '/sheet-plan.js',
   '/help-bot.js',
   '/manifest.webmanifest',
@@ -115,8 +115,8 @@ self.addEventListener('fetch', function(e){
   if (req.mode === 'navigate'){
     if (url.searchParams.has('q')) return;
     e.respondWith(
-      fromNetworkFirst(req, SHELL, new Request('/index.html'))
-        .catch(function(){ return caches.match('/index.html'); })
+      fromNetworkFirst(req, SHELL, new Request('/app'))
+        .catch(function(){ return caches.match('/app'); })
     );
     return;
   }
@@ -127,7 +127,7 @@ self.addEventListener('fetch', function(e){
     return;
   }
 
-  // The app's own JS must track index.html, so it gets the same
+  // The app's own JS must track app.html, so it gets the same
   // fresh-first treatment rather than a stale-while-revalidate mismatch.
   if (/\.(js|css|webmanifest|json)$/i.test(url.pathname)){
     e.respondWith(fromNetworkFirst(req, SHELL));

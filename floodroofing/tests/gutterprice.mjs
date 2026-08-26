@@ -18,7 +18,7 @@ opg.on('pageerror', e => console.log('PAGEERROR', e.message));
 await opg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await opg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
-await opg.goto('file://'+DIR+'/index.html');
+await opg.goto('file://'+DIR+'/app.html');
 await opg.waitForTimeout(2600);
 
 // A perfectly ordinary job: no gutter taken up by anyone.
@@ -134,7 +134,7 @@ ppg.on('dialog', d => d.accept());
 await ppg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await ppg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
-await ppg.goto('file://'+DIR+'/index.html');
+await ppg.goto('file://'+DIR+'/app.html');
 await ppg.waitForTimeout(2400);
 // Two real drawn roofs, each auto-generated (so each gets its own gutter run).
 await ppg.evaluate(() => {
@@ -188,7 +188,7 @@ async function customer(q){
     /\/q\//.test(r.request().url())
       ? r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({quote:q,branding:{}})})
       : r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-  await pg.goto('file://'+DIR+'/index.html?q=tok&j=FR-1');
+  await pg.goto('file://'+DIR+'/app.html?q=tok&j=FR-1');
   await pg.waitForTimeout(3200);
   return { ctx, pg };
 }

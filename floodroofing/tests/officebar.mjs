@@ -17,7 +17,7 @@ pg.on('dialog', d => d.accept());
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2600);
 
 // A drawn, priced job with an optional extra roof to toggle.
@@ -130,7 +130,7 @@ await cpg.route('**/flood-roofing-estimator-production.up.railway.app/**', r =>
         ref:'FR-1', client:'Mrs Hale', gstRate:15, proposalOptions:{},
         options:[{id:'a',title:'Re-roof',selected:true,total:24000}], lineItems:[], total:24000 }, branding:{} })})
     : r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await cpg.goto('file://'+DIR+'/index.html?q=tok&j=FR-1');
+await cpg.goto('file://'+DIR+'/app.html?q=tok&j=FR-1');
 await cpg.waitForTimeout(3200);
 const cv = await cpg.evaluate(() => ({
   office: !!document.getElementById('officePriceBar'),

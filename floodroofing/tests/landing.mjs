@@ -150,9 +150,9 @@ check('…and is not dragged away from /landing.html while it is being worked on
   /landing\.html/.test(pg.url()), pg.url());
 // …but at the site root, which is where it will live, they go straight in
 await pg.goto(ORIGIN + '/');
-await pg.waitForURL(/index\.html/, { timeout: 5000 }).catch(()=>{});
+await pg.waitForURL(/\/app$/, { timeout: 5000 }).catch(()=>{});
 check('at the site root, a signed-in visitor skips the pitch and opens the app',
-  /index\.html/.test(pg.url()), pg.url());
+  /\/app$/.test(pg.url()), pg.url());
 await ctx.close();
 
 // ── phone ──

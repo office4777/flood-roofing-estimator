@@ -31,7 +31,7 @@ async function boot(opts){
     if (!o.firstRun) localStorage.setItem('fr_setup_done','1');
     if (o.tourDone) localStorage.setItem('fr_tour_done','1');
   }, opts);
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(opts.firstRun ? 5200 : 2600);
   return { ctx, pg, errs };
 }

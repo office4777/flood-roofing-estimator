@@ -25,7 +25,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const API = [
   'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'gutterexclude', 'sheetbarge', 'jpmaps', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'security', 'sharetoken', 'crosstenant', 'bodylimit', 'markupleak', 'mailidentity', 'platformmail', 'waitlist',
 ];
-// The real index.html, driven by Playwright.
+// The real app.html, driven by Playwright.
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',

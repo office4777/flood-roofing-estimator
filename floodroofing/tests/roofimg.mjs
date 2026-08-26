@@ -37,7 +37,7 @@ for (const mode of ['on', 'off']){
     localStorage.setItem('fr_settings','null');
     localStorage.setItem('fr_site_mode', m);
   }, mode);
-  await pg.goto('file://'+DIR+'/index.html');
+  await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2300);
 
   // A job with a roof already drawn on it — the thing that must survive.

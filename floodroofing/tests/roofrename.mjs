@@ -18,7 +18,7 @@ pg.on('dialog', async d => { await d.accept('Carport'); });
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
-await pg.goto('file://'+DIR+'/index.html');
+await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2500);
 await pg.evaluate(() => {
   gotoTab('roof'); clearAll(true); setTool('outline');
@@ -174,7 +174,7 @@ await cpg.route('**/flood-roofing-estimator-production.up.railway.app/**', r =>
         extraRoofs:[{name:'Veranda',price:2400},{name:'Garage',price:3900}],
         proposalOptions:{extraRoofsSel:{}}, options:[], lineItems:[], total:0 }, branding:{} })})
     : r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await cpg.goto('file://'+DIR+'/index.html?q=tok&j=FR-1');
+await cpg.goto('file://'+DIR+'/app.html?q=tok&j=FR-1');
 await cpg.waitForTimeout(3200);
 const cv = await cpg.evaluate(() => ({
   renames: document.querySelectorAll('button[onclick*="_renameRoof"]').length,

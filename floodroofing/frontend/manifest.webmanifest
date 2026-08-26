@@ -3,7 +3,7 @@
   "short_name": "RoofMap",
   "description": "Roof measuring, quoting and job packs \u2014 on the roof and in the office.",
   "id": "/",
-  "start_url": "/index.html",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "display_override": [
