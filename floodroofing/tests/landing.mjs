@@ -18,7 +18,13 @@ let mode = 'ok';   // ok | invite | error
 
 // Served over HTTP, not file://, so localStorage survives the hand-off into
 // the app — which is the whole point of the last step of signing up.
-const TYPES = { '.html':'text/html', '.png':'image/png', '.jpg':'image/jpeg', '.js':'text/javascript', '.webmanifest':'application/manifest+json' };
+// .css matters: a browser will not apply a stylesheet served as
+// application/octet-stream, so a missing entry here renders the page naked
+// and fails the layout checks for a reason that has nothing to do with the
+// page. signup.mjs and legal.mjs already carry it.
+const TYPES = { '.html':'text/html', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg',
+                '.svg':'image/svg+xml', '.ico':'image/x-icon', '.js':'text/javascript',
+                '.webmanifest':'application/manifest+json', '.txt':'text/plain', '.xml':'application/xml' };
 const srv = http.createServer(async (req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]);
   // The app itself is 2.5 MB and irrelevant here — stub it, and record that we

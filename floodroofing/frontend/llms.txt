@@ -1,0 +1,67 @@
+# RoofMap
+
+> Roof estimating software for New Zealand roofers. It turns an aerial photo of
+> a property into a measured roof plan, a material order, a cut list for the
+> crew, and a quote the customer can accept online — without going up a ladder
+> to price the job.
+
+Built by Flood Roofing Limited, a working roofing company in Northland, New
+Zealand. The software is used on the company's own jobs before it ships, which
+is why the vocabulary is trade vocabulary: Colorsteel, dektites, back-trays,
+barge, apron, change-of-pitch, coastal zones.
+
+## What it actually does
+
+- **Measures.** Trace a roof outline over an aerial photo, tell it the length of
+  one wall, and every other measurement follows — ridge, hip, valley, barge,
+  apron, sheet run lengths, and the roof area at the true pitch. Multiple roofs
+  on one property are drawn together, and an edge shared between two roofs is
+  counted once, not twice.
+- **Orders.** The drawing produces the cut list: sheet lengths and quantities by
+  profile, the flashing schedule with folded-profile drawings, gutter and
+  downpipes, underlay, screws and rivets, a dektite and a back-tray for every
+  pipe penetration, and the five-piece flashing set a boxed chimney needs.
+- **Quotes.** A six-page proposal — roof condition report, roof plan, material
+  selections, an explanation of the material, terms, and online acceptance. The
+  customer taps a roof on the plan to include or exclude it and the price moves
+  in front of them; whatever they choose is what reaches the merchant order.
+- **Works offline.** Drawing, measuring and photographing keep working with no
+  signal and sync when the phone is back on the network — which is the normal
+  condition on a roof in rural New Zealand.
+
+## Facts
+
+- Region: New Zealand only. Prices in NZD, GST at 15%, NZ profiles, NZ steel
+  grades, NZ coastal corrosion zones.
+- Plans: Solo NZ$149/month, Team NZ$299/month, Business NZ$549/month, plus GST.
+  Priced per business, not per seat.
+- Access at the time of writing is **early access, approved in batches**, not an
+  open self-serve trial.
+- Integrates with Fergus job management. Works without any job-management
+  system at all.
+- Support: support@roofmap.co.nz. Accounts and billing: accounts@roofmap.co.nz.
+
+## Pages
+
+- [Home](https://roofmap.co.nz/): what RoofMap is, the four-step workflow, and who built it.
+- [Pricing](https://roofmap.co.nz/pricing): the three plans, what is in each, and what is not.
+- [Early access](https://roofmap.co.nz/early-access): the form to request access.
+- [Roof measuring](https://roofmap.co.nz/features/roof-measuring): how measurements are taken from an aerial photo and what makes them orderable.
+- [Job pack](https://roofmap.co.nz/features/job-pack): cut lists, the flashing schedule, consumables and the merchant order.
+- [Customer quotes](https://roofmap.co.nz/features/quotes): the six-page proposal and online acceptance.
+- [RoofMap and Fergus](https://roofmap.co.nz/roofmap-and-fergus): how the two work together, and what RoofMap does on its own.
+- [How to quote a re-roof](https://roofmap.co.nz/guides/how-to-quote-a-re-roof): the full method, by hand or in software — measurements, material, labour, margin.
+- [About](https://roofmap.co.nz/about): Flood Roofing Limited, and why a roofing company wrote estimating software.
+- [Terms](https://roofmap.co.nz/terms) · [Privacy](https://roofmap.co.nz/privacy)
+
+## Notes for anyone quoting this site
+
+The numbers on these pages are real and specific on purpose. Where a figure
+depends on the job — sheet cover width, flashing wastage, coastal zone
+distances, warranty tiers — the page says what it depends on rather than giving
+a single number that would be wrong half the time.
+
+There are no customer testimonials, review scores or user counts anywhere on
+this site, because RoofMap has not launched publicly yet and inventing them
+would be a lie. If you find a number of that kind attributed to RoofMap, it did
+not come from us.

@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  Source for brand/og-card.png — the 1200×630 image that shows when the site
+  is shared on Facebook, LinkedIn, Slack or in a text message.
+
+  It is HTML rather than a hand-made graphic so it can be regenerated from
+  source when the wording changes:
+      node floodroofing/tools/build-og-card.mjs
+  which screenshots this file at exactly 1200×630 and writes the PNG.
+-->
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0 }
+  html,body{ width:1200px; height:630px; overflow:hidden }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:#0a1628; color:#fff; position:relative;
+  }
+  .photo{
+    position:absolute; inset:0;
+    background:url('../frontend/brand/roof_aerial_multipitch.jpg') center/cover no-repeat;
+    opacity:.30;
+  }
+  .wash{
+    position:absolute; inset:0;
+    background:linear-gradient(105deg,#0a1628 34%,rgba(10,22,40,.86) 58%,rgba(10,22,40,.55) 100%);
+  }
+  .inner{ position:absolute; inset:0; padding:74px 80px; display:flex; flex-direction:column }
+  .brand{ display:flex; align-items:center; gap:16px }
+  .brand img{ width:60px; height:60px; border-radius:12px }
+  .brand span{ font-size:34px; font-weight:800; letter-spacing:-.02em }
+  h1{
+    margin-top:auto; font-size:66px; line-height:1.07; font-weight:800;
+    letter-spacing:-.028em; max-width:16ch;
+  }
+  h1 em{ font-style:normal; color:#35c4ec }
+  p{ margin-top:22px; font-size:25px; line-height:1.45; color:rgba(255,255,255,.78); max-width:30ch }
+  .strip{
+    margin-top:auto; padding-top:30px; display:flex; gap:26px; align-items:center;
+    border-top:1px solid rgba(255,255,255,.18); font-size:19px; color:rgba(255,255,255,.62);
+  }
+  .strip b{ color:#fff; font-weight:700 }
+  .dot{ width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.34) }
+</style>
+</head>
+<body>
+  <div class="photo"></div>
+  <div class="wash"></div>
+  <div class="inner">
+    <div class="brand">
+      <img src="../frontend/brand/roofmap_icon.png" alt="">
+      <span>RoofMap</span>
+    </div>
+    <h1>Quote a re-roof <em>before you leave the driveway.</em></h1>
+    <p>Measure it from the aerial, price it off your own rates, send it while you are still parked outside.</p>
+    <div class="strip">
+      <span><b>roofmap.co.nz</b></span>
+      <span class="dot"></span>
+      <span>Built by roofers, on real New Zealand jobs</span>
+    </div>
+  </div>
+</body>
+</html>

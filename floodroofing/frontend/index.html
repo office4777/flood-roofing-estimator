@@ -1,11 +1,18 @@
 <!-- RoofMap -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-NZ">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RoofMap</title>
 <meta name="description" content="RoofMap — roofing quote &amp; proposal builder">
+<!-- The app is 2.9 MB of JavaScript behind a login. There is nothing here for
+     a search engine to index, and letting a crawler pull it burns crawl budget
+     that belongs to the marketing pages. robots.txt disallows it as well; this
+     meta is the half that still works if someone links straight to it.
+     NB: the file must stay at /index.html — sw.js precaches that exact path
+     and manifest.webmanifest uses it as start_url. -->
+<meta name="robots" content="noindex,nofollow">
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">
 <!-- Matches the app header. The installed app runs standalone, so Android

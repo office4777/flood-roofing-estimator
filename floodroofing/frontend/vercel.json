@@ -30,6 +30,33 @@
       ]
     },
     {
+      "source": "/brand/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    },
+    {
+      "source": "/site.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    },
+    {
+      "source": "/legal.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [
         {
@@ -50,24 +77,61 @@
           "value": "application/manifest+json; charset=utf-8"
         }
       ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/llms.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        }
+      ]
     }
   ],
+  "redirects": [
+    { "source": "/landing.html", "destination": "/", "permanent": true },
+    { "source": "/pricing.html", "destination": "/pricing", "permanent": true },
+    { "source": "/early-access.html", "destination": "/early-access", "permanent": true },
+    { "source": "/features-measuring.html", "destination": "/features/roof-measuring", "permanent": true },
+    { "source": "/features-job-pack.html", "destination": "/features/job-pack", "permanent": true },
+    { "source": "/features-quotes.html", "destination": "/features/quotes", "permanent": true },
+    { "source": "/fergus.html", "destination": "/roofmap-and-fergus", "permanent": true },
+    { "source": "/about.html", "destination": "/about", "permanent": true },
+    { "source": "/guides-quote-a-re-roof.html", "destination": "/guides/how-to-quote-a-re-roof", "permanent": true },
+    { "source": "/terms.html", "destination": "/terms", "permanent": true },
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/signup.html", "destination": "/signup", "permanent": true }
+  ],
   "rewrites": [
-    {
-      "source": "/",
-      "destination": "/landing.html"
-    },
-    {
-      "source": "/signup",
-      "destination": "/signup.html"
-    },
-    {
-      "source": "/terms",
-      "destination": "/terms.html"
-    },
-    {
-      "source": "/privacy",
-      "destination": "/privacy.html"
-    }
+    { "source": "/", "destination": "/landing.html" },
+    { "source": "/pricing", "destination": "/pricing.html" },
+    { "source": "/early-access", "destination": "/early-access.html" },
+    { "source": "/features/roof-measuring", "destination": "/features-measuring.html" },
+    { "source": "/features/job-pack", "destination": "/features-job-pack.html" },
+    { "source": "/features/quotes", "destination": "/features-quotes.html" },
+    { "source": "/roofmap-and-fergus", "destination": "/fergus.html" },
+    { "source": "/about", "destination": "/about.html" },
+    { "source": "/guides/how-to-quote-a-re-roof", "destination": "/guides-quote-a-re-roof.html" },
+    { "source": "/signup", "destination": "/signup.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/privacy", "destination": "/privacy.html" }
   ]
 }
