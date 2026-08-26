@@ -456,6 +456,10 @@ const EMAIL_REPLYTO = process.env.EMAIL_REPLYTO || '';
 // domain is not hardcoded anywhere else either.
 const MAIL_ACCOUNTS = (process.env.ACCOUNTS_EMAIL || 'accounts@roofmap.co.nz').trim();
 const MAIL_SUPPORT  = (process.env.SUPPORT_EMAIL  || 'support@roofmap.co.nz').trim();
+// Where a new early-access lead lands. A roofer asking for access is a sales
+// conversation, not a support ticket, and mixing the two means the one that
+// needs answering today sits under the one that does not.
+const MAIL_SALES    = (process.env.SALES_EMAIL    || 'sales@roofmap.co.nz').trim();
 // The domain we are actually authorised to send from — whatever EMAIL_FROM
 // was verified as, falling back to the platform domain.
 function _mailSendingDomain(){
@@ -4390,6 +4394,197 @@ app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// EARLY ACCESS — the waitlist, and getting people off it
+// ══════════════════════════════════════════════════════════════════
+// RoofMap is invite-gated (see /auth/register). This is the front door to
+// that gate: a roofer asks for access, somebody looks at who they are, and
+// they get invited in a batch. The qualifying answers are the point — a
+// five-quotes-a-week outfit on spreadsheets is a different lead from a
+// one-man band on paper, and "what do you run now?" decides what gets built.
+const WAITLIST_VOLUMES = ['1-2', '3-5', '6-10', '10+', 'unsure'];
+const WAITLIST_SOFTWARE = ['fergus', 'tradify', 'servicem8', 'simpro', 'spreadsheet', 'paper', 'other'];
+const WAITLIST_STATUSES = ['new', 'invited', 'joined', 'declined'];
+function _wlClean(v, max){ return String(v == null ? '' : v).trim().slice(0, max || 200); }
+function _wlPick(v, allowed){
+  const x = _wlClean(v, 40).toLowerCase();
+  return allowed.indexOf(x) >= 0 ? x : '';
+}
+
+// Public. Rate-limited per IP — but not so tightly that a real person gets
+// locked out: a rejected address still counts against the window, so somebody
+// who mistypes their email twice and corrects it has already spent three. A
+// whole roofing company can also share one address behind NAT. Spam volume is
+// bounded by the unique-email upsert rather than by this number anyway, so the
+// limit is here to stop a flood, not to ration honest use.
+app.post('/waitlist', rateLimit(10, 3600000), async (req, res) => {
+  try {
+    const b = req.body || {};
+    // The honeypot. A field no human sees and no human fills in; a bot fills
+    // in everything. Answer 200 either way — telling a bot it was caught just
+    // teaches whoever wrote it to stop filling that field in.
+    if (_wlClean(b.website, 100)) {
+      console.log('[waitlist] honeypot tripped — discarded');
+      return res.json({ ok: true });
+    }
+    const email = _wlClean(b.email, 200).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+    const row = {
+      email: email,
+      name: _wlClean(b.name, 120),
+      business: _wlClean(b.business, 160),
+      phone: _wlClean(b.phone, 40),
+      region: _wlClean(b.region, 60),
+      volume: _wlPick(b.volume, WAITLIST_VOLUMES),
+      current_software: _wlPick(b.current_software, WAITLIST_SOFTWARE),
+      headache: _wlClean(b.headache, 1000),
+      source: _wlClean(b.source, 300),
+      updated_at: new Date().toISOString(),
+    };
+    // Upsert on the email. Somebody who fills the form in twice — a month
+    // later, with a better answer — should improve their entry, not appear
+    // twice in a list that gets worked by hand.
+    const { data, error } = await supabase.from('waitlist')
+      .upsert(row, { onConflict: 'email' }).select('id, created_at').single();
+    if (error) {
+      console.error('[waitlist] store failed:', error.message);
+      return res.status(500).json({ error: 'Could not save that — try again in a moment.' });
+    }
+
+    // Two emails, neither of which blocks the response: a slow relay must not
+    // make the form feel broken to somebody standing on a roof.
+    const who = [row.business, row.name].filter(Boolean).join(' · ') || email;
+    const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
+    const lead =
+      'New RoofMap early-access request\n\n' +
+      nice('Business', row.business) + nice('Name', row.name) +
+      'Email: ' + email + '\n' +
+      nice('Phone', row.phone) + nice('Region', row.region) +
+      nice('Roofs quoted a month', row.volume) +
+      nice('Runs on now', row.current_software) +
+      (row.headache ? ('\nBiggest headache:\n' + row.headache + '\n') : '') +
+      nice('\nCame from', row.source) +
+      '\nInvite them: POST /admin/waitlist/' + (data && data.id) + '/invite\n';
+    if (EMAIL_ENABLED) {
+      _dispatchMail({
+        to: MAIL_SALES, subject: 'Early access: ' + who,
+        text: lead, fromName: 'RoofMap Early Access',
+        fromAddress: MAIL_SALES, replyTo: email,
+      }).catch(function(e){ console.error('[waitlist] lead alert failed:', e.message); });
+
+      // And a receipt for them, with something in it. A confirmation that
+      // only says "thanks, we'll be in touch" wastes the one moment they are
+      // definitely paying attention.
+      const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const theirs =
+        'Thanks — you are on the list for RoofMap early access.\n\n' +
+        'We are letting roofing businesses in a batch at a time so everyone gets set up\n' +
+        'properly rather than left to work it out alone. You will hear from us directly.\n\n' +
+        'In the meantime, this is a real quote produced by RoofMap, start to finish:\n' +
+        PUBLIC_APP_URL + '/\n\n' +
+        'Reply to this email if you want to tell us anything else about your setup —\n' +
+        'it reaches a person.\n\n' +
+        '— RoofMap, by Flood Roofing\n';
+      _dispatchMail({
+        to: email, subject: 'You are on the list — RoofMap early access',
+        text: theirs,
+        html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
+          '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap early access</div>' +
+          '<h2 style="font-size:20px;margin:10px 0 14px">You are on the list' + (row.name ? (', ' + esc(row.name)) : '') + '.</h2>' +
+          '<p style="margin:0 0 14px">We are letting roofing businesses in a batch at a time, so everyone gets set up properly rather than left to work it out alone. You will hear from us directly.</p>' +
+          '<p style="margin:0 0 18px">In the meantime, have a look at what RoofMap actually produces — a measured roof, a cut list and a quote a customer can accept online.</p>' +
+          '<p style="margin:0 0 20px"><a href="' + esc(PUBLIC_APP_URL) + '/" style="display:inline-block;background:#0a1628;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:700">See what it produces</a></p>' +
+          '<p style="font-size:13px;color:#5f6b7a;margin:0">Reply to this email if you want to tell us anything else about your setup — it reaches a person.</p>' +
+          '</div>',
+        fromName: 'RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT,
+      }).catch(function(e){ console.error('[waitlist] confirmation failed:', e.message); });
+    }
+    // No req passed: this is a public route, so there is no company or user to
+    // attribute it to. What is worth counting is the shape of the demand.
+    recordUsage('waitlist_submit', null, { region: row.region, volume: row.volume, software: row.current_software });
+    res.json({ ok: true, id: (data && data.id) || null });
+  } catch (e) {
+    console.error('[waitlist] failed:', e.message);
+    res.status(500).json({ error: 'Could not save that — try again in a moment.' });
+  }
+});
+
+// The list, for working it. Gated on ADMIN_TOKEN like /admin/errors, and shut
+// rather than open when no token is configured.
+app.get('/admin/waitlist', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    let q = supabase.from('waitlist').select('*').order('created_at', { ascending: false }).limit(2000);
+    const status = _wlPick(req.query.status, WAITLIST_STATUSES);
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+    const rows = data || [];
+    if (String(req.query.format || '').toLowerCase() === 'csv') {
+      const cols = ['id','created_at','status','email','name','business','phone','region','volume','current_software','headache','source','invited_at','notes'];
+      // Excel is the destination, so quote everything and double the quotes.
+      const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => esc(r[c])).join(','))).join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="roofmap-waitlist.csv"');
+      return res.send(csv);
+    }
+    const counts = {};
+    rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    res.json({ total: rows.length, counts, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Invite one of them in. Sends the signup link and the registration code, and
+// marks the row — which is what makes "approved in batches" a process rather
+// than a promise. The code is the one /auth/register already checks; there is
+// no second gate to keep in step.
+app.post('/admin/waitlist/:id/invite', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const code = process.env.REGISTRATION_INVITE_CODE || '';
+  if (!code && process.env.OPEN_REGISTRATION !== 'true') {
+    return res.status(400).json({ error: 'No REGISTRATION_INVITE_CODE is set, so an invite would not let anyone in.' });
+  }
+  try {
+    const { data: row, error } = await supabase.from('waitlist').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!row) return res.status(404).json({ error: 'Not on the list.' });
+    if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+
+    const link = PUBLIC_APP_URL + '/signup';
+    const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const hello = row.name ? ('Hi ' + row.name + ',\n\n') : 'Hi,\n\n';
+    await _dispatchMail({
+      to: row.email,
+      subject: 'Your RoofMap access is open',
+      text: hello +
+        'You are in. Set your business up here:\n' + link + '\n\n' +
+        (code ? ('Your access code: ' + code + '\n\n') : '') +
+        'It takes about a minute — business name, your name, a password. There is a\n' +
+        'finished sample job waiting inside so you can see a completed quote, cut list\n' +
+        'and material order before you do your own.\n\n' +
+        'Reply to this email if anything is in your way.\n\n— RoofMap, by Flood Roofing\n',
+      html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
+        '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+        '<h2 style="font-size:21px;margin:10px 0 14px">You are in' + (row.name ? (', ' + esc(row.name)) : '') + '.</h2>' +
+        '<p style="margin:0 0 18px">Setting your business up takes about a minute — business name, your name, a password. There is a finished sample job waiting inside, so you can see a completed quote, cut list and material order before you do your own.</p>' +
+        '<p style="margin:0 0 16px"><a href="' + esc(link) + '" style="display:inline-block;background:#0099cc;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">Set up your business</a></p>' +
+        (code ? ('<p style="margin:0 0 18px;font-size:14px">Your access code: <strong style="font-family:ui-monospace,Consolas,monospace;background:#f4f7fa;border:1px solid #dde5ee;border-radius:6px;padding:3px 8px">' + esc(code) + '</strong></p>') : '') +
+        '<p style="font-size:13px;color:#5f6b7a;margin:0">Reply to this email if anything is in your way — it reaches a person.</p>' +
+        '</div>',
+      fromName: 'RoofMap', fromAddress: MAIL_SALES, replyTo: MAIL_SALES,
+    });
+    const patch = { status: 'invited', invited_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    const { data: updated } = await supabase.from('waitlist').update(patch).eq('id', row.id).select('*').single();
+    res.json({ ok: true, row: updated || Object.assign({}, row, patch) });
+  } catch (e) {
+    console.error('[waitlist] invite failed:', e.message);
+    res.status(502).json({ error: 'Invite email failed: ' + e.message });
+  }
+});
+
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url || !url.startsWith('https://api.mapbox.com')) return res.status(400).end();
@@ -4696,6 +4891,37 @@ const _MIGRATION_SQL = [
   "    create policy invoices_company on public.invoices for all" +
   "      using (company_id in (select company_id from public.company_users where user_id = auth.uid()));" +
   "  end if; end $pol$",
+
+  // 9. waitlist — early access. RoofMap is not open self-serve: a roofer
+  //    asks for access, and gets invited in a batch once somebody has looked
+  //    at who they are. This is that list.
+  //
+  //    email is unique so a second submission updates the row rather than
+  //    landing twice; somebody who fills the form in again a month later with
+  //    a better answer should improve their entry, not duplicate it.
+  //
+  //    No policy is created. Like usage_events, this is written and read only
+  //    by the backend with the service key — there is no client-side read of
+  //    other people's contact details, so RLS with no policy is exactly right.
+  "create table if not exists public.waitlist (" +
+  "  id bigserial primary key," +
+  "  created_at timestamptz not null default now()," +
+  "  updated_at timestamptz not null default now()," +
+  "  email text not null," +
+  "  name text not null default ''," +
+  "  business text not null default ''," +
+  "  phone text not null default ''," +
+  "  region text not null default ''," +
+  "  volume text not null default ''," +              // roofs quoted per month, as a band
+  "  current_software text not null default ''," +
+  "  headache text not null default ''," +
+  "  source text not null default ''," +              // where they came from (utm / referrer)
+  "  status text not null default 'new'," +           // new | invited | joined | declined
+  "  invited_at timestamptz," +
+  "  notes text not null default '')",
+  "create unique index if not exists idx_waitlist_email on public.waitlist (lower(email))",
+  "create index if not exists idx_waitlist_new on public.waitlist (created_at desc)",
+  "alter table public.waitlist enable row level security",
 ];
 
 async function _ensureSchema(){
@@ -4738,6 +4964,7 @@ const USAGE_EVENTS = [
   'quote_sent',       // a customer link went out
   'quote_accepted',   // a customer accepted one
   'order_sent',       // material ordered — the far end of the workflow
+  'waitlist_submit',  // a roofer asked for early access — the top of the funnel
 ];
 async function recordUsage(name, req, props){
   try {
