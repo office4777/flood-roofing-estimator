@@ -178,6 +178,26 @@
       "permanent": true
     },
     {
+      "source": "/guides-flashing-wastage.html",
+      "destination": "/guides/flashing-wastage",
+      "permanent": true
+    },
+    {
+      "source": "/guides-pipe-flashings-and-back-trays.html",
+      "destination": "/guides/pipe-flashings-and-back-trays",
+      "permanent": true
+    },
+    {
+      "source": "/guides-coastal-zones-and-warranties.html",
+      "destination": "/guides/coastal-zones-and-warranties",
+      "permanent": true
+    },
+    {
+      "source": "/guides-re-roof-scope-of-work.html",
+      "destination": "/guides/re-roof-scope-of-work",
+      "permanent": true
+    },
+    {
       "source": "/tools-roof-pitch-calculator.html",
       "destination": "/tools/roof-pitch-calculator",
       "permanent": true
@@ -259,6 +279,22 @@
     {
       "source": "/guides/colorsteel-grades-compared",
       "destination": "/guides-colorsteel-grades-compared.html"
+    },
+    {
+      "source": "/guides/flashing-wastage",
+      "destination": "/guides-flashing-wastage.html"
+    },
+    {
+      "source": "/guides/pipe-flashings-and-back-trays",
+      "destination": "/guides-pipe-flashings-and-back-trays.html"
+    },
+    {
+      "source": "/guides/coastal-zones-and-warranties",
+      "destination": "/guides-coastal-zones-and-warranties.html"
+    },
+    {
+      "source": "/guides/re-roof-scope-of-work",
+      "destination": "/guides-re-roof-scope-of-work.html"
     },
     {
       "source": "/tools/roof-pitch-calculator",

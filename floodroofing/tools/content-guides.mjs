@@ -55,6 +55,14 @@ const GUIDES_INDEX = {
       blurb: 'Degrees, ratios, and every single length on the roof that pitch quietly changes.' },
     { url: '/guides/colorsteel-grades-compared', title: 'Colorsteel grades compared',
       blurb: 'MAXAM, ColorCote, ColorZen and Zincalume — and how far from the sea each one belongs.' },
+    { url: '/guides/coastal-zones-and-warranties', title: 'Coastal zones and warranties',
+      blurb: 'Establishing the zone for a real address, and the details that void a warranty after it is written.' },
+    { url: '/guides/flashing-wastage', title: 'Flashing wastage, done per piece',
+      blurb: 'Why a flat percentage over-allows on the easy roof and under-allows on the hard one.' },
+    { url: '/guides/pipe-flashings-and-back-trays', title: 'Pipe flashings and back-trays',
+      blurb: 'Dektites, trays and the five-piece boxed set — the items that go missing off a docket.' },
+    { url: '/guides/re-roof-scope-of-work', title: 'Writing a re-roof scope of work',
+      blurb: 'What to include, and the exclusions that are the half protecting you.' },
   ],
   tools: [
     { url: '/tools/roof-pitch-calculator', title: 'Roof pitch calculator',
@@ -963,4 +971,524 @@ const CALC_SHEET = {
 })();`,
 };
 
-export default [GUIDES_INDEX, FLASHINGS, SHEETS, PITCH, GRADES, CALC_PITCH, CALC_SHEET];
+// ── the second four ──────────────────────────────────────────────────
+// Every number below was computed, not typed:
+//   allowance % = allowance per piece ÷ average piece length
+//   rake at 25° = 4.00 × 1.1034 = 4.41 m
+//   simple gable: 6 pieces, 29.65 m, 4.94 m average → 0.4 m/piece = 8.1%
+//   cut-up roof: 22 pieces, 62 m, 2.82 m average → 0.4 m/piece = 14.2%
+
+const WASTAGE = {
+  ...base,
+  file: 'guides-flashing-wastage.html',
+  url: '/guides/flashing-wastage',
+  kind: 'guide',
+  title: 'Flashing wastage: per piece, not per cent',
+  description: 'Why a flat wastage percentage over-allows on a simple roof and under-allows on a cut-up one, and how to allow for flashing laps and trims per piece instead.',
+  h1: 'Flashing wastage, done per piece',
+  crumbs: [{ name: 'RoofMap', url: '/' }, { name: 'Guides', url: '/guides' }, { name: 'Flashing wastage', url: '/guides/flashing-wastage' }],
+  about: ['Roof estimating', 'Roof flashing', 'New Zealand'],
+  stand: `A flat percentage on a flashing total is the wrong shape for the problem. Here is the
+    arithmetic that shows why, and what to do instead.`,
+  answer: `<strong>Allow flashing wastage per piece, not as a percentage.</strong> Roughly 0.3 to
+    0.5 m on each run for laps and end trims, rounded up to the next 0.1 m. A flat percentage is
+    only ever correct for one average piece length — at 0.4 m a piece, a 10 per cent allowance is
+    right when your pieces average 4 m, generous above that and short below it. Cut-up roofs have
+    short pieces, so a percentage fails exactly where the risk is.`,
+  body: `      <h2>The arithmetic behind the rule</h2>
+      <p>An allowance per piece, expressed as a percentage of the total, is just this:</p>
+      <p><code>allowance % = allowance per piece ÷ average piece length</code></p>
+      <p>Nothing else is in it. The percentage that is <em>correct</em> for a roof is decided
+        entirely by how long its flashing pieces average — which is another way of saying it is
+        decided by how cut-up the roof is. At a 0.4 m allowance:</p>
+
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Average piece length</th><th>0.4 m per piece is</th><th>What kind of roof</th></tr></thead>
+        <tbody>
+          <tr><td>6.0 m</td><td>6.7%</td><td>Long straight runs — a simple gable</td></tr>
+          <tr><td>5.0 m</td><td>8.0%</td><td>Straightforward residential</td></tr>
+          <tr><td>4.0 m</td><td>10.0%</td><td>The only roof a flat 10% is right for</td></tr>
+          <tr><td>3.0 m</td><td>13.3%</td><td>Hips, valleys, a few penetrations</td></tr>
+          <tr><td>2.5 m</td><td>16.0%</td><td>Cut-up: dormers, steps, verandahs</td></tr>
+          <tr><td>2.0 m</td><td>20.0%</td><td>Very cut-up, or lots of short apron runs</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>So a flat ten per cent is not a safe middle. It is a bet that every roof you quote has
+        4 m flashings on it.</p>
+
+      <h2>Two roofs, same rule, different answers</h2>
+      <p>Take a plain 12 m × 8 m gable at 25°. The rake is 4.00 m in plan, so 4.41 m on the slope.
+        Six flashings: two lengths of ridge and four barges.</p>
+
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Per roof</th><th>Simple gable</th><th>Cut-up hip-and-valley</th></tr></thead>
+        <tbody>
+          <tr><td>Flashing pieces</td><td>6</td><td>22</td></tr>
+          <tr><td>Total flashing</td><td>29.65 m</td><td>62.00 m</td></tr>
+          <tr><td>Average piece</td><td>4.94 m</td><td>2.82 m</td></tr>
+          <tr><td>At 0.4 m a piece</td><td>2.4 m — <b>8.1%</b></td><td>8.8 m — <b>14.2%</b></td></tr>
+          <tr><td>A flat 10% would give</td><td>2.97 m — <b>0.6 m too much</b></td><td>6.20 m — <b>2.6 m short</b></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>Read the last row. The flat percentage hands free material to the easy roof and takes it
+        off the hard one. On the cut-up roof that 2.6 m is two or three short pieces you have to go
+        back for, on the job that was already going to be tight.</p>
+
+      <h2>What the allowance is actually for</h2>
+      <p>It is not waste in the sense of off-cuts. It is three real things, and all three happen
+        <em>per piece</em>:</p>
+      <ul>
+        <li><strong>Laps.</strong> Where two lengths of the same flashing meet, they overlap. Two
+          pieces of ridge covering 12 m are not 6 m each.</li>
+        <li><strong>End trims and stop-ends.</strong> Cutting to fit at the ends of a run, and
+          folding or notching where a flashing meets another one.</li>
+        <li><strong>Rounding.</strong> Every piece is rounded up to the next 0.1 m for the order,
+          which adds an average of 0.05 m a piece on top. Small, but it compounds the same way —
+          by piece count, not by metres.</li>
+      </ul>
+      <p>None of those scales with how much flashing there is. All of them scale with how many
+        separate pieces there are.</p>
+
+      <h2>How to write it up</h2>
+      <ol>
+        <li>List every flashing as a quantity at a length — <code>2 @ 6.4 m</code>,
+          <code>4 @ 4.9 m</code> — not as a total.</li>
+        <li>Add the allowance to each piece before rounding, not to the total afterwards.</li>
+        <li>Round each piece up to the next 0.1 m.</li>
+        <li>Group identical lengths for the merchant.</li>
+      </ol>
+      <p>The order that comes out of that is one the merchant can fold straight from. A total in
+        metres is not an order — forty-two metres of barge could be six pieces or fifteen, and
+        they are different steel at a different price.</p>
+
+      <h2>Sheets are the opposite case</h2>
+      <p>All of the above is about flashings. Long-run <em>sheets</em> are cut to length, so their
+        waste really is small and really is roughly proportional: two to five per cent covers the
+        off-cut at the end of a run and the odd sheet ruined in handling.</p>
+      <p>The reason people reach for a flat percentage on flashings is that it works on sheets. It
+        works there because sheets are ordered as long single lengths and flashings are not.</p>
+
+      <h2>When to allow more</h2>
+      <ul>
+        <li><strong>Complicated junctions.</strong> A valley running into an apron, or three
+          flashings meeting at a corner, eats more than a plain lap.</li>
+        <li><strong>Change-of-pitch and bullnose.</strong> Folded to two specific angles, so a
+          mistake is a whole new piece rather than a trim.</li>
+        <li><strong>Anything you are measuring off a plan you have not stood on.</strong> Round up
+          harder, and check the critical pieces before they are folded.</li>
+      </ul>
+      <p>The full survey of what each flashing is and where it goes is in
+        <a href="/guides/roof-flashings-explained">roof flashings explained</a>.</p>`,
+  faq: [
+    { q: 'What percentage should I allow for flashing wastage?',
+      a: ['The honest answer is that a percentage is the wrong unit. Allow 0.3 to 0.5 m per piece for laps and end trims, rounded up to the next 0.1 m.',
+          'If you must have a number: the allowance as a percentage equals your per-piece allowance divided by your average piece length. At 0.4 m a piece, that is 6.7 per cent on 6 m pieces and 20 per cent on 2 m pieces. There is no single figure that covers both.'] },
+    { q: 'Why does a flat percentage go wrong on cut-up roofs?',
+      a: ['Because the things the allowance pays for — laps, end trims, rounding — happen once per piece, and a cut-up roof has far more pieces per metre than a simple one.',
+          'A 62 m flashing schedule made of 22 pieces needs 8.8 m at 0.4 m each. A flat ten per cent gives it 6.2 m. That is 2.6 m short on the roof that could least afford it.'] },
+    { q: 'Does the same rule apply to sheets?',
+      a: ['No. Long-run steel sheets are cut to length, so their waste is genuinely small and roughly proportional to the quantity — two to five per cent covers most roofs.',
+          'That is why the percentage habit exists. It works on sheets, and people carry it across to flashings where it does not.'] },
+    { q: 'Should I add the allowance before or after rounding?',
+      a: ['Before. Add the lap and trim allowance to the measured length, then round the result up to the next 0.1 m.',
+          'Rounding first and then adding gives you the same total by accident on some pieces and leaves you short on others, and it makes the schedule harder to check.'] },
+    { q: 'How do I count pieces I have not decided how to lap yet?',
+      a: ['Count the runs first — every separate line on the roof is at least one piece. Then split any run longer than the merchant will fold in one length, and count the split as an extra piece with its own allowance.',
+          'That is the number the allowance multiplies. If you do not know the fold limit, ask before you price it rather than after.'] },
+  ],
+  next: NEXT_APP,
+};
+
+const PIPES = {
+  ...base,
+  file: 'guides-pipe-flashings-and-back-trays.html',
+  url: '/guides/pipe-flashings-and-back-trays',
+  kind: 'guide',
+  title: 'Pipe flashings and back-trays explained',
+  description: 'Dektites, back-trays and boxed penetration sets: what each one does, how to count them, and why the back-tray is the most-forgotten item on a roofing order.',
+  h1: 'Pipe flashings and back-trays',
+  crumbs: [{ name: 'RoofMap', url: '/' }, { name: 'Guides', url: '/guides' }, { name: 'Pipe flashings and back-trays', url: '/guides/pipe-flashings-and-back-trays' }],
+  about: ['Roof flashing', 'Roof penetrations', 'Long-run steel roofing'],
+  stand: `Every hole in a roof is two items, not one — and the second one is the one that goes
+    missing off the docket. This is how penetrations are flashed and how they are counted.`,
+  answer: `<strong>A pipe penetration needs a dektite <em>and</em> a back-tray.</strong> The
+    dektite is the moulded boot that seals around the pipe; the back-tray sits behind it, under
+    the sheets, and takes the water running down the roof around the penetration before it reaches
+    the boot. A boxed penetration — a chimney or a skylight upstand — is not one flashing but
+    <strong>five</strong>: back, two sides, front apron and a saddle.`,
+  body: `      <h2>The dektite</h2>
+      <p>A moulded rubber or silicone cone with a flexible metal base, cut to the pipe diameter,
+        pushed down over the pipe, dressed into the profile of the sheet and sealed and fixed
+        around the base. It is what makes the pipe itself watertight.</p>
+      <p>Two things decide which one:</p>
+      <ul>
+        <li><strong>The pipe diameter.</strong> Dektites come in overlapping size ranges and the
+          cone is cut to the pipe. Measure the pipe, do not guess it from the fitting.</li>
+        <li><strong>The temperature.</strong> A flue is not a waste pipe. High-temperature
+          penetrations need the material rated for it, and the standard EPDM one is not.</li>
+      </ul>
+
+      <h2>The back-tray, and why it exists</h2>
+      <p>Water runs down a roof. A penetration sits in that path, and everything above it drains
+        onto it. The dektite seals the pipe; it does not stop the sheet above delivering the whole
+        upslope catchment straight into the base of the boot.</p>
+      <p>The <strong>back-tray</strong> is a folded tray that sits <em>behind</em> the penetration
+        and <em>under</em> the sheets, and steers that water into the pans either side. On any
+        penetration with roof above it, it is not optional.</p>
+      <ul>
+        <li><strong>Full length</strong> runs from the penetration up to the ridge, so nothing
+          upslope can reach it. The safe choice, and the one to use on low pitch, on long runs, or
+          where the penetration is near the top of the roof.</li>
+        <li><strong>Short</strong> runs a defined distance above the penetration. Enough on a
+          steeper roof with a short run above the hole, and less steel.</li>
+      </ul>
+      <p>Whichever you choose, it is a folded piece at a length and it goes on the order as one —
+        <code>1 @ 2.4 m</code>, rounded up to the next 0.1 m like every other flashing.</p>
+
+      <h3>Why it is the most-forgotten item on a roofing order</h3>
+      <p>Because nothing on the paperwork asks for it. The plan shows a pipe. The merchant's
+        docket shows a dektite, because that is what you asked for. The tray is invisible in both
+        places, and it only becomes obvious when the sheets are up and there is nowhere to put it
+        without lifting them again.</p>
+      <p>The fix is a counting habit, not a memory: <strong>every dektite on the schedule gets a
+        tray line written directly under it</strong>, at the moment you write the dektite, before
+        you move on to the next penetration.</p>
+
+      <h2>Boxed penetrations are five pieces</h2>
+      <p>A boxed chimney, a boxed flue, a skylight upstand — anything square coming through the
+        roof — is a set:</p>
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Piece</th><th>Where</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><b>Back flashing</b></td><td>Upslope face</td><td>Takes the water arriving from above and turns it out to the sides</td></tr>
+          <tr><td><b>Side flashings</b> ×2</td><td>Left and right</td><td>Carry that water down past the box, in the pans</td></tr>
+          <tr><td><b>Front apron</b></td><td>Downslope face</td><td>Returns the water onto the roof below the box</td></tr>
+          <tr><td><b>Saddle</b></td><td>Ridge to the top of the box</td><td>Splits the flow above the box so it never arrives head-on</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Ordering one flashing for a chimney is ordering a fifth of a chimney. Write the five out
+        every time, even when the box is small.</p>
+
+      <h2>Where a penetration sits matters</h2>
+      <ul>
+        <li><strong>Not in a valley,</strong> and not close to one. A valley is already carrying
+          the water off two planes.</li>
+        <li><strong>Clear of a side lap.</strong> A penetration sitting on a lap means cutting
+          both sheets and sealing a join in the middle of a hole.</li>
+        <li><strong>Clear of the purlins</strong> you need to fix to, and of the ridge, where
+          there is no room upslope for a tray.</li>
+        <li><strong>In a pan, not on a rib,</strong> wherever the plumbing allows it. Cutting
+          through a rib takes away the stiffness the sheet has at exactly the point you have made
+          a hole in it.</li>
+      </ul>
+      <p>On a re-roof you usually inherit the positions. On a new roof it is worth a conversation
+        with the plumber before anything is cut, because moving a pipe 300 mm on paper is free and
+        moving it later is not.</p>
+
+      <h2>Counting them for the order</h2>
+      <p>Per penetration, the list is:</p>
+      <ol>
+        <li>The dektite, sized to the pipe, and rated for the temperature</li>
+        <li>The back-tray, full or short, at a length</li>
+        <li>Sealant, and the fixings for the base</li>
+        <li>For a boxed penetration, five flashing pieces instead of items 1 and 2</li>
+      </ol>
+      <p>Then count the sheets again. A penetration usually means at least one sheet is cut, and
+        on a boxed one it can be two or three — which is a cut list change, not just an extra
+        line on the flashing schedule.</p>
+      <p>How the rest of the flashings are counted is in
+        <a href="/guides/roof-flashings-explained">roof flashings explained</a>, and the
+        per-piece allowance for laps and trims is in
+        <a href="/guides/flashing-wastage">flashing wastage</a>.</p>`,
+  faq: [
+    { q: 'Do I need a back-tray with every dektite?',
+      a: ['On any penetration with roof above it, yes. The dektite seals the pipe; the back-tray stops the water from the whole upslope catchment arriving at the base of the boot.',
+          'It is the single most-forgotten item on a roofing order, because the plan shows a pipe and the docket shows a dektite, and nothing anywhere asks for the tray.'] },
+    { q: 'What is the difference between a full and a short back-tray?',
+      a: ['A full tray runs from the penetration all the way to the ridge, so nothing upslope can reach it. A short tray runs a defined distance above the penetration.',
+          'Full is the safe choice on low pitch, on long runs above the penetration, and where you are not certain. Short uses less steel and is fine on a steeper roof with little run above the hole.'] },
+    { q: 'How many flashings does a boxed chimney need?',
+      a: ['Five: a back flashing on the upslope face, a side flashing each side, a front apron below, and a saddle running from the ridge down to the top of the box.',
+          'Ordering "a chimney flashing" gets you one of the five. Write all five out on the schedule, every time.'] },
+    { q: 'How do I size a dektite?',
+      a: ['By the outside diameter of the pipe. The sizes overlap, and the cone is cut to the measured pipe — so measure the pipe rather than inferring it from the fitting or the plan.',
+          'Check the temperature rating separately. A flue needs a high-temperature material; the standard one is not rated for it.'] },
+    { q: 'Where should a penetration not go?',
+      a: ['Not in or beside a valley, not on a side lap, not right at the ridge where there is no room for a tray, and not through a rib if the plumbing allows a pan instead.',
+          'On a re-roof you usually inherit the positions. On a new roof, sorting it with the plumber before anything is cut costs nothing.'] },
+    { q: 'Does a penetration change the sheet count?',
+      a: ['Often, yes. A pipe usually means one sheet is cut; a boxed penetration can involve two or three, and they may need to be ordered as separate lengths.',
+          'That makes a penetration a cut-list item as well as a flashing item, which is a second place it can be missed.'] },
+  ],
+  next: NEXT_APP,
+};
+
+const COASTAL = {
+  ...base,
+  file: 'guides-coastal-zones-and-warranties.html',
+  url: '/guides/coastal-zones-and-warranties',
+  kind: 'guide',
+  title: 'Coastal zones and roofing warranties in NZ',
+  description: 'How distance to breaking surf sets the corrosion zone, what that does to a steel roof warranty, and the installation details that void one after it is written.',
+  h1: 'Coastal zones and warranties',
+  crumbs: [{ name: 'RoofMap', url: '/' }, { name: 'Guides', url: '/guides' }, { name: 'Coastal zones and warranties', url: '/guides/coastal-zones-and-warranties' }],
+  about: ['Coastal corrosion', 'Roofing warranty', 'New Zealand'],
+  stand: `The zone is not a label on a product — it is a property of the address. Establishing it
+    is the first thing you do on a coastal job, and it decides the warranty you can promise.`,
+  answer: `<strong>Corrosion severity is set by distance to breaking surf:</strong> mild at 5 km
+    or more, moderate 500 m to 1 km, severe 100 to 500 m, very severe 25 to 100 m. The zone
+    decides which products can be warranted at the address and for how long. It is established
+    before the material is specified, not after — and the warranty that results is conditional on
+    installation detail and on maintenance, both of which sit with you to get right and with the
+    owner to keep up.`,
+  body: `      <h2>The four zones</h2>
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Zone</th><th>Distance to breaking surf</th><th>What it means on the job</th></tr></thead>
+        <tbody>
+          <tr><td><b>Mild</b></td><td>5 km or more</td><td>The full range is available and warranties are at their longest.</td></tr>
+          <tr><td><b>Moderate</b></td><td>500 m – 1 km</td><td>Pre-painted, and the coating tier starts to matter.</td></tr>
+          <tr><td><b>Severe</b></td><td>100 – 500 m</td><td>Coastal-grade coating. Warranty periods shorten.</td></tr>
+          <tr><td><b>Very severe</b></td><td>25 – 100 m</td><td>Premium coating, heavier gauge worth considering, and read the warranty statement before you promise anything.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Note what the measurement is: <strong>breaking surf</strong>, not water. It is the
+        airborne salt off the break that does the damage, so a sheltered harbour edge is a milder
+        environment than an open surf beach at the same distance from the sea.</p>
+
+      <h2>Establishing the zone for a real address</h2>
+      <p>The zone is a site assessment, not a lookup. Four things go into it:</p>
+      <ul>
+        <li><strong>Distance to the nearest breaking surf</strong>, in a straight line. Measure it
+          off a map before you go, then look at what is actually between the house and the water.</li>
+        <li><strong>Shelter.</strong> A hill, a stand of trees or a row of houses between the
+          building and the coast changes what reaches the roof. So does being in a bay rather than
+          on an open coast.</li>
+        <li><strong>Prevailing wind.</strong> A house downwind of an open coast sees more salt than
+          one the same distance away in the lee.</li>
+        <li><strong>Anything else corrosive nearby.</strong> Geothermal activity, industrial
+          discharge, and animal housing all have their own effect and they are not about the sea
+          at all.</li>
+      </ul>
+      <p>Where a site sits between two zones, the honest move is to price the more severe one and
+        say why. It is a conversation worth having in front of the customer, because it explains
+        the price difference between the quote you have written and a cheaper one they may be
+        holding.</p>
+
+      <h2>What the warranty is, and what it is not</h2>
+      <p>A steel roof usually carries more than one:</p>
+      <ul>
+        <li><strong>The perforation warranty</strong> — the sheet will not rust through. This is
+          the long number, and it is the one that shortens with the zone.</li>
+        <li><strong>A surface or appearance warranty</strong> — the coating will not chalk or fade
+          beyond a stated limit. Usually a shorter period.</li>
+        <li><strong>Your workmanship warranty</strong>, which is a separate thing entirely and
+          comes from you, not the manufacturer.</li>
+      </ul>
+      <p>Indicative figures: premium pre-painted lines reach up to fifty years' perforation cover
+        in mild zones; plain unpainted Zincalume carries a twenty-year non-perforation warranty;
+        cheaper pre-painted ranges sit around thirty in mild environments. All of them come down
+        as the zone gets worse.</p>
+      <p><strong>Check the current published warranty for the product, the tier and the specific
+        zone before you write a number in a quote.</strong> Manufacturers revise them, they vary by
+        colour and coating, and a warranty quoted from memory is one you are personally
+        underwriting.</p>
+
+      <h2>What voids one</h2>
+      <p>This is the half of the subject that gets skipped, and it is the half that turns into an
+        argument in year seven. A warranty is conditional on the roof having been installed and
+        looked after properly, and the usual conditions are:</p>
+      <ul>
+        <li><strong>Compatible fixings and flashings.</strong> The screws, rivets and flashings
+          have to belong to the same system as the sheet. A cheaper fastener is the classic way to
+          void an expensive warranty.</li>
+        <li><strong>No dissimilar metals.</strong> Copper, lead or unprotected steel in contact
+          with, or draining onto, the roof will corrode it. That includes a copper pipe discharging
+          onto a steel roof and a lead flashing left in place from the old one.</li>
+        <li><strong>Swarf removed.</strong> Drilling and cutting swarf left on a sheet rusts into
+          it, and the marks are permanent long before they are structural. Sweep as you go, not at
+          the end of the day.</li>
+        <li><strong>Unwashed areas washed.</strong> Anywhere the roof is sheltered from rain —
+          under an eave, behind a parapet, under a solar array — accumulates salt that rain would
+          otherwise rinse off. Those areas need washing down periodically, and the obligation is
+          the owner's.</li>
+        <li><strong>No unprotected cut edges</strong> where the specification requires them
+          treated, and no storage of the sheets wet or stacked in the weather before they go up.</li>
+      </ul>
+
+      <h2>Put it in the quote</h2>
+      <p>Three lines protect everybody:</p>
+      <ol>
+        <li><strong>The zone you have assessed and the basis for it</strong> — the distance and
+          the exposure. If the roof is later assessed as a worse zone than you priced, this is the
+          record of what you were told and what you saw.</li>
+        <li><strong>The product, tier, gauge and colour</strong>, in full. Not "new Colorsteel
+          roof" — that is a description a cheaper steel also fits, and it loses on price to
+          something that is not the same product.</li>
+        <li><strong>The maintenance the warranty depends on</strong>, in plain words, so the owner
+          knows on the day they sign that washing the sheltered areas is part of owning the roof.</li>
+      </ol>
+      <p>Which product suits which zone is covered in
+        <a href="/guides/colorsteel-grades-compared">Colorsteel grades compared</a>.</p>`,
+  faq: [
+    { q: 'How do I work out the coastal zone for a house?',
+      a: ['Measure the straight-line distance to the nearest breaking surf, then adjust for what is actually between the building and the water — shelter, terrain, prevailing wind, and any other corrosive influence like geothermal activity or industry.',
+          'Mild is 5 km or more, moderate 500 m to 1 km, severe 100 to 500 m, very severe 25 to 100 m.'] },
+    { q: 'Why is it distance to breaking surf and not distance to the sea?',
+      a: ['Because the salt that corrodes a roof is airborne, and it comes off the break rather than off flat water.',
+          'An open west-coast beach at 300 m is a far harder environment than a sheltered harbour edge at the same distance. The measurement is to where the waves break.'] },
+    { q: 'What voids a roofing warranty?',
+      a: ['Incompatible fixings or flashings, contact with or drainage from dissimilar metals such as copper and lead, swarf left on the sheets, and failing to wash down areas the rain never reaches.',
+          'The last one is the owner’s obligation rather than yours, which is exactly why it belongs in the quote in writing rather than in a conversation on the day.'] },
+    { q: 'What is an unwashed area?',
+      a: ['Anywhere on the roof that rain does not reach — under a wide eave, behind a parapet, beneath a solar array, under a carport overhang.',
+          'Salt and dirt build up there instead of being rinsed off, and those are the places a coastal roof fails first. Manufacturers require them to be washed down periodically for the warranty to stand.'] },
+    { q: 'Can I use a mild-zone product 300 m from the coast if the customer wants to save money?',
+      a: ['You can physically fit it, and the warranty will not cover it. That means when it fails you are the one holding the problem, because the manufacturer will point at the specification.',
+          'Price the correct product, explain what the zone is and why, and let the customer decide with the information in front of them. Put the assessment in the quote either way.'] },
+    { q: 'Does a heavier gauge help in a coastal zone?',
+      a: ['It is worth considering. 0.55 mm is standard practice in severe zones and gives more metal between the weather and the inside, as well as stiffness underfoot.',
+          'It is not a substitute for the right coating, though. Gauge and grade are separate decisions and the coating is the one that fights corrosion.'] },
+  ],
+  next: NEXT_APP,
+};
+
+const SCOPE = {
+  ...base,
+  file: 'guides-re-roof-scope-of-work.html',
+  url: '/guides/re-roof-scope-of-work',
+  kind: 'guide',
+  title: 'Re-roof scope of work: what to include',
+  description: 'What belongs in a re-roof scope of work and what belongs in the exclusions, line by line — the half of a roofing quote that decides how the variations go.',
+  h1: 'Writing a re-roof scope of work',
+  crumbs: [{ name: 'RoofMap', url: '/' }, { name: 'Guides', url: '/guides' }, { name: 'Re-roof scope of work', url: '/guides/re-roof-scope-of-work' }],
+  about: ['Roof estimating', 'Scope of work', 'Re-roofing'],
+  stand: `A price and a product name is not a quote. The scope is the half that decides what
+    happens when something unexpected comes off the roof with the old iron.`,
+  answer: `<strong>A re-roof scope says four things: what you are removing, what you are
+    installing, what you are leaving, and what you are not touching.</strong> The exclusions are
+    the part that protects you — rotten framing found once the roof is off, asbestos or lead,
+    anything needing a consent, and painting. Write both halves before the price, because the
+    price only means something once the scope is fixed.`,
+  body: `      <h2>Why the exclusions are the important half</h2>
+      <p>Everything in a re-roof that turns into an argument is something nobody could see when
+        the quote was written. Purlins are under the roof. Framing is under the purlins. Whatever
+        the last person did is under all of it.</p>
+      <p>A scope that lists only what is included leaves every one of those as an open question,
+        and the customer's honest reading of an open question is that it was covered. Naming them
+        as exclusions is not defensive paperwork — it is the sentence that lets you price the
+        variation calmly instead of arguing about whether there is one.</p>
+
+      <h2>What goes in the inclusions</h2>
+      <div class="tscroll">
+      <table class="data">
+        <thead><tr><th>Line</th><th>What to actually write</th></tr></thead>
+        <tbody>
+          <tr><td><b>Strip and disposal</b></td><td>Remove the existing roof and cart it away — or leave it on site if that is what was agreed. Say which.</td></tr>
+          <tr><td><b>Underlay</b></td><td>New underlay by type. Self-supporting or netted where the pitch or purlin spacing calls for it.</td></tr>
+          <tr><td><b>The new roof</b></td><td>Profile, brand and tier, gauge and colour. All four, not "new Colorsteel".</td></tr>
+          <tr><td><b>Flashings</b></td><td>All new flashings, listed by type — ridge, hip, valley, barge, apron, change-of-pitch.</td></tr>
+          <tr><td><b>Penetrations</b></td><td>Every penetration reflashed, with a dektite and back-tray each, and the five-piece set for anything boxed.</td></tr>
+          <tr><td><b>Gutter and downpipes</b></td><td>New, or explicitly not. This is the single most common assumption gap in a roofing quote.</td></tr>
+          <tr><td><b>Access</b></td><td>Scaffolding or edge protection, as its own line with its own price.</td></tr>
+          <tr><td><b>Make-good</b></td><td>Site clean, magnet sweep, and what the property looks like when you leave.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>Two of those are worth a note.</p>
+      <p><strong>Scaffolding belongs on its own line.</strong> It is a real cost the homeowner did
+        not expect, and burying it in the rate makes the whole quote look expensive rather than
+        making the access look expensive. Shown separately, it is a fact about their house.</p>
+      <p><strong>Gutter is the assumption gap.</strong> If the quote does not say, the customer
+        assumes new gutter and you assumed not — or the reverse. Say it either way, in one line.</p>
+
+      <h2>What goes in the exclusions</h2>
+      <ul>
+        <li><strong>Rotten or damaged purlins, battens and framing</strong> discovered once the
+          roof is off. Say how it will be handled: assessed, quoted, and agreed before it is
+          done.</li>
+        <li><strong>Asbestos and lead.</strong> On anything pre-1990, check before you price it.
+          Asbestos-cement roofing and lead flashings both change the strip cost and the disposal,
+          and neither is something to discover on the day. If you have not tested, exclude it
+          explicitly.</li>
+        <li><strong>Building consent.</strong> A like-for-like re-roof often does not need one, but
+          changes — structural work, new penetrations, altering the pitch — can. Note whose job it
+          is to find out and what happens if one is required.</li>
+        <li><strong>Painting</strong>, of anything: fascia, soffit, barge boards, the inside.</li>
+        <li><strong>Internal damage from pre-existing leaks</strong>, including ceilings, insulation
+          and linings.</li>
+        <li><strong>Anything not on the roof</strong> — electrical, plumbing relocation, aerials,
+          solar removal and refit — unless it is written into the inclusions.</li>
+      </ul>
+
+      <h2>Repair or re-roof</h2>
+      <p>Before any of the above, be clear which job you are quoting, and put the assessment in
+        writing:</p>
+      <ul>
+        <li><strong>Re-roof</strong> when the coating has chalked through, the fixings are
+          corroded, or there is perforation at the laps. That roof is at the end of its life and a
+          repair buys a season.</li>
+        <li><strong>Repair</strong> when a sound roof has taken specific damage — a storm-damaged
+          sheet, a failed penetration, a run of fixings.</li>
+      </ul>
+      <p>A homeowner who understands <em>why</em> it needs doing argues about the price far less.
+        The condition assessment is the cheapest part of the quote to write and the part that does
+        the most work.</p>
+
+      <h2>Things worth naming that people leave out</h2>
+      <ul>
+        <li><strong>Tile-to-steel conversion.</strong> Over-purlining is its own line, and it
+          changes the fixing detail and the eave.</li>
+        <li><strong>Ventilation.</strong> Ridge vents or eave intake, if the roof needs it, is a
+          scope line and often a flashing line as well.</li>
+        <li><strong>Fascia and soffit.</strong> Not roof, not flashing, not included unless said.</li>
+        <li><strong>Solar, aerials, satellite dishes.</strong> Removing and refitting them, or
+          explicitly not, and who is responsible if a panel is damaged.</li>
+        <li><strong>Access and parking</strong>, on a tight site. Whether the truck can get to the
+          eave is a real cost and a real risk.</li>
+        <li><strong>How long the roof is open.</strong> What happens if it rains mid-strip, and
+          what the customer should expect.</li>
+      </ul>
+
+      <h2>The quote around the scope</h2>
+      <p>Two more things belong on the document itself: how long the price is valid — thirty days
+        is a normal default, and re-issuing at current prices after that is fair on both sides —
+        and the payment terms, including any deposit.</p>
+      <p>The full method that produces the numbers the scope wraps around is in
+        <a href="/guides/how-to-quote-a-re-roof">how to quote a re-roof</a>.</p>`,
+  faq: [
+    { q: 'What should be in a re-roof scope of work?',
+      a: ['What you are removing, what you are installing, what you are leaving, and what you are not touching. Specifically: the strip and disposal, underlay, the new roof by profile, brand, gauge and colour, all flashings by type, every penetration reflashed, guttering and downpipes or explicitly not, scaffolding or edge protection, and the make-good.',
+          'Then the exclusions, which are the half that protects you.'] },
+    { q: 'What should I exclude from a roofing quote?',
+      a: ['Rotten purlins or framing found once the roof is off, asbestos or lead discovered in the strip, anything requiring a building consent, painting, internal damage from pre-existing leaks, and anything that is not on the roof.',
+          'Say how each will be handled if it appears — assessed, quoted, and agreed before it is done — rather than only that it is excluded.'] },
+    { q: 'Should scaffolding be a separate line?',
+      a: ['Yes. It is a real cost the homeowner did not expect, and burying it in the rate makes the whole quote look expensive rather than making the access look expensive.',
+          'Shown separately, it reads as a fact about their house rather than as your margin.'] },
+    { q: 'Do I need to allow for asbestos on an old roof?',
+      a: ['On anything pre-1990, check before you price it. Asbestos-cement roofing and lead flashings both change the strip cost and the disposal, and neither is something to discover on the day.',
+          'If you have not tested, exclude it explicitly in the scope and say what happens if it is found.'] },
+    { q: 'Does a re-roof need a building consent?',
+      a: ['A like-for-like re-roof often does not, but changes can — structural work, adding penetrations, altering the pitch, or changing the roof mass on a tile-to-steel conversion.',
+          'Check with the council for the specific job, and note in the scope whose responsibility it is and what happens if a consent turns out to be required.'] },
+    { q: 'How long should a re-roof quote stay valid?',
+      a: ['Thirty days is a normal default. Supplier prices move, and re-issuing at current pricing after the window is fair on both sides.',
+          'Put the validity period on the document rather than leaving it open, so a quote accepted six months later is a conversation rather than an argument.'] },
+  ],
+  next: NEXT_APP,
+};
+
+export default [GUIDES_INDEX, FLASHINGS, SHEETS, PITCH, GRADES,
+                WASTAGE, PIPES, COASTAL, SCOPE, CALC_PITCH, CALC_SHEET];
+

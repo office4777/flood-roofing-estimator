@@ -59,6 +59,10 @@ barge, apron, change-of-pitch, coastal zones.
 - [Calculating sheet lengths](https://roofmap.co.nz/guides/calculating-sheet-lengths): run length at the pitch, cover width versus sheet width, overhang, laps, wastage.
 - [Roof pitch explained](https://roofmap.co.nz/guides/roof-pitch-explained): degrees and ratios, and the two different multipliers — rafter and hip — that pitch applies.
 - [Colorsteel grades compared](https://roofmap.co.nz/guides/colorsteel-grades-compared): MAXAM, ColorCote, ColorZen and Zincalume against the four coastal zones.
+- [Coastal zones and warranties](https://roofmap.co.nz/guides/coastal-zones-and-warranties): establishing the zone for an address, warranty tiers, and what voids one.
+- [Flashing wastage](https://roofmap.co.nz/guides/flashing-wastage): why the allowance is per piece, and the arithmetic that shows a flat percentage failing.
+- [Pipe flashings and back-trays](https://roofmap.co.nz/guides/pipe-flashings-and-back-trays): dektites, full and short trays, and the five-piece boxed set.
+- [Re-roof scope of work](https://roofmap.co.nz/guides/re-roof-scope-of-work): the inclusions, the exclusions, and why the exclusions are the important half.
 - [Roof pitch calculator](https://roofmap.co.nz/tools/roof-pitch-calculator): degrees ↔ ratio, plus rafter, area, hip and valley multipliers, with the formulas.
 - [Roofing sheet calculator](https://roofmap.co.nz/tools/roofing-sheet-calculator): face size and pitch in; sheet length, count, lineal metres and true area out.
 - [About](https://roofmap.co.nz/about): Flood Roofing Limited, and why a roofing company wrote estimating software.
