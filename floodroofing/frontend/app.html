@@ -32134,7 +32134,72 @@ function snap(x,y){var t=DRAW.tool;if(t==='hip'||t==='valley'){var pts=DRAW.curr
     if(_snapTarget)return[_snapTarget[0],_snapTarget[1]];
     // Otherwise force 45° from start point
     var _sp=pts[pts.length-1];return snapTo45(_sp[0],_sp[1],x,y,edgeAngAt(_sp));
-  }return[x,y];}var snapEl=document.getElementById('snapGrid');if(!snapEl||!snapEl.checked)return[x,y];var tr=getImgTransform(),gCanvas=parseInt(document.getElementById('gridSize').value)||5,g=tr?gCanvas/tr.s:gCanvas,sx=Math.round(x/g)*g,sy=Math.round(y/g)*g;if(t==='outline'||t==='section'||t==='ridge'||t==='gutter'||t==='changepitch'){var pts2=DRAW.currentPts;if(pts2.length>0){var last2=pts2[pts2.length-1],dx2=sx-last2[0],dy2=sy-last2[1],mag2=Math.sqrt(dx2*dx2+dy2*dy2);if(mag2<0.5)return[sx,sy];var cur2=Math.atan2(dy2,dx2),refs;if(pts2.length>=2){var prev=pts2[pts2.length-2],pa=Math.atan2(last2[1]-prev[1],last2[0]-prev[0]);refs=[pa,pa+Math.PI,pa+Math.PI/2,pa-Math.PI/2];}else{refs=[0,Math.PI/2,Math.PI,-Math.PI/2];}if(t==='outline'&&pts2.length>=2){var fp=pts2[0],ca=Math.atan2(fp[1]-last2[1],fp[0]-last2[0]);refs.push(ca,ca+Math.PI);}var bRef=refs[0],bDiff=Infinity;refs.forEach(function(a){var d=cur2-a;d=d-Math.round(d/(2*Math.PI))*2*Math.PI;if(Math.abs(d)<bDiff){bDiff=Math.abs(d);bRef=a;}});var zone=(t==='outline')?35:22;if(bDiff<zone*Math.PI/180){var lc=Math.cos(bRef),ls=Math.sin(bRef),pr=dx2*lc+dy2*ls;sx=last2[0]+pr*lc;sy=last2[1]+pr*ls;}}}return[sx,sy];}
+  }return[x,y];}
+  // ── Grid, then the axis lock ──────────────────────────────────
+  var snapEl = document.getElementById('snapGrid');
+  if (!snapEl || !snapEl.checked) return [x, y];
+  var tr = getImgTransform();
+  var gCanvas = parseInt(document.getElementById('gridSize').value) || 5;
+  var g = tr ? gCanvas / tr.s : gCanvas;
+  var sx = Math.round(x / g) * g, sy = Math.round(y / g) * g;
+  if (t !== 'outline' && t !== 'section' && t !== 'ridge' && t !== 'gutter' && t !== 'changepitch') return [sx, sy];
+  var pts2 = DRAW.currentPts;
+  if (!pts2.length) return [sx, sy];
+  var last2 = pts2[pts2.length - 1];
+  var dx2 = sx - last2[0], dy2 = sy - last2[1];
+  var mag2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+  if (mag2 < 0.5) return [sx, sy];
+  // The axes worth locking to: along and square to the wall just drawn, or the
+  // world axes for the very first one. For an outline, also the line back to
+  // the first corner, so the last wall closes cleanly.
+  var cur2 = Math.atan2(dy2, dx2), refs;
+  if (pts2.length >= 2){
+    var prev = pts2[pts2.length - 2];
+    var pa = Math.atan2(last2[1] - prev[1], last2[0] - prev[0]);
+    refs = [pa, pa + Math.PI, pa + Math.PI / 2, pa - Math.PI / 2];
+  } else {
+    refs = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+  }
+  if (t === 'outline' && pts2.length >= 2){
+    var fp = pts2[0], ca = Math.atan2(fp[1] - last2[1], fp[0] - last2[0]);
+    refs.push(ca, ca + Math.PI);
+  }
+  var bRef = refs[0], bDiff = Infinity;
+  refs.forEach(function(a){
+    var d = cur2 - a;
+    d = d - Math.round(d / (2 * Math.PI)) * 2 * Math.PI;
+    if (Math.abs(d) < bDiff){ bDiff = Math.abs(d); bRef = a; }
+  });
+  // How far off the axis the point actually is, in SCREEN pixels — not how
+  // many DEGREES off it is, which is what this used to measure.
+  //
+  // The old test was a 35° cone for an outline. An angle is the wrong unit
+  // here, because the same angle is a different distance depending on how far
+  // you have dragged: 35° is a few millimetres beside the last corner and
+  // several metres at the far end of a wall. So the far corner of a building
+  // was almost always inside some axis's cone, the point was silently
+  // projected onto that axis, and the corner could not be reached — which is
+  // exactly the report: "it doesn't quite let me reach the corner ... and i
+  // have to move the corner afterwards".
+  //
+  // A perpendicular distance is the right unit. It keeps the help where it is
+  // wanted (close in, and when you really are running parallel) and lets go as
+  // soon as you are visibly off the line.
+  var perpPx = Math.abs(mag2 * Math.sin(bDiff)) * (tr ? tr.s : 1);
+  // The angle cap is what stops a very short run snapping in every direction:
+  // a 3 px stub is within 8 px of all four axes at once, and without this it
+  // would always be forced square.
+  if (perpPx <= SNAP_AXIS_PX && bDiff <= SNAP_AXIS_MAX_ANG){
+    var lc = Math.cos(bRef), ls = Math.sin(bRef), pr = dx2 * lc + dy2 * ls;
+    sx = last2[0] + pr * lc;
+    sy = last2[1] + pr * ls;
+  }
+  return [sx, sy];
+}
+// How far off an axis you may be before the lock lets go, in screen pixels,
+// and the widest angle it will ever lock at however short the run.
+var SNAP_AXIS_PX = 8;
+var SNAP_AXIS_MAX_ANG = 15 * Math.PI / 180;
 
 function getXY(e){
   var cv=document.getElementById('roofCanvas'),rect=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
