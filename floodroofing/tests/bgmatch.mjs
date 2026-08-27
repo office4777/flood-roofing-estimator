@@ -122,6 +122,65 @@ const noBg = await pg.evaluate(() => {
 check('a job with no aerial stashes no view and frames itself',
   !noBg.bg && !noBg.view && !!noBg.vb, JSON.stringify(noBg));
 
+// ── AND THE WAY THE PHOTO IS TURNED ────────────────────────────────
+// The crop was only half of it. The canvas also ROTATES the aerial — that is
+// what the rotate row in the ⚙ View menu is for, squaring the photo up to the
+// walls — while leaving the roof lines square, so the photo turns underneath
+// them. The published map drew it unrotated, so the two came apart the moment
+// the slider was touched: right on "use this view", wrong after squaring up.
+const rotated = await pg.evaluate(() => {
+  // Put the aerial back and turn it, the way the office does before drawing.
+  const c = document.createElement('canvas'); c.width = 2400; c.height = 2000;
+  const x = c.getContext('2d'); x.fillStyle = '#556b2f'; x.fillRect(0, 0, 2400, 2000);
+  const im = new Image(); im.src = c.toDataURL('image/jpeg', 0.6);
+  return new Promise(res => { im.onload = () => {
+    DRAW.bgImg = im;
+    _setFineRotate(-7.3);
+    _qpStashRoofGeom(true);
+    const gm = S.quote.roofMapGeom;
+    const svg = _qpRoofMapSvg({ showBg:true, maxH:300 });
+    const img = (svg.match(/<image[^>]*>/) || [''])[0];
+    res({ stashedRot: gm.rot,
+          imgTag: img,
+          rotAttr: (img.match(/rotate\(([^)]+)\)/) || [])[1] || null,
+          // The roofs must NOT be rotated — on the canvas they stay square and
+          // the photo moves under them.
+          firstRoofPt: (gm.roofs[0].pts || [])[0] });
+  }; });
+});
+check('the canvas rotation is captured with the view',
+  Math.abs(rotated.stashedRot - (-7.3)) < 0.01, 'stashed ' + rotated.stashedRot);
+check('the published aerial carries that same rotation',
+  !!rotated.rotAttr && Math.abs(parseFloat(rotated.rotAttr) - (-7.3)) < 0.01,
+  rotated.rotAttr || 'no rotate on the <image>');
+check('…turned about the photo\'s own centre, as the canvas turns it',
+  /(-?[\d.]+)\s+1200\s+1000/.test(rotated.rotAttr || ''), rotated.rotAttr);
+check('the roofs themselves are not rotated',
+  Array.isArray(rotated.firstRoofPt), JSON.stringify(rotated.firstRoofPt));
+
+// Every roof still has to be in shot — the customer taps roofs on this map to
+// include them, so one pushed out of frame is one they cannot buy.
+const rotFrame = await pg.evaluate(() => {
+  const gm = S.quote.roofMapGeom;
+  const p = (_qpRoofMapSvg({ showBg:true, maxH:300 }).match(/viewBox="([^"]+)"/)||[])[1]
+              .split(/\s+/).map(Number);
+  let inside = true;
+  (gm.roofs||[]).forEach(r => (r.pts||[]).forEach(pt => {
+    if (pt[0] < p[0] || pt[0] > p[0]+p[2] || pt[1] < p[1] || pt[1] > p[1]+p[3]) inside = false;
+  }));
+  return inside;
+});
+check('a rotated publish still has every roof in frame', rotFrame);
+
+// Square again → no transform at all, rather than rotate(0).
+const unrot = await pg.evaluate(() => {
+  _setFineRotate(0); _qpStashRoofGeom(true);
+  const img = (_qpRoofMapSvg({ showBg:true, maxH:300 }).match(/<image[^>]*>/) || [''])[0];
+  return { rot: S.quote.roofMapGeom.rot, hasTransform: /transform=/.test(img) };
+});
+check('a square photo publishes with no rotation at all',
+  unrot.rot === 0 && !unrot.hasTransform, JSON.stringify(unrot));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;

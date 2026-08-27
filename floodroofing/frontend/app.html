@@ -20202,9 +20202,21 @@ function _qpStashRoofGeom(showBg){
       }
     } catch(e){ view = null; }
   }
+  // ── AND THE WAY THE CANVAS HAS THE PHOTO TURNED ─────────────────
+  // The crop was only half of "the quote doesn't match the canvas". The canvas
+  // also ROTATES the aerial — IMG_ROTATION + IMG_FINE_ROTATION, about the
+  // centre of the displayed photo — while leaving the roof lines square, so the
+  // photo turns underneath them. The published map drew the photo unrotated, so
+  // the two pictures came apart the moment the rotate slider was touched. That
+  // is why this looked right on "use this view" and wrong after squaring up.
+  var rot = 0;
+  try {
+    var _r = (+IMG_ROTATION || 0) + (+IMG_FINE_ROTATION || 0);
+    if (isFinite(_r)) rot = +(_r % 360).toFixed(2);
+  } catch(e){ rot = 0; }
   var R2 = function(v){ return +(+v).toFixed(1); };
   S.quote.roofMapGeom = {
-    bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view,
+    bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
     roofs: roofs.map(function(r){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
@@ -20278,7 +20290,16 @@ function _qpRoofMapSvg(opts){
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
   var showGutters = !!opts.showGutters;
   var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
-  if (g.bg && opts.showBg !== false){ svg+='<image x="0" y="0" width="'+g.bgW+'" height="'+g.bgH+'" opacity="0.55" preserveAspectRatio="none" href="'+g.bg+'"/>'; }
+  if (g.bg && opts.showBg !== false){
+    // Turned the way the canvas has it. The canvas rotates about the centre of
+    // the displayed photo, which in image coordinates is the image's own
+    // centre — so the same angle about (bgW/2, bgH/2) reproduces it exactly.
+    // The roofs are NOT rotated, here or on the canvas: the photo moves under
+    // them, which is the whole point of squaring an aerial up to the walls.
+    var _rot = +g.rot || 0;
+    var _rt = _rot ? ' transform="rotate(' + _rot + ' ' + (g.bgW/2) + ' ' + (g.bgH/2) + ')"' : '';
+    svg+='<image x="0" y="0" width="'+g.bgW+'" height="'+g.bgH+'" opacity="0.55" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+  }
   g.roofs.forEach(function(r){
     // Included → blue + faint green tick. Not included (excluded, or a separate
     // roof the customer hasn't added) → red + crossed out.
