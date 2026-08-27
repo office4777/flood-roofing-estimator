@@ -16706,7 +16706,12 @@ function _qpSelectionChanges(){
   var _erSel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
   _er.forEach(function(rr, i){
     if (_erSel[i] && parseFloat(rr.price) > 0)
-      out.push({ label: 'Optional extra roof — ' + (rr.name || ('Roof ' + (i + 2))), delta: parseFloat(rr.price) });
+      out.push({ label: 'Optional extra roof — ' + (rr.name || ('Roof ' + (i + 2))),
+                 delta: parseFloat(rr.price),
+                 // What the price is made of, for anything downstream that has
+                 // to itemise it rather than quote one number.
+                 roofName: (rr.name || ('Roof ' + (i + 2))),
+                 split: { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 } });
   });
   if (p.steelGrade && p.steelGrade !== _selBaseGradeId())
     out.push({ label: _gradeLabel(p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
@@ -16802,6 +16807,14 @@ function _qpBuildPriced(){
     })(),
     extraRoof: (q.extraRoofs || []).map(function(rr){ return parseFloat(rr.price) || 0; }),
     extraRoofLabel: (q.extraRoofs || []).map(function(rr, i){ return rr.name || ('Roof ' + (i + 2)); }),
+    // …and how that price is made up. A sent quote is what gets pushed to
+    // Fergus, and Fergus wants the labour separated from the material the same
+    // way the main roof is — so the split has to survive being priced, not just
+    // the total. extraRoofs has carried it all along; it was being thrown away
+    // here and again in _qpSelectionChanges.
+    extraRoofSplit: (q.extraRoofs || []).map(function(rr){
+      return { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 };
+    }),
     gutterExcluded: !!_gutterExcluded()
   };
   var ovRaw = parseFloat(q.gutterPriceOverride);
@@ -16838,8 +16851,12 @@ function _qpSelectionChangesPriced(P){
   var out = [];
   var erSel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
   (P.extraRoof || []).forEach(function(price, i){
-    if (erSel[i] && price > 0)
-      out.push({ label: 'Optional extra roof — ' + ((P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2))), delta: price });
+    if (erSel[i] && price > 0){
+      var _nm = (P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2));
+      var _sp = (P.extraRoofSplit || [])[i] || null;
+      out.push({ label: 'Optional extra roof — ' + _nm, delta: price,
+                 roofName: _nm, split: _sp });
+    }
   });
   var baseG = q.baseGrade || 'maxam';
   if (p.steelGrade && p.steelGrade !== baseG && P.grade[p.steelGrade] != null)
@@ -20160,8 +20177,26 @@ function _qpStashRoofGeom(showBg){
       // to a modest max dimension + lower quality: it's only a faint background,
       // so ~120 KB looks the same but publishes ~8× faster. Cached separately
       // from _cachedDataUrl (which other features need at full res).
-      if (!DRAW.bgImg._cachedGeomBg){
-        var MAXD = 480;
+      // How much of the photo the quote will actually show. Now that the map
+      // reproduces the canvas view exactly, a tight crop shows a small part of
+      // the aerial blown up — and 480px across the WHOLE photo leaves about
+      // 150px of real detail under a 310% crop, which reaches the customer as a
+      // blur. Size the stored image so the part on show keeps its detail, and
+      // stop at 1600 so a quote stays a quote and not a photo library.
+      var _visFrac = 1;
+      try {
+        var _tv = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+        var _cv0 = document.getElementById('roofCanvas');
+        if (_tv && _tv.s > 0 && _cv0){
+          var _d0 = window.devicePixelRatio || 1;
+          _visFrac = Math.min(1, ((_cv0.width / _d0) / _tv.s) / DRAW.bgImg.naturalWidth);
+        }
+      } catch(e){ _visFrac = 1; }
+      if (!(_visFrac > 0.02)) _visFrac = 0.02;      // never ask for a 50× blow-up
+      if (!DRAW.bgImg._cachedGeomBg || DRAW.bgImg._cachedGeomFrac == null ||
+          _visFrac < DRAW.bgImg._cachedGeomFrac * 0.75){
+        var MAXD = Math.max(480, Math.min(1600, Math.round(900 / _visFrac)));
+        DRAW.bgImg._cachedGeomFrac = _visFrac;
         var nw = DRAW.bgImg.naturalWidth, nh = DRAW.bgImg.naturalHeight;
         var sc = Math.min(1, MAXD / Math.max(nw, nh));
         var cw = Math.max(1, Math.round(nw * sc)), ch = Math.max(1, Math.round(nh * sc));
@@ -20260,11 +20295,22 @@ function _qpRoofMapSvg(opts){
   // and the framing is the canvas's exactly.
   if (g.view && g.bg && opts.showBg !== false &&
       g.view.w > 1 && g.view.h > 1){
-    var vx0 = Math.min(g.view.x, b.minX - pad);
-    var vy0 = Math.min(g.view.y, b.minY - pad);
-    var vx1 = Math.max(g.view.x + g.view.w, b.maxX + pad);
-    var vy1 = Math.max(g.view.y + g.view.h, b.maxY + pad);
-    minX = vx0; minY = vy0; w = vx1 - vx0; h = vy1 - vy0;
+    // EXACTLY the canvas view. Nothing added, nothing widened.
+    //
+    // This used to take the union of the canvas view and the roofs' own bounds,
+    // so that a roof could never fall outside the frame the customer taps to
+    // include it. Well meant, and wrong in practice: the moment the office
+    // zooms in past the point where every roof fits — which is most of the time,
+    // because you zoom in to work on one — the union quietly zoomed the
+    // customer's map back out. Measured on a 310% view: the width matched to
+    // three decimal places while the height was stretched by a third. That is
+    // the whole of "it matches the initial view but not after i rotate and zoom
+    // in on the canvas", reported three times.
+    //
+    // The office frames the picture; the quote reproduces it. A roof left out
+    // of shot is now a thing you can see before you publish, on your own
+    // screen, rather than a thing the code decides for you.
+    minX = g.view.x; minY = g.view.y; w = g.view.w; h = g.view.h;
   }
   var INCL={fill:'#dbeafe',stroke:'#1d4ed8',text:'#1e3a8a'};
   var EXCL={fill:'#fee2e2',stroke:'#dc2626',text:'#991b1b'};
@@ -46204,7 +46250,30 @@ function _buildFergusItemisedSections(){
     if (low.indexOf('downpipe') >= 0){ downpipes.push(matLine(lbl, 1, c.delta)); return; }
     if (low.indexOf('bracket')  >= 0){ gutterMat.push(matLine(lbl, 1, c.delta)); return; }
     if (low.indexOf('scaffold') >= 0){ scaff.push(matLine(lbl, 1, c.delta)); return; }
-    roofMat.push(matLine('Selection — ' + lbl, 1, c.delta));                    // grade / gauge / extra roof
+    // An optional extra roof is a ROOF, not an upgrade. It was falling to the
+    // catch-all below and going across as one lump of material with no labour
+    // in it — "it didn't separate the optional extra garage roof into separate
+    // labour/material sections like it does correctly for the main roof".
+    //
+    // Its price has always been made of its own materials + its own labour +
+    // its own scaffold; that split just wasn't carried this far. Each part now
+    // goes to the section it belongs in, named for the roof, so Fergus reads
+    // the garage the same way it reads the house.
+    if (c.split && (c.split.materials || c.split.labour || c.split.scaffold)){
+      var _rn = c.roofName || lbl;
+      if (c.split.labour)    roofLabour.push(labLine(_rn + ' — roof labour', 1, c.split.labour, 0));
+      if (c.split.materials) roofMat.push(matLine(_rn + ' — roof material', 1, c.split.materials));
+      if (c.split.scaffold)  scaff.push(matLine(_rn + ' — scaffolding', 1, c.split.scaffold));
+      // Rounding: the three parts are stored to the cent and the total was
+      // rounded once, so they can differ by a cent or two. The quote's number
+      // is the one the customer accepted, so any remainder goes to material
+      // rather than quietly changing the price.
+      var _sum = (c.split.materials || 0) + (c.split.labour || 0) + (c.split.scaffold || 0);
+      var _rem = +(c.delta - _sum).toFixed(2);
+      if (Math.abs(_rem) >= 0.01) roofMat.push(matLine(_rn + ' — rounding', 1, _rem));
+      return;
+    }
+    roofMat.push(matLine('Selection — ' + lbl, 1, c.delta));                    // grade / gauge upgrades
   });
 
   // Custom pricing-tab lines → matching Fergus sections (flat $ each).

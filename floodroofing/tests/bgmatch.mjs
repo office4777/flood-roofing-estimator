@@ -100,15 +100,20 @@ check('…the quote still following the canvas exactly',
   near(zoomed.vb[0], zoomed.canvas.x, 2) && near(zoomed.vb[2], zoomed.canvas.w, 2),
   zoomed.vb.join(' '));
 
-// ── the guard: a roof must never be cropped out ────────────────────
-// The customer chooses which roofs to include by tapping them on this map.
+// ── zoomed hard in, the quote is still exactly the canvas ──────────
+// This used to widen the frame so a roof could never fall outside the map the
+// customer taps. It meant that zooming in — which is what you do to work on one
+// roof — quietly zoomed the customer's map back out, and that is the whole of
+// the reported fault. The office frames the picture now; if a roof is off the
+// edge of your screen it is off the quote too, and you can see that before you
+// publish because it is your own screen.
 const cornered = await view(4.5, -900, -700);
-check('zoomed hard into one corner, the quote still shows every roof',
-  cornered.allRoofsInFrame, cornered.vb.join(' '));
-check('…by widening the canvas view rather than abandoning it',
-  cornered.vb[2] >= cornered.canvas.w - 2 && cornered.vb[3] >= cornered.canvas.h - 2,
-  'frame ' + cornered.vb.slice(2).join('×') + ' vs canvas ' +
-  cornered.canvas.w.toFixed(0) + '×' + cornered.canvas.h.toFixed(0));
+check('zoomed hard into one corner, the quote is still the canvas frame',
+  Math.abs(cornered.vb[2] - cornered.canvas.w) < 2 && Math.abs(cornered.vb[3] - cornered.canvas.h) < 2,
+  'frame ' + cornered.vb.slice(2).map(function(v){ return v.toFixed(0); }).join('×') +
+  ' vs canvas ' + cornered.canvas.w.toFixed(0) + '×' + cornered.canvas.h.toFixed(0));
+check('…and is no longer widened past it to catch a stray roof',
+  cornered.vb[3] <= cornered.canvas.h + 2, 'frame height ' + cornered.vb[3].toFixed(0));
 
 // ── no aerial, no view to match ────────────────────────────────────
 check('with the background off the map frames the roofs, as it always did',
@@ -158,19 +163,18 @@ check('…turned about the photo\'s own centre, as the canvas turns it',
 check('the roofs themselves are not rotated',
   Array.isArray(rotated.firstRoofPt), JSON.stringify(rotated.firstRoofPt));
 
-// Every roof still has to be in shot — the customer taps roofs on this map to
-// include them, so one pushed out of frame is one they cannot buy.
+// A rotated publish frames the canvas, same as an unrotated one — the turn is
+// applied to the photo, not to the crop.
 const rotFrame = await pg.evaluate(() => {
   const gm = S.quote.roofMapGeom;
   const p = (_qpRoofMapSvg({ showBg:true, maxH:300 }).match(/viewBox="([^"]+)"/)||[])[1]
               .split(/\s+/).map(Number);
-  let inside = true;
-  (gm.roofs||[]).forEach(r => (r.pts||[]).forEach(pt => {
-    if (pt[0] < p[0] || pt[0] > p[0]+p[2] || pt[1] < p[1] || pt[1] > p[1]+p[3]) inside = false;
-  }));
-  return inside;
+  return { frame:[p[2], p[3]], view:[gm.view.w, gm.view.h] };
 });
-check('a rotated publish still has every roof in frame', rotFrame);
+check('a rotated publish frames the canvas view, not a widened one',
+  Math.abs(rotFrame.frame[0] - rotFrame.view[0]) < 0.05 &&
+  Math.abs(rotFrame.frame[1] - rotFrame.view[1]) < 0.05,
+  JSON.stringify(rotFrame));
 
 // Square again → no transform at all, rather than rotate(0).
 const unrot = await pg.evaluate(() => {
@@ -180,6 +184,62 @@ const unrot = await pg.evaluate(() => {
 });
 check('a square photo publishes with no rotation at all',
   unrot.rot === 0 && !unrot.hasTransform, JSON.stringify(unrot));
+
+// ── THE CHECK THAT ACTUALLY CATCHES THIS ───────────────────────────
+// Everything above compares the published view against a rectangle computed
+// with the SAME expression the implementation uses, so it asserts the code
+// equals itself. It passed for three builds while the quote map was visibly
+// wrong.
+//
+// This measures something the implementation never computes: what FRACTION of
+// each picture the roofs fill. If the two pictures are the same picture, the
+// roofs occupy the same share of both — whatever the zoom, and whatever
+// arithmetic either side does to get there.
+async function fillFractions(zoom, ox, oy, rot){
+  return pg.evaluate(([z, x, y, r]) => {
+    DRAW.zoom = z; IMG_OFFSET.x = x; IMG_OFFSET.y = y;
+    if (typeof _setFineRotate === 'function') _setFineRotate(r || 0);
+    redrawAll();
+    // Where the roofs sit ON THE CANVAS, through the app's own mapping.
+    const t = getImgTransform(), cv = document.getElementById('roofCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    let a0=1e9,b0=1e9,a1=-1e9,b1=-1e9;
+    const eat = p => { const q = imgToCanvas(p, t);
+      a0=Math.min(a0,q[0]); a1=Math.max(a1,q[0]); b0=Math.min(b0,q[1]); b1=Math.max(b1,q[1]); };
+    (DRAW.roofs && DRAW.roofs.length ? DRAW.roofs : [{outline:DRAW.outline}])
+      .forEach(rr => ((rr.outline)||[]).forEach(eat));
+    const canvas = { w:(a1-a0)/(cv.width/dpr), h:(b1-b0)/(cv.height/dpr) };
+    // And where they sit in the PUBLISHED picture.
+    _qpStashRoofGeom(true);
+    const gm = S.quote.roofMapGeom;
+    const vb = (_qpRoofMapSvg({showBg:true, maxH:300}).match(/viewBox="([^"]+)"/)||[])[1]
+                 .split(/\s+/).map(Number);
+    let c0=1e9,d0=1e9,c1=-1e9,d1=-1e9;
+    (gm.roofs||[]).forEach(rr => (rr.pts||[]).forEach(p => {
+      c0=Math.min(c0,p[0]); c1=Math.max(c1,p[0]); d0=Math.min(d0,p[1]); d1=Math.max(d1,p[1]); }));
+    const quote = { w:(c1-c0)/vb[2], h:(d1-d0)/vb[3] };
+    return { canvas, quote, vb, view: gm.view };
+  }, [zoom, ox, oy, rot]);
+}
+const shots = [
+  { name: 'the whole property in shot', z: 1.0, x: 0, y: 0, r: 0 },
+  { name: 'zoomed to 310%, as reported', z: 3.1, x: 0, y: 0, r: 0 },
+  { name: 'zoomed in and panned off-centre', z: 2.4, x: -180, y: 120, r: 0 },
+  { name: 'zoomed in and turned', z: 3.1, x: -60, y: 40, r: -12.5 },
+];
+for (const sh of shots){
+  const f = await fillFractions(sh.z, sh.x, sh.y, sh.r);
+  check(sh.name + ': the roofs fill the same share of both pictures',
+    Math.abs(f.canvas.w - f.quote.w) < 0.02 && Math.abs(f.canvas.h - f.quote.h) < 0.02,
+    'canvas ' + (f.canvas.w*100).toFixed(1) + '×' + (f.canvas.h*100).toFixed(1) + '%' +
+    ' vs quote ' + (f.quote.w*100).toFixed(1) + '×' + (f.quote.h*100).toFixed(1) + '%');
+}
+// And the frame IS the view, with nothing added to it.
+const exact = await fillFractions(3.1, 0, 0, 0);
+check('the published frame is the captured view, not a widened one',
+  Math.abs(exact.vb[2] - exact.view.w) < 0.05 && Math.abs(exact.vb[3] - exact.view.h) < 0.05,
+  'frame ' + exact.vb[2].toFixed(1) + '×' + exact.vb[3].toFixed(1) +
+  ' vs view ' + exact.view.w.toFixed(1) + '×' + exact.view.h.toFixed(1));
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
