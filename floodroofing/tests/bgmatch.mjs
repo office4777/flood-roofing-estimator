@@ -118,8 +118,14 @@ check('…and is no longer widened past it to catch a stray roof',
 // ── no aerial, no view to match ────────────────────────────────────
 check('with the background off the map frames the roofs, as it always did',
   wide.vbOff !== wide.vb.join(' '), wide.vbOff);
+// A quote that already stashed an aerial KEEPS it when the live photo is
+// momentarily gone — that is report #25 (a reloaded draft's first render used
+// to wipe the saved aerial) and it is covered in depth by draftbg.mjs. So
+// "no aerial" here means what it means in every real flow (new job, job
+// switch, restore): the canvas has no photo AND the quote has nothing
+// stashed. Only then does the map frame itself.
 const noBg = await pg.evaluate(() => {
-  DRAW.bgImg = null; redrawAll(); _qpStashRoofGeom(true);
+  DRAW.bgImg = null; S.quote.roofMapGeom = null; redrawAll(); _qpStashRoofGeom(true);
   const gm = S.quote.roofMapGeom;
   return { view:gm.view, bg:!!gm.bg,
            vb:(_qpRoofMapSvg({ showBg:true, maxH:300 }).match(/viewBox="([^"]+)"/)||[])[1] };
