@@ -4,6 +4,25 @@
 import http from 'node:http';
 
 let _genId = 0;
+// The `default now()` columns, per table, exactly as the migration in
+// server.js declares them. Postgres fills these on insert and the server
+// therefore never sends them; without this the fake hands back rows with no
+// date, which no date filter can then match.
+const NOW_DEFAULTS = {
+  usage_events:    ['at'],
+  companies:       ['created_at'],
+  company_users:   ['created_at'],
+  company_invites: ['created_at'],
+  company_domains: ['created_at'],
+  waitlist:        ['created_at', 'updated_at'],
+  invoices:        ['issued_at', 'created_at', 'updated_at'],
+  job_revisions:   ['saved_at'],
+  platform_state:  ['updated_at'],
+  jobs:            ['created_at', 'updated_at'],
+  profiles:        ['created_at'],
+  subscriptions:   ['updated_at'],
+};
+
 export function startFakePostgrest(tables){
   const db = tables;
   const parseFilters = (params) => {
@@ -195,6 +214,18 @@ export function startFakePostgrest(tables){
             // does — and it let an endpoint drop the new id unnoticed, which
             // is the field the app keeps as S.currentJobId.
             if (r.id == null) r.id = 'gen-' + (++_genId).toString().padStart(4, '0');
+            // Same story for the timestamps, which are `not null default now()`
+            // throughout the schema — so no caller sends them. recordUsage
+            // inserts name/company_id/user_id/props and nothing else. Leaving
+            // them undefined was invisible only while the range filters matched
+            // everything; the moment gte/lt started working, every row the
+            // server wrote fell outside every date window for want of a date.
+            //
+            // Named per table rather than guessed, because guessing put a
+            // created_at on usage_events — a column it does not have — and the
+            // privacy check that asserts usage_events holds nothing but the
+            // milestone, the business and the time caught it.
+            (NOW_DEFAULTS[table] || []).forEach(c => { if (!(c in r)) r[c] = new Date().toISOString(); });
             db[table].push(r); out.push(r);
           }
         });
