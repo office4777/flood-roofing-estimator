@@ -135,6 +135,60 @@ r = await snapAt([[100, 100]], 337, 212, 'select');
 check('a tool with no lock gets the grid and nothing else',
   r.x === 335 && r.y === 210, JSON.stringify(r));
 
+// ── report #27: the same user, from the other side ─────────────────
+// "The first 90° vertical snap point is too vague, it needs to snap harder
+//  staying perfectly vertical … but then it trys to snap the 2nd vertical
+//  line to match the pixel height as the first vertical line which is wrong,
+//  i never want it to do that."
+//
+// These run at a working zoom (bg image + zoom 2), because the tolerances are
+// SCREEN pixels and the report came from a 200% canvas.
+await pg.evaluate(async () => {
+  const c = document.createElement('canvas'); c.width = 1600; c.height = 1200;
+  c.getContext('2d').fillStyle = '#777'; c.getContext('2d').fillRect(0,0,1600,1200);
+  const im = new Image(); im.src = c.toDataURL('image/jpeg', 0.7);
+  await new Promise(r => { im.onload = r; });
+  DRAW.bgImg = im; DRAW.zoom = 2; IMG_OFFSET = {x:0,y:0}; redrawAll();
+});
+const s2 = await pg.evaluate(() => getImgTransform().s);
+check('the working-zoom transform is live', s2 > 1, String(s2));
+
+// A first wall drawn 5 image px off plumb over 250 — a ~10 screen-px hand
+// wobble at this zoom. It must come out perfectly vertical.
+r = await snapAt([[400, 100]], 405, 350);
+check('a long first wall a hand-wobble off plumb is held perfectly vertical',
+  Math.abs(r.x - 400) <= 1, 'x=' + r.x + ' (5 image px ≈ 10 screen px off)');
+// …while a deliberate diagonal is still nobody's business but the user's.
+r = await snapAt([[400, 100]], 460, 350);
+check('…and a deliberate diagonal is still left alone',
+  Math.abs(r.x - 460) <= 5, 'x=' + r.x);
+
+// The second vertical must NEVER be pulled to the first one's length.
+// Outline so far: down 400, across 200. Now going back up — aim for a wall
+// 340 long (60 short of matching, within the old 14% pull) and clearly clear
+// of the closing corner.
+const sq = await pg.evaluate(() => {
+  DRAW.tool = 'outline';
+  DRAW.currentPts = [[400,100],[400,500],[600,500]];
+  return {
+    match: _outlineSquareSnap(602, 130),   // 370 up, within the old 14% pull — old code answered y=100
+    cone:  _outlineSquareSnap(690, 380),   // 27° off perpendicular — old 50° cone grabbed it
+    close: _outlineSquareSnap(603, 103),   // 4 image px ≈ 9 screen px from the true corner
+    far:   _outlineSquareSnap(618, 118),   // ~25 screen px out — offered nothing
+  };
+});
+check('the second vertical is never pulled to match the first wall’s length',
+  sq.match === null, JSON.stringify(sq.match) + ' (old code answered y=100)');
+check('…and no 50° cone forces a diagonal click square',
+  sq.cone === null, JSON.stringify(sq.cone));
+check('the true closing corner still snaps when the click is nearly there',
+  !!sq.close && sq.close[0] === 600 && sq.close[1] === 100, JSON.stringify(sq.close));
+check('…from a tight screen-pixel radius, not 60 image pixels',
+  sq.far === null, JSON.stringify(sq.far));
+
+// Back to the plain canvas so nothing below inherits the zoom.
+await pg.evaluate(() => { DRAW.bgImg = null; DRAW.zoom = 1; redrawAll(); });
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 const fails = results.filter(x => !x).length;
