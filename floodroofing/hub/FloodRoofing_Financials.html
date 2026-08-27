@@ -774,7 +774,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="ct">Remaining Work on Active Jobs <span id="work-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="hero">
         <div class="big" id="work-days">—</div>
-        <div class="unit">working days</div>
+        <div class="unit">weeks</div>
         <div class="sub" id="work-weeks"></div>
       </div>
     </div>
@@ -1989,8 +1989,8 @@ function renderWork(){
   renderWorkTrend();
   const R=totalRemaining();const c=capacity();
   const days=R/c.perDay, weeks=days/5;
-  document.getElementById('work-days').textContent=R>0?(Math.round(days*10)/10):'0';
-  document.getElementById('work-weeks').textContent=R>0?('≈ '+(Math.round(weeks*10)/10)+' weeks · '+fmtH(R)+' remaining man-hours'):'No remaining hours on active jobs';
+  document.getElementById('work-days').textContent=R>0?weeks.toFixed(1):'0.0';
+  document.getElementById('work-weeks').textContent=R>0?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' remaining man-hours'):'No remaining hours on active jobs';
   const noPriced=S.get('fw_no_priced',0);
   document.getElementById('work-brk').innerHTML=
     brk('Remaining man-hours','<b>'+fmtH(R)+' h</b>')+
