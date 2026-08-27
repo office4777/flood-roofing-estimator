@@ -3955,8 +3955,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button id="finishBtn" onclick="finishStep()" style="margin-left:auto;padding:8px 18px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">Finish ↵</button>
       </div>
 
-      <!-- Auto-generate roof panel -->
-      <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0">
+      <!-- One button per roof; each opens that roof's own menu.
+           The panel below used to sit open the whole time, taking a third of
+           the screen on a phone to show controls you touch once per roof. It
+           is now what a roof button drops down.
+           Note what this deliberately does NOT do: picking a roof does not
+           hide the others. A roof picker was taken off this canvas once
+           before for exactly that (see the note by _nthName) — you cannot
+           measure a building through a keyhole. The button says which roof a
+           new line joins and opens its settings; every roof stays drawn. -->
+      <div id="roofMenuBar" class="no-print" style="display:none;margin:0 .75rem .5rem;gap:6px;flex-wrap:wrap;align-items:center"></div>
+
+      <!-- Auto-generate roof panel — the menu a roof button opens -->
+      <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0;box-shadow:0 10px 26px rgba(10,22,40,.13)">
         <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
         <button type="button" id="roofSheetClose" class="no-print" onclick="_phoneRoofSheet(false)" title="Collapse">▼</button>
         <!-- Five coloured roof-type buttons collapsed into one menu. They were
@@ -28656,8 +28667,13 @@ var FACE_BORDERS = ['#2e7d32','#1565c0','#f57f17','#880e4f','#00695c','#bf360c',
 var LINE_COLORS = {ridge:'#dc2626',valley:'#f59e0b',gutter:'#7c3aed',hip:'#059669',barge:'#0891b2',apron:'#e11d48',changepitch:'#0ea5e9',drip:'#f59e0b',custom:'#64748b',unknown:'#94a3b8'};
 var LINE_WIDTHS = {ridge:1.5,valley:1.5,gutter:2,hip:1.5,barge:1.5,apron:2,changepitch:2.5,drip:1.5,custom:1.5,unknown:1};
 
+// No entry for 'select'. It is the tool you are in whenever you are not doing
+// anything else, so its banner was on screen almost permanently, restating
+// what clicking a line does and promising a drag that never shipped — the
+// loudest thing on the tab and the least useful. A tool with no entry here
+// shows no banner; the drawing tools keep theirs, because "click corners
+// clockwise, press Enter to close" is a step you are part-way through.
 var STEP_INFO = {
-  select:       {icon:'☝️', title:'Select & edit', hint:'Click any line, section or penetration to select it. Right-click to delete or edit label. Drag to move (coming soon).', btn:'Done'},
   outline:      {icon:'🏠', title:'Step 1: Building outline', hint:'Click corners clockwise around your building footprint. Press Enter/Finish to complete the outline.', btn:'Finish outline ↵'},
   ridge:        {icon:'🔴', title:'Draw ridge line', hint:'Click start then end of ridge. Press Enter/Finish to save.', btn:'Done ↵'},
   valley:       {icon:'🟠', title:'Draw valley line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
@@ -28873,13 +28889,29 @@ document.addEventListener('click', function(e){
 });
 
 function updateStepUI() {
-  var info = STEP_INFO[DRAW.tool] || {icon:'✏️',title:'Draw',hint:'Click on canvas.',btn:'Done ↵'};
+  // A tool with no STEP_INFO entry gets no banner at all. 'select' is the one
+  // that matters: it is the idle tool, so the banner sat there permanently.
+  // The old fallback would have swapped it for a generic "Draw / Click on
+  // canvas", which is the same clutter wearing a worse label.
+  var info = STEP_INFO[DRAW.tool];
+  var bar = document.getElementById('stepIndicator');
+  if (!info){
+    if (bar) bar.style.display = 'none';
+    var _rtp0 = document.getElementById('roofTypePanel');
+    if (_rtp0) _rtp0.style.display = 'none';
+    try { _renderRoofMenuBar(); } catch(e){}
+    return;
+  }
+  if (bar) bar.style.display = 'flex';
   document.getElementById('stepIcon').textContent = info.icon;
   document.getElementById('stepTitle').textContent = info.title;
   document.getElementById('stepHint').textContent = info.hint;
   document.getElementById('finishBtn').textContent = info.btn;
+  // The roof panel is a menu now — opened from a roof button, not shown
+  // automatically. Only ever closed from here.
   var rtp=document.getElementById('roofTypePanel');
-  if(rtp) rtp.style.display=DRAW.outlineDone?'block':'none';
+  if(rtp && !DRAW.outlineDone) rtp.style.display='none';
+  try { _renderRoofMenuBar(); } catch(e){}
   try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
 }
 
@@ -33183,8 +33215,13 @@ function finishCurrent() {
     saveSnapshot(); autoPopulateGutters(); _syncCurrentToRoof(); syncToRoofData(); redrawAll();
     renderRoofSwitcher();
     setTool('select');
+    // The menu stays shut here. _roofSetupPopup below asks the roof-type
+    // question directly, and this panel's own note calls itself the "change
+    // my mind" control — throwing it open behind the popup asked the same
+    // thing twice. The roof's button in the bar is how you get back to it.
     var rtp=document.getElementById('roofTypePanel');
-    if(rtp)rtp.style.display='block';
+    if(rtp)rtp.style.display='none';
+    try { _renderRoofMenuBar(); } catch(e){}
     try { _updateRoofTypeHint(''); } catch(e){}   // suggest a roof type as soon as the outline closes
     // Ask the two questions the drawing cannot answer for itself — shape and
     // sheet material — right here, while the roof is the thing in hand.
@@ -50255,6 +50292,59 @@ function _addAndSwitchToNewRoof(){
   if (DRAW.roofs.length > 1) DRAW.showAllRoofs = true;
   renderRoofSwitcher();
 }
+// ── PER-ROOF MENU BAR ───────────────────────────────────────────────
+// One button per roof drawn. Tapping one makes that roof the one a new line
+// joins AND opens its menu (roof type, rotate, clear lines, snap square);
+// tapping the open one closes it again. Every roof stays on the canvas
+// throughout — see the note by _nthName for why that matters.
+function _roofMenuOpenFor(){
+  var rtp = document.getElementById('roofTypePanel');
+  if (!rtp || rtp.style.display === 'none') return -1;
+  return DRAW.activeRoofIdx;
+}
+function _renderRoofMenuBar(){
+  var bar = document.getElementById('roofMenuBar');
+  if (!bar) return;
+  var roofs = (window.DRAW && Array.isArray(DRAW.roofs)) ? DRAW.roofs : [];
+  // Nothing drawn yet — no roof to have settings for, so no bar.
+  //
+  // Gated on geometry, NOT on DRAW.outlineDone: that flag is a per-roof field,
+  // so switching to a roof saved without it set flipped it false and took the
+  // whole bar away — including the buttons you would use to switch back.
+  var drawn = roofs.some(function(r){
+    return r && ((Array.isArray(r.outline) && r.outline.length >= 3) ||
+                 (Array.isArray(r.lines) && r.lines.length > 0));
+  }) || (Array.isArray(DRAW.outline) && DRAW.outline.length >= 3);
+  if (!roofs.length || !drawn){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  var openIdx = _roofMenuOpenFor();
+  bar.style.display = 'flex';
+  bar.innerHTML = roofs.map(function(r, i){
+    var nm  = (r && r.name) || _nthName(i + 1);
+    var on  = (i === DRAW.activeRoofIdx);
+    var opn = (i === openIdx);
+    return '<button type="button" onclick="_toggleRoofMenu(' + i + ')" ' +
+      'title="Roof settings — roof type, rotate, clear lines" ' +
+      'style="padding:6px 12px;font-size:12px;font-weight:700;line-height:1.2;cursor:pointer;' +
+        'border-radius:8px;border:1.5px solid ' + (on ? '#0099cc' : 'var(--border,#d6dbe2)') + ';' +
+        'background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';' +
+        'display:inline-flex;align-items:center;gap:6px">' +
+      esc(nm) + '<span style="font-size:9px;opacity:.85">' + (opn ? '\u25B4' : '\u25BE') + '</span>' +
+      '</button>';
+  }).join('');
+}
+function _toggleRoofMenu(idx){
+  var rtp = document.getElementById('roofTypePanel');
+  if (!rtp) return;
+  var wasOpen = (rtp.style.display !== 'none');
+  var sameRoof = (idx === DRAW.activeRoofIdx);
+  // Switching roofs re-points the menu rather than closing it; tapping the
+  // roof whose menu is already open is how you put it away.
+  if (!sameRoof) switchToRoof(idx);
+  rtp.style.display = (wasOpen && sameRoof) ? 'none' : 'block';
+  try { _syncRoofTypeDropLabel(); } catch(e){}
+  try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
+  _renderRoofMenuBar();
+}
 function switchToRoof(idx){
   // The canvas is always in View-All now, so picking a roof no longer hides
   // the others — it only decides which roof a new line attaches to. Clicking
@@ -50263,8 +50353,12 @@ function switchToRoof(idx){
   if (idx === DRAW.activeRoofIdx) { renderRoofSwitcher(); redrawAll(); return; }
   _syncCurrentToRoof();
   _loadRoofToCurrent(idx);
+  // Leave the menu as the user left it. This used to open the panel on every
+  // roof switch, which now means clicking a roof on the canvas — the ordinary
+  // way to choose which roof a line joins — would throw the menu open over
+  // the drawing every time.
   var rtp = document.getElementById('roofTypePanel');
-  if (rtp) rtp.style.display = DRAW.outlineDone ? 'block' : 'none';
+  if (rtp && !DRAW.outlineDone) rtp.style.display = 'none';
   syncToRoofData(); redrawAll(); renderRoofSwitcher(); updateMeasTotals();
   try { _syncSheetTypeUi(); } catch(e){}
 }
@@ -50286,12 +50380,14 @@ function deleteRoof(idx){
     DRAW.penetrations = []; DRAW.infoItems = []; DRAW.currentPts = [];
     DRAW.outlineDone = false; DRAW.roofType = ''; DRAW.rotation = 0;
     var rtp0 = document.getElementById('roofTypePanel'); if (rtp0) rtp0.style.display = 'none';
+    try { _renderRoofMenuBar(); } catch(e){}
   } else {
     var newIdx = wasActive ? Math.min(idx, DRAW.roofs.length - 1)
                            : (idx < DRAW.activeRoofIdx ? DRAW.activeRoofIdx - 1 : DRAW.activeRoofIdx);
     DRAW.activeRoofIdx = -1;      // force a clean reload
     _loadRoofToCurrent(newIdx);
-    var rtp1 = document.getElementById('roofTypePanel'); if (rtp1) rtp1.style.display = DRAW.outlineDone ? 'block' : 'none';
+    var rtp1 = document.getElementById('roofTypePanel'); if (rtp1) rtp1.style.display = 'none';
+    try { _renderRoofMenuBar(); } catch(e){}
   }
   syncToRoofData(); renderRoofSwitcher(); redrawAll(); updateMeasTotals();
   // Delete is driven from the Pricing tab's roof bar now, so that bar (and the
@@ -50319,6 +50415,9 @@ function renderRoofSwitcher(){
   el.innerHTML = '';
   DRAW.showAllRoofs = true;          // the canvas has no other mode now
   try { _syncRoofTypeDropLabel(); } catch(e){}
+  // Everything that used to refresh the old switcher refreshes the roof
+  // buttons instead, so a roof added, renamed or deleted shows up here.
+  try { _renderRoofMenuBar(); } catch(e){}
 }
 
 // Show-all mode: render every roof's outline + drawn lines + sheet
