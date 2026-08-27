@@ -54,8 +54,14 @@ img{ max-width:100%; display:block }
 header{ position:absolute; top:0; left:0; right:0; z-index:20; padding:20px 0 }
 .nav{ display:flex; align-items:center; gap:30px }
 .brand{ display:flex; align-items:center; gap:11px; text-decoration:none; flex-shrink:0 }
-.brand img{ width:38px; height:38px }
-.brand span{ font-size:20px; font-weight:800; color:#fff; letter-spacing:-.02em }
+/* 44/24, not 38/20: the lockup was only 1.33x the nav links beside it, which
+   is thin for the one element that says whose product this is. Not larger —
+   52/28 overflows the header horizontally at 320px wide, which is a real
+   Android width; sitebars.mjs measures that so the next nudge upward has to
+   prove itself on a small phone. The footer re-uses .brand and stays small
+   through its own inline width/font-size, which win over this. */
+.brand img{ width:44px; height:44px }
+.brand span{ font-size:24px; font-weight:800; color:#fff; letter-spacing:-.02em }
 .nav-links{ display:flex; gap:26px; margin-left:auto; align-items:center }
 .nav-links a{ color:rgba(255,255,255,.84); text-decoration:none; font-size:15px; font-weight:600 }
 .nav-links a:hover{ color:#fff }
