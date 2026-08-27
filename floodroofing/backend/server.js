@@ -2023,6 +2023,38 @@ app.put('/settings', requireAuth, async (req, res) => {
   };
   try {
     const existing = await _companySettingsRow(req);
+    // ── The flashing library must survive writers that don't know it ──
+    // The library (materials catalog) rides INSIDE price_book as
+    // __materials_catalog, and settings saves are whole-document: a writer
+    // that doesn't carry the catalog — an older build still cached on one
+    // machine, the setup wizard's direct save, a tab opened before the
+    // library was drawn — used to overwrite price_book wholesale and take
+    // the library with it. Nine hand-drawn flashings died exactly that way.
+    //
+    // Rule: an incoming save that carries NO saved flashings does not get to
+    // destroy saved flashings that exist. The stored library is folded into
+    // such a save instead. A save that carries a non-empty library is
+    // trusted verbatim (that is how deletes work); emptying the library
+    // deliberately requires the explicit __cleared flag the delete-last-one
+    // path sends.
+    try {
+      const prevCat = existing && existing.price_book && existing.price_book.__materials_catalog;
+      const prevSaved = (prevCat && Array.isArray(prevCat.savedFlashings)) ? prevCat.savedFlashings : [];
+      if (prevSaved.length){
+        const inCat = payload.price_book.__materials_catalog;
+        const inSaved = (inCat && Array.isArray(inCat.savedFlashings)) ? inCat.savedFlashings : [];
+        const cleared = !!(inCat && inCat.__cleared);
+        if (!inSaved.length && !cleared){
+          payload.price_book = Object.assign({}, payload.price_book);
+          payload.price_book.__materials_catalog = Object.assign({}, prevCat, inCat || {},
+            { savedFlashings: prevSaved });
+        }
+      }
+      if (payload.price_book.__materials_catalog && payload.price_book.__materials_catalog.__cleared){
+        payload.price_book.__materials_catalog = Object.assign({}, payload.price_book.__materials_catalog);
+        delete payload.price_book.__materials_catalog.__cleared;
+      }
+    } catch (e) { /* the guard must never break an ordinary save */ }
     let data, error;
     if (existing && existing.user_id){
       // Update the company's row IN PLACE, keyed on the row's own owner —

@@ -7691,6 +7691,9 @@ async function saveSettings(auto){
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
     if (msg) { msg.textContent = auto ? '✓ Auto-saved' : '✓ Saved'; msg.style.color = '#15803d'; }
     applyBranding();
+    if (btn && !auto) btn.disabled = false;
+    if (msg) setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, auto ? 2500 : 7000);
+    return true;
   } catch(e) {
     // localStorage save already succeeded — this is a cloud-only failure.
     // Surface the real backend error so cloud-sync issues can be diagnosed.
@@ -7699,6 +7702,9 @@ async function saveSettings(auto){
       msg.style.color = '#b45309';
     }
     applyBranding();
+    if (btn && !auto) btn.disabled = false;
+    if (msg) setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, auto ? 2500 : 7000);
+    return false;   // local save held; the cloud did not take it
   }
   if (btn && !auto) btn.disabled = false;
   if (msg) setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, auto ? 2500 : 7000);
@@ -9840,9 +9846,13 @@ async function _swSave(){
     }
     // Write straight to the server rather than through the Settings form,
     // which isn't on screen — collectSettingsFromUI would blank what we set.
+    // price_book carries the flashing library (__materials_catalog) on every
+    // save — leaving it out here overwrote the library in the cloud.
+    var _pbOut = Object.assign({}, S.settings.price_book || {});
+    _pbOut.__materials_catalog = S.settings.materials_catalog || {};
     await api('PUT', '/settings', {
       branding: S.settings.branding, quote_defaults: S.settings.quote_defaults,
-      jms_keys: S.settings.jms_keys || {}, price_book: S.settings.price_book || {},
+      jms_keys: S.settings.jms_keys || {}, price_book: _pbOut,
       labour_pricing: S.settings.labour_pricing || {},
     });
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
@@ -24747,6 +24757,17 @@ function addCatalogItem(key){
   };
   var _origLoad = loadSettings;
   loadSettings = async function(){
+    // Read the on-device mirror BEFORE the cloud load — the cloud copy
+    // overwrites the mirror the moment it lands, and if the cloud lost the
+    // flashing library (a stale writer overwrote it) the mirror is the only
+    // surviving copy of the office's drawings.
+    var _mirrorSaved = [];
+    try {
+      var _mir = JSON.parse(localStorage.getItem('fr_settings') || 'null');
+      var _mc = _mir && (_mir.materials_catalog ||
+                 (_mir.price_book && _mir.price_book.__materials_catalog));
+      if (_mc && Array.isArray(_mc.savedFlashings)) _mirrorSaved = _mc.savedFlashings;
+    } catch(e){}
     var s = await _origLoad();
     // Unfold the flashing library / catalog we persist INSIDE price_book
     // (the user_settings table has no materials_catalog column), before
@@ -24757,6 +24778,26 @@ function addCatalogItem(key){
     }
     if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
     if (s && s.materials_catalog && !s.materials_catalog.savedFlashings) s.materials_catalog.savedFlashings = [];
+    // Any drawing that lives only on this device is rescued into the loaded
+    // set (matched by name, so a genuine cloud-side edit still wins) and the
+    // union is pushed back up. A library the user deliberately emptied is
+    // not resurrected — the clear was saved with its flag, and the mirror
+    // was emptied with it.
+    try {
+      if (s && s.materials_catalog && _mirrorSaved.length){
+        var _have = {};
+        s.materials_catalog.savedFlashings.forEach(function(e){ if (e && e.name) _have[e.name] = 1; });
+        var _rescued = 0;
+        _mirrorSaved.forEach(function(e){
+          if (e && e.name && !_have[e.name]){ s.materials_catalog.savedFlashings.push(e); _rescued++; }
+        });
+        if (_rescued){
+          try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+          setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 1200);
+          try { _siteToast('\u21ba Restored ' + _rescued + ' saved flashing' + (_rescued === 1 ? '' : 's') + ' from this device'); } catch(e){}
+        }
+      }
+    } catch(e){}
     // Seed the default suppliers into an existing account that has none — the
     // baked-in defaults only apply to brand-new accounts, so an account whose
     // saved catalog is empty never got them. Seeding when empty installs them;
@@ -25190,10 +25231,17 @@ function _updateSavedFlashCount(){
   el.textContent = n ? (n + ' saved') : '(library empty)';
 }
 function _persistCatalogSilently(){
-  // Best-effort sync to the backend so the library survives reloads.
-  // Wrap in try/catch — if the user isn't logged in or the proxy is
-  // down, the change still lives in memory for this session.
-  try { saveSettings(); } catch(e){ console.warn('library persist failed:', e); }
+  // Sync to the backend so the library survives reloads — and say so when it
+  // can't. This used to swallow the failure; the office drew nine flashings,
+  // every cloud save quietly died, and a reload lost the lot.
+  try {
+    var p = saveSettings();
+    if (p && typeof p.then === 'function'){
+      p.then(function(ok){
+        if (ok === false) try { _siteToast('\u26a0 Flashing library saved on this device only \u2014 cloud sync failed. It will retry on the next save.'); } catch(e){}
+      });
+    }
+  } catch(e){ console.warn('library persist failed:', e); }
 }
 
 function saveFlashingToLibrary(orderIdx){
@@ -25328,6 +25376,10 @@ function removeSavedFlashing(savedIdx){
   var lib = _getSavedFlashings();
   if (!confirm('Remove "' + (lib[savedIdx] && lib[savedIdx].name) + '" from your saved flashings?')) return;
   lib.splice(savedIdx, 1);
+  // Deleting the LAST one must say so explicitly — the backend refuses to
+  // let an empty library overwrite a saved one unless the save carries this
+  // flag, because "empty" is also what a stale tab or an old build sends.
+  if (!lib.length) _ensureCatalog().__cleared = true;
   _renderSavedFlashingsPicker();
   _updateSavedFlashCount();
   _persistCatalogSilently();
@@ -25342,6 +25394,7 @@ function clearSavedFlashings(){
   if (!lib.length) return;
   if (!confirm('Delete ALL ' + lib.length + ' saved flashings? This can\'t be undone.')) return;
   _ensureCatalog().savedFlashings = [];
+  _ensureCatalog().__cleared = true;   // see removeSavedFlashing — deliberate
   _renderSavedFlashingsPicker();
   _updateSavedFlashCount();
   _persistCatalogSilently();
