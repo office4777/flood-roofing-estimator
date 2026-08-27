@@ -9089,8 +9089,8 @@ function _materialsCostForRoofIdx(idx){
   if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
     return _materialsTotalFromRows(_buildMaterialPriceRows(), 0);
   }
-  var savedActive = DRAW.activeRoofIdx;
   var savedSel = _matSelectedRoofIndices();
+  var leave = _roofScopeEnter();
   var group = (typeof _pricingRoofGroup === 'function') ? _pricingRoofGroup(idx) : [idx];
   try {
     _syncCurrentToRoof();
@@ -9099,7 +9099,7 @@ function _materialsCostForRoofIdx(idx){
   } catch(e){ return 0; }
   finally {
     _matSetSelectedRoofs(savedSel);
-    if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive);
+    leave();
   }
 }
 // Current labour charge-out rates (from the main labour table).
@@ -9897,11 +9897,23 @@ function _lkgRemember(draw){
 function _lkgForget(key){
   var k = key || _lkgKey();
   try { delete LKG.byJob[k]; localStorage.removeItem('fr_lkg_' + k); } catch(e){}
+  // An explicit clear is the one signal that says an empty save is correct, so
+  // it has to drop the "this job had a roof map" flag too — otherwise Clear,
+  // Delete roof and New job would all be refused by the guard below.
+  try { if (LKG.hadDrawing === k) delete LKG.hadDrawing; } catch(e){}
 }
 // Opening a job re-bases the guard on what that job actually holds, so an
 // unsaved job's roof can never be resurrected onto a different one.
 function _lkgRebase(){
   var d = { outline:DRAW.outline, lines:DRAW.lines, roofs:(Array.isArray(DRAW.roofs)?DRAW.roofs:[]) };
+  // Remember, separately from the geometry, that this job HAD a roof map when
+  // it was opened. The geometry is filed under the job's key; this is not, and
+  // that matters — see _lkgGuard. Keyed by job so switching jobs cannot carry
+  // the flag across.
+  try {
+    if (_drawIsEmpty(d)) delete LKG.hadDrawing;
+    else LKG.hadDrawing = _lkgKey();
+  } catch(e){}
   if (_drawIsEmpty(d)) _lkgForget();
   else _lkgRemember({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
                       penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels,
@@ -9919,7 +9931,32 @@ function _lkgGet(){
 function _lkgGuard(draw){
   if (!_drawIsEmpty(draw)) { _lkgRemember(draw); return draw; }
   var prev = _lkgGet();
-  if (!prev) return draw;                      // never had one — an empty save is honest
+  if (!prev) {
+    // No last known good under this job's key. Usually honest — a new job with
+    // nothing drawn on it yet must be able to save.
+    //
+    // But not always, and this is the path that loses a roof map with no
+    // warning and no report. _lkgRebase files the geometry under
+    // _lkgKey() = S.currentJobId, and there are flows where the id is settled
+    // AFTER the drawing is restored — _resumeDraft calls restoreFromJob with
+    // no id at all and assigns S.currentJobId on the next line. The geometry
+    // then sits under the previous job's key, the lookup here misses, and the
+    // blank goes to disk over a drawing that was on screen a moment ago.
+    //
+    // So: if this job is known to have opened WITH a roof map, refuse anyway.
+    // There is nothing to restore, but writing the blank is the one mistake
+    // that cannot be undone from the roof — better a failed save the office
+    // can retry than a drawing nobody can get back.
+    if (LKG.hadDrawing && LKG.hadDrawing === _lkgKey()) {
+      try { _setSaveStatus && _setSaveStatus(
+        '⚠ The roof map went blank, so this save was stopped rather than saving nothing. ' +
+        'Re-open the job, or use Roof map history on the Map Roof tab.',
+        '#b91c1c', true); } catch(e){}
+      _lkgReport('empty drawing blocked at save (no last-known-good)', draw, null);
+      throw new Error('refusing to save an empty drawing over a job that had one');
+    }
+    return draw;                               // never had one — an empty save is honest
+  }
   var restored;
   try { restored = JSON.parse(prev); } catch(e){ return draw; }
   if (_drawIsEmpty(restored)) return draw;
@@ -9929,8 +9966,34 @@ function _lkgGuard(draw){
   try { _setSaveStatus && _setSaveStatus(
     '⚠ The roof map had gone blank, so the last good one was saved instead. Check the Map Roof tab.',
     '#b45309', true); } catch(e){}
-  try { _reportClientError && _reportClientError('empty drawing blocked at save', '', 'lkgGuard'); } catch(e){}
+  _lkgReport('empty drawing blocked at save', draw, restored);
   return restored;
+}
+// What the old report looked like: "empty drawing blocked at save", no stack,
+// no state. Unusable — and because _reportClientError dedupes on message plus
+// the top stack frame, an empty stack collapsed every occurrence into one, so
+// "Seen: 1x" could have been "seen all evening". Both fixed here: a real stack
+// names the save path, the state says what the drawing looked like, and the
+// occurrence count rides along instead of the second one vanishing.
+var _lkgReports = 0;
+function _lkgReport(what, draw, restored){
+  _lkgReports++;
+  var st = '';
+  try { st = (new Error('lkgGuard')).stack || ''; } catch(e){}
+  var bits = [];
+  try {
+    bits.push('job=' + _lkgKey());
+    bits.push('occurrence=' + _lkgReports);
+    bits.push('roofs=' + ((DRAW.roofs && DRAW.roofs.length) || 0));
+    bits.push('activeRoofIdx=' + DRAW.activeRoofIdx);
+    bits.push('outline=' + ((DRAW.outline && DRAW.outline.length) || 0));
+    bits.push('lines=' + ((DRAW.lines && DRAW.lines.length) || 0));
+    bits.push('tab=' + ((document.body && document.body.getAttribute('data-tab')) || '?'));
+    bits.push('hadDrawing=' + (LKG.hadDrawing || 'no'));
+    bits.push('lkgSource=' + (LKG.byJob[_lkgKey()] ? 'memory' : (_lkgGet() ? 'disk' : 'none')));
+    bits.push('restoredRoofs=' + ((restored && restored.roofs && restored.roofs.length) || 0));
+  } catch(e){}
+  try { _reportClientError && _reportClientError(what + ' — ' + bits.join(' '), st, 'lkgGuard'); } catch(e){}
 }
 
 // ── ROOF MAP HISTORY ────────────────────────────────────────────────
@@ -10228,6 +10291,11 @@ function restoreFromJob(j){
     try { redrawAll(); } catch(e){ _restoreErr = e; console.error('restore redraw failed', e); }
     try { syncToRoofData(); } catch(e){ if (!_restoreErr) _restoreErr = e; console.error('restore sync failed', e); }
     try { if (typeof renderRoofSwitcher === 'function') renderRoofSwitcher(); } catch(e){}
+    // The id FIRST, then the rebase: _lkgRebase files the drawing under
+    // _lkgKey(), so rebasing while S.currentJobId still holds the previous job
+    // files this job's roof map under the last job's name — and the guard then
+    // finds nothing when this one needs it.
+    if ('id' in j) { try { S.currentJobId = j.id; } catch(e){} }
     try { _lkgRebase(); } catch(e){}   // this job's roof is now the one to protect
     if (_restoreErr) {
       try { _setSaveStatus('⚠ This job loaded but its drawing failed to render (' + _restoreErr.message + ') — the data is intact; try re-opening it.', '#b91c1c', true); } catch(e){}
@@ -11347,7 +11415,15 @@ async function saveCurrentJob(){
   if (!client && !addr) { set('Enter a client name or address first (Map Roof tab).', '#b91c1c');
     _siteToast('Enter a client name or address first'); return; }
   set('Saving…', '');
-  var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
+  // The guard refuses to write a blank drawing over a job that had one, and
+  // says so by throwing — there is nothing to substitute in that case. A
+  // refused save has to read as a failed save the office can retry, not as an
+  // exception that takes the button with it. _lkgGuard has already put the
+  // reason on screen.
+  var _snap;
+  try { _snap = snapshotCurrentJob(); }
+  catch(e){ set('Save stopped — see the message above.', '#b91c1c'); return; }
+  var body = { client_name: client, site_address: addr, draw_state: _snap, settings: {} };
   // The backend rejects bodies over 25 MB with an opaque 413 — catch it
   // here with a message the office can act on (it's always the photos).
   var _size = 0;
@@ -12525,6 +12601,10 @@ async function _resumeDraft(key){
   if (key === '__new__') { S.currentJobId = null; }
   else if (key.indexOf('ferg_') === 0) { S.currentJobId = null; /* linkedJobId comes back via snap.state */ }
   else { S.currentJobId = key; }
+  // restoreFromJob was handed no id, so it protected this drawing under
+  // whatever job was open before. Now that the id is settled, file it again
+  // under the right one.
+  try { _lkgRebase(); } catch(e){}
   try { setCurrentJobLabel(S.currentJobId ? { id: S.currentJobId, client_name: d.client || '', site_address: d.addr || '' } : null); } catch(e){}
   try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
   window._aerialLoadedAddr = null;
@@ -38392,13 +38472,36 @@ function _matSetSelectedRoofs(arr) {
 // there's no multi-roof archive yet). Loads each roof's snapshot into
 // DRAW so the existing single-roof primitives (_matDrawTotalsForCurrent,
 // _matBuildCutList) just work, then restores the active roof at the end.
+// Enter, measure, ALWAYS come back.
+//
+// Measuring one roof means loading it into DRAW — _loadRoofToCurrent swaps
+// DRAW.outline, .lines and the rest to that roof's arrays BY REFERENCE — so
+// anything that walks several roofs has to put DRAW back. Both callers below
+// used to do it by hand, and both got it wrong the same two ways: no
+// try/finally, so a take-off that threw left DRAW standing on whichever roof
+// the loop had reached; and a restore conditional on the saved index being
+// valid, so with no active roof at all (what deleting the last roof leaves —
+// activeRoofIdx = -1) nothing was restored and DRAW ended up claiming a roof
+// the user never chose. The next _syncCurrentToRoof then writes into it.
+function _roofScopeEnter(){
+  var savedActive = DRAW.activeRoofIdx;
+  var saved = {};
+  ROOF_FIELDS.forEach(function(k){ saved[k] = DRAW[k]; });
+  return function _roofScopeLeave(){
+    if (savedActive >= 0 && savedActive < DRAW.roofs.length){ _loadRoofToCurrent(savedActive); return; }
+    // Nothing valid to load back into — put the fields back as they were, by
+    // hand, rather than leaving DRAW wherever the loop finished.
+    ROOF_FIELDS.forEach(function(k){ DRAW[k] = saved[k]; });
+    DRAW.activeRoofIdx = savedActive;
+  };
+}
 function _matEachSelectedRoof(fn) {
   if (!DRAW.roofs || DRAW.roofs.length === 0) { fn(-1); return; }
   var indices = _matSelectedRoofIndices();
-  var savedActive = DRAW.activeRoofIdx;
+  var leave = _roofScopeEnter();
   _syncCurrentToRoof();
-  indices.forEach(function(idx){ _loadRoofToCurrent(idx); fn(idx); });
-  if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive);
+  try { indices.forEach(function(idx){ _loadRoofToCurrent(idx); fn(idx); }); }
+  finally { leave(); }
 }
 
 // Per-roof primitive — reads the live DRAW state. Multi-roof callers
