@@ -14246,15 +14246,19 @@ function _scaffoldPlatformPct(){
   var v = parseFloat(lp.scaffold_platform_pct);
   return isFinite(v) ? v : 25;
 }
-// Effective scaffold cost/price after the Platform (+25%) uplift. The stored
-// cost/price are the base Edge-Protection figures; Platform multiplies both.
+// Scaffold cost/price exactly as entered. There USED to be a +25% multiplier
+// here when the type was Platform — but the figures the office types into the
+// pricing tab are already the price of whatever scaffold it selected, so
+// multiplying them charged platform jobs a 25% that nobody priced. The type
+// changes no arithmetic of its own any more; what it decides is whether a
+// customer adding gutters pays the edge-protection → platform upgrade
+// (_selScaffoldBasePrice returns 0 on a platform job, which zeroes it).
 function _scaffoldEff(sc){
   sc = sc || (S.quote && S.quote.scaffold) || {};
-  var mult = (sc.type === 'platform') ? (1 + _scaffoldPlatformPct() / 100) : 1;
   return {
-    cost:  (parseFloat(sc.cost)  || 0) * mult,
-    price: (parseFloat(sc.price) || 0) * mult,
-    mult:  mult,
+    cost:  parseFloat(sc.cost)  || 0,
+    price: parseFloat(sc.price) || 0,
+    mult:  1,
   };
 }
 function updateScaffoldType(val){
@@ -14437,14 +14441,19 @@ function calcLabour(){
       '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
         '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
           '<option value="edge"'+(_scPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
-          '<option value="platform"'+(_scPlat?' selected':'')+'>Platform Scaffolding (+'+_scPct+'%)</option>'+
+          '<option value="platform"'+(_scPlat?' selected':'')+'>Platform Scaffolding</option>'+
         '</select></div>'+
       '<div class="f2">'+
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
       '</div>'+
-      (_scPlat
-        ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+_scPct+'% → charged <strong>$'+_scEff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+_scEff.cost.toFixed(2)+')</span></div>'
+      // What the type means for the customer's gutter option. The prices
+      // above are charged as entered either way — the type decides whether
+      // choosing a gutter adds the edge-protection → platform upgrade.
+      (isBaseRoof
+        ? (_scPlat
+          ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform scaffold — charged as entered. If the customer adds guttering there is <strong>no scaffolding upcharge</strong>: the platform is already there.</div>'
+          : '<div style="margin-top:8px;font-size:11.5px;color:var(--text2);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px">Edge protection — if the customer adds guttering, a platform upgrade of <strong>+'+_scPct+'%</strong> of the price above is added to their quote.</div>')
         : '')+
       // Roofs folded into the main one no longer have a tab of their own, so
       // their scaffolding is edited here. It is deliberately still per
@@ -16646,9 +16655,15 @@ function _selGutterLineCount(){
 // (which has no live pricing state) can price the gutter-triggered upgrade.
 function _selScaffoldBasePrice(){
   var q = (window.S && S.quote) || {};
+  var sc = q.scaffold || {};
+  // Priced on a platform scaffold already: choosing a gutter has nothing to
+  // upgrade the site TO, so there is no base to charge the 25% on. This is
+  // the one place the scaffold type changes the arithmetic — every uplift
+  // (office breakdown, Selections page, the priced snapshot the share link
+  // reads) is a multiple of this figure.
+  if (sc.type === 'platform') return 0;
   var b = parseFloat(q.scaffoldBase);
   if (isFinite(b) && b > 0) return b;
-  var sc = q.scaffold || {};
   return parseFloat(sc.price) || 0;
 }
 function _selBracketExtDelta(){
@@ -22020,10 +22035,15 @@ function refreshQuoteProposal(){
       if (_gl > 0) S.quote.gutterLines = _gl;
     } catch(e){}
     // Standard scaffolding price (ex-GST) so the customer link can price the
-    // gutter-triggered platform-scaffolding upgrade (+25%).
+    // gutter-triggered platform-scaffolding upgrade (+25%). On a platform job
+    // the upgrade does not exist — stash 0, and OVERWRITE rather than keep an
+    // old value, so a job switched to platform can't leave a stale base
+    // behind for the share link to charge on.
     try {
+      var _scPlatQ = !!(S.quote.scaffold && S.quote.scaffold.type === 'platform');
       var _scp = (S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
-      if (_scp > 0) S.quote.scaffoldBase = _scp;
+      if (_scPlatQ) S.quote.scaffoldBase = 0;
+      else if (_scp > 0) S.quote.scaffoldBase = _scp;
     } catch(e){}
     // Freeze the office's current guttering + downpipe unit prices (Settings →
     // Price book) onto the quote so the customer share link — which has no live
@@ -23232,9 +23252,11 @@ function refreshQuoteProposal(){
               ? (window.__CUSTOMER_MODE ? '' : selPanel('Guttering', _gutterExcludedPanelBody()))
               : selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml())+
                 (pOpts.gutterType && pOpts.gutterType !== 'none'
-                  ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'+
+                  ? ((_selScaffoldBasePrice() > 0
+                      ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'
+                      : '')+
                     selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'internal', '_setProposalOption_bracket', { flat: true, compact: true }))+
-                    selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
+                    selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true })))
                   : ''))+
             selPanel('Colour', _selColourBody(pOpts))+
           '</div>'+
