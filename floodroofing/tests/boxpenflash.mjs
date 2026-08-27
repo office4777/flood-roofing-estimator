@@ -123,25 +123,54 @@ const set = await pg.evaluate(() => ({
   totalLm: _boxFlashTotalLm(true),
   pieces: _boxFlashPenList(true).length,
 }));
-check('a boxed penetration produces a flashing set, not nothing at all',
-  set.pieces === 4, set.pieces + ' pieces');
-check('…named the four pieces a box actually takes',
-  ['Box back flashing','Box side flashing','Box front apron','Box saddle flashing']
+// The five flashings the user specified, by name: side aprons both sides,
+// bottom and top aprons, the back-tray to the ridge, and the chase flashing
+// wrapping the box's upstand.
+check('a boxed penetration produces its five-piece flashing set',
+  set.pieces === 5, set.pieces + ' pieces');
+check('…named the five flashings a box actually takes',
+  ['Boxed Penetration Side Apron','Boxed Penetration Bottom Apron',
+   'Boxed Penetration Top Apron','Boxed Penetration Back-tray',
+   'Boxed Penetration Chase Flashing']
     .every(n => set.names.indexOf(n) >= 0), set.names.join(', '));
-const bySide = set.order.find(g => /side/i.test(g.name));
-check('…with two sides and one of everything else',
-  bySide && bySide.qty === 2 && set.order.filter(g => g.qty === 1).length === 3,
+// The names on the ORDER carry the profile of the roof the box sits on —
+// "… Corro" here, because the fixture's roofs are corrugated steel; a Corro
+// side apron and a 5-Rib one are different folds and order separately.
+const pieceNames = await pg.evaluate(() => _boxFlashPenList(true).map(p => p.name));
+check('…each named with the roof\'s profile: Corro on a corrugated roof',
+  pieceNames.length === 5 && pieceNames.every(n => / Corro$/.test(n)), pieceNames.join(', '));
+const fiveRib = await pg.evaluate(() => {
+  const e = _penAllOwned().find(x => x.pen.kind === 'box');
+  const r = DRAW.roofs[e.ownerIdx];
+  const was = r.sheetType, wasLive = DRAW.sheetType;
+  r.sheetType = 'steel-5rib';
+  if (e.ownerIdx === DRAW.activeRoofIdx) DRAW.sheetType = 'steel-5rib';
+  const names = _boxFlashPieces(e.pen, _penOwnerCtx(e.ownerIdx)).map(p => p.name);
+  r.sheetType = was; DRAW.sheetType = wasLive;
+  return names;
+});
+check('…and 5-Rib when that roof is sheeted in 5-rib',
+  fiveRib.every(n => / 5-Rib$/.test(n)) && fiveRib.some(n => / Side Apron 5-Rib$/.test(n)),
+  fiveRib.join(', '));
+const bySide = set.order.find(g => /side apron/i.test(g.name));
+check('…with two side aprons and one of everything else',
+  bySide && bySide.qty === 2 && set.order.filter(g => g.qty === 1).length === 4,
   JSON.stringify(set.order));
-// His estimate: roughly 5 lm per box plus the run down from the ridge.
-const saddle = set.order.find(g => /saddle/i.test(g.name));
-const perim = set.order.filter(g => !/saddle/i.test(g.name))
+// His original estimate: roughly 5 lm per box plus the run down from the
+// ridge — that was the aprons. The chase flashing adds the box's perimeter.
+const saddle = set.order.find(g => /back-tray/i.test(g.name));
+const chase = set.order.find(g => /chase/i.test(g.name));
+const aprons = set.order.filter(g => /apron/i.test(g.name))
   .reduce((t,g) => t + g.qty * g.len, 0);
-check('…the four pieces round a 510×510 box come to roughly 5 lm',
-  perim >= 4 && perim <= 6, r2(perim) + ' lm');
-check('…and the saddle runs from the ridge down to the top of the box',
-  saddle && saddle.len > 1.5, saddle ? (saddle.len + ' m') : 'no saddle');
-check('…so the box costs about 5 lm plus its saddle in total',
-  set.totalLm > 6 && set.totalLm < 9, r2(set.totalLm) + ' lm');
+check('…the four aprons round a 510×510 box come to roughly 5 lm',
+  aprons >= 4 && aprons <= 6, r2(aprons) + ' lm');
+check('…the chase flashing wraps the box: its perimeter plus laps',
+  chase && Math.abs(chase.len - 2.7) < 0.05,
+  chase ? (chase.len + ' m — 2×(0.51+0.51) + 0.6 lap, ceiled to 0.1') : 'no chase');
+check('…and the back-tray runs from the ridge down to the top of the box',
+  saddle && saddle.len > 1.5, saddle ? (saddle.len + ' m') : 'no back-tray');
+check('…so the box costs its aprons + chase + back-tray in total',
+  set.totalLm > 8.5 && set.totalLm < 12, r2(set.totalLm) + ' lm');
 
 // The saddle stops at the TOP of the box, not at its centre.
 const saddleGeom = await pg.evaluate(() => {
@@ -193,7 +222,7 @@ const jp = await pg.evaluate(() => {
   const t = document.getElementById('jpPages') || document.body;
   const txt = t.innerText || '';
   return { heading: /Boxed penetration flashings/i.test(txt),
-           back: /Box back flashing/.test(txt), saddle: /Box saddle flashing/.test(txt),
+           back: /Boxed Penetration Top Apron/.test(txt), saddle: /Boxed Penetration Back-tray/.test(txt),
            addBtn: !!t.querySelector('[onclick*="_bfExtraAdd"]'),
            qtyInputs: t.querySelectorAll('[onchange*="_bfSet(\'Qty\'"]').length,
            lenInputs: t.querySelectorAll('[onchange*="_bfSet(\'Len\'"]').length,
@@ -202,16 +231,16 @@ const jp = await pg.evaluate(() => {
 check('the job pack auto-adds the boxed flashing set', jp.heading && jp.back && jp.saddle,
   JSON.stringify(jp));
 check('…with every piece re-quantifiable and re-lengthable',
-  jp.qtyInputs === 4 && jp.lenInputs === 4, JSON.stringify(jp));
+  jp.qtyInputs === 5 && jp.lenInputs === 5, JSON.stringify(jp));
 check('…every piece deletable, and a row you can add by hand',
-  jp.dels === 4 && jp.addBtn, JSON.stringify(jp));
+  jp.dels === 5 && jp.addBtn, JSON.stringify(jp));
 
 const edit = await pg.evaluate(() => {
   const pc = _boxFlashPenList().find(p => p.key === 'back');
   const k = _bfKey(pc);
   const was = _bfLenOf(pc);
   _bfSet('Len', k, 9.9); _bfSet('Qty', k, 3);
-  const after = _boxFlashOrderList().find(g => /back/i.test(g.name));
+  const after = _boxFlashOrderList().find(g => /top apron/i.test(g.name));
   const lmAfter = _boxFlashTotalLm();
   _bfSet('Len', k, ''); _bfSet('Qty', k, '');
   const back = _bfLenOf(_boxFlashPenList().find(p => p.key === 'back'));
@@ -233,7 +262,7 @@ const del = await pg.evaluate(() => {
   return { before, gone, back:_boxFlashTotalLm() };
 });
 check('striking a piece off takes it out of the price',
-  del.gone.lm < del.before - 1 && del.gone.live === 3, JSON.stringify(del.gone));
+  del.gone.lm < del.before - 1 && del.gone.live === 4, JSON.stringify(del.gone));
 check('…and leaves a chip to put it back', del.gone.chip, JSON.stringify(del.gone));
 check('…which restores it exactly', Math.abs(del.back - del.before) < 0.001,
   del.back + ' vs ' + del.before);

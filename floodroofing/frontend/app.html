@@ -31283,7 +31283,7 @@ var TOUR_STEPS = [
     alt:{ sel:'#btn-outline',
           body:'Once an outline is closed, a **Change roof type** button appears on the roof toolbar just here.\n\nIt holds every shape — hip & valley, straight gable, gable with a hip/valley corner, dutch gable, mono-pitch — and the sheet material, including a **Clearlite** roof for a veranda. Picking a shape redraws that roof’s lines from the outline.' } },
   { key:'roof-items', sel:'#rlDropBtn', tab:'roof', title:'Everything else goes on here',
-    body:'**Add items/details** covers the bits that are specific to the building: individual ridge, hip, valley, barge and apron lines, pipe penetrations, **boxed** penetrations like a chimney, clearlite sheets, gutters and notes.\n\nA boxed penetration brings its whole flashing set with it — back, two sides, front apron and the saddle up to the ridge.' },
+    body:'**Add items/details** covers the bits that are specific to the building: individual ridge, hip, valley, barge and apron lines, pipe penetrations, **boxed** penetrations like a chimney, clearlite sheets, gutters and notes.\n\nA boxed penetration brings its whole flashing set with it — side aprons both sides, bottom and top aprons, the back-tray up to the ridge and the chase flashing around the upstand.' },
   { key:'roof-cal', sel:'#btn-calibrate', tab:'roof', title:'Tell it how big the roof is',
     body:'Click one wall you know the length of and type that length in. Everything else on the drawing scales off it.\n\nGet this right and every measurement after it is right.' },
   { key:'roof-canvas', sel:'#roofCanvas', tab:'roof', title:'All the roofs, all the time',
@@ -38536,7 +38536,8 @@ function _penOwnerCtx(ownerIdx){
   if (!DRAW.roofs || !DRAW.roofs.length) return null;
   if (ownerIdx === DRAW.activeRoofIdx) return null;
   var r = DRAW.roofs[ownerIdx];
-  return { lines: (r && r.lines) || [], pitch: (+(r && r.calPitch) || 0) };
+  return { lines: (r && r.lines) || [], pitch: (+(r && r.calPitch) || 0),
+           sheetType: (r && r.sheetType) || 'steel-corrugate' };
 }
 // Which roofs the Materials tab is currently scoped to, or null when the job
 // has no multi-roof archive to scope.
@@ -38607,11 +38608,18 @@ function _backTrayOrderList(){
 // library under exactly these names and the drawing shows up on every box on
 // every job, the same way back-trays already do.
 var BOX_FLASH_LAP_M = 0.3;                 // turn-up / lap allowance per END
+// The five flashings a boxed penetration takes, named the way the order is
+// written: side aprons both sides, an apron across the bottom and the top,
+// the back-tray running from the ridge down to the top of the box, and the
+// chase flashing wrapping the box's upstand. Keys survive from the old
+// four-piece set so overrides saved on existing jobs still land on the same
+// piece: 'back' was the top apron, 'saddle' was the back-tray.
 var BOX_FLASH_SET = [
-  { key:'back',   name:'Box back flashing',   span:'w',      qty:1, note:'upslope face' },
-  { key:'side',   name:'Box side flashing',   span:'d',      qty:2, note:'one each side' },
-  { key:'front',  name:'Box front apron',     span:'w',      qty:1, note:'downslope face' },
-  { key:'saddle', name:'Box saddle flashing', span:'saddle', qty:1, note:'ridge to top of box' },
+  { key:'side',   name:'Boxed Penetration Side Apron',     span:'d',      qty:2, note:'one each side' },
+  { key:'front',  name:'Boxed Penetration Bottom Apron',   span:'w',      qty:1, note:'downslope face' },
+  { key:'back',   name:'Boxed Penetration Top Apron',      span:'w',      qty:1, note:'upslope face' },
+  { key:'saddle', name:'Boxed Penetration Back-tray',      span:'saddle', qty:1, note:'ridge to top of box' },
+  { key:'chase',  name:'Boxed Penetration Chase Flashing', span:'perim',  qty:1, note:'wraps the box upstand' },
 ];
 // Box size in metres. The typed Width × Length wins (it is the tape measure);
 // the drawn rectangle is the fallback for a box placed but never labelled.
@@ -38643,12 +38651,19 @@ function _boxFlashPieces(pen, ctx){
   // kerb starts. Plus one lap to tuck under the ridge capping.
   var saddle = (geom.ok && geom.topToPenM > 0)
     ? Math.max(0, geom.topToPenM - sz.d / 2) + BOX_FLASH_LAP_M : 0;
+  // The profile suffix comes from the roof the box sits on (ctx null = the
+  // active roof): "… Corro" on a corrugated roof, "… 5-Rib" on a 5-rib one.
+  // The bottom edge of every piece is scribed to that profile, so the two are
+  // different folds and order as different line items.
+  var _prof = _sheetTypeDef((ctx && ctx.sheetType) || DRAW.sheetType || 'steel-corrugate').profile;
+  var _suffix = (_prof === '5-Rib') ? ' 5-Rib' : ' Corro';
   return BOX_FLASH_SET.map(function(sp){
     var raw = (sp.span === 'w') ? (sz.w + lap)
             : (sp.span === 'd') ? (sz.d + lap)
+            : (sp.span === 'perim') ? (2 * (sz.w + sz.d) + lap)
             : saddle;
     var len = raw > 0 ? Math.ceil(raw * 10) / 10 : 0;
-    return { key:sp.key, name:sp.name, note:sp.note, qty:sp.qty, lengthM:len, hasGeom:len > 0 };
+    return { key:sp.key, name:sp.name + _suffix, note:sp.note, qty:sp.qty, lengthM:len, hasGeom:len > 0 };
   });
 }
 // Overrides — the same deal the back-tray cards get. A box flashing is a
@@ -42223,8 +42238,9 @@ function _jpRenderCutLists(content, page, idx){
   }
 
   // ── Boxed penetration flashings — the set a chimney / kerb takes.
-  //    Four pieces round the box plus a saddle up to the ridge, sized off
-  //    the drawn box and the calibrated map, every one of them editable.
+  //    Side aprons both sides, bottom and top aprons, the back-tray up to
+  //    the ridge and the chase flashing round the upstand — sized off the
+  //    drawn box and the calibrated map, every one of them editable.
   var _bfList = (typeof _boxFlashPenList === 'function') ? _boxFlashPenList() : [];
   if (_bfList.length || _bfExtras().length){
     var _bfLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];

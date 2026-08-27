@@ -121,7 +121,7 @@ check('…and the gate step names the button to click',
 // ── the features it was written for ───────────────────────────────
 const all = walk.seen.map(s => s.body).join('\n');
 check('it explains the roof-setup popup', /roof shape and the sheet material/i.test(all));
-check('…the boxed penetration flashing set', /boxed.{0,20}penetration/i.test(all) && /saddle/i.test(all));
+check('…the boxed penetration flashing set', /boxed.{0,20}penetration/i.test(all) && /back-tray/i.test(all) && /chase/i.test(all));
 check('…the per-roof pricing tabs', /tab per roof/i.test(all) && /optional extra/i.test(all));
 check('…the whole-job flashing total', /flashing metres/i.test(all));
 check('…that feedback reaches support@roofmap.co.nz', /support@roofmap\.co\.nz/.test(all));
