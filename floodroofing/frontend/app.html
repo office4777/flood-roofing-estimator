@@ -38618,8 +38618,8 @@ var BOX_FLASH_SET = [
   { key:'side',   name:'Boxed Penetration Side Apron',     span:'d',      qty:2, note:'one each side' },
   { key:'front',  name:'Boxed Penetration Bottom Apron',   span:'w',      qty:1, note:'downslope face' },
   { key:'back',   name:'Boxed Penetration Top Apron',      span:'w',      qty:1, note:'upslope face' },
-  { key:'saddle', name:'Boxed Penetration Back-tray',      span:'saddle', qty:1, note:'ridge to top of box' },
-  { key:'chase',  name:'Boxed Penetration Chase Flashing', span:'perim',  qty:1, note:'wraps the box upstand' },
+  { key:'saddle', name:'Boxed Penetration Top Back-Tray',  span:'saddle', qty:1, note:'ridge to top of box' },
+  { key:'chase',  name:'Boxed Penetration Chase Flashing', span:'perim',  qty:1, note:'wraps the box upstand', noProfile:true },
 ];
 // Box size in metres. The typed Width × Length wins (it is the tape measure);
 // the drawn rectangle is the fallback for a box placed but never labelled.
@@ -38663,7 +38663,7 @@ function _boxFlashPieces(pen, ctx){
             : (sp.span === 'perim') ? (2 * (sz.w + sz.d) + lap)
             : saddle;
     var len = raw > 0 ? Math.ceil(raw * 10) / 10 : 0;
-    return { key:sp.key, name:sp.name + _suffix, note:sp.note, qty:sp.qty, lengthM:len, hasGeom:len > 0 };
+    return { key:sp.key, name:sp.name + (sp.noProfile ? '' : _suffix), note:sp.note, qty:sp.qty, lengthM:len, hasGeom:len > 0 };
   });
 }
 // Overrides — the same deal the back-tray cards get. A box flashing is a
@@ -38714,6 +38714,39 @@ function _bfExtraDelete(i){
   _bfExtras().splice(i, 1);
   try { autosaveJob && autosaveJob(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
+}
+// The library sketch for one box flashing piece. Library names are typed by
+// hand, so an exact string compare misses the real library: names arrive
+// wrapped in quote marks ('"Boxed Penetration Side Apron Corro"'), in any
+// capitalisation, with Back-Tray / back-tray hyphenation of their own — and
+// sometimes with the profile recorded on the entry's profile chip rather
+// than in its name. Normalise both sides, then match: full name first, base
+// name + compatible profile chip second.
+function _bfNameKey(s){
+  s = String(s || '').toLowerCase();
+  s = s.replace(/["'\u201c\u201d\u2018\u2019]/g, ' ');
+  s = s.replace(/back[\s-]*tray/g, 'backtray');
+  s = s.replace(/\b(corrugated|corrugate)\b/g, 'corro');
+  s = s.replace(/\b5[\s-]*rib\b/g, '5rib');
+  s = s.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return s;
+}
+function _bfSketchEntry(pc, lib){
+  var want = _bfNameKey(pc.name);
+  var base = _bfNameKey(String(pc.name).replace(/ (Corro|5-Rib)$/, ''));
+  var profWord = / 5-Rib$/.test(pc.name) ? '5rib' : (/ Corro$/.test(pc.name) ? 'corro' : '');
+  var best = null, bestScore = 0;
+  (lib || []).forEach(function(e){
+    if (!e || !e.name) return;
+    var k = _bfNameKey(e.name);
+    var ep = _bfNameKey(e.profile || '');
+    var score = 0;
+    if (k === want) score = 3;
+    else if (k === base && (!profWord || ep === profWord || ep === 'any' || !ep)) score = 2;
+    else if (k === base) score = 1;
+    if (score > bestScore){ best = e; bestScore = score; }
+  });
+  return best;
 }
 // Every box flashing piece on the roofs currently in scope, overrides applied
 // and struck-off pieces dropped. One list feeding the job pack, the cut list,
@@ -42264,7 +42297,7 @@ function _jpRenderCutLists(content, page, idx){
         '<span style="font-weight:400;color:#6f6a60;margin-left:8px">'+lm.toFixed(1)+' lm</span></div>'+
         '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
       live.forEach(function(pc){
-        var entry = _bfLib.find(function(e){ return e && e.name === pc.name; });
+        var entry = _bfSketchEntry(pc, _bfLib);
         var img = (entry && entry.sketch)
           ? '<img src="'+entry.sketch+'" alt="'+esc(pc.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
           : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(pc.name)+'&rdquo; in Settings &rarr; Flashing library</div>';

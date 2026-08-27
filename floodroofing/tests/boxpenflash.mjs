@@ -130,7 +130,7 @@ check('a boxed penetration produces its five-piece flashing set',
   set.pieces === 5, set.pieces + ' pieces');
 check('…named the five flashings a box actually takes',
   ['Boxed Penetration Side Apron','Boxed Penetration Bottom Apron',
-   'Boxed Penetration Top Apron','Boxed Penetration Back-tray',
+   'Boxed Penetration Top Apron','Boxed Penetration Top Back-Tray',
    'Boxed Penetration Chase Flashing']
     .every(n => set.names.indexOf(n) >= 0), set.names.join(', '));
 // The names on the ORDER carry the profile of the roof the box sits on —
@@ -138,7 +138,9 @@ check('…named the five flashings a box actually takes',
 // side apron and a 5-Rib one are different folds and order separately.
 const pieceNames = await pg.evaluate(() => _boxFlashPenList(true).map(p => p.name));
 check('…each named with the roof\'s profile: Corro on a corrugated roof',
-  pieceNames.length === 5 && pieceNames.every(n => / Corro$/.test(n)), pieceNames.join(', '));
+  pieceNames.length === 5 && pieceNames.filter(n => / Corro$/.test(n)).length === 4 &&
+  pieceNames.indexOf('Boxed Penetration Chase Flashing') >= 0,
+  pieceNames.join(', ') + ' (the chase dresses the upstand — no profile)');
 const fiveRib = await pg.evaluate(() => {
   const e = _penAllOwned().find(x => x.pen.kind === 'box');
   const r = DRAW.roofs[e.ownerIdx];
@@ -150,8 +152,41 @@ const fiveRib = await pg.evaluate(() => {
   return names;
 });
 check('…and 5-Rib when that roof is sheeted in 5-rib',
-  fiveRib.every(n => / 5-Rib$/.test(n)) && fiveRib.some(n => / Side Apron 5-Rib$/.test(n)),
+  fiveRib.filter(n => / 5-Rib$/.test(n)).length === 4 &&
+  fiveRib.some(n => / Side Apron 5-Rib$/.test(n)) &&
+  fiveRib.indexOf('Boxed Penetration Chase Flashing') >= 0,
   fiveRib.join(', '));
+
+// ── the library he actually drew finds its way onto the cards ──────
+// His entries are named with the quote marks INCLUDED — '"Boxed Penetration
+// Side Apron Corro"' — and the chase is saved once, profile 'any'. The sketch
+// match has to meet those names as typed, not demand a retype.
+const lib = await pg.evaluate(() => {
+  const px = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const cat = _ensureCatalog();
+  cat.savedFlashings = [
+    '"Boxed Penetration Side Apron Corro"', '"Boxed Penetration Side Apron 5-Rib"',
+    '"Boxed Penetration Bottom Apron Corro"', '"Boxed Penetration Bottom Apron 5-Rib"',
+    '"Boxed Penetration Top Apron Corro"', '"Boxed Penetration Top Apron 5-Rib"',
+    '"Boxed Penetration Top Back-Tray Corro"', '"Boxed Penetration Top Back-Tray 5-Rib"',
+  ].map(n => ({ name: n, profile: / 5-Rib"$/.test(n) ? '5-Rib' : 'Corrugate', sketch: px }))
+   .concat([{ name: '"Boxed Penetration Chase Flashing"', profile: 'any', sketch: px }]);
+  const all = _getAllFlashings();
+  const hits = _boxFlashPenList(true).map(pc => {
+    const e = _bfSketchEntry(pc, all);
+    return { piece: pc.name, entry: e && e.name };
+  });
+  cat.savedFlashings = [];
+  return hits;
+});
+check('every piece finds his library entry, quote marks and all',
+  lib.length === 5 && lib.every(h => !!h.entry),
+  lib.map(h => h.piece + ' → ' + (h.entry || 'NOTHING')).join(' | '));
+check('…and each lands on its own profile, not its neighbour\'s',
+  lib.every(h => {
+    const p5 = / 5-Rib$/.test(h.piece), e5 = / 5-Rib"$/.test(h.entry || '');
+    return /Chase/.test(h.piece) ? /Chase/.test(h.entry) : p5 === e5;
+  }), JSON.stringify(lib));
 const bySide = set.order.find(g => /side apron/i.test(g.name));
 check('…with two side aprons and one of everything else',
   bySide && bySide.qty === 2 && set.order.filter(g => g.qty === 1).length === 4,
@@ -222,7 +257,7 @@ const jp = await pg.evaluate(() => {
   const t = document.getElementById('jpPages') || document.body;
   const txt = t.innerText || '';
   return { heading: /Boxed penetration flashings/i.test(txt),
-           back: /Boxed Penetration Top Apron/.test(txt), saddle: /Boxed Penetration Back-tray/.test(txt),
+           back: /Boxed Penetration Top Apron/.test(txt), saddle: /Boxed Penetration Top Back-Tray/.test(txt),
            addBtn: !!t.querySelector('[onclick*="_bfExtraAdd"]'),
            qtyInputs: t.querySelectorAll('[onchange*="_bfSet(\'Qty\'"]').length,
            lenInputs: t.querySelectorAll('[onchange*="_bfSet(\'Len\'"]').length,
