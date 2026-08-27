@@ -6433,6 +6433,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a material order is emailed to a supplier.</div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <label style="font-weight:700">Quote email — your default wording</label>
+          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">What the "Email Quote" window opens with — edit it here once and every quote starts from your wording. You can still tweak each email before it sends. These fill in automatically: <code>{client}</code> <code>{address}</code> <code>{link}</code> <code>{ref}</code> <code>{company}</code> <code>{valid_until}</code> <code>{phone}</code> <code>{email}</code> <code>{website}</code>.</div>
+          <label style="font-size:12px">Subject</label>
+          <input type="text" id="emQuoteSubject" autocomplete="off" style="margin-bottom:8px">
+          <label style="font-size:12px">Message</label>
+          <textarea id="emQuoteBody" rows="10" style="width:100%;font-size:12.5px;line-height:1.45;font-family:inherit"></textarea>
+          <button type="button" onclick="_resetQuoteEmailTemplate()" style="margin-top:6px;padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">↺ Reset to the standard wording</button>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
           <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
           <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
           <div style="font-size:11px;color:var(--text2);margin-top:6px">Sends a clearly-labelled test to every address above, so you can confirm they arrive.</div>
@@ -7756,6 +7765,13 @@ function collectSettingsFromUI(){
   q.sections      = collectListEditor('qdSectionsList', ['title','body']);
   if (!q.email || typeof q.email !== 'object') q.email = {};
   q.email.quote_cc  = ((document.getElementById('emQuoteCc') ||{}).value || '').trim();
+  q.email.quote_subject = ((document.getElementById('emQuoteSubject')||{}).value || '').trim();
+  q.email.quote_body    = ((document.getElementById('emQuoteBody')   ||{}).value || '').trim();
+  // The boxes open pre-filled with the standard wording. Unedited text is
+  // stored as "no override", so an office that never customised keeps
+  // following the standard wording if it is ever improved.
+  if (q.email.quote_subject === QUOTE_EMAIL_DEFAULT.subject) q.email.quote_subject = '';
+  if (q.email.quote_body === QUOTE_EMAIL_DEFAULT.body) q.email.quote_body = '';
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
   q.invoicing = {
@@ -9645,6 +9661,11 @@ function refreshSettingsUI(){
   set('qdQuoteDomain', q.quote_domain || '');
   var _em = q.email || {};
   set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
+  // The template boxes open showing what will actually be used — the saved
+  // wording, or the standard one when nothing has been saved yet — so editing
+  // starts from real text, never a blank box.
+  set('emQuoteSubject', _em.quote_subject || QUOTE_EMAIL_DEFAULT.subject);
+  set('emQuoteBody',    _em.quote_body    || QUOTE_EMAIL_DEFAULT.body);
   var _iv = q.invoicing || {};
   set('invDepositPct', _iv.deposit_percent == null ? 50 : _iv.deposit_percent);
   set('invDueDays', _iv.due_days == null ? 7 : _iv.due_days);
@@ -23954,6 +23975,51 @@ async function saveQuote(){
   setTimeout(function(){ if(msg){msg.textContent='';msg.style.color='';} }, 4000);
 }
 
+// The standard quote email. {placeholders} are swapped for the job's own
+// details at send time; the office can replace the whole wording in
+// Settings \u2192 Email. {valid_until} and {link} expand to a full line (or
+// nothing), so an edited template can drop or move them freely.
+var QUOTE_EMAIL_DEFAULT = {
+  subject: 'Your roofing quote {ref} \u2014 {company}',
+  body: 'Hi {client},\n\n' +
+    'Thanks for the opportunity to quote your roof{address}.\n\n' +
+    'Your quote is ready \u2014 view it online, choose your options, and accept it right from your phone:\n' +
+    '{link}\n' +
+    '{valid_until}\n' +
+    'Any questions, just reply to this email or give us a call.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
+function _quoteEmailTemplate(link){
+  var q = (window.S && S.quote) || {};
+  var br = (window.S && S.settings && S.settings.branding) || {};
+  var em = ((S.settings || {}).quote_defaults || {}).email || {};
+  var company = _proposalCompanyName(br);
+  var vars = {
+    client: q.client || '',
+    address: q.addr ? (' at ' + q.addr) : '',
+    link: link ? (link + '\n') : '',
+    ref: q.ref || '',
+    company: company,
+    valid_until: q.validUntil ? ('\nQuote valid until: ' + q.validUntil + '\n') : '',
+    phone: br.phone ? (br.phone + '\n') : '',
+    email: br.email ? (br.email + '\n') : '',
+    website: br.website || '',
+  };
+  var fill = function(t){
+    return String(t || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
+      function(m, k){ return vars[k]; });
+  };
+  var subject = fill(em.quote_subject || QUOTE_EMAIL_DEFAULT.subject)
+    .replace(/\s{2,}/g, ' ').trim();
+  var body = fill(em.quote_body || QUOTE_EMAIL_DEFAULT.body)
+    .replace(/\n{3,}/g, '\n\n');
+  return { subject: subject, body: body };
+}
+function _resetQuoteEmailTemplate(){
+  var s = document.getElementById('emQuoteSubject'); if (s) s.value = QUOTE_EMAIL_DEFAULT.subject;
+  var t = document.getElementById('emQuoteBody');    if (t) t.value = QUOTE_EMAIL_DEFAULT.body;
+  try { if (typeof _scheduleSettingsAutosave === 'function') _scheduleSettingsAutosave(); } catch(e){}
+}
 async function emailQuote(){
   // The email carries the LIVE ONLINE QUOTE LINK — the customer opens
   // it in their browser, makes their steel / thickness / gutter
@@ -23966,23 +24032,8 @@ async function emailQuote(){
   var company = _proposalCompanyName(br);
   var got = await _ensureCustomerLink(msg);
   if (!got) return;
-  var M = _quoteMoney();
-  var subject = 'Your roofing quote ' + (q.ref ? q.ref + ' ' : '') + '— ' + company;
-  var body =
-    'Hi ' + (q.client || '') + ',\n\n' +
-    'Thanks for the opportunity to quote your roof at ' + (q.addr || 'your property') + '.\n\n' +
-    'VIEW YOUR QUOTE ONLINE\n' +
-    got.link + '\n\n' +
-    'The link opens your full proposal. You can choose your steel grade, ' +
-    'thickness, guttering and colour right on the page — the price updates ' +
-    'as you pick — and accept online when you\'re ready.\n\n' +
-    'Total (as quoted, incl. GST): ' + fmtMoney(M.tot) + '\n' +
-    (q.validUntil ? 'Quote valid: ' + q.validUntil + '\n' : '') +
-    '\nAny questions, just reply to this email or give us a call.\n\n' +
-    'Kind regards,\n' + company + '\n' +
-    (br.phone ? br.phone + '\n' : '') +
-    (br.email ? br.email + '\n' : '') +
-    (br.website || '');
+  var t = _quoteEmailTemplate(got.link);
+  var subject = t.subject, body = t.body;
   var href = 'mailto:' + encodeURIComponent(q.email||'') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   if (msg) { msg.textContent = '✓ Link ready — opening your email client…'; msg.style.color = '#15803d'; }
   window.location.href = href;
@@ -24407,22 +24458,14 @@ async function openQuoteEmail(){
   var q = (window.S && S.quote) || {};
   var br = (window.S && S.settings && S.settings.branding) || {};
   var company = _proposalCompanyName(br);
-  var subject = 'Your roofing quote ' + (q.ref ? q.ref + ' ' : '') + '— ' + company;
   var link = '';
   try { link = _customerLinkString() || ''; } catch(e){}
-  var body =
-    'Hi ' + (q.client || '') + ',\n\n' +
-    'Thanks for the opportunity to quote your roof' + (q.addr ? (' at ' + q.addr) : '') + '.\n\n' +
-    'Your quote is ready — view it online, choose your options, and accept it right from your phone:\n' +
-    (link ? link + '\n' : '') +
-    // No total here on purpose. The customer picks their own gutters, steel
-    // grade and gauge inside the quote, so any figure printed in the covering
-    // email is out of date the moment they change one — and the two
-    // disagreeing is worse than the email being quiet about price.
-    (q.validUntil ? ('\nQuote valid until: ' + q.validUntil + '\n') : '') +
-    '\nAny questions, just reply to this email or give us a call.\n\n' +
-    'Kind regards,\n' + company + '\n' +
-    (br.phone ? br.phone + '\n' : '') + (br.email ? br.email + '\n' : '') + (br.website || '');
+  // No total in the default wording, on purpose: the customer picks their own
+  // gutters, steel grade and gauge inside the quote, so a figure printed in
+  // the covering email is out of date the moment they change one. The office
+  // sets its own wording in Settings \u2192 Email.
+  var t = _quoteEmailTemplate(link);
+  var subject = t.subject, body = t.body;
   // Pull the customer's email from the quote / the linked Fergus job details.
   var _custEmail = q.email || ((document.getElementById('jobEmail')||{}).value || '').trim();
   var toEl = document.getElementById('quoteEmailTo'); if (toEl) toEl.value = _custEmail || '';
