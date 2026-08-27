@@ -37454,9 +37454,25 @@ function slopeFactorForLineType(type, pitchDeg) {
 }
 
 // Auto-calculate pixel length of every drawn line and convert to metres
+// The pitch of the roof currently being drawn.
+//
+// `DRAW.calPitch || <the pitchDeg box>` was wrong wherever it appeared, because
+// 0 is a real answer — a flat roof, or a roof deliberately left flat — and it
+// is falsy. A flat roof therefore fell through to the pitchDeg box, which
+// carries a default of 15, and got measured as a 15° roof. Combined with
+// _recalcAllRoofsMeas rewriting the OTHER roofs, that is what made a hip read
+// 6.49 m with one roof selected and 6.38 m with another.
+//
+// Only an absent pitch — never a zero one — falls back to the box.
+function _activePitch(){
+  if (typeof DRAW !== 'undefined' && DRAW && typeof DRAW.calPitch === 'number') return DRAW.calPitch;
+  var el = document.getElementById('pitchDeg');
+  var v = el ? parseFloat(el.value) : NaN;
+  return isFinite(v) ? v : 0;
+}
 function autoCalcLineMeasurements() {
   if(!DRAW.scaleMetresPerPx) return;
-  var pitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var pitch = _activePitch();
   DRAW.lines.forEach(function(l) {
     if(!l.pts||l.pts.length<2) return;
     var pixLen = Math.sqrt(
@@ -37492,10 +37508,18 @@ function _recalcAllRoofsMeas(){
   autoCalcLineMeasurements();               // active roof (live DRAW.*)
   if (!(DRAW.roofs && DRAW.roofs.length > 1)) return;
   try { if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof(); } catch(e){}
-  var actPitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var actPitch = _activePitch();
   DRAW.roofs.forEach(function(r, ri){
     if (ri === DRAW.activeRoofIdx || !r || !r.lines) return;   // active already done
-    var pitch = (typeof r.calPitch === 'number' && r.calPitch > 0) ? r.calPitch : actPitch;
+    // A pitch of 0 is a pitch — a flat roof, or one deliberately left flat —
+    // not an absence of one. The `> 0` here meant a flat roof failed the test
+    // and borrowed the ACTIVE roof's pitch instead, and since the loop below
+    // WRITES measM back onto the line, every other roof's stored measurements
+    // were rewritten according to whichever roof happened to be selected. On a
+    // job with pitches 0/0/0/20 that moved a hip from 6.49 m to 6.59 m and back
+    // as you clicked between roofs — "it changes the look of all the measures".
+    // Only a roof that has never been given a pitch at all may inherit one.
+    var pitch = (typeof r.calPitch === 'number') ? r.calPitch : actPitch;
     r.lines.forEach(function(l){
       if (!l || !l.pts || l.pts.length < 2) return;
       var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
@@ -37514,7 +37538,7 @@ function calcLineMeasIfCalibrated(lineIdx) {
   var pixLen = Math.sqrt(
     Math.pow(l.pts[1][0]-l.pts[0][0],2)+Math.pow(l.pts[1][1]-l.pts[0][1],2)
   );
-  var pitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var pitch = _activePitch();
   var planM = pixLen * DRAW.scaleMetresPerPx;
   var factor = slopeFactorForLineType(l.type, pitch);
   var measM = Math.round(planM * factor * 100) / 100;
