@@ -60,6 +60,27 @@ export function startFakePostgrest(tables){
       return (r) => readCol(r, col) != null && re.test(String(readCol(r, col)));
     }
     if (op === 'is') return (r) => (val === 'null' ? (readCol(r, col) === null || readCol(r, col) === undefined) : true);
+    // Range filters. These used to fall through to the catch-all below, which
+    // returned true for every row — so any query narrowed by a date window
+    // silently got the WHOLE table back, and a suite written against "the last
+    // seven days" passed no matter what it was counting. Comparing dates as
+    // dates and numbers as numbers, because a timestamp and a bigserial id are
+    // both filtered this way and lexical order is wrong for the second.
+    if (op === 'gte' || op === 'lte' || op === 'gt' || op === 'lt'){
+      const cmp = (a, b) => {
+        if (a == null) return null;                       // null compares false, as in SQL
+        const ta = Date.parse(a), tb = Date.parse(b);
+        if (isFinite(ta) && isFinite(tb) && /\d{4}-\d{2}-\d{2}/.test(String(a))) return ta - tb;
+        const na = Number(a), nb = Number(b);
+        if (isFinite(na) && isFinite(nb)) return na - nb;
+        return String(a) < String(b) ? -1 : (String(a) > String(b) ? 1 : 0);
+      };
+      return (r) => {
+        const d = cmp(readCol(r, col), val);
+        if (d === null) return false;
+        return op === 'gte' ? d >= 0 : op === 'lte' ? d <= 0 : op === 'gt' ? d > 0 : d < 0;
+      };
+    }
     if (op === 'not') return () => true;
     return () => true;
   };

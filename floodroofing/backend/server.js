@@ -5022,6 +5022,24 @@ const _MIGRATION_SQL = [
   "create unique index if not exists idx_waitlist_email on public.waitlist (lower(email))",
   "create index if not exists idx_waitlist_new on public.waitlist (created_at desc)",
   "alter table public.waitlist enable row level security",
+
+  // 10. platform_state — one row per thing the platform needs to remember
+  //     ACROSS RESTARTS. Right now that is exactly one thing: the date the
+  //     weekly metrics email last went out.
+  //
+  //     It has to be in the database rather than in memory because Railway
+  //     redeploys, and a weekly timer that resets on every deploy is a weekly
+  //     email that never arrives during a busy fortnight. A date in a table is
+  //     the difference between "it fires every Monday" and "it fires every
+  //     Monday we didn't happen to push on Sunday".
+  //
+  //     Like usage_events and waitlist: RLS on, no policy, so it is reachable
+  //     only by the backend with the service key. Nothing here is a customer's.
+  "create table if not exists public.platform_state (" +
+  "  key text primary key," +
+  "  value jsonb not null default '{}'::jsonb," +
+  "  updated_at timestamptz not null default now())",
+  "alter table public.platform_state enable row level security",
 ];
 
 async function _ensureSchema(){
@@ -5134,6 +5152,50 @@ app.get('/admin/usage', async (req, res) => {
   res.json({ window_days: days, since, events: rows.length, signups: signed, funnel });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// THE MONDAY EMAIL
+// ══════════════════════════════════════════════════════════════════
+// /admin/usage above answers "how is the funnel doing" — but only if somebody
+// goes and asks it, which is the same as not knowing. This is the same numbers
+// plus the money and the marketing, pushed rather than pulled, once a week.
+// The collectors live in metrics.js; everything here is wiring.
+const METRICS = require('./metrics').createMetrics({
+  supabase: supabase,
+  dispatchMail: _dispatchMail,
+  usageEvents: USAGE_EVENTS,
+  buildSha: BUILD_SHA,
+  warn: function(m){ console.warn(m); },
+});
+
+// The report as JSON, for looking at it without waiting until Monday.
+app.get('/admin/metrics', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await METRICS.collect()); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
+// Send it now. A weekly job that has never once been fired by hand is not a
+// job anybody has verified, so this exists to be pressed on the day it ships.
+app.post('/admin/metrics/send', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const rep = await METRICS.sendNow();
+    res.json({ ok: true, to: METRICS.config.to, week_ending: rep.week_ending,
+               sections: rep.sections.map(function(s){ return { key: s.key, connected: !!s.connected, error: s.error || null }; }) });
+  } catch (e){ res.status(500).json({ error: e.message }); }
+});
+// Same view as the email, in a browser, for checking how it looks.
+app.get('/admin/metrics/preview', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const rep = await METRICS.collect();
+    if (String(req.query.format || '') === 'text'){
+      res.type('text/plain').send(METRICS.renderText(rep));
+    } else {
+      res.type('html').send(METRICS.renderHtml(rep));
+    }
+  } catch (e){ res.status(500).json({ error: e.message }); }
+});
+
 // ── Reading and receiving errors ────────────────────────────────────
 // A frontend crash is the half that was completely invisible: it happens on
 // somebody else's laptop and nothing about it ever reaches us. The app posts
@@ -5220,4 +5282,12 @@ app.listen(PORT, () => {
   // Enforce the retention period the privacy policy promises.
   _pruneUsage().catch(function(){});
   setInterval(function(){ _pruneUsage().catch(function(){}); }, 24 * 3600e3).unref();
+  // The weekly digest. Checks hourly and sends when it is due in NZ time and
+  // hasn't gone out in six days — deliberately NOT on boot, so a Monday
+  // morning redeploy can't send a second copy of an email already sent.
+  try { METRICS.start(); } catch(e){ console.warn('[metrics] schedule not started: ' + e.message); }
+  console.log('Weekly metrics: ' + (String(process.env.METRICS_ENABLED || 'true') === 'false'
+    ? 'disabled (METRICS_ENABLED=false)'
+    : METRICS.config.to + ' every ' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][METRICS.config.day]
+      + ' ' + METRICS.config.hour + ':00 NZ'));
 });
