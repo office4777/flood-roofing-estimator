@@ -1687,7 +1687,7 @@ const HELP={
   tail:['Finishing tail',"Small flashings are nearly always needed to close a job — a few days' wait after the main work. Added to each job's finish date (but not to the crew's next job). Default 3 days."],
   wagekw:['On-site wages → COGS',"Comma-separate keywords. Any Operating-Expenses line whose name contains one moves into Cost of Sales. Prefix a term with “-” to exclude it (e.g. <b>wages, -admin</b> moves wage accounts but keeps Admin Staff Wages in Opex). Blank = keep all wages in Opex."],
   opexexcl:['Exclude from overheads',"Operating-Expenses lines whose name contains these (comma-separated) are kept OUT of the overhead-recovery rate and the cashflow burn. Default: income tax — it sits in Operating Expenses in Xero but isn't a real operating overhead."],
-  backlogsnap:['Backlog snapshot',"Backlog man-hours captured at the start of each month (first app open that month) so you can see how the queue is trending."],
+  backlogsnap:['Backlog snapshot',"Backlog man-hours captured at the start of each month (first app open/sync that month) so you can see how the queue is trending. Months before snapshotting began are shown as a <b>dashed 'estimated' line</b> — reconstructed from your dated Fergus labour history by walking back from the earliest real reading and adding the crew hours actually logged each earlier month. It's an approximation (it can't know exactly when each job was booked), so treat the dashed part as a rough trend, not an exact figure."],
   matacct:['Materials / Sales account match',"Keywords used to find your 02 Materials and 03 Sales accounts on the Xero Balance Sheet. Confirm the matched row looks right; adjust the keyword if it picks the wrong account."],
   matterms:['Material payment terms',"Materials for a job are assumed <b>ordered ~N weeks before the job finishes</b>, but the cash doesn't leave until the supplier's terms — the <b>20th of the month after ordering</b> (so material ordered any time in August is paid on 20 September). Existing unpaid supplier bills (A/P) land on the next 20th."],
   apcodes:['Materials / COGS account codes',"Leave blank and the hub auto-picks your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed."]
@@ -1928,6 +1928,40 @@ function recordFwSnapshot(){
   hist[cur]={h:Math.round(h),d:c.perDay>0?Math.round(h/c.perDay*10)/10:0};
   S.set('fwHist',hist);
 }
+// Estimate the backlog for months BEFORE snapshotting began, from the dated labour history the master
+// pulls for every job (_jobMonthHrs). Method: anchor to the earliest REAL snapshot (or today's live
+// backlog if there are none) and walk backwards — the backlog at the start of a month ≈ the backlog at
+// the start of the next month PLUS the crew hours actually logged during that month (the work that got
+// burned down). It's an approximation: it assumes the work logged each month was already on the books
+// (it can't know when each job was booked), so the further back it goes the more it can over-state.
+// Estimated months are flagged {est:true} so the trend can draw them as a dashed line, and real
+// snapshots are never overwritten.
+function reconstructFwHist(){
+  const jmh=_jobMonthHrs||{};if(!Object.keys(jmh).length)return false;
+  const hist=S.get('fwHist',{});
+  const mi=k=>{const p=String(k).split('-');const mo=FG_MONTHS.indexOf(p[0]);const yr=parseInt(p[1],10);return (mo<0||isNaN(yr))?null:yr*12+mo;};
+  const keyOf=idx=>FG_MONTHS[((idx%12)+12)%12]+'-'+Math.floor(idx/12);
+  // total crew hours logged per month, across every job we have dated labour for
+  const logged={};Object.keys(jmh).forEach(id=>{const mh=jmh[id]||{};Object.keys(mh).forEach(m=>{logged[m]=(logged[m]||0)+num(mh[m]);});});
+  const loggedIdxs=Object.keys(logged).map(mi).filter(x=>x!=null);if(!loggedIdxs.length)return false;
+  // anchor = earliest REAL snapshot; else today's live backlog
+  const realKeys=Object.keys(hist).filter(k=>hist[k]&&!hist[k].est&&mi(k)!=null).sort((a,b)=>mi(a)-mi(b));
+  let anchorIdx,anchorH;
+  if(realKeys.length){anchorIdx=mi(realKeys[0]);anchorH=num(hist[realKeys[0]].h);}
+  else{anchorIdx=mi(calMonthKey(0));anchorH=Math.max(0,totalRemaining());}
+  if(anchorIdx==null)return false;
+  const earliest=Math.max(anchorIdx-24,Math.min.apply(null,loggedIdxs));   // at most 24 months of backfill
+  const c=capacity();let acc=anchorH,changed=false;
+  for(let x=anchorIdx-1;x>=earliest;x--){
+    acc=acc+num(logged[keyOf(x)]||0);   // backlog at start of x = next-month backlog + hours burned during x
+    const k=keyOf(x);if(hist[k]&&!hist[k].est)continue;   // keep real snapshots
+    const h=Math.round(acc);
+    if(hist[k]&&hist[k].est&&hist[k].h===h)continue;      // unchanged estimate → no rewrite (avoids push churn)
+    hist[k]={h,d:c.perDay>0?Math.round(h/c.perDay*10)/10:0,est:true};changed=true;
+  }
+  if(changed)S.set('fwHist',hist);
+  return changed;
+}
 // ISO-week key (e.g. "2026-W30") so KPI snapshots land at most once per week.
 function isoWeekKey(d){
   d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
@@ -1972,14 +2006,18 @@ function renderWorkTrend(){
   const host=document.getElementById('wk-chart');if(!host)return;
   const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
   setChip('wks-m',wkTrend.smooth==='m');setChip('wks-r',wkTrend.smooth==='r');
+  try{reconstructFwHist();}catch(e){}   // backfill pre-snapshot months from the dated labour history (estimate)
   const hist=S.get('fwHist',{});const ks=[];for(let i=11;i>=0;i--)ks.push(calMonthKey(-i));
   const vals=ks.map(k=>hist[k]?num(hist[k].h):null);
+  const est=ks.map(k=>!!(hist[k]&&hist[k].est));
+  const anyEst=est.some(Boolean);
   const leg=document.getElementById('wk-chart-leg');
   if(vals.filter(v=>v!=null).length<1){host.innerHTML='<div class="empty">No monthly snapshots yet — the forward workload is captured at the start of each month, so the trend builds up from now.</div>';if(leg)leg.innerHTML='';return;}
-  let series=[{label:'Backlog man-hours',color:'#ff6b35',vals}];
+  let series=[{label:'Backlog man-hours',color:'#ff6b35',vals,est}];
   if(wkTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
   host.innerHTML=svgLine(ks,series,'h');
-  if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
+  if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('')+
+    (anyEst?'<span class="leg"><i style="background:transparent;border:1.3px dashed #ff6b35"></i>estimated (from labour history)</span>':'');
 }
 function saveCfg(){
   cfg={teams:num(document.getElementById('cfg-teams').value)||4,size:num(document.getElementById('cfg-size').value)||2,hrs:num(document.getElementById('cfg-hrs').value)||8};
@@ -3604,10 +3642,15 @@ function svgLine(months,series,mode){
   let vx='';months.forEach((m,i)=>{const xx=x(i),pa=(m||'').split('-');vx+='<line x1="'+xx.toFixed(1)+'" y1="'+pt+'" x2="'+xx.toFixed(1)+'" y2="'+(pt+ih).toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".16"/>'+
     '<text x="'+xx.toFixed(1)+'" y="'+(pt+ih+13)+'" text-anchor="middle" font-size="7.5" fill="var(--muted)">'+esc(pa[0]||'')+'</text>'+
     '<text x="'+xx.toFixed(1)+'" y="'+(pt+ih+22)+'" text-anchor="middle" font-size="6.5" fill="var(--muted)" opacity=".65">’'+esc((pa[1]||'').slice(2))+'</text>';});
-  // segmented polylines (break at gaps) + points
-  let p='';series.forEach(s=>{let seg=[];const flush=()=>{if(seg.length>1)p+='<polyline points="'+seg.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';seg=[];};
-    s.vals.forEach((v,i)=>{if(v==null)flush();else seg.push(x(i).toFixed(1)+','+y(v).toFixed(1));});flush();
-    s.vals.forEach((v,i)=>{if(v!=null)p+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2" fill="'+s.color+'"/>';});});
+  // line segments (break at gaps) + points. A series may carry s.est[i]=true for ESTIMATED points
+  // (e.g. reconstructed history) — those segments are drawn dashed/faded with a hollow marker.
+  let p='';series.forEach(s=>{const est=s.est||[];let prev=null;
+    s.vals.forEach((v,i)=>{if(v==null){prev=null;return;}const cx=x(i),cy=y(v);
+      if(prev){const dash=est[i]||est[prev.i];
+        p+='<line x1="'+prev.x.toFixed(1)+'" y1="'+prev.y.toFixed(1)+'" x2="'+cx.toFixed(1)+'" y2="'+cy.toFixed(1)+'" stroke="'+s.color+'" stroke-width="2.2" stroke-linecap="round"'+(dash?' stroke-dasharray="4 3" opacity=".55"':'')+'/>';}
+      prev={x:cx,y:cy,i};});
+    s.vals.forEach((v,i)=>{if(v==null)return;const e=est[i];
+      p+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="'+(e?2.2:2)+'" fill="'+(e?'var(--card)':s.color)+'" stroke="'+s.color+'" stroke-width="'+(e?1.3:0)+'"'+(e?' opacity=".9"':'')+'/>';});});
   return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">'+g+zero+vx+p+'</svg>';
 }
 function renderPLTrend(){
