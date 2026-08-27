@@ -39,7 +39,7 @@ const API = [
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
-  'trialui', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'roofmenu', 'sheetrun1024', 'bgmatch', 'tutorial', 'seo', 'sitebrand', 'quotelink', 'quotebar', 'roofhistory', 'lkgguard', 'rotatefine', 'snapreach', 'roofpitch',
+  'trialui', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'roofmenu', 'sheetrun1024', 'bgmatch', 'tutorial', 'seo', 'sitebrand', 'quotelink', 'quotebar', 'roofhistory', 'lkgguard', 'rotatefine', 'snapreach', 'roofpitch', 'pricingarea',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();

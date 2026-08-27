@@ -1155,6 +1155,8 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 }
 .pr-roof-btn .pr-roof-nm{ font-size:22px; font-weight:800; color:#0a1628; }
 .pr-roof-btn .pr-roof-sub{ font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--text2); text-transform:uppercase; }
+.pr-roof-btn .pr-roof-area{ display:block; font-size:13px; font-weight:800; color:var(--text1); font-variant-numeric:tabular-nums; margin:1px 0 2px }
+.pr-roof-btn.on .pr-roof-area{ color:#fff }
 .pr-roof-btn.on{ border-color:#0099cc; background:#0099cc; box-shadow:0 3px 12px rgba(0,153,204,.32); }
 .pr-roof-btn.on .pr-roof-nm, .pr-roof-btn.on .pr-roof-sub{ color:#fff; }
 /* Sub-blocks inside a tile (e.g. Roof labour + Roof material). */
@@ -9463,13 +9465,31 @@ function _renderPricingRoofSwitchBar(){
   var tabs = _pricingRoofTabIdxs();
   if (tabs.length < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
   var html = '';
+  // Area per roof, from the same collector the Materials tab uses, so the two
+  // screens cannot quote different sizes for the same building.
+  var _areaByIdx = {};
+  try {
+    (typeof _matBasicCollectRoofs === 'function' ? _matBasicCollectRoofs() : [])
+      .forEach(function(r){ _areaByIdx[r.idx] = +r.areaM2 || 0; });
+  } catch(e){}
   tabs.forEach(function(i){
     var on = (i === cur);
     var extras = _pricingRoofGroupExtras(i);
+    // A tab can cover more than one roof — the main roof plus anything folded
+    // into it — and the price on that tab covers all of them, so the area has
+    // to as well.
+    var _a = 0;
+    try { _pricingRoofGroup(i).forEach(function(k){ _a += (_areaByIdx[k] || 0); }); }
+    catch(e){ _a = _areaByIdx[i] || 0; }
+    // Nothing rather than "0.0 m²" — an uncalibrated job has no area to show,
+    // and a zero reads as a mistake in the drawing.
+    var _areaHtml = _a > 0
+      ? '<span class="pr-roof-area">' + _a.toFixed(1) + ' m²</span>' : '';
     // Each roof is a column: the switch button, with its own Rename under it.
     html += '<div class="pr-roof-cell">' +
       '<button type="button" onclick="_setPricingRoof(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '">' +
         '<span class="pr-roof-nm">' + esc(_pricingRoofName(i)) + '</span>' +
+        _areaHtml +
         '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') +
           (extras.length ? '<br>+ ' + esc(extras.join(', ')) : '') + '</span>' +
       '</button>' + _roofRenameLinkHtml(i, { size:'10.5px' }) +
@@ -39653,7 +39673,7 @@ function _matBasicCollectRoofs(){
       var isActive = (i === DRAW.activeRoofIdx);
       var outline = isActive ? DRAW.outline : (r.outline || []);
       var lines   = isActive ? DRAW.lines   : (r.lines   || []);
-      var pitch   = isActive ? (+DRAW.calPitch || 0) : (+(r.calPitch) || 0);
+      var pitch   = _pitchOr(isActive ? DRAW.calPitch : r.calPitch);
       if (!outline || outline.length < 3) return;
       roofs.push({
         idx: i,                       // original DRAW.roofs index (for per-roof colour overrides)
@@ -39669,7 +39689,7 @@ function _matBasicCollectRoofs(){
       name: 'Roof 1',
       outline: DRAW.outline,
       lines: DRAW.lines || [],
-      areaM2: planArea(DRAW.outline, +DRAW.calPitch || 0)
+      areaM2: planArea(DRAW.outline, _activePitch())
     });
   }
   return roofs;
