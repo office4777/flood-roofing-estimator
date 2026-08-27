@@ -2812,6 +2812,10 @@ html.customer-view .cust-scroll{ overflow-x:hidden !important; }
    slips an office control through. */
 html.customer-view .qp-cond-controls,html.customer-view .qp-cond-mark-tools,html.customer-view .qp-cond-cap-empty,html.customer-view .qp-cond-empty{display:none!important}
 html.customer-view .qp-cond-photo{cursor:default!important}
+/* Same rule for the roof map's crop box: the customer sees the framed
+   picture, never the office's zoom/reset buttons or a grab cursor. */
+html.customer-view .qp-map-controls{display:none!important}
+html.customer-view .qp-map-frame{cursor:default!important}
 html.customer-view .qp-cond-mark{pointer-events:none!important;cursor:default!important}
 html.customer-view .qp-cond-cap{pointer-events:none!important}
 html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!important}
@@ -15764,6 +15768,10 @@ function defaultQuote(){
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default large.
     roofMapSize: 'lg',
+    // How the office has cropped that map inside its box — the same
+    // {offX, offY, zoom} a site photo carries in its slot on page 1.
+    // Presentation only: it never moves the published frame (the viewBox).
+    roofMapView: { offX: 0, offY: 0, zoom: 1 },
     // Free "Word-style" layout for the inclusions page. When enabled the roof
     // map, the "What's included" scope and the notes each become a movable /
     // resizable box positioned inside the A4 page. Geometry is stored per box
@@ -19975,6 +19983,114 @@ function _setRoofMapSize(sz){
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 
+// ── Crop / zoom / move the roof map inside its box ──────────────────
+// The quote map reproduces the canvas view exactly, so until now the only way
+// to reframe the customer's picture was to go back to Map Roof and reframe the
+// canvas. This is the other half of that: the office nudges the picture inside
+// its box on the quote, the same way a site photo is nudged inside its slot on
+// page 1. Same state shape, same handlers, same controls as _qpCondPhoto* —
+// the only difference is that this one wraps an inline <svg> rather than an
+// <img>, and a CSS transform treats the two identically.
+//
+// It is presentation laid ON TOP of the published frame. The viewBox is never
+// touched here: what the map is a picture OF stays the canvas view.
+function _qpRoofMapView(){
+  var v = (window.S && S.quote && S.quote.roofMapView) || null;
+  if (!v || typeof v !== 'object') v = {};
+  var z = +v.zoom;
+  return { offX: +v.offX || 0, offY: +v.offY || 0, zoom: (isFinite(z) && z > 0) ? z : 1 };
+}
+function _qpRoofMapViewSet(patch){
+  if (!S.quote) return;
+  S.quote.roofMapView = Object.assign({}, _qpRoofMapView(), patch || {});
+}
+// Write the transform straight onto what is already on screen rather than
+// re-rendering the proposal, so a drag stays smooth. Mirrors
+// _qpApplySlotTransform. Every frame on the page moves together — the map is
+// one picture that happens to appear on more than one page.
+function _qpApplyRoofMapTransform(){
+  var v = _qpRoofMapView();
+  var t = 'translate(' + v.offX + 'px,' + v.offY + 'px) scale(' + v.zoom + ')';
+  var els = document.querySelectorAll('.qp-map-inner');
+  for (var i = 0; i < els.length; i++) els[i].style.transform = t;
+}
+function _qpRoofMapZoom(delta){
+  if (window.__CUSTOMER_MODE) return;
+  var z = Math.max(0.3, Math.min(4, _qpRoofMapView().zoom + delta));
+  _qpRoofMapViewSet({ zoom: Math.round(z * 100) / 100 });
+  _qpApplyRoofMapTransform();
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _qpRoofMapWheel(e){
+  if (window.__CUSTOMER_MODE) return;
+  e.preventDefault();
+  _qpRoofMapZoom(e.deltaY > 0 ? -0.08 : 0.08);
+}
+// Back to the canvas view, which is where every quote starts.
+function _qpRoofMapReset(){
+  if (window.__CUSTOMER_MODE) return;
+  _qpRoofMapViewSet({ offX: 0, offY: 0, zoom: 1 });
+  _qpApplyRoofMapTransform();
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _qpRoofMapDragStart(e){
+  if (window.__CUSTOMER_MODE) return;
+  if (e.target && e.target.closest && e.target.closest('.qp-map-controls, button, a')) return;
+  e.preventDefault();
+  // With free layout on, the box this sits in is itself draggable. A drag
+  // that starts on the picture moves the picture, not the box.
+  e.stopPropagation();
+  var v = _qpRoofMapView();
+  var sx = e.clientX, sy = e.clientY, ox = v.offX, oy = v.offY;
+  var box = e.currentTarget;
+  box.style.cursor = 'grabbing';
+  function onMove(ev){
+    _qpRoofMapViewSet({ offX: ox + (ev.clientX - sx), offY: oy + (ev.clientY - sy) });
+    _qpApplyRoofMapTransform();
+  }
+  function onUp(){
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    box.style.cursor = 'grab';
+    // Once, on drop — not on every mousemove.
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+// The box itself. The fixed height is the whole point: the map used to
+// shrink-wrap its own contents (height:auto under a max-height), and a box the
+// size of its contents cannot crop anything. A height in px rather than a CSS
+// aspect-ratio because the PDF is an html2canvas capture and html2canvas does
+// not compute aspect-ratio — the same reason the closing photo band is a
+// fixed-height background-cover div.
+function _qpRoofMapFrameHtml(svg, maxH){
+  if (!svg) return '';
+  var v = _qpRoofMapView();
+  var cust = !!window.__CUSTOMER_MODE;
+  var h = Math.max(80, +maxH || _qpRoofMapMaxH());
+  var btn = function(label, call, title, fs){
+    return '<button type="button" title="' + title + '" onclick="event.stopPropagation();' + call + '" ' +
+      'style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;' +
+      'cursor:pointer;font-size:' + fs + 'px;line-height:1;display:flex;align-items:center;justify-content:center">' + label + '</button>';
+  };
+  return '<div class="qp-map-frame" ' +
+    (cust ? '' : 'onwheel="_qpRoofMapWheel(event)" onmousedown="_qpRoofMapDragStart(event)" ') +
+    'style="position:relative;overflow:hidden;width:100%;height:' + h + 'px;background:#fff;' +
+    'border:1px solid var(--ed-line);border-radius:6px;cursor:' + (cust ? 'default' : 'grab') + ';user-select:none">' +
+      '<div class="qp-map-inner" style="width:100%;height:100%;' +
+        'transform:translate(' + v.offX + 'px,' + v.offY + 'px) scale(' + v.zoom + ');' +
+        'transform-origin:center center">' + svg + '</div>' +
+    (cust ? '' :
+      '<div class="qp-map-controls no-print" title="Drag the plan to move it; scroll to zoom" ' +
+        'style="position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:.8">' +
+        btn('\u2212', '_qpRoofMapZoom(-0.1)', 'Zoom out', 14) +
+        btn('+',       '_qpRoofMapZoom(0.1)',  'Zoom in', 14) +
+        btn('\u21BA', '_qpRoofMapReset()',    'Back to the canvas view', 11) +
+      '</div>') +
+  '</div>';
+}
+
 // ── Free "Word-style" layout for the inclusions page ────────────────
 // The roof map, the "What's included" scope and the notes each become a
 // movable / resizable box. Geometry per box: { x:%left, y:pxTop, w:%width,
@@ -20335,7 +20451,13 @@ function _qpRoofMapSvg(opts){
   var alsoHi = Array.isArray(opts.highlightAlso) ? opts.highlightAlso : [];
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
   var showGutters = !!opts.showGutters;
-  var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
+  // Inside a cropping frame the SVG fills the box and the frame draws the
+  // border; standing on its own (the Pricing tab's mini map) it still
+  // shrink-wraps to its own aspect under a maximum height.
+  var _fitCss = opts.fill
+    ? 'width:100%;height:100%;'
+    : 'width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;border:1px solid var(--ed-line);border-radius:6px;';
+  var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;'+_fitCss+'background:#fff;font-family:Inter,-apple-system,sans-serif">';
   if (g.bg && opts.showBg !== false){
     // Turned the way the canvas has it. The canvas rotates about the centre of
     // the displayed photo, which in image coordinates is the image's own
@@ -20480,8 +20602,10 @@ function _qpInteractiveRoofBlock(opts){
   var extraList = (S.quote.extraRoofs) || [];
   var hasExtras = extraList.length > 0;
   var anyExcl = g.roofs.some(function(r){ return r.mode === 'excluded'; });
-  var svg = _qpRoofMapSvg({ sel: erSel, showBg: _qpRoofMapShowBg(), maxH: opts.maxH || _qpRoofMapMaxH() });
+  var _mh = opts.maxH || _qpRoofMapMaxH();
+  var svg = _qpRoofMapSvg({ sel: erSel, showBg: _qpRoofMapShowBg(), maxH: _mh, fill: true });
   if (!svg) return '';
+  svg = _qpRoofMapFrameHtml(svg, _mh);
   var legend = (hasExtras || anyExcl)
     ? '<div style="display:flex;gap:16px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);flex-wrap:wrap">'+
         '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span><span style="color:#16a34a;font-weight:800">✓</span> Included</span>'+
@@ -20670,9 +20794,9 @@ function _buildRoofPreviewsHtml(opts){
     var _mh = _qpRoofMapMaxH();
     // The live inline-SVG plan (redraws instantly on toggle). Falls back to the
     // stashed images for any quote saved before the geometry was captured.
-    var _svg = _qpRoofMapSvg({ sel: _erSel, showBg: _qpRoofMapShowBg(), maxH: _mh });
+    var _svg = _qpRoofMapSvg({ sel: _erSel, showBg: _qpRoofMapShowBg(), maxH: _mh, fill: true });
     var _mapBody = _svg
-      ? _svg
+      ? _qpRoofMapFrameHtml(_svg, _mh)
       : '<div style="'+(_multiRoof?'display:grid;grid-template-columns:repeat('+Math.min(imgs.length,2)+',minmax(0,1fr));gap:14px':'display:block')+'">'+
           imgs.map(function(im){ return '<div><div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.caption||'Roof plan')+'" style="display:block;max-width:100%;max-height:'+_mh+'px;width:auto;height:auto;background:#fff"></div></div>'; }).join('')+
         '</div>';
