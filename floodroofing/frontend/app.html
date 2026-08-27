@@ -22221,9 +22221,20 @@ function refreshQuoteProposal(){
                         price: +_priceI.toFixed(2) });
         }
         S.quote.extraRoofs = _extra;
-      } else if (!_hasOptionPkgs) {
-        S.quote.extraRoofs = [];   // single roof — clear any stale stash
+      } else if (!_hasOptionPkgs && DRAW.roofs && DRAW.roofs.length === 1 && DRAW.scaleMetresPerPx > 0) {
+        // Genuinely a single-roof job: clear any stale extras.
+        S.quote.extraRoofs = [];
       }
+      // No drawing loaded AT THIS MOMENT (a render firing while the job is
+      // still opening, a customer view, an uncalibrated map) says NOTHING
+      // about the job's extra roofs — leave the stashed list alone. This
+      // wiped a live quote's "Include Garage / Include Clearlite Roof"
+      // buttons: one refresh in an empty moment wrote extraRoofs = [], the
+      // autosave published it, and the customer could no longer add a roof
+      // — while the map, which stashes separately, still labelled them
+      // "Optional — tap to add". Same rule as the aerial carry in
+      // _qpStashRoofGeom: an empty moment must never overwrite published
+      // data with nothing.
     } catch(e){}
   }
   var d = S.roofData || {};
