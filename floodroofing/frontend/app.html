@@ -36392,6 +36392,10 @@ function redrawAll() {
       // gutter. Same rule the Sheet-measure arrow uses, so a clear and a
       // sheet measure drawn at the same spot point the same way.
       var ux = 0, uy = 1;
+      if (isFinite(+c.ux) && isFinite(+c.uy) && (c.ux || c.uy)){
+        // Fitted at placement — the direction is part of the sheet.
+        ux = +c.ux; uy = +c.uy;
+      } else {
       var gutters = (DRAW.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
       var bestD = Infinity;
       gutters.forEach(function(g){
@@ -36403,6 +36407,7 @@ function redrawAll() {
         var d = Math.hypot(c.cx - px, c.cy - py);
         if (d < bestD){ bestD = d; var gl = Math.sqrt(l2); ux = -gdy/gl; uy = gdx/gl; }
       });
+      }
       // Fall back to a square-ish tile when the roof isn't calibrated or the
       // clear has no length yet — better a visible marker than nothing.
       var t2 = getImgTransform();
@@ -38269,6 +38274,84 @@ function _clearPopupSetMode(m){
   if (n) n.style.display = (_clearPopupMode === 'short') ? 'none' : 'block';
   if (_clearPopupMode === 'short') { var i = document.getElementById('clearLenInput'); if (i) setTimeout(function(){ try { i.focus(); } catch(e){} }, 20); }
 }
+// Fit a clearlite the way a sheet actually lies on the plane under the
+// click: square off the nearest gutter, starting ON the gutter line, running
+// up the fall to the ridge. Report: "clearlite sheet should fit nicely
+// inside the roof map not just randomly thrown over the map" — the sheet
+// used to be centred on the raw click, so a full-length clear centred
+// mid-plane stuck out past the ridge, and its direction was re-derived on
+// every redraw from whichever gutter happened to be nearest the centre.
+//
+// Returns { cx, cy, ux, uy } — the fitted centre and the up-the-fall unit
+// direction, in image coordinates — or null when there is nothing to fit to
+// (no gutters yet), in which case the click stands as it was.
+function _clearliteFit(cx, cy, lenM){
+  var gutters = (DRAW.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+  if (!gutters.length) return null;
+  var mpp = DRAW.scaleMetresPerPx || 0;
+  // The gutter this sheet drains to: nearest by perpendicular distance, but
+  // measured to the SEGMENT so a short side gutter far along its own line
+  // cannot claim a sheet in the middle of the main plane.
+  var best = null, bestD = Infinity;
+  gutters.forEach(function(g){
+    var ga = g.pts[0], gb = g.pts[1];
+    var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+    var l2 = gdx*gdx + gdy*gdy; if (l2 < 1) return;
+    var t = Math.max(0, Math.min(1, ((cx-ga[0])*gdx + (cy-ga[1])*gdy) / l2));
+    var px = ga[0] + t*gdx, py = ga[1] + t*gdy;
+    var d = Math.hypot(cx - px, cy - py);
+    if (d < bestD){
+      bestD = d;
+      var gl = Math.sqrt(l2);
+      best = { foot:[px, py], ux:-gdy/gl, uy:gdx/gl, ga:ga, gb:gb };
+    }
+  });
+  if (!best) return null;
+  // Point up the fall — from the gutter towards the click's side.
+  if (best.ux*(cx-best.foot[0]) + best.uy*(cy-best.foot[1]) < 0){ best.ux = -best.ux; best.uy = -best.uy; }
+  // How far the plane runs from this gutter: the first ridge (or change of
+  // pitch) the fall line meets. No hit — a mono-pitch — falls back to the
+  // far side of the outline.
+  function rayHit(lines){
+    var hit = Infinity;
+    lines.forEach(function(seg){
+      var a = seg[0], b2 = seg[1];
+      var rdx = b2[0]-a[0], rdy = b2[1]-a[1];
+      var den = best.ux*rdy - best.uy*rdx;
+      if (Math.abs(den) < 1e-9) return;
+      var qx = a[0]-best.foot[0], qy = a[1]-best.foot[1];
+      var tRay = (qx*rdy - qy*rdx) / den;
+      var tSeg = (qx*best.uy - qy*best.ux) / den;
+      if (tRay > 1 && tSeg >= -0.02 && tSeg <= 1.02 && tRay < hit) hit = tRay;
+    });
+    return hit;
+  }
+  var ridges = (DRAW.lines || []).filter(function(l){ return l && (l.type === 'ridge' || l.type === 'changepitch') && l.pts && l.pts.length === 2; })
+    .map(function(l){ return l.pts; });
+  var runPx = rayHit(ridges);
+  if (!isFinite(runPx) && DRAW.outline && DRAW.outline.length >= 3){
+    var edges = [];
+    for (var oi = 0; oi < DRAW.outline.length; oi++) edges.push([DRAW.outline[oi], DRAW.outline[(oi+1)%DRAW.outline.length]]);
+    runPx = rayHit(edges);
+  }
+  if (!isFinite(runPx)) return { cx: cx, cy: cy, ux: best.ux, uy: best.uy };
+  var lenPx = (mpp > 0 && lenM > 0) ? lenM / mpp : 0;
+  var mid;
+  if (lenPx > 0){
+    // Keep the CLICK's position up the slope when the sheet can fit there —
+    // a short clear is often a roof light mid-plane, not a starter at the
+    // gutter — but clamp it inside the plane: never past the ridge, never
+    // hanging below the gutter. A sheet as long as the plane (the full-length
+    // case) sits exactly where the steel sheet it replaces sits: on the
+    // gutter line, running up.
+    var clickAlong = best.ux*(cx-best.foot[0]) + best.uy*(cy-best.foot[1]);
+    mid = Math.max(lenPx/2, Math.min(runPx - lenPx/2, clickAlong));
+    if (lenPx >= runPx) mid = lenPx / 2;
+  } else {
+    mid = Math.min(26, runPx / 2);
+  }
+  return { cx: best.foot[0] + best.ux*mid, cy: best.foot[1] + best.uy*mid, ux: best.ux, uy: best.uy };
+}
 function showClearPopup(cx, cy){
   _pendingClearX = cx; _pendingClearY = cy;
   var i = document.getElementById('clearLenInput'); if (i) i.value = '';
@@ -38293,7 +38376,13 @@ function confirmClearPopup(){
   }
   cancelClearPopup();
   saveSnapshot();
-  _clearArr().push({ cx: _pendingClearX, cy: _pendingClearY, mode: mode, lenM: lenM });
+  var _cl = { cx: _pendingClearX, cy: _pendingClearY, mode: mode, lenM: lenM };
+  try {
+    var _fitLen = (mode === 'short') ? lenM : _clearFullLenM();
+    var _fit = _clearliteFit(_pendingClearX, _pendingClearY, _fitLen);
+    if (_fit){ _cl.cx = _fit.cx; _cl.cy = _fit.cy; _cl.ux = _fit.ux; _cl.uy = _fit.uy; }
+  } catch(e){}
+  _clearArr().push(_cl);
   try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   try { syncToRoofData(); } catch(e){}
   try { redrawAll(); } catch(e){}

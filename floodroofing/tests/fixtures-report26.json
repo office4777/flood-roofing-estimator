@@ -1,0 +1,12 @@
+{"scaleMetresPerPx":0.016406250000000008,"calPitch":15,
+ "outline":[[1496,1658],[1496,2294],[2288,2294],[2288,2351],[2715,2351],[2715,1658]],
+ "lines":[
+  {"type":"ridge","pts":[[1496,2005],[2715,2005]],"measM":20},
+  {"type":"gutter","pts":[[1496,2294],[2288,2294]],"measM":12.99},
+  {"type":"gutter","pts":[[2288,2351],[2715,2351]],"measM":7.01},
+  {"type":"gutter","pts":[[2715,1658],[1496,1658]],"measM":20},
+  {"type":"barge","pts":[[1496,1658],[1496,2005]],"measM":5.89,"subtype":"starter"},
+  {"type":"barge","pts":[[1496,2005],[1496,2294]],"measM":4.91,"subtype":"starter"},
+  {"type":"barge","pts":[[2288,2294],[2288,2351]],"measM":0.98},
+  {"type":"barge","pts":[[2715,2351],[2715,2005]],"measM":5.89,"subtype":"finish"},
+  {"type":"barge","pts":[[2715,2005],[2715,1658]],"measM":5.89,"subtype":"finish"}]}
