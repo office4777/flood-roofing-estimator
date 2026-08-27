@@ -3924,6 +3924,21 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- AI extracted info — shown in canvas overlay -->
     <div id="aiInfoCard" style="display:none"></div>
 
+    <!-- ROOF MAP HISTORY -->
+    <!-- The database has kept the eight newest snapshots of every job since
+         the multi-tenant migration, and until now nothing in the app could
+         reach them: a roofer whose map went blank had a good copy sitting in
+         the database and no way to get at it. Collapsed by default — it is a
+         thing you go looking for on a bad day, not clutter on a good one. -->
+    <details class="card no-print" id="roofHistoryCard" style="margin-bottom:10px" ontoggle="if(this.open) _roofHistoryLoad()">
+      <summary class="card-hd" style="cursor:pointer;list-style:none">
+        <span class="card-dot"></span>🕓 Roof map history
+        <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">
+          — earlier saved versions of this job's drawing. Look at one before you put it back.</span>
+      </summary>
+      <div id="roofHistoryBody" style="padding:4px 2px 2px"></div>
+    </details>
+
     <!-- DRAW YOUR ROOF TOOL -->
     <div class="card" id="roofPlanCard" style="padding:0;border-radius:var(--radius-lg);overflow:visible;position:relative">
       <div class="card-hd" id="roofPlanHd" style="margin:.75rem .75rem .5rem;"><span class="card-dot"></span>Roof plan — draw your sections
@@ -9916,6 +9931,168 @@ function _lkgGuard(draw){
     '#b45309', true); } catch(e){}
   try { _reportClientError && _reportClientError('empty drawing blocked at save', '', 'lkgGuard'); } catch(e){}
   return restored;
+}
+
+// ── ROOF MAP HISTORY ────────────────────────────────────────────────
+// The guard above stops a blank drawing being written. This is what you reach
+// for when one got written anyway — or when the drawing is simply wrong and
+// yesterday's was right.
+//
+// job_revisions has kept the eight newest snapshots of every job since the
+// multi-tenant migration, taken by a database trigger whenever the drawing
+// really changes, at most once every ten minutes. Nothing in the app has ever
+// called those endpoints, so the copies were there and unreachable. That is
+// the whole reason a blank save felt final.
+//
+// Nothing here restores blind: a snapshot is fetched, drawn, and shown with
+// its roof count before the button that puts it back appears. Restoring is
+// itself an update, so the trigger snapshots the current state first — a
+// restore can be undone by restoring the one it made.
+var ROOFHIST = { rows: null, geom: {}, busy: false };
+
+function _roofHistStatus(msg, colour){
+  var b = document.getElementById('roofHistoryBody');
+  if (b) b.innerHTML = '<div style="font-size:12px;color:' + (colour || 'var(--text2)') +
+    ';padding:8px 2px">' + esc(msg) + '</div>';
+}
+// A roof map drawn from a snapshot's own geometry. Deliberately NOT
+// _qpRoofMapSvg: that one reads S.quote.roofMapGeom, and filling that in with
+// an old job's roofs to draw a thumbnail would put the wrong map on the live
+// quote. A preview must not be able to change anything.
+function _roofHistSvg(draw, w, h){
+  w = w || 190; h = h || 120;
+  var polys = [];
+  (draw && Array.isArray(draw.roofs) ? draw.roofs : []).forEach(function(r){
+    if (r && Array.isArray(r.outline) && r.outline.length >= 3) polys.push(r.outline);
+  });
+  if (!polys.length && draw && Array.isArray(draw.outline) && draw.outline.length >= 3)
+    polys.push(draw.outline);
+  if (!polys.length) return '';
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  polys.forEach(function(p){ p.forEach(function(pt){
+    if (pt[0]<minX) minX=pt[0]; if (pt[0]>maxX) maxX=pt[0];
+    if (pt[1]<minY) minY=pt[1]; if (pt[1]>maxY) maxY=pt[1]; }); });
+  if (!isFinite(minX) || maxX <= minX || maxY <= minY) return '';
+  var pad = Math.max(6, (maxX-minX)*0.06, (maxY-minY)*0.06);
+  var vb = [minX-pad, minY-pad, (maxX-minX)+2*pad, (maxY-minY)+2*pad];
+  return '<svg viewBox="' + vb.join(' ') + '" width="' + w + '" height="' + h +
+    '" preserveAspectRatio="xMidYMid meet" style="background:#f4f7fa;border:1px solid var(--border);border-radius:6px">' +
+    polys.map(function(p){
+      return '<polygon points="' + p.map(function(pt){ return pt[0] + ',' + pt[1]; }).join(' ') +
+        '" fill="#fde68a" stroke="#0a1628" stroke-width="' +
+        Math.max(1, vb[2]/220) + '" stroke-linejoin="round"/>';
+    }).join('') + '</svg>';
+}
+function _roofHistJobId(){
+  return (window.S && (S.currentJobId || S.linkedJobId)) || '';
+}
+async function _roofHistoryLoad(force){
+  var body = document.getElementById('roofHistoryBody');
+  if (!body) return;
+  var id = _roofHistJobId();
+  if (!id){
+    _roofHistStatus('Open a saved job first — history is kept per job.');
+    return;
+  }
+  if (ROOFHIST.rows && !force) return _roofHistRender();
+  _roofHistStatus('Loading earlier versions…');
+  try {
+    var tok = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/jobs/' + encodeURIComponent(id) + '/revisions',
+      { headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    ROOFHIST.rows = await r.json();
+    ROOFHIST.geom = {};
+    _roofHistRender();
+  } catch(e){
+    _roofHistStatus('Could not load the history (' + (e.message || e) +
+      '). It is kept on the server, so this needs a connection.', '#b45309');
+  }
+}
+function _roofHistRender(){
+  var body = document.getElementById('roofHistoryBody');
+  if (!body) return;
+  var rows = ROOFHIST.rows || [];
+  if (!rows.length){
+    _roofHistStatus('No earlier versions yet. One is kept each time the drawing changes, at most every ten minutes.');
+    return;
+  }
+  body.innerHTML =
+    '<div style="font-size:11.5px;color:var(--text2);margin:0 2px 8px">' +
+      'The ' + rows.length + ' most recent saved version' + (rows.length === 1 ? '' : 's') +
+      ' of this job. Tap one to see its roof map before you put it back.</div>' +
+    rows.map(function(rv, i){
+      var g = ROOFHIST.geom[rv.id];
+      var when = '';
+      try { when = new Date(rv.saved_at).toLocaleString('en-NZ'); } catch(e){ when = rv.saved_at || ''; }
+      var head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<strong style="font-size:12.5px">' + esc(when) + '</strong>' +
+        (i === 0 ? '<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:3px;background:#e2e8f0;color:#334155">MOST RECENT</span>' : '') +
+        (rv.reason === 'delete' ? '<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:3px;background:#fee2e2;color:#991b1b">BEFORE DELETE</span>' : '') +
+        '</div>';
+      var detail;
+      if (!g){
+        detail = '<button type="button" onclick="_roofHistPeek(\'' + rv.id + '\')" ' +
+          'style="margin-top:6px;padding:5px 12px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer">Show this roof map</button>';
+      } else if (g.error){
+        detail = '<div style="margin-top:6px;font-size:11.5px;color:#b45309">Could not read this one: ' + esc(g.error) + '</div>';
+      } else if (g.summary && g.summary.blank){
+        // The one that must never be restored by accident.
+        detail = '<div style="margin-top:6px;padding:7px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;font-size:11.5px;color:#991b1b">' +
+          '<strong>This version has no roof map in it.</strong> Restoring it would leave the job blank.</div>';
+      } else {
+        var sm = g.summary || {};
+        detail = '<div style="margin-top:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">' +
+          _roofHistSvg(g.draw) +
+          '<div style="font-size:11.5px;color:var(--text2);line-height:1.7">' +
+            '<div><strong style="color:#0a1628">' + sm.roofs + '</strong> roof' + (sm.roofs === 1 ? '' : 's') + '</div>' +
+            '<div><strong style="color:#0a1628">' + sm.lines + '</strong> line' + (sm.lines === 1 ? '' : 's') + ' drawn</div>' +
+            '<div><strong style="color:#0a1628">' + sm.penetrations + '</strong> penetration' + (sm.penetrations === 1 ? '' : 's') + '</div>' +
+            '<button type="button" onclick="_roofHistRestore(\'' + rv.id + '\')" ' +
+              'style="margin-top:7px;padding:6px 14px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer">Put this version back</button>' +
+          '</div></div>';
+      }
+      return '<div style="border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px;background:#fff">' +
+        head + detail + '</div>';
+    }).join('') +
+    '<div style="font-size:11px;color:var(--text2);margin:2px">Putting a version back saves the current one first, so it can be undone.</div>';
+}
+async function _roofHistPeek(revId){
+  var id = _roofHistJobId(); if (!id) return;
+  try {
+    var tok = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/jobs/' + encodeURIComponent(id) + '/revisions/' +
+      encodeURIComponent(revId) + '/geometry', { headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    ROOFHIST.geom[revId] = await r.json();
+  } catch(e){
+    ROOFHIST.geom[revId] = { error: String(e.message || e) };
+  }
+  _roofHistRender();
+}
+async function _roofHistRestore(revId){
+  var id = _roofHistJobId(); if (!id || ROOFHIST.busy) return;
+  var g = ROOFHIST.geom[revId] || {};
+  var n = (g.summary && g.summary.roofs) || 0;
+  if (typeof confirm === 'function' && !confirm(
+    'Put this version back?\n\n' + n + ' roof' + (n === 1 ? '' : 's') +
+    ' will replace what is on the job now.\n\nThe current version is saved first, so this can be undone.')) return;
+  ROOFHIST.busy = true;
+  try {
+    var tok = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/jobs/' + encodeURIComponent(id) + '/revisions/' +
+      encodeURIComponent(revId) + '/restore',
+      { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    // The restored drawing is the one to protect from here on, not the blank
+    // that was on screen a moment ago.
+    try { _lkgForget(); } catch(e){}
+    _roofHistStatus('Restored. Re-opening the job…', '#15803d');
+    if (typeof openJob === 'function') await openJob(id);
+    else location.reload();
+  } catch(e){
+    _roofHistStatus('Could not restore that version (' + (e.message || e) + '). Nothing was changed.', '#b45309');
+  } finally { ROOFHIST.busy = false; }
 }
 
 function snapshotCurrentJob(){

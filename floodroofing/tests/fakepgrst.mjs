@@ -129,6 +129,25 @@ export function startFakePostgrest(tables){
         }
         const lim = parseInt(u.searchParams.get('limit'), 10);
         if (isFinite(lim)) rows = rows.slice(0, lim);
+        // PostgREST returns ONLY the named columns, and several routes lean on
+        // that to keep a multi-MB draw_state off the wire. Handing back whole
+        // rows here made those routes look heavy when they are not — and, worse,
+        // would let a genuine regression (someone dropping the column list)
+        // sail through. Projected only for a plain column list: '*' and
+        // embedded resources like company:companies(name) are left alone.
+        // Only for a select that is a plain list of column names. PostgREST
+        // also takes arrow paths (draw_state->state->quote), aliases, casts
+        // and embedded resources; projecting those naively drops the column
+        // the caller asked for and the route 404s on its own data. Anything
+        // that is not a bare identifier falls through whole, as before.
+        const plainCols = sel.split(',').map(x => x.trim()).filter(Boolean);
+        if (sel && plainCols.length && plainCols.every(c => /^[A-Za-z_][A-Za-z0-9_]*$/.test(c))){
+          rows = rows.map(r => {
+            const o = {};
+            plainCols.forEach(c => { if (c in r) o[c] = r[c]; });
+            return o;
+          });
+        }
         return send(200, rows);
       }
       if (req.method === 'PATCH'){

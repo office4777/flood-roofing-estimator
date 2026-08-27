@@ -1907,6 +1907,41 @@ app.get('/jobs/:id/revisions', requireAuth, async (req, res) => {
   res.json(data || []);
 });
 
+// One revision's GEOMETRY, and nothing else. The list above deliberately
+// never carries draw_state — a job's snapshot is multi-MB once photos are in
+// it — but a roof map must never be restored blind: putting the wrong
+// snapshot over a live job is just a second way to lose the drawing. So this
+// returns draw_state.draw on its own, which is the outline, lines, roofs and
+// penetrations with no photos anywhere near it, and the app draws it for the
+// user to look at before they commit.
+app.get('/jobs/:id/revisions/:revId/geometry', requireAuth, async (req, res) => {
+  const { data: rev, error } = await _scopeCompany(
+    supabase.from('job_revisions').select('id, job_id, saved_at, reason, draw_state')
+      .eq('id', req.params.revId).eq('job_id', req.params.id), req).maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!rev) return res.status(404).json({ error: 'Revision not found' });
+  const draw = (rev.draw_state && rev.draw_state.draw) || {};
+  const roofs = Array.isArray(draw.roofs) ? draw.roofs : [];
+  // Counted here so the list can mark a blank snapshot as blank without
+  // fetching every one of them.
+  res.json({
+    id: rev.id, saved_at: rev.saved_at, reason: rev.reason,
+    draw,
+    summary: {
+      roofs: roofs.length,
+      outline: Array.isArray(draw.outline) ? draw.outline.length : 0,
+      lines: Array.isArray(draw.lines) ? draw.lines.length : 0,
+      penetrations: Array.isArray(draw.penetrations) ? draw.penetrations.length : 0,
+      // The same test _drawIsEmpty applies in the browser, so "blank" means
+      // the same thing on both sides of the wire.
+      blank: !(roofs.some(r => r && ((Array.isArray(r.outline) && r.outline.length >= 3) ||
+                                     (Array.isArray(r.lines) && r.lines.length > 0)))
+               || (Array.isArray(draw.outline) && draw.outline.length >= 3)
+               || (Array.isArray(draw.lines) && draw.lines.length > 0)),
+    },
+  });
+});
+
 app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => {
   try {
     const { data: rev, error } = await _scopeCompany(
