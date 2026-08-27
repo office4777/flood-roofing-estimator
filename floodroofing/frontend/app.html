@@ -3987,6 +3987,22 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
         <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-bottom:8px"></div>
+        <!-- This roof's pitch. Every roof carries its own — a lean-to off a
+             20° main roof is the ordinary case — and this box, the calibration
+             box and the one on the Measurements tab are three views of the
+             same number, kept in step by setRoofPitch. -->
+        <div id="roofPitchRow" style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label for="roofPitchInput" style="font-size:11px;font-weight:700;color:#334155">Pitch of this roof</label>
+          <input type="number" id="roofPitchInput" min="0" max="60" step="0.5" placeholder="0"
+                 oninput="setRoofPitch(this.value,'roofPitchInput')"
+                 title="Only this roof. Sets the slope every measurement on it is worked out from."
+                 style="width:66px;padding:3px 6px;font-size:12px">
+          <span style="font-size:11px;color:#64748b">°</span>
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#475569;cursor:pointer"
+                 title="Put the pitch on the roof itself. Drag it anywhere; right-click it to take it off again.">
+            <input type="checkbox" id="roofPitchShowBtn" onchange="togglePitchLabel()" style="margin:0"> Show on roof
+          </label>
+        </div>
         <div id="roofRotateRow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch."><span class="rt-emo">⟳ </span>Rotate roof 90°</button>
           <span class="rt-explain" style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
@@ -5118,7 +5134,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
         <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
         <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60"
-              oninput="DRAW.calPitch=parseFloat(this.value)||0;DRAW.calPitchAtCal=DRAW.calPitch;try{_syncCurrentToRoof()}catch(e){};try{autoCalcLineMeasurements()}catch(e){};try{renderSheetLayout()}catch(e){};try{redrawAll()}catch(e){};try{renderRoofSheetPlan()}catch(e){}"></div>
+              oninput="setRoofPitch(this.value,'pitchDeg')"></div>
       </div>
       <div class="f3 jp-legacy" style="margin-top:8px">
         <div><label>Gutter overhang (mm)
@@ -29091,6 +29107,7 @@ var DRAG_EP = null;
 // rewrites either DRAW.manualSheetMeasures[idx].(x,y) for a manual
 // measure, or DRAW.sheetLabelOffsets[key] for an auto label.
 var DRAG_SHEET = null;
+var DRAG_PITCH = null;   // dragging a roof's pitch label
 // The per-roof "view drag" is gone — a press inside any non-active roof used
 // to pick up that whole roof and slide it, which stole every press aimed at a
 // sheet label sitting on it. The variable stays so the older guards that name
@@ -29718,6 +29735,32 @@ function onCanvasMouseDown(e) {
   // landed on a stashed sheet hit box so the user can reposition the
   // 4.35m / 0.00m tag. Mouseup uses SUPPRESS_NEXT_CLICK to make sure
   // the trailing click doesn't also open the edit popup.
+  // A pitch label is picked up before anything else under the cursor. It sits
+  // in the middle of the roof, which is where a press would otherwise land on
+  // the roof body itself.
+  if (DRAW.tool === 'select' && window._roofCanvasHits && (window._roofCanvasHits.pitch || []).length){
+    var _pcv = document.getElementById('roofCanvas');
+    var _prect = _pcv.getBoundingClientRect();
+    var _pdpr = window.devicePixelRatio || 1;
+    var _pcx = (e.clientX - _prect.left) * (_pcv.width  / _prect.width)  / _pdpr;
+    var _pcy = (e.clientY - _prect.top)  * (_pcv.height / _prect.height) / _pdpr;
+    var _ph = window._roofCanvasHits.pitch;
+    for (var _pi = 0; _pi < _ph.length; _pi++){
+      var _p = _ph[_pi];
+      if (_pcx >= _p.x - _p.w/2 && _pcx <= _p.x + _p.w/2 &&
+          _pcy >= _p.y - _p.h/2 && _pcy <= _p.y + _p.h/2){
+        var _pr = (_p.roofIdx === DRAW.activeRoofIdx || !DRAW.roofs.length) ? DRAW : DRAW.roofs[_p.roofIdx];
+        if (!_pr) break;
+        var _l0 = _pr.pitchLabel || { dx:0, dy:0 };
+        DRAG_PITCH = { roofIdx:_p.roofIdx, startMouseImg:getXY(e),
+                       startDx:(_l0.dx||0), startDy:(_l0.dy||0),
+                       moved:false, preSnap:_captureSnapState() };
+        _pcv.style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
+    }
+  }
   if (DRAW.tool === 'select' && window._roofCanvasHits && window._roofCanvasHits.sheets && window._roofCanvasHits.sheets.length){
     var _scv = document.getElementById('roofCanvas');
     var _srect = _scv.getBoundingClientRect();
@@ -29972,6 +30015,14 @@ function onCanvasMouseUp(e) {
     redrawAll();
     return;
   }
+  if(DRAG_PITCH){
+    if (DRAG_PITCH.moved){ SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_PITCH.preSnap); }
+    DRAG_PITCH = null;
+    var _pcv1 = document.getElementById('roofCanvas');
+    if (_pcv1) _pcv1.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
   if(DRAG_SHEET) {
     // Suppress the click that's about to fire so it doesn't reopen
     // the edit popup right after a drag.  A true tap (moved===false)
@@ -30071,6 +30122,14 @@ document.addEventListener('mouseup', function(e) {
     DRAG_ROOF_VIEW = null;
     var _cv4 = document.getElementById('roofCanvas');
     if (_cv4) _cv4.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    try { redrawAll(); } catch(err){}
+    return;
+  }
+  if(DRAG_PITCH){
+    if (DRAG_PITCH.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_PITCH.preSnap); }
+    DRAG_PITCH = null;
+    var _pcv2 = document.getElementById('roofCanvas');
+    if (_pcv2) _pcv2.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
     try { redrawAll(); } catch(err){}
     return;
   }
@@ -32506,6 +32565,16 @@ function onCanvasMove(e) {
   // auto labels accumulate a per-key offset.  We mark `moved` so the
   // trailing click handler can suppress the edit popup if the user
   // was genuinely dragging vs. tapping.
+  if (DRAG_PITCH) {
+    var pdx = xy[0] - DRAG_PITCH.startMouseImg[0];
+    var pdy = xy[1] - DRAG_PITCH.startMouseImg[1];
+    if (Math.abs(pdx) + Math.abs(pdy) > 0.4) DRAG_PITCH.moved = true;
+    var _pdr = (DRAG_PITCH.roofIdx === DRAW.activeRoofIdx || !DRAW.roofs.length) ? DRAW : DRAW.roofs[DRAG_PITCH.roofIdx];
+    if (_pdr) _pdr.pitchLabel = { dx: DRAG_PITCH.startDx + pdx, dy: DRAG_PITCH.startDy + pdy };
+    try { _syncCurrentToRoof(); } catch(err){}
+    redrawAll();
+    return;
+  }
   if (DRAG_SHEET) {
     var dxImg = xy[0] - DRAG_SHEET.startMouseImg[0];
     var dyImg = xy[1] - DRAG_SHEET.startMouseImg[1];
@@ -34634,7 +34703,7 @@ function redrawAll() {
   // Reset click hit-data — populated as we draw flashing letter tags and
   // sheet-length labels so the canvas click handler (and the mirrored
   // Materials Roof Map) can edit/delete on tap.
-  window._roofCanvasHits = { letters: [], sheets: [], measures: [] };
+  window._roofCanvasHits = { letters: [], sheets: [], measures: [], pitch: [] };
   ctx.save();
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,H);
@@ -35800,6 +35869,51 @@ function redrawAll() {
   // the user only wants to see them on the Materials tab Roof Map.
   // The Materials renderer draws its own letter tags via
   // _drawFlashLetterOverlaysOn() with deduplication + wider offset.
+
+  // ── Pitch on the roof ──────────────────────────────────────────
+  // "The roof should also show the roof pitch in the middle on an easy to read
+  // face, not near any other measures ... it should read like 15°."
+  //
+  // One per roof, sitting at the roof's own centroid unless it has been
+  // dragged. Every roof draws its own, so a job with a 20° main roof and a 5°
+  // lean-to says so on the drawing rather than only in a panel.
+  (function _drawPitchLabels(){
+    var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+    var list = roofs
+      ? DRAW.roofs.map(function(r, i){
+          return { outline: (i === DRAW.activeRoofIdx ? DRAW.outline : r.outline),
+                   pitch:   (i === DRAW.activeRoofIdx ? DRAW.calPitch : r.calPitch),
+                   lbl:     (i === DRAW.activeRoofIdx ? DRAW.pitchLabel : r.pitchLabel), idx: i };
+        })
+      : [{ outline: DRAW.outline, pitch: DRAW.calPitch, lbl: DRAW.pitchLabel, idx: 0 }];
+    list.forEach(function(R){
+      if (!R.lbl || R.lbl.off) return;                  // never asked for, or taken off
+      if (!R.outline || R.outline.length < 3) return;
+      var c = _pitchLabelAnchor(R.outline, R.lbl);
+      var p = dp(c);
+      var txt = (Math.round((+R.pitch || 0) * 10) / 10) + '°';
+      ctx.save();
+      ctx.font = '700 15px Inter, -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      var w = ctx.measureText(txt).width + 16, h = 24;
+      // "…in the middle on an easy to read face, not near any other measures."
+      // The middle of a small roof is exactly where its measure labels crowd
+      // together, so if the plate would land on one, step it off. Only when it
+      // has not been dragged — once the user has placed it, it stays put.
+      if (!(R.lbl.dx || R.lbl.dy)) p = _clearOfMeasures(p, w, h);
+      // A white plate so it reads over an aerial photo as well as over paper.
+      ctx.fillStyle = 'rgba(255,255,255,.93)';
+      ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.5;
+      if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(p[0]-w/2, p[1]-h/2, w, h, 6); ctx.fill(); ctx.stroke(); }
+      else { ctx.fillRect(p[0]-w/2, p[1]-h/2, w, h); ctx.strokeRect(p[0]-w/2, p[1]-h/2, w, h); }
+      ctx.fillStyle = '#0a1628';
+      ctx.fillText(txt, p[0], p[1]);
+      ctx.restore();
+      if (window._roofCanvasHits && window._roofCanvasHits.pitch){
+        window._roofCanvasHits.pitch.push({ x:p[0], y:p[1], w:w, h:h, roofIdx:R.idx });
+      }
+    });
+  })();
 
   // Info items — leader line from star to attached text box.
   // Drawn before the star so the line tucks under the amber dot.
@@ -37454,21 +37568,127 @@ function slopeFactorForLineType(type, pitchDeg) {
 }
 
 // Auto-calculate pixel length of every drawn line and convert to metres
-// The pitch of the roof currently being drawn.
+// What pitch to measure a roof at.
 //
-// `DRAW.calPitch || <the pitchDeg box>` was wrong wherever it appeared, because
-// 0 is a real answer — a flat roof, or a roof deliberately left flat — and it
-// is falsy. A flat roof therefore fell through to the pitchDeg box, which
-// carries a default of 15, and got measured as a 15° roof. Combined with
-// _recalcAllRoofsMeas rewriting the OTHER roofs, that is what made a hip read
-// 6.49 m with one roof selected and 6.38 m with another.
+// A roof that has not been given one falls back to DEFAULT_PITCH — the same 15°
+// the pitch box has always shown, so a job nobody has calibrated measures today
+// exactly as it did before any of this.
 //
-// Only an absent pitch — never a zero one — falls back to the box.
-function _activePitch(){
-  if (typeof DRAW !== 'undefined' && DRAW && typeof DRAW.calPitch === 'number') return DRAW.calPitch;
-  var el = document.getElementById('pitchDeg');
-  var v = el ? parseFloat(el.value) : NaN;
-  return isFinite(v) ? v : 0;
+// The rule that matters is that it NEVER falls back to another roof's pitch.
+// _recalcAllRoofsMeas used to use the ACTIVE roof's, and since it writes measM
+// back onto the lines, merely selecting a different roof rewrote every other
+// roof's stored measurements — a hip reading 6.49 m with one roof selected and
+// 6.38 m with another. Both callers now use this, so a roof measures the same
+// whatever is selected.
+var DEFAULT_PITCH = 15;
+function _pitchOr(v){
+  var n = parseFloat(v);
+  return (isFinite(n) && n > 0) ? n : DEFAULT_PITCH;
+}
+function _activePitch(){ return _pitchOr(DRAW && DRAW.calPitch); }
+// ── One pitch per roof, shown in three places ────────────────────
+// The pitch appears in the calibration panel, on the Measurements tab, and in
+// the roof's own menu on the canvas. They are three views of ONE number —
+// DRAW.roofs[i].calPitch — and they got out of step because each box wrote its
+// own copy. Everything now goes through here.
+// Where a roof's pitch label sits: the middle of its footprint, plus whatever
+// the user has dragged it by. The centroid is the "easy to read face" the
+// report asked for — it is the one place on a roof that no measurement label
+// claims, because every one of those hangs off an edge or a ridge.
+function _pitchLabelAnchor(outline, lbl){
+  var sx = 0, sy = 0, n = 0;
+  (outline || []).forEach(function(p){ sx += p[0]; sy += p[1]; n++; });
+  if (!n) return [0, 0];
+  return [sx / n + ((lbl && lbl.dx) || 0), sy / n + ((lbl && lbl.dy) || 0)];
+}
+// Step a pitch plate off any measurement label it would otherwise cover.
+// Tries the centroid first, then rings outward — up and down before sideways,
+// because a roof is usually wider than it is tall on the screen and there is
+// more clear room above the ridge than beside it. Gives up after the last ring
+// and draws at the centroid regardless: a plate slightly over a measure is
+// better than one adrift on the neighbour's roof.
+function _clearOfMeasures(p, w, h){
+  var boxes = ((window._roofCanvasHits && window._roofCanvasHits.measures) || [])
+    .concat((window._roofCanvasHits && window._roofCanvasHits.pitch) || [])
+    .map(function(b){
+      // measures carry a top-left x/y, pitch plates a centre — normalise both
+      // to a centre-and-size box.
+      return (typeof b.roofIdx === 'number')
+        ? { x:b.x, y:b.y, w:b.w, h:b.h }
+        : { x:b.x + b.w/2, y:b.y + b.h/2, w:b.w, h:b.h };
+    });
+  if (!boxes.length) return p;
+  function clashes(cx, cy){
+    for (var i = 0; i < boxes.length; i++){
+      var b = boxes[i];
+      if (Math.abs(cx - b.x) < (w + b.w)/2 + 3 && Math.abs(cy - b.y) < (h + b.h)/2 + 3) return true;
+    }
+    return false;
+  }
+  if (!clashes(p[0], p[1])) return p;
+  // Sixteen directions and five rings. A small roof is a thicket of labels —
+  // eight directions at three radii ran out of places to try and dropped the
+  // plate back on top of a measure, which is the one outcome this exists to
+  // prevent.
+  var dirs = [];
+  for (var a = 0; a < 16; a++){
+    // Start at straight up and alternate sides, so the plate lands above or
+    // below the middle before it wanders out to a corner.
+    var ang = -Math.PI/2 + (a % 2 ? 1 : -1) * Math.ceil(a/2) * (Math.PI/8);
+    dirs.push([Math.cos(ang), Math.sin(ang)]);
+  }
+  for (var r = 1; r <= 5; r++){
+    for (var d = 0; d < dirs.length; d++){
+      var cx = p[0] + dirs[d][0] * h * 1.35 * r;
+      var cy = p[1] + dirs[d][1] * h * 1.35 * r;
+      if (!clashes(cx, cy)) return [cx, cy];
+    }
+  }
+  return p;
+}
+// The "Show on roof" button. Off by default — a number nobody asked for on a
+// drawing they are trying to read is clutter, not information.
+function togglePitchLabel(){
+  var on = !!(DRAW.pitchLabel && !DRAW.pitchLabel.off);
+  DRAW.pitchLabel = on ? { off: true } : { dx: 0, dy: 0 };
+  try { _syncCurrentToRoof(); } catch(e){}
+  try { _syncPitchLabelBtn(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+}
+function _syncPitchLabelBtn(){
+  var b = document.getElementById('roofPitchShowBtn');
+  if (b) b.checked = !!(DRAW.pitchLabel && !DRAW.pitchLabel.off);
+}
+var PITCH_INPUT_IDS = ['roofPitchInput', 'calPitchInput', 'pitchDeg'];
+function setRoofPitch(v, from){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n < 0) n = 0;
+  if (n > 60) n = 60;
+  DRAW.calPitch = n;
+  DRAW.calPitchAtCal = n;
+  try { _syncCurrentToRoof(); } catch(e){}
+  syncPitchInputs(from);
+  // The measurements follow the pitch — this is the whole reason the number
+  // matters, and leaving them stale is how the three views disagreed before.
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { renderSheetLayout(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+}
+// Push the active roof's pitch into every box except the one being typed in —
+// rewriting that one fights the cursor.
+function syncPitchInputs(except){
+  // The EFFECTIVE pitch, not the raw one. A roof with none of its own is
+  // measured at the default, and the box has to say so — writing a bare 0 here
+  // told the user "flat" while every measurement on screen was worked out at
+  // 15°, and put a 0 in front of the several other places that still read this
+  // box for their own fallback.
+  var p = _pitchOr(DRAW && DRAW.calPitch);
+  PITCH_INPUT_IDS.forEach(function(id){
+    if (id === except) return;
+    var el = document.getElementById(id);
+    if (el && el.value !== String(p)) el.value = p;
+  });
 }
 function autoCalcLineMeasurements() {
   if(!DRAW.scaleMetresPerPx) return;
@@ -37508,18 +37728,13 @@ function _recalcAllRoofsMeas(){
   autoCalcLineMeasurements();               // active roof (live DRAW.*)
   if (!(DRAW.roofs && DRAW.roofs.length > 1)) return;
   try { if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof(); } catch(e){}
-  var actPitch = _activePitch();
   DRAW.roofs.forEach(function(r, ri){
     if (ri === DRAW.activeRoofIdx || !r || !r.lines) return;   // active already done
-    // A pitch of 0 is a pitch — a flat roof, or one deliberately left flat —
-    // not an absence of one. The `> 0` here meant a flat roof failed the test
-    // and borrowed the ACTIVE roof's pitch instead, and since the loop below
-    // WRITES measM back onto the line, every other roof's stored measurements
-    // were rewritten according to whichever roof happened to be selected. On a
-    // job with pitches 0/0/0/20 that moved a hip from 6.49 m to 6.59 m and back
-    // as you clicked between roofs — "it changes the look of all the measures".
-    // Only a roof that has never been given a pitch at all may inherit one.
-    var pitch = (typeof r.calPitch === 'number') ? r.calPitch : actPitch;
+    // The roof's own pitch, or the default — never the ACTIVE roof's, which is
+    // what this used to reach for. Since the loop below WRITES measM back onto
+    // the line, that made merely selecting a roof rewrite every OTHER roof's
+    // stored measurements.
+    var pitch = _pitchOr(r.calPitch);
     r.lines.forEach(function(l){
       if (!l || !l.pts || l.pts.length < 2) return;
       var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
@@ -48785,6 +49000,32 @@ function onCanvasWheel(e) {
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────
 function onCanvasRightClick(e) {
   e.preventDefault();
+  // Right-clicking a pitch label takes it off that roof, the same gesture that
+  // deletes a line. The pitch itself is untouched — this is the label only,
+  // and the Show-on-roof button puts it back.
+  if (window._roofCanvasHits && (window._roofCanvasHits.pitch || []).length){
+    var _rcv = document.getElementById('roofCanvas');
+    if (_rcv){
+      var _rr = _rcv.getBoundingClientRect();
+      var _rd = window.devicePixelRatio || 1;
+      var _rx = (e.clientX - _rr.left) * (_rcv.width  / _rr.width)  / _rd;
+      var _ry = (e.clientY - _rr.top)  * (_rcv.height / _rr.height) / _rd;
+      var _rh = window._roofCanvasHits.pitch;
+      for (var _ri = 0; _ri < _rh.length; _ri++){
+        var _rp = _rh[_ri];
+        if (_rx >= _rp.x - _rp.w/2 && _rx <= _rp.x + _rp.w/2 &&
+            _ry >= _rp.y - _rp.h/2 && _ry <= _rp.y + _rp.h/2){
+          saveSnapshot();
+          var _rt = (_rp.roofIdx === DRAW.activeRoofIdx || !DRAW.roofs.length) ? DRAW : DRAW.roofs[_rp.roofIdx];
+          if (_rt) _rt.pitchLabel = { off: true };
+          try { _syncCurrentToRoof(); } catch(err){}
+          try { _syncPitchLabelBtn(); } catch(err){}
+          redrawAll();
+          return;
+        }
+      }
+    }
+  }
   var xy = getXY(e);
   var hitS = hitSection(xy[0],xy[1]);
   var hitL = hitLine(xy[0],xy[1]);
@@ -50124,6 +50365,15 @@ function _roofSetupPopup(opts){
     try { return (_roofSheetType() || {}).key || 'steel-corrugate'; } catch(e){ return 'steel-corrugate'; }
   })();
 
+  // Seed the pitch box: this roof's own if it has one, otherwise the last roof
+  // that was given one — on a house the second roof is usually the same pitch
+  // as the first, and offering 0 makes "just press Draw" the wrong answer.
+  var _rsPitch0 = 0;
+  try {
+    if (typeof DRAW.calPitch === 'number' && DRAW.calPitch > 0) _rsPitch0 = DRAW.calPitch;
+    else (DRAW.roofs || []).forEach(function(r){ if (r && +r.calPitch > 0) _rsPitch0 = +r.calPitch; });
+  } catch(e){}
+
   var wrap = document.createElement('div');
   wrap.id = '_rsModal';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);' +
@@ -50179,6 +50429,20 @@ function _roofSetupPopup(opts){
     '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
       'This is what the whole roof is sheeted in. For a few clear sheets in a steel roof, leave this on steel and add them one by one with <strong>Add items/details &rarr; Clearlite sheet</strong>.' +
     '</div>' +
+    // The third question, and the one that used to go unasked. Only the roof
+    // whose wall was clicked during calibration got a pitch; every other roof
+    // stayed at 0 and its sheet lengths came out as plan lengths. Asking here,
+    // while the roof is the thing in hand, is the moment it is cheapest to
+    // answer.
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Pitch of this roof</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<input id="_rsPitch" type="number" min="0" max="60" step="0.5" value="' +
+        esc(String(_rsPitch0)) + '" style="width:82px;padding:7px 9px;font-size:14px;font-weight:700;' +
+        'border:1.5px solid #cbd5e1;border-radius:8px">' +
+      '<span style="font-size:13px;font-weight:700;color:#334155">&deg;</span>' +
+      '<span style="font-size:11px;color:#64748b;flex:1;min-width:150px">Leave at 0 for a flat roof. ' +
+        'Sheet lengths are plan lengths until this is set.</span>' +
+    '</div>' +
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">' +
       '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>' +
       '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || 'Draw the roof') + '</button>' +
@@ -50189,7 +50453,14 @@ function _roofSetupPopup(opts){
 
   function close(){ wrap.remove(); }
   function apply(){
+    // Read the pitch BEFORE the card is torn out of the document.
+    var _pEl = card.querySelector('#_rsPitch');
+    var _p = _pEl ? parseFloat(_pEl.value) : NaN;
     close();
+    // Set the pitch first: autoGenerateRoof measures the lines it draws, and
+    // measuring them at the old pitch and correcting afterwards is how a roof
+    // ends up with its cut list one recalculation behind its own slope.
+    try { if (isFinite(_p) && _p >= 0) setRoofPitch(_p, null); } catch(e){}
     try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
     try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){}
     try { if (typeof _syncRoofTypeDropLabel === 'function') _syncRoofTypeDropLabel(); } catch(e){}
@@ -50337,7 +50608,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -50345,6 +50616,8 @@ var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','note
 // roof). Array fields aren't listed — they're always present on a roof.
 var ROOF_FIELD_DEFAULTS = {
   outlineDone:false, roofType:'', calPitch:0, rotation:0,
+  // undefined = never asked for; {off:true} = deliberately taken off.
+  pitchLabel:undefined,
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
@@ -50388,6 +50661,11 @@ function _loadRoofToCurrent(idx){
     else if (ROOF_ARRAY_FIELDS.indexOf(k) >= 0) DRAW[k] = r[k] = [];
   });
   DRAW.activeRoofIdx = idx;
+  // The three pitch boxes follow the roof you switched to. Without this they
+  // kept showing the previous roof's number, which is half of how the pitch
+  // came to disagree with itself in the first place.
+  try { syncPitchInputs(); } catch(e){}
+  try { _syncPitchLabelBtn(); } catch(e){}
   DRAW.currentPts = [];
   DRAW.selectedSection = -1;
   DRAW.selectedLine = -1;
