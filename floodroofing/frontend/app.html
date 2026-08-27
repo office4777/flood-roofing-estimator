@@ -10209,6 +10209,39 @@ async function _roofHistRestore(revId){
   } finally { ROOFHIST.busy = false; }
 }
 
+// The canvas background, packaged for the job snapshot. Report #25: "when I
+// re-enter a saved draft, the canvas and quote background image disappears" —
+// because it was never saved. The drawing is stored in IMAGE-pixel
+// coordinates (scaleMetresPerPx is metres per image pixel), so the photo must
+// keep its original pixel dimensions or every roof mis-aligns on reload;
+// what can shrink is the JPEG quality, not the geometry. Encoded once per
+// image and cached, so autosaves don't re-encode a multi-megapixel photo
+// every few seconds.
+function _bgSnapshotForSave(){
+  if (!(DRAW.bgImg && DRAW.bgImg.naturalWidth)) return null;
+  try {
+    if (!DRAW.bgImg._cachedSaveUrl){
+      var nw = DRAW.bgImg.naturalWidth, nh = DRAW.bgImg.naturalHeight;
+      var c = document.createElement('canvas');
+      c.width = nw; c.height = nh;
+      c.getContext('2d').drawImage(DRAW.bgImg, 0, 0);
+      // A big phone photo gets squeezed harder — it is a trace-over surface,
+      // not a print.
+      var q = (Math.max(nw, nh) > 3000) ? 0.55 : 0.72;
+      DRAW.bgImg._cachedSaveUrl = c.toDataURL('image/jpeg', q);
+    }
+    return {
+      bg: DRAW.bgImg._cachedSaveUrl,
+      bgW: DRAW.bgImg.naturalWidth, bgH: DRAW.bgImg.naturalHeight,
+      view: {
+        zoom: (isFinite(+DRAW.zoom) && +DRAW.zoom > 0) ? +DRAW.zoom : 1,
+        offX: (window.IMG_OFFSET && +IMG_OFFSET.x) || 0,
+        offY: (window.IMG_OFFSET && +IMG_OFFSET.y) || 0,
+        rot:  ((+window.IMG_ROTATION || 0) + (+window.IMG_FINE_ROTATION || 0)) || 0,
+      },
+    };
+  } catch(e){ return null; }
+}
 function snapshotCurrentJob(){
   // Capture all in-memory state needed to fully restore a job: form fields,
   // S object (minus runtime flags), and the DRAW canvas state.
@@ -10255,6 +10288,22 @@ function snapshotCurrentJob(){
     scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
+// The aerial is attached to the snapshot AFTER the last-known-good guard has
+// had its say: the LKG copies mirror the draw block into localStorage, which
+// is deliberately geometry-only — a photo per job would blow its quota and
+// take the roof-map safety net down with it.
+var _snapshotCurrentJobNoBg = snapshotCurrentJob;
+snapshotCurrentJob = function(){
+  var snap = _snapshotCurrentJobNoBg();
+  try {
+    var bgs = _bgSnapshotForSave();
+    if (bgs && snap && snap.draw){
+      snap.draw.bg = bgs.bg; snap.draw.bgW = bgs.bgW; snap.draw.bgH = bgs.bgH;
+      snap.draw.imgView = bgs.view;
+    }
+  } catch(e){}
+  return snap;
+};
 function restoreFromJob(j){
   if (!j) return;
   // Whatever we're loading, it is not the sample until somebody says so
@@ -10332,6 +10381,26 @@ function restoreFromJob(j){
     } else {
       DRAW.roofs = [];
       DRAW.activeRoofIdx = -1;
+    }
+    // The picture under the drawing (report #25: "when I re-enter a saved
+    // draft, the canvas and quote background image disappears" — it was
+    // never saved). Saved jobs now carry it on snap.draw.bg with the exact
+    // view; a job with no picture must also CLEAR one left over from the
+    // previously open job. Jobs saved before this carried nothing — for
+    // those there is nothing to bring back (S.img64 is downscaled to
+    // 1200px, and restoring THAT would mis-align every roof drawn on the
+    // original, so it stays a preview).
+    DRAW.bgImg = null;
+    if (snap.draw.bg){
+      (function(){
+        var _bimg = new Image();
+        var _v = snap.draw.imgView || null;
+        _bimg.onload = function(){ try { _applyCanvasBg(_bimg, _v); } catch(e){} };
+        _bimg.src = snap.draw.bg;
+      })();
+    } else {
+      DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+      try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; } catch(e){ IMG_FINE_ROTATION = 0; }
     }
     try { _syncGableRidgeUI(); } catch(e){}
     try { _syncSheetTypeUi(); } catch(e){}
@@ -14974,6 +15043,13 @@ function _jobPhotoUseAsBg(i){
   var pp = (S.photos || [])[i];
   if (!pp || !pp.src) return;
   _storeAerialCompressed(pp.src);
+  // Actually put it on the canvas — this only ever set the preview card, so
+  // "Use on canvas" left the canvas exactly as it was.
+  try {
+    var _bi = new Image();
+    _bi.onload = function(){ try { _applyCanvasBg(_bi); } catch(e){} };
+    _bi.src = pp.src;
+  } catch(e){}
   var pv = document.getElementById('roofPrevImg'); if (pv) pv.src = pp.src;
   var pr = document.getElementById('roofPrev'); if (pr) pr.style.display = 'block';
   var uz = document.getElementById('roofUZ'); if (uz) uz.style.display = 'none';
@@ -20300,6 +20376,14 @@ function _qpStashRoofGeom(showBg){
   var extraPos = {}, pos = 0;
   roofs.forEach(function(r){ if (_roofQuoteMode(r.idx) === 'separate') extraPos[r.idx] = pos++; });
   var bg = null, bgW = 0, bgH = 0;
+  // The aerial already stashed on this quote, if any. When there is no live
+  // photo to capture — this render has the background hidden, or the job was
+  // just re-opened and the photo is still decoding — the stashed one is
+  // carried forward rather than overwritten with nothing. Wiping it here was
+  // the second half of report #25: the first re-render after reloading a
+  // draft destroyed the aerial the quote had saved.
+  var _prevG = (S.quote.roofMapGeom && S.quote.roofMapGeom.bg) ? S.quote.roofMapGeom : null;
+  var _carried = false;
   if (showBg && DRAW.bgImg && DRAW.bgImg.naturalWidth){
     try {
       // The aerial rides INSIDE the quote (so the customer map shows it without
@@ -20338,6 +20422,10 @@ function _qpStashRoofGeom(showBg){
       bg = DRAW.bgImg._cachedGeomBg; bgW = DRAW.bgImg.naturalWidth; bgH = DRAW.bgImg.naturalHeight;
     } catch(e){ bg = null; }
   }
+  if (!bg && _prevG){
+    bg = _prevG.bg; bgW = _prevG.bgW; bgH = _prevG.bgH;
+    _carried = true;
+  }
   // ── THE QUOTE FRAMES THE PHOTO THE WAY THE CANVAS DOES ───────────
   // Both maps draw the roofs in image-pixel coordinates, so they always AGREE
   // about where a roof sits on the aerial. What they disagreed about was the
@@ -20349,7 +20437,9 @@ function _qpStashRoofGeom(showBg){
   // quote reproduces that view. Only meaningful when there IS an aerial; a
   // line-drawing map still frames itself around the roofs.
   var view = null;
-  if (bg){
+  if (bg && _carried){
+    view = _prevG.view || null;
+  } else if (bg){
     try {
       var _cv = document.getElementById('roofCanvas');
       var _t  = (typeof getImgTransform === 'function') ? getImgTransform() : null;
@@ -20376,10 +20466,14 @@ function _qpStashRoofGeom(showBg){
   // the two pictures came apart the moment the rotate slider was touched. That
   // is why this looked right on "use this view" and wrong after squaring up.
   var rot = 0;
-  try {
-    var _r = (+IMG_ROTATION || 0) + (+IMG_FINE_ROTATION || 0);
-    if (isFinite(_r)) rot = +(_r % 360).toFixed(2);
-  } catch(e){ rot = 0; }
+  if (_carried){
+    rot = +(_prevG.rot) || 0;
+  } else {
+    try {
+      var _r = (+IMG_ROTATION || 0) + (+IMG_FINE_ROTATION || 0);
+      if (isFinite(_r)) rot = +(_r % 360).toFixed(2);
+    } catch(e){ rot = 0; }
+  }
   var R2 = function(v){ return +(+v).toFixed(1); };
   S.quote.roofMapGeom = {
     bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
@@ -36833,14 +36927,11 @@ function calcFromDrawing() {
   document.getElementById('measGrid').innerHTML=html;
 }
 
-// Load bg image when a roof photo is uploaded. We deliberately do NOT
-// resize the canvas bitmap to match the photo's aspect ratio — that
-// was the old behaviour and it shrunk the displayed height for any
-// photo squarer than 900×620 (because the canvas has CSS
-// width:100%; height:auto). The satellite-snap path leaves the
-// canvas alone and lets getImgTransform() fit + centre the image
-// inside the existing canvas; this matches that behaviour so
-// uploading a photo doesn't shrink the drawing surface.
+// Load bg image when a roof photo is uploaded. Report #26: leaving the
+// canvas at its old shape letterboxed a wide photo into the top of it and the
+// rest was dead grey — the usable drawing space shrank. Route it through
+// _applyCanvasBg, the same sizing every other import path uses, so the
+// canvas takes the photo's shape.
 var _origOnRoofImg = onRoofImg;
 onRoofImg = function(e){
   _origOnRoofImg(e);
@@ -36848,10 +36939,7 @@ onRoofImg = function(e){
   var r=new FileReader();
   r.onload=function(ev){
     var img=new Image();
-    img.onload=function(){
-      DRAW.bgImg=img;
-      redrawAll();
-    };
+    img.onload=function(){ _applyCanvasBg(img); };
     img.src=ev.target.result;
   };
   r.readAsDataURL(f);
@@ -48131,31 +48219,43 @@ async function _fergusPickPhoto(f){
     closeFergusPhotoPicker();
   }
 }
+// ONE place that puts a picture under the drawing, wherever it came from —
+// satellite capture, Fergus file, job photo, Upload from PC, or a job being
+// re-opened. Sets DRAW.bgImg, sizes the canvas to the picture's shape (so a
+// wide photo doesn't letterbox into the top of a square canvas and shrink the
+// usable drawing space — report #26), and applies the view: a fresh import
+// starts square at zoom 1; a restored job gets back the exact pan/zoom/rotate
+// the office left it with.
+function _applyCanvasBg(img, view){
+  DRAW.bgImg = img;
+  DRAW.zoom = (view && isFinite(+view.zoom) && +view.zoom > 0) ? +view.zoom : 1;
+  IMG_OFFSET = { x: (view && +view.offX) || 0, y: (view && +view.offY) || 0 };
+  IMG_ROTATION = 0;
+  var _rot = (view && isFinite(+view.rot)) ? +view.rot : 0;
+  try {
+    if (typeof _setFineRotate === 'function') _setFineRotate(_rot);
+    else IMG_FINE_ROTATION = _rot;
+  } catch(e){ IMG_FINE_ROTATION = _rot; }
+  var cv = document.getElementById('roofCanvas');
+  var wrap = document.getElementById('canvasWrap');
+  if (cv && wrap){
+    var dpr2 = window.devicePixelRatio || 1;
+    var W = wrap.offsetWidth || 900;
+    var ratio = img.naturalHeight / img.naturalWidth;
+    var H = Math.round(W * ratio);
+    if (H > W * 1.5) H = Math.round(W * 1.5);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    cv.width  = Math.round(W * dpr2);
+    cv.height = Math.round(H * dpr2);
+  }
+  try { redrawAll(); } catch(e){}
+}
 // Set a data-URL image as the Map Roof canvas background (trace-over
-// surface), mirroring the aerial-capture flow: load the image, point
-// DRAW.bgImg at it, reset zoom/offset/rotation, size the canvas to the
-// image aspect ratio, then redraw.
+// surface): load the image, then hand it to _applyCanvasBg.
 function _fergusSetCanvasBg(dataUrl){
   var img = new Image();
   img.onload = function(){
-    DRAW.bgImg = img;
-    DRAW.zoom = 1;
-    IMG_OFFSET = { x:0, y:0 };
-    IMG_ROTATION = 0;
-    IMG_FINE_ROTATION = 0;
-    var cv = document.getElementById('roofCanvas');
-    var wrap = document.getElementById('canvasWrap');
-    if (cv && wrap){
-      var dpr2 = window.devicePixelRatio || 1;
-      var W = wrap.offsetWidth || 900;
-      var ratio = img.naturalHeight / img.naturalWidth;
-      var H = Math.round(W * ratio);
-      if (H > W * 1.5) H = Math.round(W * 1.5);
-      cv.style.width = W + 'px'; cv.style.height = H + 'px';
-      cv.width  = Math.round(W * dpr2);
-      cv.height = Math.round(H * dpr2);
-    }
-    try { redrawAll(); } catch(e){}
+    _applyCanvasBg(img);
     try { _collapseRoofBg(); } catch(e){}
   };
   img.onerror = function(){ alert('Could not display that photo — try another.'); };

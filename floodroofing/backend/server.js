@@ -222,6 +222,14 @@ app.use(function (req, res, next) {
 // Over the cap is the caller's problem, not a crash: answer JSON, so the app
 // shows something useful instead of Express's HTML error page.
 app.use(function (err, req, res, next) {
+  // The browser hung up mid-upload — tab closed, network dropped, page
+  // navigated away during an autosave. Nothing broke at our end and there is
+  // nobody left to answer, so close quietly instead of paging the error
+  // monitor with "request aborted" every time someone shuts their laptop.
+  if (err && (err.type === 'request.aborted' || err.code === 'ECONNABORTED')) {
+    if (!res.headersSent) { try { res.status(400).end(); } catch (e) {} }
+    return;
+  }
   if (err && (err.type === 'entity.too.large' || err.status === 413)) {
     return res.status(413).json({
       error: 'That request is too large for this endpoint.',
