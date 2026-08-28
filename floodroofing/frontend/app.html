@@ -21636,7 +21636,7 @@ var POLESHED_DEFAULTS = {
     'Price based on a flat section with no earthworks required.',
     'Owner acknowledges all responsibility for building consent requirements as instructed by ' + _brandName('us') + '.'
   ],
-  psIntro: 'Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you.\nThe total price is shown at the bottom of the quote.\nPayment terms: a deposit invoice is issued on acceptance of the quote; once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work.\nOur lead-time is usually 5–8 weeks from quote acceptance to job start.',
+  psIntro: 'Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you.\nThe total price is shown at the bottom of the quote.\nPayment terms: a deposit invoice is issued on acceptance of the quote and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work.\nOur lead-time is usually 5–8 weeks from quote acceptance to job start.',
   psDesignLink: ''
 };
 function _psGet(field){
@@ -22258,7 +22258,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
           money('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
           money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
         '</div>'+
-        '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.6">A '+M.depositPct+'% deposit invoice is issued on acceptance; once paid your spot in the queue is locked in. Final payment is due within 7 days of completion.</div>'+
+        '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.6">A '+M.depositPct+'% deposit invoice is issued on acceptance and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due within 7 days of completion.</div>'+
       '</div>'+
       '<div style="border:1px solid var(--ed-line);border-radius:8px;padding:16px;background:var(--ed-paper-2)">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Accept this quote</div>'+
@@ -22902,7 +22902,7 @@ function refreshQuoteProposal(){
         '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
           '<div class="ed-eyebrow">What we need from you</div>'+
           '<div style="margin-top:8px">'+
-            ['Sign &amp; return acceptance page','Pay 50% deposit — locks in start (invoiced ~7 days before)','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
+            ['Sign &amp; return acceptance page','Pay 50% deposit within 7 days of acceptance — locks in your spot in the queue','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
               return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
                 '<div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-accent);min-width:22px">0'+(i+1)+'</div>'+
                 '<div class="ed-body" style="font-size:12px;line-height:1.5">'+t+'</div>'+
@@ -23889,7 +23889,7 @@ function refreshQuoteProposal(){
       // clauses + the schedule sit on one A4 sheet.
       '<div class="ed-keep" style="margin-top:10px;border-top:1px solid var(--ed-ink);padding-top:9px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
         '<div class="ed-eyebrow">Payment schedule</div>'+
-        [['50%','Deposit','~7 days before start'],['50%','Final','Within 7 days of completion']]
+        [['50%','Deposit','Within 7 days of acceptance'],['50%','Final','Within 7 days of completion']]
         .map(function(p,i){
           return '<div style="display:flex;align-items:baseline;gap:10px">'+
             '<div class="ed-serif" style="font-size:26px;color:var(--ed-ink);line-height:1;letter-spacing:-.01em;font-weight:500">'+p[0]+'</div>'+

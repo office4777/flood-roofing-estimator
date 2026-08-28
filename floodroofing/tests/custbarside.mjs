@@ -78,6 +78,23 @@ check('the price breakdown opens beside the panel, not full-width',
   brk.shown && brk.w < 480 && brk.right <= brk.barLeft + 8,
   `break ${Math.round(brk.w)}px wide, right=${Math.round(brk.right)} vs panel left=${Math.round(brk.barLeft)}`);
 check('nothing threw on the computer view', d.errs.length === 0, d.errs.join(' | ') || 'clean');
+// The deposit terms the customer reads: payable within 7 days of acceptance,
+// locking their spot in the queue — the old "~7 days before start" scheme is
+// gone from every page.
+const dep = await d.pg.evaluate(() => {
+  const t = (document.getElementById('customerView') || document.body).innerText || '';
+  return { newTerms: /within 7 days of acceptance/i.test(t),
+           oldTerms: /~7 days before/i.test(t),
+           // The fuller sentence lives in defaults that render per-quote
+           // (pole shed intro) — assert it at the source it renders from,
+           // so a reworded default can't drift back.
+           intro: /payable within 7 days of acceptance — once paid, your spot in the queue is locked in/.test(
+             (typeof POLESHED_DEFAULTS !== 'undefined' && POLESHED_DEFAULTS.psIntro) || '') };
+});
+check('the payment schedule the customer reads says within 7 days of acceptance',
+  dep.newTerms, JSON.stringify({ newTerms: dep.newTerms }));
+check('…and the old "~7 days before start" wording is gone', !dep.oldTerms, '');
+check('…and the intro default carries the full sentence, queue and all', dep.intro, '');
 await d.ctx.close();
 
 // ── phone: exactly the bar it always had ──────────────────────────
