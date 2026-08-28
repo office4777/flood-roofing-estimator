@@ -55,6 +55,7 @@ check('…and lands on Settings → Billing', v.tab === 'settings' && v.on, JSON
 check('…which says the trial has ended and shows the three plans',
   /trial has ended/.test(v.body) && /\$149/.test(v.body) && /\$299/.test(v.body) && /\$549/.test(v.body), v.body.slice(0,80));
 check('…and that the card goes to Stripe, jobs stay', /Stripe/.test(v.body) && /jobs stay/.test(v.body));
+check('…with no yearly toggle while no yearly price exists', !/2 months free/.test(v.body), '');
 await pg.locator('#set-billing').screenshot({ path: S + '/billing_settings.png' });
 
 // choosing a plan calls checkout and hands the browser to Stripe
@@ -123,6 +124,33 @@ check('…and states the discount with its term and what follows it',
   /30% off your first 12 months/.test(v.body) && /standard rate/.test(v.body), v.body.slice(0,180));
 check('…and says cancelling is possible, since the pricing page promises it',
   /cancel any time/i.test(v.body), v.body.slice(0,180));
+await ctx.close();
+
+// ── paid yearly: two months free ──────────────────────────────────
+({ ctx, pg, checkouts } = await boot({ status:'trialing', billing:true, live:false,
+  trial:{ ends_at:'2026-08-01T00:00:00Z', days_left:0, expired:true }, plan:'trial',
+  annual:{ solo:true, team:true, business:false } }));
+await pg.click('#trialBanner button');
+await pg.waitForTimeout(700);
+v = await pg.evaluate(() => ({
+  bar: !!document.getElementById('billingCycleBar'),
+  body: document.getElementById('billingBody').textContent,
+}));
+check('with yearly prices configured the Monthly / Yearly toggle appears',
+  v.bar && /2 months free/.test(v.body), v.body.replace(/\s+/g,' ').slice(0, 80));
+check('…opening on monthly, the default and the promise', /\$149\/month/.test(v.body.replace(/\s+/g,'')) || /\$149/.test(v.body), '');
+await pg.evaluate(() => { [...document.querySelectorAll('#billingCycleBar button')].find(b => /Yearly/.test(b.textContent)).click(); });
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => document.getElementById('billingBody').textContent);
+check('the yearly view shows the yearly prices with two months free',
+  /\$1,490/.test(v) && /\$2,990/.test(v) && /2 months free/.test(v), v.replace(/\s+/g,' ').slice(0, 120));
+check('…and a plan with no yearly price says monthly only instead of lying',
+  /\$549/.test(v) && /monthly only/.test(v) && !/\$5,490/.test(v), '');
+await pg.evaluate(() => { [...document.querySelectorAll('#billingBody button')].find(b => /Choose Team/.test(b.textContent)).click(); });
+await pg.waitForTimeout(1200);
+check('Choose Team in yearly view buys the ANNUAL team plan',
+  checkouts.length === 1 && checkouts[0].plan === 'team' && checkouts[0].billing === 'annual',
+  JSON.stringify(checkouts));
 await ctx.close();
 
 await b.close();

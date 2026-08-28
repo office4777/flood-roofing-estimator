@@ -59,6 +59,9 @@ process.env.STRIPE_WEBHOOK_SECRET = WH_SECRET;
 process.env.STRIPE_PRICE_SOLO = 'price_solo_149';
 process.env.STRIPE_PRICE_TEAM = 'price_team_299';
 process.env.STRIPE_PRICE_BUSINESS = 'price_biz_549';
+process.env.STRIPE_PRICE_SOLO_ANNUAL = 'price_solo_1490';
+process.env.STRIPE_PRICE_TEAM_ANNUAL = 'price_team_2990';
+delete process.env.STRIPE_PRICE_BUSINESS_ANNUAL;
 process.env.EARLY_ACCESS_COUPON = 'coupon_founding30';
 process.env.PLAN_CACHE_MS = '0';
 delete process.env.DATABASE_URL;
@@ -167,6 +170,37 @@ check('…and so is an hour-old replay', r.status === 400, r.status + '');
 r = await call('POST', '/billing/portal', {}, T);
 check('the owner can open the Stripe portal for card/cancel',
   r.status === 200 && /billing\.stripe\.com/.test(r.body.url), JSON.stringify(r.body));
+
+// ── paid yearly: two months free ──────────────────────────────────
+// Team, not Solo — this business has several members, and the seat guard
+// (rightly) refuses to sell it a one-seat plan.
+r = await call('POST', '/billing/checkout', { plan: 'team', billing: 'annual' }, T);
+let ac = stripeCalls[stripeCalls.length - 1];
+check('yearly checkout buys the yearly price, same plan metadata',
+  r.status === 200 && ac.body.get('line_items[0][price]') === 'price_team_2990' &&
+  ac.body.get('metadata[plan]') === 'team',
+  r.status + ' ' + (ac && ac.body.get('line_items[0][price]')));
+r = await call('POST', '/billing/checkout', { plan: 'team' }, T);
+ac = stripeCalls[stripeCalls.length - 1];
+check('no billing field still means monthly — old clients change nothing',
+  ac.body.get('line_items[0][price]') === 'price_team_299', ac.body.get('line_items[0][price]'));
+r = await call('POST', '/billing/checkout', { plan: 'team', billing: 'fortnightly' }, T);
+ac = stripeCalls[stripeCalls.length - 1];
+check('a junk billing value falls back to monthly',
+  ac.body.get('line_items[0][price]') === 'price_team_299', ac.body.get('line_items[0][price]'));
+r = await call('POST', '/billing/checkout', { plan: 'business', billing: 'annual' }, T);
+check('yearly on a plan with no yearly price is refused, naming the missing variable',
+  r.status === 400 && /STRIPE_PRICE_BUSINESS_ANNUAL/.test(r.body.error || ''), JSON.stringify(r.body));
+r = await call('GET', '/subscription', undefined, T);
+check('the billing screen is told which plans can be bought yearly',
+  r.body.annual && r.body.annual.solo === true && r.body.annual.team === true && r.body.annual.business === false,
+  JSON.stringify(r.body.annual));
+// A portal switch to the YEARLY price must land on the same plan.
+const swapped = JSON.stringify({ type: 'customer.subscription.updated', data: { object: {
+  id: 'sub_9', status: 'active', items: { data: [{ price: { id: 'price_team_2990' } }] } } } });
+r = await call('POST', '/billing/webhook', swapped, null, { 'stripe-signature': sign(swapped) });
+check('a portal change onto the yearly price still resolves the plan',
+  r.status === 200 && db.companies[0].plan === 'team', db.companies[0].plan);
 
 const deleted = JSON.stringify({ type: 'customer.subscription.deleted', data: { object: { id: 'sub_9', status: 'canceled' } } });
 r = await call('POST', '/billing/webhook', deleted, null, { 'stripe-signature': sign(deleted) });

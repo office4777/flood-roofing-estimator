@@ -912,6 +912,13 @@ app.get('/subscription', requireAuth, async (req, res) => {
       expired: ms <= 0,
     },
     plan: await _planOf(req.companyId),
+    // Which plans have a yearly price configured — the billing screen offers
+    // the two-months-free toggle only when there is something to buy.
+    annual: {
+      solo:     !!STRIPE_PRICES_ANNUAL.solo,
+      team:     !!STRIPE_PRICES_ANNUAL.team,
+      business: !!STRIPE_PRICES_ANNUAL.business,
+    },
   });
 });
 
@@ -2648,6 +2655,15 @@ const STRIPE_PRICES = {
   team:     process.env.STRIPE_PRICE_TEAM     || '',
   business: process.env.STRIPE_PRICE_BUSINESS || '',
 };
+// Paid yearly: two months free — the Stripe Prices are 10x the monthly rate
+// ($1,490 / $2,990 / $5,490 + GST), created as yearly recurring prices on the
+// same Products. Unset is a valid state: no yearly price simply means the
+// billing screen never offers yearly for that plan.
+const STRIPE_PRICES_ANNUAL = {
+  solo:     process.env.STRIPE_PRICE_SOLO_ANNUAL     || '',
+  team:     process.env.STRIPE_PRICE_TEAM_ANNUAL     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || '',
+};
 // The founding offer: 30% off for the first 12 months, for the businesses who
 // came in through early access. This is the id of a Stripe coupon created with
 // duration:'repeating' and duration_in_months:12 — Stripe then rolls them back
@@ -2657,7 +2673,11 @@ const STRIPE_PRICES = {
 // checkout carries on exactly as it did before.
 const EARLY_ACCESS_COUPON = (process.env.EARLY_ACCESS_COUPON || '').trim();
 function _stripePlanOfPrice(priceId){
-  return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; }) || '';
+  // Both cycles resolve to the same plan — a portal switch from monthly to
+  // yearly must not change what the business is entitled to.
+  return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; })
+      || Object.keys(STRIPE_PRICES_ANNUAL).find(function(k){ return STRIPE_PRICES_ANNUAL[k] && STRIPE_PRICES_ANNUAL[k] === priceId; })
+      || '';
 }
 // One POST to Stripe, form-encoded the way its API wants. params is a flat
 // object whose keys may already carry Stripe's bracket syntax.
@@ -2719,7 +2739,13 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     if (!(await _requireBillingOwner(req, res))) return;
     const plan = String((req.body || {}).plan || '').toLowerCase();
     if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: solo, team or business.' });
-    if (!STRIPE_PRICES[plan]) return res.status(400).json({ error: 'That plan has no Stripe price configured yet (STRIPE_PRICE_' + plan.toUpperCase() + ').' });
+    // Yearly = two months free; anything that isn't exactly 'annual' bills
+    // monthly, so an old client that never sends the field changes nothing.
+    const annual = String((req.body || {}).billing || '').toLowerCase() === 'annual';
+    const priceId = annual ? STRIPE_PRICES_ANNUAL[plan] : STRIPE_PRICES[plan];
+    if (!priceId) return res.status(400).json({ error: annual
+      ? ('Yearly billing for that plan isn\'t configured yet (STRIPE_PRICE_' + plan.toUpperCase() + '_ANNUAL).')
+      : ('That plan has no Stripe price configured yet (STRIPE_PRICE_' + plan.toUpperCase() + ').') });
     // Don't sell a plan the business already doesn't fit in.
     const lim = _limitsFor(plan);
     const seats = await _seatsUsed(req.companyId);
@@ -2728,7 +2754,7 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     const sub = await _companySubscription(req.companyId, req.user.id);
     const params = {
       mode: 'subscription',
-      'line_items[0][price]': STRIPE_PRICES[plan],
+      'line_items[0][price]': priceId,
       'line_items[0][quantity]': 1,
       success_url: PUBLIC_APP_URL + '/index.html?billing=success',
       cancel_url:  PUBLIC_APP_URL + '/index.html?billing=cancelled',

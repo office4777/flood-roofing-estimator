@@ -12525,7 +12525,11 @@ async function _billingCheckout(plan, btn){
   var msg = document.getElementById('billingMsg');
   if (btn) btn.disabled = true;
   try {
-    var r = await api('POST', '/billing/checkout', { plan: plan });
+    // The billing cycle rides along only when yearly is actually on offer for
+    // this plan — otherwise the server would refuse a cycle it can't sell.
+    var _ann = _billingCycle === 'annual' &&
+      !!(((SUBSCRIPTION || {}).annual) || {})[plan];
+    var r = await api('POST', '/billing/checkout', { plan: plan, billing: _ann ? 'annual' : 'monthly' });
     if (r && r.url) { location.href = r.url; return; }
     if (msg) msg.textContent = 'No checkout link came back — try again.';
   } catch(e){ if (msg){ msg.textContent = e.message; msg.style.color = '#b91c1c'; } }
@@ -12541,15 +12545,22 @@ async function _billingPortal(btn){
   if (btn) btn.disabled = false;
 }
 // The Billing section: where the business stands and the three ways up.
+// Monthly is the default and the promise; yearly is two months free. The
+// toggle only appears when the server says a yearly price actually exists.
+var _billingCycle = 'monthly';
+function _billingSetCycle(c){ _billingCycle = c === 'annual' ? 'annual' : 'monthly'; _billingRenderSection(); }
 function _billingRenderSection(){
   var host = document.getElementById('billingBody');
   if (!host) return;
   var s = SUBSCRIPTION;
   var tiers = [
-    { key: 'solo',     name: 'Solo',     price: '$149', blurb: '1 person · quoting, job packs, orders' },
-    { key: 'team',     name: 'Team',     price: '$299', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics + your own web address' },
-    { key: 'business', name: 'Business', price: '$549', blurb: 'Unlimited people · custom domain + job-management links' },
+    { key: 'solo',     name: 'Solo',     price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
+    { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics + your own web address' },
+    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · custom domain + job-management links' },
   ];
+  var annualAvail = (s && s.annual) || {};
+  var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
+  if (!anyAnnual) _billingCycle = 'monthly';
   var head;
   if (!s) head = '<div style="font-size:12.5px;color:var(--text2)">Couldn\u2019t check the subscription \u2014 reload to try again.</div>';
   else if (!s.billing) head = '<div style="font-size:12.5px;color:var(--text2)">Billing isn\u2019t switched on yet \u2014 plans below are what it will look like. Nothing can be charged.</div>';
@@ -12558,13 +12569,30 @@ function _billingRenderSection(){
   else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
   else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
   var canBuy = !!(s && s.billing);
-  host.innerHTML = head +
+  var cycleBtn = function(key, label){
+    var on = _billingCycle === key;
+    return '<button onclick="_billingSetCycle(\'' + key + '\')" style="padding:6px 14px;border-radius:20px;border:1.5px solid ' +
+      (on ? '#0a1628' : 'var(--border)') + ';background:' + (on ? '#0a1628' : '#fff') + ';color:' + (on ? '#fff' : '#43556a') +
+      ';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">' + label + '</button>';
+  };
+  var cycleBar = anyAnnual
+    ? '<div id="billingCycleBar" style="display:flex;gap:8px;align-items:center;margin-top:12px">' +
+        cycleBtn('monthly', 'Monthly') + cycleBtn('annual', 'Yearly — 2 months free') +
+      '</div>'
+    : '';
+  host.innerHTML = head + cycleBar +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px">' +
     tiers.map(function(t){
       var current = s && s.status === 'active' && s.plan === t.key;
+      var yearlyHere = _billingCycle === 'annual' && annualAvail[t.key];
+      var priceLine = yearlyHere
+        ? t.yearly + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/year + GST</span>' +
+          ' <span style="font-size:10px;font-weight:800;color:#15803d;background:#ecfdf5;border-radius:10px;padding:1px 7px;vertical-align:middle">2 months free</span>'
+        : t.price + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/month + GST' +
+          (_billingCycle === 'annual' ? ' · monthly only' : '') + '</span>';
       return '<div style="border:1.5px solid ' + (current ? '#0099cc' : 'var(--border)') + ';border-radius:12px;padding:16px 16px 14px;background:#fff">' +
         '<div style="font-size:14px;font-weight:800">' + t.name + (current ? ' <span style="font-size:10px;color:#0099cc;font-weight:800;letter-spacing:.06em">CURRENT</span>' : '') + '</div>' +
-        '<div style="font-size:22px;font-weight:800;margin:4px 0 2px">' + t.price + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/month + GST</span></div>' +
+        '<div style="font-size:22px;font-weight:800;margin:4px 0 2px">' + priceLine + '</div>' +
         '<div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:12px">' + t.blurb + '</div>' +
         (current
           ? '<button onclick="_billingPortal(this)" style="width:100%;padding:9px 0;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Manage billing</button>'
