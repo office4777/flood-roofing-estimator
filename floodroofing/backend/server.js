@@ -634,7 +634,16 @@ async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName
   // Resend key (or a Resend outage taking EMAIL_ENABLED paths down) degrades
   // to exactly yesterday's behaviour instead of silence.
   if (RESEND_ENABLED) {
-    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+    try {
+      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+    } catch (e) {
+      // A stale key or an unverified domain must not take the platform's mail
+      // down while a working relay is configured. Degrade, and page about it —
+      // this is a misconfiguration someone needs to fix, not a steady state.
+      if (!GAS_ENABLED) throw e;
+      try { recordError('server', new Error('Resend send failed, fell back to the Google relay: ' + (e && e.message)), { route: '_dispatchMail' }); } catch (e2) {}
+      return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+    }
   } else if (GAS_ENABLED) {
     return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
   }
@@ -4703,7 +4712,7 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
 // actual SMTP login succeed?) instead of everyone guessing from a
 // variables screenshot that might predate the last redeploy.
 app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
-  const method = GAS_ENABLED ? 'google' : (RESEND_ENABLED ? 'resend' : 'smtp');
+  const method = RESEND_ENABLED ? 'resend' : (GAS_ENABLED ? 'google' : 'smtp');
   const info = {
     method,
     emailFrom: EMAIL_FROM || null,
@@ -4724,13 +4733,15 @@ app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
     }));
   }
   try {
-    if (GAS_ENABLED) {
+    if (RESEND_ENABLED) {
+      const keyCheck = await _resendVerifyKey();
+      if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (the domain must be verified in Resend → Domains).');
+      res.json(Object.assign({}, info, { verify: true,
+        note: (keyCheck.note ? keyCheck.note + ' ' : '') + 'Sending via Resend as ' + EMAIL_FROM +
+              (GAS_ENABLED ? ' — Google relay standing by as fallback.' : '') }));
+    } else if (GAS_ENABLED) {
       await _gasVerify();
       res.json(Object.assign({}, info, { verify: true, note: 'Sending via Google Workspace relay as ' + (EMAIL_FROM || 'office@floodroofing.co.nz') + '.' }));
-    } else if (RESEND_ENABLED) {
-      const keyCheck = await _resendVerifyKey();
-      if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>".');
-      res.json(Object.assign({}, info, { verify: true, note: keyCheck.note }));
     } else {
       const resolved = await _resolveMailTransport(true);   // fresh probe, ignore cache
       res.json(Object.assign({}, info, { verify: true, portUsed: resolved.portUsed }));

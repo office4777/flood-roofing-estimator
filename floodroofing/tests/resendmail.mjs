@@ -26,11 +26,16 @@ const gas = http.createServer((req, res) => {
 });
 await new Promise(r => gas.listen(0, '127.0.0.1', r));
 const resendSeen = [];
+let resendBroken = false;   // flips the stub into "stale key / unverified domain" mode
 const resend = http.createServer((req, res) => {
   let b = ''; req.on('data', c => b += c);
   req.on('end', () => {
     try { resendSeen.push({ path: req.url, auth: req.headers.authorization, body: JSON.parse(b || '{}') }); }
     catch (e) { resendSeen.push({ path: req.url, raw: b }); }
+    if (resendBroken){
+      res.writeHead(403, {'content-type':'application/json'});
+      return res.end('{"name":"validation_error","message":"Domain is not verified"}');
+    }
     res.writeHead(200, {'content-type':'application/json'}); res.end('{"id":"re_msg_1"}');
   });
 });
@@ -103,6 +108,24 @@ check('…CC intact', JSON.stringify((o.body || {}).cc || []).includes('office@h
   JSON.stringify((o.body || {}).cc));
 check('…PDF attachment intact', !!((o.body || {}).attachments || [])[0] &&
   (o.body.attachments[0].filename === 'order.pdf') && !!o.body.attachments[0].content, '');
+
+// ── a stale key must not take the mail down ───────────────────────
+// The exact production hazard: a RESEND_API_KEY from an old account, domain
+// never verified there. The send must degrade to the Google relay — same
+// message, same recipient — not fail.
+resendBroken = true;
+resendSeen.length = 0; gasSeen.length = 0;
+r = await fetch(BASE + '/invoices/inv1/send', {
+  method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok }, body: '{}' });
+await new Promise(x => setTimeout(x, 400));
+check('with Resend refusing, the send still succeeds', r.status < 400, 'status ' + r.status);
+check('…because it fell back to the Google relay',
+  resendSeen.length === 1 && gasSeen.length === 1,
+  'resend tried ' + resendSeen.length + ', relay carried ' + gasSeen.length);
+const fb = JSON.parse(gasSeen[0] || '{}');
+check('…with the homeowner and the roofer\'s name intact on the fallback',
+  fb.to === 'homeowner@example.com' && /Hemi's Roofing/.test(fb.fromName || ''),
+  fb.to + ' / ' + fb.fromName);
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
