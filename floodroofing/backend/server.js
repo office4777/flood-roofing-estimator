@@ -2372,7 +2372,12 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     const job = await _findJobByToken(req.params.token, req.query.job);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
-    const { data: settings } = await supabase.from('user_settings').select('branding').eq('user_id', job.user_id).maybeSingle();
+    // The COMPANY's settings row, not the job owner's. A job made by a
+    // teammate carries the teammate's user_id, and the company settings row
+    // lives under whoever set the business up — looking up by owner sent a
+    // teammate's quote to the customer as "Your company" placeholders while
+    // the office preview looked perfectly branded.
+    const settings = await _settingsRowForJob(job);
     const share = quote.share || {};
     if (!Array.isArray(share.events)) share.events = [];
     // The office previewing its own link is NOT the customer opening the
@@ -2597,8 +2602,9 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     let acceptTo = (quote.acceptNotify && String(quote.acceptNotify).trim()) || '';
     if (!acceptTo) {
       try {
-        const { data: st } = await supabase.from('user_settings')
-          .select('quote_defaults').eq('user_id', job.user_id).maybeSingle();
+        // Company row first — same reason as the branding lookup: a job made
+        // by a teammate must still notify the address the BUSINESS set.
+        const st = await _settingsRowForJob(job);
         acceptTo = String((((st || {}).quote_defaults || {}).email || {}).accept_to || '').trim();
       } catch (e) {}
     }

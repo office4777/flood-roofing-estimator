@@ -31,12 +31,17 @@ const mkJob = (id, token, sentAt, sentTotal) => ({
 });
 
 const { port } = await startFakePostgrest({
-  profiles: [], user_settings: [], company_users: [], invoices: [], platform_state: [],
+  profiles: [], company_users: [], invoices: [], platform_state: [],
+  user_settings: [{ user_id: 'u1', company_id: 'c1', branding: { company_name: 'Kauri Roofing Ltd', email: 'office@kauri.nz' },
+                    quote_defaults: {}, jms_keys: {}, price_book: {}, labour_pricing: {}, updated_at: new Date().toISOString() }],
   jobs: [ mkJob('j-fresh', 'qfresh', ago(7), 20000), mkJob('j-old', 'qold', ago(200), 20000),
           // Never opened, never saved through this process — the durable
           // token map is the only way to find it without the 8-second-fated
           // token scan. Its map row is seeded below, as a save would have.
-          mkJob('j-mapped', 'qmapped', ago(2), 15000) ],
+          mkJob('j-mapped', 'qmapped', ago(2), 15000),
+          // Made by the TEAMMATE (u2), same company. The customer link must
+          // still carry the company's branding, not placeholders.
+          Object.assign(mkJob('j-team', 'qteam', ago(1), 9000), { user_id: 'u2' }) ],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -189,6 +194,17 @@ check('quote-activity rows carry the events, each with its timestamp',
   Array.isArray(fm.events) && fm.events.length >= 1 &&
   fm.events.every(e => e.type && isFinite(Date.parse(e.at))),
   JSON.stringify(fm.events || []).slice(0, 120));
+
+// ── a teammate's quote is still the company's quote ────────────────
+// The job carries the teammate's user_id; the company settings row lives
+// under whoever set the business up. Looking branding up by the job owner
+// sent this quote to the customer as "Your company" placeholders while the
+// office preview looked perfectly branded.
+r2 = await view('qteam'); const dTeam = await r2.json();
+check('a quote made by a teammate opens', r2.status === 200 && !!dTeam.quote, 'status ' + r2.status);
+check('…with the COMPANY\'s branding, not "Your company" placeholders',
+  dTeam.branding && dTeam.branding.company_name === 'Kauri Roofing Ltd',
+  JSON.stringify(dTeam.branding));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
