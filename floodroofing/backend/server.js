@@ -448,6 +448,7 @@ const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 
 // Until one of these is fully configured, /email/send-order answers 503
 // EMAIL_NOT_CONFIGURED and the frontend falls back to Gmail compose.
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_API_BASE = (process.env.RESEND_API_BASE || 'https://api.resend.com').replace(/\/+$/, '');
 const RESEND_ENABLED = !!RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '';
 const EMAIL_REPLYTO = process.env.EMAIL_REPLYTO || '';
@@ -485,9 +486,9 @@ function _allowedFromAddress(addr){
   return (dom && a.endsWith('@' + dom)) ? a : null;
 }
 // Google Workspace relay (Apps Script web app that sends as office@ via
-// Gmail). Preferred when configured: it sends from the real address over
-// HTTPS, leans on the domain's already-live Google SPF/DKIM, and needs no
-// DNS changes or third-party domain verification.
+// Gmail). The fallback when Resend is not configured: it sends from the real
+// address over HTTPS with no DNS work, but it is one Gmail account with a
+// shared daily quota — a single-tenant pipe, not a platform one.
 const GAS_MAIL_URL = process.env.GAS_MAIL_URL || '';
 const GAS_MAIL_TOKEN = process.env.GAS_MAIL_TOKEN || '';
 const GAS_ENABLED = !!(GAS_MAIL_URL && GAS_MAIL_TOKEN);
@@ -501,7 +502,9 @@ const EMAIL_ENABLED = GAS_ENABLED || RESEND_ENABLED || !!(process.env.SMTP_USER 
 // failure, and only ANY OTHER error (invalid/missing/revoked key, or a
 // network problem) counts as a real "not working" result.
 async function _resendVerifyKey() {
-  const r = await httpsRequest('api.resend.com', '/domains', 'GET', { Authorization: 'Bearer ' + RESEND_API_KEY }, null);
+  const resp = await fetch(RESEND_API_BASE + '/domains', {
+    headers: { Authorization: 'Bearer ' + RESEND_API_KEY } });
+  const r = { status: resp.status, body: await resp.text() };
   if (r.status >= 200 && r.status < 300) return { ok: true, note: null };
   let parsed = null; try { parsed = JSON.parse(r.body); } catch (e) {}
   if (r.status === 401 && parsed && parsed.name === 'restricted_api_key') {
@@ -573,8 +576,11 @@ async function _resendSendMail({ to, cc, subject, text, html, attachment, fromNa
   if (attachment && attachment.base64) {
     payload.attachments = [{ filename: attachment.filename || 'order.pdf', content: attachment.base64 }];
   }
-  const r = await httpsRequest('api.resend.com', '/emails', 'POST',
-    { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' }, payload);
+  const resp = await fetch(RESEND_API_BASE + '/emails', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload) });
+  const r = { status: resp.status, body: await resp.text() };
   if (r.status >= 200 && r.status < 300) {
     let id = null; try { id = JSON.parse(r.body).id; } catch (e) {}
     return { messageId: id };
@@ -588,8 +594,8 @@ function _money(n) {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return '$' + parts.join('.');
 }
-// One place that picks whichever mail transport is configured (Google
-// relay → Resend → SMTP) and sends. Shared by /email/send-order and the
+// One place that picks whichever mail transport is configured (Resend →
+// Google relay → SMTP) and sends. Shared by /email/send-order and the
 // customer accept-notification route so both behave identically.
 // ── WHOSE NAME IS ON THE EMAIL ──────────────────────────────────────
 // Every message the platform sent went out under one global address, so a
@@ -622,10 +628,15 @@ async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName
   const subj = String(subject || '').slice(0, 300);
   const body = String(text || '');
   const htmlBody = html ? String(html) : undefined;
-  if (GAS_ENABLED) {
-    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
-  } else if (RESEND_ENABLED) {
+  // Resend first: the Google relay is ONE Gmail account with a shared daily
+  // cap and one sending identity — fine for one roofing company, wrong for a
+  // platform full of them. The relay stays as the fallback, so removing the
+  // Resend key (or a Resend outage taking EMAIL_ENABLED paths down) degrades
+  // to exactly yesterday's behaviour instead of silence.
+  if (RESEND_ENABLED) {
     return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+  } else if (GAS_ENABLED) {
+    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
   }
   // The display name is the tenant's; the address stays ours, because it is the
   // only one we are authorised to send from.
