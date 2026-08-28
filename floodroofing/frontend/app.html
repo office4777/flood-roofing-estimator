@@ -18956,6 +18956,26 @@ async function bootCustomerView(token){
     // otherwise leaves a slight left/right wiggle on phones.
     host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
     host.innerHTML =
+      // On a computer the pricing bar sits BESIDE the quote — a fixed panel
+      // on the right — instead of pinned over the bottom of the page. Phones
+      // and tablets (≤1100px) keep the bottom bar exactly as it was. The
+      // .cust-scroll right padding makes the room; _fitCustomerView measures
+      // .report-preview inside it, so the A4 pages rescale to sit clear of
+      // the panel on their own. !important beats the inline styles below and
+      // the breakdown sheet's JS-set bottom.
+      '<style>@media (min-width:1100px){'+
+        '#customerView .cust-scroll{box-sizing:border-box;max-width:1252px !important;padding:12px 352px 40px 6px !important;}'+
+        '#custBar{left:auto !important;right:20px !important;bottom:auto !important;top:50% !important;'+
+          'transform:translateY(-50%);width:296px;box-sizing:border-box;border-radius:16px;'+
+          'padding:18px 16px !important;flex-direction:column !important;align-items:stretch !important;'+
+          'box-shadow:0 12px 36px rgba(0,0,0,.32) !important;}'+
+        '#custBar > div:not(#custBarSum){flex-direction:column !important;flex:0 0 auto !important;}'+
+        '#custBarSum{flex:0 0 auto !important;}'+
+        '#custBar button{flex:0 0 auto !important;padding:12px 10px !important;font-size:13px !important;}'+
+        '#custBarBreak{left:auto !important;right:332px !important;bottom:auto !important;top:50% !important;'+
+          'transform:translateY(-50%);width:360px;box-sizing:border-box;border-radius:16px;'+
+          'border:1px solid rgba(255,255,255,.15) !important;max-height:72vh !important;}'+
+      '}</style>'+
       '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px">'+
         '<div id="custAcceptedBanner" style="display:none;margin:0 4px 10px">'+
           '<div style="background:#0d2e1e;color:#fff;border-left:4px solid #34d399;border-radius:10px;padding:14px 16px;font-family:Inter,-apple-system,sans-serif">'+
