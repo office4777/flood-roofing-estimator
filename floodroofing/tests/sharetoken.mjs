@@ -31,8 +31,12 @@ const mkJob = (id, token, sentAt, sentTotal) => ({
 });
 
 const { port } = await startFakePostgrest({
-  profiles: [], user_settings: [], company_users: [], invoices: [],
-  jobs: [ mkJob('j-fresh', 'qfresh', ago(7), 20000), mkJob('j-old', 'qold', ago(200), 20000) ],
+  profiles: [], user_settings: [], company_users: [], invoices: [], platform_state: [],
+  jobs: [ mkJob('j-fresh', 'qfresh', ago(7), 20000), mkJob('j-old', 'qold', ago(200), 20000),
+          // Never opened, never saved through this process — the durable
+          // token map is the only way to find it without the 8-second-fated
+          // token scan. Its map row is seeded below, as a save would have.
+          mkJob('j-mapped', 'qmapped', ago(2), 15000) ],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -109,6 +113,50 @@ const app = await readFile(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
 check('the office stamps sentAt and sentTotal as it makes the link',
   /S\.quote\.share\.sentAt = new Date\(\)\.toISOString\(\)/.test(app) &&
   /S\.quote\.share\.sentTotal = Math\.round\(_sentTot \* 100\) \/ 100/.test(app));
+
+// ── the durable token→job map (the 60-second "Loading your quote") ──
+// Without DATABASE_URL there is no share-token index, and the token scan
+// dies on Supabase's 8-second PostgREST statement timeout — the customer
+// stared at the splash for a minute of retries. Every save now persists
+// token → job id into platform_state, and the lookup reads it back before
+// ever considering the scan.
+const _req2 = (await import('node:module')).createRequire(_j(_ROOT, 'backend') + '/');
+const tok2 = _req2('jsonwebtoken').sign({ id: 'u1', email: 'a@b.c', cid: 'c1' }, 'test-secret', { expiresIn: '1h' });
+const pstate = async (key) => {
+  const rr = await fetch('http://127.0.0.1:' + port + '/rest/v1/platform_state?key=eq.' + encodeURIComponent(key),
+    { headers: { apikey: 'k' } });
+  const rows = await rr.json().catch(() => []);
+  return rows[0] || null;
+};
+let r2 = await fetch(BASE + '/jobs/j-fresh/quote', { method: 'PUT',
+  headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok2 },
+  body: JSON.stringify({ quote: { client: 'C', gstRate: 15,
+    share: { token: 'qfresh', status: 'sent', sentAt: ago(7), sentTotal: 20000, events: [] } } }) });
+check('saving a quote records its token in the durable map', r2.status === 200, 'status ' + r2.status);
+await new Promise(res2 => setTimeout(res2, 300));   // the persist is fire-and-forget
+let row = await pstate('qtok:qfresh');
+check('…as platform_state qtok:<token> → job id',
+  !!row && row.value && row.value.jobId === 'j-fresh', JSON.stringify(row));
+
+// A whole-job save (the autosave path) carries the quote inside draw_state —
+// it maintains the map too.
+r2 = await fetch(BASE + '/jobs/j-old', { method: 'PUT',
+  headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok2 },
+  body: JSON.stringify({ draw_state: { state: { quote: { client: 'C', gstRate: 15,
+    share: { token: 'qold', status: 'sent', sentAt: ago(200), sentTotal: 20000, events: [] } } } } }) });
+check('a whole-job autosave maintains the map as well', r2.status === 200, 'status ' + r2.status);
+await new Promise(res2 => setTimeout(res2, 300));
+row = await pstate('qtok:qold');
+check('…same row shape', !!row && row.value && row.value.jobId === 'j-old', JSON.stringify(row));
+
+// A link whose mapping already exists resolves without the scan: the map row
+// for a job this process has never touched, opened cold.
+await fetch('http://127.0.0.1:' + port + '/rest/v1/platform_state', { method: 'POST',
+  headers: { 'content-type': 'application/json', apikey: 'k', Prefer: 'resolution=merge-duplicates' },
+  body: JSON.stringify({ key: 'qtok:qmapped', value: { jobId: 'j-mapped' }, updated_at: new Date().toISOString() }) });
+r2 = await view('qmapped'); const d2 = await r2.json();
+check('a cold open with a mapped token resolves — no hint, no scan needed',
+  r2.status === 200 && !!d2.quote, 'status ' + r2.status);
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

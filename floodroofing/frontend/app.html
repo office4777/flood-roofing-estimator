@@ -10058,8 +10058,17 @@ function _lkgGuard(draw){
 // names the save path, the state says what the drawing looked like, and the
 // occurrence count rides along instead of the second one vanishing.
 var _lkgReports = 0;
+var _lkgReported = {};
 function _lkgReport(what, draw, restored){
   _lkgReports++;
+  // One report per job per session. The auto-draft writer runs on a timer,
+  // so a stale draft LKG used to page the office on EVERY tick — the same
+  // fact, seven emails deep, each with a fresh occurrence number that
+  // defeated the server's dedupe. The first report says everything the
+  // repeats would have.
+  var _rk = _lkgKey() + '|' + what;
+  if (_lkgReported[_rk]) return;
+  _lkgReported[_rk] = 1;
   var st = '';
   try { st = (new Error('lkgGuard')).stack || ''; } catch(e){}
   var bits = [];

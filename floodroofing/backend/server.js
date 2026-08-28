@@ -1735,6 +1735,14 @@ function _jobLight(row){
 app.put('/jobs/:id', requireAuth, async (req, res) => {
   // Build the patch from the WHITELIST, not from the body. Filtering a copy
   // and then sending the original is how a stray key reaches SQL.
+  // A whole-job save carries the quote inside draw_state — keep the durable
+  // token→job map current so the customer link resolves by primary key.
+  try {
+    const _tk = req.body && req.body.draw_state && req.body.draw_state.state &&
+                req.body.draw_state.state.quote && req.body.draw_state.state.quote.share &&
+                req.body.draw_state.state.quote.share.token;
+    if (_tk) _tokenCachePut(String(_tk), req.params.id);
+  } catch (e) {}
   const patch = {};
   Object.keys(req.body || {}).forEach(k => { if (JOB_WRITABLE.indexOf(k) >= 0) patch[k] = req.body[k]; });
   delete patch.updated_at;                       // ours to set, not theirs to claim
@@ -1867,7 +1875,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
       const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id, req.companyId || null]);
       if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
       res.json({ ok: true, id: req.params.id, fast: true });
-      if (quote.share && quote.share.token) recordUsage('quote_sent', req);
+      if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, req.params.id); }
       return;
     } catch (e) {
       console.error('quote fast-update failed, falling back to read-modify-write:', e.message);
@@ -1886,7 +1894,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
   res.json({ ok: true, id: job.id });
-  if (quote.share && quote.share.token) recordUsage('quote_sent', req);
+  if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, job.id); }
 });
 
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
@@ -2149,12 +2157,37 @@ function _quoteOf(job){
 const _tokenIdCache = new Map();
 function _tokenCachePut(token, id){
   if (!token || !id) return;
+  const had = _tokenIdCache.get(token);
   if (_tokenIdCache.size > 500) _tokenIdCache.delete(_tokenIdCache.keys().next().value);
   _tokenIdCache.set(token, id);
+  // Persist the mapping so it survives a restart. The in-memory cache dies
+  // with the process, and without it a customer open fell back to scanning
+  // every job's multi-MB draw_state for the token — which Supabase's
+  // 8-second PostgREST statement timeout killed, over and over, until the
+  // page's retry loop gave up a minute later. platform_state is written via
+  // plain REST: no DDL, no direct DB connection required. Best-effort — on
+  // an account whose platform_state table doesn't exist yet this quietly
+  // does nothing, and the scan (or the &i= hint) still resolves the link.
+  if (had !== id){
+    supabase.from('platform_state').upsert(
+      { key: 'qtok:' + token, value: { jobId: id }, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    ).then(r => { if (r.error) console.warn('token map persist failed:', r.error.message); })
+     .catch(e => console.warn('token map persist failed:', e.message));
+  }
+}
+async function _tokenMapGet(token){
+  try {
+    const { data } = await supabase.from('platform_state')
+      .select('value').eq('key', 'qtok:' + token).maybeSingle();
+    const id = data && data.value && data.value.jobId;
+    return (id && /^[0-9a-fA-F-]{10,}$/.test(String(id))) ? id : null;
+  } catch (e) { return null; }
 }
 async function _findJobByToken(token, jobIdHint){
   if (!token) return null;
   if (!jobIdHint && _tokenIdCache.has(token)) jobIdHint = _tokenIdCache.get(token);
+  if (!jobIdHint) jobIdHint = await _tokenMapGet(token);   // durable map — survives restarts
   // Select ONLY the quote subtree, not the whole draw_state — the customer view
   // needs just the quote, and NOT the job's photos / drawing aerial (state.photos
   // + state.img64), which are megabytes. Writes go back via _saveQuoteBack's
@@ -5307,6 +5340,21 @@ app.use(function (err, req, res, next) {
     : { error: 'Something went wrong at our end. Quote this if you get in touch.', incident: id });
 });
 
+if (!process.env.DATABASE_URL) {
+  // Not a crash — a configuration hole with customer-visible consequences:
+  // no share-token index migration, no fast jsonb saves, token lookups fall
+  // back to a scan the 8-second PostgREST timeout kills. Say it through the
+  // same alert channel that reports the resulting 5xx storms.
+  try {
+    recordError('config', new Error(
+      'DATABASE_URL is not set on this service. Customer quote links fall back to a ' +
+      'full-table token scan that times out (the 60-second "Loading your quote"), and ' +
+      'job saves round-trip the whole multi-MB draw_state. Fix: Railway service → ' +
+      'Variables → add DATABASE_URL = the Supabase connection string (Project Settings ' +
+      '→ Database → Connection string, URI). The boot migration then creates the ' +
+      'share-token index automatically.'), { route: 'boot' });
+  } catch (e) {}
+}
 app.listen(PORT, () => {
   console.log('RoofMap backend running on port ' + PORT + ' · build: email-recipients-v7');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
