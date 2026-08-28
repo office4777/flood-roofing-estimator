@@ -42746,8 +42746,13 @@ function _jpRenderCutLists(content, page, idx){
         '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
       live.forEach(function(pc){
         var entry = _bfSketchEntry(pc, _bfLib);
-        var img = (entry && entry.sketch)
-          ? '<img src="'+entry.sketch+'" alt="'+esc(pc.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
+        // Feedback #32: the box pieces angle to the pitch of the roof the box
+        // sits ON — per piece, per roof — with the same tappable chips the
+        // cut-list cards carry.
+        var bfBox = entry ? { bfEntry: entry, bfKey: 'bf:' + _bfKey(pc), bfPitch: _jpRoofPitchOf(pc.roofIdx) } : null;
+        var bfSketch = entry && entry.sketch ? (_jpFlashSketchWithAngles(entry, _jpFlashEffAngles(bfBox)) || entry.sketch) : null;
+        var img = bfSketch
+          ? '<img src="'+bfSketch+'" alt="'+esc(pc.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
           : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(pc.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
         var k = esc(_bfKey(pc)), q = _bfQtyOf(pc), L = _bfLenOf(pc);
         html += '<div style="position:relative;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
@@ -42756,6 +42761,7 @@ function _jpRenderCutLists(content, page, idx){
           img+
           '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px;padding-right:20px">'+esc(pc.name)+'</div>'+
           '<div style="font-size:10.5px;color:#6f6a60">'+esc(pc.note)+'</div>'+
+          (bfBox ? _jpFlashAngleChips(bfBox) : '')+
           '<div style="margin-top:3px">'+
             '<span class="mat-list-qty" style="display:inline-block;width:44px"><input type="number" min="0" step="1" value="'+q+'" onfocus="this.select()" '+
               'onchange="_bfSet(\'Qty\',\''+k+'\',this.value)" style="width:100%;text-align:right;font-size:17px;font-weight:800;border:1px solid transparent;background:transparent;padding:0;margin:0"></span>'+
@@ -42814,6 +42820,7 @@ function _jpRenderCutLists(content, page, idx){
 // slot index / auto-type so it doesn't mutate the shared library drawing.
 function _jpFlashPolys(box){
   try {
+    if (box.bfEntry) return box.bfEntry.polylines || [];
     if (box.slot){
       var slot = box.slot;
       if (Array.isArray(slot.polylines)) return slot.polylines;
@@ -42835,16 +42842,49 @@ function _jpFlashAngleDefaults(polys){
   });
   return out;
 }
-function _jpFlashAngleKey(box){ return box.slot ? ('slot:' + box.slotIdx) : ('auto:' + ((box.spec && box.spec.key) || '')); }
-function _jpFlashAngleVal(key, idx, dflt){
+function _jpFlashAngleKey(box){
+  if (box.bfKey) return box.bfKey;
+  return box.slot ? ('slot:' + box.slotIdx) : ('auto:' + ((box.spec && box.spec.key) || ''));
+}
+// The pitch a flashing card should default its angles to. Feedback #32: "the
+// flashings default say 15deg but the actual roof pitch is 45" — the 15 is
+// whatever the roof looked like the day the library drawing was made, and a
+// saved flashing serves every job after. So the JOB decides: the pitch of the
+// owning roof for a boxed-pen piece, the pitch of the roofs in scope for the
+// cut-list cards — falling back to the active pitch when the scope disagrees.
+function _jpRoofPitchOf(idx){
+  try {
+    if (idx != null && idx >= 0 && DRAW.roofs && DRAW.roofs[idx] && DRAW.roofs[idx].calPitch > 0)
+      return +DRAW.roofs[idx].calPitch;
+  } catch(e){}
+  if (typeof DRAW !== 'undefined' && DRAW && DRAW.calPitch > 0) return +DRAW.calPitch;
+  var pd = document.getElementById('pitchDeg');
+  if (pd){ var pv = parseFloat(pd.value); if (isFinite(pv) && pv > 0) return pv; }
+  return null;
+}
+function _jpFlashScopePitch(){
+  try {
+    var idxs = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : [-1];
+    var ps = idxs.map(_jpRoofPitchOf).filter(function(x){ return x != null; });
+    if (!ps.length) return _jpRoofPitchOf(-1);
+    for (var i = 1; i < ps.length; i++) if (Math.abs(ps[i] - ps[0]) > 0.25) return _jpRoofPitchOf(-1);
+    return ps[0];
+  } catch(e){ return null; }
+}
+function _jpFlashPitchFor(box){
+  return (box && box.bfPitch != null && isFinite(box.bfPitch)) ? +box.bfPitch : _jpFlashScopePitch();
+}
+function _jpFlashAngleVal(key, idx, dflt, pitch){
   var arr = (S.jpFlashAngles && S.jpFlashAngles[key]) || [];
   var v = arr[idx];
   if (v != null && isFinite(v)) return +v;
+  // The roof's pitch beats the angle baked into the drawing.
+  if (pitch != null && isFinite(pitch) && pitch > 0) return +pitch;
   if (dflt != null && isFinite(dflt)) return +dflt;
   return (typeof _flashDefaultAngleDeg === 'function') ? _flashDefaultAngleDeg() : 20;
 }
-function _jpFlashAnglePrompt(key, idx, dflt){
-  var cur = _jpFlashAngleVal(key, idx, dflt);
+function _jpFlashAnglePrompt(key, idx, dflt, pitch){
+  var cur = _jpFlashAngleVal(key, idx, dflt, pitch);
   var ans = window.prompt('Enter the flashing angle in degrees:', cur != null ? String(Math.round(cur * 10) / 10) : '');
   if (ans == null) return;
   var v = parseFloat(ans);
@@ -42853,8 +42893,11 @@ function _jpFlashAnglePrompt(key, idx, dflt){
   if (!S.jpFlashAngles) S.jpFlashAngles = {};
   if (!Array.isArray(S.jpFlashAngles[key])) S.jpFlashAngles[key] = [];
   S.jpFlashAngles[key][idx] = v;
-  // Write the angle onto the saved flashing's marker too, so it REPLACES any
-  // existing angle on the flashing (not just this job's chip).
+  // A custom slot flashing's polylines travel WITH the job, so writing the
+  // marker there keeps its own drawing honest. The shared library is no
+  // longer touched: the card re-renders its sketch with the job's effective
+  // angles (_jpFlashSketchWithAngles), and writing one job's 45 into the
+  // catalog used to corrupt tomorrow's 20-degree job.
   try { _jpWriteFlashMarkerDeg(key, idx, v); } catch(e){}
   try { if (S.currentJobId) Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
   try { renderJobPack(); } catch(e){}
@@ -42863,16 +42906,16 @@ function _jpFlashAnglePrompt(key, idx, dflt){
 // flashings persist with the job (saveCurrentJob); a library-backed auto card
 // writes to the shared catalog entry so the saved flashing keeps the angle.
 function _jpWriteFlashMarkerDeg(key, idx, v){
-  var target = null, persistCatalog = false;
+  // Only a custom slot's own polylines — those are the job's private copy.
+  // Library-backed and auto cards render their per-job angles via
+  // _jpFlashSketchWithAngles instead, so the shared catalog entry keeps the
+  // degrees it was drawn with.
+  var target = null;
   if (key.indexOf('slot:') === 0){
     var si = parseInt(key.slice(5), 10);
     var arr = (typeof _matFlashingsArr === 'function') ? _matFlashingsArr() : [];
     var slot = arr && arr[si];
-    if (slot && Array.isArray(slot.polylines)) target = slot;
-    else if (slot && slot.source === 'library'){ var e = _getAllFlashings().find(function(x){ return x.name === slot.name; }); if (e && Array.isArray(e.polylines)){ target = e; persistCatalog = true; } }
-  } else if (key.indexOf('auto:') === 0){
-    var pick = (typeof _jpResolveDefaultDrawing === 'function') ? _jpResolveDefaultDrawing(key.slice(5)) : null;
-    if (pick && pick.entry && Array.isArray(pick.entry.polylines)){ target = pick.entry; persistCatalog = true; }
+    if (slot && slot.source !== 'library' && Array.isArray(slot.polylines)) target = slot;
   }
   if (!target || !Array.isArray(target.polylines)) return;
   var count = -1, done = false;
@@ -42886,7 +42929,6 @@ function _jpWriteFlashMarkerDeg(key, idx, v){
   }
   if (!done) return;
   try { _rebakeFlashSketch(target); } catch(e){}   // repaint the diagram PNG with the new angle
-  if (persistCatalog) { try { _persistCatalogSilently && _persistCatalogSilently(); } catch(e){} }
 }
 // Force the flashing's diagram PNG to re-render from its current polylines
 // (so an angle change made via the chip shows in the drawing, not just the chip).
@@ -42895,17 +42937,63 @@ function _rebakeFlashSketch(p){
   p.sketch = null;
   try { if (typeof _ensureBuiltinSketch === 'function') _ensureBuiltinSketch(p); } catch(e){}
 }
+// The angles a card actually shows: override → roof pitch → baked → global.
+function _jpFlashEffAngles(box){
+  var defs = _jpFlashAngleDefaults(_jpFlashPolys(box));
+  var key = _jpFlashAngleKey(box);
+  var pitch = _jpFlashPitchFor(box);
+  return defs.map(function(d, i){ return _jpFlashAngleVal(key, i, d, pitch); });
+}
+// A sketch whose ∠ labels say what this JOB's chips say. Rendered from a
+// clone of the entry's polylines with the effective degrees written onto the
+// markers, cached per drawing + angle set. The shared entry and its baked
+// sketch are never touched — and an entry whose markers carry no degrees at
+// all gets them stamped explicitly here, so the label can't quietly show
+// whatever pitch happened to be live when the PNG was first baked.
+var _jpFlashSketchCache = {};
+function _jpFlashSketchWithAngles(entry, angles){
+  try {
+    if (!entry || !Array.isArray(entry.polylines) || !entry.polylines.length) return entry && entry.sketch;
+    var baked = _jpFlashAngleDefaults(entry.polylines);
+    if (!baked.length || !angles || !angles.length) return entry.sketch;
+    var same = baked.length === angles.length && baked.every(function(bk, i){
+      return bk != null && angles[i] != null && Math.abs(+bk - +angles[i]) < 0.05; });
+    if (same) return entry.sketch;
+    var ck = (entry.name || '?') + '|' + angles.map(function(a){ return Math.round(a * 10) / 10; }).join(',');
+    if (_jpFlashSketchCache[ck]) return _jpFlashSketchCache[ck];
+    var clone = {
+      polylines: entry.polylines.map(function(pl){
+        var am = {};
+        Object.keys(pl.angleMarkers || {}).forEach(function(k){ am[k] = Object.assign({}, pl.angleMarkers[k]); });
+        return Object.assign({}, pl, { angleMarkers: am });
+      }),
+      paintedSide: entry.paintedSide, flashGuard: entry.flashGuard, flashGuards: entry.flashGuards
+    };
+    var i = 0;
+    clone.polylines.forEach(function(pl){
+      Object.keys(pl.angleMarkers || {}).forEach(function(k){
+        if (angles[i] != null && isFinite(angles[i])) pl.angleMarkers[k].deg = +angles[i];
+        i++;
+      });
+    });
+    _ensureBuiltinSketch(clone);
+    if (clone.sketch){ _jpFlashSketchCache[ck] = clone.sketch; return clone.sketch; }
+    return entry.sketch;
+  } catch(e){ return entry && entry.sketch; }
+}
 // Chip row of tappable "∠ N°" angles for a flashing card (empty string if none).
 function _jpFlashAngleChips(box){
   var polys = _jpFlashPolys(box);
   var defs = _jpFlashAngleDefaults(polys);
   if (!defs.length) return '';
   var key = _jpFlashAngleKey(box);
+  var pitch = _jpFlashPitchFor(box);
+  var pArg = (pitch != null && isFinite(pitch)) ? pitch : 'null';
   return '<div class="mat-fl-angles" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 5px">' +
     defs.map(function(d, ai){
-      var v = _jpFlashAngleVal(key, ai, d);
+      var v = _jpFlashAngleVal(key, ai, d, pitch);
       var dArg = (d != null && isFinite(d)) ? d : 'null';
-      return '<button type="button" class="mat-fl-angle" onclick="_jpFlashAnglePrompt(\'' + key + '\',' + ai + ',' + dArg + ')" title="Tap to enter this angle" '+
+      return '<button type="button" class="mat-fl-angle" onclick="_jpFlashAnglePrompt(\'' + key + '\',' + ai + ',' + dArg + ',' + pArg + ')" title="Tap to enter this angle" '+
         'style="border:1.5px solid #0ea5e9;background:#e0f2fe;color:#075985;border-radius:6px;padding:2px 10px;font-size:12.5px;font-weight:800;cursor:pointer;font-variant-numeric:tabular-nums;line-height:1.5">∠ ' + (Math.round(v * 10) / 10) + '°</button>';
     }).join('') + '</div>';
 }
@@ -42924,7 +43012,7 @@ function _jpRenderFlashingCell(box, bi){
       var lib = _getAllFlashings();
       var entry = lib.find(function(e){ return e.name === slot.name; });
       if (entry && entry.sketch){
-        inner = _jpFlashImgHtml(entry.sketch, 'slot:'+(slot.name||si), 190);
+        inner = _jpFlashImgHtml(_jpFlashSketchWithAngles(entry, _jpFlashEffAngles(box)) || entry.sketch, 'slot:'+(slot.name||si), 190);
         slotTitle = entry.name;
       } else {
         inner = '<div style="padding:18px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry removed.</div>';
@@ -42977,7 +43065,7 @@ function _jpRenderFlashingCell(box, bi){
   var drawing = '';
   if (spec.drawing) {
     drawing = pick && pick.entry.sketch
-      ? _jpFlashImgHtml(pick.entry.sketch, 'auto:'+spec.key, 230)
+      ? _jpFlashImgHtml(_jpFlashSketchWithAngles(pick.entry, _jpFlashEffAngles(box)) || pick.entry.sketch, 'auto:'+spec.key, 230)
       : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
   }
   // Compact cut list — single-line rows, smaller pad, no header row.
@@ -43036,7 +43124,20 @@ function _jpRenderFlashingCell(box, bi){
 // library entry that mentions the parent type.
 function _jpResolveDefaultDrawing(flashingType){
   var direct = _matSavedFlashingsFor(flashingType);
-  if (direct && direct.length) return direct[0];
+  if (direct && direct.length){
+    // The Materials picker lets the office choose WHICH saved drawing this
+    // type uses, and that choice must follow onto the job pack card. The
+    // list puts built-ins first, so without this a drawing the user saved
+    // themselves — with their own angle markers on it — could never win
+    // over the shipped one.
+    var picked = '';
+    try { picked = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || ''; } catch(e){}
+    if (picked){
+      var hitP = direct.find(function(r){ return r.entry && r.entry.name === picked; });
+      if (hitP) return hitP;
+    }
+    return direct[0];
+  }
   var bits = (flashingType || '').split('|');
   var parent = bits[0], sub = bits[1] || '';
   if (!parent) return null;

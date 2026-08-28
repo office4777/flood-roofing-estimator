@@ -1,0 +1,7 @@
+{"v":1,"scaleMetresPerPx":0.015789473684210527,"calPitch":45,"profile":"Corrugate",
+"outline":[[198,150],[198,480],[768,480],[768,150]],"lines":[{"type":"apron","pts":[[198,480],[768,480]],"measM":9},{"type":"barge","pts":[[768,480],[768,150]],"measM":7.37},
+{"type":"gutter","pts":[[768,150],[198,150]],"measM":9},{"type":"barge","pts":[[198,150],[198,480]],"measM":7.37}],"penetrations":[{"cx":290,"cy":233,"size":"350×850 mm","kind":"box"}],
+"roofs":[{"name":"Main Roof","outline":[[198,150],[198,480],[768,480],[768,150]],
+"lines":[{"type":"apron","pts":[[198,480],[768,480]],"measM":9},{"type":"barge","pts":[[768,480],[768,150]],"measM":7.37},{"type":"gutter","pts":[[768,150],[198,150]],"measM":9},
+{"type":"barge","pts":[[198,150],[198,480]],"measM":7.37}],"calPitch":45}],"activeRoofIdx":0,
+"sheetRuns":["7.37m"]}
