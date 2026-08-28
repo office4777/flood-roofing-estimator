@@ -176,6 +176,21 @@ check('a route that answers its own 500 is recorded too, not just a thrown one',
   errs.some(e => /\[error:server-5xx\]/.test(e)), errs.filter(e => /\[error:/.test(e)).length + ' error lines logged');
 
 console.error = cerr;
+// ── the database truth endpoint ────────────────────────────────────
+// /health's pg flag only says the VARIABLE exists. This one answers what
+// matters when a customer link is slow: does the connection work, is the
+// share-token index really there, and does a token probe come back in index
+// time. (No DATABASE_URL here, so it reports that plainly.)
+r = await fetch(BASE + '/admin/db-health');
+check('db-health is shut without the admin token', r.status === 404, String(r.status));
+r = await api('GET', '/admin/db-health?token=let-me-in-please-0000');
+check('…and answers with it', r.status === 200 && r.body && r.body.pg === false, JSON.stringify(r.body).slice(0, 80));
+check('…probing the real token-lookup path', r.body.tokenScanProbe && typeof r.body.tokenScanProbe.ms === 'number',
+  JSON.stringify(r.body.tokenScanProbe));
+r = await api('GET', '/admin/db-health?token=let-me-in-please-0000&migrate=1');
+check('…and ?migrate=1 reports why the migration cannot run here',
+  r.body.migrate && /DATABASE_URL/.test(r.body.migrate.skipped || ''), JSON.stringify(r.body.migrate));
+
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');
 process.exit(pass === results.length ? 0 : 1);

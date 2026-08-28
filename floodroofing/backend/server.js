@@ -5116,21 +5116,70 @@ const _MIGRATION_SQL = [
 ];
 
 async function _ensureSchema(){
-  if (!process.env.DATABASE_URL) { console.warn('[migrate] DATABASE_URL not set — multi-tenant schema NOT ensured'); return; }
+  if (!process.env.DATABASE_URL) { console.warn('[migrate] DATABASE_URL not set — multi-tenant schema NOT ensured'); return { skipped: 'DATABASE_URL not set' }; }
   let Client;
-  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping (run the SQL manually)'); return; }
+  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping (run the SQL manually)'); return { skipped: 'pg not installed' }; }
   const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
-  let ok = 0, failed = 0;
+  let ok = 0, failed = 0; const errors = [];
   try {
     await c.connect();
     for (const sql of _MIGRATION_SQL) {
       try { await c.query(sql); ok++; }
-      catch(e){ failed++; console.warn('[migrate] statement failed (continuing): ' + e.message + ' — SQL: ' + sql.slice(0, 90)); }
+      catch(e){ failed++; errors.push({ sql: sql.slice(0, 90), error: e.message }); console.warn('[migrate] statement failed (continuing): ' + e.message + ' — SQL: ' + sql.slice(0, 90)); }
     }
     console.log('[migrate] schema ensured: ' + ok + ' ok, ' + failed + ' failed');
-  } catch(e){ console.warn('[migrate] schema ensure skipped:', e.message); }
+    // A statement that fails at every boot is a hole someone is standing in
+    // — the share-token index missing was felt as customers waiting a minute
+    // for a quote. Say it where it will be read.
+    if (failed) { try { recordError('config', new Error('[migrate] ' + failed + ' schema statement(s) failing at boot: ' + errors.map(e => e.error).join(' | ').slice(0, 300)), { route: 'boot' }); } catch(e){} }
+    return { ok, failed, errors };
+  } catch(e){
+    console.warn('[migrate] schema ensure skipped:', e.message);
+    try { recordError('config', new Error('[migrate] could not connect with DATABASE_URL: ' + e.message + ' — the share-token index and fast saves depend on it'), { route: 'boot' }); } catch(e2){}
+    return { connectError: e.message };
+  }
   finally { try { await c.end(); } catch(e){} }
 }
+
+// The truth about the database, on demand — because /health's pg flag only
+// says the VARIABLE exists. This answers what actually matters: does the
+// connection work, is the share-token index really there, how heavy has the
+// jobs table grown, and does a token lookup through PostgREST come back in
+// index time or seq-scan time. ?migrate=1 re-runs the schema migration right
+// now and reports per-statement results — so a missing index can be repaired
+// from a phone.
+app.get('/admin/db-health', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).end();
+  const out = { pg: !!process.env.DATABASE_URL };
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const t0 = Date.now();
+      await pool.query('select 1');
+      out.poolConnect = { ok: true, ms: Date.now() - t0 };
+      const idx = await pool.query(
+        "select indexname from pg_indexes where schemaname = 'public' and tablename = 'jobs'");
+      out.jobsIndexes = idx.rows.map(r => r.indexname);
+      out.hasShareTokenIndex = out.jobsIndexes.indexOf('idx_jobs_share_token') >= 0;
+      const sz = await pool.query(
+        "select count(*)::int as jobs, coalesce(max(pg_column_size(draw_state)),0)::int as max_bytes, " +
+        "coalesce(avg(pg_column_size(draw_state)),0)::int as avg_bytes, " +
+        "pg_size_pretty(pg_total_relation_size('public.jobs')) as table_size from public.jobs");
+      out.jobsTable = sz.rows[0];
+    } catch (e) { out.poolConnect = { ok: false, error: e.message }; }
+  }
+  if (String(req.query.migrate) === '1') out.migrate = await _ensureSchema();
+  // How a token lookup actually performs through PostgREST — the path the
+  // customer link's fallback takes. A no-such-token probe returns nothing,
+  // fast when the index serves it, in seq-scan time (or a timeout) when not.
+  try {
+    const t1 = Date.now();
+    const probe = await supabase.from('jobs').select('id')
+      .eq('draw_state->state->quote->share->>token', 'db-health-probe-no-such-token').limit(1);
+    out.tokenScanProbe = { ms: Date.now() - t1, error: probe.error ? probe.error.message : null };
+  } catch (e) { out.tokenScanProbe = { error: e.message }; }
+  res.json(out);
+});
 
 // ══════════════════════════════════════════════════════════════════
 // USAGE — did they actually get anywhere?
