@@ -158,6 +158,38 @@ r2 = await view('qmapped'); const d2 = await r2.json();
 check('a cold open with a mapped token resolves — no hint, no scan needed',
   r2.status === 200 && !!d2.quote, 'status ' + r2.status);
 
+// ── the office's own opens are not the customer's ──────────────────
+// The app's Open button and link-verify probe pass preview=1: the quote is
+// served in full, and NOTHING is recorded — no status flip, no open count,
+// no event, so no notification reaches the office's bell for its own look.
+const beforePrev = await (await view('qmapped')).json();   // a real open first
+await new Promise(res2 => setTimeout(res2, 200));
+const countBefore = async () => {
+  const rr = await fetch('http://127.0.0.1:' + port + '/rest/v1/jobs?id=eq.j-mapped', { headers: { apikey: 'k' } });
+  const rows = await rr.json();
+  const sh = rows[0].draw_state.state.quote.share;
+  return { status: sh.status, openCount: sh.openCount || 0, events: (sh.events || []).length };
+};
+let snap1 = await countBefore();
+r2 = await fetch(BASE + '/q/qmapped?preview=1');
+check('a preview open serves the quote in full', r2.status === 200 && !!(await r2.json()).quote);
+await new Promise(res2 => setTimeout(res2, 300));
+let snap2 = await countBefore();
+check('…and records NOTHING — no count, no status, no event',
+  snap2.status === snap1.status && snap2.openCount === snap1.openCount && snap2.events === snap1.events,
+  JSON.stringify({ before: snap1, after: snap2 }));
+check('…while the real customer open before it was counted and stamped',
+  snap1.status === 'opened' && snap1.openCount >= 1, JSON.stringify(snap1));
+
+// ── the activity feed carries the stamped history the bell reads ───
+r2 = await fetch(BASE + '/quote-activity', { headers: { Authorization: 'Bearer ' + tok2 } });
+const feed2 = await r2.json();
+const fm = (feed2 || []).find(x => x.jobId === 'j-mapped') || {};
+check('quote-activity rows carry the events, each with its timestamp',
+  Array.isArray(fm.events) && fm.events.length >= 1 &&
+  fm.events.every(e => e.type && isFinite(Date.parse(e.at))),
+  JSON.stringify(fm.events || []).slice(0, 120));
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

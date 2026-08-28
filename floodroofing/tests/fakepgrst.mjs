@@ -181,10 +181,27 @@ export function startFakePostgrest(tables){
         // the caller asked for and the route 404s on its own data. Anything
         // that is not a bare identifier falls through whole, as before.
         const plainCols = sel.split(',').map(x => x.trim()).filter(Boolean);
-        if (sel && plainCols.length && plainCols.every(c => /^[A-Za-z_][A-Za-z0-9_]*$/.test(c))){
+        // Arrow-path selects are projected the way real PostgREST projects
+        // them: `q_share:draw_state->state->quote->share` materialises as
+        // q_share, and the rest of the row is NOT returned. Passing such
+        // rows through whole used to hide a whole code path from the
+        // suites — the /quote-activity primary select saw raw rows with no
+        // alias column, built nothing, and every test quietly exercised
+        // only the fallback. An unaliased path takes its last key as the
+        // name, as PostgREST does. Embedded resources (parentheses) and
+        // casts still fall through whole.
+        const pathish = plainCols.length &&
+          plainCols.every(c => /^(?:[A-Za-z_]\w*:)?[A-Za-z_]\w*(?:->>?\w+)*$/.test(c));
+        if (sel && pathish){
           rows = rows.map(r => {
             const o = {};
-            plainCols.forEach(c => { if (c in r) o[c] = r[c]; });
+            plainCols.forEach(c => {
+              const m = c.match(/^(?:([A-Za-z_]\w*):)?(.+)$/);
+              const path = m[2];
+              const alias = m[1] || (path.indexOf('->') < 0 ? path : path.split(/->>|->/).pop());
+              const v = readCol(r, path);
+              if (v !== undefined) o[alias] = v;
+            });
             return o;
           });
         }

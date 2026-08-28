@@ -2375,11 +2375,18 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     const { data: settings } = await supabase.from('user_settings').select('branding').eq('user_id', job.user_id).maybeSingle();
     const share = quote.share || {};
     if (!Array.isArray(share.events)) share.events = [];
+    // The office previewing its own link is NOT the customer opening the
+    // quote. The app's Open button and its link-verify fetch pass preview=1,
+    // and such a hit is served in full but leaves no analytics behind — no
+    // status flip, no openCount, no event, no notification. Only real
+    // customer opens reach the office's bell.
+    const isPreview = String(req.query.preview) === '1';
     // Persisting the "opened" analytics rewrites the WHOLE draw_state (photos and
     // all) back to the DB, so only do it when something meaningful actually
     // changed — a status transition, or a fresh open outside the 2-min throttle.
     // Rapid reloads / link-verify hits then don't trigger a heavy write each time.
     let changed = false;
+    if (!isPreview) {
     if (!share.status || share.status === 'sent') { share.status = 'opened'; changed = true; }
     const last = share.events[share.events.length - 1];
     if (!last || last.type !== 'opened' || (Date.now() - new Date(last.at).getTime()) > 120000) {
@@ -2388,6 +2395,7 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
       share.events.push({ type: 'opened', at: share.lastOpenedAt });
       if (share.events.length > 80) share.events = share.events.slice(-80);
       changed = true;
+    }
     }
     // Respond FIRST, persist the "opened" analytics in the background — the
     // customer's page load must never wait on the write (without a pg pool
@@ -3277,6 +3285,10 @@ app.get('/quote-activity', requireAuth, async (req, res) => {
         query: sh.query || null,
         accepted: q.accepted || null,
         lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
+        // The stamped history the in-app notification bell reads: every
+        // customer open, question, acceptance and decline, each with its
+        // ISO timestamp. Capped — the bell shows recent, not forever.
+        events: (sh.events || []).slice(-12),
       };
     };
     // Primary: select ONLY the specific quote fields this feed needs — NOT the
