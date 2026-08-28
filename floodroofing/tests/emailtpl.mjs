@@ -118,6 +118,30 @@ const reset = await pg.evaluate(() => {
 check('Reset restores the standard wording in the boxes',
   reset.isDefault && /\{ref\}/.test(reset.subj), reset.subj);
 
+// ── the automatic follow-up controls round-trip ───────────────────
+const rem = await pg.evaluate(() => {
+  const on = document.getElementById('emReminderOn');
+  const days = document.getElementById('emReminderDays');
+  on.checked = true; days.value = '5';
+  collectSettingsFromUI();
+  const stored = ((S.settings.quote_defaults || {}).email) || {};
+  // Round-trip: wipe the boxes, refresh from settings, read them back.
+  on.checked = false; days.value = '';
+  refreshSettingsUI();
+  return { enabled: stored.reminder_enabled, days: stored.reminder_days,
+           backOn: on.checked, backDays: days.value };
+});
+check('the follow-up switch and day count persist', rem.enabled === true && rem.days === 5,
+  JSON.stringify(rem));
+check('…and refresh puts them back in the boxes', rem.backOn === true && rem.backDays === '5',
+  JSON.stringify(rem));
+const remClamp = await pg.evaluate(() => {
+  document.getElementById('emReminderDays').value = '400';
+  collectSettingsFromUI();
+  return ((S.settings.quote_defaults || {}).email || {}).reminder_days;
+});
+check('a silly day count clamps to the default', remClamp === 3, String(remClamp));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 const fails = results.filter(x => !x).length;
 console.log('\n' + (results.length - fails) + '/' + results.length + ' passed');

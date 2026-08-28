@@ -924,10 +924,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // before choosing — and so that every account that predates plans keeps
 // working unchanged.
 const PLANS = {
-  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true  },
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false },
-  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true  },
+  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true  },
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true  },
+  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true  },
 };
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
 // Cached briefly so a per-request plan check isn't a per-request query. The
@@ -3271,67 +3271,308 @@ async function _autoDepositInvoice(job, quote){
   } catch (e) { console.warn('[invoice] auto-deposit failed:', e.message); }
 }
 
+// Every job in the caller's scope that has a SHARED quote, as light rows:
+// { id, client_name, share, ref, client, accepted }. One reader for the
+// notification feed and the analytics endpoint, so the two can't disagree.
+// Narrow JSON-path select first — the quote subtree carries roofMapGeom.bg
+// (a ~1 MB base64 aerial each) and pulling it whole for a hundred jobs ran
+// to hundreds of MB and timed out. Falls back to the whole-subtree shape for
+// environments that choke on deep JSON-path selects.
+async function _quoteShareRows(req, limit){
+  const primary = await _scopeCompany(supabase.from('jobs')
+    .select('id, client_name, ' +
+            'q_share:draw_state->state->quote->share, ' +
+            'q_ref:draw_state->state->quote->ref, ' +
+            'q_client:draw_state->state->quote->client, ' +
+            'q_accepted:draw_state->state->quote->accepted'), req)
+    // Only jobs that have actually been SHARED — filtered on the token
+    // expression (there's a functional index on it), so Postgres doesn't
+    // decompress every job's multi-MB draw_state.
+    .not('draw_state->state->quote->share->>token', 'is', null)
+    .order('updated_at', { ascending: false }).limit(limit);
+  if (!primary.error) {
+    return (primary.data || []).map(function(j){
+      return { id: j.id, client_name: j.client_name,
+               share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted };
+    }).filter(function(r){ return r.share && r.share.token; });
+  }
+  console.error('quote share rows narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
+  const fb = await _scopeCompany(supabase.from('jobs')
+    .select('id, client_name, quote:draw_state->state->quote'), req)
+    .not('draw_state->state->quote->share->>token', 'is', null)
+    .order('updated_at', { ascending: false }).limit(limit);
+  if (fb.error) { const err = new Error(fb.error.message); err.http = 500; throw err; }
+  return (fb.data || []).map(function(j){
+    const q = j.quote || {};
+    return { id: j.id, client_name: j.client_name,
+             share: q.share, ref: q.ref, client: q.client, accepted: q.accepted };
+  }).filter(function(r){ return r.share && r.share.token; });
+}
+
 // Office home-screen feed: every job that has a shared quote, with its
-// current status + last activity.
-app.get('/quote-activity', requireAuth, async (req, res) => {
+// current status + last activity. Team and up — this is the quote
+// notifications feature the Team tier sells.
+app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Team'), async (req, res) => {
   try {
-    // Build one feed row from a quote object (+ the job's top-level columns).
-    const rowFrom = function(j, q){
-      const sh = q && q.share;
-      if (!sh || !sh.token) return null;
+    const rows = await _quoteShareRows(req, 120);
+    const feed = rows.map(function(r){
+      const sh = r.share;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
       return {
-        jobId: j.id,
-        client: j.client_name || q.client || '—',
-        ref: q.ref || '',
+        jobId: r.id,
+        client: r.client_name || r.client || '—',
+        ref: r.ref || '',
         status: sh.status || 'sent',
         token: sh.token,
         openCount: sh.openCount || 0,
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
-        accepted: q.accepted || null,
+        accepted: r.accepted || null,
         lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
         // The stamped history the in-app notification bell reads: every
         // customer open, question, acceptance and decline, each with its
         // ISO timestamp. Capped — the bell shows recent, not forever.
         events: (sh.events || []).slice(-12),
       };
-    };
-    // Primary: select ONLY the specific quote fields this feed needs — NOT the
-    // whole quote subtree.  The quote now carries roofMapGeom.bg (a base64
-    // aerial JPEG, ~1 MB each); pulling the full quote for 120 jobs ran to
-    // hundreds of MB and timed the request out (recent activity stopped
-    // loading).  These narrow JSON paths keep the payload at kilobytes.
-    const primary = await _scopeCompany(supabase.from('jobs')
-      .select('id, client_name, ' +
-              'q_share:draw_state->state->quote->share, ' +
-              'q_ref:draw_state->state->quote->ref, ' +
-              'q_client:draw_state->state->quote->client, ' +
-              'q_accepted:draw_state->state->quote->accepted'), req)
-      // Only jobs that have actually been SHARED appear in the feed — filter to
-      // them (there's a functional index on this token expression), so Postgres
-      // doesn't have to decompress every job's multi-MB draw_state.
-      .not('draw_state->state->quote->share->>token', 'is', null)
-      .order('updated_at', { ascending: false }).limit(120);
-    if (!primary.error) {
-      const feed = (primary.data || []).map(function(j){
-        return rowFrom({ id: j.id, client_name: j.client_name },
-                       { share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted });
-      }).filter(Boolean);
-      return res.json(feed);
-    }
-    // Fallback: some environments choke on the deep JSON-path select. Pull the
-    // whole quote subtree (the original, proven query shape) and strip the
-    // heavy roofMapGeom before responding, so the client transfer stays small.
-    console.error('quote-activity narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
-    const fb = await _scopeCompany(supabase.from('jobs')
-      .select('id, client_name, quote:draw_state->state->quote'), req)
-      .not('draw_state->state->quote->share->>token', 'is', null)
-      .order('updated_at', { ascending: false }).limit(120);
-    if (fb.error) { console.error('quote-activity fallback failed:', fb.error.message, fb.error.hint || ''); return res.status(500).json({ error: fb.error.message }); }
-    const feed = (fb.data || []).map(function(j){ return rowFrom(j, j.quote || {}); }).filter(Boolean);
+    });
     res.json(feed);
   } catch (e) { console.error('quote-activity threw:', e && e.message); res.status(500).json({ error: e.message }); }
+});
+
+// The numbers behind the feed: of the quotes SENT in the window, how many
+// were opened, accepted, declined — and how long acceptance takes. Kept
+// server-side rather than derived from /quote-activity in the browser: that
+// feed truncates to 120 jobs and 12 events, which is right for a bell and
+// silently wrong for a rate.
+function _quoteAnalyticsFrom(rows, days){
+  const since = Date.now() - days * 86400000;
+  let sent = 0, opened = 0, accepted = 0, declined = 0;
+  const acceptDays = [];
+  (rows || []).forEach(function(r){
+    const sh = r.share || {};
+    const sentAt = Date.parse(sh.sentAt || ((sh.events && sh.events[0]) || {}).at || '');
+    if (!isFinite(sentAt) || sentAt < since) return;
+    sent++;
+    const evs = sh.events || [];
+    const status = sh.status || 'sent';
+    if ((sh.openCount || 0) > 0 || sh.lastOpenedAt ||
+        evs.some(function(e){ return e && e.type === 'opened'; }) || status !== 'sent') opened++;
+    const accAt = Date.parse(sh.acceptedAt || (r.accepted && r.accepted.at) || '');
+    if (isFinite(accAt) || status === 'accepted' || r.accepted){
+      accepted++;
+      if (isFinite(accAt)) acceptDays.push((accAt - sentAt) / 86400000);
+    } else if (status === 'declined' || sh.declinedAt) declined++;
+  });
+  acceptDays.sort(function(a, b){ return a - b; });
+  const median = acceptDays.length
+    ? acceptDays[Math.floor((acceptDays.length - 1) / 2)] : null;
+  const pct = function(n){ return sent ? Math.round(100 * n / sent) : 0; };
+  return { days: days, sent: sent, opened: opened, accepted: accepted, declined: declined,
+           open_rate: pct(opened), accept_rate: pct(accepted),
+           median_days_to_accept: median != null ? Math.round(median * 10) / 10 : null };
+}
+app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytics', 'Team'), async (req, res) => {
+  try {
+    const days = String(req.query.days) === '90' ? 90 : 30;
+    const rows = await _quoteShareRows(req, 500);
+    res.json(_quoteAnalyticsFrom(rows, days));
+  } catch (e) { console.error('quote-analytics threw:', e && e.message); res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// AUTOMATED QUOTE REMINDERS (Team+) — the follow-up a busy office forgets.
+// A quote still sitting at 'sent' or 'opened' N days after it went out gets
+// ONE polite nudge, from the roofer's own name, with the same live link.
+// Never for 'queried' (the ball is in the office's court — nudging someone
+// who asked a question reads as ignoring it), never for accepted/declined,
+// never past the 90-day window the Accept button itself enforces, and never
+// twice: share.remindedAt is the claim, written BEFORE the send, so a crash
+// or a double-run can lose a reminder but can never duplicate one.
+const REMINDER_EMAIL_DEFAULT = {
+  subject: 'Following up on your roofing quote {ref} — {company}',
+  body: 'Hi {client},\n\n' +
+    'Just checking in on the roofing quote we sent{address}.\n\n' +
+    'You can view it, pick your options and accept online any time:\n' +
+    '{link}\n' +
+    '{valid_until}' +
+    'If anything is unclear, or you would like to talk it through, just reply ' +
+    'to this email or give us a call — happy to help.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
+// The same {placeholder} fill the office's quote email uses client-side.
+function _fillEmailTemplate(tpl, vars){
+  return String(tpl || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
+    function(m, k){ return vars[k] != null ? vars[k] : ''; });
+}
+// Plain text → HTML with the customer link swapped for the big green button —
+// the same rendering the original quote email got, so the follow-up matches.
+function _reminderEmailHtml(message){
+  const esc = function(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  const m = String(message || '').match(/https?:\/\/[^\s<]+/);
+  const link = m ? m[0] : '';
+  let htmlMsg = esc(message).replace(/\n/g, '<br>');
+  if (link){
+    const btn = '<div style="margin:16px 0"><a href="' + esc(link) + '" style="display:inline-block;background:#2eaa46;color:#ffffff;text-decoration:none;font-weight:800;font-size:19px;padding:17px 46px;border-radius:8px;font-family:Arial,Helvetica,sans-serif;letter-spacing:.2px">View this Quote</a></div>';
+    htmlMsg = htmlMsg.split(esc(link)).join(btn);
+  }
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:600px">' + htmlMsg + '</div>';
+}
+// The customer link, rebuilt with the same precedence the office's send used:
+// the business's quote-domain setting → their verified custom domain → their
+// RoofMap subdomain → the platform address.
+async function _reminderQuoteLink(job, share, settingsRow){
+  let base = String((((settingsRow || {}).quote_defaults) || {}).quote_domain || '').trim().replace(/\/+$/, '');
+  if (base && !/^https?:\/\//.test(base)) base = 'https://' + base;
+  if (!base && job.company_id){
+    try {
+      const { data } = await supabase.from('company_domains').select('domain')
+        .eq('company_id', job.company_id).eq('status', 'verified').limit(1);
+      if (data && data[0] && data[0].domain) base = 'https://' + String(data[0].domain).toLowerCase();
+    } catch (e) {}
+    if (!base){
+      try {
+        const { data } = await supabase.from('companies').select('slug').eq('id', job.company_id).maybeSingle();
+        if (data && data.slug) base = 'https://' + String(data.slug).toLowerCase() + '.roofmap.co.nz';
+      } catch (e) {}
+    }
+  }
+  if (!base) base = PUBLIC_APP_URL;
+  let link = base + '/?q=' + share.token;
+  if (job.ref) link += '&j=' + encodeURIComponent(String(job.ref).replace(/[^A-Za-z0-9\-]/g, ''));
+  link += '&i=' + encodeURIComponent(String(job.id));
+  return link;
+}
+const REMINDERS_ENABLED = String(process.env.QUOTE_REMINDERS_ENABLED || 'true') !== 'false';
+async function _reminderSweep(){
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  // Every shared, never-reminded quote across ALL companies, as light rows.
+  // Status and age are judged in JS: legacy shares have no status key and a
+  // PostgREST filter on it would silently drop them.
+  const q = await supabase.from('jobs')
+    .select('id, user_id, company_id, client_name, ' +
+            'q_share:draw_state->state->quote->share, ' +
+            'q_ref:draw_state->state->quote->ref, ' +
+            'q_client:draw_state->state->quote->client, ' +
+            'q_email:draw_state->state->quote->email, ' +
+            'q_addr:draw_state->state->quote->addr, ' +
+            'q_valid:draw_state->state->quote->validUntil, ' +
+            'f_email:draw_state->form->jobEmail')
+    .not('draw_state->state->quote->share->>token', 'is', null)
+    .is('draw_state->state->quote->share->>remindedAt', null)
+    .gte('updated_at', new Date(Date.now() - 120 * 86400000).toISOString())
+    .order('updated_at', { ascending: false }).limit(500);
+  if (q.error) { console.error('[reminders] candidate query failed: ' + q.error.message); out.errors++; return out; }
+  const rows = (q.data || []).filter(function(r){ return r.q_share && r.q_share.token; });
+  if (!rows.length) return out;
+  // One plan lookup per company, not per job. Solo companies send nothing —
+  // reminders are a Team feature, and the server is where that is true.
+  const planByCo = new Map();
+  const coIds = Array.from(new Set(rows.map(function(r){ return r.company_id; }).filter(Boolean)));
+  if (coIds.length){
+    try {
+      const { data } = await supabase.from('companies').select('id, plan').in('id', coIds);
+      (data || []).forEach(function(c){ planByCo.set(c.id, c.plan || 'trial'); });
+    } catch (e) {}
+  }
+  const settingsCache = new Map();   // company_id|user_id → settings row (or null)
+  for (const r of rows){
+    out.checked++;
+    try {
+      const plan = r.company_id ? (planByCo.get(r.company_id) || 'trial') : 'trial';
+      if (!_limitsFor(plan).reminders) { out.skipped++; continue; }
+      const sKey = r.company_id || ('u:' + r.user_id);
+      if (!settingsCache.has(sKey)) settingsCache.set(sKey, await _settingsRowForJob(r));
+      const settingsRow = settingsCache.get(sKey);
+      const em = (((settingsRow || {}).quote_defaults) || {}).email || {};
+      if (em.reminder_enabled !== true) { out.skipped++; continue; }
+      let days = Number(em.reminder_days);
+      days = (isFinite(days) && days >= 1 && days <= 30) ? days : 3;
+      const sh = r.q_share;
+      const status = sh.status || 'sent';
+      if (status !== 'sent' && status !== 'opened') { out.skipped++; continue; }
+      const sentAt = Date.parse(sh.sentAt || ((sh.events && sh.events[0]) || {}).at || '');
+      if (!isFinite(sentAt)) { out.skipped++; continue; }          // no send date — never guess
+      const age = Date.now() - sentAt;
+      if (age < days * 86400000) { out.skipped++; continue; }      // too young
+      if (age > SHARE_ACTION_DAYS * 86400000) { out.skipped++; continue; }  // Accept refuses anyway
+      const to = String(sh.sentTo || r.q_email || r.f_email || '').trim();
+      if (!/.@./.test(to)) { out.skipped++; continue; }            // nowhere to send it
+      // Claim-then-send on a FRESH copy: a customer may have accepted (or the
+      // office reminded from another box) between the list query and now.
+      const fresh = await supabase.from('jobs')
+        .select('id, company_id, quote:draw_state->state->quote').eq('id', r.id).single();
+      if (fresh.error || !fresh.data || !fresh.data.quote) { out.skipped++; continue; }
+      const quote = fresh.data.quote;
+      const fsh = quote.share || {};
+      const fStatus = fsh.status || 'sent';
+      if (fsh.remindedAt || (fStatus !== 'sent' && fStatus !== 'opened')) { out.skipped++; continue; }
+      const now = new Date().toISOString();
+      fsh.remindedAt = now;
+      fsh.events = Array.isArray(fsh.events) ? fsh.events : [];
+      fsh.events.push({ type: 'reminded', at: now });
+      if (fsh.events.length > 80) fsh.events = fsh.events.slice(-80);
+      quote.share = fsh;
+      await _saveQuoteBack({ id: r.id }, quote);
+      // The claim is down; from here a failure loses one reminder, never
+      // duplicates one.
+      const br = ((settingsRow || {}).branding) || {};
+      const company = String(br.company_name || '').trim() || 'the team';
+      const link = await _reminderQuoteLink({ id: r.id, company_id: r.company_id, ref: r.q_ref }, fsh, settingsRow);
+      const vars = {
+        client: quote.client || r.q_client || r.client_name || '',
+        address: (quote.addr || r.q_addr) ? (' at ' + (quote.addr || r.q_addr)) : '',
+        link: link + '\n',
+        ref: quote.ref || r.q_ref || '',
+        company: company,
+        valid_until: (quote.validUntil || r.q_valid) ? ('\nQuote valid until: ' + (quote.validUntil || r.q_valid) + '\n') : '',
+        phone: br.phone ? (br.phone + '\n') : '',
+        email: br.email ? (br.email + '\n') : '',
+        website: br.website || '',
+      };
+      const subject = _fillEmailTemplate(em.reminder_subject || REMINDER_EMAIL_DEFAULT.subject, vars)
+        .replace(/\s{2,}/g, ' ').trim();
+      const body = _fillEmailTemplate(em.reminder_body || REMINDER_EMAIL_DEFAULT.body, vars)
+        .replace(/\n{3,}/g, '\n\n');
+      const who = _tenantMailIdentity(settingsRow);
+      const cc = String(em.quote_cc || '').trim() || undefined;
+      await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
+                            html: _reminderEmailHtml(body),
+                            fromName: who.fromName, replyTo: who.replyTo });
+      out.sent++;
+    } catch (e) {
+      out.errors++;
+      console.error('[reminders] job ' + r.id + ': ' + (e && e.message));
+    }
+  }
+  return out;
+}
+// The watermark keeps the cadence to a few sweeps a day across redeploys;
+// per-quote idempotence lives in remindedAt, not here.
+async function _reminderDue(){
+  try {
+    const r = await supabase.from('platform_state').select('value').eq('key', 'quote_reminders').maybeSingle();
+    const last = Date.parse(((r.data || {}).value || {}).last_run_at || '');
+    return !isFinite(last) || (Date.now() - last) > 6 * 3600e3;
+  } catch (e) { return false; }
+}
+async function _reminderTick(){
+  try {
+    if (!EMAIL_ENABLED || !REMINDERS_ENABLED) return;
+    if (!(await _reminderDue())) return;
+    await supabase.from('platform_state').upsert(
+      { key: 'quote_reminders', value: { last_run_at: new Date().toISOString() },
+        updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const r = await _reminderSweep();
+    if (r.sent || r.errors) console.log('[reminders] checked ' + r.checked + ', sent ' + r.sent +
+      ', skipped ' + r.skipped + ', errors ' + r.errors);
+  } catch (e) { console.error('[reminders] tick failed: ' + (e && e.message)); }
+}
+// Ops/tests: run the sweep NOW, ignoring the watermark. Same lock as the
+// other admin routes — no token, no route.
+app.post('/admin/reminders/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _reminderSweep()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 function httpsPost(host, path, headers, body) {
@@ -5441,6 +5682,11 @@ app.listen(PORT, () => {
   // hasn't gone out in six days — deliberately NOT on boot, so a Monday
   // morning redeploy can't send a second copy of an email already sent.
   try { METRICS.start(); } catch(e){ console.warn('[metrics] schedule not started: ' + e.message); }
+  // Quote follow-up reminders: hourly check, DB watermark, deliberately not
+  // on boot — a deploy storm must not turn into an email storm.
+  const _remKick = setTimeout(function(){ _reminderTick(); }, 5 * 60e3);
+  if (_remKick.unref) _remKick.unref();
+  setInterval(function(){ _reminderTick(); }, 3600e3).unref();
   console.log('Weekly metrics: ' + (String(process.env.METRICS_ENABLED || 'true') === 'false'
     ? 'disabled (METRICS_ENABLED=false)'
     : METRICS.config.to + ' every ' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][METRICS.config.day]

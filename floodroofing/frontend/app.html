@@ -6443,6 +6443,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <textarea id="emQuoteBody" rows="10" style="width:100%;font-size:12.5px;line-height:1.45;font-family:inherit"></textarea>
           <button type="button" onclick="_resetQuoteEmailTemplate()" style="margin-top:6px;padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">↺ Reset to the standard wording</button>
         </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px" id="emReminderBlock">
+          <label style="font-weight:700">Automatic quote follow-up <span style="font-weight:400;color:var(--text2);font-size:11px">— Team plan</span></label>
+          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">If a quote hasn't been answered, RoofMap emails the customer one polite reminder with their live quote link — from your name, CC'd to your office. One reminder per quote, never after they accept, decline or ask a question.</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="emReminderOn" style="width:16px;height:16px;margin:0">
+            Send an automatic follow-up when a quote goes quiet
+          </label>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px">
+            <span>after</span>
+            <input type="number" id="emReminderDays" min="1" max="30" step="1" placeholder="3" style="width:64px;text-align:center">
+            <span>days without a response</span>
+          </div>
+          <div id="emReminderLock" style="display:none;font-size:12px;color:#b45309;margin-top:8px">Quote follow-ups are on the Team plan — <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch them on</a>.</div>
+        </div>
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
           <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
           <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
@@ -7776,6 +7790,9 @@ function collectSettingsFromUI(){
   if (q.email.quote_body === QUOTE_EMAIL_DEFAULT.body) q.email.quote_body = '';
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
+  q.email.reminder_enabled = !!((document.getElementById('emReminderOn')||{}).checked);
+  var _rd = parseInt(((document.getElementById('emReminderDays')||{}).value || ''), 10);
+  q.email.reminder_days = (isFinite(_rd) && _rd >= 1 && _rd <= 30) ? _rd : 3;
   q.invoicing = {
     deposit_percent: Math.max(0, Math.min(100, parseFloat((document.getElementById('invDepositPct')||{}).value) || 0)),
     auto_send_deposit: !!(document.getElementById('invAutoSend')||{}).checked,
@@ -9668,6 +9685,19 @@ function refreshSettingsUI(){
   // starts from real text, never a blank box.
   set('emQuoteSubject', _em.quote_subject || QUOTE_EMAIL_DEFAULT.subject);
   set('emQuoteBody',    _em.quote_body    || QUOTE_EMAIL_DEFAULT.body);
+  var _remOn = document.getElementById('emReminderOn');
+  if (_remOn) _remOn.checked = _em.reminder_enabled === true;
+  set('emReminderDays', _em.reminder_days || 3);
+  // Follow-ups are a Team feature; on Solo the controls read but don't write
+  // (the server ignores the flag for Solo regardless — this is just honesty).
+  try {
+    var _solo = (window.SUBSCRIPTION && SUBSCRIPTION.plan) === 'solo';
+    var _lockN = document.getElementById('emReminderLock');
+    var _daysN = document.getElementById('emReminderDays');
+    if (_remOn) _remOn.disabled = _solo;
+    if (_daysN) _daysN.disabled = _solo;
+    if (_lockN) _lockN.style.display = _solo ? '' : 'none';
+  } catch(e){}
   var _iv = q.invoicing || {};
   set('invDepositPct', _iv.deposit_percent == null ? 50 : _iv.deposit_percent);
   set('invDueDays', _iv.due_days == null ? 7 : _iv.due_days);
@@ -12517,7 +12547,7 @@ function _billingRenderSection(){
   var s = SUBSCRIPTION;
   var tiers = [
     { key: 'solo',     name: 'Solo',     price: '$149', blurb: '1 person · quoting, job packs, orders' },
-    { key: 'team',     name: 'Team',     price: '$299', blurb: 'Up to 5 people · everything in Solo + your own web address' },
+    { key: 'team',     name: 'Team',     price: '$299', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics + your own web address' },
     { key: 'business', name: 'Business', price: '$549', blurb: 'Unlimited people · custom domain + job-management links' },
   ];
   var head;
@@ -17845,11 +17875,14 @@ async function loadTeam(){
       TEAM.domainsEnabled = !!dom.enabled;
     } catch(e){ TEAM.domains = []; TEAM.domainsEnabled = false; }
     // Keep the cached brief in step — the quote link is built from the slug.
-    if (TEAM.company) _setCompanyBrief({
+    // MERGED over the existing brief: the login response put plan + limits in
+    // here, and rewriting the object from scratch silently dropped them (so
+    // every plan-driven flag died the moment the Team screen loaded).
+    if (TEAM.company) _setCompanyBrief(Object.assign({}, _companyBrief(), {
       id: TEAM.company.id, name: TEAM.company.name, slug: TEAM.company.slug,
       role: (TEAM.me || {}).role || '',
       domain: ((TEAM.domains || []).filter(function(x){ return x.status === 'verified'; })[0] || {}).domain || '',
-    });
+    }, TEAM.plan ? { plan: TEAM.plan.id || TEAM.plan } : {}));
   } catch(e){ TEAM.err = (e && e.message) || 'Could not load your team.'; }
   TEAM.loading = false; renderTeam();
 }
@@ -19131,7 +19164,7 @@ async function bootCustomerView(token){
 // device) and a toast when something new arrives while the office is in the
 // app. Office previews never appear: the app's own Open button and its
 // link-verify fetch pass preview=1 and the backend records nothing for them.
-var _QN = { items: [], newestSeen: 0, timer: null, loadedOnce: false };
+var _QN = { items: [], newestSeen: 0, timer: null, loadedOnce: false, locked: false };
 var _QN_LABEL = {
   opened:   { icon: '👀', text: 'viewed their quote' },
   queried:  { icon: '❓', text: 'asked a question' },
@@ -19160,11 +19193,70 @@ function _qnFlatten(feed){
   out.sort(function(a, b){ return b.t - a.t; });
   return out.slice(0, 60);
 }
+// Quote notifications are a Team feature. The SERVER is the enforcement —
+// /quote-activity 403s with PLAN_LIMIT on Solo — this only decides what the
+// bell looks like. Unknown plan fails OPEN (the request just 403s politely).
+function _qnCanUse(){
+  try {
+    var plan = (window.SUBSCRIPTION && SUBSCRIPTION.plan) || (_companyBrief() || {}).plan || '';
+    if (String(plan).toLowerCase() === 'solo') return false;
+    var lim = (_companyBrief() || {}).limits;
+    if (lim && lim.activity === false) return false;
+  } catch(e){}
+  return !_QN.locked;
+}
+// The numbers strip at the top of the panel (Team+): sent / opened /
+// accepted over 30 or 90 days, from /quote-analytics.
+var _qnStats = { days: 30, data: null, loading: false };
+async function _qnStatsFetch(){
+  if (!_qnCanUse()) return;
+  _qnStats.loading = true;
+  try {
+    var d = await api('GET', '/quote-analytics?days=' + (_qnStats.days === 90 ? 90 : 30));
+    _qnStats.data = (d && typeof d === 'object' && !Array.isArray(d) && isFinite(d.sent)) ? d : null;
+  } catch(e){ _qnStats.data = null; }
+  _qnStats.loading = false;
+  _qnRenderPanel();
+}
+function _qnStatsSetDays(n){
+  _qnStats.days = n === 90 ? 90 : 30;
+  _qnStats.data = null;
+  _qnRenderPanel();
+  _qnStatsFetch();
+}
+function _qnStatsHtml(){
+  var d = _qnStats.data;
+  var pill = function(n, on){
+    return '<span onclick="_qnStatsSetDays(' + n + ')" style="cursor:pointer;padding:1px 8px;border-radius:10px;font-size:10.5px;font-weight:700;' +
+      (on ? 'background:#0a1628;color:#fff' : 'background:#eef2f7;color:#43556a') + '">' + n + 'd</span>';
+  };
+  var body;
+  if (!d) body = '<span style="color:var(--text2);font-size:11.5px">' + (_qnStats.loading ? 'Crunching the numbers…' : '') + '</span>';
+  else body = '<span style="font-size:12px;color:#0a1628;font-variant-numeric:tabular-nums">' +
+      'Sent <strong>' + d.sent + '</strong> · Opened <strong>' + d.opened + '</strong> (' + d.open_rate + '%) · ' +
+      'Accepted <strong>' + d.accepted + '</strong> (' + d.accept_rate + '%)' +
+      (d.median_days_to_accept != null ? ' · Accepts in ~' + d.median_days_to_accept + 'd' : '') +
+    '</span>';
+  return '<div id="qnStats" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#f8fafc;flex-wrap:wrap">' +
+    body + '<span style="margin-left:auto;display:flex;gap:4px">' + pill(30, _qnStats.days === 30) + pill(90, _qnStats.days === 90) + '</span></div>';
+}
 async function _qnFetch(){
   if (window.__CUSTOMER_MODE) return;
   if (!localStorage.getItem('fr_token')) return;
+  if (!_qnCanUse()) { _qnRenderBadge(); return; }
   var feed;
-  try { feed = await api('GET', '/quote-activity'); } catch(e){ return; }
+  try { feed = await api('GET', '/quote-activity'); }
+  catch(e){
+    // A PLAN_LIMIT 403 means Solo: lock the bell into its teaser state and
+    // stop asking — the panel explains and offers the upgrade.
+    if (e && (e.code === 'PLAN_LIMIT' || (e.data && e.data.code === 'PLAN_LIMIT'))){
+      _QN.locked = true;
+      _qnRenderBadge();
+      var pane = document.getElementById('qnPanel');
+      if (pane && pane.style.display !== 'none') _qnRenderPanel();
+    }
+    return;
+  }
   var items = _qnFlatten(Array.isArray(feed) ? feed : []);
   var newest = items.length ? items[0].t : 0;
   // Toast only for events that arrived while the app was open — never a
@@ -19193,6 +19285,15 @@ function _qnUnread(){
 function _qnRenderBadge(){
   var bd = document.getElementById('qnBadge');
   if (!bd) return;
+  // On Solo the bell wears a small lock instead of a count — the feature is
+  // visible (and one tap explains it), just not on.
+  if (!_qnCanUse()){
+    bd.style.display = '';
+    bd.style.background = 'transparent';
+    bd.textContent = '🔒';
+    return;
+  }
+  bd.style.background = '';
   var n = _qnUnread();
   bd.style.display = n ? '' : 'none';
   bd.textContent = n > 20 ? '20+' : String(n);
@@ -19200,6 +19301,20 @@ function _qnRenderBadge(){
 function _qnRenderPanel(){
   var pane = document.getElementById('qnPanel');
   if (!pane) return;
+  if (!_qnCanUse()){
+    pane.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)">' +
+        '<strong style="font-size:13.5px;color:#0a1628">🔔 Quote notifications</strong>' +
+        '<button onclick="_qnToggle()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text2)">✕</button>' +
+      '</div>' +
+      '<div style="padding:20px 18px">' +
+        '<div style="font-size:26px;margin-bottom:8px">🔒</div>' +
+        '<div style="font-size:13px;color:#0a1628;line-height:1.55;margin-bottom:8px"><strong>Know the moment your customer moves.</strong></div>' +
+        '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:6px">On the Team plan, RoofMap tells you when a customer <strong>opens</strong> their quote, <strong>asks a question</strong>, <strong>accepts</strong> or <strong>declines</strong> — each stamped with the date and time — plus automatic follow-up reminders and your open &amp; accept rates.</div>' +
+        '<button onclick="_billingOpen();_qnToggle()" style="margin-top:10px;width:100%;padding:11px;background:#0284b5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Team</button>' +
+      '</div>';
+    return;
+  }
   var seen = _qnSeenAt();
   var rows = _QN.items.map(function(it){
     var lbl = _QN_LABEL[it.type];
@@ -19222,6 +19337,7 @@ function _qnRenderPanel(){
       '<strong style="flex:1;font-size:13.5px">Quote activity</strong>' +
       '<button onclick="_qnToggle()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text2)">✕</button>' +
     '</div>' +
+    _qnStatsHtml() +
     '<div style="overflow-y:auto;max-height:70vh">' +
       (rows || '<div style="padding:22px 14px;color:var(--text2);font-size:12.5px;text-align:center">Nothing yet — you\'ll see it here the moment a customer opens a quote, asks a question, accepts or declines.</div>') +
     '</div>';
@@ -19240,6 +19356,7 @@ function _qnToggle(){
   if (opening){
     _qnRenderPanel();
     _qnFetch();
+    _qnStatsFetch();
     // Everything shown is now seen; the badge clears, the dots fade on the
     // next open.
     try { localStorage.setItem('fr_notif_seen', String(Date.now())); } catch(e){}
@@ -19259,7 +19376,7 @@ function _qnOpenJob(id){
     if (window.__CUSTOMER_MODE) return;
     if (_QN.timer) return;
     _QN.timer = setInterval(function(){
-      if (document.visibilityState === 'visible') _qnFetch();
+      if (document.visibilityState === 'visible' && _qnCanUse()) _qnFetch();
     }, 75000);
     setTimeout(_qnFetch, 3500);
   }
@@ -19270,6 +19387,11 @@ function _qnOpenJob(id){
 // ── Office home-screen: customer quote activity feed ──
 async function fetchQuoteActivity(){
   if (!document.getElementById('homeBoard')) return;
+  if (typeof _qnCanUse === 'function' && !_qnCanUse()){
+    window._quoteActivityFeed = [];
+    window._quoteActivityError = null;
+    return;
+  }
   try {
     var feed = await api('GET', '/quote-activity');
     feed = Array.isArray(feed) ? feed : [];
@@ -24764,6 +24886,15 @@ async function _quoteEmailSendNow(){
     // Email is out — NOW persist the job's photos/aerial in the background so
     // the uplink was clear for the send.
     try { if (got.heavySave) got.heavySave(); } catch(e){}
+    // Remember WHO the quote was emailed to, on the share itself. The
+    // automated follow-up reminder (Team plan) sends to this address first —
+    // it is the one the original email verifiably went to.
+    try {
+      if (S.quote && S.quote.share){
+        S.quote.share.sentTo = to;
+        Promise.resolve(saveCurrentJob()).catch(function(){});
+      }
+    } catch(e){}
     // If it was slow, show where the time went so it can be diagnosed
     // (publish = quote upload, email = server relay). Hidden on a fast send.
     var _timing = ((_tPub + _tSend) > 6000)
