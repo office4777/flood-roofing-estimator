@@ -70,7 +70,19 @@ r = await fetch(BASE + '/admin/errors', { headers: { 'x-admin-token': 'wrong-len
 check('…nor with the wrong one', r.status === 404, String(r.status));
 r = await api('GET', '/admin/errors?token=let-me-in-please-0000');
 check('…and open with the right one', r.status === 200 && r.body.build != null, JSON.stringify(r.body && r.body.alerting));
-check('…starting empty', r.body.total === 0 && r.body.distinct === 0);
+// This suite deliberately boots without DATABASE_URL — and a server booted
+// that way now pages the monitor ONCE about it, because in production that
+// exact hole was felt as customers waiting a minute for a quote link while
+// the config problem sat unread in a console log. So the log starts with
+// that one config alert and nothing else.
+check('…starting with only the missing-DATABASE_URL config alert',
+  r.body.total === 1 && r.body.distinct === 1 &&
+  /DATABASE_URL/.test((r.body.recent[0] || {}).message || ''),
+  r.body.total + ' recorded: ' + ((r.body.recent[0] || {}).message || '').slice(0, 60));
+const alertsAtStart = alerts.length;
+check('…which was announced through the alert channel',
+  alertsAtStart === 1 && /DATABASE_URL/.test((alerts[0] || {}).message || ''),
+  JSON.stringify(alerts.map(a => (a.message || '').slice(0, 40))));
 
 // ── a route that blows up ──
 // Force the database to fail so a real route throws for a real reason.
@@ -79,15 +91,16 @@ r = await api('GET', '/jobs');
 db.__fail500 = '';
 await settle();
 let adm = (await api('GET', '/admin/errors?token=let-me-in-please-0000')).body;
-check('a failing route is recorded', adm.total >= 1, adm.total + ' recorded, ' + adm.distinct + ' distinct');
+check('a failing route is recorded', adm.total >= 2, adm.total + ' recorded, ' + adm.distinct + ' distinct');
 const first = adm.recent[0] || {};
 check('…with where it happened and who hit it',
   /jobs/.test(first.route || first.url || '') && first.company === CO && /bob@/.test(first.user || ''),
   JSON.stringify({ route:first.route, url:first.url, co:!!first.company, user:first.user }));
 check('…and the build it happened on', first.build != null && first.build !== '');
-check('…and it was announced, once', alerts.length === 1, JSON.stringify(alerts.map(a => (a.message||'').slice(0,40))));
-check('…in a form Slack or Discord would print', typeof (alerts[0]||{}).text === 'string' && /RoofMap/.test(alerts[0].text),
-  ((alerts[0]||{}).text||'').split('\n')[0]);
+check('…and it was announced, once', alerts.length === alertsAtStart + 1,
+  JSON.stringify(alerts.map(a => (a.message||'').slice(0,40))));
+check('…in a form Slack or Discord would print', typeof (alerts[alerts.length-1]||{}).text === 'string' && /RoofMap/.test(alerts[alerts.length-1].text),
+  ((alerts[alerts.length-1]||{}).text||'').split('\n')[0]);
 
 // ── the same failure again is not a second alert ──
 const before = alerts.length;
