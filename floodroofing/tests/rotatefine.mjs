@@ -48,6 +48,9 @@ const state = () => pg.evaluate(() => ({
 // ── the resolution the report asked for ──
 let s = await state();
 check('the slider steps in tenths, not halves', s.step === '0.1', s.step);
+// "make the angle input a number input, not slider" — typed degrees, not a drag.
+check('the angle control is a number box the user can type into',
+  await pg.evaluate(() => document.getElementById('fineRotate').type === 'number'), '');
 check('it starts square', s.angle === 0 && s.slider === 0 && s.readout === '0.0°', JSON.stringify(s));
 
 // ── the buttons ──

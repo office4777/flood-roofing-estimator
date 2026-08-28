@@ -4151,13 +4151,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <button id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° anticlockwise">−.1</button>
               <button id="fineRotateUp" onclick="_nudgeFineRotate(0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° clockwise">+.1</button>
-              <input type="range" id="fineRotate" min="-45" max="45" step="0.1" value="0"
-                style="flex:1;min-width:90px;margin:0;cursor:pointer"
+              <input type="number" id="fineRotate" min="-45" max="45" step="0.1" value="0"
+                style="flex:1;min-width:64px;max-width:84px;margin:0;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;font-variant-numeric:tabular-nums;text-align:right"
+                title="Photo rotation in degrees (−45 to 45)"
                 oninput="_setFineRotate(this.value)"
-                onmousedown="DRAW.showAlignGrid=true;redrawAll()"
-                onmouseup="DRAW.showAlignGrid=false;redrawAll()"
-                ontouchstart="DRAW.showAlignGrid=true;redrawAll()"
-                ontouchend="DRAW.showAlignGrid=false;redrawAll()">
+                onfocus="this.select();DRAW.showAlignGrid=true;redrawAll()"
+                onblur="DRAW.showAlignGrid=false;redrawAll()">
               <span id="fineRotateVal" style="min-width:36px;font-size:11px;color:#666;font-variant-numeric:tabular-nums">0.0°</span>
               <button onclick="_setFineRotate(0)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:11px">Reset</button>
             </div>
@@ -39458,7 +39457,9 @@ function _setFineRotate(v){
   n = Math.max(-45, Math.min(45, n));          // the slider's own range
   IMG_FINE_ROTATION = n;
   var el = document.getElementById('fineRotate');
-  if (el) el.value = n;
+  // Don't write back into the box while the user is typing in it — a
+  // half-typed "-" parses to 0 and the echo would stomp the minus sign.
+  if (el && document.activeElement !== el) el.value = n;
   var out = document.getElementById('fineRotateVal');
   if (out) out.textContent = (n > 0 ? '+' : '') + n.toFixed(1) + '°';
   redrawAll();
