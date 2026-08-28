@@ -10015,6 +10015,14 @@ function _lkgGet(){
 // The guard itself. Returns the drawing to actually save.
 function _lkgGuard(draw){
   if (!_drawIsEmpty(draw)) { _lkgRemember(draw); return draw; }
+  // A dirty-check reads state to compare it; it persists nothing. When the
+  // guard fired there anyway, opening a job from a freshly loaded app — empty
+  // draft in memory, yesterday's draft geometry still on disk under the
+  // 'draft' key — paged the office with "blocked at save" and told the user
+  // their roof map had gone blank, on a path where no save was happening and
+  // nothing could be lost. Read-only callers get the truth back untouched;
+  // every path that actually writes still comes through the full guard.
+  if (_lkgGuard._readOnly) return draw;
   var prev = _lkgGet();
   if (!prev) {
     // No last known good under this job's key. Usually honest — a new job with
@@ -10909,7 +10917,10 @@ function _isJobDirty(){
     // writes work away goes through here, so this is the one place to say so.
     // Pressing Save deliberately still works: saveCurrentJob clears the flag.
     if (S.isSampleJob) return false;
-    var snap = snapshotCurrentJob();
+    var snap;
+    _lkgGuard._readOnly = true;
+    try { snap = snapshotCurrentJob(); }
+    finally { _lkgGuard._readOnly = false; }
     if (!_snapHasSubstance(snap)) return false;
     return JSON.stringify(snap) !== DRAFTS._lastSnapJson;
   } catch(e){ return false; }

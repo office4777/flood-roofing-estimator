@@ -103,6 +103,48 @@ v = await pg.evaluate(() => {
 check('clearing on purpose still saves an empty drawing',
   v.roofs === 0 && v.outline === 0, JSON.stringify(v));
 
+// ── the incident of build 3b079b2: a dirty-check is not a save ────
+// A freshly loaded app: the in-memory draft is empty, but yesterday's draft
+// geometry is still on disk under fr_lkg_draft. The user clicks a saved job,
+// and openJob → _saveBeforeSwitch → _isJobDirty snapshots purely to COMPARE.
+// The guard used to fire there anyway — substituting the old drawing made the
+// untouched session look dirty, paged the office with "blocked at save", and
+// toasted the user that their roof map had gone blank, all on a path that
+// persists nothing and could lose nothing.
+await load();
+await pg.waitForTimeout(400);
+const seenBeforeDirty = reports.length;
+v = await pg.evaluate(() => {
+  // yesterday's draft, as _lkgRemember left it on disk
+  const old = JSON.stringify({ outline: DRAW.outline.map(p => p.slice()),
+    lines: DRAW.lines, roofs: DRAW.roofs, activeRoofIdx: 0 });
+  // …and a genuinely fresh session in front of it
+  DRAW.outline = []; DRAW.lines = []; DRAW.roofs = []; DRAW.activeRoofIdx = -1;
+  S.currentJobId = null; S.linkedJobId = null;
+  LKG.byJob = {}; LKG.hadDrawing = null;
+  DRAFTS._lastSnapJson = null;
+  localStorage.setItem('fr_lkg_draft', old);
+  const msgEl = document.getElementById('saveJobMsg'); if (msgEl) msgEl.textContent = '';
+  const dirty = _isJobDirty();
+  return { dirty, roFlagCleared: !_lkgGuard._readOnly,
+           status: (document.getElementById('saveJobMsg') || {}).textContent || '' };
+});
+check('an untouched fresh session is not dirty for having yesterday\'s draft on disk',
+  v.dirty === false, 'dirty=' + v.dirty);
+check('…nothing is said to the user over a comparison', !v.status, v.status.slice(0, 100) || 'quiet');
+check('…and the read-only flag does not stick', v.roFlagCleared, '');
+await pg.waitForTimeout(500);
+check('…and nobody is paged over a comparison', reports.length === seenBeforeDirty,
+  reports.length > seenBeforeDirty ? (reports[reports.length - 1].message || '').slice(0, 90) : 'no report');
+// The same state going through an actual save is still caught red-handed.
+v = await pg.evaluate(() => {
+  const snap = snapshotCurrentJob();
+  return { roofs: (snap.draw.roofs || []).length };
+});
+check('the same empty state at a real save still gets the full guard',
+  v.roofs === 6, 'save-path snapshot carries ' + v.roofs + ' roofs');
+await pg.evaluate(() => { try { localStorage.removeItem('fr_lkg_draft'); } catch(e){} });
+
 // ── the report has to be diagnosable ──────────────────────────────
 const guardReport = reports.find(r => /empty drawing/i.test(r.message || '')) || {};
 check('the report names the save path it came from',
