@@ -108,6 +108,8 @@ process.env.PLAN_CACHE_MS = '0';
 process.env.RESEND_API_KEY = 're_test_dom';
 process.env.RESEND_API_BASE = 'http://127.0.0.1:' + rsrv.address().port;
 process.env.EMAIL_FROM = 'RoofMap <quotes@roofmap.co.nz>';
+// The nameserver fixture: who "manages" hemisroofing.co.nz in this test.
+process.env.NS_FIXTURE = JSON.stringify({ 'hemisroofing.co.nz': ['adel.ns.cloudflare.com', 'alan.ns.cloudflare.com'] });
 const PORT = process.env.TEST_PORT || '34634';
 process.env.PORT = PORT;
 delete process.env.DATABASE_URL;
@@ -164,7 +166,31 @@ check('…it starts pending, with Resend\'s DNS records passed through verbatim'
   r.body.domain.status === 'pending' && (r.body.domain.records || []).length === 3 &&
   /resend\._domainkey\.hemisroofing\.co\.nz/.test(JSON.stringify(r.body.domain.records)),
   JSON.stringify((r.body.domain.records || []).length));
+check('…and the nameservers NAME who manages the DNS, with the login door and menu path',
+  r.body.domain.provider && r.body.domain.provider.name === 'Cloudflare' &&
+  /dash\.cloudflare\.com/.test(r.body.domain.provider.url || '') && /DNS only/.test(r.body.domain.provider.path || ''),
+  JSON.stringify(r.body.domain.provider));
 const rdomId = resend.n ? 'rdom-' + resend.n : '';
+
+// ── "not your department" — mail the records to the web person ────
+resend.emails.length = 0;
+r = await api('POST', '/email/domain/instructions', { to: 'not-an-email' }, OWNER, CB);
+check('the instructions email refuses a junk address', r.status === 400, String(r.status));
+r = await api('POST', '/email/domain/instructions', { to: 'webguy@agency.co.nz' }, MEMBER, CB);
+check('…and a member cannot send it', r.status === 403, String(r.status));
+r = await api('POST', '/email/domain/instructions', { to: 'webguy@agency.co.nz' }, OWNER, CB);
+await new Promise(x => setTimeout(x, 300));
+const instr = (resend.emails[0] || {}).body || {};
+check('the owner emails the full instructions to their web person',
+  r.status === 200 && JSON.stringify(instr.to || []).includes('webguy@agency.co.nz'),
+  JSON.stringify(instr.to));
+check('…carrying every record value, verbatim',
+  /resend\._domainkey\.hemisroofing\.co\.nz/.test(instr.html || '') &&
+  /feedback-smtp/.test(instr.html || '') && /v=spf1 include:amazonses\.com/.test(instr.html || ''), '');
+check('…naming the DNS host so they know where to go', /Cloudflare/.test(instr.html || ''), '');
+check('…with the roofer CC\'d and replies pointed at them',
+  JSON.stringify(instr.cc || []).includes('@x.nz') && JSON.stringify(instr.reply_to || []).includes('@x.nz'),
+  'cc ' + JSON.stringify(instr.cc) + ' reply ' + JSON.stringify(instr.reply_to));
 
 r = await api('POST', '/email/domain', { email: 'office@hemisroofing.co.nz' }, OWNER, CB);
 check('adding it twice is refused', r.status === 400, JSON.stringify(r.body));

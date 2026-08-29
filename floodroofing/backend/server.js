@@ -4902,14 +4902,114 @@ function _refreshMailDomains(){
   _reloadMailDomains().then(function () { _mailDomains.loading = false; });
 }
 
+// ── WHO ACTUALLY MANAGES THEIR DNS ──────────────────────────────────
+// "Add these records where your domain is managed" is a riddle to most
+// roofers — they don't know where that is. The nameservers answer it: look
+// them up, name the company, and hand over that host's exact login door and
+// menu path. Covers the handful of hosts behind nearly every NZ domain;
+// anything else gets honest generic advice rather than a wrong guess.
+const _NS_PROVIDERS = [
+  { re: /cloudflare\.com$/i,     name: 'Cloudflare',    url: 'https://dash.cloudflare.com',          path: 'pick the domain → DNS → Records → Add record (set Proxy status to "DNS only" — the grey cloud)' },
+  { re: /domaincontrol\.com$/i,  name: 'GoDaddy',       url: 'https://dcc.godaddy.com/domains',      path: 'pick the domain → DNS → Add New Record' },
+  { re: /1stdomains/i,           name: '1stDomains',    url: 'https://1stdomains.nz',                path: 'log in → Domain manager → the domain → DNS Zone Records' },
+  { re: /freeparking/i,          name: 'Freeparking',   url: 'https://www.freeparking.co.nz',        path: 'log in → My Domains → the domain → Manage DNS' },
+  { re: /crazydomains/i,         name: 'Crazy Domains', url: 'https://www.crazydomains.co.nz',       path: 'log in → My Account → Domains → the domain → DNS Settings' },
+  { re: /rocketspark/i,          name: 'Rocketspark',   url: 'https://www.rocketspark.com',          path: 'log in → Settings → Domains → the domain → DNS Settings' },
+  { re: /vercel-dns\.com$/i,     name: 'Vercel',        url: 'https://vercel.com/dashboard/domains', path: 'pick the domain → DNS Records' },
+  { re: /sitehost/i,             name: 'SiteHost',      url: 'https://cp.sitehost.nz',               path: 'log in → Domains → DNS Zones → the domain' },
+  { re: /onlydomains/i,          name: 'OnlyDomains',   url: 'https://www.onlydomains.com',          path: 'log in → My Domains → the domain → DNS Management' },
+  { re: /metaname/i,             name: 'Metaname',      url: 'https://metaname.net',                 path: 'log in → the domain → DNS records' },
+  { re: /squarespace/i,          name: 'Squarespace',   url: 'https://account.squarespace.com',      path: 'Domains → the domain → DNS Settings → Custom Records' },
+  { re: /wixdns/i,               name: 'Wix',           url: 'https://manage.wix.com',               path: 'Domains → the domain → Manage DNS Records' },
+  { re: /registrar-servers\.com$/i, name: 'Namecheap',  url: 'https://ap.www.namecheap.com',         path: 'Domain List → Manage → Advanced DNS' },
+];
+function _mailDnsProviderFromNs(nsList){
+  for (const ns of (nsList || [])) {
+    const h = String(ns || '').toLowerCase().replace(/\.$/, '');
+    for (const p of _NS_PROVIDERS) if (p.re.test(h)) return { name: p.name, url: p.url, path: p.path, ns: h };
+  }
+  return null;
+}
+const _nsCache = new Map();   // domain → { at, provider }
+async function _mailDnsProvider(domain){
+  const d = String(domain || '').toLowerCase();
+  if (!d) return null;
+  const hit = _nsCache.get(d);
+  if (hit && Date.now() - hit.at < 3600e3) return hit.provider;
+  let provider = null;
+  try {
+    // Tests hand in a fixture; production asks the resolver.
+    let nsList;
+    if (process.env.NS_FIXTURE) nsList = (JSON.parse(process.env.NS_FIXTURE) || {})[d] || [];
+    else nsList = await require('dns').promises.resolveNs(d);
+    provider = _mailDnsProviderFromNs(nsList);
+  } catch (e) { /* NXDOMAIN, timeouts, no resolver — the hint is optional */ }
+  _nsCache.set(d, { at: Date.now(), provider: provider });
+  return provider;
+}
+async function _mailDomainRowFull(d){
+  const row = _mailDomainRow(d);
+  try { row.provider = await _mailDnsProvider(d.domain); } catch (e) { row.provider = null; }
+  return row;
+}
+
 app.get('/email/domain', requireAuth, async (req, res) => {
   const allowed = !!_limitsFor(await _planOf(req.companyId)).maildomain;
   if (!req.companyId) return res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null });
   try {
     const { data } = await supabase.from('company_mail_domains').select('*')
       .eq('company_id', req.companyId).maybeSingle();
-    res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: data ? _mailDomainRow(data) : null });
+    res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: data ? await _mailDomainRowFull(data) : null });
   } catch (e) { res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null }); }
+});
+
+// The roofer rarely does their own DNS — but they all know SOMEBODY who
+// does. One button mails that person a self-contained copy of the records,
+// with replies going back to the roofer, so the roofer's whole job is
+// typing one email address.
+app.post('/email/domain/instructions', requireAuth, requireOwner, rateLimit(10, 3600000), async (req, res) => {
+  if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.' });
+  const to = String((req.body || {}).to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Enter the email address of whoever manages your website or domain.' });
+  try {
+    const { data: row } = await supabase.from('company_mail_domains').select('*')
+      .eq('company_id', req.companyId).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'No sending domain set up yet.' });
+    const provider = await _mailDnsProvider(row.domain);
+    const recs = row.records || [];
+    const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const who = String((req.user && req.user.email) || '').trim();
+    const lines = [
+      'Hi,', '',
+      who + ' has asked for ' + row.domain + ' to be set up so their quoting system (RoofMap) can send email from ' + row.from_email + '.',
+      '', 'That needs these DNS records added to ' + row.domain +
+      (provider ? (' — its nameservers point at ' + provider.name + ' (' + provider.url + '; ' + provider.path + ')') : '') + ':', ''];
+    recs.forEach(function (r) {
+      lines.push('  Type: ' + (r.type || '') + '   Name/Host: ' + (r.name || '') +
+        (r.priority != null ? ('   Priority: ' + r.priority) : '') + '\n  Value: ' + (r.value || ''), '');
+    });
+    lines.push('Notes: enter the Name exactly as shown (the DNS host usually appends the domain itself); leave TTL at its default; on Cloudflare set Proxy status to "DNS only" (grey cloud).',
+      '', 'Once the records are in, ' + (who || 'the requester') + ' taps "Check now" in RoofMap and verification completes automatically. Replying to this email reaches ' + (who || 'them') + ' directly.');
+    const rowsHtml = recs.map(function (r) {
+      return '<tr><td style="padding:6px 10px;border:1px solid #e2e8f0;font-family:monospace">' + esc(r.type) + '</td>' +
+        '<td style="padding:6px 10px;border:1px solid #e2e8f0;font-family:monospace;word-break:break-all">' + esc(r.name) + '</td>' +
+        '<td style="padding:6px 10px;border:1px solid #e2e8f0;font-family:monospace;word-break:break-all">' + esc(r.value) + '</td>' +
+        '<td style="padding:6px 10px;border:1px solid #e2e8f0;font-family:monospace">' + esc(r.priority != null ? r.priority : '—') + '</td></tr>';
+    }).join('');
+    const html = '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#1c2733;line-height:1.6;max-width:640px">' +
+      '<p><strong>' + esc(who) + '</strong> has asked for <strong>' + esc(row.domain) + '</strong> to be set up so their quoting system (RoofMap) can send email from <strong>' + esc(row.from_email) + '</strong>.</p>' +
+      '<p>That needs these DNS records added to ' + esc(row.domain) +
+      (provider ? (' — its nameservers point at <strong>' + esc(provider.name) + '</strong> (<a href="' + esc(provider.url) + '">' + esc(provider.url) + '</a>; ' + esc(provider.path) + ')') : '') + ':</p>' +
+      '<table style="border-collapse:collapse;font-size:12.5px"><tr>' +
+      '<th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Type</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Name / Host</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Value</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Priority</th></tr>' +
+      rowsHtml + '</table>' +
+      '<p style="font-size:12.5px;color:#5f6b7a">Enter the Name exactly as shown (the DNS host usually appends the domain itself); leave TTL at its default; on Cloudflare set Proxy status to “DNS only” (grey cloud).</p>' +
+      '<p>Once the records are in, ' + esc(who || 'the requester') + ' taps <em>Check now</em> in RoofMap and verification completes automatically. Replying to this email reaches ' + esc(who || 'them') + ' directly.</p></div>';
+    await _dispatchMail({ to: to, cc: who || undefined,
+      subject: 'DNS records for ' + row.domain + ' — email setup for ' + row.from_email,
+      text: lines.join('\n'), html: html, replyTo: who || undefined });
+    res.json({ ok: true, sent_to: to });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Claim it: register the domain with Resend and hand back the DNS records.
@@ -4950,7 +5050,7 @@ app.post('/email/domain', requireAuth, requireOwner,
     };
     const { data, error } = await supabase.from('company_mail_domains').insert(row).select('*').single();
     if (error) return res.status(500).json({ error: error.message });
-    res.json({ domain: _mailDomainRow(data) });
+    res.json({ domain: await _mailDomainRowFull(data) });
   } catch (e) { res.status(e.status && e.status < 500 ? 400 : (e.status || 500)).json({ error: e.message }); }
 });
 
@@ -4975,7 +5075,7 @@ app.post('/email/domain/verify', requireAuth, requireOwner, rateLimit(60, 360000
     };
     const { data } = await supabase.from('company_mail_domains').update(patch).eq('id', row.id).select('*').single();
     await _reloadMailDomains();
-    res.json({ domain: _mailDomainRow(data || Object.assign({}, row, patch)) });
+    res.json({ domain: await _mailDomainRowFull(data || Object.assign({}, row, patch)) });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 

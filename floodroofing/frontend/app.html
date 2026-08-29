@@ -18160,13 +18160,26 @@ function _mailDomainRender(){
       (ok
         ? '<div style="font-size:11px;color:var(--text2);margin-top:5px">Quotes, orders and invoices now send from <strong>'+esc(d.from_email)+'</strong>.</div>'
         : '<div style="margin-top:8px">'+
-            '<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Add these records where <strong>'+esc(d.domain)+'</strong> is managed (your registrar, or whoever looks after your website), then tap <em>Check now</em>:</div>'+
+            (d.provider
+              ? '<div style="font-size:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:8px 11px;margin-bottom:8px">📍 Your domain\'s DNS is managed at <strong>'+esc(d.provider.name)+'</strong> — log in at <a href="'+esc(d.provider.url)+'" target="_blank" rel="noopener" style="color:#0284b5">'+esc(d.provider.url.replace(/^https:\/\//,''))+'</a>, then '+esc(d.provider.path)+'.</div>'
+              : '<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Add these records where <strong>'+esc(d.domain)+'</strong> is managed — your registrar, or whoever looks after your website:</div>')+
             '<div style="overflow-x:auto"><table class="price-tbl" style="width:100%;min-width:520px"><thead><tr><th style="width:13%">Type</th><th style="width:30%">Name / Host</th><th style="width:45%">Value</th><th style="width:12%">Priority</th></tr></thead><tbody>'+
             recs.map(function(rr){
               return '<tr><td style="font-family:monospace">'+esc(rr.type||'')+'</td><td style="font-family:monospace;word-break:break-all">'+esc(rr.name||'')+'</td><td style="font-family:monospace;word-break:break-all">'+esc(rr.value||'')+'</td><td style="font-family:monospace">'+esc(rr.priority!=null?String(rr.priority):'—')+'</td></tr>';
             }).join('')+
             '</tbody></table></div>'+
+            '<div style="font-size:11.5px;color:var(--text2);margin-top:8px">Then tap <em>Check now</em> — records can take a few minutes to show up, up to 24 hours on some hosts.</div>'+
             (d.error ? '<div style="font-size:11px;color:#b45309;margin-top:5px">'+esc(d.error)+'</div>' : '')+
+            '<div style="border-top:1px dashed var(--border);margin-top:10px;padding-top:9px">'+
+              '<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Not your department? Send it to whoever looks after your website — they get everything they need, and their reply comes straight to you.</div>'+
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+
+                '<input id="emDomainInstrTo" type="email" placeholder="your web person\'s email" style="flex:1 1 200px;min-width:0;margin:0;font-size:12.5px" onkeydown="if(event.key===\'Enter\')_mailDomainSendInstr()">'+
+                '<button type="button" onclick="_mailDomainSendInstr()" class="sec-btn" style="margin:0;width:auto;padding:8px 14px;font-size:12px">✉ Email these instructions</button>'+
+              '</div>'+
+              '<div id="emDomainInstrMsg" style="font-size:11.5px;margin-top:6px"></div>'+
+            '</div>'+
+            '<button type="button" onclick="_mailDomainGuideToggle()" id="emDomainGuideBtn" style="margin-top:9px;padding:6px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📖 How do I add these records? — step-by-step guide ▾</button>'+
+            '<div id="emDomainGuide" style="display:none;margin-top:9px;border:1px solid var(--border);border-radius:9px;padding:13px 15px;background:var(--surface-2);font-size:12px;line-height:1.55">'+_mailDomainGuideHtml(d)+'</div>'+
           '</div>')+
     '</div>'+
     '<div id="emDomainMsg" style="font-size:11.5px;margin-top:7px"></div>';
@@ -18201,6 +18214,70 @@ async function _mailDomainRemove(){
   if (!confirm('Remove ' + (d.from_email || d.domain || 'this sending address') + '?\n\nYour mail goes back to sending from the RoofMap address (still with your business name on it).')) return;
   try { await api('DELETE', '/email/domain'); _MAILDOM.domain = null; _mailDomainRender(); _mailDomainMsg('Removed.', true); }
   catch(e){ _mailDomainMsg((e && e.message) || 'Could not remove it.', false); }
+}
+function _mailDomainGuideToggle(){
+  var g = document.getElementById('emDomainGuide'), b = document.getElementById('emDomainGuideBtn');
+  if (!g) return;
+  var open = g.style.display !== 'none';
+  g.style.display = open ? 'none' : 'block';
+  if (b) b.textContent = open ? '📖 How do I add these records? — step-by-step guide ▾'
+                              : '📖 How do I add these records? — step-by-step guide ▴';
+}
+async function _mailDomainSendInstr(){
+  var el = document.getElementById('emDomainInstrTo');
+  var msg = document.getElementById('emDomainInstrMsg');
+  if (!el || !el.value.trim()) return;
+  if (msg){ msg.textContent = 'Sending\u2026'; msg.style.color = 'var(--text2)'; }
+  try {
+    var r = await api('POST', '/email/domain/instructions', { to: el.value.trim() });
+    if (msg){ msg.textContent = '\u2713 Sent to ' + (r.sent_to || el.value.trim()) + ' \u2014 you\u2019re CC\u2019d, and their reply comes to you.'; msg.style.color = '#15803d'; }
+    el.value = '';
+  } catch(e){ if (msg){ msg.textContent = (e && e.message) || 'Could not send it.'; msg.style.color = '#b91c1c'; } }
+}
+// The in-depth walkthrough behind the "How do I add these records?" button.
+// The illustration is a deliberately GENERIC add-record form — every DNS
+// host's screen has these same five boxes — labelled as an example rather
+// than pretending to be any particular company's dashboard.
+function _mailDomainGuideHtml(d){
+  var recs = (d && d.records) || [];
+  var mx = null, txts = [];
+  recs.forEach(function(r){ if ((r.type||'').toUpperCase() === 'MX' && !mx) mx = r; else txts.push(r); });
+  var ex = mx || recs[0] || { type:'MX', name:'send', value:'feedback-smtp\u2026amazonses.com', priority:10 };
+  var fld = function(label, val, note){
+    return '<div style="flex:1 1 120px;min-width:0"><div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:3px">'+label+'</div>'+
+      '<div style="border:1.5px solid #cbd5e1;border-radius:6px;background:#fff;padding:7px 9px;font-family:monospace;font-size:11.5px;word-break:break-all">'+esc(val)+'</div>'+
+      (note?'<div style="font-size:10px;color:var(--text2);margin-top:3px;line-height:1.35">'+note+'</div>':'')+'</div>';
+  };
+  return ''+
+  '<div style="font-weight:800;font-size:12.5px;margin-bottom:6px">What you\u2019re doing (and why it\u2019s safe)</div>'+
+  '<p style="margin:0 0 8px">DNS records are your domain\u2019s public settings \u2014 the same place that already tells the internet where your website and email live. Adding these '+recs.length+' records proves you own <strong>'+esc((d&&d.domain)||'your domain')+'</strong> and authorises your quotes to send from it. They don\u2019t change your website or your existing email in any way.</p>'+
+  '<div style="font-weight:800;font-size:12.5px;margin:10px 0 6px">Step 1 \u2014 log in where your domain\u2019s DNS lives</div>'+
+  (d && d.provider
+    ? '<p style="margin:0 0 8px">Easy \u2014 we checked: it\u2019s <strong>'+esc(d.provider.name)+'</strong>. Go to <a href="'+esc(d.provider.url)+'" target="_blank" rel="noopener" style="color:#0284b5">'+esc(d.provider.url)+'</a>, then '+esc(d.provider.path)+'. No login? Whoever set up your website has it \u2014 or use the email button above and let them do the rest.</p>'
+    : '<p style="margin:0 0 8px">That\u2019s usually whoever you pay the yearly domain fee to (search your email for \u201c'+esc((d&&d.domain)||'your domain')+' renewal\u201d), or the company that built your website. Not sure? Use the email button above \u2014 your web person will know exactly what to do with it.</p>')+
+  '<div style="font-weight:800;font-size:12.5px;margin:10px 0 6px">Step 2 \u2014 find \u201cAdd record\u201d and fill in the boxes</div>'+
+  '<p style="margin:0 0 8px">Every DNS screen has the same boxes, whatever it\u2019s called \u2014 DNS Records, Zone Editor, DNS Management. Here\u2019s the first record from your table filled into a typical form:</p>'+
+  '<div style="border:1px solid var(--border);border-radius:9px;background:#f8fafc;padding:11px 13px;margin-bottom:6px">'+
+    '<div style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Example \u2014 a typical \u201cAdd DNS record\u201d form (yours will look similar)</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+      fld('Type', ex.type || 'MX', 'Pick from the dropdown')+
+      fld('Name / Host', ex.name || 'send', 'Exactly as shown \u2014 most hosts add \u201c.'+esc((d&&d.domain)||'yourdomain')+'\u201d themselves. If yours shows the full name ending in your domain, that\u2019s right too.')+
+      fld('Value / Points to', ex.value || '', 'Copy-paste the whole thing \u2014 no retyping')+
+      (ex.priority != null ? fld('Priority', String(ex.priority), 'MX records only') : '')+
+      fld('TTL', 'Auto / default', 'Leave it alone')+
+    '</div>'+
+    '<div style="margin-top:8px;display:inline-block;background:#0a1628;color:#fff;border-radius:6px;padding:6px 16px;font-size:11.5px;font-weight:700">Save record</div>'+
+  '</div>'+
+  '<p style="margin:0 0 8px">Repeat for each row in the table above \u2014 '+recs.length+' records in total. The long TXT values paste in as one line (quotes around them are fine; some hosts add them automatically).</p>'+
+  '<div style="font-weight:800;font-size:12.5px;margin:10px 0 6px">Step 3 \u2014 tap \u201cCheck now\u201d back here</div>'+
+  '<p style="margin:0 0 8px">New records usually show up within minutes; a few hosts take up to 24 hours. Tap <em>Check now</em> whenever \u2014 checking early never hurts anything. When the badge turns green, every quote, order and invoice sends from your own address automatically.</p>'+
+  '<div style="font-weight:800;font-size:12.5px;margin:10px 0 6px">If it won\u2019t verify</div>'+
+  '<ul style="margin:0;padding-left:18px">'+
+    '<li>Check the <strong>Name</strong> \u2014 the top gotcha is a doubled domain (e.g. <span style="font-family:monospace">send.'+esc((d&&d.domain)||'yourdomain')+'.'+esc((d&&d.domain)||'yourdomain')+'</span>). Enter just the short part if your host appends the domain.</li>'+
+    '<li>On <strong>Cloudflare</strong>, the record\u2019s Proxy status must be <strong>\u201cDNS only\u201d</strong> (grey cloud, not orange).</li>'+
+    '<li>Make sure the <strong>whole value</strong> pasted \u2014 the TXT ones are long and easy to cut short.</li>'+
+    '<li>Still stuck after 24 hours? Use the email button above \u2014 it sends everything your web person needs, and their reply comes to you.</li>'+
+  '</ul>';
 }
 var _teamSlugT;
 function _teamSlugCheck(){
