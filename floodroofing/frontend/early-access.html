@@ -219,6 +219,15 @@
           <div class="hint">This one decides what gets built next, so it is worth a moment.</div>
         </div>
         <div class="field">
+          <label for="eaPlan">Which plan looks right? <span style="font-weight:500;color:var(--muted)">— optional</span></label>
+          <select id="eaPlan">
+            <option value="unsure" selected>Not sure yet — happy to be pointed at one</option>
+            <option value="solo">Solo — $149/mo · one person</option>
+            <option value="team">Team — $299/mo · up to five people</option>
+            <option value="business">Business — $549/mo · unlimited people</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="eaHeadache">What takes you longest, or goes wrong most <span style="font-weight:500;color:var(--muted)">— optional</span></label>
           <textarea id="eaHeadache" placeholder="example: the flashing metres are always short on the order and we find out on the roof"></textarea>
         </div>
@@ -306,6 +315,7 @@
           region: val('eaRegion'),
           volume: val('eaVolume'),
           current_software: val('eaSoftware'),
+          plan: val('eaPlan'),
           headache: val('eaHeadache'),
           website: val('eaWebsite'),          // the honeypot
           // Where they came from, so we know which page is doing the work.

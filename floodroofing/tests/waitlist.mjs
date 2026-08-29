@@ -48,6 +48,9 @@ process.env.REGISTRATION_INVITE_CODE = 'ROOFMAP-2026';
 process.env.PUBLIC_APP_URL = 'https://roofmap.co.nz';
 const PORT = process.env.TEST_PORT || '34613';
 process.env.PORT = PORT;
+// The one-click Grant-access link in the lead alert points at the backend's
+// own public address — here, at ourselves, so the suite can click it.
+process.env.PUBLIC_API_URL = 'http://127.0.0.1:' + PORT;
 delete process.env.DATABASE_URL;
 const log = console.log; console.log = () => {};
 await import(pathToFileURL(_j(_ROOT, 'backend', 'server.js')).href);
@@ -64,7 +67,7 @@ const LEAD = {
   email: 'sam@acmeroofing.co.nz', name: 'Sam', business: 'Acme Roofing Ltd',
   phone: '021 555 0100', region: 'Waikato', volume: '6-10',
   current_software: 'spreadsheet', headache: 'Flashings always come up short on the order.',
-  source: 'google / roofing estimating software nz',
+  source: 'google / roofing estimating software nz', plan: 'team',
 };
 
 // ── a roofer asks for access ──────────────────────────────────────
@@ -108,6 +111,30 @@ check('…carrying the answers, so it can be triaged from the inbox',
   /Acme Roofing/.test(alert.text || '') && /6-10/.test(alert.text || '') && /spreadsheet/.test(alert.text || ''));
 check('…and the command to invite them', /\/admin\/waitlist\/[\w-]+\/invite/.test(alert.text || ''),
   (alert.text || '').split('\n').find(l => /invite/.test(l)));
+check('…including which plan they picked', /Plan they picked: team/.test(alert.text || ''), '');
+
+// ── the "✓ Grant access" button — one click, one lead, no admin token ──
+const inviteUrl = ((alert.text || '').match(/http:\/\/[^\s]+\/admin\/waitlist\/[\w-]+\/invite\?[^\s]+/) || [])[0];
+check('the alert carries a clickable signed invite link', !!inviteUrl, (alert.text || '').slice(-160));
+check('…which does NOT contain the admin token — a forwarded email must not leak it',
+  inviteUrl && !inviteUrl.includes('admin-token-for-tests'), inviteUrl);
+sent.length = 0;
+const click = (u) => fetch(u);   // the link is absolute — no BASE prefix
+let gr = await click(inviteUrl.replace(/sig=[0-9a-f]+/, 'sig=' + '0'.repeat(64)));
+check('a tampered signature is refused', gr.status === 404, String(gr.status));
+check('…and invites nobody', sent.length === 0 && db.waitlist[0].status !== 'invited',
+  String(db.waitlist[0].status));
+gr = await click(inviteUrl);
+const grBody = await gr.text();
+await settle();
+check('clicking the real link grants access', gr.status === 200 && /Access granted/.test(grBody), String(gr.status));
+check('…the invite email goes to the lead with the signup link and code',
+  sent.some(m => m.to === 'sam@acmeroofing.co.nz' && /ROOFMAP-2026/.test(m.text || '') && /\/signup/.test(m.text || '')),
+  sent.map(m => m.to).join(','));
+check('…and the row is marked invited', db.waitlist[0].status === 'invited' && !!db.waitlist[0].invited_at, '');
+gr = await click(inviteUrl);
+check('a second click re-sends rather than erroring — the spam-folder case',
+  gr.status === 200 && /re-sends/.test(await gr.text()), String(gr.status));
 check('their receipt comes from support', receipt.from === 'support@roofmap.co.nz', receipt.from);
 check('…addressed to them by name', /Sam/.test(receipt.html || ''), (receipt.subject || ''));
 check('…and gives them something now, not just a promise',
@@ -140,6 +167,8 @@ await settle();
 const other = db.waitlist.find(x => x.email === 'other@example.com') || {};
 check('a caller cannot set their own status', other.status !== 'joined', String(other.status));
 check('…nor write the private notes field', !other.notes, JSON.stringify(other.notes));
+check('…and a made-up plan is stored as empty, not as a lie',
+  (function(){ return !other.plan; })(), JSON.stringify(other.plan));
 check('…and the alert still goes only to sales',
   sent.every(m => m.to === 'sales@roofmap.co.nz' || m.to === 'other@example.com'),
   sent.map(m => m.to).join(','));

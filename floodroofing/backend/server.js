@@ -5214,6 +5214,24 @@ app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
 // one-man band on paper, and "what do you run now?" decides what gets built.
 const WAITLIST_VOLUMES = ['1-2', '3-5', '6-10', '10+', 'unsure'];
 const WAITLIST_SOFTWARE = ['fergus', 'tradify', 'servicem8', 'simpro', 'spreadsheet', 'paper', 'other'];
+// Which tier they think fits — asked softly ("not sure" is the default) so
+// it qualifies the lead without costing a signup from somebody who hasn't
+// compared the plans yet.
+const WAITLIST_PLANS = ['solo', 'team', 'business', 'unsure'];
+// Where the one-click invite link in the lead alert points — this backend's
+// own public address, since the link is an API route, not a page.
+const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || 'https://flood-roofing-estimator-production.up.railway.app').replace(/\/+$/, '');
+// The button in the lead email deliberately does NOT carry the admin token —
+// a forwarded email must not hand over keys to everything. Each link is
+// signed for ONE lead with an expiry: clicking it can invite that lead and
+// nothing else, and after 30 days it goes dead.
+function _wlInviteSig(id, exp){
+  return require('crypto').createHmac('sha256', JWT_SECRET).update('wl-invite|' + id + '|' + exp).digest('hex');
+}
+function _wlInviteLink(id){
+  const exp = Date.now() + 30 * 86400e3;
+  return PUBLIC_API_URL + '/admin/waitlist/' + id + '/invite?exp=' + exp + '&sig=' + _wlInviteSig(id, exp);
+}
 const WAITLIST_STATUSES = ['new', 'invited', 'joined', 'declined'];
 function _wlClean(v, max){ return String(v == null ? '' : v).trim().slice(0, max || 200); }
 function _wlPick(v, allowed){
@@ -5249,6 +5267,7 @@ app.post('/waitlist', rateLimit(10, 3600000), async (req, res) => {
       region: _wlClean(b.region, 60),
       volume: _wlPick(b.volume, WAITLIST_VOLUMES),
       current_software: _wlPick(b.current_software, WAITLIST_SOFTWARE),
+      plan: _wlPick(b.plan, WAITLIST_PLANS),
       headache: _wlClean(b.headache, 1000),
       source: _wlClean(b.source, 300),
       updated_at: new Date().toISOString(),
@@ -5270,20 +5289,37 @@ app.post('/waitlist', rateLimit(10, 3600000), async (req, res) => {
     // make the form feel broken to somebody standing on a roof.
     const who = [row.business, row.name].filter(Boolean).join(' · ') || email;
     const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
+    const inviteLink = (data && data.id) ? _wlInviteLink(data.id) : '';
     const lead =
       'New RoofMap early-access request\n\n' +
       nice('Business', row.business) + nice('Name', row.name) +
       'Email: ' + email + '\n' +
       nice('Phone', row.phone) + nice('Region', row.region) +
       nice('Roofs quoted a month', row.volume) +
+      nice('Plan they picked', row.plan) +
       nice('Runs on now', row.current_software) +
       (row.headache ? ('\nBiggest headache:\n' + row.headache + '\n') : '') +
       nice('\nCame from', row.source) +
-      '\nInvite them: POST /admin/waitlist/' + (data && data.id) + '/invite\n';
+      (inviteLink ? ('\nGrant access (one click, safe to forward nowhere): ' + inviteLink + '\n') : '');
     if (EMAIL_ENABLED) {
+      const escL = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const leadRow = (k, v) => v ? ('<tr><td style="padding:4px 14px 4px 0;color:#5f6b7a;white-space:nowrap;vertical-align:top">' + k + '</td><td style="padding:4px 0;font-weight:600">' + escL(v) + '</td></tr>') : '';
       _dispatchMail({
         to: MAIL_SALES, subject: 'Early access: ' + who,
         text: lead, fromName: 'RoofMap Early Access',
+        html: '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#0a1628;line-height:1.55;max-width:560px">' +
+          '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">New early-access request</div>' +
+          '<h2 style="font-size:19px;margin:8px 0 12px">' + escL(who) + '</h2>' +
+          '<table style="border-collapse:collapse;font-size:14px">' +
+          leadRow('Email', email) + leadRow('Phone', row.phone) + leadRow('Region', row.region) +
+          leadRow('Roofs a month', row.volume) + leadRow('Plan they picked', row.plan) +
+          leadRow('Runs on now', row.current_software) + '</table>' +
+          (row.headache ? ('<p style="margin:12px 0 0"><span style="color:#5f6b7a">Biggest headache:</span><br>' + escL(row.headache) + '</p>') : '') +
+          (inviteLink
+            ? ('<p style="margin:20px 0 6px"><a href="' + escL(inviteLink) + '" style="display:inline-block;background:#15803d;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">✓ Grant access</a></p>' +
+               '<p style="font-size:12px;color:#5f6b7a;margin:0">One click sends them the signup link and access code, and marks them invited. This link works only for this lead and expires in 30 days.</p>')
+            : '') +
+          '</div>',
         fromAddress: MAIL_SALES, replyTo: email,
       }).catch(function(e){ console.error('[waitlist] lead alert failed:', e.message); });
 
@@ -5354,18 +5390,20 @@ app.get('/admin/waitlist', async (req, res) => {
 // marks the row — which is what makes "approved in batches" a process rather
 // than a promise. The code is the one /auth/register already checks; there is
 // no second gate to keep in step.
-app.post('/admin/waitlist/:id/invite', async (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+// The actual granting of access, shared by the admin POST and the one-click
+// link in the lead email: sends the signup link + access code to the lead
+// and marks the row invited. Throws with a .status when it cannot.
+async function _waitlistInvite(row){
   const code = process.env.REGISTRATION_INVITE_CODE || '';
   if (!code && process.env.OPEN_REGISTRATION !== 'true') {
-    return res.status(400).json({ error: 'No REGISTRATION_INVITE_CODE is set, so an invite would not let anyone in.' });
+    const e = new Error('No REGISTRATION_INVITE_CODE is set, so an invite would not let anyone in.');
+    e.status = 400; throw e;
   }
-  try {
-    const { data: row, error } = await supabase.from('waitlist').select('*').eq('id', req.params.id).maybeSingle();
-    if (error) return res.status(500).json({ error: error.message });
-    if (!row) return res.status(404).json({ error: 'Not on the list.' });
-    if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
-
+  if (!EMAIL_ENABLED) {
+    const e = new Error('Email is not configured on the server yet.');
+    e.status = 503; throw e;
+  }
+  {
     const link = PUBLIC_APP_URL + '/signup';
     const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const hello = row.name ? ('Hi ' + row.name + ',\n\n') : 'Hi,\n\n';
@@ -5403,10 +5441,58 @@ app.post('/admin/waitlist/:id/invite', async (req, res) => {
     });
     const patch = { status: 'invited', invited_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     const { data: updated } = await supabase.from('waitlist').update(patch).eq('id', row.id).select('*').single();
-    res.json({ ok: true, row: updated || Object.assign({}, row, patch) });
+    return updated || Object.assign({}, row, patch);
+  }
+}
+
+app.post('/admin/waitlist/:id/invite', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const { data: row, error } = await supabase.from('waitlist').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!row) return res.status(404).json({ error: 'Not on the list.' });
+    const updated = await _waitlistInvite(row);
+    res.json({ ok: true, row: updated });
   } catch (e) {
     console.error('[waitlist] invite failed:', e.message);
-    res.status(502).json({ error: 'Invite email failed: ' + e.message });
+    res.status(e.status || 502).json({ error: e.status ? e.message : ('Invite email failed: ' + e.message) });
+  }
+});
+
+// The "✓ Grant access" button in the lead-alert email. Authenticated by the
+// per-lead signature minted when the alert was sent — never the admin token,
+// which a forwarded email would leak. GET because an email client can only
+// click; the action is idempotent (a second click re-sends the invite, which
+// is the useful behaviour when the first one went to spam).
+app.get('/admin/waitlist/:id/invite', async (req, res) => {
+  const page = (title, body, colour) =>
+    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>RoofMap</title>' +
+    '<body style="font-family:-apple-system,Segoe UI,sans-serif;background:#f4f7fa;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
+    '<div style="background:#fff;border-radius:14px;padding:34px 38px;max-width:440px;box-shadow:0 12px 40px rgba(10,22,40,.12)">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<h2 style="color:' + colour + ';margin:10px 0 8px;font-size:20px">' + title + '</h2>' +
+    '<p style="color:#43556a;font-size:14.5px;line-height:1.6;margin:0">' + body + '</p></div></body>';
+  const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  try {
+    const exp = parseInt(req.query.exp, 10) || 0;
+    const sig = String(req.query.sig || '');
+    const want = _wlInviteSig(req.params.id, exp);
+    const crypto = require('crypto');
+    const sigOk = sig.length === want.length &&
+      crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want));
+    if (!sigOk || Date.now() > exp)
+      return res.status(404).send(page('This link has expired', 'Grant access from a newer lead email instead — each link works for 30 days.', '#b91c1c'));
+    const { data: row } = await supabase.from('waitlist').select('*').eq('id', req.params.id).maybeSingle();
+    if (!row) return res.status(404).send(page('Not on the list', 'This lead is no longer on the waitlist.', '#b91c1c'));
+    const again = row.status === 'invited';
+    await _waitlistInvite(row);
+    res.send(page('✓ Access granted',
+      'The invite email is on its way to <strong>' + esc(row.email) + '</strong> with the signup link and access code.' +
+      (again ? ' They had already been invited — clicking again simply re-sends it, which is handy when the first landed in spam.' : ''),
+      '#15803d'));
+  } catch (e) {
+    res.status(e.status || 502).send(page('That didn\'t send', esc(e.message), '#b91c1c'));
   }
 });
 
@@ -5773,6 +5859,7 @@ const _MIGRATION_SQL = [
   "create unique index if not exists idx_waitlist_email_plain on public.waitlist (email)",
   "create index if not exists idx_waitlist_new on public.waitlist (created_at desc)",
   "alter table public.waitlist enable row level security",
+  "alter table public.waitlist add column if not exists plan text not null default ''",
 
   // 10. platform_state — one row per thing the platform needs to remember
   //     ACROSS RESTARTS. Right now that is exactly one thing: the date the
