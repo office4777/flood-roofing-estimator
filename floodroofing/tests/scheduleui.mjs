@@ -19,11 +19,13 @@ function mkSched(){
     cfg: { crews: [{ id:'troy', name:'Troy', colour:'#4472c4' }, { id:'nick', name:'Nick', colour:'#f87d20' }],
            cap: 1, shutdowns: [], region: 'auckland' },
     rows: [
-      { id:'r1', job_id:'j1', client_name:'Brian Lewis', site_address:'148 Horeke Road', email:'b@l.nz',
+      { id:'r1', job_id:'j1', client_name:'Brian Lewis', site_address:'148 Horeke Road, Okaihau', email:'b@l.nz',
         length_days:8, notes:'', progress_pct:80, deposit_paid:true, ordered:true, delivery_check:false,
+        handover_done:false, last_notified:null, job_no:'FR-2996',
         archived:false, created_at:'2026-08-01', accepted_at:'2026-07-20T09:00:00Z', auto:{} },
       { id:'r2', job_id:null, client_name:'Modspace', site_address:'Whetu Rau', email:'', length_days:4,
         notes:'', progress_pct:null, deposit_paid:false, ordered:false, delivery_check:false,
+        handover_done:false, last_notified:null, job_no:'',
         archived:false, created_at:'2026-08-10', accepted_at:null, auto:{} },
     ],
     // Both blocks on r1, over the same days, with cap 1 → those days must
@@ -60,6 +62,8 @@ async function boot(opts){
       calls.push(['POST blocks', body]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(Object.assign({ id: 'nb' + calls.length }, body)) }); }
     if (/\/schedule\/blocks\//.test(u) && m === 'PATCH'){ calls.push(['PATCH ' + u.split('/').pop(), JSON.parse(r.request().postData() || '{}')]);
+      return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
+    if (/\/schedule\/rows\/[^/]+$/.test(u) && m === 'PATCH'){ calls.push(['PATCH row', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
     if (/\/schedule\/rows\/[^/]+\/compose$/.test(u)){ calls.push(['compose', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json',
@@ -188,10 +192,38 @@ v = await pg.evaluate(() => ({
   hd: document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length,
   strips: document.querySelectorAll('[data-strip]').length,
   stored: localStorage.getItem('fr_sched_compact'),
-  client: /Brian Lewis/.test(document.getElementById('schedGrid').textContent),
+  job: /FR-2996/.test(document.getElementById('schedGrid').textContent) &&
+       /148 Horeke Road/.test(document.getElementById('schedGrid').textContent) &&
+       !/Okaihau/.test(document.getElementById('schedGrid').textContent),
+  info: !!document.querySelector('[data-info="r1"]'),
 }));
-check('the « toggle collapses the info panel to the client column',
-  v.hd === 3 && v.strips >= 3 && v.client && v.stored === '1', JSON.stringify(v));
+check('the « toggle collapses the info panel to job number + short address + ⓘ',
+  v.hd === 3 && v.strips >= 3 && v.job && v.info && v.stored === '1', JSON.stringify(v));
+
+// The ⓘ opens the details popup: full address, title, and the sheet's
+// admin columns — ticking Handover done saves it.
+await pg.evaluate(() => document.querySelector('[data-info="r1"]').click());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({
+  shown: getComputedStyle(document.getElementById('schedInfoModal')).display !== 'none',
+  title: document.getElementById('schedInfoTitle').textContent,
+  no: document.getElementById('schedInfoNo').textContent,
+  site: document.querySelector('#schedInfoModal [data-iedit="site_address"]').value,
+  dep: document.querySelector('#schedInfoModal [data-iedit="deposit_paid"]').checked,
+}));
+check('ⓘ opens the job-details popup with the full address and title',
+  v.shown && v.title === 'Brian Lewis' && /FR-2996/.test(v.no) &&
+  v.site === '148 Horeke Road, Okaihau' && v.dep === true, JSON.stringify(v));
+calls.length = 0;
+await pg.evaluate(() => {
+  const cb = document.querySelector('#schedInfoModal [data-iedit="handover_done"]');
+  cb.checked = true; cb.dispatchEvent(new Event('change'));
+});
+await pg.waitForTimeout(300);
+let ho = calls.find(c => c[0] === 'PATCH row');
+check('ticking Handover done saves it to the row',
+  !!ho && ho[1].handover_done === true, JSON.stringify(ho && ho[1]));
+await pg.evaluate(() => _schedInfoClose());
 await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);

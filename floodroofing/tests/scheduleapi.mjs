@@ -36,7 +36,7 @@ const { port } = await startFakePostgrest({
   jobs: [{ id: JOB, user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
     site_address: '148 Horeke Road, Okaihau', status: 'ordered',
     order_sent: { at: '2026-08-01T00:00:00Z', by: A.user },
-    draw_state: { state: { quote: { accepted: { at: '2026-07-20T09:00:00Z' },
+    draw_state: { state: { quote: { ref: 'FR-2996', accepted: { at: '2026-07-20T09:00:00Z' },
                                     client: { email: 'brian@lewis.co.nz' } } } } }],
   invoices: [{ id: 'inv-1', company_id: A.company, user_id: A.user, job_id: JOB,
     type: 'deposit', status: 'paid', number: 'INV-1001' }],
@@ -92,6 +92,7 @@ check('acceptance date auto-fills from the accepted quote',
 check('Deposit Paid auto-fills from the paid deposit invoice', linked.deposit_paid === true, String(linked.deposit_paid));
 check('Ordered auto-fills from the sent order', linked.ordered === true, String(linked.ordered));
 check('the customer email auto-fills from the quote client', linked.email === 'brian@lewis.co.nz', linked.email);
+check('the job number rides along from the quote ref', linked.job_no === 'FR-2996', String(linked.job_no));
 check('weekends are non-working days', (body.nonwork || []).includes('2026-09-05'), 'sample Sat 2026-09-05');
 check('NZ public holidays are non-working days', (body.nonwork || []).includes('2026-12-25'), 'Christmas Day');
 check('the feed URL is signed', /\/schedule\/feed\.ics\?c=.*&sig=[0-9a-f]{64}/.test(body.feed_url || ''), body.feed_url);
@@ -103,6 +104,13 @@ check('an office override sticks', r.status === 200, 'status ' + r.status);
 body = await j(await as(A, '/schedule'));
 check('…and beats the auto-fill on the next read',
   (body.rows.find(x => x.id === linked.id) || {}).deposit_paid === false);
+
+// Handover done is office-only bookkeeping — no auto-fill, plain round-trip.
+r = await as(A, '/schedule/rows/' + linked.id, { method: 'PATCH', body: JSON.stringify({ handover_done: true }) });
+check('handover done saves', r.status === 200 && (await j(r)).handover_done === true);
+body = await j(await as(A, '/schedule'));
+check('…and round-trips on the next read',
+  (body.rows.find(x => x.id === linked.id) || {}).handover_done === true);
 
 // ── blocks: pencil, then solid-book ───────────────────────────────
 // Fri 2026-09-04: an 8-working-day pencil must span the weekend.

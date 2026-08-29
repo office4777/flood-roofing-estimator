@@ -5394,6 +5394,38 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
   </div>
 
+  <!-- Job details: everything the sheet's admin columns used to hold -->
+  <div id="schedInfoOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedInfoClose()"></div>
+  <div id="schedInfoModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong id="schedInfoTitle" style="flex:1;font-size:14px">Job details</strong>
+      <span id="schedInfoNo" style="font-size:12px;opacity:.85"></span>
+      <button onclick="_schedInfoClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px">
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center">
+        <label style="color:var(--text2)">Client</label><input type="text" data-iedit="client_name" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Site address</label><input type="text" data-iedit="site_address" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Customer email</label><input type="email" data-iedit="email" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Quote accepted</label><span id="schedInfoAccepted" style="color:#0a1628"></span>
+        <label style="color:var(--text2)">Length (days)</label><input type="number" min="1" max="120" data-iedit="length_days" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Progress %</label><input type="number" min="0" max="100" data-iedit="progress_pct" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Notes</label><textarea data-iedit="notes" rows="2" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px;resize:vertical"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:12px">
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="deposit_paid"> Deposit / invoice paid</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="ordered"> Materials ordered</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="delivery_check"> Delivery checked</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="handover_done"> Handover done</label>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
+        <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
+        <button onclick="_schedInfoMail()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email the customer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Board settings: crews, capacity, shutdowns, calendar feed -->
   <div id="schedCfgOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedSettingsClose()"></div>
   <div id="schedCfgModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
@@ -7437,10 +7469,12 @@ var _SCHED_COLS = [
   { key:'progress', w:28, hd:'%' }, { key:'dep', w:26, hd:'Dep' }, { key:'ord', w:26, hd:'Ord' },
   { key:'del', w:26, hd:'Del' }, { key:'mail', w:24, hd:'✉' },
 ];
-// Collapsed: just the drag handle, the client and the mail button — the
-// calendar gets nearly the whole width. Everything else waits behind ».
-var _SCHED_COLS_MIN = _SCHED_COLS.filter(function(c){
-  return c.key === 'handle' || c.key === 'client' || c.key === 'mail'; });
+// Collapsed: the drag handle, a tiny ⓘ that opens the job-details popup,
+// and one column with the job number over the short address — the calendar
+// gets nearly the whole width. Everything else lives in the popup.
+var _SCHED_COLS_MIN = [
+  { key:'handle', w:14, hd:'' }, { key:'info', w:20, hd:'' }, { key:'job', w:118, hd:'Job' },
+];
 function _schedRender(){
   var grid = document.getElementById('schedGrid');
   if (!grid || !_SCHED.data) return;
@@ -7504,6 +7538,13 @@ function _schedRender(){
       var inner = '';
       if (c.key === 'handle') inner = '<span draggable="true" data-rowdrag="' + r.id + '" title="Drag to reorder" style="cursor:grab;color:#94a3b8">⋮⋮</span>';
       if (c.key === 'client') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700" title="' + esc(r.client_name) + '">' + esc(r.client_name) + '</span>';
+      if (c.key === 'info') inner = '<span data-info="' + r.id + '" style="cursor:pointer;color:#0099cc;font-weight:700" title="Job details">ⓘ</span>';
+      if (c.key === 'job'){
+        var _short = String(r.site_address || '').split(',')[0];
+        inner = '<div style="line-height:1.25;overflow:hidden">' +
+          '<div data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.client_name) + '">' + esc(r.job_no || r.client_name) + '</div>' +
+          '<div style="font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.site_address) + '">' + esc(_short) + '</div></div>';
+      }
       if (c.key === 'site') inner = '<span title="' + esc(r.site_address) + '">' + esc(r.site_address) + '</span>';
       if (c.key === 'accepted') inner = '<span style="color:var(--text2)">' + accepted + '</span>';
       if (c.key === 'len') inner = '<input type="number" min="1" max="120" value="' + (r.length_days || 1) + '" data-edit="length_days" data-row="' + r.id + '">';
@@ -7538,7 +7579,7 @@ function _schedRender(){
     var pcells = '';
     cols.forEach(function(c, i){
       var inner = '';
-      if (c.key === 'client') inner = '<input type="text" value="" data-newclient="' + p + '">';
+      if (c.key === 'client' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '">';
       if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
       pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
@@ -7617,6 +7658,9 @@ function _schedWire(grid){
   });
   grid.querySelectorAll('[data-rowmenu]').forEach(function(el){
     el.onclick = function(ev){ _schedRowMenu(el.getAttribute('data-rowmenu'), ev); };
+  });
+  grid.querySelectorAll('[data-info]').forEach(function(el){
+    el.onclick = function(){ _schedInfoOpen(el.getAttribute('data-info')); };
   });
   // Row reorder by dragging the handle.
   grid.querySelectorAll('[data-rowdrag]').forEach(function(hd){
@@ -7764,6 +7808,7 @@ function _schedRowMenu(rowId, ev){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
   if (!r) return;
   var items = [];
+  items.push(['📋 Job details', function(){ _schedInfoOpen(rowId); }]);
   if (r.job_id) items.push(['Open this job', function(){ try { loadJobById && loadJobById(r.job_id); } catch(e){} }]);
   items.push([r.archived ? 'Un-archive' : '✓ Job done — archive it', function(){
     r.archived = !r.archived;
@@ -7778,6 +7823,52 @@ function _schedRowMenu(rowId, ev){
   _schedMenu(items, ev);
 }
 function _schedToggleArchived(){ _SCHED.archived = !_SCHED.archived; _schedLoad(); }
+// ── job details popup: the sheet's admin columns, one row at a time ──
+var _schedInfoId = null;
+function _schedInfoOpen(rowId){
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+  if (!r) return;
+  _schedInfoId = rowId;
+  var m = document.getElementById('schedInfoModal');
+  document.getElementById('schedInfoTitle').textContent = r.client_name || 'Job details';
+  document.getElementById('schedInfoNo').textContent = r.job_no ? ('Job ' + r.job_no) : '';
+  document.getElementById('schedInfoAccepted').textContent = r.accepted_at
+    ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }) : '—';
+  document.getElementById('schedInfoNotified').textContent = r.last_notified
+    ? ('Customer last updated ' + new Date(r.last_notified).toLocaleDateString('en-NZ', { day:'numeric', month:'short' }))
+    : 'Customer not updated yet';
+  var oj = document.getElementById('schedInfoOpenJob');
+  if (oj) oj.style.display = r.job_id ? '' : 'none';
+  m.querySelectorAll('[data-iedit]').forEach(function(inp){
+    var f = inp.getAttribute('data-iedit');
+    if (inp.type === 'checkbox') inp.checked = !!r[f];
+    else inp.value = (r[f] == null) ? '' : r[f];
+    inp.onchange = function(){
+      var val = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (f === 'length_days') val = Math.max(1, parseInt(val, 10) || 1);
+      if (f === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+      r[f] = val;
+      var patch = {}; patch[f] = val;
+      _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
+      _schedRender();
+    };
+  });
+  document.getElementById('schedInfoOverlay').style.display = 'block';
+  m.style.display = 'flex';
+}
+function _schedInfoClose(){
+  document.getElementById('schedInfoOverlay').style.display = 'none';
+  document.getElementById('schedInfoModal').style.display = 'none';
+}
+function _schedInfoOpenJob(){
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === _schedInfoId; });
+  if (r && r.job_id){ _schedInfoClose(); try { loadJobById && loadJobById(r.job_id); } catch(e){} }
+}
+function _schedInfoMail(){
+  var id = _schedInfoId; _schedInfoClose();
+  var el = document.querySelector('[data-mail="' + id + '"]');
+  _schedMailPick(id, el || { getBoundingClientRect: function(){ return { left: innerWidth / 2, bottom: innerHeight / 2 }; } });
+}
 // ── customer email ──
 function _schedMailPick(rowId, el){
   var has = { pencil:false, crew:false };

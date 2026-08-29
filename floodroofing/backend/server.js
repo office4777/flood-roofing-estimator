@@ -3936,7 +3936,8 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         const { data } = await _scopeCompany(supabase.from('jobs')
           .select('id, status, order_sent, ' +
                   'q_accepted:draw_state->state->quote->accepted, ' +
-                  'q_client:draw_state->state->quote->client'), req)
+                  'q_client:draw_state->state->quote->client, ' +
+                  'q_ref:draw_state->state->quote->ref'), req)
           .in('id', jobIds);
         for (const j of (data || [])) {
           const acc = j.q_accepted || {};
@@ -3944,6 +3945,7 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
             ordered: !!(j.order_sent || j.status === 'ordered'),
             accepted_at: acc.at || acc.date || null,
             client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || '',
+            job_no: (j.q_ref == null) ? '' : String(j.q_ref),
           };
         }
       } catch (e) { /* board renders without auto-fill rather than not at all */ }
@@ -3963,6 +3965,7 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         ordered:      (r.ordered == null)      ? !!a.ordered      : r.ordered,
         email:        r.email || a.client_email || '',
         accepted_at:  a.accepted_at || null,
+        job_no:       a.job_no || '',
       });
     });
 
@@ -4017,7 +4020,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
     // Explicit defaults: the DB has them, but the test double doesn't apply
     // DDL defaults, and an absent `archived` fails the eq(false) filter there.
     progress_pct: null, deposit_paid: null, ordered: null, delivery_check: false,
-    confirmed_delivery: null, sort_pos: null, archived: false, last_notified: null,
+    confirmed_delivery: null, sort_pos: null, archived: false, last_notified: null, handover_done: false,
     created_at: new Date().toISOString(),
   };
   try {
@@ -4039,7 +4042,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
-  'sort_pos', 'archived', 'job_id'];
+  'sort_pos', 'archived', 'job_id', 'handover_done'];
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   const patch = {};
   for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
@@ -6422,7 +6425,7 @@ const _MIGRATION_SQL = [
   //      stored — a block is start + N working days, and the working-day
   //      calendar (weekends, NZ public holidays, company shutdowns) is
   //      applied at read time, so a holiday added later reflows every block.
-  "create table if not exists public.schedule_rows (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, client_name text not null default '', site_address text not null default '', email text not null default '', length_days int not null default 1, notes text not null default '', progress_pct int, deposit_paid boolean, ordered boolean, delivery_check boolean not null default false, confirmed_delivery date, sort_pos double precision, archived boolean not null default false, last_notified timestamptz, created_at timestamptz not null default now())",
+  "create table if not exists public.schedule_rows (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, client_name text not null default '', site_address text not null default '', email text not null default '', length_days int not null default 1, notes text not null default '', progress_pct int, deposit_paid boolean, ordered boolean, delivery_check boolean not null default false, confirmed_delivery date, sort_pos double precision, archived boolean not null default false, last_notified timestamptz, handover_done boolean not null default false, created_at timestamptz not null default now())",
   "create index if not exists idx_schedule_rows_co on public.schedule_rows (company_id, archived, created_at)",
   "alter table public.schedule_rows enable row level security",
   "create table if not exists public.schedule_blocks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, row_id uuid not null, kind text not null default 'pencil', crew_id text not null default '', start_date date not null, work_days int not null default 1, created_at timestamptz not null default now())",
@@ -6434,6 +6437,7 @@ const _MIGRATION_SQL = [
   // double doesn't validate filter columns, so only production could say so.
   "alter table public.schedule_rows add column if not exists user_id uuid",
   "alter table public.schedule_blocks add column if not exists user_id uuid",
+  "alter table public.schedule_rows add column if not exists handover_done boolean not null default false",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember
