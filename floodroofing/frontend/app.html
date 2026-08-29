@@ -7340,7 +7340,10 @@ function _openJmsLink(){
 // columns, red pencil blocks for promised windows, crew colours once
 // solid-booked. The server owns the truth (and the tier gate); this
 // renders it and turns clicks into row/block mutations.
-var _SCHED = { data:null, sel:null, archived:false, drag:null, dayW:24, infoW:0 };
+var _SCHED = { data:null, sel:null, archived:false, drag:null, dayW:24, infoW:0,
+  compact: (function(){ try { var v = localStorage.getItem('fr_sched_compact');
+    if (v === '1') return true; if (v === '0') return false; } catch(e){}
+    return (window.innerWidth || 1400) < 1000; })() };
 function _schedCanUse(){
   try {
     var lim = (_companyBrief() || {}).limits;
@@ -7416,11 +7419,15 @@ function _schedRowSorted(){
 }
 // ── render ──
 var _SCHED_COLS = [
-  { key:'handle', w:16, hd:'' }, { key:'client', w:128, hd:'Client' }, { key:'site', w:138, hd:'Site' },
-  { key:'accepted', w:56, hd:'Acc.' }, { key:'len', w:38, hd:'Len' }, { key:'notes', w:120, hd:'Notes' },
-  { key:'progress', w:36, hd:'%' }, { key:'dep', w:36, hd:'Dep' }, { key:'ord', w:36, hd:'Ord' },
-  { key:'del', w:36, hd:'Del' }, { key:'mail', w:30, hd:'✉' },
+  { key:'handle', w:14, hd:'' }, { key:'client', w:96, hd:'Client' }, { key:'site', w:96, hd:'Site' },
+  { key:'accepted', w:44, hd:'Acc.' }, { key:'len', w:30, hd:'Len' }, { key:'notes', w:64, hd:'Notes' },
+  { key:'progress', w:28, hd:'%' }, { key:'dep', w:26, hd:'Dep' }, { key:'ord', w:26, hd:'Ord' },
+  { key:'del', w:26, hd:'Del' }, { key:'mail', w:24, hd:'✉' },
 ];
+// Collapsed: just the drag handle, the client and the mail button — the
+// calendar gets nearly the whole width. Everything else waits behind ».
+var _SCHED_COLS_MIN = _SCHED_COLS.filter(function(c){
+  return c.key === 'handle' || c.key === 'client' || c.key === 'mail'; });
 function _schedRender(){
   var grid = document.getElementById('schedGrid');
   if (!grid || !_SCHED.data) return;
@@ -7429,8 +7436,9 @@ function _schedRender(){
   // border-box everywhere in this app: a cell's rendered width IS c.w, so
   // the sticky left offsets are the plain running sum. (+13/col overshot
   // and shoved the last info cells over the day strip.)
+  var cols = _SCHED.compact ? _SCHED_COLS_MIN : _SCHED_COLS;
   var infoW = 0, lefts = [];
-  _SCHED_COLS.forEach(function(c){ lefts.push(infoW); infoW += c.w; });
+  cols.forEach(function(c){ lefts.push(infoW); infoW += c.w; });
   _SCHED.infoW = infoW; _SCHED.dayIdx = dayIdx; _SCHED.days = days;
   var stripW = days.length * _SCHED.dayW;
   var rows = _schedRowSorted();
@@ -7456,7 +7464,10 @@ function _schedRender(){
       months += '<div class="sched-month-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + name + '</div>';
     }
   });
-  h += '<div class="sched-hd-row months"><div class="sched-cell hd sched-info" style="left:0;width:' + infoW + 'px;height:20px"></div>' +
+  h += '<div class="sched-hd-row months"><div class="sched-cell hd sched-info" style="left:0;width:' + infoW + 'px;height:20px;text-align:right;padding:0 4px">' +
+       '<button data-coltoggle title="' + (_SCHED.compact ? 'Show all job columns' : 'Collapse job columns — more calendar') + '"' +
+       ' style="border:1px solid var(--border);background:#fff;border-radius:5px;font-size:10px;line-height:16px;padding:0 5px;cursor:pointer;color:#334155">' +
+       (_SCHED.compact ? '»' : '«') + '</button></div>' +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + months + '</div></div>';
   var dayNums = '', shades = '';
   days.forEach(function(d, i){
@@ -7466,7 +7477,7 @@ function _schedRender(){
     if (d === _SCHED.data.range.today) shades += '<div class="sched-shade today" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
   });
   var hcells = '';
-  _SCHED_COLS.forEach(function(c, i){
+  cols.forEach(function(c, i){
     hcells += '<div class="sched-cell hd sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
   });
   h += '<div class="sched-hd-row" style="top:20px">' + hcells +
@@ -7476,7 +7487,7 @@ function _schedRender(){
   rows.forEach(function(r){
     var cells = '';
     var accepted = r.accepted_at ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '—';
-    _SCHED_COLS.forEach(function(c, i){
+    cols.forEach(function(c, i){
       var inner = '';
       if (c.key === 'handle') inner = '<span draggable="true" data-rowdrag="' + r.id + '" title="Drag to reorder" style="cursor:grab;color:#94a3b8">⋮⋮</span>';
       if (c.key === 'client') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700" title="' + esc(r.client_name) + '">' + esc(r.client_name) + '</span>';
@@ -7512,7 +7523,7 @@ function _schedRender(){
   var pad = Math.max(0, 20 - rows.length);
   for (var p = 0; p < pad; p++){
     var pcells = '';
-    _SCHED_COLS.forEach(function(c, i){
+    cols.forEach(function(c, i){
       var inner = '';
       if (c.key === 'client') inner = '<input type="text" value="" data-newclient="' + p + '">';
       if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
@@ -7567,6 +7578,12 @@ function _schedWire(grid){
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
     };
   });
+  var ct = grid.querySelector('[data-coltoggle]');
+  if (ct) ct.onclick = function(){
+    _SCHED.compact = !_SCHED.compact;
+    try { localStorage.setItem('fr_sched_compact', _SCHED.compact ? '1' : '0'); } catch(e){}
+    _schedRender();
+  };
   // Typing a client name into a blank pad row creates the row inline,
   // exactly how the office types into the spreadsheet.
   grid.querySelectorAll('[data-newclient]').forEach(function(inp){

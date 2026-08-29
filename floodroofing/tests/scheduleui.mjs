@@ -179,6 +179,23 @@ v = await pg.evaluate(() => ({
 }));
 check('…and the new row takes a blank line — the board stays 20 deep',
   v.all === 20 && v.real === 3 && v.named, JSON.stringify(v));
+
+// The « toggle folds the job columns down to the client column, handing
+// the width to the calendar — and remembers the choice.
+await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  hd: document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length,
+  strips: document.querySelectorAll('[data-strip]').length,
+  stored: localStorage.getItem('fr_sched_compact'),
+  client: /Brian Lewis/.test(document.getElementById('schedGrid').textContent),
+}));
+check('the « toggle collapses the info panel to the client column',
+  v.hd === 3 && v.strips >= 3 && v.client && v.stored === '1', JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
+check('…and » brings all eleven columns back', v === 11, v + ' header cells');
 await ctx.close();
 
 // ── locked plan ───────────────────────────────────────────────────
