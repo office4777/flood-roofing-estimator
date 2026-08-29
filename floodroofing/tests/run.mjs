@@ -73,7 +73,15 @@ const SLOW = new Set(['trialui', 'setupguide', 'sitebars', 'tutorial', 'gutterpr
 // distinct one per suite means a leftover process from an earlier run can't
 // make an unrelated suite look broken — and it is what makes running them
 // side by side safe at all.
-let _nextPort = 35100;
+//
+// BELOW the kernel's ephemeral range (32768–60999 on this box — see
+// /proc/sys/net/ipv4/ip_local_port_range). The old base of 35100 sat inside
+// it, so any outbound connection the OTHER three workers were making at that
+// moment — a Chromium talking to its page, a suite's fetch() — could be
+// randomly assigned a suite's listen port as its local port, and that suite
+// died on EADDRINUSE before it started. It looked like a leftover process or
+// two runs racing; it was the kernel handing our port to a client socket.
+let _nextPort = 25100;
 function run(name){
   return new Promise((resolve) => {
     const started = Date.now();
