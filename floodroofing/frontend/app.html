@@ -2830,6 +2830,49 @@ html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!i
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
 /* Main scope picker sits directly under the action bar, above the proposal. */
 #tab-quote > .q-scopebar{order:1;margin-top:10px}
+/* ── Schedule board ──────────────────────────────────────────────
+   The office's forward-workflow calendar: job rows, day columns,
+   dark-red pencil blocks, crew colours once solid-booked. */
+body[data-tab="schedule"] .content{ max-width:none; margin-left:0; margin-right:0; }
+.sched-topbar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:7px 12px; }
+.sched-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:16px;
+  border:1.5px solid var(--border); background:#fff; font-size:11.5px; font-weight:600; cursor:pointer; color:#0a1628; }
+.sched-chip .dot{ width:11px; height:11px; border-radius:3px; }
+.sched-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
+.sched-scroll{ overflow:auto; max-height:calc(100vh - 200px); position:relative; background:#fff;
+  border:1px solid var(--border); border-radius:10px; }
+.sched-hd-row, .sched-row{ display:flex; width:max-content; }
+.sched-hd-row{ position:sticky; top:0; z-index:6; background:#fff; }
+.sched-hd-row.months{ height:20px; }
+.sched-cell{ flex:0 0 auto; border-right:1px solid #eef1f4; border-bottom:1px solid #eef1f4;
+  font-size:11.5px; padding:3px 6px; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sched-cell.hd{ font-weight:700; color:#334155; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; }
+.sched-cell input[type=text], .sched-cell input[type=number]{
+  width:100%; border:none; background:transparent; font-size:11.5px; padding:0; margin:0; color:#0a1628; }
+.sched-cell input:focus{ outline:1px solid #0099cc; border-radius:3px; }
+.sched-info{ position:sticky; z-index:4; background:#fff; }
+.sched-hd-row .sched-info{ z-index:7; }
+.sched-strip{ flex:0 0 auto; position:relative; border-bottom:1px solid #eef1f4;
+  background-image:repeating-linear-gradient(to right, transparent 0, transparent 23px, #f1f5f9 23px, #f1f5f9 24px); }
+.sched-day-hd{ position:absolute; top:0; width:24px; text-align:center; font-size:9.5px; color:#64748b; line-height:20px; }
+.sched-month-hd{ position:absolute; top:0; font-size:10px; font-weight:800; color:#0a1628; letter-spacing:.04em;
+  border-left:2px solid #cbd5e1; padding-left:5px; line-height:20px; white-space:nowrap; overflow:hidden; }
+.sched-shade{ position:absolute; top:0; bottom:0; width:24px; background:rgba(148,163,184,.28); pointer-events:none; z-index:2; }
+.sched-shade.shut{ background:rgba(255,102,120,.16); }
+.sched-shade.cap{ background:rgba(245,158,11,.25); }
+.sched-shade.today{ background:transparent; border-left:2px solid #0099cc; width:0; }
+.sched-block{ position:absolute; top:3px; bottom:3px; border-radius:5px; z-index:1; cursor:grab;
+  box-shadow:0 1px 3px rgba(10,22,40,.25); }
+.sched-block.pencil{ background:#c00000; }
+.sched-block .rz{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; }
+.sched-block.dragging{ opacity:.75; cursor:grabbing; z-index:3; }
+.sched-empty{ padding:26px; font-size:13px; color:var(--text2); }
+.sched-menu{ position:fixed; z-index:9999; background:#fff; border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 10px 34px rgba(10,22,40,.22); padding:6px; min-width:190px; }
+.sched-menu button{ display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:transparent;
+  border-radius:7px; font-size:12.5px; cursor:pointer; color:#0a1628; }
+.sched-menu button:hover{ background:#f1f5f9; }
+
 /* Where the pinned Quote bars start. Zero on the desktop; in site mode the
    fixed #phoneTopBar owns the top of the screen, so they start under it —
    the same offset #jpToolbar already uses on the Job Pack tab. */
@@ -3677,6 +3720,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" id="navOfflineSavesBtn" onclick="_openOfflineSaves()"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 2.5h7L13 5v8.5H3.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 2.5v4h5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 13.5v-3.5h5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Offline saves<span id="navOfflineSavesN"></span></button>
   <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
+  <button class="nav-btn" id="navScheduleBtn" onclick="gotoTab('schedule')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5H14 M5 1.5v3 M11 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.5 9.5h3 M4.5 11.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Schedule</button>
   <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -5276,6 +5320,116 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
      calls don't blow up — the panel just stays inactive. -->
 <div class="panel" id="tab-fergus"></div>
 
+<!-- TAB: SCHEDULE — the forward-workflow board (Business tier). -->
+<div class="panel" id="tab-schedule">
+  <!-- Locked teaser for Solo/Team — the server enforces; this just sells. -->
+  <div class="card" id="schedLockedCard" style="display:none;max-width:640px;margin:40px auto;text-align:center;padding:36px 30px">
+    <div style="font-size:34px;margin-bottom:8px">🗓</div>
+    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The schedule board is a Business-tier feature</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">Pencil months of work onto one calendar, solid-book crews with a click, and keep every customer in the loop with one-tap update emails — the whole forward workflow on one screen instead of a spreadsheet.</div>
+    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Business</button>
+  </div>
+
+  <div id="schedWrap" style="display:none">
+    <div class="card sched-topbar">
+      <strong style="font-size:13px;color:#0a1628;margin-right:2px">Schedule</strong>
+      <span id="schedPalette" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <button class="sched-chip" onclick="_schedAddOpen()">＋ Add job</button>
+        <button class="sched-chip" id="schedArchBtn" onclick="_schedToggleArchived()">Archive</button>
+        <button class="sched-chip" onclick="_schedSettingsOpen()" title="Crews, capacity, shutdowns, calendar feed">⚙</button>
+      </span>
+      <span id="schedMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
+    </div>
+    <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more.</div>
+  </div>
+
+  <!-- Compose customer email -->
+  <div id="schedMailOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedMailClose()"></div>
+  <div id="schedMailModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;max-width:94vw;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px" id="schedMailTitle">Email the customer</strong>
+      <button onclick="_schedMailClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:12px;font-weight:600;color:#334155">To
+        <input type="email" id="schedMailTo" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box"></label>
+      <label style="font-size:12px;font-weight:600;color:#334155">Subject
+        <input type="text" id="schedMailSubject" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box"></label>
+      <label style="font-size:12px;font-weight:600;color:#334155">Message
+        <textarea id="schedMailBody" rows="8" style="width:100%;margin-top:3px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea></label>
+      <div id="schedMailStatus" style="display:none;font-size:12px;border-radius:8px;padding:8px 11px"></div>
+      <button id="schedMailSendBtn" onclick="_schedMailSend()" style="width:100%;padding:11px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13.5px">📤 Send</button>
+    </div>
+  </div>
+
+  <!-- Add a job to the board -->
+  <div id="schedAddOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedAddClose()"></div>
+  <div id="schedAddModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:86vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">Add a job to the schedule</strong>
+      <button onclick="_schedAddClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto">
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">From your saved jobs</div>
+      <div id="schedJobPick" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"></div>
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Or a quick row — for work that never went through quoting</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="schedQClient" placeholder="Client" style="flex:1;min-width:130px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+        <input type="text" id="schedQSite" placeholder="Site address" style="flex:1.4;min-width:150px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <input type="number" id="schedQLen" placeholder="Days" min="1" max="120" value="3" style="width:76px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+        <input type="email" id="schedQEmail" placeholder="Customer email (for updates)" style="flex:1;min-width:170px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+        <button onclick="_schedQuickAdd()" style="padding:8px 18px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Add row</button>
+      </div>
+      <div id="schedAddMsg" style="font-size:12px;color:#b91c1c;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- Board settings: crews, capacity, shutdowns, calendar feed -->
+  <div id="schedCfgOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedSettingsClose()"></div>
+  <div id="schedCfgModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">Schedule settings</strong>
+      <button onclick="_schedSettingsClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto">
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Crews &amp; colours <span style="font-weight:400;color:var(--text2)">— painters, contractors, "Scaffold"… not tied to logins</span></div>
+      <div id="schedCrewList"></div>
+      <button onclick="_schedCrewAdd()" style="margin-top:6px;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">＋ Add crew</button>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:16px">
+        <label style="font-size:12px;font-weight:600;color:#334155">Jobs at once before a day warns
+          <input type="number" id="schedCfgCap" min="1" max="50" style="display:block;width:80px;margin-top:3px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px"></label>
+        <label style="font-size:12px;font-weight:600;color:#334155">Anniversary day
+          <select id="schedCfgRegion" style="display:block;margin-top:3px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff">
+            <option value="auckland">Auckland / Northland</option><option value="wellington">Wellington</option>
+            <option value="canterbury">Canterbury</option><option value="otago">Otago</option>
+            <option value="southland">Southland</option><option value="taranaki">Taranaki</option>
+            <option value="hawkes_bay">Hawke's Bay</option><option value="marlborough">Marlborough</option>
+            <option value="nelson">Nelson</option><option value="westland">West Coast</option>
+            <option value="chatham_islands">Chatham Islands</option><option value="none">None</option>
+          </select></label>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin:16px 0 6px">Shutdowns <span style="font-weight:400;color:var(--text2)">— e.g. the Christmas break; shaded on the board, skipped by bookings</span></div>
+      <div id="schedShutList"></div>
+      <button onclick="_schedShutAdd()" style="margin-top:6px;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">＋ Add shutdown</button>
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin:16px 0 6px">Calendar feed <span style="font-weight:400;color:var(--text2)">— paste into Google / Apple / Outlook; shows solid bookings only</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="schedFeedUrl" readonly style="flex:1;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:11px;background:#f8fafc;color:#334155">
+        <button onclick="_schedFeedCopy()" style="padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Copy</button>
+        <button onclick="_schedFeedRegen()" title="Old links stop working" style="padding:7px 12px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Regenerate</button>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button onclick="_schedSettingsSave()" style="padding:9px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Save</button>
+      </div>
+      <div id="schedCfgMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+
 <!-- TAB 6: QUOTE -->
 <div class="panel" id="tab-quote">
   <div data-sample-strip class="no-print"></div>
@@ -6108,7 +6262,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- Fergus setup block — visible when the active JMS is fergus -->
     <div id="jmsSetupFergus">
-      <div style="margin-bottom:14px">
+      <div id="fergConnStatusSec" style="display:none;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Connection status</div>
         <div id="proxyStatusBanner" class="proxy-status proxy-warn"><span class="proxy-dot"></span><span id="proxyStatusText">Checking proxy...</span></div>
         <div class="warn-box" id="proxyInstructions" style="display:none"><strong>API connection issue.</strong></div>
@@ -6119,8 +6273,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Fergus API key</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">Paste your Fergus Personal Access Token (in Fergus: Settings → Integrations → API). It’s stored for your business only — every business connects with its own key — and Connect saves it before testing.</p>
         <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="Paste your Fergus API key (fergPAT_…)" autocomplete="new-password" data-lpignore="true"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
+        <button class="sec-btn" onclick="testFergus()" style="margin:8px 0 0;width:100%">Connect to Fergus</button>
+        <div id="fergAdvBtns" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
           <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe</button>
           <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job #</button>
@@ -6128,8 +6282,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Sales accounts</button>
         </div>
         <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
+        <div class="notice" id="fergOk" style="display:none">✓ Connected to Fergus — your jobs are now under <strong>New Job / Select Job</strong>.</div>
         <div class="err" id="fergErr"></div>
-        <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
+        <button id="fergSupportBtn" onclick="_fergSupportEmail()" style="display:none;margin-top:8px;padding:9px 16px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✉ Email support — diagnostics included</button>
+        <button onclick="_fergAdvancedToggle()" style="display:block;margin-top:12px;padding:0;background:transparent;border:none;color:var(--text2);font-size:11.5px;text-decoration:underline;cursor:pointer">Advanced diagnostics</button>
       </div>
     </div>
 
@@ -6942,6 +7098,7 @@ function gotoTab(t) {
   } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
+  if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -7180,6 +7337,568 @@ function _openJmsLink(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
 })();
+
+
+// ══ SCHEDULE BOARD ═══════════════════════════════════════════════
+// The Excel Schedule sheet as a feature: rows of jobs, months of day
+// columns, red pencil blocks for promised windows, crew colours once
+// solid-booked. The server owns the truth (and the tier gate); this
+// renders it and turns clicks into row/block mutations.
+var _SCHED = { data:null, sel:null, archived:false, drag:null, dayW:24, infoW:0 };
+function _schedCanUse(){
+  try {
+    var lim = (_companyBrief() || {}).limits;
+    if (lim && lim.schedule === false) return false;
+  } catch(e){}
+  return true;   // unknown fails open — the server 403s politely
+}
+function _schedEnter(){
+  var locked = document.getElementById('schedLockedCard');
+  var wrap = document.getElementById('schedWrap');
+  if (!_schedCanUse()){ if (locked) locked.style.display=''; if (wrap) wrap.style.display='none'; return; }
+  if (locked) locked.style.display='none';
+  if (wrap) wrap.style.display='';
+  _schedLoad();
+}
+async function _schedLoad(){
+  try {
+    _SCHED.data = await api('GET', '/schedule' + (_SCHED.archived ? '?archived=1' : ''));
+    _SCHED.nonwork = {};
+    (_SCHED.data.nonwork || []).forEach(function(d){ _SCHED.nonwork[d] = 1; });
+    _schedRender();
+  } catch(e){
+    if (/Business/i.test(String(e && e.message))){ 
+      var lc=document.getElementById('schedLockedCard'), w=document.getElementById('schedWrap');
+      if (lc) lc.style.display=''; if (w) w.style.display='none'; return;
+    }
+    _schedMsg('Could not load the schedule — ' + (e && e.message || e), true);
+  }
+}
+function _schedMsg(t, bad){
+  var el = document.getElementById('schedMsg');
+  if (!el) return;
+  el.textContent = t || '';
+  el.style.color = bad ? '#b91c1c' : 'var(--text2)';
+  if (t) setTimeout(function(){ if (el.textContent === t) el.textContent = ''; }, 6000);
+}
+// ── date helpers (mirror the server's working-day walk) ──
+function _schedDayList(){
+  var d = _SCHED.data, out = [], cur = new Date(d.range.from + 'T00:00:00Z'), end = new Date(d.range.to + 'T00:00:00Z');
+  while (cur <= end){ out.push(cur.toISOString().slice(0,10)); cur = new Date(cur.getTime() + 86400000); }
+  return out;
+}
+function _schedSpan(b){
+  // start..last ISO the block occupies, walking work_days working days.
+  var got = 0, cur = new Date(b.start_date + 'T00:00:00Z'), last = b.start_date, guard = 0;
+  var n = Math.max(1, parseInt(b.work_days, 10) || 1);
+  while (got < n && guard++ < 400){
+    var iso = cur.toISOString().slice(0,10);
+    if (!_SCHED.nonwork[iso]){ got++; last = iso; }
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return { from: b.start_date, to: last };
+}
+// A block never STARTS on a weekend/holiday — snap forward to work.
+function _schedSnapStart(iso){
+  var guard = 0;
+  while (_SCHED.nonwork[iso] && guard++ < 30){
+    var d = new Date(iso + 'T00:00:00Z'); d = new Date(d.getTime() + 86400000);
+    iso = d.toISOString().slice(0, 10);
+  }
+  return iso;
+}
+function _schedCrew(id){ return ((_SCHED.data.cfg || {}).crews || []).find(function(c){ return c.id === id; }) || null; }
+function _schedRowSorted(){
+  var rows = (_SCHED.data.rows || []).slice();
+  rows.sort(function(a, b){
+    var ka = (a.sort_pos != null) ? a.sort_pos : null, kb = (b.sort_pos != null) ? b.sort_pos : null;
+    if (ka != null || kb != null){ if (ka == null) return 1; if (kb == null) return -1; return ka - kb; }
+    var da = a.accepted_at || a.created_at || '', db2 = b.accepted_at || b.created_at || '';
+    return da < db2 ? -1 : da > db2 ? 1 : 0;
+  });
+  return rows;
+}
+// ── render ──
+var _SCHED_COLS = [
+  { key:'handle', w:16, hd:'' }, { key:'client', w:128, hd:'Client' }, { key:'site', w:138, hd:'Site' },
+  { key:'accepted', w:56, hd:'Acc.' }, { key:'len', w:38, hd:'Len' }, { key:'notes', w:120, hd:'Notes' },
+  { key:'progress', w:36, hd:'%' }, { key:'dep', w:36, hd:'Dep' }, { key:'ord', w:36, hd:'Ord' },
+  { key:'del', w:36, hd:'Del' }, { key:'mail', w:30, hd:'✉' },
+];
+function _schedRender(){
+  var grid = document.getElementById('schedGrid');
+  if (!grid || !_SCHED.data) return;
+  var days = _schedDayList();
+  var dayIdx = {}; days.forEach(function(d, i){ dayIdx[d] = i; });
+  // border-box everywhere in this app: a cell's rendered width IS c.w, so
+  // the sticky left offsets are the plain running sum. (+13/col overshot
+  // and shoved the last info cells over the day strip.)
+  var infoW = 0, lefts = [];
+  _SCHED_COLS.forEach(function(c){ lefts.push(infoW); infoW += c.w; });
+  _SCHED.infoW = infoW; _SCHED.dayIdx = dayIdx; _SCHED.days = days;
+  var stripW = days.length * _SCHED.dayW;
+  var rows = _schedRowSorted();
+
+  // How many jobs run on each day (pencil + crew both hold a slot).
+  var dayLoad = {};
+  (_SCHED.data.blocks || []).forEach(function(b){
+    var span = _schedSpan(b), i = dayIdx[span.from] != null ? dayIdx[span.from] : 0, j2 = dayIdx[span.to];
+    if (j2 == null) return;
+    for (var k = i; k <= j2; k++){ if (!_SCHED.nonwork[days[k]]) dayLoad[k] = (dayLoad[k] || 0) + 1; }
+  });
+  var cap = ((_SCHED.data.cfg || {}).cap) || 4;
+
+  var h = '';
+  // Header: month labels, then day numbers — both sticky.
+  var months = '';
+  var lastM = '';
+  days.forEach(function(d, i){
+    var m = d.slice(0, 7);
+    if (m !== lastM){
+      lastM = m;
+      var name = new Date(d + 'T00:00:00Z').toLocaleString('en-NZ', { month:'short', year:'numeric', timeZone:'UTC' });
+      months += '<div class="sched-month-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + name + '</div>';
+    }
+  });
+  h += '<div class="sched-hd-row months"><div class="sched-cell hd sched-info" style="left:0;width:' + infoW + 'px;height:20px"></div>' +
+       '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + months + '</div></div>';
+  var dayNums = '', shades = '';
+  days.forEach(function(d, i){
+    dayNums += '<div class="sched-day-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + parseInt(d.slice(8), 10) + '</div>';
+    if (_SCHED.nonwork[d]) shades += '<div class="sched-shade" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
+    else if ((dayLoad[i] || 0) > cap) shades += '<div class="sched-shade cap" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
+    if (d === _SCHED.data.range.today) shades += '<div class="sched-shade today" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
+  });
+  var hcells = '';
+  _SCHED_COLS.forEach(function(c, i){
+    hcells += '<div class="sched-cell hd sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
+  });
+  h += '<div class="sched-hd-row" style="top:20px">' + hcells +
+       '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
+
+  if (!rows.length){
+    h += '<div class="sched-empty">Nothing on the board yet — hit <strong>＋ Add job</strong>, pick the red pencil, and click the day you reckon it starts.</div>';
+  }
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  rows.forEach(function(r){
+    var cells = '';
+    var accepted = r.accepted_at ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '—';
+    _SCHED_COLS.forEach(function(c, i){
+      var inner = '';
+      if (c.key === 'handle') inner = '<span draggable="true" data-rowdrag="' + r.id + '" title="Drag to reorder" style="cursor:grab;color:#94a3b8">⋮⋮</span>';
+      if (c.key === 'client') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700" title="' + esc(r.client_name) + '">' + esc(r.client_name) + '</span>';
+      if (c.key === 'site') inner = '<span title="' + esc(r.site_address) + '">' + esc(r.site_address) + '</span>';
+      if (c.key === 'accepted') inner = '<span style="color:var(--text2)">' + accepted + '</span>';
+      if (c.key === 'len') inner = '<input type="number" min="1" max="120" value="' + (r.length_days || 1) + '" data-edit="length_days" data-row="' + r.id + '">';
+      if (c.key === 'notes') inner = '<input type="text" value="' + esc(r.notes) + '" data-edit="notes" data-row="' + r.id + '" placeholder="—">';
+      if (c.key === 'progress') inner = '<input type="number" min="0" max="100" value="' + (r.progress_pct == null ? '' : r.progress_pct) + '" data-edit="progress_pct" data-row="' + r.id + '" placeholder="–">';
+      if (c.key === 'dep') inner = '<input type="checkbox"' + (r.deposit_paid ? ' checked' : '') + ' data-edit="deposit_paid" data-row="' + r.id + '" title="Deposit paid' + (r.auto && r.auto.deposit_paid != null ? ' (auto-filled — ticking overrides)' : '') + '">';
+      if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
+      if (c.key === 'del') inner = '<input type="checkbox"' + (r.delivery_check ? ' checked' : '') + ' data-edit="delivery_check" data-row="' + r.id + '" title="Delivery checked">';
+      if (c.key === 'mail') inner = '<span data-mail="' + r.id + '" style="cursor:pointer" title="Email the customer an update">✉</span>';
+      cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
+    });
+    var blocks = '';
+    (_SCHED.data.blocks || []).filter(function(b){ return b.row_id === r.id; }).forEach(function(b){
+      var span = _schedSpan(b), i2 = dayIdx[span.from], j2 = dayIdx[span.to];
+      if (i2 == null || j2 == null) return;
+      var crew = b.kind === 'crew' ? _schedCrew(b.crew_id) : null;
+      var col = crew ? crew.colour : '#c00000';
+      blocks += '<div class="sched-block' + (b.kind === 'pencil' ? ' pencil' : '') + '" data-block="' + b.id + '"' +
+        ' title="' + esc(r.client_name) + ' — ' + b.work_days + ' working day' + (b.work_days > 1 ? 's' : '') +
+        (crew ? ' · ' + esc(crew.name) : ' · pencilled') + '"' +
+        ' style="left:' + (i2 * _SCHED.dayW) + 'px;width:' + ((j2 - i2 + 1) * _SCHED.dayW - 2) + 'px;background:' + col + '">' +
+        '<span class="rz"></span></div>';
+    });
+    h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
+         '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
+  });
+  // One shade layer over everything below the header (weekends, holidays,
+  // shutdowns, over-capacity warnings, today). pointer-events:none.
+  var bodyH = rows.length * 31 + 4;
+  h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
+  grid.style.position = 'relative';
+  grid.innerHTML = h;
+  _schedRenderPalette();
+  _schedWire(grid);
+}
+function _schedRenderPalette(){
+  var pal = document.getElementById('schedPalette');
+  if (!pal || !_SCHED.data) return;
+  var chips = '<button class="sched-chip' + (_SCHED.sel === 'pencil' ? ' on' : '') + '" data-pal="pencil"><span class="dot" style="background:#c00000"></span>Pencil</button>';
+  (((_SCHED.data.cfg || {}).crews) || []).forEach(function(c){
+    chips += '<button class="sched-chip' + (_SCHED.sel === c.id ? ' on' : '') + '" data-pal="' + c.id + '"><span class="dot" style="background:' + c.colour + '"></span>' + String(c.name || '').replace(/</g, '&lt;') + '</button>';
+  });
+  pal.innerHTML = chips;
+  pal.querySelectorAll('[data-pal]').forEach(function(b){
+    b.onclick = function(){
+      var v = b.getAttribute('data-pal');
+      _SCHED.sel = (_SCHED.sel === v) ? null : v;
+      _schedRenderPalette();
+    };
+  });
+  var ab = document.getElementById('schedArchBtn');
+  if (ab) ab.classList.toggle('on', _SCHED.archived);
+}
+// ── mutations, optimistic ──
+async function _schedApi(method, path, body){
+  try { return await api(method, path, body); }
+  catch(e){ _schedMsg((e && e.message) || 'That didn’t save', true); _schedLoad(); throw e; }
+}
+function _schedWire(grid){
+  // Inline edits on the info columns.
+  grid.querySelectorAll('[data-edit]').forEach(function(inp){
+    inp.onchange = function(){
+      var rowId = inp.getAttribute('data-row'), field = inp.getAttribute('data-edit');
+      var val = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (field === 'length_days') val = Math.max(1, parseInt(val, 10) || 1);
+      if (field === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+      var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+      if (r) r[field] = val;
+      var patch = {}; patch[field] = val;
+      _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
+    };
+  });
+  grid.querySelectorAll('[data-mail]').forEach(function(el){
+    el.onclick = function(){ _schedMailPick(el.getAttribute('data-mail'), el); };
+  });
+  grid.querySelectorAll('[data-rowmenu]').forEach(function(el){
+    el.onclick = function(ev){ _schedRowMenu(el.getAttribute('data-rowmenu'), ev); };
+  });
+  // Row reorder by dragging the handle.
+  grid.querySelectorAll('[data-rowdrag]').forEach(function(hd){
+    hd.addEventListener('dragstart', function(ev){ ev.dataTransfer.setData('text/rowid', hd.getAttribute('data-rowdrag')); });
+  });
+  grid.querySelectorAll('[data-rowzone]').forEach(function(rowEl){
+    rowEl.addEventListener('dragover', function(ev){ ev.preventDefault(); });
+    rowEl.addEventListener('drop', function(ev){
+      ev.preventDefault();
+      var moved = ev.dataTransfer.getData('text/rowid'), onto = rowEl.getAttribute('data-rowzone');
+      if (!moved || moved === onto) return;
+      var sorted = _schedRowSorted().filter(function(r){ return r.id !== moved; });
+      var idx = sorted.findIndex(function(r){ return r.id === onto; });
+      var prev = idx > 0 ? sorted[idx - 1] : null, next = sorted[idx];
+      var pos;   // land ABOVE the row it was dropped on
+      var pv = prev ? (prev.sort_pos != null ? prev.sort_pos : idx) : null;
+      var nv = next ? (next.sort_pos != null ? next.sort_pos : idx + 1) : null;
+      if (pv == null) pos = (nv == null ? 1 : nv - 1);
+      else if (nv == null) pos = pv + 1;
+      else pos = (pv + nv) / 2;
+      var r = (_SCHED.data.rows || []).find(function(x){ return x.id === moved; });
+      if (r) r.sort_pos = pos;
+      _schedRender();
+      _schedApi('PATCH', '/schedule/rows/' + moved, { sort_pos: pos });
+    });
+  });
+  // Painting + block drag/resize on the day strips.
+  grid.querySelectorAll('[data-strip]').forEach(function(strip){
+    strip.addEventListener('pointerdown', function(ev){ _schedStripDown(ev, strip); });
+  });
+}
+function _schedStripDown(ev, strip){
+  if (ev.button != null && ev.button !== 0) return;
+  var rowId = strip.getAttribute('data-strip');
+  var rect = strip.getBoundingClientRect();
+  var day = Math.max(0, Math.min(_SCHED.days.length - 1, Math.floor((ev.clientX - rect.left) / _SCHED.dayW)));
+  var blockEl = ev.target.closest ? ev.target.closest('.sched-block') : null;
+  if (blockEl){
+    var bId = blockEl.getAttribute('data-block');
+    var b = (_SCHED.data.blocks || []).find(function(x){ return x.id === bId; });
+    if (!b) return;
+    var resizing = ev.target.classList && ev.target.classList.contains('rz');
+    var startDay = day, moved = false;
+    var span0 = _schedSpan(b), i0 = _SCHED.dayIdx[span0.from];
+    blockEl.setPointerCapture && blockEl.setPointerCapture(ev.pointerId);
+    var onMove = function(mv){
+      var d2 = Math.floor((mv.clientX - rect.left) / _SCHED.dayW);
+      if (d2 === startDay && !moved) return;
+      moved = true;
+      blockEl.classList.add('dragging');
+      if (resizing){
+        var wPx = Math.max(_SCHED.dayW, (d2 - i0 + 1) * _SCHED.dayW - 2);
+        blockEl.style.width = wPx + 'px';
+      } else {
+        blockEl.style.left = ((i0 + (d2 - startDay)) * _SCHED.dayW) + 'px';
+      }
+    };
+    var onUp = function(up){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      blockEl.classList.remove('dragging');
+      var d2 = Math.max(0, Math.min(_SCHED.days.length - 1, Math.floor((up.clientX - rect.left) / _SCHED.dayW)));
+      if (moved){
+        if (resizing){
+          // New length = working days from the block's start to the day dropped on.
+          var n = 0;
+          for (var k = i0; k <= Math.max(i0, d2); k++){ if (!_SCHED.nonwork[_SCHED.days[k]]) n++; }
+          b.work_days = Math.max(1, n);
+          _schedRender();
+          _schedApi('PATCH', '/schedule/blocks/' + b.id, { work_days: b.work_days });
+        } else {
+          var ni = Math.max(0, i0 + (d2 - startDay));
+          b.start_date = _schedSnapStart(_SCHED.days[Math.min(ni, _SCHED.days.length - 1)]);
+          _schedRender();
+          _schedApi('PATCH', '/schedule/blocks/' + b.id, { start_date: b.start_date });
+        }
+        return;
+      }
+      // A plain click. With a crew selected on a pencil block → solid-book.
+      if (_SCHED.sel && _SCHED.sel !== 'pencil'){
+        b.kind = 'crew'; b.crew_id = _SCHED.sel;
+        _schedRender();
+        _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'crew', crew_id: _SCHED.sel });
+        return;
+      }
+      if (_SCHED.sel === 'pencil' && b.kind === 'crew'){
+        b.kind = 'pencil'; b.crew_id = '';
+        _schedRender();
+        _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'pencil', crew_id: '' });
+        return;
+      }
+      _schedBlockMenu(b, up);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return;
+  }
+  // Empty day: paint, if a colour is selected.
+  if (!_SCHED.sel) return;
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+  if (!r) return;
+  var kind = _SCHED.sel === 'pencil' ? 'pencil' : 'crew';
+  // First paint on an empty row lays down the whole job; anything after
+  // that is a one-day touch-up (extend with the edge drag instead).
+  var hasAny = (_SCHED.data.blocks || []).some(function(x){ return x.row_id === rowId; });
+  var body = { row_id: rowId, kind: kind, crew_id: kind === 'crew' ? _SCHED.sel : '',
+               start_date: _schedSnapStart(_SCHED.days[day]),
+               work_days: hasAny ? 1 : Math.max(1, r.length_days || 1) };
+  _schedApi('POST', '/schedule/blocks', body).then(function(created){
+    _SCHED.data.blocks.push(created);
+    _schedRender();
+  });
+}
+function _schedCloseMenus(){ document.querySelectorAll('.sched-menu').forEach(function(m){ m.remove(); }); }
+function _schedMenu(items, ev){
+  _schedCloseMenus();
+  var m = document.createElement('div');
+  m.className = 'sched-menu';
+  items.forEach(function(it){
+    var b = document.createElement('button');
+    b.textContent = it[0];
+    b.onclick = function(){ _schedCloseMenus(); it[1](); };
+    m.appendChild(b);
+  });
+  m.style.left = Math.min(ev.clientX, window.innerWidth - 210) + 'px';
+  m.style.top = Math.min(ev.clientY, window.innerHeight - items.length * 40 - 12) + 'px';
+  document.body.appendChild(m);
+  setTimeout(function(){ document.addEventListener('pointerdown', function once(e2){
+    if (!m.contains(e2.target)){ _schedCloseMenus(); document.removeEventListener('pointerdown', once); }
+  }); }, 0);
+}
+function _schedBlockMenu(b, ev){
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === b.row_id; }) || {};
+  _schedMenu([
+    ['✉ Email customer — ' + (b.kind === 'crew' ? 'confirmed date' : 'pencilled window'),
+      function(){ _schedMailOpen(b.row_id, b.kind === 'crew' ? 'confirm' : 'pencil'); }],
+    ['🗑 Remove this block', function(){
+      _SCHED.data.blocks = _SCHED.data.blocks.filter(function(x){ return x.id !== b.id; });
+      _schedRender();
+      _schedApi('DELETE', '/schedule/blocks/' + b.id);
+    }],
+  ], ev);
+}
+function _schedRowMenu(rowId, ev){
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+  if (!r) return;
+  var items = [];
+  if (r.job_id) items.push(['Open this job', function(){ try { loadJobById && loadJobById(r.job_id); } catch(e){} }]);
+  items.push([r.archived ? 'Un-archive' : '✓ Job done — archive it', function(){
+    r.archived = !r.archived;
+    _schedApi('PATCH', '/schedule/rows/' + rowId, { archived: r.archived }).then(_schedLoad);
+  }]);
+  items.push(['🗑 Delete row (and its blocks)', function(){
+    if (!confirm('Take "' + (r.client_name || 'this job') + '" off the schedule?')) return;
+    _SCHED.data.rows = _SCHED.data.rows.filter(function(x){ return x.id !== rowId; });
+    _schedRender();
+    _schedApi('DELETE', '/schedule/rows/' + rowId);
+  }]);
+  _schedMenu(items, ev);
+}
+function _schedToggleArchived(){ _SCHED.archived = !_SCHED.archived; _schedLoad(); }
+// ── customer email ──
+function _schedMailPick(rowId, el){
+  var has = { pencil:false, crew:false };
+  (_SCHED.data.blocks || []).forEach(function(b){ if (b.row_id === rowId) has[b.kind] = true; });
+  if (has.crew && has.pencil){
+    _schedMenu([
+      ['Pencilled window (rough timing)', function(){ _schedMailOpen(rowId, 'pencil'); }],
+      ['Confirmed booking (exact date)', function(){ _schedMailOpen(rowId, 'confirm'); }],
+    ], { clientX: el.getBoundingClientRect().left, clientY: el.getBoundingClientRect().bottom });
+  } else if (has.crew) _schedMailOpen(rowId, 'confirm');
+  else if (has.pencil) _schedMailOpen(rowId, 'pencil');
+  else _schedMsg('Nothing booked or pencilled for this job yet — paint a block first', true);
+}
+var _schedMailRow = null;
+async function _schedMailOpen(rowId, kind){
+  try {
+    var d = await api('POST', '/schedule/rows/' + rowId + '/compose', { kind: kind });
+    _schedMailRow = rowId;
+    document.getElementById('schedMailTo').value = d.to || '';
+    document.getElementById('schedMailSubject').value = d.subject || '';
+    document.getElementById('schedMailBody').value = d.body || '';
+    document.getElementById('schedMailTitle').textContent =
+      kind === 'confirm' ? 'Email the customer — confirmed booking' : 'Email the customer — pencilled window';
+    var st = document.getElementById('schedMailStatus'); if (st) st.style.display = 'none';
+    document.getElementById('schedMailOverlay').style.display = 'block';
+    document.getElementById('schedMailModal').style.display = 'block';
+  } catch(e){ _schedMsg((e && e.message) || 'Could not prepare the email', true); }
+}
+function _schedMailClose(){
+  document.getElementById('schedMailOverlay').style.display = 'none';
+  document.getElementById('schedMailModal').style.display = 'none';
+}
+async function _schedMailSend(){
+  var btn = document.getElementById('schedMailSendBtn'), st = document.getElementById('schedMailStatus');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api('POST', '/schedule/rows/' + _schedMailRow + '/send', {
+      to: document.getElementById('schedMailTo').value.trim(),
+      subject: document.getElementById('schedMailSubject').value,
+      body: document.getElementById('schedMailBody').value,
+    });
+    st.style.display = 'block'; st.style.background = '#ecfdf5'; st.style.color = '#065f46';
+    st.textContent = '✓ Sent.';
+    setTimeout(_schedMailClose, 900);
+    _schedLoad();
+  } catch(e){
+    st.style.display = 'block'; st.style.background = '#fef2f2'; st.style.color = '#b91c1c';
+    st.textContent = (e && e.message) || 'Send failed';
+  }
+  btn.disabled = false; btn.textContent = '📤 Send';
+}
+// ── add a job ──
+async function _schedAddOpen(){
+  document.getElementById('schedAddOverlay').style.display = 'block';
+  document.getElementById('schedAddModal').style.display = 'flex';
+  document.getElementById('schedAddMsg').textContent = '';
+  var pick = document.getElementById('schedJobPick');
+  pick.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text2)">Loading your jobs…</div>';
+  try {
+    var jobs = await api('GET', '/jobs');
+    var onBoard = {};
+    ((_SCHED.data && _SCHED.data.rows) || []).forEach(function(r){ if (r.job_id) onBoard[r.job_id] = 1; });
+    var list = (Array.isArray(jobs) ? jobs : (jobs.jobs || [])).filter(function(j){ return !onBoard[j.id]; });
+    pick.innerHTML = list.length ? list.slice(0, 80).map(function(j){
+      return '<div data-pickjob="' + j.id + '" style="padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12.5px">' +
+        '<strong>' + String(j.client_name || 'Untitled').replace(/</g, '&lt;') + '</strong>' +
+        ' <span style="color:var(--text2)">' + String(j.site_address || '').replace(/</g, '&lt;') + '</span></div>';
+    }).join('') : '<div style="padding:12px;font-size:12px;color:var(--text2)">Every saved job is already on the board.</div>';
+    pick.querySelectorAll('[data-pickjob]').forEach(function(el){
+      el.onclick = async function(){
+        try {
+          var row = await _schedApi('POST', '/schedule/rows', { job_id: el.getAttribute('data-pickjob') });
+          _SCHED.data.rows.push(row); _schedAddClose(); _schedRender();
+        } catch(e){}
+      };
+    });
+  } catch(e){ pick.innerHTML = '<div style="padding:12px;font-size:12px;color:#b91c1c">Could not load jobs</div>'; }
+}
+function _schedAddClose(){
+  document.getElementById('schedAddOverlay').style.display = 'none';
+  document.getElementById('schedAddModal').style.display = 'none';
+}
+async function _schedQuickAdd(){
+  var msg = document.getElementById('schedAddMsg');
+  try {
+    var row = await api('POST', '/schedule/rows', {
+      client_name: document.getElementById('schedQClient').value.trim(),
+      site_address: document.getElementById('schedQSite').value.trim(),
+      length_days: parseInt(document.getElementById('schedQLen').value, 10) || 1,
+      email: document.getElementById('schedQEmail').value.trim(),
+    });
+    _SCHED.data.rows.push(row);
+    document.getElementById('schedQClient').value = ''; document.getElementById('schedQSite').value = '';
+    document.getElementById('schedQEmail').value = '';
+    _schedAddClose(); _schedRender();
+  } catch(e){ msg.textContent = (e && e.message) || 'Could not add the row'; }
+}
+// ── settings ──
+var _schedCfgDraft = null;
+function _schedSettingsOpen(){
+  _schedCfgDraft = JSON.parse(JSON.stringify((_SCHED.data && _SCHED.data.cfg) || { crews: [], cap: 4, shutdowns: [], region: 'auckland' }));
+  document.getElementById('schedCfgCap').value = _schedCfgDraft.cap || 4;
+  document.getElementById('schedCfgRegion').value = _schedCfgDraft.region || 'auckland';
+  document.getElementById('schedFeedUrl').value = (_SCHED.data && _SCHED.data.feed_url) || '';
+  _schedCrewsRender(); _schedShutsRender();
+  document.getElementById('schedCfgMsg').textContent = '';
+  document.getElementById('schedCfgOverlay').style.display = 'block';
+  document.getElementById('schedCfgModal').style.display = 'flex';
+}
+function _schedSettingsClose(){
+  document.getElementById('schedCfgOverlay').style.display = 'none';
+  document.getElementById('schedCfgModal').style.display = 'none';
+}
+function _schedCrewsRender(){
+  var el = document.getElementById('schedCrewList');
+  el.innerHTML = (_schedCfgDraft.crews || []).map(function(c, i){
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+      '<input type="color" value="' + (c.colour || '#94a3b8') + '" data-crewcol="' + i + '" style="width:34px;height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:1px;background:#fff">' +
+      '<input type="text" value="' + String(c.name || '').replace(/"/g, '&quot;') + '" data-crewname="' + i + '" placeholder="Name" style="flex:1;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">' +
+      '<button data-crewdel="' + i + '" style="padding:6px 10px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:7px;font-size:12px;cursor:pointer">✕</button></div>';
+  }).join('');
+  el.querySelectorAll('[data-crewcol]').forEach(function(inp){ inp.oninput = function(){ _schedCfgDraft.crews[+inp.getAttribute('data-crewcol')].colour = inp.value; }; });
+  el.querySelectorAll('[data-crewname]').forEach(function(inp){ inp.oninput = function(){ _schedCfgDraft.crews[+inp.getAttribute('data-crewname')].name = inp.value; }; });
+  el.querySelectorAll('[data-crewdel]').forEach(function(b){ b.onclick = function(){ _schedCfgDraft.crews.splice(+b.getAttribute('data-crewdel'), 1); _schedCrewsRender(); }; });
+}
+function _schedCrewAdd(){
+  var palette = ['#4472c4', '#fce142', '#f87d20', '#70ad47', '#fd87c5', '#305496', '#7030a0', '#0a1628'];
+  _schedCfgDraft.crews.push({ id: 'c' + Math.random().toString(36).slice(2, 8), name: '',
+    colour: palette[_schedCfgDraft.crews.length % palette.length] });
+  _schedCrewsRender();
+}
+function _schedShutsRender(){
+  var el = document.getElementById('schedShutList');
+  el.innerHTML = (_schedCfgDraft.shutdowns || []).map(function(sd, i){
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">' +
+      '<input type="date" value="' + sd.from + '" data-shutfrom="' + i + '" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:12px">' +
+      '<span style="font-size:12px;color:var(--text2)">to</span>' +
+      '<input type="date" value="' + sd.to + '" data-shutto="' + i + '" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:12px">' +
+      '<input type="text" value="' + String(sd.label || '').replace(/"/g, '&quot;') + '" data-shutlbl="' + i + '" placeholder="Label" style="flex:1;min-width:110px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12px">' +
+      '<button data-shutdel="' + i + '" style="padding:5px 10px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:7px;font-size:12px;cursor:pointer">✕</button></div>';
+  }).join('');
+  el.querySelectorAll('[data-shutfrom]').forEach(function(inp){ inp.onchange = function(){ _schedCfgDraft.shutdowns[+inp.getAttribute('data-shutfrom')].from = inp.value; }; });
+  el.querySelectorAll('[data-shutto]').forEach(function(inp){ inp.onchange = function(){ _schedCfgDraft.shutdowns[+inp.getAttribute('data-shutto')].to = inp.value; }; });
+  el.querySelectorAll('[data-shutlbl]').forEach(function(inp){ inp.oninput = function(){ _schedCfgDraft.shutdowns[+inp.getAttribute('data-shutlbl')].label = inp.value; }; });
+  el.querySelectorAll('[data-shutdel]').forEach(function(b){ b.onclick = function(){ _schedCfgDraft.shutdowns.splice(+b.getAttribute('data-shutdel'), 1); _schedShutsRender(); }; });
+}
+function _schedShutAdd(){ _schedCfgDraft.shutdowns.push({ from: '', to: '', label: '' }); _schedShutsRender(); }
+async function _schedSettingsSave(){
+  var msg = document.getElementById('schedCfgMsg');
+  _schedCfgDraft.cap = parseInt(document.getElementById('schedCfgCap').value, 10) || 4;
+  _schedCfgDraft.region = document.getElementById('schedCfgRegion').value;
+  _schedCfgDraft.crews = (_schedCfgDraft.crews || []).filter(function(c){ return String(c.name || '').trim(); });
+  try {
+    await api('PUT', '/schedule/config', _schedCfgDraft);
+    msg.textContent = '✓ Saved';
+    _schedSettingsClose();
+    _schedLoad();
+  } catch(e){ msg.textContent = (e && e.message) || 'Could not save'; }
+}
+function _schedFeedCopy(){
+  var inp = document.getElementById('schedFeedUrl');
+  inp.select(); try { document.execCommand('copy'); } catch(e){}
+  try { navigator.clipboard && navigator.clipboard.writeText(inp.value); } catch(e){}
+  document.getElementById('schedCfgMsg').textContent = '✓ Link copied — paste it into Google Calendar → Other calendars → From URL';
+}
+async function _schedFeedRegen(){
+  if (!confirm('Regenerate the calendar link? Anywhere the old link is pasted will stop updating.')) return;
+  try {
+    var d = await api('POST', '/schedule/feed-secret');
+    document.getElementById('schedFeedUrl').value = d.feed_url || '';
+    if (_SCHED.data) _SCHED.data.feed_url = d.feed_url;
+    document.getElementById('schedCfgMsg').textContent = '✓ New link issued — the old one is dead';
+  } catch(e){ document.getElementById('schedCfgMsg').textContent = (e && e.message) || 'Could not regenerate'; }
+}
 
 // ── Update watcher ─────────────────────────────────────────────────
 // A RoofMap tab left open never picks up a new deploy — fixes were going
@@ -29241,6 +29960,7 @@ async function fergusCall(method,path,body){var tok=localStorage.getItem('fr_tok
 async function testFergus(){
   document.getElementById('fergErr').style.display='none';
   document.getElementById('fergOk').style.display='none';
+  try { var _sb0 = document.getElementById('fergSupportBtn'); if (_sb0) _sb0.style.display = 'none'; } catch(e){}
   try{
     // A key typed into the Configure modal is this business's key — save
     // it (same store as Settings → Integrations) before testing. An empty
@@ -29295,10 +30015,33 @@ async function testFergus(){
     preloadAllFergusJobs();
   } catch(e){
     if (!S.fergConnected){
+      window._fergLastErr = e.message;
       document.getElementById('fergErr').style.display = 'block';
       document.getElementById('fergErr').textContent = 'Connection failed (' + e.message + ')';
+      var _sb = document.getElementById('fergSupportBtn'); if (_sb) _sb.style.display = '';
     }
   }
+}
+// One click drafts the support email with everything we know — the error
+// the app saw plus the server's own /jms/debug read of this company's
+// setup — so nobody has to transcribe diagnostics off a screenshot.
+function _fergAdvancedToggle(){
+  ['fergConnStatusSec', 'fergAdvBtns'].forEach(function(id){
+    var d = document.getElementById(id);
+    if (d) d.style.display = (d.style.display === 'none') ? (id === 'fergAdvBtns' ? 'flex' : '') : 'none';
+  });
+}
+async function _fergSupportEmail(){
+  var diag = null; try { diag = await api('GET', '/jms/debug'); } catch(e){ diag = { debug_failed: String(e && e.message || e) }; }
+  var co = ''; try { co = (S.settings && S.settings.branding && S.settings.branding.company_name) || ''; } catch(e){}
+  var body = ['Hi RoofMap support,', '',
+    'Fergus will not connect for ' + (co || 'my business') + '.', '',
+    'What the app reported: ' + (window._fergLastErr || 'no error captured'), '',
+    'Diagnostics:', JSON.stringify(diag || {}, null, 2), '',
+    'Sent from the Fergus setup screen.'].join('\n');
+  location.href = 'mailto:support@roofmap.co.nz?subject=' +
+    encodeURIComponent('Fergus won\u2019t connect' + (co ? ' \u2014 ' + co : '')) +
+    '&body=' + encodeURIComponent(body);
 }
 async function autoConnect(){
   var ok=await checkProxy();
