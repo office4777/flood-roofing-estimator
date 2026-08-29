@@ -1023,7 +1023,7 @@ app.get('/subscription', requireAuth, async (req, res) => {
 const PLANS = {
   trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
   solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true  },
   business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
 };
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
@@ -4914,7 +4914,7 @@ app.get('/email/domain', requireAuth, async (req, res) => {
 
 // Claim it: register the domain with Resend and hand back the DNS records.
 app.post('/email/domain', requireAuth, requireOwner,
-  requirePlan('maildomain', 'Sending from your own email address', 'Business'), rateLimit(10, 3600000), async (req, res) => {
+  requirePlan('maildomain', 'Sending from your own email address', 'Team'), rateLimit(10, 3600000), async (req, res) => {
   if (!RESEND_ENABLED) return res.status(503).json({ error: 'Own-domain sending is not switched on for this server yet.', code: 'MAILDOMAIN_DISABLED' });
   const email = String((req.body || {}).email || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter the address you send from, like office@yourcompany.co.nz.' });

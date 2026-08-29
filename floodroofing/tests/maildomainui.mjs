@@ -100,8 +100,8 @@ const so = await boot(false, null);
 await so.pg.evaluate(() => _mailDomainLoad());
 await so.pg.waitForTimeout(400);
 v = await bodyOf(so.pg);
-check('Solo sees the Business lock, not the input',
-  /Business plan/.test(v.text) && /_billingOpen/.test(v.html || '') && !/emDomainEmail/.test(v.html || ''),
+check('Solo sees the Team lock, not the input',
+  /Team plan/.test(v.text) && /_billingOpen/.test(v.html || '') && !/emDomainEmail/.test(v.html || ''),
   v.text.slice(0, 140));
 check('no page errors on the Solo side', so.errs.length === 0, so.errs.join(' | ') || 'clean');
 await so.ctx.close();

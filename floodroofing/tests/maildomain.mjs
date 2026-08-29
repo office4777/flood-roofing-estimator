@@ -16,7 +16,7 @@ const jwt = require('jsonwebtoken');
 const results = [];
 function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  '+n+(d?('  — '+d):'')); }
 
-const CB = 'bbbbbbbb-1111-1111-1111-111111111111';   // Business plan
+const CB = 'bbbbbbbb-1111-1111-1111-111111111111';   // Team plan — the middle tier owns this feature
 const CS = 'ssssssss-1111-1111-1111-111111111111';   // Solo plan
 const CT = 'tttttttt-1111-1111-1111-111111111111';   // no plan row content → trial
 const OWNER = 'oooooooo-0000-0000-0000-000000000001';
@@ -72,7 +72,7 @@ await new Promise(r => rsrv.listen(0, '127.0.0.1', r));
 
 const db = {
   companies: [
-    { id: CB, name: "Hemi's Roofing", plan: 'business' },
+    { id: CB, name: "Hemi's Roofing", plan: 'team' },
     { id: CS, name: 'Solo Roofing', plan: 'solo' },
     { id: CT, name: 'Trial Roofing' },
   ],
@@ -131,14 +131,14 @@ const sendInvoice = async () => {
 
 // ── who may even start ────────────────────────────────────────────
 let r = await api('GET', '/email/domain', null, OWNER, CB);
-check('Business is told the feature is open to it',
+check('Team is told the feature is open to it',
   r.body && r.body.enabled === true && r.body.allowed === true && r.body.domain === null, JSON.stringify(r.body));
 r = await api('GET', '/email/domain', null, SOLO, CS);
 check('Solo is told it is not on its plan', r.body && r.body.enabled === true && r.body.allowed === false,
   JSON.stringify(r.body));
 r = await api('POST', '/email/domain', { email: 'sol@soloroofing.co.nz' }, SOLO, CS);
-check('…and a Solo attempt is refused with the plan code',
-  r.status === 403 && r.body.code === 'PLAN_LIMIT' && /Business/.test(r.body.error || ''), JSON.stringify(r.body));
+check('…and a Solo attempt is refused with the plan code, naming Team as the tier that covers it',
+  r.status === 403 && r.body.code === 'PLAN_LIMIT' && /Team/.test(r.body.error || ''), JSON.stringify(r.body));
 r = await api('POST', '/email/domain', { email: 'sue@hemisroofing.co.nz' }, MEMBER, CB);
 check('a member cannot set up the sending domain', r.status === 403, String(r.status));
 
