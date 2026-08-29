@@ -2834,6 +2834,33 @@ html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!i
    The office's forward-workflow calendar: job rows, day columns,
    dark-red pencil blocks, crew colours once solid-booked. */
 body[data-tab="schedule"] .content{ max-width:none; margin-left:0; margin-right:0; }
+/* ── The Inbox: the comms hub ── */
+body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; }
+.ibx-main{ display:flex; border:1px solid var(--border); border-radius:10px; background:#fff; overflow:hidden;
+  height:calc(100vh - 190px); min-height:420px; }
+.ibx-list{ width:340px; flex:0 0 auto; border-right:1px solid var(--border); overflow-y:auto; }
+.ibx-conv{ flex:1 1 0; min-width:0; overflow-y:auto; background:#f8fafc; display:flex; flex-direction:column; }
+.ibx-row{ padding:9px 12px; border-bottom:1px solid #eef1f4; cursor:pointer; }
+.ibx-row:hover{ background:#f1f5f9; }
+.ibx-row.on{ background:#e8f4fb; }
+.ibx-row .f{ font-weight:600; font-size:12.5px; color:#0a1628; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ibx-row.unread .f{ font-weight:800; }
+.ibx-row.unread .f::before{ content:''; display:inline-block; width:7px; height:7px; border-radius:50%; background:#0099cc; margin-right:6px; vertical-align:1px; }
+.ibx-row .s{ font-size:11.5px; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ibx-row .p{ font-size:11px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ibx-msg{ background:#fff; border:1px solid var(--border); border-radius:10px; margin:10px 12px 0; overflow:hidden; flex:0 0 auto; }
+.ibx-msg .mhd{ padding:8px 12px; border-bottom:1px solid #eef1f4; font-size:11.5px; color:#334155; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.ibx-msg iframe{ width:100%; height:420px; border:none; display:block; background:#fff; }
+.ibx-msg .txt{ padding:12px; font-size:12.5px; white-space:pre-wrap; color:#0a1628; overflow-wrap:break-word; }
+.ibx-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-size:12px; font-weight:600; color:#0a1628; cursor:pointer; }
+.ibx-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
+@media (max-width:900px){
+  .ibx-list{ width:100%; border-right:none; }
+  .ibx-conv{ display:none; }
+  .ibx-main.open .ibx-list{ display:none; }
+  .ibx-main.open .ibx-conv{ display:flex; }
+}
 .sched-topbar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:7px 12px; }
 .sched-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:16px;
   border:1.5px solid var(--border); background:#fff; font-size:11.5px; font-weight:600; cursor:pointer; color:#0a1628; }
@@ -3726,6 +3753,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" id="navScheduleBtn" onclick="gotoTab('schedule')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5H14 M5 1.5v3 M11 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.5 9.5h3 M4.5 11.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Schedule</button>
+  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Inbox</button>
   <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -5486,6 +5514,92 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </div>
 </div>
 
+<!-- TAB: INBOX — the comms hub -->
+<div class="panel" id="tab-inbox">
+  <div class="card" id="ibxLockedCard" style="display:none;max-width:640px;margin:40px auto;text-align:center;padding:36px 30px">
+    <div style="font-size:34px;margin-bottom:8px">📨</div>
+    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The inbox is a Business-tier feature</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">Connect your real email accounts — office@ shared with the whole team, personal ones private — and read, reply and triage every customer conversation without leaving RoofMap.</div>
+    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Business</button>
+  </div>
+
+  <div id="ibxWrap" style="display:none">
+    <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;margin-bottom:10px">
+      <strong style="font-size:13px;color:#0a1628">Inbox</strong>
+      <span id="ibxStatusChips" style="display:flex;gap:6px"></span>
+      <input type="search" id="ibxSearch" placeholder="Search mail…" style="flex:1;min-width:120px;max-width:260px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px">
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <button class="ibx-chip" onclick="_ibxComposeOpen()">✉ Compose</button>
+        <button class="ibx-chip" onclick="_ibxLoad()" title="Check for new mail">↻</button>
+        <button class="ibx-chip" onclick="_ibxAcctOpen()" title="Email accounts">⚙ Accounts</button>
+      </span>
+      <span id="ibxMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
+    </div>
+    <div class="card" id="ibxSetupCard" style="display:none;text-align:center;padding:30px">
+      <div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:6px">Connect your first email account</div>
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:14px">Gmail, Outlook, Xtra or any provider — a guided two-minute setup with an app password. Mark it Shared and the whole team works the same inbox.</div>
+      <button onclick="_ibxAcctOpen()" style="padding:10px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">＋ Connect an account</button>
+    </div>
+    <div class="ibx-main" id="ibxMain">
+      <div class="ibx-list" id="ibxList"></div>
+      <div class="ibx-conv" id="ibxConv"><div style="margin:auto;color:#94a3b8;font-size:13px;padding:40px">Pick a conversation</div></div>
+    </div>
+  </div>
+
+  <!-- Compose -->
+  <div id="ibxComposeOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_ibxComposeClose()"></div>
+  <div id="ibxComposeModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">New email</strong>
+      <button onclick="_ibxComposeClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+      <select id="ibxCFrom" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px"></select>
+      <input type="email" id="ibxCTo" placeholder="To" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+      <input type="text" id="ibxCCc" placeholder="Cc (optional)" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+      <input type="text" id="ibxCSubject" placeholder="Subject" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+      <textarea id="ibxCBody" rows="9" placeholder="Write your email…" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;resize:vertical"></textarea>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span id="ibxCMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>
+        <button id="ibxCSend" onclick="_ibxComposeSend()" style="padding:9px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accounts -->
+  <div id="ibxAcctOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_ibxAcctClose()"></div>
+  <div id="ibxAcctModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">Email accounts</strong>
+      <button onclick="_ibxAcctClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto">
+      <div id="ibxAcctList" style="margin-bottom:14px"></div>
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Connect an account</div>
+      <div id="ibxProvPick" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <div id="ibxAcctForm" style="display:none">
+        <ol id="ibxProvSteps" style="font-size:12px;color:var(--text2);line-height:1.7;margin:0 0 10px;padding-left:20px"></ol>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input type="email" id="ibxAEmail" placeholder="Email address" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+          <input type="text" id="ibxALabel" placeholder="Label (e.g. Office)" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+          <input type="password" id="ibxAPass" placeholder="App password" autocomplete="new-password" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+          <label style="display:flex;gap:7px;align-items:center;font-size:12px;color:#0a1628"><input type="checkbox" id="ibxAShared" checked> Shared with the whole team</label>
+        </div>
+        <div id="ibxAHosts" style="display:none;grid-template-columns:2fr 1fr 2fr 1fr;gap:8px;margin-top:8px">
+          <input type="text" id="ibxAImapHost" placeholder="IMAP host" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">
+          <input type="number" id="ibxAImapPort" value="993" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">
+          <input type="text" id="ibxASmtpHost" placeholder="SMTP host" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">
+          <input type="number" id="ibxASmtpPort" value="465" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+          <span id="ibxAMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>
+          <button id="ibxAConnect" onclick="_ibxAcctConnect()" style="padding:9px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Connect</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- TAB 6: QUOTE -->
 <div class="panel" id="tab-quote">
@@ -7153,6 +7267,7 @@ function gotoTab(t) {
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
+  if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -8125,6 +8240,312 @@ async function _schedFeedRegen(){
     if (_SCHED.data) _SCHED.data.feed_url = d.feed_url;
     document.getElementById('schedCfgMsg').textContent = '✓ New link issued — the old one is dead';
   } catch(e){ document.getElementById('schedCfgMsg').textContent = (e && e.message) || 'Could not regenerate'; }
+}
+
+// ── INBOX: the comms hub ──────────────────────────────────────────
+var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null };
+function _ibxEsc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function _ibxMsg(t, bad){ var el = document.getElementById('ibxMsg'); if (el){ el.textContent = t || ''; el.style.color = bad ? '#b91c1c' : 'var(--text2)'; } }
+function _ibxCanUse(){
+  try { var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+    if (c && c.limits && c.limits.inbox === false) return false; } catch(e){}
+  return true;
+}
+function _ibxEnter(){
+  var lc = document.getElementById('ibxLockedCard'), w = document.getElementById('ibxWrap');
+  if (!_ibxCanUse()){ lc.style.display = ''; w.style.display = 'none'; return; }
+  lc.style.display = 'none'; w.style.display = '';
+  _ibxRenderChips();
+  var se = document.getElementById('ibxSearch');
+  if (se && !se._wired){ se._wired = 1; se.oninput = function(){ _IBX.q = se.value.trim(); clearTimeout(se._t); se._t = setTimeout(_ibxLoad, 350); }; }
+  _ibxLoad();
+  if (_IBX.timer) clearInterval(_IBX.timer);
+  _IBX.timer = setInterval(function(){
+    if (document.body.getAttribute('data-tab') !== 'inbox'){ clearInterval(_IBX.timer); _IBX.timer = null; return; }
+    _ibxLoad(true);
+  }, 60000);
+}
+function _ibxRenderChips(){
+  var el = document.getElementById('ibxStatusChips');
+  if (!el) return;
+  el.innerHTML = [['inbox','Inbox'],['snoozed','Snoozed'],['archived','Archived'],['all','All']].map(function(x){
+    return '<button class="ibx-chip' + (_IBX.status === x[0] ? ' on' : '') + '" data-ibxstatus="' + x[0] + '">' + x[1] + '</button>';
+  }).join('');
+  el.querySelectorAll('[data-ibxstatus]').forEach(function(b){
+    b.onclick = function(){ _IBX.status = b.getAttribute('data-ibxstatus'); _IBX.sel = null; _ibxRenderChips(); _ibxLoad(); };
+  });
+}
+async function _ibxLoad(quiet){
+  try {
+    var d = await api('GET', '/inbox/threads?status=' + encodeURIComponent(_IBX.status) +
+      (_IBX.q ? '&q=' + encodeURIComponent(_IBX.q) : ''));
+    _IBX.threads = d.threads || []; _IBX.accounts = d.accounts || [];
+    _ibxRenderList();
+    var setup = document.getElementById('ibxSetupCard');
+    if (setup) setup.style.display = _IBX.accounts.length ? 'none' : '';
+    if (quiet !== true) _ibxMsg('');
+  } catch(e){ if (quiet !== true) _ibxMsg((e && e.message) || 'Could not load the inbox', true); }
+}
+function _ibxRenderList(){
+  var el = document.getElementById('ibxList');
+  if (!el) return;
+  if (!_IBX.threads.length){
+    el.innerHTML = '<div style="padding:26px;font-size:12.5px;color:#94a3b8">Nothing here.</div>';
+    return;
+  }
+  el.innerHTML = _IBX.threads.map(function(t){
+    var who = ((t.participants || [])[0] || '').split('@')[0];
+    var d = t.last_date ? new Date(t.last_date) : null;
+    var when = d ? d.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '';
+    return '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '">' +
+      '<div style="display:flex;gap:8px"><div class="f" style="flex:1">' + _ibxEsc(who || t.subject) + '</div>' +
+      '<div class="p">' + when + '</div></div>' +
+      '<div class="s">' + _ibxEsc(t.subject || '(no subject)') + '</div>' +
+      '<div class="p">' + _ibxEsc(t.snippet || '') + (_IBX.accounts.length > 1 ? ' · ' + _ibxEsc(t.account_label || t.account_email) : '') + '</div></div>';
+  }).join('');
+  el.querySelectorAll('[data-ibxthread]').forEach(function(r){
+    r.onclick = function(){ _ibxOpen(r.getAttribute('data-ibxthread')); };
+  });
+}
+function _ibxFrame(html){
+  var doc = '<!doctype html><html><head><meta charset="utf-8"><base target="_blank">' +
+    '<style>body{font:13px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:10px;word-break:break-word}img{max-width:100%}</style>' +
+    '</head><body>' + html + '</body></html>';
+  return '<iframe sandbox="allow-popups" srcdoc="' + doc.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></iframe>';
+}
+async function _ibxOpen(id){
+  _IBX.sel = id;
+  _ibxRenderList();
+  var conv = document.getElementById('ibxConv');
+  document.getElementById('ibxMain').classList.add('open');
+  conv.innerHTML = '<div style="margin:auto;color:#94a3b8;font-size:13px;padding:40px">Opening…</div>';
+  try {
+    var d = await api('GET', '/inbox/threads/' + id);
+    var t = d.thread, msgs = d.messages || [];
+    var h = '<div style="position:sticky;top:0;z-index:3;background:#f8fafc;border-bottom:1px solid var(--border);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+      '<button class="ibx-chip" onclick="_ibxBack()" style="display:none" id="ibxBackBtn">←</button>' +
+      '<strong style="flex:1;font-size:13px;color:#0a1628;min-width:120px">' + _ibxEsc(t.subject || '(no subject)') + '</strong>' +
+      (t.status === 'archived'
+        ? '<button class="ibx-chip" data-ibxact="unarchive">↩ Back to inbox</button>'
+        : '<button class="ibx-chip" data-ibxact="archive" title="Done — file it">✓ Archive</button>') +
+      '<button class="ibx-chip" data-ibxact="snooze" title="Hide until later">⏰ Snooze</button>' +
+      '<button class="ibx-chip" data-ibxact="unread" title="Keep it bold">● Unread</button></div>';
+    msgs.forEach(function(m, i){
+      var hasBlocked = /data-rsrc=/.test(m.body_html || '');
+      h += '<div class="ibx-msg" data-ibxmsg="' + i + '">' +
+        '<div class="mhd"><strong>' + _ibxEsc(m.from_name || m.from_addr) + '</strong>' +
+        '<span style="color:#94a3b8">' + _ibxEsc(m.from_addr) + '</span>' +
+        '<span style="margin-left:auto;color:#94a3b8">' + (m.date ? new Date(m.date).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }) : '') + '</span>' +
+        (hasBlocked ? '<button class="ibx-chip" data-ibximg="' + i + '" style="padding:2px 8px;font-size:10.5px">Load images</button>' : '') + '</div>' +
+        ((m.attachments || []).length ? '<div class="mhd" style="border-bottom:1px solid #eef1f4">📎 ' +
+          (m.attachments || []).map(function(a){ return _ibxEsc(a.name); }).join(' · ') + '</div>' : '') +
+        (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
+    });
+    h += '<div style="padding:12px;margin-top:auto">' +
+      '<textarea id="ibxReplyBody" rows="3" placeholder="Reply…" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px;font-size:12.5px;resize:vertical"></textarea>' +
+      '<div style="display:flex;gap:10px;align-items:center;margin-top:6px">' +
+      '<span id="ibxReplyMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>' +
+      '<button id="ibxReplySend" class="ibx-chip" style="background:#0a1628;color:#fff;border-color:#0a1628" onclick="_ibxReplySend()">Send reply</button></div></div>';
+    conv.innerHTML = h;
+    if (window.innerWidth <= 900) document.getElementById('ibxBackBtn').style.display = '';
+    conv.querySelectorAll('[data-ibxact]').forEach(function(b){
+      b.onclick = function(){ _ibxAct(t, b.getAttribute('data-ibxact'), b); };
+    });
+    conv.querySelectorAll('[data-ibximg]').forEach(function(b){
+      b.onclick = function(){
+        var i = +b.getAttribute('data-ibximg');
+        var box = conv.querySelector('[data-ibxmsg="' + i + '"]');
+        var html = (msgs[i].body_html || '').replace(/data-rsrc=/g, 'src=');
+        box.querySelector('iframe').outerHTML = _ibxFrame(html);
+        b.remove();
+      };
+    });
+    if (t.unread){
+      t.unread = false;
+      var row = _IBX.threads.find(function(x){ return x.id === id; });
+      if (row) row.unread = false;
+      _ibxRenderList();
+      api('PATCH', '/inbox/threads/' + id, { unread: false }).catch(function(){});
+    }
+  } catch(e){
+    conv.innerHTML = '<div style="margin:auto;color:#b91c1c;font-size:13px;padding:40px">' + _ibxEsc((e && e.message) || 'Could not open it') + '</div>';
+  }
+}
+function _ibxBack(){ document.getElementById('ibxMain').classList.remove('open'); _IBX.sel = null; _ibxRenderList(); }
+function _ibxAct(t, act, btn){
+  if (act === 'snooze'){
+    var mk = function(days, hour){ var d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d.toISOString(); };
+    var mon = function(){ var d = new Date(); var add = ((8 - d.getDay()) % 7) || 7; return mk(add, 8); };
+    _schedMenu([
+      ['Tomorrow morning', function(){ _ibxPatch(t.id, { status: 'snoozed', snoozed_until: mk(1, 8) }); }],
+      ['Monday morning', function(){ _ibxPatch(t.id, { status: 'snoozed', snoozed_until: mon() }); }],
+      ['In a week', function(){ _ibxPatch(t.id, { status: 'snoozed', snoozed_until: mk(7, 8) }); }],
+    ], { clientX: btn.getBoundingClientRect().left, clientY: btn.getBoundingClientRect().bottom });
+    return;
+  }
+  if (act === 'archive') _ibxPatch(t.id, { status: 'archived' });
+  if (act === 'unarchive') _ibxPatch(t.id, { status: 'inbox' });
+  if (act === 'unread'){ _ibxPatch(t.id, { unread: true }, true); }
+}
+async function _ibxPatch(id, patch, stay){
+  try {
+    await api('PATCH', '/inbox/threads/' + id, patch);
+    if (!stay){ _IBX.sel = null; document.getElementById('ibxMain').classList.remove('open');
+      document.getElementById('ibxConv').innerHTML = '<div style="margin:auto;color:#94a3b8;font-size:13px;padding:40px">Pick a conversation</div>'; }
+    _ibxLoad(true);
+  } catch(e){ _ibxMsg((e && e.message) || 'That didn’t save', true); }
+}
+async function _ibxReplySend(){
+  var body = (document.getElementById('ibxReplyBody') || {}).value || '';
+  if (!body.trim()){ document.getElementById('ibxReplyMsg').textContent = 'Write the reply first'; return; }
+  var btn = document.getElementById('ibxReplySend');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api('POST', '/inbox/threads/' + _IBX.sel + '/reply', { body_text: body });
+    _ibxOpen(_IBX.sel);
+    _ibxLoad(true);
+  } catch(e){
+    btn.disabled = false; btn.textContent = 'Send reply';
+    document.getElementById('ibxReplyMsg').textContent = (e && e.message) || 'Could not send';
+  }
+}
+// ── compose ──
+function _ibxComposeOpen(){
+  var sel = document.getElementById('ibxCFrom');
+  sel.innerHTML = _IBX.accounts.map(function(a){
+    return '<option value="' + a.id + '">' + _ibxEsc((a.label || a.email) + ' <' + a.email + '>') + '</option>';
+  }).join('');
+  if (!_IBX.accounts.length){ _ibxAcctOpen(); return; }
+  document.getElementById('ibxCMsg').textContent = '';
+  document.getElementById('ibxComposeOverlay').style.display = 'block';
+  document.getElementById('ibxComposeModal').style.display = 'flex';
+}
+function _ibxComposeClose(){
+  document.getElementById('ibxComposeOverlay').style.display = 'none';
+  document.getElementById('ibxComposeModal').style.display = 'none';
+}
+async function _ibxComposeSend(){
+  var btn = document.getElementById('ibxCSend'), msg = document.getElementById('ibxCMsg');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api('POST', '/inbox/compose', {
+      account_id: document.getElementById('ibxCFrom').value,
+      to: document.getElementById('ibxCTo').value.trim(),
+      cc: document.getElementById('ibxCCc').value.trim() || undefined,
+      subject: document.getElementById('ibxCSubject').value.trim(),
+      body_text: document.getElementById('ibxCBody').value,
+    });
+    btn.disabled = false; btn.textContent = 'Send';
+    ['ibxCTo','ibxCCc','ibxCSubject','ibxCBody'].forEach(function(i){ document.getElementById(i).value = ''; });
+    _ibxComposeClose();
+    _ibxMsg('✓ Sent');
+    _ibxLoad(true);
+  } catch(e){ btn.disabled = false; btn.textContent = 'Send'; msg.textContent = (e && e.message) || 'Could not send'; }
+}
+// ── accounts ──
+var _IBX_PROVIDERS = {
+  gmail: { name: 'Gmail / Google Workspace', imap_host: 'imap.gmail.com', imap_port: 993, smtp_host: 'smtp.gmail.com', smtp_port: 465,
+    steps: ['Turn on 2-Step Verification: myaccount.google.com → Security.',
+            'On that page search “App passwords” and create one for Mail.',
+            'Paste the 16-character app password below — not your normal password.'] },
+  outlook: { name: 'Outlook / Microsoft 365', imap_host: 'outlook.office365.com', imap_port: 993, smtp_host: 'smtp-mail.outlook.com', smtp_port: 587,
+    steps: ['Turn on two-step verification in your Microsoft account’s security settings.',
+            'Create an app password under Security → Advanced security options.',
+            'On business Microsoft 365 your admin may need to allow IMAP and authenticated SMTP.'] },
+  xtra: { name: 'Xtra (Spark NZ)', imap_host: 'imap.mail.yahoo.com', imap_port: 993, smtp_host: 'smtp.mail.yahoo.com', smtp_port: 465,
+    steps: ['Xtra mail runs on Yahoo — sign in at login.yahoo.com with your full Xtra address.',
+            'Account security → Generate app password.',
+            'Paste it below.'] },
+  other: { name: 'Other provider', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465,
+    steps: ['Ask your email host for its IMAP and SMTP server names.',
+            'Use an app password if your provider supports two-factor.',
+            'Fill in the hosts below.'] },
+};
+var _ibxProv = null;
+function _ibxAcctOpen(){
+  _ibxAcctRenderList();
+  var pick = document.getElementById('ibxProvPick');
+  pick.innerHTML = Object.keys(_IBX_PROVIDERS).map(function(k){
+    return '<button class="ibx-chip' + (_ibxProv === k ? ' on' : '') + '" data-ibxprov="' + k + '">' + _IBX_PROVIDERS[k].name + '</button>';
+  }).join('');
+  pick.querySelectorAll('[data-ibxprov]').forEach(function(b){
+    b.onclick = function(){ _ibxProvPickSet(b.getAttribute('data-ibxprov')); };
+  });
+  document.getElementById('ibxAcctForm').style.display = _ibxProv ? '' : 'none';
+  document.getElementById('ibxAcctOverlay').style.display = 'block';
+  document.getElementById('ibxAcctModal').style.display = 'flex';
+}
+function _ibxProvPickSet(k){
+  _ibxProv = k;
+  var pv = _IBX_PROVIDERS[k];
+  document.getElementById('ibxProvSteps').innerHTML = pv.steps.map(function(st){ return '<li>' + _ibxEsc(st) + '</li>'; }).join('');
+  document.getElementById('ibxAImapHost').value = pv.imap_host;
+  document.getElementById('ibxAImapPort').value = pv.imap_port;
+  document.getElementById('ibxASmtpHost').value = pv.smtp_host;
+  document.getElementById('ibxASmtpPort').value = pv.smtp_port;
+  document.getElementById('ibxAHosts').style.display = (k === 'other') ? 'grid' : 'none';
+  document.getElementById('ibxAcctForm').style.display = '';
+  document.getElementById('ibxAMsg').textContent = '';
+  document.querySelectorAll('#ibxProvPick [data-ibxprov]').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-ibxprov') === k);
+  });
+}
+function _ibxAcctClose(){
+  document.getElementById('ibxAcctOverlay').style.display = 'none';
+  document.getElementById('ibxAcctModal').style.display = 'none';
+}
+function _ibxAcctRenderList(){
+  var el = document.getElementById('ibxAcctList');
+  if (!el) return;
+  el.innerHTML = _IBX.accounts.length ? _IBX.accounts.map(function(a){
+    return '<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;font-size:12px">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + (a.status === 'ok' ? '#16a34a' : '#dc2626') + '" title="' + _ibxEsc(a.last_error || 'OK') + '"></span>' +
+      '<strong>' + _ibxEsc(a.label || a.email) + '</strong>' +
+      '<span style="color:#64748b">' + _ibxEsc(a.email) + '</span>' +
+      '<span style="color:#94a3b8">' + (a.shared ? 'shared' : 'private') + '</span>' +
+      (a.status !== 'ok' ? '<span style="color:#b91c1c;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _ibxEsc(a.last_error) + '</span>' : '<span style="flex:1"></span>') +
+      '<button class="ibx-chip" data-ibxsync="' + a.id + '" style="padding:3px 9px;font-size:11px">Sync now</button>' +
+      '<button class="ibx-chip" data-ibxdel="' + a.id + '" style="padding:3px 9px;font-size:11px;color:#b91c1c">✕</button></div>';
+  }).join('') : '<div style="font-size:12px;color:#94a3b8;margin-bottom:4px">No accounts connected yet.</div>';
+  el.querySelectorAll('[data-ibxsync]').forEach(function(b){
+    b.onclick = async function(){
+      b.textContent = '…';
+      try { var r = await api('POST', '/inbox/accounts/' + b.getAttribute('data-ibxsync') + '/sync'); b.textContent = '✓ ' + (r.added || 0) + ' new'; _ibxLoad(true); }
+      catch(e){ b.textContent = 'Sync now'; document.getElementById('ibxAMsg').textContent = (e && e.message) || 'Sync failed'; }
+    };
+  });
+  el.querySelectorAll('[data-ibxdel]').forEach(function(b){
+    b.onclick = async function(){
+      if (!confirm('Disconnect this account? Its mirrored mail leaves RoofMap (nothing is deleted at your provider).')) return;
+      try { await api('DELETE', '/inbox/accounts/' + b.getAttribute('data-ibxdel')); await _ibxLoad(true); _ibxAcctRenderList(); }
+      catch(e){ document.getElementById('ibxAMsg').textContent = (e && e.message) || 'Could not disconnect'; }
+    };
+  });
+}
+async function _ibxAcctConnect(){
+  var btn = document.getElementById('ibxAConnect'), msg = document.getElementById('ibxAMsg');
+  btn.disabled = true; btn.textContent = 'Checking the login…';
+  try {
+    await api('POST', '/inbox/accounts', {
+      email: document.getElementById('ibxAEmail').value.trim(),
+      label: document.getElementById('ibxALabel').value.trim(),
+      provider: _ibxProv || 'other',
+      imap_host: document.getElementById('ibxAImapHost').value.trim(),
+      imap_port: parseInt(document.getElementById('ibxAImapPort').value, 10) || 993,
+      smtp_host: document.getElementById('ibxASmtpHost').value.trim(),
+      smtp_port: parseInt(document.getElementById('ibxASmtpPort').value, 10) || 465,
+      password: document.getElementById('ibxAPass').value,
+      shared: document.getElementById('ibxAShared').checked,
+    });
+    btn.disabled = false; btn.textContent = 'Connect';
+    document.getElementById('ibxAPass').value = '';
+    msg.style.color = '#16a34a'; msg.textContent = '✓ Connected — pulling your recent mail now';
+    await _ibxLoad(true);
+    _ibxAcctRenderList();
+  } catch(e){
+    btn.disabled = false; btn.textContent = 'Connect';
+    msg.style.color = '#b91c1c'; msg.textContent = (e && e.message) || 'Could not connect';
+  }
 }
 
 // ── Update watcher ─────────────────────────────────────────────────

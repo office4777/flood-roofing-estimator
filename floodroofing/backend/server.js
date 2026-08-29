@@ -1021,10 +1021,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // before choosing — and so that every account that predates plans keeps
 // working unchanged.
 const PLANS = {
-  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true  },
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true,  schedule: false },
-  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true  },
+  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true,  schedule: false, inbox: false },
+  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
 };
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
 // Cached briefly so a per-request plan check isn't a per-request query. The
@@ -1138,7 +1138,7 @@ async function _companyBrief(cid, userId){
       const plan = await _planOf(cid);
       const lim = _limitsFor(plan);
       brief.plan = plan;
-      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule };
+      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox };
     } catch (e) {}
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
@@ -1173,7 +1173,7 @@ app.get('/team', requireAuth, async (req, res) => {
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
       members, invites,
       plan: { id: plan, label: lim.label, seats: seats,
-              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule },
+              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox },
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -3736,6 +3736,466 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
+// ────────────────────────────────────────────────────────────────────
+// INBOX — the comms hub (Business tier)
+//
+// A company connects its real email accounts over IMAP/SMTP (app
+// passwords — universal today; one-click Google OAuth can slot in later
+// once the CASA verification is done). Messages are mirrored into
+// mail_threads/mail_messages so the whole team reads and replies from
+// one place: shared accounts (office@) are visible to everyone in the
+// company, private ones only to whoever connected them.
+//
+// Credentials are AES-256-GCM encrypted at rest with MAIL_CRED_KEY and
+// never appear in any API response. IMAP sits behind a fetcher seam
+// (globalThis.__TEST_MAIL_FETCHER) so the suites drive ingestion without
+// a mail server; SMTP goes to a nodemailer jsonTransport when
+// __TEST_MAIL_JSON is set, so tests can pin the exact envelope.
+const _inboxGate = [requireAuth, requireSubscription, requirePlan('inbox', 'The inbox', 'Business')];
+
+function _mailKeyBuf(){
+  const src = process.env.MAIL_CRED_KEY || ('derived:' + (process.env.JWT_SECRET || 'dev'));
+  return crypto.createHash('sha256').update(src).digest();
+}
+function _mailEnc(plain){
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', _mailKeyBuf(), iv);
+  const ct = Buffer.concat([c.update(String(plain), 'utf8'), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64');
+}
+function _mailDec(enc){
+  const b = Buffer.from(String(enc), 'base64');
+  const d = crypto.createDecipheriv('aes-256-gcm', _mailKeyBuf(), b.subarray(0, 12));
+  d.setAuthTag(b.subarray(12, 28));
+  return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8');
+}
+
+// Defence in depth: the client renders bodies in a sandboxed iframe, but
+// the stored HTML is stripped anyway — scripts, event handlers and
+// javascript: URLs go, and remote images move to data-rsrc so nothing
+// phones home until the reader clicks "load images".
+function _mailSanitize(html){
+  var h = String(html || '');
+  h = h.replace(/<!--[\s\S]*?-->/g, '');
+  h = h.replace(/<(script|style|iframe|object|embed|title)\b[\s\S]*?<\/\1\s*>/gi, '');
+  h = h.replace(/<(script|iframe|object|embed|link|meta|base|form)\b[^>]*>/gi, '');
+  h = h.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  h = h.replace(/(href|src)\s*=\s*(["']?)\s*javascript:[^"'\s>]*/gi, '$1=$2#');
+  h = h.replace(/\ssrc\s*=\s*(["'])(https?:[^"']*)\1/gi, ' data-rsrc=$1$2$1');
+  h = h.replace(/\ssrcset\s*=\s*("[^"]*"|'[^']*')/gi, '');
+  return h.slice(0, 400000);
+}
+function _mailSnippet(m){
+  var t = String(m.body_text || '').replace(/\s+/g, ' ').trim();
+  if (!t) t = String(m.body_html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.slice(0, 160);
+}
+// The root Message-ID threads the conversation; a first message with no
+// references keys on its own id, and its replies point back at it.
+function _mailThreadKey(m){
+  var refs = String(m.refs || '').trim().split(/\s+/).filter(Boolean);
+  if (refs.length) return refs[0];
+  if (m.in_reply_to) return String(m.in_reply_to).trim();
+  if (m.msg_id) return String(m.msg_id).trim();
+  return 'h:' + crypto.createHash('sha1')
+    .update(String(m.subject || '').replace(/^((re|fwd?):\s*)+/i, '').toLowerCase() + '|' + (m.from_addr || ''))
+    .digest('hex');
+}
+
+// ── the IMAP/SMTP seams ──
+const _mailFetcherReal = {
+  async verify(conn, pass){
+    const { ImapFlow } = require('imapflow');
+    const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
+      auth: { user: conn.user, pass }, logger: false });
+    await c.connect();
+    try { await c.logout(); } catch (e) {}
+  },
+  async fetchNew(conn, pass, lastUid){
+    const { ImapFlow } = require('imapflow');
+    const { simpleParser } = require('mailparser');
+    const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
+      auth: { user: conn.user, pass }, logger: false });
+    await c.connect();
+    const out = [];
+    let maxUid = lastUid || 0;
+    try {
+      const lock = await c.getMailboxLock('INBOX');
+      try {
+        // A brand-new account starts from the most recent ~60 messages, not
+        // years of history; every later sweep continues from last_uid.
+        let startUid = (lastUid || 0) + 1;
+        if (!lastUid) {
+          const un = (c.mailbox && c.mailbox.uidNext) || 1;
+          startUid = Math.max(1, un - 60);
+        }
+        for await (const m of c.fetch(startUid + ':*', { uid: true, source: true }, { uid: true })) {
+          if (m.uid < startUid) continue;
+          const p = await simpleParser(m.source);
+          out.push({
+            uid: m.uid,
+            msg_id: p.messageId || '',
+            in_reply_to: p.inReplyTo || '',
+            refs: Array.isArray(p.references) ? p.references.join(' ') : (p.references || ''),
+            from_addr: (p.from && p.from.value && p.from.value[0] && p.from.value[0].address) || '',
+            from_name: (p.from && p.from.value && p.from.value[0] && p.from.value[0].name) || '',
+            to_addrs: ((p.to && p.to.value) || []).map(v => v.address).filter(Boolean),
+            cc_addrs: ((p.cc && p.cc.value) || []).map(v => v.address).filter(Boolean),
+            subject: p.subject || '',
+            date: p.date ? p.date.toISOString() : new Date().toISOString(),
+            body_text: p.text || '',
+            body_html: p.html || '',
+            attachments: (p.attachments || []).map(a => ({ name: a.filename || 'file', size: a.size || 0, type: a.contentType || '' })),
+          });
+          if (m.uid > maxUid) maxUid = m.uid;
+          if (out.length >= 120) break;   // cap a sweep; the next one continues
+        }
+      } finally { lock.release(); }
+    } finally { try { await c.logout(); } catch (e) {} }
+    return { messages: out, lastUid: maxUid };
+  },
+  // Best-effort copy into the provider's Sent folder so the reply shows in
+  // Gmail/Outlook too, not just here. Failure is silent — the send stood.
+  async appendSent(conn, pass, rfc822){
+    try {
+      const { ImapFlow } = require('imapflow');
+      const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
+        auth: { user: conn.user, pass }, logger: false });
+      await c.connect();
+      try {
+        const boxes = await c.list();
+        const sent = boxes.find(b => b.specialUse === '\\Sent') || boxes.find(b => /sent/i.test(b.path));
+        if (sent) await c.append(sent.path, rfc822, ['\\Seen']);
+      } finally { try { await c.logout(); } catch (e) {} }
+    } catch (e) { /* the SMTP send already succeeded */ }
+  },
+};
+function _mailFetcher(){ return globalThis.__TEST_MAIL_FETCHER || _mailFetcherReal; }
+function _mailTransport(acct, pass){
+  const nodemailer = require('nodemailer');
+  if (globalThis.__TEST_MAIL_JSON) return nodemailer.createTransport({ jsonTransport: true });
+  return nodemailer.createTransport({
+    host: acct.smtp_host, port: acct.smtp_port, secure: acct.smtp_port === 465,
+    auth: { user: acct.username || acct.email, pass },
+  });
+}
+
+// ── ingest ──
+async function _inboxIngest(acct, msgs){
+  if (!msgs || !msgs.length) return 0;
+  const ids = msgs.map(m => m.msg_id).filter(Boolean);
+  const seen = new Set();
+  if (ids.length) {
+    // The fake PostgREST has no `in` operator (it returns everything), so
+    // the dedupe set is built from OUR ids in JS either way.
+    const { data } = await supabase.from('mail_messages').select('msg_id')
+      .eq('account_id', acct.id).in('msg_id', ids);
+    for (const r of (data || [])) if (ids.includes(r.msg_id)) seen.add(r.msg_id);
+  }
+  let added = 0;
+  for (const m of msgs) {
+    if (m.msg_id && seen.has(m.msg_id)) continue;
+    const key = _mailThreadKey(m);
+    const row = {
+      id: crypto.randomUUID(), company_id: acct.company_id, user_id: acct.user_id,
+      account_id: acct.id, thread_key: key,
+      msg_id: m.msg_id || '', in_reply_to: m.in_reply_to || '', refs: m.refs || '',
+      from_addr: m.from_addr || '', from_name: m.from_name || '',
+      to_addrs: m.to_addrs || [], cc_addrs: m.cc_addrs || [],
+      subject: m.subject || '', date: m.date || new Date().toISOString(),
+      body_text: String(m.body_text || '').slice(0, 200000),
+      body_html: _mailSanitize(m.body_html),
+      attachments: m.attachments || [], folder: 'INBOX', ai: null,
+      created_at: new Date().toISOString(),
+    };
+    const ins = await supabase.from('mail_messages').insert(row);
+    if (ins.error) continue;
+    added++;
+    const { data: th } = await supabase.from('mail_threads').select('*')
+      .eq('account_id', acct.id).eq('thread_key', key).limit(1);
+    const snip = _mailSnippet(row);
+    if (th && th[0]) {
+      await supabase.from('mail_threads').update({
+        subject: th[0].subject || row.subject, snippet: snip, last_date: row.date,
+        unread: true, status: th[0].status === 'archived' ? 'inbox' : th[0].status,
+        msg_count: (th[0].msg_count || 0) + 1,
+      }).eq('id', th[0].id);
+    } else {
+      await supabase.from('mail_threads').insert({
+        id: crypto.randomUUID(), company_id: acct.company_id, user_id: acct.user_id,
+        account_id: acct.id, thread_key: key, subject: row.subject,
+        participants: [row.from_addr].concat(row.to_addrs || []).filter(Boolean).slice(0, 12),
+        snippet: snip, last_date: row.date, status: 'inbox', snoozed_until: null,
+        assignee_user_id: null, job_id: null, category: '', priority: null, urgency: null,
+        unread: true, msg_count: 1, created_at: new Date().toISOString(),
+      });
+    }
+  }
+  return added;
+}
+async function _inboxSyncAccount(acct){
+  try {
+    const pass = _mailDec(acct.cred_enc);
+    const f = _mailFetcher();
+    const conn = { host: acct.imap_host, port: acct.imap_port, user: acct.username || acct.email };
+    const r = await f.fetchNew(conn, pass, (acct.last_uid && acct.last_uid.INBOX) || 0);
+    const added = await _inboxIngest(acct, r.messages);
+    await supabase.from('mail_accounts').update({
+      status: 'ok', last_error: '', last_sync: new Date().toISOString(),
+      last_uid: Object.assign({}, acct.last_uid || {}, { INBOX: r.lastUid || ((acct.last_uid || {}).INBOX || 0) }),
+    }).eq('id', acct.id);
+    return added;
+  } catch (e) {
+    await supabase.from('mail_accounts').update({ status: 'error', last_error: String(e.message || e).slice(0, 300) }).eq('id', acct.id);
+    throw e;
+  }
+}
+// Wake snoozed threads whose time has come, then poll every account.
+async function _inboxSweep(){
+  try {
+    const now = new Date().toISOString();
+    const { data: snoozed } = await supabase.from('mail_threads').select('id, snoozed_until').eq('status', 'snoozed');
+    for (const t of (snoozed || [])) {
+      if (t.snoozed_until && t.snoozed_until <= now)
+        await supabase.from('mail_threads').update({ status: 'inbox', snoozed_until: null, unread: true }).eq('id', t.id);
+    }
+    const { data: accts } = await supabase.from('mail_accounts').select('*').limit(300);
+    for (const a of (accts || [])) {
+      try { await _inboxSyncAccount(a); } catch (e) { /* recorded on the row */ }
+    }
+  } catch (e) { console.warn('[inbox] sweep: ' + e.message); }
+}
+setInterval(_inboxSweep, 180000);
+
+// ── accounts ──
+const _MAIL_ACCT_SAFE = 'id, company_id, user_id, label, email, provider, imap_host, imap_port, smtp_host, smtp_port, username, shared, status, last_error, last_sync, created_at';
+async function _inboxVisibleAccounts(req){
+  const { data } = await _scopeCompany(supabase.from('mail_accounts').select('*'), req);
+  return (data || []).filter(a => a.shared || a.user_id === req.user.id);
+}
+function _mailAcctPublic(a){
+  const o = {}; _MAIL_ACCT_SAFE.split(', ').forEach(k => { o[k] = a[k]; }); return o;
+}
+app.get('/inbox/accounts', ..._inboxGate, async (req, res) => {
+  try { res.json((await _inboxVisibleAccounts(req)).map(_mailAcctPublic)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
+  const b = req.body || {};
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'A real email address, please' });
+  if (!b.password) return res.status(400).json({ error: 'The app password is required' });
+  const acct = {
+    id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+    label: String(b.label || email).slice(0, 80), email,
+    provider: String(b.provider || 'other').slice(0, 20),
+    imap_host: String(b.imap_host || '').trim(), imap_port: parseInt(b.imap_port, 10) || 993,
+    smtp_host: String(b.smtp_host || '').trim(), smtp_port: parseInt(b.smtp_port, 10) || 465,
+    username: String(b.username || email).trim(),
+    cred_enc: _mailEnc(String(b.password)), shared: b.shared !== false,
+    status: 'ok', last_error: '', last_uid: null, last_sync: null,
+    created_at: new Date().toISOString(),
+  };
+  if (!acct.imap_host || !acct.smtp_host) return res.status(400).json({ error: 'IMAP and SMTP hosts are required' });
+  try {
+    // Prove the login works BEFORE storing it — both directions.
+    await _mailFetcher().verify({ host: acct.imap_host, port: acct.imap_port, user: acct.username }, String(b.password));
+    await _mailTransport(acct, String(b.password)).verify();
+  } catch (e) {
+    return res.status(400).json({ error: 'Could not sign in: ' + String(e.message || e).slice(0, 200) +
+      ' — check the app password and hosts.' });
+  }
+  try {
+    const { error } = await supabase.from('mail_accounts').insert(acct);
+    if (error) return res.status(500).json({ error: error.message });
+    _inboxSyncAccount(acct).catch(() => {});   // first pull in the background
+    res.json(_mailAcctPublic(acct));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.patch('/inbox/accounts/:id', ..._inboxGate, async (req, res) => {
+  const b = req.body || {};
+  const patch = {};
+  if (b.label !== undefined) patch.label = String(b.label).slice(0, 80);
+  if (b.shared !== undefined) patch.shared = !!b.shared;
+  if (b.password) patch.cred_enc = _mailEnc(String(b.password));
+  try {
+    // Only whoever connected the account can change it.
+    const { data } = await _scopeCompany(supabase.from('mail_accounts').update(patch), req)
+      .eq('id', req.params.id).eq('user_id', req.user.id).select(_MAIL_ACCT_SAFE);
+    if (!data || !data.length) return res.status(404).json({ error: 'Account not found' });
+    res.json(data[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/inbox/accounts/:id', ..._inboxGate, async (req, res) => {
+  try {
+    const { data } = await _scopeCompany(supabase.from('mail_accounts').delete(), req)
+      .eq('id', req.params.id).eq('user_id', req.user.id).select('id');
+    if (!data || !data.length) return res.status(404).json({ error: 'Account not found' });
+    await supabase.from('mail_threads').delete().eq('account_id', req.params.id);
+    await supabase.from('mail_messages').delete().eq('account_id', req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/inbox/accounts/:id/sync', ..._inboxGate, async (req, res) => {
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const acct = accts.find(a => a.id === req.params.id);
+    if (!acct) return res.status(404).json({ error: 'Account not found' });
+    const added = await _inboxSyncAccount(acct);
+    res.json({ ok: true, added });
+  } catch (e) { res.status(400).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+
+// ── threads ──
+app.get('/inbox/threads', ..._inboxGate, async (req, res) => {
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const ids = new Set(accts.map(a => a.id));
+    const byId = {}; accts.forEach(a => { byId[a.id] = a; });
+    const status = String(req.query.status || 'inbox');
+    let q = _scopeCompany(supabase.from('mail_threads').select('*'), req);
+    if (status !== 'all') q = q.eq('status', status);
+    const { data, error } = await q.limit(1500);
+    if (error) return res.status(500).json({ error: error.message });
+    let rows = (data || []).filter(t => ids.has(t.account_id));
+    if (req.query.account_id) rows = rows.filter(t => t.account_id === req.query.account_id);
+    const needle = String(req.query.q || '').toLowerCase();
+    if (needle) rows = rows.filter(t =>
+      (t.subject || '').toLowerCase().includes(needle) ||
+      (t.snippet || '').toLowerCase().includes(needle) ||
+      JSON.stringify(t.participants || []).toLowerCase().includes(needle));
+    rows.sort((a, b2) => String(b2.last_date || '').localeCompare(String(a.last_date || '')));
+    rows = rows.slice(0, 200).map(t => Object.assign({}, t, {
+      account_email: (byId[t.account_id] || {}).email || '',
+      account_label: (byId[t.account_id] || {}).label || '',
+    }));
+    res.json({ threads: rows, accounts: accts.map(_mailAcctPublic) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/inbox/threads/:id', ..._inboxGate, async (req, res) => {
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).eq('id', req.params.id).limit(1);
+    const t = data && data[0];
+    if (!t || !accts.some(a => a.id === t.account_id)) return res.status(404).json({ error: 'Thread not found' });
+    const { data: msgs } = await supabase.from('mail_messages').select('*')
+      .eq('account_id', t.account_id).eq('thread_key', t.thread_key).limit(200);
+    const sorted = (msgs || []).sort((a, b2) => String(a.date || '').localeCompare(String(b2.date || '')));
+    res.json({ thread: t, messages: sorted });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+const _MAIL_THREAD_WRITABLE = ['status', 'snoozed_until', 'assignee_user_id', 'unread', 'job_id'];
+app.patch('/inbox/threads/:id', ..._inboxGate, async (req, res) => {
+  const patch = {};
+  for (const k of _MAIL_THREAD_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
+  if (patch.status && !['inbox', 'archived', 'snoozed', 'closed'].includes(patch.status))
+    return res.status(400).json({ error: 'Bad status' });
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').update(patch), req)
+      .eq('id', req.params.id).select('*');
+    const t = data && data[0];
+    if (!t || !accts.some(a => a.id === t.account_id)) return res.status(404).json({ error: 'Thread not found' });
+    res.json(t);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── send ──
+async function _inboxSend(req, acct, mail){
+  const pass = _mailDec(acct.cred_enc);
+  const msgId = '<rm-' + crypto.randomUUID() + '@' + (acct.email.split('@')[1] || 'roofmap.co.nz') + '>';
+  const t = _mailTransport(acct, pass);
+  const payload = {
+    from: { name: acct.label || acct.email, address: acct.email },
+    to: mail.to, cc: mail.cc || undefined,
+    subject: mail.subject, text: mail.body_text,
+    messageId: msgId,
+    inReplyTo: mail.in_reply_to || undefined,
+    references: mail.refs || undefined,
+  };
+  const info = await t.sendMail(payload);
+  if (!globalThis.__TEST_MAIL_JSON) {
+    _mailFetcherReal.appendSent(
+      { host: acct.imap_host, port: acct.imap_port, user: acct.username || acct.email },
+      pass,
+      Buffer.from('From: ' + acct.email + '\r\nTo: ' + mail.to + '\r\nSubject: ' + mail.subject +
+        '\r\nMessage-ID: ' + msgId + '\r\nDate: ' + new Date().toUTCString() + '\r\n\r\n' + mail.body_text)
+    ).catch(() => {});
+  }
+  return { msgId, info };
+}
+app.post('/inbox/threads/:id/reply', ..._inboxGate, async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.body_text || '').trim()) return res.status(400).json({ error: 'Write the reply first' });
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).eq('id', req.params.id).limit(1);
+    const t = data && data[0];
+    const acct = t && accts.find(a => a.id === t.account_id);
+    if (!t || !acct) return res.status(404).json({ error: 'Thread not found' });
+    const { data: msgs } = await supabase.from('mail_messages').select('*')
+      .eq('account_id', t.account_id).eq('thread_key', t.thread_key).limit(200);
+    const inbound = (msgs || []).filter(m => m.folder !== 'Sent')
+      .sort((a, b2) => String(b2.date || '').localeCompare(String(a.date || '')))[0];
+    const to = String(b.to || (inbound && inbound.from_addr) || '').trim();
+    if (!to) return res.status(400).json({ error: 'No one to reply to' });
+    const subject = t.subject && /^re:/i.test(t.subject) ? t.subject : ('Re: ' + (t.subject || ''));
+    const refs = ((inbound && inbound.refs) ? inbound.refs + ' ' : '') + ((inbound && inbound.msg_id) || '');
+    const sent = await _inboxSend(req, acct, {
+      to, cc: b.cc, subject, body_text: String(b.body_text),
+      in_reply_to: (inbound && inbound.msg_id) || '', refs: refs.trim(),
+    });
+    const row = {
+      id: crypto.randomUUID(), company_id: acct.company_id, user_id: req.user.id,
+      account_id: acct.id, thread_key: t.thread_key, msg_id: sent.msgId,
+      in_reply_to: (inbound && inbound.msg_id) || '', refs: refs.trim(),
+      from_addr: acct.email, from_name: acct.label || '', to_addrs: [to],
+      cc_addrs: b.cc ? [String(b.cc)] : [], subject,
+      date: new Date().toISOString(), body_text: String(b.body_text), body_html: '',
+      attachments: [], folder: 'Sent', ai: null, created_at: new Date().toISOString(),
+    };
+    await supabase.from('mail_messages').insert(row);
+    await supabase.from('mail_threads').update({
+      snippet: _mailSnippet(row), last_date: row.date, unread: false,
+      msg_count: (t.msg_count || 0) + 1,
+    }).eq('id', t.id);
+    res.json(Object.assign({ ok: true, message: row },
+      globalThis.__TEST_MAIL_JSON ? { _test_envelope: JSON.parse(sent.info.message) } : {}));
+  } catch (e) { res.status(500).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+app.post('/inbox/compose', ..._inboxGate, async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.to || '').trim()) return res.status(400).json({ error: 'Who is it to?' });
+  if (!String(b.body_text || '').trim()) return res.status(400).json({ error: 'Write the email first' });
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const acct = accts.find(a => a.id === b.account_id) || accts[0];
+    if (!acct) return res.status(400).json({ error: 'Connect an email account first' });
+    const subject = String(b.subject || '(no subject)').slice(0, 300);
+    const sent = await _inboxSend(req, acct, { to: String(b.to).trim(), cc: b.cc, subject, body_text: String(b.body_text) });
+    const key = sent.msgId;
+    const row = {
+      id: crypto.randomUUID(), company_id: acct.company_id, user_id: req.user.id,
+      account_id: acct.id, thread_key: key, msg_id: sent.msgId, in_reply_to: '', refs: '',
+      from_addr: acct.email, from_name: acct.label || '', to_addrs: [String(b.to).trim()],
+      cc_addrs: b.cc ? [String(b.cc)] : [], subject,
+      date: new Date().toISOString(), body_text: String(b.body_text), body_html: '',
+      attachments: [], folder: 'Sent', ai: null, created_at: new Date().toISOString(),
+    };
+    await supabase.from('mail_messages').insert(row);
+    await supabase.from('mail_threads').insert({
+      id: crypto.randomUUID(), company_id: acct.company_id, user_id: req.user.id,
+      account_id: acct.id, thread_key: key, subject,
+      participants: [acct.email, String(b.to).trim()], snippet: _mailSnippet(row),
+      last_date: row.date, status: 'inbox', snoozed_until: null, assignee_user_id: null,
+      job_id: null, category: '', priority: null, urgency: null, unread: false,
+      msg_count: 1, created_at: new Date().toISOString(),
+    });
+    res.json(Object.assign({ ok: true, message: row },
+      globalThis.__TEST_MAIL_JSON ? { _test_envelope: JSON.parse(sent.info.message) } : {}));
+  } catch (e) { res.status(500).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+
 // SCHEDULE — the forward-workflow board (Business tier)
 // ══════════════════════════════════════════════════════════════════
 // The office's Excel Schedule sheet, as a feature: jobs as rows (oldest
@@ -6438,6 +6898,22 @@ const _MIGRATION_SQL = [
   "alter table public.schedule_rows add column if not exists user_id uuid",
   "alter table public.schedule_blocks add column if not exists user_id uuid",
   "alter table public.schedule_rows add column if not exists handover_done boolean not null default false",
+
+  // 10c. inbox — the comms hub (Business tier). A company connects its real
+  //      email accounts over IMAP/SMTP; messages are mirrored here so the
+  //      whole team works one inbox. Credentials are AES-256-GCM encrypted
+  //      at rest and never leave the server.
+  "create table if not exists public.mail_accounts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, label text not null default '', email text not null default '', provider text not null default 'other', imap_host text not null default '', imap_port int not null default 993, smtp_host text not null default '', smtp_port int not null default 465, username text not null default '', cred_enc text not null default '', shared boolean not null default true, status text not null default 'ok', last_error text not null default '', last_uid jsonb, last_sync timestamptz, created_at timestamptz not null default now())",
+  "create index if not exists idx_mail_accounts_co on public.mail_accounts (company_id)",
+  "alter table public.mail_accounts enable row level security",
+  "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, created_at timestamptz not null default now())",
+  "create index if not exists idx_mail_threads_co on public.mail_threads (company_id, status, last_date)",
+  "create unique index if not exists idx_mail_threads_key on public.mail_threads (account_id, thread_key)",
+  "alter table public.mail_threads enable row level security",
+  "create table if not exists public.mail_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, msg_id text not null default '', in_reply_to text not null default '', refs text not null default '', from_addr text not null default '', from_name text not null default '', to_addrs jsonb, cc_addrs jsonb, subject text not null default '', date timestamptz, body_text text not null default '', body_html text not null default '', attachments jsonb, folder text not null default 'INBOX', ai jsonb, created_at timestamptz not null default now())",
+  "create index if not exists idx_mail_messages_th on public.mail_messages (account_id, thread_key, date)",
+  "create unique index if not exists idx_mail_messages_mid on public.mail_messages (account_id, msg_id) where msg_id <> ''",
+  "alter table public.mail_messages enable row level security",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember

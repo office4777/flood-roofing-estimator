@@ -249,8 +249,12 @@ export function startFakePostgrest(tables){
         return send(201, out);
       }
       if (req.method === 'DELETE'){
+        // Real PostgREST returns the deleted rows when the client asks for
+        // representation (supabase-js .delete().select() does) — routes use
+        // that to tell "deleted" from "matched nothing" (404).
+        const gone = db[table].filter(r => match(r));
         db[table] = db[table].filter(r => !match(r));
-        return send(200, []);
+        return send(200, gone);
       }
       send(200, []);
     });
