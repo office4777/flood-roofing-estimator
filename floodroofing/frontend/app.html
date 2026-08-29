@@ -5426,6 +5426,25 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
   </div>
 
+  <!-- Crews & colours, straight from the palette's ✎ chip -->
+  <div id="schedCrewPopOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedCrewPopClose()"></div>
+  <div id="schedCrewPop" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:380px;max-width:94vw;max-height:80vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">Crews &amp; colours</strong>
+      <button onclick="_schedCrewPopClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto">
+      <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Each crew gets a colour on the board — the red pencil always means "roughly then, not booked yet".</div>
+      <div id="schedCrewPopList"></div>
+      <button onclick="_schedCrewAdd('schedCrewPopList')" style="margin-top:6px;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">＋ Add crew</button>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px">
+        <span id="schedCrewPopMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>
+        <button onclick="_schedCrewPopClose()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12.5px;cursor:pointer">Cancel</button>
+        <button onclick="_schedCrewPopSave()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Board settings: crews, capacity, shutdowns, calendar feed -->
   <div id="schedCfgOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedSettingsClose()"></div>
   <div id="schedCfgModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
@@ -7602,6 +7621,7 @@ function _schedRenderPalette(){
   (((_SCHED.data.cfg || {}).crews) || []).forEach(function(c){
     chips += '<button class="sched-chip' + (_SCHED.sel === c.id ? ' on' : '') + '" data-pal="' + c.id + '"><span class="dot" style="background:' + c.colour + '"></span>' + String(c.name || '').replace(/</g, '&lt;') + '</button>';
   });
+  chips += '<button class="sched-chip" data-pal-edit title="Add or edit crews &amp; their colours">✎</button>';
   pal.innerHTML = chips;
   pal.querySelectorAll('[data-pal]').forEach(function(b){
     b.onclick = function(){
@@ -7610,6 +7630,8 @@ function _schedRenderPalette(){
       _schedRenderPalette();
     };
   });
+  var pe = pal.querySelector('[data-pal-edit]');
+  if (pe) pe.onclick = _schedCrewPopOpen;
   var ab = document.getElementById('schedArchBtn');
   if (ab) ab.classList.toggle('on', _SCHED.archived);
 }
@@ -7700,6 +7722,7 @@ function _schedStripDown(ev, strip){
   var blockEl = ev.target.closest ? ev.target.closest('.sched-block') : null;
   if (blockEl){
     var bId = blockEl.getAttribute('data-block');
+    if (bId && bId.indexOf('tmp-') === 0) return;   // still saving — a beat later it has a real id
     var b = (_SCHED.data.blocks || []).find(function(x){ return x.id === bId; });
     if (!b) return;
     var resizing = ev.target.classList && ev.target.classList.contains('rz');
@@ -7769,8 +7792,14 @@ function _schedStripDown(ev, strip){
   var body = { row_id: rowId, kind: kind, crew_id: kind === 'crew' ? _SCHED.sel : '',
                start_date: _schedSnapStart(_SCHED.days[day]),
                work_days: hasAny ? 1 : Math.max(1, r.length_days || 1) };
+  // Paint NOW — waiting for the server made every tap feel seconds slow on
+  // a phone. The temp block swaps to the server id when the POST answers;
+  // a failed POST reloads the board (in _schedApi), dropping the phantom.
+  var temp = Object.assign({ id: 'tmp-' + Date.now() }, body);
+  _SCHED.data.blocks.push(temp);
+  _schedRender();
   _schedApi('POST', '/schedule/blocks', body).then(function(created){
-    _SCHED.data.blocks.push(created);
+    if (created && created.id) temp.id = created.id;
     _schedRender();
   });
 }
@@ -7982,8 +8011,8 @@ function _schedSettingsClose(){
   document.getElementById('schedCfgOverlay').style.display = 'none';
   document.getElementById('schedCfgModal').style.display = 'none';
 }
-function _schedCrewsRender(){
-  var el = document.getElementById('schedCrewList');
+function _schedCrewsRender(elId){
+  var el = document.getElementById(elId || 'schedCrewList');
   el.innerHTML = (_schedCfgDraft.crews || []).map(function(c, i){
     return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
       '<input type="color" value="' + (c.colour || '#94a3b8') + '" data-crewcol="' + i + '" style="width:34px;height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:1px;background:#fff">' +
@@ -7992,13 +8021,34 @@ function _schedCrewsRender(){
   }).join('');
   el.querySelectorAll('[data-crewcol]').forEach(function(inp){ inp.oninput = function(){ _schedCfgDraft.crews[+inp.getAttribute('data-crewcol')].colour = inp.value; }; });
   el.querySelectorAll('[data-crewname]').forEach(function(inp){ inp.oninput = function(){ _schedCfgDraft.crews[+inp.getAttribute('data-crewname')].name = inp.value; }; });
-  el.querySelectorAll('[data-crewdel]').forEach(function(b){ b.onclick = function(){ _schedCfgDraft.crews.splice(+b.getAttribute('data-crewdel'), 1); _schedCrewsRender(); }; });
+  el.querySelectorAll('[data-crewdel]').forEach(function(b){ b.onclick = function(){ _schedCfgDraft.crews.splice(+b.getAttribute('data-crewdel'), 1); _schedCrewsRender(elId); }; });
 }
-function _schedCrewAdd(){
+function _schedCrewAdd(elId){
   var palette = ['#4472c4', '#fce142', '#f87d20', '#70ad47', '#fd87c5', '#305496', '#7030a0', '#0a1628'];
   _schedCfgDraft.crews.push({ id: 'c' + Math.random().toString(36).slice(2, 8), name: '',
     colour: palette[_schedCfgDraft.crews.length % palette.length] });
-  _schedCrewsRender();
+  _schedCrewsRender(elId);
+}
+// ── the ✎ chip: crews & colours right from the header bar ──
+function _schedCrewPopOpen(){
+  _schedCfgDraft = JSON.parse(JSON.stringify((_SCHED.data && _SCHED.data.cfg) || { crews: [], cap: 4, shutdowns: [], region: 'auckland' }));
+  _schedCrewsRender('schedCrewPopList');
+  document.getElementById('schedCrewPopMsg').textContent = '';
+  document.getElementById('schedCrewPopOverlay').style.display = 'block';
+  document.getElementById('schedCrewPop').style.display = 'flex';
+}
+function _schedCrewPopClose(){
+  document.getElementById('schedCrewPopOverlay').style.display = 'none';
+  document.getElementById('schedCrewPop').style.display = 'none';
+}
+async function _schedCrewPopSave(){
+  var msg = document.getElementById('schedCrewPopMsg');
+  var crews = (_schedCfgDraft.crews || []).filter(function(c){ return String(c.name || '').trim(); });
+  try {
+    await api('PUT', '/schedule/config', { crews: crews });
+    _schedCrewPopClose();
+    _schedLoad();
+  } catch(e){ msg.textContent = (e && e.message) || 'Could not save'; }
 }
 function _schedShutsRender(){
   var el = document.getElementById('schedShutList');

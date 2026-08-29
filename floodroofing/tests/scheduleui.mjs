@@ -60,7 +60,11 @@ async function boot(opts){
         body: JSON.stringify(Object.assign({ id: 'nr' + calls.length, archived: false, auto: {} }, body)) }); }
     if (/\/schedule\/blocks$/.test(u) && m === 'POST'){ const body = JSON.parse(r.request().postData() || '{}');
       calls.push(['POST blocks', body]);
-      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(Object.assign({ id: 'nb' + calls.length }, body)) }); }
+      // A slow server, like a phone on 4G — the paint must not wait for this.
+      return new Promise(res => setTimeout(res, 600)).then(() =>
+        r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(Object.assign({ id: 'nb' + calls.length }, body)) })); }
+    if (/\/schedule\/config$/.test(u) && m === 'PUT'){ calls.push(['PUT config', JSON.parse(r.request().postData() || '{}')]);
+      return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }
     if (/\/schedule\/blocks\//.test(u) && m === 'PATCH'){ calls.push(['PATCH ' + u.split('/').pop(), JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
     if (/\/schedule\/rows\/[^/]+$/.test(u) && m === 'PATCH'){ calls.push(['PATCH row', JSON.parse(r.request().postData() || '{}')]);
@@ -94,12 +98,13 @@ let v = await pg.evaluate(() => ({
   wrap: getComputedStyle(document.getElementById('schedWrap')).display !== 'none',
   rows: document.querySelectorAll('.sched-row:not(.pad)').length,
   blocks: document.querySelectorAll('.sched-block').length,
-  chips: document.querySelectorAll('#schedPalette .sched-chip').length,
+  chips: document.querySelectorAll('#schedPalette [data-pal]').length,
+  editChip: !!document.querySelector('#schedPalette [data-pal-edit]'),
   weekendShades: document.querySelectorAll('.sched-shade:not(.cap):not(.today)').length,
   capShades: document.querySelectorAll('.sched-shade.cap').length,
 }));
-check('the board renders rows, blocks, palette and weekend shading',
-  v.wrap && v.rows === 2 && v.blocks === 2 && v.chips === 3 && v.weekendShades > 20, JSON.stringify(v));
+check('the board renders rows, blocks, palette (with its ✎ chip) and weekend shading',
+  v.wrap && v.rows === 2 && v.blocks === 2 && v.chips === 3 && v.editChip && v.weekendShades > 20, JSON.stringify(v));
 check('days holding more jobs than the cap wear the warning tint', v.capShades >= 2, v.capShades + ' warned days');
 
 // The Excel-sheet look: the board pads out to 20 lines of blank rows, the
@@ -140,6 +145,16 @@ await pg.waitForTimeout(400);
 paint = calls.find(c => c[0] === 'POST blocks');
 check('a weekend click snaps the block to the next working day',
   !!paint && paint[1].start_date === '2026-09-07', JSON.stringify(paint && paint[1]));
+
+// The tap paints IMMEDIATELY — the (slow) server answer only swaps the id in.
+calls.length = 0;
+await pg.mouse.click(box.x + 18 * 24 + 12, box.y + 15);   // Mon 14 Sep, free working day
+await pg.waitForTimeout(120);
+v = await pg.evaluate(() => document.querySelectorAll('[data-block^="tmp-"]').length);
+check('a tap paints instantly, before the server answers', v >= 1, v + ' temp blocks at 120ms');
+await pg.waitForTimeout(900);
+v = await pg.evaluate(() => document.querySelectorAll('[data-block^="tmp-"]').length);
+check('…and the block takes the server id when the answer lands', v === 0, v + ' temp blocks left');
 
 // Solid-book: click the pencil block with Troy selected.
 calls.length = 0;
@@ -228,6 +243,28 @@ await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
 check('…and » brings all eleven columns back', v === 11, v + ' header cells');
+
+// The ✎ chip edits crews & colours right from the header bar.
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-pal-edit]').click());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({
+  shown: getComputedStyle(document.getElementById('schedCrewPop')).display !== 'none',
+  rows: document.querySelectorAll('#schedCrewPopList [data-crewname]').length,
+}));
+check('the ✎ chip opens Crews & colours with the existing crews', v.shown && v.rows === 2, JSON.stringify(v));
+await pg.evaluate(() => {
+  _schedCrewAdd('schedCrewPopList');
+  const inps = document.querySelectorAll('#schedCrewPopList [data-crewname]');
+  const last = inps[inps.length - 1];
+  last.value = "Nick's boys"; last.dispatchEvent(new Event('input'));
+});
+await pg.evaluate(() => _schedCrewPopSave());
+await pg.waitForTimeout(400);
+const cfgPut = calls.find(c => c[0] === 'PUT config');
+check('Save sends all three crews and reloads the board',
+  !!cfgPut && (cfgPut[1].crews || []).length === 3 && cfgPut[1].crews[2].name === "Nick's boys" &&
+  calls.some(c => c[0] === 'GET /schedule'), JSON.stringify(cfgPut && cfgPut[1]).slice(0, 110));
 
 // Extended view overlays the whole viewport — side menu and all.
 await pg.evaluate(() => _schedExtToggle());
