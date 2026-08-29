@@ -485,6 +485,35 @@ function _allowedFromAddress(addr){
   const dom = _mailSendingDomain();
   return (dom && a.endsWith('@' + dom)) ? a : null;
 }
+// ── SENDING AS THE SUBSCRIBER — their domain, verified ──────────────
+// The one exception to "the From address is always ours": a business that
+// has proven it owns its domain (SPF + DKIM added at their registrar,
+// confirmed by Resend) may send from an address on it. That is not forgery
+// — it is exactly what the verification authorised. Only the Resend pipe
+// honours it: the Google relay is one Gmail account that can only send as
+// its own aliases, and SMTP is a single login — handing either a foreign
+// From line would bounce or silently misfire, so they keep the platform
+// address and the fallback path stays exactly yesterday's behaviour.
+//
+// Held in memory like the CORS domain allowlist above it: the send path is
+// hot and must not pay a database round-trip per message. A domain lands
+// here only after an owner added it AND Resend confirmed the DNS.
+const _mailDomains = { at: 0, byCompany: new Map(), domains: new Set(), loading: false };
+function _resendFromAddress(addr){
+  const platform = _allowedFromAddress(addr);
+  if (platform) return platform;
+  const a = String(addr || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)) return null;
+  return _mailDomains.domains.has(a.slice(a.lastIndexOf('@') + 1)) ? a : null;
+}
+// The address a company's outgoing mail should wear, company-scoped so one
+// business can never ride another's verification: the map is keyed by the
+// company that verified the domain, not by whatever address a caller typed.
+function _tenantSendAddress(companyId){
+  if (!RESEND_ENABLED || !companyId) return null;
+  _refreshMailDomains();   // fire and forget; this call reads what we have
+  return _mailDomains.byCompany.get(String(companyId)) || null;
+}
 // Google Workspace relay (Apps Script web app that sends as office@ via
 // Gmail). The fallback when Resend is not configured: it sends from the real
 // address over HTTPS with no DNS work, but it is one Gmail account with a
@@ -562,11 +591,13 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName,
 async function _resendSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
-  // Their name, our verified address — Resend will not send from a domain we
-  // have not proven we own, and nor should it. A platform mailbox on that
-  // same verified domain (accounts@, support@) is allowed to replace it.
-  const _addr = _allowedFromAddress(fromAddress) || _mailFromAddress();
-  const from = (fromName || _allowedFromAddress(fromAddress))
+  // Their name, a verified address — Resend will not send from a domain
+  // nobody has proven ownership of, and nor should it. A platform mailbox on
+  // our own domain (accounts@, support@) may replace the default, and so may
+  // a subscriber's address on a domain THEY have verified (_resendFromAddress
+  // checks both). Anything else falls back to the platform identity.
+  const _addr = _resendFromAddress(fromAddress) || _mailFromAddress();
+  const from = (fromName || _resendFromAddress(fromAddress))
     ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + _addr + '>')
     : EMAIL_FROM;
   const payload = { from: from, to: _split(to), subject, text };
@@ -951,10 +982,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // before choosing — and so that every account that predates plans keeps
 // working unchanged.
 const PLANS = {
-  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true  },
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true  },
-  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true  },
+  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: false },
+  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
 };
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
 // Cached briefly so a per-request plan check isn't a per-request query. The
@@ -3181,10 +3212,12 @@ async function _sendInvoice(invRow, settingsRow, to){
   const recipient = String(to || invRow.client_email || '').trim();
   if (!recipient) throw new Error('No customer email on this invoice — add one and send again');
   const mail = _invoiceEmail(invRow, branding, invSettings);
-  // A tax invoice for their job, from their roofer — not from us.
+  // A tax invoice for their job, from their roofer — not from us. A business
+  // with a verified sending domain goes the whole way: their address too.
   const who = _tenantMailIdentity(settingsRow);
   await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html,
-                        fromName: who.fromName, replyTo: who.replyTo });
+                        fromName: who.fromName, replyTo: who.replyTo,
+                        fromAddress: _tenantSendAddress(invRow.company_id) });
   const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
   const { data } = await supabase.from('invoices').update(patch).eq('id', invRow.id).select('*').single();
   return data || Object.assign({}, invRow, patch);
@@ -3583,7 +3616,8 @@ async function _reminderSweep(){
       const cc = String(em.quote_cc || '').trim() || undefined;
       await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
                             html: _reminderEmailHtml(body),
-                            fromName: who.fromName, replyTo: who.replyTo });
+                            fromName: who.fromName, replyTo: who.replyTo,
+                            fromAddress: _tenantSendAddress(r.company_id) });
       out.sent++;
     } catch (e) {
       out.errors++;
@@ -4755,6 +4789,159 @@ app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// OWN-DOMAIN SENDING — a business's quotes from its OWN address
+// ══════════════════════════════════════════════════════════════════
+// Today every message leaves on the platform's verified domain wearing the
+// subscriber's display name, with replies pointed at them. Good, but the
+// From line still says roofmap.co.nz. A business that owns its domain can do
+// better: we register the domain with Resend on their behalf, show them the
+// DNS records to add (same self-onboarding shape as the quote-domain flow
+// above), and once Resend confirms the records, their mail genuinely sends
+// from office@theircompany.co.nz — DKIM-signed by their own domain.
+async function _resendDomainsApi(method, path, body){
+  const resp = await fetch(RESEND_API_BASE + path, {
+    method: method,
+    headers: Object.assign({ Authorization: 'Bearer ' + RESEND_API_KEY },
+                           body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined });
+  const txt = await resp.text();
+  let data = null; try { data = JSON.parse(txt); } catch (e) {}
+  // A key scoped to "Sending access" can send mail but not manage domains.
+  // That is a platform misconfiguration, not the subscriber's fault — name
+  // the fix instead of surfacing Resend's cryptic 401.
+  if (resp.status === 401 && data && data.name === 'restricted_api_key') {
+    const err = new Error('The platform\'s email key can send but not manage domains — RESEND_API_KEY needs "Full access" for this feature. Tell support.');
+    err.status = 503; throw err;
+  }
+  if (resp.status < 200 || resp.status >= 300) {
+    const err = new Error((data && data.message) || ('Resend responded ' + resp.status));
+    err.status = resp.status; throw err;
+  }
+  return data || {};
+}
+// The DNS records a subscriber must add, passed through from Resend
+// verbatim — inventing our own rendering of SPF/DKIM values is how typos
+// happen. Only the fields the settings screen needs.
+function _mailDomainRow(d){
+  return {
+    id: d.id, domain: d.domain, from_email: d.from_email, status: d.status,
+    records: d.records || null, error: d.last_error || '',
+    created_at: d.created_at, verified_at: d.verified_at,
+  };
+}
+// Mailbox providers whose DNS a roofer cannot edit. An address there can
+// never verify — say so up front instead of handing them SPF records for
+// gmail.com.
+const _FREEMAIL = new Set(['gmail.com', 'googlemail.com', 'outlook.com', 'outlook.co.nz',
+  'hotmail.com', 'hotmail.co.nz', 'live.com', 'msn.com', 'yahoo.com', 'yahoo.co.nz',
+  'icloud.com', 'me.com', 'mac.com', 'aol.com', 'proton.me', 'protonmail.com',
+  'xtra.co.nz', 'gmx.com', 'gmx.net', 'zoho.com', 'slingshot.co.nz', 'orcon.net.nz']);
+// Reload NOW and wait for it — called after add/verify/remove so the send
+// path sees the new state before the owner's next click.
+async function _reloadMailDomains(){
+  try {
+    const { data, error } = await supabase.from('company_mail_domains')
+      .select('company_id, domain, from_email').eq('status', 'verified');
+    if (error) return;
+    const by = new Map(), set = new Set();
+    (data || []).forEach(function (d) {
+      const dom = String(d.domain || '').toLowerCase();
+      const em = String(d.from_email || '').toLowerCase();
+      if (!dom || !em) return;
+      set.add(dom); by.set(String(d.company_id), em);
+    });
+    _mailDomains.byCompany = by; _mailDomains.domains = set; _mailDomains.at = Date.now();
+  } catch (e) { console.warn('[maildomain] reload failed:', e.message); }
+}
+function _refreshMailDomains(){
+  if (_mailDomains.loading) return;
+  if (Date.now() - _mailDomains.at < 5 * 60 * 1000) return;
+  _mailDomains.loading = true;
+  _reloadMailDomains().then(function () { _mailDomains.loading = false; });
+}
+
+app.get('/email/domain', requireAuth, async (req, res) => {
+  const allowed = !!_limitsFor(await _planOf(req.companyId)).maildomain;
+  if (!req.companyId) return res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null });
+  try {
+    const { data } = await supabase.from('company_mail_domains').select('*')
+      .eq('company_id', req.companyId).maybeSingle();
+    res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: data ? _mailDomainRow(data) : null });
+  } catch (e) { res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null }); }
+});
+
+// Claim it: register the domain with Resend and hand back the DNS records.
+app.post('/email/domain', requireAuth, requireOwner,
+  requirePlan('maildomain', 'Sending from your own email address', 'Business'), rateLimit(10, 3600000), async (req, res) => {
+  if (!RESEND_ENABLED) return res.status(503).json({ error: 'Own-domain sending is not switched on for this server yet.', code: 'MAILDOMAIN_DISABLED' });
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter the address you send from, like office@yourcompany.co.nz.' });
+  const domain = email.slice(email.lastIndexOf('@') + 1);
+  if (_FREEMAIL.has(domain)) return res.status(400).json({ error: 'That is a ' + domain + ' mailbox — only a domain you own (and can add DNS records to) can be verified. A Gmail or Xtra address can\'t send this way; it stays as your reply-to address instead.' });
+  if (domain === _mailSendingDomain()) return res.status(400).json({ error: 'That domain is the platform\'s own — your mail already sends from it.' });
+  try {
+    const { data: claimed } = await supabase.from('company_mail_domains').select('id, company_id').ilike('domain', domain);
+    if ((claimed || []).some(function (c) { return String(c.company_id) !== String(req.companyId); }))
+      return res.status(409).json({ error: 'That domain is already verified by another RoofMap account.' });
+    if ((claimed || []).length) return res.status(400).json({ error: 'You have already added that domain — remove it first to start over.' });
+    const { data: mine } = await supabase.from('company_mail_domains').select('id').eq('company_id', req.companyId);
+    if ((mine || []).length) return res.status(400).json({ error: 'You already have a sending domain set up — remove it before adding a different one.' });
+    const created = await _resendDomainsApi('POST', '/domains', { name: domain });
+    const row = {
+      company_id: req.companyId, domain: domain, from_email: email,
+      resend_id: created.id || null, status: 'pending',
+      records: created.records || null, created_by: req.user.id,
+      last_checked_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('company_mail_domains').insert(row).select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ domain: _mailDomainRow(data) });
+  } catch (e) { res.status(e.status && e.status < 500 ? 400 : (e.status || 500)).json({ error: e.message }); }
+});
+
+// "I've added the records" — ask Resend to re-check, then read the result.
+app.post('/email/domain/verify', requireAuth, requireOwner, rateLimit(60, 3600000), async (req, res) => {
+  if (!RESEND_ENABLED) return res.status(503).json({ error: 'Own-domain sending is not switched on for this server yet.' });
+  try {
+    const { data: row } = await supabase.from('company_mail_domains').select('*')
+      .eq('company_id', req.companyId).maybeSingle();
+    if (!row || !row.resend_id) return res.status(404).json({ error: 'No sending domain set up yet.' });
+    // The verify call kicks Resend's DNS check; the GET reads where it got to.
+    // Both, because verify alone answers "started", not "passed".
+    try { await _resendDomainsApi('POST', '/domains/' + encodeURIComponent(row.resend_id) + '/verify'); } catch (e) { /* a check already running answers 4xx — the GET below is the truth */ }
+    const d = await _resendDomainsApi('GET', '/domains/' + encodeURIComponent(row.resend_id));
+    const ready = String(d.status || '') === 'verified';
+    const patch = {
+      status: ready ? 'verified' : 'pending',
+      records: d.records || row.records || null,
+      last_error: ready ? null : 'The DNS records aren\'t all visible yet. It can take a few minutes — up to 24 hours on some registrars.',
+      last_checked_at: new Date().toISOString(),
+      verified_at: ready ? (row.verified_at || new Date().toISOString()) : null,
+    };
+    const { data } = await supabase.from('company_mail_domains').update(patch).eq('id', row.id).select('*').single();
+    await _reloadMailDomains();
+    res.json({ domain: _mailDomainRow(data || Object.assign({}, row, patch)) });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+app.delete('/email/domain', requireAuth, requireOwner, async (req, res) => {
+  try {
+    const { data: row } = await supabase.from('company_mail_domains').select('*')
+      .eq('company_id', req.companyId).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'No sending domain set up.' });
+    if (RESEND_ENABLED && row.resend_id) {
+      // Best effort — if Resend refuses, still let go of it our side rather
+      // than leaving the owner stuck with a domain they can't remove.
+      try { await _resendDomainsApi('DELETE', '/domains/' + encodeURIComponent(row.resend_id)); }
+      catch (e) { console.warn('[maildomain] Resend removal failed:', e.message); }
+    }
+    await supabase.from('company_mail_domains').delete().eq('id', row.id);
+    await _reloadMailDomains();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Send an order email with the PDF attached, straight from the app —
 // no Gmail tab, no manual attaching.  CC goes to the office mailbox so
 // the sender always gets their copy.
@@ -4785,7 +4972,8 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     let _who = { fromName: null, replyTo: null };
     try { _who = _tenantMailIdentity(await _companySettingsRow(req)); } catch (e) {}
     const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
-                   attachment, fromName: _who.fromName, replyTo: _who.replyTo };
+                   attachment, fromName: _who.fromName, replyTo: _who.replyTo,
+                   fromAddress: _tenantSendAddress(req.companyId) };
     // The Google Apps Script relay can take 10-20s to wake + send, which made
     // the office wait on the "Send" button. When the caller opts into
     // background mode, dispatch the send without blocking the response: this
@@ -5183,6 +5371,25 @@ const _MIGRATION_SQL = [
   "  last_checked_at timestamptz)",
   "create unique index if not exists idx_company_domains_domain on public.company_domains (lower(domain))",
   "create index if not exists idx_company_domains_company on public.company_domains (company_id)",
+  // A subscriber's OWN email sending domain, registered with Resend on their
+  // behalf. status: pending → (they add SPF + DKIM records) → verified, at
+  // which point their quotes send genuinely from from_email. One per company;
+  // unique on the domain so two businesses can't both claim one.
+  "create table if not exists public.company_mail_domains (" +
+  "  id uuid primary key default gen_random_uuid()," +
+  "  company_id uuid not null references public.companies(id) on delete cascade," +
+  "  domain text not null," +
+  "  from_email text not null," +
+  "  resend_id text," +
+  "  status text not null default 'pending'," +
+  "  records jsonb," +
+  "  last_error text," +
+  "  created_by uuid," +
+  "  created_at timestamptz not null default now()," +
+  "  verified_at timestamptz," +
+  "  last_checked_at timestamptz)",
+  "create unique index if not exists idx_company_mail_domains_domain on public.company_mail_domains (lower(domain))",
+  "create unique index if not exists idx_company_mail_domains_company on public.company_mail_domains (company_id)",
   "create unique index if not exists idx_company_invites_token on public.company_invites (token_hash)",
   // Billing is per BUSINESS, not per login — three office staff are one
   // subscription, and an invited teammate must not need their own.
@@ -5720,8 +5927,11 @@ app.listen(PORT, () => {
     + ' · /admin/errors ' + (ADMIN_TOKEN ? 'open with ADMIN_TOKEN' : 'closed (no ADMIN_TOKEN)'));
   try { _keepWarm(); } catch(e){}
   // Load the verified subscriber domains up front — after a restart the CORS
-  // allowlist must not start empty for whoever asks first.
+  // allowlist must not start empty for whoever asks first. Same for the
+  // sending domains: the first quote sent after a deploy must already wear
+  // the right From address.
   _reloadVerifiedDomains().catch(function(){});
+  _reloadMailDomains().catch(function(){});
   _ensureSchema().catch(function(){});
   // Enforce the retention period the privacy policy promises.
   _pruneUsage().catch(function(){});

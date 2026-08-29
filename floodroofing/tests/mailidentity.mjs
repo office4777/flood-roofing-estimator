@@ -112,8 +112,9 @@ check('a business that has not filled in Branding falls back rather than sending
   /return \{ fromName: name \|\| null, replyTo: \/\.@\.\/\.test\(email\) \? email : null \}/.test(src));
 check('_mailFromName falls back to the address on EMAIL_FROM',
   /function _mailFromName\(fallback\)/.test(src) && /fallback \|\| \(m && m\[1\]\.trim\(\)\)/.test(src));
-check('the envelope address stays ours — we cannot send from a domain we do not own',
-  /_mailFromAddress\(\)/.test(src) && /Their name, our verified address/.test(src));
+check('the envelope address stays VERIFIED — ours, or a domain the tenant proved they own',
+  /_mailFromAddress\(\)/.test(src) && /Their name, a verified address/.test(src) &&
+  /_resendFromAddress\(fromAddress\) \|\| _mailFromAddress\(\)/.test(src));
 check('reply-to reaches the SMTP path too, not just the relay',
   /replyTo: replyTo \|\| EMAIL_REPLYTO \|\| undefined/.test(src));
 

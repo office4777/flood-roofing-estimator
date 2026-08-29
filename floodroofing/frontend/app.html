@@ -6457,6 +6457,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           </div>
           <div id="emReminderLock" style="display:none;font-size:12px;color:#b45309;margin-top:8px">Quote follow-ups are on the Team plan — <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch them on</a>.</div>
         </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px" id="emDomainBlock">
+          <label style="font-weight:700">Send from your own email address <span style="font-weight:400;color:var(--text2);font-size:11px">— Business plan</span></label>
+          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">Your emails normally send from the RoofMap address wearing your business name, with replies going to you. Verify a domain you own and they send genuinely from your address instead — e.g. <code>office@yourcompany.co.nz</code>. One-time DNS setup, about 5 minutes wherever your domain is managed.</div>
+          <div id="emDomainBody"><span style="font-size:12px;color:var(--text2)">Checking…</span></div>
+        </div>
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
           <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
           <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
@@ -9698,6 +9703,7 @@ function refreshSettingsUI(){
     if (_daysN) _daysN.disabled = _solo;
     if (_lockN) _lockN.style.display = _solo ? '' : 'none';
   } catch(e){}
+  try { _mailDomainLoad(); } catch(e){}
   var _iv = q.invoicing || {};
   set('invDepositPct', _iv.deposit_percent == null ? 50 : _iv.deposit_percent);
   set('invDueDays', _iv.due_days == null ? 7 : _iv.due_days);
@@ -12556,7 +12562,7 @@ function _billingRenderSection(){
   var tiers = [
     { key: 'solo',     name: 'Solo',     price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
     { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics + your own web address' },
-    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · custom domain + job-management links' },
+    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · custom domain, email from your own address + job-management links' },
   ];
   var annualAvail = (s && s.annual) || {};
   var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
@@ -18077,6 +18083,95 @@ async function removeTeamDomain(id, host){
   if (!confirm('Disconnect ' + host + '?\n\nQuote links already sent on it will stop working.')) return;
   try { await api('DELETE', '/team/domains/' + id); await loadTeam(); _teamDomainMsg('Disconnected.', true); }
   catch(e){ _teamDomainMsg((e && e.message) || 'Could not disconnect that domain.', false); }
+}
+// ── Send from your own email address (Business) ────────────────────
+// The server registered the domain with the mail provider on their behalf;
+// this screen just shows the DNS records to add and re-asks until verified.
+var _MAILDOM = { loaded: false, enabled: false, allowed: false, domain: null };
+async function _mailDomainLoad(){
+  if (!document.getElementById('emDomainBody')) return;
+  try {
+    var r = await api('GET', '/email/domain');
+    _MAILDOM = { loaded: true, enabled: !!r.enabled, allowed: !!r.allowed, domain: r.domain || null };
+  } catch(e){ _MAILDOM = { loaded: true, enabled: false, allowed: false, domain: null }; }
+  _mailDomainRender();
+}
+function _mailDomainRender(){
+  var box = document.getElementById('emDomainBody'); if (!box) return;
+  var d = _MAILDOM.domain;
+  if (!_MAILDOM.enabled){
+    box.innerHTML = '<div style="font-size:12px;color:var(--text2)">Not switched on for this server yet — your mail sends from the RoofMap address with your business name on it.</div>';
+    return;
+  }
+  if (!d && !_MAILDOM.allowed){
+    box.innerHTML = '<div id="emDomainLock" style="font-size:12px;color:#b45309">Sending from your own address is on the Business plan — <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch it on</a>. Until then your mail sends from the RoofMap address wearing your business name.</div>';
+    return;
+  }
+  if (!d){
+    box.innerHTML =
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+
+        '<input id="emDomainEmail" type="email" placeholder="office@yourcompany.co.nz" style="flex:1 1 240px;min-width:0;margin:0" onkeydown="if(event.key===\'Enter\')_mailDomainAdd()">'+
+        '<button type="button" onclick="_mailDomainAdd()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">Set up</button>'+
+      '</div>'+
+      '<div id="emDomainMsg" style="font-size:11.5px;margin-top:7px"></div>';
+    return;
+  }
+  var ok = d.status === 'verified';
+  var recs = d.records || [];
+  box.innerHTML =
+    '<div style="border:1px solid '+(ok?'#bbf7d0':'var(--border)')+';border-radius:9px;padding:11px 13px;background:'+(ok?'#f0fdf4':'#fff')+'">'+
+      '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'+
+        '<strong style="font-size:13px;font-family:monospace">'+esc(d.from_email || d.domain)+'</strong>'+
+        '<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:20px;background:'+(ok?'#dcfce7':'#fef3c7')+';color:'+(ok?'#15803d':'#92400e')+'">'+(ok?'✓ Verified':'Waiting for DNS')+'</span>'+
+        '<span style="margin-left:auto;display:flex;gap:6px">'+
+          (ok?'':'<button onclick="_mailDomainCheck()" class="tool-btn" style="font-size:11px">↻ Check now</button>')+
+          '<button onclick="_mailDomainRemove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button>'+
+        '</span>'+
+      '</div>'+
+      (ok
+        ? '<div style="font-size:11px;color:var(--text2);margin-top:5px">Quotes, orders and invoices now send from <strong>'+esc(d.from_email)+'</strong>.</div>'
+        : '<div style="margin-top:8px">'+
+            '<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Add these records where <strong>'+esc(d.domain)+'</strong> is managed (your registrar, or whoever looks after your website), then tap <em>Check now</em>:</div>'+
+            '<div style="overflow-x:auto"><table class="price-tbl" style="width:100%;min-width:520px"><thead><tr><th style="width:13%">Type</th><th style="width:30%">Name / Host</th><th style="width:45%">Value</th><th style="width:12%">Priority</th></tr></thead><tbody>'+
+            recs.map(function(rr){
+              return '<tr><td style="font-family:monospace">'+esc(rr.type||'')+'</td><td style="font-family:monospace;word-break:break-all">'+esc(rr.name||'')+'</td><td style="font-family:monospace;word-break:break-all">'+esc(rr.value||'')+'</td><td style="font-family:monospace">'+esc(rr.priority!=null?String(rr.priority):'—')+'</td></tr>';
+            }).join('')+
+            '</tbody></table></div>'+
+            (d.error ? '<div style="font-size:11px;color:#b45309;margin-top:5px">'+esc(d.error)+'</div>' : '')+
+          '</div>')+
+    '</div>'+
+    '<div id="emDomainMsg" style="font-size:11.5px;margin-top:7px"></div>';
+}
+function _mailDomainMsg(t, ok){
+  var el = document.getElementById('emDomainMsg'); if (!el) return;
+  el.textContent = t || '';
+  el.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+}
+async function _mailDomainAdd(){
+  var el = document.getElementById('emDomainEmail'); if (!el || !el.value.trim()) return;
+  _mailDomainMsg('Setting up…');
+  try {
+    var r = await api('POST', '/email/domain', { email: el.value.trim() });
+    _MAILDOM.domain = r.domain || null;
+    _mailDomainRender();
+    _mailDomainMsg('Registered — now add the DNS records shown above.', true);
+  } catch(e){ _mailDomainMsg((e && e.message) || 'Could not set that up.', false); }
+}
+async function _mailDomainCheck(){
+  _mailDomainMsg('Checking DNS…');
+  try {
+    var r = await api('POST', '/email/domain/verify');
+    if (r.domain) _MAILDOM.domain = r.domain;
+    _mailDomainRender();
+    if (r.domain && r.domain.status === 'verified') _mailDomainMsg('✓ Verified — your mail now sends from your own address.', true);
+    else _mailDomainMsg('Not visible yet. DNS can take a few minutes — up to 24 hours on some registrars.', false);
+  } catch(e){ _mailDomainMsg((e && e.message) || 'Could not check the domain.', false); }
+}
+async function _mailDomainRemove(){
+  var d = _MAILDOM.domain || {};
+  if (!confirm('Remove ' + (d.from_email || d.domain || 'this sending address') + '?\n\nYour mail goes back to sending from the RoofMap address (still with your business name on it).')) return;
+  try { await api('DELETE', '/email/domain'); _MAILDOM.domain = null; _mailDomainRender(); _mailDomainMsg('Removed.', true); }
+  catch(e){ _mailDomainMsg((e && e.message) || 'Could not remove it.', false); }
 }
 var _teamSlugT;
 function _teamSlugCheck(){
