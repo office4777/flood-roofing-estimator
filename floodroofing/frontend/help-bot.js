@@ -44,6 +44,16 @@
     { c:'Jobs', q:['what is quote activity','quote activity feed','accepted quotes list','who accepted','track quotes'],
       a:"**Quote activity** on the Home tab shows recent quote events — sent, opened, accepted, declined or queried — so you can see where each customer is up to at a glance." },
 
+    // ---- Schedule board ----
+    { c:'Schedule', q:['what is the schedule','schedule board','forward workflow','how do i schedule a job','plan the jobs','booking calendar','schedule tab'],
+      a:"The **Schedule** tab (Business tier) is your forward workflow on one calendar — jobs as rows, months of days across.\n- **\uFF0B Add job** puts a saved job (or a quick row) on the board\n- Pick the **red pencil** and click a start day to pencil in a rough window\n- Pick a **crew colour** and click the pencilled block to solid-book it\n- Drag a block to move it; drag its right edge to change its length\nWeekends, public holidays and your shutdowns shade out automatically, and bookings skip them." },
+    { c:'Schedule', q:['tell the customer the date','schedule email','booking confirmation email','notify customer of start date','customer update email','pencil email'],
+      a:"Tap **\u2709** on a schedule row (or click a block):\n- A **pencilled** job drafts a rough-timing email — \"we expect to start early October\"\n- A **solid-booked** job drafts the exact start date\nYou review and edit every email before it sends — nothing goes out on its own. The wording lives in **Settings → Email → Schedule update emails**." },
+    { c:'Schedule', q:['schedule in google calendar','calendar feed','ics feed','see bookings in my calendar','sync schedule to calendar'],
+      a:"Open **\u2699** on the Schedule tab and copy the **calendar feed** link, then in Google Calendar choose *Other calendars → From URL* and paste it. Solid bookings appear automatically (pencilled jobs stay off it). **Regenerate** kills the old link if it was shared too widely." },
+    { c:'Schedule', q:['add a crew','crew colours','change crew colour','who is on the job colours','scaffold colour','capacity warning'],
+      a:"Open **\u2699** on the Schedule tab — the crew list holds a name + colour per crew (contractors and \"Scaffold\" too; they don't need logins). The same panel sets the jobs-at-once warning cap, shutdown ranges like the Christmas break, and your province's anniversary day." },
+
     // ---- Map Roof: background ----
     { c:'Map', q:['how do i add the aerial photo','upload a photo','add background image','import the roof photo','add satellite image','how do i get the roof picture'],
       a:"On **Map Roof**, use the background/aerial step to upload the roof photo (drag-drop or choose a file). You can also use the map to grab an aerial. Once it's in, trace the roof over it." },
