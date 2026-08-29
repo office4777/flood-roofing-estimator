@@ -6177,7 +6177,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Billing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
-        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management Software</button>
+        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI()">Products</button>
@@ -7140,30 +7140,24 @@ function _jmsLinked(){
   try { if (localStorage.getItem('fr_jms_linked') === '1') return true; } catch(e){}
   return false;
 }
-// Show the JMS linking as a big CTA button when NOT linked, or tucked away as
-// the "Job Management" settings sub-tab once it is.
+// The big CTA card shows only while nothing is linked; the "Job
+// Management Software" sub-tab is ALWAYS in the nav. It used to hide
+// until a JMS was linked, which read as "the tab is missing from
+// settings" — the one place you'd go to link was invisible until
+// you'd already linked.
 function _refreshJmsLinkUI(){
   var linked = _jmsLinked();
   try { document.documentElement.classList.toggle('no-jms', !linked); } catch(e){}
-  var big    = document.getElementById('jmsBigLinkCard');
+  var big = document.getElementById('jmsBigLinkCard');
+  if (big) big.style.display = linked ? 'none' : '';
   var tabBtn = document.getElementById('jmsSubTabBtn');
-  if (big)    big.style.display    = linked ? 'none' : '';
-  if (tabBtn) tabBtn.style.display = linked ? ''     : 'none';
-  // If we're no longer linked but the JMS sub-panel is showing, fall back to
-  // the Branding tab so no orphaned panel is left visible.
-  if (!linked){
-    var panel = document.getElementById('set-jms');
-    if (panel && panel.classList.contains('on')){
-      var bb = document.querySelector('#tab-settings .tab-row button[onclick*="set-brand"]');
-      if (bb) try { switchSettingsSub('set-brand', bb); } catch(e){}
-    }
-  }
+  if (tabBtn) tabBtn.style.display = '';
 }
 // Big-button entry point: reveal the JMS settings panel + open the setup modal
 // so the user can pick a system and connect it.
 function _openJmsLink(){
   var tabBtn = document.getElementById('jmsSubTabBtn');
-  if (tabBtn){ tabBtn.style.display = ''; try { switchSettingsSub('set-jms', tabBtn); } catch(e){} }
+  if (tabBtn){ try { switchSettingsSub('set-jms', tabBtn); } catch(e){} }
   try { openJMSSetup(); } catch(e){}
 }
 // Apply the saved JMS choice on load.

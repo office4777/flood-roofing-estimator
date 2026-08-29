@@ -111,6 +111,10 @@ await pg.evaluate(() => { try{ document.getElementById('selectJobOverlay').style
 await pg.waitForTimeout(600);
 check('Settings still carries the big "link your JMS" invitation',
   await visible(pg, '#jmsBigLinkCard') === 'visible');
+// The tab itself is always in the nav — hiding it until a JMS was linked
+// read as "the Job Management Software tab is missing from settings".
+check('…and the Job Management Software tab is in the nav even when unlinked',
+  await visible(pg, '#jmsSubTabBtn') === 'visible');
 // …and clicking it lands on a PICKER, not a "pick one first" dead end.
 await pg.evaluate(() => _openJmsLink());
 await pg.waitForTimeout(400);
