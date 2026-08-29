@@ -111,6 +111,16 @@ await pg.evaluate(() => { try{ document.getElementById('selectJobOverlay').style
 await pg.waitForTimeout(600);
 check('Settings still carries the big "link your JMS" invitation',
   await visible(pg, '#jmsBigLinkCard') === 'visible');
+// …and clicking it lands on a PICKER, not a "pick one first" dead end.
+await pg.evaluate(() => _openJmsLink());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  title: document.getElementById('jmsSetupTitle').textContent,
+  picker: !!document.getElementById('jmsSetupPick') &&
+    getComputedStyle(document.getElementById('jmsSetupNone')).display !== 'none',
+}));
+check('…whose dialog offers the JMS picker itself',
+  v.picker && /Link your job management/i.test(v.title), JSON.stringify(v));
 await ctx.close();
 
 // ── with Fergus linked, everything comes back ─────────────────────

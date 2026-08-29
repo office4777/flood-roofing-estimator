@@ -6118,7 +6118,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Fergus API key</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">Paste your Fergus Personal Access Token (in Fergus: Settings → Integrations → API). It’s stored for your business only — every business connects with its own key — and Connect saves it before testing.</p>
-        <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="Paste your Fergus API key (fergPAT_…)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
+        <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="Paste your Fergus API key (fergPAT_…)" autocomplete="new-password" data-lpignore="true"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
           <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
@@ -6134,7 +6134,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
 
     <!-- "None" placeholder if user opens Configure with no JMS picked -->
-    <div id="jmsSetupNone" style="display:none;padding:14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS picked. Choose one from the dropdown to configure its connection.</div>
+    <div id="jmsSetupNone" style="display:none;padding:14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">
+      <div style="font-weight:700;color:#0a1628;font-size:13px;margin-bottom:6px">Which job management system do you run?</div>
+      <select id="jmsSetupPick" onchange="setJMS(this.value)" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:#0a1628">
+        <option value="none" selected>Pick one…</option>
+        <option value="fergus">Fergus</option>
+        <option value="tradify" disabled>Tradify (coming soon)</option>
+        <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
+        <option value="jobber" disabled>Jobber (coming soon)</option>
+        <option value="aroflo" disabled>AroFlo (coming soon)</option>
+        <option value="simpro" disabled>simPRO (coming soon)</option>
+        <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
+      </select>
+      <div style="margin-top:8px">Pick Fergus to connect it right here. Run something else? Tell us under Settings → Job Management Software and it moves up the build list.</div>
+    </div>
   </div>
 </div>
 
@@ -6249,8 +6262,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div style="flex:1;min-width:240px">
           <label>Job management system</label>
           <select id="jmsSelect" onchange="setJMS(this.value)">
-            <option value="none">None — manual quoting only</option>
-            <option value="fergus" selected>Fergus</option>
+            <option value="none" selected>None — manual quoting only</option>
+            <option value="fergus">Fergus</option>
             <option value="tradify" disabled>Tradify (coming soon)</option>
             <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
             <option value="jobber" disabled>Jobber (coming soon)</option>
@@ -6740,14 +6753,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- INTEGRATIONS -->
     <div class="sub-panel settings-sub" id="set-int" style="margin-top:14px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored against your user account and never shared.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored for your business only — every business connects its own — and never shared.</div>
       <div class="f2" style="margin-bottom:10px">
-        <div><label>Fergus API key <span style="font-size:10px;color:var(--text2)">(already integrated)</span></label><input type="password" id="intFergus" placeholder="fergus_..." autocomplete="off"></div>
-        <div><label>ServiceM8 API key</label><input type="password" id="intServiceM8" placeholder="sm8_..." autocomplete="off"></div>
+        <div><label>Fergus API key <span style="font-size:10px;color:var(--text2)">(already integrated)</span></label><input type="password" id="intFergus" placeholder="fergus_..." autocomplete="new-password" data-lpignore="true"></div>
+        <div><label>ServiceM8 API key</label><input type="password" id="intServiceM8" placeholder="sm8_..." autocomplete="new-password" data-lpignore="true"></div>
       </div>
       <div class="f2">
-        <div><label>Jobber API key</label><input type="password" id="intJobber" placeholder="jbr_..." autocomplete="off"></div>
-        <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="off"></div>
+        <div><label>Jobber API key</label><input type="password" id="intJobber" placeholder="jbr_..." autocomplete="new-password" data-lpignore="true"></div>
+        <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="new-password" data-lpignore="true"></div>
       </div>
       <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
         <strong>Fergus — Sales Account Codes</strong><br>
@@ -7060,6 +7073,8 @@ function setJMS(provider){
   provider = provider || 'none';
   var prev = '';
   try { prev = localStorage.getItem('fr_jms') || ''; localStorage.setItem('fr_jms', provider); } catch(e){}
+  try { var _s1 = document.getElementById('jmsSelect'); if (_s1 && _s1.value !== provider) _s1.value = provider; } catch(e){}
+  try { var _s2 = document.getElementById('jmsSetupPick'); if (_s2 && _s2.value !== provider) _s2.value = provider; } catch(e){}
   var noneMsg  = document.getElementById('jmsNoneMsg');
   var configBtn= document.getElementById('jmsConfigureBtn');
   var status   = document.getElementById('jmsStatusLine');
@@ -7085,7 +7100,7 @@ function openJMSSetup(){
   var none   = document.getElementById('jmsSetupNone');
   if (title) title.textContent =
     provider === 'fergus' ? 'Configure Fergus connection' :
-    provider === 'none'   ? 'Pick a job management system first' :
+    provider === 'none'   ? 'Link your job management software' :
     'Configure connection';
   if (fergus) fergus.style.display = (provider === 'fergus') ? '' : 'none';
   if (none)   none.style.display   = (provider === 'none')   ? '' : 'none';
