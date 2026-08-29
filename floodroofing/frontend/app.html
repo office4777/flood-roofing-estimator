@@ -2872,6 +2872,11 @@ body[data-tab="schedule"] .content{ max-width:none; margin-left:0; margin-right:
 .sched-menu button{ display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:transparent;
   border-radius:7px; font-size:12.5px; cursor:pointer; color:#0a1628; }
 .sched-menu button:hover{ background:#f1f5f9; }
+/* Extended view: the board overlays the whole viewport — side menu and all.
+   Below the modals (8998+) and menus (9999), above the sidebar (50). */
+body.sched-extended #tab-schedule{ position:fixed; inset:0; z-index:800; background:var(--bg);
+  overflow:auto; padding:10px 12px; display:block; }
+body.sched-extended .sched-scroll{ max-height:calc(100vh - 116px); }
 
 /* Where the pinned Quote bars start. Zero on the desktop; in site mode the
    fixed #phoneTopBar owns the top of the screen, so they start under it —
@@ -5335,6 +5340,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <strong style="font-size:13px;color:#0a1628;margin-right:2px">Schedule</strong>
       <span id="schedPalette" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <button class="sched-chip" id="schedExtBtn" onclick="_schedExtToggle()" title="Overlay the board across the whole screen">⛶ Extended view</button>
         <button class="sched-chip" onclick="_schedAddOpen()">＋ Add job</button>
         <button class="sched-chip" id="schedArchBtn" onclick="_schedToggleArchived()">Archive</button>
         <button class="sched-chip" onclick="_schedSettingsOpen()" title="Crews, capacity, shutdowns, calendar feed">⚙</button>
@@ -7095,6 +7101,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
+  else { try{ _schedExtToggle(false); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -7350,6 +7357,12 @@ function _schedCanUse(){
     if (lim && lim.schedule === false) return false;
   } catch(e){}
   return true;   // unknown fails open — the server 403s politely
+}
+function _schedExtToggle(force){
+  var on = (force != null) ? !!force : !document.body.classList.contains('sched-extended');
+  document.body.classList.toggle('sched-extended', on);
+  var b = document.getElementById('schedExtBtn');
+  if (b) b.textContent = on ? '✕ Exit extended view' : '⛶ Extended view';
 }
 function _schedEnter(){
   var locked = document.getElementById('schedLockedCard');

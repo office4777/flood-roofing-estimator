@@ -196,6 +196,22 @@ await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
 check('…and » brings all eleven columns back', v === 11, v + ' header cells');
+
+// Extended view overlays the whole viewport — side menu and all.
+await pg.evaluate(() => _schedExtToggle());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => {
+  const t = document.getElementById('tab-schedule'), r = t.getBoundingClientRect();
+  return { fixed: getComputedStyle(t).position === 'fixed', left: r.left,
+    full: Math.abs(r.width - window.innerWidth) < 2,
+    label: document.getElementById('schedExtBtn').textContent };
+});
+check('Extended view pins the board over the full screen width',
+  v.fixed && v.left === 0 && v.full && /Exit/.test(v.label), JSON.stringify(v));
+await pg.evaluate(() => { gotoTab('home'); });
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => document.body.classList.contains('sched-extended'));
+check('…and leaving the tab drops back to the normal layout', v === false);
 await ctx.close();
 
 // ── locked plan ───────────────────────────────────────────────────
