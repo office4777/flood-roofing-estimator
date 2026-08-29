@@ -52,6 +52,10 @@ async function boot(opts){
     const u = r.request().url(), m = r.request().method();
     if (/\/schedule(\?|$)/.test(u) && m === 'GET'){ calls.push(['GET /schedule']);
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sched) }); }
+    if (/\/schedule\/rows$/.test(u) && m === 'POST'){ const body = JSON.parse(r.request().postData() || '{}');
+      calls.push(['POST rows', body]);
+      return r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify(Object.assign({ id: 'nr' + calls.length, archived: false, auto: {} }, body)) }); }
     if (/\/schedule\/blocks$/.test(u) && m === 'POST'){ const body = JSON.parse(r.request().postData() || '{}');
       calls.push(['POST blocks', body]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(Object.assign({ id: 'nb' + calls.length }, body)) }); }
@@ -84,7 +88,7 @@ async function boot(opts){
 let { ctx, pg, calls } = await boot();
 let v = await pg.evaluate(() => ({
   wrap: getComputedStyle(document.getElementById('schedWrap')).display !== 'none',
-  rows: document.querySelectorAll('.sched-row').length,
+  rows: document.querySelectorAll('.sched-row:not(.pad)').length,
   blocks: document.querySelectorAll('.sched-block').length,
   chips: document.querySelectorAll('#schedPalette .sched-chip').length,
   weekendShades: document.querySelectorAll('.sched-shade:not(.cap):not(.today)').length,
@@ -93,6 +97,17 @@ let v = await pg.evaluate(() => ({
 check('the board renders rows, blocks, palette and weekend shading',
   v.wrap && v.rows === 2 && v.blocks === 2 && v.chips === 3 && v.weekendShades > 20, JSON.stringify(v));
 check('days holding more jobs than the cap wear the warning tint', v.capShades >= 2, v.capShades + ' warned days');
+
+// The Excel-sheet look: the board pads out to 20 lines of blank rows, the
+// calendar shading runs the full grid, and blank strips are unpaintable.
+v = await pg.evaluate(() => ({
+  all: document.querySelectorAll('.sched-row').length,
+  padPaintable: document.querySelectorAll('.sched-row.pad [data-strip]').length,
+  overlayH: document.querySelector('.sched-shade').parentElement.offsetHeight,
+}));
+check('the board pads out to 20 rows like the printed sheet', v.all === 20, v.all + ' rows');
+check('…whose blank strips are unpaintable until the row exists', v.padPaintable === 0, v.padPaintable + ' paintable');
+check('…and the calendar shading covers the full 20-row grid', v.overlayH >= 20 * 31, v.overlayH + 'px');
 
 // An 8-working-day pencil starting Friday must SPAN its weekends: Sep 4 → Sep 15 = 12 calendar days.
 v = await pg.evaluate(() => {
@@ -147,6 +162,23 @@ await pg.waitForTimeout(400);
 const sent = calls.find(c => c[0] === 'send');
 check('…and Send posts exactly what the office approved',
   !!sent && sent[1].to === 'b@l.nz' && /late October/.test(sent[1].body), JSON.stringify(sent && sent[1]).slice(0, 90));
+
+// Typing a client name into a blank row creates the row inline — exactly
+// how the office types into the spreadsheet today.
+calls.length = 0;
+await pg.fill('[data-newclient="0"]', 'Lizzie Campbell');
+await pg.keyboard.press('Tab');
+await pg.waitForTimeout(500);
+const made = calls.find(c => c[0] === 'POST rows');
+check('typing a client name into a blank row creates the row inline',
+  !!made && made[1].client_name === 'Lizzie Campbell', JSON.stringify(made && made[1]));
+v = await pg.evaluate(() => ({
+  all: document.querySelectorAll('.sched-row').length,
+  real: document.querySelectorAll('.sched-row:not(.pad)').length,
+  named: /Lizzie Campbell/.test(document.getElementById('schedGrid').textContent),
+}));
+check('…and the new row takes a blank line — the board stays 20 deep',
+  v.all === 20 && v.real === 3 && v.named, JSON.stringify(v));
 await ctx.close();
 
 // ── locked plan ───────────────────────────────────────────────────

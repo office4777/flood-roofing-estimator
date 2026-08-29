@@ -5342,7 +5342,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span id="schedMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
     </div>
     <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Or just type a client name into a blank row to start one.</div>
   </div>
 
   <!-- Compose customer email -->
@@ -7472,9 +7472,6 @@ function _schedRender(){
   h += '<div class="sched-hd-row" style="top:20px">' + hcells +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
 
-  if (!rows.length){
-    h += '<div class="sched-empty">Nothing on the board yet — hit <strong>＋ Add job</strong>, pick the red pencil, and click the day you reckon it starts.</div>';
-  }
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
   rows.forEach(function(r){
     var cells = '';
@@ -7509,9 +7506,24 @@ function _schedRender(){
     h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
          '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
   });
+  // Pad the board to 20 lines with blank rows, like the printed sheet.
+  // Typing a client name into one creates the row inline; the strip has no
+  // data-strip, so nothing paints until the row exists.
+  var pad = Math.max(0, 20 - rows.length);
+  for (var p = 0; p < pad; p++){
+    var pcells = '';
+    _SCHED_COLS.forEach(function(c, i){
+      var inner = '';
+      if (c.key === 'client') inner = '<input type="text" value="" data-newclient="' + p + '">';
+      if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
+      pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
+    });
+    h += '<div class="sched-row pad">' + pcells +
+         '<div class="sched-strip" style="width:' + stripW + 'px;height:30px"></div></div>';
+  }
   // One shade layer over everything below the header (weekends, holidays,
   // shutdowns, over-capacity warnings, today). pointer-events:none.
-  var bodyH = rows.length * 31 + 4;
+  var bodyH = (rows.length + pad) * 31 + 4;
   h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
   grid.style.position = 'relative';
   grid.innerHTML = h;
@@ -7553,6 +7565,21 @@ function _schedWire(grid){
       if (r) r[field] = val;
       var patch = {}; patch[field] = val;
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
+    };
+  });
+  // Typing a client name into a blank pad row creates the row inline,
+  // exactly how the office types into the spreadsheet.
+  grid.querySelectorAll('[data-newclient]').forEach(function(inp){
+    inp.onchange = function(){
+      var name = (inp.value || '').trim();
+      if (!name) return;
+      var n = inp.getAttribute('data-newclient');
+      var siteInp = grid.querySelector('[data-newsite="' + n + '"]');
+      var site = siteInp ? (siteInp.value || '').trim() : '';
+      _schedApi('POST', '/schedule/rows', { client_name: name, site_address: site, length_days: 1 })
+        .then(function(row){
+          if (row && row.id){ (_SCHED.data.rows = _SCHED.data.rows || []).push(row); _schedRender(); }
+        });
     };
   });
   grid.querySelectorAll('[data-mail]').forEach(function(el){
