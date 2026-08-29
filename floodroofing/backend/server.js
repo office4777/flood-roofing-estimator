@@ -4928,7 +4928,20 @@ app.post('/email/domain', requireAuth, requireOwner,
     if ((claimed || []).length) return res.status(400).json({ error: 'You have already added that domain — remove it first to start over.' });
     const { data: mine } = await supabase.from('company_mail_domains').select('id').eq('company_id', req.companyId);
     if ((mine || []).length) return res.status(400).json({ error: 'You already have a sending domain set up — remove it before adding a different one.' });
-    const created = await _resendDomainsApi('POST', '/domains', { name: domain });
+    let created;
+    try { created = await _resendDomainsApi('POST', '/domains', { name: domain }); }
+    catch (e) {
+      // Resend's "You have reached the domain limit of your plan. Upgrade to
+      // add more." is about OUR Resend account, but shown verbatim it reads
+      // as the subscriber's RoofMap plan — an owner on the right tier being
+      // told to upgrade for a problem that is ours to fix. Translate it, and
+      // page the platform: this is a capacity ceiling someone has to raise.
+      if (/domain limit/i.test(e.message || '')) {
+        try { recordError('server', new Error('Resend domain limit reached — a subscriber tried to add ' + domain + ' and was turned away. Upgrade the Resend plan (Dashboard → Billing) to raise the domain allowance.'), { route: '/email/domain' }); } catch (e2) {}
+        return res.status(503).json({ error: 'Own-domain sending is temporarily at capacity on our side — nothing wrong with your account or your plan. We\'ve been notified; please try again in a day or two.' });
+      }
+      throw e;
+    }
     const row = {
       company_id: req.companyId, domain: domain, from_email: email,
       resend_id: created.id || null, status: 'pending',

@@ -33,7 +33,7 @@ const RECORDS = (d) => ([
   { record: 'DKIM', name: 'resend._domainkey.' + d, type: 'TXT', ttl: 'Auto', status: 'not_started',
     value: 'p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC7' },
 ]);
-const resend = { domains: new Map(), verifies: [], deletes: [], emails: [], restricted: false, status: 'not_started', n: 0 };
+const resend = { domains: new Map(), verifies: [], deletes: [], emails: [], restricted: false, atLimit: false, status: 'not_started', n: 0 };
 const rsrv = http.createServer((req, res) => {
   let body = ''; req.on('data', c => body += c);
   req.on('end', () => {
@@ -47,6 +47,8 @@ const rsrv = http.createServer((req, res) => {
     // Every domain-management call under a sending-only key answers the same way.
     if (resend.restricted) return j(401, { name: 'restricted_api_key', message: 'This API key is restricted to only send emails' });
     if (req.method === 'POST' && u.pathname === '/domains'){
+      if (resend.atLimit) return j(403, { name: 'validation_error',
+        message: 'You have reached the domain limit of your plan. Upgrade to add more.' });
       const name = JSON.parse(body || '{}').name;
       const id = 'rdom-' + (++resend.n);
       resend.domains.set(id, name);
@@ -212,6 +214,18 @@ r = await api('POST', '/email/domain', { email: 'office@hemisroofing.co.nz' }, O
 check('a key without domain access answers 503 naming the fix, not a cryptic 401',
   r.status === 503 && /Full access/.test(r.body.error || ''), JSON.stringify(r.body));
 resend.restricted = false;
+
+// ── Resend's own plan ceiling must never read as the subscriber's ─
+// The provider answers "You have reached the domain limit of your plan.
+// Upgrade to add more." — OUR account's limit, but shown verbatim it tells
+// a Team owner their RoofMap plan is short and to go upgrade. Translate it,
+// and never let the provider's wording through.
+resend.atLimit = true;
+r = await api('POST', '/email/domain', { email: 'office@hemisroofing.co.nz' }, OWNER, CB);
+check('the provider\'s domain-limit error becomes an honest "our side, not your plan" message',
+  r.status === 503 && /our side/.test(r.body.error || '') && !/[Uu]pgrade/.test(r.body.error || ''),
+  JSON.stringify(r.body));
+resend.atLimit = false;
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
