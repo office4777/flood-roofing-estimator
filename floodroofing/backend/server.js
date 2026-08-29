@@ -3535,13 +3535,15 @@ function _reminderEmailHtml(message){
   }
   return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:600px">' + htmlMsg + '</div>';
 }
-// The customer link, rebuilt with the same precedence the office's send used:
-// the business's quote-domain setting → their verified custom domain → their
-// RoofMap subdomain → the platform address.
-async function _reminderQuoteLink(job, share, settingsRow){
-  let base = String((((settingsRow || {}).quote_defaults) || {}).quote_domain || '').trim().replace(/\/+$/, '');
-  if (base && !/^https?:\/\//.test(base)) base = 'https://' + base;
-  if (!base && job.company_id){
+// The customer link, rebuilt with the same precedence the office's send
+// uses: the business's verified custom domain → their RoofMap subdomain →
+// the platform address. The old free-typed quote-domain setting is ignored
+// on purpose: a typo'd domain with no DNS behind it once sent a real
+// customer a link that resolved to nothing, and a reminder must never
+// repeat that.
+async function _reminderQuoteLink(job, share){
+  let base = '';
+  if (job.company_id){
     try {
       const { data } = await supabase.from('company_domains').select('domain')
         .eq('company_id', job.company_id).eq('status', 'verified').limit(1);
@@ -3635,7 +3637,7 @@ async function _reminderSweep(){
       // duplicates one.
       const br = ((settingsRow || {}).branding) || {};
       const company = String(br.company_name || '').trim() || 'the team';
-      const link = await _reminderQuoteLink({ id: r.id, company_id: r.company_id, ref: r.q_ref }, fsh, settingsRow);
+      const link = await _reminderQuoteLink({ id: r.id, company_id: r.company_id, ref: r.q_ref }, fsh);
       const vars = {
         client: quote.client || r.q_client || r.client_name || '',
         address: (quote.addr || r.q_addr) ? (' at ' + (quote.addr || r.q_addr)) : '',

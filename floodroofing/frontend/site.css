@@ -96,6 +96,13 @@ section{ padding:88px 0 }
 .sec-head{ max-width:660px; margin-bottom:52px }
 .sec-head p{ font-size:18px; margin-top:16px }
 .tint{ background:var(--paper-2) }
+/* The slogan as a flow — arrows earn their place here because this section
+   IS the four steps. Desktop only: on the phone the hero eyebrow already
+   carries the slogan, and vertical space is the scarcer thing. */
+.howflow{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:18px;
+  font-weight:800; font-size:17px; letter-spacing:.01em; color:var(--ink,#0a1628) }
+.howflow .arr{ color:#0099cc }
+@media (max-width:700px){ .howflow{ display:none } }
 
 /* ── steps ── */
 .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; counter-reset:s }

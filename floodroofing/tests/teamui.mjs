@@ -98,8 +98,8 @@ link = await pg.evaluate(() => {
   S.settings.quote_defaults = { quote_domain: 'https://quote.floodroofing.co.nz' };
   return _customerLinkString();
 });
-check('…unless the business has its own domain, which still wins',
-  link.startsWith('https://quote.floodroofing.co.nz/?q='), link);
+check('…and a stale typed domain from the retired Settings box is ignored',
+  link.startsWith('https://floodroofing.roofmap.co.nz/?q='), link);
 await pg.evaluate(() => { S.settings.quote_defaults = {}; });
 
 // availability check
@@ -161,11 +161,13 @@ check('checking it flips to connected', /✓ Connected/.test(dt), dt.slice(dt.in
 check('…and quote links move onto it', (await pg.evaluate(() => _customerLinkString())).startsWith('https://quote.acmeroofing.co.nz/?q='),
   await pg.evaluate(() => _customerLinkString()));
 await pg.locator('#set-team').screenshot({ path: S+'/team_domain_ok.png' });
-// a manual override must be called out rather than silently winning
+// the retired manual override must be dead here too: a stale stored value
+// changes neither the screen nor the links
 await pg.evaluate(() => { S.settings = S.settings || {}; S.settings.quote_defaults = { quote_domain:'https://old.example.com' }; renderTeam(); });
 await pg.waitForTimeout(300);
-check('a manual quote-domain override is flagged, not left mysterious',
-  /overrides everything here/.test(await pg.evaluate(() => document.getElementById('teamWrap').textContent)));
+check('a stale manual quote-domain neither warns nor wins — the verified domain holds',
+  !/overrides everything here/.test(await pg.evaluate(() => document.getElementById('teamWrap').textContent)) &&
+  (await pg.evaluate(() => _customerLinkString())).startsWith('https://quote.acmeroofing.co.nz/?q='));
 await pg.evaluate(() => { S.settings.quote_defaults = {}; renderTeam(); });
 
 await ctx.close();

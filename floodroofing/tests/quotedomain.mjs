@@ -1,4 +1,10 @@
-// Resolved from this file, so the suite runs from any checkout.
+// Where a customer's quote link points — resolved AUTOMATICALLY, with
+// nothing to type. There used to be a free-text "quote link domain" box in
+// Settings; an owner typed a subdomain that had no DNS behind it, and a real
+// customer's link resolved to nothing ("This site can't be reached",
+// FR-74625). The box is retired: links use the business's verified custom
+// domain when it has one, else its RoofMap subdomain, else roofmap.co.nz —
+// and a stale stored value from the old box must be IGNORED and cleared.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
@@ -12,103 +18,86 @@ function check(n, ok, d){ results.push(ok); console.log((ok?'PASS':'FAIL')+'  '+
 
 const ctx = await b.newContext({ viewport:{width:1500,height:1000} });
 const pg = await ctx.newPage();
-pg.on('pageerror', e => console.log('PAGEERROR', e.message));
+const errs = []; pg.on('pageerror', e => { errs.push(e.message); console.log('PAGEERROR', e.message); });
 pg.on('dialog', d => d.accept());
-await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
-  r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
+let savedSettings = null;
+await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+  if (/\/settings/.test(r.request().url()) && r.request().method() === 'PUT'){
+    savedSettings = JSON.parse(r.request().postData() || '{}');
+    return r.fulfill({status:200,contentType:'application/json',body: r.request().postData() || '{}'});
+  }
+  r.fulfill({status:200,contentType:'application/json',body:'[]'});
+});
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2500);
 
-// ── what counts as a usable domain ──
-const norm = await pg.evaluate(() => ({
-  bare:      _normQuoteDomain('quote.floodroofing.co.nz'),
-  https:     _normQuoteDomain('https://quote.floodroofing.co.nz'),
-  spaced:    _normQuoteDomain('  QUOTE.FloodRoofing.CO.NZ  '),
-  trailing:  _normQuoteDomain('https://roofmap.co.nz/'),
-  blank:     _normQuoteDomain(''),
-  http:      _normQuoteDomain('http://quote.floodroofing.co.nz'),
-  path:      _normQuoteDomain('https://roofmap.co.nz/quotes/here'),
-  query:     _normQuoteDomain('https://roofmap.co.nz/?q=x'),
-  creds:     _normQuoteDomain('https://user:pw@roofmap.co.nz'),
-  nodot:     _normQuoteDomain('localhost'),
-  junk:      _normQuoteDomain('not a domain at all'),
-  js:        _normQuoteDomain('javascript:alert(1)'),
-}));
-check('a plain domain is accepted and made absolute', norm.bare === 'https://quote.floodroofing.co.nz', norm.bare);
-check('…so is one already written as a URL', norm.https === 'https://quote.floodroofing.co.nz', norm.https);
-check('…whitespace and capitals are tidied up', norm.spaced === 'https://quote.floodroofing.co.nz', norm.spaced);
-check('…and a trailing slash is dropped', norm.trailing === 'https://roofmap.co.nz', norm.trailing);
-check('blank means "use whatever I am working on"', norm.blank === '');
-// A pasted full URL is reduced to its origin rather than rejected: the link is
-// always built as <origin>/?q=…, so a path could never have worked, and the
-// live preview under the field shows exactly what was kept.
-check('a pasted path or query is reduced to the domain, not thrown away',
-  norm.path === 'https://roofmap.co.nz' && norm.query === 'https://roofmap.co.nz',
-  JSON.stringify({p:norm.path, q:norm.query}));
-check('http, credentials, javascript: and junk are all refused',
-  [norm.http, norm.creds, norm.nodot, norm.junk, norm.js].every(x => x === ''),
-  JSON.stringify([norm.http, norm.creds, norm.nodot, norm.junk, norm.js]));
-
 // ── the link the customer actually gets ──
-const link = pg.evaluate(() => {
+let v = await pg.evaluate(() => {
   S.quote = S.quote || {}; S.quote.share = { token: 'tok123' }; S.quote.ref = '06121';
   S.currentJobId = 'job-a';
   var jc = document.getElementById('jobClient'); if (jc) jc.value = 'Mrs Hale';
   return _customerLinkString();
 });
-let v = await link;
-// The fallback used to follow whatever origin the office was on, which meant
-// an office still working on the *.vercel.app host handed customers vercel
-// links. Now the canonical domain is the floor, not the origin.
-check('with no domain set, links go to roofmap.co.nz — never the host the office is on',
+check('with nothing configured, links go to roofmap.co.nz — never the host the office is on',
   v.startsWith('https://roofmap.co.nz/?q=tok123'), v);
+check('…and carry the job number and id', /&j=06121/.test(v) && /&i=job-a/.test(v), v);
 
+// The incident, pinned: a stored value from the retired free-text box —
+// a domain with no DNS behind it — must never reach a customer link again.
 v = await pg.evaluate(() => {
   S.settings = S.settings || {};
-  S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults, { quote_domain: 'https://quote.floodroofing.co.nz' });
+  S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults,
+    { quote_domain: 'https://quote.floodroofing.co.nz' });
   return _customerLinkString();
 });
-check('with the business\'s domain set, the customer gets THAT domain',
-  v.startsWith('https://quote.floodroofing.co.nz/?q=tok123'), v);
-check('…and the link still carries the job number and id',
-  /&j=06121/.test(v) && /&i=job-a/.test(v), v);
+check('a stale typed domain from the retired box is IGNORED — the link still works',
+  v.startsWith('https://roofmap.co.nz/?q=tok123'), v);
 
+// The business's RoofMap subdomain, when it picked one.
 v = await pg.evaluate(() => {
-  S.settings.quote_defaults.quote_domain = 'https://roofmap.co.nz/oops?x=1';
+  localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Flood Roofing', slug:'floodroofing' }));
   return _customerLinkString();
 });
-check('a stored value with a path still yields a clean, working link',
-  v === 'https://roofmap.co.nz/?q=tok123&j=06121&i=job-a', v);
+check('a business with a RoofMap address sends links on it',
+  v.startsWith('https://floodroofing.roofmap.co.nz/?q=tok123'), v);
 
-// ── the Settings field ──
+// A VERIFIED connected domain — the one path to a custom domain now — wins.
+v = await pg.evaluate(() => {
+  localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Flood Roofing', slug:'floodroofing', domain:'quote.floodroofing.co.nz' }));
+  return _customerLinkString();
+});
+check('a domain the business VERIFIED on the Team screen wins',
+  v.startsWith('https://quote.floodroofing.co.nz/?q=tok123'), v);
+await pg.evaluate(() => localStorage.setItem('fr_company', '{}'));
+
+// ── the Settings panel: informational, not another box to mistype ──
 await pg.evaluate(() => {
-  S.settings.quote_defaults.quote_domain = 'https://quote.floodroofing.co.nz';
   gotoTab('settings'); refreshSettingsUI();
-  // The Quote-defaults panel is one of several collapsed sub-panels.
   switchSettingsSub('set-quote', document.querySelector('[onclick*="set-quote"]'));
 });
 await pg.waitForTimeout(800);
-v = await pg.evaluate(() => (document.getElementById('qdQuoteDomain')||{}).value);
-check('the Settings field shows the saved domain', v === 'https://quote.floodroofing.co.nz', v);
-
-await pg.fill('#qdQuoteDomain', 'quote.acmeroofing.co.nz');
-await pg.waitForTimeout(300);
-v = await pg.evaluate(() => document.getElementById('qdQuoteDomainMsg').textContent);
-check('typing a good domain previews the link the customer will get',
-  /Quote links will read https:\/\/quote\.acmeroofing\.co\.nz/.test(v), v);
-await pg.fill('#qdQuoteDomain', 'http://nope/path');
-await pg.waitForTimeout(300);
-v = await pg.evaluate(() => document.getElementById('qdQuoteDomainMsg').textContent);
-check('…and a bad one says so instead of failing silently', /Not a usable domain/.test(v), v);
+v = await pg.evaluate(() => ({
+  input: !!document.getElementById('qdQuoteDomain'),
+  info: (document.getElementById('qdQuoteLinkInfo')||{}).textContent || '',
+  blurb: (function(){ var el = document.getElementById('qdQuoteLinkInfo'); return el ? el.parentElement.textContent : ''; })(),
+}));
+check('the free-text domain box is gone', !v.input, '');
+check('…replaced by a line showing where links actually go',
+  /https:\/\/roofmap\.co\.nz\/\?q=/.test(v.info), v.info);
+check('…that says it is automatic and points at the Team screen for a custom domain',
+  /Set automatically/.test(v.blurb) && /Team/.test(v.blurb), v.blurb.slice(0, 160));
 await pg.locator('#set-quote').screenshot({ path: S+'/quotedomain.png' });
 
-// it survives a save/reload of settings
-await pg.fill('#qdQuoteDomain', 'quote.floodroofing.co.nz');
+// ── saving Settings heals a stale stored value ──
 await pg.evaluate(() => saveSettings(true));
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => (S.settings.quote_defaults||{}).quote_domain);
-check('saving Settings keeps it, normalised', v === 'https://quote.floodroofing.co.nz', String(v));
+check('saving Settings clears the stale stored domain for good',
+  v === '' && savedSettings && savedSettings.quote_defaults && savedSettings.quote_defaults.quote_domain === '',
+  'kept=' + JSON.stringify(v) + ' sent=' + JSON.stringify((savedSettings && savedSettings.quote_defaults || {}).quote_domain));
+
+check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();
 await b.close();

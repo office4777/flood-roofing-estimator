@@ -973,8 +973,8 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 .hdr-logo-sub{
   color:var(--accent);
   font-size:8.5px;
-  /* .22em broke "Quote & proposal builder" across two lines in the sidebar,
-     splitting the phrase mid-way. Tight enough to hold one line. */
+  /* .22em broke the sub-line across two rows in the sidebar, splitting the
+     slogan mid-way. Tight enough to hold "Map. Price. Quote. Order." on one. */
   letter-spacing:.10em;
   margin-top:3px;
   font-weight:600;
@@ -3159,6 +3159,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div style="background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:400px;box-shadow:0 25px 60px rgba(0,0,0,.4);margin:1rem">
     <div style="text-align:center;margin-bottom:2rem">
       <img src="brand/roofmap_logo.png" alt="RoofMap" style="width:172px;height:auto;display:inline-block">
+      <div style="font-size:11.5px;font-weight:800;letter-spacing:.18em;color:#5f6b7a;margin-top:10px;text-transform:uppercase">Map. Price. Quote. Order.</div>
     </div>
     <div id="login-err" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:1rem"></div>
 
@@ -3616,7 +3617,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        it says whose account this is. -->
   <div class="hdr-logo">
     <img class="hdr-logo-mark" src="brand/roofmap_logo.png" alt="RoofMap">
-    <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span></div><div class="hdr-logo-sub" id="hdrLogoSub">Quote &amp; proposal builder</div></div>
+    <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span></div><div class="hdr-logo-sub" id="hdrLogoSub">Map. Price. Quote. Order.</div></div>
   </div>
   <!-- Whose account this is. Filled by applyBranding(); stays empty, and takes
        up no room, until a company has been set up. -->
@@ -6328,9 +6329,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="f2">
         <div><label>Next job number</label><input type="text" id="qdNextJobNo" value="06121">
           <div style="font-size:10.5px;color:var(--text2);margin-top:3px">New jobs are auto-numbered from here (zero-padding kept) — each new job bumps it by one. Shared across everyone in your business, so two people can't be given the same number.</div></div>
-        <div><label>Customer quote link domain</label><input type="text" id="qdQuoteDomain" placeholder="quote.yourcompany.co.nz" autocomplete="off" oninput="_qdQuoteDomainCheck()">
-          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Optional. The domain your customers' quote links are sent on — leave blank to use whichever address you're working on. Point the domain at RoofMap first, or the links won't open.</div>
-          <div id="qdQuoteDomainMsg" style="font-size:10.5px;margin-top:3px"></div></div>
+        <div><label>Customer quote links</label>
+          <div id="qdQuoteLinkInfo" style="font-size:12.5px;font-family:monospace;padding:9px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;word-break:break-all">https://roofmap.co.nz/?q=…</div>
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Set automatically — nothing to type. Links use your own connected domain when you have one (Settings → Team), otherwise your RoofMap address.</div></div>
       </div>
       <div><label>Default warranty / terms text</label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
       <div style="margin-top:14px">
@@ -7780,7 +7781,12 @@ function collectSettingsFromUI(){
   q.validity_days = parseInt((document.getElementById('qdValidity')||{}).value || 30, 10);
   q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || 15);
   q.next_job_no   = ((document.getElementById('qdNextJobNo')||{}).value || q.next_job_no || '06121').trim() || '06121';
-  q.quote_domain  = _normQuoteDomain((document.getElementById('qdQuoteDomain')||{}).value);
+  // Retired: the free-typed quote-link domain. A domain typed with no DNS
+  // behind it sent every customer a dead link (quote.floodroofing.co.nz,
+  // NXDOMAIN, a real customer). Links now resolve automatically — verified
+  // custom domain → RoofMap subdomain → roofmap.co.nz — and saving Settings
+  // clears any stale stored value so old accounts heal themselves.
+  q.quote_domain  = '';
   q.terms         = (document.getElementById('qdTerms')||{}).value || '';
   q.options       = collectListEditor('qdOptionsList', ['label','enabled']);
   q.sections      = collectListEditor('qdSectionsList', ['title','body']);
@@ -9682,7 +9688,8 @@ function refreshSettingsUI(){
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
   set('qdNextJobNo', q.next_job_no || '06121');
-  set('qdQuoteDomain', q.quote_domain || '');
+  var _qlInfo = document.getElementById('qdQuoteLinkInfo');
+  if (_qlInfo) { try { _qlInfo.textContent = (_companyQuoteBase() || 'https://roofmap.co.nz') + '/?q=…'; } catch(e){} }
   var _em = q.email || {};
   set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
   // The template boxes open showing what will actually be used — the saved
@@ -9958,7 +9965,7 @@ function applyBranding(){
   // is where an unbranded account gets told where to go.
   var hdrSub = document.getElementById('hdrLogoSub');
   if (hdrSub) hdrSub.textContent = (b.company_name || b.logo_data_url)
-    ? 'Quote & proposal builder'
+    ? 'Map. Price. Quote. Order.'
     : 'Add your company in Settings · Branding';
   // Browser tab title — track the company name so it doesn't say
   // "RoofMap" once the user has branded.
@@ -17877,32 +17884,6 @@ function _quoteShareToken(){
 // Normalised to a bare https origin: a pasted path, query or http:// URL would
 // produce links that open on the wrong page or not at all, and a customer
 // following a broken quote link is the worst possible time to find out.
-function _normQuoteDomain(v){
-  var t = String(v == null ? '' : v).trim();
-  if (!t) return '';
-  if (!/^[a-z]+:\/\//i.test(t)) t = 'https://' + t;
-  try {
-    var u = new URL(t);
-    if (u.protocol !== 'https:') return '';
-    if (u.username || u.password) return '';
-    var h = u.hostname;
-    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(h)) return '';
-    return 'https://' + h.toLowerCase();
-  } catch(e){ return ''; }
-}
-// Live feedback while typing: show the exact link customers will get, or say
-// plainly that what's been typed isn't usable — rather than silently storing
-// '' and leaving the office wondering why nothing changed.
-function _qdQuoteDomainCheck(){
-  var el = document.getElementById('qdQuoteDomain');
-  var msg = document.getElementById('qdQuoteDomainMsg');
-  if (!el || !msg) return;
-  var raw = el.value.trim();
-  if (!raw){ msg.textContent = ''; return; }
-  var norm = _normQuoteDomain(raw);
-  if (norm){ msg.textContent = '✓ Quote links will read ' + norm + '/?q=…'; msg.style.color = '#15803d'; }
-  else { msg.textContent = 'Not a usable domain — enter it like quote.yourcompany.co.nz (https only, no path).'; msg.style.color = '#b91c1c'; }
-}
 // ── Team screen (Settings → Team) ─────────────────────────────────
 // Jobs, the price book and every setting belong to the BUSINESS, so this is
 // the screen that decides who can see and work on them. Only an owner can
@@ -18029,8 +18010,6 @@ function renderTeam(){
 // do is add one DNS record at its registrar.
 function _teamDomainsHtml(owner){
   if (!TEAM.domainsEnabled && !(TEAM.domains || []).length) return '';
-  var manual = '';
-  try { manual = _quoteDomainPref(); } catch(e){}
   var rows = (TEAM.domains || []).map(function(d){
     var ok = d.status === 'verified';
     return '<div style="border:1px solid '+(ok?'#bbf7d0':'var(--border)')+';border-radius:9px;padding:11px 13px;margin-bottom:8px;background:'+(ok?'#f0fdf4':'#fff')+'">'+
@@ -18060,7 +18039,6 @@ function _teamDomainsHtml(owner){
     '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Your own domain <span style="font-weight:400;color:var(--text2);font-size:11px">(optional)</span></div>'+
     '<div style="font-size:11.5px;color:var(--text2);margin-bottom:9px;line-height:1.5">Send quotes on a domain you own, like <em>quote.yourcompany.co.nz</em>. We connect it for you — you just add one DNS record.</div>'+
     rows +
-    (manual ? '<div style="font-size:11px;color:#b45309;margin:2px 0 8px">Note: Quote defaults has a quote-link domain set to <strong>'+esc(manual)+'</strong>, which overrides everything here. Clear it to use a domain connected below.</div>' : '')+
     (owner && TEAM.domainsEnabled
       ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">'+
           '<input id="teamDomainInput" type="text" placeholder="quote.yourcompany.co.nz" style="flex:1 1 240px;min-width:0;margin:0" onkeydown="if(event.key===\'Enter\')addTeamDomain()">'+
@@ -18274,9 +18252,6 @@ function _companyQuoteBase(){
   var slug = String(c.slug || '').trim().toLowerCase();
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }
-function _quoteDomainPref(){
-  try { return _normQuoteDomain(((S.settings || {}).quote_defaults || {}).quote_domain); } catch(e){ return ''; }
-}
 function _customerLinkString(){
   if (!S.quote) return null;
   var token = _quoteShareToken();
@@ -18319,10 +18294,9 @@ function _customerLinkString(){
   // Always hand the customer the branded custom-domain link even when the
   // office is on the *.vercel.app host; fall back to the current origin only
   // if the constant is blank.
-  // The business's own quote domain wins when one is set, so the office can
-  // work on roofmap.co.nz while customers still see the company's address.
-  var base = _quoteDomainPref()
-    || _companyQuoteBase()
+  // The business's connected domain wins, then its RoofMap subdomain — no
+  // typed override any more: a domain nobody verified is a dead link.
+  var base = _companyQuoteBase()
     || (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
   var link = base + '/?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
