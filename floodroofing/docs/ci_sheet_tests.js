@@ -4,9 +4,10 @@
 // the expected sheet counts.  Exits non-zero on any failure so a bad
 // push / PR is blocked before it reaches production.
 //
-// Runs headless against floodroofing/frontend/index.html (which now
-// pulls in sheet-plan.js).  Uses the bundled Playwright chromium in CI;
-// set PW_CHROMIUM to override the executable locally.
+// Runs headless against floodroofing/frontend/app.html (the app moved
+// off index.html when the marketing homepage took that spot).  Uses the
+// bundled Playwright chromium in CI; set PW_CHROMIUM to override the
+// executable locally.
 const { chromium } = require('playwright');
 const path = require('path');
 
@@ -45,22 +46,32 @@ PROPS.forEach(([name, p]) => ORI.forEach((o, k) =>
 CASES.push({ label: 'L Square wing MIRROR', type: 'hip', outline: orient(L(...PROPS[0][1]), 0, true) });
 CASES.push({ label: 'L Wide-wing MIRROR',   type: 'hip', outline: orient(L(...PROPS[1][1]), 0, true) });
 // Sanity anchors with a hard expected physical sheet count.
-// Canonical Big-L physical-sheet anchor.  68 (was 70): the SOP
-// complement-pairing pass merges the wing's valley-cut pieces into the
-// wing-hip donor sheets they're physically cut from (one sheet = gutter
-// piece + valley offcut), so two purple positions stopped being
-// separately-ordered sheets.
-CASES.push({ label: 'Canonical Big-L (count=68)', type: 'hip', outline: L(300,300,900,700), expectSheets: 68, checkPerColour: true });
+// Canonical Big-L anchor.  66 (was 68, was 70): the SOP complement-pairing
+// pass merges valley-cut pieces into the donor sheets they're physically
+// cut from (one sheet = gutter piece + valley offcut), and numbering later
+// became one continuous whole-job sequence — a merged piece now carries its
+// donor sheet's number across colours, so the union of numbers must still
+// be a gapless 1..N order list.
+CASES.push({ label: 'Canonical Big-L (count=66)', type: 'hip', outline: L(300,300,900,700), expectSheets: 66, checkSeq: true });
 CASES.push({ label: 'T-shape',                     type: 'hip', outline: T(900,260,300,460) });
 CASES.push({ label: 'Simple hip 900x600',          type: 'hip', outline: RECT(900,600) });
 
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await browser.newContext({ viewport: { width: 1700, height: 1200 } })).newPage();
   const jsErrors = [];
   page.on('pageerror', e => jsErrors.push(e.message));
-  await page.goto('file://' + path.resolve(__dirname, '..', 'frontend', 'index.html'), { waitUntil: 'load' });
-  await page.waitForTimeout(500);
+  // No backend in CI: stub the API and pre-seed a logged-in session so the
+  // app boots straight to the drawing surface.
+  await page.route('**/flood-roofing-estimator-production.up.railway.app/**',
+    r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await page.addInitScript(() => {
+    localStorage.setItem('fr_token', 't');
+    localStorage.setItem('fr_setup_done', '1');
+    localStorage.setItem('fr_settings', 'null');
+  });
+  await page.goto('file://' + path.resolve(__dirname, '..', 'frontend', 'app.html'), { waitUntil: 'load' });
+  await page.waitForTimeout(2800);
   await page.evaluate(() => { const a=document.querySelector('.app'); if(a)a.style.display=''; const ls=document.getElementById('login-screen'); if(ls)ls.style.display='none'; });
 
   let failures = 0;
@@ -82,10 +93,11 @@ CASES.push({ label: 'Simple hip 900x600',          type: 'hip', outline: RECT(90
         const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
         let tot=0,gap=0,over=0;
         for(let y=y0;y<=y1;y+=4)for(let x=x0;x<=x1;x+=4){if(!inPoly(x,y,outline))continue;tot++;let cc=0;for(let k=0;k<strips.length;k++){if(inPoly(x,y,strips[k])){cc++;if(cc>1)break;}}if(cc===0)gap++;else if(cc>1)over++;}
-        const uniq={}, seqByCol={};
-        all.forEach(s=>{ if(s.seq!=null){ uniq[s.color+'#'+s.seq]=1; (seqByCol[s.color]=seqByCol[s.color]||[]).push(s.seq); } });
-        const perCol = {}; Object.keys(seqByCol).forEach(col=>{ const a=[...new Set(seqByCol[col])].sort((p,q)=>p-q); perCol[col] = (a[0]===1 && a[a.length-1]===a.length); });
-        return { gap:(100*gap/tot), over:(100*over/tot), sheets:Object.keys(uniq).length, perColOk: Object.values(perCol).every(Boolean) };
+        const uniq={};
+        all.forEach(s=>{ if(s.seq!=null) uniq[s.color+'#'+s.seq]=1; });
+        const seqs=[...new Set(all.filter(s=>s.seq!=null).map(s=>s.seq))].sort((p,q)=>p-q);
+        const seqOk = seqs.length>0 && seqs[0]===1 && seqs[seqs.length-1]===seqs.length;
+        return { gap:(100*gap/tot), over:(100*over/tot), sheets:Object.keys(uniq).length, seqOk };
       }, c);
     } catch (e) {
       console.log(`FAIL  ${c.label} — threw: ${e.message}`); failures++; continue;
@@ -94,7 +106,7 @@ CASES.push({ label: 'Simple hip 900x600',          type: 'hip', outline: RECT(90
     if (res.gap > GAP_MAX)  reasons.push(`gap ${res.gap.toFixed(1)}%`);
     if (res.over > OVER_MAX) reasons.push(`overlap ${res.over.toFixed(1)}%`);
     if (c.expectSheets && res.sheets !== c.expectSheets) reasons.push(`sheets ${res.sheets}≠${c.expectSheets}`);
-    if (c.checkPerColour && !res.perColOk) reasons.push('per-colour not 1..N');
+    if (c.checkSeq && !res.seqOk) reasons.push('sheet numbering not a gapless 1..N');
     if (reasons.length) { console.log(`FAIL  ${c.label} — ${reasons.join(', ')}`); failures++; }
     else console.log(`ok    ${c.label}  (${res.sheets} sheets, gap ${res.gap.toFixed(1)}% / over ${res.over.toFixed(1)}%)`);
   }

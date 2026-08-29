@@ -41,6 +41,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Tests green is necessary but not sufficient: the Sheet-layout
+      # workflow gates the drawing engine separately and runs on the same
+      # push whenever the frontend changed. A backend-only push has no
+      # sheet run for its SHA — that's a pass, not a gap.
+      - name: Require Sheet-layout tests green for this commit too
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          for i in $(seq 1 20); do
+            RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sheet-tests.yml/runs?head_sha=$SHA&per_page=1" \
+              --jq '.workflow_runs[0] | if . == null then "absent" else "\(.status)/\(.conclusion)" end')
+            echo "Sheet-layout run for $SHA: $RUN (check $i)"
+            case "$RUN" in
+              absent|completed/success) exit 0 ;;
+              completed/*) echo "Sheet-layout tests did not pass — not promoting."; exit 1 ;;
+              *) sleep 30 ;;   # still queued or running — it's a two-minute job, wait it out
+            esac
+          done
+          echo "Sheet-layout tests still not finished after 10 minutes — not promoting."
+          exit 1
       - name: Fast-forward production to the tested commit
         run: |
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
