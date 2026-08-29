@@ -176,6 +176,24 @@ check('…and the read-only flag does not stick there either', v.roFlagCleared, 
 await pg.waitForTimeout(500);
 check('…and nobody is paged over a write that never happened', reports.length === seenBeforeWriter,
   reports.length > seenBeforeWriter ? (reports[reports.length - 1].message || '').slice(0, 90) : 'no report');
+
+// Quote-only "substance" is not human work: the quote model assembles its
+// default line items the moment the Quote tab renders, which used to clear
+// the substance bar on every fresh open — and page the office (build
+// ab9a990, tab=schedule). Same fresh session, quote lines present, still
+// nothing typed: the writer must leave quietly.
+v = await pg.evaluate(async () => {
+  S.quote = { lineItems: [{ description: 'Roofing', amount: 1000 }] };
+  const before = (await _listLocalDrafts()).map(d => d.key + '@' + d.at).sort().join('|');
+  const wrote = await _writeLocalDraftNow();
+  const after = (await _listLocalDrafts()).map(d => d.key + '@' + d.at).sort().join('|');
+  return { wrote, untouched: before === after };
+});
+check('auto-built quote lines alone do not make a fresh session write', v.wrote === false, 'wrote=' + v.wrote);
+check('…file no draft', v.untouched, 'draft store changed');
+await pg.waitForTimeout(400);
+check('…and page nobody', reports.length === seenBeforeWriter,
+  reports.length > seenBeforeWriter ? (reports[reports.length - 1].message || '').slice(0, 90) : 'no report');
 // But give the same session something worth keeping — a client name typed in
 // — and the write is real again: the guard files the remembered drawing with
 // it rather than a blank, because THAT write could have lost a roof map.

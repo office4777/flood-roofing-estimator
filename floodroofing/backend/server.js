@@ -4007,6 +4007,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
   const b = req.body || {};
   const row = {
     id: crypto.randomUUID(), company_id: req.companyId || null,
+    user_id: req.user.id,
     job_id: b.job_id || null,
     client_name: String(b.client_name || '').slice(0, 200),
     site_address: String(b.site_address || '').slice(0, 300),
@@ -4072,7 +4073,8 @@ app.post('/schedule/blocks', ..._schedGate, async (req, res) => {
       .select('id'), req).eq('id', b.row_id).maybeSingle();
     if (!row) return res.status(404).json({ error: 'Row not found' });
     const block = {
-      id: crypto.randomUUID(), company_id: req.companyId || null, row_id: b.row_id,
+      id: crypto.randomUUID(), company_id: req.companyId || null,
+      user_id: req.user.id, row_id: b.row_id,
       kind: b.kind === 'crew' ? 'crew' : 'pencil',
       crew_id: String(b.crew_id || '').slice(0, 40),
       start_date: b.start_date,
@@ -6420,12 +6422,18 @@ const _MIGRATION_SQL = [
   //      stored — a block is start + N working days, and the working-day
   //      calendar (weekends, NZ public holidays, company shutdowns) is
   //      applied at read time, so a holiday added later reflows every block.
-  "create table if not exists public.schedule_rows (id uuid primary key default gen_random_uuid(), company_id uuid, job_id uuid, client_name text not null default '', site_address text not null default '', email text not null default '', length_days int not null default 1, notes text not null default '', progress_pct int, deposit_paid boolean, ordered boolean, delivery_check boolean not null default false, confirmed_delivery date, sort_pos double precision, archived boolean not null default false, last_notified timestamptz, created_at timestamptz not null default now())",
+  "create table if not exists public.schedule_rows (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, client_name text not null default '', site_address text not null default '', email text not null default '', length_days int not null default 1, notes text not null default '', progress_pct int, deposit_paid boolean, ordered boolean, delivery_check boolean not null default false, confirmed_delivery date, sort_pos double precision, archived boolean not null default false, last_notified timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_schedule_rows_co on public.schedule_rows (company_id, archived, created_at)",
   "alter table public.schedule_rows enable row level security",
-  "create table if not exists public.schedule_blocks (id uuid primary key default gen_random_uuid(), company_id uuid, row_id uuid not null, kind text not null default 'pencil', crew_id text not null default '', start_date date not null, work_days int not null default 1, created_at timestamptz not null default now())",
+  "create table if not exists public.schedule_blocks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, row_id uuid not null, kind text not null default 'pencil', crew_id text not null default '', start_date date not null, work_days int not null default 1, created_at timestamptz not null default now())",
   "create index if not exists idx_schedule_blocks_co on public.schedule_blocks (company_id, row_id)",
   "alter table public.schedule_blocks enable row level security",
+  // _scopeCompany filters every tenant table on user_id as well as
+  // company_id; a table without the column makes real PostgREST refuse the
+  // whole query ("column schedule_rows.user_id does not exist") — the test
+  // double doesn't validate filter columns, so only production could say so.
+  "alter table public.schedule_rows add column if not exists user_id uuid",
+  "alter table public.schedule_blocks add column if not exists user_id uuid",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember

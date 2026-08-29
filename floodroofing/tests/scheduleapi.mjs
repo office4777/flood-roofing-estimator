@@ -73,6 +73,11 @@ r = await as(A, '/schedule/rows', { method: 'POST', body: JSON.stringify({ job_i
 const rowA = await j(r);
 check('a linked row snapshots the job identity', r.status === 200 &&
   rowA.client_name === 'Brian Lewis' && /Horeke/.test(rowA.site_address), JSON.stringify(rowA).slice(0, 100));
+// _scopeCompany filters on user_id as well as company_id; real PostgREST
+// refuses the whole query if the column is missing (the fake double
+// doesn't validate columns — this pin is the closest it gets).
+check('…and carries the author user_id the scoping helper filters on',
+  rowA.user_id === A.user, String(rowA.user_id));
 
 r = await as(A, '/schedule/rows', { method: 'POST', body: JSON.stringify({
   client_name: 'Modspace', site_address: 'Whetu Rau', length_days: 3, email: 'site@modspace.co.nz' }) });
@@ -105,6 +110,7 @@ r = await as(A, '/schedule/blocks', { method: 'POST', body: JSON.stringify({
   row_id: rowA.id, kind: 'pencil', start_date: '2026-09-04', work_days: 8 }) });
 const pencil = await j(r);
 check('a pencil block paints', r.status === 200 && pencil.kind === 'pencil', JSON.stringify(pencil).slice(0, 80));
+check('…with the author user_id on it too', pencil.user_id === A.user, String(pencil.user_id));
 
 r = await as(A, '/schedule/blocks/' + pencil.id, { method: 'PATCH', body: JSON.stringify({
   kind: 'crew', crew_id: 'crew1' }) });

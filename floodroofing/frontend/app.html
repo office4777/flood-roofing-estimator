@@ -11667,6 +11667,26 @@ function _writeLocalDraftNow(){
     catch(e){ return ok(false); }
     finally { _lkgGuard._readOnly = false; }
     if (!_snapHasSubstance(snap)) return ok(false);
+    /* Quote-only "substance" in a session that NEVER had a drawing is not
+       evidence of human work: the quote model assembles its default line
+       items the moment the Quote tab renders, so every fresh open on a
+       device holding yesterday's draft cleared the substance bar and took
+       the full guard — which refused the write AND paged the office (build
+       ab9a990, tab=schedule). Skipping leaves the disk draft untouched, so
+       nothing is at risk. Anything actually TYPED — a client, an address,
+       photos, points on the canvas — still takes the full guard below,
+       where the remembered drawing is filed with it and the office is
+       paged; and a session where a drawing existed and then went blank
+       (LKG.hadDrawing set) always does. */
+    try {
+      var _noDrawing = (!DRAW.roofs || !DRAW.roofs.length) &&
+                       (!DRAW.outline || !DRAW.outline.length) &&
+                       (!DRAW.lines || !DRAW.lines.length);
+      var _typed = !!((snap.form && (snap.form.jobClient || snap.form.jobAddr)) ||
+                      (snap.state && (snap.state.photos || []).length) ||
+                      (snap.draw && (snap.draw.currentPts || []).length > 1));
+      if (_noDrawing && !LKG.hadDrawing && !_typed) return ok(false);
+    } catch(e){}
     try { snap = snapshotCurrentJob(); } catch(e){ return ok(false); }
     var rec = {
       key: _draftKey(), at: new Date().toISOString(),
