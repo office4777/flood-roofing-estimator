@@ -5527,6 +5527,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;margin-bottom:10px">
       <strong style="font-size:13px;color:#0a1628">Inbox</strong>
       <span id="ibxStatusChips" style="display:flex;gap:6px"></span>
+      <select id="ibxCatSel" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:999px;font-size:11.5px;background:#fff">
+        <option value="">All mail</option><option value="lead">🔥 Leads</option><option value="quote_reply">💬 Quote replies</option>
+        <option value="supplier">📦 Suppliers</option><option value="invoice">🧾 Invoices</option>
+        <option value="junk">🗑 Junk</option><option value="other">Other</option>
+      </select>
+      <button class="ibx-chip" id="ibxSortBtn" title="How the list is stacked">⚡ Urgent first</button>
       <input type="search" id="ibxSearch" placeholder="Search mail…" style="flex:1;min-width:120px;max-width:260px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px">
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="ibx-chip" onclick="_ibxComposeOpen()">✉ Compose</button>
@@ -8243,7 +8249,7 @@ async function _schedFeedRegen(){
 }
 
 // ── INBOX: the comms hub ──────────────────────────────────────────
-var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null };
+var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null, sort: 'smart', cat: '', aiOn: false };
 function _ibxEsc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 function _ibxMsg(t, bad){ var el = document.getElementById('ibxMsg'); if (el){ el.textContent = t || ''; el.style.color = bad ? '#b91c1c' : 'var(--text2)'; } }
 function _ibxCanUse(){
@@ -8258,6 +8264,14 @@ function _ibxEnter(){
   _ibxRenderChips();
   var se = document.getElementById('ibxSearch');
   if (se && !se._wired){ se._wired = 1; se.oninput = function(){ _IBX.q = se.value.trim(); clearTimeout(se._t); se._t = setTimeout(_ibxLoad, 350); }; }
+  var cs = document.getElementById('ibxCatSel');
+  if (cs && !cs._wired){ cs._wired = 1; cs.onchange = function(){ _IBX.cat = cs.value; _ibxRenderList(); }; }
+  var sb = document.getElementById('ibxSortBtn');
+  if (sb && !sb._wired){ sb._wired = 1; sb.onclick = function(){
+    _IBX.sort = _IBX.sort === 'smart' ? 'date' : 'smart';
+    sb.textContent = _IBX.sort === 'smart' ? '⚡ Urgent first' : '🕐 Newest first';
+    _ibxLoad();
+  }; }
   _ibxLoad();
   if (_IBX.timer) clearInterval(_IBX.timer);
   _IBX.timer = setInterval(function(){
@@ -8278,28 +8292,42 @@ function _ibxRenderChips(){
 async function _ibxLoad(quiet){
   try {
     var d = await api('GET', '/inbox/threads?status=' + encodeURIComponent(_IBX.status) +
+      (_IBX.sort === 'date' ? '&sort=date' : '') +
       (_IBX.q ? '&q=' + encodeURIComponent(_IBX.q) : ''));
     _IBX.threads = d.threads || []; _IBX.accounts = d.accounts || [];
+    _IBX.aiOn = !!d.ai_enabled;
+    var sbtn = document.getElementById('ibxSortBtn');
+    if (sbtn) sbtn.style.display = _IBX.aiOn ? '' : 'none';
+    var csel = document.getElementById('ibxCatSel');
+    if (csel) csel.style.display = _IBX.aiOn ? '' : 'none';
     _ibxRenderList();
     var setup = document.getElementById('ibxSetupCard');
     if (setup) setup.style.display = _IBX.accounts.length ? 'none' : '';
     if (quiet !== true) _ibxMsg('');
   } catch(e){ if (quiet !== true) _ibxMsg((e && e.message) || 'Could not load the inbox', true); }
 }
+var _IBX_CAT_BADGE = { lead:'🔥 Lead', quote_reply:'💬 Quote', supplier:'📦 Supplier', invoice:'🧾 Invoice', junk:'🗑 Junk' };
 function _ibxRenderList(){
   var el = document.getElementById('ibxList');
   if (!el) return;
-  if (!_IBX.threads.length){
+  var rows = _IBX.cat ? _IBX.threads.filter(function(t){ return t.category === _IBX.cat; }) : _IBX.threads;
+  if (!rows.length){
     el.innerHTML = '<div style="padding:26px;font-size:12.5px;color:#94a3b8">Nothing here.</div>';
     return;
   }
-  el.innerHTML = _IBX.threads.map(function(t){
+  el.innerHTML = rows.map(function(t){
     var who = ((t.participants || [])[0] || '').split('@')[0];
     var d = t.last_date ? new Date(t.last_date) : null;
     var when = d ? d.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '';
+    var u = t.urgency || 0;
+    var badges = '';
+    if (_IBX_CAT_BADGE[t.category]) badges += '<span style="font-size:9.5px;background:#f1f5f9;border-radius:5px;padding:1px 5px;color:#334155">' + _IBX_CAT_BADGE[t.category] + '</span>';
+    if (u >= 40) badges += '<span data-urg style="font-size:9.5px;border-radius:5px;padding:1px 5px;font-weight:800;color:#fff;background:' + (u >= 70 ? '#dc2626' : '#d97706') + '">⚡' + u + '</span>';
+    if (t.job_id) badges += '<span title="Linked to a RoofMap job" style="font-size:9.5px">🔗</span>';
+    if (t.ai_draft) badges += '<span title="Suggested reply waiting" style="font-size:9.5px">✨</span>';
     return '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '">' +
-      '<div style="display:flex;gap:8px"><div class="f" style="flex:1">' + _ibxEsc(who || t.subject) + '</div>' +
-      '<div class="p">' + when + '</div></div>' +
+      '<div style="display:flex;gap:8px;align-items:center"><div class="f" style="flex:1">' + _ibxEsc(who || t.subject) + '</div>' +
+      badges + '<div class="p">' + when + '</div></div>' +
       '<div class="s">' + _ibxEsc(t.subject || '(no subject)') + '</div>' +
       '<div class="p">' + _ibxEsc(t.snippet || '') + (_IBX.accounts.length > 1 ? ' · ' + _ibxEsc(t.account_label || t.account_email) : '') + '</div></div>';
   }).join('');
@@ -8329,7 +8357,8 @@ async function _ibxOpen(id){
         ? '<button class="ibx-chip" data-ibxact="unarchive">↩ Back to inbox</button>'
         : '<button class="ibx-chip" data-ibxact="archive" title="Done — file it">✓ Archive</button>') +
       '<button class="ibx-chip" data-ibxact="snooze" title="Hide until later">⏰ Snooze</button>' +
-      '<button class="ibx-chip" data-ibxact="unread" title="Keep it bold">● Unread</button></div>';
+      '<button class="ibx-chip" data-ibxact="unread" title="Keep it bold">● Unread</button>' +
+      (t.job_id ? '<button class="ibx-chip" data-ibxjob="' + t.job_id + '" title="Open the linked RoofMap job">🔗 Job</button>' : '') + '</div>';
     msgs.forEach(function(m, i){
       var hasBlocked = /data-rsrc=/.test(m.body_html || '');
       h += '<div class="ibx-msg" data-ibxmsg="' + i + '">' +
@@ -8342,15 +8371,27 @@ async function _ibxOpen(id){
         (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
     });
     h += '<div style="padding:12px;margin-top:auto">' +
+      (t.ai_draft ? '<div id="ibxDraftStrip" style="border:1px dashed #0099cc;background:#f0f9ff;border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#0a1628">' +
+        '<div style="font-weight:700;margin-bottom:3px">✨ Suggested reply <button class="ibx-chip" id="ibxUseDraft" style="padding:2px 9px;font-size:10.5px;margin-left:6px">Use it</button></div>' +
+        '<div style="white-space:pre-wrap;color:#334155">' + _ibxEsc(t.ai_draft) + '</div></div>' : '') +
       '<textarea id="ibxReplyBody" rows="3" placeholder="Reply…" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px;font-size:12.5px;resize:vertical"></textarea>' +
       '<div style="display:flex;gap:10px;align-items:center;margin-top:6px">' +
       '<span id="ibxReplyMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>' +
+      (_IBX.aiOn && !t.ai_draft ? '<button class="ibx-chip" id="ibxDraftBtn" onclick="_ibxDraft()">✍ Draft a reply</button>' : '') +
       '<button id="ibxReplySend" class="ibx-chip" style="background:#0a1628;color:#fff;border-color:#0a1628" onclick="_ibxReplySend()">Send reply</button></div></div>';
     conv.innerHTML = h;
     if (window.innerWidth <= 900) document.getElementById('ibxBackBtn').style.display = '';
     conv.querySelectorAll('[data-ibxact]').forEach(function(b){
       b.onclick = function(){ _ibxAct(t, b.getAttribute('data-ibxact'), b); };
     });
+    var jb = conv.querySelector('[data-ibxjob]');
+    if (jb) jb.onclick = function(){ try { loadJobById && loadJobById(jb.getAttribute('data-ibxjob')); } catch(e){} };
+    var ud = document.getElementById('ibxUseDraft');
+    if (ud) ud.onclick = function(){
+      document.getElementById('ibxReplyBody').value = t.ai_draft || '';
+      document.getElementById('ibxDraftStrip').style.display = 'none';
+      document.getElementById('ibxReplyBody').focus();
+    };
     conv.querySelectorAll('[data-ibximg]').forEach(function(b){
       b.onclick = function(){
         var i = +b.getAttribute('data-ibximg');
@@ -8407,6 +8448,19 @@ async function _ibxReplySend(){
   } catch(e){
     btn.disabled = false; btn.textContent = 'Send reply';
     document.getElementById('ibxReplyMsg').textContent = (e && e.message) || 'Could not send';
+  }
+}
+async function _ibxDraft(){
+  var btn = document.getElementById('ibxDraftBtn');
+  if (btn){ btn.disabled = true; btn.textContent = 'Drafting…'; }
+  try {
+    var d = await api('POST', '/inbox/threads/' + _IBX.sel + '/draft');
+    document.getElementById('ibxReplyBody').value = d.draft || '';
+    document.getElementById('ibxReplyBody').focus();
+    if (btn){ btn.disabled = false; btn.textContent = '✍ Draft a reply'; }
+  } catch(e){
+    if (btn){ btn.disabled = false; btn.textContent = '✍ Draft a reply'; }
+    document.getElementById('ibxReplyMsg').textContent = (e && e.message) || 'Could not draft';
   }
 }
 // ── compose ──

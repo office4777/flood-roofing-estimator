@@ -30,6 +30,8 @@ const { port } = await startFakePostgrest({
   companies: [{ id: A.company, name: 'Flood Roofing', plan: 'business' },
               { id: B.company, name: 'Rival Roofing', plan: 'business' },
               { id: T.company, name: 'Small Roofing', plan: 'team' }],
+  jobs: [{ id: 'job-x', user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
+    site_address: '148 Horeke Road', draw_state: { state: { quote: { ref: 'FR-2996' } } } }],
   mail_accounts: [], mail_threads: [], mail_messages: [],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
@@ -52,6 +54,20 @@ const FAKE = {
 };
 globalThis.__TEST_MAIL_FETCHER = FAKE;
 globalThis.__TEST_MAIL_JSON = true;
+
+// The AI seam: a scripted triage/draft "model", so the suite pins what the
+// server DOES with the answers, not the answers themselves.
+const AI = { calls: [] };
+globalThis.__TEST_AI = async (opts) => {
+  AI.calls.push(opts.model);
+  if (/You triage/.test(opts.system || '')){
+    if (/FR-2996/.test(opts.prompt)) return '{"category":"quote_reply","urgency":80,"job_ref":"FR-2996"}';
+    if (/quote|leaks/i.test(opts.prompt)) return '{"category":"lead","urgency":92,"job_ref":""}';
+    if (/Price list/i.test(opts.prompt)) return '{"category":"supplier","urgency":25,"job_ref":""}';
+    return '{"category":"other","urgency":10,"job_ref":""}';
+  }
+  return 'Hi there,\n\nThanks for getting in touch — we can take a look this week.\n\nFlood Roofing';
+};
 
 const log = console.log; console.log = () => {};
 await import(pathToFileURL(_j(_ROOT, 'backend', 'server.js')).href);
@@ -135,6 +151,38 @@ const suppl = body.threads.find(t => /Price list/.test(t.subject)) || {};
 check('the conversation carries its count, snippet and account',
   lewis.msg_count === 2 && /kitchen/.test(lewis.snippet) && lewis.account_email === 'office@floodroofing.co.nz',
   JSON.stringify({ c: lewis.msg_count, s: lewis.snippet }).slice(0, 90));
+
+// ── the AI sorted it on arrival ───────────────────────────────────
+check('the AI triages on arrival: the lead runs hot, the supplier cool',
+  lewis.category === 'lead' && lewis.urgency === 92 && suppl.category === 'supplier' && suppl.urgency === 25,
+  JSON.stringify({ l: [lewis.category, lewis.urgency], s: [suppl.category, suppl.urgency] }));
+check('the hottest conversation stacks on top', (body.threads[0] || {}).id === lewis.id,
+  (body.threads[0] || {}).subject);
+check('…with a suggested reply already waiting — and NOT sent',
+  /Flood Roofing/.test(lewis.ai_draft || '') && lewis.msg_count === 2, String(lewis.ai_draft).slice(0, 60));
+check('the payload says AI is on', body.ai_enabled === true);
+body = await j(await as(A, '/inbox/threads?sort=date'));
+check('?sort=date restores plain newest-first', (body.threads[0] || {}).id === suppl.id);
+
+// A payment email naming the job number links itself to the job.
+FAKE.inbox.push({ uid: 31, msg_id: '<m4@lewis.nz>', in_reply_to: '', refs: '',
+  from_addr: 'brian@lewis.co.nz', from_name: 'Brian Lewis', to_addrs: ['office@floodroofing.co.nz'],
+  cc_addrs: [], subject: 'Deposit for FR-2996 paid', date: '2026-08-28T05:00:00.000Z',
+  body_text: 'Paid the deposit for FR-2996 today.', body_html: '', attachments: [] });
+await as(A, '/inbox/accounts/' + office.id + '/sync', { method: 'POST' });
+body = await j(await as(A, '/inbox/threads'));
+const paid = (body.threads || []).find(t => /Deposit for FR-2996/.test(t.subject)) || {};
+check('a job number in the email links the thread to the RoofMap job',
+  paid.job_id === 'job-x' && paid.category === 'quote_reply', JSON.stringify({ j: paid.job_id, c: paid.category }));
+
+// On-demand drafting for anything else.
+r = await as(A, '/inbox/threads/' + suppl.id + '/draft', { method: 'POST' });
+body = await j(r);
+check('"Draft a reply" works on any thread', r.status === 200 && /Flood Roofing/.test(body.draft || ''),
+  String(body.draft).slice(0, 60));
+check('…on the cheap model for triage, the good one for drafts',
+  AI.calls.includes('claude-haiku-4-5-20251001') && AI.calls.includes('claude-sonnet-5'),
+  [...new Set(AI.calls)].join(','));
 
 body = await j(await as(A, '/inbox/threads/' + suppl.id));
 const m3 = (body.messages || [])[0] || {};

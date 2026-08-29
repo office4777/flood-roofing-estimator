@@ -3880,6 +3880,80 @@ function _mailTransport(acct, pass){
   });
 }
 
+// ── the AI: triage, job-linking, reply drafts ──
+// Behind a seam (globalThis.__TEST_AI) like IMAP; without an
+// ANTHROPIC_API_KEY everything AI simply doesn't exist — mail still flows.
+function _inboxAIOn(){ return !!(globalThis.__TEST_AI || process.env.ANTHROPIC_API_KEY); }
+async function _inboxAI(opts){
+  if (globalThis.__TEST_AI) return await globalThis.__TEST_AI(opts);
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error('AI is not configured');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: opts.model, max_tokens: opts.max_tokens || 500,
+      system: opts.system, messages: [{ role: 'user', content: opts.prompt }] }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((d.error && d.error.message) || ('AI request failed (' + r.status + ')'));
+  return (d.content && d.content[0] && d.content[0].text) || '';
+}
+async function _inboxCompanyName(companyId){
+  try {
+    const { data } = await supabase.from('companies').select('name').eq('id', companyId).limit(1);
+    return (data && data[0] && data[0].name) || 'the team';
+  } catch (e) { return 'the team'; }
+}
+async function _inboxDraftReply(acct, msg){
+  const company = await _inboxCompanyName(acct.company_id);
+  const sys = 'You draft short, warm, practical reply emails for ' + company +
+    ', a New Zealand roofing company. Plain text only, no subject line, 2-6 sentences, ' +
+    'never invent prices or dates — if specifics are needed, say the team will confirm them. ' +
+    'Sign off with:\n' + company;
+  return String(await _inboxAI({ model: 'claude-sonnet-5', max_tokens: 400, system: sys,
+    prompt: 'Draft a reply to this email.\n\nFrom: ' + (msg.from_name || '') + ' <' + msg.from_addr + '>\n' +
+      'Subject: ' + (msg.subject || '') + '\n\n' + String(msg.body_text || '').slice(0, 2200) })).trim();
+}
+const _INBOX_CATS = ['lead', 'quote_reply', 'supplier', 'invoice', 'junk', 'other'];
+async function _inboxTriage(acct, threadId, msg, jobLinked){
+  if (!_inboxAIOn()) return;
+  try {
+    const sys = 'You triage incoming email for a New Zealand roofing company\'s office. ' +
+      'Reply ONLY with JSON: {"category":"lead|quote_reply|supplier|invoice|junk|other","urgency":0-100,"job_ref":""}. ' +
+      'lead = new work enquiry; quote_reply = a customer answering about a quote or booked job. ' +
+      'urgency 90+ = a customer waiting on a reply about work or money right now; 50-89 = handle today; ' +
+      'under 50 can wait; newsletters and junk under 10. job_ref = any job or quote number mentioned, else "".';
+    const text = await _inboxAI({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, system: sys,
+      prompt: 'From: ' + (msg.from_name || '') + ' <' + msg.from_addr + '>\nSubject: ' + (msg.subject || '') +
+        '\n\n' + String(msg.body_text || '').slice(0, 2200) });
+    const jm = String(text).match(/\{[\s\S]*\}/);
+    const ai = jm ? JSON.parse(jm[0]) : {};
+    const patch = {
+      category: _INBOX_CATS.includes(ai.category) ? ai.category : 'other',
+      urgency: Math.max(0, Math.min(100, parseInt(ai.urgency, 10) || 0)),
+      priority: null,
+    };
+    // Job link: an explicit ref in the text beats guessing — regex first,
+    // the AI's spotted ref as backup. Only fills an empty link.
+    if (!jobLinked) {
+      const hay = (msg.subject || '') + ' ' + String(msg.body_text || '').slice(0, 2000);
+      const cands = (hay.match(/\b[A-Z]{1,4}-\d{3,6}\b/g) || []).concat(ai.job_ref ? [String(ai.job_ref).trim()] : []);
+      for (const ref of [...new Set(cands)].slice(0, 4)) {
+        if (!ref) continue;
+        const { data: hit } = await supabase.from('jobs').select('id')
+          .eq('company_id', acct.company_id).eq('draw_state->state->quote->>ref', ref).limit(1);
+        if (hit && hit[0]) { patch.job_id = hit[0].id; break; }
+      }
+    }
+    // A hot one arrives with a suggested reply already waiting — a human
+    // always reads and sends it; nothing goes out on its own.
+    if ((patch.category === 'lead' || patch.category === 'quote_reply') && patch.urgency >= 40) {
+      try { patch.ai_draft = await _inboxDraftReply(acct, msg); } catch (e) {}
+    }
+    await supabase.from('mail_threads').update(patch).eq('id', threadId);
+  } catch (e) { /* triage is best-effort; the mail already landed */ }
+}
+
 // ── ingest ──
 async function _inboxIngest(acct, msgs){
   if (!msgs || !msgs.length) return 0;
@@ -3920,15 +3994,18 @@ async function _inboxIngest(acct, msgs){
         unread: true, status: th[0].status === 'archived' ? 'inbox' : th[0].status,
         msg_count: (th[0].msg_count || 0) + 1,
       }).eq('id', th[0].id);
+      await _inboxTriage(acct, th[0].id, row, !!th[0].job_id);
     } else {
+      const tid = crypto.randomUUID();
       await supabase.from('mail_threads').insert({
-        id: crypto.randomUUID(), company_id: acct.company_id, user_id: acct.user_id,
+        id: tid, company_id: acct.company_id, user_id: acct.user_id,
         account_id: acct.id, thread_key: key, subject: row.subject,
         participants: [row.from_addr].concat(row.to_addrs || []).filter(Boolean).slice(0, 12),
         snippet: snip, last_date: row.date, status: 'inbox', snoozed_until: null,
         assignee_user_id: null, job_id: null, category: '', priority: null, urgency: null,
-        unread: true, msg_count: 1, created_at: new Date().toISOString(),
+        unread: true, msg_count: 1, ai_draft: null, created_at: new Date().toISOString(),
       });
+      await _inboxTriage(acct, tid, row, false);
     }
   }
   return added;
@@ -4064,12 +4141,19 @@ app.get('/inbox/threads', ..._inboxGate, async (req, res) => {
       (t.subject || '').toLowerCase().includes(needle) ||
       (t.snippet || '').toLowerCase().includes(needle) ||
       JSON.stringify(t.participants || []).toLowerCase().includes(needle));
-    rows.sort((a, b2) => String(b2.last_date || '').localeCompare(String(a.last_date || '')));
+    // The most urgent stack at the top; equal urgency falls back to newest.
+    // ?sort=date restores a plain newest-first read.
+    if (req.query.sort === 'date') {
+      rows.sort((a, b2) => String(b2.last_date || '').localeCompare(String(a.last_date || '')));
+    } else {
+      rows.sort((a, b2) => ((b2.urgency || 0) - (a.urgency || 0)) ||
+        String(b2.last_date || '').localeCompare(String(a.last_date || '')));
+    }
     rows = rows.slice(0, 200).map(t => Object.assign({}, t, {
       account_email: (byId[t.account_id] || {}).email || '',
       account_label: (byId[t.account_id] || {}).label || '',
     }));
-    res.json({ threads: rows, accounts: accts.map(_mailAcctPublic) });
+    res.json({ threads: rows, accounts: accts.map(_mailAcctPublic), ai_enabled: _inboxAIOn() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/inbox/threads/:id', ..._inboxGate, async (req, res) => {
@@ -4124,6 +4208,24 @@ async function _inboxSend(req, acct, mail){
   }
   return { msgId, info };
 }
+app.post('/inbox/threads/:id/draft', ..._inboxGate, async (req, res) => {
+  if (!_inboxAIOn()) return res.status(400).json({ error: 'AI drafting is not configured' });
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).eq('id', req.params.id).limit(1);
+    const t = data && data[0];
+    const acct = t && accts.find(a => a.id === t.account_id);
+    if (!t || !acct) return res.status(404).json({ error: 'Thread not found' });
+    const { data: msgs } = await supabase.from('mail_messages').select('*')
+      .eq('account_id', t.account_id).eq('thread_key', t.thread_key).limit(200);
+    const inbound = (msgs || []).filter(m => m.folder !== 'Sent')
+      .sort((a, b2) => String(b2.date || '').localeCompare(String(a.date || '')))[0];
+    if (!inbound) return res.status(400).json({ error: 'Nothing to reply to yet' });
+    const draft = await _inboxDraftReply(acct, inbound);
+    await supabase.from('mail_threads').update({ ai_draft: draft }).eq('id', t.id);
+    res.json({ draft });
+  } catch (e) { res.status(500).json({ error: String(e.message || e).slice(0, 300) }); }
+});
 app.post('/inbox/threads/:id/reply', ..._inboxGate, async (req, res) => {
   const b = req.body || {};
   if (!String(b.body_text || '').trim()) return res.status(400).json({ error: 'Write the reply first' });
@@ -6906,7 +7008,7 @@ const _MIGRATION_SQL = [
   "create table if not exists public.mail_accounts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, label text not null default '', email text not null default '', provider text not null default 'other', imap_host text not null default '', imap_port int not null default 993, smtp_host text not null default '', smtp_port int not null default 465, username text not null default '', cred_enc text not null default '', shared boolean not null default true, status text not null default 'ok', last_error text not null default '', last_uid jsonb, last_sync timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_accounts_co on public.mail_accounts (company_id)",
   "alter table public.mail_accounts enable row level security",
-  "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, created_at timestamptz not null default now())",
+  "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, ai_draft text, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_threads_co on public.mail_threads (company_id, status, last_date)",
   "create unique index if not exists idx_mail_threads_key on public.mail_threads (account_id, thread_key)",
   "alter table public.mail_threads enable row level security",
@@ -6914,6 +7016,7 @@ const _MIGRATION_SQL = [
   "create index if not exists idx_mail_messages_th on public.mail_messages (account_id, thread_key, date)",
   "create unique index if not exists idx_mail_messages_mid on public.mail_messages (account_id, msg_id) where msg_id <> ''",
   "alter table public.mail_messages enable row level security",
+  "alter table public.mail_threads add column if not exists ai_draft text",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember

@@ -21,9 +21,11 @@ function mkData(){
   const threads = [
     { id: 't1', account_id: 'acc1', subject: 'Re-roof quote for 148 Horeke Road', participants: ['brian@lewis.co.nz', 'office@floodroofing.co.nz'],
       snippet: 'It leaks over the kitchen.', last_date: '2026-08-28T02:00:00Z', status: 'inbox', unread: true,
+      category: 'lead', urgency: 92, job_id: 'j1', ai_draft: 'Hi Brian,\n\nWe can look on Tuesday.\n\nFlood Roofing',
       msg_count: 2, account_email: 'office@floodroofing.co.nz', account_label: 'Office' },
     { id: 't2', account_id: 'acc1', subject: 'Price list update', participants: ['sales@supplier.co.nz'],
       snippet: 'New prices attached.', last_date: '2026-08-28T03:00:00Z', status: 'inbox', unread: false,
+      category: 'supplier', urgency: 25, job_id: null, ai_draft: null,
       msg_count: 1, account_email: 'office@floodroofing.co.nz', account_label: 'Office' },
     { id: 't3', account_id: 'acc1', subject: 'Old enquiry', participants: ['x@y.nz'],
       snippet: 'Sorted long ago.', last_date: '2026-07-01T00:00:00Z', status: 'archived', unread: false,
@@ -56,10 +58,14 @@ async function boot(opts){
     const u = r.request().url(), m = r.request().method();
     const json = o => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (/\/inbox\/threads\?/.test(u) && m === 'GET'){
-      calls.push(['GET threads']);
+      calls.push(['GET threads', u]);
       const status = (u.match(/status=(\w+)/) || [])[1] || 'inbox';
       const th = data.threads.filter(t => status === 'all' || t.status === status);
-      return json({ threads: th, accounts: data.accounts });
+      return json({ threads: th, accounts: data.accounts, ai_enabled: true });
+    }
+    if (/\/inbox\/threads\/t\d+\/draft$/.test(u)){
+      calls.push(['draft', u.split('/')[u.split('/').length - 2]]);
+      return json({ draft: 'Thanks — noted, we will confirm pricing.\n\nFlood Roofing' });
     }
     if (/\/inbox\/threads\/t\d+$/.test(u) && m === 'GET'){
       const id = u.split('/').pop();
@@ -115,6 +121,29 @@ let v = await pg.evaluate(() => ({
 check('the inbox renders its status chips and thread list',
   v.wrap && v.chips === 4 && v.rows === 2 && v.unread === 1 && v.setup, JSON.stringify(v));
 
+// The AI's sort shows on the rows and in the controls.
+v = await pg.evaluate(() => ({
+  urg: (document.querySelector('[data-ibxthread="t1"] [data-urg]') || {}).textContent,
+  lead: /Lead/.test(document.querySelector('[data-ibxthread="t1"]').textContent),
+  draftStar: /✨/.test(document.querySelector('[data-ibxthread="t1"]').textContent),
+  sortBtn: getComputedStyle(document.getElementById('ibxSortBtn')).display !== 'none',
+}));
+check('a hot lead wears its urgency, category and waiting-draft badges',
+  v.urg === '⚡92' && v.lead && v.draftStar && v.sortBtn, JSON.stringify(v));
+await pg.selectOption('#ibxCatSel', 'supplier');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => document.querySelectorAll('.ibx-row').length);
+check('the category picker filters the list', v === 1, v + ' rows');
+await pg.selectOption('#ibxCatSel', '');
+await pg.waitForTimeout(200);
+calls.length = 0;
+await pg.evaluate(() => document.getElementById('ibxSortBtn').click());
+await pg.waitForTimeout(300);
+v = calls.find(c => c[0] === 'GET threads');
+check('the sort toggle asks the server for newest-first', !!v && /sort=date/.test(v[1]), v && v[1]);
+await pg.evaluate(() => document.getElementById('ibxSortBtn').click());
+await pg.waitForTimeout(300);
+
 // Open the unread lead.
 await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
 await pg.waitForTimeout(600);
@@ -133,6 +162,16 @@ check('…remote images blocked until asked',
   v.blockedBtn && /data-rsrc/.test(v.srcdoc) && !/ src="https:/.test(v.srcdoc));
 let read = calls.find(c => c[0] === 'PATCH t1' && c[1].unread === false);
 check('opening it marks the thread read', !!read, JSON.stringify(read));
+v = await pg.evaluate(() => ({
+  strip: !!document.getElementById('ibxDraftStrip'),
+  jobChip: !!document.querySelector('[data-ibxjob="j1"]'),
+}));
+check('the hot lead opens with its suggested reply and job link', v.strip && v.jobChip, JSON.stringify(v));
+await pg.evaluate(() => document.getElementById('ibxUseDraft').click());
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => document.getElementById('ibxReplyBody').value);
+check('"Use it" drops the draft into the reply box — nothing sent', /Tuesday/.test(v), v.slice(0, 40));
+await pg.evaluate(() => { document.getElementById('ibxReplyBody').value = ''; });
 
 await pg.evaluate(() => document.querySelector('[data-ibximg]').click());
 await pg.waitForTimeout(300);
@@ -148,9 +187,17 @@ let rep = calls.find(c => c[0] === 'reply');
 check('the reply posts exactly what was written',
   !!rep && /Tuesday suits/.test(rep[1].body_text), JSON.stringify(rep && rep[1]));
 
-// Archive.
+// The supplier thread has no waiting draft — draft one on demand.
 await pg.evaluate(() => document.querySelector('[data-ibxthread="t2"]').click());
 await pg.waitForTimeout(500);
+calls.length = 0;
+await pg.evaluate(() => _ibxDraft());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => document.getElementById('ibxReplyBody').value);
+check('✍ Draft a reply asks the AI and fills the box for review',
+  calls.some(c => c[0] === 'draft') && /confirm pricing/.test(v), v.slice(0, 40));
+
+// Archive.
 calls.length = 0;
 await pg.evaluate(() => document.querySelector('[data-ibxact="archive"]').click());
 await pg.waitForTimeout(400);
