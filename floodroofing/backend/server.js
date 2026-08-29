@@ -4184,6 +4184,111 @@ app.patch('/inbox/threads/:id', ..._inboxGate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── tasks: the office's to-do board ──
+async function _inboxMembers(req){
+  if (!req.companyId) return [];
+  const [{ data: links }, { data: profs }] = await Promise.all([
+    supabase.from('company_users').select('user_id, role').eq('company_id', req.companyId),
+    supabase.from('profiles').select('id, name, email').eq('company_id', req.companyId),
+  ]);
+  const byId = {}; (profs || []).forEach(p => { byId[p.id] = p; });
+  return (links || []).map(l => ({
+    id: l.user_id, role: l.role || 'member',
+    name: (byId[l.user_id] || {}).name || '', email: (byId[l.user_id] || {}).email || '',
+  }));
+}
+// The AI decides who is responsible — from the real member list, so it can
+// only ever pick a teammate who exists. Humans re-assign freely on the board.
+async function _inboxAssign(members, title, context){
+  if (!_inboxAIOn() || !members.length) return {};
+  try {
+    const sys = 'You assign office tasks for a New Zealand roofing company. Given the team and a task, ' +
+      'pick who is responsible. Reply ONLY with JSON: {"assignee_id":"<id from the team list>","urgency":0-100}. ' +
+      'Money and customer-facing replies usually sit with the office/owner; site and delivery matters with whoever runs jobs.';
+    const text = await _inboxAI({ model: 'claude-haiku-4-5-20251001', max_tokens: 150, system: sys,
+      prompt: 'Team:\n' + members.map(m => m.id + ' — ' + (m.name || m.email || 'teammate') + ' (' + m.role + ')').join('\n') +
+        '\n\nTask: ' + title + (context ? '\n\nContext:\n' + String(context).slice(0, 1200) : '') });
+    const jm = String(text).match(/\{[\s\S]*\}/);
+    const ai = jm ? JSON.parse(jm[0]) : {};
+    const out = {};
+    if (members.some(m => m.id === ai.assignee_id)) out.assignee_user_id = ai.assignee_id;
+    if (ai.urgency !== undefined) out.urgency = Math.max(0, Math.min(100, parseInt(ai.urgency, 10) || 0));
+    return out;
+  } catch (e) { return {}; }
+}
+app.get('/inbox/tasks', ..._inboxGate, async (req, res) => {
+  try {
+    const { data } = await _scopeCompany(supabase.from('comms_tasks').select('*'), req).limit(500);
+    const tasks = (data || []).sort((a, b2) => ((b2.urgency || 0) - (a.urgency || 0)) ||
+      String(a.due_date || '9999').localeCompare(String(b2.due_date || '9999')));
+    res.json({ tasks, members: await _inboxMembers(req), ai_enabled: _inboxAIOn() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+async function _inboxTaskCreate(req, fields, context){
+  const task = {
+    id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+    title: String(fields.title || '').slice(0, 300),
+    notes: String(fields.notes || '').slice(0, 4000),
+    due_date: fields.due_date || null,
+    assignee_user_id: fields.assignee_user_id || null,
+    done: false, urgency: (fields.urgency === undefined ? null : fields.urgency),
+    thread_id: fields.thread_id || null, job_id: fields.job_id || null,
+    done_at: null, created_at: new Date().toISOString(),
+  };
+  if (!task.title) throw new Error('Give the task a title');
+  if (!task.assignee_user_id) {
+    const ai = await _inboxAssign(await _inboxMembers(req), task.title, context || task.notes);
+    if (ai.assignee_user_id) task.assignee_user_id = ai.assignee_user_id;
+    if (ai.urgency !== undefined && task.urgency == null) task.urgency = ai.urgency;
+  }
+  const { error } = await supabase.from('comms_tasks').insert(task);
+  if (error) throw new Error(error.message);
+  return task;
+}
+app.post('/inbox/tasks', ..._inboxGate, async (req, res) => {
+  try { res.json(await _inboxTaskCreate(req, req.body || {})); }
+  catch (e) { res.status(400).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+// One tap on an email: "make this someone's job".
+app.post('/inbox/threads/:id/task', ..._inboxGate, async (req, res) => {
+  try {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).eq('id', req.params.id).limit(1);
+    const t = data && data[0];
+    if (!t || !accts.some(a => a.id === t.account_id)) return res.status(404).json({ error: 'Thread not found' });
+    const b = req.body || {};
+    const task = await _inboxTaskCreate(req, {
+      title: String(b.title || ('Reply: ' + (t.subject || 'email') + ' — ' + ((t.participants || [])[0] || ''))).slice(0, 300),
+      notes: b.notes || t.snippet || '',
+      due_date: b.due_date, assignee_user_id: b.assignee_user_id,
+      urgency: (b.urgency !== undefined ? b.urgency : (t.urgency == null ? undefined : t.urgency)),
+      thread_id: t.id, job_id: t.job_id || null,
+    }, (t.subject || '') + '\n' + (t.snippet || ''));
+    res.json(task);
+  } catch (e) { res.status(400).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+const _COMMS_TASK_WRITABLE = ['title', 'notes', 'due_date', 'assignee_user_id', 'done', 'urgency', 'job_id'];
+app.patch('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
+  const patch = {};
+  for (const k of _COMMS_TASK_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
+  if (patch.done === true) patch.done_at = new Date().toISOString();
+  if (patch.done === false) patch.done_at = null;
+  try {
+    const { data } = await _scopeCompany(supabase.from('comms_tasks').update(patch), req)
+      .eq('id', req.params.id).select('*');
+    if (!data || !data.length) return res.status(404).json({ error: 'Task not found' });
+    res.json(data[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
+  try {
+    const { data } = await _scopeCompany(supabase.from('comms_tasks').delete(), req)
+      .eq('id', req.params.id).select('id');
+    if (!data || !data.length) return res.status(404).json({ error: 'Task not found' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── send ──
 async function _inboxSend(req, acct, mail){
   const pass = _mailDec(acct.cred_enc);
@@ -7017,6 +7122,9 @@ const _MIGRATION_SQL = [
   "create unique index if not exists idx_mail_messages_mid on public.mail_messages (account_id, msg_id) where msg_id <> ''",
   "alter table public.mail_messages enable row level security",
   "alter table public.mail_threads add column if not exists ai_draft text",
+  "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
+  "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
+  "alter table public.comms_tasks enable row level security",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember

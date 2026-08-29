@@ -42,7 +42,17 @@ function mkData(){
     t2: [{ from_addr: 'sales@supplier.co.nz', from_name: 'Steel Supplier', date: '2026-08-28T03:00:00Z',
       body_text: 'New prices attached.', body_html: '', attachments: [] }],
   };
-  return { accounts, threads, messages };
+  const members = [
+    { id: 'u1', name: 'Aron', email: 'aron@floodroofing.co.nz', role: 'owner' },
+    { id: 'u2', name: 'Lizzie', email: 'lizzie@floodroofing.co.nz', role: 'member' },
+  ];
+  const tasks = [
+    { id: 'tk1', title: 'Reply: Re-roof quote — Brian Lewis', urgency: 88, due_date: '2026-08-28',
+      assignee_user_id: 'u2', done: false, thread_id: 't1', job_id: 'j1' },
+    { id: 'tk2', title: 'Order the ridge flashings', urgency: 20, due_date: null,
+      assignee_user_id: null, done: false, thread_id: null, job_id: null },
+  ];
+  return { accounts, threads, messages, members, tasks };
 }
 
 async function boot(opts){
@@ -62,6 +72,21 @@ async function boot(opts){
       const status = (u.match(/status=(\w+)/) || [])[1] || 'inbox';
       const th = data.threads.filter(t => status === 'all' || t.status === status);
       return json({ threads: th, accounts: data.accounts, ai_enabled: true });
+    }
+    if (/\/inbox\/tasks$/.test(u) && m === 'GET'){
+      return json({ tasks: data.tasks, members: data.members, ai_enabled: true });
+    }
+    if (/\/inbox\/tasks$/.test(u) && m === 'POST'){
+      calls.push(['newtask', JSON.parse(r.request().postData() || '{}')]);
+      return json({ id: 'tk9', title: 'x', assignee_user_id: 'u2', done: false });
+    }
+    if (/\/inbox\/tasks\/tk\d+$/.test(u) && m === 'PATCH'){
+      calls.push(['PATCH task ' + u.split('/').pop(), JSON.parse(r.request().postData() || '{}')]);
+      return json({});
+    }
+    if (/\/inbox\/threads\/t\d+\/task$/.test(u) && m === 'POST'){
+      calls.push(['emailtask', u.split('/')[u.split('/').length - 2]]);
+      return json({ id: 'tk8', assignee_user_id: 'u2' });
     }
     if (/\/inbox\/threads\/t\d+\/draft$/.test(u)){
       calls.push(['draft', u.split('/')[u.split('/').length - 2]]);
@@ -235,6 +260,66 @@ await pg.waitForTimeout(400);
 let comp = calls.find(c => c[0] === 'compose');
 check('…and Send posts the email from the picked account',
   !!comp && comp[1].to === 'new@customer.co.nz' && comp[1].account_id === 'acc1', JSON.stringify(comp && comp[1]).slice(0, 90));
+
+// ── the task board ────────────────────────────────────────────────
+await pg.evaluate(() => _ibxTasksToggle());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  shown: getComputedStyle(document.getElementById('ibxTasksWrap')).display !== 'none',
+  mailHidden: document.getElementById('ibxMain').style.display === 'none',
+  cols: [...document.querySelectorAll('[data-tcol]')].map(c => c.getAttribute('data-tcol')),
+  hotInLizzie: !!document.querySelector('[data-tcol="u2"] [data-task="tk1"]'),
+  hotText: (document.querySelector('[data-task="tk1"]') || {}).textContent || '',
+}));
+check('the task board opens with a column per teammate plus Unassigned',
+  v.shown && v.mailHidden && v.cols.join(',') === ',u1,u2', JSON.stringify(v.cols));
+check("the AI's assignment and urgency show on the card",
+  v.hotInLizzie && /⚡88/.test(v.hotText) && /📅 2026-08-28/.test(v.hotText), v.hotText.slice(0, 60));
+
+// Add a task — the server (AI) picks the assignee.
+calls.length = 0;
+await pg.fill('#ibxTaskNew', 'Chase the Modspace deposit');
+await pg.evaluate(() => _ibxTaskAdd());
+await pg.waitForTimeout(400);
+let nt = calls.find(c => c[0] === 'newtask');
+check('typing a task posts it for AI assignment',
+  !!nt && nt[1].title === 'Chase the Modspace deposit' && nt[1].assignee_user_id === undefined,
+  JSON.stringify(nt && nt[1]));
+
+// Re-assign through the card menu.
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-task="tk1"]').click());
+await pg.waitForTimeout(300);
+await pg.evaluate(() => {
+  [...document.querySelectorAll('.sched-menu button')].find(b => /Aron/.test(b.textContent)).click();
+});
+await pg.waitForTimeout(300);
+let ra = calls.find(c => c[0] === 'PATCH task tk1');
+check('handing a card to a teammate saves the new assignee',
+  !!ra && ra[1].assignee_user_id === 'u1', JSON.stringify(ra && ra[1]));
+v = await pg.evaluate(() => !!document.querySelector('[data-tcol="u1"] [data-task="tk1"]'));
+check('…and the card moves columns instantly', v === true);
+
+// Tick it done.
+calls.length = 0;
+await pg.evaluate(() => {
+  const cb = document.querySelector('[data-tdone="tk1"]');
+  cb.checked = true; cb.dispatchEvent(new Event('change'));
+});
+await pg.waitForTimeout(300);
+let dn = calls.find(c => c[0] === 'PATCH task tk1');
+check('ticking a task done saves it', !!dn && dn[1].done === true, JSON.stringify(dn && dn[1]));
+
+// ➕ Task straight from an email.
+await pg.evaluate(() => _ibxTasksToggle());
+await pg.waitForTimeout(300);
+await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
+await pg.waitForTimeout(500);
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-ibxact="task"]').click());
+await pg.waitForTimeout(400);
+let et = calls.find(c => c[0] === 'emailtask');
+check('➕ Task turns the open email into a task', !!et && et[1] === 't1', JSON.stringify(et));
 
 // Accounts modal: guided setup.
 await pg.evaluate(() => _ibxAcctOpen());

@@ -32,7 +32,7 @@ const { port } = await startFakePostgrest({
               { id: T.company, name: 'Small Roofing', plan: 'team' }],
   jobs: [{ id: 'job-x', user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
     site_address: '148 Horeke Road', draw_state: { state: { quote: { ref: 'FR-2996' } } } }],
-  mail_accounts: [], mail_threads: [], mail_messages: [],
+  mail_accounts: [], mail_threads: [], mail_messages: [], comms_tasks: [],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -60,6 +60,7 @@ globalThis.__TEST_MAIL_JSON = true;
 const AI = { calls: [] };
 globalThis.__TEST_AI = async (opts) => {
   AI.calls.push(opts.model);
+  if (/You assign/.test(opts.system || '')) return '{"assignee_id":"user-a2","urgency":77}';
   if (/You triage/.test(opts.system || '')){
     if (/FR-2996/.test(opts.prompt)) return '{"category":"quote_reply","urgency":80,"job_ref":"FR-2996"}';
     if (/quote|leaks/i.test(opts.prompt)) return '{"category":"lead","urgency":92,"job_ref":""}';
@@ -225,6 +226,36 @@ check('snooze + assign round-trips', r.status === 200 && body.status === 'snooze
 body = await j(await as(A, '/inbox/threads'));
 check('…and a snoozed thread leaves the inbox view',
   !(body.threads || []).some(t => t.id === suppl.id), (body.threads || []).length + ' in inbox');
+
+// ── tasks: the AI hands them to the right person ──────────────────
+r = await as(A, '/inbox/tasks', { method: 'POST', body: JSON.stringify({ title: 'Chase the Modspace deposit' }) });
+body = await j(r);
+check('a bare task gets an AI assignee and urgency',
+  r.status === 200 && body.assignee_user_id === A2.user && body.urgency === 77, JSON.stringify(body).slice(0, 90));
+const taskId = body.id;
+
+r = await as(A, '/inbox/threads/' + paid.id + '/task', { method: 'POST', body: JSON.stringify({}) });
+body = await j(r);
+check('an email becomes a task carrying its thread and job',
+  r.status === 200 && body.thread_id === paid.id && body.job_id === 'job-x' && /FR-2996/.test(body.title),
+  JSON.stringify({ th: body.thread_id, j: body.job_id }));
+check("…keeping the thread's urgency", body.urgency === 80, String(body.urgency));
+
+body = await j(await as(A, '/inbox/tasks'));
+check('the board lists tasks urgency-first with the team beside them',
+  (body.tasks || [])[0].urgency === 80 && (body.members || []).length === 2,
+  JSON.stringify({ n: (body.tasks || []).length, m: (body.members || []).length }));
+
+r = await as(A2, '/inbox/tasks/' + taskId, { method: 'PATCH', body: JSON.stringify({ assignee_user_id: A.user, done: true }) });
+body = await j(r);
+check('anyone on the team can re-assign and finish a task',
+  r.status === 200 && body.assignee_user_id === A.user && body.done === true && !!body.done_at,
+  JSON.stringify(body).slice(0, 80));
+
+r = await as(B, '/inbox/tasks/' + taskId, { method: 'PATCH', body: JSON.stringify({ done: false }) });
+check("B cannot touch A's tasks", r.status === 404, 'status ' + r.status);
+body = await j(await as(B, '/inbox/tasks'));
+check("…and B's task board is empty", (body.tasks || []).length === 0);
 
 // ── the walls ─────────────────────────────────────────────────────
 body = await j(await as(B, '/inbox/threads'));
