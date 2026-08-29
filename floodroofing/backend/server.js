@@ -2160,6 +2160,15 @@ app.put('/settings', requireAuth, async (req, res) => {
         delete payload.price_book.__materials_catalog.__cleared;
       }
     } catch (e) { /* the guard must never break an ordinary save */ }
+    // A writer that doesn't send jms_keys at all (an older build, a partial
+    // save) must not wipe the stored Fergus key — losing it silently
+    // disconnects the company's JMS. A writer that DOES send the object is
+    // trusted verbatim, empty values included: clearing the field in
+    // Settings → Integrations is how you disconnect.
+    if (req.body.jms_keys == null && existing && existing.jms_keys &&
+        Object.values(existing.jms_keys).some(v => String(v || '').trim())) {
+      payload.jms_keys = existing.jms_keys;
+    }
     let data, error;
     if (existing && existing.user_id){
       // Update the company's row IN PLACE, keyed on the row's own owner —
@@ -3731,14 +3740,35 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
 // are env-configurable so they can be fixed without a code change.
 const FERGUS_HOST   = process.env.FERGUS_HOST        || 'api.fergus.com';
 const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
+// Which Fergus key may THIS request use? The company's own stored key
+// (Settings → Integrations → Fergus, saved as jms_keys.fergus) — never
+// anyone else's. The legacy FERGUS_API_KEY env var predates multi-tenancy
+// and used to serve EVERY authenticated company, which showed one
+// business's Fergus jobs to every other business; it now applies only to
+// the single company named by FERGUS_COMPANY_ID.
+async function _fergusKeyFor(req){
+  try {
+    const row = await _companySettingsRow(req);
+    const k = row && row.jms_keys && row.jms_keys.fergus;
+    if (k && String(k).trim()) return String(k).trim();
+  } catch (e) {}
+  if (process.env.FERGUS_API_KEY && process.env.FERGUS_COMPANY_ID &&
+      req.companyId && String(req.companyId) === String(process.env.FERGUS_COMPANY_ID)) {
+    return process.env.FERGUS_API_KEY;
+  }
+  return null;
+}
+const _FERGUS_NOT_CONNECTED = { error: 'not_connected',
+  message: 'Fergus is not connected for this business — paste your Fergus API key in Settings → Integrations, or pick it under Settings → Job Management Software → Configure.' };
 app.all('/fergus/*', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const tail = req.url.replace(/^\/fergus/, '');           // keep the querystring
   const upstreamPath = FERGUS_PREFIX + tail;
   try {
     const r = await httpsRequest(FERGUS_HOST, upstreamPath, req.method, {
-      'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+      'Authorization': 'Bearer ' + fergusKey,
       'Content-Type':  'application/json',
       'Accept':        'application/json',
     }, req.body);
@@ -3795,7 +3825,7 @@ function _fergusLooksCreated(parsed) {
 // enum whose exact casing we try a few ways ('JOB' / 'job' / 'Job') unless
 // pinned via FERGUS_ATTACH_ENTITY_TYPE. This is why every earlier
 // job-NESTED path 404'd — the endpoint is top-level, not under /jobs/{id}.
-async function _fergusAttachmentAttempt(entityType, entityId, buf, contentType, filename, fileField) {
+async function _fergusAttachmentAttempt(entityType, entityId, buf, contentType, filename, fileField, fergusKey) {
   const path = FERGUS_PREFIX + (process.env.FERGUS_FILES_PATH || '/attachments');
   const url  = `https://${FERGUS_HOST}${path}`;
   try {
@@ -3807,7 +3837,7 @@ async function _fergusAttachmentAttempt(entityType, entityId, buf, contentType, 
     const r = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Authorization': 'Bearer ' + fergusKey,
         'Accept':        'application/json',
       },
       body: form,
@@ -3828,7 +3858,7 @@ async function _fergusAttachmentAttempt(entityType, entityId, buf, contentType, 
 // Legacy job-nested fallback (kept only as a safety net — every path here
 // 404s on the current Fergus API, but harmless to try if /attachments ever
 // changes).
-async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, field) {
+async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, field, fergusKey) {
   const path = FERGUS_PREFIX + pathTpl.replace('{jobId}', encodeURIComponent(jobId));
   const url  = `https://${FERGUS_HOST}${path}`;
   try {
@@ -3838,7 +3868,7 @@ async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, 
     const r = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Authorization': 'Bearer ' + fergusKey,
         'Accept':        'application/json',
       },
       body: form,
@@ -3858,7 +3888,8 @@ async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, 
 
 app.post('/fergus-files/upload', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const { jobId, filename, contentType, base64, fieldName } = req.body || {};
   if (!jobId)    return res.status(400).json({ error: 'jobId required' });
   if (!filename) return res.status(400).json({ error: 'filename required' });
@@ -3882,7 +3913,7 @@ app.post('/fergus-files/upload', requireAuth, requireSubscription,
     ? [process.env.FERGUS_ATTACH_ENTITY_TYPE]
     : ['job'];
   for (const et of entityTypes) {
-    const a = await _fergusAttachmentAttempt(et, jobId, buf, contentType, filename, field);
+    const a = await _fergusAttachmentAttempt(et, jobId, buf, contentType, filename, field, fergusKey);
     attempts.push(a);
     if (a.ok && a.looksCreated) {
       return res.json({ ok: true, used: '/attachments', entityType: et, status: a.status, fergus: a.body, url: a.url, attempts });
@@ -3892,7 +3923,7 @@ app.post('/fergus-files/upload', requireAuth, requireSubscription,
   // Fallback: the old job-nested candidates (all 404 today, but cheap).
   const candidates = process.env.FERGUS_FILES_PATH ? [] : FERGUS_FILE_CANDIDATES;
   for (const tpl of candidates) {
-    const a = await _fergusUploadAttempt(tpl, jobId, buf, contentType, filename, field);
+    const a = await _fergusUploadAttempt(tpl, jobId, buf, contentType, filename, field, fergusKey);
     attempts.push(a);
     if (a.looksCreated) {
       return res.json({ ok: true, used: tpl, status: a.status, fergus: a.body, url: a.url, attempts });
@@ -3932,7 +3963,8 @@ const FERGUS_PROBE_CANDIDATES = [
 ];
 
 app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const jobId = req.query.jobId;
   if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
 
@@ -3944,7 +3976,7 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
       const r = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+          'Authorization': 'Bearer ' + fergusKey,
           'Accept':        'application/json',
         },
       });
@@ -3983,9 +4015,10 @@ const FERGUS_SPEC_CANDIDATES = [
 const FERGUS_FILE_WORDS = /file|upload|photo|attach|document|gallery|media|image|note|asset/i;
 
 app.get('/fergus-files/spec', requireAuth, requireSubscription, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const headers = {
-    'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+    'Authorization': 'Bearer ' + fergusKey,
     'Accept':        'application/json',
   };
   const tried = [];
@@ -4216,7 +4249,8 @@ function _fileDedupKey(it) {
 }
 
 app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const jobId = req.query.jobId;
   if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
 
@@ -4237,7 +4271,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
     const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
     const url  = `https://${FERGUS_HOST}${path}`;
     try {
-      const fHeaders = { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY, 'Accept': 'application/json' };
+      const fHeaders = { 'Authorization': 'Bearer ' + fergusKey, 'Accept': 'application/json' };
       // Ask for a big page up-front (Fergus caps pageSize at 100) so a
       // single-page endpoint returns EVERY file instead of its ~10-item
       // default. If pageSize is rejected, fall back to the bare path.
@@ -4307,7 +4341,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
     const r = await fetch(jobUrl, {
       method: 'GET',
       headers: {
-        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Authorization': 'Bearer ' + fergusKey,
         'Accept':        'application/json',
       },
     });
@@ -4361,7 +4395,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
               const ar = await fetch(url, {
                 method: 'GET',
                 headers: {
-                  'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                  'Authorization': 'Bearer ' + fergusKey,
                   'Accept':        'application/json',
                 },
               });
@@ -4489,7 +4523,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
             const sr = await fetch(url, {
               method: 'GET',
               headers: {
-                'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                'Authorization': 'Bearer ' + fergusKey,
                 'Accept':        'application/json',
               },
             });
@@ -4550,7 +4584,8 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
 // "Select photo from Fergus" flow to grab the picked image and pipe
 // it into the roof-picture preview.
 app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'url query param required' });
 
@@ -4575,7 +4610,7 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
   try {
     let r = await fetch(fetchUrl, {
       method: 'GET',
-      headers: sendAuth ? { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY } : {},
+      headers: sendAuth ? { 'Authorization': 'Bearer ' + fergusKey } : {},
     });
     // The download endpoint may hand back JSON describing a presigned
     // storage URL rather than the bytes themselves — follow it once,
@@ -4609,8 +4644,9 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
   }
 });
 
-app.get('/jms/debug', requireAuth, (req, res) => {
-  const k = process.env.FERGUS_API_KEY || '';
+app.get('/jms/debug', requireAuth, async (req, res) => {
+  // The key reported is the one THIS company's requests would use.
+  const k = (await _fergusKeyFor(req)) || '';
   // No key material in the response (length/tail were dropped) — the
   // setup UI only needs to know whether a key is present + looks right.
   res.json({
@@ -4631,7 +4667,8 @@ app.get('/jms/debug', requireAuth, (req, res) => {
 // Returns a one-row-per-URL summary so we can see which path actually
 // responds with the user's chart of accounts.
 app.get('/jms/debug/fergus-sales-accounts', requireAuth, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const candidates = [
     '/sales-account-codes',
     '/salesAccountCodes',
@@ -4644,7 +4681,7 @@ app.get('/jms/debug/fergus-sales-accounts', requireAuth, async (req, res) => {
     '/settings/sales-account-codes',
     '/company/sales-account-codes',
   ];
-  const headers = { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY, 'Accept': 'application/json' };
+  const headers = { 'Authorization': 'Bearer ' + fergusKey, 'Accept': 'application/json' };
   const out = await Promise.all(candidates.map(async (p) => {
     const upstream = FERGUS_PREFIX + p;
     try {
@@ -4673,11 +4710,12 @@ app.get('/jms/debug/fergus-sales-accounts', requireAuth, async (req, res) => {
 // status code, response headers, and first 2KB of the body. Lets the user
 // see exactly what Fergus says when it 403s, instead of just a bare code.
 app.get('/jms/debug/fergus-probe', requireAuth, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const path = FERGUS_PREFIX + '/jobs?page=1&per_page=1';
   try {
     const r = await httpsRequest(FERGUS_HOST, path, 'GET', {
-      'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+      'Authorization': 'Bearer ' + fergusKey,
       'Accept':        'application/json',
     });
     res.json({
@@ -4697,7 +4735,8 @@ app.get('/jms/debug/fergus-probe', requireAuth, async (req, res) => {
 // see, in a single click, which pattern Fergus actually accepts on this
 // account. Caller passes ?q=<jobNo>, e.g. ?q=2996.
 app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
-  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const q = String(req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: 'pass ?q=<jobNo>' });
   const probes = [
@@ -4748,7 +4787,7 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
     { tag: 'GET /sites/<q>',               path: '/sites/' + encodeURIComponent(q) },
   ];
   const headers = {
-    'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+    'Authorization': 'Bearer ' + fergusKey,
     'Accept':        'application/json',
   };
   const out = await Promise.all(probes.map(async (p) => {

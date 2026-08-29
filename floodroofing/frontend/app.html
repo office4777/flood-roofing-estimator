@@ -6117,8 +6117,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
       <div style="margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Fergus API key</div>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
-        <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">Paste your Fergus Personal Access Token (in Fergus: Settings → Integrations → API). It’s stored for your business only — every business connects with its own key — and Connect saves it before testing.</p>
+        <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="Paste your Fergus API key (fergPAT_…)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
           <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
@@ -7036,7 +7036,7 @@ function gotoTab(t) {
     try { refreshJobPack(); } catch(e){ console.warn('jobpack init:', e); }
   }
   if(t==='jobs') refreshJobsList();
-  if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();autoConnect();}catch(e){} }
+  if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();if(_jmsProvider()==='fergus')autoConnect();}catch(e){} }
   window.__jpTabSwitch = false;
 }
 function switchSubTab(grp,id,btn){
@@ -7079,7 +7079,7 @@ function setJMS(provider){
   }
 }
 function openJMSSetup(){
-  var provider = (function(){ try { return localStorage.getItem('fr_jms'); } catch(e){ return null; } })() || 'none';
+  var provider = _jmsProvider();
   var title = document.getElementById('jmsSetupTitle');
   var fergus = document.getElementById('jmsSetupFergus');
   var none   = document.getElementById('jmsSetupNone');
@@ -7096,6 +7096,9 @@ function openJMSSetup(){
   // If Fergus is selected, kick the connection check on open so the
   // status banner immediately reflects state.
   if (provider === 'fergus') {
+    try { var _fk = document.getElementById('fergKey');
+      if (_fk && !_fk.value && window.S && S.settings && S.settings.jms_keys) _fk.value = S.settings.jms_keys.fergus || '';
+    } catch(e){}
     try { checkProxy(); } catch(e){}
   }
 }
@@ -7111,9 +7114,13 @@ function closeJMSSetup(){
 // Is a job management system linked? True when a provider (not "None") is
 // chosen AND we've confirmed a live connection at least once (this session via
 // S.fergConnected, or a prior session via the persisted flag).
+function _jmsProvider(){
+  var p = ''; try { p = localStorage.getItem('fr_jms') || ''; } catch(e){}
+  if (p) return p;
+  try { return localStorage.getItem('fr_jms_linked') === '1' ? 'fergus' : 'none'; } catch(e){ return 'none'; }
+}
 function _jmsLinked(){
-  var prov = ''; try { prov = localStorage.getItem('fr_jms') || ''; } catch(e){}
-  if (prov === 'none') return false;
+  if (_jmsProvider() === 'none') return false;
   if (window.S && S.fergConnected) return true;
   try { if (localStorage.getItem('fr_jms_linked') === '1') return true; } catch(e){}
   return false;
@@ -7147,7 +7154,7 @@ function _openJmsLink(){
 // Apply the saved JMS choice on load.
 (function(){
   function _init(){
-    var saved = (function(){ try { return localStorage.getItem('fr_jms'); } catch(e){ return null; } })() || 'fergus';
+    var saved = _jmsProvider();
     var sel = document.getElementById('jmsSelect');
     if (sel) sel.value = saved;
     // Restore visibility without auto-opening modal on first load.
@@ -29226,12 +29233,36 @@ async function testFergus(){
   document.getElementById('fergErr').style.display='none';
   document.getElementById('fergOk').style.display='none';
   try{
+    // A key typed into the Configure modal is this business's key — save
+    // it (same store as Settings → Integrations) before testing. An empty
+    // field never wipes a stored key; clearing happens in Integrations.
+    try {
+      var _typed = ((document.getElementById('fergKey')||{}).value || '').trim();
+      if (_typed && window.S && S.settings && S.settings.jms_keys &&
+          _typed !== (S.settings.jms_keys.fergus || '')){
+        var _intF = document.getElementById('intFergus'); if (_intF) _intF.value = _typed;
+        S.settings.jms_keys.fergus = _typed;
+        await saveSettings(true);
+      }
+    } catch(e){}
     // Documented params from api.fergus.com/docs:
     //   pageSize (1-100, default 10), pageCursor (cursor, NOT page number),
     //   sortField (jobNo/createdAt/lastModified), sortOrder (asc/desc).
     // createdAt desc gives newest first directly from the API.
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
-    if (!resp.ok) throw new Error(resp.status);
+    if (!resp.ok){
+      var _m = String(resp.status);
+      try { var _eb = await resp.json(); if (_eb && _eb.message) _m = _eb.message;
+        if (_eb && _eb.error === 'not_connected'){
+          // The server says THIS business has no Fergus key. A stale
+          // linked flag (e.g. from before keys were per-company) must not
+          // keep the Fergus UI up on a business that was never connected.
+          try { localStorage.removeItem('fr_jms_linked'); } catch(_x){}
+          try { _refreshJmsLinkUI(); } catch(_x){}
+        }
+      } catch(e){}
+      throw new Error(_m);
+    }
     S.fergConnected = true;
     // Remember the successful link so the next session starts with the JMS as a
     // settings tab (not the big "link me" button), and refresh the settings UI.
@@ -52280,10 +52311,12 @@ document.getElementById('jobDate').value=today;
 document.getElementById('inspDate').value=today;
 document.getElementById('rpDate').textContent=today;
 document.getElementById('rpGenDate').textContent='Generated '+today;
-checkProxy().then(function(ok){if(ok)setTimeout(function(){testFergus();},600);});
-// Retry Fergus every 30s if not connected (handles server restart)
+// Only auto-connect when this browser has actually picked Fergus — a
+// fresh account must never probe (or mention) a JMS it hasn't chosen.
+if (_jmsProvider() === 'fergus') checkProxy().then(function(ok){if(ok)setTimeout(function(){testFergus();},600);});
+// Retry Fergus every 30s if picked but not connected (handles server restart)
 setInterval(function(){
-  if(!S.fergConnected) autoConnect();
+  if(!S.fergConnected && _jmsProvider() === 'fergus') autoConnect();
 }, 30000);
 
 // ── Aerial Imagery ──────────────────────────────────────────────

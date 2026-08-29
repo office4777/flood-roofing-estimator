@@ -18,11 +18,14 @@ async function boot(linked){
   const pg = await ctx.newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   pg.on('dialog', d => d.accept());
+  const counts = { fergus: 0 };
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     // Fergus endpoints must FAIL, or the app concludes Fergus is connected
     // and the unlinked case can't be tested at all.
-    if (/fergus/i.test(r.request().url()))
+    if (/fergus/i.test(r.request().url())){
+      counts.fergus++;
       return r.fulfill({status:502,contentType:'application/json',body:'{"error":"no fergus"}'});
+    }
     r.fulfill({status:200,contentType:'application/json',body:'[]'});
   });
   await pg.addInitScript((lk) => {
@@ -31,7 +34,7 @@ async function boot(linked){
   }, linked);
   await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2500);
-  return { ctx, pg };
+  return { ctx, pg, counts };
 }
 // The element's OWN computed display — what the jms-only rule controls —
 // not its layout box, which is 0 for anything on a non-active tab.
@@ -42,9 +45,23 @@ const visible = (pg, sel) => pg.evaluate(s => {
 }, sel);
 
 // ── with nothing linked ───────────────────────────────────────────
-let { ctx, pg } = await boot(false);
+let { ctx, pg, counts } = await boot(false);
 let v = await pg.evaluate(() => document.documentElement.classList.contains('no-jms'));
 check('the app knows no JMS is linked', v === true);
+
+// A fresh account never probes a JMS it hasn't picked — the boot
+// auto-connect used to fire for everyone, and with the key being global
+// it CONNECTED, showing one business's Fergus jobs to another.
+check('a fresh account fires zero Fergus requests at boot', counts.fergus === 0, counts.fergus + ' calls');
+// The dropdown and the Configure modal read the same state: None. They
+// used different fallbacks, so a new account's dropdown said "Fergus"
+// while Configure insisted no JMS was picked.
+v = await pg.evaluate(() => ({
+  sel: (document.getElementById('jmsSelect')||{}).value,
+  prov: _jmsProvider(),
+}));
+check('the JMS dropdown starts on None and matches _jmsProvider',
+  v.sel === 'none' && v.prov === 'none', JSON.stringify(v));
 
 check('Quote: no "Push pricing to Fergus"', await visible(pg, 'button[onclick^="pushQuotePricingToFergus"]') === 'hidden');
 await pg.evaluate(() => gotoTab('materials'));
@@ -97,9 +114,12 @@ check('Settings still carries the big "link your JMS" invitation',
 await ctx.close();
 
 // ── with Fergus linked, everything comes back ─────────────────────
-({ ctx, pg } = await boot(true));
+({ ctx, pg, counts } = await boot(true));
 v = await pg.evaluate(() => document.documentElement.classList.contains('no-jms'));
 check('linking flips the switch back', v === false);
+// A browser that linked Fergus before the picker existed carries only the
+// linked flag — it must keep auto-connecting.
+check('…and a legacy linked browser still auto-connects', counts.fergus > 0, counts.fergus + ' calls');
 check('…and the Fergus buttons return', await visible(pg, 'button[onclick^="pushQuotePricingToFergus"]') === 'visible');
 await pg.evaluate(() => _fergusPanelOpen(true));
 await pg.waitForTimeout(400);
