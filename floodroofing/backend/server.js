@@ -499,20 +499,59 @@ function _allowedFromAddress(addr){
 // hot and must not pay a database round-trip per message. A domain lands
 // here only after an owner added it AND Resend confirmed the DNS.
 const _mailDomains = { at: 0, byCompany: new Map(), domains: new Set(), loading: false };
+// ── THE SHARED TENANT SUBDOMAIN — their name, our DNS ───────────────
+// The middle rung between "our address with their display name" and "their
+// own verified domain": a sending subdomain WE own (quotes.roofmap.co.nz),
+// verified once in Resend with records in OUR DNS, on which every business
+// gets an address made from its name — "Flood Roofing" becomes
+// floodroofing@quotes.roofmap.co.nz. Zero subscriber setup, every plan, and
+// a subdomain keeps the quote-mail reputation separate from the root
+// domain's own mailboxes. The address is identity only — it is not a real
+// mailbox, which is fine because replies follow Reply-To to the roofer.
+// Off until the env var names a subdomain that is actually verified.
+const TENANT_MAIL_DOMAIN = String(process.env.TENANT_MAIL_DOMAIN || '').trim().toLowerCase().replace(/^@/, '');
+// A company name flattened into a mailbox name: lowercase letters and
+// digits only, legal-suffix words dropped ("Hemi's Roofing Ltd" →
+// hemisroofing). Too short to be meaningful → none, and the caller keeps
+// the platform default.
+function _tenantLocalPart(name){
+  let s = ' ' + String(name || '').toLowerCase() + ' ';
+  s = s.replace(/[^a-z0-9]+(limited|ltd|nz)(?=[^a-z0-9])/g, ' ');
+  s = s.replace(/[^a-z0-9]+/g, '').slice(0, 30);
+  return s.length >= 2 ? s : '';
+}
 function _resendFromAddress(addr){
   const platform = _allowedFromAddress(addr);
   if (platform) return platform;
   const a = String(addr || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)) return null;
-  return _mailDomains.domains.has(a.slice(a.lastIndexOf('@') + 1)) ? a : null;
+  const dom = a.slice(a.lastIndexOf('@') + 1);
+  if (TENANT_MAIL_DOMAIN && dom === TENANT_MAIL_DOMAIN) return a;
+  return _mailDomains.domains.has(dom) ? a : null;
 }
-// The address a company's outgoing mail should wear, company-scoped so one
+// The address a company's outgoing mail should wear. Its own verified
+// domain wins; otherwise its name on the shared tenant subdomain; otherwise
+// none and the caller keeps the platform default. Company-scoped so one
 // business can never ride another's verification: the map is keyed by the
 // company that verified the domain, not by whatever address a caller typed.
-function _tenantSendAddress(companyId){
-  if (!RESEND_ENABLED || !companyId) return null;
-  _refreshMailDomains();   // fire and forget; this call reads what we have
-  return _mailDomains.byCompany.get(String(companyId)) || null;
+function _tenantSendAddress(companyId, companyName, replyTo){
+  if (!RESEND_ENABLED) return null;
+  if (companyId) {
+    _refreshMailDomains();   // fire and forget; this call reads what we have
+    const own = _mailDomains.byCompany.get(String(companyId));
+    if (own) return own;
+  }
+  // The subdomain address is identity, not a mailbox — a customer who
+  // ignores Reply-To and writes to it directly would bounce. So it is only
+  // worn when there IS a Reply-To to catch that customer: a business that
+  // has not filled in its branding email keeps the platform address, which
+  // at least reaches a monitored inbox. (A company's OWN verified domain
+  // above needs no such guard — that address is their real office mailbox.)
+  if (TENANT_MAIL_DOMAIN && replyTo) {
+    const lp = _tenantLocalPart(companyName);
+    if (lp) return lp + '@' + TENANT_MAIL_DOMAIN;
+  }
+  return null;
 }
 // Google Workspace relay (Apps Script web app that sends as office@ via
 // Gmail). The fallback when Resend is not configured: it sends from the real
@@ -3217,7 +3256,7 @@ async function _sendInvoice(invRow, settingsRow, to){
   const who = _tenantMailIdentity(settingsRow);
   await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html,
                         fromName: who.fromName, replyTo: who.replyTo,
-                        fromAddress: _tenantSendAddress(invRow.company_id) });
+                        fromAddress: _tenantSendAddress(invRow.company_id, who.fromName, who.replyTo) });
   const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
   const { data } = await supabase.from('invoices').update(patch).eq('id', invRow.id).select('*').single();
   return data || Object.assign({}, invRow, patch);
@@ -3617,7 +3656,7 @@ async function _reminderSweep(){
       await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
                             html: _reminderEmailHtml(body),
                             fromName: who.fromName, replyTo: who.replyTo,
-                            fromAddress: _tenantSendAddress(r.company_id) });
+                            fromAddress: _tenantSendAddress(r.company_id, who.fromName, who.replyTo) });
       out.sent++;
     } catch (e) {
       out.errors++;
@@ -4879,7 +4918,7 @@ app.post('/email/domain', requireAuth, requireOwner,
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter the address you send from, like office@yourcompany.co.nz.' });
   const domain = email.slice(email.lastIndexOf('@') + 1);
   if (_FREEMAIL.has(domain)) return res.status(400).json({ error: 'That is a ' + domain + ' mailbox — only a domain you own (and can add DNS records to) can be verified. A Gmail or Xtra address can\'t send this way; it stays as your reply-to address instead.' });
-  if (domain === _mailSendingDomain()) return res.status(400).json({ error: 'That domain is the platform\'s own — your mail already sends from it.' });
+  if (domain === _mailSendingDomain() || (TENANT_MAIL_DOMAIN && domain === TENANT_MAIL_DOMAIN)) return res.status(400).json({ error: 'That domain is the platform\'s own — your mail already sends from it.' });
   try {
     const { data: claimed } = await supabase.from('company_mail_domains').select('id, company_id').ilike('domain', domain);
     if ((claimed || []).some(function (c) { return String(c.company_id) !== String(req.companyId); }))
@@ -4973,7 +5012,7 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     try { _who = _tenantMailIdentity(await _companySettingsRow(req)); } catch (e) {}
     const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
                    attachment, fromName: _who.fromName, replyTo: _who.replyTo,
-                   fromAddress: _tenantSendAddress(req.companyId) };
+                   fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo) };
     // The Google Apps Script relay can take 10-20s to wake + send, which made
     // the office wait on the "Send" button. When the caller opts into
     // background mode, dispatch the send without blocking the response: this
