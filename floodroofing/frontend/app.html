@@ -6207,7 +6207,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </select>
 
     <div id="jmsComingSoon" style="display:none;padding:14px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500;line-height:1.6">
-      <strong>Coming soon.</strong> The <span id="jmsComingSoonName"></span> adapter is on the roadmap. For now, save your <span id="jmsComingSoonName2"></span> API key in <em>Settings → Integrations</em> and use Fergus or Email Quote.
+      <strong>Coming soon.</strong> The <span id="jmsComingSoonName"></span> adapter is on the roadmap — naming it under <em>Run on something else?</em> below moves it up the build list. Until then, use Fergus or Email Quote.<span id="jmsComingSoonName2" style="display:none"></span>
     </div>
 
     <div id="jmsFergusFlow">
@@ -6334,7 +6334,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Billing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI()">Products</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
@@ -6437,6 +6436,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            roofers run on. Asking is cheaper than guessing, and a request with
            a real company behind it is what decides which one gets built next. -->
       <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border);max-width:640px">
+      <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
+        <strong>Fergus — Sales Account Codes</strong><br>
+        <span style="color:var(--text2)">Fergus categorises every quote line by a Sales Account. Paste the numeric ids of your <strong>Material Sales</strong> and <strong>Labour</strong> accounts — find them in Fergus → Settings → Sales Account Codes (click the row; the id is the trailing number in the URL). Material lines (materials, scaffold, selections) use the material account; labour lines use the labour account.</span>
+        <div class="f2" style="margin-top:8px">
+          <div><label>Material Sales account id</label><input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off"></div>
+          <div><label>Labour account id</label><input type="text" id="intFergusLabAcct" placeholder="e.g. 12345679" autocomplete="off"></div>
+        </div>
+        <div class="f2" style="margin-top:8px">
+          <div><label>Material code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusMatCode" placeholder="e.g. MAT" autocomplete="off"></div>
+          <div><label>Labour code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusLabCode" placeholder="e.g. LAB" autocomplete="off"></div>
+        </div>
+        <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
+      </div>
+
         <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:4px">Run on something else?</div>
         <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 10px">
           Tell us which job management software you use and we will look at building the integration.
@@ -6638,6 +6651,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
           <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
           <div style="font-size:11px;color:var(--text2);margin-top:6px">Sends a clearly-labelled test to every address above, so you can confirm they arrive.</div>
+        </div>
+        <div id="schedTplSection" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Schedule update emails</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">What the Schedule board's ✉ button starts from — you still review every email before it sends. These fill in automatically: <code>{client}</code> <code>{site}</code> <code>{month_part}</code> <code>{start_date}</code> <code>{crew}</code> <code>{company}</code>.</div>
+          <label style="font-size:12px;font-weight:600;color:#334155">Pencilled window <span style="font-weight:400;color:var(--text2)">— rough timing, no exact date</span>
+            <textarea id="schedTplPencil" rows="4" style="width:100%;margin:3px 0 10px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;box-sizing:border-box"></textarea></label>
+          <label style="font-size:12px;font-weight:600;color:#334155">Confirmed booking <span style="font-weight:400;color:var(--text2)">— the exact start date</span>
+            <textarea id="schedTplConfirm" rows="4" style="width:100%;margin:3px 0 8px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;box-sizing:border-box"></textarea></label>
+          <button type="button" onclick="_schedTplSave()" style="padding:8px 16px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Save templates</button>
+          <span id="schedTplMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
         </div>
       </div>
     </div>
@@ -6908,33 +6931,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
 
     <!-- INTEGRATIONS -->
-    <div class="sub-panel settings-sub" id="set-int" style="margin-top:14px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored for your business only — every business connects its own — and never shared.</div>
-      <div class="f2" style="margin-bottom:10px">
-        <div><label>Fergus API key <span style="font-size:10px;color:var(--text2)">(already integrated)</span></label><input type="password" id="intFergus" placeholder="fergus_..." autocomplete="new-password" data-lpignore="true"></div>
-        <div><label>ServiceM8 API key</label><input type="password" id="intServiceM8" placeholder="sm8_..." autocomplete="new-password" data-lpignore="true"></div>
-      </div>
-      <div class="f2">
-        <div><label>Jobber API key</label><input type="password" id="intJobber" placeholder="jbr_..." autocomplete="new-password" data-lpignore="true"></div>
-        <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="new-password" data-lpignore="true"></div>
-      </div>
-      <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
-        <strong>Fergus — Sales Account Codes</strong><br>
-        <span style="color:var(--text2)">Fergus categorises every quote line by a Sales Account. Paste the numeric ids of your <strong>Material Sales</strong> and <strong>Labour</strong> accounts — find them in Fergus → Settings → Sales Account Codes (click the row; the id is the trailing number in the URL). Material lines (materials, scaffold, selections) use the material account; labour lines use the labour account.</span>
-        <div class="f2" style="margin-top:8px">
-          <div><label>Material Sales account id</label><input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off"></div>
-          <div><label>Labour account id</label><input type="text" id="intFergusLabAcct" placeholder="e.g. 12345679" autocomplete="off"></div>
-        </div>
-        <div class="f2" style="margin-top:8px">
-          <div><label>Material code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusMatCode" placeholder="e.g. MAT" autocomplete="off"></div>
-          <div><label>Labour code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusLabCode" placeholder="e.g. LAB" autocomplete="off"></div>
-        </div>
-        <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
-      </div>
-      <div style="margin-top:14px;padding:10px 12px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500">
-        <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
-      </div>
-    </div>
       </div><!-- /set-body -->
     </div><!-- /set-shell -->
   </div>
@@ -7206,7 +7202,7 @@ function gotoTab(t) {
     try { refreshJobPack(); } catch(e){ console.warn('jobpack init:', e); }
   }
   if(t==='jobs') refreshJobsList();
-  if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();if(_jmsProvider()==='fergus')autoConnect();}catch(e){} }
+  if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();if(_jmsProvider()==='fergus')autoConnect();}catch(e){} try{_schedTplSync();}catch(e){} }
   window.__jpTabSwitch = false;
 }
 function switchSubTab(grp,id,btn){
@@ -7884,6 +7880,39 @@ async function _schedSettingsSave(){
     _schedLoad();
   } catch(e){ msg.textContent = (e && e.message) || 'Could not save'; }
 }
+// The Settings → Email panel edits the same templates compose() reads.
+// Empty textarea = the built-in wording (shown as placeholder).
+var _SCHED_TPL_DEFAULTS = {
+  pencil: 'Hi {client},\n\nA quick update on your roofing job at {site}: we currently expect to get started {month_part}. We\u2019ll be in touch closer to the time to confirm the exact date.\n\nThanks,\n{company}',
+  confirm: 'Hi {client},\n\nGood news \u2014 your roofing job at {site} is booked in. We\u2019re starting {start_date}.\n\nIf that date doesn\u2019t work, just reply to this email.\n\nThanks,\n{company}',
+};
+async function _schedTplSync(){
+  var sec = document.getElementById('schedTplSection');
+  if (!sec) return;
+  if (!_schedCanUse()){ sec.style.display = 'none'; return; }
+  try {
+    var d = _SCHED.data || await api('GET', '/schedule');
+    if (!_SCHED.data) _SCHED.data = d;
+    sec.style.display = '';
+    var pe = document.getElementById('schedTplPencil'), co = document.getElementById('schedTplConfirm');
+    if (pe && document.activeElement !== pe){ pe.value = (d.cfg && d.cfg.tpl_pencil) || ''; pe.placeholder = _SCHED_TPL_DEFAULTS.pencil; }
+    if (co && document.activeElement !== co){ co.value = (d.cfg && d.cfg.tpl_confirm) || ''; co.placeholder = _SCHED_TPL_DEFAULTS.confirm; }
+  } catch(e){ sec.style.display = 'none'; }
+}
+async function _schedTplSave(){
+  var msg = document.getElementById('schedTplMsg');
+  try {
+    await api('PUT', '/schedule/config', {
+      tpl_pencil: document.getElementById('schedTplPencil').value,
+      tpl_confirm: document.getElementById('schedTplConfirm').value,
+    });
+    if (_SCHED.data && _SCHED.data.cfg){
+      _SCHED.data.cfg.tpl_pencil = document.getElementById('schedTplPencil').value;
+      _SCHED.data.cfg.tpl_confirm = document.getElementById('schedTplConfirm').value;
+    }
+    if (msg) msg.textContent = '\u2713 Saved';
+  } catch(e){ if (msg) msg.textContent = (e && e.message) || 'Could not save'; }
+}
 function _schedFeedCopy(){
   var inp = document.getElementById('schedFeedUrl');
   inp.select(); try { document.execCommand('copy'); } catch(e){}
@@ -8550,14 +8579,18 @@ function collectSettingsFromUI(){
     footer: ((document.getElementById('invFooter')||{}).value || '').trim(),
   };
   var k = S.settings.jms_keys;
-  k.fergus     = (document.getElementById('intFergus')||{}).value || '';
-  k.servicem8  = (document.getElementById('intServiceM8')||{}).value || '';
-  k.jobber     = (document.getElementById('intJobber')||{}).value || '';
-  k.tradify    = (document.getElementById('intTradify')||{}).value || '';
-  k.fergusMaterialsAccountId = (document.getElementById('intFergusMatAcct')||{}).value || '';
-  k.fergusLabourAccountId    = (document.getElementById('intFergusLabAcct')||{}).value || '';
-  k.fergusMaterialCode       = (document.getElementById('intFergusMatCode')||{}).value || '';
-  k.fergusLabourCode         = (document.getElementById('intFergusLabCode')||{}).value || '';
+  // An absent input keeps the stored value — the standalone key fields
+  // retired with the Integrations tab, and reading them as '' would have
+  // silently disconnected every business's JMS on the next settings save.
+  var _keep = function(id, prev){ var el = document.getElementById(id); return el ? (el.value || '') : (prev || ''); };
+  k.fergus     = _keep('intFergus', k.fergus);
+  k.servicem8  = _keep('intServiceM8', k.servicem8);
+  k.jobber     = _keep('intJobber', k.jobber);
+  k.tradify    = _keep('intTradify', k.tradify);
+  k.fergusMaterialsAccountId = _keep('intFergusMatAcct', k.fergusMaterialsAccountId);
+  k.fergusLabourAccountId    = _keep('intFergusLabAcct', k.fergusLabourAccountId);
+  k.fergusMaterialCode       = _keep('intFergusMatCode', k.fergusMaterialCode);
+  k.fergusLabourCode         = _keep('intFergusLabCode', k.fergusLabourCode);
   collectPriceBookFromUI();
   collectLabourPricingFromUI();
 }
@@ -13321,7 +13354,7 @@ function _billingRenderSection(){
   var tiers = [
     { key: 'solo',     name: 'Solo',     price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
     { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics, your own web address + email from your own address' },
-    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · custom domain + job-management links' },
+    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · schedule board · custom domain + JMS links' },
   ];
   var annualAvail = (s && s.annual) || {};
   var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
@@ -29699,7 +29732,7 @@ async function pushQuoteToJMS(){
   var materialsAccountId = jmsKeys.fergusMaterialsAccountId || null;
   if (S.materials > 0) {
     if (!materialsAccountId) {
-      say('Materials skipped — paste your Material Sales account id in Settings → Integrations → Fergus Materials Account ID. Find it in Fergus → Settings → Sales Account Codes, click the row, the id is in the URL.', '#92400e');
+      say('Materials skipped — paste your Material Sales account id in Settings → Job Management Software → Fergus Sales Account Codes. Find it in Fergus → Settings → Sales Account Codes, click the row, the id is in the URL.', '#92400e');
       // Don't fail the whole push — labour still goes through.
     } else {
       sections.push({

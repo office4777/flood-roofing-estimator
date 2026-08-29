@@ -3982,10 +3982,11 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
 app.put('/schedule/config', ..._schedGate, async (req, res) => {
   try {
     const prev = await _schedCfg(req);
-    const next = _schedCfgShape(req.body || {});
+    // Merge over what's stored: a caller sending only the email templates
+    // (Settings → Email) must not reset the crews to defaults, and vice
+    // versa. Absent fields keep their stored values.
+    const next = _schedCfgShape(Object.assign({}, prev, req.body || {}));
     next.feed_secret = prev.feed_secret;                       // never client-set
-    if (req.body && req.body.tpl_pencil === undefined)  next.tpl_pencil  = prev.tpl_pencil;
-    if (req.body && req.body.tpl_confirm === undefined) next.tpl_confirm = prev.tpl_confirm;
     await _schedSaveCfg(req, next);
     const out = Object.assign({}, next); delete out.feed_secret;
     res.json({ ok: true, cfg: out });
@@ -4271,7 +4272,7 @@ async function _fergusKeyFor(req){
   return null;
 }
 const _FERGUS_NOT_CONNECTED = { error: 'not_connected',
-  message: 'Fergus is not connected for this business — paste your Fergus API key in Settings → Integrations, or pick it under Settings → Job Management Software → Configure.' };
+  message: 'Fergus is not connected for this business — add your Fergus API key under Settings → Job Management Software → Configure.' };
 app.all('/fergus/*', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
