@@ -86,8 +86,16 @@ check('…and what they came for', /come up short/.test(row.headache || ''), row
 const schema = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 check('a new row defaults to status new',
   /status text not null default 'new'/.test(schema));
-check('…and the email is unique, so the list cannot hold duplicates',
-  /create unique index if not exists idx_waitlist_email on public\.waitlist \(lower\(email\)\)/.test(schema));
+// The index must be on the PLAIN column: the upsert asks Postgres for
+// ON CONFLICT (email), which an expression index on lower(email) can never
+// satisfy — with one, every real submit 500'd while this suite stayed green
+// (the fake PostgREST doesn't enforce conflict semantics).
+check('…and the email is unique ON THE PLAIN COLUMN, which is what the upsert\'s conflict target needs',
+  /create unique index if not exists idx_waitlist_email_plain on public\.waitlist \(email\)/.test(schema) &&
+  /drop index if exists idx_waitlist_email/.test(schema) &&
+  !/idx_waitlist_email on public\.waitlist \(lower\(email\)\)/.test(schema));
+check('…and a failed store pages the office instead of only whispering to the console',
+  /waitlist store failed — a LEAD was turned away/.test(schema));
 
 // ── two emails go out, from the right desks ───────────────────────
 check('two emails go out — one to us, one to them', sent.length === 2, sent.length + ' sent');

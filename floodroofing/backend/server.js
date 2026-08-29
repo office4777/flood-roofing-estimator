@@ -5260,6 +5260,9 @@ app.post('/waitlist', rateLimit(10, 3600000), async (req, res) => {
       .upsert(row, { onConflict: 'email' }).select('id, created_at').single();
     if (error) {
       console.error('[waitlist] store failed:', error.message);
+      // A broken lead form is a silent revenue leak — this exact failure ran
+      // unnoticed because it only reached the console. Page the office.
+      try { recordError('server', new Error('waitlist store failed — a LEAD was turned away (' + email + '): ' + error.message), { route: '/waitlist' }); } catch (e2) {}
       return res.status(500).json({ error: 'Could not save that — try again in a moment.' });
     }
 
@@ -5760,7 +5763,14 @@ const _MIGRATION_SQL = [
   "  status text not null default 'new'," +           // new | invited | joined | declined
   "  invited_at timestamptz," +
   "  notes text not null default '')",
-  "create unique index if not exists idx_waitlist_email on public.waitlist (lower(email))",
+  // The dedupe index must be on the PLAIN column: the form's upsert asks
+  // Postgres for ON CONFLICT (email), and an expression index on
+  // lower(email) can never satisfy that — every submit answered 500 and the
+  // form turned every lead away. The app lowercases the address before
+  // storing, so the plain index keeps the same dedupe. The old expression
+  // index is dropped by name; both statements are no-ops after the first run.
+  "drop index if exists idx_waitlist_email",
+  "create unique index if not exists idx_waitlist_email_plain on public.waitlist (email)",
   "create index if not exists idx_waitlist_new on public.waitlist (created_at desc)",
   "alter table public.waitlist enable row level security",
 

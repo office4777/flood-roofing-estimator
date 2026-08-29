@@ -1,0 +1,52 @@
+name: Promote to production
+
+# main is where fixes land; production is what Railway and Vercel deploy.
+# This advances production to the exact commit the Tests workflow just
+# proved green — so a fix can be pushed to main the moment its own suites
+# pass, while the full 115-suite gate still stands between every push and
+# the subscribers. It just runs here, in parallel with the next fix being
+# written, instead of holding a terminal hostage for twelve minutes.
+#
+# A red Tests run simply means production does not move. Nothing to clean
+# up, nothing deployed, and the failure output says what to fix.
+#
+# Takes effect only once Railway (service → Settings → Source) and Vercel
+# (project → Settings → Git → Production Branch) are switched from main to
+# production. Until then this fast-forwards a branch nothing deploys.
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+  # A manual promote for the rare push Tests doesn't cover (workflow-only
+  # changes, say) — promotes whatever main currently is.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fast-forward production to the tested commit
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "Promoting $SHA to production"
+          # A plain push is fast-forward-or-fail: if a newer commit was
+          # already promoted while this one's tests ran, this fails
+          # harmlessly and the newer promotion stands.
+          git push origin "$SHA:refs/heads/production" && echo "production is now $SHA" \
+            || echo "production is already ahead of $SHA — nothing to do"
