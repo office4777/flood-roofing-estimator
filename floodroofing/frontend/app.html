@@ -5542,6 +5542,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <input type="search" id="ibxSearch" placeholder="Search mail…" style="flex:1;min-width:120px;max-width:260px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px">
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="ibx-chip" id="ibxTasksBtn" onclick="_ibxTasksToggle()">☑ Tasks</button>
+        <button class="ibx-chip" id="ibxChatBtn" onclick="_ibxChatToggle()">💬 Chat</button>
         <button class="ibx-chip" onclick="_ibxComposeOpen()">✉ Compose</button>
         <button class="ibx-chip" onclick="_ibxLoad()" title="Check for new mail">↻</button>
         <button class="ibx-chip" onclick="_ibxAcctOpen()" title="Email accounts">⚙ Accounts</button>
@@ -5563,6 +5564,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
       </div>
       <div id="ibxTaskBoard" style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px"></div>
+    </div>
+    <div id="ibxChatWrap" class="ibx-main" style="display:none">
+      <div style="width:190px;flex:0 0 auto;border-right:1px solid var(--border);overflow-y:auto;padding:8px">
+        <div id="ibxChanList"></div>
+        <button class="ibx-chip" onclick="_ibxChanAdd()" style="margin-top:8px;width:100%;justify-content:center">＋ Channel</button>
+      </div>
+      <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;background:#f8fafc">
+        <div id="ibxChatMsgs" style="flex:1;overflow-y:auto;padding:12px"></div>
+        <div style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px">
+          <input type="text" id="ibxChatInput" placeholder="Message the team… (@name to nudge someone)" style="flex:1;padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12.5px">
+          <button class="ibx-chip" style="background:#0a1628;color:#fff;border-color:#0a1628" onclick="_ibxChatSend()">Send</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -8263,7 +8277,7 @@ async function _schedFeedRegen(){
 }
 
 // ── INBOX: the comms hub ──────────────────────────────────────────
-var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null, sort: 'smart', cat: '', aiOn: false };
+var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null, sort: 'smart', cat: '', aiOn: false, view: 'mail', tasks: [], members: [], chat: { channels: [], sel: null, msgs: [], timer: null } };
 function _ibxEsc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 function _ibxMsg(t, bad){ var el = document.getElementById('ibxMsg'); if (el){ el.textContent = t || ''; el.style.color = bad ? '#b91c1c' : 'var(--text2)'; } }
 function _ibxCanUse(){
@@ -8385,6 +8399,12 @@ async function _ibxOpen(id){
           (m.attachments || []).map(function(a){ return _ibxEsc(a.name); }).join(' · ') + '</div>' : '') +
         (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
     });
+    h += '<div style="margin:10px 12px 0;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:9px 11px">' +
+      '<div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:5px">🔒 Internal notes — the customer never sees these</div>' +
+      '<div id="ibxNotesList"></div>' +
+      '<div style="display:flex;gap:6px;margin-top:4px">' +
+      '<input type="text" id="ibxNoteInput" placeholder="Note for the team… (@name)" style="flex:1;padding:6px 9px;border:1px solid #fcd34d;border-radius:8px;font-size:11.5px;background:#fff">' +
+      '<button class="ibx-chip" style="padding:4px 12px;font-size:11px" onclick="_ibxNoteSend()">Add</button></div></div>';
     h += '<div style="padding:12px;margin-top:auto">' +
       (t.ai_draft ? '<div id="ibxDraftStrip" style="border:1px dashed #0099cc;background:#f0f9ff;border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#0a1628">' +
         '<div style="font-weight:700;margin-bottom:3px">✨ Suggested reply <button class="ibx-chip" id="ibxUseDraft" style="padding:2px 9px;font-size:10.5px;margin-left:6px">Use it</button></div>' +
@@ -8416,6 +8436,7 @@ async function _ibxOpen(id){
         b.remove();
       };
     });
+    _ibxNotesLoad(id);
     if (t.unread){
       t.unread = false;
       var row = _IBX.threads.find(function(x){ return x.id === id; });
@@ -8484,14 +8505,116 @@ async function _ibxDraft(){
     document.getElementById('ibxReplyMsg').textContent = (e && e.message) || 'Could not draft';
   }
 }
-// ── tasks: the board ──
-function _ibxTasksToggle(){
-  _IBX.view = _IBX.view === 'tasks' ? 'mail' : 'tasks';
-  document.getElementById('ibxMain').style.display = _IBX.view === 'tasks' ? 'none' : '';
-  document.getElementById('ibxTasksWrap').style.display = _IBX.view === 'tasks' ? '' : 'none';
-  var b = document.getElementById('ibxTasksBtn');
-  if (b) b.textContent = _IBX.view === 'tasks' ? '✉ Mail' : '☑ Tasks';
-  if (_IBX.view === 'tasks') _ibxTasksLoad();
+// ── the three views: mail, tasks, chat ──
+function _ibxView(v){
+  _IBX.view = v;
+  document.getElementById('ibxMain').style.display = v === 'mail' ? '' : 'none';
+  document.getElementById('ibxTasksWrap').style.display = v === 'tasks' ? '' : 'none';
+  document.getElementById('ibxChatWrap').style.display = v === 'chat' ? 'flex' : 'none';
+  var tb = document.getElementById('ibxTasksBtn');
+  if (tb) tb.textContent = v === 'tasks' ? '✉ Mail' : '☑ Tasks';
+  var cb = document.getElementById('ibxChatBtn');
+  if (cb) cb.textContent = v === 'chat' ? '✉ Mail' : '💬 Chat';
+  if (v === 'tasks') _ibxTasksLoad();
+  if (v === 'chat') _ibxChatEnter();
+}
+function _ibxTasksToggle(){ _ibxView(_IBX.view === 'tasks' ? 'mail' : 'tasks'); }
+function _ibxChatToggle(){ _ibxView(_IBX.view === 'chat' ? 'mail' : 'chat'); }
+// ── chat ──
+function _ibxChatFmt(body){
+  return _ibxEsc(body).replace(/(^|\s)@([\w'-]+)/g,
+    '$1<span style="background:#fef3c7;border-radius:4px;padding:0 3px;font-weight:700">@$2</span>');
+}
+async function _ibxChatEnter(){
+  try {
+    var d = await api('GET', '/inbox/chat/channels');
+    _IBX.chat.channels = d.channels || [];
+    if (d.members && d.members.length) _IBX.members = d.members;
+    if (!_IBX.chat.sel || !_IBX.chat.channels.some(function(c){ return c.id === _IBX.chat.sel; }))
+      _IBX.chat.sel = (_IBX.chat.channels[0] || {}).id || null;
+    _ibxChanRender();
+    _ibxChatMsgsLoad();
+    if (_IBX.chat.timer) clearInterval(_IBX.chat.timer);
+    _IBX.chat.timer = setInterval(function(){
+      if (_IBX.view !== 'chat' || document.body.getAttribute('data-tab') !== 'inbox'){
+        clearInterval(_IBX.chat.timer); _IBX.chat.timer = null; return;
+      }
+      _ibxChatMsgsLoad(true);
+    }, 30000);
+  } catch(e){ _ibxMsg((e && e.message) || 'Could not load the chat', true); }
+}
+function _ibxChanSeen(){ try { return JSON.parse(localStorage.getItem('fr_chat_seen') || '{}'); } catch(e){ return {}; } }
+function _ibxChanRender(){
+  var el = document.getElementById('ibxChanList');
+  if (!el) return;
+  el.innerHTML = _IBX.chat.channels.map(function(c){
+    return '<div data-chan="' + c.id + '" style="padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:' +
+      (c.id === _IBX.chat.sel ? '800;background:#e8f4fb' : '600') + ';color:#0a1628"># ' + _ibxEsc(c.name) + '</div>';
+  }).join('');
+  el.querySelectorAll('[data-chan]').forEach(function(x){
+    x.onclick = function(){ _IBX.chat.sel = x.getAttribute('data-chan'); _ibxChanRender(); _ibxChatMsgsLoad(); };
+  });
+}
+async function _ibxChatMsgsLoad(quiet){
+  if (!_IBX.chat.sel) return;
+  try {
+    var d = await api('GET', '/inbox/chat/messages?channel_id=' + encodeURIComponent(_IBX.chat.sel));
+    _IBX.chat.msgs = d.messages || [];
+    var seen = _ibxChanSeen(); seen[_IBX.chat.sel] = new Date().toISOString();
+    try { localStorage.setItem('fr_chat_seen', JSON.stringify(seen)); } catch(e){}
+    _ibxChatMsgsRender();
+  } catch(e){ if (!quiet) _ibxMsg((e && e.message) || 'Could not load messages', true); }
+}
+function _ibxChatMsgsRender(){
+  var el = document.getElementById('ibxChatMsgs');
+  if (!el) return;
+  el.innerHTML = _IBX.chat.msgs.length ? _IBX.chat.msgs.map(function(m){
+    var when = m.created_at ? new Date(m.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }) : '';
+    return '<div style="margin-bottom:10px"><div style="font-size:11px;color:#64748b"><strong style="color:#0a1628">' +
+      _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> · ' + when + '</div>' +
+      '<div style="font-size:12.5px;color:#0a1628;white-space:pre-wrap">' + _ibxChatFmt(m.body) + '</div></div>';
+  }).join('') : '<div style="color:#94a3b8;font-size:12.5px;padding:20px">Nothing yet — say hi.</div>';
+  el.scrollTop = el.scrollHeight;
+}
+async function _ibxChatSend(){
+  var inp = document.getElementById('ibxChatInput');
+  var body = (inp.value || '').trim();
+  if (!body || !_IBX.chat.sel) return;
+  inp.value = '';
+  _IBX.chat.msgs.push({ user_id: (JSON.parse(localStorage.getItem('fr_company') || '{}') || {}).user_id || null,
+    body: body, created_at: new Date().toISOString() });
+  _ibxChatMsgsRender();
+  try { await api('POST', '/inbox/chat/messages', { channel_id: _IBX.chat.sel, body: body }); _ibxChatMsgsLoad(true); }
+  catch(e){ _ibxMsg((e && e.message) || 'Could not send', true); }
+}
+async function _ibxChanAdd(){
+  var name = prompt('Channel name (e.g. jobs, yard, office)');
+  if (!name || !name.trim()) return;
+  try {
+    var ch = await api('POST', '/inbox/chat/channels', { name: name.trim() });
+    _IBX.chat.sel = ch.id;
+    _ibxChatEnter();
+  } catch(e){ _ibxMsg((e && e.message) || 'Could not create the channel', true); }
+}
+// Internal notes on the open email thread.
+async function _ibxNotesLoad(threadId){
+  try {
+    var d = await api('GET', '/inbox/chat/messages?thread_id=' + encodeURIComponent(threadId));
+    var el = document.getElementById('ibxNotesList');
+    if (!el) return;
+    el.innerHTML = (d.messages || []).map(function(m){
+      return '<div style="margin-bottom:6px"><strong style="font-size:11px">' + _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> ' +
+        '<span style="font-size:12px">' + _ibxChatFmt(m.body) + '</span></div>';
+    }).join('');
+  } catch(e){}
+}
+async function _ibxNoteSend(){
+  var inp = document.getElementById('ibxNoteInput');
+  var body = (inp.value || '').trim();
+  if (!body || !_IBX.sel) return;
+  inp.value = '';
+  try { await api('POST', '/inbox/chat/messages', { thread_id: _IBX.sel, body: body }); _ibxNotesLoad(_IBX.sel); }
+  catch(e){ _ibxMsg((e && e.message) || 'Could not save the note', true); }
 }
 async function _ibxTasksLoad(){
   try {

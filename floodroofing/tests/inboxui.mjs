@@ -73,6 +73,23 @@ async function boot(opts){
       const th = data.threads.filter(t => status === 'all' || t.status === status);
       return json({ threads: th, accounts: data.accounts, ai_enabled: true });
     }
+    if (/\/inbox\/chat\/channels$/.test(u) && m === 'GET'){
+      return json({ channels: [{ id: 'c1', name: 'general' }, { id: 'c2', name: 'jobs' }], members: data.members });
+    }
+    if (/\/inbox\/chat\/messages\?channel_id=c1/.test(u) && m === 'GET'){
+      return json({ messages: [
+        { id: 'cm1', user_id: 'u1', body: 'Morning — @Lizzie the Horeke job is on for Monday.', created_at: '2026-08-29T08:00:00Z' },
+        { id: 'cm2', user_id: 'u2', body: 'On it.', created_at: '2026-08-29T08:05:00Z' },
+      ] });
+    }
+    if (/\/inbox\/chat\/messages\?thread_id=t1/.test(u) && m === 'GET'){
+      return json({ messages: [{ id: 'cm3', user_id: 'u2', body: 'He rang too — wants us before the rain.', created_at: '2026-08-29T08:10:00Z' }] });
+    }
+    if (/\/inbox\/chat\/messages\?/.test(u) && m === 'GET'){ return json({ messages: [] }); }
+    if (/\/inbox\/chat\/messages$/.test(u) && m === 'POST'){
+      calls.push(['chatpost', JSON.parse(r.request().postData() || '{}')]);
+      return json({ ok: true });
+    }
     if (/\/inbox\/tasks$/.test(u) && m === 'GET'){
       return json({ tasks: data.tasks, members: data.members, ai_enabled: true });
     }
@@ -320,6 +337,44 @@ await pg.evaluate(() => document.querySelector('[data-ibxact="task"]').click());
 await pg.waitForTimeout(400);
 let et = calls.find(c => c[0] === 'emailtask');
 check('➕ Task turns the open email into a task', !!et && et[1] === 't1', JSON.stringify(et));
+
+// ── internal notes on the open email ──────────────────────────────
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({
+  strip: /customer never sees/.test(document.getElementById('ibxConv').textContent),
+  note: /before the rain/.test((document.getElementById('ibxNotesList') || {}).textContent || ''),
+  who: /Lizzie/.test((document.getElementById('ibxNotesList') || {}).textContent || ''),
+}));
+check('the email carries its internal notes strip, named and loaded',
+  v.strip && v.note && v.who, JSON.stringify(v));
+calls.length = 0;
+await pg.fill('#ibxNoteInput', 'Troy can start early @Aron');
+await pg.evaluate(() => _ibxNoteSend());
+await pg.waitForTimeout(300);
+let np = calls.find(c => c[0] === 'chatpost');
+check('adding a note posts it to the thread — never to the customer',
+  !!np && np[1].thread_id === 't1' && /Troy can start/.test(np[1].body), JSON.stringify(np && np[1]));
+
+// ── the chat view ─────────────────────────────────────────────────
+await pg.evaluate(() => _ibxChatToggle());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  chans: document.querySelectorAll('#ibxChanList [data-chan]').length,
+  msgs: /Morning —/.test(document.getElementById('ibxChatMsgs').textContent),
+  names: /Aron/.test(document.getElementById('ibxChatMsgs').textContent) && /Lizzie/.test(document.getElementById('ibxChatMsgs').textContent),
+  mention: !!document.querySelector('#ibxChatMsgs span[style*="fef3c7"]'),
+}));
+check('Chat opens on #general with named messages and highlighted @mentions',
+  v.chans === 2 && v.msgs && v.names && v.mention, JSON.stringify(v));
+calls.length = 0;
+await pg.fill('#ibxChatInput', 'Scaffold is booked for Tuesday.');
+await pg.evaluate(() => _ibxChatSend());
+await pg.waitForTimeout(300);
+let cp = calls.find(c => c[0] === 'chatpost');
+check('sending posts into the picked channel',
+  !!cp && cp[1].channel_id === 'c1' && /Scaffold is booked/.test(cp[1].body), JSON.stringify(cp && cp[1]));
+await pg.evaluate(() => _ibxChatToggle());
+await pg.waitForTimeout(200);
 
 // Accounts modal: guided setup.
 await pg.evaluate(() => _ibxAcctOpen());

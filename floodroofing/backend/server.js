@@ -4289,6 +4289,88 @@ app.delete('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── chat: channels for the team, internal notes on email threads ──
+// A customer NEVER sees any of this — chat lives in its own tables and
+// nothing here touches SMTP.
+app.get('/inbox/chat/channels', ..._inboxGate, async (req, res) => {
+  try {
+    let { data } = await _scopeCompany(supabase.from('chat_channels').select('*'), req).limit(100);
+    if (!data || !data.length) {
+      // Every company starts with #general.
+      const gen = { id: crypto.randomUUID(), company_id: req.companyId || null,
+        user_id: req.user.id, name: 'general', created_at: new Date().toISOString() };
+      await supabase.from('chat_channels').insert(gen);
+      data = [gen];
+    }
+    data.sort((a, b2) => String(a.created_at || '').localeCompare(String(b2.created_at || '')));
+    res.json({ channels: data, members: await _inboxMembers(req) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/inbox/chat/channels', ..._inboxGate, async (req, res) => {
+  const name = String((req.body || {}).name || '').trim().replace(/^#/, '').slice(0, 60);
+  if (!name) return res.status(400).json({ error: 'Name the channel' });
+  const ch = { id: crypto.randomUUID(), company_id: req.companyId || null,
+    user_id: req.user.id, name, created_at: new Date().toISOString() };
+  try {
+    const { error } = await supabase.from('chat_channels').insert(ch);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(ch);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.patch('/inbox/chat/channels/:id', ..._inboxGate, async (req, res) => {
+  const name = String((req.body || {}).name || '').trim().replace(/^#/, '').slice(0, 60);
+  if (!name) return res.status(400).json({ error: 'Name the channel' });
+  try {
+    const { data } = await _scopeCompany(supabase.from('chat_channels').update({ name }), req)
+      .eq('id', req.params.id).select('*');
+    if (!data || !data.length) return res.status(404).json({ error: 'Channel not found' });
+    res.json(data[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// One read/write pair serves both shapes: a channel, or the internal
+// comment strip on a mail thread (thread_id).
+async function _chatTargetOk(req, q){
+  if (q.channel_id) {
+    const { data } = await _scopeCompany(supabase.from('chat_channels').select('id'), req).eq('id', q.channel_id).limit(1);
+    return (data && data[0]) ? { channel_id: q.channel_id } : null;
+  }
+  if (q.thread_id) {
+    const accts = await _inboxVisibleAccounts(req);
+    const { data } = await _scopeCompany(supabase.from('mail_threads').select('id, account_id'), req).eq('id', q.thread_id).limit(1);
+    const t = data && data[0];
+    return (t && accts.some(a => a.id === t.account_id)) ? { thread_id: q.thread_id } : null;
+  }
+  return null;
+}
+app.get('/inbox/chat/messages', ..._inboxGate, async (req, res) => {
+  try {
+    const tgt = await _chatTargetOk(req, req.query);
+    if (!tgt) return res.status(404).json({ error: 'Nothing to read there' });
+    let q = _scopeCompany(supabase.from('chat_messages').select('*'), req);
+    q = tgt.channel_id ? q.eq('channel_id', tgt.channel_id) : q.eq('thread_id', tgt.thread_id);
+    const { data, error } = await q.limit(500);
+    if (error) return res.status(500).json({ error: error.message });
+    const msgs = (data || []).sort((a, b2) => String(a.created_at || '').localeCompare(String(b2.created_at || '')));
+    res.json({ messages: msgs.slice(-200) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/inbox/chat/messages', ..._inboxGate, async (req, res) => {
+  const b = req.body || {};
+  const body = String(b.body || '').trim().slice(0, 4000);
+  if (!body) return res.status(400).json({ error: 'Say something first' });
+  try {
+    const tgt = await _chatTargetOk(req, b);
+    if (!tgt) return res.status(404).json({ error: 'Nowhere to post that' });
+    const msg = Object.assign({
+      id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+      channel_id: null, thread_id: null, body, created_at: new Date().toISOString(),
+    }, tgt);
+    const { error } = await supabase.from('chat_messages').insert(msg);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(msg);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── send ──
 async function _inboxSend(req, acct, mail){
   const pass = _mailDec(acct.cred_enc);
@@ -7125,6 +7207,12 @@ const _MIGRATION_SQL = [
   "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
   "alter table public.comms_tasks enable row level security",
+  "create table if not exists public.chat_channels (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, name text not null default '', created_at timestamptz not null default now())",
+  "alter table public.chat_channels enable row level security",
+  "create table if not exists public.chat_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, channel_id uuid, thread_id uuid, body text not null default '', created_at timestamptz not null default now())",
+  "create index if not exists idx_chat_messages_co on public.chat_messages (company_id, channel_id, created_at)",
+  "create index if not exists idx_chat_messages_th on public.chat_messages (company_id, thread_id, created_at)",
+  "alter table public.chat_messages enable row level security",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember

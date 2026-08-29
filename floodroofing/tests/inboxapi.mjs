@@ -32,7 +32,7 @@ const { port } = await startFakePostgrest({
               { id: T.company, name: 'Small Roofing', plan: 'team' }],
   jobs: [{ id: 'job-x', user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
     site_address: '148 Horeke Road', draw_state: { state: { quote: { ref: 'FR-2996' } } } }],
-  mail_accounts: [], mail_threads: [], mail_messages: [], comms_tasks: [],
+  mail_accounts: [], mail_threads: [], mail_messages: [], comms_tasks: [], chat_channels: [], chat_messages: [],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -256,6 +256,48 @@ r = await as(B, '/inbox/tasks/' + taskId, { method: 'PATCH', body: JSON.stringif
 check("B cannot touch A's tasks", r.status === 404, 'status ' + r.status);
 body = await j(await as(B, '/inbox/tasks'));
 check("…and B's task board is empty", (body.tasks || []).length === 0);
+
+// ── chat: channels + internal notes on threads ────────────────────
+body = await j(await as(A, '/inbox/chat/channels'));
+check('#general exists from the first look, with the team beside it',
+  (body.channels || []).length === 1 && body.channels[0].name === 'general' && (body.members || []).length === 2,
+  JSON.stringify(body.channels));
+const general = body.channels[0];
+
+r = await as(A, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({
+  channel_id: general.id, body: 'Morning all — @Lizzie the Horeke job is booked for Monday.' }) });
+check('a channel message posts', r.status === 200, 'status ' + r.status);
+r = await as(A2, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({
+  channel_id: general.id, body: 'On it.' }) });
+check('…and a teammate answers in the same room', r.status === 200);
+body = await j(await as(A2, '/inbox/chat/messages?channel_id=' + general.id));
+check('the room reads back in order, oldest first',
+  (body.messages || []).length === 2 && /Morning all/.test(body.messages[0].body) && body.messages[1].user_id === A2.user,
+  (body.messages || []).length + ' messages');
+
+r = await as(A, '/inbox/chat/channels', { method: 'POST', body: JSON.stringify({ name: '#jobs' }) });
+body = await j(r);
+check('new channels strip the # and stick', r.status === 200 && body.name === 'jobs');
+r = await as(A, '/inbox/chat/channels/' + body.id, { method: 'PATCH', body: JSON.stringify({ name: 'site-crew' }) });
+check('…and rename', r.status === 200 && (await j(r)).name === 'site-crew');
+
+// Internal notes on an email thread — invisible to the customer.
+const mailCountBefore = (await j(await as(A, '/inbox/threads/' + lewis.id))).messages.length;
+r = await as(A2, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({
+  thread_id: lewis.id, body: 'He rang too — wants us before the rain. @Aron can Troy start early?' }) });
+check('a thread note posts', r.status === 200);
+body = await j(await as(A, '/inbox/chat/messages?thread_id=' + lewis.id));
+check('…and reads back on the thread', (body.messages || []).length === 1 && /before the rain/.test(body.messages[0].body));
+check('…while the EMAIL conversation is untouched — the customer can never see it',
+  (await j(await as(A, '/inbox/threads/' + lewis.id))).messages.length === mailCountBefore);
+
+// Chat walls.
+body = await j(await as(B, '/inbox/chat/channels'));
+check("B gets its own #general, not A's", (body.channels || []).length === 1 && body.channels[0].id !== general.id);
+r = await as(B, '/inbox/chat/messages?channel_id=' + general.id);
+check("B cannot read A's room", r.status === 404, 'status ' + r.status);
+r = await as(B, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({ thread_id: lewis.id, body: 'hi' }) });
+check("…nor note on A's threads", r.status === 404, 'status ' + r.status);
 
 // ── the walls ─────────────────────────────────────────────────────
 body = await j(await as(B, '/inbox/threads'));
