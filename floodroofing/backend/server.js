@@ -1021,10 +1021,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // before choosing — and so that every account that predates plans keeps
 // working unchanged.
 const PLANS = {
-  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true  },
-  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true  },
+  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true  },
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true,  schedule: false },
+  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true  },
 };
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
 // Cached briefly so a per-request plan check isn't a per-request query. The
@@ -1138,7 +1138,7 @@ async function _companyBrief(cid, userId){
       const plan = await _planOf(cid);
       const lim = _limitsFor(plan);
       brief.plan = plan;
-      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms };
+      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule };
     } catch (e) {}
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
@@ -1173,7 +1173,7 @@ app.get('/team', requireAuth, async (req, res) => {
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
       members, invites,
       plan: { id: plan, label: lim.label, seats: seats,
-              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms },
+              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule },
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -3735,6 +3735,518 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// SCHEDULE — the forward-workflow board (Business tier)
+// ══════════════════════════════════════════════════════════════════
+// The office's Excel Schedule sheet, as a feature: jobs as rows (oldest
+// first), months of day columns, a dark-red PENCIL block when a rough
+// window is promised to the customer, repainted in a CREW colour once
+// solid-booked. Everything date-derived (block ends, email wording, the
+// calendar feed) is computed against the working-day calendar — weekends,
+// NZ public holidays and the company's own shutdown ranges.
+
+// ── NZ public holidays, computed, no external calls ──
+function _schedEaster(y){
+  // Anonymous Gregorian algorithm — Easter Sunday.
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(y, month - 1, day));
+}
+const _schedISO = d => d.toISOString().slice(0, 10);
+function _schedShift(d, days){ const n = new Date(d.getTime()); n.setUTCDate(n.getUTCDate() + days); return n; }
+// Mondayised: if the actual date falls on a weekend, observed the following Monday.
+function _schedMondayised(y, m, day){
+  const d = new Date(Date.UTC(y, m - 1, day)); const dow = d.getUTCDay();
+  if (dow === 6) return _schedShift(d, 2);
+  if (dow === 0) return _schedShift(d, 1);
+  return d;
+}
+// Anniversary-day rule: observed on the Monday nearest the actual date.
+function _schedNearestMonday(y, m, day){
+  const d = new Date(Date.UTC(y, m - 1, day)); const dow = d.getUTCDay();
+  const back = (dow + 6) % 7;             // days back to Monday
+  return _schedShift(d, back <= 3 ? -back : 7 - back);
+}
+function _schedNthWeekday(y, m, dow, n){  // n-th <dow> of month m
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const off = (dow - first.getUTCDay() + 7) % 7;
+  return _schedShift(first, off + 7 * (n - 1));
+}
+// Matariki has no formula — gazetted dates.
+const _SCHED_MATARIKI = { 2025: '2025-06-20', 2026: '2026-07-10', 2027: '2027-06-25',
+                          2028: '2028-07-14', 2029: '2029-07-06', 2030: '2030-06-21' };
+const SCHED_REGIONS = ['auckland', 'wellington', 'canterbury', 'otago', 'southland',
+  'taranaki', 'hawkes_bay', 'marlborough', 'nelson', 'westland', 'chatham_islands', 'none'];
+function _nzHolidays(year, region){
+  const days = [];
+  const add = d => { if (d) days.push(typeof d === 'string' ? d : _schedISO(d)); };
+  // New Year's Day + day after: each mondayised, and they can't collide —
+  // if the 1st lands Saturday both roll to Mon/Tue.
+  const ny1 = _schedMondayised(year, 1, 1); add(ny1);
+  let ny2 = _schedMondayised(year, 1, 2);
+  if (_schedISO(ny2) === _schedISO(ny1)) ny2 = _schedShift(ny1, 1);
+  add(ny2);
+  add(_schedMondayised(year, 2, 6));               // Waitangi Day
+  const easter = _schedEaster(year);
+  add(_schedShift(easter, -2));                    // Good Friday
+  add(_schedShift(easter, 1));                     // Easter Monday
+  add(_schedMondayised(year, 4, 25));              // Anzac Day
+  add(_schedNthWeekday(year, 6, 1, 1));            // King's Birthday
+  add(_SCHED_MATARIKI[year] || null);              // Matariki
+  add(_schedNthWeekday(year, 10, 1, 4));           // Labour Day
+  const x1 = _schedMondayised(year, 12, 25); add(x1);
+  let x2 = _schedMondayised(year, 12, 26);
+  if (_schedISO(x2) === _schedISO(x1)) x2 = _schedShift(x1, 1);
+  add(x2);
+  switch (String(region || '')) {                  // provincial anniversary
+    case 'auckland':   add(_schedNearestMonday(year, 1, 29)); break;   // incl. Northland
+    case 'wellington': add(_schedNearestMonday(year, 1, 22)); break;
+    case 'nelson':     add(_schedNearestMonday(year, 2, 1)); break;
+    case 'taranaki':   add(_schedNthWeekday(year, 3, 1, 2)); break;
+    case 'otago':      add(_schedNearestMonday(year, 3, 23)); break;
+    case 'southland':  add(_schedShift(_schedEaster(year), 2)); break; // Easter Tuesday
+    case 'canterbury': add(_schedShift(_schedNthWeekday(year, 11, 2, 1), 10)); break; // Show Day: 2nd Fri after 1st Tue of Nov
+    case 'hawkes_bay': add(_schedShift(_schedNthWeekday(year, 10, 1, 4), -3)); break; // Fri before Labour Day
+    case 'marlborough':add(_schedShift(_schedNthWeekday(year, 10, 1, 4), 7)); break;  // Mon after Labour Day
+    case 'westland':   add(_schedNearestMonday(year, 12, 1)); break;
+    case 'chatham_islands': add(_schedNearestMonday(year, 11, 30)); break;
+  }
+  return days;
+}
+// Every non-working ISO date in [fromISO, toISO]: weekends, public
+// holidays for the company's region, and its own shutdown ranges.
+function _schedNonWork(cfg, fromISO, toISO){
+  const out = new Set();
+  const from = new Date(fromISO + 'T00:00:00Z'), to = new Date(toISO + 'T00:00:00Z');
+  for (let d = new Date(from.getTime()); d <= to; d = _schedShift(d, 1)) {
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) out.add(_schedISO(d));
+  }
+  for (let y = from.getUTCFullYear(); y <= to.getUTCFullYear(); y++) {
+    for (const h of _nzHolidays(y, cfg.region)) { if (h >= fromISO && h <= toISO) out.add(h); }
+  }
+  for (const sh of (cfg.shutdowns || [])) {
+    if (!sh || !sh.from || !sh.to) continue;
+    let d = new Date(String(sh.from) + 'T00:00:00Z');
+    const end = new Date(String(sh.to) + 'T00:00:00Z');
+    for (let i = 0; d <= end && i < 400; d = _schedShift(d, 1), i++) {
+      const iso = _schedISO(d); if (iso >= fromISO && iso <= toISO) out.add(iso);
+    }
+  }
+  return out;
+}
+// The working dates a block occupies: start_date, then forward, skipping
+// non-working days, until work_days working days are collected.
+function _schedBlockDates(block, nonwork){
+  const out = [];
+  let d = new Date(String(block.start_date) + 'T00:00:00Z');
+  const n = Math.max(1, Math.min(120, parseInt(block.work_days, 10) || 1));
+  for (let guard = 0; out.length < n && guard < 400; guard++) {
+    const iso = _schedISO(d);
+    if (!nonwork.has(iso)) out.push(iso);
+    d = _schedShift(d, 1);
+  }
+  return out;
+}
+
+// ── config: rides as its own COLUMN on user_settings (schedule_cfg), so
+//    reads/writes never touch the whole settings document ──
+const SCHED_DEFAULT_CREWS = [
+  { id: 'crew1',    name: 'Crew 1',   colour: '#f87d20' },
+  { id: 'scaffold', name: 'Scaffold', colour: '#0a1628' },
+];
+function _schedCfgShape(raw){
+  const c = (raw && typeof raw === 'object') ? raw : {};
+  const crews = Array.isArray(c.crews) && c.crews.length ? c.crews : SCHED_DEFAULT_CREWS;
+  return {
+    crews: crews.slice(0, 40).map(x => ({
+      id: String(x.id || '').slice(0, 40) || crypto.randomUUID().slice(0, 8),
+      name: String(x.name || '').slice(0, 60),
+      colour: /^#[0-9a-fA-F]{6}$/.test(String(x.colour || '')) ? x.colour : '#94a3b8',
+    })),
+    cap: Math.max(1, Math.min(50, parseInt(c.cap, 10) || 4)),
+    shutdowns: (Array.isArray(c.shutdowns) ? c.shutdowns : []).slice(0, 30).map(x => ({
+      from: String(x.from || '').slice(0, 10), to: String(x.to || '').slice(0, 10),
+      label: String(x.label || '').slice(0, 80),
+    })).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.from) && /^\d{4}-\d{2}-\d{2}$/.test(x.to)),
+    region: SCHED_REGIONS.includes(c.region) ? c.region : 'auckland',
+    feed_secret: String(c.feed_secret || ''),
+    tpl_pencil: String(c.tpl_pencil || ''),
+    tpl_confirm: String(c.tpl_confirm || ''),
+  };
+}
+async function _schedCfg(req){
+  const row = await _companySettingsRow(req);
+  const cfg = _schedCfgShape(row && row.schedule_cfg);
+  if (!cfg.feed_secret) {
+    // First touch mints the calendar-feed secret. Targeted column write —
+    // never the whole settings document.
+    cfg.feed_secret = crypto.randomBytes(24).toString('hex');
+    try {
+      if (row && row.user_id) {
+        await supabase.from('user_settings').update({ schedule_cfg: cfg }).eq('user_id', row.user_id);
+      } else {
+        await supabase.from('user_settings').upsert(
+          { user_id: req.user.id, company_id: req.companyId || null, schedule_cfg: cfg },
+          { onConflict: 'user_id' });
+      }
+    } catch (e) { /* the board still works this request; minted again next time */ }
+  }
+  return cfg;
+}
+async function _schedSaveCfg(req, cfg){
+  const row = await _companySettingsRow(req);
+  if (row && row.user_id) {
+    const { error } = await supabase.from('user_settings').update({ schedule_cfg: cfg }).eq('user_id', row.user_id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from('user_settings').upsert(
+      { user_id: req.user.id, company_id: req.companyId || null, schedule_cfg: cfg },
+      { onConflict: 'user_id' });
+    if (error) throw new Error(error.message);
+  }
+}
+
+const _schedGate = [requireAuth, requireSubscription, requirePlan('schedule', 'The schedule board', 'Business')];
+
+// ── the board, in one read ──
+app.get('/schedule', ..._schedGate, async (req, res) => {
+  try {
+    const cfg = await _schedCfg(req);
+    const showArchived = req.query.archived === '1';
+    let q = _scopeCompany(supabase.from('schedule_rows').select('*'), req);
+    if (!showArchived) q = q.eq('archived', false);
+    const rowsQ = await q.order('created_at', { ascending: true }).limit(400);
+    if (rowsQ.error) return res.status(500).json({ error: rowsQ.error.message });
+    const rows = rowsQ.data || [];
+    const blocksQ = await _scopeCompany(supabase.from('schedule_blocks').select('*'), req).limit(4000);
+    if (blocksQ.error) return res.status(500).json({ error: blocksQ.error.message });
+    const blocks = (blocksQ.data || []).filter(b => rows.some(r => r.id === b.row_id) || showArchived);
+
+    // Auto-fill for linked jobs: what RoofMap already knows fills the admin
+    // columns unless the office has overridden them on the row.
+    const jobIds = rows.map(r => r.job_id).filter(Boolean);
+    const auto = {};   // job_id -> { ordered, accepted_at, client_email }
+    if (jobIds.length) {
+      try {
+        const { data } = await _scopeCompany(supabase.from('jobs')
+          .select('id, status, order_sent, ' +
+                  'q_accepted:draw_state->state->quote->accepted, ' +
+                  'q_client:draw_state->state->quote->client'), req)
+          .in('id', jobIds);
+        for (const j of (data || [])) {
+          const acc = j.q_accepted || {};
+          auto[j.id] = {
+            ordered: !!(j.order_sent || j.status === 'ordered'),
+            accepted_at: acc.at || acc.date || null,
+            client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || '',
+          };
+        }
+      } catch (e) { /* board renders without auto-fill rather than not at all */ }
+      try {
+        const { data: inv } = await _scopeCompany(supabase.from('invoices')
+          .select('job_id, type, status'), req).in('job_id', jobIds);
+        for (const i of (inv || [])) {
+          if (i.type === 'deposit' && i.status === 'paid' && auto[i.job_id]) auto[i.job_id].deposit_paid = true;
+        }
+      } catch (e) {}
+    }
+    const out = rows.map(r => {
+      const a = auto[r.job_id] || {};
+      return Object.assign({}, r, {
+        auto: a,
+        deposit_paid: (r.deposit_paid == null) ? !!a.deposit_paid : r.deposit_paid,
+        ordered:      (r.ordered == null)      ? !!a.ordered      : r.ordered,
+        email:        r.email || a.client_email || '',
+        accepted_at:  a.accepted_at || null,
+      });
+    });
+
+    // The working-day calendar for the whole visible span.
+    const today = _schedISO(new Date());
+    let from = _schedISO(_schedShift(new Date(), -45)), to = _schedISO(_schedShift(new Date(), 420));
+    for (const b of blocks) { if (b.start_date < from) from = b.start_date; }
+    const nonwork = _schedNonWork(cfg, from, to);
+    const feedBase = PUBLIC_API_URL + '/schedule/feed.ics?c=' + encodeURIComponent(req.companyId || '') +
+      '&sig=' + crypto.createHmac('sha256', cfg.feed_secret).update(String(req.companyId || '')).digest('hex');
+    const cfgOut = Object.assign({}, cfg); delete cfgOut.feed_secret;
+    res.json({ cfg: cfgOut, rows: out, blocks, nonwork: [...nonwork].sort(),
+               range: { from, to, today }, feed_url: feedBase });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/schedule/config', ..._schedGate, async (req, res) => {
+  try {
+    const prev = await _schedCfg(req);
+    const next = _schedCfgShape(req.body || {});
+    next.feed_secret = prev.feed_secret;                       // never client-set
+    if (req.body && req.body.tpl_pencil === undefined)  next.tpl_pencil  = prev.tpl_pencil;
+    if (req.body && req.body.tpl_confirm === undefined) next.tpl_confirm = prev.tpl_confirm;
+    await _schedSaveCfg(req, next);
+    const out = Object.assign({}, next); delete out.feed_secret;
+    res.json({ ok: true, cfg: out });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/schedule/feed-secret', ..._schedGate, async (req, res) => {
+  try {
+    const cfg = await _schedCfg(req);
+    cfg.feed_secret = crypto.randomBytes(24).toString('hex');
+    await _schedSaveCfg(req, cfg);
+    res.json({ ok: true, feed_url: PUBLIC_API_URL + '/schedule/feed.ics?c=' + encodeURIComponent(req.companyId || '') +
+      '&sig=' + crypto.createHmac('sha256', cfg.feed_secret).update(String(req.companyId || '')).digest('hex') });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/schedule/rows', ..._schedGate, async (req, res) => {
+  const b = req.body || {};
+  const row = {
+    id: crypto.randomUUID(), company_id: req.companyId || null,
+    job_id: b.job_id || null,
+    client_name: String(b.client_name || '').slice(0, 200),
+    site_address: String(b.site_address || '').slice(0, 300),
+    email: String(b.email || '').slice(0, 200),
+    length_days: Math.max(1, Math.min(120, parseInt(b.length_days, 10) || 1)),
+    notes: String(b.notes || '').slice(0, 2000),
+    // Explicit defaults: the DB has them, but the test double doesn't apply
+    // DDL defaults, and an absent `archived` fails the eq(false) filter there.
+    progress_pct: null, deposit_paid: null, ordered: null, delivery_check: false,
+    confirmed_delivery: null, sort_pos: null, archived: false, last_notified: null,
+    created_at: new Date().toISOString(),
+  };
+  try {
+    if (row.job_id) {
+      // Linked row: snapshot the job's identity so the board reads well even
+      // if the job is renamed later; verify the job is this company's.
+      const { data: j } = await _scopeCompany(supabase.from('jobs')
+        .select('id, client_name, site_address'), req).eq('id', row.job_id).maybeSingle();
+      if (!j) return res.status(404).json({ error: 'Job not found' });
+      if (!row.client_name)  row.client_name  = j.client_name || '';
+      if (!row.site_address) row.site_address = j.site_address || '';
+    }
+    if (!row.client_name) return res.status(400).json({ error: 'Give the row a client name' });
+    const { data, error } = await supabase.from('schedule_rows').insert(row).select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data || row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
+  'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
+  'sort_pos', 'archived', 'job_id'];
+app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
+  const patch = {};
+  for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
+  if ('length_days' in patch) patch.length_days = Math.max(1, Math.min(120, parseInt(patch.length_days, 10) || 1));
+  if ('progress_pct' in patch && patch.progress_pct != null)
+    patch.progress_pct = Math.max(0, Math.min(100, parseInt(patch.progress_pct, 10) || 0));
+  try {
+    const { data, error } = await _scopeCompany(supabase.from('schedule_rows')
+      .update(patch), req).eq('id', req.params.id).select('*');
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data || !data.length) return res.status(404).json({ error: 'Row not found' });
+    res.json(data[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/schedule/rows/:id', ..._schedGate, async (req, res) => {
+  try {
+    const { data } = await _scopeCompany(supabase.from('schedule_rows')
+      .delete(), req).eq('id', req.params.id).select('id');
+    if (!data || !data.length) return res.status(404).json({ error: 'Row not found' });
+    await _scopeCompany(supabase.from('schedule_blocks').delete(), req).eq('row_id', req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/schedule/blocks', ..._schedGate, async (req, res) => {
+  const b = req.body || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.start_date || ''))) return res.status(400).json({ error: 'start_date required (YYYY-MM-DD)' });
+  try {
+    const { data: row } = await _scopeCompany(supabase.from('schedule_rows')
+      .select('id'), req).eq('id', b.row_id).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Row not found' });
+    const block = {
+      id: crypto.randomUUID(), company_id: req.companyId || null, row_id: b.row_id,
+      kind: b.kind === 'crew' ? 'crew' : 'pencil',
+      crew_id: String(b.crew_id || '').slice(0, 40),
+      start_date: b.start_date,
+      work_days: Math.max(1, Math.min(120, parseInt(b.work_days, 10) || 1)),
+      created_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('schedule_blocks').insert(block).select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data || block);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/schedule/blocks/:id', ..._schedGate, async (req, res) => {
+  const patch = {};
+  const b = req.body || {};
+  if (b.start_date !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.start_date))) return res.status(400).json({ error: 'Bad start_date' });
+    patch.start_date = b.start_date;
+  }
+  if (b.work_days !== undefined) patch.work_days = Math.max(1, Math.min(120, parseInt(b.work_days, 10) || 1));
+  if (b.kind !== undefined) patch.kind = b.kind === 'crew' ? 'crew' : 'pencil';
+  if (b.crew_id !== undefined) patch.crew_id = String(b.crew_id || '').slice(0, 40);
+  try {
+    const { data, error } = await _scopeCompany(supabase.from('schedule_blocks')
+      .update(patch), req).eq('id', req.params.id).select('*');
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data || !data.length) return res.status(404).json({ error: 'Block not found' });
+    res.json(data[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/schedule/blocks/:id', ..._schedGate, async (req, res) => {
+  try {
+    const { data } = await _scopeCompany(supabase.from('schedule_blocks')
+      .delete(), req).eq('id', req.params.id).select('id');
+    if (!data || !data.length) return res.status(404).json({ error: 'Block not found' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── customer update emails: compose (prefill, office reviews) + send ──
+function _schedMonthPart(iso){
+  const d = new Date(iso + 'T00:00:00Z');
+  const part = d.getUTCDate() <= 10 ? 'early' : d.getUTCDate() <= 20 ? 'mid' : 'late';
+  const month = d.toLocaleString('en-NZ', { month: 'long', timeZone: 'UTC' });
+  return part + ' ' + month;
+}
+function _schedNiceDate(iso){
+  const d = new Date(iso + 'T00:00:00Z');
+  return d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+}
+const SCHED_TPL_PENCIL = 'Hi {client},\n\nA quick update on your roofing job at {site}: we currently expect to get started {month_part}. We’ll be in touch closer to the time to confirm the exact date.\n\nThanks,\n{company}';
+const SCHED_TPL_CONFIRM = 'Hi {client},\n\nGood news — your roofing job at {site} is booked in. We’re starting {start_date}.\n\nIf that date doesn’t work, just reply to this email.\n\nThanks,\n{company}';
+app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
+  const kind = (req.body && req.body.kind) === 'confirm' ? 'confirm' : 'pencil';
+  try {
+    const cfg = await _schedCfg(req);
+    const { data: rows } = await _scopeCompany(supabase.from('schedule_rows')
+      .select('*'), req).eq('id', req.params.id);
+    const row = rows && rows[0];
+    if (!row) return res.status(404).json({ error: 'Row not found' });
+    const { data: blocks } = await _scopeCompany(supabase.from('schedule_blocks')
+      .select('*'), req).eq('row_id', row.id);
+    const wanted = (blocks || []).filter(b => kind === 'confirm' ? b.kind === 'crew' : b.kind === 'pencil')
+      .sort((a, b2) => a.start_date < b2.start_date ? -1 : 1)[0];
+    if (!wanted) return res.status(400).json({ error: kind === 'confirm'
+      ? 'Nothing solid-booked for this job yet — paint a crew block first'
+      : 'Nothing pencilled for this job yet — pencil a block first' });
+    // The To address: the row's own, else the linked job's quote client —
+    // the same fallback the board read shows the office.
+    let toAddr = row.email || '';
+    if (!toAddr && row.job_id) {
+      try {
+        const { data: jj } = await _scopeCompany(supabase.from('jobs')
+          .select('id, q_client:draw_state->state->quote->client'), req).eq('id', row.job_id);
+        const qc = jj && jj[0] && jj[0].q_client;
+        toAddr = (qc && (qc.email || qc.mail)) || '';
+      } catch (e) {}
+    }
+    const settings = await _companySettingsRow(req);
+    const company = (settings && settings.branding && settings.branding.company_name) || '';
+    const crew = (cfg.crews.find(c => c.id === wanted.crew_id) || {}).name || '';
+    const fill = t => t
+      .replace(/\{client\}/g, row.client_name || 'there')
+      .replace(/\{site\}/g, row.site_address || 'your place')
+      .replace(/\{month_part\}/g, _schedMonthPart(wanted.start_date))
+      .replace(/\{start_date\}/g, _schedNiceDate(wanted.start_date))
+      .replace(/\{crew\}/g, crew)
+      .replace(/\{company\}/g, company || 'the team');
+    const tpl = kind === 'confirm' ? (cfg.tpl_confirm || SCHED_TPL_CONFIRM) : (cfg.tpl_pencil || SCHED_TPL_PENCIL);
+    res.json({
+      to: toAddr,
+      subject: kind === 'confirm'
+        ? 'Your roofing job is booked — starting ' + _schedNiceDate(wanted.start_date)
+        : 'Your roofing job — expected timing',
+      body: fill(tpl),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
+  const b = req.body || {};
+  if (!b.to || !/.+@.+\..+/.test(String(b.to))) return res.status(400).json({ error: 'A customer email address is needed' });
+  if (!b.subject || !b.body) return res.status(400).json({ error: 'Subject and message are needed' });
+  try {
+    const { data: rows } = await _scopeCompany(supabase.from('schedule_rows')
+      .select('id'), req).eq('id', req.params.id);
+    if (!rows || !rows.length) return res.status(404).json({ error: 'Row not found' });
+    const settings = await _companySettingsRow(req);
+    const brand = (settings && settings.branding) || {};
+    const replyTo = brand.email || undefined;
+    await _dispatchMail({
+      to: String(b.to).slice(0, 200),
+      subject: String(b.subject).slice(0, 250),
+      text: String(b.body).slice(0, 8000),
+      fromName: brand.company_name || undefined,
+      replyTo,
+      fromAddress: _tenantSendAddress(req.companyId, brand.company_name, replyTo) || undefined,
+    });
+    const stamp = new Date().toISOString();
+    await _scopeCompany(supabase.from('schedule_rows')
+      .update({ last_notified: stamp }), req).eq('id', req.params.id);
+    res.json({ ok: true, last_notified: stamp });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// ── the calendar feed: solid bookings, into Google/Apple/Outlook ──
+// Unauthenticated by design — a calendar app can't log in. The signature
+// is HMAC(companyId) with the company's own feed secret; regenerating the
+// secret revokes every previously shared link.
+app.get('/schedule/feed.ics', async (req, res) => {
+  const cid = String(req.query.c || ''), sig = String(req.query.sig || '');
+  if (!cid || !/^[0-9a-f]{64}$/.test(sig)) return res.status(404).type('text/plain').send('Not found');
+  try {
+    const { data: srows } = await supabase.from('user_settings')
+      .select('schedule_cfg').eq('company_id', cid).order('updated_at', { ascending: false }).limit(1);
+    const cfg = _schedCfgShape(srows && srows[0] && srows[0].schedule_cfg);
+    const secret = (srows && srows[0] && srows[0].schedule_cfg && srows[0].schedule_cfg.feed_secret) || '';
+    if (!secret) return res.status(404).type('text/plain').send('Not found');
+    const want = crypto.createHmac('sha256', secret).update(cid).digest('hex');
+    const a = Buffer.from(sig, 'hex'), b = Buffer.from(want, 'hex');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
+      return res.status(404).type('text/plain').send('Not found');
+    const { data: rows } = await supabase.from('schedule_rows')
+      .select('id, job_id, client_name, site_address, archived').eq('company_id', cid).limit(400);
+    const byId = new Map((rows || []).map(r => [r.id, r]));
+    const { data: blocks } = await supabase.from('schedule_blocks')
+      .select('*').eq('company_id', cid).eq('kind', 'crew').limit(2000);
+    let from = _schedISO(_schedShift(new Date(), -45)), to = _schedISO(_schedShift(new Date(), 420));
+    for (const bl of (blocks || [])) { if (bl.start_date < from) from = bl.start_date; }
+    const nonwork = _schedNonWork(cfg, from, to);
+    const esc = v => String(v || '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//RoofMap//Schedule//EN',
+                   'X-WR-CALNAME:RoofMap schedule'];
+    for (const bl of (blocks || [])) {
+      const row = byId.get(bl.row_id);
+      if (!row || row.archived) continue;
+      const dates = _schedBlockDates(bl, nonwork);
+      if (!dates.length) continue;
+      const crew = (cfg.crews.find(c => c.id === bl.crew_id) || {}).name || '';
+      const endEx = _schedISO(_schedShift(new Date(dates[dates.length - 1] + 'T00:00:00Z'), 1));
+      lines.push('BEGIN:VEVENT',
+        'UID:' + bl.id + '@roofmap.co.nz',
+        'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
+        'DTSTART;VALUE=DATE:' + dates[0].replace(/-/g, ''),
+        'DTEND;VALUE=DATE:' + endEx.replace(/-/g, ''),
+        'SUMMARY:' + esc(row.client_name + (crew ? ' (' + crew + ')' : '')),
+        'LOCATION:' + esc(row.site_address),
+        'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    res.type('text/calendar').send(lines.join('\r\n'));
+  } catch (e) { res.status(500).type('text/plain').send('feed error'); }
+});
+
 // Fergus proxy. Honors the caller's HTTP method (GET/POST/PUT/DELETE) and
 // only sends a JSON body when the method allows one. Host + path prefix
 // are env-configurable so they can be fixed without a code change.
@@ -5899,6 +6411,21 @@ const _MIGRATION_SQL = [
   "create index if not exists idx_waitlist_new on public.waitlist (created_at desc)",
   "alter table public.waitlist enable row level security",
   "alter table public.waitlist add column if not exists plan text not null default ''",
+
+  // 10b. schedule — the forward-workflow board (Business tier). Rows are
+  //      jobs-to-be-done (linked to a RoofMap job or typed as a quick row);
+  //      blocks are painted date ranges: dark-red pencil for the promised
+  //      window, a crew colour once solid-booked. End dates are never
+  //      stored — a block is start + N working days, and the working-day
+  //      calendar (weekends, NZ public holidays, company shutdowns) is
+  //      applied at read time, so a holiday added later reflows every block.
+  "create table if not exists public.schedule_rows (id uuid primary key default gen_random_uuid(), company_id uuid, job_id uuid, client_name text not null default '', site_address text not null default '', email text not null default '', length_days int not null default 1, notes text not null default '', progress_pct int, deposit_paid boolean, ordered boolean, delivery_check boolean not null default false, confirmed_delivery date, sort_pos double precision, archived boolean not null default false, last_notified timestamptz, created_at timestamptz not null default now())",
+  "create index if not exists idx_schedule_rows_co on public.schedule_rows (company_id, archived, created_at)",
+  "alter table public.schedule_rows enable row level security",
+  "create table if not exists public.schedule_blocks (id uuid primary key default gen_random_uuid(), company_id uuid, row_id uuid not null, kind text not null default 'pencil', crew_id text not null default '', start_date date not null, work_days int not null default 1, created_at timestamptz not null default now())",
+  "create index if not exists idx_schedule_blocks_co on public.schedule_blocks (company_id, row_id)",
+  "alter table public.schedule_blocks enable row level security",
+  "alter table public.user_settings add column if not exists schedule_cfg jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember
   //     ACROSS RESTARTS. Right now that is exactly one thing: the date the
