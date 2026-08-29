@@ -98,6 +98,28 @@ check('…and the two do not overlap',
   v.hd && v.bar && v.bar.bottom <= v.hd.top + 1,
   v.hd && v.bar ? ('overlap ' + r0(Math.max(0, v.bar.bottom - v.hd.top)) + 'px') : 'n/a');
 check('the Proposal header is still pinned itself', v.hdPos === 'sticky', String(v.hdPos));
+
+// ── the bar's total must follow a Pricing-panel edit (FR-14015) ────
+// A scaffold or labour change refreshed the proposal preview and the
+// customer bar but never rewrote the action bar's "Total incl. GST" — the
+// office read $5,226.66 against a page saying $8,642.16. Same debounced
+// tick, same engine, both numbers.
+let t = await pg.evaluate(async () => {
+  S.quote.lineItems = [{ desc: 'Main scope', qty: 1, unit: 10000 }];
+  if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals();
+  const before = (document.getElementById('qaTotal') || {}).textContent || '';
+  // The path a Pricing-panel edit takes: state changes, then the debounced
+  // reflect — no direct line-item edit, so nothing else rewrites the bar.
+  S.quote.lineItems = [{ desc: 'Main scope', qty: 1, unit: 16000 }];
+  _reflectPricingInQuote();
+  await new Promise(r => setTimeout(r, 500));
+  return { before,
+           after: (document.getElementById('qaTotal') || {}).textContent || '',
+           want: fmtMoney(_quoteMoney().tot) };
+});
+check('a pricing change reaches the action bar total on the same tick as the preview',
+  t.after === t.want && t.after !== t.before,
+  'bar ' + t.before + ' → ' + t.after + ', engine says ' + t.want);
 check('nothing threw on the desktop pass', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close();
 

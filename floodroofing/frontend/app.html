@@ -17161,6 +17161,42 @@ function _qpSelectionChangesPriced(P){
 function _qpSelectionDeltaSum(){
   return _qpSelectionChanges().reduce(function(s, c){ return s + c.delta; }, 0);
 }
+// Ex-GST deltas for the SELECTION CARDS — one per pickable option, picked or
+// not. The summary list (_qpSelectionChanges) has read the priced snapshot on
+// a sent quote all along; the cards kept recomputing live, and on the
+// customer's stripped copy (no materialBase, no price book, no labour rates)
+// every grade and gauge collapsed to $0 "Included" while the office showed
+// real figures — two views of one quote disagreeing about money (FR-14015).
+// One helper, snapshot first, live fallback, consumed by the card renderer
+// and held to the office's numbers by pricegold.mjs.
+function _qpCardDeltas(){
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  var P = _qpPriced();
+  var out = { grade: {}, gauge: 0, profileLock: {}, gutter: {}, bracketExt: 0, downpipes: 0 };
+  var gutterOn = !!(p.gutterType && p.gutterType !== 'none');
+  if (P){
+    Object.keys(P.grade || {}).forEach(function(id){ out.grade[id] = P.grade[id] || 0; });
+    out.gauge = P.gaugeUpgrade || 0;
+    Object.keys(P.profileLocks || {}).forEach(function(id){ out.profileLock[id] = !!P.profileLocks[id]; });
+    Object.keys(P.gutter || {}).forEach(function(id){
+      // The office's lump-sum override follows the SELECTED gutter, exactly
+      // as the live calc and the priced summary both do.
+      out.gutter[id] = P.gutterExcluded ? 0
+        : ((P.gutterOverride != null && id === p.gutterType) ? P.gutterOverride : (P.gutter[id] || 0));
+    });
+    out.bracketExt = gutterOn ? ((P.bracketExt || {})[p.gutterType] || 0) : 0;
+    out.downpipes = gutterOn ? (P.downpipes || 0) : 0;
+    return out;
+  }
+  _selGradesAll().forEach(function(g){ out.grade[g.id] = _selGradeDelta(g.id); });
+  out.gauge = _selGauge55Delta();
+  _selProfilesAll().forEach(function(pr){ out.profileLock[pr.id] = !!_selProfileLocksGauge(pr.id); });
+  _selGuttersAll().forEach(function(gt){ out.gutter[gt.id] = _selGutterDelta(gt.id); });
+  out.bracketExt = _selBracketExtDelta();
+  out.downpipes = _selDownpipeDelta();
+  return out;
+}
 // Base quote scope (ex-GST): the selected options' total when the
 // quote uses the options model, else the plain scope subtotal — the
 // same figure the pricing page's card shows.
@@ -20311,7 +20347,15 @@ function _autoSyncLabourMaterials(){
 // materials are recomputed so the live proposal preview follows immediately.
 function _reflectPricingInQuote(){
   clearTimeout(window._qpPricingTimer);
-  window._qpPricingTimer = setTimeout(function(){ try { refreshQuoteProposal(); } catch(e){} }, 120);
+  window._qpPricingTimer = setTimeout(function(){
+    try { refreshQuoteProposal(); } catch(e){}
+    // The action-bar "Total incl. GST" reads the same engine as everything
+    // else but was only rewritten on line-item edits — a scaffold or labour
+    // change in the Pricing panel refreshed the preview and the customer bar
+    // while the header kept yesterday's number (FR-14015 showed $5,226.66
+    // against $8,642.16). Same tick, same engine, no second opinion.
+    try { recalcQuoteTotals(); } catch(e){}
+  }, 120);
 }
 
 function quoteSubtotal(){
@@ -23586,6 +23630,9 @@ function refreshQuoteProposal(){
       var _spP = S.quote.selectionPrices || {};
       var _gpP = S.quote.gutterPrices || {};
       var _dIncl = function(exGst){ return (parseFloat(exGst)||0) * (1+_selRate); };
+      // A SENT quote's cards price from the stored sell prices, same as the
+      // summary — the customer's copy has no cost basis to recompute from.
+      var _CD = _qpCardDeltas();
       // The grade the base quote was priced at is the "standard · included"
       // one; every other grade (Maxam included) shows its +/− difference from
       // it. Maxam was previously hard-pinned to "included", so when the quote
@@ -23608,12 +23655,12 @@ function refreshQuoteProposal(){
       var GRADES = _selGrades().map(function(g){
         var c = _GRADE_COPY[g.id] || {};
         return { id: g.id, label: g.name || g.id, isDefault: (_baseGrade === g.id),
-                 delta: _dIncl(_selGradeDelta(g.id)),
+                 delta: _dIncl(_CD.grade[g.id] != null ? _CD.grade[g.id] : 0),
                  desc: g.desc || c.desc || '', warranty: g.warranty || c.warranty || '' };
       });
       var THICKS = [
         { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
-        { id:'55', label:'0.55 gauge', delta:_dIncl(_selGauge55Delta()), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
+        { id:'55', label:'0.55 gauge', delta:_dIncl(_CD.gauge), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
       ];
       // A profile that LOCKS a gauge carries the gauge upgrade in its own card
       // price (the locked gauge row below then reads "Included") — otherwise
@@ -23621,7 +23668,7 @@ function refreshQuoteProposal(){
       // profiles do that is the product's own answer now.
       var PROFILES = _selProfiles().map(function(pr, i){
         return { id: pr.id, label: pr.name || pr.id, isDefault: (i === 0),
-                 delta: _selProfileLocksGauge(pr.id) ? _dIncl(_selGauge55Delta()) : 0,
+                 delta: _CD.profileLock[pr.id] ? _dIncl(_CD.gauge) : 0,
                  desc: pr.desc || '' };
       });
       // "No new gutter" is not a product — it is the absence of one — so it is
@@ -23630,15 +23677,15 @@ function refreshQuoteProposal(){
                        desc:'Existing gutter stays as-is.' }].concat(
         _selGutters().map(function(gt){
           return { id: gt.id, label: gt.name || gt.id,
-                   delta: _dIncl(_selGutterDelta(gt.id)), desc: gt.desc || '' };
+                   delta: _dIncl(_CD.gutter[gt.id] != null ? _CD.gutter[gt.id] : 0), desc: gt.desc || '' };
         }));
       var BRACKETS = [
         { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
-        { id:'external', label:'External brackets', delta:_dIncl(_selBracketExtDelta()), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
+        { id:'external', label:'External brackets', delta:_dIncl(_CD.bracketExt), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
       ];
       var DOWNPIPES = [
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
-        { id:'yes', label:'New downpipes',           delta:_dIncl(_selDownpipeDelta()), desc:'Supply & install new downpipes to match the new guttering.' }
+        { id:'yes', label:'New downpipes',           delta:_dIncl(_CD.downpipes), desc:'Supply & install new downpipes to match the new guttering.' }
       ];
       // Both disposal choices are $0 — the scrap value of the old steel just
       // offsets the labour/time to strip and cart it away, so it's a wash.

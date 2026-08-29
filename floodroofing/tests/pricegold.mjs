@@ -76,7 +76,23 @@ await pg.evaluate((job) => {
 }, demo);
 await pg.waitForTimeout(600);   // let any deferred render settle BEFORE capturing
 
-const matrix = await pg.evaluate(() => {
+// What every SELECTION CARD wears as its price tag, compact enough to diff:
+// the customer decides FROM the cards, so a wrong card is a wrong quote even
+// when the summary maths is right (FR-14015: cards read "Included" on the
+// customer page while the office showed ±$ figures).
+const CARDS_SNIPPET = `(function(){
+  var cd = _qpCardDeltas();
+  var r2 = function(x){ return Math.round((x || 0) * 100) / 100; };
+  return [
+    Object.keys(cd.grade).sort().map(function(k){ return k + ':' + r2(cd.grade[k]); }).join(','),
+    'gauge:' + r2(cd.gauge),
+    'locks:' + Object.keys(cd.profileLock).sort().filter(function(k){ return cd.profileLock[k]; }).join('+'),
+    Object.keys(cd.gutter).sort().map(function(k){ return k + ':' + r2(cd.gutter[k]); }).join(','),
+    'brkt:' + r2(cd.bracketExt), 'dp:' + r2(cd.downpipes),
+  ].join('|');
+})()`;
+
+const matrix = await pg.evaluate((CARDS) => {
   window.__applyPriceFixture();
   const GRADES  = ['maxam','colorzen','colourcote','zincalume'];
   const PROFS   = ['corrugate','5rib'];
@@ -99,19 +115,19 @@ const matrix = await pg.evaluate(() => {
           tot: Math.round(money.tot * 100) / 100,
           d: _qpSelectionChanges().map(function(c){
                return c.label + '=' + (Math.round(c.delta * 100) / 100); }).join(';'),
+          c: eval(CARDS),
         });
       }); }); }); }); }); });
   });
   return out;
-});
+}, CARDS_SNIPPET);
 
 // The same 1024 combinations again, but priced the way a CUSTOMER's browser
 // prices them: from the sell prices the office stored at send, with no access
 // to materialBase, the mark-ups or scaffoldBase. If these disagree with the
 // office numbers by a cent, the leak has been closed by changing someone's
 // quote, which is not closing it.
-const priced = await pg.evaluate(() => {
-  window.__applyPriceFixture();
+const priced = await pg.evaluate((CARDS) => {
   const GRADES  = ['maxam','colorzen','colourcote','zincalume'];
   const PROFS   = ['corrugate','5rib'];
   const THICKS  = ['40','55'];
@@ -121,11 +137,20 @@ const priced = await pg.evaluate(() => {
   const OVERRIDE = [null, 3900];
   const out = [];
   OVERRIDE.forEach(function(ov){
-    S.quote.gutterPriceOverride = ov;
     // Rebuild as the office would at THAT moment — the override is part of what
-    // is sent, not something the customer's copy can change.
-    S.quote.share.priced = null;
+    // is sent, not something the customer's copy can change. Fixture re-applied
+    // per pass because the strip below empties the very state a rebuild needs.
+    window.__applyPriceFixture();
+    S.quote.gutterPriceOverride = ov;
     S.quote.share.priced = _qpBuildPriced();
+    // Now BECOME the customer's copy: the backend strips the cost basis, and
+    // the customer's browser has no price book or labour rates. Every number
+    // from here on must come from the priced snapshot alone — a live fallback
+    // that sneaks through prices from nothing and shows $0 "Included".
+    S.quote.materialBase = 0;
+    S.quote.scaffoldBase = 0;
+    S.settings.price_book = null;
+    S.materials = 0; S.labour = 0;
     GRADES.forEach(function(g){ PROFS.forEach(function(pr){ THICKS.forEach(function(th){
       GUTTERS.forEach(function(gt){ BRACK.forEach(function(br){ EXTRAS.forEach(function(ex, exi){
         S.quote.proposalOptions = { steelGrade:g, profile:pr, steelThickness:th,
@@ -137,11 +162,12 @@ const priced = await pg.evaluate(() => {
           tot: Math.round(money.tot * 100) / 100,
           d: _qpSelectionChanges().map(function(c){
                return c.label + '=' + (Math.round(c.delta * 100) / 100); }).join(';'),
+          c: eval(CARDS),
         });
       }); }); }); }); }); });
   });
   return out;
-});
+}, CARDS_SNIPPET);
 
 if (process.env.REGEN === '1') {
   await writeFile(GOLD, JSON.stringify(matrix, null, 0));
@@ -169,12 +195,13 @@ if (process.env.REGEN === '1') {
     deltaDiffs.length ? (deltaDiffs.length + ' differ: ' + deltaDiffs.slice(0,3).join(', ')) : 'identical');
   // The whole point of the exercise.
   const pByKey = new Map(priced.map(p => [p.k, p]));
-  const pDiffs = [], pDelta = [];
+  const pDiffs = [], pDelta = [], pCards = [];
   for (const g of gold) {
     const p = pByKey.get(g.k);
     if (!p) { pDiffs.push(g.k + ': missing'); continue; }
     if (p.tot !== g.tot || p.sub !== g.sub) pDiffs.push(g.k + ': $' + g.tot + ' → $' + p.tot);
     else if (p.d !== g.d) pDelta.push(g.k);
+    if (g.c != null && p.c !== g.c) pCards.push(g.k + ': ' + String(p.c).slice(0, 60));
   }
   check('a customer pricing from stored sell prices gets the SAME number, all ' + priced.length + ' ways',
     pDiffs.length === 0,
@@ -182,6 +209,12 @@ if (process.env.REGEN === '1') {
   check('…line for line, including the labels on each',
     pDelta.length === 0,
     pDelta.length ? (pDelta.length + ' differ: ' + pDelta.slice(0,3).join(', ')) : 'identical');
+  // FR-14015: the customer's stripped copy showed "Included" on every grade
+  // and gauge card while the office showed real figures. The CARDS are what
+  // the customer decides from, so they are held to the office's numbers too.
+  check('…and every SELECTION CARD wears the office\'s price on the stripped customer copy',
+    pCards.length === 0,
+    pCards.length ? (pCards.length + ' differ: ' + pCards.slice(0,2).join(' | ')) : 'identical');
 
   check('the baseline is broad enough to be worth trusting',
     new Set(gold.map(g => g.tot)).size > 200, new Set(gold.map(g => g.tot)).size + ' distinct totals');
