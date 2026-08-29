@@ -2190,12 +2190,15 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
    inside a page widget; pages can be added, deleted and reordered. */
 .jp-toolbar{
   position:sticky; top:0; z-index:40;   /* stick to the top (job bar removed) */
-  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
   background:#fff; border:1px solid var(--border); border-radius:10px;
-  padding:10px 14px; margin-bottom:14px;
+  padding:6px 12px; margin-bottom:14px;
   box-shadow:0 4px 14px rgba(0,0,0,.06);
 }
 @media(max-width:880px){ .jp-toolbar{ top:108px; } }
+/* The explainer gives way before the buttons do: it shrinks to fit and
+   ellipsises, so the toolbar holds one row at any card width. */
+.jp-hint{ flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Bottom mirror is redundant now the top bar stays pinned on scroll. */
 .jp-toolbar-bottom{ display:none; }
 .jp-toolbar select, .jp-toolbar input[type=text]{
@@ -2846,6 +2849,8 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
   box-shadow:0 4px 14px rgba(10,22,40,.06);
 }
 @media print{ #tab-quote > .q-actionbar{ position:static; box-shadow:none; } }
+#qaMsg{ width:100%; }
+#qaMsg:empty{ display:none; }
 #tab-quote > .js-proposal-print{order:2}
 .q-extras-head{margin:22px 2px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .q-extras-head span{font-size:11px;font-weight:400;color:var(--text3)}
@@ -4703,21 +4708,21 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        ═════════════════════════════════════════════════════════════ -->
   <div class="card jp-toolbar" id="jpToolbar">
     <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
-    <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
-    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
-      <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
-      <input class="no-print" type="range" id="jpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Page zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0 4px 0 0">
+    <span class="jp-hint" style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
+    <div style="display:flex;gap:5px;margin-left:auto;flex-wrap:wrap;align-items:center">
+      <span class="no-print" title="Page zoom (screen only)" style="font-size:11px;color:var(--text2)">🔍</span>
+      <input class="no-print" type="range" id="jpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Page zoom (screen only)" style="width:72px;accent-color:#0099cc;margin:0 4px 0 0">
       <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">60%</span>
-      <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
-      <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
+      <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:4px 9px;font-size:11.5px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
+      <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:4px 9px;font-size:11.5px" title="Redo">↪ Redo</button>
       <!-- No Preview / Edit button. The Job Pack is a form and stays one; the
            printed treatment is applied automatically, for the length of the
            capture, by Save as PDF / Print / Push to Fergus / Order Roof. A
            mode you can be left stranded in is not worth the button. -->
-      <button onclick="saveMaterialsAsPdf()" data-tour="jp-pdf" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
-      <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
-      <button onclick="orderRoofViaSupplier()" data-tour="jp-order" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
+      <button onclick="saveMaterialsAsPdf()" data-tour="jp-pdf" class="mat-btn mat-btn-dark" style="padding:4px 9px;font-size:11.5px">📄 Save as PDF</button>
+      <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:4px 9px;font-size:11.5px">🖨 Print</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:4px 9px;font-size:11.5px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="orderRoofViaSupplier()" data-tour="jp-order" class="mat-btn mat-btn-blue" style="padding:4px 9px;font-size:11.5px">🛒 Order Roof</button>
     </div>
   </div>
   <div class="jp-pages" id="jpPages"></div>
@@ -4791,7 +4796,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="redoLast()" class="mat-btn mat-btn-light" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:4px 9px;font-size:11.5px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -5276,19 +5281,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div data-sample-strip class="no-print"></div>
 
   <!-- Action bar -->
-  <div class="card q-actionbar" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Quote</div>
-      <div style="font-size:13px;color:var(--text2)">Ref: <strong id="qaRef" style="color:#0a1628">FR-001</strong> &nbsp;·&nbsp; Total incl. GST: <strong id="qaTotal" style="color:#0a1628">$0.00</strong></div>
-    </div>
-    <button onclick="saveQuote()" id="qaSaveBtn" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Save</button>
-    <button onclick="openQuoteEmail()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
-    <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push pricing to Fergus</button>
-    <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
-    <button onclick="copyCustomerLink()" data-tour="q-link" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
-    <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
-    <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:8px 14px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
-    <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  <div class="card q-actionbar" style="display:flex;gap:5px;align-items:center;padding:7px 12px;flex-wrap:wrap">
+    <div style="white-space:nowrap;margin-right:auto;font-size:12.5px;color:var(--text2)">Quote <strong id="qaRef" style="color:#0a1628">FR-001</strong> · <strong id="qaTotal" style="color:#0a1628">$0.00</strong> incl. GST</div>
+    <button onclick="saveQuote()" id="qaSaveBtn" style="padding:4px 9px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">💾 Save</button>
+    <button onclick="openQuoteEmail()" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
+    <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:4px 9px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
+    <button onclick="printQuote()" style="padding:4px 9px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
+    <button onclick="copyCustomerLink()" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🔗 Customer link</button>
+    <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">⭐ Save as template</button>
+    <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
+    <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
   </div>
 
   <!-- Invoices on this job — deposit / progress / final. Lists what has been
