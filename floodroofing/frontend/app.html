@@ -10873,9 +10873,24 @@ function _writeLocalDraftNow(){
     // deliberate Save clears the flag first, so saving the sample offline
     // still keeps the work.
     if (S.isSampleJob) return ok(false);
+    /* Look before guarding. This writer ticks on a debounce, so it runs in
+       sessions with nothing loaded at all — a fresh app parked on Settings,
+       memory empty, yesterday's draft geometry still on disk under
+       fr_lkg_draft. Snapshotting straight through the guard there paged the
+       office ("empty drawing blocked at save", build afa8abd) and resurrected
+       the old geometry into a junk draft, on a write the substance check was
+       about to skip anyway. Nothing worth writing means nothing to guard: the
+       first snapshot is read-only, and only a session with real work takes
+       the full-guard snapshot below — where a blank drawing riding alongside
+       typed form details is still substituted and reported, because THAT
+       write would have filed the blank over a draft that had a roof map. */
     var snap;
-    try { snap = snapshotCurrentJob(); } catch(e){ return ok(false); }
+    _lkgGuard._readOnly = true;
+    try { snap = snapshotCurrentJob(); }
+    catch(e){ return ok(false); }
+    finally { _lkgGuard._readOnly = false; }
     if (!_snapHasSubstance(snap)) return ok(false);
+    try { snap = snapshotCurrentJob(); } catch(e){ return ok(false); }
     var rec = {
       key: _draftKey(), at: new Date().toISOString(),
       by: _meLabel(), device: _deviceLabel(),

@@ -145,6 +145,51 @@ check('the same empty state at a real save still gets the full guard',
   v.roofs === 6, 'save-path snapshot carries ' + v.roofs + ' roofs');
 await pg.evaluate(() => { try { localStorage.removeItem('fr_lkg_draft'); } catch(e){} });
 
+// ── the incident of build afa8abd: the draft writer has nothing to keep ──
+// The same fresh session, but this time it is the debounced LOCAL DRAFT
+// writer that ticks — parked on the Settings tab, memory empty, yesterday's
+// draft geometry still on disk. The writer used to snapshot straight through
+// the guard, which paged the office and resurrected the old geometry into a
+// junk draft — on a write _snapHasSubstance was about to skip anyway.
+await load();
+await pg.waitForTimeout(400);
+const seenBeforeWriter = reports.length;
+v = await pg.evaluate(async () => {
+  const old = JSON.stringify({ outline: DRAW.outline.map(p => p.slice()),
+    lines: DRAW.lines, roofs: DRAW.roofs, activeRoofIdx: 0 });
+  DRAW.outline = []; DRAW.lines = []; DRAW.roofs = []; DRAW.activeRoofIdx = -1;
+  S.currentJobId = null; S.linkedJobId = null;
+  LKG.byJob = {}; LKG.hadDrawing = null;
+  _lkgReported = {};                       // a fresh session has no dedupe history
+  localStorage.setItem('fr_lkg_draft', old);
+  const before = (await _listLocalDrafts()).map(d => d.key + '@' + d.at).sort().join('|');
+  const msgEl = document.getElementById('saveJobMsg'); if (msgEl) msgEl.textContent = '';
+  const wrote = await _writeLocalDraftNow();
+  const after = (await _listLocalDrafts()).map(d => d.key + '@' + d.at).sort().join('|');
+  return { wrote, untouched: before === after, roFlagCleared: !_lkgGuard._readOnly,
+           status: (document.getElementById('saveJobMsg') || {}).textContent || '' };
+});
+check('the draft writer with nothing worth keeping leaves quietly', v.wrote === false, 'wrote=' + v.wrote);
+check('…files no junk draft', v.untouched, 'draft store changed');
+check('…says nothing to the user', !v.status, v.status.slice(0, 100) || 'quiet');
+check('…and the read-only flag does not stick there either', v.roFlagCleared, '');
+await pg.waitForTimeout(500);
+check('…and nobody is paged over a write that never happened', reports.length === seenBeforeWriter,
+  reports.length > seenBeforeWriter ? (reports[reports.length - 1].message || '').slice(0, 90) : 'no report');
+// But give the same session something worth keeping — a client name typed in
+// — and the write is real again: the guard files the remembered drawing with
+// it rather than a blank, because THAT write could have lost a roof map.
+v = await pg.evaluate(async () => {
+  const el = document.getElementById('jobClient'); if (el) el.value = 'A Customer';
+  const wrote = await _writeLocalDraftNow();
+  const mine = (await _listLocalDrafts()).find(d => (d.client || '') === 'A Customer');
+  if (el) el.value = '';
+  try { localStorage.removeItem('fr_lkg_draft'); } catch(e){}
+  return { wrote, roofs: mine ? (((mine.snap || {}).draw || {}).roofs || []).length : null };
+});
+check('…while a session with real work still gets the full guard on its draft',
+  v.wrote === true && v.roofs === 6, 'wrote=' + v.wrote + ', draft carries roofs=' + v.roofs);
+
 // ── the report has to be diagnosable ──────────────────────────────
 const guardReport = reports.find(r => /empty drawing/i.test(r.message || '')) || {};
 check('the report names the save path it came from',
