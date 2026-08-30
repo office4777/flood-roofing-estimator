@@ -2886,11 +2886,11 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-info{ position:sticky; z-index:4; background:#fff; }
 .sched-hd-row .sched-info{ z-index:7; }
 .sched-strip{ flex:0 0 auto; position:relative; border-bottom:1px solid #eef1f4;
-  background-image:repeating-linear-gradient(to right, transparent 0, transparent 23px, #f1f5f9 23px, #f1f5f9 24px); }
-.sched-day-hd{ position:absolute; top:0; width:24px; text-align:center; font-size:9.5px; color:#64748b; line-height:20px; }
+  background-image:repeating-linear-gradient(to right, transparent 0, transparent calc(var(--sched-dayw, 24px) - 1px), #f1f5f9 calc(var(--sched-dayw, 24px) - 1px), #f1f5f9 var(--sched-dayw, 24px)); }
+.sched-day-hd{ position:absolute; top:0; width:var(--sched-dayw, 24px); text-align:center; font-size:9.5px; color:#64748b; line-height:20px; }
 .sched-month-hd{ position:absolute; top:0; font-size:10px; font-weight:800; color:#0a1628; letter-spacing:.04em;
   border-left:2px solid #cbd5e1; padding-left:5px; line-height:20px; white-space:nowrap; overflow:hidden; }
-.sched-shade{ position:absolute; top:0; bottom:0; width:24px; background:rgba(148,163,184,.28); pointer-events:none; z-index:2; }
+.sched-shade{ position:absolute; top:0; bottom:0; width:var(--sched-dayw, 24px); background:rgba(148,163,184,.28); pointer-events:none; z-index:2; }
 .sched-shade.shut{ background:rgba(255,102,120,.16); }
 .sched-shade.cap{ background:rgba(245,158,11,.25); }
 .sched-shade.today{ background:transparent; border-left:2px solid #0099cc; width:0; }
@@ -5382,7 +5382,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span id="schedMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
     </div>
     <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Or just type a client name into a blank row to start one.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Or just type a client name into a blank row to start one. Ctrl + scroll zooms the calendar in and out.</div>
   </div>
 
   <!-- Compose customer email -->
@@ -7548,7 +7548,9 @@ function _openJmsLink(){
 // columns, red pencil blocks for promised windows, crew colours once
 // solid-booked. The server owns the truth (and the tier gate); this
 // renders it and turns clicks into row/block mutations.
-var _SCHED = { data:null, sel:null, archived:false, drag:null, dayW:24, infoW:0,
+var _SCHED = { data:null, sel:null, archived:false, drag:null, infoW:0,
+  dayW: (function(){ try { var v = parseInt(localStorage.getItem('fr_sched_dayw'), 10);
+    if (v >= 6 && v <= 48) return v; } catch(e){} return 24; })(),
   compact: (function(){ try { var v = localStorage.getItem('fr_sched_compact');
     if (v === '1') return true; if (v === '0') return false; } catch(e){}
     return (window.innerWidth || 1400) < 1000; })() };
@@ -7644,6 +7646,23 @@ var _SCHED_COLS = [
 var _SCHED_COLS_MIN = [
   { key:'handle', w:14, hd:'' }, { key:'info', w:20, hd:'' }, { key:'job', w:118, hd:'Job' },
 ];
+// Ctrl + wheel over the calendar: zoom the day width, keeping the date
+// under the cursor where it is. Zoomed right out (6px/day) a desktop shows
+// well over a year of forward work.
+function _schedZoomWheel(e){
+  e.preventDefault();
+  var scroll = document.getElementById('schedScroll');
+  var old = _SCHED.dayW;
+  var next = Math.max(6, Math.min(48, old + (e.deltaY > 0 ? -2 : 2)));
+  if (next === old || !scroll) return;
+  var rect = scroll.getBoundingClientRect();
+  var xIn = e.clientX - rect.left;
+  var dayAt = (scroll.scrollLeft + xIn - _SCHED.infoW) / old;
+  _SCHED.dayW = next;
+  try { localStorage.setItem('fr_sched_dayw', String(next)); } catch(err){}
+  _schedRender();
+  scroll.scrollLeft = Math.max(0, dayAt * next + _SCHED.infoW - xIn);
+}
 function _schedRender(){
   var grid = document.getElementById('schedGrid');
   if (!grid || !_SCHED.data) return;
@@ -7686,8 +7705,11 @@ function _schedRender(){
        (_SCHED.compact ? '»' : '«') + '</button></div>' +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + months + '</div></div>';
   var dayNums = '', shades = '';
+  var _dwTiny = _SCHED.dayW < 14;   // zoomed far out: number only Mondays + the 1st
   days.forEach(function(d, i){
-    dayNums += '<div class="sched-day-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + parseInt(d.slice(8), 10) + '</div>';
+    var _dn = parseInt(d.slice(8), 10);
+    var _dnShow = !_dwTiny || _dn === 1 || new Date(d + 'T00:00:00Z').getUTCDay() === 1;
+    dayNums += '<div class="sched-day-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + (_dnShow ? _dn : '') + '</div>';
     if (_SCHED.nonwork[d]) shades += '<div class="sched-shade" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
     else if ((dayLoad[i] || 0) > cap) shades += '<div class="sched-shade cap" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
     if (d === _SCHED.data.range.today) shades += '<div class="sched-shade today" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
@@ -7760,6 +7782,7 @@ function _schedRender(){
   var bodyH = (rows.length + pad) * 31 + 4;
   h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
   grid.style.position = 'relative';
+  grid.style.setProperty('--sched-dayw', _SCHED.dayW + 'px');
   grid.innerHTML = h;
   _schedRenderPalette();
   _schedWire(grid);
@@ -50777,6 +50800,27 @@ function _setDocZoomFactor(pct){
 // Scale the fixed-size A4 pages (Quote proposal, Job Pack pages) so they fill
 // the working area between the sidebar and the side pop-out (× the manual
 // zoom factor). Writes --doc-zoom; the CSS applies it on screen only.
+// Ctrl + scroll zooms whatever the pointer is over — the Quote proposal,
+// the Job Pack pages, the schedule calendar. (The canvas has its own wheel
+// handler.) Non-passive, or preventDefault can't stop the browser zooming
+// the whole page.
+document.addEventListener('wheel', function(e){
+  if (!e.target || !e.target.closest) return;
+  // The canvas owns its own wheel logic (Ctrl-zoom, secondary-roof resize,
+  // no-background sketch zoom) — hand everything over it straight there.
+  // (onCanvasWheel lost its inline wiring when plain-wheel zoom was retired;
+  // this routing is what makes it live again.)
+  if (e.target.closest('#roofCanvas')){ try { onCanvasWheel(e); } catch(err){} return; }
+  if (!e.ctrlKey) return;
+  if (e.target.closest('#quoteProposal') || e.target.closest('.jp-pages')){
+    e.preventDefault();
+    _setDocZoomFactor(Math.round(_docZoomFactor() * 100) + (e.deltaY > 0 ? -5 : 5));
+    return;
+  }
+  if (e.target.closest('#schedScroll')){
+    try { _schedZoomWheel(e); } catch(err){}
+  }
+}, { passive: false });
 function _fitDocZoom(){
   var content = document.querySelector('.content'); if (!content) return;
   var cs = getComputedStyle(content);
@@ -52128,6 +52172,19 @@ function applyZoom() {
   redrawAll();
 }
 function onCanvasWheel(e) {
+  // Ctrl + wheel always zooms the drawing, whatever the tool or background
+  // — and preventDefault keeps the browser from zooming the whole page.
+  if (e.ctrlKey) {
+    e.preventDefault();
+    var stepC = e.deltaY > 0 ? -0.1 : 0.1;
+    DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepC));
+    try {
+      var zlC = document.getElementById('zoomLabel');
+      if (zlC) zlC.textContent = Math.round(DRAW.zoom * 100) + '%';
+    } catch(err){}
+    try { redrawAll(); } catch(err){}
+    return;
+  }
   // Default behaviour: scroll wheel does NOT zoom the canvas — the
   // page keeps scrolling and the user uses the + / - buttons.
   //

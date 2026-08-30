@@ -149,6 +149,22 @@ check('print puts both bars back in the flow',
   /@media\s+print[^}]*\{[^}]*q-actionbar[^}]*position:\s*static/.test(css.replace(/\s+/g, ' ')),
   'print rule present');
 
+// ── Ctrl + scroll zooms the proposal ──────────────────────────────
+({ ctx, pg, errs } = await openQuoteTab(1500, 1000));
+const z = await pg.evaluate(() => {
+  const el = document.getElementById('quoteProposal');
+  const before = _docZoomFactor();
+  el.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true }));
+  const after = _docZoomFactor();
+  el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
+  return { before, after, plain: _docZoomFactor(),
+    slider: +document.getElementById('qpZoomSlider').value };
+});
+check('Ctrl + scroll over the proposal zooms it and syncs the slider',
+  z.after > z.before && Math.round(z.after * 100) === z.slider, JSON.stringify(z));
+check('…while a plain scroll keeps scrolling, not zooming', z.plain === z.after, JSON.stringify(z));
+await ctx.close();
+
 await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

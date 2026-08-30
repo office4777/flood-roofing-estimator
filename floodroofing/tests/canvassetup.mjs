@@ -157,6 +157,16 @@ check('…without hiding every other roof, the way it used to', sw.showAll === t
 const toggled = await pg.evaluate(() => { toggleShowAllRoofs(); return DRAW.showAllRoofs; });
 check('and nothing can put the canvas back into single-roof mode', toggled === true);
 
+// ── Ctrl + scroll zooms the drawing, whatever the tool ─────────────
+v = await pg.evaluate(() => {
+  const c = document.getElementById('roofCanvas');
+  const before = DRAW.zoom || 1;
+  c.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true }));
+  return { before, after: DRAW.zoom, label: document.getElementById('zoomLabel').textContent };
+});
+check('Ctrl + scroll zooms the canvas and updates the % label',
+  v.after > v.before && v.label === Math.round(v.after * 100) + '%', JSON.stringify(v));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;

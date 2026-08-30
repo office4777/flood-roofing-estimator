@@ -266,6 +266,32 @@ check('Save sends all three crews and reloads the board',
   !!cfgPut && (cfgPut[1].crews || []).length === 3 && cfgPut[1].crews[2].name === "Nick's boys" &&
   calls.some(c => c[0] === 'GET /schedule'), JSON.stringify(cfgPut && cfgPut[1]).slice(0, 110));
 
+// ── Ctrl + scroll zooms the calendar ──────────────────────────────
+v = await pg.evaluate(() => {
+  const scroll = document.getElementById('schedScroll');
+  const mk = () => new WheelEvent('wheel', { ctrlKey: true, deltaY: 100, clientX: 700, bubbles: true, cancelable: true });
+  const before = _SCHED.dayW;
+  for (let i = 0; i < 5; i++) scroll.dispatchEvent(mk());
+  const mid = { dayW: _SCHED.dayW,
+    cssVar: document.getElementById('schedGrid').style.getPropertyValue('--sched-dayw'),
+    stored: localStorage.getItem('fr_sched_dayw'),
+    blockW: document.querySelector('[data-block="b1"]').getBoundingClientRect().width };
+  for (let i = 0; i < 20; i++) scroll.dispatchEvent(mk());
+  const floor = _SCHED.dayW;
+  const numbered = [...document.querySelectorAll('.sched-day-hd')].filter(x => x.textContent).length;
+  const total = document.querySelectorAll('.sched-day-hd').length;
+  return { before, mid, floor, numbered, total };
+});
+check('Ctrl + scroll zooms the calendar out — day width shrinks and sticks',
+  v.before === 24 && v.mid.dayW === 14 && v.mid.cssVar === '14px' && v.mid.stored === '14',
+  JSON.stringify({ b: v.before, m: v.mid.dayW, css: v.mid.cssVar, ls: v.mid.stored }));
+check('…blocks rescale with it (8 working days over a weekend = 12 × 14px)',
+  Math.abs(v.mid.blockW - (12 * 14 - 2)) < 2, v.mid.blockW + 'px');
+check('…zooming right out clamps at 6px/day and thins the day numbers to Mondays',
+  v.floor === 6 && v.numbered < v.total / 3, v.floor + 'px, ' + v.numbered + '/' + v.total + ' numbered');
+await pg.evaluate(() => { _SCHED.dayW = 24; try { localStorage.removeItem('fr_sched_dayw'); } catch(e){} _schedRender(); });
+await pg.waitForTimeout(300);
+
 // Extended view overlays the whole viewport — side menu and all.
 await pg.evaluate(() => _schedExtToggle());
 await pg.waitForTimeout(300);
