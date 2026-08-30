@@ -3826,19 +3826,23 @@ function _mailThreadKey(m){
 }
 
 // ── the IMAP/SMTP seams ──
+// Without these, a stalled mail server holds the connection for the
+// library defaults — 90s IMAP, 2 minutes SMTP — and "Checking the login…"
+// just spins. Fail fast and say so instead.
+const _MAIL_NET = { connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 30000 };
 const _mailFetcherReal = {
   async verify(conn, pass){
     const { ImapFlow } = require('imapflow');
-    const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
-      auth: { user: conn.user, pass }, logger: false });
+    const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
+      auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
     await c.connect();
     try { await c.logout(); } catch (e) {}
   },
   async fetchNew(conn, pass, lastUid){
     const { ImapFlow } = require('imapflow');
     const { simpleParser } = require('mailparser');
-    const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
-      auth: { user: conn.user, pass }, logger: false });
+    const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
+      auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
     await c.connect();
     const out = [];
     let maxUid = lastUid || 0;
@@ -3882,8 +3886,8 @@ const _mailFetcherReal = {
   async appendSent(conn, pass, rfc822){
     try {
       const { ImapFlow } = require('imapflow');
-      const c = new ImapFlow({ host: conn.host, port: conn.port, secure: true,
-        auth: { user: conn.user, pass }, logger: false });
+      const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
+        auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
       await c.connect();
       try {
         const boxes = await c.list();
@@ -3897,10 +3901,10 @@ function _mailFetcher(){ return globalThis.__TEST_MAIL_FETCHER || _mailFetcherRe
 function _mailTransport(acct, pass){
   const nodemailer = require('nodemailer');
   if (globalThis.__TEST_MAIL_JSON) return nodemailer.createTransport({ jsonTransport: true });
-  return nodemailer.createTransport({
+  return nodemailer.createTransport(Object.assign({
     host: acct.smtp_host, port: acct.smtp_port, secure: acct.smtp_port === 465,
     auth: { user: acct.username || acct.email, pass },
-  });
+  }, _MAIL_NET));
 }
 
 // ── the AI: triage, job-linking, reply drafts ──
@@ -4085,6 +4089,9 @@ app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
   const email = String(b.email || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'A real email address, please' });
   if (!b.password) return res.status(400).json({ error: 'The app password is required' });
+  // Google shows app passwords in spaced groups of four; the spaces are
+  // display only and IMAP LOGIN fails with them. Same story on Yahoo/Xtra.
+  if (['gmail', 'xtra', 'outlook'].includes(String(b.provider))) b.password = String(b.password).replace(/\s+/g, '');
   const acct = {
     id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
     label: String(b.label || email).slice(0, 80), email,
@@ -4098,12 +4105,18 @@ app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
   };
   if (!acct.imap_host || !acct.smtp_host) return res.status(400).json({ error: 'IMAP and SMTP hosts are required' });
   try {
-    // Prove the login works BEFORE storing it — both directions.
-    await _mailFetcher().verify({ host: acct.imap_host, port: acct.imap_port, user: acct.username }, String(b.password));
-    await _mailTransport(acct, String(b.password)).verify();
+    // Prove the login works BEFORE storing it — both directions, with a
+    // hard backstop so the Connect button always gets an answer.
+    await Promise.race([
+      (async () => {
+        await _mailFetcher().verify({ host: acct.imap_host, port: acct.imap_port, user: acct.username }, String(b.password));
+        await _mailTransport(acct, String(b.password)).verify();
+      })(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('the mail server did not answer in time')), 35000)),
+    ]);
   } catch (e) {
     return res.status(400).json({ error: 'Could not sign in: ' + String(e.message || e).slice(0, 200) +
-      ' — check the app password and hosts.' });
+      ' — check the app password (paste it without spaces) and try again.' });
   }
   try {
     const { error } = await supabase.from('mail_accounts').insert(acct);
