@@ -22,7 +22,7 @@ function mkSched(){
       { id:'r1', job_id:'j1', client_name:'Brian Lewis', site_address:'148 Horeke Road, Okaihau', email:'b@l.nz',
         length_days:8, notes:'', progress_pct:80, deposit_paid:true, ordered:true, delivery_check:false,
         handover_done:false, last_notified:null, job_no:'FR-2996',
-        archived:false, created_at:'2026-08-01', accepted_at:'2026-07-20T09:00:00Z', auto:{} },
+        archived:false, created_at:'2026-08-01', accepted_at:'2026-08-27T09:00:00Z', auto:{} },
       { id:'r2', job_id:null, client_name:'Modspace', site_address:'Whetu Rau', email:'', length_days:4,
         notes:'', progress_pct:null, deposit_paid:false, ordered:false, delivery_check:false,
         handover_done:false, last_notified:null, job_no:'',
@@ -70,8 +70,9 @@ async function boot(opts){
     if (/\/schedule\/rows\/[^/]+$/.test(u) && m === 'PATCH'){ calls.push(['PATCH row', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
     if (/\/schedule\/rows\/[^/]+\/compose$/.test(u)){ calls.push(['compose', JSON.parse(r.request().postData() || '{}')]);
-      return r.fulfill({ status: 200, contentType: 'application/json',
-        body: JSON.stringify({ to: 'b@l.nz', subject: 'Your roofing job — expected timing', body: 'Hi Brian, late October it is.' }) }); }
+      // Slow, like the real server — the box must open before this answers.
+      return new Promise(res => setTimeout(res, 500)).then(() => r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ to: 'b@l.nz', subject: 'Your roofing job — expected timing', body: 'Hi Brian, late October it is.' }) })); }
     if (/\/schedule\/rows\/[^/]+\/send$/.test(u)){ calls.push(['send', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }
     if (/\/schedule\//.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
@@ -165,17 +166,60 @@ let rep = calls.find(c => /^PATCH b1/.test(c[0]));
 check('clicking a pencil block with a crew selected solid-books it',
   !!rep && rep[1].kind === 'crew' && rep[1].crew_id === 'troy', JSON.stringify(rep && rep[1]));
 
+// ── the ✉ milestone flags on the calendar ─────────────────────────
+v = await pg.evaluate(() => {
+  const flags = [...document.querySelectorAll('.sched-flag')].map(f => ({
+    k: f.getAttribute('data-flag'), row: f.getAttribute('data-flagrow'),
+    col: f.style.color, op: +getComputedStyle(f).opacity }));
+  const helper = _schedRowFlags(_SCHED.data.rows.find(r => r.id === 'r1')).map(f => f.kind + '@' + f.date);
+  return { flags, helper };
+});
+check('the three milestone dates hang off acceptance and the start',
+  v.helper.join('|') === 'pencil@2026-08-28|week@2026-08-21|confirm@2026-09-01', v.helper.join('|'));
+check('…and the in-range ones render as translucent coloured envelopes',
+  v.flags.some(f => f.k === 'pencil' && f.row === 'r1' && /220, 38, 38/.test(f.col)) &&
+  v.flags.some(f => f.k === 'confirm' && f.row === 'r1' && /22, 163, 74/.test(f.col)) &&
+  v.flags.every(f => f.op < 0.7), JSON.stringify(v.flags).slice(0, 140));
+await pg.evaluate(() => document.querySelector('.sched-flag[data-flagrow="r1"][data-flag="confirm"]').click());
+await pg.waitForTimeout(150);
+v = await pg.evaluate(() => ({
+  shown: getComputedStyle(document.getElementById('schedMailModal')).display !== 'none',
+  title: document.getElementById('schedMailTitle').textContent,
+}));
+check('clicking a flag opens the email box on that wording', v.shown && /confirm start date/i.test(v.title), v.title);
+await pg.evaluate(() => _schedMailClose());
+await pg.waitForTimeout(700);
+
 // Compose + send goes through the review modal.
 calls.length = 0;
 await pg.evaluate(() => document.querySelector('[data-mail="r1"]').click());
-await pg.waitForTimeout(400);
+await pg.waitForTimeout(120);
+v = await pg.evaluate(() => ({
+  shown: getComputedStyle(document.getElementById('schedMailModal')).display !== 'none',
+  writing: /Writing the email/.test(document.getElementById('schedMailBody').value),
+  disabled: document.getElementById('schedMailSendBtn').disabled,
+  kinds: [...document.querySelectorAll('#schedMailKinds [data-mailkind]')].map(b => b.getAttribute('data-mailkind')),
+}));
+check('the email box opens INSTANTLY, wording still being written',
+  v.shown && v.writing && v.disabled && v.kinds.join(',') === 'pencil,week,confirm', JSON.stringify(v));
+await pg.waitForTimeout(900);
 v = await pg.evaluate(() => ({
   shown: getComputedStyle(document.getElementById('schedMailModal')).display !== 'none',
   to: document.getElementById('schedMailTo').value,
   body: document.getElementById('schedMailBody').value,
+  enabled: !document.getElementById('schedMailSendBtn').disabled,
 }));
 check('the email opens prefilled for review — never auto-sent',
-  v.shown && v.to === 'b@l.nz' && /late October/.test(v.body), JSON.stringify(v).slice(0, 100));
+  v.shown && v.to === 'b@l.nz' && /late October/.test(v.body) && v.enabled, JSON.stringify(v).slice(0, 100));
+
+// The three wordings switch in place.
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-mailkind="week"]').click());
+await pg.waitForTimeout(900);
+let wkc = calls.find(c => c[0] === 'compose');
+check('the Week of… button re-composes in that wording',
+  !!wkc && wkc[1].kind === 'week' && /week of/i.test(await pg.evaluate(() => document.getElementById('schedMailTitle').textContent)),
+  JSON.stringify(wkc && wkc[1]));
 await pg.evaluate(() => _schedMailSend());
 await pg.waitForTimeout(400);
 const sent = calls.find(c => c[0] === 'send');

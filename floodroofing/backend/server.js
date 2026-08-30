@@ -4661,6 +4661,7 @@ function _schedCfgShape(raw){
     region: SCHED_REGIONS.includes(c.region) ? c.region : 'auckland',
     feed_secret: String(c.feed_secret || ''),
     tpl_pencil: String(c.tpl_pencil || ''),
+    tpl_week: String(c.tpl_week || ''),
     tpl_confirm: String(c.tpl_confirm || ''),
   };
 }
@@ -4915,9 +4916,16 @@ function _schedNiceDate(iso){
   return d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 }
 const SCHED_TPL_PENCIL = 'Hi {client},\n\nA quick update on your roofing job at {site}: we currently expect to get started {month_part}. We’ll be in touch closer to the time to confirm the exact date.\n\nThanks,\n{company}';
-const SCHED_TPL_CONFIRM = 'Hi {client},\n\nGood news — your roofing job at {site} is booked in. We’re starting {start_date}.\n\nIf that date doesn’t work, just reply to this email.\n\nThanks,\n{company}';
+const SCHED_TPL_WEEK = 'Hi {client},\n\nA quick update on your roofing job at {site}: we\u2019ve pencilled you in to start {weeks_away}the week of {week_of}. We\u2019ll confirm the exact day closer to the time.\n\nThanks,\n{company}';
+const SCHED_TPL_CONFIRM = 'Hi {client},\n\nGood news — your roofing job at {site} is booked in. We\u2019re starting {start_date}, weather depending.\n\nIf that date doesn\u2019t work, just reply to this email.\n\nThanks,\n{company}';
+// The Monday of the week a date falls in — "the week of Monday 27 October".
+function _schedWeekOf(iso){
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
 app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
-  const kind = (req.body && req.body.kind) === 'confirm' ? 'confirm' : 'pencil';
+  const kind = ['confirm', 'week', 'pencil'].includes((req.body || {}).kind) ? req.body.kind : 'pencil';
   try {
     const cfg = await _schedCfg(req);
     const { data: rows } = await _scopeCompany(supabase.from('schedule_rows')
@@ -4926,11 +4934,15 @@ app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Row not found' });
     const { data: blocks } = await _scopeCompany(supabase.from('schedule_blocks')
       .select('*'), req).eq('row_id', row.id);
-    const wanted = (blocks || []).filter(b => kind === 'confirm' ? b.kind === 'crew' : b.kind === 'pencil')
-      .sort((a, b2) => a.start_date < b2.start_date ? -1 : 1)[0];
+    const sorted = (blocks || []).slice().sort((a, b2) => a.start_date < b2.start_date ? -1 : 1);
+    // confirm needs the solid booking; the vaguer two work off whatever is
+    // painted — a pencil if there is one, else the booking itself.
+    const wanted = kind === 'confirm'
+      ? sorted.filter(b => b.kind === 'crew')[0]
+      : (sorted.filter(b => b.kind === 'pencil')[0] || sorted[0]);
     if (!wanted) return res.status(400).json({ error: kind === 'confirm'
       ? 'Nothing solid-booked for this job yet — paint a crew block first'
-      : 'Nothing pencilled for this job yet — pencil a block first' });
+      : 'Nothing on the calendar for this job yet — paint a block first' });
     // The To address: the row's own, else the linked job's quote client —
     // the same fallback the board read shows the office.
     let toAddr = row.email || '';
@@ -4945,19 +4957,28 @@ app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
     const settings = await _companySettingsRow(req);
     const company = (settings && settings.branding && settings.branding.company_name) || '';
     const crew = (cfg.crews.find(c => c.id === wanted.crew_id) || {}).name || '';
+    const weekIso = _schedWeekOf(wanted.start_date);
+    const weeksN = Math.round((new Date(weekIso + 'T00:00:00Z') - Date.now()) / (7 * 86400000));
+    const weeksAway = weeksN >= 2 ? 'in about ' + weeksN + ' weeks, ' : weeksN === 1 ? 'in about a week, ' : '';
     const fill = t => t
       .replace(/\{client\}/g, row.client_name || 'there')
       .replace(/\{site\}/g, row.site_address || 'your place')
       .replace(/\{month_part\}/g, _schedMonthPart(wanted.start_date))
       .replace(/\{start_date\}/g, _schedNiceDate(wanted.start_date))
+      .replace(/\{week_of\}/g, _schedNiceDate(weekIso))
+      .replace(/\{weeks_away\}/g, weeksAway)
       .replace(/\{crew\}/g, crew)
       .replace(/\{company\}/g, company || 'the team');
-    const tpl = kind === 'confirm' ? (cfg.tpl_confirm || SCHED_TPL_CONFIRM) : (cfg.tpl_pencil || SCHED_TPL_PENCIL);
+    const tpl = kind === 'confirm' ? (cfg.tpl_confirm || SCHED_TPL_CONFIRM)
+      : kind === 'week' ? (cfg.tpl_week || SCHED_TPL_WEEK)
+      : (cfg.tpl_pencil || SCHED_TPL_PENCIL);
     res.json({
       to: toAddr,
       subject: kind === 'confirm'
         ? 'Your roofing job is booked — starting ' + _schedNiceDate(wanted.start_date)
-        : 'Your roofing job — expected timing',
+        : kind === 'week'
+          ? 'Your roofing job — pencilled for the week of ' + _schedNiceDate(weekIso)
+          : 'Your roofing job — expected timing',
       body: fill(tpl),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }

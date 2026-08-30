@@ -129,6 +129,16 @@ r = await as(A, '/schedule/rows/' + rowA.id + '/compose', { method: 'POST', body
 body = await j(r);
 check('the confirm email carries the exact start date',
   r.status === 200 && /Friday|4 September/.test(body.subject + body.body), (body.subject || '') + ' | ' + String(body.body).slice(0, 80));
+check('…and promises it weather depending', /weather depending/.test(body.body), String(body.body).slice(0, 100));
+
+// The middle email: "the week of Monday …" — vaguer than a date, firmer
+// than a month. 4 Sep 2026 is a Friday; its week starts Monday 31 August.
+r = await as(A, '/schedule/rows/' + rowA.id + '/compose', { method: 'POST', body: JSON.stringify({ kind: 'week' }) });
+body = await j(r);
+check('the week-of email names the start week, not the day',
+  r.status === 200 && /week of Monday, 31 August/.test(body.body) && !/4 September/.test(body.body),
+  String(body.body).slice(0, 120));
+check('…in the subject too', /week of Monday, 31 August/.test(body.subject), body.subject);
 check('…addressed to the customer', body.to === 'brian@lewis.co.nz', body.to);
 
 // Month-part wording: early / mid / late.

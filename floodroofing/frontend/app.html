@@ -2899,6 +2899,9 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-block.pencil{ background:#c00000; }
 .sched-block .rz{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; }
 .sched-block.dragging{ opacity:.75; cursor:grabbing; z-index:3; }
+.sched-flag{ position:absolute; top:-2px; width:var(--sched-dayw, 24px); text-align:center; font-size:11px;
+  line-height:14px; opacity:.55; z-index:4; cursor:pointer; }
+.sched-flag:hover{ opacity:1; }
 .sched-empty{ padding:26px; font-size:13px; color:var(--text2); }
 .sched-menu{ position:fixed; z-index:9999; background:#fff; border:1px solid var(--border); border-radius:10px;
   box-shadow:0 10px 34px rgba(10,22,40,.22); padding:6px; min-width:190px; }
@@ -5393,6 +5396,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="_schedMailClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
     <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+      <div id="schedMailKinds" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       <label style="font-size:12px;font-weight:600;color:#334155">To
         <input type="email" id="schedMailTo" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box"></label>
       <label style="font-size:12px;font-weight:600;color:#334155">Subject
@@ -6863,6 +6867,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div style="font-size:11px;color:var(--text2);margin-bottom:8px">What the Schedule board's ✉ button starts from — you still review every email before it sends. These fill in automatically: <code>{client}</code> <code>{site}</code> <code>{month_part}</code> <code>{start_date}</code> <code>{crew}</code> <code>{company}</code>.</div>
           <label style="font-size:12px;font-weight:600;color:#334155">Pencilled window <span style="font-weight:400;color:var(--text2)">— rough timing, no exact date</span>
             <textarea id="schedTplPencil" rows="4" style="width:100%;margin:3px 0 10px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;box-sizing:border-box"></textarea></label>
+          <label style="font-size:12px;font-weight:600;color:#334155">Week-of email — pencilled start week ({week_of}, {weeks_away})
+            <textarea id="schedTplWeek" rows="4" style="width:100%;margin:3px 0 10px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;box-sizing:border-box"></textarea></label>
           <label style="font-size:12px;font-weight:600;color:#334155">Confirmed booking <span style="font-weight:400;color:var(--text2)">— the exact start date</span>
             <textarea id="schedTplConfirm" rows="4" style="width:100%;margin:3px 0 8px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;box-sizing:border-box"></textarea></label>
           <button type="button" onclick="_schedTplSave()" style="padding:8px 16px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Save templates</button>
@@ -7303,6 +7309,9 @@ function gotoTab(t) {
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
   if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
+  // The Notifications panel floats over whatever tab is open — switching
+  // tabs means the reader is done with it, so it goes.
+  try { var _qnp = document.getElementById('qnPanel'); if (_qnp) _qnp.style.display = 'none'; } catch(e){}
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -7646,6 +7655,28 @@ var _SCHED_COLS = [
 var _SCHED_COLS_MIN = [
   { key:'handle', w:14, hd:'' }, { key:'info', w:20, hd:'' }, { key:'job', w:118, hd:'Job' },
 ];
+// The three customer-update milestones, as ✉ flags on the calendar:
+// red = part-of-month (a day after the quote was accepted), orange =
+// week-of (two weeks before the start), green = confirm (three days out).
+// Clicking one opens the email box with that wording ready — the flags
+// prompt the office; nothing sends itself.
+function _schedRowFlags(r){
+  var out = [];
+  var shift = function(iso, days){
+    var d = new Date(iso.slice(0, 10) + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  if (r.accepted_at) out.push({ kind: 'pencil', date: shift(r.accepted_at, 1), col: '#dc2626',
+    label: 'Part of month' });
+  var starts = (_SCHED.data.blocks || []).filter(function(b){ return b.row_id === r.id; })
+    .map(function(b){ return b.start_date; }).sort();
+  if (starts.length){
+    out.push({ kind: 'week', date: shift(starts[0], -14), col: '#f59e0b', label: 'Week of…' });
+    out.push({ kind: 'confirm', date: shift(starts[0], -3), col: '#16a34a', label: 'Confirm start date' });
+  }
+  return out;
+}
 // Ctrl + wheel over the calendar: zoom the day width, keeping the date
 // under the cursor where it is. Zoomed right out (6px/day) a desktop shows
 // well over a year of forward work.
@@ -7758,6 +7789,12 @@ function _schedRender(){
         (crew ? ' · ' + esc(crew.name) : ' · pencilled') + '"' +
         ' style="left:' + (i2 * _SCHED.dayW) + 'px;width:' + ((j2 - i2 + 1) * _SCHED.dayW - 2) + 'px;background:' + col + '">' +
         '<span class="rz"></span></div>';
+    });
+    _schedRowFlags(r).forEach(function(f){
+      var fi = dayIdx[f.date];
+      if (fi == null) return;
+      blocks += '<span class="sched-flag" data-flag="' + f.kind + '" data-flagrow="' + r.id + '"' +
+        ' title="Send the ' + f.label + ' email" style="left:' + (fi * _SCHED.dayW) + 'px;color:' + f.col + '">✉</span>';
     });
     h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
          '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
@@ -7881,6 +7918,15 @@ function _schedWire(grid){
       _schedRender();
       _schedApi('PATCH', '/schedule/rows/' + moved, { sort_pos: pos });
     });
+  });
+  // The ✉ milestone flags open the email box with the right wording —
+  // and swallow the pointerdown so the click never paints the strip.
+  grid.querySelectorAll('.sched-flag').forEach(function(el){
+    el.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+    el.onclick = function(ev){
+      ev.stopPropagation();
+      _schedMailOpen(el.getAttribute('data-flagrow'), el.getAttribute('data-flag'));
+    };
   });
   // Painting + block drag/resize on the day strips.
   grid.querySelectorAll('[data-strip]').forEach(function(strip){
@@ -8073,31 +8119,68 @@ function _schedInfoMail(){
 }
 // ── customer email ──
 function _schedMailPick(rowId, el){
-  var has = { pencil:false, crew:false };
+  var has = { pencil: false, crew: false };
   (_SCHED.data.blocks || []).forEach(function(b){ if (b.row_id === rowId) has[b.kind] = true; });
-  if (has.crew && has.pencil){
-    _schedMenu([
-      ['Pencilled window (rough timing)', function(){ _schedMailOpen(rowId, 'pencil'); }],
-      ['Confirmed booking (exact date)', function(){ _schedMailOpen(rowId, 'confirm'); }],
-    ], { clientX: el.getBoundingClientRect().left, clientY: el.getBoundingClientRect().bottom });
-  } else if (has.crew) _schedMailOpen(rowId, 'confirm');
-  else if (has.pencil) _schedMailOpen(rowId, 'pencil');
-  else _schedMsg('Nothing booked or pencilled for this job yet — paint a block first', true);
+  if (!has.crew && !has.pencil){
+    _schedMsg('Nothing booked or pencilled for this job yet — paint a block first', true);
+    return;
+  }
+  // The box carries its own kind buttons now — open straight into the
+  // likeliest one and let the office switch inside.
+  _schedMailOpen(rowId, has.crew ? 'confirm' : 'pencil');
 }
 var _schedMailRow = null;
-async function _schedMailOpen(rowId, kind){
-  try {
-    var d = await api('POST', '/schedule/rows/' + rowId + '/compose', { kind: kind });
-    _schedMailRow = rowId;
+var _schedMailKind = null;
+var _schedMailSeq = 0;
+var _SCHED_MAIL_KINDS = [
+  { kind: 'pencil', label: 'Part of month', col: '#dc2626' },
+  { kind: 'week', label: 'Week of…', col: '#f59e0b' },
+  { kind: 'confirm', label: 'Confirm start date', col: '#16a34a' },
+];
+function _schedMailOpen(rowId, kind){
+  // The box opens the moment it's asked for; the wording fills in when the
+  // server answers — waiting on the network before showing anything made
+  // every click feel five seconds broken.
+  _schedMailRow = rowId;
+  var st = document.getElementById('schedMailStatus'); if (st) st.style.display = 'none';
+  document.getElementById('schedMailOverlay').style.display = 'block';
+  document.getElementById('schedMailModal').style.display = 'block';
+  _schedMailSetKind(kind || 'pencil');
+}
+function _schedMailSetKind(kind){
+  _schedMailKind = kind;
+  var kd = document.getElementById('schedMailKinds');
+  if (kd){
+    kd.innerHTML = _SCHED_MAIL_KINDS.map(function(k){
+      var on = k.kind === kind;
+      return '<button class="sched-chip" data-mailkind="' + k.kind + '"' +
+        (on ? ' style="border-color:' + k.col + ';box-shadow:0 0 0 1.5px ' + k.col + ' inset"' : '') +
+        '><span class="dot" style="background:' + k.col + '"></span>' + k.label + '</button>';
+    }).join('');
+    kd.querySelectorAll('[data-mailkind]').forEach(function(b){
+      b.onclick = function(){ _schedMailSetKind(b.getAttribute('data-mailkind')); };
+    });
+  }
+  document.getElementById('schedMailTitle').textContent =
+    kind === 'confirm' ? 'Email the customer — confirm start date'
+    : kind === 'week' ? 'Email the customer — week of…'
+    : 'Email the customer — part of month';
+  document.getElementById('schedMailBody').value = 'Writing the email…';
+  var sb = document.getElementById('schedMailSendBtn'); if (sb) sb.disabled = true;
+  var seq = ++_schedMailSeq;
+  api('POST', '/schedule/rows/' + _schedMailRow + '/compose', { kind: kind }).then(function(d){
+    if (seq !== _schedMailSeq) return;   // a newer kind was picked meanwhile
     document.getElementById('schedMailTo').value = d.to || '';
     document.getElementById('schedMailSubject').value = d.subject || '';
     document.getElementById('schedMailBody').value = d.body || '';
-    document.getElementById('schedMailTitle').textContent =
-      kind === 'confirm' ? 'Email the customer — confirmed booking' : 'Email the customer — pencilled window';
-    var st = document.getElementById('schedMailStatus'); if (st) st.style.display = 'none';
-    document.getElementById('schedMailOverlay').style.display = 'block';
-    document.getElementById('schedMailModal').style.display = 'block';
-  } catch(e){ _schedMsg((e && e.message) || 'Could not prepare the email', true); }
+    if (sb) sb.disabled = false;
+  }).catch(function(e){
+    if (seq !== _schedMailSeq) return;
+    document.getElementById('schedMailBody').value = '';
+    var st2 = document.getElementById('schedMailStatus');
+    if (st2){ st2.style.display = 'block'; st2.style.background = '#fef2f2'; st2.style.color = '#b91c1c';
+      st2.textContent = (e && e.message) || 'Could not write the email'; }
+  });
 }
 function _schedMailClose(){
   document.getElementById('schedMailOverlay').style.display = 'none';
@@ -8255,7 +8338,8 @@ async function _schedSettingsSave(){
 // Empty textarea = the built-in wording (shown as placeholder).
 var _SCHED_TPL_DEFAULTS = {
   pencil: 'Hi {client},\n\nA quick update on your roofing job at {site}: we currently expect to get started {month_part}. We\u2019ll be in touch closer to the time to confirm the exact date.\n\nThanks,\n{company}',
-  confirm: 'Hi {client},\n\nGood news \u2014 your roofing job at {site} is booked in. We\u2019re starting {start_date}.\n\nIf that date doesn\u2019t work, just reply to this email.\n\nThanks,\n{company}',
+  week: 'Hi {client},\n\nA quick update on your roofing job at {site}: we\u2019ve pencilled you in to start {weeks_away}the week of {week_of}. We\u2019ll confirm the exact day closer to the time.\n\nThanks,\n{company}',
+  confirm: 'Hi {client},\n\nGood news \u2014 your roofing job at {site} is booked in. We\u2019re starting {start_date}, weather depending.\n\nIf that date doesn\u2019t work, just reply to this email.\n\nThanks,\n{company}',
 };
 async function _schedTplSync(){
   var sec = document.getElementById('schedTplSection');
@@ -8266,6 +8350,8 @@ async function _schedTplSync(){
     if (!_SCHED.data) _SCHED.data = d;
     sec.style.display = '';
     var pe = document.getElementById('schedTplPencil'), co = document.getElementById('schedTplConfirm');
+    var wk = document.getElementById('schedTplWeek');
+    if (wk && document.activeElement !== wk){ wk.value = (d.cfg && d.cfg.tpl_week) || ''; wk.placeholder = _SCHED_TPL_DEFAULTS.week; }
     if (pe && document.activeElement !== pe){ pe.value = (d.cfg && d.cfg.tpl_pencil) || ''; pe.placeholder = _SCHED_TPL_DEFAULTS.pencil; }
     if (co && document.activeElement !== co){ co.value = (d.cfg && d.cfg.tpl_confirm) || ''; co.placeholder = _SCHED_TPL_DEFAULTS.confirm; }
   } catch(e){ sec.style.display = 'none'; }
@@ -8275,10 +8361,12 @@ async function _schedTplSave(){
   try {
     await api('PUT', '/schedule/config', {
       tpl_pencil: document.getElementById('schedTplPencil').value,
+      tpl_week: (document.getElementById('schedTplWeek') || {}).value || '',
       tpl_confirm: document.getElementById('schedTplConfirm').value,
     });
     if (_SCHED.data && _SCHED.data.cfg){
       _SCHED.data.cfg.tpl_pencil = document.getElementById('schedTplPencil').value;
+      _SCHED.data.cfg.tpl_week = (document.getElementById('schedTplWeek') || {}).value || '';
       _SCHED.data.cfg.tpl_confirm = document.getElementById('schedTplConfirm').value;
     }
     if (msg) msg.textContent = '\u2713 Saved';
