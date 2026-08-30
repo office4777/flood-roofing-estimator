@@ -2116,6 +2116,29 @@ app.get('/settings', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// The boot popups (setup guide, tutorial) remember their dismissal on the
+// ACCOUNT, not just in one browser's localStorage — a merge-only write so a
+// true can never be lost to a partial update from another device.
+app.put('/settings/ui-flags', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const patch = {};
+  for (const k of ['setup_done', 'tour_done']) if (b[k] !== undefined) patch[k] = !!b[k];
+  try {
+    const row = await _companySettingsRow(req);
+    const flags = Object.assign({}, (row && row.ui_flags) || {}, patch);
+    if (row && row.user_id) {
+      const { error } = await supabase.from('user_settings').update({ ui_flags: flags }).eq('user_id', row.user_id);
+      if (error) return res.status(500).json({ error: error.message });
+    } else {
+      const { error } = await supabase.from('user_settings').upsert(
+        { user_id: req.user.id, company_id: req.companyId || null, ui_flags: flags },
+        { onConflict: 'user_id' });
+      if (error) return res.status(500).json({ error: error.message });
+    }
+    res.json({ ok: true, ui_flags: flags });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/settings', requireAuth, async (req, res) => {
   const { branding, quote_defaults, jms_keys, price_book, labour_pricing } = req.body;
   const payload = {
@@ -7214,6 +7237,7 @@ const _MIGRATION_SQL = [
   "create index if not exists idx_chat_messages_th on public.chat_messages (company_id, thread_id, created_at)",
   "alter table public.chat_messages enable row level security",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
+  "alter table public.user_settings add column if not exists ui_flags jsonb",
 
   // 10. platform_state — one row per thing the platform needs to remember
   //     ACROSS RESTARTS. Right now that is exactly one thing: the date the

@@ -124,6 +124,19 @@ check('an explicit empty key is honoured', r.status === 200, 'status ' + r.statu
 r = await as(B, '/fergus/jobs?pageSize=5'); body = await j(r);
 check('…and disconnects the company', r.status === 400 && body.error === 'not_connected', 'status ' + r.status);
 
+// ── ui_flags: popup dismissals stick to the account, merge-only ───
+r = await as(B, '/settings/ui-flags', { method: 'PUT', body: JSON.stringify({ tour_done: true }) });
+body = await j(r);
+check('a popup dismissal saves to the account', r.status === 200 && body.ui_flags.tour_done === true,
+  JSON.stringify(body));
+r = await as(B, '/settings/ui-flags', { method: 'PUT', body: JSON.stringify({ setup_done: true }) });
+body = await j(r);
+check('…and a later partial write MERGES — the first flag survives',
+  body.ui_flags.tour_done === true && body.ui_flags.setup_done === true, JSON.stringify(body.ui_flags));
+body = await j(await as(B, '/settings'));
+check('…so any device reads both on login', body.ui_flags &&
+  body.ui_flags.tour_done === true && body.ui_flags.setup_done === true, JSON.stringify(body.ui_flags));
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);

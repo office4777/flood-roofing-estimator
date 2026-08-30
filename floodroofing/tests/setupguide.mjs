@@ -338,6 +338,33 @@ check('…and Next still walks to the end without a dead card',
   }));
 await ctx.close();
 
+// ── the "don't show this again" tick ──────────────────────────────
+({ ctx, pg, errs } = await boot({}));
+await pg.evaluate(() => openSetupGuide(true));
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => {
+  const cb = document.getElementById('sgDontShow');
+  return { present: !!cb, ticked: !!(cb && cb.checked) };
+});
+check('the guide carries a ticked "Don\u2019t show this again" box', v.present && v.ticked, JSON.stringify(v));
+await pg.evaluate(() => {
+  localStorage.removeItem('fr_setup_done');
+  document.getElementById('sgDontShow').checked = false;
+  document.getElementById('sgSkip').click();
+});
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ open: !!document.getElementById('setupGuide'),
+  flag: localStorage.getItem('fr_setup_done') }));
+check('unticked + Skip closes it WITHOUT remembering — it returns next login',
+  !v.open && v.flag !== '1', String(v.flag));
+await pg.evaluate(() => { try { closeTour(false); } catch(e){} openSetupGuide(true); });
+await pg.waitForTimeout(300);
+await pg.evaluate(() => document.getElementById('sgSkip').click());   // ticked, the default
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => localStorage.getItem('fr_setup_done'));
+check('ticked (the default) + Skip remembers', v === '1', String(v));
+await ctx.close();
+
 // ── not up a ladder ───────────────────────────────────────────────
 ({ ctx, pg, errs } = await boot({ site:true }));
 v = await pg.evaluate(() => ({ site: document.documentElement.classList.contains('site-mode'),

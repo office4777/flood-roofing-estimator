@@ -9340,6 +9340,13 @@ async function loadSettings(){
   try {
     var s = await api('GET', '/settings');
     S.settings = mergeSettings(s);
+    // The boot popups remember their dismissal on the account — a device
+    // that has never seen them still skips them if any device closed them.
+    try {
+      var _uf = (s && s.ui_flags) || {};
+      if (_uf.setup_done) localStorage.setItem('fr_setup_done', '1');
+      if (_uf.tour_done) localStorage.setItem('fr_tour_done', '1');
+    } catch(e2){}
     // Mirror to localStorage so it survives cloud outages
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
     applyBranding();
@@ -33535,10 +33542,20 @@ function _setupBuildSteps(){
   return SETUP.steps;
 }
 function _setupDone(){ try { return localStorage.getItem('fr_setup_done') === '1'; } catch(e){ return false; } }
-function _setupMarkDone(){ try { localStorage.setItem('fr_setup_done','1'); } catch(e){} }
+function _setupMarkDone(){
+  try { localStorage.setItem('fr_setup_done','1'); } catch(e){}
+  try { api('PUT', '/settings/ui-flags', { setup_done: true }).catch(function(){}); } catch(e){}
+}
 function closeSetupGuide(skip){
+  // Untick "Don't show this again" and the guide returns next login —
+  // ticked (the default) remembers on the account.
+  var keep = true;
+  try {
+    var cb = document.getElementById('sgDontShow');
+    if (skip && cb && !cb.checked) keep = false;
+  } catch(e){}
   var w = document.getElementById('setupGuide'); if (w) w.remove();
-  _setupMarkDone();
+  if (keep) _setupMarkDone();
   if (skip){
     try { _setSaveStatus && _setSaveStatus('Setup skipped — you can run it again any time from Settings → General.', '#64748b'); } catch(e){}
   }
@@ -33654,7 +33671,8 @@ function openSetupGuide(force){
       '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e6eaf0">' +
         '<div id="sgDots" style="display:flex;gap:5px;align-items:center"></div>' +
-        '<button type="button" id="sgSkip" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer">Skip setup</button>' +
+        '<label style="margin-left:auto;display:flex;gap:5px;align-items:center;font-size:11px;color:#64748b;cursor:pointer;white-space:nowrap"><input type="checkbox" id="sgDontShow" checked> Don\u2019t show this again</label>' +
+        '<button type="button" id="sgSkip" style="background:none;border:none;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer">Skip setup</button>' +
         '<button type="button" id="sgBack" style="padding:8px 13px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
         '<button type="button" id="sgNext" style="padding:8px 17px;background:#0099cc;color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
       '</div>' +
@@ -33800,7 +33818,10 @@ var TOUR_STEPS = [
 
 var TOUR = { i:0, steps:[], open:false, _gateEl:null, _gateFn:null };
 function _tourDone(){ try { return localStorage.getItem('fr_tour_done') === '1'; } catch(e){ return false; } }
-function _tourMarkDone(){ try { localStorage.setItem('fr_tour_done','1'); } catch(e){} }
+function _tourMarkDone(){
+  try { localStorage.setItem('fr_tour_done','1'); } catch(e){}
+  try { api('PUT', '/settings/ui-flags', { tour_done: true }).catch(function(){}); } catch(e){}
+}
 // Same tiny markup as the setup guide: escaped, with **bold** allowed so a
 // step can pick out the two or three phrases that carry the point.
 function _tourBodyHtml(txt){
@@ -33850,9 +33871,14 @@ function _tourBuildSteps(){
 }
 function closeTour(cancelled){
   _tourClearGate();
+  var keep = true;
+  try {
+    var cb = document.getElementById('tourDontShow');
+    if (cancelled && cb && !cb.checked) keep = false;
+  } catch(e){}
   var w = document.getElementById('tourWrap'); if (w) w.remove();
   TOUR.open = false;
-  _tourMarkDone();
+  if (keep) _tourMarkDone();
   window.removeEventListener('resize', _tourPlace);
   window.removeEventListener('scroll', _tourPlace, true);
   if (cancelled){
@@ -33986,6 +34012,7 @@ function openTour(force){
       '<div id="tourBody" style="font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;max-height:40vh;overflow:auto"></div>' +
       '<div style="display:flex;align-items:center;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
         '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0">Cancel tutorial</button>' +
+        '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>' +
         '<button type="button" id="tourBack" style="margin-left:auto;padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
         '<button type="button" id="tourNext" style="padding:7px 15px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
       '</div>' +

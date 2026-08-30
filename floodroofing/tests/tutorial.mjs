@@ -24,8 +24,15 @@ async function boot(opts){
   const pg = await ctx.newPage();
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   pg.on('dialog', d => d.accept());
-  await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
-    r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+    // A device that has never seen the popups, but the ACCOUNT has: the
+    // settings payload carries the dismissal flags.
+    if (opts.serverFlags && /\/settings$/.test(r.request().url()) && r.request().method() === 'GET')
+      return r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ branding: { company_name: 'Flood Roofing' }, quote_defaults: {}, jms_keys: {},
+          ui_flags: { setup_done: true, tour_done: true } }) });
+    r.fulfill({status:200,contentType:'application/json',body:'[]'});
+  });
   await pg.addInitScript((o) => {
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null');
     if (!o.firstRun) localStorage.setItem('fr_setup_done','1');
@@ -164,6 +171,23 @@ await pg.waitForTimeout(300);
 check('…even when something asks it to open again',
   !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
 
+// ── the "don't show again" tick, unticked ─────────────────────────
+await pg.evaluate(() => { localStorage.removeItem('fr_tour_done'); openTour(true); });
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => {
+  const cb = document.getElementById('tourDontShow');
+  return { present: !!cb, ticked: !!(cb && cb.checked) };
+});
+check('the card carries a ticked "Don\u2019t show again" box', v.present && v.ticked, JSON.stringify(v));
+await pg.evaluate(() => {
+  document.getElementById('tourDontShow').checked = false;
+  document.getElementById('tourCancel').click();
+});
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ open: !!document.getElementById('tourWrap'), done: localStorage.getItem('fr_tour_done') }));
+check('unticked + Cancel means "just not now" — nothing remembered', !v.open && v.done !== '1', String(v.done));
+await pg.evaluate(() => { localStorage.setItem('fr_tour_done', '1'); });
+
 // ── Settings runs it again on purpose ─────────────────────────────
 v = await pg.evaluate(() => {
   gotoTab('settings'); switchSettingsSub('set-general');
@@ -221,6 +245,17 @@ await pg.evaluate(() => { closeSetupGuide(false); });
 await pg.waitForTimeout(1200);
 check('…but only ever once', !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
 check('no page errors on the first run', errs.length === 0, errs.slice(0,2).join(' | '));
+await ctx.close();
+
+// ── dismissed on another device = dismissed here ──────────────────
+({ ctx, pg, errs } = await boot({ firstRun: true, serverFlags: true }));
+v = await pg.evaluate(() => ({
+  tour: !!document.getElementById('tourWrap'),
+  guide: !!document.getElementById('setupGuide'),
+  ls: [localStorage.getItem('fr_setup_done'), localStorage.getItem('fr_tour_done')].join(','),
+}));
+check('account-level flags suppress both popups on a fresh browser',
+  !v.tour && !v.guide && v.ls === '1,1', JSON.stringify(v));
 await ctx.close();
 
 await b.close();
