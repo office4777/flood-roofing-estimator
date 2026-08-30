@@ -4109,8 +4109,12 @@ app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
     // hard backstop so the Connect button always gets an answer.
     await Promise.race([
       (async () => {
-        await _mailFetcher().verify({ host: acct.imap_host, port: acct.imap_port, user: acct.username }, String(b.password));
-        await _mailTransport(acct, String(b.password)).verify();
+        try {
+          await _mailFetcher().verify({ host: acct.imap_host, port: acct.imap_port, user: acct.username }, String(b.password));
+        } catch (e) { e.message = (e.message || e) + ' (IMAP ' + acct.imap_host + ':' + acct.imap_port + ')'; throw e; }
+        try {
+          await _mailTransport(acct, String(b.password)).verify();
+        } catch (e) { e.message = (e.message || e) + ' (SMTP ' + acct.smtp_host + ':' + acct.smtp_port + ')'; throw e; }
       })(),
       new Promise((_, rej) => setTimeout(() => rej(new Error('the mail server did not answer in time')), 35000)),
     ]);
@@ -7530,6 +7534,31 @@ function _adminOk(req){
   if (given.length !== ADMIN_TOKEN.length) return false;
   return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_TOKEN));
 }
+// Can this server open a TCP connection to the mail hosts at all? A
+// "Connection timeout" on connect usually means the PLATFORM blocks the
+// port, not that the password is wrong — this answers which it is.
+//   /admin/netprobe?token=…            → the standard mail battery
+//   /admin/netprobe?host=x&port=993    → one specific target
+app.get('/admin/netprobe', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const net = require('net');
+  const probe = (host, port) => new Promise((resolve) => {
+    const t0 = Date.now();
+    const sock = net.connect({ host, port, timeout: 8000 });
+    const done = (ok, error) => { try { sock.destroy(); } catch (e) {}
+      resolve({ target: host + ':' + port, ok, ms: Date.now() - t0, error: error || '' }); };
+    sock.on('connect', () => done(true));
+    sock.on('timeout', () => done(false, 'connect timeout'));
+    sock.on('error', (e) => done(false, String(e.message || e)));
+  });
+  const targets = req.query.host
+    ? [[String(req.query.host), parseInt(req.query.port, 10) || 993]]
+    : [['imap.gmail.com', 993], ['smtp.gmail.com', 465], ['smtp.gmail.com', 587],
+       ['outlook.office365.com', 993], ['www.google.com', 443]];
+  const out = [];
+  for (const [h, po] of targets) out.push(await probe(h, po));
+  res.json({ probes: out });
+});
 app.get('/admin/errors', (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   const groups = Array.from(_errSeen.entries()).map(function(e){

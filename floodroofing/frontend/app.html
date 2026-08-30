@@ -8903,16 +8903,16 @@ async function _ibxComposeSend(){
 // ── accounts ──
 var _IBX_PROVIDERS = {
   gmail: { name: 'Gmail / Google Workspace', imap_host: 'imap.gmail.com', imap_port: 993, smtp_host: 'smtp.gmail.com', smtp_port: 465,
-    steps: ['Turn on 2-Step Verification: myaccount.google.com → Security.',
-            'On that page search “App passwords” and create one for Mail.',
-            'Paste the 16-character app password below — not your normal password.'] },
+    steps: ['Make sure 2-Step Verification is on: <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">myaccount.google.com/security</a>.',
+            'Open <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> and create one named RoofMap.',
+            'Paste the 16-character app password below — spaces don\u2019t matter, we strip them.'] },
   outlook: { name: 'Outlook / Microsoft 365', imap_host: 'outlook.office365.com', imap_port: 993, smtp_host: 'smtp-mail.outlook.com', smtp_port: 587,
-    steps: ['Turn on two-step verification in your Microsoft account’s security settings.',
+    steps: ['Turn on two-step verification in your <a href="https://account.live.com/proofs/manage/additional" target="_blank" rel="noopener">Microsoft account security settings</a>.',
             'Create an app password under Security → Advanced security options.',
             'On business Microsoft 365 your admin may need to allow IMAP and authenticated SMTP.'] },
   xtra: { name: 'Xtra (Spark NZ)', imap_host: 'imap.mail.yahoo.com', imap_port: 993, smtp_host: 'smtp.mail.yahoo.com', smtp_port: 465,
-    steps: ['Xtra mail runs on Yahoo — sign in at login.yahoo.com with your full Xtra address.',
-            'Account security → Generate app password.',
+    steps: ['Xtra mail runs on Yahoo — sign in at <a href="https://login.yahoo.com/account/security" target="_blank" rel="noopener">login.yahoo.com/account/security</a> with your full Xtra address.',
+            'Generate an app password there.',
             'Paste it below.'] },
   other: { name: 'Other provider', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465,
     steps: ['Ask your email host for its IMAP and SMTP server names.',
@@ -8936,7 +8936,8 @@ function _ibxAcctOpen(){
 function _ibxProvPickSet(k){
   _ibxProv = k;
   var pv = _IBX_PROVIDERS[k];
-  document.getElementById('ibxProvSteps').innerHTML = pv.steps.map(function(st){ return '<li>' + _ibxEsc(st) + '</li>'; }).join('');
+  // The step text is authored above, links included — render it as written.
+  document.getElementById('ibxProvSteps').innerHTML = pv.steps.map(function(st){ return '<li>' + st + '</li>'; }).join('');
   document.getElementById('ibxAImapHost').value = pv.imap_host;
   document.getElementById('ibxAImapPort').value = pv.imap_port;
   document.getElementById('ibxASmtpHost').value = pv.smtp_host;
@@ -50866,9 +50867,12 @@ function _setPopReserve(px){
 function _docZoomFactor(){
   var v = parseFloat(localStorage.getItem('fr_doc_zoom_factor'));
   // One-time migration: 0.70 was the old DEFAULT, so a stored 0.70 almost
-  // certainly just means "never changed" — carry those devices to the new
-  // 60% default too. A deliberately chosen other value is left alone.
-  if (v > 0.68 && v < 0.72){ v = 0.60; try { localStorage.setItem('fr_doc_zoom_factor', v); } catch(e){} }
+  // certainly just meant "never changed". But once the user has SET a zoom
+  // themselves (fr_doc_zoom_set), 70% is a choice — without the flag this
+  // migration ate every Ctrl+scroll past 65% and snapped it back to 60.
+  var chosen = false;
+  try { chosen = localStorage.getItem('fr_doc_zoom_set') === '1'; } catch(e){}
+  if (!chosen && v > 0.68 && v < 0.72){ v = 0.60; try { localStorage.setItem('fr_doc_zoom_factor', v); } catch(e){} }
   if (!isFinite(v) || v <= 0) v = 0.60;
   return Math.max(0.3, Math.min(1.5, v));
 }
@@ -50880,7 +50884,7 @@ function _syncDocZoomUi(){
 function _setDocZoomFactor(pct){
   var f = (parseFloat(pct) || 70) / 100;
   f = Math.max(0.3, Math.min(1.5, f));
-  try { localStorage.setItem('fr_doc_zoom_factor', f); } catch(e){}
+  try { localStorage.setItem('fr_doc_zoom_factor', f); localStorage.setItem('fr_doc_zoom_set', '1'); } catch(e){}
   _syncDocZoomUi();
   try { _fitDocZoom(); } catch(e){}
   try { _fitProposalPages(); } catch(e){}

@@ -163,6 +163,16 @@ const z = await pg.evaluate(() => {
 check('Ctrl + scroll over the proposal zooms it and syncs the slider',
   z.after > z.before && Math.round(z.after * 100) === z.slider, JSON.stringify(z));
 check('…while a plain scroll keeps scrolling, not zooming', z.plain === z.after, JSON.stringify(z));
+// Zooming PAST 70% must stick — the old-default migration used to eat any
+// value near 0.70 and snap the zoom back to 60%.
+const z2 = await pg.evaluate(() => {
+  const el = document.getElementById('quoteProposal');
+  for (let i = 0; i < 4; i++)
+    el.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true }));
+  return _docZoomFactor();
+});
+check('Ctrl + scroll climbs straight past 70% without snapping back',
+  Math.abs(z2 - 0.85) < 0.001, (z2 * 100) + '%');
 await ctx.close();
 
 await b.close();
