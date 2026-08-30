@@ -5543,9 +5543,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="ibx-chip" id="ibxTasksBtn" onclick="_ibxTasksToggle()">☑ Tasks</button>
         <button class="ibx-chip" id="ibxChatBtn" onclick="_ibxChatToggle()">💬 Chat</button>
-        <button class="ibx-chip" onclick="_ibxComposeOpen()">✉ Compose</button>
+        <button class="ibx-chip" id="ibxComposeBtn" onclick="_ibxComposeOpen()">✉ Compose</button>
         <button class="ibx-chip" onclick="_ibxLoad()" title="Check for new mail">↻</button>
-        <button class="ibx-chip" onclick="_ibxAcctOpen()" title="Email accounts">⚙ Accounts</button>
+        <button class="ibx-chip" id="ibxAcctBtn" onclick="_ibxAcctOpen()" title="Email accounts">⚙ Accounts</button>
+        <button class="ibx-chip" id="ibxGuideBtn" onclick="_ibxGuideOpen()" title="A guided walk through the whole inbox">📖 Guide</button>
       </span>
       <span id="ibxMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
     </div>
@@ -8491,6 +8492,44 @@ async function _ibxReplySend(){
     btn.disabled = false; btn.textContent = 'Send reply';
     document.getElementById('ibxReplyMsg').textContent = (e && e.message) || 'Could not send';
   }
+}
+// ── the Inbox guide: the whole workflow, one ring at a time ──
+var INBOX_TOUR_STEPS = [
+  { key:'ibx-welcome', centre:true, title:'The Inbox, end to end',
+    body:'Your real email lives here now — the whole team reads, sorts and replies in one place, with the AI doing the filing.\n\nThis guide walks the full workflow: mail in, AI triage, replying, tasks, chat. **Close guide** sits on every step, and the **📖 Guide** button runs it again any time.',
+    next:'Show me round' },
+  { key:'ibx-status', sel:'#ibxStatusChips', tab:'inbox', title:'Four piles, not forty folders',
+    body:'**Inbox** is what still needs someone. **Snoozed** is hidden until its time comes. **Archived** is done but kept — search still finds it. **All** is everything.\n\nArchive fearlessly: if the customer replies to an archived conversation, it jumps straight back into Inbox, unread.' },
+  { key:'ibx-accounts', sel:'#ibxAcctBtn', tab:'inbox', title:'The accounts behind it',
+    body:'Connect **Gmail, Outlook, Xtra or any provider** here — a guided two-minute setup with an app password, never your real password.\n\nMark an account **Shared** (office@ — the whole team works it) or **Private** (only you see it). The green dot means syncing fine; red shows the error. New mail arrives on its own every 3 minutes — **Sync now** jumps the queue.' },
+  { key:'ibx-cats', sel:'#ibxCatSel', tab:'inbox', title:'The AI files every email',
+    body:'As each email lands, the AI reads it and files it: 🔥 **lead** (new work!), 💬 **quote reply**, 📦 **supplier**, 🧾 **invoice**, 🗑 **junk**.\n\nThis picker shows one pile at a time — start the morning on 🔥 Leads.' },
+  { key:'ibx-sort', sel:'#ibxSortBtn', tab:'inbox', title:'The urgent stack on top',
+    body:'Every conversation also gets an **urgency score out of 100** — 90+ means a customer is waiting on a reply about work or money right now; under 50 can wait.\n\nThe list stacks most-urgent first, so the top of the inbox IS the to-do order. This button flips to plain newest-first and back.' },
+  { key:'ibx-search', sel:'#ibxSearch', tab:'inbox', title:'Find anything',
+    body:'Searches subjects, senders and previews across every account you can see — including archived mail. A job number, a client name, a street — type it here.' },
+  { key:'ibx-list', sel:'#ibxList', tab:'inbox', title:'Reading the list',
+    body:'Each row: the sender, the subject, a preview — and the badges that matter:\n\n• the **blue dot** = unread\n• **⚡ 87** = the urgency score (red is hot, amber is warm)\n• **🔗** = the AI matched a job number and linked the RoofMap job\n• **✨** = a suggested reply is already drafted and waiting' },
+  { key:'ibx-conv', sel:'#ibxConv', tab:'inbox', title:'The conversation',
+    body:'Click a row and the whole thread opens here, oldest to newest. Emails render safely — scripts are stripped and remote images stay blocked until you press **Load images**, so nothing tracks you.\n\nThe reply box at the bottom sends **from the account that received it** — your reply threads correctly in Gmail’s own Sent folder too.' },
+  { key:'ibx-actions', sel:'#ibxConv', tab:'inbox', title:'The action row',
+    body:'Across the top of an open conversation:\n\n• **✓ Archive** — done, file it\n• **⏰ Snooze** — tomorrow, Monday, or a week; it returns unread when the time comes\n• **● Unread** — keep it bold for later\n• **➕ Task** — turn the email into a task (more in a moment)\n• **🔗 Job** — jump to the linked RoofMap job\n\nAnd on hot leads: **✨ a suggested reply** sits above the reply box — press **Use it**, adjust, Send. On anything else, **✍ Draft a reply** writes one on demand. Nothing ever sends itself.' },
+  { key:'ibx-notes', sel:'#ibxConv', tab:'inbox', title:'🔒 Internal notes',
+    body:'Every conversation carries an amber **internal notes** strip — "he rang too, wants us before the rain" — visible to your team only.\n\nIt is structurally separate from the email: notes live in chat, never touch sending, and the customer can never see them. **@name** nudges a teammate.' },
+  { key:'ibx-compose', sel:'#ibxComposeBtn', tab:'inbox', title:'Starting fresh',
+    body:'A new email from scratch — pick which account it comes **From** (office@ or your own), add To/Cc, write, Send. It starts a new conversation on the board like any other.' },
+  { key:'ibx-tasks', sel:'#ibxTasksBtn', tab:'inbox', title:'The task board',
+    body:'This flips the inbox into a board — **a column per teammate**, plus Unassigned.\n\nType a task in the top bar, or press ➕ Task on any email, and the **AI decides who’s responsible** and how urgent it is — cards stack most-urgent first in every column. Drag a card to hand it to someone else (or use its menu), set due dates (overdue runs red), tick it done. Every card links back to its email and job.' },
+  { key:'ibx-chat', sel:'#ibxChatBtn', tab:'inbox', title:'Team chat',
+    body:'Slack-style rooms for the team — **#general** is ready, **＋ Channel** adds #jobs, #yard, whatever fits. **@name** highlights a mention.\n\nUse channels for the running conversation, and the 🔒 notes strip when it’s about one specific email.' },
+  { key:'ibx-recipe', centre:true, title:'The morning routine',
+    body:'1. Open the Inbox — the urgent stack is already on top.\n2. Work down it: **✨ Use it**, adjust, **Send**; **✓ Archive** as you go.\n3. Anything that isn’t a reply becomes a **➕ Task** — the AI hands it to the right person.\n4. Glance at **☑ Tasks** to see every column’s load; drag to rebalance.\n5. **⏰ Snooze** what can wait — it comes back by itself.\n\nInbox zero, roofing edition. The **📖 Guide** button reruns this walk any time.',
+    next:'Done' },
+];
+function _ibxGuideOpen(){
+  try { if (document.body.getAttribute('data-tab') !== 'inbox') gotoTab('inbox'); } catch(e){}
+  try { _ibxView('mail'); } catch(e){}
+  setTimeout(function(){ openTour(true, INBOX_TOUR_STEPS, 'inbox'); }, 150);
 }
 async function _ibxDraft(){
   var btn = document.getElementById('ibxDraftBtn');
@@ -33860,8 +33899,8 @@ function _tourStepBody(st){
 }
 // Drop the steps this account/screen cannot show, so "Step 4 of 21" counts
 // what the reader will actually see and Next never lands on a dead card.
-function _tourBuildSteps(){
-  TOUR.steps = TOUR_STEPS.filter(function(st){
+function _tourBuildSteps(steps){
+  TOUR.steps = (steps || TOUR_STEPS).filter(function(st){
     if (st.centre) return true;
     // A step on another tab cannot be measured from here; keep it and let
     // the renderer skip it if it turns out to be missing when we arrive.
@@ -33871,17 +33910,21 @@ function _tourBuildSteps(){
 }
 function closeTour(cancelled){
   _tourClearGate();
-  var keep = true;
+  // The Inbox guide is launched by hand from its 📖 button — closing it must
+  // never mark the MAIN first-login tutorial as seen.
+  var keep = TOUR.kind !== 'inbox';
   try {
     var cb = document.getElementById('tourDontShow');
-    if (cancelled && cb && !cb.checked) keep = false;
+    if (keep && cancelled && cb && !cb.checked) keep = false;
   } catch(e){}
   var w = document.getElementById('tourWrap'); if (w) w.remove();
   TOUR.open = false;
+  var wasInbox = TOUR.kind === 'inbox';
+  TOUR.kind = 'main';
   if (keep) _tourMarkDone();
   window.removeEventListener('resize', _tourPlace);
   window.removeEventListener('scroll', _tourPlace, true);
-  if (cancelled){
+  if (cancelled && !wasInbox){
     try { _setSaveStatus && _setSaveStatus('Tutorial stopped — Settings → General runs it again.', '#64748b'); } catch(e){}
   }
 }
@@ -33988,14 +34031,15 @@ function _tourRender(){
   // measures a card that has not been sized yet on the very first step.
   setTimeout(_tourPlace, 30);
 }
-function openTour(force){
+function openTour(force, steps, kind){
   if (document.getElementById('tourWrap')) return;
   if (!force && _tourDone()) return;
   // The setup wizard and the setup guide are modal and come first. Landing on
   // top of either would put a ring round a button the reader cannot reach.
   if (document.getElementById('setupWizard') || document.getElementById('setupGuide')) return;
-  _tourBuildSteps();
+  _tourBuildSteps(steps);
   if (!TOUR.steps.length) return;
+  TOUR.kind = kind || 'main';
   TOUR.i = 0; TOUR.open = true;
   var w = document.createElement('div');
   w.id = 'tourWrap';
@@ -34005,14 +34049,17 @@ function openTour(force){
     '<div id="tourHand" aria-hidden="true"></div>' +
     '<div id="tourCard" role="dialog" aria-live="polite">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
-        '<div style="font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc">RoofMap tutorial</div>' +
+        '<div style="font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc">' +
+        (TOUR.kind === 'inbox' ? 'Inbox guide' : 'RoofMap tutorial') + '</div>' +
         '<div id="tourCount" style="font-size:11px;color:#94a3b8;margin-left:auto"></div>' +
       '</div>' +
       '<div id="tourTitle" style="font-size:16px;font-weight:800;color:#0a1628;margin:5px 0 8px;line-height:1.25"></div>' +
       '<div id="tourBody" style="font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;max-height:40vh;overflow:auto"></div>' +
       '<div style="display:flex;align-items:center;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
-        '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0">Cancel tutorial</button>' +
-        '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>' +
+        '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0">' +
+        (TOUR.kind === 'inbox' ? 'Close guide' : 'Cancel tutorial') + '</button>' +
+        (TOUR.kind === 'inbox' ? '' :
+          '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>') +
         '<button type="button" id="tourBack" style="margin-left:auto;padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
         '<button type="button" id="tourNext" style="padding:7px 15px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
       '</div>' +

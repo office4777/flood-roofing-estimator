@@ -376,6 +376,36 @@ check('sending posts into the picked channel',
 await pg.evaluate(() => _ibxChatToggle());
 await pg.waitForTimeout(200);
 
+// ── the 📖 Guide: the whole workflow, ringed for real ─────────────
+await pg.evaluate(() => { localStorage.removeItem('fr_tour_done'); _ibxGuideOpen(); });
+await pg.waitForTimeout(700);
+v = await pg.evaluate(() => ({
+  open: !!document.getElementById('tourWrap'),
+  kind: /Inbox guide/.test(document.getElementById('tourCard').textContent),
+  title: document.getElementById('tourTitle').textContent,
+  steps: TOUR.steps.length,
+  noTick: !document.getElementById('tourDontShow'),
+  close: document.getElementById('tourCancel').textContent,
+}));
+check('📖 Guide opens the Inbox walkthrough — its own card, no tick box',
+  v.open && v.kind && /Inbox, end to end/.test(v.title) && v.steps === 14 && v.noTick && v.close === 'Close guide',
+  JSON.stringify({ t: v.title, s: v.steps, c: v.close }));
+await pg.evaluate(() => document.getElementById('tourNext').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => {
+  const r = document.getElementById('tourRing').getBoundingClientRect();
+  const t = document.getElementById('ibxStatusChips').getBoundingClientRect();
+  return { title: document.getElementById('tourTitle').textContent,
+    near: Math.abs(r.left - t.left) < 50 && Math.abs(r.top - t.top) < 50 };
+});
+check('…and rings the real controls step by step', /Four piles/.test(v.title) && v.near, v.title);
+await pg.evaluate(() => closeTour(true));
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ open: !!document.getElementById('tourWrap'),
+  done: localStorage.getItem('fr_tour_done') }));
+check('closing the guide never marks the main tutorial as seen',
+  !v.open && v.done !== '1', String(v.done));
+
 // Accounts modal: guided setup.
 await pg.evaluate(() => _ibxAcctOpen());
 await pg.waitForTimeout(300);
