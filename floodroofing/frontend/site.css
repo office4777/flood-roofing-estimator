@@ -409,3 +409,9 @@ table.data td strong{ color:var(--ink) }
   .calc-or{ padding:0; text-align:left }
   .calc-row{ flex-direction:column; gap:2px }
 }
+
+/* Enterprise capture strip under the pricing tiers — 15+ seats / multi-branch / POA */
+.enterprise-strip{display:flex;align-items:center;justify-content:space-between;gap:20px;
+  flex-wrap:wrap;background:var(--card,#fff);border:1px solid var(--line,#dbe2e8);
+  border-radius:12px;padding:18px 22px;margin:22px 0 10px}
+.enterprise-strip p{margin:4px 0 0;max-width:60ch}
