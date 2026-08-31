@@ -5554,7 +5554,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button class="ibx-chip" id="ibxDensityBtn" title="Row density">▤ Compact view</button>
       <input type="search" id="ibxSearch" placeholder="Search mail…" style="flex:1;min-width:120px;max-width:260px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px">
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
-        <button class="ibx-chip" id="ibxTasksBtn" onclick="_ibxTasksToggle()">☑ Tasks</button>
         <button class="ibx-chip" id="ibxChatBtn" onclick="_ibxChatToggle()">💬 Chat</button>
         <button class="ibx-chip" id="ibxComposeBtn" onclick="_ibxComposeOpen()">✉ Compose</button>
         <button class="ibx-chip" onclick="_ibxLoad()" title="Check for new mail">↻</button>
@@ -5563,14 +5562,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </span>
       <span id="ibxMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
     </div>
-    <div class="card" id="ibxTaskBar" style="display:none;padding:7px 12px;margin-bottom:10px">
-      <div style="display:flex;gap:8px;align-items:center">
-        <strong style="font-size:12px;color:#0a1628;white-space:nowrap;cursor:pointer" onclick="_ibxTasksToggle()" title="Open the full task board">☑ Tasks <span id="ibxTaskBarCount" style="color:#64748b;font-weight:600"></span></strong>
-        <div id="ibxTaskBarChips" style="display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0"></div>
-        <button class="ibx-chip" onclick="_ibxTasksToggle()" style="white-space:nowrap;padding:3px 10px;font-size:11px">Board ▸</button>
-      </div>
-    </div>
-    <div id="ibxTasksWrap" style="display:none;max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;margin-bottom:10px">
+    <div id="ibxTasksWrap" style="max-height:40vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;margin-bottom:10px">
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <input type="text" id="ibxTaskNew" placeholder="New task — the AI picks who's responsible…" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:12.5px">
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
@@ -8569,6 +8561,9 @@ function _ibxRenderList(){
   el.querySelectorAll('[data-ibxthread]').forEach(function(r){
     r.onclick = function(){ _ibxOpen(r.getAttribute('data-ibxthread')); };
   });
+  // Eight rows on screen; the rest scroll inside the list, not the page.
+  var fr2 = el.querySelector('.ibx-row');
+  if (fr2){ el.style.maxHeight = (fr2.offsetHeight * 8) + 'px'; el.style.overflowY = 'auto'; }
 }
 function _ibxFrame(html){
   var doc = '<!doctype html><html><head><meta charset="utf-8"><base target="_blank">' +
@@ -8756,16 +8751,13 @@ async function _ibxDraft(){
 function _ibxView(v){
   _IBX.view = v;
   document.getElementById('ibxMain').style.display = v === 'chat' ? 'none' : '';
-  document.getElementById('ibxTasksWrap').style.display = v === 'tasks' ? '' : 'none';
+  document.getElementById('ibxTasksWrap').style.display = v === 'chat' ? 'none' : '';
   document.getElementById('ibxChatWrap').style.display = v === 'chat' ? 'flex' : 'none';
-  var tb = document.getElementById('ibxTasksBtn');
-  if (tb) tb.textContent = v === 'tasks' ? '▴ Hide tasks' : '☑ Tasks';
   var cb = document.getElementById('ibxChatBtn');
   if (cb) cb.textContent = v === 'chat' ? '✉ Mail' : '💬 Chat';
-  if (v === 'tasks') _ibxTasksLoad();
-  if (v === 'chat') _ibxChatEnter();
+  if (v === 'chat') _ibxChatEnter(); else _ibxTasksLoad(true);
 }
-function _ibxTasksToggle(){ _ibxView(_IBX.view === 'tasks' ? 'mail' : 'tasks'); }
+function _ibxTasksToggle(){ _ibxView('mail'); }
 function _ibxChatToggle(){ _ibxView(_IBX.view === 'chat' ? 'mail' : 'chat'); }
 // ── the task strip: open tasks pinned above the mail list ──
 function _ibxReplyGrow(t){
@@ -8780,40 +8772,7 @@ function _ibxDensityApply(){
   var b = document.getElementById('ibxDensityBtn');
   if (b) b.textContent = compact ? '☰ Cosy view' : '▤ Compact view';
 }
-function _ibxTaskBarRender(){
-  var bar = document.getElementById('ibxTaskBar'), chips = document.getElementById('ibxTaskBarChips');
-  if (!bar || !chips) return;
-  var open = (_IBX.tasks || []).filter(function(t){ return !t.done; });
-  document.getElementById('ibxTaskBarCount').textContent = open.length ? '(' + open.length + ' open)' : '';
-  bar.style.display = '';
-  if (!open.length){
-    chips.innerHTML = '<span style="font-size:11.5px;color:#94a3b8">No open tasks — turn any email or chat message into one, or use the board.</span>';
-  } else {
-    chips.innerHTML = open.map(function(t){
-      var u = t.urgency || 0;
-      var dot = u >= 70 ? '#dc2626' : (u >= 40 ? '#d97706' : '#94a3b8');
-      var who = t.assignee_user_id ? _ibxMemberName(t.assignee_user_id) : 'anyone';
-      return '<span class="ibx-taskchip" data-tbchip="' + t.id + '" title="' + _ibxEsc(t.title) + ' — ' + _ibxEsc(who) + '. Click to reassign or edit.">' +
-        '<span style="width:7px;height:7px;border-radius:50%;background:' + dot + ';flex:0 0 auto"></span>' +
-        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">' + _ibxEsc(t.title) + '</span>' +
-        '<span style="color:#64748b;flex:0 0 auto">· ' + _ibxEsc(String(who).split(' ')[0]) + '</span>' +
-        '<button data-tbdone="' + t.id + '" title="Mark done" style="border:none;background:none;cursor:pointer;color:#16a34a;font-weight:800;padding:0 2px;font-size:12px">✓</button></span>';
-    }).join('');
-  }
-  chips.querySelectorAll('[data-tbdone]').forEach(function(b){
-    b.onclick = function(ev){
-      ev.stopPropagation();
-      var id = b.getAttribute('data-tbdone');
-      var t = (_IBX.tasks || []).find(function(x){ return x.id === id; });
-      if (t) t.done = true;
-      _ibxTaskBarRender();
-      api('PATCH', '/inbox/tasks/' + id, { done: true }).catch(function(){ _ibxTasksLoad(true); });
-    };
-  });
-  chips.querySelectorAll('[data-tbchip]').forEach(function(c){
-    c.onclick = function(ev){ if (ev.target.tagName === 'BUTTON') return; _ibxTaskMenu(c.getAttribute('data-tbchip'), ev); };
-  });
-}
+function _ibxTaskBarRender(){ /* the strip grew into the always-open board */ }
 
 // ── My list: each person's own to-dos, private to them ──
 function _ibxMyRender(){
@@ -8825,24 +8784,53 @@ function _ibxMyRender(){
     return '<div style="display:flex;gap:7px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid #f1f5f9">' +
       '<input type="checkbox"' + (t.done ? ' checked' : '') + ' data-mydone="' + t.id + '" style="margin-top:2px">' +
       '<div style="flex:1;font-size:12px;' + (t.done ? 'text-decoration:line-through;color:#94a3b8' : 'color:#0a1628') + '">' + _ibxEsc(t.title) + '</div>' +
+      '<button data-myask="' + t.id + '" title="Ask the team about this in Internal chat" style="border:1px solid var(--border);background:#fff;border-radius:6px;color:#0a1628;cursor:pointer;font-size:10px;padding:1px 6px">💬 Ask</button>' +
+      '<button data-myunassign="' + t.id + '" title="Hand it back — it waits in Unassigned until someone picks it up" style="border:1px solid var(--border);background:#fff;border-radius:6px;color:#b45309;cursor:pointer;font-size:10px;padding:1px 6px">↩ Unassign</button>' +
       '<button data-mydel="' + t.id + '" title="Remove" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:12px;padding:0 2px">✕</button></div>';
   }).join('') : '<div style="font-size:11.5px;color:#94a3b8;line-height:1.5">Your own to-dos — nobody else sees these. Team tasks live on the board beside it.</div>';
   el.querySelectorAll('[data-mydone]').forEach(function(cb){
     cb.onchange = function(){
       var t = (_IBX.tasks || []).find(function(x){ return x.id === cb.getAttribute('data-mydone'); });
       if (t) t.done = cb.checked;
-      _ibxMyRender(); _ibxTaskBarRender();
+      _ibxTasksRender();
       api('PATCH', '/inbox/tasks/' + cb.getAttribute('data-mydone'), { done: cb.checked }).catch(function(){ _ibxTasksLoad(true); });
     };
+  });
+  el.querySelectorAll('[data-myask]').forEach(function(b){
+    b.onclick = function(){ _ibxTaskAsk(b.getAttribute('data-myask')); };
+  });
+  el.querySelectorAll('[data-myunassign]').forEach(function(b){
+    b.onclick = function(){ _ibxTaskUnassign(b.getAttribute('data-myunassign')); };
   });
   el.querySelectorAll('[data-mydel]').forEach(function(b){
     b.onclick = function(){
       var id = b.getAttribute('data-mydel');
       _IBX.tasks = (_IBX.tasks || []).filter(function(x){ return x.id !== id; });
-      _ibxMyRender(); _ibxTaskBarRender();
+      _ibxTasksRender();
       api('DELETE', '/inbox/tasks/' + id).catch(function(){ _ibxTasksLoad(true); });
     };
   });
+}
+async function _ibxTaskAsk(id, q){
+  var t = (_IBX.tasks || []).find(function(x){ return x.id === id; });
+  if (!t) return;
+  if (q === undefined) q = prompt('Your question about "' + t.title + '" — the whole team sees it in Internal chat:');
+  if (!q || !String(q).trim()) return;
+  await _ibxBigChat();
+  if (!_ICHAT.sel) return;
+  var body = _ibxMemberName(_ichatMe()) + "'s question about task \"" + t.title + '": ' + String(q).trim();
+  try {
+    await api('POST', '/inbox/chat/messages', { channel_id: _ICHAT.sel, body: body });
+    _ichatLoad(true);
+  } catch(e){}
+}
+async function _ibxTaskUnassign(id){
+  var t = (_IBX.tasks || []).find(function(x){ return x.id === id; });
+  if (!t) return;
+  t.assignee_user_id = null; t.personal = false;
+  t.unassigned_by = _ibxMemberName(_ichatMe()); t.unassigned_at = new Date().toISOString();
+  _ibxTasksRender();
+  api('PATCH', '/inbox/tasks/' + id, { unassign: true }).catch(function(){ _ibxTasksLoad(true); });
 }
 async function _ibxMyAdd(){
   var inp = document.getElementById('ibxMyNew');
@@ -8852,7 +8840,7 @@ async function _ibxMyAdd(){
   try {
     var t = await api('POST', '/inbox/tasks', { title: title, personal: true });
     _IBX.tasks.unshift(t);
-    _ibxMyRender(); _ibxTaskBarRender();
+    _ibxTasksRender();
   } catch(e){ _ibxMsg((e && e.message) || 'Could not save that', true); }
 }
 
@@ -9030,10 +9018,10 @@ async function _ichatTaskCreate(title, urgency, btn){
   if (btn) btn.disabled = true;
   try {
     var t = await api('POST', '/inbox/tasks', { title: title, urgency: urgency, notes: 'From internal chat' });
-    _IBX.tasks.unshift(t); _ibxTaskBarRender();
+    _IBX.tasks.unshift(t); _ibxTasksRender();
     var el = document.getElementById('ichatSuggest');
     if (el){
-      el.innerHTML = '✓ Task created' + (t.assignee_user_id ? ' — assigned to <strong>' + _ibxEsc(_ibxMemberName(t.assignee_user_id)) + '</strong>' : '') + '. It\'s on the task strip in the Inbox.';
+      el.innerHTML = '✓ Task created' + (t.assignee_user_id ? ' — assigned to <strong>' + _ibxEsc(_ibxMemberName(t.assignee_user_id)) + '</strong>' : '') + '. It\'s on the task board.';
       el.style.display = '';
       setTimeout(function(){ el.style.display = 'none'; }, 4000);
     }
@@ -9126,16 +9114,16 @@ async function _iaiGo(){
     var handled = true;
     if ((d.action === 'task' || d.action === 'my_todo') && d.task){
       _IBX.tasks.unshift(d.task);
-      _ibxTaskBarRender(); try { _ibxMyRender(); } catch(e){}
+      try { _ibxTasksRender(); } catch(e){}
       _iaiSay(d.action === 'my_todo'
         ? '✓ On your list — <strong>' + _ibxEsc(d.task.title) + '</strong>.'
         : '✓ Task created — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
           (d.task.assignee_user_id ? ', assigned to <strong>' + _ibxEsc(_ibxMemberName(d.task.assignee_user_id)) + '</strong>' : '') +
-          '. It\'s on the task strip in the Inbox.');
+          '. It\'s on the task board.');
     } else if (d.action === 'task_update' && d.task){
       var i2 = _IBX.tasks.findIndex(function(x){ return x.id === d.task.id; });
       if (i2 >= 0) _IBX.tasks[i2] = d.task; else _IBX.tasks.unshift(d.task);
-      _ibxTaskBarRender(); try { _ibxMyRender(); _ibxTasksRender(); } catch(e){}
+      try { _ibxTasksRender(); } catch(e){}
       _iaiSay('✓ Updated — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
         (d.task.done ? ' is done.' : (d.assignee_label ? ', now with <strong>' + _ibxEsc(d.assignee_label) + '</strong>.' : '.')));
     } else if (d.action === 'threads'){
@@ -9354,7 +9342,6 @@ function _ibxMemberName(id){
   return m ? (m.name || (m.email || '').split('@')[0] || 'teammate') : 'teammate';
 }
 function _ibxTasksRender(){
-  _ibxTaskBarRender();
   _ibxMyRender();
   var el = document.getElementById('ibxTaskBoard');
   if (!el) return;
@@ -9378,6 +9365,7 @@ function _ibxTasksRender(){
           (t.due_date ? '<span style="' + (over ? 'color:#dc2626;font-weight:800' : '') + '">📅 ' + _ibxEsc(t.due_date) + '</span>' : '') +
           (t.thread_id ? '<span title="From an email">✉</span>' : '') +
           (t.job_id ? '<span title="Linked job">🔗</span>' : '') +
+          (t.unassigned_by ? '<span style="color:#b45309;font-weight:700" title="' + _ibxEsc(t.unassigned_at || '') + '">↩ unassigned by ' + _ibxEsc(t.unassigned_by) + ' · ' + _ibxAgo(t.unassigned_at) + '</span>' : '') +
           '</div></div></div></div>';
       }).join('') + '</div>';
   }).join('');

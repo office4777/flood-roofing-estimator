@@ -554,6 +554,23 @@ body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stri
 check('"reply to THIS email" knows which conversation is on screen',
   body.action === 'reply' && body.thread_id === lewis.id && /No worries/.test(body.body), JSON.stringify(body).slice(0, 110));
 
+// ── unassign: hand a task back, stamped, until someone picks it up ──
+r = await as(A, '/inbox/tasks', { method: 'POST', body: JSON.stringify({ title: 'Sweep the yard', personal: true }) });
+const yard = await j(r);
+r = await as(A, '/inbox/tasks/' + yard.id, { method: 'PATCH', body: JSON.stringify({ unassign: true }) });
+body = await j(r);
+check('Unassign strips the owner and stamps who let it go, and when',
+  r.status === 200 && body.assignee_user_id === null && body.personal === false &&
+  body.unassigned_by === 'a teammate' && !!body.unassigned_at, JSON.stringify(body).slice(0, 120));
+body = await j(await as(A2, '/inbox/tasks'));
+check('…and the whole team sees it waiting in Unassigned',
+  (body.tasks || []).some(t => /Sweep the yard/.test(t.title) && !t.assignee_user_id && t.unassigned_by));
+r = await as(A2, '/inbox/tasks/' + yard.id, { method: 'PATCH', body: JSON.stringify({ assignee_user_id: A2.user }) });
+body = await j(r);
+check('…until someone picks it up — which clears the stamp',
+  r.status === 200 && body.assignee_user_id === A2.user && body.unassigned_by === null && body.unassigned_at === null,
+  JSON.stringify({ a: body.assignee_user_id, u: body.unassigned_by }));
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);

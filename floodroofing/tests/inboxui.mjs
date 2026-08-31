@@ -494,17 +494,14 @@ check('the reply box opens roomy and grows with what you type',
   v.h0 >= 140 && v.h1 > v.h0 && v.capped, JSON.stringify(v));
 
 v = await pg.evaluate(() => ({
-  bar: getComputedStyle(document.getElementById('ibxTaskBar')).display !== 'none',
-  chips: document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip').length,
-  count: document.getElementById('ibxTaskBarCount').textContent,
+  banner: !document.getElementById('ibxTaskBar'),
+  board: getComputedStyle(document.getElementById('ibxTasksWrap')).display !== 'none',
+  cards: document.querySelectorAll('#ibxTaskBoard .ibx-task').length,
+  cap: (document.getElementById('ibxList').style.maxHeight || '') !== '' &&
+    document.getElementById('ibxList').style.overflowY === 'auto',
 }));
-check('open tasks ride a pinned strip at the top of the tab',
-  v.bar && v.chips === 3 && /3 open/.test(v.count), JSON.stringify(v));
-await pg.evaluate(() => document.querySelector('#ibxTaskBarChips [data-tbdone]').click());
-await pg.waitForTimeout(250);
-let done = calls.find(c => String(c[0]).indexOf('PATCH task') === 0);
-v = await pg.evaluate(() => document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip').length);
-check('✓ on a strip chip marks the task done', v === 2 && !!done && done[1].done === true, JSON.stringify(done));
+check('the Tasks banner is gone — the status board just lives above a capped 8-row mail list',
+  v.banner && v.board && v.cards === 2 && v.cap, JSON.stringify(v));
 
 // Internal chat floats on every tab, not just the Inbox.
 await pg.evaluate(() => gotoTab('home'));
@@ -591,10 +588,9 @@ await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   mine: /Ring the bank/.test(document.getElementById('ibxMyItems').textContent),
   offBoard: !document.querySelector('#ibxTaskBoard [data-task="tk3"]'),
-  onStrip: [...document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip')].some(c => /Ring the bank/.test(c.textContent)),
 }));
-check('a personal to-do sits in My list and on the strip — never on the team board',
-  v.mine && v.offBoard && v.onStrip, JSON.stringify(v));
+check('a personal to-do sits in My list — never on the team board',
+  v.mine && v.offBoard, JSON.stringify(v));
 calls.length = 0;
 await pg.fill('#ibxMyNew', 'Book the ute in for a service');
 await pg.evaluate(() => _ibxMyAdd());
@@ -652,10 +648,10 @@ await pg.evaluate(() => _iaiGo());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   out: document.getElementById('iaiOut').textContent,
-  onStrip: [...document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip')].some(c => /3099/.test(c.textContent)),
+  onBoard: !!document.querySelector('#ibxTaskBoard [data-task="tk7"]'),
 }));
-check('"set task for…" creates the task and says who got it — straight onto the strip',
-  !!calls.find(c => c[0] === 'assistant') && /Task created/.test(v.out) && /Lizzie/.test(v.out) && v.onStrip,
+check('"set task for…" creates the task and says who got it — straight onto the board',
+  !!calls.find(c => c[0] === 'assistant') && /Task created/.test(v.out) && /Lizzie/.test(v.out) && v.onBoard,
   JSON.stringify(v).slice(0, 140));
 calls.length = 0;
 await pg.fill('#iaiAsk', 'email suzie from job number #3342 and ask for her colour selection');
@@ -737,6 +733,29 @@ nt = calls.find(c => c[0] === 'assistant');
 check('"draft a reply" fills the reply box on the OPEN conversation — the person sends',
   !!nt && nt[1].thread_id === 't1' && /No worries/.test(v.body) && /Reply drafted/.test(v.out),
   JSON.stringify({ t: nt && nt[1].thread_id, b: (v.body || '').slice(0, 30) }));
+
+// ── My list: Ask the team, or hand a task back ────────────────────
+calls.length = 0;
+await pg.evaluate(() => { if (_IAI.open) _iaiToggle(); });
+await pg.evaluate(() => _ibxTaskAsk('tk3', 'where are the ute keys?'));
+await pg.waitForTimeout(500);
+let ask = calls.find(c => c[0] === 'chatpost');
+v = await pg.evaluate(() => _ICHAT.open);
+check('💬 Ask fires the question into Internal chat, named and tied to the task',
+  v === true && !!ask && /question about task "Ring the bank about the ute": where are the ute keys\?/.test(ask[1].body),
+  JSON.stringify(ask && ask[1]).slice(0, 130));
+await pg.evaluate(() => { if (_ICHAT.open) _ichatToggle(); });
+calls.length = 0;
+await pg.evaluate(() => _ibxTaskUnassign('tk3'));
+await pg.waitForTimeout(300);
+let un = calls.find(c => String(c[0]).indexOf('PATCH task tk3') === 0);
+v = await pg.evaluate(() => ({
+  offMyList: !/Ring the bank/.test(document.getElementById('ibxMyItems').textContent),
+  inUnassigned: !!document.querySelector('[data-tcol=""] [data-task="tk3"]'),
+  stamp: /unassigned by/.test((document.querySelector('[data-tcol=""] [data-task="tk3"]') || {}).textContent || ''),
+}));
+check('↩ Unassign parks it in the Unassigned list with a who/when stamp until someone picks it up',
+  !!un && un[1].unassign === true && v.offMyList && v.inUnassigned && v.stamp, JSON.stringify(v));
 await ctx.close();
 
 await b.close();

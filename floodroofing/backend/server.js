@@ -4588,6 +4588,18 @@ app.patch('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
   for (const k of _COMMS_TASK_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
   if (patch.done === true) patch.done_at = new Date().toISOString();
   if (patch.done === false) patch.done_at = null;
+  // "Unassign" hands a task back: it leaves whoever's list it was on
+  // (personal ones become team-visible) and waits in the Unassigned column
+  // wearing who let it go and when — until someone picks it up, which
+  // clears the stamp.
+  if (req.body && req.body.unassign === true) {
+    const me = (await _inboxMembers(req)).find(m => m.id === req.user.id) || {};
+    patch.assignee_user_id = null; patch.personal = false;
+    patch.unassigned_by = me.name || me.email || 'a teammate';
+    patch.unassigned_at = new Date().toISOString();
+  } else if (patch.assignee_user_id) {
+    patch.unassigned_by = null; patch.unassigned_at = null;
+  }
   try {
     const { data } = await _scopeCompany(supabase.from('comms_tasks').update(patch), req)
       .eq('id', req.params.id).select('*');
@@ -7563,6 +7575,8 @@ const _MIGRATION_SQL = [
   "create index if not exists idx_mail_accounts_co on public.mail_accounts (company_id)",
   "alter table public.mail_accounts add column if not exists smtp_ok boolean not null default true",
   "alter table public.comms_tasks add column if not exists personal boolean not null default false",
+  "alter table public.comms_tasks add column if not exists unassigned_by text",
+  "alter table public.comms_tasks add column if not exists unassigned_at timestamptz",
   "alter table public.mail_accounts enable row level security",
   "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, ai_draft text, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_threads_co on public.mail_threads (company_id, status, last_date)",
