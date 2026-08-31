@@ -7964,7 +7964,144 @@ async function _grandfatherRoster(){
   });
 }
 
+// The same information as a page you can click, because the person who needs
+// it runs a roofing company and should not have to drive a terminal to keep
+// his own customers logged in. The shell carries no data — everything on it
+// arrives from the JSON route above, which still wants the admin token.
+const _GRANDFATHER_PAGE = '<!doctype html><html lang="en-NZ"><head><meta charset="utf-8">' +
+'<meta name="viewport" content="width=device-width,initial-scale=1">' +
+'<title>Who keeps working — RoofMap</title><style>' +
+'*{box-sizing:border-box}' +
+'body{margin:0;background:#f6f8fa;color:#0a1628;font:16px/1.55 -apple-system,"Segoe UI",Roboto,sans-serif}' +
+'.wrap{max-width:860px;margin:0 auto;padding:28px 18px 80px}' +
+'h1{font-size:26px;line-height:1.2;margin:0 0 8px}' +
+'p.sub{color:#5b7189;margin:0 0 24px;font-size:15.5px}' +
+'.card{background:#fff;border:1px solid #dde5ec;border-radius:12px;padding:20px;margin-bottom:18px}' +
+'label{display:block;font-weight:600;font-size:14px;margin-bottom:6px}' +
+'input,select{font:inherit;padding:10px 12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#0a1628;width:100%}' +
+'button{font:inherit;font-weight:700;padding:11px 20px;border:none;border-radius:9px;cursor:pointer;background:#0a1628;color:#fff}' +
+'button.ghost{background:#fff;color:#0a1628;border:1px solid #cbd5e1}' +
+'button:disabled{opacity:.5;cursor:default}' +
+'.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}' +
+'.row>div{flex:1;min-width:170px}' +
+'table{width:100%;border-collapse:collapse;font-size:15px}' +
+'th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#5b7189;padding:0 8px 8px;border-bottom:1px solid #dde5ec}' +
+'td{padding:11px 8px;border-bottom:1px solid #eef2f6;vertical-align:middle}' +
+'tr.safe td{color:#5b7189}' +
+'.pill{display:inline-block;font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}' +
+'.bad{background:#fdeaea;color:#b3261e}.ok{background:#e7f6ec;color:#136c34}' +
+'.big{font-size:19px;font-weight:700;margin-bottom:4px}' +
+'.warn{background:#fdf3e3;border-color:#e8c99a}' +
+'.muted{color:#5b7189;font-size:14.5px}' +
+'#msg{white-space:pre-wrap;font-size:15px}' +
+'input[type=checkbox]{width:19px;height:19px}' +
+'</style></head><body><div class="wrap">' +
+'<h1>Who keeps working when you switch billing on</h1>' +
+'<p class="sub">Everyone using RoofMap today is on a free account. The day you turn payments on, ' +
+'any account not ticked below stops being able to save jobs. Tick the ones that should carry on, ' +
+'pick a date, and press the button.</p>' +
+
+'<div class="card" id="loginCard">' +
+  '<label for="tok">Your admin password</label>' +
+  '<input id="tok" type="password" placeholder="Paste it here" autocomplete="off">' +
+  '<p class="muted" style="margin:8px 0 14px">Typed here rather than put in the web address, so it stays out of your browser history.</p>' +
+  '<button id="go">Show me the list</button>' +
+  '<p id="loginErr" class="muted" style="color:#b3261e"></p>' +
+'</div>' +
+
+'<div id="main" style="display:none">' +
+  '<div class="card" id="sumCard"><div class="big" id="sumBig"></div><div class="muted" id="sumSmall"></div></div>' +
+  '<div class="card">' +
+    '<table><thead><tr><th style="width:34px"></th><th>Business</th><th style="width:70px">People</th><th style="width:210px">What happens</th></tr></thead>' +
+    '<tbody id="rows"></tbody></table>' +
+    '<p class="muted" id="none" style="display:none">Nothing to fix — everyone here already keeps working.</p>' +
+  '</div>' +
+  '<div class="card warn">' +
+    '<div class="row">' +
+      '<div><label for="until">Keep them working until</label><input id="until" type="date"></div>' +
+      '<div><label for="plan">On which plan</label><select id="plan">' +
+        '<option value="">Leave their plan as it is</option>' +
+        '<option value="business">Business</option><option value="team">Team</option><option value="solo">Solo</option>' +
+      '</select></div>' +
+    '</div>' +
+    '<div class="row" style="margin-top:16px">' +
+      '<button class="ghost" id="preview" style="flex:0 0 auto">Check first (changes nothing)</button>' +
+      '<button id="apply" style="flex:0 0 auto">Keep these accounts working</button>' +
+    '</div>' +
+    '<p id="msg" class="muted" style="margin-top:14px"></p>' +
+  '</div>' +
+'</div>' +
+
+'<script>' +
+'var TOK="",DATA=[];' +
+'function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}' +
+'function api(method,body){' +
+ 'return fetch("/admin/grandfather?format=json",{method:method,' +
+  'headers:{"x-admin-token":TOK,"content-type":"application/json"},' +
+  'body:body?JSON.stringify(body):undefined}).then(function(r){' +
+   'if(r.status===404)throw new Error("That password was not accepted.");' +
+   'return r.json().then(function(j){if(!r.ok)throw new Error(j.error||"Something went wrong");return j;});});}' +
+'function niceDate(s){if(!s)return"";try{return new Date(s).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"});}catch(e){return s;}}' +
+'function draw(d){' +
+ 'DATA=d.companies;' +
+ 'var risk=d.summary.would_be_locked_out;' +
+ 'document.getElementById("sumBig").textContent=risk===0' +
+  '?"Everyone is sorted — nobody gets locked out."' +
+  ':risk+(risk===1?" business would stop working":" businesses would stop working")+", covering "+d.summary.people_affected+(d.summary.people_affected===1?" person.":" people.");' +
+ 'document.getElementById("sumSmall").textContent=d.summary.companies+" businesses in total. "+d.summary.already_safe+" already fine.";' +
+ 'var tb=document.getElementById("rows");tb.innerHTML="";' +
+ 'DATA.forEach(function(c){' +
+  'var paying=c.subscription&&c.subscription.status==="active";' +
+  'var what=paying?"Paying — nothing to do":(c.survives_billing?"Sorted until "+niceDate(c.subscription&&c.subscription.trial_ends_at):"Will stop working");' +
+  'var tr=document.createElement("tr");' +
+  'if(c.survives_billing)tr.className="safe";' +
+  'tr.innerHTML="<td>"+(paying?"":"<input type=\\"checkbox\\" data-id=\\""+esc(c.company_id)+"\\""+(c.survives_billing?"":" checked")+">")+"</td>"+' +
+   '"<td><strong>"+esc(c.name)+"</strong><br><span class=\\"muted\\">"+esc(c.plan||"no plan set")+"</span></td>"+' +
+   '"<td>"+c.people+"</td>"+' +
+   '"<td><span class=\\"pill "+(c.survives_billing?"ok":"bad")+"\\">"+esc(what)+"</span></td>";' +
+  'tb.appendChild(tr);});' +
+ 'document.getElementById("none").style.display=DATA.length?"none":"";}' +
+'function picked(){return [].slice.call(document.querySelectorAll("[data-id]")).filter(function(x){return x.checked;}).map(function(x){return x.getAttribute("data-id");});}' +
+'function send(dry){' +
+ 'var ids=picked();var m=document.getElementById("msg");' +
+ 'if(!ids.length){m.style.color="#b3261e";m.textContent="Tick at least one business first.";return;}' +
+ 'var body={company_ids:ids,until:document.getElementById("until").value,dry_run:dry};' +
+ 'var p=document.getElementById("plan").value;if(p)body.plan=p;' +
+ 'm.style.color="#5b7189";m.textContent=dry?"Checking…":"Saving…";' +
+ 'api("POST",body).then(function(j){' +
+  'var names=j.applied.map(function(a){return a.name;}).join(", ");' +
+  'var skipped=j.skipped.length?"\\nLeft alone: "+j.skipped.map(function(s){return s.name||s.company_id;}).join(", "):"";' +
+  'm.style.color=dry?"#5b7189":"#136c34";' +
+  'm.textContent=(dry?"Nothing saved yet. Press the dark button and these would be kept working until "+niceDate(j.comped_until)+":\\n":"Done. These are now kept working until "+niceDate(j.comped_until)+":\\n")+names+skipped;' +
+  'if(!dry)return api("GET").then(draw);' +
+ '}).catch(function(e){m.style.color="#b3261e";m.textContent=e.message;});}' +
+'document.getElementById("go").onclick=function(){' +
+ 'TOK=document.getElementById("tok").value.trim();' +
+ 'if(!TOK)return;' +
+ 'var e=document.getElementById("loginErr");e.textContent="";' +
+ 'api("GET").then(function(d){document.getElementById("loginCard").style.display="none";document.getElementById("main").style.display="";draw(d);})' +
+ '.catch(function(err){e.textContent=err.message;});};' +
+'document.getElementById("tok").addEventListener("keydown",function(ev){if(ev.key==="Enter")document.getElementById("go").click();});' +
+'document.getElementById("preview").onclick=function(){send(true);};' +
+'document.getElementById("apply").onclick=function(){send(false);};' +
+'(function(){var d=new Date();d.setFullYear(d.getFullYear()+1);document.getElementById("until").value=d.toISOString().slice(0,10);})();' +
+'<\/script></div></body></html>';
+
 app.get('/admin/grandfather', async (req, res) => {
+  // A browser asking for a page gets the page; curl, fetch and the suites all
+  // send */* and get JSON as before. The page itself holds nothing secret —
+  // it is a box to type the token into.
+  if (req.query.format !== 'json' && /text\/html/.test(req.headers.accept || '')) {
+    // The global API policy is default-src 'none', which is right for JSON and
+    // fatal for a page: it blocks this page's own inline style and script, so
+    // it renders bare and every button is dead. Widen it for this one response
+    // only, and no further than the page actually needs — its own inline CSS
+    // and JS, and calls back to this same origin. Nothing external, no frames.
+    res.setHeader('Content-Security-Policy',
+      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
+      "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    return res.type('html').send(_GRANDFATHER_PAGE);
+  }
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try {
     const list = await _grandfatherRoster();

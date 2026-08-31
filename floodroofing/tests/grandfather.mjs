@@ -145,6 +145,39 @@ const before = state();
 await post({ company_ids: [FLOOD, EARLY], plan: 'business', until: SOON, dry_run: false });
 check('running it again is a no-op — safe to re-run', state() === before);
 
+// ── a browser gets a page to click, not JSON to read ──────────────
+// The person who has to run this owns a roofing company. He should be able
+// to open a link, tick some boxes and press a button.
+let pageRes = await fetch(BASE + '/admin/grandfather', { headers: { accept: 'text/html,application/xhtml+xml' } });
+let page = await pageRes.text();
+check('opening it in a browser serves a page', pageRes.status === 200 &&
+  /text\/html/.test(pageRes.headers.get('content-type') || ''), pageRes.status + ' ' + pageRes.headers.get('content-type'));
+check('…that asks for the password rather than putting it in the address bar',
+  /type="password"/.test(page) && /out of your browser history/.test(page));
+check('…and explains itself in plain words, not field names',
+  /stops being able to save jobs/.test(page) && !/company_id/.test(page.split('<script')[0]));
+check('…and carries no data of its own until the password is given',
+  !page.includes('Flood Roofing') && !page.includes('Kaitaia'));
+check('the page needs no token to load, since it is where you type it',
+  (await fetch(BASE + '/admin/grandfather', { headers: { accept: 'text/html' } })).status === 200);
+// But the data behind it is still shut without one, however you ask.
+check('the numbers behind it stay shut without the password',
+  (await fetch(BASE + '/admin/grandfather?format=json', { headers: { accept: 'text/html' } })).status === 404);
+// The API-wide default-src 'none' is right for JSON and fatal for a page —
+// it blocks the page's own inline script, leaving every button dead. Widened
+// for this response only, and no further than the page needs.
+const csp = pageRes.headers.get('content-security-policy') || '';
+check('the page is allowed to run its own script and styles',
+  /script-src 'unsafe-inline'/.test(csp) && /style-src 'unsafe-inline'/.test(csp), csp);
+check('…and nothing more than that — no external sources, no framing',
+  /default-src 'none'/.test(csp) && /connect-src 'self'/.test(csp) && /frame-ancestors 'none'/.test(csp), csp);
+check('…while JSON responses keep the strict policy',
+  /default-src 'none'/.test((await get()).headers.get('content-security-policy') || '') &&
+  !/unsafe-inline/.test((await get()).headers.get('content-security-policy') || ''));
+
+check('a plain API call still gets JSON, not the page',
+  /application\/json/.test((await get()).headers.get('content-type') || ''));
+
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);
