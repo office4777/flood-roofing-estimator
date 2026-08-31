@@ -7898,6 +7898,162 @@ function _adminOk(req){
   if (given.length !== ADMIN_TOKEN.length) return false;
   return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_TOKEN));
 }
+
+// ── Grandfathering: who keeps working the day billing switches on ──
+// Every account lands as status:'pending' with no trial_ends_at, which
+// _subscriptionLive() reads as "not live". While BILLING_ENABLED is false
+// that costs nothing — requireSubscription waves everyone through. The
+// moment a Stripe key is set it stops waving, and every one of those
+// accounts hits the wall at once: early-access roofers, and this business's
+// own account with them.
+//
+// So this lists who would be locked out, and comps the ones who shouldn't be.
+// A comp is simply a trial_ends_at in the future — the existing gate already
+// reads that shape as live, so there is no schema change and no second code
+// path deciding who may work. A comped company that later subscribes for
+// real is picked up by the Stripe webhook, which sets status 'active' and
+// clears trial_ends_at; nothing here has to be undone.
+//
+//   GET  /admin/grandfather?token=…   → the roster, the ones who break first
+//   POST /admin/grandfather?token=…   → comp them. DRY RUN unless the body
+//                                       says dry_run:false, so the default
+//                                       outcome of a fat-fingered call is a
+//                                       report rather than a write.
+async function _grandfatherRoster(){
+  const [co, mem, subs] = await Promise.all([
+    supabase.from('companies').select('*').limit(5000),
+    supabase.from('company_users').select('company_id, user_id').limit(20000),
+    supabase.from('subscriptions').select('*').limit(20000),
+  ]);
+  if (co.error) throw new Error('companies: ' + co.error.message);
+  const companies = co.data || [], members = mem.data || [], rows = subs.data || [];
+  // Newest subscription per company, then per user — the same order of
+  // preference _companySubscription() uses at request time, so this roster
+  // reflects what the gate will actually see.
+  const byCompany = new Map(), byUser = new Map();
+  const newer = (a, b) => !a || String(b.created_at || '') > String(a.created_at || '');
+  for (const s of rows){
+    if (s.company_id && newer(byCompany.get(s.company_id), s)) byCompany.set(s.company_id, s);
+    if (s.user_id && newer(byUser.get(s.user_id), s)) byUser.set(s.user_id, s);
+  }
+  const seats = new Map();
+  for (const m of members) seats.set(m.company_id, (seats.get(m.company_id) || []).concat(m.user_id));
+  return companies.map(function(c){
+    const people = seats.get(c.id) || [];
+    let sub = byCompany.get(c.id) || null;
+    if (!sub) for (const u of people){ if (byUser.get(u)) { sub = byUser.get(u); break; } }
+    const live = _subscriptionLive(sub);
+    return {
+      company_id: c.id,
+      name: c.name || '(unnamed)',
+      created_at: c.created_at || null,
+      people: people.length,
+      plan: c.plan || null,
+      subscription: sub ? { status: sub.status || null, trial_ends_at: sub.trial_ends_at || null } : null,
+      // The whole point of the roster: true means this business carries on
+      // working when the Stripe key lands, false means it stops dead.
+      survives_billing: live,
+      verdict: !sub ? 'no subscription row — locked out'
+        : sub.status === 'active' ? 'paying — untouched'
+        : live ? 'comped until ' + sub.trial_ends_at
+        : 'locked out',
+    };
+  }).sort(function(a, b){
+    if (a.survives_billing !== b.survives_billing) return a.survives_billing ? 1 : -1;
+    return (b.people || 0) - (a.people || 0);   // biggest breakage first
+  });
+}
+
+app.get('/admin/grandfather', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const list = await _grandfatherRoster();
+    const at_risk = list.filter(function(r){ return !r.survives_billing; });
+    res.json({
+      billing_enabled: BILLING_ENABLED,
+      // Said plainly, because the number that matters is how many businesses
+      // stop working the day the switch is flipped.
+      summary: {
+        companies: list.length,
+        would_be_locked_out: at_risk.length,
+        people_affected: at_risk.reduce(function(n, r){ return n + r.people; }, 0),
+        already_safe: list.length - at_risk.length,
+      },
+      companies: list,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/admin/grandfather', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const body = req.body || {};
+  const ids = Array.isArray(body.company_ids) ? body.company_ids.map(String) : [];
+  if (!ids.length) return res.status(400).json({ error: 'company_ids must be a non-empty array. GET this route first to see who needs it.' });
+  // Writing is opt-in. Anything other than an explicit false reports instead.
+  const dryRun = body.dry_run !== false;
+
+  // How long the comp runs. A date, or days from now; capped at five years so
+  // a typo cannot hand somebody the product for a century.
+  let until;
+  if (body.until){
+    until = new Date(body.until);
+    if (isNaN(until.getTime())) return res.status(400).json({ error: 'until must be a date, e.g. "2027-06-30"' });
+  } else {
+    until = new Date(Date.now() + (parseInt(body.days, 10) || 365) * 864e5);
+  }
+  if (until.getTime() <= Date.now()) return res.status(400).json({ error: 'until is in the past — that would lock them out rather than comp them.' });
+  const CAP = Date.now() + 5 * 365 * 864e5;
+  if (until.getTime() > CAP) return res.status(400).json({ error: 'until is more than five years out — that reads like a typo.' });
+
+  // The tier they are comped onto. Left alone unless named, so this route
+  // can be used purely to extend a comp without silently re-planning anyone.
+  const plan = body.plan ? String(body.plan).toLowerCase() : null;
+  if (plan && !PLANS[plan]) return res.status(400).json({ error: 'plan must be one of: ' + Object.keys(PLANS).join(', ') });
+
+  try {
+    const roster = await _grandfatherRoster();
+    const known = new Map(roster.map(function(r){ return [r.company_id, r]; }));
+    const applied = [], skipped = [];
+    for (const id of ids){
+      const row = known.get(id);
+      if (!row){ skipped.push({ company_id: id, why: 'no such company' }); continue; }
+      // Never touch somebody who is actually paying — their row belongs to
+      // Stripe, and handing them a trial date would only muddy it.
+      if (row.subscription && row.subscription.status === 'active'){
+        skipped.push({ company_id: id, name: row.name, why: 'paying — left alone' });
+        continue;
+      }
+      const change = { company_id: id, name: row.name, people: row.people,
+        comped_until: until.toISOString(), plan: plan || row.plan || '(unchanged)' };
+      if (dryRun){ applied.push(change); continue; }
+      const patch = { trial_ends_at: until.toISOString(), updated_at: new Date().toISOString() };
+      if (row.subscription){
+        const { error } = await supabase.from('subscriptions').update(patch).eq('company_id', id);
+        if (error){ skipped.push({ company_id: id, why: 'subscription update failed: ' + error.message }); continue; }
+      } else {
+        // No row at all: give them one, rather than leaving the gate with
+        // nothing to read.
+        const seed = Object.assign({ company_id: id, status: 'pending' }, patch);
+        const { error } = await supabase.from('subscriptions').insert(seed);
+        if (error){ skipped.push({ company_id: id, why: 'subscription insert failed: ' + error.message }); continue; }
+      }
+      if (plan){
+        const { error } = await supabase.from('companies').update({ plan: plan }).eq('id', id);
+        if (error){ skipped.push({ company_id: id, why: 'plan update failed: ' + error.message }); continue; }
+      }
+      applied.push(change);
+    }
+    if (!dryRun) _planCache.clear();   // so the new plan bites on the next request, not in a minute
+    res.json({
+      dry_run: dryRun,
+      note: dryRun
+        ? 'Nothing was written. Send the same body with "dry_run": false to apply it.'
+        : 'Applied. Re-run GET /admin/grandfather to confirm everyone reads as safe.',
+      comped_until: until.toISOString(),
+      applied: applied, skipped: skipped,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 // Can this server open a TCP connection to the mail hosts at all? A
 // "Connection timeout" on connect usually means the PLATFORM blocks the
 // port, not that the password is wrong — this answers which it is.
