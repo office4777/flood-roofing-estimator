@@ -351,18 +351,19 @@ let comp = calls.find(c => c[0] === 'compose');
 check('…and Send posts the email from the picked account',
   !!comp && comp[1].to === 'new@customer.co.nz' && comp[1].account_id === 'acc1', JSON.stringify(comp && comp[1]).slice(0, 90));
 
-// ── the task board ────────────────────────────────────────────────
-await pg.evaluate(() => _ibxTasksToggle());
+// ── the task board, in the banner's Tasks dropdown ────────────────
+await pg.evaluate(() => _gtbTasksToggle());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
-  shown: getComputedStyle(document.getElementById('ibxTasksWrap')).display !== 'none',
+  shown: getComputedStyle(document.getElementById('gtbTasksPanel')).display !== 'none',
+  offTab: !document.querySelector('#ibxWrap #ibxTaskBoard'),
   mailShown: document.getElementById('ibxMain').style.display !== 'none',
   cols: [...document.querySelectorAll('[data-tcol]')].map(c => c.getAttribute('data-tcol')),
   hotInLizzie: !!document.querySelector('[data-tcol="u2"] [data-task="tk1"]'),
   hotText: (document.querySelector('[data-task="tk1"]') || {}).textContent || '',
 }));
-check('the task board expands ABOVE the mail list — everything in one place',
-  v.shown && v.mailShown && v.cols.join(',') === ',u1,u2', JSON.stringify(v.cols));
+check('the Tasks dropdown holds the whole team\'s board — off the mail tab entirely',
+  v.shown && v.offTab && v.mailShown && v.cols.join(',') === ',u1,u2', JSON.stringify(v));
 check("the AI's assignment and urgency show on the card",
   v.hotInLizzie && /⚡88/.test(v.hotText) && /📅 2026-08-28/.test(v.hotText), v.hotText.slice(0, 60));
 
@@ -401,7 +402,7 @@ let dn = calls.find(c => c[0] === 'PATCH task tk1');
 check('ticking a task done saves it', !!dn && dn[1].done === true, JSON.stringify(dn && dn[1]));
 
 // ➕ Task straight from an email.
-await pg.evaluate(() => _ibxTasksToggle());
+await pg.evaluate(() => _gtbTasksToggle());
 await pg.waitForTimeout(300);
 await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
 await pg.waitForTimeout(500);
@@ -544,13 +545,13 @@ check('the reply box opens roomy and grows with what you type',
 
 v = await pg.evaluate(() => ({
   banner: !document.getElementById('ibxTaskBar'),
-  board: getComputedStyle(document.getElementById('ibxTasksWrap')).display !== 'none',
-  cards: document.querySelectorAll('#ibxTaskBoard .ibx-task').length,
+  noBoardOnTab: !document.getElementById('ibxTasksWrap') && !document.querySelector('#ibxWrap #ibxTaskBoard'),
+  cards: document.querySelectorAll('#gtbTasksPanel .ibx-task').length,
   cap: (document.getElementById('ibxList').style.maxHeight || '') !== '' &&
     document.getElementById('ibxList').style.overflowY === 'auto',
 }));
-check('the Tasks banner is gone — the status board just lives above a capped 8-row mail list',
-  v.banner && v.board && v.cards === 2 && v.cap, JSON.stringify(v));
+check('the mail tab is mail only — board and to-dos moved to the banner, list capped at 8 rows',
+  v.banner && v.noBoardOnTab && v.cards === 2 && v.cap, JSON.stringify(v));
 
 // Internal chat floats on every tab, not just the Inbox.
 await pg.evaluate(() => gotoTab('home'));
@@ -631,17 +632,19 @@ v = await pg.evaluate(() => ({
 }));
 check('the side-menu Inbox button wears the unread count', v.badge === '1' && v.shown, JSON.stringify(v));
 
-// ── My list: personal to-dos beside the team board ────────────────
-await pg.evaluate(() => _ibxView('tasks'));
+// ── My To Do List: personal to-dos in their own banner dropdown ───
+await pg.evaluate(() => _gtbTodoToggle());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
-  mine: /Ring the bank/.test(document.getElementById('ibxMyItems').textContent),
+  mine: /Ring the bank/.test(document.getElementById('gtbTodoItems').textContent),
   offBoard: !document.querySelector('#ibxTaskBoard [data-task="tk3"]'),
+  separate: getComputedStyle(document.getElementById('gtbTodoPanel')).display !== 'none' &&
+            getComputedStyle(document.getElementById('gtbTasksPanel')).display === 'none',
 }));
-check('a personal to-do sits in My list — never on the team board',
-  v.mine && v.offBoard, JSON.stringify(v));
+check('a personal to-do sits in My To Do List — its own dropdown, never on the team board',
+  v.mine && v.offBoard && v.separate, JSON.stringify(v));
 calls.length = 0;
-await pg.fill('#ibxMyNew', 'Book the ute in for a service');
+await pg.fill('#gtbTodoNew', 'Book the ute in for a service');
 await pg.evaluate(() => _ibxMyAdd());
 await pg.waitForTimeout(300);
 nt = calls.find(c => c[0] === 'newtask');
@@ -746,18 +749,19 @@ await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.body.getAttribute('data-tab'));
 check('"open the schedule" navigates there', v === 'schedule', String(v));
 
-// ── the Communications makeover ───────────────────────────────────
+// ── the Email tab makeover ────────────────────────────────────────
 await pg.evaluate(() => gotoTab('inbox'));
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
-  nav: /Communications/.test(document.getElementById('navInboxBtn').textContent),
-  title: /Communications/.test(document.querySelector('#ibxWrap .card strong').textContent),
+  nav: /Email/.test(document.getElementById('navInboxBtn').textContent) &&
+       !/Communications/.test(document.getElementById('navInboxBtn').textContent),
+  title: /Email/.test(document.querySelector('#ibxWrap .card strong').textContent),
   aiBig: /AI Assistant/.test((document.getElementById('ibxAiBigBtn') || {}).textContent || ''),
   chatBig: /Internal chat/.test((document.getElementById('ibxChatBigBtn') || {}).textContent || ''),
   bubblesOff: getComputedStyle(document.getElementById('ichatLaunch')).display === 'none' &&
     getComputedStyle(document.getElementById('iaiLaunch')).display === 'none',
 }));
-check('the tab is Communications, with big AI Assistant + Internal chat buttons and no floating bubbles here',
+check('the tab is Email, with big AI Assistant + Internal chat buttons and no floating bubbles here',
   v.nav && v.title && v.aiBig && v.chatBig && v.bubblesOff, JSON.stringify(v));
 await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
 await pg.waitForTimeout(400);
@@ -799,7 +803,7 @@ await pg.evaluate(() => _ibxTaskUnassign('tk3'));
 await pg.waitForTimeout(300);
 let un = calls.find(c => String(c[0]).indexOf('PATCH task tk3') === 0);
 v = await pg.evaluate(() => ({
-  offMyList: !/Ring the bank/.test(document.getElementById('ibxMyItems').textContent),
+  offMyList: !/Ring the bank/.test(document.getElementById('gtbTodoItems').textContent),
   inUnassigned: !!document.querySelector('[data-tcol=""] [data-task="tk3"]'),
   stamp: /unassigned by/.test((document.querySelector('[data-tcol=""] [data-task="tk3"]') || {}).textContent || ''),
 }));
@@ -836,7 +840,7 @@ v = await pg.evaluate(() => ({
 }));
 check('compose carries the same format bar over a rich editor', v.bar && v.editable, JSON.stringify(v));
 
-// ── the permanent top banner: there on every tab, not just Communications ──
+// ── the permanent top banner: there on every tab, not just Email ──
 await pg.evaluate(() => gotoTab('select'));
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => {
@@ -852,16 +856,41 @@ v = await pg.evaluate(() => {
 });
 check('the top banner rides every tab with assistant, chat, bell and to-dos',
   v.shown && v.ai && v.chat && v.bell && v.todo, JSON.stringify(v));
+// Both dropdowns live at the far right and only one is open at a time.
+await pg.evaluate(() => { ['gtbTasksPanel','gtbTodoPanel'].forEach(id => document.getElementById(id).style.display = 'none'); });
 await pg.evaluate(() => _gtbTodoToggle());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   open: getComputedStyle(document.getElementById('gtbTodoPanel')).display !== 'none',
-  mine: /Ring the bank/.test(document.getElementById('gtbTodoItems').textContent),
+  tasksShut: getComputedStyle(document.getElementById('gtbTasksPanel')).display === 'none',
+  personalOnly: /nobody else sees these/.test(document.getElementById('gtbTodoItems').textContent) ||
+    !!document.querySelector('#gtbTodoItems [data-mydone]'),
   teamKeptOut: !/ridge flashings/.test(document.getElementById('gtbTodoItems').textContent),
+  // pushed to the far end: a clear gap after the bell, and the last two buttons
+  farRight: (() => {
+    const bar = document.getElementById('globalTopBar');
+    const kids = [...bar.children];
+    const tasks = document.getElementById('gtbTasksBtn'), todo = document.getElementById('gtbTodoBtn');
+    const bell = kids[2];
+    return kids[kids.length - 2] === tasks && kids[kids.length - 1] === todo &&
+      tasks.getBoundingClientRect().left - bell.getBoundingClientRect().right > 100 &&
+      bar.getBoundingClientRect().right - todo.getBoundingClientRect().right < 40;
+  })(),
 }));
-check('To Do List drops down the personal list — team tasks stay on the board',
-  v.open && v.mine && v.teamKeptOut, JSON.stringify(v));
-await pg.evaluate(() => _gtbTodoToggle());
+check('My To Do List drops down its own personal list at the far right — team tasks stay in Tasks',
+  v.open && v.tasksShut && v.personalOnly && v.teamKeptOut && v.farRight, JSON.stringify(v));
+// …and the Tasks dropdown next to it carries the team board plus an add box.
+await pg.evaluate(() => _gtbTasksToggle());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  open: getComputedStyle(document.getElementById('gtbTasksPanel')).display !== 'none',
+  todoShut: getComputedStyle(document.getElementById('gtbTodoPanel')).display === 'none',
+  everyone: [...document.querySelectorAll('#gtbTasksPanel [data-tcol]')].map(c => c.getAttribute('data-tcol')).join(','),
+  addBox: !!document.querySelector('#gtbTasksPanel #ibxTaskNew'),
+}));
+check('Tasks drops down the whole team\'s board with a New task box, and closes My To Do List',
+  v.open && v.todoShut && v.everyone === ',u1,u2' && v.addBox, JSON.stringify(v));
+await pg.evaluate(() => _gtbTasksToggle());
 await pg.evaluate(() => _gtbChat());
 await pg.waitForTimeout(500);
 v = await pg.evaluate(() => ({
