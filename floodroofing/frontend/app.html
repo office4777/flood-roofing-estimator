@@ -2855,6 +2855,10 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .ibx-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid var(--border);
   border-radius:999px; background:#fff; font-size:12px; font-weight:600; color:#0a1628; cursor:pointer; }
 .ibx-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
+.ibx-daysep{ padding:7px 12px 3px; font-size:10.5px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.4px; background:#fbfcfe; border-bottom:1px solid #eef1f4; }
+#ibxList.compact .ibx-row{ padding:4px 10px; }
+#ibxList.compact .ibx-row .sn{ display:none; }
+.nav-badge{ margin-left:auto; background:#dc2626; color:#fff; border-radius:999px; font-size:10px; font-weight:800; padding:1px 7px; }
 .ibx-taskchip{ display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 9px; font-size:11.5px; background:#fff; cursor:pointer; flex:0 0 auto; max-width:300px; }
 .ibx-taskchip:hover{ border-color:#94a3b8; }
 .ibx-tcol{ width:236px; flex:0 0 auto; background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:8px; }
@@ -5545,6 +5549,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <option value="junk">🗑 Junk</option><option value="other">Other</option>
       </select>
       <button class="ibx-chip" id="ibxSortBtn" title="How the list is stacked">⚡ Urgent first</button>
+      <button class="ibx-chip" id="ibxDensityBtn" title="Row density">▤ Compact view</button>
       <input type="search" id="ibxSearch" placeholder="Search mail…" style="flex:1;min-width:120px;max-width:260px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px">
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="ibx-chip" id="ibxTasksBtn" onclick="_ibxTasksToggle()">☑ Tasks</button>
@@ -8401,6 +8406,42 @@ async function _schedFeedRegen(){
 var _IBX = { threads: [], accounts: [], sel: null, status: 'inbox', q: '', timer: null, sort: 'smart', cat: '', aiOn: false, view: 'mail', tasks: [], members: [], chat: { channels: [], sel: null, msgs: [], timer: null } };
 function _ibxEsc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 function _ibxMsg(t, bad){ var el = document.getElementById('ibxMsg'); if (el){ el.textContent = t || ''; el.style.color = bad ? '#b91c1c' : 'var(--text2)'; } }
+function _ibxAgo(iso){
+  if (!iso) return '';
+  var d = new Date(iso), now = new Date();
+  var sec = Math.floor((now - d) / 1000);
+  if (isNaN(sec)) return '';
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400 && d.getDate() === now.getDate()) return Math.floor(sec / 3600) + 'h ago';
+  if (sec < 604800) return d.toLocaleDateString('en-NZ', { weekday: 'short' });
+  return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+}
+function _ibxDayLabel(iso){
+  var d = new Date(iso), now = new Date();
+  var diff = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) -
+    new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if (diff <= 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7) return d.toLocaleDateString('en-NZ', { weekday: 'long' });
+  return d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+function _ibxInitials(name){
+  var parts = String(name || '?').trim().split(/[\s._@-]+/).filter(Boolean);
+  return (String(parts[0] || '?')[0] + (parts[1] ? String(parts[1])[0] : '')).toUpperCase();
+}
+var _IBX_AV_COLS = ['#0099cc', '#16a34a', '#ea580c', '#7c3aed', '#d97706', '#0f766e', '#be185d', '#4f46e5'];
+function _ibxAvColor(key){
+  var h = 0; key = String(key || '');
+  for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return _IBX_AV_COLS[h % _IBX_AV_COLS.length];
+}
+function _ibxAvatar(name, key, size){
+  size = size || 30;
+  return '<span class="ibx-av" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + _ibxAvColor(key || name) +
+    ';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:' + Math.round(size * 0.38) + 'px;font-weight:800;flex:0 0 auto">' +
+    _ibxEsc(_ibxInitials(name)) + '</span>';
+}
 function _ibxCanUse(){
   try { var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
     if (c && c.limits && c.limits.inbox === false) return false; } catch(e){}
@@ -8421,6 +8462,13 @@ function _ibxEnter(){
     sb.textContent = _IBX.sort === 'smart' ? '⚡ Urgent first' : '🕐 Newest first';
     _ibxLoad();
   }; }
+  var db = document.getElementById('ibxDensityBtn');
+  if (db && !db._wired){ db._wired = 1; db.onclick = function(){
+    var c = localStorage.getItem('fr_ibx_density') === 'compact' ? '' : 'compact';
+    try { localStorage.setItem('fr_ibx_density', c); } catch(e){}
+    _ibxDensityApply(); _ibxRenderList();
+  }; }
+  _ibxDensityApply();
   _ibxLoad();
   if (_IBX.timer) clearInterval(_IBX.timer);
   _IBX.timer = setInterval(function(){
@@ -8450,6 +8498,7 @@ async function _ibxLoad(quiet){
     var csel = document.getElementById('ibxCatSel');
     if (csel) csel.style.display = _IBX.aiOn ? '' : 'none';
     _ibxRenderList();
+    if (_IBX.status === 'inbox') _ibxNavBadge(_IBX.threads.filter(function(t){ return t.unread; }).length);
     var setup = document.getElementById('ibxSetupCard');
     if (setup) setup.style.display = _IBX.accounts.length ? 'none' : '';
     _ibxTasksLoad(true);
@@ -8458,6 +8507,11 @@ async function _ibxLoad(quiet){
   } catch(e){ if (quiet !== true) _ibxMsg((e && e.message) || 'Could not load the inbox', true); }
 }
 var _IBX_CAT_BADGE = { lead:'🔥 Lead', quote_reply:'💬 Quote', supplier:'📦 Supplier', invoice:'🧾 Invoice', junk:'🗑 Junk' };
+// bg/fg pairs matching the Home board's status colours, so the whole app
+// speaks one colour language: hot orange, quote cyan, supplier amber,
+// invoice green, junk grey.
+var _IBX_CAT_COL = { lead:['#ffedd5','#ea580c'], quote_reply:['#e0f2fe','#0369a1'], supplier:['#fef3c7','#b45309'],
+  invoice:['#dcfce7','#15803d'], junk:['#f1f5f9','#64748b'] };
 function _ibxRenderList(){
   var el = document.getElementById('ibxList');
   if (!el) return;
@@ -8466,21 +8520,34 @@ function _ibxRenderList(){
     el.innerHTML = '<div style="padding:26px;font-size:12.5px;color:#94a3b8">Nothing here.</div>';
     return;
   }
+  var compact = localStorage.getItem('fr_ibx_density') === 'compact';
+  var lastSep = '';
   el.innerHTML = rows.map(function(t){
     var who = ((t.participants || [])[0] || '').split('@')[0];
-    var d = t.last_date ? new Date(t.last_date) : null;
-    var when = d ? d.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '';
+    var when = _ibxAgo(t.last_date);
     var u = t.urgency || 0;
     var badges = '';
-    if (_IBX_CAT_BADGE[t.category]) badges += '<span style="font-size:9.5px;background:#f1f5f9;border-radius:5px;padding:1px 5px;color:#334155">' + _IBX_CAT_BADGE[t.category] + '</span>';
+    if (_IBX_CAT_BADGE[t.category]){
+      var cc = _IBX_CAT_COL[t.category] || ['#f1f5f9', '#334155'];
+      badges += '<span style="font-size:9.5px;background:' + cc[0] + ';border-radius:5px;padding:1px 5px;color:' + cc[1] + ';font-weight:700">' + _IBX_CAT_BADGE[t.category] + '</span>';
+    }
     if (u >= 40) badges += '<span data-urg style="font-size:9.5px;border-radius:5px;padding:1px 5px;font-weight:800;color:#fff;background:' + (u >= 70 ? '#dc2626' : '#d97706') + '">⚡' + u + '</span>';
     if (t.job_id) badges += '<span title="Linked to a RoofMap job" style="font-size:9.5px">🔗</span>';
     if (t.ai_draft) badges += '<span title="Suggested reply waiting" style="font-size:9.5px">✨</span>';
-    return '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '">' +
+    var sep = '';
+    if (_IBX.sort === 'date' && t.last_date){
+      var lbl = _ibxDayLabel(t.last_date);
+      if (lbl !== lastSep){ lastSep = lbl; sep = '<div class="ibx-daysep">' + lbl + '</div>'; }
+    }
+    return sep + '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '">' +
+      '<div style="display:flex;gap:9px;align-items:center">' +
+      _ibxAvatar(who || t.subject, (t.participants || [])[0] || t.subject, compact ? 22 : 32) +
+      '<div style="flex:1;min-width:0">' +
       '<div style="display:flex;gap:8px;align-items:center"><div class="f" style="flex:1">' + _ibxEsc(who || t.subject) + '</div>' +
-      badges + '<div class="p">' + when + '</div></div>' +
+      badges + '<div class="p" title="' + _ibxEsc(t.last_date || '') + '">' + when + '</div></div>' +
       '<div class="s">' + _ibxEsc(t.subject || '(no subject)') + '</div>' +
-      '<div class="p">' + _ibxEsc(t.snippet || '') + (_IBX.accounts.length > 1 ? ' · ' + _ibxEsc(t.account_label || t.account_email) : '') + '</div></div>';
+      '<div class="p sn">' + _ibxEsc(t.snippet || '') + (_IBX.accounts.length > 1 ? ' · ' + _ibxEsc(t.account_label || t.account_email) : '') + '</div>' +
+      '</div></div></div>';
   }).join('');
   el.querySelectorAll('[data-ibxthread]').forEach(function(r){
     r.onclick = function(){ _ibxOpen(r.getAttribute('data-ibxthread')); };
@@ -8689,6 +8756,13 @@ function _ibxReplyGrow(t){
   t.style.height = 'auto';
   t.style.height = Math.min(t.scrollHeight + 2, Math.round(window.innerHeight * 0.45)) + 'px';
 }
+function _ibxDensityApply(){
+  var compact = localStorage.getItem('fr_ibx_density') === 'compact';
+  var l = document.getElementById('ibxList');
+  if (l) l.classList.toggle('compact', compact);
+  var b = document.getElementById('ibxDensityBtn');
+  if (b) b.textContent = compact ? '☰ Cosy view' : '▤ Compact view';
+}
 function _ibxTaskBarRender(){
   var bar = document.getElementById('ibxTaskBar'), chips = document.getElementById('ibxTaskBarChips');
   if (!bar || !chips) return;
@@ -8791,10 +8865,17 @@ function _ichatRender(){
   var el = document.getElementById('ichatMsgs');
   if (!el) return;
   var me = _ichatMe();
+  var lastDay = '';
   el.innerHTML = _ICHAT.msgs.length ? _ICHAT.msgs.map(function(m){
     var mine = m.user_id === me;
-    return '<div style="display:flex;margin-bottom:9px;justify-content:' + (mine ? 'flex-end' : 'flex-start') + '">' +
-      '<div class="ichat-bbl" style="max-width:82%;padding:8px 11px;border-radius:14px;font-size:12.5px;line-height:1.45;position:relative;' +
+    var sep = '';
+    if (m.created_at){
+      var lbl = _ibxDayLabel(m.created_at);
+      if (lbl !== lastDay){ lastDay = lbl; sep = '<div class="ichat-daysep" style="text-align:center;font-size:10.5px;font-weight:800;color:#94a3b8;margin:10px 0 8px;text-transform:uppercase;letter-spacing:.4px">' + lbl + '</div>'; }
+    }
+    return sep + '<div style="display:flex;gap:7px;margin-bottom:9px;align-items:flex-end;justify-content:' + (mine ? 'flex-end' : 'flex-start') + '">' +
+      (mine ? '' : _ibxAvatar(_ibxMemberName(m.user_id), m.user_id, 24)) +
+      '<div class="ichat-bbl" title="' + _ibxEsc(_ibxAgo(m.created_at)) + '" style="max-width:82%;padding:8px 11px;border-radius:14px;font-size:12.5px;line-height:1.45;position:relative;' +
       (mine ? 'background:#0a1628;color:#fff;border-bottom-right-radius:4px' : 'background:#fff;border:1px solid var(--border);color:#0a1628;border-bottom-left-radius:4px') + '">' +
       (mine ? '' : '<div style="font-size:10.5px;font-weight:800;color:#64748b;margin-bottom:2px">' + _ibxEsc(_ibxMemberName(m.user_id)) + '</div>') +
       '<span style="white-space:pre-wrap">' + _ibxChatFmt(m.body) + '</span>' +
@@ -8858,6 +8939,28 @@ async function _ichatTaskCreate(title, urgency, btn){
   } catch(e){ if (btn) btn.disabled = false; }
 }
 if (localStorage.getItem('fr_token')) setTimeout(_ichatBoot, 2500);
+// The side menu's Inbox button wears the unread count, refreshed on every
+// inbox load and by a slow poll while you work in other tabs.
+function _ibxNavBadge(n){
+  var b = document.getElementById('navInboxBadge');
+  if (!b){
+    var btn = document.getElementById('navInboxBtn');
+    if (!btn) return;
+    b = document.createElement('span'); b.id = 'navInboxBadge'; b.className = 'nav-badge';
+    btn.appendChild(b);
+  }
+  b.textContent = n > 99 ? '99+' : String(n);
+  b.style.display = n > 0 ? '' : 'none';
+}
+async function _ibxBadgePoll(){
+  if (!localStorage.getItem('fr_token') || !_ibxCanUse()) return;
+  try {
+    var d = await api('GET', '/inbox/threads?status=inbox');
+    _ibxNavBadge((d.threads || []).filter(function(t){ return t.unread; }).length);
+  } catch(e){ /* locked plan or signed out — no badge */ }
+}
+if (localStorage.getItem('fr_token')) setTimeout(_ibxBadgePoll, 3500);
+setInterval(function(){ if (document.body.getAttribute('data-tab') !== 'inbox') _ibxBadgePoll(); }, 180000);
 // ── chat ──
 function _ibxChatFmt(body){
   return _ibxEsc(body).replace(/(^|\s)@([\w'-]+)/g,
@@ -8906,11 +9009,18 @@ async function _ibxChatMsgsLoad(quiet){
 function _ibxChatMsgsRender(){
   var el = document.getElementById('ibxChatMsgs');
   if (!el) return;
+  var lastDay = '';
   el.innerHTML = _IBX.chat.msgs.length ? _IBX.chat.msgs.map(function(m){
-    var when = m.created_at ? new Date(m.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }) : '';
-    return '<div style="margin-bottom:10px"><div style="font-size:11px;color:#64748b"><strong style="color:#0a1628">' +
-      _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> · ' + when + '</div>' +
-      '<div style="font-size:12.5px;color:#0a1628;white-space:pre-wrap">' + _ibxChatFmt(m.body) + '</div></div>';
+    var sep = '';
+    if (m.created_at){
+      var lbl = _ibxDayLabel(m.created_at);
+      if (lbl !== lastDay){ lastDay = lbl; sep = '<div class="ibx-daysep" style="border:none;background:none;text-align:center">' + lbl + '</div>'; }
+    }
+    return sep + '<div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-start">' +
+      _ibxAvatar(_ibxMemberName(m.user_id), m.user_id, 26) +
+      '<div style="flex:1;min-width:0"><div style="font-size:11px;color:#64748b"><strong style="color:#0a1628">' +
+      _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> · ' + _ibxAgo(m.created_at) + '</div>' +
+      '<div style="font-size:12.5px;color:#0a1628;white-space:pre-wrap">' + _ibxChatFmt(m.body) + '</div></div></div>';
   }).join('') : '<div style="color:#94a3b8;font-size:12.5px;padding:20px">Nothing yet — say hi.</div>';
   el.scrollTop = el.scrollHeight;
 }
@@ -8941,8 +9051,9 @@ async function _ibxNotesLoad(threadId){
     var el = document.getElementById('ibxNotesList');
     if (!el) return;
     el.innerHTML = (d.messages || []).map(function(m){
-      return '<div style="margin-bottom:6px"><strong style="font-size:11px">' + _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> ' +
-        '<span style="font-size:12px">' + _ibxChatFmt(m.body) + '</span></div>';
+      return '<div style="margin-bottom:6px;display:flex;gap:6px;align-items:baseline">' + _ibxAvatar(_ibxMemberName(m.user_id), m.user_id, 18) +
+        '<div><strong style="font-size:11px">' + _ibxEsc(_ibxMemberName(m.user_id)) + '</strong> ' +
+        '<span style="font-size:12px">' + _ibxChatFmt(m.body) + '</span></div></div>';
     }).join('');
   } catch(e){}
 }

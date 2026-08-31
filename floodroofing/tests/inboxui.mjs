@@ -527,6 +527,42 @@ await pg.evaluate(() => _ichatSend());
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => document.getElementById('ichatSuggest').textContent);
 check('small talk raises no task prompt', !/Sounds like a task/.test(v), v.slice(0, 60));
+
+// The friendliness pass: avatars, relative times, colours, density, badge.
+v = await pg.evaluate(() => ({
+  chatAv: document.querySelectorAll('#ichatMsgs .ibx-av').length,
+  chatSep: document.querySelectorAll('#ichatMsgs .ichat-daysep').length,
+}));
+check('chat bubbles wear teammate avatars and day separators',
+  v.chatAv >= 1 && v.chatSep >= 1, JSON.stringify(v));
+await pg.evaluate(() => gotoTab('inbox'));
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => {
+  const row = document.querySelector('[data-ibxthread="t1"]');
+  const av = row.querySelector('.ibx-av');
+  const cat = row.querySelector('span[style*="255, 237, 213"], span[style*="#ffedd5"]');
+  const when = row.querySelector('.p[title]');
+  return { av: av && av.textContent, cat: !!cat, when: (when || {}).textContent || '' };
+});
+check('thread rows carry an initials avatar, a Home-coloured category chip and a relative time',
+  v.av === 'B' && v.cat && (/ago|just now|^[A-Z][a-z]{2}$/.test(v.when.trim())), JSON.stringify(v));
+v = await pg.evaluate(() => {
+  document.getElementById('ibxDensityBtn').click();
+  const list = document.getElementById('ibxList');
+  const sn = document.querySelector('[data-ibxthread="t1"] .sn');
+  return { compact: list.classList.contains('compact'), stored: localStorage.getItem('fr_ibx_density'),
+    snippetHidden: getComputedStyle(sn).display === 'none',
+    label: document.getElementById('ibxDensityBtn').textContent };
+});
+check('the density toggle compacts the rows, hides snippets and remembers the choice',
+  v.compact && v.stored === 'compact' && v.snippetHidden && /Cosy/.test(v.label), JSON.stringify(v));
+await pg.evaluate(() => document.getElementById('ibxDensityBtn').click());
+v = await pg.evaluate(() => ({
+  badge: (document.getElementById('navInboxBadge') || {}).textContent,
+  shown: !!document.getElementById('navInboxBadge') &&
+    getComputedStyle(document.getElementById('navInboxBadge')).display !== 'none',
+}));
+check('the side-menu Inbox button wears the unread count', v.badge === '1' && v.shown, JSON.stringify(v));
 await ctx.close();
 
 await b.close();
