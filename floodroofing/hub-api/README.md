@@ -52,10 +52,19 @@ Project → **Settings → Environment Variables** (Production):
 | --- | --- |
 | `SESSION_SECRET` | any long random string (keep it secret) |
 | `HUB_USERS` | `office:PICK_A_PASSWORD,manager:PICK_ANOTHER` |
+| `HUB_PM_USERS` | *(optional)* `pm` — usernames that are restricted "project managers" |
 | `CRON_SECRET` | any long random string (used by the nightly sync) |
 
 `HUB_USERS` is a comma-separated list of `username:password`. Add one per person.
 Change a password by editing this var and redeploying.
+
+**Restricted project-manager login.** List any usernames in `HUB_PM_USERS` (comma-separated) to give
+them a cut-down view: the Hub hides the **Cash** tab, **Growth** tab, **P&L** tab, **bank-account
+balances**, and all the money figures/charts on the Dashboard (revenue, GP, AR-vs-A/P, A/P-due, P&L).
+They keep Workload, Back Cost, Marketing and the workload/pipeline side of the Dashboard. Example:
+`HUB_USERS=office:ownerpw,pm:pmpassword` **and** `HUB_PM_USERS=pm`. The PM signs in on the normal login
+screen. Note this is a **cosmetic hide** — the shared data still reaches their browser, so it's an
+access-convenience barrier for a trusted employee, not a hard security boundary.
 
 ### 4. Redeploy so the vars take effect
 

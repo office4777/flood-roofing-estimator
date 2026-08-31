@@ -270,6 +270,8 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .cmd-head{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
 .cmd-head .cdot{width:9px;height:9px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(74,222,128,.18);flex:none;}
 .cmd-head .csync{margin-left:auto;font-size:.6rem;color:var(--muted);font-weight:600;letter-spacing:.3px;text-align:right;}
+/* Project-manager role: hide the money areas (cash/bank/P&L/growth) for a 'pm' login */
+body.pm-role .pm-hide{display:none!important;}
 .kpigrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
 .kpi-tap{cursor:pointer;transition:transform .1s ease,border-color .12s;}
 .kpi-tap:hover{border-color:var(--muted);}
@@ -738,26 +740,26 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="kpigrid" id="cmd-kpis"></div>
       <div class="cmd-alerts" id="cmd-alerts"></div>
     </div>
-    <div class="card">
+    <div class="card pm-hide">
       <div class="ct">Performance — charts &amp; tables <button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button></div>
       <div class="cmd-panels" id="cmd-vis"></div>
     </div>
-    <div class="card per-this">
+    <div class="card per-this pm-hide">
       <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
       <div class="mg" id="dash-summary"></div>
     </div>
 
-    <div class="sect"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
+    <div class="sect pm-hide"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
 
-    <div class="card per-this">
+    <div class="card per-this pm-hide">
       <div class="ct">This Month <span id="lbl-this" class="period-sub"></span><span id="src-this" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-this"></div>
     </div>
-    <div class="card per-3mo">
+    <div class="card per-3mo pm-hide">
       <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="roll-strip-dash"></div>
     </div>
-    <div class="card per-last acc-card">
+    <div class="card per-last acc-card pm-hide">
       <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-last"></div>
     </div>
@@ -1256,10 +1258,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   <div class="nav-i on" id="nav-dash" onclick="go('dash')"><span class="ic">📊</span>Dashboard</div>
   <div class="nav-i" id="nav-work" onclick="go('work')"><span class="ic">📅</span>Workload</div>
   <div class="nav-i" id="nav-bc" onclick="go('bc')"><span class="ic">💹</span>Back Cost</div>
-  <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
-  <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
+  <div class="nav-i pm-hide" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
+  <div class="nav-i pm-hide" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
   <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic">📣</span>Mktg</div>
-  <div class="nav-i" id="nav-cash" onclick="go('cash')"><span class="ic">💰</span>Cash</div>
+  <div class="nav-i pm-hide" id="nav-cash" onclick="go('cash')"><span class="ic">💰</span>Cash</div>
 </div>
 
 <!-- connect sheet -->
@@ -1387,7 +1389,13 @@ const S={
   set:(k,v)=>{try{localStorage.setItem('fr3_'+k,JSON.stringify(v));}catch(e){} if(window.__TEAM&&window.__TEAM.tok)teamPush();}
 };
 // ── Team mode: push the shared state (all fr3_* keys except device-local ones) to the API ──
-const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1,'fr3_rmToken':1};   // never leave this device (rmToken = personal Roofmap login)
+const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1,'fr3_rmToken':1,'fr3_hubRole':1};   // never leave this device (rmToken = personal Roofmap login; hubRole = this device's login role)
+// ── Role gate (project-manager login hides the money areas) ──
+// Cosmetic client-side hide: the PM's login still holds the shared data, but the cash/bank/P&L/growth
+// UI is hidden. Role comes from the /api/auth response and is stored device-local in fr3_hubRole.
+function isPM(){try{return (localStorage.getItem('fr3_hubRole')||'').replace(/^"|"$/g,'')==='pm';}catch(e){return false;}}
+const PM_HIDE_TABS={cash:1,growth:1,pl:1};              // tabs a project manager can't open
+const PM_HIDE_CMD={bank:1,arap:1,expap:1};             // command-centre popups a project manager can't open
 let _teamT=null;
 function teamSnapshot(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('fr3_')===0&&!TEAM_LOCAL_KEYS[k])d[k]=localStorage.getItem(k);}return d;}
 function teamPushNow(){if(!window.__TEAM||!window.__TEAM.tok)return Promise.resolve(false);
@@ -1423,13 +1431,14 @@ async function teamLogin(){
     const j=await r.json().catch(()=>({}));
     if(!r.ok||!j.token)throw new Error(j.error||('sign-in failed ('+r.status+')'));
     localStorage.setItem('fr3_hubApiUrl',api);localStorage.setItem('fr3_hubToken',j.token);
+    try{localStorage.setItem('fr3_hubRole',String(j.role||''));}catch(e){}   // 'pm' → this device hides the money areas
     sessionStorage.removeItem('teamNeedsLogin');sessionStorage.removeItem('teamSkip');sessionStorage.removeItem('teamHydrated');
     if(msg){msg.style.color='var(--success)';msg.textContent='Signed in — loading shared dashboard…';}
     setTimeout(()=>location.reload(),400);
   }catch(e){if(msg){msg.style.color='var(--danger)';msg.textContent='⚠ '+(e&&e.message||e);}if(btn){btn.disabled=false;btn.innerHTML='Sign in';}}
 }
 function teamSkip(){sessionStorage.setItem('teamSkip','1');sessionStorage.removeItem('teamNeedsLogin');teamHideLogin();}
-function teamLogout(){try{localStorage.removeItem('fr3_hubToken');}catch(e){}sessionStorage.removeItem('teamHydrated');sessionStorage.setItem('teamNeedsLogin','1');toast('Signed out of team mode.','ok');setTimeout(()=>location.reload(),300);}
+function teamLogout(){try{localStorage.removeItem('fr3_hubToken');localStorage.removeItem('fr3_hubRole');}catch(e){}sessionStorage.removeItem('teamHydrated');sessionStorage.setItem('teamNeedsLogin','1');toast('Signed out of team mode.','ok');setTimeout(()=>location.reload(),300);}
 function saveTeamApi(){
   const api=((document.getElementById('in-teamapi')||{}).value||'').trim().replace(/\/+$/,'');
   if(!api){try{localStorage.removeItem('fr3_hubApiUrl');localStorage.removeItem('fr3_hubToken');}catch(e){}window.__TEAM=null;toast('Team mode off — this device is standalone.','ok');renderTeamStatus();return;}
@@ -3954,6 +3963,7 @@ const CMD_BANK_SUFFIXES=['00','02','03'];
 function bankAcctSuffix(a){return String((a&&a.formatted_account)||'').split('-').pop().replace(/[^0-9]/g,'');}
 // One double-width tile listing ALL live bank balances, with a refresh button inside it.
 function bankCmdTiles(){
+  if(isPM())return '';   // project managers don't see bank balances
   if(!bank||!bank.accounts||!bank.accounts.length)return '';
   const fr=bankFreshness();const freshTag=fr?(fr.unknown?'':(fr.ageMin<=30?'live':fr.ago)):'';
   // Order by account-number suffix (…-00, …-01, …-02 …); accounts with no suffix fall to the end.
@@ -4040,16 +4050,16 @@ function renderCommand(){
     kbar('','Quotes sent / '+pl,'#a78bfa',snt.cur,snt.prev,snt.roll,snt.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(snt.cur,snt.roll)),'quotes')+
     kbar(convCls,'Conversion','#4ade80',conv.cur,conv.prev,conv.roll,conv.roll6,pctF,noMkt?'sync Mktg':('won ÷ sent'+arrow(conv.cur,conv.roll)),'conv')+
     kbar('','Work booked / '+pl,'#f59e0b',wksBooked.cur,wksBooked.prev,wksBooked.roll,wksBooked.roll6,wkBF,noMkt?'sync Mktg':(revHr<=0?'sync Fergus for $/hr':('wks won'+(accSel?' · '+accSel.n+' jobs':'')+arrow(wksBooked.cur,wksBooked.roll))),'won')+
-    kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK0,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
-    kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK0,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
+    (isPM()?'':kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK0,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won'))+
+    (isPM()?'':kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK0,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp'))+
     // AR vs the A/P due THIS month (supplier bills due this month + overdue) — the cash gut-check.
-    (function(){const arv=(ar!=null?ar:0);const apThis=apDueThisMonth().total;const diff=arv-apThis;
+    (function(){if(isPM())return '';const arv=(ar!=null?ar:0);const apThis=apDueThisMonth().total;const diff=arv-apThis;
       return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'arap\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
         '<div class="kv kv-cmp">AR <b class="cmp-in">'+fmtK(arv)+'</b> / <b>'+fmtK(apThis)+'</b> AP</div>'+
         '<div class="kd" style="color:'+(diff>=0?'var(--success)':'var(--danger)')+';font-weight:700;">'+(diff>=0?'+'+fmtK(diff)+' ahead':'−'+fmtK(-diff)+' short')+' this month</div></div>';})()+
     // A/P due NEXT month — actual current bills landing that month's 20th PLUS new materials likely paid
     // the same 20th. Combined here; the popup separates the two totals. This is on top of what's due this month.
-    (function(){const ax=window.__apExp;if(!ax)return '';
+    (function(){if(isPM())return '';const ax=window.__apExp;if(!ax)return '';
       const nb=apBillsDueInMonth(ax.foll.ms);const fm=num(ax.foll.mat);const comb=nb.total+fm;if(comb<=0)return '';
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
       const sub=(nb.total>0?fmtK(nb.total)+' bills':'')+((nb.total>0&&fm>0)?' + ':'')+(fm>0?fmtK(fm)+' materials':'');
@@ -4065,7 +4075,9 @@ function renderCommand(){
   if(tg)tg.innerHTML=
     '<span class="tgcol"><span class="chip'+(P==='w'?' on':'')+'" onclick="setCmdPeriod(\'w\')">Week</span><span class="chip'+(P==='m'?' on':'')+'" onclick="setCmdPeriod(\'m\')">Month</span></span>'+
     '<span class="tgcol"><span class="chip'+(off===0?' on':'')+'" onclick="setCmdOffset(0)">This '+pl+'</span><span class="chip'+(off===1?' on':'')+'" onclick="setCmdOffset(1)">Last '+pl+'</span></span>';
-  const al=document.getElementById('cmd-alerts');if(al){al.innerHTML=computeAlerts().map(x=>'<div class="alert '+x.sev+'"><span class="ai">'+(x.sev==='crit'?'!':(x.sev==='warn'?'▲':'✓'))+'</span><span>'+x.msg+'</span></div>').join('');}
+  const al=document.getElementById('cmd-alerts');if(al){let alerts=computeAlerts();
+    if(isPM())alerts=alerts.filter(x=>!/cash|A\/P|A\/R|deposit|GP|margin|profit|finance/i.test(x.msg));   // PM sees workload flags only, no money
+    al.innerHTML=alerts.map(x=>'<div class="alert '+x.sev+'"><span class="ai">'+(x.sev==='crit'?'!':(x.sev==='warn'?'▲':'✓'))+'</span><span>'+x.msg+'</span></div>').join('');}
   renderCommandVisuals();
 }
 // ── Chart hover tooltips (shared floating card + per-column hit zones on the SVGs) ──
@@ -4114,6 +4126,7 @@ function selRange(P,off){
 }
 function _dt(iso){const t=Date.parse(String(iso||'').replace(' ','T'));if(isNaN(t))return '—';const d=new Date(t);return d.getDate()+' '+FG_MONTHS[d.getMonth()]+' '+String(d.getFullYear()).slice(2);}
 function openCmdDetail(key,optMk){
+  if(isPM()&&PM_HIDE_CMD[key])return;   // project managers can't open the money popups
   ensureCmdModal();
   window.__cmdKey=key;window.__cmdMk=optMk||null;
   const P=cmdPeriod,off=cmdOffset,sel=selRange(P,off),perW=P==='w'?'week':'month';
@@ -6341,6 +6354,7 @@ try{_bcrMk=calMonthKey(-1);}catch(e){}
 // ════════ NAV ════════
 const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
 function go(p,dir){
+  if(isPM()&&PM_HIDE_TABS[p])p='dash';   // project managers can't open the money tabs
   try{closeCashDetail();}catch(e){}
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
@@ -6559,6 +6573,8 @@ function applyAccordions(){
 }
 function init(){
   applyTheme();
+  // Project-manager login: hide the money areas (cash/bank/P&L/growth) and bounce off any restricted tab.
+  if(isPM()){document.body.classList.add('pm-role');if(PM_HIDE_TABS[page])page='dash';}
   // Team mode: if a shared API is set but we're not signed in, ask for sign-in first.
   if(sessionStorage.getItem('teamNeedsLogin')==='1'&&sessionStorage.getItem('teamSkip')!=='1'){document.documentElement.style.visibility='';teamShowLogin();}
   document.getElementById('cfg-teams').value=cfg.teams;

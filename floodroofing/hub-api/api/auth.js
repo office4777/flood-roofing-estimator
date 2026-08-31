@@ -16,11 +16,17 @@ module.exports = async (req, res) => {
   });
   if (!Object.keys(users).length) return res.status(500).json({ error: 'Server not configured: HUB_USERS missing.' });
 
+  // Restricted "project manager" accounts: usernames listed in HUB_PM_USERS (comma-separated) get
+  // role 'pm' — the Hub hides the cash/bank/P&L/growth areas for them. Everyone else is 'full'.
+  // Kept separate from HUB_USERS so the first-colon password parsing above is untouched.
+  const pmUsers = new Set((process.env.HUB_PM_USERS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+
   const body = readBody(req);
   const u = String(body.user || '').trim().toLowerCase();
   const pw = String(body.pass || '');
   if (!u || !users[u] || users[u] !== pw) return res.status(401).json({ error: 'Wrong username or password.' });
 
-  const token = sign({ u, exp: Date.now() + 30 * 86400000 });
-  return res.status(200).json({ token, user: u });
+  const role = pmUsers.has(u) ? 'pm' : 'full';
+  const token = sign({ u, role, exp: Date.now() + 30 * 86400000 });
+  return res.status(200).json({ token, user: u, role });
 };
