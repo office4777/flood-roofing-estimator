@@ -60,6 +60,13 @@ globalThis.__TEST_MAIL_JSON = true;
 const AI = { calls: [] };
 globalThis.__TEST_AI = async (opts) => {
   AI.calls.push(opts.model);
+  if (/office assistant/.test(opts.system || '')){
+    if (/set task|task for/i.test(opts.prompt))
+      return '{"action":"task","title":"Check over job #3099","assignee_name":"user-a2","urgency":45}';
+    if (/email/i.test(opts.prompt))
+      return '{"action":"email","to":"Steel Supplier <sales@supplier.co.nz>","subject":"Colour selection — job 3342","body":"Hi Suzie,\\n\\nCould you send through your colour selection for job 3342?\\n\\nFlood Roofing"}';
+    return '{"action":"unknown","note":"I can set tasks and draft emails so far."}';
+  }
   if (/You draft whole emails/.test(opts.system || ''))
     return '{"to":"Steel Supplier <sales@supplier.co.nz>","subject":"Delivery update — job 3057","body":"Hi,\\n\\nCould you give us an update on the delivery for job 3057?\\n\\nFlood Roofing"}';
   if (/You spot tasks/.test(opts.system || ''))
@@ -416,6 +423,28 @@ check('an instruction drafts the whole email — recipient resolved to a bare ad
   JSON.stringify(body).slice(0, 120));
 r = await as(A, '/inbox/ai-compose', { method: 'POST', body: JSON.stringify({ instruction: '' }) });
 check('an empty instruction is refused, not sent to the AI', r.status === 400);
+
+// ── the AI Assistant: one instruction becomes an action ───────────
+r = await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'set task for user-a2 to check over job #3099' }) });
+body = await j(r);
+check('"set task for…" creates the task, assigned to the named teammate',
+  r.status === 200 && body.action === 'task' && body.task &&
+  body.task.assignee_user_id === A2.user && /3099/.test(body.task.title) && body.task.urgency === 45,
+  JSON.stringify(body.task || {}).slice(0, 110));
+body = await j(await as(A2, '/inbox/tasks'));
+check('…and it lands on the real board', (body.tasks || []).some(t => /3099/.test(t.title)));
+r = await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'email suzie from job number #3342 and ask for her colour selection' }) });
+body = await j(r);
+check('"email…" hands back a draft — never a send',
+  r.status === 200 && body.action === 'email' && body.to === 'sales@supplier.co.nz' &&
+  /3342/.test(body.subject) && /colour selection/i.test(body.body), JSON.stringify(body).slice(0, 120));
+r = await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'what is the weather like' }) });
+body = await j(r);
+check('anything else gets an honest note about what it can do',
+  r.status === 200 && body.action === 'unknown' && /tasks and draft emails/i.test(body.note), JSON.stringify(body));
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

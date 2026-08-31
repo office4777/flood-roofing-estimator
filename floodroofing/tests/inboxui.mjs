@@ -126,6 +126,15 @@ async function boot(opts){
       calls.push(['reply', JSON.parse(r.request().postData() || '{}')]);
       return json({ ok: true, message: {} });
     }
+    if (/\/inbox\/assistant$/.test(u) && m === 'POST'){
+      const ab = JSON.parse(r.request().postData() || '{}');
+      calls.push(['assistant', ab]);
+      return json(/task/i.test(ab.instruction || '')
+        ? { action: 'task', task: { id: 'tk7', title: 'Check over job #3099', assignee_user_id: 'u2',
+            urgency: 45, done: false, personal: false, thread_id: null, job_id: null } }
+        : { action: 'email', to: 'suzie@customer.co.nz', subject: 'Colour selection — job 3342',
+            body: 'Hi Suzie,\n\nCould you send through your colour selection for job 3342?\n\nFlood Roofing' });
+    }
     if (/\/inbox\/ai-compose$/.test(u) && m === 'POST'){
       calls.push(['aicompose', JSON.parse(r.request().postData() || '{}')]);
       return json({ to: 'steve@roofingindustries.co.nz', subject: 'Delivery update — job 3057',
@@ -620,6 +629,43 @@ v = await pg.evaluate(() => ({
 check('one instruction fills To, Subject and the whole draft — nothing sends itself',
   !!calls.find(c => c[0] === 'aicompose') && v.to === 'steve@roofingindustries.co.nz' &&
   /3057/.test(v.subject) && /Hi Steve/.test(v.body) && /read it over/i.test(v.note), JSON.stringify(v).slice(0, 140));
+await pg.evaluate(() => _ibxComposeClose());
+
+// ── the ✨ AI Assistant: words in, work out ────────────────────────
+v = await pg.evaluate(() => ({
+  launch: !!document.getElementById('iaiLaunch'),
+  mic: !!document.getElementById('iaiMic'),
+  placeholder: (document.getElementById('iaiAsk') || {}).placeholder,
+}));
+check('the AI Assistant button exists with a mic and its "Give me a task…" box',
+  v.launch && v.mic && /Give me a task/.test(v.placeholder), JSON.stringify(v));
+await pg.evaluate(() => { if (!_IAI.open) _iaiToggle(); });
+await pg.waitForTimeout(200);
+calls.length = 0;
+await pg.fill('#iaiAsk', 'set task for lizzie to check over job #3099');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  out: document.getElementById('iaiOut').textContent,
+  onStrip: [...document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip')].some(c => /3099/.test(c.textContent)),
+}));
+check('"set task for…" creates the task and says who got it — straight onto the strip',
+  !!calls.find(c => c[0] === 'assistant') && /Task created/.test(v.out) && /Lizzie/.test(v.out) && v.onStrip,
+  JSON.stringify(v).slice(0, 140));
+calls.length = 0;
+await pg.fill('#iaiAsk', 'email suzie from job number #3342 and ask for her colour selection');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  modal: getComputedStyle(document.getElementById('ibxComposeModal')).display !== 'none',
+  to: document.getElementById('ibxCTo').value,
+  subject: document.getElementById('ibxCSubject').value,
+  body: document.getElementById('ibxCBody').value,
+  out: document.getElementById('iaiOut').textContent,
+}));
+check('"email…" opens compose with the whole draft filled — a person still presses Send',
+  v.modal && v.to === 'suzie@customer.co.nz' && /3342/.test(v.subject) && /Hi Suzie/.test(v.body) &&
+  /Draft ready/.test(v.out), JSON.stringify({ to: v.to, s: v.subject }).slice(0, 110));
 await ctx.close();
 
 await b.close();

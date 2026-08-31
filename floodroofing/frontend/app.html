@@ -8932,6 +8932,8 @@ async function _ichatBoot(){
     if (!_ICHAT.sel) _ICHAT.sel = (_ICHAT.channels[0] || {}).id || null;
     _ichatBuild();
     document.getElementById('ichatLaunch').style.display = '';
+    _iaiBuild();
+    document.getElementById('iaiLaunch').style.display = '';
   } catch(e){ /* not signed in or not on Business — no bubble */ }
 }
 function _ichatToggle(){
@@ -9034,6 +9036,94 @@ async function _ichatTaskCreate(title, urgency, btn){
       setTimeout(function(){ el.style.display = 'none'; }, 4000);
     }
   } catch(e){ if (btn) btn.disabled = false; }
+}
+// ── the AI Assistant: one box that turns words into work ──
+var _IAI = { built: false, open: false, mic: null };
+function _iaiBuild(){
+  if (_IAI.built) return; _IAI.built = true;
+  var host = document.createElement('div'); host.id = 'iaiHost'; host.className = 'no-print';
+  host.innerHTML =
+    '<button id="iaiLaunch" onclick="_iaiToggle()" title="AI Assistant — tell it what you need" style="display:none;position:fixed;right:20px;bottom:152px;z-index:98990;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#0369a1);color:#fff;border:none;box-shadow:0 6px 20px rgba(124,58,237,.35);cursor:pointer;font-size:21px">✨</button>' +
+    '<div id="iaiPanel" style="display:none;position:fixed;right:20px;bottom:152px;z-index:98992;width:min(400px,94vw);background:#fff;border-radius:16px;box-shadow:0 18px 60px rgba(10,22,40,.32);flex-direction:column;overflow:hidden">' +
+      '<div style="background:linear-gradient(135deg,#7c3aed,#0369a1);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px">' +
+        '<strong style="font-size:13px;flex:1">✨ AI Assistant</strong>' +
+        '<button onclick="_iaiToggle()" style="background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px">✕</button>' +
+      '</div>' +
+      '<div id="iaiOut" style="padding:12px 14px;font-size:12.5px;color:#0a1628;line-height:1.55;max-height:40vh;overflow-y:auto">' +
+        'Tell me what you need — typed or spoken. Things I can do:<br>' +
+        '<span style="color:#64748b">• "set a task for Ethan to check over job #3099"<br>• "email Suzie from job #3342 and ask for her colour selection"</span>' +
+      '</div>' +
+      '<div style="padding:9px 10px;border-top:1px solid var(--border);display:flex;gap:7px;background:#fff">' +
+        '<button id="iaiMic" onclick="_iaiMicToggle()" title="Speak it" style="border:1px solid var(--border);background:#fff;border-radius:50%;width:38px;height:38px;cursor:pointer;font-size:15px;flex:0 0 auto">🎙</button>' +
+        '<input type="text" id="iaiAsk" placeholder="Give me a task…" style="flex:1;min-width:0;padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12.5px">' +
+        '<button id="iaiGo" onclick="_iaiGo()" style="background:#0a1628;color:#fff;border:none;border-radius:10px;padding:0 15px;cursor:pointer;font-size:14px;font-weight:700;flex:0 0 auto">➤</button>' +
+      '</div></div>';
+  document.body.appendChild(host);
+  document.getElementById('iaiAsk').addEventListener('keydown', function(ev){ if (ev.key === 'Enter') _iaiGo(); });
+}
+function _iaiToggle(){
+  if (!_IAI.built) return;
+  _IAI.open = !_IAI.open;
+  document.getElementById('iaiPanel').style.display = _IAI.open ? 'flex' : 'none';
+  document.getElementById('iaiLaunch').style.display = _IAI.open ? 'none' : '';
+  if (_IAI.open) setTimeout(function(){ var i = document.getElementById('iaiAsk'); if (i) i.focus(); }, 60);
+}
+function _iaiMicToggle(){
+  var btn = document.getElementById('iaiMic'), inp = document.getElementById('iaiAsk');
+  if (_IAI.mic){ try { _IAI.mic.stop(); } catch(e){} return; }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ _iaiSay('Voice input needs Chrome, Edge or Safari — typing works everywhere.', true); return; }
+  var r = new SR();
+  r.lang = 'en-NZ'; r.interimResults = true; r.continuous = false;
+  btn.textContent = '⏺'; btn.style.background = '#fee2e2'; btn.title = 'Listening — click to stop';
+  r.onresult = function(ev){
+    var t = '';
+    for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+    inp.value = t;
+  };
+  r.onend = function(){
+    _IAI.mic = null;
+    btn.textContent = '🎙'; btn.style.background = '#fff'; btn.title = 'Speak it';
+    if ((inp.value || '').trim()) _iaiGo();
+  };
+  r.onerror = function(){ _IAI.mic = null; btn.textContent = '🎙'; btn.style.background = '#fff'; };
+  _IAI.mic = r; r.start();
+}
+function _iaiSay(html, bad){
+  var out = document.getElementById('iaiOut');
+  if (!out) return;
+  out.innerHTML += '<div style="margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9;' + (bad ? 'color:#b91c1c' : '') + '">' + html + '</div>';
+  out.scrollTop = out.scrollHeight;
+}
+async function _iaiGo(){
+  var inp = document.getElementById('iaiAsk'), go = document.getElementById('iaiGo');
+  var instruction = (inp.value || '').trim();
+  if (!instruction) return;
+  go.disabled = true; go.textContent = '…';
+  _iaiSay('<span style="color:#64748b">“' + _ibxEsc(instruction) + '”</span>');
+  try {
+    var d = await api('POST', '/inbox/assistant', { instruction: instruction });
+    if (d.action === 'task' && d.task){
+      _IBX.tasks.unshift(d.task);
+      _ibxTaskBarRender(); try { _ibxMyRender(); } catch(e){}
+      _iaiSay('✓ Task created — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
+        (d.task.assignee_user_id ? ', assigned to <strong>' + _ibxEsc(_ibxMemberName(d.task.assignee_user_id)) + '</strong>' : '') +
+        '. It\'s on the task strip in the Inbox.');
+      inp.value = '';
+    } else if (d.action === 'email'){
+      if (!_IBX.accounts.length){ try { await _ibxLoad(true); } catch(e){} }
+      try { gotoTab('inbox'); } catch(e){}
+      _ibxComposeOpen();
+      if (d.to) document.getElementById('ibxCTo').value = d.to;
+      if (d.subject) document.getElementById('ibxCSubject').value = d.subject;
+      if (d.body) document.getElementById('ibxCBody').value = d.body;
+      _iaiSay('✉ Draft ready in the compose window' + (d.to ? '' : ' — I couldn\'t match a contact, so fill in To yourself') + '. Read it over, then Send.');
+      inp.value = '';
+    } else {
+      _iaiSay(_ibxEsc(d.note || 'So far I can set tasks and draft emails.'));
+    }
+  } catch(e){ _iaiSay(_ibxEsc((e && e.message) || 'Could not work that one out'), true); }
+  go.disabled = false; go.textContent = '➤';
 }
 if (localStorage.getItem('fr_token')) setTimeout(_ichatBoot, 2500);
 // The side menu's Inbox button wears the unread count, refreshed on every

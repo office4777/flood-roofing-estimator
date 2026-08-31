@@ -4365,6 +4365,61 @@ app.post('/inbox/ai-compose', ..._inboxGate, async (req, res) => {
     });
   } catch (e) { res.status(500).json({ error: 'Could not draft that — try wording it differently' }); }
 });
+// The AI Assistant: one instruction, typed or spoken, becomes an action.
+// "set task for Ethan to check over job #3099" creates the task; "email
+// Suzie about her colour selection" hands back a draft the person then
+// sends. Everything visible, nothing irreversible without a human click —
+// tasks are editable, emails only ever land in the compose window.
+app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
+  if (!_inboxAIOn()) return res.status(400).json({ error: 'AI is not configured — add ANTHROPIC_API_KEY on the server first' });
+  const instruction = String((req.body || {}).instruction || '').trim().slice(0, 2000);
+  if (!instruction) return res.status(400).json({ error: 'Say what you need first' });
+  try {
+    const company = await _inboxCompanyName(req.companyId);
+    const members = await _inboxMembers(req);
+    let contacts = [];
+    try {
+      const { data } = await _scopeCompany(supabase.from('mail_messages').select('from_addr, from_name'), req).limit(800);
+      const seen = {};
+      (data || []).forEach(m => {
+        const a = String(m.from_addr || '').toLowerCase();
+        if (a && !seen[a]) { seen[a] = 1; contacts.push(((m.from_name || '').trim() || a.split('@')[0]) + ' <' + a + '>'); }
+      });
+    } catch (e) { /* no mail history yet */ }
+    const sys = 'You are the office assistant for ' + company + ', a New Zealand roofing company. Turn ONE spoken or ' +
+      'typed instruction into an action. Reply ONLY with JSON in exactly one of these shapes:\n' +
+      '{"action":"task","title":"<imperative, carry job numbers through>","assignee_name":"<a name from the team list, or empty>","urgency":0-100}\n' +
+      '{"action":"email","to":"<an address from the known contacts, or empty if nobody plausibly matches>","subject":"","body":""}\n' +
+      '{"action":"unknown","note":"<one friendly line saying you can set tasks and draft emails>"}\n' +
+      'Email bodies: plain text, short, warm, practical; never invent prices or commitments; sign off with:\n' + company;
+    const text = await _inboxAI({ model: 'claude-sonnet-5', max_tokens: 700, system: sys,
+      prompt: 'Team:\n' + members.map(m => (m.name || m.email || m.id)).join('\n') +
+        '\n\nKnown contacts:\n' + contacts.slice(0, 150).join('\n') + '\n\nInstruction: ' + instruction });
+    const jm = String(text).match(/\{[\s\S]*\}/);
+    const ai = jm ? JSON.parse(jm[0]) : {};
+    if (ai.action === 'task' && ai.title) {
+      const nm = String(ai.assignee_name || '').trim().toLowerCase();
+      const hit = nm && members.find(m => String(m.name || '').toLowerCase().includes(nm) ||
+        String(m.email || '').toLowerCase().startsWith(nm) || m.id === ai.assignee_name);
+      const task = await _inboxTaskCreate(req, {
+        title: String(ai.title).slice(0, 300),
+        urgency: (ai.urgency === undefined ? undefined : Math.max(0, Math.min(100, parseInt(ai.urgency, 10) || 0))),
+        assignee_user_id: hit ? hit.id : undefined,
+      }, instruction);
+      return res.json({ action: 'task', task });
+    }
+    if (ai.action === 'email') {
+      const to = String(ai.to || '').trim();
+      const addr = (to.match(/<([^>]+)>/) || [])[1] || to;
+      return res.json({ action: 'email',
+        to: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr) ? addr.toLowerCase() : '',
+        subject: String(ai.subject || '').slice(0, 200),
+        body: String(ai.body || '').slice(0, 8000) });
+    }
+    res.json({ action: 'unknown',
+      note: String((ai && ai.note) || 'So far I can set tasks and draft emails — try "set a task for…" or "email…"').slice(0, 300) });
+  } catch (e) { res.status(500).json({ error: 'Could not work that one out — try wording it differently' }); }
+});
 const _COMMS_TASK_WRITABLE = ['title', 'notes', 'due_date', 'assignee_user_id', 'done', 'urgency', 'job_id'];
 app.patch('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
   const patch = {};
