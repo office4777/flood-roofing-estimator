@@ -53397,6 +53397,91 @@ function _roofRemoveSmallTabs(outline){
   }
   return _roofSimplifyOutline(out, 18);   // merge the now-collinear carrier points
 }
+// Straighten a straight-skeleton result on a square-walled footprint.
+//
+// On a building whose walls are all square to each other, a ridge lies
+// between two parallel walls and so runs parallel to them: it cannot slope.
+// A ridge that comes out of the solver falling a few pixels over its length,
+// or two junctions sitting a few pixels apart where the roof has one, is
+// accumulated arithmetic — not roof. It draws as a kinked ridge and a spike
+// hanging off the hips, which is what the H-shaped house in the feedback
+// report showed: a ridge dropping 4px across 610px, and three junctions
+// inside 10px of each other.
+//
+// Deliberately does nothing to a footprint with an angled wall, where a
+// sloping ridge is real and must be left alone. Tolerances scale with the
+// building so this cannot weld away a genuine feature on a small roof.
+function _skelSnapRectilinear(outline, lines){
+  if (!outline || outline.length < 4 || !lines || !lines.length) return lines;
+  var i, j, n = outline.length;
+  var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (i = 0; i < n; i++){
+    var a = outline[i], b = outline[(i + 1) % n];
+    if (Math.abs(b[0] - a[0]) > 1.5 && Math.abs(b[1] - a[1]) > 1.5) return lines;   // angled wall
+    if (a[0] < x0) x0 = a[0];
+    if (a[0] > x1) x1 = a[0];
+    if (a[1] < y0) y0 = a[1];
+    if (a[1] > y1) y1 = a[1];
+  }
+  var TOL = Math.max(2, 0.012 * Math.min(x1 - x0, y1 - y0));
+
+  // 1. Level the ridges that are within a whisker of level already.
+  lines.forEach(function(l){
+    if (l.type !== 'ridge') return;
+    var dx = l.pts[1][0] - l.pts[0][0], dy = l.pts[1][1] - l.pts[0][1];
+    if (Math.abs(dy) <= TOL && Math.abs(dx) > Math.abs(dy)){
+      var my = (l.pts[0][1] + l.pts[1][1]) / 2; l.pts[0][1] = my; l.pts[1][1] = my;
+    } else if (Math.abs(dx) <= TOL && Math.abs(dy) > Math.abs(dx)){
+      var mx = (l.pts[0][0] + l.pts[1][0]) / 2; l.pts[0][0] = mx; l.pts[1][0] = mx;
+    }
+  });
+
+  // 2. Weld the endpoints that the roof has as one junction. A ridge end
+  //    anchors its cluster: step 1 just put it where it belongs, and pulling
+  //    it to a cluster average would tilt the ridge straight back over.
+  var ends = [];
+  lines.forEach(function(l){
+    ends.push({ p: l.pts[0], ridge: l.type === 'ridge' });
+    ends.push({ p: l.pts[1], ridge: l.type === 'ridge' });
+  });
+  var done = [];
+  for (i = 0; i < ends.length; i++){
+    if (done[i]) continue;
+    var group = [i]; done[i] = 1;
+    for (j = i + 1; j < ends.length; j++){
+      if (done[j]) continue;
+      if (Math.hypot(ends[j].p[0] - ends[i].p[0], ends[j].p[1] - ends[i].p[1]) <= TOL){ group.push(j); done[j] = 1; }
+    }
+    if (group.length < 2) continue;
+    var ax = null, ay = null, sx = 0, sy = 0;
+    group.forEach(function(k){
+      sx += ends[k].p[0]; sy += ends[k].p[1];
+      if (ax === null && ends[k].ridge){ ax = ends[k].p[0]; ay = ends[k].p[1]; }
+    });
+    var tx = ax === null ? sx / group.length : ax, ty = ax === null ? sy / group.length : ay;
+    group.forEach(function(k){ ends[k].p[0] = tx; ends[k].p[1] = ty; });
+  }
+
+  // 3. Welding can leave two lines running between the same pair of points —
+  //    a spur with no width, which draws as a spike hanging off the roof.
+  //    Both halves go, along with anything that has shrunk to a dot.
+  var key = function(l){
+    var p = [Math.round(l.pts[0][0]), Math.round(l.pts[0][1])], q = [Math.round(l.pts[1][0]), Math.round(l.pts[1][1])];
+    return (p[0] < q[0] || (p[0] === q[0] && p[1] <= q[1])) ? p.concat(q).join(',') : q.concat(p).join(',');
+  };
+  var count = {};
+  lines.forEach(function(l){
+    if (Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]) <= TOL) return;
+    var k = key(l); count[k] = (count[k] || 0) + 1;
+  });
+  var keep = lines.filter(function(l){
+    if (Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]) <= TOL) return false;
+    return count[key(l)] === 1;
+  });
+  if (keep.length !== lines.length){ lines.length = 0; Array.prototype.push.apply(lines, keep); }
+  return lines;
+}
+
 function buildHipValleyLines(outline) {
   outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);
@@ -53686,6 +53771,9 @@ function buildHipValleyLines(outline) {
       });
     });
   })();
+  // Square-walled buildings get their ridges levelled and their junctions
+  // welded before anyone sees them — see _skelSnapRectilinear above.
+  _skelSnapRectilinear(outline, result);
   return result;
 }
 
