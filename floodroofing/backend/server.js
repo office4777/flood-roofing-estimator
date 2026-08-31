@@ -119,7 +119,14 @@ function isAllowedOrigin(origin) {
   try {
     var host = new URL(origin).hostname;
     if (host.endsWith('.vercel.app')) {
-      return VERCEL_PROJECT_PREFIXES.some(function(p){ return host.startsWith(p); });
+      // Anchor previews to our own Vercel team slug — a bare prefix check
+      // trusts anyone's project named flood-roofing-estimator-anything.
+      var slug = process.env.VERCEL_TEAM_SLUG || 'office4777s-projects';
+      return VERCEL_PROJECT_PREFIXES.some(function(p){
+        if (host === p + '.vercel.app') return true;               // prod alias
+        return host.startsWith(p + '-') &&                          // this project's previews
+               host.endsWith('-' + slug + '.vercel.app');
+      });
     }
     // The office app and the customer-facing quote are served from these,
     // then call this backend cross-origin — apex and any subdomain.
@@ -6248,7 +6255,10 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
     // Absolute URL — SSRF guard: host must be a Fergus (sub)domain.
     let parsed;
     try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'invalid url' }); }
-    if (!parsed.host.endsWith(allowedHostSuffix)) {
+    // hostname (no port), exact match or a true subdomain — endsWith alone
+    // accepts attacker-registerable lookalikes like notfergus.com.
+    const h = parsed.hostname;
+    if (h !== allowedHostSuffix && !h.endsWith('.' + allowedHostSuffix)) {
       return res.status(403).json({ error: 'host not allowed', host: parsed.host, allowedSuffix: allowedHostSuffix });
     }
     fetchUrl = url;
@@ -7190,11 +7200,22 @@ app.get('/admin/waitlist/:id/invite', async (req, res) => {
 
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
-  if (!url || !url.startsWith('https://api.mapbox.com')) return res.status(400).end();
+  // SSRF guard: parse and exact-match the hostname — a prefix check on the
+  // raw string passes api.mapbox.com.evil.com and api.mapbox.com@evil.com.
+  let _u;
+  try { _u = new URL(String(url || '')); } catch { return res.status(400).end(); }
+  if (_u.protocol !== 'https:' || _u.hostname !== 'api.mapbox.com') return res.status(400).end();
+  const MAX_PROXY_BYTES = 10 * 1024 * 1024;
   const chunks = [];
+  let total = 0;
   https.get(url, (imgRes) => {
-    imgRes.on('data', c => chunks.push(c));
+    imgRes.on('data', c => {
+      total += c.length;
+      if (total > MAX_PROXY_BYTES) { imgRes.destroy(); res.status(502).end(); return; }
+      chunks.push(c);
+    });
     imgRes.on('end', () => {
+      if (total > MAX_PROXY_BYTES) return;
       res.set('Content-Type', imgRes.headers['content-type'] || 'image/jpeg');
       res.set('Access-Control-Allow-Origin', '*');
       res.send(Buffer.concat(chunks));

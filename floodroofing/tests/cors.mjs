@@ -41,8 +41,16 @@ for (const o of [
 check('the existing Flood Roofing domain still works', await allowed('https://quote.floodroofing.co.nz'));
 check('…and so does the Vercel production alias', await allowed('https://flood-roofing-estimator.vercel.app'));
 
+check('…and this project\'s own branch previews',
+  await allowed('https://flood-roofing-estimator-git-main-office4777s-projects.vercel.app'));
+
 // and it is still not an open door
-for (const o of ['https://roofmap.co.nz.attacker.com', 'https://notroofmap.co.nz', 'https://evil.com', 'https://someone-else.vercel.app'])
+for (const o of ['https://roofmap.co.nz.attacker.com', 'https://notroofmap.co.nz', 'https://evil.com', 'https://someone-else.vercel.app',
+  // an attacker's own Vercel project named to share our prefix — its prod
+  // alias and its preview host both start with the prefix but carry the
+  // attacker's team slug, not ours
+  'https://flood-roofing-estimator-evil.vercel.app',
+  'https://flood-roofing-estimator-git-main-attackers-projects.vercel.app'])
   check('still refuses ' + o, !(await allowed(o)));
 
 // A business that points its OWN domain at the app serves the customer quote

@@ -113,6 +113,21 @@ check('…and keep the share token out of a cross-origin Referer',
 check('…and ask browsers to stay on HTTPS',
   /max-age=\d+/.test((hdr('Strict-Transport-Security') || {}).value || ''));
 
+// ── /proxy-image is a proxy for Mapbox, not for the internet ─────
+// The old guard was a prefix check on the raw URL string, so a hostname
+// that merely STARTS with api.mapbox.com sailed through. Every one of
+// these must be refused before any upstream request is made.
+for (const u of [
+  'https://api.mapbox.com.attacker.com/styles/v1/x',   // suffix trick
+  'https://api.mapbox.com@attacker.com/x',             // userinfo trick
+  'http://api.mapbox.com/x',                           // protocol downgrade
+  'https://evil.com/api.mapbox.com',                   // host swap
+  'not a url at all',
+]) {
+  const r = await fetch(BASE + '/proxy-image?url=' + encodeURIComponent(u));
+  check('/proxy-image refuses ' + u, r.status === 400, 'status ' + r.status);
+}
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

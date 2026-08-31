@@ -115,6 +115,18 @@ check('…and does not wipe the stored Fergus key',
 r = await as(B, '/fergus/jobs?pageSize=5');
 check('…so the connection still stands', r.status === 502, 'status ' + r.status);
 
+// ── the download proxy never carries the key off Fergus ───────────
+// endsWith on the raw host let attacker-registerable lookalikes through
+// (notfergus.com ends with fergus.com). Only the exact allowed host or a
+// dot-separated subdomain of it may ever see the key.
+r = await as(B, '/fergus-files/download?url=' + encodeURIComponent('https://attacker.com/steal'));
+check('an unrelated host never sees the key', r.status === 403, 'status ' + r.status);
+r = await as(B, '/fergus-files/download?url=' + encodeURIComponent('https://127.0.0.1.attacker.com/steal'));
+check('…nor does a host that merely CONTAINS the allowed one', r.status === 403, 'status ' + r.status);
+r = await as(B, '/fergus-files/download?url=' + encodeURIComponent('https://127.0.0.1:1/x'));
+check('…while the exact allowed host still passes the guard (502 — nothing listens)',
+  r.status === 502, 'status ' + r.status);
+
 // ── clearing the field is how you disconnect — that must still work ──
 r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
   branding: { company_name: 'John Doe Roofing' },
