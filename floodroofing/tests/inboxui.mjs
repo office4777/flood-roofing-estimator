@@ -87,8 +87,11 @@ async function boot(opts){
     }
     if (/\/inbox\/chat\/messages\?/.test(u) && m === 'GET'){ return json({ messages: [] }); }
     if (/\/inbox\/chat\/messages$/.test(u) && m === 'POST'){
-      calls.push(['chatpost', JSON.parse(r.request().postData() || '{}')]);
-      return json({ ok: true });
+      const pb = JSON.parse(r.request().postData() || '{}');
+      calls.push(['chatpost', pb]);
+      return json(/order/i.test(pb.body || '')
+        ? { ok: true, task_suggest: { title: 'Order the Modspace flashings', urgency: 65 } }
+        : { ok: true });
     }
     if (/\/inbox\/tasks$/.test(u) && m === 'GET'){
       return json({ tasks: data.tasks, members: data.members, ai_enabled: true });
@@ -451,6 +454,79 @@ v = await pg.evaluate(() => ({
 }));
 check('a plan without the inbox sees the Business teaser', v.teaser && v.wrap && /Business/.test(v.text));
 check('…and never asks the server for mail', !calls.some(c => c[0] === 'GET threads'), JSON.stringify(calls));
+v = await pg.evaluate(() => !document.getElementById('ichatLaunch'));
+check('…and gets no Internal chat bubble either', v === true);
+await ctx.close();
+
+// ── the roomy reply box, the task strip, and Internal chat ────────
+({ ctx, pg, calls } = await boot());
+await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => {
+  const t = document.getElementById('ibxReplyBody');
+  const h0 = t.getBoundingClientRect().height;
+  t.value = 'line\n'.repeat(40); _ibxReplyGrow(t);
+  const h1 = t.getBoundingClientRect().height;
+  return { h0, h1, capped: h1 <= window.innerHeight * 0.5 };
+});
+check('the reply box opens roomy and grows with what you type',
+  v.h0 >= 140 && v.h1 > v.h0 && v.capped, JSON.stringify(v));
+
+v = await pg.evaluate(() => ({
+  bar: getComputedStyle(document.getElementById('ibxTaskBar')).display !== 'none',
+  chips: document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip').length,
+  count: document.getElementById('ibxTaskBarCount').textContent,
+}));
+check('open tasks ride a pinned strip at the top of the tab',
+  v.bar && v.chips === 2 && /2 open/.test(v.count), JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('#ibxTaskBarChips [data-tbdone]').click());
+await pg.waitForTimeout(250);
+let done = calls.find(c => String(c[0]).indexOf('PATCH task') === 0);
+v = await pg.evaluate(() => document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip').length);
+check('✓ on a strip chip marks the task done', v === 1 && !!done && done[1].done === true, JSON.stringify(done));
+
+// Internal chat floats on every tab, not just the Inbox.
+await pg.evaluate(() => gotoTab('home'));
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => !!document.getElementById('ichatLaunch') &&
+  getComputedStyle(document.getElementById('ichatLaunch')).display !== 'none');
+check('the Internal chat bubble follows you off the Inbox tab', v === true);
+await pg.evaluate(() => _ichatToggle());
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  open: getComputedStyle(document.getElementById('ichatPanel')).display !== 'none',
+  msgs: /Morning —/.test(document.getElementById('ichatMsgs').textContent),
+  name: /Aron/.test(document.getElementById('ichatMsgs').textContent),
+  chans: document.querySelectorAll('#ichatChan option').length,
+  taskBtns: document.querySelectorAll('#ichatMsgs [data-ichattask]').length,
+}));
+check('the messenger opens on the team room — names, channels, a make-task button on every message',
+  v.open && v.msgs && v.name && v.chans === 2 && v.taskBtns === 2, JSON.stringify(v));
+
+// A task-shaped message: the AI asks, a person decides.
+await pg.fill('#ichatInput', 'Can someone order the Modspace flashings before Thursday?');
+await pg.evaluate(() => _ichatSend());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  sug: getComputedStyle(document.getElementById('ichatSuggest')).display !== 'none',
+  text: document.getElementById('ichatSuggest').textContent,
+  urg: (document.getElementById('ichatSugUrg') || {}).value,
+}));
+check('the AI spots the task and asks first — urgency picker preset from its score',
+  v.sug && /Sounds like a task/.test(v.text) && /Modspace/.test(v.text) && v.urg === '50', JSON.stringify({ u: v.urg }));
+calls.length = 0;
+await pg.evaluate(() => _ichatSuggestGo(document.querySelector('#ichatSuggest [data-title]')));
+await pg.waitForTimeout(300);
+nt = calls.find(c => c[0] === 'newtask');
+v = await pg.evaluate(() => document.getElementById('ichatSuggest').textContent);
+check('accepting creates the task at the chosen urgency and says who got it',
+  !!nt && /Modspace/.test(nt[1].title) && nt[1].urgency === 50 && /Task created/.test(v) && /Lizzie/.test(v),
+  JSON.stringify(nt));
+await pg.fill('#ichatInput', 'Sweet as, see everyone at smoko.');
+await pg.evaluate(() => _ichatSend());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => document.getElementById('ichatSuggest').textContent);
+check('small talk raises no task prompt', !/Sounds like a task/.test(v), v.slice(0, 60));
 await ctx.close();
 
 await b.close();

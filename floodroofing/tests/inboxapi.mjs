@@ -60,6 +60,10 @@ globalThis.__TEST_MAIL_JSON = true;
 const AI = { calls: [] };
 globalThis.__TEST_AI = async (opts) => {
   AI.calls.push(opts.model);
+  if (/You spot tasks/.test(opts.system || ''))
+    return /order|chase|book/i.test(opts.prompt)
+      ? '{"is_task":true,"title":"Order the Modspace flashings","urgency":65}'
+      : '{"is_task":false}';
   if (/You assign/.test(opts.system || '')) return '{"assignee_id":"user-a2","urgency":77}';
   if (/You triage/.test(opts.system || '')){
     if (/FR-2996/.test(opts.prompt)) return '{"category":"quote_reply","urgency":80,"job_ref":"FR-2996"}';
@@ -280,6 +284,28 @@ body = await j(r);
 check('new channels strip the # and stick', r.status === 200 && body.name === 'jobs');
 r = await as(A, '/inbox/chat/channels/' + body.id, { method: 'PATCH', body: JSON.stringify({ name: 'site-crew' }) });
 check('…and rename', r.status === 200 && (await j(r)).name === 'site-crew');
+
+// The AI reads the room: a message that IS a task comes back with a
+// suggestion the sender can accept — never an auto-created task.
+r = await as(A, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({
+  channel_id: general.id, body: 'Can someone order the Modspace flashings before Thursday?' }) });
+body = await j(r);
+check('a task-shaped chat message carries a task suggestion',
+  r.status === 200 && body.task_suggest && /Modspace/.test(body.task_suggest.title) && body.task_suggest.urgency === 65,
+  JSON.stringify(body.task_suggest || null));
+body = await j(await as(A, '/inbox/tasks'));
+check('…but no task exists until a person says so',
+  !(body.tasks || []).some(t => /Modspace flashings/.test(t.title)), (body.tasks || []).length + ' tasks');
+r = await as(A, '/inbox/tasks', { method: 'POST', body: JSON.stringify({
+  title: 'Order the Modspace flashings', urgency: 65, notes: 'From internal chat' }) });
+body = await j(r);
+check('accepting the suggestion creates the task with its urgency',
+  r.status === 200 && body.urgency === 65 && /Modspace/.test(body.title), JSON.stringify(body).slice(0, 90));
+r = await as(A, '/inbox/chat/messages', { method: 'POST', body: JSON.stringify({
+  channel_id: general.id, body: 'Sweet as, see everyone at smoko.' }) });
+body = await j(r);
+check('small talk stays small talk — no suggestion', r.status === 200 && body.task_suggest === undefined,
+  JSON.stringify(body).slice(0, 80));
 
 // Internal notes on an email thread — invisible to the customer.
 const mailCountBefore = (await j(await as(A, '/inbox/threads/' + lewis.id))).messages.length;

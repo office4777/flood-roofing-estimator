@@ -4422,7 +4422,23 @@ app.post('/inbox/chat/messages', ..._inboxGate, async (req, res) => {
     }, tgt);
     const { error } = await supabase.from('chat_messages').insert(msg);
     if (error) return res.status(500).json({ error: error.message });
-    res.json(msg);
+    // Channel messages get a task sniff: "order the flashings tomorrow" is a
+    // task wearing a chat message's clothes. The AI only SUGGESTS — the
+    // sender decides, so a broken or missing AI never slows chat down.
+    let suggest = null;
+    if (_inboxAIOn() && tgt.channel_id) {
+      try {
+        const sys = 'You spot tasks in a roofing company\'s internal team chat. If the message asks for or clearly ' +
+          'implies a concrete action item someone should do, reply ONLY with JSON ' +
+          '{"is_task":true,"title":"<imperative, max 12 words>","urgency":0-100}; otherwise {"is_task":false}.';
+        const text = await _inboxAI({ model: 'claude-haiku-4-5-20251001', max_tokens: 120, system: sys, prompt: body });
+        const jm = String(text).match(/\{[\s\S]*\}/);
+        const ai = jm ? JSON.parse(jm[0]) : {};
+        if (ai.is_task && ai.title) suggest = { title: String(ai.title).slice(0, 200),
+          urgency: Math.max(0, Math.min(100, parseInt(ai.urgency, 10) || 50)) };
+      } catch (e) { /* no suggestion beats a stuck send */ }
+    }
+    res.json(suggest ? Object.assign({}, msg, { task_suggest: suggest }) : msg);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
