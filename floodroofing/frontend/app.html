@@ -1837,10 +1837,41 @@ html.no-jms .jms-only{display:none!important}
   border-bottom:1px solid var(--border);
   box-shadow:0 2px 10px rgba(10,22,40,.05);
 }
-.content{ padding-top:14px!important; }
+.content{ padding-top:60px!important; }
 @media(max-width:880px){
   .global-job-bar{ left:0; padding:8px 14px; }
-  .content{ padding-top:14px!important; }
+  .content{ padding-top:60px!important; }
+}
+
+/* Permanent banner across the top of every tab: the AI assistant, Internal
+   chat, the notifications bell and a personal To-Do list — one tap away no
+   matter where in the app you are. Fixed for the same reason as
+   .global-job-bar above; .content's padding-top clears it. */
+.global-top-bar{
+  position:fixed; top:0; left:var(--sidebar-w); right:0; z-index:60;
+  display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+  padding:7px 14px; background:#fff; border-bottom:1px solid var(--border);
+  box-shadow:0 2px 10px rgba(10,22,40,.06); overflow-x:auto;
+}
+@media(max-width:880px){ .global-top-bar{ left:0; padding:6px 8px; } }
+html.site-mode body[data-tab="roof"] .global-top-bar{ display:none; }
+.gtb-btn{
+  display:inline-flex; align-items:center; gap:6px; flex:0 0 auto;
+  border:1px solid var(--border); background:#fff; color:#0a1628;
+  border-radius:9px; padding:7px 13px; font-size:12.5px; font-weight:800;
+  font-family:inherit; cursor:pointer; position:relative; white-space:nowrap;
+}
+.gtb-btn.gtb-ai{ background:linear-gradient(135deg,#7c3aed,#0369a1); color:#fff; border:none; }
+.gtb-btn.gtb-chat{ background:#0a1628; color:#fff; border-color:#0a1628; }
+.gtb-badge{
+  background:#dc2626; color:#fff; border-radius:9px; font-size:10px;
+  font-weight:800; padding:1px 6px; line-height:1.5; display:none;
+}
+#gtbTodoPanel{
+  position:fixed; top:50px; right:12px; z-index:100045; width:340px;
+  max-width:calc(100vw - 20px); max-height:min(60vh,480px); overflow-y:auto;
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 18px 50px rgba(10,22,40,.28); padding:12px; display:none;
 }
 .global-job-bar .gjb-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .global-job-bar .gjb-costs{
@@ -3801,6 +3832,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- The persistent "Current job" bar is hidden — the sidebar's Selected-job
      box now shows the current job. Kept in the DOM (display:none) so
      updateGlobalJobBar() still runs and keeps the sidebar label in sync. -->
+<div class="global-top-bar no-print" id="globalTopBar">
+  <button type="button" class="gtb-btn gtb-ai" onclick="_gtbAi()" title="AI Assistant — tell it what you need">✨ AI Assistant</button>
+  <button type="button" class="gtb-btn gtb-chat" onclick="_gtbChat()" title="Internal chat with the team">💬 Internal chat</button>
+  <button type="button" class="gtb-btn" onclick="_qnToggle()" title="Quote notifications">🔔<span class="gtb-badge" id="gtbBellBadge"></span></button>
+  <button type="button" class="gtb-btn" onclick="_gtbTodoToggle()" title="Your own to-dos — nobody else sees these">📝 To Do List<span class="gtb-badge" id="gtbTodoBadge" style="background:#0369a1"></span></button>
+</div>
+<div id="gtbTodoPanel" class="no-print">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <strong style="flex:1;font-size:13px;color:#0a1628">📝 My list</strong>
+    <button onclick="_gtbTodoToggle()" style="background:none;border:none;font-size:15px;cursor:pointer;color:var(--text2)">✕</button>
+  </div>
+  <input type="text" id="gtbTodoNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
+  <div id="gtbTodoItems"></div>
+</div>
 <div class="global-job-bar no-print" id="globalJobBar" style="display:none">
   <div class="gjb-row">
     <div class="gjb-label">
@@ -9097,6 +9142,90 @@ async function _ibxBigChat(){
   if (!_ICHAT.built){ try { await _ichatBoot(); } catch(e){} }
   if (_ICHAT.built && !_ICHAT.open) _ichatToggle();
 }
+// ── the permanent top banner: assistant, chat, bell, to-dos from any tab ──
+async function _gtbAi(){
+  await _ibxBigAi();
+  // Not on a plan with the assistant (or not signed in yet) — the
+  // Communications tab explains itself better than a dead button.
+  if (!_IAI.built) gotoTab('inbox');
+}
+async function _gtbChat(){
+  await _ibxBigChat();
+  if (!_ICHAT.built) gotoTab('inbox');
+}
+function _gtbTodoToggle(){
+  var p = document.getElementById('gtbTodoPanel');
+  if (!p) return;
+  var opening = p.style.display !== 'block';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){
+    _gtbTodoRender();
+    _ibxTasksLoad(true);   // freshen in the background; render again when it lands
+    var inp = document.getElementById('gtbTodoNew');
+    if (inp && !inp._wired){
+      inp._wired = 1;
+      inp.addEventListener('keydown', function(ev){
+        if (ev.key !== 'Enter') return;
+        var title = (inp.value || '').trim();
+        if (!title) return;
+        inp.value = '';
+        api('POST', '/inbox/tasks', { title: title, personal: true }).then(function(t){
+          _IBX.tasks.unshift(t); _ibxTasksRender();
+        }).catch(function(){});
+      });
+    }
+    setTimeout(function(){ if (inp) inp.focus(); }, 60);
+  }
+}
+function _gtbTodoRender(){
+  var el = document.getElementById('gtbTodoItems');
+  if (!el) return;
+  var mine = (_IBX.tasks || []).filter(function(t){ return t.personal; })
+    .sort(function(a, b){ return (a.done === b.done) ? 0 : (a.done ? 1 : -1); });
+  var badge = document.getElementById('gtbTodoBadge');
+  if (badge){
+    var open = mine.filter(function(t){ return !t.done; }).length;
+    badge.style.display = open ? '' : 'none';
+    badge.textContent = open;
+  }
+  el.innerHTML = mine.length ? mine.map(function(t){
+    return '<div style="display:flex;gap:7px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid #f1f5f9">' +
+      '<input type="checkbox"' + (t.done ? ' checked' : '') + ' data-gtbdone="' + t.id + '" style="margin-top:2px">' +
+      '<div style="flex:1;font-size:12px;' + (t.done ? 'text-decoration:line-through;color:#94a3b8' : 'color:#0a1628') + '">' + _ibxEsc(t.title) + '</div>' +
+      '<button data-gtbdel="' + t.id + '" title="Remove" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:12px;padding:0 2px">✕</button></div>';
+  }).join('') : '<div style="font-size:11.5px;color:#94a3b8;line-height:1.5">Your own to-dos — nobody else sees these. Team tasks live on the board in Communications.</div>';
+  el.querySelectorAll('[data-gtbdone]').forEach(function(cb){
+    cb.onchange = function(){
+      var t = (_IBX.tasks || []).find(function(x){ return x.id === cb.getAttribute('data-gtbdone'); });
+      if (t) t.done = cb.checked;
+      _ibxTasksRender();
+      api('PATCH', '/inbox/tasks/' + cb.getAttribute('data-gtbdone'), { done: cb.checked }).catch(function(){ _ibxTasksLoad(true); });
+    };
+  });
+  el.querySelectorAll('[data-gtbdel]').forEach(function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-gtbdel');
+      _IBX.tasks = (_IBX.tasks || []).filter(function(x){ return x.id !== id; });
+      _ibxTasksRender();
+      api('DELETE', '/inbox/tasks/' + id).catch(function(){ _ibxTasksLoad(true); });
+    };
+  });
+}
+// The customer's quote link shares this file — the office banner is not theirs.
+(function(){
+  function boot(){
+    if (window.__CUSTOMER_MODE){
+      var b = document.getElementById('globalTopBar');
+      if (b) b.style.display = 'none';
+      return;
+    }
+    // Load the to-dos early so the banner's count is right before the
+    // Communications tab is ever opened. Quiet: not signed in / not on the
+    // plan just leaves the badge blank.
+    try { if (localStorage.getItem('fr_token')) setTimeout(function(){ _ibxTasksLoad(true); }, 3000); } catch(e){}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
 function _frBubblesSync(){
   var onComms = document.body.getAttribute('data-tab') === 'inbox';
   var l1 = document.getElementById('ichatLaunch'), l2 = document.getElementById('iaiLaunch');
@@ -9402,6 +9531,7 @@ function _ibxMemberName(id){
 }
 function _ibxTasksRender(){
   _ibxMyRender();
+  try { _gtbTodoRender(); } catch(e){}
   var el = document.getElementById('ibxTaskBoard');
   if (!el) return;
   var today = new Date().toISOString().slice(0, 10);
@@ -22030,20 +22160,24 @@ function _qnUnread(){
   return _QN.items.filter(function(it){ return it.t > seen; }).length;
 }
 function _qnRenderBadge(){
-  var bd = document.getElementById('qnBadge');
-  if (!bd) return;
-  // On Solo the bell wears a small lock instead of a count — the feature is
-  // visible (and one tap explains it), just not on.
-  if (!_qnCanUse()){
-    bd.style.display = '';
-    bd.style.background = 'transparent';
-    bd.textContent = '🔒';
-    return;
-  }
-  bd.style.background = '';
-  var n = _qnUnread();
-  bd.style.display = n ? '' : 'none';
-  bd.textContent = n > 20 ? '20+' : String(n);
+  // The count lives in two places: the sidebar's Notifications row and the
+  // bell on the permanent top banner.
+  ['qnBadge', 'gtbBellBadge'].forEach(function(id){
+    var bd = document.getElementById(id);
+    if (!bd) return;
+    // On Solo the bell wears a small lock instead of a count — the feature is
+    // visible (and one tap explains it), just not on.
+    if (!_qnCanUse()){
+      bd.style.display = '';
+      bd.style.background = 'transparent';
+      bd.textContent = '🔒';
+      return;
+    }
+    bd.style.background = '';
+    var n = _qnUnread();
+    bd.style.display = n ? '' : 'none';
+    bd.textContent = n > 20 ? '20+' : String(n);
+  });
 }
 function _qnRenderPanel(){
   var pane = document.getElementById('qnPanel');

@@ -835,6 +835,39 @@ v = await pg.evaluate(() => ({
   editable: (document.getElementById('ibxCBody') || {}).contentEditable === 'true',
 }));
 check('compose carries the same format bar over a rich editor', v.bar && v.editable, JSON.stringify(v));
+
+// ── the permanent top banner: there on every tab, not just Communications ──
+await pg.evaluate(() => gotoTab('select'));
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => {
+  const bar = document.getElementById('globalTopBar');
+  const cs = getComputedStyle(bar);
+  return {
+    shown: cs.display !== 'none' && cs.position === 'fixed',
+    ai: /AI Assistant/.test(bar.textContent),
+    chat: /Internal chat/.test(bar.textContent),
+    bell: /🔔/.test(bar.textContent),
+    todo: /To Do List/.test(bar.textContent),
+  };
+});
+check('the top banner rides every tab with assistant, chat, bell and to-dos',
+  v.shown && v.ai && v.chat && v.bell && v.todo, JSON.stringify(v));
+await pg.evaluate(() => _gtbTodoToggle());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  open: getComputedStyle(document.getElementById('gtbTodoPanel')).display !== 'none',
+  mine: /Ring the bank/.test(document.getElementById('gtbTodoItems').textContent),
+  teamKeptOut: !/ridge flashings/.test(document.getElementById('gtbTodoItems').textContent),
+}));
+check('To Do List drops down the personal list — team tasks stay on the board',
+  v.open && v.mine && v.teamKeptOut, JSON.stringify(v));
+await pg.evaluate(() => _gtbTodoToggle());
+await pg.evaluate(() => _gtbChat());
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  chatOpen: !!document.getElementById('ichatPanel') && getComputedStyle(document.getElementById('ichatPanel')).display !== 'none',
+}));
+check('the banner\'s Internal chat button drops the chat down from any tab', v.chatOpen, JSON.stringify(v));
 await ctx.close();
 
 await b.close();
