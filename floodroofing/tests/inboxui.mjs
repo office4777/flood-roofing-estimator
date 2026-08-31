@@ -228,6 +228,31 @@ check('…remote images blocked until asked',
   v.blockedBtn && /data-rsrc/.test(v.srcdoc) && !/ src="https:/.test(v.srcdoc));
 let read = calls.find(c => c[0] === 'PATCH t1' && c[1].unread === false);
 check('opening it marks the thread read', !!read, JSON.stringify(read));
+
+// Gmail-style thread: the older message sits collapsed to a one-line header
+// with a snippet; clicking the header opens it, clicking again re-folds it.
+v = await pg.evaluate(() => {
+  const first = document.querySelector('[data-ibxmsg="0"]'), last = document.querySelector('[data-ibxmsg="1"]');
+  const bodyHidden = el => { const b = el.querySelector('iframe,.txt'); return !b || getComputedStyle(b).display === 'none'; };
+  return {
+    firstFolded: first.classList.contains('clpsd') && bodyHidden(first),
+    snippet: getComputedStyle(first.querySelector('.msnip')).display !== 'none' && /keen on a quote/.test(first.textContent),
+    lastOpen: !last.classList.contains('clpsd') && !bodyHidden(last),
+  };
+});
+check('older messages open collapsed with a snippet, the newest one open — like Gmail',
+  v.firstFolded && v.snippet && v.lastOpen, JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('[data-ibxmsg="0"] [data-ibxtoggle]').click());
+await pg.waitForTimeout(150);
+v = await pg.evaluate(() => {
+  const first = document.querySelector('[data-ibxmsg="0"]');
+  return { open: !first.classList.contains('clpsd'), bodyShown: getComputedStyle(first.querySelector('.txt')).display !== 'none' };
+});
+check('clicking a collapsed header expands that message', v.open && v.bodyShown, JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('[data-ibxmsg="0"] [data-ibxtoggle]').click());
+await pg.waitForTimeout(150);
+v = await pg.evaluate(() => document.querySelector('[data-ibxmsg="0"]').classList.contains('clpsd'));
+check('…and clicking again folds it back', v === true);
 v = await pg.evaluate(() => ({
   strip: !!document.getElementById('ibxDraftStrip'),
   jobChip: !!document.querySelector('[data-ibxjob="j1"]'),
@@ -789,7 +814,10 @@ v = await pg.evaluate(() => {
   const row = document.querySelector('.ibx-row');
   return {
     grow: cs.flexGrow === '1',
-    wrap: getComputedStyle(document.getElementById('ibxTaskBoard')).flexWrap === 'wrap',
+    // one row, every column visible: they share the width instead of scrolling
+    wrap: getComputedStyle(document.getElementById('ibxTaskBoard')).flexWrap === 'nowrap',
+    fits: document.getElementById('ibxTaskBoard').scrollWidth <=
+          document.getElementById('ibxTaskBoard').clientWidth + 1,
     tint: cs.backgroundColor !== 'rgb(248, 250, 252)',
     topBar: cs.borderTopWidth === '3px' && cs.borderTopColor !== 'rgb(226, 232, 240)',
     dot: !!col.querySelector('.th span[style*="border-radius"]'),
@@ -798,8 +826,8 @@ v = await pg.evaluate(() => {
     chip: !!document.querySelector('.ibx-row .sn span[style*="font-weight:700"], .ibx-row .sn span[style*="font-weight: 700"]'),
   };
 });
-check('columns squeeze, wrap instead of scroll, and wear their member\'s colour — cards and mail rows too',
-  v.grow && v.wrap && v.tint && v.topBar && v.dot && v.cardEdge && v.rowEdge, JSON.stringify(v));
+check('columns squeeze onto one row with no sideways scroll, and wear their member\'s colour — cards and mail rows too',
+  v.grow && v.wrap && v.fits && v.tint && v.topBar && v.dot && v.cardEdge && v.rowEdge, JSON.stringify(v));
 await pg.evaluate(() => _ibxComposeOpen());
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => ({

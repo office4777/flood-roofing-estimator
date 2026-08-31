@@ -2852,6 +2852,13 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .ibx-msg .mhd{ padding:8px 12px; border-bottom:1px solid #eef1f4; font-size:11.5px; color:#334155; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .ibx-msg iframe{ width:100%; height:420px; border:none; display:block; background:#fff; }
 .ibx-msg .txt{ padding:12px; font-size:12.5px; white-space:pre-wrap; color:#0a1628; overflow-wrap:break-word; }
+/* Gmail-style thread: every message but the newest starts collapsed to a
+   one-line header (sender · snippet · date); clicking the header toggles. */
+.ibx-msg .mhd{ cursor:pointer; }
+.ibx-msg .msnip{ flex:1 1 40%; min-width:0; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:none; }
+.ibx-msg.clpsd .msnip{ display:block; }
+.ibx-msg.clpsd .mhd{ border-bottom:none; }
+.ibx-msg.clpsd iframe, .ibx-msg.clpsd .txt, .ibx-msg.clpsd .matt, .ibx-msg.clpsd [data-ibximg]{ display:none; }
 .ibx-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid var(--border);
   border-radius:999px; background:#fff; font-size:12px; font-weight:600; color:#0a1628; cursor:pointer; }
 .ibx-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
@@ -2862,7 +2869,7 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .nav-badge{ margin-left:auto; background:#dc2626; color:#fff; border-radius:999px; font-size:10px; font-weight:800; padding:1px 7px; }
 .ibx-taskchip{ display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 9px; font-size:11.5px; background:#fff; cursor:pointer; flex:0 0 auto; max-width:300px; }
 .ibx-taskchip:hover{ border-color:#94a3b8; }
-.ibx-tcol{ flex:1 1 110px; min-width:92px; max-width:260px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; border-top-width:3px; padding:6px; }
+.ibx-tcol{ flex:1 1 0; min-width:0; max-width:240px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; border-top-width:3px; padding:5px; }
 .ibx-tcol .th{ font-size:11.5px; font-weight:800; color:#0a1628; padding:2px 4px 8px; display:flex; gap:6px; align-items:center; }
 .ibx-task{ background:#fff; border:1px solid var(--border); border-radius:8px; padding:8px 9px; margin-bottom:6px; cursor:grab; font-size:12px; }
 .ibx-task.done{ opacity:.55; }
@@ -5574,7 +5581,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <input type="text" id="ibxMyNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
           <div id="ibxMyItems"></div>
         </div>
-        <div id="ibxTaskBoard" style="display:flex;flex-wrap:wrap;gap:8px;overflow:visible;align-items:flex-start;padding-bottom:4px;flex:1;min-width:0"></div>
+        <div id="ibxTaskBoard" style="display:flex;flex-wrap:nowrap;gap:6px;overflow:visible;align-items:flex-start;padding-bottom:4px;flex:1;min-width:0"></div>
       </div>
     </div>
     <div class="card" id="ibxSetupCard" style="display:none;text-align:center;padding:30px">
@@ -8598,12 +8605,18 @@ async function _ibxOpen(id){
       (t.job_id ? '<button class="ibx-chip" data-ibxjob="' + t.job_id + '" title="Open the linked RoofMap job">🔗 Job</button>' : '') + '</div>';
     msgs.forEach(function(m, i){
       var hasBlocked = /data-rsrc=/.test(m.body_html || '');
-      h += '<div class="ibx-msg" data-ibxmsg="' + i + '">' +
-        '<div class="mhd"><strong>' + _ibxEsc(m.from_name || m.from_addr) + '</strong>' +
+      // Like Gmail: only the newest message opens; the rest collapse to a
+      // one-line header you click to expand.
+      var clpsd = msgs.length > 1 && i < msgs.length - 1;
+      var snip = String(m.body_text || (m.body_html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' '))
+        .replace(/\s+/g, ' ').trim().slice(0, 120);
+      h += '<div class="ibx-msg' + (clpsd ? ' clpsd' : '') + '" data-ibxmsg="' + i + '">' +
+        '<div class="mhd" data-ibxtoggle="' + i + '" title="Show or hide this message"><strong>' + _ibxEsc(m.from_name || m.from_addr) + '</strong>' +
         '<span style="color:#94a3b8">' + _ibxEsc(m.from_addr) + '</span>' +
+        '<span class="msnip">' + _ibxEsc(snip) + '</span>' +
         '<span style="margin-left:auto;color:#94a3b8">' + (m.date ? new Date(m.date).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }) : '') + '</span>' +
         (hasBlocked ? '<button class="ibx-chip" data-ibximg="' + i + '" style="padding:2px 8px;font-size:10.5px">Load images</button>' : '') + '</div>' +
-        ((m.attachments || []).length ? '<div class="mhd" style="border-bottom:1px solid #eef1f4">📎 ' +
+        ((m.attachments || []).length ? '<div class="mhd matt" style="border-bottom:1px solid #eef1f4">📎 ' +
           (m.attachments || []).map(function(a){ return _ibxEsc(a.name); }).join(' · ') + '</div>' : '') +
         (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
     });
@@ -8644,6 +8657,12 @@ async function _ibxOpen(id){
       document.getElementById('ibxDraftStrip').style.display = 'none';
       document.getElementById('ibxReplyBody').focus();
     };
+    conv.querySelectorAll('[data-ibxtoggle]').forEach(function(hd){
+      hd.onclick = function(ev){
+        if (ev.target.closest('[data-ibximg]')) return;   // "Load images" is its own click
+        hd.closest('.ibx-msg').classList.toggle('clpsd');
+      };
+    });
     conv.querySelectorAll('[data-ibximg]').forEach(function(b){
       b.onclick = function(){
         var i = +b.getAttribute('data-ibximg');
