@@ -12576,8 +12576,9 @@ function _lkgGuard(draw){
   // A fresh session that never drew anything (booted onto another tab, the
   // auto-draft timer ticking over yesterday's disk LKG) is the guard doing
   // its quiet job — substitute and move on. Only a drawing that vanished
-  // MID-session is worth alarming anyone about.
-  if (LKG.hadDrawing) {
+  // MID-session — one this session actually held in memory — is worth
+  // alarming anyone about; a disk-only LKG means nobody here ever saw it.
+  if (LKG.byJob[_lkgKey()]) {
     try { _setSaveStatus && _setSaveStatus(
       '⚠ The roof map had gone blank, so the last good one was saved instead. Check the Map Roof tab.',
       '#b45309', true); } catch(e){}
