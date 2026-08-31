@@ -9103,13 +9103,64 @@ async function _iaiGo(){
   _iaiSay('<span style="color:#64748b">“' + _ibxEsc(instruction) + '”</span>');
   try {
     var d = await api('POST', '/inbox/assistant', { instruction: instruction });
-    if (d.action === 'task' && d.task){
+    var handled = true;
+    if ((d.action === 'task' || d.action === 'my_todo') && d.task){
       _IBX.tasks.unshift(d.task);
       _ibxTaskBarRender(); try { _ibxMyRender(); } catch(e){}
-      _iaiSay('✓ Task created — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
-        (d.task.assignee_user_id ? ', assigned to <strong>' + _ibxEsc(_ibxMemberName(d.task.assignee_user_id)) + '</strong>' : '') +
-        '. It\'s on the task strip in the Inbox.');
-      inp.value = '';
+      _iaiSay(d.action === 'my_todo'
+        ? '✓ On your list — <strong>' + _ibxEsc(d.task.title) + '</strong>.'
+        : '✓ Task created — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
+          (d.task.assignee_user_id ? ', assigned to <strong>' + _ibxEsc(_ibxMemberName(d.task.assignee_user_id)) + '</strong>' : '') +
+          '. It\'s on the task strip in the Inbox.');
+    } else if (d.action === 'task_update' && d.task){
+      var i2 = _IBX.tasks.findIndex(function(x){ return x.id === d.task.id; });
+      if (i2 >= 0) _IBX.tasks[i2] = d.task; else _IBX.tasks.unshift(d.task);
+      _ibxTaskBarRender(); try { _ibxMyRender(); _ibxTasksRender(); } catch(e){}
+      _iaiSay('✓ Updated — <strong>' + _ibxEsc(d.task.title) + '</strong>' +
+        (d.task.done ? ' is done.' : (d.assignee_label ? ', now with <strong>' + _ibxEsc(d.assignee_label) + '</strong>.' : '.')));
+    } else if (d.action === 'threads'){
+      var verb = d.op === 'archive' ? 'Archived' : d.op === 'snooze' ? 'Snoozed' : 'Marked unread';
+      _iaiSay('✓ ' + verb + ' ' + d.count + ' conversation' + (d.count === 1 ? '' : 's') + '.');
+      try { _ibxLoad(true); } catch(e){}
+    } else if (d.action === 'open_thread' && d.thread_id){
+      try { gotoTab('inbox'); } catch(e){}
+      setTimeout(function(){ try { _ibxOpen(d.thread_id); } catch(e){} }, 300);
+      _iaiSay('✓ Found it — opening the conversation.');
+    } else if (d.action === 'note'){
+      _iaiSay('✓ Note saved on the conversation — 🔒 internal, the customer never sees it.');
+      try { if (_IBX.sel === d.thread_id) _ibxNotesLoad(d.thread_id); } catch(e){}
+    } else if (d.action === 'chat' && d.body){
+      if (!_ICHAT.open) _ichatToggle();
+      setTimeout(function(){
+        var ci = document.getElementById('ichatInput');
+        if (ci){ ci.value = d.body; ci.focus(); }
+      }, 150);
+      _iaiSay('💬 Ready in Internal chat — press ➤ to post it.');
+    } else if (d.action === 'goto' && d.tab){
+      try { gotoTab(d.tab); } catch(e){}
+      _iaiSay('✓ Done.');
+    } else if (d.action === 'schedule'){
+      _iaiSay('✓ ' + (d.op === 'shift' ? 'Moved' : 'Booked') + ' — <strong>' + _ibxEsc(d.client) + '</strong> now starts <strong>' +
+        _ibxEsc(d.start_date) + '</strong>' + (d.crew ? ' with <strong>' + _ibxEsc(d.crew) + '</strong>' : ' (pencilled)') +
+        '. Check the calendar looks right.');
+      try { if (document.body.getAttribute('data-tab') === 'schedule' && typeof _schedLoad === 'function') _schedLoad(); } catch(e){}
+    } else if (d.action === 'sched_mail' && d.row_id){
+      try { gotoTab('schedule'); } catch(e){}
+      setTimeout(function(){ try { _schedMailOpen(d.row_id, d.kind); } catch(e){} }, 400);
+      _iaiSay('✉ Schedule email ready — check it over, then Send.');
+    } else if (d.action === 'new_job'){
+      try { gotoTab('home'); } catch(e){}
+      setTimeout(function(){
+        try {
+          startNewJob();
+          setTimeout(function(){
+            var c = document.getElementById('jobClient'), a = document.getElementById('jobAddr');
+            if (c && d.client) c.value = d.client;
+            if (a && d.address) a.value = d.address;
+          }, 250);
+        } catch(e){}
+      }, 250);
+      _iaiSay('✓ Starting a new job' + (d.address ? ' at <strong>' + _ibxEsc(d.address) + '</strong>' : '') + ' — fill in the rest and save.');
     } else if (d.action === 'email'){
       if (!_IBX.accounts.length){ try { await _ibxLoad(true); } catch(e){} }
       try { gotoTab('inbox'); } catch(e){}
@@ -9118,10 +9169,13 @@ async function _iaiGo(){
       if (d.subject) document.getElementById('ibxCSubject').value = d.subject;
       if (d.body) document.getElementById('ibxCBody').value = d.body;
       _iaiSay('✉ Draft ready in the compose window' + (d.to ? '' : ' — I couldn\'t match a contact, so fill in To yourself') + '. Read it over, then Send.');
-      inp.value = '';
+    } else if (d.action === 'answer' && d.text){
+      _iaiSay(_ibxEsc(d.text).replace(/\n/g, '<br>'));
     } else {
-      _iaiSay(_ibxEsc(d.note || 'So far I can set tasks and draft emails.'));
+      handled = false;
+      _iaiSay(_ibxEsc(d.note || 'I can set tasks and to-dos, tidy the inbox, draft emails, book the schedule, take notes, and answer questions.'));
     }
+    if (handled) inp.value = '';
   } catch(e){ _iaiSay(_ibxEsc((e && e.message) || 'Could not work that one out'), true); }
   go.disabled = false; go.textContent = '➤';
 }

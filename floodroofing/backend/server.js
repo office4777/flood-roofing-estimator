@@ -4377,6 +4377,13 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
   try {
     const company = await _inboxCompanyName(req.companyId);
     const members = await _inboxMembers(req);
+    const meName = (members.find(m => m.id === req.user.id) || {}).name || 'the requester';
+    const matchMember = (nm) => {
+      nm = String(nm || '').trim().toLowerCase();
+      return nm && members.find(m => String(m.name || '').toLowerCase().includes(nm) ||
+        String(m.email || '').toLowerCase().startsWith(nm) || m.id === nm);
+    };
+    // ── everything the assistant is allowed to see, one compact block each ──
     let contacts = [];
     try {
       const { data } = await _scopeCompany(supabase.from('mail_messages').select('from_addr, from_name'), req).limit(800);
@@ -4386,38 +4393,165 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
         if (a && !seen[a]) { seen[a] = 1; contacts.push(((m.from_name || '').trim() || a.split('@')[0]) + ' <' + a + '>'); }
       });
     } catch (e) { /* no mail history yet */ }
-    const sys = 'You are the office assistant for ' + company + ', a New Zealand roofing company. Turn ONE spoken or ' +
-      'typed instruction into an action. Reply ONLY with JSON in exactly one of these shapes:\n' +
-      '{"action":"task","title":"<imperative, carry job numbers through>","assignee_name":"<a name from the team list, or empty>","urgency":0-100}\n' +
-      '{"action":"email","to":"<an address from the known contacts, or empty if nobody plausibly matches>","subject":"","body":""}\n' +
-      '{"action":"unknown","note":"<one friendly line saying you can set tasks and draft emails>"}\n' +
-      'Email bodies: plain text, short, warm, practical; never invent prices or commitments; sign off with:\n' + company;
-    const text = await _inboxAI({ model: 'claude-sonnet-5', max_tokens: 700, system: sys,
-      prompt: 'Team:\n' + members.map(m => (m.name || m.email || m.id)).join('\n') +
-        '\n\nKnown contacts:\n' + contacts.slice(0, 150).join('\n') + '\n\nInstruction: ' + instruction });
+    let myTasks = [];
+    try {
+      const { data } = await _scopeCompany(supabase.from('comms_tasks').select('*'), req).limit(500);
+      myTasks = (data || []).filter(t => !t.personal || t.user_id === req.user.id || t.assignee_user_id === req.user.id);
+    } catch (e) {}
+    const openTasks = myTasks.filter(t => !t.done).slice(0, 60);
+    let threads = [];
+    try {
+      const accts = await _inboxVisibleAccounts(req);
+      const aIds = accts.map(a => a.id);
+      const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).limit(500);
+      threads = (data || []).filter(t => aIds.includes(t.account_id) && t.status !== 'archived')
+        .sort((a, b2) => String(b2.last_date || '').localeCompare(String(a.last_date || ''))).slice(0, 60);
+    } catch (e) {}
+    let schedRows = [], schedBlocks = [], crews = [];
+    try {
+      const { data: srs } = await _scopeCompany(supabase.from('schedule_rows').select('*'), req).limit(200);
+      schedRows = (srs || []).filter(r => !r.archived);
+      const { data: blks } = await _scopeCompany(supabase.from('schedule_blocks').select('*'), req).limit(500);
+      schedBlocks = blks || [];
+      crews = (await _schedCfg(req)).crews || [];
+    } catch (e) {}
+    const latestBlock = (rowId) => schedBlocks.filter(b2 => b2.row_id === rowId)
+      .sort((a, b2) => String(b2.start_date || '').localeCompare(String(a.start_date || '')))[0];
+    let quotes = [];
+    try {
+      quotes = (await _quoteShareRows(req, 120)).map(r => {
+        const sh = r.share || {};
+        const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
+        return (r.client_name || (r.client && r.client.name) || '?') + ' | ' + (r.ref || '') +
+          ' | ' + (r.accepted ? 'ACCEPTED' : 'awaiting reply') +
+          ' | last activity ' + String((lastEv && (lastEv.at || lastEv.ts)) || 'unknown').slice(0, 10);
+      }).slice(0, 60);
+    } catch (e) {}
+    const today = new Date().toISOString().slice(0, 10);
+    const sys = 'You are the office assistant for ' + company + ', a New Zealand roofing company. The person speaking is ' +
+      meName + '. Turn ONE spoken or typed instruction into an action, or answer a question from the data provided. ' +
+      'Reply ONLY with JSON in exactly one of these shapes:\n' +
+      '{"action":"task","title":"<imperative, carry job numbers through>","assignee_name":"<team name or empty>","urgency":0-100} — a task for someone (their "list"/"tasks" means an assigned task)\n' +
+      '{"action":"my_todo","title":""} — ONLY when the speaker says MY list / MY to-dos\n' +
+      '{"action":"task_update","task_id":"<[id] from Open tasks>","done":true|false,"assignee_name":"<team name or empty>"} — complete, reopen or hand a task over\n' +
+      '{"action":"email","to":"<address from Known contacts, or empty if nobody plausibly matches>","subject":"","body":""} — draft an email (plain text, short, warm; never invent prices; sign off with ' + company + ')\n' +
+      '{"action":"threads","op":"archive|unread|snooze","thread_ids":["<[id]s from Inbox>"],"snoozed_until":"YYYY-MM-DD or empty"}\n' +
+      '{"action":"open_thread","thread_id":"<[id] from Inbox>"} — find/open a conversation\n' +
+      '{"action":"note","thread_id":"<[id] from Inbox>","body":""} — an internal note on a conversation, customers never see it\n' +
+      '{"action":"chat","body":""} — a message to post in team chat (it is only PREPARED; the person posts it)\n' +
+      '{"action":"goto","tab":"home|roof|jobpack|quote|schedule|inbox|settings"} — navigate\n' +
+      '{"action":"schedule","op":"book|shift","row_id":"<[id] from Schedule>","start_date":"YYYY-MM-DD","work_days":1-120,"crew_name":"<crew or empty>"} — book paints the calendar; shift moves the existing booking. Start on a weekday.\n' +
+      '{"action":"sched_mail","row_id":"<[id] from Schedule>","kind":"pencil|week|confirm"} — prepare a customer schedule email (pencil = rough month, week = week-of, confirm = exact start)\n' +
+      '{"action":"new_job","client":"","address":""} — start a new job\n' +
+      '{"action":"answer","text":"<answer the question in a few short lines, from the data only; NZ tone; say so if the data does not show it>"}\n' +
+      '{"action":"unknown","note":"<one friendly line about what you can do>"}\n' +
+      'Today is ' + today + '. Never invent ids — only use ids shown in the data. Prefer answer for questions, an action for instructions.';
+    const ctxt =
+      'Team:\n' + members.map(m => (m.name || m.email || m.id) + (m.id === req.user.id ? ' (the speaker)' : '')).join('\n') +
+      '\n\nOpen tasks:\n' + (openTasks.map(t => '[' + t.id + '] ' + t.title +
+        ' | ' + ((members.find(m => m.id === t.assignee_user_id) || {}).name || 'unassigned') +
+        (t.personal ? ' | personal' : '')).join('\n') || '(none)') +
+      '\n\nInbox:\n' + (threads.map(t => '[' + t.id + '] ' + ((t.participants || [])[0] || '') + ' | ' +
+        (t.subject || '(no subject)') + ' | ' + (t.category || '') + ' | urgency ' + (t.urgency == null ? '-' : t.urgency) +
+        (t.unread ? ' | UNREAD' : '') + (t.status === 'snoozed' ? ' | snoozed' : '')).join('\n') || '(no mail yet)') +
+      '\n\nSchedule (crews: ' + (crews.map(c => c.name).join(', ') || 'none set') + '):\n' +
+      (schedRows.map(r => {
+        const bl = latestBlock(r.id);
+        return '[' + r.id + '] ' + (r.client_name || '?') + ' | ' + (r.site_address || '') +
+          ' | ' + (bl ? ((crews.find(c => c.id === bl.crew_id) || {}).name || 'pencilled') + ' from ' + bl.start_date + ' for ' + bl.work_days + ' days' : 'not booked');
+      }).join('\n') || '(no schedule rows)') +
+      '\n\nQuotes out:\n' + (quotes.join('\n') || '(none shared)') +
+      '\n\nKnown contacts:\n' + contacts.slice(0, 150).join('\n') +
+      '\n\nInstruction: ' + instruction;
+    const text = await _inboxAI({ model: 'claude-sonnet-5', max_tokens: 900, system: sys, prompt: ctxt });
     const jm = String(text).match(/\{[\s\S]*\}/);
     const ai = jm ? JSON.parse(jm[0]) : {};
-    if (ai.action === 'task' && ai.title) {
-      const nm = String(ai.assignee_name || '').trim().toLowerCase();
-      const hit = nm && members.find(m => String(m.name || '').toLowerCase().includes(nm) ||
-        String(m.email || '').toLowerCase().startsWith(nm) || m.id === ai.assignee_name);
+
+    // ── apply the safe ones server-side; hand the rest back for the UI ──
+    if ((ai.action === 'task' || ai.action === 'my_todo') && ai.title) {
+      const hit = ai.action === 'task' ? matchMember(ai.assignee_name) : null;
       const task = await _inboxTaskCreate(req, {
         title: String(ai.title).slice(0, 300),
+        personal: ai.action === 'my_todo',
         urgency: (ai.urgency === undefined ? undefined : Math.max(0, Math.min(100, parseInt(ai.urgency, 10) || 0))),
         assignee_user_id: hit ? hit.id : undefined,
       }, instruction);
-      return res.json({ action: 'task', task });
+      return res.json({ action: ai.action, task });
+    }
+    if (ai.action === 'task_update' && ai.task_id) {
+      const t = myTasks.find(x => x.id === ai.task_id);
+      if (!t) return res.json({ action: 'unknown', note: 'I could not find that task — open the board and check its name.' });
+      const patch = {};
+      if (ai.done !== undefined) { patch.done = !!ai.done; patch.done_at = ai.done ? new Date().toISOString() : null; }
+      const hit = matchMember(ai.assignee_name);
+      if (hit) patch.assignee_user_id = hit.id;
+      if (!Object.keys(patch).length) return res.json({ action: 'unknown', note: 'Nothing to change on that task.' });
+      await _scopeCompany(supabase.from('comms_tasks').update(patch), req).eq('id', t.id);
+      return res.json({ action: 'task_update', task: Object.assign({}, t, patch),
+        assignee_label: hit ? (hit.name || hit.email) : '' });
+    }
+    if (ai.action === 'threads' && Array.isArray(ai.thread_ids) && ai.thread_ids.length) {
+      const ok = ai.thread_ids.filter(id => threads.some(t => t.id === id)).slice(0, 50);
+      if (!ok.length) return res.json({ action: 'unknown', note: 'I could not match those conversations.' });
+      const patch = ai.op === 'archive' ? { status: 'archived' }
+        : ai.op === 'unread' ? { unread: true }
+        : { status: 'snoozed', snoozed_until: /^\d{4}-\d{2}-\d{2}$/.test(String(ai.snoozed_until || ''))
+            ? ai.snoozed_until + 'T20:00:00Z' : new Date(Date.now() + 86400000).toISOString() };
+      for (const id of ok) await _scopeCompany(supabase.from('mail_threads').update(patch), req).eq('id', id);
+      return res.json({ action: 'threads', op: ai.op === 'archive' ? 'archive' : ai.op === 'unread' ? 'unread' : 'snooze', count: ok.length });
+    }
+    if (ai.action === 'note' && ai.thread_id && ai.body) {
+      if (!threads.some(t => t.id === ai.thread_id)) return res.json({ action: 'unknown', note: 'I could not match that conversation.' });
+      await supabase.from('chat_messages').insert({
+        id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+        channel_id: null, thread_id: ai.thread_id, body: String(ai.body).slice(0, 4000), created_at: new Date().toISOString(),
+      });
+      return res.json({ action: 'note', thread_id: ai.thread_id });
+    }
+    if (ai.action === 'schedule' && ai.row_id && /^\d{4}-\d{2}-\d{2}$/.test(String(ai.start_date || ''))) {
+      const row = schedRows.find(r => r.id === ai.row_id);
+      if (!row) return res.json({ action: 'unknown', note: 'I could not match that job on the schedule.' });
+      const crewHit = ai.crew_name && crews.find(c => String(c.name || '').toLowerCase().includes(String(ai.crew_name).trim().toLowerCase()));
+      const days = Math.max(1, Math.min(120, parseInt(ai.work_days, 10) || row.length_days || 5));
+      const existing = latestBlock(row.id);
+      if (ai.op === 'shift' && existing) {
+        const { error } = await _scopeCompany(supabase.from('schedule_blocks').update(Object.assign({ start_date: ai.start_date },
+          crewHit ? { crew_id: crewHit.id, kind: 'crew' } : {})), req).eq('id', existing.id);
+        if (error) return res.status(500).json({ error: error.message });
+      } else {
+        const { error } = await supabase.from('schedule_blocks').insert({
+          id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id, row_id: row.id,
+          kind: crewHit ? 'crew' : 'pencil', crew_id: crewHit ? crewHit.id : '',
+          start_date: ai.start_date, work_days: days, created_at: new Date().toISOString(),
+        });
+        if (error) return res.status(500).json({ error: error.message });
+      }
+      return res.json({ action: 'schedule', op: (ai.op === 'shift' && existing) ? 'shift' : 'book',
+        client: row.client_name || row.site_address, start_date: ai.start_date,
+        crew: crewHit ? crewHit.name : '', work_days: days });
     }
     if (ai.action === 'email') {
       const to = String(ai.to || '').trim();
       const addr = (to.match(/<([^>]+)>/) || [])[1] || to;
       return res.json({ action: 'email',
         to: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr) ? addr.toLowerCase() : '',
-        subject: String(ai.subject || '').slice(0, 200),
-        body: String(ai.body || '').slice(0, 8000) });
+        subject: String(ai.subject || '').slice(0, 200), body: String(ai.body || '').slice(0, 8000) });
     }
+    if (ai.action === 'open_thread' && threads.some(t => t.id === ai.thread_id))
+      return res.json({ action: 'open_thread', thread_id: ai.thread_id });
+    if (ai.action === 'sched_mail' && schedRows.some(r => r.id === ai.row_id))
+      return res.json({ action: 'sched_mail', row_id: ai.row_id,
+        kind: ['pencil', 'week', 'confirm'].includes(ai.kind) ? ai.kind : 'pencil' });
+    if (ai.action === 'chat' && ai.body)
+      return res.json({ action: 'chat', body: String(ai.body).slice(0, 2000) });
+    if (ai.action === 'goto' && ['home', 'roof', 'jobpack', 'quote', 'schedule', 'inbox', 'settings'].includes(ai.tab))
+      return res.json({ action: 'goto', tab: ai.tab });
+    if (ai.action === 'new_job')
+      return res.json({ action: 'new_job', client: String(ai.client || '').slice(0, 120), address: String(ai.address || '').slice(0, 200) });
+    if (ai.action === 'answer' && ai.text)
+      return res.json({ action: 'answer', text: String(ai.text).slice(0, 2500) });
     res.json({ action: 'unknown',
-      note: String((ai && ai.note) || 'So far I can set tasks and draft emails — try "set a task for…" or "email…"').slice(0, 300) });
+      note: String((ai && ai.note) || 'I can set tasks and to-dos, tidy the inbox, draft emails, book the schedule, take notes, and answer questions about what is on.').slice(0, 300) });
   } catch (e) { res.status(500).json({ error: 'Could not work that one out — try wording it differently' }); }
 });
 const _COMMS_TASK_WRITABLE = ['title', 'notes', 'due_date', 'assignee_user_id', 'done', 'urgency', 'job_id'];

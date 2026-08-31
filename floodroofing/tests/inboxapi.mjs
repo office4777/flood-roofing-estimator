@@ -33,6 +33,11 @@ const { port } = await startFakePostgrest({
   jobs: [{ id: 'job-x', user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
     site_address: '148 Horeke Road', draw_state: { state: { quote: { ref: 'FR-2996' } } } }],
   mail_accounts: [], mail_threads: [], mail_messages: [], comms_tasks: [], chat_channels: [], chat_messages: [],
+  user_settings: [],
+  schedule_rows: [{ id: 'sr-modspace', company_id: A.company, user_id: A.user, job_id: null,
+    client_name: 'Modspace Ltd', site_address: '7 Rust Ave, Whangarei', email: 'sam@modspace.co.nz',
+    length_days: 5, notes: '', archived: false, handover_done: false, created_at: '2026-08-20T00:00:00Z' }],
+  schedule_blocks: [],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -61,9 +66,25 @@ const AI = { calls: [] };
 globalThis.__TEST_AI = async (opts) => {
   AI.calls.push(opts.model);
   if (/office assistant/.test(opts.system || '')){
-    if (/set task|task for/i.test(opts.prompt))
+    const P = String(opts.prompt || '');
+    const idFor = (re) => { const ln = P.split('\n').find(l => re.test(l)) || ''; const m = ln.match(/\[([^\]]+)\]/); return m ? m[1] : ''; };
+    const idsFor = (re) => P.split('\n').filter(l => re.test(l)).map(l => (l.match(/\[([^\]]+)\]/) || [])[1]).filter(Boolean);
+    const schedIdFor = (re) => { const seg = P.slice(P.indexOf('Schedule (')); const ln = seg.split('\n').find(l => re.test(l)) || ''; const m = ln.match(/\[([^\]]+)\]/); return m ? m[1] : ''; };
+    if (/add to my list/i.test(P)) return '{"action":"my_todo","title":"Pick up screws from CARTERS"}';
+    if (/mark the .*3099.* done/i.test(P)) return JSON.stringify({ action: 'task_update', task_id: idFor(/3099/), done: true });
+    if (/archive everything from the supplier/i.test(P)) return JSON.stringify({ action: 'threads', op: 'archive', thread_ids: idsFor(/Price list/) });
+    if (/find the email/i.test(P)) return JSON.stringify({ action: 'open_thread', thread_id: idFor(/Horeke/) });
+    if (/note on the lewis job/i.test(P)) return JSON.stringify({ action: 'note', thread_id: idFor(/Horeke/), body: 'He rang — wants us before the rain.' });
+    if (/tell the team/i.test(P)) return '{"action":"chat","body":"Yard closes early on Friday."}';
+    if (/open the schedule/i.test(P)) return '{"action":"goto","tab":"schedule"}';
+    if (/pencil the modspace/i.test(P)) return JSON.stringify({ action: 'schedule', op: 'book', row_id: schedIdFor(/Modspace/), start_date: '2026-09-14', work_days: 5, crew_name: '' });
+    if (/push the modspace/i.test(P)) return JSON.stringify({ action: 'schedule', op: 'shift', row_id: schedIdFor(/Modspace/), start_date: '2026-09-28' });
+    if (/confirm start email/i.test(P)) return JSON.stringify({ action: 'sched_mail', row_id: schedIdFor(/Modspace/), kind: 'confirm' });
+    if (/start a new job/i.test(P)) return '{"action":"new_job","client":"Sarah Mills","address":"12 Kamo Road"}';
+    if (/rundown/i.test(P)) return '{"action":"answer","text":"Two open tasks, one hot lead waiting, Modspace starts the 14th."}';
+    if (/set task|task for/i.test(P))
       return '{"action":"task","title":"Check over job #3099","assignee_name":"user-a2","urgency":45}';
-    if (/email/i.test(opts.prompt))
+    if (/email/i.test(P))
       return '{"action":"email","to":"Steel Supplier <sales@supplier.co.nz>","subject":"Colour selection — job 3342","body":"Hi Suzie,\\n\\nCould you send through your colour selection for job 3342?\\n\\nFlood Roofing"}';
     return '{"action":"unknown","note":"I can set tasks and draft emails so far."}';
   }
@@ -445,6 +466,83 @@ r = await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
 body = await j(r);
 check('anything else gets an honest note about what it can do',
   r.status === 200 && body.action === 'unknown' && /tasks and draft emails/i.test(body.note), JSON.stringify(body));
+
+// ── the full command set ──────────────────────────────────────────
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'add to my list pick up screws from CARTERS' }) }));
+check('"add to my list" lands on the private list',
+  body.action === 'my_todo' && body.task.personal === true && body.task.assignee_user_id === A.user,
+  JSON.stringify(body.task || {}).slice(0, 90));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'mark the 3099 task done' }) }));
+check('"mark it done" completes the real task', body.action === 'task_update' && body.task.done === true &&
+  /3099/.test(body.task.title), JSON.stringify(body.task || {}).slice(0, 90));
+body = await j(await as(A, '/inbox/tasks'));
+check('…and the board agrees', (body.tasks || []).some(t => /3099/.test(t.title) && t.done === true));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'archive everything from the supplier' }) }));
+check('"archive everything from…" files the matching conversations',
+  body.action === 'threads' && body.op === 'archive' && body.count >= 1, JSON.stringify(body));
+body = await j(await as(A, '/inbox/threads?status=archived'));
+check('…which really are archived', (body.threads || []).some(t => /Price list/.test(t.subject)));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'find the email about the horeke job' }) }));
+check('"find the email about…" points at the right conversation',
+  body.action === 'open_thread' && body.thread_id === lewis.id, JSON.stringify(body));
+
+const notesBefore = ((await j(await as(A, '/inbox/chat/messages?thread_id=' + lewis.id))).messages || []).length;
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'note on the lewis job he rang and wants us before the rain' }) }));
+check('"note on the job" saves an internal note', body.action === 'note' && body.thread_id === lewis.id, JSON.stringify(body));
+body = await j(await as(A, '/inbox/chat/messages?thread_id=' + lewis.id));
+check('…that sits on the thread, invisible to the customer',
+  (body.messages || []).length === notesBefore + 1 && /before the rain/.test((body.messages || []).map(m => m.body).join(' ')));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'tell the team the yard closes early friday' }) }));
+check('"tell the team…" only PREPARES the chat message — a person posts it',
+  body.action === 'chat' && /Yard closes early/.test(body.body), JSON.stringify(body));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'open the schedule' }) }));
+check('"open the schedule" navigates', body.action === 'goto' && body.tab === 'schedule', JSON.stringify(body));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'pencil the modspace job in for the week of the 14th' }) }));
+check('"pencil the job in…" books the calendar',
+  body.action === 'schedule' && body.op === 'book' && /Modspace/.test(body.client) && body.start_date === '2026-09-14',
+  JSON.stringify(body));
+body = await j(await as(A, '/schedule'));
+let blk = (body.blocks || []).find(b2 => b2.row_id === 'sr-modspace');
+check('…with a real pencil block on the row', !!blk && blk.start_date === '2026-09-14' && blk.kind === 'pencil',
+  JSON.stringify(blk || body).slice(0, 140));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'push the modspace job out two weeks' }) }));
+check('"push it out two weeks" moves the booking', body.action === 'schedule' && body.op === 'shift' &&
+  body.start_date === '2026-09-28', JSON.stringify(body));
+body = await j(await as(A, '/schedule'));
+const blks = (body.blocks || []).filter(b2 => b2.row_id === 'sr-modspace');
+check('…moving the SAME block, not stacking a second one',
+  blks.length === 1 && blks[0].start_date === '2026-09-28', JSON.stringify(blks));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'send modspace their confirm start email' }) }));
+check('"send the confirm start email" hands the modal straight to the person',
+  body.action === 'sched_mail' && body.row_id === 'sr-modspace' && body.kind === 'confirm', JSON.stringify(body));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'start a new job at 12 kamo road for sarah mills' }) }));
+check('"start a new job" hands back the prefill', body.action === 'new_job' &&
+  body.client === 'Sarah Mills' && /Kamo/.test(body.address), JSON.stringify(body));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'give me my rundown' }) }));
+check('"give me my rundown" answers from the real data',
+  body.action === 'answer' && /Modspace/.test(body.text), JSON.stringify(body));
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

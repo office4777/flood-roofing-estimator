@@ -129,11 +129,15 @@ async function boot(opts){
     if (/\/inbox\/assistant$/.test(u) && m === 'POST'){
       const ab = JSON.parse(r.request().postData() || '{}');
       calls.push(['assistant', ab]);
-      return json(/task/i.test(ab.instruction || '')
-        ? { action: 'task', task: { id: 'tk7', title: 'Check over job #3099', assignee_user_id: 'u2',
-            urgency: 45, done: false, personal: false, thread_id: null, job_id: null } }
-        : { action: 'email', to: 'suzie@customer.co.nz', subject: 'Colour selection — job 3342',
-            body: 'Hi Suzie,\n\nCould you send through your colour selection for job 3342?\n\nFlood Roofing' });
+      const ins = ab.instruction || '';
+      if (/rundown/i.test(ins)) return json({ action: 'answer', text: 'Two open tasks.\nOne hot lead waiting.' });
+      if (/open the schedule/i.test(ins)) return json({ action: 'goto', tab: 'schedule' });
+      if (/tell the team/i.test(ins)) return json({ action: 'chat', body: 'Yard closes early on Friday.' });
+      if (/archive/i.test(ins)) return json({ action: 'threads', op: 'archive', count: 2 });
+      if (/task/i.test(ins)) return json({ action: 'task', task: { id: 'tk7', title: 'Check over job #3099', assignee_user_id: 'u2',
+        urgency: 45, done: false, personal: false, thread_id: null, job_id: null } });
+      return json({ action: 'email', to: 'suzie@customer.co.nz', subject: 'Colour selection — job 3342',
+        body: 'Hi Suzie,\n\nCould you send through your colour selection for job 3342?\n\nFlood Roofing' });
     }
     if (/\/inbox\/ai-compose$/.test(u) && m === 'POST'){
       calls.push(['aicompose', JSON.parse(r.request().postData() || '{}')]);
@@ -666,6 +670,35 @@ v = await pg.evaluate(() => ({
 check('"email…" opens compose with the whole draft filled — a person still presses Send',
   v.modal && v.to === 'suzie@customer.co.nz' && /3342/.test(v.subject) && /Hi Suzie/.test(v.body) &&
   /Draft ready/.test(v.out), JSON.stringify({ to: v.to, s: v.subject }).slice(0, 110));
+await pg.evaluate(() => _ibxComposeClose());
+
+// The wider command set, driven through the same box.
+await pg.fill('#iaiAsk', 'give me my rundown');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => document.getElementById('iaiOut').innerHTML);
+check('a question comes back as an answer with its line breaks',
+  /Two open tasks/.test(v) && /One hot lead waiting/.test(v) && /<br>/.test(v), v.slice(-120));
+await pg.fill('#iaiAsk', 'archive everything from the supplier');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => document.getElementById('iaiOut').textContent);
+check('a tidy-up reports what it did', /Archived 2 conversations/.test(v), v.slice(-80));
+await pg.fill('#iaiAsk', 'tell the team the yard closes early friday');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  input: (document.getElementById('ichatInput') || {}).value,
+  open: _ICHAT.open,
+  out: document.getElementById('iaiOut').textContent,
+}));
+check('"tell the team…" stages the message in Internal chat — a person presses ➤',
+  v.open && v.input === 'Yard closes early on Friday.' && /press ➤/.test(v.out), JSON.stringify(v).slice(0, 120));
+await pg.fill('#iaiAsk', 'open the schedule');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => document.body.getAttribute('data-tab'));
+check('"open the schedule" navigates there', v === 'schedule', String(v));
 await ctx.close();
 
 await b.close();
