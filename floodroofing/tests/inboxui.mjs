@@ -235,9 +235,9 @@ v = await pg.evaluate(() => ({
 check('the hot lead opens with its suggested reply and job link', v.strip && v.jobChip, JSON.stringify(v));
 await pg.evaluate(() => document.getElementById('ibxUseDraft').click());
 await pg.waitForTimeout(200);
-v = await pg.evaluate(() => document.getElementById('ibxReplyBody').value);
+v = await pg.evaluate(() => document.getElementById('ibxReplyBody').innerText);
 check('"Use it" drops the draft into the reply box — nothing sent', /Tuesday/.test(v), v.slice(0, 40));
-await pg.evaluate(() => { document.getElementById('ibxReplyBody').value = ''; });
+await pg.evaluate(() => { document.getElementById('ibxReplyBody').innerText = ''; });
 
 await pg.evaluate(() => document.querySelector('[data-ibximg]').click());
 await pg.waitForTimeout(300);
@@ -252,6 +252,30 @@ await pg.waitForTimeout(500);
 let rep = calls.find(c => c[0] === 'reply');
 check('the reply posts exactly what was written',
   !!rep && /Tuesday suits/.test(rep[1].body_text), JSON.stringify(rep && rep[1]));
+check('…as rich HTML too, from the thread\'s own account by default',
+  !!rep && /Tuesday suits/.test(rep[1].body_html || '') && rep[1].account_id === 'acc1',
+  JSON.stringify({ h: !!rep[1].body_html, a: rep[1].account_id }));
+
+// Reply-from: pick the other account, format bar at hand.
+await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  fmtbar: !!document.querySelector('#ibxConv .ibx-fmtbar'),
+  bold: /B/.test((document.querySelector('#ibxConv .ibx-fmtbar') || {}).textContent || ''),
+  from: document.getElementById('ibxReplyFrom') && document.getElementById('ibxReplyFrom').options.length,
+  sel: (document.getElementById('ibxReplyFrom') || {}).value,
+}));
+check('the reply carries a Gmail-style format bar and a From picker',
+  v.fmtbar && v.bold && v.from === 2 && v.sel === 'acc1', JSON.stringify(v));
+calls.length = 0;
+await pg.evaluate(() => { document.getElementById('ibxReplyFrom').value = 'acc2'; });
+await pg.evaluate(() => { document.getElementById('ibxReplyBody').innerHTML = '<b>Cheers</b> — will do.'; });
+await pg.evaluate(() => _ibxReplySend());
+await pg.waitForTimeout(500);
+rep = calls.find(c => c[0] === 'reply');
+check('…and sending from the other account carries the choice and the bold',
+  !!rep && rep[1].account_id === 'acc2' && /<b>Cheers<\/b>/.test(rep[1].body_html || ''),
+  JSON.stringify({ a: rep && rep[1].account_id }));
 
 // The supplier thread has no waiting draft — draft one on demand.
 await pg.evaluate(() => document.querySelector('[data-ibxthread="t2"]').click());
@@ -259,7 +283,7 @@ await pg.waitForTimeout(500);
 calls.length = 0;
 await pg.evaluate(() => _ibxDraft());
 await pg.waitForTimeout(400);
-v = await pg.evaluate(() => document.getElementById('ibxReplyBody').value);
+v = await pg.evaluate(() => document.getElementById('ibxReplyBody').innerText);
 check('✍ Draft a reply asks the AI and fills the box for review',
   calls.some(c => c[0] === 'draft') && /confirm pricing/.test(v), v.slice(0, 40));
 
@@ -486,7 +510,7 @@ await pg.waitForTimeout(400);
 v = await pg.evaluate(() => {
   const t = document.getElementById('ibxReplyBody');
   const h0 = t.getBoundingClientRect().height;
-  t.value = 'line\n'.repeat(40); _ibxReplyGrow(t);
+  t.innerText = 'line\n'.repeat(40);
   const h1 = t.getBoundingClientRect().height;
   return { h0, h1, capped: h1 <= window.innerHeight * 0.5 };
 });
@@ -624,7 +648,7 @@ await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   to: document.getElementById('ibxCTo').value,
   subject: document.getElementById('ibxCSubject').value,
-  body: document.getElementById('ibxCBody').value,
+  body: document.getElementById('ibxCBody').innerText,
   note: document.getElementById('ibxCMsg').textContent,
 }));
 check('one instruction fills To, Subject and the whole draft — nothing sends itself',
@@ -661,7 +685,7 @@ v = await pg.evaluate(() => ({
   modal: getComputedStyle(document.getElementById('ibxComposeModal')).display !== 'none',
   to: document.getElementById('ibxCTo').value,
   subject: document.getElementById('ibxCSubject').value,
-  body: document.getElementById('ibxCBody').value,
+  body: document.getElementById('ibxCBody').innerText,
   out: document.getElementById('iaiOut').textContent,
 }));
 check('"email…" opens compose with the whole draft filled — a person still presses Send',
@@ -726,7 +750,7 @@ await pg.evaluate(() => _iaiGo());
 await pg.waitForTimeout(500);
 v = await pg.evaluate(() => ({
   sent: null,
-  body: (document.getElementById('ibxReplyBody') || {}).value,
+  body: (document.getElementById('ibxReplyBody') || {}).innerText,
   out: document.getElementById('iaiOut').textContent,
 }));
 nt = calls.find(c => c[0] === 'assistant');
@@ -756,6 +780,31 @@ v = await pg.evaluate(() => ({
 }));
 check('↩ Unassign parks it in the Unassigned list with a who/when stamp until someone picks it up',
   !!un && un[1].unassign === true && v.offMyList && v.inUnassigned && v.stamp, JSON.stringify(v));
+
+// ── colour-coded people, columns that fit, Gmail bar in compose ───
+v = await pg.evaluate(() => {
+  const col = document.querySelector('[data-tcol="u2"]');
+  const cs = getComputedStyle(col);
+  const card = document.querySelector('[data-task="tk1"]');
+  const row = document.querySelector('.ibx-row');
+  return {
+    grow: cs.flexGrow === '1',
+    topBar: cs.borderTopWidth === '3px' && cs.borderTopColor !== 'rgb(226, 232, 240)',
+    dot: !!col.querySelector('.th span[style*="border-radius"]'),
+    cardEdge: card && getComputedStyle(card).borderLeftWidth === '3px',
+    rowEdge: row && getComputedStyle(row).borderLeftWidth === '3px',
+    chip: !!document.querySelector('.ibx-row .sn span[style*="font-weight:700"], .ibx-row .sn span[style*="font-weight: 700"]'),
+  };
+});
+check('columns squeeze to fit and wear their member\'s colour — cards and mail rows too',
+  v.grow && v.topBar && v.dot && v.cardEdge && v.rowEdge, JSON.stringify(v));
+await pg.evaluate(() => _ibxComposeOpen());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({
+  bar: !!document.querySelector('#ibxCFmtBar .ibx-fmtbar'),
+  editable: (document.getElementById('ibxCBody') || {}).contentEditable === 'true',
+}));
+check('compose carries the same format bar over a rich editor', v.bar && v.editable, JSON.stringify(v));
 await ctx.close();
 
 await b.close();

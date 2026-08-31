@@ -4738,6 +4738,7 @@ async function _inboxSend(req, acct, mail){
     from: { name: acct.label || acct.email, address: acct.email },
     to: mail.to, cc: mail.cc || undefined,
     subject: mail.subject, text: mail.body_text,
+    html: mail.body_html || undefined,
     messageId: msgId,
     inReplyTo: mail.in_reply_to || undefined,
     references: mail.refs || undefined,
@@ -4778,7 +4779,9 @@ app.post('/inbox/threads/:id/reply', ..._inboxGate, async (req, res) => {
     const accts = await _inboxVisibleAccounts(req);
     const { data } = await _scopeCompany(supabase.from('mail_threads').select('*'), req).eq('id', req.params.id).limit(1);
     const t = data && data[0];
-    const acct = t && accts.find(a => a.id === t.account_id);
+    // Reply-from: any visible account can carry the reply; default is the
+    // account the conversation lives on.
+    const acct = t && (accts.find(a => a.id === b.account_id) || accts.find(a => a.id === t.account_id));
     if (!t || !acct) return res.status(404).json({ error: 'Thread not found' });
     const { data: msgs } = await supabase.from('mail_messages').select('*')
       .eq('account_id', t.account_id).eq('thread_key', t.thread_key).limit(200);
@@ -4790,6 +4793,7 @@ app.post('/inbox/threads/:id/reply', ..._inboxGate, async (req, res) => {
     const refs = ((inbound && inbound.refs) ? inbound.refs + ' ' : '') + ((inbound && inbound.msg_id) || '');
     const sent = await _inboxSend(req, acct, {
       to, cc: b.cc, subject, body_text: String(b.body_text),
+      body_html: b.body_html ? String(b.body_html).slice(0, 200000) : '',
       in_reply_to: (inbound && inbound.msg_id) || '', refs: refs.trim(),
     });
     const row = {
@@ -4798,7 +4802,8 @@ app.post('/inbox/threads/:id/reply', ..._inboxGate, async (req, res) => {
       in_reply_to: (inbound && inbound.msg_id) || '', refs: refs.trim(),
       from_addr: acct.email, from_name: acct.label || '', to_addrs: [to],
       cc_addrs: b.cc ? [String(b.cc)] : [], subject,
-      date: new Date().toISOString(), body_text: String(b.body_text), body_html: '',
+      date: new Date().toISOString(), body_text: String(b.body_text),
+      body_html: b.body_html ? String(b.body_html).slice(0, 200000) : '',
       attachments: [], folder: 'Sent', ai: null, created_at: new Date().toISOString(),
     };
     await supabase.from('mail_messages').insert(row);
@@ -4819,14 +4824,16 @@ app.post('/inbox/compose', ..._inboxGate, async (req, res) => {
     const acct = accts.find(a => a.id === b.account_id) || accts[0];
     if (!acct) return res.status(400).json({ error: 'Connect an email account first' });
     const subject = String(b.subject || '(no subject)').slice(0, 300);
-    const sent = await _inboxSend(req, acct, { to: String(b.to).trim(), cc: b.cc, subject, body_text: String(b.body_text) });
+    const sent = await _inboxSend(req, acct, { to: String(b.to).trim(), cc: b.cc, subject,
+      body_text: String(b.body_text), body_html: b.body_html ? String(b.body_html).slice(0, 200000) : '' });
     const key = sent.msgId;
     const row = {
       id: crypto.randomUUID(), company_id: acct.company_id, user_id: req.user.id,
       account_id: acct.id, thread_key: key, msg_id: sent.msgId, in_reply_to: '', refs: '',
       from_addr: acct.email, from_name: acct.label || '', to_addrs: [String(b.to).trim()],
       cc_addrs: b.cc ? [String(b.cc)] : [], subject,
-      date: new Date().toISOString(), body_text: String(b.body_text), body_html: '',
+      date: new Date().toISOString(), body_text: String(b.body_text),
+      body_html: b.body_html ? String(b.body_html).slice(0, 200000) : '',
       attachments: [], folder: 'Sent', ai: null, created_at: new Date().toISOString(),
     };
     await supabase.from('mail_messages').insert(row);

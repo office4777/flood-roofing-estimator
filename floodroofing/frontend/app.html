@@ -2855,13 +2855,14 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .ibx-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid var(--border);
   border-radius:999px; background:#fff; font-size:12px; font-weight:600; color:#0a1628; cursor:pointer; }
 .ibx-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
+[contenteditable][data-ph]:empty::before{ content:attr(data-ph); color:#94a3b8; pointer-events:none; }
 .ibx-daysep{ padding:7px 12px 3px; font-size:10.5px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.4px; background:#fbfcfe; border-bottom:1px solid #eef1f4; }
 #ibxList.compact .ibx-row{ padding:4px 10px; }
 #ibxList.compact .ibx-row .sn{ display:none; }
 .nav-badge{ margin-left:auto; background:#dc2626; color:#fff; border-radius:999px; font-size:10px; font-weight:800; padding:1px 7px; }
 .ibx-taskchip{ display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 9px; font-size:11.5px; background:#fff; cursor:pointer; flex:0 0 auto; max-width:300px; }
 .ibx-taskchip:hover{ border-color:#94a3b8; }
-.ibx-tcol{ width:236px; flex:0 0 auto; background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:8px; }
+.ibx-tcol{ flex:1 1 0; min-width:106px; background:#f8fafc; border:1px solid var(--border); border-radius:10px 10px 10px 10px; border-top-width:3px; padding:8px; }
 .ibx-tcol .th{ font-size:11.5px; font-weight:800; color:#0a1628; padding:2px 4px 8px; display:flex; gap:6px; align-items:center; }
 .ibx-task{ background:#fff; border:1px solid var(--border); border-radius:8px; padding:8px 9px; margin-bottom:6px; cursor:grab; font-size:12px; }
 .ibx-task.done{ opacity:.55; }
@@ -5568,7 +5569,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
       </div>
       <div style="display:flex;gap:12px;align-items:flex-start">
-        <div style="width:252px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px">
+        <div style="width:186px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px">
           <div style="font-size:12.5px;font-weight:800;color:#0a1628;margin-bottom:7px">📝 My list</div>
           <input type="text" id="ibxMyNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
           <div id="ibxMyItems"></div>
@@ -5617,7 +5618,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <input type="email" id="ibxCTo" placeholder="To" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
       <input type="text" id="ibxCCc" placeholder="Cc (optional)" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
       <input type="text" id="ibxCSubject" placeholder="Subject" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-      <textarea id="ibxCBody" rows="9" placeholder="Write your email…" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;resize:vertical"></textarea>
+      <div id="ibxCFmtBar"></div>
+      <div id="ibxCBody" contenteditable="true" data-ph="Write your email…" style="min-height:170px;max-height:45vh;overflow-y:auto;padding:12px;border:1px solid #cbd5e1;border-radius:0 0 8px 8px;font-size:12.5px;line-height:1.5;background:#fff;outline:none"></div>
       <div style="display:flex;gap:10px;align-items:center">
         <span id="ibxCMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>
         <button id="ibxCSend" onclick="_ibxComposeSend()" style="padding:9px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Send</button>
@@ -8548,14 +8550,18 @@ function _ibxRenderList(){
       var lbl = _ibxDayLabel(t.last_date);
       if (lbl !== lastSep){ lastSep = lbl; sep = '<div class="ibx-daysep">' + lbl + '</div>'; }
     }
-    return sep + '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '">' +
+    var racct = _IBX.accounts.length > 1 ? _IBX.accounts.find(function(a){ return a.id === t.account_id; }) : null;
+    var acol = racct ? _ibxAvColor(racct.user_id || racct.id) : '';
+    return sep + '<div class="ibx-row' + (t.unread ? ' unread' : '') + (_IBX.sel === t.id ? ' on' : '') + '" data-ibxthread="' + t.id + '"' +
+      (acol ? ' style="border-left:3px solid ' + acol + '" title="' + _ibxEsc((racct.label || racct.email)) + '"' : '') + '>' +
       '<div style="display:flex;gap:9px;align-items:center">' +
       _ibxAvatar(who || t.subject, (t.participants || [])[0] || t.subject, compact ? 22 : 32) +
       '<div style="flex:1;min-width:0">' +
       '<div style="display:flex;gap:8px;align-items:center"><div class="f" style="flex:1">' + _ibxEsc(who || t.subject) + '</div>' +
       badges + '<div class="p" title="' + _ibxEsc(t.last_date || '') + '">' + when + '</div></div>' +
       '<div class="s">' + _ibxEsc(t.subject || '(no subject)') + '</div>' +
-      '<div class="p sn">' + _ibxEsc(t.snippet || '') + (_IBX.accounts.length > 1 ? ' · ' + _ibxEsc(t.account_label || t.account_email) : '') + '</div>' +
+      '<div class="p sn">' + _ibxEsc(t.snippet || '') +
+      (acol ? ' · <span style="color:' + acol + ';font-weight:700">' + _ibxEsc(t.account_label || t.account_email) + '</span>' : '') + '</div>' +
       '</div></div></div>';
   }).join('');
   el.querySelectorAll('[data-ibxthread]').forEach(function(r){
@@ -8601,11 +8607,20 @@ async function _ibxOpen(id){
           (m.attachments || []).map(function(a){ return _ibxEsc(a.name); }).join(' · ') + '</div>' : '') +
         (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
     });
+    var fromOpts = _IBX.accounts.map(function(a){
+      return '<option value="' + a.id + '"' + (a.id === t.account_id ? ' selected' : '') + '>' +
+        _ibxEsc((a.label || a.email) + ' <' + a.email + '>') + '</option>';
+    }).join('');
     h += '<div style="padding:12px 12px 4px">' +
+      (_IBX.accounts.length > 1 ? '<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px">' +
+        '<span style="font-size:11.5px;color:#64748b;font-weight:700">From</span>' +
+        '<select id="ibxReplyFrom" style="flex:1;min-width:0;max-width:340px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;background:#fff">' + fromOpts + '</select></div>'
+        : '<select id="ibxReplyFrom" style="display:none">' + fromOpts + '</select>') +
       (t.ai_draft ? '<div id="ibxDraftStrip" style="border:1px dashed #0099cc;background:#f0f9ff;border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#0a1628">' +
         '<div style="font-weight:700;margin-bottom:3px">✨ Suggested reply <button class="ibx-chip" id="ibxUseDraft" style="padding:2px 9px;font-size:10.5px;margin-left:6px">Use it</button></div>' +
         '<div style="white-space:pre-wrap;color:#334155">' + _ibxEsc(t.ai_draft) + '</div></div>' : '') +
-      '<textarea id="ibxReplyBody" rows="7" placeholder="Reply…" oninput="_ibxReplyGrow(this)" style="width:100%;min-height:150px;max-height:45vh;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;line-height:1.5;resize:vertical"></textarea>' +
+      _ibxFmtBar() +
+      '<div id="ibxReplyBody" contenteditable="true" data-ph="Reply…" style="min-height:150px;max-height:45vh;overflow-y:auto;padding:12px;border:1px solid #cbd5e1;border-radius:0 0 10px 10px;font-size:13px;line-height:1.5;background:#fff;outline:none"></div>' +
       '<div style="display:flex;gap:10px;align-items:center;margin-top:6px">' +
       '<span id="ibxReplyMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>' +
       (_IBX.aiOn && !t.ai_draft ? '<button class="ibx-chip" id="ibxDraftBtn" onclick="_ibxDraft()">✍ Draft a reply</button>' : '') +
@@ -8625,8 +8640,7 @@ async function _ibxOpen(id){
     if (jb) jb.onclick = function(){ try { loadJobById && loadJobById(jb.getAttribute('data-ibxjob')); } catch(e){} };
     var ud = document.getElementById('ibxUseDraft');
     if (ud) ud.onclick = function(){
-      document.getElementById('ibxReplyBody').value = t.ai_draft || '';
-      _ibxReplyGrow(document.getElementById('ibxReplyBody'));
+      _ibxEdSet(document.getElementById('ibxReplyBody'), t.ai_draft || '');
       document.getElementById('ibxDraftStrip').style.display = 'none';
       document.getElementById('ibxReplyBody').focus();
     };
@@ -8682,12 +8696,17 @@ async function _ibxPatch(id, patch, stay){
   } catch(e){ _ibxMsg((e && e.message) || 'That didn’t save', true); }
 }
 async function _ibxReplySend(){
-  var body = (document.getElementById('ibxReplyBody') || {}).value || '';
+  var _rb = document.getElementById('ibxReplyBody');
+  var body = _ibxEdText(_rb);
   if (!body.trim()){ document.getElementById('ibxReplyMsg').textContent = 'Write the reply first'; return; }
   var btn = document.getElementById('ibxReplySend');
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
-    await api('POST', '/inbox/threads/' + _IBX.sel + '/reply', { body_text: body });
+    await api('POST', '/inbox/threads/' + _IBX.sel + '/reply', {
+      body_text: body,
+      body_html: (_rb && _rb.innerHTML) || undefined,
+      account_id: (document.getElementById('ibxReplyFrom') || {}).value || undefined,
+    });
     _ibxOpen(_IBX.sel);
     _ibxLoad(true);
   } catch(e){
@@ -8738,8 +8757,7 @@ async function _ibxDraft(){
   if (btn){ btn.disabled = true; btn.textContent = 'Drafting…'; }
   try {
     var d = await api('POST', '/inbox/threads/' + _IBX.sel + '/draft');
-    document.getElementById('ibxReplyBody').value = d.draft || '';
-    _ibxReplyGrow(document.getElementById('ibxReplyBody'));
+    _ibxEdSet(document.getElementById('ibxReplyBody'), d.draft || '');
     document.getElementById('ibxReplyBody').focus();
     if (btn){ btn.disabled = false; btn.textContent = '✍ Draft a reply'; }
   } catch(e){
@@ -8760,6 +8778,28 @@ function _ibxView(v){
 function _ibxTasksToggle(){ _ibxView('mail'); }
 function _ibxChatToggle(){ _ibxView(_IBX.view === 'chat' ? 'mail' : 'chat'); }
 // ── the task strip: open tasks pinned above the mail list ──
+function _ibxEdText(el){ return el ? String(el.innerText || '').replace(/ /g, ' ') : ''; }
+function _ibxEdSet(el, t){ if (el) el.innerText = t || ''; }
+function _ibxFmtBtn(cmd, val, label, title){
+  return '<button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand(\'' + cmd + '\',false,' +
+    (val ? "'" + val + "'" : 'null') + ')" title="' + title + '" style="border:none;background:none;cursor:pointer;font-size:13px;padding:3px 9px;border-radius:6px;color:#0a1628">' + label + '</button>';
+}
+function _ibxFmtBar(){
+  return '<div class="ibx-fmtbar" style="display:flex;gap:1px;align-items:center;border:1px solid #cbd5e1;border-bottom:none;border-radius:10px 10px 0 0;background:#f8fafc;padding:3px 6px;flex-wrap:wrap">' +
+    _ibxFmtBtn('bold', null, '<b>B</b>', 'Bold') +
+    _ibxFmtBtn('italic', null, '<i>I</i>', 'Italic') +
+    _ibxFmtBtn('underline', null, '<u>U</u>', 'Underline') +
+    '<span style="width:1px;height:16px;background:#e2e8f0;margin:0 4px"></span>' +
+    _ibxFmtBtn('foreColor', '#0a1628', '<span style="font-weight:800">A</span>', 'Black') +
+    _ibxFmtBtn('foreColor', '#dc2626', '<span style="color:#dc2626;font-weight:800">A</span>', 'Red') +
+    _ibxFmtBtn('foreColor', '#0369a1', '<span style="color:#0369a1;font-weight:800">A</span>', 'Blue') +
+    _ibxFmtBtn('foreColor', '#16a34a', '<span style="color:#16a34a;font-weight:800">A</span>', 'Green') +
+    '<span style="width:1px;height:16px;background:#e2e8f0;margin:0 4px"></span>' +
+    _ibxFmtBtn('insertUnorderedList', null, '•&#8801;', 'Bullet list') +
+    _ibxFmtBtn('insertOrderedList', null, '1.&#8801;', 'Numbered list') +
+    _ibxFmtBtn('removeFormat', null, 'T&#215;', 'Clear formatting') +
+    '</div>';
+}
 function _ibxReplyGrow(t){
   if (!t) return;
   t.style.height = 'auto';
@@ -8876,7 +8916,7 @@ async function _ibxAiCompose(){
     var d = await api('POST', '/inbox/ai-compose', { instruction: instruction });
     if (d.to) document.getElementById('ibxCTo').value = d.to;
     if (d.subject) document.getElementById('ibxCSubject').value = d.subject;
-    if (d.body) document.getElementById('ibxCBody').value = d.body;
+    if (d.body) _ibxEdSet(document.getElementById('ibxCBody'), d.body);
     msg.style.color = 'var(--text2)';
     msg.textContent = d.to ? 'Drafted — read it over, then Send.' : 'Drafted — I could not match a contact, so fill in To yourself.';
   } catch(e){
@@ -9134,7 +9174,7 @@ async function _iaiGo(){
       try { gotoTab('inbox'); } catch(e){}
       var fillReply = function(){
         var ta = document.getElementById('ibxReplyBody');
-        if (ta){ ta.value = d.body || ''; _ibxReplyGrow(ta); ta.focus(); }
+        if (ta){ _ibxEdSet(ta, d.body || ''); ta.focus(); }
       };
       if (_IBX.sel === d.thread_id && document.getElementById('ibxReplyBody')) fillReply();
       else {
@@ -9191,7 +9231,7 @@ async function _iaiGo(){
       _ibxComposeOpen();
       if (d.to) document.getElementById('ibxCTo').value = d.to;
       if (d.subject) document.getElementById('ibxCSubject').value = d.subject;
-      if (d.body) document.getElementById('ibxCBody').value = d.body;
+      if (d.body) _ibxEdSet(document.getElementById('ibxCBody'), d.body);
       _iaiSay('✉ Draft ready in the compose window' + (d.to ? '' : ' — I couldn\'t match a contact, so fill in To yourself') + '. Read it over, then Send.');
     } else if (d.action === 'answer' && d.text){
       _iaiSay(_ibxEsc(d.text).replace(/\n/g, '<br>'));
@@ -9352,11 +9392,13 @@ function _ibxTasksRender(){
   el.innerHTML = cols.map(function(c){
     var cards = (_IBX.tasks || []).filter(function(t){ return !t.personal && (t.assignee_user_id || '') === c.id; });
     var open = cards.filter(function(t){ return !t.done; }).length;
-    return '<div class="ibx-tcol" data-tcol="' + c.id + '">' +
-      '<div class="th">' + _ibxEsc(c.name) + '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
+    var ccol = c.id ? _ibxAvColor(c.id) : '#b45309';
+    return '<div class="ibx-tcol" data-tcol="' + c.id + '" style="border-top-color:' + ccol + '">' +
+      '<div class="th"><span style="width:8px;height:8px;border-radius:50%;background:' + ccol + ';display:inline-block;margin-right:5px"></span>' +
+      _ibxEsc(c.name) + '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
       cards.map(function(t){
         var over = t.due_date && t.due_date < today && !t.done;
-        return '<div class="ibx-task' + (t.done ? ' done' : '') + '" draggable="true" data-task="' + t.id + '">' +
+        return '<div class="ibx-task' + (t.done ? ' done' : '') + '" draggable="true" data-task="' + t.id + '" style="border-left:3px solid ' + (t.assignee_user_id ? _ibxAvColor(t.assignee_user_id) : '#b45309') + '">' +
           '<div style="display:flex;gap:7px;align-items:flex-start">' +
           '<input type="checkbox"' + (t.done ? ' checked' : '') + ' data-tdone="' + t.id + '" title="Done">' +
           '<div style="flex:1;min-width:0"><div class="tt">' + _ibxEsc(t.title) + '</div>' +
@@ -9443,6 +9485,8 @@ function _ibxComposeOpen(){
   document.getElementById('ibxCMsg').textContent = '';
   var bar = document.getElementById('ibxCAiBar');
   if (bar) bar.style.display = _IBX.aiOn ? 'flex' : 'none';
+  var fb = document.getElementById('ibxCFmtBar');
+  if (fb && !fb.innerHTML) fb.innerHTML = _ibxFmtBar();
   document.getElementById('ibxComposeOverlay').style.display = 'block';
   document.getElementById('ibxComposeModal').style.display = 'flex';
 }
@@ -9459,10 +9503,12 @@ async function _ibxComposeSend(){
       to: document.getElementById('ibxCTo').value.trim(),
       cc: document.getElementById('ibxCCc').value.trim() || undefined,
       subject: document.getElementById('ibxCSubject').value.trim(),
-      body_text: document.getElementById('ibxCBody').value,
+      body_text: _ibxEdText(document.getElementById('ibxCBody')),
+      body_html: (document.getElementById('ibxCBody') || {}).innerHTML || undefined,
     });
     btn.disabled = false; btn.textContent = 'Send';
-    ['ibxCTo','ibxCCc','ibxCSubject','ibxCBody'].forEach(function(i){ document.getElementById(i).value = ''; });
+    ['ibxCTo','ibxCCc','ibxCSubject'].forEach(function(i){ document.getElementById(i).value = ''; });
+    _ibxEdSet(document.getElementById('ibxCBody'), '');
     _ibxComposeClose();
     _ibxMsg('✓ Sent');
     _ibxLoad(true);
@@ -12527,10 +12573,16 @@ function _lkgGuard(draw){
   // Something emptied the drawing without anybody asking for it. Save what
   // was really there and say so, rather than writing the blank over the top
   // — which is the one mistake that cannot be undone from the roof.
-  try { _setSaveStatus && _setSaveStatus(
-    '⚠ The roof map had gone blank, so the last good one was saved instead. Check the Map Roof tab.',
-    '#b45309', true); } catch(e){}
-  _lkgReport('empty drawing blocked at save', draw, restored);
+  // A fresh session that never drew anything (booted onto another tab, the
+  // auto-draft timer ticking over yesterday's disk LKG) is the guard doing
+  // its quiet job — substitute and move on. Only a drawing that vanished
+  // MID-session is worth alarming anyone about.
+  if (LKG.hadDrawing) {
+    try { _setSaveStatus && _setSaveStatus(
+      '⚠ The roof map had gone blank, so the last good one was saved instead. Check the Map Roof tab.',
+      '#b45309', true); } catch(e){}
+    _lkgReport('empty drawing blocked at save', draw, restored);
+  }
   return restored;
 }
 // What the old report looked like: "empty drawing blocked at save", no stack,

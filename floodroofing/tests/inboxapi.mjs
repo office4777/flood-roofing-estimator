@@ -571,6 +571,17 @@ check('…until someone picks it up — which clears the stamp',
   r.status === 200 && body.assignee_user_id === A2.user && body.unassigned_by === null && body.unassigned_at === null,
   JSON.stringify({ a: body.assignee_user_id, u: body.unassigned_by }));
 
+// ── rich replies from any account ─────────────────────────────────
+r = await as(A, '/inbox/threads/' + lewis.id + '/reply', { method: 'POST', body: JSON.stringify({
+  body_text: 'Cheers — will do.', body_html: '<b>Cheers</b> — will do.', account_id: rxonly.id }) });
+body = await j(r);
+check('a reply can go out rich, from a CHOSEN account',
+  r.status === 200 && body._test_envelope && /<b>Cheers<\/b>/.test(body._test_envelope.html || '') &&
+  (body._test_envelope.from || {}).address === 'sales@floodroofing.co.nz',
+  JSON.stringify({ f: (body._test_envelope || {}).from, h: !!(body._test_envelope || {}).html }));
+check('…and the sent copy keeps the formatting for the conversation view',
+  body.message && /<b>Cheers<\/b>/.test(body.message.body_html || ''), JSON.stringify(body.message || {}).slice(0, 90));
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);
