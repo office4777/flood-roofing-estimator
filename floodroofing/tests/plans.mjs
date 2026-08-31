@@ -109,14 +109,44 @@ check('an invitation sent before a downgrade cannot be used to exceed the new pl
   acc.status === 403 && accBody.code === 'PLAN_SEATS', acc.status + ' ' + JSON.stringify(accBody));
 check('…and says what the invitee should do about it', /upgrade/i.test(accBody.error || ''), accBody.error);
 
-// ── Business: everything ──
+// ── Business: fifteen seats, and everything else ──
+// The pricing page sells Business as "up to fifteen people" with Enterprise
+// above it. That promise is only real if the server counts.
 setPlan('business'); await settle();
 r = await api('GET', '/team');
-check('Business is unlimited and includes the lot',
-  r.body.plan.seats.allowed === null && r.body.plan.slug && r.body.plan.domain && r.body.plan.jms,
+check('Business covers fifteen and includes the lot',
+  r.body.plan.seats.allowed === 15 && r.body.plan.slug && r.body.plan.domain && r.body.plan.jms,
   JSON.stringify(r.body.plan));
 r = await api('POST', '/team/invites', { email:'seventh@acmeroofing.co.nz' });
 check('…so a sixth and seventh person are fine', r.status === 200, String(r.status));
+if (r.status === 200 && db.company_invites.length) db.company_invites[db.company_invites.length-1].expires_at = '2030-01-01T00:00:00Z';
+// Fill it to the fifteen the page promises: 1 in the business + 14 invited.
+// Seeded straight into the table rather than sent — every accepted invite
+// posts a real email, and an 8-second SMTP timeout each is minutes of suite.
+for (let i = 0; i < 8; i++){
+  db.company_invites.push({ id: 'inv-crew-' + i, company_id: CO, email: 'crew' + i + '@acmeroofing.co.nz',
+    role: 'member', token_hash: 'x' + i, expires_at: '2030-01-01T00:00:00Z', accepted_at: null });
+}
+r = await api('GET', '/team');
+check('…up to fifteen, where it stops', r.body.plan.seats.used === 15, JSON.stringify(r.body.plan.seats));
+r = await api('POST', '/team/invites', { email:'sixteenth@acmeroofing.co.nz' });
+check('…and the sixteenth is refused', r.status === 403 && r.body.code === 'PLAN_SEATS',
+  r.status + ' ' + JSON.stringify(r.body.error));
+check('…pointing at Enterprise, since there is no bigger plan to upgrade to',
+  /Enterprise/.test(r.body.error || '') && !/Upgrade to add more/.test(r.body.error || ''), r.body.error);
+
+// Grandfathering: a business that was already bigger than the cap keeps every
+// one of its people. The gate only ever refuses the NEXT person — capping a
+// plan must never quietly throw somebody out of their own company.
+db.company_users.push({ company_id: CO, user_id:'eeeeeeee-0000-0000-0000-000000000001', role:'member' },
+                      { company_id: CO, user_id:'eeeeeeee-0000-0000-0000-000000000002', role:'member' });
+r = await api('GET', '/team');
+check('a business already past the cap keeps everybody and still loads',
+  r.status === 200 && db.company_users.filter(u => u.company_id === CO).length === 3 &&
+  r.body.plan.seats.used > r.body.plan.seats.allowed, JSON.stringify(r.body.plan.seats));
+r = await api('POST', '/team/invites', { email:'onemore@acmeroofing.co.nz' });
+check('…it is only the next invitation that is refused',
+  r.status === 403 && r.body.code === 'PLAN_SEATS', String(r.status));
 
 // ── a company with no plan yet keeps working ──
 delete db.companies[0].plan; await settle();

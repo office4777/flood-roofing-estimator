@@ -1031,8 +1031,19 @@ const PLANS = {
   trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
   solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false },
   team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true,  schedule: false, inbox: false },
-  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
+  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
 };
+// Business is the largest plan we sell off the shelf; past it is Enterprise,
+// which is a conversation rather than a button. So a company that fills its
+// seats must not be told to "upgrade" when there is nothing above them.
+const _BIGGEST_PLAN_SEATS = Math.max.apply(null, Object.keys(PLANS)
+  .filter(function (k) { return k !== 'trial'; })
+  .map(function (k) { return PLANS[k].seats; }));
+function _seatNextStep(lim){
+  return lim.seats >= _BIGGEST_PLAN_SEATS
+    ? 'Get in touch and we will sort out Enterprise.'
+    : 'Upgrade to add more.';
+}
 function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
 // Cached briefly so a per-request plan check isn't a per-request query. The
 // cost is that a plan change (a Stripe webhook, say) takes up to this long to
@@ -1202,7 +1213,7 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
         return res.status(403).json({
           error: 'Your plan covers ' + lim.seats + (lim.seats === 1 ? ' person' : ' people') +
                  ' and you have ' + seats.total + ' (' + seats.members + ' in the business, ' +
-                 seats.pending + ' invited). Upgrade to add more.',
+                 seats.pending + ' invited). ' + _seatNextStep(lim),
           code: 'PLAN_SEATS', seats: seats, allowed: lim.seats,
         });
       }
@@ -1333,7 +1344,10 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
       const { data: mem } = await supabase.from('company_users').select('user_id').eq('company_id', inv.company_id);
       if ((mem || []).length >= lim.seats) {
         return res.status(403).json({
-          error: 'That business has filled every seat on its plan. Ask them to upgrade, then use this link again.',
+          error: 'That business has filled every seat on its plan. ' +
+                 (lim.seats >= _BIGGEST_PLAN_SEATS
+                   ? 'Ask them to get in touch with us about Enterprise, then use this link again.'
+                   : 'Ask them to upgrade, then use this link again.'),
           code: 'PLAN_SEATS',
         });
       }
