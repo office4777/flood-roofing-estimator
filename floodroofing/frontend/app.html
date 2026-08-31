@@ -8962,6 +8962,7 @@ function _ibxAcctRenderList(){
       '<strong>' + _ibxEsc(a.label || a.email) + '</strong>' +
       '<span style="color:#64748b">' + _ibxEsc(a.email) + '</span>' +
       '<span style="color:#94a3b8">' + (a.shared ? 'shared' : 'private') + '</span>' +
+      (a.smtp_ok === false ? '<span style="color:#b45309;background:#fef3c7;border-radius:6px;padding:1px 7px" title="' + _ibxEsc(a.last_error || 'The host is blocking outbound SMTP') + '">receive-only</span>' : '') +
       (a.status !== 'ok' ? '<span style="color:#b91c1c;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _ibxEsc(a.last_error) + '</span>' : '<span style="flex:1"></span>') +
       '<button class="ibx-chip" data-ibxsync="' + a.id + '" style="padding:3px 9px;font-size:11px">Sync now</button>' +
       '<button class="ibx-chip" data-ibxdel="' + a.id + '" style="padding:3px 9px;font-size:11px;color:#b91c1c">✕</button></div>';
@@ -8985,7 +8986,7 @@ async function _ibxAcctConnect(){
   var btn = document.getElementById('ibxAConnect'), msg = document.getElementById('ibxAMsg');
   btn.disabled = true; btn.textContent = 'Checking the login…';
   try {
-    await api('POST', '/inbox/accounts', {
+    var acct = await api('POST', '/inbox/accounts', {
       email: document.getElementById('ibxAEmail').value.trim(),
       label: document.getElementById('ibxALabel').value.trim(),
       provider: _ibxProv || 'other',
@@ -8998,7 +8999,12 @@ async function _ibxAcctConnect(){
     });
     btn.disabled = false; btn.textContent = 'Connect';
     document.getElementById('ibxAPass').value = '';
-    msg.style.color = '#16a34a'; msg.textContent = '✓ Connected — pulling your recent mail now';
+    if (acct && acct.smtp_ok === false) {
+      msg.style.color = '#b45309';
+      msg.textContent = '✓ Connected receive-only — reading works, but the app’s host is blocking outbound SMTP so replies can’t send yet. Sending switches on by itself once the host unblocks it.';
+    } else {
+      msg.style.color = '#16a34a'; msg.textContent = '✓ Connected — pulling your recent mail now';
+    }
     await _ibxLoad(true);
     _ibxAcctRenderList();
   } catch(e){

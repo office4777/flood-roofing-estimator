@@ -3900,6 +3900,12 @@ const _mailFetcherReal = {
 function _mailFetcher(){ return globalThis.__TEST_MAIL_FETCHER || _mailFetcherReal; }
 function _mailTransport(acct, pass){
   const nodemailer = require('nodemailer');
+  if (globalThis.__TEST_SMTP_FAIL) {
+    // Seam for the suites: a host that blocks outbound SMTP looks exactly
+    // like this — every connect refused, IMAP untouched.
+    const err = new Error('connect ECONNREFUSED');
+    return { verify: () => Promise.reject(err), sendMail: () => Promise.reject(err) };
+  }
   if (globalThis.__TEST_MAIL_JSON) return nodemailer.createTransport({ jsonTransport: true });
   return nodemailer.createTransport(Object.assign({
     host: acct.smtp_host, port: acct.smtp_port, secure: acct.smtp_port === 465,
@@ -4072,7 +4078,7 @@ async function _inboxSweep(){
 setInterval(_inboxSweep, 180000);
 
 // ── accounts ──
-const _MAIL_ACCT_SAFE = 'id, company_id, user_id, label, email, provider, imap_host, imap_port, smtp_host, smtp_port, username, shared, status, last_error, last_sync, created_at';
+const _MAIL_ACCT_SAFE = 'id, company_id, user_id, label, email, provider, imap_host, imap_port, smtp_host, smtp_port, username, shared, status, last_error, last_sync, created_at, smtp_ok';
 async function _inboxVisibleAccounts(req){
   const { data } = await _scopeCompany(supabase.from('mail_accounts').select('*'), req);
   return (data || []).filter(a => a.shared || a.user_id === req.user.id);
@@ -4104,9 +4110,14 @@ app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
     created_at: new Date().toISOString(),
   };
   if (!acct.imap_host || !acct.smtp_host) return res.status(400).json({ error: 'IMAP and SMTP hosts are required' });
+  acct.smtp_ok = true;
   try {
-    // Prove the login works BEFORE storing it — both directions, with a
-    // hard backstop so the Connect button always gets an answer.
+    // Prove the login works BEFORE storing it, with a hard backstop so the
+    // Connect button always gets an answer. IMAP is the account's spine —
+    // a dead IMAP leg refuses the connect. SMTP is softer: container hosts
+    // (Railway included) block outbound SMTP wholesale while leaving IMAP
+    // open, and that's the platform's doing, not a bad password — so an
+    // unreachable SMTP leg stores the account receive-only instead.
     await Promise.race([
       (async () => {
         try {
@@ -4114,7 +4125,11 @@ app.post('/inbox/accounts', ..._inboxGate, async (req, res) => {
         } catch (e) { e.message = (e.message || e) + ' (IMAP ' + acct.imap_host + ':' + acct.imap_port + ')'; throw e; }
         try {
           await _mailTransport(acct, String(b.password)).verify();
-        } catch (e) { e.message = (e.message || e) + ' (SMTP ' + acct.smtp_host + ':' + acct.smtp_port + ')'; throw e; }
+        } catch (e) {
+          acct.smtp_ok = false;
+          acct.last_error = 'Sending unavailable: ' + String(e.message || e).slice(0, 160) +
+            ' (SMTP ' + acct.smtp_host + ':' + acct.smtp_port + ')';
+        }
       })(),
       new Promise((_, rej) => setTimeout(() => rej(new Error('the mail server did not answer in time')), 35000)),
     ]);
@@ -4414,6 +4429,21 @@ app.post('/inbox/chat/messages', ..._inboxGate, async (req, res) => {
 // ── send ──
 async function _inboxSend(req, acct, mail){
   const pass = _mailDec(acct.cred_enc);
+  if (acct.smtp_ok === false) {
+    // The account connected receive-only because SMTP was unreachable.
+    // Re-test before refusing — the host may have unblocked it since.
+    try {
+      await Promise.race([
+        _mailTransport(acct, pass).verify(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('no answer')), 15000)),
+      ]);
+      acct.smtp_ok = true;
+      await supabase.from('mail_accounts').update({ smtp_ok: true, last_error: '' }).eq('id', acct.id);
+    } catch (e2) {
+      throw new Error('This account can receive but not send: the app\'s host is blocking outbound SMTP (' +
+        acct.smtp_host + ':' + acct.smtp_port + '). Ask the host to unblock SMTP, then just try sending again.');
+    }
+  }
   const msgId = '<rm-' + crypto.randomUUID() + '@' + (acct.email.split('@')[1] || 'roofmap.co.nz') + '>';
   const t = _mailTransport(acct, pass);
   const payload = {
@@ -7255,6 +7285,7 @@ const _MIGRATION_SQL = [
   //      at rest and never leave the server.
   "create table if not exists public.mail_accounts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, label text not null default '', email text not null default '', provider text not null default 'other', imap_host text not null default '', imap_port int not null default 993, smtp_host text not null default '', smtp_port int not null default 465, username text not null default '', cred_enc text not null default '', shared boolean not null default true, status text not null default 'ok', last_error text not null default '', last_uid jsonb, last_sync timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_accounts_co on public.mail_accounts (company_id)",
+  "alter table public.mail_accounts add column if not exists smtp_ok boolean not null default true",
   "alter table public.mail_accounts enable row level security",
   "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, ai_draft text, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_threads_co on public.mail_threads (company_id, status, last_date)",

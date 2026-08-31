@@ -330,6 +330,41 @@ check('the connector can', r.status === 200);
 body = await j(await as(A, '/inbox/threads?status=all'));
 check('…and its threads leave with it', !(body.threads || []).some(t => /Fishing/.test(t.subject)));
 
+// ── a host that blocks outbound SMTP (container platforms do) ─────
+// IMAP verifies fine, every SMTP connect is refused. That's the host's
+// doing, not the user's app password — the connect must still succeed,
+// receive-only, and a send attempt must say what's actually wrong.
+globalThis.__TEST_SMTP_FAIL = true;
+r = await as(A, '/inbox/accounts', { method: 'POST', body: JSON.stringify({
+  email: 'sales@floodroofing.co.nz', label: 'Sales', provider: 'gmail',
+  imap_host: 'imap.gmail.com', imap_port: 993, smtp_host: 'smtp.gmail.com', smtp_port: 465,
+  password: 'app-pass-123', shared: true }) });
+const rxonly = await j(r);
+check('SMTP blocked by the host: the account still connects', r.status === 200 && !!rxonly.id,
+  'status ' + r.status + ' ' + JSON.stringify(rxonly).slice(0, 90));
+check('…flagged receive-only with the SMTP leg named',
+  rxonly.smtp_ok === false && /SMTP smtp\.gmail\.com:465/.test(rxonly.last_error || ''),
+  JSON.stringify({ smtp_ok: rxonly.smtp_ok, err: rxonly.last_error }).slice(0, 130));
+
+r = await as(A, '/inbox/compose', { method: 'POST', body: JSON.stringify({
+  account_id: rxonly.id, to: 'x@y.co.nz', subject: 'Hello', body_text: 'Hi' }) });
+body = await j(r);
+check('a send from it fails with the real reason, not a password hint',
+  r.status >= 400 && /blocking outbound SMTP/.test(JSON.stringify(body)),
+  'status ' + r.status + ' ' + JSON.stringify(body).slice(0, 130));
+
+// The moment the host unblocks SMTP, the very next send just works.
+delete globalThis.__TEST_SMTP_FAIL;
+r = await as(A, '/inbox/compose', { method: 'POST', body: JSON.stringify({
+  account_id: rxonly.id, to: 'x@y.co.nz', subject: 'Hello again', body_text: 'Hi' }) });
+body = await j(r);
+check('…and the first send after the unblock heals the account',
+  r.status === 200 && body.ok, 'status ' + r.status + ' ' + JSON.stringify(body).slice(0, 80));
+body = await j(await as(A, '/inbox/accounts'));
+const healed = (body || []).find(a => a.id === rxonly.id);
+check('…which now reports sending OK', !!healed && healed.smtp_ok !== false,
+  JSON.stringify(healed || {}).slice(0, 90));
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);
