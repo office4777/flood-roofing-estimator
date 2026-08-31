@@ -3830,19 +3830,24 @@ function _mailThreadKey(m){
 // library defaults — 90s IMAP, 2 minutes SMTP — and "Checking the login…"
 // just spins. Fail fast and say so instead.
 const _MAIL_NET = { connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 30000 };
+function _imapClient(conn, pass){
+  const { ImapFlow } = require('imapflow');
+  const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
+    auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
+  // A timed-out TLS socket emits 'error' after our await has moved on;
+  // without a listener that's an uncaught exception from inside imapflow.
+  c.on('error', (e) => { console.error('imap socket:', (e && e.message) || e); });
+  return c;
+}
 const _mailFetcherReal = {
   async verify(conn, pass){
-    const { ImapFlow } = require('imapflow');
-    const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
-      auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
+    const c = _imapClient(conn, pass);
     await c.connect();
     try { await c.logout(); } catch (e) {}
   },
   async fetchNew(conn, pass, lastUid){
-    const { ImapFlow } = require('imapflow');
     const { simpleParser } = require('mailparser');
-    const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
-      auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
+    const c = _imapClient(conn, pass);
     await c.connect();
     const out = [];
     let maxUid = lastUid || 0;
@@ -3885,9 +3890,7 @@ const _mailFetcherReal = {
   // Gmail/Outlook too, not just here. Failure is silent — the send stood.
   async appendSent(conn, pass, rfc822){
     try {
-      const { ImapFlow } = require('imapflow');
-      const c = new ImapFlow(Object.assign({ host: conn.host, port: conn.port, secure: true,
-        auth: { user: conn.user, pass }, logger: false }, _MAIL_NET));
+      const c = _imapClient(conn, pass);
       await c.connect();
       try {
         const boxes = await c.list();
@@ -4407,6 +4410,21 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
       threads = (data || []).filter(t => aIds.includes(t.account_id) && t.status !== 'archived')
         .sort((a, b2) => String(b2.last_date || '').localeCompare(String(a.last_date || ''))).slice(0, 60);
     } catch (e) {}
+    // What's open on the requester's screen right now — so "reply to this
+    // email" means something. Its latest inbound message rides along so the
+    // reply can actually answer it.
+    const curId = String((req.body || {}).thread_id || '');
+    const cur = curId ? threads.find(t => t.id === curId) : null;
+    let curBody = '';
+    if (cur) {
+      try {
+        const { data: cms } = await supabase.from('mail_messages').select('*')
+          .eq('account_id', cur.account_id).eq('thread_key', cur.thread_key).limit(100);
+        const inbound = (cms || []).filter(m => m.folder !== 'Sent')
+          .sort((a, b2) => String(b2.date || '').localeCompare(String(a.date || '')))[0];
+        curBody = String((inbound || {}).body_text || '').slice(0, 1500);
+      } catch (e) {}
+    }
     let schedRows = [], schedBlocks = [], crews = [];
     try {
       const { data: srs } = await _scopeCompany(supabase.from('schedule_rows').select('*'), req).limit(200);
@@ -4435,6 +4453,7 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
       '{"action":"my_todo","title":""} — ONLY when the speaker says MY list / MY to-dos\n' +
       '{"action":"task_update","task_id":"<[id] from Open tasks>","done":true|false,"assignee_name":"<team name or empty>"} — complete, reopen or hand a task over\n' +
       '{"action":"email","to":"<address from Known contacts, or empty if nobody plausibly matches>","subject":"","body":""} — draft an email (plain text, short, warm; never invent prices; sign off with ' + company + ')\n' +
+      '{"action":"reply","thread_id":"<usually the conversation open on screen, else one from Inbox>","body":"<the reply text, same tone rules>"} — draft a reply INTO a conversation; it is only placed in the reply box, the person sends\n' +
       '{"action":"threads","op":"archive|unread|snooze","thread_ids":["<[id]s from Inbox>"],"snoozed_until":"YYYY-MM-DD or empty"}\n' +
       '{"action":"open_thread","thread_id":"<[id] from Inbox>"} — find/open a conversation\n' +
       '{"action":"note","thread_id":"<[id] from Inbox>","body":""} — an internal note on a conversation, customers never see it\n' +
@@ -4460,6 +4479,10 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
         return '[' + r.id + '] ' + (r.client_name || '?') + ' | ' + (r.site_address || '') +
           ' | ' + (bl ? ((crews.find(c => c.id === bl.crew_id) || {}).name || 'pencilled') + ' from ' + bl.start_date + ' for ' + bl.work_days + ' days' : 'not booked');
       }).join('\n') || '(no schedule rows)') +
+      '\n\nCurrently open on screen: ' + (cur
+        ? '[' + cur.id + '] ' + (cur.subject || '(no subject)') + ' — from ' + ((cur.participants || [])[0] || '') +
+          (curBody ? '\nIts latest message:\n' + curBody : '')
+        : '(no conversation open)') +
       '\n\nQuotes out:\n' + (quotes.join('\n') || '(none shared)') +
       '\n\nKnown contacts:\n' + contacts.slice(0, 150).join('\n') +
       '\n\nInstruction: ' + instruction;
@@ -4537,6 +4560,8 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
         to: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr) ? addr.toLowerCase() : '',
         subject: String(ai.subject || '').slice(0, 200), body: String(ai.body || '').slice(0, 8000) });
     }
+    if (ai.action === 'reply' && ai.body && threads.some(t => t.id === ai.thread_id))
+      return res.json({ action: 'reply', thread_id: ai.thread_id, body: String(ai.body).slice(0, 8000) });
     if (ai.action === 'open_thread' && threads.some(t => t.id === ai.thread_id))
       return res.json({ action: 'open_thread', thread_id: ai.thread_id });
     if (ai.action === 'sched_mail' && schedRows.some(r => r.id === ai.row_id))
@@ -4552,7 +4577,10 @@ app.post('/inbox/assistant', ..._inboxGate, async (req, res) => {
       return res.json({ action: 'answer', text: String(ai.text).slice(0, 2500) });
     res.json({ action: 'unknown',
       note: String((ai && ai.note) || 'I can set tasks and to-dos, tidy the inbox, draft emails, book the schedule, take notes, and answer questions about what is on.').slice(0, 300) });
-  } catch (e) { res.status(500).json({ error: 'Could not work that one out — try wording it differently' }); }
+  } catch (e) {
+    console.error('assistant failed:', (e && e.stack) || e);
+    res.status(500).json({ error: 'Could not work that one out — try wording it differently' });
+  }
 });
 const _COMMS_TASK_WRITABLE = ['title', 'notes', 'due_date', 'assignee_user_id', 'done', 'urgency', 'job_id'];
 app.patch('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {

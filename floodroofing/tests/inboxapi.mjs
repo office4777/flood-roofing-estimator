@@ -82,6 +82,11 @@ globalThis.__TEST_AI = async (opts) => {
     if (/confirm start email/i.test(P)) return JSON.stringify({ action: 'sched_mail', row_id: schedIdFor(/Modspace/), kind: 'confirm' });
     if (/start a new job/i.test(P)) return '{"action":"new_job","client":"Sarah Mills","address":"12 Kamo Road"}';
     if (/rundown/i.test(P)) return '{"action":"answer","text":"Two open tasks, one hot lead waiting, Modspace starts the 14th."}';
+    if (/draft a reply|reply to this/i.test(P)){
+      const cm = P.match(/Currently open on screen: \[([^\]]+)\]/);
+      return JSON.stringify({ action: 'reply', thread_id: cm ? cm[1] : '',
+        body: 'No worries — thanks for the update.\n\nFlood Roofing' });
+    }
     if (/set task|task for/i.test(P))
       return '{"action":"task","title":"Check over job #3099","assignee_name":"user-a2","urgency":45}';
     if (/email/i.test(P))
@@ -543,6 +548,11 @@ body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stri
   instruction: 'give me my rundown' }) }));
 check('"give me my rundown" answers from the real data',
   body.action === 'answer' && /Modspace/.test(body.text), JSON.stringify(body));
+
+body = await j(await as(A, '/inbox/assistant', { method: 'POST', body: JSON.stringify({
+  instruction: 'draft a reply to this email to say no worries thanks for the update', thread_id: lewis.id }) }));
+check('"reply to THIS email" knows which conversation is on screen',
+  body.action === 'reply' && body.thread_id === lewis.id && /No worries/.test(body.body), JSON.stringify(body).slice(0, 110));
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

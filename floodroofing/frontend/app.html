@@ -3768,7 +3768,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" id="navScheduleBtn" onclick="gotoTab('schedule')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5H14 M5 1.5v3 M11 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.5 9.5h3 M4.5 11.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Schedule</button>
-  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Inbox</button>
+  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Communications</button>
   <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -5541,7 +5541,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
   <div id="ibxWrap" style="display:none">
     <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;margin-bottom:10px">
-      <strong style="font-size:13px;color:#0a1628">Inbox</strong>
+      <strong style="font-size:13px;color:#0a1628">Communications</strong>
+      <button id="ibxAiBigBtn" onclick="_ibxBigAi()" style="background:linear-gradient(135deg,#7c3aed,#0369a1);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:800;cursor:pointer">✨ AI Assistant</button>
+      <button id="ibxChatBigBtn" onclick="_ibxBigChat()" style="background:#0a1628;color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:800;cursor:pointer">💬 Internal chat</button>
       <span id="ibxStatusChips" style="display:flex;gap:6px"></span>
       <select id="ibxCatSel" style="max-width:150px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:999px;font-size:11.5px;background:#fff">
         <option value="">All mail</option><option value="lead">🔥 Leads</option><option value="quote_reply">💬 Quote replies</option>
@@ -5568,16 +5570,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="ibx-chip" onclick="_ibxTasksToggle()" style="white-space:nowrap;padding:3px 10px;font-size:11px">Board ▸</button>
       </div>
     </div>
-    <div class="card" id="ibxSetupCard" style="display:none;text-align:center;padding:30px">
-      <div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:6px">Connect your first email account</div>
-      <div style="font-size:12.5px;color:var(--text2);margin-bottom:14px">Gmail, Outlook, Xtra or any provider — a guided two-minute setup with an app password. Mark it Shared and the whole team works the same inbox.</div>
-      <button onclick="_ibxAcctOpen()" style="padding:10px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">＋ Connect an account</button>
-    </div>
-    <div class="ibx-main" id="ibxMain">
-      <div class="ibx-list" id="ibxList"></div>
-      <div class="ibx-conv" id="ibxConv"><div style="margin:auto;color:#94a3b8;font-size:13px;padding:40px">Pick a conversation</div></div>
-    </div>
-    <div id="ibxTasksWrap" style="display:none">
+    <div id="ibxTasksWrap" style="display:none;max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px;margin-bottom:10px">
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <input type="text" id="ibxTaskNew" placeholder="New task — the AI picks who's responsible…" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:12.5px">
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
@@ -5591,7 +5584,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div id="ibxTaskBoard" style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px;flex:1;min-width:0"></div>
       </div>
     </div>
-    <div id="ibxChatWrap" class="ibx-main" style="display:none">
+    <div class="card" id="ibxSetupCard" style="display:none;text-align:center;padding:30px">
+      <div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:6px">Connect your first email account</div>
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:14px">Gmail, Outlook, Xtra or any provider — a guided two-minute setup with an app password. Mark it Shared and the whole team works the same inbox.</div>
+      <button onclick="_ibxAcctOpen()" style="padding:10px 22px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">＋ Connect an account</button>
+    </div>
+    <div class="ibx-main" id="ibxMain">
+      <div class="ibx-list" id="ibxList"></div>
+      <div class="ibx-conv" id="ibxConv"><div style="margin:auto;color:#94a3b8;font-size:13px;padding:40px">Pick a conversation</div></div>
+    </div>
+<div id="ibxChatWrap" class="ibx-main" style="display:none">
       <div style="width:190px;flex:0 0 auto;border-right:1px solid var(--border);overflow-y:auto;padding:8px">
         <div id="ibxChanList"></div>
         <button class="ibx-chip" onclick="_ibxChanAdd()" style="margin-top:8px;width:100%;justify-content:center">＋ Channel</button>
@@ -7338,6 +7340,7 @@ function gotoTab(t) {
   // The Notifications panel floats over whatever tab is open — switching
   // tabs means the reader is done with it, so it goes.
   try { var _qnp = document.getElementById('qnPanel'); if (_qnp) _qnp.style.display = 'none'; } catch(e){}
+  try { _frBubblesSync(); } catch(e){}
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -8603,13 +8606,7 @@ async function _ibxOpen(id){
           (m.attachments || []).map(function(a){ return _ibxEsc(a.name); }).join(' · ') + '</div>' : '') +
         (m.body_html ? _ibxFrame(m.body_html) : '<div class="txt">' + _ibxEsc(m.body_text) + '</div>') + '</div>';
     });
-    h += '<div style="margin:10px 12px 0;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:9px 11px">' +
-      '<div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:5px">🔒 Internal notes — the customer never sees these</div>' +
-      '<div id="ibxNotesList"></div>' +
-      '<div style="display:flex;gap:6px;margin-top:4px">' +
-      '<input type="text" id="ibxNoteInput" placeholder="Note for the team… (@name)" style="flex:1;padding:6px 9px;border:1px solid #fcd34d;border-radius:8px;font-size:11.5px;background:#fff">' +
-      '<button class="ibx-chip" style="padding:4px 12px;font-size:11px" onclick="_ibxNoteSend()">Add</button></div></div>';
-    h += '<div style="padding:12px;margin-top:auto">' +
+    h += '<div style="padding:12px 12px 4px">' +
       (t.ai_draft ? '<div id="ibxDraftStrip" style="border:1px dashed #0099cc;background:#f0f9ff;border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:12px;color:#0a1628">' +
         '<div style="font-weight:700;margin-bottom:3px">✨ Suggested reply <button class="ibx-chip" id="ibxUseDraft" style="padding:2px 9px;font-size:10.5px;margin-left:6px">Use it</button></div>' +
         '<div style="white-space:pre-wrap;color:#334155">' + _ibxEsc(t.ai_draft) + '</div></div>' : '') +
@@ -8617,7 +8614,13 @@ async function _ibxOpen(id){
       '<div style="display:flex;gap:10px;align-items:center;margin-top:6px">' +
       '<span id="ibxReplyMsg" style="flex:1;font-size:12px;color:#b91c1c"></span>' +
       (_IBX.aiOn && !t.ai_draft ? '<button class="ibx-chip" id="ibxDraftBtn" onclick="_ibxDraft()">✍ Draft a reply</button>' : '') +
-      '<button id="ibxReplySend" class="ibx-chip" style="background:#0a1628;color:#fff;border-color:#0a1628" onclick="_ibxReplySend()">Send reply</button></div></div>';
+      '<button id="ibxReplySend" class="ibx-chip" style="background:#0a1628;color:#fff;border-color:#0a1628;padding:9px 20px;font-size:13px;font-weight:700" onclick="_ibxReplySend()">Send reply</button></div></div>';
+    h += '<div style="margin:10px 12px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;padding:9px 11px">' +
+      '<div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:5px">🔒 Internal notes — the customer never sees these</div>' +
+      '<div id="ibxNotesList"></div>' +
+      '<div style="display:flex;gap:6px;margin-top:4px">' +
+      '<input type="text" id="ibxNoteInput" placeholder="Note for the team… (@name)" style="flex:1;padding:6px 9px;border:1px solid #fcd34d;border-radius:8px;font-size:11.5px;background:#fff">' +
+      '<button class="ibx-chip" style="padding:4px 12px;font-size:11px" onclick="_ibxNoteSend()">Add</button></div></div>';
     conv.innerHTML = h;
     if (window.innerWidth <= 900) document.getElementById('ibxBackBtn').style.display = '';
     conv.querySelectorAll('[data-ibxact]').forEach(function(b){
@@ -8752,11 +8755,11 @@ async function _ibxDraft(){
 // ── the three views: mail, tasks, chat ──
 function _ibxView(v){
   _IBX.view = v;
-  document.getElementById('ibxMain').style.display = v === 'mail' ? '' : 'none';
+  document.getElementById('ibxMain').style.display = v === 'chat' ? 'none' : '';
   document.getElementById('ibxTasksWrap').style.display = v === 'tasks' ? '' : 'none';
   document.getElementById('ibxChatWrap').style.display = v === 'chat' ? 'flex' : 'none';
   var tb = document.getElementById('ibxTasksBtn');
-  if (tb) tb.textContent = v === 'tasks' ? '✉ Mail' : '☑ Tasks';
+  if (tb) tb.textContent = v === 'tasks' ? '▴ Hide tasks' : '☑ Tasks';
   var cb = document.getElementById('ibxChatBtn');
   if (cb) cb.textContent = v === 'chat' ? '✉ Mail' : '💬 Chat';
   if (v === 'tasks') _ibxTasksLoad();
@@ -8931,16 +8934,15 @@ async function _ichatBoot(){
     if (d.members && d.members.length) _IBX.members = d.members;
     if (!_ICHAT.sel) _ICHAT.sel = (_ICHAT.channels[0] || {}).id || null;
     _ichatBuild();
-    document.getElementById('ichatLaunch').style.display = '';
     _iaiBuild();
-    document.getElementById('iaiLaunch').style.display = '';
+    _frBubblesSync();
   } catch(e){ /* not signed in or not on Business — no bubble */ }
 }
 function _ichatToggle(){
   if (!_ICHAT.built) return;
   _ICHAT.open = !_ICHAT.open;
   document.getElementById('ichatPanel').style.display = _ICHAT.open ? 'flex' : 'none';
-  document.getElementById('ichatLaunch').style.display = _ICHAT.open ? 'none' : '';
+  _frBubblesSync();
   if (_ICHAT.open){
     var sel = document.getElementById('ichatChan');
     sel.innerHTML = _ICHAT.channels.map(function(c){ return '<option value="' + c.id + '"' + (c.id === _ICHAT.sel ? ' selected' : '') + '># ' + _ibxEsc(c.name) + '</option>'; }).join('');
@@ -9037,6 +9039,23 @@ async function _ichatTaskCreate(title, urgency, btn){
     }
   } catch(e){ if (btn) btn.disabled = false; }
 }
+// The big toolbar doors to the assistant and the messenger — same panels,
+// no floating bubbles covering the reply buttons on a phone.
+async function _ibxBigAi(){
+  if (!_IAI.built){ try { await _ichatBoot(); } catch(e){} }
+  if (!_IAI.built) _iaiBuild();
+  if (!_IAI.open) _iaiToggle();
+}
+async function _ibxBigChat(){
+  if (!_ICHAT.built){ try { await _ichatBoot(); } catch(e){} }
+  if (_ICHAT.built && !_ICHAT.open) _ichatToggle();
+}
+function _frBubblesSync(){
+  var onComms = document.body.getAttribute('data-tab') === 'inbox';
+  var l1 = document.getElementById('ichatLaunch'), l2 = document.getElementById('iaiLaunch');
+  if (l1) l1.style.display = (onComms || _ICHAT.open || !_ICHAT.on) ? 'none' : '';
+  if (l2) l2.style.display = (onComms || _IAI.open || !_ICHAT.on) ? 'none' : '';
+}
 // ── the AI Assistant: one box that turns words into work ──
 var _IAI = { built: false, open: false, mic: null };
 function _iaiBuild(){
@@ -9065,7 +9084,7 @@ function _iaiToggle(){
   if (!_IAI.built) return;
   _IAI.open = !_IAI.open;
   document.getElementById('iaiPanel').style.display = _IAI.open ? 'flex' : 'none';
-  document.getElementById('iaiLaunch').style.display = _IAI.open ? 'none' : '';
+  _frBubblesSync();
   if (_IAI.open) setTimeout(function(){ var i = document.getElementById('iaiAsk'); if (i) i.focus(); }, 60);
 }
 function _iaiMicToggle(){
@@ -9102,7 +9121,8 @@ async function _iaiGo(){
   go.disabled = true; go.textContent = '…';
   _iaiSay('<span style="color:#64748b">“' + _ibxEsc(instruction) + '”</span>');
   try {
-    var d = await api('POST', '/inbox/assistant', { instruction: instruction });
+    var d = await api('POST', '/inbox/assistant', { instruction: instruction,
+      thread_id: (document.body.getAttribute('data-tab') === 'inbox' && _IBX.sel) ? _IBX.sel : undefined });
     var handled = true;
     if ((d.action === 'task' || d.action === 'my_todo') && d.task){
       _IBX.tasks.unshift(d.task);
@@ -9122,6 +9142,22 @@ async function _iaiGo(){
       var verb = d.op === 'archive' ? 'Archived' : d.op === 'snooze' ? 'Snoozed' : 'Marked unread';
       _iaiSay('✓ ' + verb + ' ' + d.count + ' conversation' + (d.count === 1 ? '' : 's') + '.');
       try { _ibxLoad(true); } catch(e){}
+    } else if (d.action === 'reply' && d.thread_id){
+      try { gotoTab('inbox'); } catch(e){}
+      var fillReply = function(){
+        var ta = document.getElementById('ibxReplyBody');
+        if (ta){ ta.value = d.body || ''; _ibxReplyGrow(ta); ta.focus(); }
+      };
+      if (_IBX.sel === d.thread_id && document.getElementById('ibxReplyBody')) fillReply();
+      else {
+        _ibxOpen(d.thread_id);
+        var rTries = 0;
+        var rT = setInterval(function(){
+          rTries++;
+          if (document.getElementById('ibxReplyBody') || rTries > 20){ clearInterval(rT); fillReply(); }
+        }, 250);
+      }
+      _iaiSay('✍ Reply drafted into the conversation — read it over, then Send reply.');
     } else if (d.action === 'open_thread' && d.thread_id){
       try { gotoTab('inbox'); } catch(e){}
       setTimeout(function(){ try { _ibxOpen(d.thread_id); } catch(e){} }, 300);

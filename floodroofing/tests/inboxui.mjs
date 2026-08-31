@@ -134,6 +134,7 @@ async function boot(opts){
       if (/open the schedule/i.test(ins)) return json({ action: 'goto', tab: 'schedule' });
       if (/tell the team/i.test(ins)) return json({ action: 'chat', body: 'Yard closes early on Friday.' });
       if (/archive/i.test(ins)) return json({ action: 'threads', op: 'archive', count: 2 });
+      if (/reply/i.test(ins)) return json({ action: 'reply', thread_id: 't1', body: 'No worries — thanks for the update.' });
       if (/task/i.test(ins)) return json({ action: 'task', task: { id: 'tk7', title: 'Check over job #3099', assignee_user_id: 'u2',
         urgency: 45, done: false, personal: false, thread_id: null, job_id: null } });
       return json({ action: 'email', to: 'suzie@customer.co.nz', subject: 'Colour selection — job 3342',
@@ -306,13 +307,13 @@ await pg.evaluate(() => _ibxTasksToggle());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   shown: getComputedStyle(document.getElementById('ibxTasksWrap')).display !== 'none',
-  mailHidden: document.getElementById('ibxMain').style.display === 'none',
+  mailShown: document.getElementById('ibxMain').style.display !== 'none',
   cols: [...document.querySelectorAll('[data-tcol]')].map(c => c.getAttribute('data-tcol')),
   hotInLizzie: !!document.querySelector('[data-tcol="u2"] [data-task="tk1"]'),
   hotText: (document.querySelector('[data-task="tk1"]') || {}).textContent || '',
 }));
-check('the task board opens with a column per teammate plus Unassigned',
-  v.shown && v.mailHidden && v.cols.join(',') === ',u1,u2', JSON.stringify(v.cols));
+check('the task board expands ABOVE the mail list — everything in one place',
+  v.shown && v.mailShown && v.cols.join(',') === ',u1,u2', JSON.stringify(v.cols));
 check("the AI's assignment and urgency show on the card",
   v.hotInLizzie && /⚡88/.test(v.hotText) && /📅 2026-08-28/.test(v.hotText), v.hotText.slice(0, 60));
 
@@ -699,6 +700,43 @@ await pg.evaluate(() => _iaiGo());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.body.getAttribute('data-tab'));
 check('"open the schedule" navigates there', v === 'schedule', String(v));
+
+// ── the Communications makeover ───────────────────────────────────
+await pg.evaluate(() => gotoTab('inbox'));
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  nav: /Communications/.test(document.getElementById('navInboxBtn').textContent),
+  title: /Communications/.test(document.querySelector('#ibxWrap .card strong').textContent),
+  aiBig: /AI Assistant/.test((document.getElementById('ibxAiBigBtn') || {}).textContent || ''),
+  chatBig: /Internal chat/.test((document.getElementById('ibxChatBigBtn') || {}).textContent || ''),
+  bubblesOff: getComputedStyle(document.getElementById('ichatLaunch')).display === 'none' &&
+    getComputedStyle(document.getElementById('iaiLaunch')).display === 'none',
+}));
+check('the tab is Communications, with big AI Assistant + Internal chat buttons and no floating bubbles here',
+  v.nav && v.title && v.aiBig && v.chatBig && v.bubblesOff, JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('[data-ibxthread="t1"]').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => {
+  const html = document.getElementById('ibxConv').innerHTML;
+  return { order: html.indexOf('ibxReplyBody') < html.indexOf('ibxNotesList'),
+    noAuto: !/margin-top:auto/.test(html) };
+});
+check('the reply box sits right below the email — notes after it, nothing pushed to the bottom',
+  v.order && v.noAuto, JSON.stringify(v));
+calls.length = 0;
+await pg.evaluate(() => { if (!_IAI.open) _iaiToggle(); });
+await pg.fill('#iaiAsk', 'draft a reply to say no worries thanks for the update');
+await pg.evaluate(() => _iaiGo());
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  sent: null,
+  body: (document.getElementById('ibxReplyBody') || {}).value,
+  out: document.getElementById('iaiOut').textContent,
+}));
+nt = calls.find(c => c[0] === 'assistant');
+check('"draft a reply" fills the reply box on the OPEN conversation — the person sends',
+  !!nt && nt[1].thread_id === 't1' && /No worries/.test(v.body) && /Reply drafted/.test(v.out),
+  JSON.stringify({ t: nt && nt[1].thread_id, b: (v.body || '').slice(0, 30) }));
 await ctx.close();
 
 await b.close();
