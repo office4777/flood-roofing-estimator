@@ -4274,8 +4274,12 @@ async function _inboxAssign(members, title, context){
 app.get('/inbox/tasks', ..._inboxGate, async (req, res) => {
   try {
     const { data } = await _scopeCompany(supabase.from('comms_tasks').select('*'), req).limit(500);
-    const tasks = (data || []).sort((a, b2) => ((b2.urgency || 0) - (a.urgency || 0)) ||
-      String(a.due_date || '9999').localeCompare(String(b2.due_date || '9999')));
+    // Personal to-dos are private: only their writer (or whoever they're
+    // pointed at) ever sees them — the team board never does.
+    const tasks = (data || [])
+      .filter(t => !t.personal || t.user_id === req.user.id || t.assignee_user_id === req.user.id)
+      .sort((a, b2) => ((b2.urgency || 0) - (a.urgency || 0)) ||
+        String(a.due_date || '9999').localeCompare(String(b2.due_date || '9999')));
     res.json({ tasks, members: await _inboxMembers(req), ai_enabled: _inboxAIOn() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -4288,9 +4292,12 @@ async function _inboxTaskCreate(req, fields, context){
     assignee_user_id: fields.assignee_user_id || null,
     done: false, urgency: (fields.urgency === undefined ? null : fields.urgency),
     thread_id: fields.thread_id || null, job_id: fields.job_id || null,
+    personal: !!fields.personal,
     done_at: null, created_at: new Date().toISOString(),
   };
   if (!task.title) throw new Error('Give the task a title');
+  // A personal to-do is yours by definition — no AI deciding who owns it.
+  if (task.personal && !task.assignee_user_id) task.assignee_user_id = req.user.id;
   if (!task.assignee_user_id) {
     const ai = await _inboxAssign(await _inboxMembers(req), task.title, context || task.notes);
     if (ai.assignee_user_id) task.assignee_user_id = ai.assignee_user_id;
@@ -4321,6 +4328,42 @@ app.post('/inbox/threads/:id/task', ..._inboxGate, async (req, res) => {
     }, (t.subject || '') + '\n' + (t.snippet || ''));
     res.json(task);
   } catch (e) { res.status(400).json({ error: String(e.message || e).slice(0, 300) }); }
+});
+// "Email Steve from Roofing Industries asking for a delivery update on job
+// 3057" → a ready-to-send draft. The AI picks the recipient from people the
+// company has actually corresponded with; if nobody matches it leaves "to"
+// blank rather than guessing an address. Nothing sends without a person.
+app.post('/inbox/ai-compose', ..._inboxGate, async (req, res) => {
+  if (!_inboxAIOn()) return res.status(400).json({ error: 'AI drafting is not configured' });
+  const instruction = String((req.body || {}).instruction || '').trim().slice(0, 2000);
+  if (!instruction) return res.status(400).json({ error: 'Say what the email should do first' });
+  try {
+    const company = await _inboxCompanyName(req.companyId);
+    let contacts = [];
+    try {
+      const { data } = await _scopeCompany(supabase.from('mail_messages').select('from_addr, from_name'), req).limit(800);
+      const seen = {};
+      (data || []).forEach(m => {
+        const a = String(m.from_addr || '').toLowerCase();
+        if (a && !seen[a]) { seen[a] = 1; contacts.push(((m.from_name || '').trim() || a.split('@')[0]) + ' <' + a + '>'); }
+      });
+    } catch (e) { /* no history yet — the AI just leaves "to" blank */ }
+    const sys = 'You draft whole emails for ' + company + ', a New Zealand roofing company, from a spoken or typed ' +
+      'instruction. Reply ONLY with JSON {"to":"","subject":"","body":""}. Pick "to" from the known contacts when the ' +
+      'instruction names a person or business — the address exactly as listed; if nobody plausibly matches, leave "to" ' +
+      'empty. Body is plain text, short, warm and practical; carry over any job numbers or dates mentioned; never ' +
+      'invent prices or commitments. Sign off with:\n' + company;
+    const text = await _inboxAI({ model: 'claude-sonnet-5', max_tokens: 700, system: sys,
+      prompt: 'Known contacts:\n' + contacts.slice(0, 150).join('\n') + '\n\nInstruction: ' + instruction });
+    const jm = String(text).match(/\{[\s\S]*\}/);
+    const ai = jm ? JSON.parse(jm[0]) : {};
+    const to = String(ai.to || '').trim();
+    res.json({
+      to: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((to.match(/<([^>]+)>/) || [])[1] || to) ? ((to.match(/<([^>]+)>/) || [])[1] || to) : '',
+      subject: String(ai.subject || '').slice(0, 200),
+      body: String(ai.body || '').slice(0, 8000),
+    });
+  } catch (e) { res.status(500).json({ error: 'Could not draft that — try wording it differently' }); }
 });
 const _COMMS_TASK_WRITABLE = ['title', 'notes', 'due_date', 'assignee_user_id', 'done', 'urgency', 'job_id'];
 app.patch('/inbox/tasks/:id', ..._inboxGate, async (req, res) => {
@@ -7302,6 +7345,7 @@ const _MIGRATION_SQL = [
   "create table if not exists public.mail_accounts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, label text not null default '', email text not null default '', provider text not null default 'other', imap_host text not null default '', imap_port int not null default 993, smtp_host text not null default '', smtp_port int not null default 465, username text not null default '', cred_enc text not null default '', shared boolean not null default true, status text not null default 'ok', last_error text not null default '', last_uid jsonb, last_sync timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_accounts_co on public.mail_accounts (company_id)",
   "alter table public.mail_accounts add column if not exists smtp_ok boolean not null default true",
+  "alter table public.comms_tasks add column if not exists personal boolean not null default false",
   "alter table public.mail_accounts enable row level security",
   "create table if not exists public.mail_threads (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, account_id uuid not null, thread_key text not null, subject text not null default '', participants jsonb, snippet text not null default '', last_date timestamptz, status text not null default 'inbox', snoozed_until timestamptz, assignee_user_id uuid, job_id uuid, category text not null default '', priority int, urgency int, unread boolean not null default true, msg_count int not null default 0, ai_draft text, created_at timestamptz not null default now())",
   "create index if not exists idx_mail_threads_co on public.mail_threads (company_id, status, last_date)",

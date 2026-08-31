@@ -60,6 +60,8 @@ globalThis.__TEST_MAIL_JSON = true;
 const AI = { calls: [] };
 globalThis.__TEST_AI = async (opts) => {
   AI.calls.push(opts.model);
+  if (/You draft whole emails/.test(opts.system || ''))
+    return '{"to":"Steel Supplier <sales@supplier.co.nz>","subject":"Delivery update — job 3057","body":"Hi,\\n\\nCould you give us an update on the delivery for job 3057?\\n\\nFlood Roofing"}';
   if (/You spot tasks/.test(opts.system || ''))
     return /order|chase|book/i.test(opts.prompt)
       ? '{"is_task":true,"title":"Order the Modspace flashings","urgency":65}'
@@ -390,6 +392,30 @@ body = await j(await as(A, '/inbox/accounts'));
 const healed = (body || []).find(a => a.id === rxonly.id);
 check('…which now reports sending OK', !!healed && healed.smtp_ok !== false,
   JSON.stringify(healed || {}).slice(0, 90));
+
+// ── personal to-dos: yours, and only yours ────────────────────────
+r = await as(A, '/inbox/tasks', { method: 'POST', body: JSON.stringify({
+  title: 'Ring the bank about the ute', personal: true }) });
+body = await j(r);
+check('a personal to-do saves as your own — the AI never picks its owner',
+  r.status === 200 && body.personal === true && body.assignee_user_id === A.user,
+  JSON.stringify({ p: body.personal, a: body.assignee_user_id }));
+body = await j(await as(A, '/inbox/tasks'));
+check('…the writer sees it in their list',
+  (body.tasks || []).some(t => /Ring the bank/.test(t.title)), (body.tasks || []).length + ' tasks');
+body = await j(await as(A2, '/inbox/tasks'));
+check('…and a teammate never does',
+  !(body.tasks || []).some(t => /Ring the bank/.test(t.title)), (body.tasks || []).length + ' tasks');
+
+// ── tell the AI what to send: instruction → ready-to-check draft ──
+r = await as(A, '/inbox/ai-compose', { method: 'POST', body: JSON.stringify({
+  instruction: 'email steve from roofing industries asking for an update on the delivery for job 3057' }) });
+body = await j(r);
+check('an instruction drafts the whole email — recipient resolved to a bare address',
+  r.status === 200 && body.to === 'sales@supplier.co.nz' && /3057/.test(body.subject) && /3057/.test(body.body),
+  JSON.stringify(body).slice(0, 120));
+r = await as(A, '/inbox/ai-compose', { method: 'POST', body: JSON.stringify({ instruction: '' }) });
+check('an empty instruction is refused, not sent to the AI', r.status === 400);
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

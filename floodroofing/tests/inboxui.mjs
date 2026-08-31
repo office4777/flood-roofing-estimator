@@ -51,6 +51,8 @@ function mkData(){
       assignee_user_id: 'u2', done: false, thread_id: 't1', job_id: 'j1' },
     { id: 'tk2', title: 'Order the ridge flashings', urgency: 20, due_date: null,
       assignee_user_id: null, done: false, thread_id: null, job_id: null },
+    { id: 'tk3', title: 'Ring the bank about the ute', urgency: null, due_date: null,
+      assignee_user_id: 'u1', done: false, thread_id: null, job_id: null, personal: true },
   ];
   return { accounts, threads, messages, members, tasks };
 }
@@ -123,6 +125,11 @@ async function boot(opts){
     if (/\/inbox\/threads\/t\d+\/reply$/.test(u)){
       calls.push(['reply', JSON.parse(r.request().postData() || '{}')]);
       return json({ ok: true, message: {} });
+    }
+    if (/\/inbox\/ai-compose$/.test(u) && m === 'POST'){
+      calls.push(['aicompose', JSON.parse(r.request().postData() || '{}')]);
+      return json({ to: 'steve@roofingindustries.co.nz', subject: 'Delivery update — job 3057',
+        body: 'Hi Steve,\n\nCould you give us an update on the delivery for job 3057?\n\nFlood Roofing' });
     }
     if (/\/inbox\/compose$/.test(u)){
       calls.push(['compose', JSON.parse(r.request().postData() || '{}')]);
@@ -478,12 +485,12 @@ v = await pg.evaluate(() => ({
   count: document.getElementById('ibxTaskBarCount').textContent,
 }));
 check('open tasks ride a pinned strip at the top of the tab',
-  v.bar && v.chips === 2 && /2 open/.test(v.count), JSON.stringify(v));
+  v.bar && v.chips === 3 && /3 open/.test(v.count), JSON.stringify(v));
 await pg.evaluate(() => document.querySelector('#ibxTaskBarChips [data-tbdone]').click());
 await pg.waitForTimeout(250);
 let done = calls.find(c => String(c[0]).indexOf('PATCH task') === 0);
 v = await pg.evaluate(() => document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip').length);
-check('✓ on a strip chip marks the task done', v === 1 && !!done && done[1].done === true, JSON.stringify(done));
+check('✓ on a strip chip marks the task done', v === 2 && !!done && done[1].done === true, JSON.stringify(done));
 
 // Internal chat floats on every tab, not just the Inbox.
 await pg.evaluate(() => gotoTab('home'));
@@ -563,6 +570,56 @@ v = await pg.evaluate(() => ({
     getComputedStyle(document.getElementById('navInboxBadge')).display !== 'none',
 }));
 check('the side-menu Inbox button wears the unread count', v.badge === '1' && v.shown, JSON.stringify(v));
+
+// ── My list: personal to-dos beside the team board ────────────────
+await pg.evaluate(() => _ibxView('tasks'));
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  mine: /Ring the bank/.test(document.getElementById('ibxMyItems').textContent),
+  offBoard: !document.querySelector('#ibxTaskBoard [data-task="tk3"]'),
+  onStrip: [...document.querySelectorAll('#ibxTaskBarChips .ibx-taskchip')].some(c => /Ring the bank/.test(c.textContent)),
+}));
+check('a personal to-do sits in My list and on the strip — never on the team board',
+  v.mine && v.offBoard && v.onStrip, JSON.stringify(v));
+calls.length = 0;
+await pg.fill('#ibxMyNew', 'Book the ute in for a service');
+await pg.evaluate(() => _ibxMyAdd());
+await pg.waitForTimeout(300);
+nt = calls.find(c => c[0] === 'newtask');
+check('jotting a to-do saves it as personal', !!nt && nt[1].personal === true &&
+  nt[1].title === 'Book the ute in for a service', JSON.stringify(nt && nt[1]));
+calls.length = 0;
+await pg.evaluate(() => {
+  const cb = document.querySelector('[data-mydone="tk3"]');
+  cb.checked = true; cb.dispatchEvent(new Event('change'));
+});
+await pg.waitForTimeout(250);
+v = await pg.evaluate(() => (document.querySelector('[data-mydone="tk3"]') || {}).checked === true &&
+  /line-through/.test((document.querySelector('[data-mydone="tk3"]') || { parentElement: { innerHTML: '' } }).parentElement.innerHTML));
+check('ticking a to-do strikes it through and saves',
+  v === true && !!calls.find(c => c[0] === 'PATCH task tk3' && c[1].done === true), JSON.stringify(calls[0]));
+
+// ── tell the AI what to send ──────────────────────────────────────
+await pg.evaluate(() => _ibxComposeOpen());
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({
+  bar: getComputedStyle(document.getElementById('ibxCAiBar')).display !== 'none',
+  mic: !!document.getElementById('ibxCMic'),
+}));
+check('the compose window carries the tell-the-AI bar with a microphone', v.bar && v.mic, JSON.stringify(v));
+calls.length = 0;
+await pg.fill('#ibxCAsk', 'email steve from roofing industries asking for an update on the delivery for job 3057');
+await pg.evaluate(() => _ibxAiCompose());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({
+  to: document.getElementById('ibxCTo').value,
+  subject: document.getElementById('ibxCSubject').value,
+  body: document.getElementById('ibxCBody').value,
+  note: document.getElementById('ibxCMsg').textContent,
+}));
+check('one instruction fills To, Subject and the whole draft — nothing sends itself',
+  !!calls.find(c => c[0] === 'aicompose') && v.to === 'steve@roofingindustries.co.nz' &&
+  /3057/.test(v.subject) && /Hi Steve/.test(v.body) && /read it over/i.test(v.note), JSON.stringify(v).slice(0, 140));
 await ctx.close();
 
 await b.close();

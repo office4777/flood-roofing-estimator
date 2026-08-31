@@ -5582,7 +5582,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <input type="text" id="ibxTaskNew" placeholder="New task — the AI picks who's responsible…" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:12.5px">
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
       </div>
-      <div id="ibxTaskBoard" style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px"></div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="width:252px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px">
+          <div style="font-size:12.5px;font-weight:800;color:#0a1628;margin-bottom:7px">📝 My list</div>
+          <input type="text" id="ibxMyNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
+          <div id="ibxMyItems"></div>
+        </div>
+        <div id="ibxTaskBoard" style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px;flex:1;min-width:0"></div>
+      </div>
     </div>
     <div id="ibxChatWrap" class="ibx-main" style="display:none">
       <div style="width:190px;flex:0 0 auto;border-right:1px solid var(--border);overflow-y:auto;padding:8px">
@@ -5607,6 +5614,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="_ibxComposeClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
     <div style="padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+      <div id="ibxCAiBar" style="display:none;gap:7px;align-items:center;background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:7px 9px">
+        <button id="ibxCMic" onclick="_ibxMicToggle()" title="Speak your instruction" style="border:1px solid #bae6fd;background:#fff;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:15px;flex:0 0 auto">🎙</button>
+        <input type="text" id="ibxCAsk" placeholder="Tell the AI… e.g. &quot;email Steve from Roofing Industries asking for a delivery update on job 3057&quot;" style="flex:1;min-width:0;border:1px solid #bae6fd;border-radius:8px;padding:8px 10px;font-size:12px;background:#fff">
+        <button id="ibxCAskGo" onclick="_ibxAiCompose()" style="border:none;background:#0369a1;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto">✨ Draft it</button>
+      </div>
       <select id="ibxCFrom" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px"></select>
       <input type="email" id="ibxCTo" placeholder="To" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
       <input type="text" id="ibxCCc" placeholder="Cc (optional)" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
@@ -8469,6 +8481,8 @@ function _ibxEnter(){
     _ibxDensityApply(); _ibxRenderList();
   }; }
   _ibxDensityApply();
+  var mn = document.getElementById('ibxMyNew');
+  if (mn && !mn._wired){ mn._wired = 1; mn.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') _ibxMyAdd(); }); }
   _ibxLoad();
   if (_IBX.timer) clearInterval(_IBX.timer);
   _IBX.timer = setInterval(function(){
@@ -8798,6 +8812,89 @@ function _ibxTaskBarRender(){
   });
 }
 
+// ── My list: each person's own to-dos, private to them ──
+function _ibxMyRender(){
+  var el = document.getElementById('ibxMyItems');
+  if (!el) return;
+  var mine = (_IBX.tasks || []).filter(function(t){ return t.personal; })
+    .sort(function(a, b2){ return (a.done === b2.done) ? 0 : (a.done ? 1 : -1); });
+  el.innerHTML = mine.length ? mine.map(function(t){
+    return '<div style="display:flex;gap:7px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid #f1f5f9">' +
+      '<input type="checkbox"' + (t.done ? ' checked' : '') + ' data-mydone="' + t.id + '" style="margin-top:2px">' +
+      '<div style="flex:1;font-size:12px;' + (t.done ? 'text-decoration:line-through;color:#94a3b8' : 'color:#0a1628') + '">' + _ibxEsc(t.title) + '</div>' +
+      '<button data-mydel="' + t.id + '" title="Remove" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:12px;padding:0 2px">✕</button></div>';
+  }).join('') : '<div style="font-size:11.5px;color:#94a3b8;line-height:1.5">Your own to-dos — nobody else sees these. Team tasks live on the board beside it.</div>';
+  el.querySelectorAll('[data-mydone]').forEach(function(cb){
+    cb.onchange = function(){
+      var t = (_IBX.tasks || []).find(function(x){ return x.id === cb.getAttribute('data-mydone'); });
+      if (t) t.done = cb.checked;
+      _ibxMyRender(); _ibxTaskBarRender();
+      api('PATCH', '/inbox/tasks/' + cb.getAttribute('data-mydone'), { done: cb.checked }).catch(function(){ _ibxTasksLoad(true); });
+    };
+  });
+  el.querySelectorAll('[data-mydel]').forEach(function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-mydel');
+      _IBX.tasks = (_IBX.tasks || []).filter(function(x){ return x.id !== id; });
+      _ibxMyRender(); _ibxTaskBarRender();
+      api('DELETE', '/inbox/tasks/' + id).catch(function(){ _ibxTasksLoad(true); });
+    };
+  });
+}
+async function _ibxMyAdd(){
+  var inp = document.getElementById('ibxMyNew');
+  var title = (inp.value || '').trim();
+  if (!title) return;
+  inp.value = '';
+  try {
+    var t = await api('POST', '/inbox/tasks', { title: title, personal: true });
+    _IBX.tasks.unshift(t);
+    _ibxMyRender(); _ibxTaskBarRender();
+  } catch(e){ _ibxMsg((e && e.message) || 'Could not save that', true); }
+}
+
+// ── tell the AI what to send: type it or say it ──
+var _IBX_MIC = null;
+function _ibxMicToggle(){
+  var btn = document.getElementById('ibxCMic'), inp = document.getElementById('ibxCAsk');
+  if (_IBX_MIC){ try { _IBX_MIC.stop(); } catch(e){} return; }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ document.getElementById('ibxCMsg').textContent = 'Voice input needs Chrome, Edge or Safari — typing works everywhere.'; return; }
+  var r = new SR();
+  r.lang = 'en-NZ'; r.interimResults = true; r.continuous = false;
+  btn.textContent = '⏺'; btn.style.background = '#fee2e2'; btn.title = 'Listening — click to stop';
+  r.onresult = function(ev){
+    var t = '';
+    for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+    inp.value = t;
+  };
+  r.onend = function(){
+    _IBX_MIC = null;
+    btn.textContent = '🎙'; btn.style.background = '#fff'; btn.title = 'Speak your instruction';
+    if ((inp.value || '').trim()) _ibxAiCompose();
+  };
+  r.onerror = function(){ _IBX_MIC = null; btn.textContent = '🎙'; btn.style.background = '#fff'; };
+  _IBX_MIC = r; r.start();
+}
+async function _ibxAiCompose(){
+  var inp = document.getElementById('ibxCAsk'), go = document.getElementById('ibxCAskGo'), msg = document.getElementById('ibxCMsg');
+  var instruction = (inp.value || '').trim();
+  if (!instruction){ msg.textContent = 'Say or type what the email should do first.'; return; }
+  go.disabled = true; go.textContent = 'Writing…'; msg.textContent = '';
+  try {
+    var d = await api('POST', '/inbox/ai-compose', { instruction: instruction });
+    if (d.to) document.getElementById('ibxCTo').value = d.to;
+    if (d.subject) document.getElementById('ibxCSubject').value = d.subject;
+    if (d.body) document.getElementById('ibxCBody').value = d.body;
+    msg.style.color = 'var(--text2)';
+    msg.textContent = d.to ? 'Drafted — read it over, then Send.' : 'Drafted — I could not match a contact, so fill in To yourself.';
+  } catch(e){
+    msg.style.color = '#b91c1c';
+    msg.textContent = (e && e.message) || 'Could not draft that';
+  }
+  go.disabled = false; go.textContent = '✨ Draft it';
+}
+
 // ── Internal chat: a messenger window that follows you to every tab ──
 // Same channels as the Inbox Chat view — this is just a faster door to it.
 var _ICHAT = { on: false, open: false, channels: [], sel: null, msgs: [], timer: null, built: false };
@@ -9078,6 +9175,7 @@ function _ibxMemberName(id){
 }
 function _ibxTasksRender(){
   _ibxTaskBarRender();
+  _ibxMyRender();
   var el = document.getElementById('ibxTaskBoard');
   if (!el) return;
   var today = new Date().toISOString().slice(0, 10);
@@ -9085,7 +9183,7 @@ function _ibxTasksRender(){
     return { id: m.id, name: m.name || (m.email || '').split('@')[0] || 'Teammate' };
   }));
   el.innerHTML = cols.map(function(c){
-    var cards = (_IBX.tasks || []).filter(function(t){ return (t.assignee_user_id || '') === c.id; });
+    var cards = (_IBX.tasks || []).filter(function(t){ return !t.personal && (t.assignee_user_id || '') === c.id; });
     var open = cards.filter(function(t){ return !t.done; }).length;
     return '<div class="ibx-tcol" data-tcol="' + c.id + '">' +
       '<div class="th">' + _ibxEsc(c.name) + '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
@@ -9175,6 +9273,8 @@ function _ibxComposeOpen(){
   }).join('');
   if (!_IBX.accounts.length){ _ibxAcctOpen(); return; }
   document.getElementById('ibxCMsg').textContent = '';
+  var bar = document.getElementById('ibxCAiBar');
+  if (bar) bar.style.display = _IBX.aiOn ? 'flex' : 'none';
   document.getElementById('ibxComposeOverlay').style.display = 'block';
   document.getElementById('ibxComposeModal').style.display = 'flex';
 }
