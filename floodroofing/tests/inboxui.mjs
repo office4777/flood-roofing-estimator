@@ -789,6 +789,8 @@ v = await pg.evaluate(() => {
   const row = document.querySelector('.ibx-row');
   return {
     grow: cs.flexGrow === '1',
+    wrap: getComputedStyle(document.getElementById('ibxTaskBoard')).flexWrap === 'wrap',
+    tint: cs.backgroundColor !== 'rgb(248, 250, 252)',
     topBar: cs.borderTopWidth === '3px' && cs.borderTopColor !== 'rgb(226, 232, 240)',
     dot: !!col.querySelector('.th span[style*="border-radius"]'),
     cardEdge: card && getComputedStyle(card).borderLeftWidth === '3px',
@@ -796,8 +798,8 @@ v = await pg.evaluate(() => {
     chip: !!document.querySelector('.ibx-row .sn span[style*="font-weight:700"], .ibx-row .sn span[style*="font-weight: 700"]'),
   };
 });
-check('columns squeeze to fit and wear their member\'s colour — cards and mail rows too',
-  v.grow && v.topBar && v.dot && v.cardEdge && v.rowEdge, JSON.stringify(v));
+check('columns squeeze, wrap instead of scroll, and wear their member\'s colour — cards and mail rows too',
+  v.grow && v.wrap && v.tint && v.topBar && v.dot && v.cardEdge && v.rowEdge, JSON.stringify(v));
 await pg.evaluate(() => _ibxComposeOpen());
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => ({

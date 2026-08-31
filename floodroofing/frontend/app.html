@@ -2862,7 +2862,7 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .nav-badge{ margin-left:auto; background:#dc2626; color:#fff; border-radius:999px; font-size:10px; font-weight:800; padding:1px 7px; }
 .ibx-taskchip{ display:inline-flex; gap:6px; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 9px; font-size:11.5px; background:#fff; cursor:pointer; flex:0 0 auto; max-width:300px; }
 .ibx-taskchip:hover{ border-color:#94a3b8; }
-.ibx-tcol{ flex:1 1 0; min-width:106px; background:#f8fafc; border:1px solid var(--border); border-radius:10px 10px 10px 10px; border-top-width:3px; padding:8px; }
+.ibx-tcol{ flex:1 1 110px; min-width:92px; max-width:260px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; border-top-width:3px; padding:6px; }
 .ibx-tcol .th{ font-size:11.5px; font-weight:800; color:#0a1628; padding:2px 4px 8px; display:flex; gap:6px; align-items:center; }
 .ibx-task{ background:#fff; border:1px solid var(--border); border-radius:8px; padding:8px 9px; margin-bottom:6px; cursor:grab; font-size:12px; }
 .ibx-task.done{ opacity:.55; }
@@ -5569,12 +5569,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="ibx-chip" onclick="_ibxTaskAdd()">＋ Add task</button>
       </div>
       <div style="display:flex;gap:12px;align-items:flex-start">
-        <div style="width:186px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px">
+        <div style="width:168px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:9px">
           <div style="font-size:12.5px;font-weight:800;color:#0a1628;margin-bottom:7px">📝 My list</div>
           <input type="text" id="ibxMyNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
           <div id="ibxMyItems"></div>
         </div>
-        <div id="ibxTaskBoard" style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px;flex:1;min-width:0"></div>
+        <div id="ibxTaskBoard" style="display:flex;flex-wrap:wrap;gap:8px;overflow:visible;align-items:flex-start;padding-bottom:4px;flex:1;min-width:0"></div>
       </div>
     </div>
     <div class="card" id="ibxSetupCard" style="display:none;text-align:center;padding:30px">
@@ -9393,9 +9393,10 @@ function _ibxTasksRender(){
     var cards = (_IBX.tasks || []).filter(function(t){ return !t.personal && (t.assignee_user_id || '') === c.id; });
     var open = cards.filter(function(t){ return !t.done; }).length;
     var ccol = c.id ? _ibxAvColor(c.id) : '#b45309';
-    return '<div class="ibx-tcol" data-tcol="' + c.id + '" style="border-top-color:' + ccol + '">' +
-      '<div class="th"><span style="width:8px;height:8px;border-radius:50%;background:' + ccol + ';display:inline-block;margin-right:5px"></span>' +
-      _ibxEsc(c.name) + '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
+    return '<div class="ibx-tcol" data-tcol="' + c.id + '" style="border-top-color:' + ccol + ';background:' + ccol + '12">' +
+      '<div class="th"><span style="width:8px;height:8px;border-radius:50%;background:' + ccol + ';display:inline-block;margin-right:5px;flex:0 0 auto"></span>' +
+      '<span style="color:' + ccol + ';font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _ibxEsc(c.name) + '</span>' +
+      '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
       cards.map(function(t){
         var over = t.due_date && t.due_date < today && !t.done;
         return '<div class="ibx-task' + (t.done ? ' done' : '') + '" draggable="true" data-task="' + t.id + '" style="border-left:3px solid ' + (t.assignee_user_id ? _ibxAvColor(t.assignee_user_id) : '#b45309') + '">' +
