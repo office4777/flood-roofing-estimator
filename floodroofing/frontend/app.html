@@ -4260,6 +4260,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           </select>
         </label>
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;margin-left:auto">📏 Calibrate scale</button>
+        <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap"></span>
         <div style="display:flex;gap:6px">
           <button onclick="undoLast()" class="tool-btn">↩ Undo</button>
           <button onclick="redoLast()" class="tool-btn">↪ Redo</button>
@@ -12677,7 +12678,7 @@ function _lkgRebase(){
   else _lkgRemember({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
                       penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels,
                       infoItems:DRAW.infoItems, notes:DRAW.notes||[],
-                      scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone,
+                      scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
                       roofs:(Array.isArray(DRAW.roofs)?DRAW.roofs:[]),
                       activeRoofIdx:DRAW.activeRoofIdx });
 }
@@ -13008,7 +13009,7 @@ function snapshotCurrentJob(){
             matClearRowLen:DRAW.matClearRowLen||{}, matRowOff:DRAW.matRowOff||{},
             matBackTrayOff:DRAW.matBackTrayOff||{}, matBackTrayQty:DRAW.matBackTrayQty||{},
             matBackTrayLen:DRAW.matBackTrayLen||{}, matBackTrayExtras:DRAW.matBackTrayExtras||[],
-            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
+            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
             gableRidgeOffset:DRAW.gableRidgeOffset||0,
@@ -13087,6 +13088,7 @@ function restoreFromJob(j){
     DRAW.matBackTrayExtras = snap.draw.matBackTrayExtras || [];
     DRAW.sheetType = snap.draw.sheetType || 'steel-corrugate';
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
+    DRAW.scaleAuto = !!snap.draw.scaleAuto; DRAW.geoScale = snap.draw.geoScale || null;
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
     DRAW.sheetPlanDeletedIds = snap.draw.sheetPlanDeletedIds || [];
@@ -32411,7 +32413,9 @@ var DRAW = {
   hoveredLine: -1,      // line index hovered in addmeas mode
   calibratePts: null,   // [pt1, pt2] in image space
   calibratePixels: 0,   // pixel distance of calibration line
-  scaleMetresPerPx: 0   // real metres per image pixel (set after calibration)
+  scaleMetresPerPx: 0,  // real metres per drawing pixel (set after calibration)
+  scaleAuto: false,     // true while the scale is the aerial's own, ours to redo
+  geoScale: null        // {lat, zoom, retina} the aerial's scale is worked out from
 };
 
 var FACE_COLORS  = ['#c8e6c9','#bbdefb','#fff9c4','#fce4ec','#b2dfdb','#ffe0b2','#e1bee7','#f0f4c3'];
@@ -32571,7 +32575,7 @@ function _roofGeometryPayload(){
     };
     g = {
       v: 1,
-      scaleMetresPerPx: DRAW.scaleMetresPerPx || 0,
+      scaleMetresPerPx: DRAW.scaleMetresPerPx || 0, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
       calPitch: DRAW.calPitch || 0,
       profile: (document.getElementById('matProfile') || {}).value || '',
       outline: (DRAW.outline || []).map(function(p){ return [Math.round(p[0]), Math.round(p[1])]; }),
@@ -37461,6 +37465,7 @@ function _recalibrateFromLine(line, realM){
   // Ridge + gutters are flat plan lines (slope factor 1) — the entered
   // metres IS the plan distance, so scale straight from pixels.
   DRAW.scaleMetresPerPx = realM / px;
+  _scaleSetByHand();
   // Keep the on-canvas Scale-ref line where it is; just refresh its shown
   // length to the new scale. No prior ref → adopt this line as the ref.
   if (DRAW.calibratePixels > 0 && DRAW.calibratePts){
@@ -37687,7 +37692,7 @@ function _captureSnapState() {
     gutterRowQty: DRAW.gutterRowQty || {},
     gutterRowLen: DRAW.gutterRowLen || {},
     flashLayoutOverrides: DRAW.flashLayoutOverrides || {},
-    scaleMetresPerPx: DRAW.scaleMetresPerPx,
+    scaleMetresPerPx: DRAW.scaleMetresPerPx, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
     // Calibration state — so Undo can revert a calibration and never
     // leaves the on-canvas Scale-ref line / pitch out of sync with the
     // restored scaleMetresPerPx.
@@ -37738,6 +37743,8 @@ function _applySnapState(snapStr) {
   DRAW.gutterRowLen = s.gutterRowLen || {};
   if (s.flashLayoutOverrides) DRAW.flashLayoutOverrides = s.flashLayoutOverrides;
   if (s.scaleMetresPerPx != null) DRAW.scaleMetresPerPx = s.scaleMetresPerPx;
+  if (s.scaleAuto != null) DRAW.scaleAuto = !!s.scaleAuto;
+  if (s.geoScale != null) DRAW.geoScale = s.geoScale;
   // Calibration state (only present on snapshots captured after this was
   // added; guarded so older snapshots don't wipe a live calibration).
   if ('calibratePts' in s)    DRAW.calibratePts    = s.calibratePts;
@@ -38431,11 +38438,68 @@ function _inkCommit(){
   return true;
 }
 
+// ── The aerial's own scale, kept honest ───────────────────────────
+// A Mapbox aerial arrives with its ground scale already known: at zoom z and
+// latitude lat, one pixel of that picture is an exact number of metres. What
+// that pixel is worth ON THE DRAWING depends on how large the picture is
+// currently shown, so the metres-per-drawing-pixel is worked out again on
+// every redraw rather than stored once at load and left to go stale the first
+// time somebody zooms the background.
+//
+// Mapbox serves static images on 512px tiles (not the 256px the usual formula
+// assumes), and @2x returns twice the pixels for the same ground — so the
+// old one-shot calculation was out by a factor of four before the on-screen
+// scaling was even considered.
+//
+// Anything the roofer measures by hand wins: Calibrate scale clears
+// scaleAuto, and from then on nothing here touches the scale again.
+function _autoScaleRecompute(){
+  var g = DRAW.geoScale;
+  if (!DRAW.scaleAuto || !g || !DRAW.bgImg) return;
+  var iw = DRAW.bgImg.naturalWidth || 0, ih = DRAW.bgImg.naturalHeight || 0;
+  if (!iw || !ih) return;
+  var cv = document.getElementById('roofCanvas');
+  if (!cv || !cv.width || !cv.height) return;
+  var dpr = window.devicePixelRatio || 1;
+  var W = cv.width / dpr, H = cv.height / dpr;          // drawing units are CSS pixels
+  var mPerImgPx = 78271.51696 * Math.cos(g.lat * Math.PI / 180) / Math.pow(2, g.zoom);
+  if (g.retina) mPerImgPx /= 2;
+  var shown = Math.min(W / iw, H / ih) * ((DRAW.zoom > 0) ? DRAW.zoom : 1);
+  if (!(shown > 0) || !isFinite(mPerImgPx)) return;
+  DRAW.scaleMetresPerPx = mPerImgPx / shown;
+}
+// The aerial gave us the scale; remember what it was worked out from so it can
+// be redone when the view changes, and mark it as ours to overwrite.
+function _autoScaleFromAerial(lat, zoom, retina){
+  DRAW.geoScale = { lat: lat, zoom: zoom, retina: !!retina };
+  DRAW.scaleAuto = true;
+  _autoScaleRecompute();
+  try { _scaleStateShow(); } catch(e){}
+}
+// The roofer has measured something real. Their number is the truth from here.
+function _scaleSetByHand(){ DRAW.scaleAuto = false; DRAW.geoScale = null; }
+// Say plainly where the scale came from, so nobody measures off an aerial
+// assuming it was never set — and so it is obvious that Calibrate overrides it.
+function _scaleStateShow(){
+  var el = document.getElementById('scaleState');
+  if (!el) return;
+  var m = DRAW.scaleMetresPerPx;
+  if (!(m > 0)){ el.textContent = 'No scale set'; el.style.color = '#b45309'; return; }
+  if (DRAW.scaleAuto){
+    el.textContent = 'Scale from the aerial: ' + m.toFixed(3) + ' m/px — calibrate to override';
+    el.style.color = 'var(--text2)';
+  } else {
+    el.textContent = 'Scale set by you: ' + m.toFixed(3) + ' m/px';
+    el.style.color = '#15803d';
+  }
+}
 function redrawAll() {
   var cv=document.getElementById('roofCanvas'); if(!cv) return;
   var ctx=cv.getContext('2d');
   var dpr=window.devicePixelRatio||1;
   // Canvas resolution is dpr * CSS size; scale ctx so 1 unit = 1 CSS pixel
+  _autoScaleRecompute();   // the aerial's scale follows the zoom
+  _scaleStateShow();
   var W=cv.width/dpr, H=cv.height/dpr;
   // Reset click hit-data — populated as we draw flashing letter tags and
   // sheet-length labels so the canvas click handler (and the mirrored
@@ -41192,6 +41256,7 @@ function confirmCalibrate() {
     planM = realM * Math.cos(pitch * Math.PI / 180);
   }
   DRAW.scaleMetresPerPx = planM / DRAW.calibratePixels;
+  _scaleSetByHand();
   DRAW.calMeasType = measType;
   DRAW.calPitch = pitch;
   // Save the EXACT values the user typed so editing the calibration
@@ -43109,6 +43174,7 @@ function _applyTrueEdgeMeasure(edgeIdx, metres, quiet){
   if (!(DRAW.scaleMetresPerPx > 0)){
     // First real measure on an uncalibrated drawing = the calibration.
     DRAW.scaleMetresPerPx = metres / curPx;
+    _scaleSetByHand();
     if (preSnap) _pushSnap(preSnap);
     try { syncToRoofData(); } catch(e){}
     try { updateMeasTotals(); } catch(e){}
@@ -55547,8 +55613,8 @@ function captureFromMapbox(lat, lon, zoom) {
         IMG_OFFSET = {x:0, y:0};
         IMG_ROTATION = 0;
         IMG_FINE_ROTATION = 0;
-        var metersPerPx = 156543.03392 * Math.cos(mc.lat * Math.PI/180) / Math.pow(2, z);
-        DRAW.scaleMetresPerPx = metersPerPx;
+        _autoScaleFromAerial(mc.lat, z, true);   // 1280x1280@2x
+        var metersPerPx = DRAW.scaleMetresPerPx;
 
         // Resize canvas to match image aspect ratio — use DPR for crisp rendering
         var cv = document.getElementById('roofCanvas');
@@ -55606,8 +55672,8 @@ function applyAerialToCanvas(tileCanvas, lat, zoom) {
     IMG_OFFSET = {x:0, y:0};
     IMG_ROTATION = 0;
     IMG_FINE_ROTATION = 0;
-    var metersPerPx = 156543.03392 * Math.cos(lat * Math.PI/180) / Math.pow(2, zoom);
-    DRAW.scaleMetresPerPx = metersPerPx;
+    _autoScaleFromAerial(lat, zoom, true);
+    var metersPerPx = DRAW.scaleMetresPerPx;
     redrawAll();
     // Scroll to canvas
     var cv = document.getElementById('mainCanvas') || document.querySelector('canvas');
