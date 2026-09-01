@@ -576,7 +576,14 @@ table.tb.bcr-lines td:first-child{white-space:normal;overflow-wrap:anywhere;}
 .mtg-fill.allow{background:linear-gradient(90deg,#3b82f6,#60a5fa);}
 .mtg-fill.taken.good{background:linear-gradient(90deg,#16a34a,#22c55e);}
 .mtg-fill.taken.bad{background:linear-gradient(90deg,#ea580c,#fb923c);}
-.mtg-barval{width:70px;text-align:right;font-size:.74rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;}
+.mtg-barval{width:92px;text-align:right;font-size:.74rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:flex-end;gap:3px;}
+.mtg-hrsinp{width:52px;text-align:right;font-size:.74rem;font-weight:800;color:var(--text);background:var(--elev);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-variant-numeric:tabular-nums;}
+.mtg-hrsinp:focus{outline:none;border-color:var(--accent);}
+.mtg-hrsu{font-size:.6rem;font-weight:700;color:var(--muted);}
+.mtg-head-r{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;}
+.mtg-del{white-space:nowrap;font-size:.62rem;font-weight:800;color:var(--danger);background:transparent;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;}
+.mtg-del:hover{border-color:var(--danger);}
+.mtg-showrem{margin-left:auto;font-size:.72rem;font-weight:700;color:var(--accent);cursor:pointer;}
 .mtg-checks{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
 .mtg-chk{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:800;padding:6px 11px;border-radius:20px;border:1px solid var(--border);background:var(--card2);color:var(--muted);cursor:pointer;user-select:none;}
 .mtg-chk .box{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:.62rem;line-height:1;}
@@ -5849,6 +5856,8 @@ let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:{s
 let mtgCrew=S.get('mtgCrew',{});                                 // {jobNoKey:"Ethan, Luke & Christian"} — free-text crew override (team-synced)
 let mtgNotes=S.get('mtgNotes',{});                              // {jobNoKey:{general,labPriced,labActual,qa,cust}} — per-job notes (team-synced)
 let mtgCaptions=S.get('mtgCaptions',{});                        // {jobNoKey:{slotId:caption}} — optional per-photo caption (team-synced)
+let mtgHidden=S.get('mtgHidden',{});                            // {jobKey:1} — jobs removed from the MEETING only (still in every other report) — team-synced
+let mtgHrsOv=S.get('mtgHrsOv',{});                             // {jobKey:{p:allowedHrs,a:takenHrs}} — manual hour overrides for the meeting — team-synced
 const _mtgPhotoOrig={};                                          // {jobNoKey:{slotId:dataURL}} — original (EXIF-corrected) photo bytes; in-memory
 const _mtgView={};                                              // {jobNoKey:{slotId:{z,px,py}}} — crop/zoom/pan transform per slot; in-memory
 const _mtgFergusCache={};                                        // {jobId:{files,raw,thumbs,full}} — Fergus photo picker cache; in-memory
@@ -6043,6 +6052,15 @@ function mtgSetVenue(v){mtgCfg.venue=v;S.set('mtgCfg',mtgCfg);}
 function mtgSetUnit(u){mtgCfg.unit=u;S.set('mtgCfg',mtgCfg);renderMeeting();}
 function mtgAmt(hrs){return mtgCfg.unit==='days'?(Math.round((hrs/MTG_HRS_PER_DAY)*10)/10):(Math.round(hrs*10)/10);}
 function mtgUnitLab(){return mtgCfg.unit==='days'?'days':'hrs';}
+// Remove a job from the MEETING deck only (it stays in cashflow, back-costing, revenue, etc.).
+function mtgHideJob(k){if(!confirm('Remove this job from the meeting?\n\nIt stays in every other report — this only hides it here. You can bring it back with “show removed”.'))return;mtgHidden[k]=1;S.set('mtgHidden',mtgHidden);renderMeeting();}
+function mtgUnhideAll(){mtgHidden={};S.set('mtgHidden',mtgHidden);renderMeeting();}
+// Manually edit a job's Allowed ('p') / Taken ('a') time (in the unit currently shown). Blank = clear override.
+function mtgSetHrs(k,which,val){const disp=parseFloat(val);let ov=mtgHrsOv[k]||{};
+  if(val===''||isNaN(disp)){delete ov[which];}
+  else{ov[which]=Math.max(0,mtgCfg.unit==='days'?disp*MTG_HRS_PER_DAY:disp);}
+  if(Object.keys(ov).length)mtgHrsOv[k]=ov;else delete mtgHrsOv[k];
+  S.set('mtgHrsOv',mtgHrsOv);renderMeeting();}
 // The month's jobs, one card each, placed in each job's dominant work-month so a job shows once.
 function meetingJobs(mk){
   const seen={},out=[];
@@ -6050,7 +6068,10 @@ function meetingJobs(mk){
     if(isExcl(r))return;
     if(bcWorkMonth(r)!==mk)return;
     const id=String(r._fergus_id||'');if(id&&seen[id])return;if(id)seen[id]=1;
-    const priced=num(r.h_priced), actual=Math.max(num(r.h_actual),num(r._loggedHrs));
+    const key=jobNoKey(r._jobNo)||('id'+id);
+    if(mtgHidden[key])return;                                    // removed from the meeting (meeting-only, not other reports)
+    let priced=num(r.h_priced), actual=Math.max(num(r.h_actual),num(r._loggedHrs));
+    const ov=mtgHrsOv[key];if(ov){if(ov.p!=null)priced=num(ov.p);if(ov.a!=null)actual=num(ov.a);}   // manual edits
     if(priced<=0&&actual<=0)return;                              // nothing to review
     const lead=effLead(r), crew=Array.from(effCrew(r));
     crew.sort((a,b)=>(a===lead?-1:(b===lead?1:0)));
@@ -6210,7 +6231,8 @@ function renderMeeting(){
   h+='<div><input class="mtg-input" placeholder="Venue (e.g. Waikare Marae)" value="'+esc(mtgCfg.venue||'')+'" oninput="mtgSetVenue(this.value)" onblur="renderMeeting()"></div>';
   h+='</div>';
   if(!jobs.length){h+='<div class="mtg-empty">No jobs with logged or priced hours in '+esc(mtgMonthLabel(mk))+' yet.<br>Run a sync, or step to another month.</div>';host.innerHTML=h;return;}
-  h+='<div class="mtg-legend"><span class="lg"><span class="sw" style="background:#22c55e;"></span>Good — on/under time</span><span class="lg"><span class="sw" style="background:#fb923c;"></span>Improvement needed — over time</span></div>';
+  h+='<div class="mtg-legend"><span class="lg"><span class="sw" style="background:#22c55e;"></span>Good — on/under time</span><span class="lg"><span class="sw" style="background:#fb923c;"></span>Improvement needed — over time</span>'+
+    (Object.keys(mtgHidden).length?'<a class="mtg-showrem" onclick="mtgUnhideAll()" title="Bring removed jobs back">↺ show removed jobs</a>':'')+'</div>';
   // one slide per job
   jobs.forEach(j=>{
     const k=mtgKey(j);
@@ -6226,10 +6248,11 @@ function renderMeeting(){
     h+='<div class="mtg-slide">';
     h+='<div class="mtg-slide-head"><div class="mtg-jn"><h3>'+esc(j.job)+'</h3>'+(j.jobNo?'<div class="mtg-jobno">Job #'+esc(j.jobNo)+(j.inProgress?' · in progress':'')+'</div>':'')+
        '<div class="mtg-crew">'+crewHtml+'</div><div class="mtg-crew-hint">★ lead roofer · tap a name to make them lead · × removes someone who wasn’t on the job</div></div>'+
-       '<span class="mtg-result '+res.cls+'">'+res.txt+'</span></div>';
+       '<div class="mtg-head-r"><span class="mtg-result '+res.cls+'">'+res.txt+'</span><button class="mtg-del" onclick="mtgHideJob(\''+k+'\')" title="Remove this job from the meeting (stays in other reports)">🗑 remove</button></div></div>';
+    const u=mtgUnitLab();
     h+='<div class="mtg-bars">';
-    h+='<div class="mtg-barrow"><span class="mtg-barlab">Allowed</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+allowW+'%"></div></div><span class="mtg-barval">'+(j.priced>0?mtgAmt(j.priced)+' '+mtgUnitLab():'—')+'</span></div>';
-    h+='<div class="mtg-barrow"><span class="mtg-barlab">Taken</span><div class="mtg-track"><div class="mtg-fill taken '+takenCls+'" style="width:'+takenW+'%"></div></div><span class="mtg-barval">'+mtgAmt(j.actual)+' '+mtgUnitLab()+'</span></div>';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Allowed</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+allowW+'%"></div></div><span class="mtg-barval"><input class="mtg-hrsinp" type="number" step="0.1" min="0" value="'+(j.priced>0?mtgAmt(j.priced):'')+'" placeholder="—" onchange="mtgSetHrs(\''+k+'\',\'p\',this.value)" title="Edit the time allowed"><span class="mtg-hrsu">'+u+'</span></span></div>';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Taken</span><div class="mtg-track"><div class="mtg-fill taken '+takenCls+'" style="width:'+takenW+'%"></div></div><span class="mtg-barval"><input class="mtg-hrsinp" type="number" step="0.1" min="0" value="'+(j.actual>0?mtgAmt(j.actual):'')+'" placeholder="—" onchange="mtgSetHrs(\''+k+'\',\'a\',this.value)" title="Edit the time taken"><span class="mtg-hrsu">'+u+'</span></span></div>';
     h+='</div>';
     // checkboxes
     h+='<div class="mtg-checks">';
