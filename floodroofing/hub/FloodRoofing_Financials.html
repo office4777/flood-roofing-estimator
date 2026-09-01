@@ -1372,7 +1372,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     fetch(api+'/api/state',{headers:{Authorization:'Bearer '+tok}})
       .then(function(r){if(r.status===401){localStorage.removeItem('fr3_hubToken');sessionStorage.setItem('teamNeedsLogin','1');throw 0;}return r.json();})
       .then(function(j){
-        if(j&&j.data){Object.keys(j.data).forEach(function(k){if(k==='fr3_hubApiUrl'||k==='fr3_hubToken')return;try{localStorage.setItem(k,typeof j.data[k]==='string'?j.data[k]:JSON.stringify(j.data[k]));}catch(e){}});}
+        if(j&&j.data){Object.keys(j.data).forEach(function(k){if(k==='fr3_hubApiUrl'||k==='fr3_hubToken'||k==='fr3_hubRole'||k==='fr3_rmToken')return;try{localStorage.setItem(k,typeof j.data[k]==='string'?j.data[k]:JSON.stringify(j.data[k]));}catch(e){}});}   // never let shared state clobber this device's own login/role
         if(j&&j.meta){try{sessionStorage.setItem('teamMeta',JSON.stringify(j.meta));}catch(e){}}
         sessionStorage.setItem('teamHydrated','1');clearTimeout(unhide);location.reload();
       })
