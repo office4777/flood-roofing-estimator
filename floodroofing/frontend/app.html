@@ -1039,7 +1039,11 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   background:transparent;
   border:none;
   border-radius:0;
-  flex:0 0 auto;
+  /* Grow to fill what the sidebar has left, so #navAccount's margin-top:auto
+     has room to push itself down. At 0 0 auto the nav was only as tall as its
+     buttons and "signed in as / Sign out" sat wherever the list ended. */
+  flex:1 1 auto;
+  min-height:0;
 }
 
 .nav-btn{
@@ -4333,12 +4337,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button type="button" id="siteModeBtn" onclick="_toggleSiteMode()" style="width:100%;margin:0 0 7px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Site mode = stripped-back onsite drawing (canvas, header, toolbar). Office mode = the full UI.">📐 Switch to Site mode</button>
             <div style="border-top:1px solid #eef1f5;margin:0 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
+            <input type="range" id="fineRotateSlider" min="0" max="100" step="0.1" value="0"
+              style="width:100%;margin:0 0 8px;accent-color:#0099cc;cursor:pointer"
+              title="Turn the photo, 0 to 100°"
+              oninput="_setFineRotate(this.value)"
+              onpointerdown="DRAW.showAlignGrid=true;redrawAll()"
+              onpointerup="DRAW.showAlignGrid=false;redrawAll()"
+              onblur="DRAW.showAlignGrid=false;redrawAll()">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <button id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° anticlockwise">−.1</button>
               <button id="fineRotateUp" onclick="_nudgeFineRotate(0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° clockwise">+.1</button>
-              <input type="number" id="fineRotate" min="-45" max="45" step="0.1" value="0"
+              <input type="number" id="fineRotate" min="-45" max="100" step="0.1" value="0"
                 style="flex:1;min-width:64px;max-width:84px;margin:0;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;font-variant-numeric:tabular-nums;text-align:right"
-                title="Photo rotation in degrees (−45 to 45)"
+                title="Photo rotation in degrees (−45 to 100)"
                 oninput="_setFineRotate(this.value)"
                 onfocus="this.select();DRAW.showAlignGrid=true;redrawAll()"
                 onblur="DRAW.showAlignGrid=false;redrawAll()">
@@ -42878,12 +42889,14 @@ var IMG_FINE_ROTATION = 0; // -45 to +45 degrees fine adjustment
 function _setFineRotate(v){
   var n = Math.round((parseFloat(v) || 0) * 10) / 10;
   if (!isFinite(n)) n = 0;
-  n = Math.max(-45, Math.min(45, n));          // the slider's own range
+  n = Math.max(-45, Math.min(100, n));        // the slider reaches 100; the box still takes a small negative
   IMG_FINE_ROTATION = n;
   var el = document.getElementById('fineRotate');
   // Don't write back into the box while the user is typing in it — a
   // half-typed "-" parses to 0 and the echo would stomp the minus sign.
   if (el && document.activeElement !== el) el.value = n;
+  var sl = document.getElementById('fineRotateSlider');
+  if (sl && document.activeElement !== sl) sl.value = Math.max(0, n);
   var out = document.getElementById('fineRotateVal');
   if (out) out.textContent = (n > 0 ? '+' : '') + n.toFixed(1) + '°';
   redrawAll();
@@ -42893,6 +42906,24 @@ function _setFineRotate(v){
 // _setFineRotate is what keeps 0.1 × 3 from landing on 0.30000000000000004.
 function _nudgeFineRotate(d){
   _setFineRotate((parseFloat(IMG_FINE_ROTATION) || 0) + d);
+  _alignGridFlash();
+}
+// A tenth of a degree is invisible without something square to judge it
+// against, and the alignment grid only ever showed while the slider was
+// held. Each nudge brings it up for a second; nudging again restarts the
+// second rather than stacking timers, so a run of clicks keeps it up.
+var _alignGridTimer = null;
+function _alignGridFlash(ms){
+  try {
+    DRAW.showAlignGrid = true;
+    redrawAll();
+    if (_alignGridTimer) clearTimeout(_alignGridTimer);
+    _alignGridTimer = setTimeout(function(){
+      _alignGridTimer = null;
+      DRAW.showAlignGrid = false;
+      redrawAll();
+    }, ms || 1000);
+  } catch(e){}
 }
 
 // ── JOB INFO OVERLAY ─────────────────────────────────────────────

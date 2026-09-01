@@ -88,12 +88,35 @@ check('…rounding to the nearer tenth, not always down', s.angle === 12.4, Stri
 await pg.evaluate(() => { for (var i = 0; i < 20; i++) _nudgeFineRotate(0.1); });
 s = await state();
 check('twenty nudges add exactly two degrees', s.angle === 14.4, String(s.angle));
-await pg.evaluate(() => { _setFineRotate(44.9); for (var i = 0; i < 5; i++) _nudgeFineRotate(0.1); });
+// The slider reaches 100 — a photo can come off a phone a long way round,
+// and 45 was not enough to bring it back.
+await pg.evaluate(() => { _setFineRotate(99.9); for (var i = 0; i < 5; i++) _nudgeFineRotate(0.1); });
 s = await state();
-check('nudging past the end clamps at +45', s.angle === 45 && s.slider === 45, JSON.stringify(s));
-await pg.evaluate(() => { for (var i = 0; i < 950; i++) _nudgeFineRotate(-0.1); });
+check('nudging past the end clamps at +100', s.angle === 100 && s.slider === 100, JSON.stringify(s));
+await pg.evaluate(() => { for (var i = 0; i < 1500; i++) _nudgeFineRotate(-0.1); });
 s = await state();
 check('…and at -45 the other way', s.angle === -45 && s.slider === -45, JSON.stringify(s));
+// `slider` above is the number box. The drag bar itself runs 0–100, so a
+// negative angle parks it at its own floor rather than showing a stale value.
+check('…with the drag bar parked at its floor, not left showing the old angle',
+  (await pg.evaluate(() => parseFloat(document.getElementById('fineRotateSlider').value))) === 0);
+
+// A tenth of a degree is invisible without something square to judge it
+// against. The grid used to show only while the slider was held, so the
+// fine buttons moved the photo with nothing to move it against.
+const grid = await pg.evaluate(async () => {
+  DRAW.showAlignGrid = false;
+  _nudgeFineRotate(0.1);
+  const during = DRAW.showAlignGrid;
+  _nudgeFineRotate(0.1);          // restarts the second rather than stacking
+  await new Promise(r => setTimeout(r, 600));
+  const midway = DRAW.showAlignGrid;
+  await new Promise(r => setTimeout(r, 700));
+  return { during, midway, after: DRAW.showAlignGrid };
+});
+check('a fine nudge brings the alignment grid up', grid.during === true, JSON.stringify(grid));
+check('…a second nudge restarts its second rather than stacking timers', grid.midway === true, JSON.stringify(grid));
+check('…and it goes again a second after the last one', grid.after === false, JSON.stringify(grid));
 
 // ── everything comes back through one function ──
 await pg.evaluate(() => _setFineRotate(12.3));

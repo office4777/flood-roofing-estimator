@@ -19,6 +19,11 @@ const b = await chromium.launch();
 async function open(company){
   const ctx = await b.newContext({ viewport:{width:1400,height:950} });
   const pg = await ctx.newPage();
+  // Accept confirms from the moment the page exists. Registered just before
+  // the sign-out click it raced the click itself, and Playwright's default
+  // is to DISMISS — which makes _navSignOut return without signing out and
+  // looks exactly like a broken sign-out.
+  pg.on('dialog', d => d.accept());
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = r.request().url();
@@ -70,7 +75,6 @@ check('there is a sign-out button', await shown(pg,'navSignOutBtn'));
 check('…and it says who is signed in',
   /bob@acmeroofing\.co\.nz/.test(await pg.evaluate(() => document.getElementById('navAccountWho').textContent)));
 // Confirm-then-clear. The reload is what returns the page to the login screen.
-pg.on('dialog', d => d.accept());
 await Promise.all([ pg.waitForNavigation({ timeout: 15000 }).catch(() => null), pg.click('#navSignOutBtn') ]);
 // Wait for the CONDITION, not a stopwatch. A fixed sleep here passed alone
 // and failed under the parallel runner, where the reload has to share a
