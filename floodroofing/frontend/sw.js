@@ -14,7 +14,7 @@
  * Bump SW_VERSION when the precache list changes; old caches are dropped
  * on activate.
  */
-var SW_VERSION = 'roofmap-v4';
+var SW_VERSION = 'roofmap-v5';
 var SHELL = SW_VERSION + '-shell';
 var ASSETS = SW_VERSION + '-assets';
 var NET_TIMEOUT = 5000;   // ms before we fall back to the cached copy
