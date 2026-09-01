@@ -53980,6 +53980,67 @@ function _skelSnapRectilinear(outline, lines){
     var gone = lines.indexOf(drop);
     if (gone >= 0) lines.splice(gone, 1);
   }
+
+  // 6. A lower roof dies into a higher face; it does not climb to its ridge.
+  //    Where a narrow section joins a wider wing, the section's ridge sits
+  //    LOWER than the wing's — a 164mm-wide link between two 201 and 260 wide
+  //    wings on the reported H. Its roof therefore runs into the side of the
+  //    wing's roof partway up and stops. That is how the roof is built and how
+  //    a roofer draws it: the two valleys off the inside corners meet, and
+  //    that is the end of it.
+  //
+  //    The solver instead carried on to the wing's ridge, which put a valley
+  //    on the ridge line and a hip climbing up to meet it. Both are undone
+  //    here, and the wing's ridge — cut in two by the junction it should never
+  //    have had — is put back together.
+  var _nodes = function(){
+    var m = {};
+    lines.forEach(function(l){
+      [0, 1].forEach(function(e){
+        var k = Math.round(l.pts[e][0]) + ',' + Math.round(l.pts[e][1]);
+        (m[k] = m[k] || { p: l.pts[e], ls: [] }).ls.push({ l: l, e: e });
+      });
+    });
+    return m;
+  };
+  var _has = function(nd, t){ return nd.ls.filter(function(x){ return x.l.type === t; }); };
+  var _dir = function(l){
+    var dx = l.pts[1][0] - l.pts[0][0], dy = l.pts[1][1] - l.pts[0][1];
+    var d = Math.hypot(dx, dy) || 1; return [dx / d, dy / d];
+  };
+  for (var g = 0; g < 6; g++){
+    var nodes = _nodes(), acted = false;
+    Object.keys(nodes).some(function(k){
+      var nd = nodes[k];
+      var vs = _has(nd, 'valley'), rs = _has(nd, 'ridge'), hs = _has(nd, 'hip');
+      // (a) A valley has landed ON a ridge that runs straight through this
+      //     point. Pull it back along the hip that brought it here.
+      if (vs.length >= 1 && rs.length === 2 && hs.length === 1){
+        var d0 = _dir(rs[0].l), d1 = _dir(rs[1].l);
+        if (Math.abs(Math.abs(d0[0] * d1[0] + d0[1] * d1[1]) - 1) > 0.02) return false;
+        var h = hs[0], to = h.l.pts[1 - h.e];
+        vs.forEach(function(v){ v.l.pts[v.e][0] = to[0]; v.l.pts[v.e][1] = to[1]; });
+        lines.splice(lines.indexOf(h.l), 1);
+        // The ridge was only in two pieces because of this junction.
+        var A = rs[0].l, B = rs[1].l;
+        A.pts[rs[0].e][0] = B.pts[1 - rs[1].e][0];
+        A.pts[rs[0].e][1] = B.pts[1 - rs[1].e][1];
+        lines.splice(lines.indexOf(B), 1);
+        acted = true; return true;
+      }
+      // (b) A hip climbing from where two valleys meet up to a wing's apex.
+      //     The valleys meeting IS the end of the lower roof.
+      if (vs.length >= 2 && hs.length === 1 && rs.length >= 1){
+        var hh = hs[0], far = nodes[Math.round(hh.l.pts[1 - hh.e][0]) + ',' + Math.round(hh.l.pts[1 - hh.e][1])];
+        if (!far || _has(far, 'valley').length) return false;
+        if (far.ls.length - 1 < 3) return false;          // would strand the apex
+        lines.splice(lines.indexOf(hh.l), 1);
+        acted = true; return true;
+      }
+      return false;
+    });
+    if (!acted) break;
+  }
   return lines;
 }
 

@@ -107,7 +107,17 @@ const report = await pg.evaluate((shapes) => {
       }
       return n;
     })();
-    out[name] = { count: lines.length, strays: strays.map(l => l.type), dangling,
+    // A ridge running the length of a wing, as against the short one over a
+    // link. Two of them on an H, one per wing, each in a single piece.
+    const wingRidges = lines.filter(l => l.type === 'ridge' &&
+      Math.hypot(l.p[1][0]-l.p[0][0], l.p[1][1]-l.p[0][1]) > 120).length;
+    const valleyOnRidge = Object.keys(deg).filter(k =>
+      kinds[k].filter(t => t === 'valley').length >= 1 &&
+      kinds[k].filter(t => t === 'ridge').length >= 2).length;
+    const valleyKnuckles = Object.keys(deg).filter(k =>
+      kinds[k].filter(t => t === 'valley').length >= 2).length;
+    out[name] = { wingRidges, valleyOnRidge, valleyKnuckles,
+      count: lines.length, strays: strays.map(l => l.type), dangling,
       openApex: openApex.length, kinked: kinked.length, skew: skewRidge.length, reflex,
       valleys: lines.filter(l => l.type === 'valley').length,
       ridges: lines.filter(l => l.type === 'ridge').length };
@@ -127,6 +137,20 @@ for (const [name, r] of Object.entries(report)){
     r.valleys >= 1, r.valleys + ' valleys for ' + r.reflex + ' inside corners');
   if (!r.reflex) check('…and a plain box needs exactly one ridge', r.ridges === 1, r.ridges + ' ridges');
 }
+// The H is the shape this whole exercise started on, and the thing that was
+// wrong with it is worth pinning by name: a link between two wings is
+// NARROWER than either, so its ridge sits lower and its roof runs into the
+// side of the wing's roof and stops. The solver used to carry on to the
+// wing's ridge, which put a valley on the ridge line and a hip climbing to
+// meet it — and split the wing's ridge in two at a junction it should never
+// have had.
+const H = report['the H from report 29'];
+check('the H: each wing keeps ONE unbroken ridge, not two halves',
+  H.wingRidges === 2, H.wingRidges + ' long ridges');
+check('…no valley ends on a ridge line', H.valleyOnRidge === 0, H.valleyOnRidge + ' landed on one');
+check('…and the link between the wings dies into their faces, four valleys meeting in two places',
+  H.valleyKnuckles === 2, H.valleyKnuckles + ' places where valleys meet');
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();
