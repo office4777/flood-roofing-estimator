@@ -60,7 +60,11 @@ check('…and can set its RoofMap address', r.status === 200, String(r.status));
 // ── Solo: one person, and none of the extras ──
 setPlan('solo'); await settle();
 r = await api('GET', '/team');
-check('Solo reports one seat and no extras',
+check('the one-person plan is called Trade, not Solo — nobody buys the tier that names their limit',
+  r.body.plan.label === 'Trade', r.body.plan.label);
+check('…while its key stays "solo", so no stored row has to be rewritten',
+  r.body.plan.id === 'solo', r.body.plan.id);
+check('Trade reports one seat and no extras',
   r.body.plan.seats.allowed === 1 && !r.body.plan.slug && !r.body.plan.domain && !r.body.plan.jms,
   JSON.stringify(r.body.plan));
 const r0 = r;

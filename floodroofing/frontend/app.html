@@ -5454,7 +5454,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB: SCHEDULE — the forward-workflow board (Business tier). -->
 <div class="panel" id="tab-schedule">
-  <!-- Locked teaser for Solo/Team — the server enforces; this just sells. -->
+  <!-- Locked teaser below Business — the server enforces; this just sells. -->
   <div class="card" id="schedLockedCard" style="display:none;max-width:640px;margin:40px auto;text-align:center;padding:36px 30px">
     <div style="font-size:34px;margin-bottom:8px">🗓</div>
     <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The schedule board is a Business-tier feature</div>
@@ -12404,15 +12404,18 @@ function refreshSettingsUI(){
   var _remOn = document.getElementById('emReminderOn');
   if (_remOn) _remOn.checked = _em.reminder_enabled === true;
   set('emReminderDays', _em.reminder_days || 3);
-  // Follow-ups are a Team feature; on Solo the controls read but don't write
-  // (the server ignores the flag for Solo regardless — this is just honesty).
+  // Where the plan has no follow-ups the controls read but don't write (the
+  // sender skips those companies regardless — this is just honesty). Keyed on
+  // the flag, not the plan's name, so moving the feature between tiers is a
+  // one-line change in PLANS rather than a hunt through the app.
   try {
-    var _solo = (window.SUBSCRIPTION && SUBSCRIPTION.plan) === 'solo';
+    var _lim = (_companyBrief() || {}).limits || {};
+    var _noRem = _lim.reminders === false;
     var _lockN = document.getElementById('emReminderLock');
     var _daysN = document.getElementById('emReminderDays');
-    if (_remOn) _remOn.disabled = _solo;
-    if (_daysN) _daysN.disabled = _solo;
-    if (_lockN) _lockN.style.display = _solo ? '' : 'none';
+    if (_remOn) _remOn.disabled = _noRem;
+    if (_daysN) _daysN.disabled = _noRem;
+    if (_lockN) _lockN.style.display = _noRem ? '' : 'none';
   } catch(e){}
   try { _mailDomainLoad(); } catch(e){}
   var _iv = q.invoicing || {};
@@ -15314,7 +15317,7 @@ function _billingRenderSection(){
   if (!host) return;
   var s = SUBSCRIPTION;
   var tiers = [
-    { key: 'solo',     name: 'Solo',     price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
+    { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
     { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics, your own web address + email from your own address' },
     { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · schedule board · custom domain + JMS links' },
   ];
@@ -15363,7 +15366,7 @@ function _billingRenderSection(){
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
     '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
 }
-var PLAN_LABELS = { solo: 'Solo', team: 'Team', business: 'Business', trial: 'Trial' };
+var PLAN_LABELS = { solo: 'Trade', team: 'Team', business: 'Business', trial: 'Trial' };
 // Back from Stripe: say what happened, then clean the address bar.
 (function(){
   try {
@@ -22158,13 +22161,12 @@ function _qnFlatten(feed){
   out.sort(function(a, b){ return b.t - a.t; });
   return out.slice(0, 60);
 }
-// Quote notifications are a Team feature. The SERVER is the enforcement —
-// /quote-activity 403s with PLAN_LIMIT on Solo — this only decides what the
-// bell looks like. Unknown plan fails OPEN (the request just 403s politely).
+// The SERVER is the enforcement — /quote-activity 403s with PLAN_LIMIT —
+// this only decides what the bell looks like. Read the flag rather than the
+// plan's name: the name moves between tiers, the flag is the truth. Unknown
+// plan fails OPEN (the request just 403s politely).
 function _qnCanUse(){
   try {
-    var plan = (window.SUBSCRIPTION && SUBSCRIPTION.plan) || (_companyBrief() || {}).plan || '';
-    if (String(plan).toLowerCase() === 'solo') return false;
     var lim = (_companyBrief() || {}).limits;
     if (lim && lim.activity === false) return false;
   } catch(e){}
@@ -22212,7 +22214,7 @@ async function _qnFetch(){
   var feed;
   try { feed = await api('GET', '/quote-activity'); }
   catch(e){
-    // A PLAN_LIMIT 403 means Solo: lock the bell into its teaser state and
+    // A PLAN_LIMIT 403: lock the bell into its teaser state and
     // stop asking — the panel explains and offers the upgrade.
     if (e && (e.code === 'PLAN_LIMIT' || (e.data && e.data.code === 'PLAN_LIMIT'))){
       _QN.locked = true;
@@ -22253,7 +22255,7 @@ function _qnRenderBadge(){
   ['qnBadge', 'gtbBellBadge'].forEach(function(id){
     var bd = document.getElementById(id);
     if (!bd) return;
-    // On Solo the bell wears a small lock instead of a count — the feature is
+    // Without the feature the bell wears a small lock instead of a count — it is
     // visible (and one tap explains it), just not on.
     if (!_qnCanUse()){
       bd.style.display = '';

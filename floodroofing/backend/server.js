@@ -1033,7 +1033,7 @@ const PLANS = {
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false },
+  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false },
   // A schedule board is meaningless at one person and hurting by three, and
   // firms running Fergus are Team-shaped rather than Business-shaped. Both
   // sit here so that "more than one person" is the reason to leave Solo.
@@ -3526,7 +3526,7 @@ async function _quoteShareRows(req, limit){
 // Office home-screen feed: every job that has a shared quote, with its
 // current status + last activity. Team and up — this is the quote
 // notifications feature the Team tier sells.
-app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Solo'), async (req, res) => {
+app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Trade'), async (req, res) => {
   try {
     const rows = await _quoteShareRows(req, 120);
     const feed = rows.map(function(r){
@@ -3585,7 +3585,7 @@ function _quoteAnalyticsFrom(rows, days){
            open_rate: pct(opened), accept_rate: pct(accepted),
            median_days_to_accept: median != null ? Math.round(median * 10) / 10 : null };
 }
-app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytics', 'Solo'), async (req, res) => {
+app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytics', 'Trade'), async (req, res) => {
   try {
     const days = String(req.query.days) === '90' ? 90 : 30;
     const rows = await _quoteShareRows(req, 500);
@@ -8138,7 +8138,7 @@ const _GRANDFATHER_PAGE = '<!doctype html><html lang="en-NZ"><head><meta charset
       '<div><label for="until">Keep them working until</label><input id="until" type="date"></div>' +
       '<div><label for="plan">On which plan</label><select id="plan">' +
         '<option value="">Leave their plan as it is</option>' +
-        '<option value="business">Business</option><option value="team">Team</option><option value="solo">Solo</option>' +
+        '<option value="business">Business</option><option value="team">Team</option><option value="solo">Trade</option>' +
       '</select></div>' +
     '</div>' +
     '<div class="row" style="margin-top:16px">' +
