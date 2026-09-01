@@ -71,3 +71,32 @@ jobs:
           # harmlessly and the newer promotion stands.
           git push origin "$SHA:refs/heads/production" && echo "production is now $SHA" \
             || echo "production is already ahead of $SHA — nothing to do"
+      # Pushing the branch is meant to be enough — Vercel watches
+      # `production` and builds it. In practice it has repeatedly skipped
+      # the build (the same SHA was already built from main, so it treats
+      # the branch push as nothing new) and the site sat on stale code
+      # until somebody clicked Promote to Production by hand. This asks
+      # Vercel for the build explicitly, which it will not deduplicate.
+      #
+      # Setup, once: Vercel project → Settings → Git → Deploy Hooks →
+      # create one on branch `production`, copy the URL, then paste it into
+      # GitHub → repo Settings → Secrets and variables → Actions → new
+      # secret named VERCEL_DEPLOY_HOOK. Until that exists this step warns
+      # and passes: a missing hook must never turn a green promote red.
+      - name: Ask Vercel to build production
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning title=No Vercel deploy hook::production was pushed but no build was requested. The site may stay on the previous version until someone clicks Promote to Production in Vercel. To fix permanently: Vercel project -> Settings -> Git -> Deploy Hooks -> create one on branch 'production', then save the URL as the GitHub secret VERCEL_DEPLOY_HOOK."
+            exit 0
+          fi
+          CODE=$(curl -sS -o /tmp/hook.out -w '%{http_code}' -X POST "$HOOK" || echo 000)
+          echo "Vercel replied $CODE"
+          cat /tmp/hook.out || true
+          echo
+          case "$CODE" in
+            2*) echo "Vercel accepted the build request — the site will update when it finishes." ;;
+            *)  echo "::error title=Vercel did not accept the deploy hook::HTTP $CODE. production is promoted but the site is not rebuilding. Check the hook still exists in Vercel and that VERCEL_DEPLOY_HOOK is current."
+                exit 1 ;;
+          esac
