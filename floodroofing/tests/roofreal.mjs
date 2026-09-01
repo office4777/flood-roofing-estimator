@@ -77,9 +77,9 @@ const report = await pg.evaluate((shapes) => {
       !inPoly([l.p[0][0] + (l.p[1][0]-l.p[0][0])*t, l.p[0][1] + (l.p[1][1]-l.p[0][1])*t])));
     // Junctions: an end is legal on a wall, or where two or more lines meet.
     const key = p => Math.round(p[0]/3) + ',' + Math.round(p[1]/3);
-    const deg = {}, kinds = {};
+    const deg = {}, kinds = {}, nodePt = {};
     lines.forEach(l => l.p.forEach(p => {
-      const k = key(p); deg[k] = (deg[k] || 0) + 1;
+      const k = key(p); deg[k] = (deg[k] || 0) + 1; nodePt[k] = p;
       (kinds[k] = kinds[k] || []).push(l.type);
     }));
     const dangling = [];
@@ -89,6 +89,13 @@ const report = await pg.evaluate((shapes) => {
     // Two hips climbing to a point with nothing carrying on is not a roof.
     const openApex = Object.keys(deg).filter(k =>
       deg[k] === 2 && kinds[k].every(t => t === 'hip'));
+    // An interior point where exactly two lines meet is not a junction — the
+    // roof has nothing to change direction for there. On a U the right-hand
+    // valley overran its ridge end and a stub doubled back to cover it, while
+    // the mirrored left-hand one landed cleanly. Both ends of every line are
+    // either on a wall or at a real junction of three or more.
+    const kinked = Object.keys(deg).filter(k => deg[k] === 2 &&
+      !onWall(nodePt[k]));
     const skewRidge = lines.filter(l => l.type === 'ridge' &&
       Math.min(Math.abs(l.p[1][0]-l.p[0][0]), Math.abs(l.p[1][1]-l.p[0][1])) > 3);
     const reflex = (() => {
@@ -101,7 +108,7 @@ const report = await pg.evaluate((shapes) => {
       return n;
     })();
     out[name] = { count: lines.length, strays: strays.map(l => l.type), dangling,
-      openApex: openApex.length, skew: skewRidge.length, reflex,
+      openApex: openApex.length, kinked: kinked.length, skew: skewRidge.length, reflex,
       valleys: lines.filter(l => l.type === 'valley').length,
       ridges: lines.filter(l => l.type === 'ridge').length };
   }
@@ -113,6 +120,7 @@ for (const [name, r] of Object.entries(report)){
   check('…with nothing drawn outside the building', r.strays.length === 0, r.strays.join(', '));
   check('…nothing stopping in mid-air', r.dangling.length === 0, r.dangling.slice(0, 3).join(' | '));
   check('…no apex with two hips and no line off it', r.openApex === 0, r.openApex + ' open');
+  check('…and no line doubling back on itself mid-roof', r.kinked === 0, r.kinked + ' kinks');
   check('…and every ridge level or plumb, this being a square-walled building',
     r.skew === 0, r.skew + ' on the skew');
   if (r.reflex) check('…and an inside corner is answered with a valley',

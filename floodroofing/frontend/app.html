@@ -53932,6 +53932,54 @@ function _skelSnapRectilinear(outline, lines){
     added.push({ type: 'ridge', pts: [p0, p1] });
   });
   if (added.length) Array.prototype.push.apply(lines, added);
+
+  // 5. Collapse a doubling-back. An interior junction with exactly two lines
+  //    is not a junction at all — the roof has nothing to change direction
+  //    for there. On a U the right-hand valley overran its ridge end by 20px
+  //    and a stub hip doubled back to cover the difference; the left-hand
+  //    valley, the same shape mirrored, landed on it cleanly. So: where a
+  //    long line and a short stub meet at a lone interior point and the long
+  //    one was simply heading past its mark, drop the stub and finish the
+  //    long line where the stub did.
+  for (var pass = 0; pass < 3; pass++){
+    var at2 = {};
+    lines.forEach(function(l){
+      [0, 1].forEach(function(e){
+        var k = Math.round(l.pts[e][0]) + ',' + Math.round(l.pts[e][1]);
+        (at2[k] = at2[k] || { p: l.pts[e], ls: [] }).ls.push({ l: l, e: e });
+      });
+    });
+    var onWall2 = function(p){
+      for (var i2 = 0, j2 = outline.length - 1; i2 < outline.length; j2 = i2++){
+        var a3 = outline[i2], b3 = outline[j2];
+        var dx = b3[0] - a3[0], dy = b3[1] - a3[1], L = dx * dx + dy * dy;
+        var t = L ? Math.max(0, Math.min(1, ((p[0] - a3[0]) * dx + (p[1] - a3[1]) * dy) / L)) : 0;
+        if (Math.hypot(a3[0] + t * dx - p[0], a3[1] + t * dy - p[1]) <= 4) return true;
+      }
+      return false;
+    };
+    var drop = null;
+    Object.keys(at2).some(function(k){
+      var nd = at2[k];
+      if (nd.ls.length !== 2 || onWall2(nd.p)) return false;
+      var A = nd.ls[0], B = nd.ls[1];
+      var far = function(x){ return x.l.pts[1 - x.e]; };
+      var len = function(x){ return Math.hypot(far(x)[0] - nd.p[0], far(x)[1] - nd.p[1]); };
+      var lo = len(A) >= len(B) ? A : B, sh = lo === A ? B : A;
+      if (len(sh) > 0.5 * len(lo)) return false;          // both real lines; leave them
+      var from = far(lo), to = far(sh);
+      var d1 = Math.hypot(nd.p[0] - from[0], nd.p[1] - from[1]) || 1;
+      var d2 = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
+      var cos = ((nd.p[0] - from[0]) * (to[0] - from[0]) + (nd.p[1] - from[1]) * (to[1] - from[1])) / (d1 * d2);
+      if (cos < 0.99) return false;                        // it was not simply overrunning
+      lo.l.pts[lo.e][0] = to[0]; lo.l.pts[lo.e][1] = to[1];
+      drop = sh.l;
+      return true;
+    });
+    if (!drop) break;
+    var gone = lines.indexOf(drop);
+    if (gone >= 0) lines.splice(gone, 1);
+  }
   return lines;
 }
 
