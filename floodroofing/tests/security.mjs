@@ -81,14 +81,30 @@ check('…and changing the capitals does not buy a fresh allowance',
   cased.status === 429, 'status ' + cased.status);
 
 // ── register: unlimited free trials, and it sends mail ────────────
+// 15 an hour per address, up from 5: the old cap was low enough that a couple
+// of mistyped invite codes used up a whole office's allowance, and onboarding
+// a team from one desk is a thing that has to work.
 let regLimited = false, regs = 0;
-for (let i = 0; i < 9 && !regLimited; i++) {
+for (let i = 0; i < 20 && !regLimited; i++) {
   const r = await post('/auth/register',
     { email: 'new' + i + '@example.com', password: 'password123', name: 'A', company: 'B' }, '203.0.113.55');
   regs++;
   if (r.status === 429) regLimited = true;
 }
 check('signing up on repeat from one address is cut off', regLimited, 'stopped after ' + regs);
+check('…but not before a small team could all sign up from the office', regs > 5, regs + ' allowed');
+
+// One address is not the only spray pattern: the same email retried from a
+// fresh address every time is stopped by a per-email cap.
+let regEmailLimited = false, regTries = 0;
+for (let i = 0; i < 9 && !regEmailLimited; i++) {
+  const r = await post('/auth/register',
+    { email: 'grind@example.com', password: 'password123', invite: 'guess' + i }, '192.0.2.1' + i);
+  regTries++;
+  if (r.status === 429) regEmailLimited = true;
+}
+check('…and grinding invite codes for one email from many addresses is stopped too',
+  regEmailLimited, 'stopped after ' + regTries);
 
 // ── the limiter cannot be reset by filling it ────────────────────
 // The old memory backstop called clear() on the whole map, so anyone able to

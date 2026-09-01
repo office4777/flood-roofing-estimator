@@ -855,6 +855,7 @@ async function _companyOf(userId){
         cname = (prof && (prof.company || prof.name || prof.email)) || '';
       } catch(e){}
       const { data: co, error } = await supabase.from('companies').insert({ name: cname || 'My Company' }).select('id').single();
+      if (error) console.error('[company] could not create a company for ' + userId + ':', error.message);
       if (!error && co) {
         cid = co.id;
         await supabase.from('company_users').insert({ company_id: cid, user_id: userId, role: 'owner' });
@@ -1584,7 +1585,7 @@ app.delete('/team/domains/:id', requireAuth, requireOwner, async (req, res) => {
 // Registration creates a company and starts a trial, and sends mail. Teams
 // arrive through /auth/accept-invite rather than here, so a human never needs
 // more than a handful an hour.
-app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
+app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailKey), async (req, res) => {
   const { email, password, name, company } = req.body;
   // Self-registration is invite-gated: with it open, a stranger could
   // mint a trial account and spend the owner's Anthropic / Fergus keys
@@ -1593,17 +1594,30 @@ app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
   // OPEN_REGISTRATION=true to deliberately restore open signup.
   let invitedViaCode = false;
   if (process.env.OPEN_REGISTRATION !== 'true') {
-    const invite = (req.body || {}).invite || '';
-    const expected = process.env.REGISTRATION_INVITE_CODE || '';
+    // Trimmed on BOTH sides: the code reaches people by email, and a copy out
+    // of an email client brings a trailing space or newline with it about half
+    // the time. A stray character is not a wrong code, and "Registration is
+    // invite-only" is an impossible error to debug from the other end.
+    const invite = String((req.body || {}).invite || '').trim();
+    const expected = String(process.env.REGISTRATION_INVITE_CODE || '').trim();
     if (!expected || invite !== expected) {
       return res.status(403).json({ error: 'Registration is invite-only — contact Flood Roofing for access.' });
     }
     invitedViaCode = true;
   }
+  let createdUserId = null;
   try {
     const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
-    if (error) return res.status(400).json({ error: error.message });
-    const userId = data.user.id;
+    if (error) {
+      // The one failure a person actually hits. Supabase phrases it as
+      // "A user with this email address has already been registered", which
+      // reads like a system fault; say what to do about it instead.
+      if (/already (been )?registered|already exists/i.test(error.message || '')) {
+        return res.status(400).json({ error: 'That email already has a RoofMap login — sign in, or use "Forgot password" to set a new one.' });
+      }
+      return res.status(400).json({ error: error.message });
+    }
+    const userId = createdUserId = data.user.id;
     await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '' });
     // Registering ALWAYS creates your own business. Joining an existing one
     // happens only through a per-company invitation (POST /team/invites →
@@ -1612,6 +1626,19 @@ app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
     // signed up with the shared code landed in that same business — fine while
     // there was one, wrong the moment RoofMap has subscribers.
     const cid = await _companyOf(userId);
+    // A registration with no company is not a registration: every table is
+    // scoped by company_id, so the account would come up empty and stay empty,
+    // and the only visible symptom is a missing row in `companies`. Undo the
+    // auth user rather than leaving an orphan — an orphan can never sign up
+    // again (the email is taken) and can never be helped (nothing to log in
+    // to), so the retry has to be able to start from clean.
+    if (!cid) {
+      try { const { error: derr } = await supabase.auth.admin.deleteUser(userId); if (derr) console.error("[auth] rollback delete failed:", derr.message); } catch (e) { console.error("[auth] rollback delete threw:", e.message); }
+      try { await supabase.from('profiles').delete().eq('id', userId); } catch (e) {}
+      _companyCache.delete(userId);
+      console.error('[auth] registration rolled back: could not create a company for ' + email);
+      return res.status(500).json({ error: 'Could not finish setting up your business — nothing was saved, please try again.' });
+    }
     // No trial. Registration is invite-gated — by the time somebody reaches this
     // line we have read their waitlist entry and decided they are a fit, so a
     // fortnight's grace is a stranger-mechanism applied to somebody we already
@@ -1637,6 +1664,15 @@ app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
     res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
   } catch (e) {
+    // Same reasoning as the no-company rollback above: a half-made account is
+    // worse than no account, because the email is now taken and there is
+    // nothing behind it.
+    if (createdUserId) {
+      try { await supabase.auth.admin.deleteUser(createdUserId); } catch (e2) {}
+      try { await supabase.from('profiles').delete().eq('id', createdUserId); } catch (e2) {}
+      _companyCache.delete(createdUserId);
+      console.error('[auth] registration rolled back after an error:', e.message);
+    }
     res.status(500).json({ error: e.message });
   }
 });

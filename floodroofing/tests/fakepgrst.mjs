@@ -117,9 +117,21 @@ export function startFakePostgrest(tables){
         const body = JSON.parse(ab || '{}');
         const rest = u.pathname.slice('/auth/v1/admin/users'.length).replace(/^\//, '');
         let user;
+        if (req.method === 'DELETE'){
+          // deleteUser. Registration rolls back with it, so a fake that
+          // pretended to delete would let an orphaned login pass unnoticed.
+          db.__authUsers = (db.__authUsers || []).filter(x => x.id !== rest);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('{}');
+          return;
+        }
         if (req.method === 'POST'){
           _uid++;
-          user = { id: 'newuser-0000-0000-0000-00000000000' + _uid, email: body.email, created_at: new Date(0).toISOString() };
+          // A REAL uuid shape. The old placeholder had too few groups, and
+          // auth-js validates the id client-side — so deleteUser threw before
+          // sending anything and a rollback looked like it had worked.
+          user = { id: '00000000-0000-4000-8000-' + String(_uid).padStart(12, '0'),
+                   email: body.email, created_at: new Date(0).toISOString() };
           db.__authUsers = db.__authUsers || [];
           db.__authUsers.push({ id: user.id, email: body.email, password: body.password });
         } else {
@@ -216,6 +228,9 @@ export function startFakePostgrest(tables){
         return send(200, hit);
       }
       if (req.method === 'POST'){
+        // Same deliberate breakage as GET, for the paths that have to survive
+        // an insert failing (a rollback, a fallback write).
+        if (db.__failInsert === table) return send(500, { message: 'injected insert failure' });
         const rows = JSON.parse(body || '[]');
         const arr = Array.isArray(rows) ? rows : [rows];
         const bad = (db.__missing || []).find(c => arr.some(r => Object.keys(r).includes(c)));
