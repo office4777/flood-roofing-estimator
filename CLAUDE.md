@@ -33,6 +33,15 @@ Discipline (non-negotiable):
    commits into one ship when possible.
 4. After a green gate the pipeline lands in ~6 minutes; don't poll unless
    something looks wrong.
+5. **A ship is not done until the promote workflow is green.** Its last step
+   fetches roofmap.co.nz/app and compares it byte-for-byte with app.html at
+   the promoted commit; it fails if the site is still serving older code.
+   This is the only proof the change reached a user — `production` containing
+   the commit is NOT proof, and neither is a 201 from the Vercel deploy hook.
+   Both were true on three ships that never went live.
+   If that step goes red, say so plainly and tell the owner to open the
+   Vercel project → Deployments → newest → **Promote to Production**. Never
+   report a change as live on the strength of the branch or the hook alone.
 
 ## Conventions
 

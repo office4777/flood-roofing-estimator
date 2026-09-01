@@ -1851,6 +1851,13 @@ html.no-jms .jms-only{display:none!important}
    chat, the notifications bell and a personal To-Do list — one tap away no
    matter where in the app you are. Fixed for the same reason as
    .global-job-bar above; .content's padding-top clears it. */
+.fb-kind{
+  font:inherit;font-size:13px;font-weight:700;padding:9px 14px;border-radius:9px;cursor:pointer;
+  border:1.5px solid var(--border);background:#fff;color:var(--text2);
+}
+.fb-kind:hover{border-color:var(--border-strong);color:var(--text)}
+.fb-kind.on{border-color:#0099cc;background:#f0f8fb;color:#0a1628}
+.fb-kind:focus-visible{outline:2px solid #0099cc;outline-offset:2px}
 .jms-spin{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:jms-spin .7s linear infinite;flex:0 0 auto}
 @keyframes jms-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.jms-spin{animation-duration:2.4s}}
@@ -7346,10 +7353,29 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       automatically</strong>, along with the roof you were looking at.
     </div>
 
-    <!-- Section 1 — Title -->
+    <!-- Section 1 — What kind of message this is.
+         Asked first because it changes what we do with it: an integration
+         fault runs the probe against the roofer's own Fergus and attaches
+         the findings, which is the difference between a ticket somebody has
+         to reproduce and one that arrives already diagnosed. -->
     <div style="margin-bottom:22px">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">1</span>
+        <span style="font-size:17px;font-weight:800;color:var(--text)">What is this about?</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">Pick the closest one — it decides who reads it and what we send with it.</div>
+      <div id="fbKindRow" style="display:flex;gap:10px;flex-wrap:wrap;margin-left:33px">
+        <button type="button" class="fb-kind on" data-kind="general" onclick="_fbSetKind('general')">🛠 General issue</button>
+        <button type="button" class="fb-kind" data-kind="jms" onclick="_fbSetKind('jms')">🔗 Job management software</button>
+        <button type="button" class="fb-kind" data-kind="feature" onclick="_fbSetKind('feature')">💡 Request a feature</button>
+      </div>
+      <div id="fbKindNote" style="display:none;margin:10px 0 0 33px;padding:10px 13px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628;max-width:640px"></div>
+    </div>
+
+    <!-- Section 2 — Title -->
+    <div style="margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">2</span>
         <span style="font-size:17px;font-weight:800;color:var(--text)">Title</span>
       </div>
       <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">A short summary of the issue or idea.</div>
@@ -7359,7 +7385,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- Section 2 — Details -->
     <div style="margin-bottom:22px">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">2</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">3</span>
         <span style="font-size:17px;font-weight:800;color:var(--text)">Details</span>
       </div>
       <div style="font-size:11.5px;color:var(--text2);margin:0 0 8px 33px;line-height:1.55">
@@ -7373,7 +7399,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- Section 3 — Screenshots -->
     <div style="margin-bottom:24px">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">3</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">4</span>
         <span style="font-size:17px;font-weight:800;color:var(--text)">Screenshots <span style="font-size:12px;font-weight:500;color:var(--text2)">— optional</span></span>
       </div>
       <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">Attach images if they help show the issue.</div>
@@ -27843,6 +27869,28 @@ async function _sendJmsDiagnostic(btn){
   }
 }
 
+// What kind of message this is. Chosen first, because an integration fault
+// is worth probing before it is sent — a ticket that arrives already
+// diagnosed is the difference between one round and three.
+var _FB_KIND = 'general';
+var _FB_KIND_NOTE = {
+  general: '',
+  jms: 'We will also test your job management software connection and attach what it says — you do not need to look anything up. If you can, put the job number in your description.',
+  feature: 'Tell us what you are trying to get done and how you do it today. Requests with a real job behind them are the ones that get built.',
+};
+function _fbSetKind(kind){
+  _FB_KIND = _FB_KIND_NOTE.hasOwnProperty(kind) ? kind : 'general';
+  var row = document.getElementById('fbKindRow');
+  if (row) [].forEach.call(row.querySelectorAll('.fb-kind'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-kind') === _FB_KIND);
+  });
+  var note = document.getElementById('fbKindNote');
+  if (note){
+    var t = _FB_KIND_NOTE[_FB_KIND] || '';
+    note.textContent = t;
+    note.style.display = t ? '' : 'none';
+  }
+}
 async function _sendFeedback(btn){
   var msg = document.getElementById('fbMsg');
   function show(t, ok){ if (msg){ msg.textContent = t; msg.style.color = ok===true ? '#15803d' : ok===false ? '#b91c1c' : 'var(--text2)'; } }
@@ -27850,6 +27898,12 @@ async function _sendFeedback(btn){
   var details = ((document.getElementById('fbDetails')||{}).value || '').trim();
   if (!title){ show('Please add a short title.', false); return; }
   if (!details){ show('Please describe the issue or idea.', false); return; }
+  // An integration fault gets probed as well as sent. Fired first and not
+  // waited on: the endpoint answers before it starts probing, and a roofer
+  // should never wait on somebody else's API to file a report.
+  if (_FB_KIND === 'jms'){
+    try { api('POST', '/jms/diagnose', { problem: title + '\n\n' + details }); } catch(e){}
+  }
   var who = '';
   try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
   if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
@@ -27897,14 +27951,19 @@ async function _sendFeedback(btn){
     // one goes to the support desk from our support mailbox, with Reply-To set
     // server-side to the signed-in user — so when it's fixed, support hits
     // Reply and the answer lands with the person who reported it.
+    // The chosen kind rides in the title so the support inbox sorts itself.
+    var _tag = _FB_KIND === 'jms' ? '[Integration] ' : _FB_KIND === 'feature' ? '[Feature request] ' : '';
     await api('POST', '/feedback', {
       kind: 'feedback',
-      title: title,
+      title: _tag + title,
       text: text, html: html,
       attachment: attachment || undefined
     });
-    show('✓ Thanks — sent to support. We\'ll reply to ' + (who || 'your account email') + ' when it\'s sorted.', true);
+    show('✓ Thanks — sent to support.' +
+      (_FB_KIND === 'jms' ? ' We are testing your job management connection now and the results follow separately.' : '') +
+      ' We\'ll reply to ' + (who || 'your account email') + ' when it\'s sorted.', true);
     // Reset the form for the next one.
+    try { _fbSetKind('general'); } catch(e){}
     var t1 = document.getElementById('fbTitle'); if (t1) t1.value = '';
     var t2 = document.getElementById('fbDetails'); if (t2) t2.value = '';
     _feedbackShots = []; _renderFeedbackShots();
@@ -38682,17 +38741,15 @@ function _inkCommit(){
 function _autoScaleRecompute(){
   var g = DRAW.geoScale;
   if (!DRAW.scaleAuto || !g || !DRAW.bgImg) return;
-  var iw = DRAW.bgImg.naturalWidth || 0, ih = DRAW.bgImg.naturalHeight || 0;
-  if (!iw || !ih) return;
-  var cv = document.getElementById('roofCanvas');
-  if (!cv || !cv.width || !cv.height) return;
-  var dpr = window.devicePixelRatio || 1;
-  var W = cv.width / dpr, H = cv.height / dpr;          // drawing units are CSS pixels
+  // The drawing is stored in IMAGE-pixel coordinates, so the scale is metres
+  // per IMAGE pixel — the canvas size and the zoom have nothing to do with
+  // it. Dividing by how big the photo happened to be drawn made the scale
+  // move every time somebody zoomed: the same roof measured 1.86m at 490%
+  // and 2.95m at 310%. Whatever is on screen, a metre is a metre.
   var mPerImgPx = 78271.51696 * Math.cos(g.lat * Math.PI / 180) / Math.pow(2, g.zoom);
   if (g.retina) mPerImgPx /= 2;
-  var shown = Math.min(W / iw, H / ih) * ((DRAW.zoom > 0) ? DRAW.zoom : 1);
-  if (!(shown > 0) || !isFinite(mPerImgPx)) return;
-  DRAW.scaleMetresPerPx = mPerImgPx / shown;
+  if (!isFinite(mPerImgPx) || !(mPerImgPx > 0)) return;
+  DRAW.scaleMetresPerPx = mPerImgPx;
 }
 // The aerial gave us the scale; remember what it was worked out from so it can
 // be redone when the view changes, and mark it as ours to overwrite.

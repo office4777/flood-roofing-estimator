@@ -100,3 +100,33 @@ jobs:
             *)  echo "::error title=Vercel did not accept the deploy hook::HTTP $CODE. production is promoted but the site is not rebuilding. Check the hook still exists in Vercel and that VERCEL_DEPLOY_HOOK is current."
                 exit 1 ;;
           esac
+
+      # Accepting a build request is not the same as serving it. Three times
+      # now the branch has been promoted, the hook has answered 201, and
+      # roofmap.co.nz has gone on serving the previous commit — the hook
+      # build and the branch-push build race, and one of them is cancelled.
+      # Nobody noticed until a person went looking for a change that was not
+      # there.
+      #
+      # So: fetch the app the public actually gets and compare it, byte for
+      # byte, with the file at the promoted commit. Equal means deployed.
+      # Anything else fails this workflow loudly, with the one click that
+      # fixes it — a red promote is cheap; a silently stale site is not.
+      - name: Verify the site is really serving this commit
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://roofmap.co.nz/app' }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          WANT=$(git show "$SHA:floodroofing/frontend/app.html" | sha256sum | cut -d' ' -f1)
+          echo "Waiting for $APP_URL to serve app.html from $SHA (sha256 ${WANT:0:12}…)"
+          for i in $(seq 1 24); do
+            GOT=$(curl -fsSL --max-time 30 "$APP_URL" 2>/dev/null | sha256sum | cut -d' ' -f1)
+            if [ "$GOT" = "$WANT" ]; then
+              echo "Live after $((i*20))s — the site is serving this commit."
+              exit 0
+            fi
+            echo "  check $i: serving ${GOT:0:12}…, want ${WANT:0:12}…"
+            sleep 20
+          done
+          echo "::error title=The site is NOT serving this commit::production was promoted to $SHA and Vercel accepted a build, but after 8 minutes $APP_URL is still serving different code. Vercel most likely cancelled the build (the deploy hook and the branch push race each other). FIX: open the Vercel project -> Deployments -> newest -> Promote to Production. Then tell whoever shipped this, because the change they think is live is not."
+          exit 1

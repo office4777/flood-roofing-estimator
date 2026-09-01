@@ -12,9 +12,14 @@
 // about right — roughly 3% out, which is 600mm on a 20m roof. Zoom the
 // background and it went 90%+ wrong, because the old figure never changed.
 //
-// So: work it out from the picture, the canvas and the zoom together, redo it
-// whenever the view changes, and never touch it again once the roofer has
-// measured something by hand.
+// So: work it out from the picture's own geometry, and never touch it again
+// once the roofer has measured something by hand.
+//
+// The first version of this fix then overcorrected, dividing by how large the
+// photo happened to be DRAWN. But the drawing is stored in image-pixel
+// coordinates, so that made the scale move with the canvas zoom: the same
+// roof measured 1.86m at 490% and 2.95m at 310%. Whatever is on screen, a
+// metre is a metre — the canvas and DRAW.zoom have nothing to do with it.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
@@ -48,12 +53,16 @@ const v = await pg.evaluate(async ([lat, zoom]) => {
   DRAW.zoom = 2; _autoScaleRecompute(); const at2 = DRAW.scaleMetresPerPx;
   DRAW.zoom = 0.5; _autoScaleRecompute(); const atHalf = DRAW.scaleMetresPerPx;
   DRAW.zoom = 1; _autoScaleRecompute();
+  // A closer aerial: same picture, one Mapbox zoom level in.
+  _autoScaleFromAerial(lat, zoom + 1, true);
+  const closerAerial = DRAW.scaleMetresPerPx;
+  _autoScaleFromAerial(lat, zoom, true);
   // the roofer measures a real wall
   DRAW.scaleMetresPerPx = 0.05; _scaleSetByHand(); _scaleStateShow();
   const labelHand = (document.getElementById('scaleState') || {}).textContent || '';
   DRAW.zoom = 3; _autoScaleRecompute();
   const afterHand = DRAW.scaleMetresPerPx, autoAfter = DRAW.scaleAuto;
-  return { W, H, at1, at2, atHalf, auto1, afterHand, autoAfter, label1, labelHand,
+  return { W, H, at1, at2, atHalf, auto1, afterHand, autoAfter, label1, labelHand, closerAerial,
            fitted: Math.min(W, H) };
 }, [LAT, ZOOM]);
 
@@ -62,18 +71,20 @@ const perImgPx = 78271.51696 * Math.cos(LAT * Math.PI/180) / Math.pow(2, ZOOM) /
 
 check('an aerial calibrates the drawing without anyone touching Calibrate',
   v.at1 > 0 && v.auto1 === true, v.at1 + ' m/px, auto=' + v.auto1);
-check('…and the ground it says the picture covers is the ground it really covers',
-  Math.abs(v.at1 * v.fitted - perImgPx * 2560) < 0.5,
-  (v.at1 * v.fitted).toFixed(2) + 'm vs ' + (perImgPx * 2560).toFixed(2) + 'm');
-check('…so a wall measures the same whatever the canvas happens to be',
-  Math.abs(v.at1 - perImgPx * 2560 / v.fitted) < 1e-6);
+check('…and one drawing unit covers exactly one picture pixel of ground',
+  Math.abs(v.at1 - perImgPx) < 1e-9, v.at1 + ' vs ' + perImgPx);
 
-// The old code stored one number and never revisited it. Zooming the aerial
-// changes how much ground a drawing pixel covers, so the scale has to follow.
-check('zooming the aerial in halves the metres a drawing pixel covers',
-  Math.abs(v.at2 - v.at1/2) < 1e-6, v.at2 + ' vs ' + (v.at1/2));
-check('…and zooming out doubles it', Math.abs(v.atHalf - v.at1*2) < 1e-6, v.atHalf + ' vs ' + (v.at1*2));
+// The one that cost real measurements: zooming the CANVAS must not move the
+// scale by a hair. A roofer zooms in to place a corner accurately and would
+// have had every length change under them.
+check('zooming the canvas in does not change the scale',
+  v.at2 === v.at1, v.at2 + ' vs ' + v.at1);
+check('…and zooming out does not either', v.atHalf === v.at1, v.atHalf + ' vs ' + v.at1);
 
+// The aerial's OWN zoom is a different thing and must still move the scale:
+// one picture pixel of a closer aerial covers less ground.
+check('a closer aerial halves the metres a picture pixel covers',
+  Math.abs(v.closerAerial - v.at1 / 2) < 1e-9, v.closerAerial + ' vs ' + (v.at1 / 2));
 check('a scale the roofer measured by hand is never overwritten',
   v.afterHand === 0.05 && v.autoAfter === false, v.afterHand + ', auto=' + v.autoAfter);
 check('the screen says where the scale came from', /aerial/i.test(v.label1) && /m\/px/.test(v.label1), v.label1);

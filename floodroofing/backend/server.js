@@ -6423,9 +6423,25 @@ function _jmsVerdict(status){
   if (typeof status === 'number' && status >= 500) return 'Fergus server error';
   return 'No answer';
 }
-async function _jmsRunProbes(fergusKey){
+// A job number in the description turns the report from "the API is up" into
+// "here is what Fergus said about YOUR job". Matches "job 3227", "#3227" or a
+// bare number long enough to be a job number, and takes the first one.
+function _jmsJobNoFrom(text){
+  const m = String(text || '').match(/\b(?:job\s*#?\s*|#)(\d{2,8})\b/i) ||
+            String(text || '').match(/\b(\d{4,8})\b/);
+  return m ? m[1] : null;
+}
+async function _jmsRunProbes(fergusKey, jobNo){
   const headers = { 'Authorization': 'Bearer ' + fergusKey, 'Accept': 'application/json' };
-  return Promise.all(_JMS_PROBES.map(async (c) => {
+  // Photos are the most-reported fault and were the one thing the report
+  // never tested. With a job number, walk the same candidate paths the
+  // picker walks, so support can see which one answered and with what.
+  const list = _JMS_PROBES.concat(!jobNo ? [] :
+    FERGUS_LIST_CANDIDATES.slice(0, 12).map(tpl => ({
+      tag: 'Photos/files for job ' + jobNo,
+      path: tpl.replace('{jobId}', encodeURIComponent(jobNo)),
+    })));
+  return Promise.all(list.map(async (c) => {
     const t0 = Date.now();
     try {
       const r = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + c.path, 'GET', headers);
@@ -6469,6 +6485,7 @@ function _jmsReportHtml(ctx, probes){
     '<div style="font-weight:700;margin-bottom:6px">Their setup</div>' +
     '<div style="color:#475569;margin-bottom:16px">' +
       'API key: ' + e(ctx.keyState) + '<br>' +
+      'Job number found in their message: ' + e(ctx.jobNo || 'none — photo paths not probed') + '<br>' +
       'Material Sales account id: ' + e(ctx.matAcct || 'not set') + '<br>' +
       'Labour account id: ' + e(ctx.labAcct || 'not set') + '</div>' +
     '<div style="font-weight:700;margin-bottom:6px">What their Fergus answered just now</div>' +
@@ -6486,6 +6503,7 @@ function _jmsReportText(ctx, probes){
     'WHAT THEY SAY IS WRONG\n' + ctx.problem + '\n\n' +
     'THEIR SETUP\n' +
     '  API key: ' + ctx.keyState + '\n' +
+    '  Job number in their message: ' + (ctx.jobNo || 'none — photo paths not probed') + '\n' +
     '  Material Sales account id: ' + (ctx.matAcct || 'not set') + '\n' +
     '  Labour account id: ' + (ctx.labAcct || 'not set') + '\n\n' +
     'PROBES\n' + probes.map(p =>
@@ -6513,6 +6531,7 @@ app.post('/jms/diagnose', requireAuth, requireSubscription,
     when: new Date().toISOString(),
     // Length and presence only. The key itself never leaves the server.
     keyState: fergusKey ? ('set, ' + String(fergusKey).length + ' characters') : 'NOT SET',
+    jobNo: _jmsJobNoFrom(problem),
     matAcct: keys.fergusMaterialsAccountId || '',
     labAcct: keys.fergusLabourAccountId || '',
   };
@@ -6522,7 +6541,7 @@ app.post('/jms/diagnose', requireAuth, requireSubscription,
   res.status(202).json({ queued: true, to: MAIL_SUPPORT });
 
   try {
-    const probes = fergusKey ? await _jmsRunProbes(fergusKey)
+    const probes = fergusKey ? await _jmsRunProbes(fergusKey, ctx.jobNo)
       : [{ tag: 'No API key stored for this business', path: '—', status: 'SKIP',
            verdict: 'Nothing to probe', ms: 0, shape: 'Connect Fergus first.' }];
     await _dispatchMail({
