@@ -3849,7 +3849,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
      updateGlobalJobBar() still runs and keeps the sidebar label in sync. -->
 <div class="global-top-bar no-print" id="globalTopBar">
   <button type="button" class="gtb-btn gtb-ai" onclick="_gtbAi()" title="AI Assistant — tell it what you need">✨ AI Assistant</button>
-  <button type="button" class="gtb-btn gtb-chat" onclick="_gtbChat()" title="Internal chat with the team">💬 Internal chat</button>
+  <button type="button" class="gtb-btn gtb-chat" id="gtbChatBtn" onclick="_gtbChat()" title="Internal chat with the team">💬 Internal chat</button>
   <button type="button" class="gtb-btn" onclick="_qnToggle()" title="Quote notifications">🔔<span class="gtb-badge" id="gtbBellBadge"></span></button>
   <!-- Tasks and the personal list sit at the far end, away from the
        assistant and the chat — the two things you reach for while you work
@@ -8537,7 +8537,12 @@ function _planLimits(){
 // Nav buttons that belong to a plan feature. Anything not listed is on every
 // plan, and a feature the server has not spoken about stays visible — the
 // failure that costs least is showing a tab, not hiding one somebody paid for.
-var _NAV_PLAN_FEATURES = { navInboxBtn: 'inbox', navScheduleBtn: 'schedule' };
+// The banner's chat and task buttons are the inbox feature wearing a
+// different hat: every one of them calls /inbox/... , which the server
+// refuses below Business. Leaving them visible on Solo is a button that
+// only ever produces an error.
+var _NAV_PLAN_FEATURES = { navInboxBtn: 'inbox', navScheduleBtn: 'schedule',
+  gtbChatBtn: 'inbox', gtbTasksBtn: 'inbox', gtbTodoBtn: 'inbox' };
 function _navPlanSync(){
   var lim = _planLimits();
   var hidden = {};
@@ -8552,6 +8557,10 @@ function _navPlanSync(){
   try {
     var cur = document.body.getAttribute('data-tab');
     if ((cur === 'inbox' && hidden.inbox) || (cur === 'schedule' && hidden.schedule)) gotoTab('select');
+    // A banner panel left standing open outlives the button that opened it.
+    if (hidden.inbox) ['gtbTasksPanel','gtbTodoPanel'].forEach(function(id){
+      var p = document.getElementById(id); if (p) p.style.display = 'none';
+    });
   } catch(e){}
   try {
     var who = document.getElementById('navAccountWho');

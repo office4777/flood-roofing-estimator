@@ -52,6 +52,16 @@ const LIMITS = (o) => Object.assign({ seats:1, slug:false, domain:false, jms:fal
 let { ctx, pg } = await open({ id:'c1', name:'Acme Roofing Ltd', role:'owner', plan:'solo', limits: LIMITS() });
 check('a Solo account is not offered the Email tab', !(await shown(pg,'navInboxBtn')));
 check('…nor the Schedule tab', !(await shown(pg,'navScheduleBtn')));
+// The banner buttons are the same feature as the Email tab: chat, the team
+// task board and the personal to-do list all call /inbox/..., which the
+// server refuses below Business. A visible button that can only error is
+// worse than no button.
+check('…nor the banner\'s Internal chat button', !(await shown(pg,'gtbChatBtn')));
+check('…nor the team Tasks dropdown', !(await shown(pg,'gtbTasksBtn')));
+check('…nor My To Do List, which is the same task board', !(await shown(pg,'gtbTodoBtn')));
+check('…while the banner itself and the AI Assistant stay, being on every plan',
+  (await shown(pg,'globalTopBar')) &&
+  /AI Assistant/.test(await pg.evaluate(() => document.getElementById('globalTopBar').textContent)));
 check('…while the tabs that ARE theirs are untouched',
   (await shown(pg,'navRoofBtn')) && (await shown(pg,'navQuoteBtn')) && (await shown(pg,'navSettingsBtn')));
 
@@ -78,12 +88,17 @@ await ctx.close();
                             limits: LIMITS({ seats:15, slug:true, domain:true, jms:true, schedule:true, inbox:true }) }));
 check('a Business account keeps the Email tab', await shown(pg,'navInboxBtn'));
 check('…and the Schedule tab', await shown(pg,'navScheduleBtn'));
+check('…and the Internal chat button', await shown(pg,'gtbChatBtn'));
+check('…and both task dropdowns',
+  (await shown(pg,'gtbTasksBtn')) && (await shown(pg,'gtbTodoBtn')));
 await ctx.close();
 
 // An older cached company, from before the server sent limits at all. Hiding a
 // tab somebody is paying for is the worse failure, so silence means show.
 ({ ctx, pg } = await open({ id:'c1', name:'Acme Roofing Ltd', role:'owner' }));
 check('a company brief with no plan in it keeps every tab', await shown(pg,'navInboxBtn'));
+check('…including the banner buttons, since silence must not hide paid-for things',
+  (await shown(pg,'gtbChatBtn')) && (await shown(pg,'gtbTasksBtn')) && (await shown(pg,'gtbTodoBtn')));
 await ctx.close();
 
 // ── standing on a tab that is not yours ──────────────────────────
@@ -99,6 +114,7 @@ await pg.evaluate(() => {
   _navPlanSync();
 });
 await pg.waitForTimeout(300);
+check('…and takes the banner buttons with it', !(await shown(pg,'gtbTasksBtn')));
 check('losing the plan while standing on the tab moves you off it, not into a dead screen',
   await pg.evaluate(() => document.body.getAttribute('data-tab')) !== 'inbox',
   await pg.evaluate(() => document.body.getAttribute('data-tab')));
