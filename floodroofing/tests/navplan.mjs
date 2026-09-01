@@ -72,7 +72,11 @@ check('…and it says who is signed in',
 // Confirm-then-clear. The reload is what returns the page to the login screen.
 pg.on('dialog', d => d.accept());
 await Promise.all([ pg.waitForNavigation({ timeout: 15000 }).catch(() => null), pg.click('#navSignOutBtn') ]);
-await pg.waitForTimeout(2000);
+// Wait for the CONDITION, not a stopwatch. A fixed sleep here passed alone
+// and failed under the parallel runner, where the reload has to share a
+// machine with three other browsers — a slow reload is not a bug.
+await pg.waitForFunction(() => !localStorage.getItem('fr_token'), null, { timeout: 20000 }).catch(() => null);
+await pg.waitForTimeout(300);
 const after = await pg.evaluate(() => ({
   tok: localStorage.getItem('fr_token'), user: localStorage.getItem('fr_user'),
   co: localStorage.getItem('fr_company'),
@@ -83,6 +87,21 @@ check('signing out drops the session, not just the screen',
 check('…and lands back on the login screen', after.login, JSON.stringify(after));
 await ctx.close();
 
+// ── the job-management screen, below the plan that carries it ────
+// Nothing on it a person could act on, so it offers the upgrade instead of a
+// page of settings that all refuse. Its own context: the sign-out above is
+// destructive, and this has to be looked at on a live session.
+({ ctx, pg } = await open({ id:'c1', name:'Acme Roofing Ltd', role:'owner', plan:'solo', limits: LIMITS() }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-jms'); });
+await pg.waitForTimeout(400);
+check('a plan without the link is offered the upgrade, not dead settings',
+  (await shown(pg,'jmsLockedPane')) && !(await shown(pg,'jmsLivePane')));
+const lockTxt = await pg.evaluate(() => document.getElementById('jmsLockedPane').textContent);
+check('…naming both plans that carry it, with their prices',
+  /Team/.test(lockTxt) && /Business/.test(lockTxt) && /\$299/.test(lockTxt) && /\$549/.test(lockTxt),
+  lockTxt.replace(/\s+/g, ' ').slice(0, 80));
+await ctx.close();
+
 // ── it must not turn into a saying-no machine ────────────────────
 ({ ctx, pg } = await open({ id:'c1', name:'Acme Roofing Ltd', role:'owner', plan:'business',
                             limits: LIMITS({ seats:15, slug:true, domain:true, jms:true, schedule:true, inbox:true }) }));
@@ -91,6 +110,10 @@ check('…and the Schedule tab', await shown(pg,'navScheduleBtn'));
 check('…and the Internal chat button', await shown(pg,'gtbChatBtn'));
 check('…and both task dropdowns',
   (await shown(pg,'gtbTasksBtn')) && (await shown(pg,'gtbTodoBtn')));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-jms'); });
+await pg.waitForTimeout(400);
+check('…and the real job-management settings, not the upgrade panel',
+  (await shown(pg, 'jmsLivePane')) && !(await shown(pg, 'jmsLockedPane')));
 await ctx.close();
 
 // An older cached company, from before the server sent limits at all. Hiding a

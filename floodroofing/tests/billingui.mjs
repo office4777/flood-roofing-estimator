@@ -95,6 +95,22 @@ check('an active subscriber sees their plan marked CURRENT with Manage billing',
 check('…and no trial banner at all', v.banner.trim() === '');
 await ctx.close();
 
+// ── a comped account: on a plan, paying nothing ───────────────────
+// This is what every account looks like today — comped through the
+// grandfather tool, so status is 'pending' rather than 'active'. CURRENT
+// used to be pinned to a live Stripe subscription, which left the owner
+// staring at three plans with no way to tell which one they were on.
+({ ctx, pg, checkouts } = await boot({ status:'pending', billing:true, live:true, plan:'team',
+  trial:{ ends_at:'2027-09-01T00:00:00Z', days_left:365, expired:false } }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => document.getElementById('billingBody').textContent);
+check('a comped account is told which plan it is on', /You’re on Team/.test(v), v.slice(0, 80));
+check('…and that plan is the one marked CURRENT', /CURRENT/.test(v));
+check('…and it is told there is nothing to pay, with the date it runs to',
+  /Nothing to pay/.test(v) && /2027/.test(v), v.slice(0, 130));
+await ctx.close();
+
 // ── a business with no trial: the shape every new signup now has ──────
 // The expired-trial path above still matters for accounts created before the
 // trial was dropped, but this is the one a new roofer actually meets.

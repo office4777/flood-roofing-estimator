@@ -6720,6 +6720,35 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- JOB MANAGEMENT (shown as a tab only once a system is linked) -->
     <div class="sub-panel settings-sub" id="set-jms" style="margin-top:14px">
+      <!-- Below Team there is nothing on this screen a person can act on, and
+           a page of settings that all refuse is worse than a straight answer.
+           _jmsPlanSync() shows this instead of the lot. -->
+      <div id="jmsLockedPane" style="display:none">
+        <div style="max-width:640px;padding:26px 26px 24px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2)">
+          <div style="font-size:19px;font-weight:800;color:var(--text);line-height:1.25;margin-bottom:8px">
+            Link RoofMap to your job management software
+          </div>
+          <p style="font-size:13.5px;color:var(--text2);line-height:1.6;margin:0 0 18px">
+            Push a finished quote straight into Fergus as a job — client, site, materials and
+            labour already filled in — instead of typing it twice. Available from Team up.
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+            <div style="border:1.5px solid #0099cc;border-radius:12px;padding:16px;background:#fff">
+              <div style="font-size:14px;font-weight:800;color:#0a1628">Team</div>
+              <div style="font-size:22px;font-weight:800;color:#0a1628;margin:4px 0 2px">$299<span style="font-size:12px;font-weight:500;color:#64748b">/month + GST</span></div>
+              <div style="font-size:11.5px;color:#64748b;line-height:1.5;margin-bottom:12px">Up to 5 people · the Fergus link · schedule board · your own web address and email</div>
+              <button type="button" onclick="switchSettingsSub('set-billing');_billingRenderSection()" style="width:100%;padding:9px 0;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">See Team</button>
+            </div>
+            <div style="border:1.5px solid var(--border);border-radius:12px;padding:16px;background:#fff">
+              <div style="font-size:14px;font-weight:800;color:#0a1628">Business</div>
+              <div style="font-size:22px;font-weight:800;color:#0a1628;margin:4px 0 2px">$549<span style="font-size:12px;font-weight:500;color:#64748b">/month + GST</span></div>
+              <div style="font-size:11.5px;color:#64748b;line-height:1.5;margin-bottom:12px">Up to 15 people · everything in Team · team inbox, chat and tasks · your own domain on quotes</div>
+              <button type="button" onclick="switchSettingsSub('set-billing');_billingRenderSection()" style="width:100%;padding:9px 0;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">See Business</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="jmsLivePane">
       <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Use <strong>Configure connection</strong> to re-test the link or update keys. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
       <div style="display:flex;gap:8px;align-items:flex-end;max-width:520px;flex-wrap:wrap">
         <div style="flex:1;min-width:240px">
@@ -6812,6 +6841,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <span id="jmsReqMsg" style="font-size:12.5px;color:var(--text2)"></span>
         </div>
       </div>
+      </div><!-- /#jmsLivePane -->
     </div>
 
     <!-- BRANDING -->
@@ -8597,6 +8627,7 @@ function _navPlanSync(){
       var p = document.getElementById(id); if (p) p.style.display = 'none';
     });
   } catch(e){}
+  try { _jmsPlanSync(); } catch(e){}
   try {
     var who = document.getElementById('navAccountWho');
     if (who){
@@ -8605,6 +8636,16 @@ function _navPlanSync(){
       who.title = who.textContent;
     }
   } catch(e){}
+}
+// Below Team, every control on the job-management screen would refuse. Show
+// the upgrade panel in place of the lot rather than a page of dead settings.
+function _jmsPlanSync(){
+  var lim = _planLimits();
+  var off = !!lim && lim.jms === false;
+  var lock = document.getElementById('jmsLockedPane');
+  var live = document.getElementById('jmsLivePane');
+  if (lock) lock.style.display = off ? '' : 'none';
+  if (live) live.style.display = off ? 'none' : '';
 }
 // The nav is built by the page, so the first sync has to wait for it; every
 // later one hangs off whatever refreshed the company (sign-in, the Team
@@ -15347,14 +15388,18 @@ async function _billingPortal(btn){
 // toggle only appears when the server says a yearly price actually exists.
 var _billingCycle = 'monthly';
 function _billingSetCycle(c){ _billingCycle = c === 'annual' ? 'annual' : 'monthly'; _billingRenderSection(); }
+function _billingDate(iso){
+  try { return new Date(iso).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); }
+  catch(e){ return String(iso || '').slice(0, 10); }
+}
 function _billingRenderSection(){
   var host = document.getElementById('billingBody');
   if (!host) return;
   var s = SUBSCRIPTION;
   var tiers = [
-    { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders' },
-    { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · quote notifications, auto follow-ups, analytics, your own web address + email from your own address' },
-    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Unlimited people · schedule board · custom domain + JMS links' },
+    { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
+    { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
+    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
   ];
   var annualAvail = (s && s.annual) || {};
   var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
@@ -15363,6 +15408,10 @@ function _billingRenderSection(){
   if (!s) head = '<div style="font-size:12.5px;color:var(--text2)">Couldn\u2019t check the subscription \u2014 reload to try again.</div>';
   else if (!s.billing) head = '<div style="font-size:12.5px;color:var(--text2)">Billing isn\u2019t switched on yet \u2014 plans below are what it will look like. Nothing can be charged.</div>';
   else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
+  // Comped and trial accounts are on a real plan too — they just aren't
+  // paying for it. Saying nothing left them looking at three cards with no
+  // way to tell which one they had.
+  else if (s.plan && s.plan !== 'trial') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Nothing to pay at the moment' + (s.trial && s.trial.ends_at ? ' \u2014 covered until ' + _billingDate(s.trial.ends_at) : '') + '.</span></div>';
   else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
   else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
   else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
@@ -15381,7 +15430,7 @@ function _billingRenderSection(){
   host.innerHTML = head + cycleBar +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px">' +
     tiers.map(function(t){
-      var current = s && s.status === 'active' && s.plan === t.key;
+      var current = !!(s && s.plan && s.plan === t.key);
       var yearlyHere = _billingCycle === 'annual' && annualAvail[t.key];
       var priceLine = yearlyHere
         ? t.yearly + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/year + GST</span>' +
@@ -32020,13 +32069,17 @@ async function diagnoseFergus(){
     var issues = [];
     if (!f.key_set)       issues.push('❌ FERGUS_API_KEY is NOT set on Railway.');
     if (f.key_set && !f.key_format_ok) issues.push('⚠ Key does not start with "fergPAT_" — make sure you copied the full Personal Access Token from Fergus.');
-    if (!f.path_prefix)   issues.push('⚠ FERGUS_PATH_PREFIX is empty. Set it to "/api/v2" on Railway.');
+    // Fergus mounts our requests under /api/partner at its own edge — a 404
+    // body reads "Route GET:/api/partner/<what we sent> not found". So a
+    // prefix of our own doubles the path. Empty is correct; anything else
+    // is the first thing to suspect on a 404.
+    if (f.path_prefix)    issues.push('⚠ FERGUS_PATH_PREFIX is set to "' + f.path_prefix + '". Fergus already serves us under /api/partner, so a prefix doubles the path and every call 404s. Clear this variable on Railway.');
     if (uptime > 300 && (f.key_set===false || !f.path_prefix))
       issues.push('⚠ Backend has been running for ' + uptimeStr + ' — if you just changed an env var, Railway hasn\'t restarted yet. Wait or trigger a manual redeploy.');
     var summary =
-      'FERGUS_API_KEY      : ' + (f.key_set ? '✓ set, length=' + f.key_length + ', ends with …' + f.key_tail + (f.key_format_ok ? '  (fergPAT_ ✓)' : '  (⚠ no fergPAT_ prefix)') : '✗ NOT SET') + '\n' +
+      'FERGUS_API_KEY      : ' + (f.key_set ? '✓ set' + (f.key_format_ok ? '  (fergPAT_ ✓)' : '  (⚠ does not start with fergPAT_)') : '✗ NOT SET') + '\n' +
       'FERGUS_HOST         : ' + (f.host || '(default api.fergus.com)') + '\n' +
-      'FERGUS_PATH_PREFIX  : ' + (f.path_prefix || '(empty — likely cause of 403)') + '\n' +
+      'FERGUS_PATH_PREFIX  : ' + (f.path_prefix || '(empty — correct)') + '\n' +
       'Computed test URL   : ' + (f.computed_test_url || '?') + '\n' +
       'Backend uptime      : ' + uptimeStr + '\n' +
       '\n' +
@@ -32064,7 +32117,14 @@ async function testFergus(){
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
     if (!resp.ok){
       var _m = String(resp.status);
-      try { var _eb = await resp.json(); if (_eb && _eb.message) _m = _eb.message;
+      // Fergus answers with `message`; RoofMap's own plan gate answers with
+      // `error` and a PLAN_LIMIT code. Reading only `message` turned "the
+      // Fergus link isn't included on your plan" into a bare "403", which
+      // sends everybody hunting through Fergus for a fault that is ours.
+      try { var _eb = await resp.json();
+        if (_eb && _eb.code === 'PLAN_LIMIT') _m = _eb.error || 'not included on your plan';
+        else if (_eb && _eb.message) _m = _eb.message;
+        else if (_eb && _eb.error && typeof _eb.error === 'string') _m = _eb.error;
         if (_eb && _eb.error === 'not_connected'){
           // The server says THIS business has no Fergus key. A stale
           // linked flag (e.g. from before keys were per-company) must not
