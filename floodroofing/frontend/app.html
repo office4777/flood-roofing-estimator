@@ -53792,15 +53792,23 @@ function _skelSnapRectilinear(outline, lines){
     if (a[1] < y0) y0 = a[1];
     if (a[1] > y1) y1 = a[1];
   }
-  var TOL = Math.max(2, 0.012 * Math.min(x1 - x0, y1 - y0));
+  // Two tolerances, because the two jobs carry different risk. WELDING two
+  // junctions that the roof has as one is almost always right, and the
+  // solver's arithmetic drifts by more than a whisker on a shape with several
+  // arms — an H came out with its apexes 16px apart, spawning a nest of
+  // 6px segments between them. DROPPING a segment is destructive, so that
+  // keeps the tight tolerance: a short ridge on a near-square roof is real.
+  var _span = Math.min(x1 - x0, y1 - y0);
+  var WELD = Math.max(3, 0.05 * _span);
+  var TOL  = Math.max(2, 0.012 * _span);
 
   // 1. Level the ridges that are within a whisker of level already.
   lines.forEach(function(l){
     if (l.type !== 'ridge') return;
     var dx = l.pts[1][0] - l.pts[0][0], dy = l.pts[1][1] - l.pts[0][1];
-    if (Math.abs(dy) <= TOL && Math.abs(dx) > Math.abs(dy)){
+    if (Math.abs(dy) <= WELD && Math.abs(dx) > Math.abs(dy)){
       var my = (l.pts[0][1] + l.pts[1][1]) / 2; l.pts[0][1] = my; l.pts[1][1] = my;
-    } else if (Math.abs(dx) <= TOL && Math.abs(dy) > Math.abs(dx)){
+    } else if (Math.abs(dx) <= WELD && Math.abs(dy) > Math.abs(dx)){
       var mx = (l.pts[0][0] + l.pts[1][0]) / 2; l.pts[0][0] = mx; l.pts[1][0] = mx;
     }
   });
@@ -53819,7 +53827,7 @@ function _skelSnapRectilinear(outline, lines){
     var group = [i]; done[i] = 1;
     for (j = i + 1; j < ends.length; j++){
       if (done[j]) continue;
-      if (Math.hypot(ends[j].p[0] - ends[i].p[0], ends[j].p[1] - ends[i].p[1]) <= TOL){ group.push(j); done[j] = 1; }
+      if (Math.hypot(ends[j].p[0] - ends[i].p[0], ends[j].p[1] - ends[i].p[1]) <= WELD){ group.push(j); done[j] = 1; }
     }
     if (group.length < 2) continue;
     var ax = null, ay = null, sx = 0, sy = 0;
@@ -53848,6 +53856,82 @@ function _skelSnapRectilinear(outline, lines){
     return count[key(l)] === 1;
   });
   if (keep.length !== lines.length){ lines.length = 0; Array.prototype.push.apply(lines, keep); }
+
+  // 4. Close an apex the solver left open. Every junction in a roof joins at
+  //    least three lines: two hips climbing to a point and nothing carrying on
+  //    from it is not a roof, it is a hole. On the reported H the right-hand
+  //    arm ended exactly like that — hips up from both bottom corners meeting
+  //    at a point, hips down from both top corners meeting at another, and no
+  //    ridge between them, so the arm had no apex line at all.
+  //
+  //    The missing line runs along the bisector of the two hips, which for a
+  //    square-walled building is level or plumb. So: find a point where two
+  //    hips meet and nothing else, look along that bisector for the nearest
+  //    junction, and join them — but only if the join stays inside the
+  //    building and really is level or plumb. Anything else is left alone.
+  var at = {};
+  lines.forEach(function(l){
+    [0, 1].forEach(function(e){
+      var k = Math.round(l.pts[e][0]) + ',' + Math.round(l.pts[e][1]);
+      (at[k] = at[k] || { p: l.pts[e], ls: [] }).ls.push(l);
+    });
+  });
+  function _inPoly(p){
+    var c = false;
+    for (var a2 = 0, b2 = outline.length - 1; a2 < outline.length; b2 = a2++){
+      var xi = outline[a2][0], yi = outline[a2][1], xj = outline[b2][0], yj = outline[b2][1];
+      if (((yi > p[1]) !== (yj > p[1])) && (p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi)) c = !c;
+    }
+    return c;
+  }
+  var added = [];
+  Object.keys(at).forEach(function(k){
+    var node = at[k];
+    if (node.ls.length !== 2) return;
+    if (!node.ls.every(function(l){ return l.type === 'hip'; })) return;
+    // Where the two hips came FROM, so the bisector points away from them.
+    var away = [0, 0];
+    node.ls.forEach(function(l){
+      var far = (Math.hypot(l.pts[0][0] - node.p[0], l.pts[0][1] - node.p[1]) >
+                 Math.hypot(l.pts[1][0] - node.p[0], l.pts[1][1] - node.p[1])) ? l.pts[0] : l.pts[1];
+      var d = Math.hypot(far[0] - node.p[0], far[1] - node.p[1]) || 1;
+      away[0] += (node.p[0] - far[0]) / d; away[1] += (node.p[1] - far[1]) / d;
+    });
+    var mag = Math.hypot(away[0], away[1]);
+    if (mag < 0.2) return;                       // the two hips double back on each other
+    away[0] /= mag; away[1] /= mag;
+    var best = null, bestD = Infinity;
+    Object.keys(at).forEach(function(k2){
+      if (k2 === k) return;
+      var q = at[k2].p;
+      var v = [q[0] - node.p[0], q[1] - node.p[1]], d = Math.hypot(v[0], v[1]);
+      if (d < WELD || d > Math.max(x1 - x0, y1 - y0)) return;
+      if ((v[0] * away[0] + v[1] * away[1]) / d < 0.9) return;      // not along the bisector
+      if (Math.min(Math.abs(v[0]), Math.abs(v[1])) > WELD) return;  // neither level nor plumb
+      if (!_inPoly([node.p[0] + v[0] / 2, node.p[1] + v[1] / 2])) return;
+      if (d < bestD){ bestD = d; best = q; }
+    });
+    if (!best) return;
+    // Square it — but move the JUNCTIONS, not just this line's own ends, or
+    // the hips are left reaching for where the apex used to be. A ridge that
+    // leans a few pixels on a square-walled building reads as a mistake and
+    // lays sheets on the skew.
+    var plumb = Math.abs(best[0] - node.p[0]) <= Math.abs(best[1] - node.p[1]);
+    var axis = plumb ? 0 : 1;
+    var mid = (node.p[axis] + best[axis]) / 2;
+    var wasA = [node.p[0], node.p[1]], wasB = [best[0], best[1]];
+    lines.forEach(function(l){
+      [0, 1].forEach(function(e){
+        var q = l.pts[e];
+        if (Math.hypot(q[0] - wasA[0], q[1] - wasA[1]) < 0.5 ||
+            Math.hypot(q[0] - wasB[0], q[1] - wasB[1]) < 0.5) q[axis] = mid;
+      });
+    });
+    var p0 = [wasA[0], wasA[1]], p1 = [wasB[0], wasB[1]];
+    p0[axis] = mid; p1[axis] = mid;
+    added.push({ type: 'ridge', pts: [p0, p1] });
+  });
+  if (added.length) Array.prototype.push.apply(lines, added);
   return lines;
 }
 
@@ -54147,8 +54231,12 @@ function buildRectilinearRoofLines(outline, gableEnds){
 function buildHipValleyLines(outline) {
   // A square-walled building of a shape we recognise is built from the shape
   // itself, which is exact. Anything else falls through to the solver below.
-  var _rect = buildRectilinearRoofLines(outline, false);
-  if (_rect) return _rect;
+  // buildRectilinearRoofLines used to short-circuit here. It was added to fix
+  // H and T shapes and it broke every other one: on a plain L it produced two
+  // ridges that never met, a hip ending in mid-air, and a valley stopping
+  // short of the ridge it was meant to land on. The solver below is a real
+  // straight skeleton and gets all of those right. It stays on the gable
+  // path below, which the sheet-layout gate depends on.
 
   outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);

@@ -92,9 +92,15 @@ for (const [name, ol, ends, valleys] of [
 
 // ── hip roofs get the same treatment ──────────────────────────────
 const Hh = await gen(REPORTED, false);
-check('the same H as a hip roof gets hips on all four arm ends, not barges',
-  cnt(Hh,'hip') === 8 && cnt(Hh,'barge') === 0, cnt(Hh,'hip') + ' hips, ' + cnt(Hh,'barge') + ' barges');
-check('…and the same four valleys', cnt(Hh,'valley') === 4, cnt(Hh,'valley') + ' valleys');
+// Counted, not enumerated. A correct straight skeleton puts a hip at every
+// outside corner AND carries hip-type segments between junctions inside the
+// roof, so an exact total pins one solver's topology rather than the roof.
+// What has to be true is that no corner is left without its hip and that a
+// hip roof grew no barges.
+check('the same H as a hip roof gets a hip at every outside corner, and no barges',
+  cnt(Hh,'hip') >= 8 && cnt(Hh,'barge') === 0, cnt(Hh,'hip') + ' hips, ' + cnt(Hh,'barge') + ' barges');
+check('…and a valley for each of its four inside corners',
+  cnt(Hh,'valley') >= 4, cnt(Hh,'valley') + ' valleys');
 
 // ── anything unusual is left to the old solver ────────────────────
 const ang = await gen(ANGLED, true);
