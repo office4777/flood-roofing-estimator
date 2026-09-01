@@ -54,6 +54,16 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      # grandfatherui boots the real Express app to drive the real
+      # /admin/grandfather response — that is the point of it, and it is how
+      # the suite caught the API-wide CSP blocking the page's own script.
+      # Booting the app needs the backend's own dependencies, which the
+      # Backend job installs and this one previously did not: the suite passed
+      # locally, where they were already on disk, and died here on a missing
+      # dotenv.
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: floodroofing/backend
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run the browser suites
