@@ -53669,7 +53669,11 @@ function buildRectilinearRoofLines(outline, gableEnds){
     // arm runs into a wider one the ground falls away, the roof there is higher
     // than this arm's ridge, and the ridge has ended — which is exactly where a
     // low wing tees into a tall one.
-    var segs = [], run = null, STEP = Math.max(1, rise / 6);
+    // One pixel at a time. A coarse step lands the ends of a ridge on a coarse
+    // grid, which leaves two ridges that should meet at a junction sitting a few
+    // pixels apart — and a hip marching towards that junction falls through the
+    // gap and never lands, so the face never closes and the sheets miss it.
+    var segs = [], run = null, STEP = 1;
     var len = Math.hypot(B[0]-A[0], B[1]-A[1]);
     if (len < 0.5){ if (distToWall(A[0],A[1]) <= rise + 1.5) segs.push([A, A]); }
     for (var t = 0; t <= len + 0.001; t += STEP){
@@ -53680,7 +53684,10 @@ function buildRectilinearRoofLines(outline, gableEnds){
     }
     if (run) segs.push(run);
     segs.forEach(function(s){
-      if (Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]) < 1) return;
+      // A scrap of ridge shorter than a fraction of its own height is the scan
+      // clipping a pixel of noise, not a run of roof — and capping one puts a
+      // gable end in the middle of nowhere.
+      if (Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]) < Math.max(3, rise * 0.25)) return;
       var line = { type:'ridge', pts:[s[0].slice(), s[1].slice()] };
       out.push(line); ridges.push({ line:line, rise:rise, rect:{x0:x0,x1:x1,y0:y0,y1:y1}, horiz:(w>=h) });
     });
@@ -53743,6 +53750,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
     if (hitPt) out.push({ type:'valley', pts:[v.slice(), hitPt] });
   }
 
+  var capped = [];
   // ── the ends: a gable if that is the roof type, otherwise a hip ────
   // Walk out along the ridge to find where the building actually stops,
   // rather than trusting the arm's nominal half-width to land on the wall.
@@ -53788,6 +53796,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
       if (h1 < 2 || h2 < 2) return;
       var c1 = at(wallPos, tip[1-ax] - h1 - 1), c2 = at(wallPos, tip[1-ax] + h2 + 1);
       var mid = at(wallPos, tip[1-ax]);
+      capped.push(c1, c2);
       if (gableEnds){
         tip[ax] = wallPos;                             // the ridge runs out to the wall
         out.push({ type:'barge', pts:[c1, mid.slice()], subtype:'starter' });
@@ -53798,6 +53807,36 @@ function buildRectilinearRoofLines(outline, gableEnds){
       }
     });
   });
+
+  // ── the outside corners ───────────────────────────────────────────
+  // Where two eaves meet at an outside corner the roof rises from both, and
+  // the crest between them is a hip running in at 45° — the same line a valley
+  // makes at an inside corner, the other way up. Corners at an arm end are
+  // already dealt with, because a gable or a hip end replaces them.
+  //
+  // Leaving these out is not a cosmetic miss: the sheet engine lays sheets on
+  // the faces these lines bound, so a fat short L came out with half its roof
+  // uncovered and no sheets on it.
+  for (i = 0; i < n; i++){
+    if (isReflex(i)) continue;
+    var cv2 = ol[i];
+    if (capped.some(function(q){ return Math.hypot(q[0]-cv2[0], q[1]-cv2[1]) <= 2.5; })) continue;
+    var f1 = [cv2[0]-ol[(i-1+n)%n][0], cv2[1]-ol[(i-1+n)%n][1]];
+    var f2 = [ol[(i+1)%n][0]-cv2[0], ol[(i+1)%n][1]-cv2[1]];
+    var m1 = Math.hypot(f1[0],f1[1])||1, m2 = Math.hypot(f2[0],f2[1])||1;
+    var cd = [ f1[0]/m1 - f2[0]/m2, f1[1]/m1 - f2[1]/m2 ];
+    var cl = Math.hypot(cd[0],cd[1]) || 1; cd = [cd[0]/cl, cd[1]/cl];
+    if (!inside(cv2[0] + cd[0]*2, cv2[1] + cd[1]*2)) cd = [-cd[0], -cd[1]];
+    if (!inside(cv2[0] + cd[0]*2, cv2[1] + cd[1]*2)) continue;
+    var land = null, far = Math.hypot(bboxW, bboxH);
+    for (var ct = 2; ct <= far; ct += 1){
+      var cp = [cv2[0] + cd[0]*ct, cv2[1] + cd[1]*ct];
+      if (!inside(cp[0], cp[1])) break;
+      var ch2 = onAnyRidge(cp);
+      if (ch2){ land = ch2; break; }
+    }
+    if (land) out.push({ type:'hip', pts:[cv2.slice(), land] });
+  }
 
   return out;
 }

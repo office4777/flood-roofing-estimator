@@ -23,7 +23,7 @@
 // Output stays readable because each suite's output is buffered and printed as
 // one line when it finishes, so the lines interleave by completion time rather
 // than turning into four streams of noise. Only a failing suite prints more.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -135,10 +135,30 @@ async function worker(){
 }
 await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, worker));
 
+// The sheet-layout engine has its own gate (docs/ci_sheet_tests.js, the
+// "Sheet-layout tests" workflow), and promotion to production requires it green
+// as well as this run. It used to be possible to have every suite here pass,
+// push, and have the promote refuse — which is exactly what a change to the
+// roof-line geometry did: 33 of its 37 L-shapes lost half their sheet coverage
+// while nothing in this runner noticed. So it runs here too, unless a single
+// suite was named.
+let sheetsFailed = false;
+if (!arg){                       // only on a full run, which is the shipping gate
+  const t0 = Date.now();
+  const sr = spawnSync(process.execPath, [join(HERE, '..', 'docs', 'ci_sheet_tests.js')],
+    { encoding: 'utf8' });
+  const line = String(sr.stdout || '').trim().split('\n').pop() || '';
+  sheetsFailed = sr.status !== 0;
+  console.log('  ' + (sheetsFailed ? 'FAIL' : 'ok  ') + '  sheet-layout   ' +
+    line.replace(/^(PASS|FAIL):\s*/, '') + '  ' + ((Date.now() - t0)/1000).toFixed(1) + 's');
+  if (sheetsFailed) console.log(String(sr.stdout || '').split('\n').filter(l => /^FAIL/.test(l)).join('\n'));
+}
+
 const failed = suites.filter(s => bad.has(s));
 console.log('\n' + ((Date.now() - started) / 1000).toFixed(0) + 's total');
-if (failed.length){
-  console.log(failed.length + ' of ' + suites.length + ' suites failed: ' + failed.join(', '));
+if (failed.length || sheetsFailed){
+  if (failed.length) console.log(failed.length + ' of ' + suites.length + ' suites failed: ' + failed.join(', '));
+  if (sheetsFailed) console.log('the sheet-layout gate failed — promotion would be refused');
   process.exit(1);
 }
 console.log('all ' + suites.length + ' suites passed');
