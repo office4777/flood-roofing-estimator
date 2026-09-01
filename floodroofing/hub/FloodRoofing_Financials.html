@@ -272,6 +272,13 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .cmd-head .csync{margin-left:auto;font-size:.6rem;color:var(--muted);font-weight:600;letter-spacing:.3px;text-align:right;}
 /* Project-manager role: hide the money areas (cash/bank/P&L/growth) for a 'pm' login */
 body.pm-role .pm-hide{display:none!important;}
+/* Saved-login switcher (Settings → Team mode) */
+#team-accts .acct-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:.8rem;}
+#team-accts .acct-row.on{border-color:var(--success);background:rgba(74,222,128,.06);}
+#team-accts .acct-nm{font-weight:700;}
+#team-accts .acct-tag{font-size:.58rem;font-weight:800;border:1px solid var(--border);border-radius:4px;padding:0 3px;color:var(--muted);vertical-align:middle;}
+#team-accts .acct-cur{color:var(--success);font-weight:700;font-size:.7rem;}
+#team-accts .acct-sw{color:var(--accent);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-weight:700;}
 .kpigrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
 .kpi-tap{cursor:pointer;transition:transform .1s ease,border-color .12s;}
 .kpi-tap:hover{border-color:var(--muted);}
@@ -1304,6 +1311,8 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
         <button class="btn btn-o" style="flex:1;margin:0;" onclick="teamLogout()">Sign out</button>
       </div>
       <div id="team-status" class="note" style="margin-top:8px;"></div>
+      <div id="team-accts" style="margin-top:10px;"></div>
+      <button class="btn btn-o" style="width:100%;margin:8px 0 0;" onclick="teamShowLogin()">+ Add / switch to another account</button>
     </div>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);">
       <label style="display:block;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;">Fergus Business Activity Report</label>
@@ -1372,7 +1381,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     fetch(api+'/api/state',{headers:{Authorization:'Bearer '+tok}})
       .then(function(r){if(r.status===401){localStorage.removeItem('fr3_hubToken');sessionStorage.setItem('teamNeedsLogin','1');throw 0;}return r.json();})
       .then(function(j){
-        if(j&&j.data){Object.keys(j.data).forEach(function(k){if(k==='fr3_hubApiUrl'||k==='fr3_hubToken'||k==='fr3_hubRole'||k==='fr3_rmToken')return;try{localStorage.setItem(k,typeof j.data[k]==='string'?j.data[k]:JSON.stringify(j.data[k]));}catch(e){}});}   // never let shared state clobber this device's own login/role
+        if(j&&j.data){Object.keys(j.data).forEach(function(k){if(k==='fr3_hubApiUrl'||k==='fr3_hubToken'||k==='fr3_hubRole'||k==='fr3_rmToken'||k==='fr3_hubUser'||k==='fr3_hubAccounts')return;try{localStorage.setItem(k,typeof j.data[k]==='string'?j.data[k]:JSON.stringify(j.data[k]));}catch(e){}});}   // never let shared state clobber this device's own login/role/saved accounts
         if(j&&j.meta){try{sessionStorage.setItem('teamMeta',JSON.stringify(j.meta));}catch(e){}}
         sessionStorage.setItem('teamHydrated','1');clearTimeout(unhide);location.reload();
       })
@@ -1389,7 +1398,7 @@ const S={
   set:(k,v)=>{try{localStorage.setItem('fr3_'+k,JSON.stringify(v));}catch(e){} if(window.__TEAM&&window.__TEAM.tok)teamPush();}
 };
 // ── Team mode: push the shared state (all fr3_* keys except device-local ones) to the API ──
-const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1,'fr3_rmToken':1,'fr3_hubRole':1};   // never leave this device (rmToken = personal Roofmap login; hubRole = this device's login role)
+const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1,'fr3_rmToken':1,'fr3_hubRole':1,'fr3_hubUser':1,'fr3_hubAccounts':1};   // never leave this device (rmToken = personal Roofmap login; hubRole/User/Accounts = this device's saved logins)
 // ── Role gate (project-manager login hides the money areas) ──
 // Cosmetic client-side hide: the PM's login still holds the shared data, but the cash/bank/P&L/growth
 // UI is hidden. Role comes from the /api/auth response and is stored device-local in fr3_hubRole.
@@ -1432,13 +1441,33 @@ async function teamLogin(){
     if(!r.ok||!j.token)throw new Error(j.error||('sign-in failed ('+r.status+')'));
     localStorage.setItem('fr3_hubApiUrl',api);localStorage.setItem('fr3_hubToken',j.token);
     try{localStorage.setItem('fr3_hubRole',String(j.role||''));}catch(e){}   // 'pm' → this device hides the money areas
+    try{localStorage.setItem('fr3_hubUser',user);upsertHubAccount({user:user,role:String(j.role||''),token:j.token,api:api});}catch(e){}   // remember this login so it can be switched to without re-entering the password
     sessionStorage.removeItem('teamNeedsLogin');sessionStorage.removeItem('teamSkip');sessionStorage.removeItem('teamHydrated');
     if(msg){msg.style.color='var(--success)';msg.textContent='Signed in — loading shared dashboard…';}
     setTimeout(()=>location.reload(),400);
   }catch(e){if(msg){msg.style.color='var(--danger)';msg.textContent='⚠ '+(e&&e.message||e);}if(btn){btn.disabled=false;btn.innerHTML='Sign in';}}
 }
 function teamSkip(){sessionStorage.setItem('teamSkip','1');sessionStorage.removeItem('teamNeedsLogin');teamHideLogin();}
-function teamLogout(){try{localStorage.removeItem('fr3_hubToken');localStorage.removeItem('fr3_hubRole');}catch(e){}sessionStorage.removeItem('teamHydrated');sessionStorage.setItem('teamNeedsLogin','1');toast('Signed out of team mode.','ok');setTimeout(()=>location.reload(),300);}
+function teamLogout(){const cur=(localStorage.getItem('fr3_hubUser')||'');try{saveHubAccounts(hubAccounts().filter(a=>a.user!==cur));}catch(e){}try{localStorage.removeItem('fr3_hubToken');localStorage.removeItem('fr3_hubRole');localStorage.removeItem('fr3_hubUser');}catch(e){}sessionStorage.removeItem('teamHydrated');sessionStorage.setItem('teamNeedsLogin','1');toast('Signed out'+(cur?' of '+cur:'')+'.','ok');setTimeout(()=>location.reload(),300);}
+// ── Multiple saved logins on this device (office / pm / …) — switch without re-entering a password ──
+function hubAccounts(){try{return JSON.parse(localStorage.getItem('fr3_hubAccounts')||'[]')||[];}catch(e){return [];}}
+function saveHubAccounts(a){try{localStorage.setItem('fr3_hubAccounts',JSON.stringify(a||[]));}catch(e){}}
+function upsertHubAccount(acc){if(!acc||!acc.user)return;const a=hubAccounts().filter(x=>x.user!==acc.user);a.push(acc);saveHubAccounts(a);}
+function switchAccount(user){const a=hubAccounts().find(x=>x.user===user);if(!a)return;
+  try{localStorage.setItem('fr3_hubApiUrl',a.api||teamApiSaved());localStorage.setItem('fr3_hubToken',a.token||'');localStorage.setItem('fr3_hubRole',String(a.role||''));localStorage.setItem('fr3_hubUser',a.user);}catch(e){}
+  sessionStorage.removeItem('teamHydrated');sessionStorage.removeItem('teamNeedsLogin');
+  toast('Switched to '+a.user+'.','ok');setTimeout(()=>location.reload(),250);}
+function removeAccount(user){const a=hubAccounts().filter(x=>x.user!==user);saveHubAccounts(a);
+  if((localStorage.getItem('fr3_hubUser')||'')===user){if(a.length){switchAccount(a[0].user);return;}teamLogout();return;}
+  renderTeamStatus();}
+function renderTeamAccounts(){const host=document.getElementById('team-accts');if(!host)return;
+  const accts=hubAccounts(),cur=(localStorage.getItem('fr3_hubUser')||'');
+  if(!accts.length){host.innerHTML='';return;}
+  host.innerHTML='<div class="note" style="margin:2px 0 6px;">Saved logins on this device — switch without re-typing a password:</div>'+
+    accts.slice().sort((x,y)=>x.user<y.user?-1:1).map(a=>{const on=a.user===cur;
+      return '<div class="acct-row'+(on?' on':'')+'"><span class="acct-nm">'+esc(a.user)+(a.role==='pm'?' <span class="acct-tag">PM</span>':'')+(on?' <span class="acct-cur">· current</span>':'')+'</span>'+
+        '<span class="acct-btns">'+(on?'':'<button class="jx-btn acct-sw" onclick="switchAccount(\''+esc(a.user)+'\')">Switch</button> ')+
+        '<button class="jx-btn" onclick="removeAccount(\''+esc(a.user)+'\')" title="Forget this login on this device">✕</button></span></div>';}).join('');}
 function saveTeamApi(){
   const api=((document.getElementById('in-teamapi')||{}).value||'').trim().replace(/\/+$/,'');
   if(!api){try{localStorage.removeItem('fr3_hubApiUrl');localStorage.removeItem('fr3_hubToken');}catch(e){}window.__TEAM=null;toast('Team mode off — this device is standalone.','ok');renderTeamStatus();return;}
@@ -1450,8 +1479,10 @@ function renderTeamStatus(){
   if(!api){st.style.color='';st.textContent='Standalone — data stays on this device only.';return;}
   let meta=null;try{meta=JSON.parse(sessionStorage.getItem('teamMeta')||'null');}catch(e){}
   const when=meta&&meta.updatedAt?new Date(meta.updatedAt).toLocaleString('en-NZ'):null;
-  if(tok){st.style.color='var(--success)';st.textContent='✓ Connected to the shared dashboard'+(meta?(' · last updated '+when+' by '+(meta.updatedBy||'—')):'')+'.';}
+  const who=(localStorage.getItem('fr3_hubUser')||'');
+  if(tok){st.style.color='var(--success)';st.textContent='✓ Signed in'+(who?' as '+who:'')+(isPM()?' (PM view)':'')+' · shared dashboard'+(meta?(' · updated '+when+' by '+(meta.updatedBy||'—')):'')+'.';}
   else{st.style.color='var(--danger)';st.textContent='API set but not signed in — tap “Connect & sign in”.';}
+  try{renderTeamAccounts();}catch(e){}
 }
 
 // ════════ HELPERS ════════
@@ -5923,13 +5954,22 @@ async function mtgOpenPicker(jobId,k,id){
   if(!jobId)return;
   if(!rmToken()){const ok=await rmLogin();if(!ok)return;}
   _mtgPickTarget={jobId:String(jobId),k:k,id:id};
-  if(_mtgFergusCache[jobId]&&_mtgFergusCache[jobId].files){mtgRenderPicker('list');mtgLoadThumbs(jobId);return;}
+  if(_mtgFergusCache[jobId]&&_mtgFergusCache[jobId].files&&_mtgFergusCache[jobId].files.length){mtgRenderPicker('list');mtgLoadThumbs(jobId);return;}
   mtgRenderPicker('loading');
   const auth={Authorization:'Bearer '+rmToken()};let data={};
   try{
     const r=await fetch(rmBackend()+'/fergus-files/list?jobId='+encodeURIComponent(jobId),{headers:auth});
     if(r.status===401){S.set('rmToken','');const ok=await rmLogin();if(!ok){mtgRenderPicker('error','Sign-in needed.');return;}return mtgOpenPicker(jobId,k,id);}
     data=await r.json().catch(()=>({}));
+    // Surface the backend's real reason instead of a misleading "0 photos" — e.g. Fergus not connected
+    // for this login's company. The photos live on the Fergus side; the RoofMap account you sign in with
+    // here must be one whose company has its Fergus API key saved (RoofMap → Settings → Job Management
+    // Software → Configure). Sign in with that account (⚙ Settings → Team mode → switch account won't help
+    // — this is the separate RoofMap photo login prompt).
+    if(data&&data.error){const m=(data.error==='not_connected')
+      ?'Fergus isn’t connected for this login’s company. Open RoofMap → Settings → Job Management Software → Configure and save your Fergus API key, then sign in here with that same RoofMap account.'
+      :(data.message||data.error);
+      mtgRenderPicker('error',m);return;}
   }catch(e){mtgRenderPicker('error','Couldn’t reach the photo service (login/CORS).');return;}
   const files=(data&&Array.isArray(data.files))?data.files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|heic|gif)(\?|#|$)/i.test(String(f.name||f.url)))):[];
   _mtgFergusCache[jobId]={files:files,raw:data,thumbs:{},full:{}};
