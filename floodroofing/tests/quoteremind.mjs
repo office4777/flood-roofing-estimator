@@ -2,8 +2,10 @@
 // 'opened' N days after it went out gets ONE polite reminder — from the
 // roofer's own name, with the live quote link — and never a second. Never for
 // a customer who asked a question, never after accept/decline, never past the
-// 90-day window, never on Solo (reminders are a Team feature and the SERVER
-// is where that is true), and never when the office has the switch off.
+// 90-day window, and never when the office has the switch off. The chase now
+// reaches the smallest plan too — a one-person business is the one least
+// likely to get round to it on a Sunday night — but the plan flag is still
+// the gate, and the SERVER is where that is true.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -70,7 +72,8 @@ const { db, port } = await startFakePostgrest({
     job('j-already', 'c1', 'u1', Q({ share: share({ remindedAt: daysAgo(2) }) })),
     job('j-noemail', 'c1', 'u1', Q({ email: '', client: 'No Email', share: share({}) })),
     job('j-nodate', 'c1', 'u1', Q({ share: { token: 'tok-nodate', status: 'sent', events: [] } })),
-    job('j-solo', 'c2', 'u2', Q({ share: share({}) })),
+    job('j-oneman', 'c2', 'u2', Q({ ref: 'FR-1003', email: 'oneman@example.com',
+      client: 'One Man', share: share({ token: 'tok-oneman' }) })),
     job('j-off', 'c3', 'u3', Q({ share: share({}) })),
     job('j-noshare', 'c1', 'u1', Q({ share: undefined })),
   ],
@@ -108,8 +111,8 @@ let run = await runSweep();
 await new Promise(x => setTimeout(x, 400));
 check('the sweep ran and reports its work', run.status === 200 && run.body && isFinite(run.body.sent),
   JSON.stringify(run.body));
-check('exactly the two quiet quotes were reminded — nobody else',
-  run.body.sent === 2 && sent.length === 2,
+check('exactly the three quiet quotes were reminded — nobody else',
+  run.body.sent === 3 && sent.length === 3,
   'reported ' + run.body.sent + ', relay saw ' + sent.length);
 
 const byTo = {}; sent.forEach(m => { byTo[m.to] = m; });
@@ -142,14 +145,17 @@ check('a second sweep sends NOTHING — one reminder per quote, ever',
   run.body.sent === 0 && sent.length === 0, 'sent ' + run.body.sent + ', relay ' + sent.length);
 
 // ── the ones left alone stayed untouched ──────────────────────────
-const untouched = ['j-queried', 'j-accepted', 'j-declined', 'j-young', 'j-expired', 'j-noemail', 'j-nodate', 'j-solo', 'j-off']
+const untouched = ['j-queried', 'j-accepted', 'j-declined', 'j-young', 'j-expired', 'j-noemail', 'j-nodate', 'j-off']
   .filter(id => {
     const j = db.jobs.find(x => x.id === id);
     const sh = ((((j || {}).draw_state || {}).state || {}).quote || {}).share || {};
     return !sh.remindedAt && !(sh.events || []).some(e => e.type === 'reminded');
   });
-check('queried, accepted, declined, young, expired, no-email, no-date, Solo and switched-off all left alone',
-  untouched.length === 9, untouched.length + '/9 untouched');
+check('queried, accepted, declined, young, expired, no-email, no-date and switched-off all left alone',
+  untouched.length === 8, untouched.length + '/8 untouched');
+// The chase moved down a tier with the notifications it belongs with.
+check('…while the one-person business DID get its quiet quote chased',
+  !!byTo['oneman@example.com'], Object.keys(byTo).join(', '));
 
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;

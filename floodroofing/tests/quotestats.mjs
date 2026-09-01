@@ -80,12 +80,15 @@ r = await get('/quote-analytics?days=90', tokFor('ub', 'cB'));
 check('company B sees only its own single quote', r.body.sent === 1 && r.body.accepted === 0, JSON.stringify(r.body));
 
 // ── the plan gate ─────────────────────────────────────────────────
-r = await get('/quote-analytics?days=30', tokFor('us', 'cS'));
-check('Solo gets a 403 with the plan code, not numbers',
-  r.status === 403 && r.body.code === 'PLAN_LIMIT' && /Team/.test(r.body.error || ''), JSON.stringify(r.body));
+// Being told a quote was opened or accepted moved down to Trade: a one-person
+// business has no office watching the folder, so it needs this most. Both the
+// feed and the numbers behind it come with the smallest plan now.
 r = await get('/quote-activity', tokFor('us', 'cS'));
-check('…and the notification feed is gated the same way',
-  r.status === 403 && r.body.code === 'PLAN_LIMIT', JSON.stringify(r.body));
+check('Trade gets its notification feed', r.status === 200 && Array.isArray(r.body),
+  'status ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
+r = await get('/quote-analytics?days=30', tokFor('us', 'cS'));
+check('…and the numbers that go with it', r.status === 200 && typeof r.body.sent === 'number',
+  'status ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
 r = await get('/quote-activity', tokFor('ua', 'cA'));
 check('Team still gets its feed', r.status === 200 && Array.isArray(r.body) && r.body.length === 4,
   'status ' + r.status + ', ' + (Array.isArray(r.body) ? r.body.length : '—') + ' rows');

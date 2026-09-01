@@ -1,7 +1,7 @@
 // The schedule board's backend: the office's forward-workflow calendar.
 // Pencil a job in dark red when a rough window is promised, repaint it in
 // a crew colour when solid-booked. This suite holds the tenancy lines
-// (one business never sees another's board), the Business-tier gate, the
+// (one business never sees another's board), the plan gate, the
 // auto-filled admin columns, the working-day arithmetic, the customer
 // email composition, and the signed calendar feed.
 import { fileURLToPath as _f } from 'node:url';
@@ -18,7 +18,7 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 
 const A = { user: 'user-a', company: 'company-a' };   // Business — has the board
 const B = { user: 'user-b', company: 'company-b' };   // Business — the rival next door
-const T = { user: 'user-t', company: 'company-t' };   // Team — priced out of the board
+const T = { user: 'user-t', company: 'company-t' };   // Trade — priced out of the board
 
 const JOB = 'job-a1';
 const { port } = await startFakePostgrest({
@@ -29,7 +29,7 @@ const { port } = await startFakePostgrest({
                   { company_id: T.company, user_id: T.user, role: 'owner' }],
   companies: [{ id: A.company, name: 'Flood Roofing', plan: 'business' },
               { id: B.company, name: 'Rival Roofing', plan: 'business' },
-              { id: T.company, name: 'Small Roofing', plan: 'team' }],
+              { id: T.company, name: 'Small Roofing', plan: 'solo' }],
   user_settings: [{ user_id: A.user, company_id: A.company,
     branding: { company_name: 'Flood Roofing', email: 'office@floodroofing.co.nz' },
     quote_defaults: {}, jms_keys: {}, updated_at: new Date().toISOString() }],
@@ -62,11 +62,14 @@ const as = (w, path, opts) => fetch(BASE + path, {
 const j = r => r.json();
 
 // ── the tier gate ─────────────────────────────────────────────────
+// The board came down to Team: a calendar means nothing for one person and
+// is hurting by three. So the plan it is refused on is the one-person one.
 let r = await as(T, '/schedule');
 let body = await j(r);
-check('a Team-plan business is told the board is Business tier',
+check('a one-person business is told the board is not on its plan',
   r.status === 402 || r.status === 403, 'status ' + r.status + ' ' + JSON.stringify(body).slice(0, 90));
-check('…and the refusal names Business', /Business/i.test(JSON.stringify(body)));
+check('…and the refusal names Team, the tier that now carries it',
+  /Team/i.test(JSON.stringify(body)), JSON.stringify(body).slice(0, 120));
 
 // ── the board reads, with auto-filled admin columns ───────────────
 r = await as(A, '/schedule/rows', { method: 'POST', body: JSON.stringify({ job_id: JOB, length_days: 8 }) });
