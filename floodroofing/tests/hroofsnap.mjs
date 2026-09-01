@@ -73,24 +73,30 @@ const ridges = rep.filter(l => l.t === 'ridge');
 check('every ridge on a square-walled house runs dead level or dead plumb',
   ridges.every(l => skew(l) < 0.5), ridges.map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join('  '));
 check('…including the one across the middle, which used to fall 4px over its length',
-  ridges.some(l => Math.abs(l.a[1] - l.b[1]) < 0.5 && Math.abs(l.a[0] - l.b[0]) > 500),
-  JSON.stringify(ridges.find(l => Math.abs(l.a[0] - l.b[0]) > 500)));
+  ridges.some(l => Math.abs(l.a[1] - l.b[1]) < 0.5 && Math.abs(l.a[0] - l.b[0]) > 250),
+  JSON.stringify(ridges.filter(l => Math.abs(l.a[0] - l.b[0]) > 250)));
 check('junctions the roof has as one point are one point',
   nearDupes(rep, 12) === 0, nearDupes(rep, 12) + ' still within 12px');
 check('no line runs between the same two points as another — the spike is gone',
   dupSegments(rep) === 0, dupSegments(rep) + ' duplicate segments');
 
-// Their drawing is still reported honestly: unequal wings still step.
+// A later report (the H with gable ends) settled this the other way: a wing
+// drawn a few percent out of square is one wing, and the roofer wants one
+// straight ridge down it, not a dog-leg where the drawing wobbled. So the
+// builder squares each arm up to a single width. The outline itself is left
+// exactly as drawn — only the roof lines are worked out from a squared copy.
 const leftRidges = ridges.filter(l => l.a[0] < 200 && l.b[0] < 200);
-check('the step from their unequal wings is kept, not smoothed away',
-  leftRidges.length === 2 && Math.abs(leftRidges[0].a[0] - leftRidges[1].a[0]) > 15,
-  JSON.stringify(leftRidges.map(l => l.a[0])));
+check('a wing drawn slightly out of square still gets ONE straight ridge',
+  leftRidges.length === 1 && Math.abs(leftRidges[0].a[0] - leftRidges[0].b[0]) < 0.5,
+  JSON.stringify(leftRidges));
 
 // ── squared up, it comes out clean ────────────────────────────────
 const sq = await gen(SQUARED);
 const sqRidges = sq.filter(l => l.t === 'ridge');
-check('squared up, the same house gives two clean ridges and no step',
-  sqRidges.length === 2 && sqRidges.every(l => skew(l) < 0.5),
+// Three: one down each wing, and one along the bar between them. The bar's
+// stops where it runs into each wing rather than carrying on through it.
+check('squared up, the same house gives a clean ridge down each wing and the bar',
+  sqRidges.length === 3 && sqRidges.every(l => skew(l) < 0.5),
   sqRidges.map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join('  '));
 check('…with nothing doubled up', nearDupes(sq, 12) === 0 && dupSegments(sq) === 0);
 

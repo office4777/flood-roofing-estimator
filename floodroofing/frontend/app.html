@@ -53482,7 +53482,266 @@ function _skelSnapRectilinear(outline, lines){
   return lines;
 }
 
+// Build the roof for a square-walled building from its SHAPE, not by running a
+// general-purpose solver and patching what comes out.
+//
+// A roof over a rectilinear building is completely determined: its height at
+// any point is that point's distance to the nearest wall. Every ridge, hip and
+// valley follows from that. Working from it directly means an H comes out as an
+// H every time, instead of depending on whether the drawing was square to the
+// pixel.
+//
+// Returns null for anything it does not recognise — an angled wall, or a shape
+// it cannot decompose — so unusual buildings keep the old behaviour.
+function buildRectilinearRoofLines(outline, gableEnds){
+  var TOLW = 1.5, i, j, r, c;
+  var n = outline.length;
+  if (n < 4 || n > 16) return null;
+
+  // ── square the drawing up ─────────────────────────────────────────
+  // Walls a few pixels out of line are the same wall. Left as drawn they
+  // split one arm into two of slightly different widths, which is what put
+  // a 60px ridge on a 506px-long wing.
+  var span = function(vals){ return Math.max.apply(null, vals) - Math.min.apply(null, vals); };
+  var bboxW = span(outline.map(function(p){ return p[0]; }));
+  var bboxH = span(outline.map(function(p){ return p[1]; }));
+  var snapTol = Math.max(2, 0.05 * Math.min(bboxW, bboxH));
+  function cluster(vals){
+    var s = vals.slice().sort(function(a,b){ return a-b; }), map = {}, k = 0;
+    while (k < s.length){
+      var e = k;
+      while (e + 1 < s.length && s[e+1] - s[k] <= snapTol) e++;
+      var m = 0; for (var q = k; q <= e; q++) m += s[q];
+      m /= (e - k + 1);
+      for (var q2 = k; q2 <= e; q2++) map[s[q2]] = m;
+      k = e + 1;
+    }
+    return map;
+  }
+  var mx = cluster(outline.map(function(p){ return p[0]; }));
+  var my = cluster(outline.map(function(p){ return p[1]; }));
+  var ol = outline.map(function(p){ return [mx[p[0]], my[p[1]]]; });
+  // Snapping can collapse a wall to nothing — drop the duplicates it leaves.
+  var clean = [];
+  for (i = 0; i < ol.length; i++){
+    var prev = clean.length ? clean[clean.length-1] : ol[ol.length-1];
+    if (Math.abs(ol[i][0]-prev[0]) > 0.01 || Math.abs(ol[i][1]-prev[1]) > 0.01) clean.push(ol[i]);
+  }
+  ol = clean;
+  n = ol.length;
+  if (n < 4) return null;
+  for (i = 0; i < n; i++){
+    var a = ol[i], b = ol[(i+1)%n];
+    if (Math.abs(b[0]-a[0]) > TOLW && Math.abs(b[1]-a[1]) > TOLW) return null;  // angled wall
+  }
+
+  // ── lay it on a grid of its own wall lines ────────────────────────
+  var xs = [], ys = [];
+  ol.forEach(function(p){ if (xs.indexOf(p[0]) < 0) xs.push(p[0]); if (ys.indexOf(p[1]) < 0) ys.push(p[1]); });
+  xs.sort(function(a,b){return a-b;}); ys.sort(function(a,b){return a-b;});
+  if (xs.length < 2 || ys.length < 2 || xs.length > 6 || ys.length > 6) return null;
+  function inside(px, py){
+    var hit = false;
+    for (var k = 0, l = n - 1; k < n; l = k++){
+      var xi = ol[k][0], yi = ol[k][1], xj = ol[l][0], yj = ol[l][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) hit = !hit;
+    }
+    return hit;
+  }
+  var nc = xs.length - 1, nr = ys.length - 1;
+  var cell = [];
+  for (r = 0; r < nr; r++){
+    cell.push([]);
+    for (c = 0; c < nc; c++)
+      cell[r].push(inside((xs[c]+xs[c+1])/2, (ys[r]+ys[r+1])/2));
+  }
+
+  // ── the arms: every largest rectangle that fits inside ────────────
+  var rects = [];
+  for (r = 0; r < nr; r++) for (c = 0; c < nc; c++){
+    if (!cell[r][c]) continue;
+    for (var r2 = r; r2 < nr; r2++) for (var c2 = c; c2 < nc; c2++){
+      var ok = true;
+      for (var rr = r; rr <= r2 && ok; rr++) for (var cc = c; cc <= c2; cc++) if (!cell[rr][cc]){ ok = false; break; }
+      if (ok) rects.push({ r0:r, r1:r2, c0:c, c1:c2 });
+    }
+  }
+  var maximal = rects.filter(function(A){
+    return !rects.some(function(B){
+      if (A === B) return false;
+      return B.r0 <= A.r0 && B.r1 >= A.r1 && B.c0 <= A.c0 && B.c1 >= A.c1 &&
+             (B.r0 < A.r0 || B.r1 > A.r1 || B.c0 < A.c0 || B.c1 > A.c1);
+    });
+  });
+  if (!maximal.length || maximal.length > 6) return null;
+
+  // ── how high the roof stands anywhere: distance to the nearest wall ──
+  function distToWall(px, py){
+    var best = Infinity;
+    for (var k = 0; k < n; k++){
+      var a2 = ol[k], b2 = ol[(k+1)%n];
+      var dx = b2[0]-a2[0], dy = b2[1]-a2[1], L2 = dx*dx + dy*dy;
+      var t = L2 < 1e-9 ? 0 : ((px-a2[0])*dx + (py-a2[1])*dy) / L2;
+      t = Math.max(0, Math.min(1, t));
+      var d = Math.hypot(px - (a2[0]+t*dx), py - (a2[1]+t*dy));
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  // ── a ridge down each arm, along its length, at its middle ────────
+  var out = [], ridges = [];
+  maximal.forEach(function(R){
+    var x0 = xs[R.c0], x1 = xs[R.c1+1], y0 = ys[R.r0], y1 = ys[R.r1+1];
+    var w = x1 - x0, h = y1 - y0;
+    var rise = Math.min(w, h) / 2;                    // how high this arm's ridge stands
+    if (rise < 1) return;
+    var A, B;
+    if (w >= h){ A = [x0 + rise, (y0+y1)/2]; B = [x1 - rise, (y0+y1)/2]; }
+    else       { A = [(x0+x1)/2, y0 + rise]; B = [(x0+x1)/2, y1 - rise]; }
+    // Keep only the stretch where this really is the top of the roof. Where an
+    // arm runs into a wider one the ground falls away, the roof there is higher
+    // than this arm's ridge, and the ridge has ended — which is exactly where a
+    // low wing tees into a tall one.
+    var segs = [], run = null, STEP = Math.max(1, rise / 6);
+    var len = Math.hypot(B[0]-A[0], B[1]-A[1]);
+    if (len < 0.5){ if (distToWall(A[0],A[1]) <= rise + 1.5) segs.push([A, A]); }
+    for (var t = 0; t <= len + 0.001; t += STEP){
+      var u = Math.min(t, len) / (len || 1);
+      var p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];
+      if (distToWall(p[0], p[1]) <= rise + 1.5){ if (!run) run = [p, p]; else run[1] = p; }
+      else if (run){ segs.push(run); run = null; }
+    }
+    if (run) segs.push(run);
+    segs.forEach(function(s){
+      if (Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]) < 1) return;
+      var line = { type:'ridge', pts:[s[0].slice(), s[1].slice()] };
+      out.push(line); ridges.push({ line:line, rise:rise, rect:{x0:x0,x1:x1,y0:y0,y1:y1}, horiz:(w>=h) });
+    });
+  });
+  if (!ridges.length) return null;
+
+  // Two arms of the same width lying end to end give one ridge, not two.
+  for (i = 0; i < ridges.length; i++) for (j = i+1; j < ridges.length; j++){
+    var P = ridges[i], Q = ridges[j];
+    if (!P.line || !Q.line || P.horiz !== Q.horiz) continue;
+    var ax = P.horiz ? 1 : 0;
+    if (Math.abs(P.line.pts[0][1-ax] - Q.line.pts[0][1-ax]) > 2) continue;
+    var lo = Math.min(P.line.pts[0][ax], P.line.pts[1][ax], Q.line.pts[0][ax], Q.line.pts[1][ax]);
+    var hi = Math.max(P.line.pts[0][ax], P.line.pts[1][ax], Q.line.pts[0][ax], Q.line.pts[1][ax]);
+    var pl = Math.abs(P.line.pts[1][ax]-P.line.pts[0][ax]), ql = Math.abs(Q.line.pts[1][ax]-Q.line.pts[0][ax]);
+    if (hi - lo > pl + ql + 2) continue;              // not touching
+    P.line.pts[0][ax] = lo; P.line.pts[1][ax] = hi;
+    out.splice(out.indexOf(Q.line), 1); Q.line = null;
+  }
+  ridges = ridges.filter(function(R){ return R.line; });
+
+  // ── valleys: out of every inside corner, at 45°, until it hits a ridge ──
+  function isReflex(k){
+    var p0 = ol[(k-1+n)%n], p1 = ol[k], p2 = ol[(k+1)%n];
+    var cr = (p1[0]-p0[0])*(p2[1]-p1[1]) - (p1[1]-p0[1])*(p2[0]-p1[0]);
+    var area = 0;
+    for (var q = 0; q < n; q++){ var q2 = (q+1)%n; area += ol[q][0]*ol[q2][1] - ol[q2][0]*ol[q][1]; }
+    return area > 0 ? cr < -1 : cr > 1;
+  }
+  function onAnyRidge(p){
+    for (var k = 0; k < ridges.length; k++){
+      var L = ridges[k].line, a3 = L.pts[0], b3 = L.pts[1];
+      var dx = b3[0]-a3[0], dy = b3[1]-a3[1], L2 = dx*dx+dy*dy;
+      var t = L2 < 1e-9 ? 0 : ((p[0]-a3[0])*dx + (p[1]-a3[1])*dy)/L2;
+      t = Math.max(0, Math.min(1, t));
+      // Generous, and deliberately so: a ridge is trimmed back to where it
+      // stops being the top of the roof, which can leave it a few pixels
+      // short of the valley running in to meet it. Landing on the end of the
+      // ridge is landing on the ridge.
+      if (Math.hypot(p[0]-(a3[0]+t*dx), p[1]-(a3[1]+t*dy)) <= 7) return [a3[0]+t*dx, a3[1]+t*dy];
+    }
+    return null;
+  }
+  for (i = 0; i < n; i++){
+    if (!isReflex(i)) continue;
+    var v = ol[i];
+    var e1 = [ol[i][0]-ol[(i-1+n)%n][0], ol[i][1]-ol[(i-1+n)%n][1]];
+    var e2 = [ol[(i+1)%n][0]-ol[i][0], ol[(i+1)%n][1]-ol[i][1]];
+    var n1 = Math.hypot(e1[0],e1[1])||1, n2 = Math.hypot(e2[0],e2[1])||1;
+    var dir = [ (e1[0]/n1 - e2[0]/n2), (e1[1]/n1 - e2[1]/n2) ];
+    var dl = Math.hypot(dir[0],dir[1]) || 1; dir = [dir[0]/dl, dir[1]/dl];
+    if (!inside(v[0] + dir[0]*2, v[1] + dir[1]*2)) dir = [-dir[0], -dir[1]];
+    var hitPt = null, maxT = Math.hypot(bboxW, bboxH);
+    for (var t3 = 2; t3 <= maxT; t3 += 1){
+      var p3 = [v[0] + dir[0]*t3, v[1] + dir[1]*t3];
+      if (!inside(p3[0], p3[1])) break;
+      var h3 = onAnyRidge(p3);
+      if (h3){ hitPt = h3; break; }
+    }
+    if (hitPt) out.push({ type:'valley', pts:[v.slice(), hitPt] });
+  }
+
+  // ── the ends: a gable if that is the roof type, otherwise a hip ────
+  // Walk out along the ridge to find where the building actually stops,
+  // rather than trusting the arm's nominal half-width to land on the wall.
+  // A wing a few pixels out of square puts the ridge tip slightly short, and
+  // a calculated wall position then falls inside the building and the arm
+  // silently keeps its hip — which is how the reported H ended up gabled at
+  // one end of a wing and hipped at the other.
+  ridges.forEach(function(R){
+    var ax = R.horiz ? 0 : 1;
+    var reach = R.rise * 3 + 8;
+    [0,1].forEach(function(k){
+      var tip = R.line.pts[k];
+      var away = (tip[ax] >= R.line.pts[1-k][ax]) ? 1 : -1;
+      var at = function(alongV, acrossV){
+        var q = [0,0]; q[ax] = alongV; q[1-ax] = acrossV; return q;
+      };
+      var wallPos = null;
+      for (var d = 0; d <= reach; d++){
+        var q = at(tip[ax] + away * d, tip[1-ax]);
+        // The roof getting TALLER than this arm means the arm has run into a
+        // bigger one — a low bar meeting a tall wing. That is a junction, not
+        // the end of the building, and gabling there puts a barge against the
+        // far side of the wing.
+        if (distToWall(q[0], q[1]) > R.rise + 1.5) return;
+        if (!inside(q[0], q[1])){ wallPos = tip[ax] + away * (d - 1); break; }
+      }
+      if (wallPos === null) return;                    // the arm carries on
+      if (Math.abs(wallPos - tip[ax]) > reach) return;
+      var onOther = ridges.some(function(O){
+        if (O === R || !O.line) return false;
+        var a4 = O.line.pts[0], b4 = O.line.pts[1];
+        var dx4 = b4[0]-a4[0], dy4 = b4[1]-a4[1], L4 = dx4*dx4 + dy4*dy4;
+        var t4 = L4 < 1e-9 ? 0 : ((tip[0]-a4[0])*dx4 + (tip[1]-a4[1])*dy4)/L4;
+        t4 = Math.max(0, Math.min(1, t4));
+        return Math.hypot(tip[0]-(a4[0]+t4*dx4), tip[1]-(a4[1]+t4*dy4)) <= R.rise * 0.9 + 2;
+      });
+      if (onOther) return;
+      // How wide the building is at that wall, measured either side of the ridge.
+      var inSide = wallPos - away * 1;
+      var h1 = 0, h2 = 0, e;
+      for (e = 1; e <= reach; e++){ var u1 = at(inSide, tip[1-ax] - e); if (!inside(u1[0], u1[1])) break; h1 = e; }
+      for (e = 1; e <= reach; e++){ var u2 = at(inSide, tip[1-ax] + e); if (!inside(u2[0], u2[1])) break; h2 = e; }
+      if (h1 < 2 || h2 < 2) return;
+      var c1 = at(wallPos, tip[1-ax] - h1 - 1), c2 = at(wallPos, tip[1-ax] + h2 + 1);
+      var mid = at(wallPos, tip[1-ax]);
+      if (gableEnds){
+        tip[ax] = wallPos;                             // the ridge runs out to the wall
+        out.push({ type:'barge', pts:[c1, mid.slice()], subtype:'starter' });
+        out.push({ type:'barge', pts:[c2, mid.slice()], subtype:'finish' });
+      } else {
+        out.push({ type:'hip', pts:[c1, tip.slice()] });
+        out.push({ type:'hip', pts:[c2, tip.slice()] });
+      }
+    });
+  });
+
+  return out;
+}
+
 function buildHipValleyLines(outline) {
+  // A square-walled building of a shape we recognise is built from the shape
+  // itself, which is exact. Anything else falls through to the solver below.
+  var _rect = buildRectilinearRoofLines(outline, false);
+  if (_rect) return _rect;
+
   outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);
   if (_tLn) return _tLn;            // clean imposed topology for T-shapes
@@ -53973,6 +54232,9 @@ function buildGableRoofLines(outline, flipAxis) {
   return result.concat(_tagGableBargesStarterFinish(newBarges));
 }
 function buildGableRoofLines_legacy(outline) {
+  var _rectG = buildRectilinearRoofLines(outline, true);
+  if (_rectG) return _rectG;   // gable ends on every arm end, from the shape
+
   var EP_TOL = 2.5;
   var skel = buildHipValleyLines(outline);
   var ridges  = skel.filter(function(l){return l.type==='ridge';});
