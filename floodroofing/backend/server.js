@@ -7729,6 +7729,80 @@ async function _ensureSchema(){
 // index time or seq-scan time. ?migrate=1 re-runs the schema migration right
 // now and reports per-statement results — so a missing index can be repaired
 // from a phone.
+// ── "Why can't this person log in?" ────────────────────────────────
+// The one question nobody could answer from the outside. "Invalid email or
+// password" is the correct answer for an email that has no account, for an
+// account whose password is different from the one being typed, and for an
+// account that half-exists — and from the login screen all three look the
+// same. This says which it is, in words, and will finish a half-made one.
+//
+// Gated on ADMIN_TOKEN like the other /admin routes, and 404 rather than 403
+// when no token is set: whether an address has an account is not public.
+app.get('/admin/account', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Pass ?email=' });
+  try {
+    const out = { email };
+    // The auth user is the thing the login screen actually checks.
+    let authUser = null;
+    const { data: lu } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    authUser = ((lu && lu.users) || []).find(u => (u.email || '').toLowerCase() === email) || null;
+    out.login_exists = !!authUser;
+    if (!authUser) {
+      out.summary = 'No login exists for this address, so "Invalid email or password" is correct — the sign-up never completed.';
+      out.next_step = 'Sign up again on the Set my password screen. Any error there is now the real reason.';
+      return res.json(out);
+    }
+    out.user_id = authUser.id;
+    out.created_at = authUser.created_at || null;
+    const { data: prof } = await supabase.from('profiles').select('id, email, name, company, company_id').eq('id', authUser.id).maybeSingle();
+    out.profile = prof || null;
+    const { data: link } = await supabase.from('company_users').select('company_id, role').eq('user_id', authUser.id).maybeSingle();
+    out.company_link = link || null;
+    let co = null;
+    if (link && link.company_id) {
+      const { data } = await supabase.from('companies').select('id, name, plan').eq('id', link.company_id).maybeSingle();
+      co = data || null;
+    }
+    out.company = co;
+    const { data: sub } = await supabase.from('subscriptions').select('status, trial_ends_at').eq('user_id', authUser.id).maybeSingle();
+    out.subscription = sub || null;
+
+    if (!co) {
+      // A login with no business behind it. Every table is scoped by
+      // company_id, so this account opens onto nothing — and it cannot be
+      // fixed by signing up again, because the email is already taken.
+      // ?repair=1 finishes what registration didn't.
+      if (String(req.query.repair) === '1') {
+        _companyCache.delete(authUser.id);
+        if (!prof) await supabase.from('profiles').insert({ id: authUser.id, email, name: '', company: '' });
+        const cid = await _companyOf(authUser.id);
+        if (!cid) {
+          out.repaired = false;
+          out.summary = 'This login has no business, and creating one just failed too — the reason is in the logs.';
+          return res.status(500).json(out);
+        }
+        if (!sub) await supabase.from('subscriptions').insert({ user_id: authUser.id, company_id: cid, status: 'pending', trial_ends_at: null });
+        out.repaired = true;
+        out.company_id = cid;
+        out.summary = 'This login had no business; one has been created and the account is now usable.';
+        out.next_step = 'They can sign in now. If the password is unknown, use Forgot password on the login screen.';
+        return res.json(out);
+      }
+      out.summary = 'A login exists but has no business behind it, so it opens onto nothing. Signing up again cannot work — the email is taken.';
+      out.next_step = 'Add &repair=1 to this URL to create the business and finish the account.';
+      return res.json(out);
+    }
+    out.summary = 'This account is complete — the login exists and belongs to ' + (co.name || 'a business') +
+                  '. "Invalid email or password" here means the password is wrong, not the address.';
+    out.next_step = 'Use Forgot password on the login screen to set a new one.';
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/admin/db-health', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).end();
   const out = { pg: !!process.env.DATABASE_URL };

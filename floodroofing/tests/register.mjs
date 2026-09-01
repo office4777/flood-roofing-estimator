@@ -26,6 +26,8 @@ process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
 process.env.REGISTRATION_INVITE_CODE = 'ROOFMAP-2026';
+const ADMIN = 'admin-token-for-the-suite';
+process.env.ADMIN_TOKEN = ADMIN;
 delete process.env.OPEN_REGISTRATION;
 const PORT = process.env.TEST_PORT || '34611';
 process.env.PORT = PORT;
@@ -115,6 +117,44 @@ for (let i = 0; i < 3 && !blocked; i++){
 }
 check('three people can sign up from the same office in one sitting',
   blocked === null, 'blocked at ' + blocked);
+
+// ── "why can't this person log in?" ──────────────────────────────
+// From the login screen, a missing account, a wrong password and a
+// half-made account all read "Invalid email or password". This is the only
+// way to tell them apart, and the only way to finish a half-made one.
+const admin = (qs) => fetch(BASE + '/admin/account?token=' + ADMIN + '&' + qs);
+
+const unknown = await (await admin('email=nobody@example.com')).json();
+check('an address with no login says so, and says the sign-up never finished',
+  unknown.login_exists === false && /never completed/i.test(unknown.summary || ''), unknown.summary);
+
+const whole = await (await admin('email=team1@example.com')).json();
+check('a complete account reports its business, so the password is the thing left',
+  whole.login_exists === true && whole.company && whole.company.name === 'Sam Roofing' &&
+  /password is wrong/i.test(whole.summary || ''), whole.summary);
+
+// A login left with no business — what registration used to produce, and what
+// still exists in production for anyone who hit it. It cannot be fixed by
+// signing up again, because the email is taken.
+db.__authUsers.push({ id: '00000000-0000-4000-8000-000000009999', email: 'halfmade@example.com' });
+const half = await (await admin('email=halfmade@example.com')).json();
+check('a login with no business is named as exactly that',
+  half.login_exists === true && !half.company && /no business/i.test(half.summary || ''), half.summary);
+check('…and is not reported as fine', !/complete/i.test(half.summary || ''), half.summary);
+
+const fixed = await (await admin('email=halfmade@example.com&repair=1')).json();
+check('…and repair finishes it', fixed.repaired === true && !!fixed.company_id, JSON.stringify(fixed));
+check('…which is a real company row with the person attached',
+  db.company_users.some(r => r.user_id === '00000000-0000-4000-8000-000000009999' && r.company_id === fixed.company_id),
+  JSON.stringify(db.company_users.slice(-1)));
+const after = await (await admin('email=halfmade@example.com')).json();
+check('…and it now reads as a complete account', /complete/i.test(after.summary || ''), after.summary);
+
+// It says whether an address has an account, which is not public.
+const noTok = await fetch(BASE + '/admin/account?email=team1@example.com');
+check('without the admin token it is not there at all', noTok.status === 404, 'status ' + noTok.status);
+const wrongTok = await fetch(BASE + '/admin/account?token=nope&email=team1@example.com');
+check('…and a wrong token is the same', wrongTok.status === 404, 'status ' + wrongTok.status);
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

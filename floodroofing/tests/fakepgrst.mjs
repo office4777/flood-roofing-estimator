@@ -117,6 +117,13 @@ export function startFakePostgrest(tables){
         const body = JSON.parse(ab || '{}');
         const rest = u.pathname.slice('/auth/v1/admin/users'.length).replace(/^\//, '');
         let user;
+        if (req.method === 'GET' && !rest){
+          // listUsers. The real thing pages; one page of everything is enough
+          // here, and the shape is what auth-js unwraps into { data: { users } }.
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ users: (db.__authUsers || []).map(u => ({ id: u.id, email: u.email })), aud: '' }));
+          return;
+        }
         if (req.method === 'DELETE'){
           // deleteUser. Registration rolls back with it, so a fake that
           // pretended to delete would let an orphaned login pass unnoticed.
