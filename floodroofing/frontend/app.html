@@ -1847,6 +1847,9 @@ html.no-jms .jms-only{display:none!important}
    chat, the notifications bell and a personal To-Do list — one tap away no
    matter where in the app you are. Fixed for the same reason as
    .global-job-bar above; .content's padding-top clears it. */
+.jms-spin{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:jms-spin .7s linear infinite;flex:0 0 auto}
+@keyframes jms-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.jms-spin{animation-duration:2.4s}}
 .global-top-bar{
   position:fixed; top:0; left:var(--sidebar-w); right:0; z-index:60;
   display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
@@ -6741,19 +6744,51 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            roofers run on. Asking is cheaper than guessing, and a request with
            a real company behind it is what decides which one gets built next. -->
       <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border);max-width:640px">
-      <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
-        <strong>Fergus — Sales Account Codes</strong><br>
-        <span style="color:var(--text2)">Fergus categorises every quote line by a Sales Account. Paste the numeric ids of your <strong>Material Sales</strong> and <strong>Labour</strong> accounts — find them in Fergus → Settings → Sales Account Codes (click the row; the id is the trailing number in the URL). Material lines (materials, scaffold, selections) use the material account; labour lines use the labour account.</span>
-        <div class="f2" style="margin-top:8px">
-          <div><label>Material Sales account id</label><input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off"></div>
-          <div><label>Labour account id</label><input type="text" id="intFergusLabAcct" placeholder="e.g. 12345679" autocomplete="off"></div>
+      <!-- Something not working with the link? — the self-service diagnostic.
+           A roofer should not have to read numbers off a Fergus settings page
+           to open a support ticket. This runs the requests support would have
+           run by hand and posts the findings to the desk. The reply is sent
+           before any probing starts, so the app stays usable while it runs. -->
+      <div id="jmsDiagCard" style="margin-top:16px;padding:16px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;max-width:640px">
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:3px">Something not working?</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 10px">
+          Describe what is going wrong and we will test your Fergus connection from
+          end to end and send the results to our support team. You do not need to look
+          anything up — just say what you were doing and what happened.
+        </p>
+        <label for="jmsDiagWhat" style="font-size:12px">What is going wrong?</label>
+        <textarea id="jmsDiagWhat" rows="3" maxlength="4000"
+          placeholder="e.g. I pushed a quote to Fergus this morning and the materials did not come across, only the labour."
+          style="width:100%;resize:vertical;font-family:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+          <button type="button" id="jmsDiagBtn" onclick="_sendJmsDiagnostic(this)" class="sec-btn"
+            style="margin:0;width:auto;padding:10px 18px;display:inline-flex;align-items:center;gap:8px">
+            <span class="jms-spin" id="jmsDiagSpin" style="display:none"></span>
+            <span id="jmsDiagBtnText">Run the check and send it</span>
+          </button>
+          <span id="jmsDiagMsg" style="font-size:12px;color:var(--text2);flex:1;min-width:180px"></span>
         </div>
-        <div class="f2" style="margin-top:8px">
-          <div><label>Material code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusMatCode" placeholder="e.g. MAT" autocomplete="off"></div>
-          <div><label>Labour code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusLabCode" placeholder="e.g. LAB" autocomplete="off"></div>
-        </div>
-        <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
       </div>
+
+      <!-- The account ids are still needed — the Fergus Partner API does not
+           expose the chart of accounts, so a materials push has nowhere to
+           file its lines without them. Folded away rather than removed: it is
+           setup a roofer does once, usually with us on the phone. -->
+      <details style="margin-top:14px;max-width:640px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text2);padding:6px 0">Fergus account codes — only if support asks</summary>
+        <div style="margin-top:8px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
+          <span style="color:var(--text2)">Fergus files every quote line under a Sales Account. Without these ids a push sends the labour and skips the materials. Find them in Fergus → Settings → Sales Account Codes: click the row, and the id is the last number in the address bar.</span>
+          <div class="f2" style="margin-top:8px">
+            <div><label>Material Sales account id</label><input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off"></div>
+            <div><label>Labour account id</label><input type="text" id="intFergusLabAcct" placeholder="e.g. 12345679" autocomplete="off"></div>
+          </div>
+          <div class="f2" style="margin-top:8px">
+            <div><label>Material code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusMatCode" placeholder="e.g. MAT" autocomplete="off"></div>
+            <div><label>Labour code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusLabCode" placeholder="e.g. LAB" autocomplete="off"></div>
+          </div>
+          <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
+        </div>
+      </details>
 
         <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:4px">Run on something else?</div>
         <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 10px">
@@ -27706,6 +27741,45 @@ async function _sendJmsRequest(btn){
     show('Could not send that — ' + String((err && err.message) || err), false);
   } finally {
     if (btn){ btn.disabled = false; btn.textContent = label || 'Request an integration'; }
+  }
+}
+
+// The self-service diagnostic. The server answers 202 the moment it has the
+// description and does the probing afterwards, so this returns in a blink and
+// says so — the point is that nobody sits watching a spinner while somebody
+// else's API is slow.
+async function _sendJmsDiagnostic(btn){
+  var msg  = document.getElementById('jmsDiagMsg');
+  var what = document.getElementById('jmsDiagWhat');
+  var spin = document.getElementById('jmsDiagSpin');
+  var txt  = document.getElementById('jmsDiagBtnText');
+  function show(t, ok){
+    if (!msg) return;
+    msg.textContent = t;
+    msg.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+  }
+  var problem = ((what || {}).value || '').trim();
+  if (!problem){
+    show('Tell us what is going wrong first.', false);
+    if (what) what.focus();
+    return;
+  }
+  function busy(on){
+    if (btn)  btn.disabled = on;
+    if (spin) spin.style.display = on ? '' : 'none';
+    if (txt)  txt.textContent = on ? 'Sending…' : 'Run the check and send it';
+  }
+  busy(true);
+  show('Checking your Fergus connection…');
+  try {
+    await api('POST', '/jms/diagnose', { problem: problem });
+    show('\u2713 Sent. We are testing your connection now and the results are on their way to support — carry on using RoofMap, nothing else is needed from you.', true);
+    if (what) what.value = '';
+  } catch(err){
+    var m = String((err && err.message) || err);
+    show('Could not send that — ' + m, false);
+  } finally {
+    busy(false);
   }
 }
 

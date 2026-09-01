@@ -3796,7 +3796,11 @@ function httpsPost(host, path, headers, body) {
   return httpsRequest(host, path, 'POST', headers, body);
 }
 
+// Outbound HTTPS, behind a seam (globalThis.__TEST_HTTPS) like the mail
+// fetcher and the AI: the suites answer as the upstream would, so a probe
+// of somebody else's API can be exercised without one.
 function httpsRequest(host, path, method, headers, body) {
+  if (globalThis.__TEST_HTTPS) return globalThis.__TEST_HTTPS(host, path, method, headers, body);
   return new Promise((resolve, reject) => {
     const hasBody = body != null && method !== 'GET' && method !== 'HEAD';
     const data = hasBody ? JSON.stringify(body) : null;
@@ -6386,6 +6390,155 @@ app.get('/jms/debug', requireAuth, async (req, res) => {
 // Probe every endpoint we can think of for the Sales Account Codes list.
 // Returns a one-row-per-URL summary so we can see which path actually
 // responds with the user's chart of accounts.
+// ══════════════════════════════════════════════════════════════════
+// SELF-SERVICE INTEGRATION DIAGNOSTICS
+// ══════════════════════════════════════════════════════════════════
+// A subscriber whose job-system link misbehaves used to have one option:
+// email support and describe it, then wait while somebody asked them to
+// read numbers off a Fergus settings page. This runs the probing FOR them
+// — the same requests support would have made by hand — and posts the
+// findings to the desk with their description attached.
+//
+// Two rules shape it. Nothing that could be a credential leaves here: the
+// API key is reported as present-or-absent and by length, never by value.
+// And the caller is answered before any probing starts, so the app stays
+// usable while it runs; the report arrives by email, not in the response.
+const _JMS_PROBES = [
+  { tag: 'Jobs — the read the push depends on', path: '/jobs?page=1&per_page=1' },
+  { tag: 'Customers',                            path: '/customers?page=1&per_page=1' },
+  { tag: 'Sites',                                path: '/sites?page=1&per_page=1' },
+  { tag: 'Users',                                path: '/users?page=1&per_page=1' },
+  { tag: 'Quotes',                               path: '/quotes?page=1&per_page=1' },
+  { tag: 'Sales account codes',                  path: '/sales-account-codes' },
+  { tag: 'Sales accounts (alternate path)',      path: '/sales-accounts' },
+  { tag: 'Accounts (alternate path)',            path: '/accounts' },
+];
+// What a status code MEANS, in the words the person reading the report needs.
+function _jmsVerdict(status){
+  if (status === 200 || status === 201) return 'OK';
+  if (status === 401) return 'Key rejected — wrong or expired';
+  if (status === 403) return 'Key accepted but this is not permitted';
+  if (status === 404) return 'Not offered by this API';
+  if (status === 429) return 'Rate limited — too many requests';
+  if (typeof status === 'number' && status >= 500) return 'Fergus server error';
+  return 'No answer';
+}
+async function _jmsRunProbes(fergusKey){
+  const headers = { 'Authorization': 'Bearer ' + fergusKey, 'Accept': 'application/json' };
+  return Promise.all(_JMS_PROBES.map(async (c) => {
+    const t0 = Date.now();
+    try {
+      const r = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + c.path, 'GET', headers);
+      let shape = '';
+      try {
+        const j = JSON.parse(r.body || '{}');
+        const payload = j.value || j.data || j.salesAccountCodes || j.salesAccounts || j.accounts || j;
+        if (Array.isArray(payload)) shape = payload.length + ' record(s)';
+        else if (payload && payload.message) shape = String(payload.message).slice(0, 160);
+        else shape = (r.body || '').slice(0, 120);
+      } catch { shape = '(not JSON) ' + (r.body || '').slice(0, 120); }
+      return { tag: c.tag, path: c.path, status: r.status, verdict: _jmsVerdict(r.status),
+               ms: Date.now() - t0, shape: shape };
+    } catch (e) {
+      return { tag: c.tag, path: c.path, status: 'ERR', verdict: 'Could not reach Fergus',
+               ms: Date.now() - t0, shape: e.message };
+    }
+  }));
+}
+function _jmsReportHtml(ctx, probes){
+  const e = (x) => String(x == null ? '' : x)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const colour = (p) => p.status === 200 || p.status === 201 ? '#15803d'
+                      : p.status === 404 ? '#92400e' : '#b91c1c';
+  const rows = probes.map((p) =>
+    '<tr>' +
+      '<td style="padding:7px 10px;border-bottom:1px solid #eef2f6">' + e(p.tag) +
+        '<br><span style="color:#64748b;font-size:12px">GET ' + e(p.path) + '</span></td>' +
+      '<td style="padding:7px 10px;border-bottom:1px solid #eef2f6;white-space:nowrap;color:' + colour(p) + ';font-weight:700">' +
+        e(p.status) + ' · ' + e(p.verdict) + '</td>' +
+      '<td style="padding:7px 10px;border-bottom:1px solid #eef2f6;color:#475569;font-size:12px">' +
+        e(p.shape) + '<br>' + e(p.ms) + 'ms</td>' +
+    '</tr>').join('');
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:760px">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">Integration diagnostic</div>' +
+    '<h2 style="font-size:19px;margin:8px 0 4px">' + e(ctx.company || 'A RoofMap business') + ' — ' + e(ctx.software) + '</h2>' +
+    '<div style="color:#475569;font-size:13px;margin-bottom:16px">' + e(ctx.who) + ' · ' + e(ctx.plan) + ' plan · ' + e(ctx.when) + '</div>' +
+    '<div style="background:#f6f8fa;border-left:3px solid #0099cc;padding:12px 14px;border-radius:6px;margin-bottom:18px">' +
+      '<div style="font-weight:700;margin-bottom:4px">What they say is wrong</div>' +
+      '<div style="white-space:pre-wrap">' + e(ctx.problem) + '</div></div>' +
+    '<div style="font-weight:700;margin-bottom:6px">Their setup</div>' +
+    '<div style="color:#475569;margin-bottom:16px">' +
+      'API key: ' + e(ctx.keyState) + '<br>' +
+      'Material Sales account id: ' + e(ctx.matAcct || 'not set') + '<br>' +
+      'Labour account id: ' + e(ctx.labAcct || 'not set') + '</div>' +
+    '<div style="font-weight:700;margin-bottom:6px">What their Fergus answered just now</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:13.5px">' + rows + '</table>' +
+    '<div style="color:#64748b;font-size:12px;margin-top:16px">Sent by RoofMap on the subscriber\'s request. No credential is included in this report.</div>' +
+  '</div>';
+}
+function _jmsReportText(ctx, probes){
+  return 'RoofMap — integration diagnostic\n\n' +
+    'Business: ' + (ctx.company || '(not set)') + '\n' +
+    'User: ' + ctx.who + '\n' +
+    'Plan: ' + ctx.plan + '\n' +
+    'Software: ' + ctx.software + '\n' +
+    'Sent: ' + ctx.when + '\n\n' +
+    'WHAT THEY SAY IS WRONG\n' + ctx.problem + '\n\n' +
+    'THEIR SETUP\n' +
+    '  API key: ' + ctx.keyState + '\n' +
+    '  Material Sales account id: ' + (ctx.matAcct || 'not set') + '\n' +
+    '  Labour account id: ' + (ctx.labAcct || 'not set') + '\n\n' +
+    'PROBES\n' + probes.map(p =>
+      '  ' + String(p.status).padStart(3) + '  ' + p.verdict.padEnd(38) + p.tag +
+      '\n       GET ' + p.path + '  (' + p.ms + 'ms)  ' + p.shape).join('\n') + '\n';
+}
+app.post('/jms/diagnose', requireAuth, requireSubscription,
+  requirePlan('jms', 'The job-system link', 'Team'), rateLimit(4, 600000), async (req, res) => {
+  if (!EMAIL_ENABLED) {
+    return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+  }
+  const problem = String((req.body || {}).problem || '').trim().slice(0, 4000);
+  if (!problem) return res.status(400).json({ error: 'Tell us what is going wrong first.' });
+
+  const fergusKey = await _fergusKeyFor(req);
+  let row = null;
+  try { row = await _companySettingsRow(req); } catch (e) {}
+  const keys = (row && row.jms_keys) || {};
+  const ctx = {
+    software: 'Fergus',
+    problem: problem,
+    who: String((req.user && req.user.email) || 'unknown user'),
+    company: String((((row || {}).branding) || {}).company_name || '').trim(),
+    plan: await _planOf(req.companyId).catch(() => 'unknown'),
+    when: new Date().toISOString(),
+    // Length and presence only. The key itself never leaves the server.
+    keyState: fergusKey ? ('set, ' + String(fergusKey).length + ' characters') : 'NOT SET',
+    matAcct: keys.fergusMaterialsAccountId || '',
+    labAcct: keys.fergusLabourAccountId || '',
+  };
+
+  // Answered first. The probing takes as long as Fergus takes, and the
+  // person asking should be back at work rather than watching a spinner.
+  res.status(202).json({ queued: true, to: MAIL_SUPPORT });
+
+  try {
+    const probes = fergusKey ? await _jmsRunProbes(fergusKey)
+      : [{ tag: 'No API key stored for this business', path: '—', status: 'SKIP',
+           verdict: 'Nothing to probe', ms: 0, shape: 'Connect Fergus first.' }];
+    await _dispatchMail({
+      to: MAIL_SUPPORT,
+      subject: 'RoofMap integration diagnostic: ' + (ctx.company || ctx.who),
+      text: _jmsReportText(ctx, probes),
+      html: _jmsReportHtml(ctx, probes),
+      fromName: 'RoofMap Diagnostics — ' + [ctx.company, ctx.who].filter(Boolean).join(' · '),
+      fromAddress: MAIL_SUPPORT,
+      replyTo: /.@./.test(ctx.who) ? ctx.who : undefined,
+    });
+  } catch (e) {
+    console.error('jms diagnostic failed:', e.message);
+  }
+});
+
 app.get('/jms/debug/fergus-sales-accounts', requireAuth, async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
   if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
