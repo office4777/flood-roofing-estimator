@@ -63,6 +63,7 @@ r = await api('GET', '/team');
 check('Solo reports one seat and no extras',
   r.body.plan.seats.allowed === 1 && !r.body.plan.slug && !r.body.plan.domain && !r.body.plan.jms,
   JSON.stringify(r.body.plan));
+const r0 = r;
 check('…and shows the seat already in use', r.body.plan.seats.used === 1, String(r.body.plan.seats.used));
 r = await api('POST', '/team/invites', { email:'sue@acmeroofing.co.nz' });
 check('…so inviting a second person is refused',
@@ -76,7 +77,16 @@ check('Solo cannot take a RoofMap address',
 r = await api('POST', '/team/domains', { domain:'quote.acmeroofing.co.nz' });
 check('…nor connect its own domain', r.status === 403 && r.body.needs === 'Business', JSON.stringify(r.body));
 r = await api('GET', '/fergus/anything');
-check('…nor reach the job-system link', r.status === 403 && r.body.needs === 'Business', JSON.stringify(r.body));
+check('…nor reach the job-system link, which now starts at Team',
+  r.status === 403 && r.body.needs === 'Team', JSON.stringify(r.body));
+// Being told a quote was opened is the one thing a one-person business needs
+// most. It used to start at Team; withholding it only ever produced churn.
+check('Solo IS told when a customer opens or accepts a quote',
+  r0.body.plan.activity === true, JSON.stringify(r0.body.plan));
+check('…and gets the automatic chase when a quote goes quiet',
+  r0.body.plan.reminders === true, JSON.stringify(r0.body.plan));
+check('…but still no schedule board — a calendar for one person is nothing',
+  r0.body.plan.schedule === false, JSON.stringify(r0.body.plan));
 
 // ── Team: five seats, its own address, but not its own domain ──
 setPlan('team'); await settle();
@@ -84,6 +94,13 @@ r = await api('POST', '/team/slug', { slug:'acmeroofing' });
 check('Team can set its RoofMap address', r.status === 200, String(r.status));
 r = await api('POST', '/team/domains', { domain:'quote.acmeroofing.co.nz' });
 check('…but its own domain is still Business-only', r.status === 403 && r.body.needs === 'Business', JSON.stringify(r.body));
+// The two reasons to leave Solo: a crew to schedule, and Fergus. Firms running
+// Fergus are Team-shaped, not Business-shaped.
+r = await api('GET', '/team');
+check('Team gets the schedule board', r.body.plan.schedule === true, JSON.stringify(r.body.plan));
+check('…and the Fergus link', r.body.plan.jms === true, JSON.stringify(r.body.plan));
+check('…but not the team inbox, which is what Business is for',
+  r.body.plan.inbox === false, JSON.stringify(r.body.plan));
 for (let i = 0; i < 4; i++){
   r = await api('POST', '/team/invites', { email: 'mate' + i + '@acmeroofing.co.nz' });
   if (r.status === 200 && db.company_invites.length) db.company_invites[db.company_invites.length-1].expires_at = '2030-01-01T00:00:00Z';

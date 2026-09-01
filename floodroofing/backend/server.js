@@ -1030,8 +1030,14 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // working unchanged.
 const PLANS = {
   trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
-  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false },
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false, activity: true,  reminders: true,  maildomain: true,  schedule: false, inbox: false },
+  // Being told a quote was opened or accepted is what a one-person business
+  // needs MOST, not least — there is no office watching the folder for them.
+  // Nobody has ever upgraded a plan to receive a notification; they leave.
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false },
+  // A schedule board is meaningless at one person and hurting by three, and
+  // firms running Fergus are Team-shaped rather than Business-shaped. Both
+  // sit here so that "more than one person" is the reason to leave Solo.
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false },
   business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
 };
 // Business is the largest plan we sell off the shelf; past it is Enterprise,
@@ -1192,7 +1198,8 @@ app.get('/team', requireAuth, async (req, res) => {
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
       members, invites,
       plan: { id: plan, label: lim.label, seats: seats,
-              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox },
+              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox,
+              activity: !!lim.activity, reminders: !!lim.reminders, maildomain: !!lim.maildomain },
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -3519,7 +3526,7 @@ async function _quoteShareRows(req, limit){
 // Office home-screen feed: every job that has a shared quote, with its
 // current status + last activity. Team and up — this is the quote
 // notifications feature the Team tier sells.
-app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Team'), async (req, res) => {
+app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Solo'), async (req, res) => {
   try {
     const rows = await _quoteShareRows(req, 120);
     const feed = rows.map(function(r){
@@ -3578,7 +3585,7 @@ function _quoteAnalyticsFrom(rows, days){
            open_rate: pct(opened), accept_rate: pct(accepted),
            median_days_to_accept: median != null ? Math.round(median * 10) / 10 : null };
 }
-app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytics', 'Team'), async (req, res) => {
+app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytics', 'Solo'), async (req, res) => {
   try {
     const days = String(req.query.days) === '90' ? 90 : 30;
     const rows = await _quoteShareRows(req, 500);
@@ -5083,7 +5090,7 @@ async function _schedSaveCfg(req, cfg){
   }
 }
 
-const _schedGate = [requireAuth, requireSubscription, requirePlan('schedule', 'The schedule board', 'Business')];
+const _schedGate = [requireAuth, requireSubscription, requirePlan('schedule', 'The schedule board', 'Team')];
 
 // ── the board, in one read ──
 app.get('/schedule', ..._schedGate, async (req, res) => {
@@ -5471,7 +5478,7 @@ async function _fergusKeyFor(req){
 const _FERGUS_NOT_CONNECTED = { error: 'not_connected',
   message: 'Fergus is not connected for this business — add your Fergus API key under Settings → Job Management Software → Configure.' };
 app.all('/fergus/*', requireAuth, requireSubscription,
-  requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
+  requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
   if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const tail = req.url.replace(/^\/fergus/, '');           // keep the querystring
@@ -5597,7 +5604,7 @@ async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, 
 }
 
 app.post('/fergus-files/upload', requireAuth, requireSubscription,
-  requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
+  requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
   if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const { jobId, filename, contentType, base64, fieldName } = req.body || {};
