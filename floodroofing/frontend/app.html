@@ -3256,6 +3256,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   .hdr-logo{border-bottom:none;padding:12px 18px}
   .hdr-info,.hdr-right{display:none}
   .nav{flex-direction:row;flex-wrap:wrap;padding:8px 10px;gap:4px;overflow-x:auto}
+  #navAccount{width:100%;margin-top:6px}
   .nav-btn{width:auto;flex:0 0 auto;padding:8px 11px}
   .content{padding:20px}
 }
@@ -3443,6 +3444,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
+      try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3555,6 +3557,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
+      try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3585,6 +3588,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{email:email,name:name}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
+      try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3609,6 +3613,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
+      try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3822,6 +3827,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" onclick="gotoTab('jobs')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" id="navSettingsBtn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
   <button class="nav-btn" id="navFeedbackBtn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
+  <!-- Who you are signed in as, and the way out. There was no way out at all:
+       doLogout() existed but nothing on any screen called it, so the only way
+       to leave an account was to clear the browser's storage. That matters
+       more than usual on a shared office machine and on a phone. -->
+  <div id="navAccount" style="margin-top:auto;padding:10px 4px 2px;border-top:1px solid var(--border)">
+    <div id="navAccountWho" style="font-size:11px;color:var(--text2);padding:0 8px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="nav-btn" id="navSignOutBtn" onclick="_navSignOut()"><svg viewBox="0 0 16 16" fill="none"><path d="M6.5 2.5H3.5v11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5.5L11.5 8L9 10.5 M11.5 8H6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sign out</button>
+  </div>
 </div>
 </aside>
 <main class="content">
@@ -8510,6 +8523,55 @@ function _ibxAvatar(name, key, size){
   return '<span class="ibx-av" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + _ibxAvColor(key || name) +
     ';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:' + Math.round(size * 0.38) + 'px;font-weight:800;flex:0 0 auto">' +
     _ibxEsc(_ibxInitials(name)) + '</span>';
+}
+// ── What this plan actually includes ─────────────────────────────────
+// The server decides (PLANS in server.js) and sends the answer with the
+// company at sign-in; this only has to obey it. Until it did, a Solo account
+// carried the full nav — Email and Schedule included — and found out they
+// were not theirs by opening one and reading a locked card. A tab you cannot
+// use is not a feature preview, it is a dead end in the furniture.
+function _planLimits(){
+  try { var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+    return (c && c.limits) || null; } catch(e){ return null; }
+}
+// Nav buttons that belong to a plan feature. Anything not listed is on every
+// plan, and a feature the server has not spoken about stays visible — the
+// failure that costs least is showing a tab, not hiding one somebody paid for.
+var _NAV_PLAN_FEATURES = { navInboxBtn: 'inbox', navScheduleBtn: 'schedule' };
+function _navPlanSync(){
+  var lim = _planLimits();
+  var hidden = {};
+  Object.keys(_NAV_PLAN_FEATURES).forEach(function(id){
+    var b = document.getElementById(id); if (!b) return;
+    var off = !!lim && lim[_NAV_PLAN_FEATURES[id]] === false;
+    b.style.display = off ? 'none' : '';
+    if (off) hidden[_NAV_PLAN_FEATURES[id]] = 1;
+  });
+  // Standing on a tab that just went away (a downgrade, or the first sync
+  // after sign-in) leaves the app on a screen with no way back to it.
+  try {
+    var cur = document.body.getAttribute('data-tab');
+    if ((cur === 'inbox' && hidden.inbox) || (cur === 'schedule' && hidden.schedule)) gotoTab('select');
+  } catch(e){}
+  try {
+    var who = document.getElementById('navAccountWho');
+    if (who){
+      var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+      who.textContent = u.email || u.name || '';
+      who.title = who.textContent;
+    }
+  } catch(e){}
+}
+// The nav is built by the page, so the first sync has to wait for it; every
+// later one hangs off whatever refreshed the company (sign-in, the Team
+// screen, a plan change).
+document.addEventListener('DOMContentLoaded', function(){ try { _navPlanSync(); } catch(e){} });
+function _navSignOut(){
+  if (!confirm('Sign out of RoofMap on this device?')) return;
+  try { window.doLogout(); } catch(e){
+    try { localStorage.removeItem('fr_token'); localStorage.removeItem('fr_user'); localStorage.removeItem('fr_company'); } catch(_e){}
+    location.reload();
+  }
 }
 function _ibxCanUse(){
   try { var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
@@ -20609,7 +20671,15 @@ async function loadTeam(){
       id: TEAM.company.id, name: TEAM.company.name, slug: TEAM.company.slug,
       role: (TEAM.me || {}).role || '',
       domain: ((TEAM.domains || []).filter(function(x){ return x.status === 'verified'; })[0] || {}).domain || '',
-    }, TEAM.plan ? { plan: TEAM.plan.id || TEAM.plan } : {}));
+    }, TEAM.plan ? { plan: TEAM.plan.id || TEAM.plan } : {},
+       // …and the flags with it. Merging only the plan's NAME left `limits`
+       // describing whatever plan the account was on at sign-in, so an upgrade
+       // or a downgrade did not reach the nav until the next sign-in.
+       (TEAM.plan && typeof TEAM.plan === 'object') ? { limits: {
+         seats: (TEAM.plan.seats || {}).allowed != null ? TEAM.plan.seats.allowed : null,
+         slug: !!TEAM.plan.slug, domain: !!TEAM.plan.domain, jms: !!TEAM.plan.jms,
+         schedule: !!TEAM.plan.schedule, inbox: !!TEAM.plan.inbox } } : {}));
+    try { _navPlanSync(); } catch(e){}
   } catch(e){ TEAM.err = (e && e.message) || 'Could not load your team.'; }
   TEAM.loading = false; renderTeam();
 }
