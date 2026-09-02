@@ -1,9 +1,19 @@
 name: Keep backend warm
 
-# The customer quote link feels slow when the Railway backend has gone idle and
-# the first hit pays a cold start. This pings /health on a schedule so the
-# instance stays awake. GitHub's scheduler can run a few minutes late, so the
-# backend's own internal timer (server.js _keepWarm) covers the gaps.
+# Two jobs in one. The customer quote link feels slow when the Railway backend
+# has gone idle and the first hit pays a cold start, so this pings /health on
+# a schedule to keep the instance awake. GitHub's scheduler can run a few
+# minutes late; the backend's own internal timer (server.js _keepWarm) covers
+# the gaps.
+#
+# And it is the outage alarm. Error monitoring emails the owner when the
+# server throws — but a server that is DOWN throws nothing, and until this
+# run started failing, the first anyone heard of an outage was a roofer
+# ringing. A run that cannot get a 200 after a full minute of trying now
+# FAILS, and GitHub emails the repository owner about a failed scheduled run.
+# That is a floor, not a ceiling: a proper uptime service with an SMS alert
+# (UptimeRobot, Better Stack — both free at this size) pointed at the same
+# URL is still the right thing to add.
 
 on:
   schedule:
@@ -22,10 +32,14 @@ jobs:
       - name: Ping backend /health
         run: |
           URL="https://flood-roofing-estimator-production.up.railway.app/health"
-          for i in 1 2 3 4; do
+          # A cold start on Railway wakes in well under a minute; five tries
+          # over roughly seventy seconds is enough headroom that a run only
+          # fails when the backend is actually not answering.
+          for i in 1 2 3 4 5; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 "$URL" || echo 000)
             echo "attempt $i -> HTTP $code"
             if [ "$code" = "200" ]; then exit 0; fi
-            sleep 12   # give a cold start time to wake, then retry
+            sleep 15
           done
-          echo "backend did not return 200 (it may still be waking) — not failing the run"
+          echo "::error title=RoofMap backend is not answering::$URL did not return 200 in five attempts. Check Railway → the service → Deployments and Logs."
+          exit 1
