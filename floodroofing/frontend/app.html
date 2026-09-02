@@ -33063,6 +33063,25 @@ function _cornerRepoNudge(dirX, dirY){
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
+// A press ANYWHERE else closes the pad.
+//
+// Closing it was the canvas's job, so it only happened on a press that landed
+// on the drawing. Reach for a toolbar button, the zoom control, another tab,
+// anything off the canvas, and the pad stayed sitting over the roof with
+// nothing to dismiss it but its own ✕.
+//
+// Capture phase, so this runs before the canvas's own handler: pressing a
+// different corner closes this pad and the canvas then opens it again on that
+// corner, which is also what starts the drag.
+document.addEventListener('pointerdown', function(e){
+  try {
+    if (!window._cornerRepo || window._cornerRepo.idx < 0) return;
+    var pop = document.getElementById('cornerRepoPopup');
+    if (!pop || pop.style.display === 'none') return;
+    if (e.target && e.target.closest && e.target.closest('#cornerRepoPopup')) return;
+    _closeCornerRepo();
+  } catch(err){}
+}, true);
 document.addEventListener('keydown', function(e){
   var ae = document.activeElement;
   var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
