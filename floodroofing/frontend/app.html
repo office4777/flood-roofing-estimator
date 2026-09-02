@@ -53968,30 +53968,77 @@ function _skelSnapRectilinear(outline, lines){
     }
   });
 
-  // 2. Weld the endpoints that the roof has as one junction. A ridge end
-  //    anchors its cluster: step 1 just put it where it belongs, and pulling
-  //    it to a cluster average would tilt the ridge straight back over.
+  // 2. Weld the endpoints that the roof has as one junction.
+  //
+  //    A ridge END is a junction of the roof, and it ANCHORS everything that
+  //    welds to it: step 1 has just put it where it belongs, and pulling it
+  //    to a cluster average would tilt the ridge straight back over. So the
+  //    ridge ends are settled first, and everything else goes to its NEAREST
+  //    one — never to a further one.
+  //
+  //    That last word is the whole of the reported fault. The weld radius is
+  //    a share of the building, so on a big house it is tens of pixels, and a
+  //    23px ridge — which is what a 510×533 arm has, and it is real — sits
+  //    entirely inside it. The two hips landing on one end of that ridge were
+  //    close enough to the other end to be swept into the same cluster, and
+  //    the whole lot collapsed onto one point. The hips came out 23px off
+  //    45°, on the plain rectangle as much as on the reported stair. A hip on
+  //    a square-walled building is 45° or it is wrong.
   var ends = [];
   lines.forEach(function(l){
-    ends.push({ p: l.pts[0], ridge: l.type === 'ridge' });
-    ends.push({ p: l.pts[1], ridge: l.type === 'ridge' });
+    ends.push({ p: l.pts[0], ridge: l.type === 'ridge', of: l });
+    ends.push({ p: l.pts[1], ridge: l.type === 'ridge', of: l });
   });
+  var anchors = ends.filter(function(e){ return e.ridge; });
+  // Two ridges meeting settle together first, so what follows sees one
+  // junction rather than two a pixel apart. A ridge's own two ends are never
+  // one junction, however short the ridge.
+  var adone = [];
+  for (i = 0; i < anchors.length; i++){
+    if (adone[i]) continue;
+    var ag = [i]; adone[i] = 1;
+    for (j = i + 1; j < anchors.length; j++){
+      if (adone[j]) continue;
+      if (ag.some(function(k){ return anchors[k].of === anchors[j].of; })) continue;
+      if (Math.hypot(anchors[j].p[0] - anchors[i].p[0], anchors[j].p[1] - anchors[i].p[1]) <= WELD){
+        ag.push(j); adone[j] = 1;
+      }
+    }
+    if (ag.length < 2) continue;
+    var asx = 0, asy = 0;
+    ag.forEach(function(k){ asx += anchors[k].p[0]; asy += anchors[k].p[1]; });
+    asx /= ag.length; asy /= ag.length;
+    ag.forEach(function(k){ anchors[k].p[0] = asx; anchors[k].p[1] = asy; });
+  }
+  // Everything else goes to the nearest anchor in range, and stays put if
+  // there is none.
+  var loose = [];
+  ends.forEach(function(e){
+    if (e.ridge) return;
+    var best = null, bd = Infinity;
+    anchors.forEach(function(a3){
+      var d = Math.hypot(a3.p[0] - e.p[0], a3.p[1] - e.p[1]);
+      if (d < bd){ bd = d; best = a3; }
+    });
+    if (best && bd <= WELD){ e.p[0] = best.p[0]; e.p[1] = best.p[1]; }
+    else loose.push(e);
+  });
+  // What is left has no ridge to hang off — two hips climbing to an apex,
+  // say — so those settle among themselves, on their average.
   var done = [];
-  for (i = 0; i < ends.length; i++){
+  for (i = 0; i < loose.length; i++){
     if (done[i]) continue;
     var group = [i]; done[i] = 1;
-    for (j = i + 1; j < ends.length; j++){
+    for (j = i + 1; j < loose.length; j++){
       if (done[j]) continue;
-      if (Math.hypot(ends[j].p[0] - ends[i].p[0], ends[j].p[1] - ends[i].p[1]) <= WELD){ group.push(j); done[j] = 1; }
+      if (group.some(function(k){ return loose[k].of === loose[j].of; })) continue;   // its own other end
+      if (Math.hypot(loose[j].p[0] - loose[i].p[0], loose[j].p[1] - loose[i].p[1]) <= WELD){ group.push(j); done[j] = 1; }
     }
     if (group.length < 2) continue;
-    var ax = null, ay = null, sx = 0, sy = 0;
-    group.forEach(function(k){
-      sx += ends[k].p[0]; sy += ends[k].p[1];
-      if (ax === null && ends[k].ridge){ ax = ends[k].p[0]; ay = ends[k].p[1]; }
-    });
-    var tx = ax === null ? sx / group.length : ax, ty = ax === null ? sy / group.length : ay;
-    group.forEach(function(k){ ends[k].p[0] = tx; ends[k].p[1] = ty; });
+    var sx = 0, sy = 0;
+    group.forEach(function(k){ sx += loose[k].p[0]; sy += loose[k].p[1]; });
+    sx /= group.length; sy /= group.length;
+    group.forEach(function(k){ loose[k].p[0] = sx; loose[k].p[1] = sy; });
   }
 
   // 3. Welding can leave two lines running between the same pair of points —
@@ -54001,13 +54048,24 @@ function _skelSnapRectilinear(outline, lines){
     var p = [Math.round(l.pts[0][0]), Math.round(l.pts[0][1])], q = [Math.round(l.pts[1][0]), Math.round(l.pts[1][1])];
     return (p[0] < q[0] || (p[0] === q[0] && p[1] <= q[1])) ? p.concat(q).join(',') : q.concat(p).join(',');
   };
+  //
+  //    A RIDGE is not dropped for being short. On an arm that is nearly
+  //    square — 530 wide by 533 deep — the ridge is three pixels long, and
+  //    those three pixels are the whole difference between the two ends the
+  //    hips land on. Dropping it collapsed four hips onto one averaged apex
+  //    and took them off 45°, which is the same reported fault by another
+  //    route. Only a ridge that has genuinely shrunk to a dot goes.
+  var _short = function(l){
+    var d = Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]);
+    return l.type === 'ridge' ? d <= 1 : d <= TOL;
+  };
   var count = {};
   lines.forEach(function(l){
-    if (Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]) <= TOL) return;
+    if (_short(l)) return;
     var k = key(l); count[k] = (count[k] || 0) + 1;
   });
   var keep = lines.filter(function(l){
-    if (Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]) <= TOL) return false;
+    if (_short(l)) return false;
     return count[key(l)] === 1;
   });
   if (keep.length !== lines.length){ lines.length = 0; Array.prototype.push.apply(lines, keep); }
