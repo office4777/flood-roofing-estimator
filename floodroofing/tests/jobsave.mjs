@@ -120,6 +120,53 @@ check('creating a job returns the same light row', rp.status === 200 && pj && pj
   !('draw_state' in pj), Object.keys(pj||{}).join(','));
 check('…small too, on a first save of a big drawing', ptxt.length < 2000, ptxt.length + ' bytes');
 
+// ── two people on one job ─────────────────────────────────────────
+// The office has the job open; someone opens it onsite; both save. Without
+// this the last write wins and the other person's work is gone, silently.
+// A save carries the updated_at it loaded with, and a row that has moved
+// since is refused — a 409 that names what is there now — not overwritten.
+const stamp = db.jobs[0].updated_at;
+r = await put('job-1', { client_name:'From the office', base_updated_at: stamp });
+check('a save that knows what it loaded goes through', r.status === 200, r.status + '');
+const stamp2 = db.jobs[0].updated_at;
+check('…and the row moves on', stamp2 && stamp2 !== stamp, stamp2);
+r = await put('job-1', { client_name:'From the site, on a stale copy', base_updated_at: stamp });
+check('THE FIX: a save from a stale copy is refused, not written over the top',
+  r.status === 409, r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
+check('…in a way the app can act on', r.body && r.body.code === 'JOB_MOVED', JSON.stringify(r.body && r.body.code));
+check('…naming the version that is there now',
+  r.body && r.body.current && r.body.current.updated_at === stamp2 && r.body.current.client_name === 'From the office',
+  JSON.stringify(r.body && r.body.current));
+check('…and the row is untouched', db.jobs[0].client_name === 'From the office' && db.jobs[0].updated_at === stamp2,
+  db.jobs[0].client_name);
+r = await put('job-1', { client_name:'Forced over the top' });
+check('a save that says nothing about what it loaded still saves, as it always did',
+  r.status === 200 && db.jobs[0].client_name === 'Forced over the top', r.status + ' / ' + db.jobs[0].client_name);
+r = await put('no-such-job', { client_name:'x', base_updated_at: stamp });
+check('a stale save to a job that does not exist is still a 404, not a 409', r.status === 404, r.status + '');
+
+// ── the photos it already has ─────────────────────────────────────
+// Autosave used to ship the aerial and every site photo every couple of
+// seconds, unchanged. A save may now leave them out and name them, and the
+// server carries its own copy across — never a copy the client makes up.
+db.jobs[0].draw_state = { state: { img64: 'AERIAL-ON-SERVER', photos: [{ src:'P1' }, { src:'P2' }], lines: [1] } };
+r = await put('job-1', { draw_state: { state: { lines: [1, 2, 3] } }, draw_state_keep: ['img64', 'photos'] });
+const st = db.jobs[0].draw_state && db.jobs[0].draw_state.state || {};
+check('a save can leave the aerial and photos out', r.status === 200, r.status + '');
+check('…and the row keeps the ones it had', st.img64 === 'AERIAL-ON-SERVER' && JSON.stringify(st.photos) === '[{"src":"P1"},{"src":"P2"}]',
+  JSON.stringify(st).slice(0, 80));
+check('…while the drawing that was sent is what landed', JSON.stringify(st.lines) === '[1,2,3]', JSON.stringify(st.lines));
+r = await put('job-1', { draw_state: { state: { lines: [9], img64: 'NEW-AERIAL' } }, draw_state_keep: ['photos'] });
+const st2 = db.jobs[0].draw_state.state;
+check('naming only the photos keeps only the photos — a new aerial still lands',
+  st2.img64 === 'NEW-AERIAL' && st2.photos.length === 2, JSON.stringify(st2).slice(0, 80));
+r = await put('job-1', { draw_state: { state: { lines: [9] } }, draw_state_keep: ['photos', 'settings', 'user_id', '__proto__'] });
+check('only the two named things can be kept — anything else in the list is ignored',
+  r.status === 200 && db.jobs[0].user_id === U, r.status + ' / ' + db.jobs[0].user_id);
+r = await put('job-1', { draw_state: { state: { lines: [9], photos: [] } } });
+check('and a save that sends everything, as before, replaces everything, as before',
+  JSON.stringify(db.jobs[0].draw_state.state.photos) === '[]', JSON.stringify(db.jobs[0].draw_state.state.photos));
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

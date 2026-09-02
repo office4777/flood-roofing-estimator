@@ -1911,6 +1911,63 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   // A save with nothing in it but a new timestamp is a caller bug worth
   // hearing about, not a row to touch.
   if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
+
+  // ── two people on one job ─────────────────────────────────────────
+  // The office has the job open on the desktop; someone opens it onsite.
+  // Both autosave. Without this, the last save wins and the other person's
+  // measurements are gone — no warning, no error, found out at quoting time.
+  // The app sends back the updated_at it loaded with; if the row has moved
+  // since, the save is refused with a 409 and the app asks which version to
+  // keep. A save without it is the old behaviour, so nothing older breaks.
+  const base = (req.body && req.body.base_updated_at) ? String(req.body.base_updated_at) : null;
+  const _moved = async function(){
+    // Refused or gone? Look once more, scoped the same way, and say which.
+    const { data: cur } = await _scopeCompany(
+      supabase.from('jobs').select('id, updated_at, client_name, site_address').eq('id', req.params.id), req);
+    if (!cur || !cur.length) return res.status(404).json({ error: 'Job not found' });
+    return res.status(409).json({
+      error: 'This job was changed on another device since you opened it.',
+      code: 'JOB_MOVED', current: cur[0] });
+  };
+
+  // ── the photos it already has ─────────────────────────────────────
+  // Site photos and the aerial live inside draw_state and are the bulk of a
+  // job — tens of MB on a big one — and autosave used to ship all of them
+  // every couple of seconds while a roofer was drawing, unchanged. The app
+  // now leaves out what the server already holds and names it here, and the
+  // row's own copy is carried across before the write. Only these two, and
+  // only ever FROM the row: a name the client makes up is ignored.
+  const KEEP_OK = { img64: 1, photos: 1 };
+  const keep = Array.isArray(req.body && req.body.draw_state_keep)
+    ? req.body.draw_state_keep.filter(k => KEEP_OK[k]) : [];
+  if (keep.length && patch.draw_state && typeof patch.draw_state === 'object'){
+    const pool0 = _pgPool();
+    let held = null;
+    try {
+      if (pool0){
+        const q = await pool0.query(
+          "select draw_state->'state'->'img64' as img64, draw_state->'state'->'photos' as photos" +
+          ' from public.jobs where id = $1 and (company_id = $2 or (company_id is null and user_id = $3))',
+          [req.params.id, req.companyId || null, req.user.id]);
+        held = q.rows[0] || null;
+      } else {
+        const { data: rows } = await _scopeCompany(
+          supabase.from('jobs').select('draw_state').eq('id', req.params.id), req);
+        const st = rows && rows[0] && rows[0].draw_state && rows[0].draw_state.state;
+        held = st ? { img64: st.img64, photos: st.photos } : null;
+      }
+    } catch (e) {
+      // If the row cannot be read the save must not go through with the
+      // photos missing: that is exactly the loss this exists to prevent.
+      return res.status(503).json({ error: 'Could not read the job to keep its photos — try again.' });
+    }
+    if (!held) return res.status(404).json({ error: 'Job not found' });
+    if (!patch.draw_state.state || typeof patch.draw_state.state !== 'object') patch.draw_state.state = {};
+    keep.forEach(k => {
+      if (held[k] !== undefined && held[k] !== null) patch.draw_state.state[k] = held[k];
+    });
+  }
+
   patch.updated_at = new Date().toISOString();
   cols.push('updated_at');
 
@@ -1935,10 +1992,11 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
         p.push(req.params.id, req.user.id);
         where = 'id = $' + (p.length - 1) + ' and user_id = $' + p.length;
       }
+      if (base){ p.push(base); where += ' and updated_at = $' + p.length + '::timestamptz'; }
       const r = await pool.query(
         'update public.jobs set ' + sets.join(', ') + ' where ' + where +
         ' returning ' + JOB_LIGHT_COLS, p);
-      if (!r.rows.length) return res.status(404).json({ error: 'Job not found' });
+      if (!r.rows.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
       res.json(_jobLight(r.rows[0]));
       return;
     } catch (e) {
@@ -1948,11 +2006,14 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
     }
   }
 
-  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select(JOB_LIGHT_COLS);
+  let upd = supabase.from('jobs').update(patch).eq('id', req.params.id);
+  if (base) upd = upd.eq('updated_at', base);
+  const { data, error } = await _scopeCompany(upd, req).select(JOB_LIGHT_COLS);
   if (error) return res.status(500).json({ error: error.message });
-  // No row matched: the job is gone, or it is not this company's. Either way
-  // 404 — .single() used to turn that into a 500, which reads as our fault.
-  if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
+  // No row matched: the job is gone, or it is not this company's — or, with a
+  // base timestamp, it has moved. .single() used to turn a miss into a 500,
+  // which reads as our fault.
+  if (!data || !data.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
   res.json(_jobLight(data[0]));
 });
 

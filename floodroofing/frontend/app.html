@@ -13238,6 +13238,10 @@ function restoreFromJob(j){
   // Whatever we're loading, it is not the sample until somebody says so
   // (openSampleJob sets the flag straight after this call).
   S.isSampleJob = false;
+  // What this job looked like on the server when it came in. A save sends
+  // it back, and the server refuses to overwrite a row that has moved since
+  // — which is how two people on one job stop losing each other's work.
+  try { if (j.id) S._jobLoaded = { id: j.id, updatedAt: j.updated_at || null }; } catch(e){}
   var snap = j.draw_state || {};
   if (snap.form) {
     Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
@@ -13595,6 +13599,7 @@ function _scheduleAutosave(){
 }
 async function _runAutosave(){
   if (!AUTOSAVE.on) return;
+  if (S._jobConflict) return;                     // a question is on screen
   if (typeof saveCurrentJob !== 'function') return;
   if (!S.currentJobId && !S.linkedJobId) return;
   AUTOSAVE._saving = true; updateSidebarJobChip();
@@ -14512,15 +14517,40 @@ async function saveCurrentJob(){
   try { _snap = snapshotCurrentJob(); }
   catch(e){ set('Save stopped — see the message above.', '#b91c1c'); return; }
   var body = { client_name: client, site_address: addr, draw_state: _snap, settings: {} };
+  // ── leave out what the server already holds ─────────────────────
+  // The aerial and the site photos are the bulk of a job, and they do not
+  // change while someone is drawing. Once a save has carried them up for
+  // THIS job, later saves leave them out and name them, and the server
+  // carries its own copy across. A 20 MB save on a phone at the site
+  // becomes a few hundred KB of geometry.
+  var _keep = [];
+  if (S.currentJobId && _snap && _snap.state && window._photoAck && _photoAck.id === S.currentJobId){
+    var _ds = Object.assign({}, _snap); _ds.state = Object.assign({}, _snap.state);
+    if (_ds.state.img64 && _fnv(_ds.state.img64) === _photoAck.img64){ delete _ds.state.img64; _keep.push('img64'); }
+    if (_ds.state.photos && _fnv(JSON.stringify(_ds.state.photos)) === _photoAck.photos){ delete _ds.state.photos; _keep.push('photos'); }
+    if (_keep.length){ body.draw_state = _ds; body.draw_state_keep = _keep; }
+  }
   // The backend rejects bodies over 25 MB with an opaque 413 — catch it
   // here with a message the office can act on (it's always the photos).
-  var _size = 0;
-  try { _size = JSON.stringify(body).length; } catch(e){}
+  var _json = '';
+  try { _json = JSON.stringify(body); } catch(e){}
+  var _size = _json.length;
   if (_size > 20 * 1024 * 1024) {
     set('⚠ Save too large (' + Math.round(_size / 1024 / 1024) + ' MB) — remove some photos. A local draft is kept.', '#b91c1c');
     try { _writeLocalDraftNow(); } catch(e2){}
     return;
   }
+  // Nothing has changed since the last save that got through: there is
+  // nothing to send. Autosave fires on every input event, including ones
+  // that alter nothing.
+  if (S.currentJobId && window._lastSent && _lastSent.id === S.currentJobId && _lastSent.json === _json){
+    try { _draftMarkSynced(); } catch(e2){}
+    return;
+  }
+  // Two people on one job: send back what this job looked like when it was
+  // opened, so the server can refuse to overwrite a row that has moved.
+  if (S.currentJobId && S._jobLoaded && S._jobLoaded.id === S.currentJobId && S._jobLoaded.updatedAt)
+    body.base_updated_at = S._jobLoaded.updatedAt;
   try {
     var saved;
     if (S.currentJobId) saved = await api('PUT', '/jobs/' + S.currentJobId, body);
@@ -14536,6 +14566,14 @@ async function saveCurrentJob(){
     }
     S.currentJobId = saved.id;
     setCurrentJobLabel(saved);
+    // The server now holds this drawing, this aerial and these photos.
+    try {
+      S._jobLoaded = { id: saved.id, updatedAt: saved.updated_at || null };
+      window._photoAck = { id: saved.id,
+        img64:  _snap.state && _snap.state.img64  ? _fnv(_snap.state.img64) : null,
+        photos: _snap.state && _snap.state.photos ? _fnv(JSON.stringify(_snap.state.photos)) : null };
+      window._lastSent = { id: saved.id, json: _json };
+    } catch(e2){}
     // Link this saved job to its Fergus job so re-selecting the Fergus job
     // resumes it.
     try { if (S.linkedJobId) _fergJobMapSet(S.linkedJobId, S.currentJobId); } catch(e2){}
@@ -14546,6 +14584,9 @@ async function saveCurrentJob(){
     try { _draftMarkSynced(); } catch(e2){}
     refreshJobsList();
   } catch(e) {
+    // Refused, not failed: the job moved under us. Ask, rather than
+    // overwrite somebody else's afternoon.
+    if (e && e.code === 'JOB_MOVED'){ set('', ''); return _askJobMoved(e.data, set); }
     // Failure message STAYS until the next save attempt (the old code
     // cleared it after 4 seconds — easy to miss entirely).  No rethrow:
     // onclick callers have no handler, and every caller that cares
@@ -14555,6 +14596,70 @@ async function saveCurrentJob(){
     try { await _writeLocalDraftNow(); } catch(e2){}
     try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e2){}
   }
+}
+
+// A cheap, stable fingerprint of a big string — the aerial is a few MB of
+// base64 and this runs on every autosave, so it has to be one pass and no
+// allocation. FNV-1a, 32-bit; a collision would only cost a full upload.
+function _fnv(str){
+  var h = 0x811c9dc5;
+  for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return str.length + ':' + h.toString(16);
+}
+
+/* The job moved under us: somebody else saved it after we opened it. The
+   last save must NOT simply win — that is how the office overwrites the
+   site, or the site the office, with nobody told. What is on screen is kept
+   on this device first, then the roofer chooses. Autosave stands down until
+   they have, so the same refusal is not asked every two seconds. */
+function _askJobMoved(info, set){
+  info = info || {};
+  var cur = info.current || {};
+  S._jobConflict = true;
+  try { _writeLocalDraftNow(); } catch(e){}
+  var when = cur.updated_at ? new Date(cur.updated_at).toLocaleString('en-NZ', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' }) : '';
+  var host = document.getElementById('jobMovedModal');
+  if (host) host.remove();
+  host = document.createElement('div');
+  host.id = 'jobMovedModal';
+  host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.55);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px');
+  host.innerHTML =
+    '<div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit">'+
+      '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">This job was changed on another device</div>'+
+      '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px">Someone saved <strong>'+esc(cur.client_name || 'this job')+'</strong>'+(when ? ' at ' + esc(when) : '')+', after you opened it. Saving now would write over their version.</div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px">'+
+        '<button type="button" id="jobMovedReload" onclick="_jobMovedReload()" style="padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Load their version</button>'+
+        '<button type="button" id="jobMovedOverwrite" onclick="_jobMovedOverwrite()" style="padding:10px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Keep mine and write over theirs</button>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5">Whichever you choose, what\'s on screen now is kept on this device first — Menu → Offline saves. Their version is in Roof map history.</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  window.__jobMovedSet = set;
+  return null;
+}
+async function _jobMovedReload(){
+  var h = document.getElementById('jobMovedModal'); if (h) h.remove();
+  var set = window.__jobMovedSet, id = S.currentJobId;
+  S._jobConflict = false;
+  if (!id) return;
+  try {
+    // Straight to the row — not openJob, whose save-before-switch would ask
+    // the same question again.
+    var j = await api('GET', '/jobs/' + id);
+    restoreFromJob(j);
+    window._lastSent = null;
+    if (set) set('Loaded the version saved on the other device.', '#15803d');
+    try { refreshJobsList(); } catch(e){}
+  } catch(e){ if (set) set('⚠ Could not load their version (' + (e && e.message || e) + ')', '#b91c1c'); }
+}
+async function _jobMovedOverwrite(){
+  var h = document.getElementById('jobMovedModal'); if (h) h.remove();
+  S._jobConflict = false;
+  // Forget what we thought the row looked like: the next save carries no
+  // base timestamp, and everything — photos included — goes up fresh.
+  S._jobLoaded = null; window._photoAck = null; window._lastSent = null;
+  try { await saveCurrentJob(); } catch(e){}
 }
 
 /* Two records for one job number is how work goes missing: the quote link on
