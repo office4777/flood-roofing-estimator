@@ -1919,7 +1919,15 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   // The app sends back the updated_at it loaded with; if the row has moved
   // since, the save is refused with a 409 and the app asks which version to
   // keep. A save without it is the old behaviour, so nothing older breaks.
-  const base = (req.body && req.body.base_updated_at) ? String(req.body.base_updated_at) : null;
+  //
+  // Compared to the millisecond, not the microsecond. Postgres stamps a new
+  // job and a quote save with now(), which carries microseconds; a read over
+  // the direct pool hands the app a JavaScript Date, which does not. Compared
+  // exactly, the timestamp the app sends back could never match the row and
+  // every save after such a read would be refused as a conflict.
+  let base = (req.body && req.body.base_updated_at) ? String(req.body.base_updated_at) : null;
+  let baseMs = base ? Date.parse(base) : NaN;
+  if (!isFinite(baseMs)) base = null;             // unreadable: no check, as before
   const _moved = async function(){
     // Refused or gone? Look once more, scoped the same way, and say which.
     const { data: cur } = await _scopeCompany(
@@ -1992,7 +2000,10 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
         p.push(req.params.id, req.user.id);
         where = 'id = $' + (p.length - 1) + ' and user_id = $' + p.length;
       }
-      if (base){ p.push(base); where += ' and updated_at = $' + p.length + '::timestamptz'; }
+      if (base){
+        p.push(new Date(baseMs).toISOString());
+        where += " and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $" + p.length + '::timestamptz)';
+      }
       const r = await pool.query(
         'update public.jobs set ' + sets.join(', ') + ' where ' + where +
         ' returning ' + JOB_LIGHT_COLS, p);
@@ -2007,7 +2018,8 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   }
 
   let upd = supabase.from('jobs').update(patch).eq('id', req.params.id);
-  if (base) upd = upd.eq('updated_at', base);
+  if (base) upd = upd.gte('updated_at', new Date(baseMs).toISOString())
+                   .lt('updated_at', new Date(baseMs + 1).toISOString());
   const { data, error } = await _scopeCompany(upd, req).select(JOB_LIGHT_COLS);
   if (error) return res.status(500).json({ error: error.message });
   // No row matched: the job is gone, or it is not this company's — or, with a

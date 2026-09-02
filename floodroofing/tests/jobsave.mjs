@@ -144,6 +144,16 @@ check('a save that says nothing about what it loaded still saves, as it always d
   r.status === 200 && db.jobs[0].client_name === 'Forced over the top', r.status + ' / ' + db.jobs[0].client_name);
 r = await put('no-such-job', { client_name:'x', base_updated_at: stamp });
 check('a stale save to a job that does not exist is still a 404, not a 409', r.status === 404, r.status + '');
+// Postgres stamps a new job and a quote save with now(), to the microsecond.
+// A read over the direct pool hands the app a JavaScript Date, to the
+// millisecond. The two have to compare equal, or every save after such a
+// read is refused as a conflict that never happened.
+db.jobs[0].updated_at = '2026-08-18T19:50:26.123456+00:00';
+r = await put('job-1', { client_name:'From a pool read', base_updated_at: '2026-08-18T19:50:26.123Z' });
+check('a timestamp read to the millisecond still matches a row stamped to the microsecond',
+  r.status === 200 && db.jobs[0].client_name === 'From a pool read', r.status + ' / ' + db.jobs[0].client_name);
+r = await put('job-1', { client_name:'x', base_updated_at: 'not a date at all' });
+check('…and an unreadable timestamp is no check at all, not a refusal', r.status === 200, r.status + '');
 
 // ── the photos it already has ─────────────────────────────────────
 // Autosave used to ship the aerial and every site photo every couple of
