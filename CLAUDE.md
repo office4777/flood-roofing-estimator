@@ -14,7 +14,9 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (~12 min, ~120 suites), or one by name: `node floodroofing/tests/run.mjs inboxui`.
+  (~15 min, ~132 suites, and the sheet-layout gate on a full run), or one by
+  name: `node floodroofing/tests/run.mjs inboxui`. Pipe it through `tail` and
+  you get tail's exit code, not the runner's — use `set -o pipefail`.
 - `floodroofing/tests/fakepgrst.mjs` — in-process fake PostgREST. No DDL
   defaults (set every column explicitly on insert), no `in` filter (returns
   all rows), DELETE returns deleted rows.
@@ -39,9 +41,16 @@ Discipline (non-negotiable):
    This is the only proof the change reached a user — `production` containing
    the commit is NOT proof, and neither is a 201 from the Vercel deploy hook.
    Both were true on three ships that never went live.
-   If that step goes red, say so plainly and tell the owner to open the
-   Vercel project → Deployments → newest → **Promote to Production**. Never
-   report a change as live on the strength of the branch or the hook alone.
+   If that step goes red, the FIRST thing to check is the Vercel project's
+   **Settings → Build and Deployment → Ignored Build Step**. It must be
+   `Custom` with the command `exit 1` (exit 1 = build, exit 0 = skip). On
+   `Automatic`, Vercel skips any commit whose SHA it has already deployed —
+   and the SHA always reaches Vercel first as a preview of the `claude/...`
+   branch, so EVERY promote was a repeat and was skipped. That single setting
+   cost most of a night and three ships reported as live that never were.
+   Failing that, tell the owner to open Vercel → Deployments → newest →
+   **Promote to Production**. Never report a change as live on the strength
+   of the branch or the hook alone.
 
 ## Conventions
 
@@ -58,6 +67,26 @@ Discipline (non-negotiable):
   standard commit trailer.
 - Error monitoring emails the owner on uncaught exceptions and 5xx — silence
   false alarms at the source rather than muting the reporter.
+
+## Two things that have been broken twice
+
+**The roof engine.** `buildHipValleyLines` runs a real straight skeleton, then
+`_skelSnapRectilinear` tidies it: welds junctions the solver left a few pixels
+apart, closes an apex where two hips meet and nothing carries on, collapses a
+line doubling back on itself, and lets a narrow link's roof die into the face
+of a wider wing instead of climbing to its ridge. Do NOT add a shortcut that
+returns before the solver — one was added to fix H shapes and it broke every
+L, T and U in production. `buildRectilinearRoofLines` survives on the GABLE
+path only, where the sheet-layout gate depends on it. `tests/roofreal.mjs`
+pins four outlines taken from real feedback reports, structurally: nothing
+outside the building, nothing stopping in mid-air, no open apex, no kink,
+every ridge level or plumb.
+
+**The drawing scale.** `DRAW.scaleMetresPerPx` is metres per IMAGE pixel. The
+canvas size and `DRAW.zoom` have nothing to do with it. Dividing by how large
+the photo happens to be drawn makes every measurement move when the roofer
+zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.
+The aerial's own Mapbox zoom does change it, and must.
 
 ## Working style
 
