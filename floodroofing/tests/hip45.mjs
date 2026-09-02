@@ -40,6 +40,13 @@ const SQUARE = {
   'a T': [[0,0],[900,0],[900,300],[650,300],[650,700],[250,700],[250,300],[0,300]],
   'a U': [[0,0],[250,0],[250,450],[650,450],[650,0],[900,0],[900,700],[0,700]],
   'a plus': [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],[300,900],[300,600],[0,600],[0,300],[300,300]],
+  // Two more the roofer sent, resizing the same stepped building: "wrong,
+  // not being forced to 45deg". Both are square-walled staircases, and both
+  // were coming out with two ridges tilted and four lines off 45° — the weld
+  // merging junctions thirty pixels apart, which on a stepped building are
+  // two different places on the roof.
+  'the reported staircase (report 38)': [[285, 148], [285, 970], [799, 970], [799, 705], [1075, 705], [1075, 473], [924, 473], [924, 148]],
+  'the same, dragged wider (report 39)': [[47, 404], [47, 1480], [1393, 1480], [1393, 705], [1289, 705], [1289, 550], [1032, 550], [1032, 404]],
   'the H, squared up': [[-219,82],[-219,1009],[311,1009],[311,517],[650,517],[650,1044],[1146,1044],[1146,25],[650,25],[650,242],[311,242],[311,82]],
 };
 

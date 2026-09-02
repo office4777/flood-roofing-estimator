@@ -4410,6 +4410,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
+      <!-- "RoofMap has been updated" — a tab left open for a day is running
+           whatever code it loaded that morning, and there was nothing to say
+           so. A roofer would report a fault that had been fixed hours ago,
+           and neither of us could tell. This watches the app file itself and
+           says when a newer one is live. -->
+      <div id="appUpdateBar" class="no-print" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:100003;background:#0a1628;color:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:10px 12px 10px 16px;align-items:center;gap:14px;font-family:Inter,-apple-system,sans-serif;font-size:13px">
+        <span>RoofMap has been updated.</span>
+        <button type="button" id="appUpdateReload" onclick="_verReload()" style="background:#7fd4ff;color:#062033;border:none;border-radius:7px;padding:7px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Reload now</button>
+        <button type="button" id="appUpdateLater" onclick="_verDismiss()" title="Not now" style="background:none;border:none;color:#9fb3c8;font-size:12.5px;cursor:pointer;font-family:inherit;padding:4px 6px">Later</button>
+      </div>
       <!-- Sheet-length measure editor — click a sheet-length label in Move
            mode to open. Small floating window (positioned so it doesn't cover
            the label) to change the length, resize the text, or delete the
@@ -13627,6 +13637,61 @@ document.addEventListener('change', function(e){
 // Flush any pending save on tab away / unload.
 window.addEventListener('beforeunload', function(){
   if (AUTOSAVE._timer) { clearTimeout(AUTOSAVE._timer); try { saveCurrentJob(); } catch(e){} }
+});
+// ── "RoofMap has been updated" ────────────────────────────────────
+// A tab left open all day is running whatever code it loaded that morning.
+// Fixes shipped since then are not in it, and nothing said so — so a roofer
+// reports a fault that was fixed hours ago, and neither of us can tell which
+// version they are looking at.
+//
+// The check is on the app FILE, not on the backend. The backend deploys a
+// minute or so before the frontend does, so asking it "what build are you?"
+// would offer a reload that lands on the very same old code. The file's own
+// ETag changes when, and only when, the new one is actually being served.
+var _VER = { tag: null, shown: false, dismissed: false };
+function _verTagOf(r){ return r.headers.get('etag') || r.headers.get('last-modified') || null; }
+async function _verCheck(){
+  try {
+    if (!/^https?:$/.test(location.protocol)) return;      // opened from a file — nothing to watch
+    if (_VER.shown) return;
+    var r = await fetch(location.origin + location.pathname, { method: 'HEAD', cache: 'no-store' });
+    if (!r || !r.ok) return;
+    var t = _verTagOf(r);
+    if (!t) return;                                        // no tag to compare — stay quiet
+    if (!_VER.tag){ _VER.tag = t; return; }                // first look: this is our version
+    if (t !== _VER.tag) _verShow();
+  } catch(e){}                                             // offline, blocked, whatever: quiet
+}
+function _verShow(){
+  if (_VER.shown || _VER.dismissed) return;
+  _VER.shown = true;
+  var el = document.getElementById('appUpdateBar');
+  if (!el) return;
+  // It lives in the markup beside the canvas, which is inside a tab panel —
+  // so on any other tab it would be hidden by an ancestor however fixed its
+  // own position is. It belongs to the whole app, not to one screen.
+  if (el.parentNode !== document.body) document.body.appendChild(el);
+  el.style.display = 'flex';
+}
+function _verDismiss(){
+  _VER.dismissed = true; _VER.shown = false;
+  var el = document.getElementById('appUpdateBar');
+  if (el) el.style.display = 'none';
+}
+function _verReload(){
+  // Whatever is on screen goes to this device first. Reloading is safe
+  // anyway — autosave and the local draft have it — but "safe anyway" is not
+  // a thing to rely on when somebody is mid-quote.
+  try { _writeLocalDraftNow(); } catch(e){}
+  try { if (typeof saveCurrentJob === 'function' && S.currentJobId) saveCurrentJob(); } catch(e){}
+  setTimeout(function(){ location.reload(); }, 500);
+}
+// Every ten minutes, and whenever the tab comes back to the front — which is
+// the case that matters: the roofer opens the laptop the next morning.
+setTimeout(_verCheck, 4000);
+setInterval(_verCheck, 600000);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') _verCheck();
 });
 _loadAutosavePrefs();
 // Initial paint — sidebar chip is hidden by default; this is a no-op
@@ -53954,7 +54019,14 @@ function _skelSnapRectilinear(outline, lines){
   // 6px segments between them. DROPPING a segment is destructive, so that
   // keeps the tight tolerance: a short ridge on a near-square roof is real.
   var _span = Math.min(x1 - x0, y1 - y0);
-  var WELD = Math.max(3, 0.05 * _span);
+  // How far apart two junctions can be and still BE one junction — capped,
+  // and the cap is the point. A share of the building is the wrong measure:
+  // on an 800px house it came to 40px, and 40px is a feature of the roof,
+  // not the arithmetic. It was merging junctions thirty pixels apart on a
+  // STEPPED building — two genuinely different places — and tilting both
+  // ridges to do it, which is what took the hips off 45°. The out-of-square
+  // H this tolerance was widened for needs sixteen.
+  var WELD = Math.max(3, Math.min(0.05 * _span, 18));
   var TOL  = Math.max(2, 0.012 * _span);
 
   // 1. Level the ridges that are within a whisker of level already.
@@ -54875,6 +54947,34 @@ function buildRectilinearRoofLines(outline, gableEnds){
       return Math.hypot(l.pts[0][0]+t5*dx5-p5[0], l.pts[0][1]+t5*dy5-p5[1]) <= 2;
     });
     if (!lands && !diesIntoTallerRoof(p5, _end[k].types[0])) _ok = false;
+  });
+  // Where two valleys MEET, that meeting is the end of the roof between them,
+  // and a ridge has to arrive at it. On a building that steps, the two inside
+  // corners of a wing sit at different distances along it, so the valleys off
+  // them meet off to one side of the wing's own centreline — nowhere a ridge
+  // can reach. That is not a roof this builder can draw: it left a wing's
+  // ridge stopping seventy pixels short of them, in mid-air. The straight
+  // skeleton does not decompose into rectangles and has no such trouble.
+  var _vend = {};
+  out.forEach(function(l){
+    if (l.type !== 'valley') return;
+    [0,1].forEach(function(e){
+      var k = Math.round(l.pts[e][0]/2) + ',' + Math.round(l.pts[e][1]/2);
+      (_vend[k] = _vend[k] || { p: l.pts[e], n: 0 }).n++;
+    });
+  });
+  Object.keys(_vend).forEach(function(k){
+    if (!_ok || _vend[k].n < 2) return;
+    var p7 = _vend[k].p;
+    var served = out.some(function(l){
+      if (l.type !== 'ridge') return false;
+      var dx7 = l.pts[1][0]-l.pts[0][0], dy7 = l.pts[1][1]-l.pts[0][1], L7 = dx7*dx7 + dy7*dy7;
+      if (L7 < 1) return false;
+      var t7 = ((p7[0]-l.pts[0][0])*dx7 + (p7[1]-l.pts[0][1])*dy7) / L7;
+      if (t7 < -0.001 || t7 > 1.001) return false;
+      return Math.hypot(l.pts[0][0]+t7*dx7-p7[0], l.pts[0][1]+t7*dy7-p7[1]) <= 2;
+    });
+    if (!served) _ok = false;
   });
   if (!_ok) return null;
 
