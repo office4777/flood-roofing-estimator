@@ -4374,7 +4374,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            an aerial is close but it is not a tape measure. Clicking through
            to Calibrate is the one action that turns a rough measure into a
            real one. -->
-      <div id="workflowTipBar" style="background:#fdf3e3;border:1px solid #e8c99a;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#7a4c07;display:flex;align-items:center;gap:8px">
+      <div id="workflowTipBar" style="background:#fdf3e3;border:1px solid #e8c99a;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#7a4c07;display:none;align-items:center;gap:8px">
   <span style="font-size:16px">⚠️</span>
   <span>Measurements are roughly to satellite scale, please click
     <button type="button" onclick="setTool('calibrate')" style="font:inherit;font-weight:800;color:#7a4c07;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Calibrate Scale</button>
@@ -7510,7 +7510,7 @@ function gotoTab(t) {
     if (t !== 'roof' && t !== 'materials' && t !== 'quote') _setPopReserve(0);
     setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80);
   } catch(e){}
-  if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
+  if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} try{ _scaleStateShow(); }catch(e){} }
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
@@ -38773,6 +38773,15 @@ function _scaleSetByHand(){ DRAW.scaleAuto = false; DRAW.geoScale = null; }
 // Say plainly where the scale came from, so nobody measures off an aerial
 // assuming it was never set — and so it is obvious that Calibrate overrides it.
 function _scaleStateShow(){
+  // The caution above the canvas is about ONE thing: a scale that came off a
+  // satellite picture rather than off a tape. If no aerial was ever loaded
+  // there is nothing to caution about — the toolbar already says "No scale
+  // set" — and a warning that contradicts the line next to it just teaches
+  // people to read past both. So it follows the aerial, not the page.
+  try {
+    var tip = document.getElementById('workflowTipBar');
+    if (tip) tip.style.display = (DRAW.scaleAuto && DRAW.geoScale) ? 'flex' : 'none';
+  } catch(e){}
   var el = document.getElementById('scaleState');
   if (!el) return;
   var m = DRAW.scaleMetresPerPx;
@@ -54222,7 +54231,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
     for (var q = 0; q < n; q++){ var q2 = (q+1)%n; area += ol[q][0]*ol[q2][1] - ol[q2][0]*ol[q][1]; }
     return area > 0 ? cr < -1 : cr > 1;
   }
-  function onAnyRidge(p){
+  function nearRidge(p){
     for (var k = 0; k < ridges.length; k++){
       var L = ridges[k].line, a3 = L.pts[0], b3 = L.pts[1];
       var dx = b3[0]-a3[0], dy = b3[1]-a3[1], L2 = dx*dx+dy*dy;
@@ -54232,9 +54241,38 @@ function buildRectilinearRoofLines(outline, gableEnds){
       // stops being the top of the roof, which can leave it a few pixels
       // short of the valley running in to meet it. Landing on the end of the
       // ridge is landing on the ridge.
-      if (Math.hypot(p[0]-(a3[0]+t*dx), p[1]-(a3[1]+t*dy)) <= 7) return [a3[0]+t*dx, a3[1]+t*dy];
+      if (Math.hypot(p[0]-(a3[0]+t*dx), p[1]-(a3[1]+t*dy)) <= 7) return L;
     }
     return null;
+  }
+  // Where a line run out at 45° from a corner MEETS a ridge, to the pixel.
+  //
+  // Walking out a pixel at a time and stopping at the first step that came
+  // within a few pixels of a ridge left every valley short of the ridge it
+  // was running to: the L came out with a seven-pixel gap between the valley
+  // and the ridge junction, which is a hole in the roof and a face the sheet
+  // engine cannot close. The walk still decides WHICH ridge; where it lands
+  // is then solved, not sampled.
+  function meetRidge(v, dir, L){
+    var a3 = L.pts[0], b3 = L.pts[1];
+    var rx = b3[0]-a3[0], ry = b3[1]-a3[1];
+    var den = dir[0]*ry - dir[1]*rx;
+    if (Math.abs(den) < 1e-9) return null;            // running alongside it
+    var t = ((a3[0]-v[0])*ry - (a3[1]-v[1])*rx) / den;
+    if (!(t > 0)) return null;
+    var p = [v[0] + dir[0]*t, v[1] + dir[1]*t];
+    // Past the end of the ridge by a whisker is the end of the ridge — the
+    // ridge was trimmed back to where it stopped being the top of the roof.
+    var rl = Math.hypot(rx, ry) || 1;
+    var u = ((p[0]-a3[0])*rx + (p[1]-a3[1])*ry) / (rl*rl);
+    if (u < -7/rl || u > 1 + 7/rl) return null;
+    u = Math.max(0, Math.min(1, u));
+    return [a3[0] + rx*u, a3[1] + ry*u];
+  }
+  function onAnyRidge(p, from, dir){
+    var L = nearRidge(p);
+    if (!L) return null;
+    return meetRidge(from, dir, L) || p.slice();
   }
   for (i = 0; i < n; i++){
     if (!isReflex(i)) continue;
@@ -54249,7 +54287,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
     for (var t3 = 2; t3 <= maxT; t3 += 1){
       var p3 = [v[0] + dir[0]*t3, v[1] + dir[1]*t3];
       if (!inside(p3[0], p3[1])) break;
-      var h3 = onAnyRidge(p3);
+      var h3 = onAnyRidge(p3, v, dir);
       if (h3){ hitPt = h3; break; }
     }
     if (hitPt) out.push({ type:'valley', pts:[v.slice(), hitPt] });
@@ -54272,6 +54310,35 @@ function buildRectilinearRoofLines(outline, gableEnds){
       var at = function(alongV, acrossV){
         var q = [0,0]; q[ax] = alongV; q[1-ax] = acrossV; return q;
       };
+      // This arm has run into a bigger one, so there is no gable at this end —
+      // but the ridge must still REACH the ridge it runs into. Trimming stops
+      // it where the arm stops being the top of the roof, which on a fat L
+      // left a wing's ridge hanging fifty pixels short of the ridge crossing
+      // it: a line ending in mid-air, and the face beside it never closing.
+      var joinCrossing = function(O){
+        if (!O) return;
+        var oax = O.horiz ? 0 : 1;
+        if (oax === ax) return;                        // parallel, not a crossing
+        var meet = O.line.pts[0][ax];
+        var lo4 = Math.min(O.line.pts[0][1-ax], O.line.pts[1][1-ax]) - 1;
+        var hi4 = Math.max(O.line.pts[0][1-ax], O.line.pts[1][1-ax]) + 1;
+        if (tip[1-ax] >= lo4 && tip[1-ax] <= hi4 &&
+            away * (meet - tip[ax]) > 0 && Math.abs(meet - tip[ax]) <= reach)
+          tip[ax] = meet;
+      };
+      var nearestCrossing = function(){
+        var best = null, bd = Infinity;
+        ridges.forEach(function(O){
+          if (O === R || !O.line) return;
+          var a4 = O.line.pts[0], b4 = O.line.pts[1];
+          var dx4 = b4[0]-a4[0], dy4 = b4[1]-a4[1], L4 = dx4*dx4 + dy4*dy4;
+          var t4 = L4 < 1e-9 ? 0 : ((tip[0]-a4[0])*dx4 + (tip[1]-a4[1])*dy4)/L4;
+          t4 = Math.max(0, Math.min(1, t4));
+          var d4 = Math.hypot(tip[0]-(a4[0]+t4*dx4), tip[1]-(a4[1]+t4*dy4));
+          if (d4 <= R.rise * 0.9 + 2 && d4 < bd){ bd = d4; best = O; }
+        });
+        return best;
+      };
       var wallPos = null;
       for (var d = 0; d <= reach; d++){
         var q = at(tip[ax] + away * d, tip[1-ax]);
@@ -54279,20 +54346,13 @@ function buildRectilinearRoofLines(outline, gableEnds){
         // bigger one — a low bar meeting a tall wing. That is a junction, not
         // the end of the building, and gabling there puts a barge against the
         // far side of the wing.
-        if (distToWall(q[0], q[1]) > R.rise + 1.5) return;
+        if (distToWall(q[0], q[1]) > R.rise + 1.5){ joinCrossing(nearestCrossing()); return; }
         if (!inside(q[0], q[1])){ wallPos = tip[ax] + away * (d - 1); break; }
       }
       if (wallPos === null) return;                    // the arm carries on
       if (Math.abs(wallPos - tip[ax]) > reach) return;
-      var onOther = ridges.some(function(O){
-        if (O === R || !O.line) return false;
-        var a4 = O.line.pts[0], b4 = O.line.pts[1];
-        var dx4 = b4[0]-a4[0], dy4 = b4[1]-a4[1], L4 = dx4*dx4 + dy4*dy4;
-        var t4 = L4 < 1e-9 ? 0 : ((tip[0]-a4[0])*dx4 + (tip[1]-a4[1])*dy4)/L4;
-        t4 = Math.max(0, Math.min(1, t4));
-        return Math.hypot(tip[0]-(a4[0]+t4*dx4), tip[1]-(a4[1]+t4*dy4)) <= R.rise * 0.9 + 2;
-      });
-      if (onOther) return;
+      var onOther = nearestCrossing();
+      if (onOther){ joinCrossing(onOther); return; }
       // How wide the building is at that wall, measured either side of the ridge.
       var inSide = wallPos - away * 1;
       var h1 = 0, h2 = 0, e;
@@ -54337,11 +54397,61 @@ function buildRectilinearRoofLines(outline, gableEnds){
     for (var ct = 2; ct <= far; ct += 1){
       var cp = [cv2[0] + cd[0]*ct, cv2[1] + cd[1]*ct];
       if (!inside(cp[0], cp[1])) break;
-      var ch2 = onAnyRidge(cp);
+      var ch2 = onAnyRidge(cp, cv2, cd);
       if (ch2){ land = ch2; break; }
     }
     if (land) out.push({ type:'hip', pts:[cv2.slice(), land] });
   }
+
+  // ── last look: does it actually join up? ──────────────────────────
+  // This builder works from the shape, which is exact on the shapes it
+  // recognises and silently short on the ones it does not — a plus, a court,
+  // anything whose arms all meet in the middle. There the arm ridges stop
+  // where each stops being the top of the roof and nothing carries the roof
+  // over the middle, so the drawing comes out as four stubs hanging in the
+  // air. Handing that back is worse than not answering: the straight-skeleton
+  // solver behind this one gets those right. So every end has to be on a
+  // wall, at a junction with another line, or landing on one — and if any is
+  // not, this builder says it does not know the shape and stands aside.
+  //
+  // With ONE exception, and it is the one a roofer asked for by name: a narrow
+  // link between two wings carries a lower roof, and its ridge is meant to run
+  // into the side of the wing's roof and stop there rather than climb to the
+  // wing's ridge. An end in mid-air is legal exactly where a taller roof is
+  // standing over it — which is also what tells the four stubs of a plus
+  // apart, where the arms are all the same height and nothing covers the
+  // middle at all.
+  function diesIntoTallerRoof(p6){
+    var h6 = distToWall(p6[0], p6[1]);
+    return ridges.some(function(O){
+      return O.line && O.rise > h6 + 1 &&
+        p6[0] >= O.rect.x0 - 1 && p6[0] <= O.rect.x1 + 1 &&
+        p6[1] >= O.rect.y0 - 1 && p6[1] <= O.rect.y1 + 1;
+    });
+  }
+  var _end = {}, _ok = true;
+  out.forEach(function(l){
+    [0,1].forEach(function(e){
+      var k = Math.round(l.pts[e][0]/2) + ',' + Math.round(l.pts[e][1]/2);
+      (_end[k] = _end[k] || { p: l.pts[e], n: 0 }).n++;
+    });
+  });
+  Object.keys(_end).forEach(function(k){
+    if (!_ok) return;
+    var p5 = _end[k].p;
+    if (_end[k].n >= 2) return;
+    if (distToWall(p5[0], p5[1]) <= 2) return;
+    var lands = out.some(function(l){
+      if (l.pts[0] === p5 || l.pts[1] === p5) return false;
+      var dx5 = l.pts[1][0]-l.pts[0][0], dy5 = l.pts[1][1]-l.pts[0][1], L5 = dx5*dx5 + dy5*dy5;
+      if (L5 < 1) return false;
+      var t5 = ((p5[0]-l.pts[0][0])*dx5 + (p5[1]-l.pts[0][1])*dy5) / L5;
+      if (t5 < 0 || t5 > 1) return false;
+      return Math.hypot(l.pts[0][0]+t5*dx5-p5[0], l.pts[0][1]+t5*dy5-p5[1]) <= 2;
+    });
+    if (!lands && !diesIntoTallerRoof(p5)) _ok = false;
+  });
+  if (!_ok) return null;
 
   return out;
 }

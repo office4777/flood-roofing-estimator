@@ -37,17 +37,48 @@ await pg.evaluate(() => {
 });
 await pg.waitForTimeout(400);
 
+// Nothing loaded yet: no aerial, no scale, nothing to caution about. The
+// toolbar already says "No scale set", and a warning that the measurements
+// are "roughly to satellite scale" beside it is simply untrue.
+const cold = await pg.evaluate(() => {
+  const el = document.getElementById('workflowTipBar');
+  return !!el && getComputedStyle(el).display !== 'none';
+});
+check('with no satellite image loaded the caution stays out of the way', !cold,
+  cold ? 'shown anyway' : 'hidden');
+
+// Now the aerial gives us a scale — which is the case it is there for.
+await pg.evaluate(() => {
+  const c = document.createElement('canvas'); c.width = 1200; c.height = 900;
+  DRAW.bgImg = c;                     // a real drawable, so redrawAll is happy
+  _autoScaleFromAerial(-35.72, 19, true);
+});
+await pg.waitForTimeout(200);
+
 const bar = await pg.evaluate(() => {
   const el = document.getElementById('workflowTipBar');
   return { there: !!el && getComputedStyle(el).display !== 'none',
     text: (el ? el.textContent : '').replace(/\s+/g, ' ').trim() };
 });
-check('the bar above the canvas is there', bar.there, bar.text.slice(0, 60));
+check('once the scale comes off an aerial, the bar is there', bar.there, bar.text.slice(0, 60));
 check('…and it warns that the scale came off the satellite',
   /roughly to satellite scale/i.test(bar.text), bar.text);
 check('…and says what to do about it', /calibrate scale/i.test(bar.text) && /override/i.test(bar.text), bar.text);
 check('…and the drawing-order lecture is gone',
   !/best workflow/i.test(bar.text) && !/clockwise/i.test(bar.text), bar.text);
+
+// And once a roofer has measured something by hand, the caution has been
+// answered — their number is the truth, so stop telling them it is a guess.
+await pg.evaluate(() => { _scaleSetByHand(); _scaleStateShow(); });
+await pg.waitForTimeout(150);
+const byHand = await pg.evaluate(() =>
+  getComputedStyle(document.getElementById('workflowTipBar')).display !== 'none');
+check('…and it goes away again once the scale is set by hand', !byHand,
+  byHand ? 'still shown' : 'hidden');
+
+// Put the aerial scale back for the button checks below.
+await pg.evaluate(() => { _autoScaleFromAerial(-35.72, 19, true); });
+await pg.waitForTimeout(150);
 
 // The words are the button. Calibrate needs an outline to measure against —
 // without one the app says so, which is the behaviour the toolbar button has
