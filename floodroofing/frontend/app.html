@@ -54326,7 +54326,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
     if (hitPt) out.push({ type:'valley', pts:[v.slice(), hitPt] });
   }
 
-  var capped = [];
+  var capped = [], cuts = [];
   // ── the ends: a gable if that is the roof type, otherwise a hip ────
   // Walk out along the ridge to find where the building actually stops,
   // rather than trusting the arm's nominal half-width to land on the wall.
@@ -54405,10 +54405,21 @@ function buildRectilinearRoofLines(outline, gableEnds){
         if (ap[0] < R.rect.x0 - 1 || ap[0] > R.rect.x1 + 1 ||
             ap[1] < R.rect.y0 - 1 || ap[1] > R.rect.y1 + 1) return;   // off its own arm
         tip[ax] = apex;
+        var landed = [];
         pair.forEach(function(L7){
           if (Math.abs(Math.abs(L7.d) - rise7) > 2) return;
           out.push({ type:'hip', pts:[L7.p.slice(), tip.slice()] });
+          landed.push(L7.p[1-ax]);
         });
+        // The two hips and the stretch of ridge between them close a triangle,
+        // and that triangle is the END of this arm's roof standing over the
+        // other one. So the ridge underneath it has stopped: it must not carry
+        // on through its own connecting hip and out the far side. Cut here and
+        // the ridge either loses that end or comes apart into the two runs
+        // either side of the arm crossing it.
+        if (landed.length === 2)
+          cuts.push({ R: O, lo: Math.min(landed[0], landed[1]),
+                      hi: Math.max(landed[0], landed[1]), ax: 1 - ax });
       };
       var nearestCrossing = function(){
         var best = null, bd = Infinity;
@@ -54457,6 +54468,27 @@ function buildRectilinearRoofLines(outline, gableEnds){
     });
   });
 
+  // ── the ridge under an arm's end stops there ──────────────────────
+  cuts.forEach(function(C){
+    if (!C.R.line) return;
+    var a8 = C.R.line.pts[0], b8 = C.R.line.pts[1], k8 = C.ax;
+    var lo8 = Math.min(a8[k8], b8[k8]), hi8 = Math.max(a8[k8], b8[k8]);
+    if (C.lo <= lo8 + 2 && C.hi >= hi8 - 2){       // nothing of it left
+      out.splice(out.indexOf(C.R.line), 1); C.R.line = null; return;
+    }
+    if (C.lo <= lo8 + 2){                          // the near end goes
+      (a8[k8] < b8[k8] ? a8 : b8)[k8] = C.hi; return;
+    }
+    if (C.hi >= hi8 - 2){                          // the far end goes
+      (a8[k8] > b8[k8] ? a8 : b8)[k8] = C.lo; return;
+    }
+    var tail = { type:'ridge', pts:[a8.slice(), b8.slice()] };   // it comes apart
+    (a8[k8] > b8[k8] ? a8 : b8)[k8] = C.lo;
+    (tail.pts[0][k8] < tail.pts[1][k8] ? tail.pts[0] : tail.pts[1])[k8] = C.hi;
+    out.push(tail);
+  });
+  ridges = ridges.filter(function(R){ return R.line; });
+
   // ── the outside corners ───────────────────────────────────────────
   // Where two eaves meet at an outside corner the roof rises from both, and
   // the crest between them is a hip running in at 45° — the same line a valley
@@ -54486,6 +54518,57 @@ function buildRectilinearRoofLines(outline, gableEnds){
     }
     if (land) out.push({ type:'hip', pts:[cv2.slice(), land] });
   }
+
+  // Two hips left meeting nose to nose in a straight line are one hip — that
+  // is the hip off an outside corner running on past the ridge end it used to
+  // stop at, to the ridge of the arm standing higher.
+  for (var mg = 0; mg < 4; mg++){
+    var hips8 = out.filter(function(l){ return l.type === 'hip'; }), joined = false;
+    for (var u8 = 0; u8 < hips8.length && !joined; u8++)
+      for (var v8 = u8 + 1; v8 < hips8.length && !joined; v8++){
+        var A8 = hips8[u8], B8 = hips8[v8];
+        for (var ea = 0; ea < 2 && !joined; ea++) for (var eb = 0; eb < 2 && !joined; eb++){
+          var P8 = A8.pts[ea], Q8 = B8.pts[eb];
+          if (Math.hypot(P8[0]-Q8[0], P8[1]-Q8[1]) > 1.5) continue;
+          // Nothing else may hang off the point, or it is a real junction.
+          var others = 0;
+          out.forEach(function(l){
+            if (l === A8 || l === B8) return;
+            [0,1].forEach(function(e8){
+              if (Math.hypot(l.pts[e8][0]-P8[0], l.pts[e8][1]-P8[1]) <= 1.5) others++;
+            });
+          });
+          if (others) continue;
+          var fa = A8.pts[1-ea], fb = B8.pts[1-eb];
+          var d1 = [P8[0]-fa[0], P8[1]-fa[1]], d2 = [fb[0]-Q8[0], fb[1]-Q8[1]];
+          var l1 = Math.hypot(d1[0],d1[1]) || 1, l2 = Math.hypot(d2[0],d2[1]) || 1;
+          if ((d1[0]*d2[0] + d1[1]*d2[1]) / (l1*l2) < 0.999) continue;
+          A8.pts[ea][0] = fb[0]; A8.pts[ea][1] = fb[1];
+          out.splice(out.indexOf(B8), 1); joined = true;
+        }
+      }
+    if (!joined) break;
+  }
+
+  // A hip lying along another one, from a landing that has since been cut
+  // away, draws as one line but prices as two.
+  out = out.filter(function(l){
+    return !out.some(function(o){
+      if (o === l || o.type !== l.type) return false;
+      var on = function(p){
+        var dx9 = o.pts[1][0]-o.pts[0][0], dy9 = o.pts[1][1]-o.pts[0][1];
+        var L9 = dx9*dx9 + dy9*dy9;
+        if (L9 < 1) return false;
+        var t9 = ((p[0]-o.pts[0][0])*dx9 + (p[1]-o.pts[0][1])*dy9) / L9;
+        if (t9 < -0.001 || t9 > 1.001) return false;
+        return Math.hypot(o.pts[0][0]+t9*dx9-p[0], o.pts[0][1]+t9*dy9-p[1]) <= 1.5;
+      };
+      if (!on(l.pts[0]) || !on(l.pts[1])) return false;
+      var ll = Math.hypot(l.pts[1][0]-l.pts[0][0], l.pts[1][1]-l.pts[0][1]);
+      var ol9 = Math.hypot(o.pts[1][0]-o.pts[0][0], o.pts[1][1]-o.pts[0][1]);
+      return ol9 > ll + 1;
+    });
+  });
 
   // ── last look: does it actually join up? ──────────────────────────
   // This builder works from the shape, which is exact on the shapes it

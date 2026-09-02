@@ -146,7 +146,25 @@ const report = await pg.evaluate((shapes) => {
       Math.abs(p[0] - tall[0].a[0]) <= 2));
     const apexes = {};
     lines.filter(l => l.t === 'valley').forEach(l => { const k = key(l.b); apexes[k] = (apexes[k]||0)+1; });
-    out[name] = { nearMiss, count: lines.length,
+    // A ridge must not carry on through the hip that connects to it. Where
+    // two hips come off one apex down onto the same ridge, that triangle is
+    // the END of the taller arm's roof and the ridge underneath has stopped —
+    // it comes apart into the two runs either side, or loses that end.
+    const under = [];
+    for (let i2 = 0; i2 < hips.length; i2++) for (let j2 = i2+1; j2 < hips.length; j2++){
+      const A2 = hips[i2], B2 = hips[j2];
+      if (Math.hypot(A2.b[0]-B2.b[0], A2.b[1]-B2.b[1]) > 1.5) continue;   // not one apex
+      const mid = [(A2.a[0]+B2.a[0])/2, (A2.a[1]+B2.a[1])/2];
+      lines.filter(l => l.t === 'ridge').forEach(r2 => {
+        const dx2 = r2.b[0]-r2.a[0], dy2 = r2.b[1]-r2.a[1], L22 = dx2*dx2 + dy2*dy2;
+        if (L22 < 1) return;
+        const t2 = ((mid[0]-r2.a[0])*dx2 + (mid[1]-r2.a[1])*dy2) / L22;
+        if (t2 < 0.01 || t2 > 0.99) return;
+        if (Math.hypot(r2.a[0]+t2*dx2-mid[0], r2.a[1]+t2*dy2-mid[1]) <= 2)
+          under.push(JSON.stringify(mid.map(Math.round)));
+      });
+    }
+    out[name] = { nearMiss, under, count: lines.length,
       hips: stemTip ? touching(stemTip).length : hips.length,
       hips45: stemTip ? touching(stemTip).filter(is45).length : hips.filter(is45).length,
       hipToTallRidge: !!reaches, hipEnds: hipEnds.slice(0, 90),
@@ -163,6 +181,8 @@ for (const [name, r] of Object.entries(report)){
   check('…with nothing drawn outside the building', r.strays.length === 0, r.strays.join(', '));
   check('…and no line left hanging in mid-air', r.loose.length === 0, r.loose.slice(0, 3).join(' | '));
   check('…every ridge level or plumb, the walls being square', r.skew.length === 0, r.skew.join('  '));
+  check('…and no ridge carrying on through the hip that connects to it',
+    r.under.length === 0, r.under.slice(0, 2).join(' | '));
   check('…and nothing stopping a few pixels short of the junction it runs to',
     r.nearMiss.length === 0, r.nearMiss.slice(0, 2).join(' | '));
   check('…and at least one proper gable end, two barges to a peak',
