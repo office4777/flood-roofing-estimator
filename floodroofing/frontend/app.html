@@ -54836,7 +54836,16 @@ function buildRectilinearRoofLines(outline, gableEnds){
   // standing over it — which is also what tells the four stubs of a plus
   // apart, where the arms are all the same height and nothing covers the
   // middle at all.
-  function diesIntoTallerRoof(p6){
+  //
+  // A RIDGE may end in mid-air that way, and only a ridge. A hip or a valley
+  // is a crest between two faces: it runs from a wall corner to a junction,
+  // and an end of one hanging in the middle of a roof is always wrong. That
+  // let a stepped building through with two parallel ridges eleven pixels
+  // apart, overlapping down the same arm, and a hip starting at nothing
+  // between them — while the straight skeleton, which does not decompose
+  // into rectangles, got the same shape right.
+  function diesIntoTallerRoof(p6, ofType){
+    if (ofType && ofType !== 'ridge') return false;
     var h6 = distToWall(p6[0], p6[1]);
     return ridges.some(function(O){
       return O.line && O.rise > h6 + 1 &&
@@ -54848,7 +54857,8 @@ function buildRectilinearRoofLines(outline, gableEnds){
   out.forEach(function(l){
     [0,1].forEach(function(e){
       var k = Math.round(l.pts[e][0]/2) + ',' + Math.round(l.pts[e][1]/2);
-      (_end[k] = _end[k] || { p: l.pts[e], n: 0 }).n++;
+      var slot = (_end[k] = _end[k] || { p: l.pts[e], n: 0, types: [] });
+      slot.n++; slot.types.push(l.type);
     });
   });
   Object.keys(_end).forEach(function(k){
@@ -54864,7 +54874,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
       if (t5 < 0 || t5 > 1) return false;
       return Math.hypot(l.pts[0][0]+t5*dx5-p5[0], l.pts[0][1]+t5*dy5-p5[1]) <= 2;
     });
-    if (!lands && !diesIntoTallerRoof(p5)) _ok = false;
+    if (!lands && !diesIntoTallerRoof(p5, _end[k].types[0])) _ok = false;
   });
   if (!_ok) return null;
 

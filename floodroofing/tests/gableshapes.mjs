@@ -45,6 +45,8 @@ const SHAPES = {
   'a Z':                                  [[0,0],[400,0],[400,300],[800,300],[800,700],[400,700],[400,400],[0,400]],
   'an H, two wings and a link':           [[300,250],[300,650],[450,650],[450,450],[700,450],[700,650],[900,650],
                                            [900,150],[700,150],[700,350],[450,350],[450,250]],
+  'the reported staircase':               [[1129,997],[1129,1538],[1387,1538],[1387,1439],[1585,1439],
+                                           [1585,1143],[1364,1143],[1364,997]],
   'a plus, four arms to a middle':        [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],
                                            [300,900],[300,600],[0,600],[0,300],[300,300]],
 };
@@ -247,6 +249,57 @@ const P = report['a plus, four arms to a middle'];
 check('the plus: a valley out of every one of its four inside corners',
   P.valleys === 4, P.valleys + ' valleys');
 check('…all meeting at one point in the middle', P.apex === 1, P.apex + ' meeting points');
+
+// "Gable + hip & valley broken, same shape but hip&valley works great." A
+// staircase, and the reason the two paths disagreed is that one of them
+// decomposes the building into rectangles and the other does not. On a step,
+// two of those rectangles are the same arm seen twice — 235 wide at the top
+// of the step and 258 at the bottom — so the arm got TWO ridges, eleven
+// pixels apart, overlapping down its own length, with a hip starting at
+// nothing in between. The straight skeleton has no such trouble.
+//
+// What let it through was the one end this builder is allowed to leave in
+// mid-air: a narrow link's ridge dying into the side of a taller wing. That
+// licence is a RIDGE's alone. A hip or a valley is a crest between two
+// faces — from a wall corner to a junction — and an end of one hanging in
+// the middle of a roof is always wrong. With that said properly the builder
+// knows it cannot do a step, stands aside, and the solver behind it draws
+// the same roof the roofer already said was right.
+const STAIR = [[1129,997],[1129,1538],[1387,1538],[1387,1439],[1585,1439],[1585,1143],[1364,1143],[1364,997]];
+const stair = await pg.evaluate((ol) => {
+  const g = buildGableRoofLines_legacy(ol);
+  const off = g.filter(l => (l.type === 'hip' || l.type === 'valley') &&
+    Math.abs(Math.abs(l.pts[1][0]-l.pts[0][0]) - Math.abs(l.pts[1][1]-l.pts[0][1])) > 1);
+  const peaks = {};
+  g.filter(l => l.type === 'barge').forEach(l => {
+    const k = Math.round(l.pts[1][0]) + ',' + Math.round(l.pts[1][1]); peaks[k] = (peaks[k]||0)+1; });
+  // Two ridges running the same way, overlapping down their own length, is
+  // the same arm drawn twice.
+  const rs = g.filter(l => l.type === 'ridge');
+  let overlapping = 0;
+  for (let i = 0; i < rs.length; i++) for (let j = i+1; j < rs.length; j++){
+    const a = rs[i], b2 = rs[j];
+    const av = Math.abs(a.pts[1][0]-a.pts[0][0]) < 1, bv = Math.abs(b2.pts[1][0]-b2.pts[0][0]) < 1;
+    if (av !== bv) continue;                                  // not parallel
+    const ax = av ? 1 : 0;                                    // along which axis they run
+    const cross = Math.abs(a.pts[0][1-ax] - b2.pts[0][1-ax]);
+    if (cross < 1 || cross > 40) continue;                    // same line, or properly apart
+    const lo = Math.max(Math.min(a.pts[0][ax], a.pts[1][ax]), Math.min(b2.pts[0][ax], b2.pts[1][ax]));
+    const hi = Math.min(Math.max(a.pts[0][ax], a.pts[1][ax]), Math.max(b2.pts[0][ax], b2.pts[1][ax]));
+    if (hi - lo > 2) overlapping++;
+  }
+  return { rect: buildRectilinearRoofLines(ol, true), n: g.length, off: off.length,
+    overlapping, gableEnds: Object.values(peaks).filter(v => v >= 2).length,
+    ridges: rs.length, valleys: g.filter(l => l.type === 'valley').length };
+}, STAIR);
+check('THE REPORT: the shape builder knows it cannot do a step and stands aside',
+  stair.rect === null, stair.rect === null ? 'stood aside' : stair.rect.length + ' lines returned');
+check('…so the arm no longer gets two ridges overlapping down its own length',
+  stair.overlapping === 0, stair.overlapping + ' overlapping pairs');
+check('…every hip and valley on it runs at 45°', stair.off === 0, stair.off + ' off 45°');
+check('…and it comes out a proper gable roof, one end per arm',
+  stair.gableEnds === 3 && stair.ridges === 3 && stair.valleys === 2,
+  stair.gableEnds + ' gable ends, ' + stair.ridges + ' ridges, ' + stair.valleys + ' valleys');
 
 // A building with an angled wall is not this builder's job — it works from a
 // grid of wall lines — and it has to say so rather than guess, because the
