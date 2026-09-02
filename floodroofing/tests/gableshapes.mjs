@@ -43,6 +43,8 @@ const SHAPES = {
   'a T':                                  [[0,0],[900,0],[900,300],[650,300],[650,700],[250,700],[250,300],[0,300]],
   'a U':                                  [[0,0],[250,0],[250,450],[650,450],[650,0],[900,0],[900,700],[0,700]],
   'a Z':                                  [[0,0],[400,0],[400,300],[800,300],[800,700],[400,700],[400,400],[0,400]],
+  'a plus, four arms to a middle':        [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],
+                                           [300,900],[300,600],[0,600],[0,300],[300,300]],
 };
 
 const b = await chromium.launch();
@@ -129,7 +131,26 @@ const report = await pg.evaluate((shapes) => {
     for (let i = 0; i < pts.length; i++) for (let j = i+1; j < pts.length; j++)
       if (Math.hypot(pts[i][0]-pts[j][0], pts[i][1]-pts[j][1]) <= 8)
         nearMiss.push(pts[i].map(Math.round) + ' / ' + pts[j].map(Math.round));
-    out[name] = { nearMiss, count: lines.length, strays, loose, skew, reflex,
+    const hips = lines.filter(l => l.t === 'hip');
+    const is45 = l => Math.abs(Math.abs(l.b[0]-l.a[0]) - Math.abs(l.b[1]-l.a[1])) <= 1.5;
+    // The T's stem: hips coming off the ridge that runs the other way.
+    const stem = lines.filter(l => l.t === 'ridge' && Math.abs(l.a[0]-l.b[0]) < 1);
+    const stemTip = stem.length ? [stem[0].a, stem[0].b].sort((p,q) => p[1]-q[1])[0] : null;
+    const touching = p => hips.filter(l =>
+      Math.hypot(l.a[0]-p[0], l.a[1]-p[1]) < 2 || Math.hypot(l.b[0]-p[0], l.b[1]-p[1]) < 2);
+    // The fat L: does the hip off the outside corner reach the taller arm's
+    // ridge line, or stop at the first ridge it meets?
+    const tall = lines.filter(l => l.t === 'ridge' && Math.abs(l.a[0]-l.b[0]) < 1);
+    const hipEnds = hips.map(l => JSON.stringify(l.a) + '->' + JSON.stringify(l.b)).join(' ');
+    const reaches = tall.length && hips.some(l => [l.a, l.b].some(p =>
+      Math.abs(p[0] - tall[0].a[0]) <= 2));
+    const apexes = {};
+    lines.filter(l => l.t === 'valley').forEach(l => { const k = key(l.b); apexes[k] = (apexes[k]||0)+1; });
+    out[name] = { nearMiss, count: lines.length,
+      hips: stemTip ? touching(stemTip).length : hips.length,
+      hips45: stemTip ? touching(stemTip).filter(is45).length : hips.filter(is45).length,
+      hipToTallRidge: !!reaches, hipEnds: hipEnds.slice(0, 90),
+      apex: Object.values(apexes).filter(v => v >= 3).length, strays, loose, skew, reflex,
       gableEnds: Object.values(peaks).filter(v => v >= 2).length,
       valleys: lines.filter(l => l.t === 'valley').length,
       ridges: lines.filter(l => l.t === 'ridge').length };
@@ -151,16 +172,41 @@ for (const [name, r] of Object.entries(report)){
   else check('…and a plain box needs one ridge and no more', r.ridges === 1, r.ridges + ' ridges');
 }
 
-// The shape-based builder is exact where it applies and silently short where
-// it does not: on a plus every arm is the same height and nothing carries the
-// roof over the middle, so it used to hand back four stubs hanging in the
-// air. It has to know that and stand aside, and the solver has to answer.
-const plus = [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],
-              [300,900],[300,600],[0,600],[0,300],[300,300]];
+// Three things the roofer named, one shape each.
+//
+// A ridge that runs into a bigger arm does not climb onto it. Where the
+// valleys land on the bigger ridge a hip comes back off each at 45°, and
+// where those two meet is where this arm's ridge ends. On the T that used to
+// be a stub hanging in mid-air; briefly it was a ridge stretched along the
+// top of the other roof, which is worse.
+const T = report['a T'];
+check('the T: the stem ridge stops short of the ridge it runs into',
+  T.hips === 2, T.hips + ' hips off the stem');
+check('…with a hip back at 45° from each place a valley lands',
+  T.hips45 === 2, T.hips45 + ' of them at 45°');
+
+// And the hip off an outside corner runs all the way in, to the ridge of the
+// arm whose roof is the higher — not stopping at the first ridge it crosses.
+const F = report['a fat L, both arms wide'];
+check('the fat L: the hip carries on to the taller arm\'s ridge line',
+  F.hipToTallRidge, F.hipEnds);
+
+// Four arms all the same height meeting in a middle that is higher than any
+// of them. Every arm's ridge carries on to the crest, and all four inside
+// corners get their valley — two of them used to be missing.
+const P = report['a plus, four arms to a middle'];
+check('the plus: a valley out of every one of its four inside corners',
+  P.valleys === 4, P.valleys + ' valleys');
+check('…all meeting at one point in the middle', P.apex === 1, P.apex + ' meeting points');
+
+// A building with an angled wall is not this builder's job — it works from a
+// grid of wall lines — and it has to say so rather than guess, because the
+// straight-skeleton solver behind it handles those.
+const ANGLED = [[0,0],[600,0],[900,300],[900,800],[0,800]];
 const stood = await pg.evaluate((ol) => ({
   rect: buildRectilinearRoofLines(ol, true),
   full: buildGableRoofLines_legacy(ol).length,
-}), plus);
+}), ANGLED);
 check('on a shape it cannot do, the shape builder answers nothing at all',
   stood.rect === null, stood.rect === null ? 'stood aside' : stood.rect.length + ' lines returned');
 check('…and the roof still gets drawn, by the solver behind it', stood.full > 4, stood.full + ' lines');

@@ -54223,6 +54223,39 @@ function buildRectilinearRoofLines(outline, gableEnds){
   }
   ridges = ridges.filter(function(R){ return R.line; });
 
+  // ── carry a ridge on up to its crest ──────────────────────────────
+  // Each arm's ridge is first cut back to where it stops standing at that
+  // arm's own height. Where arms MEET that cut is wrong: on a plus the four
+  // ridges were left short of a middle that is higher than any of them, so
+  // the roof over the middle was never drawn and the valleys out of the four
+  // inside corners had nothing to run to. A ridge carries on while the roof
+  // under it is still rising and still highest across its own width — which
+  // is the crest — and stops there. A ridge that has run into a TALLER roof
+  // has already ended: that is a link dying into the side of a wing, and
+  // pushing it on would climb the wing's slope.
+  ridges.forEach(function(R){
+    var ax = R.horiz ? 0 : 1;
+    if (Math.abs(R.line.pts[0][ax] - R.line.pts[1][ax]) < 0.5) return;
+    [0,1].forEach(function(k){
+      var tip = R.line.pts[k];
+      var away = (tip[ax] >= R.line.pts[1-k][ax]) ? 1 : -1;
+      var here = distToWall(tip[0], tip[1]);
+      if (diesIntoTallerRoof(tip)) return;
+      var q = tip.slice();
+      for (var st = 0; st < 4000; st++){
+        var nx = q.slice(); nx[ax] += away;
+        if (!inside(nx[0], nx[1])) break;
+        var d = distToWall(nx[0], nx[1]);
+        if (d <= here + 0.001) break;                  // over the crest
+        var a5 = nx.slice(), b5 = nx.slice();
+        a5[1-ax] -= 1; b5[1-ax] += 1;
+        if (distToWall(a5[0], a5[1]) > d || distToWall(b5[0], b5[1]) > d) break;
+        here = d; q = nx;
+      }
+      tip[ax] = q[ax];
+    });
+  });
+
   // ── valleys: out of every inside corner, at 45°, until it hits a ridge ──
   function isReflex(k){
     var p0 = ol[(k-1+n)%n], p1 = ol[k], p2 = ol[(k+1)%n];
@@ -54322,9 +54355,60 @@ function buildRectilinearRoofLines(outline, gableEnds){
         var meet = O.line.pts[0][ax];
         var lo4 = Math.min(O.line.pts[0][1-ax], O.line.pts[1][1-ax]) - 1;
         var hi4 = Math.max(O.line.pts[0][1-ax], O.line.pts[1][1-ax]) + 1;
-        if (tip[1-ax] >= lo4 && tip[1-ax] <= hi4 &&
-            away * (meet - tip[ax]) > 0 && Math.abs(meet - tip[ax]) <= reach)
-          tip[ax] = meet;
+        if (!(tip[1-ax] >= lo4 && tip[1-ax] <= hi4)) return;
+        if (Math.abs(meet - tip[ax]) > reach) return;
+        // This arm's ridge has run into a bigger one, and it does NOT climb
+        // to it. Where the valleys out of the two inside corners land on the
+        // bigger ridge, a hip comes back off each at 45°, and the two meet:
+        // that meeting point is where this arm's ridge ends. Stretching the
+        // ridge to the bigger one instead — which is what it used to do —
+        // draws one roof running along the top of another.
+        var lands = [];
+        out.forEach(function(l){
+          if (l === R.line) return;
+          [0,1].forEach(function(e){
+            var p7 = l.pts[e];
+            if (Math.abs(p7[ax] - meet) > 2) return;
+            var d7 = p7[1-ax] - tip[1-ax];
+            // A hip coming back off a landing is at 45°, so it can only be as
+            // long as this arm's roof is high. Anything further away is some
+            // other part of the building, and taking it drags the ridge clean
+            // off the end of the arm — which on a plain L collapsed the
+            // wing's ridge to a point and ran a hip across the whole house.
+            if (Math.abs(d7) < 2 || Math.abs(d7) > R.rise + 2) return;
+            lands.push({ p: p7, d: d7 });
+          });
+        });
+        var side = function(sgn){
+          var best = null;
+          lands.forEach(function(L7){
+            if (sgn * L7.d <= 0) return;
+            if (!best || Math.abs(L7.d) < Math.abs(best.d)) best = L7;
+          });
+          return best;
+        };
+        var m1 = side(-1), m2 = side(1), pair = [];
+        if (m1 && m2) pair = (Math.abs(Math.abs(m1.d) - Math.abs(m2.d)) <= 2) ? [m1, m2]
+                            : [Math.abs(m1.d) < Math.abs(m2.d) ? m1 : m2];
+        else if (m1 || m2) pair = [m1 || m2];
+        if (!pair.length){
+          // Nothing has landed there to come back off — then the most that
+          // can be said is that this ridge reaches the one it runs into.
+          if (away * (meet - tip[ax]) > 0) tip[ax] = meet;
+          return;
+        }
+        var rise7 = 0;
+        pair.forEach(function(L7){ rise7 = Math.max(rise7, Math.abs(L7.d)); });
+        var apex = meet - away * rise7;                 // back along this arm
+        var ap = at(apex, tip[1-ax]);
+        if (!inside(ap[0], ap[1])) return;
+        if (ap[0] < R.rect.x0 - 1 || ap[0] > R.rect.x1 + 1 ||
+            ap[1] < R.rect.y0 - 1 || ap[1] > R.rect.y1 + 1) return;   // off its own arm
+        tip[ax] = apex;
+        pair.forEach(function(L7){
+          if (Math.abs(Math.abs(L7.d) - rise7) > 2) return;
+          out.push({ type:'hip', pts:[L7.p.slice(), tip.slice()] });
+        });
       };
       var nearestCrossing = function(){
         var best = null, bd = Infinity;
