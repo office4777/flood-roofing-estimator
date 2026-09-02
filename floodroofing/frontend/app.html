@@ -54679,13 +54679,14 @@ function buildRectilinearRoofLines(outline, gableEnds){
 function buildHipValleyLines(outline) {
   // A square-walled building of a shape we recognise is built from the shape
   // itself, which is exact. Anything else falls through to the solver below.
-  // buildRectilinearRoofLines used to short-circuit here. It was added to fix
-  // H and T shapes and it broke every other one: on a plain L it produced two
-  // ridges that never met, a hip ending in mid-air, and a valley stopping
-  // short of the ridge it was meant to land on. The solver below is a real
-  // straight skeleton and gets all of those right. It stays on the gable
-  // path below, which the sheet-layout gate depends on.
-
+  // buildRectilinearRoofLines must NOT short-circuit here. It was tried twice.
+  // The first time it broke every shape it did not understand — on a plain L,
+  // two ridges that never met and a hip ending in mid-air. It was tried again
+  // once it had learnt to check its own answer and stand aside, because from
+  // the shape an H comes out symmetrical; it STILL failed the four outlines
+  // taken off real feedback reports, whose drawings are a few pixels out of
+  // square, by leaving hip ends in mid-air. tests/roofreal.mjs is that net.
+  // The straight skeleton below takes this path.
   outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);
   if (_tLn) return _tLn;            // clean imposed topology for T-shapes
