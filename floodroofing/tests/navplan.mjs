@@ -19,11 +19,14 @@ const b = await chromium.launch();
 async function open(company){
   const ctx = await b.newContext({ viewport:{width:1400,height:950} });
   const pg = await ctx.newPage();
-  // Accept confirms from the moment the page exists. Registered just before
-  // the sign-out click it raced the click itself, and Playwright's default
-  // is to DISMISS — which makes _navSignOut return without signing out and
-  // looks exactly like a broken sign-out.
-  pg.on('dialog', d => d.accept());
+  // Confirms are answered in the PAGE, not by a Playwright dialog listener.
+  // The listener was the flake: sign-out opens a confirm and reloads, and on
+  // a loaded CI runner the accept and the reload could cross so the click
+  // came back with the session still up — a red build with nothing wrong
+  // with the app. Answering in the page is the same question asked the same
+  // way, decided before the click returns, and it lets the test check that
+  // saying NO keeps you signed in, which the listener could never do.
+  pg.on('dialog', d => d.accept());          // belt and braces for any other prompt
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = r.request().url();
@@ -35,6 +38,10 @@ async function open(company){
   // Seeded ONCE. Signing out reloads the page, and an init script that seeds
   // on every load would put the session straight back and hide the bug.
   await pg.addInitScript(([co]) => {
+    // Runs again after the sign-out reload, which is where it is needed.
+    window.__confirms = [];
+    window.__confirmAnswer = true;
+    window.confirm = function(m){ window.__confirms.push(String(m)); return window.__confirmAnswer !== false; };
     if (sessionStorage.getItem('__seeded')) return;
     sessionStorage.setItem('__seeded','1');
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1');
@@ -84,13 +91,28 @@ check('…while the tabs that ARE theirs are untouched',
 check('there is a sign-out button', await shown(pg,'navSignOutBtn'));
 check('…and it says who is signed in',
   /bob@acmeroofing\.co\.nz/.test(await pg.evaluate(() => document.getElementById('navAccountWho').textContent)));
-// Confirm-then-clear. The reload is what returns the page to the login screen.
-await Promise.all([ pg.waitForNavigation({ timeout: 15000 }).catch(() => null), pg.click('#navSignOutBtn') ]);
-// Wait for the CONDITION, not a stopwatch. A fixed sleep here passed alone
-// and failed under the parallel runner, where the reload has to share a
-// machine with three other browsers — a slow reload is not a bug.
+// Sign-out asks first, and NO means no — a misfired click on the way past
+// the account line must not drop a roofer's session mid-quote.
+await pg.evaluate(() => { window.__confirmAnswer = false; });
+await pg.click('#navSignOutBtn');
+await pg.waitForTimeout(400);
+const declined = await pg.evaluate(() => ({
+  asked: window.__confirms.length, tok: localStorage.getItem('fr_token') }));
+check('signing out asks before it does anything', declined.asked === 1,
+  declined.asked + ' asked');
+check('…and saying no keeps you signed in', declined.tok === 't', JSON.stringify(declined));
+
+// Yes means yes: the session is dropped and the reload returns the page to
+// the login screen. The wait is on the CONDITION, not a stopwatch — a slow
+// reload on a shared runner is not a bug.
+await pg.evaluate(() => { window.__confirmAnswer = true; });
+await Promise.all([ pg.waitForNavigation({ timeout: 20000 }).catch(() => null),
+                    pg.click('#navSignOutBtn') ]);
 await pg.waitForFunction(() => !localStorage.getItem('fr_token'), null, { timeout: 20000 }).catch(() => null);
-await pg.waitForTimeout(300);
+await pg.waitForFunction(() => {
+  const el = document.getElementById('login-screen');
+  return !!el && getComputedStyle(el).display !== 'none';
+}, null, { timeout: 20000 }).catch(() => null);
 const after = await pg.evaluate(() => ({
   tok: localStorage.getItem('fr_token'), user: localStorage.getItem('fr_user'),
   co: localStorage.getItem('fr_company'),
