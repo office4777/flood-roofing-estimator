@@ -4367,10 +4367,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
       </div>
 
-      <div id="workflowTipBar" style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
-  <span style="font-size:16px">💡</span>
-  <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13p</span>
+      <!-- This bar used to explain the drawing order, which anybody working out
+           it out for themselves does once and then reads past forever. What
+           is worth a permanent line above the canvas is the thing a roofer
+           cannot see by looking: the scale came off a satellite picture, and
+           an aerial is close but it is not a tape measure. Clicking through
+           to Calibrate is the one action that turns a rough measure into a
+           real one. -->
+      <div id="workflowTipBar" style="background:#fdf3e3;border:1px solid #e8c99a;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#7a4c07;display:flex;align-items:center;gap:8px">
+  <span style="font-size:16px">⚠️</span>
+  <span>Measurements are roughly to satellite scale, please click
+    <button type="button" onclick="setTool('calibrate')" style="font:inherit;font-weight:800;color:#7a4c07;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Calibrate Scale</button>
+    to override.</span>
+  <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-08-13p</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">

@@ -36,7 +36,11 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # The verify step below waits up to eight minutes for Vercel. At five the
+    # job was cancelled mid-wait, which reported as "cancelled" rather than
+    # as the failure it was — the promote looked inconclusive instead of
+    # telling anyone the site had not updated.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
