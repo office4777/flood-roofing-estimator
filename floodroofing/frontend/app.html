@@ -37816,6 +37816,9 @@ function _bargesForSheetRun(hit, lines){
     var bdx=a1[0]-a0[0], bdy=a1[1]-a0[1], bl=Math.sqrt(bdx*bdx+bdy*bdy);
     if (bl<4) return;
     if (Math.abs((bdx/bl)*dx + (bdy/bl)*dy) < 0.7) return;   // not a rake for this face
+    // Same as _bargeLenForRun: a step's little return is not the run's rake,
+    // so editing it must not rewrite a sheet run four times its length.
+    if (hit.runPx > 0 && bl < hit.runPx * 0.7) return;
     var bmx=(a0[0]+a1[0])/2, bmy=(a0[1]+a1[1])/2;
     if (((bmx-rmx)*dx + (bmy-rmy)*dy) <= 2) return;          // wrong side of the ridge
     var along=(bmx-rmx)*rux + (bmy-rmy)*ruy;                 // along-ridge position
@@ -37847,6 +37850,15 @@ function _bargeLenForRun(lines, face){
     var bdx = a1[0]-a0[0], bdy = a1[1]-a0[1], bl = Math.sqrt(bdx*bdx + bdy*bdy);
     if (bl < 4) return;
     if (Math.abs((bdx/bl)*dx + (bdy/bl)*dy) < 0.7) return;   // not a rake for this face
+    // A barge that does not span the run is not this run's rake. Where a
+    // wall steps out, the two little returns either side of the step run the
+    // same way a rake does and sit inside the run's span, so they passed
+    // every test here — and a 4.79m sheet over the step was ordered at the
+    // 1.15m of the step itself. A rake runs ridge to gutter: anything much
+    // shorter than the run is a return, and the geometry is the better
+    // answer. The slack is wide because a drawing a few percent out of square
+    // is the case this override exists for.
+    if (face.runPx > 0 && bl < face.runPx * 0.7) return;
     var bmx = (a0[0]+a1[0])/2, bmy = (a0[1]+a1[1])/2;
     if (((bmx-rmx)*dx + (bmy-rmy)*dy) <= 2) return;          // wrong side of the ridge
     var along = (bmx-rmx)*rux + (bmy-rmy)*ruy;
@@ -39637,7 +39649,8 @@ function redrawAll() {
             // on it (a mid-face run between two gutters).
             var _bargeM = _bargeLenForRun(lines, {
               faceDx: dx, faceDy: dy, ridgeMx: rmx, ridgeMy: rmy,
-              ridgeUx: rux, ridgeUy: ruy, runLo: c.lo, runHi: c.hi
+              ridgeUx: rux, ridgeUy: ruy, runLo: c.lo, runHi: c.hi,
+              runPx: bestPerp
             });
             if (_bargeM > 0) autoSheetM = _bargeM;
             // Face-based key (gutter + into-face direction) PLUS the
@@ -39703,7 +39716,7 @@ function redrawAll() {
               // neighbouring step: into-face unit dir, along-ridge span,
               // and the source ridge reference (all in image px).
               faceDx: dx, faceDy: dy,
-              runLo: c.lo, runHi: c.hi,
+              runLo: c.lo, runHi: c.hi, runPx: bestPerp,
               ridgeMx: rmx, ridgeMy: rmy, ridgeUx: rux, ridgeUy: ruy,
             });
           });
