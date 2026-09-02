@@ -42,7 +42,17 @@ async function open(company){
     localStorage.setItem('fr_company', JSON.stringify(co));
   }, [company]);
   await pg.goto('file://' + _j(DIR, 'app.html'));
-  await pg.waitForTimeout(2600);
+  // Wait for the app to be READY, not for a stopwatch. Under the parallel
+  // runner four browsers share the machine and 2600ms was sometimes short of
+  // boot: the sign-out click then landed on a button whose handler did not
+  // exist yet, nothing happened, and the suite reported sign-out as broken.
+  // A flake that fails one run in four is worse than no test, because it
+  // teaches everyone to re-run instead of look.
+  await pg.waitForFunction(
+    () => typeof window.doLogout === 'function' &&
+          typeof window._navPlanSync === 'function' &&
+          !!document.getElementById('navSignOutBtn'),
+    null, { timeout: 30000 });
   await pg.evaluate(() => { const w=document.getElementById('setupWizard'); if(w) w.remove(); });
   return { ctx, pg };
 }
