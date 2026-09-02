@@ -54307,6 +54307,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
     if (!L) return null;
     return meetRidge(from, dir, L) || p.slice();
   }
+  var vrays = [];
   for (i = 0; i < n; i++){
     if (!isReflex(i)) continue;
     var v = ol[i];
@@ -54323,8 +54324,50 @@ function buildRectilinearRoofLines(outline, gableEnds){
       var h3 = onAnyRidge(p3, v, dir);
       if (h3){ hitPt = h3; break; }
     }
-    if (hitPt) out.push({ type:'valley', pts:[v.slice(), hitPt] });
+    if (hitPt) vrays.push({ v: v.slice(), dir: dir.slice(), hit: hitPt,
+      t: Math.hypot(hitPt[0]-v[0], hitPt[1]-v[1]) });
   }
+  // Two valleys off the two inside corners of a link between wings run at each
+  // other and MEET. That meeting is the end of the link's roof — the point in
+  // the middle of the wing's face where the two faces close — and it is where
+  // both valleys stop. Carrying on to the wing's ridge instead sends them
+  // through each other and draws a cross on the roof, which is what the
+  // roofer sent back twice.
+  for (var vi = 0; vi < vrays.length; vi++) for (var vj = vi+1; vj < vrays.length; vj++){
+    var VA = vrays[vi], VB = vrays[vj];
+    var den2 = VA.dir[0]*VB.dir[1] - VA.dir[1]*VB.dir[0];
+    if (Math.abs(den2) < 1e-9) continue;                 // parallel
+    var ta = ((VB.v[0]-VA.v[0])*VB.dir[1] - (VB.v[1]-VA.v[1])*VB.dir[0]) / den2;
+    var tb = ((VB.v[0]-VA.v[0])*VA.dir[1] - (VB.v[1]-VA.v[1])*VA.dir[0]) / den2;
+    if (!(ta > 0.5 && tb > 0.5)) continue;               // behind one of them
+    if (ta > VA.t - 0.5 || tb > VB.t - 0.5) continue;    // a ridge comes first
+    var mp = [VA.v[0] + VA.dir[0]*ta, VA.v[1] + VA.dir[1]*ta];
+    VA.t = ta; VA.hit = mp.slice();
+    VB.t = tb; VB.hit = mp.slice();
+  }
+  var vmeets = [];
+  vrays.forEach(function(V){
+    out.push({ type:'valley', pts:[V.v.slice(), V.hit.slice()] });
+    if (vrays.filter(function(W){
+      return Math.hypot(W.hit[0]-V.hit[0], W.hit[1]-V.hit[1]) <= 1.5; }).length >= 2 &&
+      !vmeets.some(function(m){ return Math.hypot(m[0]-V.hit[0], m[1]-V.hit[1]) <= 1.5; }))
+      vmeets.push(V.hit.slice());
+  });
+  // And the link's own ridge runs right out to that meeting, rather than
+  // stopping short of it in the middle of nothing.
+  ridges.forEach(function(R){
+    var rax = R.horiz ? 0 : 1;
+    [0,1].forEach(function(k){
+      var tip = R.line.pts[k], other = R.line.pts[1-k];
+      var away = (tip[rax] >= other[rax]) ? 1 : -1;
+      vmeets.forEach(function(m){
+        if (Math.abs(m[1-rax] - tip[1-rax]) > 2) return;          // not on this line
+        var gap = (m[rax] - tip[rax]) * away;
+        if (gap <= 0 || gap > R.rise + 2) return;                 // behind, or miles off
+        tip[rax] = m[rax];
+      });
+    });
+  });
 
   var capped = [], cuts = [];
   // ── the ends: a gable if that is the roof type, otherwise a hip ────
@@ -54350,6 +54393,16 @@ function buildRectilinearRoofLines(outline, gableEnds){
       // it: a line ending in mid-air, and the face beside it never closing.
       var joinCrossing = function(O){
         if (!O) return;
+        // Something already ends here, so the roof has ended here: this is
+        // where the two valleys off a link met in the middle of the wing's
+        // face. Pushing the ridge on to the wing's own ridge undoes exactly
+        // the thing the valleys were stopped short for.
+        var taken = out.some(function(l){
+          if (l === R.line) return false;
+          return [0,1].some(function(e){
+            return Math.hypot(l.pts[e][0]-tip[0], l.pts[e][1]-tip[1]) <= 1.5; });
+        });
+        if (taken) return;
         var oax = O.horiz ? 0 : 1;
         if (oax === ax) return;                        // parallel, not a crossing
         var meet = O.line.pts[0][ax];

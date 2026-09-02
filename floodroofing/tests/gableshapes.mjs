@@ -43,6 +43,8 @@ const SHAPES = {
   'a T':                                  [[0,0],[900,0],[900,300],[650,300],[650,700],[250,700],[250,300],[0,300]],
   'a U':                                  [[0,0],[250,0],[250,450],[650,450],[650,0],[900,0],[900,700],[0,700]],
   'a Z':                                  [[0,0],[400,0],[400,300],[800,300],[800,700],[400,700],[400,400],[0,400]],
+  'an H, two wings and a link':           [[300,250],[300,650],[450,650],[450,450],[700,450],[700,650],[900,650],
+                                           [900,150],[700,150],[700,350],[450,350],[450,250]],
   'a plus, four arms to a middle':        [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],
                                            [300,900],[300,600],[0,600],[0,300],[300,300]],
 };
@@ -164,7 +166,30 @@ const report = await pg.evaluate((shapes) => {
           under.push(JSON.stringify(mid.map(Math.round)));
       });
     }
-    out[name] = { nearMiss, under, count: lines.length,
+    // Two valleys running at each other MEET, in the middle of the face, and
+    // that is where both stop. Running on to the wing's ridge sends them
+    // through each other and draws a cross on the roof.
+    const vs2 = lines.filter(l => l.t === 'valley');
+    let valleyCross = 0;
+    for (let i3 = 0; i3 < vs2.length; i3++) for (let j3 = i3+1; j3 < vs2.length; j3++){
+      const A3 = vs2[i3], B3 = vs2[j3];
+      const r3 = [A3.b[0]-A3.a[0], A3.b[1]-A3.a[1]], s3 = [B3.b[0]-B3.a[0], B3.b[1]-B3.a[1]];
+      const den = r3[0]*s3[1] - r3[1]*s3[0];
+      if (Math.abs(den) < 1e-9) continue;
+      const t3 = ((B3.a[0]-A3.a[0])*s3[1] - (B3.a[1]-A3.a[1])*s3[0]) / den;
+      const u3 = ((B3.a[0]-A3.a[0])*r3[1] - (B3.a[1]-A3.a[1])*r3[0]) / den;
+      if (t3 > 0.01 && t3 < 0.99 && u3 > 0.01 && u3 < 0.99) valleyCross++;
+    }
+    // Where valleys do meet, the ridge of the roof they close runs out to them.
+    const meets = [];
+    vs2.forEach(l => {
+      if (vs2.filter(o => Math.hypot(o.b[0]-l.b[0], o.b[1]-l.b[1]) <= 1.5).length < 2) return;
+      if (!meets.some(m => Math.hypot(m[0]-l.b[0], m[1]-l.b[1]) <= 1.5)) meets.push(l.b);
+    });
+    const ridgeAtMeets = meets.every(m => lines.some(l => l.t === 'ridge' &&
+      [l.a, l.b].some(p => Math.hypot(p[0]-m[0], p[1]-m[1]) <= 1.5)));
+    out[name] = { nearMiss, under, valleyCross, meets: meets.length, ridgeAtMeets,
+      count: lines.length,
       hips: stemTip ? touching(stemTip).length : hips.length,
       hips45: stemTip ? touching(stemTip).filter(is45).length : hips.filter(is45).length,
       hipToTallRidge: !!reaches, hipEnds: hipEnds.slice(0, 90),
@@ -183,6 +208,10 @@ for (const [name, r] of Object.entries(report)){
   check('…every ridge level or plumb, the walls being square', r.skew.length === 0, r.skew.join('  '));
   check('…and no ridge carrying on through the hip that connects to it',
     r.under.length === 0, r.under.slice(0, 2).join(' | '));
+  check('…and no valley running through another instead of stopping where they meet',
+    r.valleyCross === 0, r.valleyCross + ' crossings');
+  check('…and where valleys meet, the ridge of that roof runs out to them',
+    r.ridgeAtMeets, r.meets + ' meeting points');
   check('…and nothing stopping a few pixels short of the junction it runs to',
     r.nearMiss.length === 0, r.nearMiss.slice(0, 2).join(' | '));
   check('…and at least one proper gable end, two barges to a peak',
