@@ -3077,6 +3077,85 @@ html.customer-view .qp-photoslot,
 html.print-quote   .qp-photoslot,
 html.pdf-rendering .qp-photoslot{ display:none !important; }
 @media print { .qp-photoslot{ display:none !important; } }
+
+/* ── Quote template editor ───────────────────────────────────────────
+   "the quote is too much information" — so the pages a customer gets are
+   now arranged here rather than through tickboxes buried in a settings
+   card. A full-screen window, the real proposal in the middle at working
+   size, and a rail of pages down the side the way a slide deck does it.
+   The rail holds the pages in the document; underneath it is the tray of
+   pages taken out, which drag back in. */
+#qtEditWrap{ position:fixed; inset:0; z-index:9500; display:none; }
+#qtEditWrap.on{ display:flex; flex-direction:column; }
+#qtEditWrap .qt-bar{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:9px 14px; background:#0a1628; color:#fff; flex:0 0 auto;
+}
+#qtEditWrap .qt-bar strong{ font-size:14px; }
+#qtEditWrap .qt-bar .qt-sub{ font-size:11.5px; opacity:.75; }
+#qtEditWrap .qt-btn{
+  padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700;
+  cursor:pointer; border:1px solid rgba(255,255,255,.28); background:transparent; color:#fff;
+  font-family:inherit;
+}
+#qtEditWrap .qt-btn:hover{ background:rgba(255,255,255,.12); }
+#qtEditWrap .qt-btn.primary{ background:#0099cc; border-color:#0099cc; }
+#qtEditWrap .qt-btn.ghost{ background:#fff; color:#0a1628; border-color:#fff; }
+#qtEditWrap .qt-body{ flex:1; min-height:0; display:flex; background:#eef2f7; }
+#qtEditWrap .qt-rail{
+  width:212px; flex:0 0 212px; background:#f8fafc; border-right:1px solid var(--border);
+  overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px;
+}
+#qtEditWrap .qt-stage{ flex:1; min-width:0; overflow:auto; padding:22px; }
+#qtEditWrap .qt-rail-hd{
+  font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--text2); margin:2px 0 0;
+}
+/* One slide in the rail. The thumbnail is the real page, scaled. */
+.qt-slide{
+  position:relative; border:2px solid transparent; border-radius:8px; background:#fff;
+  box-shadow:0 1px 4px rgba(10,22,40,.12); cursor:grab; overflow:hidden; flex:0 0 auto;
+}
+.qt-slide.sel{ border-color:#0099cc; }
+.qt-slide.drag{ opacity:.45; }
+.qt-slide.over{ border-color:#0099cc; border-style:dashed; }
+.qt-slide-no{
+  position:absolute; top:3px; left:3px; z-index:2; background:rgba(10,22,40,.78); color:#fff;
+  border-radius:5px; font-size:10px; font-weight:800; padding:1px 5px; line-height:1.5;
+}
+.qt-slide-name{
+  font-size:10.5px; font-weight:700; color:#0a1628; padding:4px 6px;
+  border-top:1px solid var(--border); background:#fff; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.qt-thumb{ height:112px; overflow:hidden; position:relative; background:#fff; }
+.qt-thumb > .qt-scale{ position:absolute; top:0; left:0; transform-origin:top left; pointer-events:none; }
+.qt-slide-tools{
+  position:absolute; top:3px; right:3px; z-index:2; display:none; gap:3px;
+}
+.qt-slide:hover .qt-slide-tools{ display:flex; }
+.qt-slide-tools button{
+  border:none; border-radius:5px; background:rgba(10,22,40,.78); color:#fff;
+  font-size:11px; line-height:1; padding:3px 5px; cursor:pointer; font-family:inherit;
+}
+.qt-slide-tools button:hover{ background:#0099cc; }
+.qt-slide-tools button.rm:hover{ background:#b91c1c; }
+/* The tray of pages taken out of the quote. */
+#qtEditWrap .qt-tray{ border-top:1px dashed var(--border); margin-top:6px; padding-top:8px;
+  display:flex; flex-direction:column; gap:8px; }
+#qtEditWrap .qt-tray.empty-hint{ color:var(--text2); font-size:11px; line-height:1.45; }
+.qt-slide.parked{ opacity:.72; }
+.qt-slide.parked .qt-slide-name{ color:var(--text2); }
+#qtEditWrap .qt-droptip{
+  border:1.5px dashed #94a3b8; border-radius:8px; padding:10px; text-align:center;
+  font-size:11px; color:var(--text2); background:#fff;
+}
+/* The proposal itself, at working size inside the window. */
+#qtEditWrap .qt-stage #qpRoot{ margin:0 auto; }
+/* Never any part of what a customer or a printer sees. */
+html.customer-view #qtEditWrap, html.print-quote #qtEditWrap,
+html.pdf-rendering #qtEditWrap{ display:none !important; }
+@media print { #qtEditWrap{ display:none !important; } }
 html.customer-view .qp-editable:hover{ background:transparent !important; outline:none !important; }
 /* Once the customer has ACCEPTED, the quote is locked — no option / roof /
    colour changes can be made (the selections are frozen at what they accepted).
@@ -5841,7 +5920,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:4px 9px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
     <button onclick="printQuote()" style="padding:4px 9px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="copyCustomerLink()" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🔗 Customer link</button>
-    <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">⭐ Save as template</button>
+    <button onclick="_qtOpen()" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🗂 Edit quote template</button>
+    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" title="Start this quote from one of your saved templates" style="padding:4px 8px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit"></select>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
   </div>
@@ -10368,6 +10448,10 @@ function defaultSettings(){
                 // quote it is on, but a new business should not have to pick a
                 // hero shot again on every job it prices.
                 hero_photo: '',
+                // Saved quote layouts, made in the quote template editor.
+                // [{id, name, tpl}] — tpl is the page arrangement plus the
+                // standard copy that goes with it.
+                quote_templates: [],
                 // Saved proposal template — when the user clicks "Save as
                 // default template" we snapshot the customisable proposal
                 // fields here so every new proposal starts pre-populated
@@ -19092,6 +19176,11 @@ function defaultQuote(){
     // If the saved template defines starter options, deep-clone them so
     // edits on this proposal don't mutate the template.
     options: tpl.options ? JSON.parse(JSON.stringify(tpl.options)) : [],
+    // The default template now carries the page arrangement as well as the
+    // copy, so "save as default quote" means the shorter quote actually
+    // starts shorter. Deep-cloned for the same reason the options are.
+    pages:  Array.isArray(tpl.pages)  ? JSON.parse(JSON.stringify(tpl.pages))  : null,
+    parked: Array.isArray(tpl.parked) ? JSON.parse(JSON.stringify(tpl.parked)) : null,
     selectedOptionIds: [],     // ids of options + upgrades the client ticked
     // Long-form proposal sections — one toggle per physical page.
     proposalSections: tpl.proposalSections
@@ -22890,6 +22979,69 @@ function renderProposalOptions(){
   }).join('');
 }
 
+// ── the quote as an ordered list of pages ────────────────────────────
+//
+// The proposal used to be seven pages in a fixed order with a tickbox each,
+// buried in "Quote settings & extras". A roofer's customer said the quote was
+// too much information and there was no good way to answer that: no reordering,
+// no duplicating, and the switches were nowhere near the document they changed.
+//
+// So the quote now carries its pages the way the Job Pack already does —
+// S.jobPack.pages = [{type, opts}] has worked there for a long time, and this
+// is deliberately the same shape rather than a second idea about the same
+// problem. `pages` is what the customer gets, in order; `parked` is the tray
+// beside the editor holding what has been taken out.
+//
+// Nothing changes for a quote nobody has edited: the list is derived from the
+// old proposalSections tickboxes the first time it is needed, so an untouched
+// job renders exactly the document it rendered before.
+var QUOTE_PAGE_TYPES = [
+  { type:'cover',      label:'Cover',              blurb:'Hero photo, title, client and reference' },
+  { type:'condition',  label:'Roof condition',     blurb:'Assessment, life gauge and site photos' },
+  { type:'inclusions', label:'Price',              blurb:'Scope, options, subtotal, GST and total' },
+  { type:'options',    label:'Selections',         blurb:'Grade, thickness and gutter choices' },
+  { type:'colorsteel', label:'Colorsteel range',   blurb:'Product and standard colours' },
+  { type:'terms',      label:'Terms & conditions', blurb:'Your standard T&Cs and payment schedule' },
+  { type:'signature',  label:'Acceptance',         blurb:'Signature and accept-online' },
+];
+function _qpTypeSpec(t){
+  for (var i = 0; i < QUOTE_PAGE_TYPES.length; i++)
+    if (QUOTE_PAGE_TYPES[i].type === t) return QUOTE_PAGE_TYPES[i];
+  return null;
+}
+var _qpPageSeq = 0;
+function _qpNewPage(type){ return { id: 'qp' + (++_qpPageSeq) + '_' + Date.now().toString(36), type: type }; }
+// The document's page list, migrated from the old tickboxes on first use.
+function _qpState(){
+  if (!S.quote) S.quote = defaultQuote();
+  var q = S.quote;
+  if (!Array.isArray(q.pages) || !q.pages.length){
+    var sec = q.proposalSections || {};
+    q.pages = []; q.parked = [];
+    QUOTE_PAGE_TYPES.forEach(function(spec){
+      var pg = _qpNewPage(spec.type);
+      // 'options' never had a tickbox of its own; it followed the document.
+      var wasOn = (spec.type === 'options') ? true : (sec[spec.type] !== false);
+      (wasOn ? q.pages : q.parked).push(pg);
+    });
+  }
+  if (!Array.isArray(q.parked)) q.parked = [];
+  return q;
+}
+// Is a page of this type in the document the customer gets?
+function _qpInDoc(type){
+  var q = _qpState();
+  for (var i = 0; i < q.pages.length; i++) if (q.pages[i].type === type) return true;
+  return false;
+}
+// Keep the old tickbox flags in step, so anything still reading them — the
+// saved template, an older job reopened — agrees with the page list.
+function _qpSyncSections(){
+  var q = _qpState();
+  if (!q.proposalSections) q.proposalSections = {};
+  QUOTE_PAGE_TYPES.forEach(function(spec){ q.proposalSections[spec.type] = _qpInDoc(spec.type); });
+}
+
 function renderProposalSectionToggles(){
   var host = document.getElementById('qProposalSections');
   if (!host) return;
@@ -22903,7 +23055,10 @@ function renderProposalSectionToggles(){
     ['signature', 'Acceptance signature',       'Client signature page'],
   ];
   host.innerHTML = labels.map(function(p){
-    var on = sec[p[0]] !== false;
+    // Read the page list, not the old flag — otherwise this card and the
+    // template editor are two controls for one thing that can disagree, and
+    // the roofer has no way of telling which one won.
+    var on = _qpInDoc(p[0]);
     return '<label class="chk-item '+(on?'on':'')+'" data-section="'+p[0]+'" onclick="toggleProposalSection(\''+p[0]+'\', event)" style="cursor:pointer">'+
       '<span class="chk-dot"></span>'+
       '<span style="display:flex;flex-direction:column;gap:2px">'+
@@ -22914,13 +23069,26 @@ function renderProposalSectionToggles(){
     '</label>';
   }).join('');
 }
+// Ticking a section here is the same act as taking a page out in the editor,
+// so it moves the page between the document and the tray rather than setting
+// a parallel flag.
 function toggleProposalSection(key, ev){
   if (ev) ev.preventDefault();
-  if (!S.quote) S.quote = defaultQuote();
-  if (!S.quote.proposalSections) S.quote.proposalSections = {};
-  S.quote.proposalSections[key] = !(S.quote.proposalSections[key] !== false);
+  var q = _qpState();
+  if (_qpInDoc(key)){
+    if (q.pages.length <= 1){ alert('Keep at least one page in the quote.'); return; }
+    for (var i = q.pages.length - 1; i >= 0; i--)
+      if (q.pages[i].type === key) q.parked.push(q.pages.splice(i, 1)[0]);
+  } else {
+    var back = null;
+    for (var j = 0; j < q.parked.length; j++)
+      if (q.parked[j].type === key){ back = q.parked.splice(j, 1)[0]; break; }
+    q.pages.push(back || _qpNewPage(key));
+  }
+  _qpSyncSections();
   renderProposalSectionToggles();
   refreshQuoteProposal();
+  try { if (_QT.open) setTimeout(_qtRenderRail, 120); } catch(e){}
 }
 // Show / hide the itemised line-items table on the Price page of the
 // printed proposal. Off by default to match Flood Roofing's standard
@@ -26104,6 +26272,10 @@ function refreshQuoteProposal(){
     // A job with gutter pricing excluded must not carry the spouting page —
     // there is nothing on offer to read about.
     if (k === 'gutters' && typeof _gutterExcluded === 'function' && _gutterExcluded()) return false;
+    // The page list is now the authority on what the customer gets. For the
+    // seven page types it answers; anything else (the retired About / Marley
+    // / scope pages) still reads the old flags.
+    if (_qpTypeSpec(k)) return _qpInDoc(k);
     return sec[k] !== false;
   };
   var opts = S.quote.options || [];
@@ -27709,9 +27881,9 @@ function refreshQuoteProposal(){
       '</div>'+
     '</div>';
   // ── Assemble: 10 physical .rp-page divs, one per section ──
-  function rpPage(inner, extraStyle){
+  function rpPage(inner, extraStyle, attrs){
     if (!inner) return '';
-    return '<div class="rp-body rp-page" style="display:flex;flex-direction:column;'+(extraStyle||'')+'">'+
+    return '<div class="rp-body rp-page"'+(attrs||'')+' style="display:flex;flex-direction:column;'+(extraStyle||'')+'">'+
       '<div class="rp-page-content" style="flex:1">'+inner+'</div>'+
       pageFooterHtml +
     '</div>';
@@ -27720,46 +27892,60 @@ function refreshQuoteProposal(){
   if (S.quote.quoteKind === 'poleshed'){
     html += _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml);
   } else {
-  // Page 1 — Cover (zero-padded so hero band sits flush to page edges).
-  // The letterhead header rides inside this page so the two share one
-  // printed sheet (no empty overflow page).
-  if (partCover){
-    html += '<div class="rp-body rp-page" style="padding:0;background:#fff;display:flex;flex-direction:column">'+
-      headerHtml+
-      '<div style="flex:1">'+partCover+'</div>'+
-      // Trust strip + small footer credit centred under the cover hero.
-      '<div style="padding:18px 36px 24px;background:#fff;border-top:1px solid var(--ed-line)">'+
-        trustLogosHtml +
-        '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Member of Roofing Association NZ · Licensed Building Practitioner · Site Safe · Sitewise Gold 2025/26 · Colorsteel Authorised</div>'+
-      '</div>'+
-    '</div>';
-  } else {
-    // No cover page — header leads the first content page on its own.
-    html += headerHtml;
-  }
-  // Page 2 — Existing condition + team photo (the About page was merged in)
-  html += rpPage(partCondition);
-  // Page 3 — Quote inclusions + pricing (options A/B + guttering option C)
-  html += rpPage(partInclusions);
-  // Page 4 — Customer-selectable options (steel grade / thickness /
-  // gutter type + bracket). Inserted between Pricing and Colorsteel
-  // marketing per the user's brief; if the 'options' section is
-  // toggled off the variable is empty and rpPage emits nothing.
-  html += rpPage(partOptionsSelections);
-  // Page 4 — Colorsteel product + standard colours
-  html += rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)');
-  // (Standalone Gutters page removed — guttering is now Option C on the
-  //  pricing page.  partAbout / partGutters / partScopeWork are no longer
+  // The pages, in the order the page list says. Each type knows how to wrap
+  // itself; the ORDER, and whether a type appears at all (or twice), is data
+  // now rather than the shape of this function. A quote nobody has edited has
+  // the list migrated from the old tickboxes, so it comes out exactly as it
+  // always did — cover, condition, price, selections, Colorsteel, terms,
+  // acceptance.
+  var _qpq = _qpState();
+  // The letterhead rides inside the cover so the two share one printed sheet.
+  // With no cover page it has to lead the first content page on its own, and
+  // that is decided by the list, not by whether partCover happens to be empty.
+  var _hdrUsed = false;
+  // Each page carries which entry of the list it came from, so the editor's
+  // page rail can pair a thumbnail with the page it represents without
+  // counting positions and hoping they still line up.
+  var pageHtml = function(type, at){
+    var mark = ' data-qp-page="' + at + '" data-qp-type="' + esc2(type) + '"';
+    switch (type){
+      case 'cover':
+        if (!partCover) return '';
+        _hdrUsed = true;
+        return '<div class="rp-body rp-page"'+mark+' style="padding:0;background:#fff;display:flex;flex-direction:column">'+
+          headerHtml+
+          '<div style="flex:1">'+partCover+'</div>'+
+          // Trust strip + small footer credit centred under the cover hero.
+          '<div style="padding:18px 36px 24px;background:#fff;border-top:1px solid var(--ed-line)">'+
+            trustLogosHtml +
+            '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Member of Roofing Association NZ · Licensed Building Practitioner · Site Safe · Sitewise Gold 2025/26 · Colorsteel Authorised</div>'+
+          '</div>'+
+        '</div>';
+      case 'condition':  return rpPage(partCondition, '', mark);
+      case 'inclusions': return rpPage(partInclusions, '', mark);
+      case 'options':    return rpPage(partOptionsSelections, '', mark);
+      case 'colorsteel': return rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)', mark);
+      case 'terms':      return rpPage(partTerms, '', mark);
+      // Acceptance. Its content area is a flex column so partSignature's
+      // wrapper can stretch (flex:1) to the full page height and its spacers
+      // can spread the blocks out + pin the closing photo banner to the
+      // bottom.
+      case 'signature':
+        if (!partSignature) return '';
+        return '<div class="rp-body rp-page"'+mark+' style="display:flex;flex-direction:column;background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
+            '<div class="rp-page-content" style="flex:1;display:flex;flex-direction:column">'+partSignature+'</div>'+
+            pageFooterHtml +
+          '</div>';
+      default: return '';
+    }
+  };
+  var _body = '';
+  _qpq.pages.forEach(function(pg, i){ _body += pageHtml(pg.type, i); });
+  if (!_hdrUsed) html += headerHtml;   // no cover — the letterhead leads
+  html += _body;
+  // (The standalone Gutters page was retired — guttering is Option C on the
+  //  price page. partAbout / partGutters / partScopeWork are no longer
   //  assembled into the proposal flow.)
-  // Page 5 — Terms & conditions
-  html += rpPage(partTerms);
-  // Page 6 — Acceptance. Its content area is a flex column so partSignature's
-  // wrapper can stretch (flex:1) to the full page height and its spacers can
-  // spread the blocks out + pin the closing photo banner to the bottom.
-  html += '<div class="rp-body rp-page" style="display:flex;flex-direction:column;background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
-      '<div class="rp-page-content" style="flex:1;display:flex;flex-direction:column">'+partSignature+'</div>'+
-      pageFooterHtml +
-    '</div>';
   }
 
   // ── Summary bar (always shown at the bottom) ──
@@ -27795,6 +27981,7 @@ function refreshQuoteProposal(){
   }
   _fitProposalPages();
   try { _syncQuoteKindToggle(); } catch(e){}
+  try { _qtSyncSavedPicker(); } catch(e){}
   try { _toggleShedEstimator(); } catch(e){}
 
   // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
@@ -27814,6 +28001,351 @@ function refreshQuoteProposal(){
 // user's default template — every new proposal starts pre-populated
 // with the saved copy.  Client-specific fields (client name, address,
 // ref number, dates, photos) are deliberately excluded.
+// ══════════════════════════════════════════════════════════════════
+// QUOTE TEMPLATE EDITOR
+// ══════════════════════════════════════════════════════════════════
+// A roofer's customer said the quote was too much information, and there was
+// no good answer: the pages were a fixed order with a tickbox each, buried in
+// a collapsed settings card nowhere near the document they changed.
+//
+// This is the answer — one window, the real proposal in the middle, and the
+// pages down the side the way a slide deck does it. The proposal is MOVED in
+// here rather than copied, so what is being arranged is the document itself
+// and there is no second rendering path to drift out of step with the first.
+var _QT = { open: false, home: null, sel: 0, drag: null, openTpl: '' };
+
+function _qtOpen(){
+  var wrap = document.getElementById('qtEditWrap');
+  var root = document.getElementById('qpRoot');
+  if (!wrap || !root) return;
+  _qtState();                                  // make sure the page list exists
+  // Remember exactly where the proposal lives so it goes back there.
+  _QT.home = { parent: root.parentNode, next: root.nextSibling };
+  document.getElementById('qtStage').appendChild(root);
+  wrap.classList.add('on');
+  document.body.style.overflow = 'hidden';     // the window scrolls, not the page
+  _QT.open = true;
+  _qtSyncTemplatePicker();
+  _qtRenderRail();
+  try { _fitProposalPages(); } catch(e){}
+}
+function _qtClose(){
+  var wrap = document.getElementById('qtEditWrap');
+  var root = document.getElementById('qpRoot');
+  if (!wrap || !root) return;
+  if (_QT.home && _QT.home.parent)
+    _QT.home.parent.insertBefore(root, _QT.home.next || null);
+  wrap.classList.remove('on');
+  document.body.style.overflow = '';
+  _QT.open = false;
+  _qpSyncSections();
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _fitProposalPages(); } catch(e){}
+  _qtSyncSavedPicker();
+}
+// _qtState is the page list; named to sit beside the Job Pack's _jpState.
+function _qtState(){ return _qpState(); }
+
+// ── the rail ──────────────────────────────────────────────────────
+// A slide per page, thumbnailed from the page that is actually rendered, so
+// what is in the rail is what the customer gets. Pages taken out sit under a
+// divider and carry a label rather than a picture: they are not rendered, and
+// rendering them just to shrink them would double the work of every keystroke.
+function _qtRenderRail(){
+  var rail = document.getElementById('qtRail');
+  if (!rail) return;
+  var q = _qtState();
+  var live = Array.prototype.slice.call(document.querySelectorAll('#qpRoot > .rp-page'));
+  var byIdx = {};
+  live.forEach(function(el){ byIdx[el.getAttribute('data-qp-page')] = el; });
+
+  var h = '<div class="qt-rail-hd">In this quote</div>';
+  q.pages.forEach(function(pg, i){
+    var spec = _qpTypeSpec(pg.type) || { label: pg.type, blurb: '' };
+    var src = byIdx[String(i)];
+    h += '<div class="qt-slide' + (i === _QT.sel ? ' sel' : '') + '" draggable="true"' +
+           ' data-qt-i="' + i + '" title="' + esc2(spec.label + ' — ' + spec.blurb) + '">' +
+         '<span class="qt-slide-no">' + (i + 1) + '</span>' +
+         '<div class="qt-slide-tools">' +
+           '<button title="Duplicate this page" onclick="event.stopPropagation();_qtDup(' + i + ')">⧉</button>' +
+           '<button class="rm" title="Take this page out of the quote" onclick="event.stopPropagation();_qtPark(' + i + ')">✕</button>' +
+         '</div>' +
+         '<div class="qt-thumb" data-qt-thumb="' + i + '"></div>' +
+         '<div class="qt-slide-name">' + esc2(spec.label) + '</div>' +
+       '</div>';
+  });
+  h += '<div class="qt-rail-hd" style="margin-top:8px">Taken out</div>';
+  if (!q.parked.length){
+    h += '<div class="qt-tray empty-hint">Nothing taken out. Use ✕ on a page to drop it here — it keeps its place in the list and can be dragged back any time.</div>';
+  } else {
+    h += '<div class="qt-tray">';
+    q.parked.forEach(function(pg, i){
+      var spec = _qpTypeSpec(pg.type) || { label: pg.type, blurb: '' };
+      h += '<div class="qt-slide parked" draggable="true" data-qt-parked="' + i + '"' +
+             ' title="' + esc2(spec.label + ' — ' + spec.blurb + '. Drag up to put it back.') + '">' +
+           '<div class="qt-slide-tools">' +
+             '<button title="Put this page back in the quote" onclick="event.stopPropagation();_qtUnpark(' + i + ')">↩</button>' +
+           '</div>' +
+           '<div style="padding:12px 8px;font-size:11px;color:var(--text2);line-height:1.4">' + esc2(spec.blurb) + '</div>' +
+           '<div class="qt-slide-name">' + esc2(spec.label) + '</div>' +
+         '</div>';
+    });
+    h += '</div>';
+  }
+  rail.innerHTML = h;
+
+  // Paint the thumbnails from the live pages. Cloned and scaled, not
+  // re-rendered: a thumbnail that builds itself could disagree with the page.
+  q.pages.forEach(function(pg, i){
+    var host = rail.querySelector('[data-qt-thumb="' + i + '"]');
+    var src = byIdx[String(i)];
+    if (!host) return;
+    // A page can be in the list and still render nothing — Selections is
+    // empty until the job has options to select. A blank thumbnail reads as
+    // broken, so it says why instead.
+    if (!src){
+      host.innerHTML = '<div style="padding:10px 8px;font-size:10.5px;color:var(--text2);line-height:1.4">' +
+        'Nothing to show on this job yet — the page appears once there is something to put on it.</div>';
+      return;
+    }
+    var w = src.offsetWidth || 794;
+    var scale = (rail.clientWidth - 28) / w;
+    var clone = src.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.style.zoom = 1;
+    var box = document.createElement('div');
+    box.className = 'qt-scale';
+    box.style.width = w + 'px';
+    box.style.transform = 'scale(' + scale + ')';
+    box.appendChild(clone);
+    host.appendChild(box);
+  });
+  _qtWireRail(rail);
+}
+function _qtWireRail(rail){
+  rail.querySelectorAll('.qt-slide').forEach(function(el){
+    el.onclick = function(){
+      var i = el.getAttribute('data-qt-i');
+      if (i == null) return;
+      _QT.sel = +i;
+      _qtRenderRail();
+      var pg = document.querySelector('#qpRoot > .rp-page[data-qp-page="' + i + '"]');
+      if (pg) pg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    el.ondragstart = function(ev){
+      _QT.drag = el.hasAttribute('data-qt-parked')
+        ? { from: 'parked', i: +el.getAttribute('data-qt-parked') }
+        : { from: 'pages',  i: +el.getAttribute('data-qt-i') };
+      el.classList.add('drag');
+      try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', 'qt'); } catch(e){}
+    };
+    el.ondragend = function(){ el.classList.remove('drag'); _QT.drag = null;
+      rail.querySelectorAll('.over').forEach(function(x){ x.classList.remove('over'); }); };
+    el.ondragover = function(ev){ if (!_QT.drag) return; ev.preventDefault(); el.classList.add('over'); };
+    el.ondragleave = function(){ el.classList.remove('over'); };
+    el.ondrop = function(ev){
+      if (!_QT.drag) return;
+      ev.preventDefault(); ev.stopPropagation();
+      el.classList.remove('over');
+      var toParked = el.hasAttribute('data-qt-parked');
+      var to = toParked ? +el.getAttribute('data-qt-parked') : +el.getAttribute('data-qt-i');
+      _qtMove(_QT.drag, toParked ? 'parked' : 'pages', to);
+    };
+  });
+  // Dropping on the tray's empty space parks the page; dropping on the rail
+  // below the last slide puts it at the end.
+  rail.ondragover = function(ev){ if (_QT.drag) ev.preventDefault(); };
+  rail.ondrop = function(ev){
+    if (!_QT.drag) return;
+    ev.preventDefault();
+    var q = _qtState();
+    _qtMove(_QT.drag, 'pages', q.pages.length);
+  };
+}
+// Move a page between the document and the tray, or within either.
+function _qtMove(from, toList, toIdx){
+  var q = _qtState();
+  var src = from.from === 'parked' ? q.parked : q.pages;
+  var dst = toList === 'parked' ? q.parked : q.pages;
+  var pg = src[from.i];
+  if (!pg) return;
+  // Never let the last page be dragged out — a quote with no pages is not a
+  // quote, and the way back is not obvious once the document is blank.
+  if (src === q.pages && dst !== q.pages && q.pages.length <= 1){
+    alert('Keep at least one page in the quote.');
+    return;
+  }
+  src.splice(from.i, 1);
+  if (src === dst && from.i < toIdx) toIdx--;
+  dst.splice(Math.max(0, Math.min(dst.length, toIdx)), 0, pg);
+  _QT.sel = (dst === q.pages) ? Math.max(0, Math.min(q.pages.length - 1, toIdx)) : _QT.sel;
+  _qtAfterChange();
+}
+function _qtPark(i){
+  var q = _qtState();
+  if (q.pages.length <= 1){ alert('Keep at least one page in the quote.'); return; }
+  var pg = q.pages.splice(i, 1)[0];
+  if (pg) q.parked.push(pg);
+  if (_QT.sel >= q.pages.length) _QT.sel = Math.max(0, q.pages.length - 1);
+  _qtAfterChange();
+}
+function _qtUnpark(i){
+  var q = _qtState();
+  var pg = q.parked.splice(i, 1)[0];
+  if (pg) q.pages.push(pg);
+  _QT.sel = q.pages.length - 1;
+  _qtAfterChange();
+}
+function _qtDup(i){
+  var q = _qtState();
+  var pg = q.pages[i];
+  if (!pg) return;
+  q.pages.splice(i + 1, 0, _qpNewPage(pg.type));
+  _QT.sel = i + 1;
+  _qtAfterChange();
+}
+function _qtAfterChange(){
+  _qpSyncSections();
+  try { refreshQuoteProposal(); } catch(e){}
+  // The proposal re-renders asynchronously in places; let it settle before
+  // the rail thumbnails are cut from it, or they come out blank.
+  setTimeout(function(){ _qtRenderRail(); }, 120);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+
+// ── saved templates ───────────────────────────────────────────────
+// One default (branding.proposal_template, which already existed and is what
+// a new job starts from) plus any number of named ones. A template is the
+// page arrangement AND the standard copy, because a "short quote" that keeps
+// the long terms is not the thing anybody meant.
+function _qtTemplates(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+  var br = S.settings.branding;
+  if (!Array.isArray(br.quote_templates)) br.quote_templates = [];
+  return br.quote_templates;
+}
+// What a template is made of. Snapshot, never a live reference — editing a
+// quote must not quietly rewrite the template it came from.
+function _qtSnapshot(){
+  try { readQuoteFromInputs(); } catch(e){}
+  var q = _qtState();
+  return {
+    pages:  JSON.parse(JSON.stringify(q.pages  || [])),
+    parked: JSON.parse(JSON.stringify(q.parked || [])),
+    coverTitle: q.coverTitle || '', aboutText: q.aboutText || '', terms: q.terms || '',
+    inclusions: (q.inclusions || []).slice(),
+    exclusions: (q.exclusions || []).slice(),
+    timeline:   (q.timeline   || []).slice(),
+    proposalSections: Object.assign({}, q.proposalSections || {}),
+    options: JSON.parse(JSON.stringify(q.options || [])),
+  };
+}
+function _qtApplySnapshot(t){
+  if (!t) return;
+  var q = _qtState();
+  if (Array.isArray(t.pages) && t.pages.length){
+    q.pages  = JSON.parse(JSON.stringify(t.pages));
+    q.parked = JSON.parse(JSON.stringify(t.parked || []));
+  }
+  ['coverTitle','aboutText','terms'].forEach(function(k){ if (t[k] != null) q[k] = t[k]; });
+  ['inclusions','exclusions','timeline'].forEach(function(k){ if (Array.isArray(t[k])) q[k] = t[k].slice(); });
+  if (t.proposalSections) q.proposalSections = Object.assign({}, t.proposalSections);
+  if (Array.isArray(t.options)) q.options = JSON.parse(JSON.stringify(t.options));
+  _qpSyncSections();
+}
+function _qtSyncTemplatePicker(){
+  var sel = document.getElementById('qtTplPick');
+  if (!sel) return;
+  var list = _qtTemplates();
+  sel.innerHTML = '<option value="">New — this quote as it is</option>' +
+    list.map(function(t){ return '<option value="' + esc2(t.id) + '">' + esc2(t.name) + '</option>'; }).join('');
+  sel.value = _QT.openTpl || '';
+  var b = document.getElementById('qtSaveOpenBtn');
+  if (b) b.style.display = _QT.openTpl ? '' : 'none';
+}
+// The Quote tab's own picker — "Select saved quote".
+function _qtSyncSavedPicker(){
+  var sel = document.getElementById('qaTplSelect');
+  if (!sel) return;
+  var list = _qtTemplates();
+  sel.innerHTML = '<option value="">Select saved quote…</option>' +
+    (S.settings && S.settings.branding && S.settings.branding.proposal_template
+      ? '<option value="__default">Default quote</option>' : '') +
+    list.map(function(t){ return '<option value="' + esc2(t.id) + '">' + esc2(t.name) + '</option>'; }).join('');
+  sel.value = '';
+  // With nothing saved there is nothing to pick, so the control stays out of
+  // the way rather than sitting there empty.
+  sel.style.display = (list.length || (S.settings && S.settings.branding && S.settings.branding.proposal_template)) ? '' : 'none';
+}
+function _qtLoadTemplate(id){
+  _QT.openTpl = id || '';
+  if (id){
+    var t = _qtTemplates().filter(function(x){ return x.id === id; })[0];
+    if (t) _qtApplySnapshot(t.tpl);
+  }
+  _qtSyncTemplatePicker();
+  _qtAfterChange();
+}
+async function _qtSaveOpenTemplate(){
+  var t = _qtTemplates().filter(function(x){ return x.id === _QT.openTpl; })[0];
+  if (!t) return;
+  t.tpl = _qtSnapshot();
+  await _qtPersist('✓ “' + t.name + '” saved');
+}
+async function _qtSaveAsNamed(){
+  var name = (prompt('Save this quote layout as:', '') || '').trim();
+  if (!name) return;
+  var list = _qtTemplates();
+  var existing = list.filter(function(x){ return x.name.toLowerCase() === name.toLowerCase(); })[0];
+  if (existing){
+    if (!confirm('“' + name + '” already exists. Replace it?')) return;
+    existing.tpl = _qtSnapshot();
+    _QT.openTpl = existing.id;
+  } else {
+    var t = { id: 'tpl' + Date.now().toString(36), name: name.slice(0, 60), tpl: _qtSnapshot() };
+    list.push(t);
+    _QT.openTpl = t.id;
+  }
+  _qtSyncTemplatePicker();
+  await _qtPersist('✓ Saved as “' + name + '”');
+}
+async function _qtSaveAsDefault(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+  S.settings.branding.proposal_template = _qtSnapshot();
+  await _qtPersist('✓ Saved as the default quote — new jobs start from this');
+}
+async function _qtPersist(okMsg){
+  var sub = document.getElementById('qtEditSub');
+  if (sub) sub.textContent = 'Saving…';
+  try {
+    if (typeof saveSettings === 'function') await saveSettings();
+    if (sub) sub.textContent = okMsg;
+  } catch(e){
+    if (sub) sub.textContent = 'Save failed: ' + (e.message || e);
+  }
+  _qtSyncSavedPicker();
+  setTimeout(function(){
+    if (sub && _QT.open) sub.textContent = 'Drag pages to reorder · take pages out and they wait below';
+  }, 4000);
+}
+// Picking a saved quote on the Quote tab applies it to THIS job.
+function _qtApplySaved(id){
+  if (!id) return;
+  var t = (id === '__default')
+    ? (S.settings && S.settings.branding && S.settings.branding.proposal_template)
+    : (_qtTemplates().filter(function(x){ return x.id === id; })[0] || {}).tpl;
+  if (!t){ _qtSyncSavedPicker(); return; }
+  _qtApplySnapshot(t);
+  try { refreshQuoteProposal(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  var msg = document.getElementById('qaMsg');
+  if (msg){ msg.textContent = '✓ Quote layout applied'; msg.style.color = '#15803d';
+    setTimeout(function(){ msg.textContent = ''; msg.style.color = ''; }, 3500); }
+  _qtSyncSavedPicker();
+}
+
 async function saveAsDefaultTemplate(){
   readQuoteFromInputs();
   var q = S.quote || {};
@@ -57563,6 +58095,29 @@ document.addEventListener('mousedown',function(e){
 </script>
 
 <!-- Image-slot picker modal (lives outside any tab so it overlays the app) -->
+<!-- ── Quote template editor ──────────────────────────────────────
+     Opened from "Edit quote template" on the Quote tab. The real #qpRoot
+     is MOVED in here while it is open and put back on close, so what is
+     being arranged is the actual document, not a copy of it that could
+     drift. -->
+<div id="qtEditWrap" class="no-print">
+  <div class="qt-bar">
+    <strong>Edit quote template</strong>
+    <span class="qt-sub" id="qtEditSub">Drag pages to reorder · take pages out and they wait below</span>
+    <span style="flex:1"></span>
+    <select id="qtTplPick" onchange="_qtLoadTemplate(this.value)" title="Open a saved template to edit"
+      style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:#0f2740;color:#fff;font-size:12px;font-family:inherit"></select>
+    <button class="qt-btn" onclick="_qtSaveOpenTemplate()" id="qtSaveOpenBtn" style="display:none">💾 Save changes</button>
+    <button class="qt-btn" onclick="_qtSaveAsNamed()">⭐ Save as…</button>
+    <button class="qt-btn primary" onclick="_qtSaveAsDefault()">Save as default quote</button>
+    <button class="qt-btn ghost" onclick="_qtClose()">Done</button>
+  </div>
+  <div class="qt-body">
+    <div class="qt-rail" id="qtRail"></div>
+    <div class="qt-stage" id="qtStage"></div>
+  </div>
+</div>
+
 <div id="slotPickerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(8,14,28,0.72);z-index:5000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeSlotPicker()">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:760px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
     <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)">

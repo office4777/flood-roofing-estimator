@@ -37,7 +37,7 @@ const API = [
 ];
 // The real app.html, driven by Playwright.
 const UI = [
-  'tenantbrand', 'ownbrand', 'heroslot', 'poleshed', 'orderdelivery', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
+  'tenantbrand', 'ownbrand', 'heroslot', 'poleshed', 'orderdelivery', 'quotetpl', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
   'trialui', 'navplan', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'roofmenu', 'sheetrun1024', 'bgmatch', 'tutorial', 'seo', 'sitebrand', 'quotelink', 'quotebar', 'roofhistory', 'lkgguard', 'rotatefine', 'snapreach', 'roofpitch', 'pricingarea', 'fergussplit', 'roofmapcrop', 'platformscaff', 'draftbg', 'clearfit', 'emailtpl', 'extrasguard', 'truemeas', 'notifybell', 'flashpitch', 'custbarside', 'suppliercolours', 'qnstats', 'maildomainui', 'grandfatherui', 'hroofsnap', 'rectroof', 'roofreal', 'hip45', 'gableshapes', 'sheetstep', 'cornerpad', 'savemoved', 'appupdate', 'autoscale', 'jmsdiagui', 'fbkind', 'scalecaution', 'scheduleui', 'inboxui',
   // Browser-driven despite exercising backend behaviour — they import
