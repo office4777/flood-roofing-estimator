@@ -22,10 +22,14 @@ function mkSched(){
       { id:'r1', job_id:'j1', client_name:'Brian Lewis', site_address:'148 Horeke Road, Okaihau', email:'b@l.nz',
         length_days:8, notes:'', progress_pct:80, deposit_paid:true, ordered:true, delivery_check:false,
         handover_done:false, last_notified:null, job_no:'FR-2996',
+        // Asked the supplier for the 18th; they have not come back yet.
+        requested_delivery:'2026-09-18', confirmed_delivery:null,
         archived:false, created_at:'2026-08-01', accepted_at:'2026-08-27T09:00:00Z', auto:{} },
       { id:'r2', job_id:null, client_name:'Modspace', site_address:'Whetu Rau', email:'', length_days:4,
         notes:'', progress_pct:null, deposit_paid:false, ordered:false, delivery_check:false,
         handover_done:false, last_notified:null, job_no:'',
+        // Asked for the 25th and the supplier confirmed it.
+        requested_delivery:'2026-09-25', confirmed_delivery:'2026-09-25',
         archived:false, created_at:'2026-08-10', accepted_at:null, auto:{} },
     ],
     // Both blocks on r1, over the same days, with cap 1 → those days must
@@ -170,16 +174,24 @@ check('clicking a pencil block with a crew selected solid-books it',
 v = await pg.evaluate(() => {
   const flags = [...document.querySelectorAll('.sched-flag')].map(f => ({
     k: f.getAttribute('data-flag'), row: f.getAttribute('data-flagrow'),
-    col: f.style.color, op: +getComputedStyle(f).opacity }));
+    col: f.style.color, op: +getComputedStyle(f).opacity,
+    size: parseFloat(getComputedStyle(f).fontSize) }));
   const helper = _schedRowFlags(_SCHED.data.rows.find(r => r.id === 'r1')).map(f => f.kind + '@' + f.date);
   return { flags, helper };
 });
 check('the three milestone dates hang off acceptance and the start',
   v.helper.join('|') === 'pencil@2026-08-28|week@2026-08-21|confirm@2026-09-01', v.helper.join('|'));
-check('…and the in-range ones render as translucent coloured envelopes',
+check('…and the in-range ones render as coloured envelopes',
   v.flags.some(f => f.k === 'pencil' && f.row === 'r1' && /220, 38, 38/.test(f.col)) &&
-  v.flags.some(f => f.k === 'confirm' && f.row === 'r1' && /22, 163, 74/.test(f.col)) &&
-  v.flags.every(f => f.op < 0.7), JSON.stringify(v.flags).slice(0, 140));
+  v.flags.some(f => f.k === 'confirm' && f.row === 'r1' && /22, 163, 74/.test(f.col)),
+  JSON.stringify(v.flags).slice(0, 140));
+// "increase the size of the email symbols on the schedule". They were 11px
+// and half-faded on a board this dense — small enough to miss, and they are
+// the buttons that send the customer their emails. Still short of the day
+// column's width, so they cannot overlap their neighbours.
+check('THE ASK: the envelopes are big enough to see and to hit',
+  v.flags.length > 0 && v.flags.every(f => f.size >= 14 && f.size <= 22 && f.op >= 0.7),
+  JSON.stringify(v.flags.map(f => f.size + 'px @' + f.op)).slice(0, 120));
 await pg.evaluate(() => document.querySelector('.sched-flag[data-flagrow="r1"][data-flag="confirm"]').click());
 await pg.waitForTimeout(150);
 v = await pg.evaluate(() => ({
@@ -335,6 +347,68 @@ check('…zooming right out clamps at 6px/day and thins the day numbers to Monda
   v.floor === 6 && v.numbered < v.total / 3, v.floor + 'px, ' + v.numbered + '/' + v.total + ' numbered');
 await pg.evaluate(() => { _SCHED.dayW = 24; try { localStorage.removeItem('fr_sched_dayw'); } catch(e){} _schedRender(); });
 await pg.waitForTimeout(300);
+
+// ── the delivery, carried over from the material order ────────────
+// "show the delivery date in orange which indicates thats the requested day
+//  … a tick box to say that delivery date has been confirmed which then
+//  turns the indicator green."
+{
+  const d = await pg.evaluate(() => [...document.querySelectorAll('.sched-deliv')].map(e => ({
+    row: e.getAttribute('data-delivrow'), col: e.style.color, title: e.getAttribute('title') || '' })));
+  check('THE ASK: the delivery shows on the board on its own day',
+    d.length === 2, JSON.stringify(d).slice(0, 160));
+  check('…orange while it is only the day that was asked for',
+    d.some(x => x.row === 'r1' && /234, 88, 12/.test(x.col) && /requested/i.test(x.title)),
+    JSON.stringify(d.find(x => x.row === 'r1') || null));
+  check('…and green once the supplier has confirmed it',
+    d.some(x => x.row === 'r2' && /22, 163, 74/.test(x.col) && /confirmed/i.test(x.title)),
+    JSON.stringify(d.find(x => x.row === 'r2') || null));
+  // One row, one truck: a requested AND a confirmed date on the same job must
+  // not paint two, or the board reads as two separate deliveries.
+  check('…and a confirmed job shows one delivery, not two',
+    d.filter(x => x.row === 'r2').length === 1, JSON.stringify(d));
+}
+
+// ── correcting and confirming it, from the job popup ──────────────
+{
+  const patches = [];
+  await pg.route('**/schedule/rows/**', async (r) => {
+    if (r.request().method() === 'PATCH') patches.push(r.request().postDataJSON());
+    await r.fulfill({ status:200, contentType:'application/json', body:'{}' });
+  });
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(300);
+  const shown = await pg.evaluate(() => ({
+    date: (document.querySelector('#schedInfoModal [data-iedit="requested_delivery"]') || {}).value,
+    tick: !!(document.getElementById('schedInfoDelivOk') || {}).checked,
+  }));
+  check('the job popup shows the delivery date it was ordered for',
+    shown.date === '2026-09-18', JSON.stringify(shown));
+  check('…and the confirmed tick is clear while it is still only a request',
+    shown.tick === false, JSON.stringify(shown));
+
+  await pg.evaluate(() => { const i = document.querySelector('#schedInfoModal [data-iedit="requested_delivery"]');
+    i.value = '2026-09-21'; i.onchange(); });
+  await pg.waitForTimeout(200);
+  check('THE ASK: the delivery date can be changed by hand',
+    patches.some(p => p && p.requested_delivery === '2026-09-21'), JSON.stringify(patches).slice(0, 160));
+
+  await pg.evaluate(() => { const c = document.getElementById('schedInfoDelivOk'); c.checked = true; c.onchange(); });
+  await pg.waitForTimeout(200);
+  check('THE ASK: ticking confirmed saves the day it was confirmed for',
+    patches.some(p => p && p.confirmed_delivery === '2026-09-21'), JSON.stringify(patches).slice(0, 200));
+  const nowGreen = await pg.evaluate(() =>
+    [...document.querySelectorAll('.sched-deliv')].some(e =>
+      e.getAttribute('data-delivrow') === 'r1' && /22, 163, 74/.test(e.style.color)));
+  check('…and the board turns that delivery green straight away', nowGreen);
+
+  await pg.evaluate(() => { const c = document.getElementById('schedInfoDelivOk'); c.checked = false; c.onchange(); });
+  await pg.waitForTimeout(200);
+  check('…and un-ticking it puts it back to a request rather than losing the day',
+    patches.some(p => p && p.confirmed_delivery === null), JSON.stringify(patches).slice(-150));
+  await pg.evaluate(() => _schedInfoClose());
+  await pg.unroute('**/schedule/rows/**');
+}
 
 // Extended view overlays the whole viewport — side menu and all.
 await pg.evaluate(() => _schedExtToggle());

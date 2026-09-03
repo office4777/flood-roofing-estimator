@@ -1910,11 +1910,15 @@ app.get('/jobs', requireAuth, async (req, res) => {
 // send it. Also flips the cheap status column the board filters on.
 app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
   const b = req.body || {};
+  // A plain yyyy-mm-dd, or nothing. Anything else is dropped rather than
+  // stored, so the board never has to guess at a half-typed date.
+  const delivery = /^\d{4}-\d{2}-\d{2}$/.test(String(b.delivery_date || '')) ? String(b.delivery_date) : '';
   const stamp = {
     at: new Date().toISOString(),
     to: String(b.to || '').slice(0, 300),
     supplier: String(b.supplier || '').slice(0, 200),
     by: req.user.id,
+    delivery_date: delivery,
   };
   // .select('id') so we can tell a real update from a scope that matched no
   // rows. Without it this answered ok:true — and handed back a stamp — for a
@@ -1928,9 +1932,56 @@ app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
   }
   if (error) return res.status(500).json({ error: error.message });
   if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
-  res.json({ ok: true, order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
+  // The delivery date is the first hard date a job has, and it is the one the
+  // crew plans around — so ordering the roof puts the job on the schedule
+  // rather than leaving it to be typed in again. An existing row for the job
+  // is updated, not duplicated; a job that was never on the board is added.
+  // Best effort on purpose: the order HAS been sent, and a schedule that is
+  // off the plan (or a company not on the tier that has one) must not turn
+  // that into an error the office sees.
+  let scheduled = null;
+  if (delivery) {
+    try { scheduled = await _schedRowForJob(req, req.params.id, delivery); }
+    catch (e) { console.warn('[order-sent] schedule row failed:', e && e.message); }
+  }
+  res.json({ ok: true, scheduled,
+             order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
   recordUsage('order_sent', req);
 });
+
+// Put a job on the schedule board with the delivery it has just been ordered
+// for, or move the one already there. Returns the row, or null when there is
+// nothing sensible to do.
+async function _schedRowForJob(req, jobId, requested){
+  const { data: existing } = await _scopeCompany(supabase.from('schedule_rows')
+    .select('id, requested_delivery, confirmed_delivery'), req).eq('job_id', jobId).limit(1);
+  if (existing && existing.length) {
+    const row = existing[0];
+    if (row.requested_delivery === requested) return row;
+    const { data } = await _scopeCompany(supabase.from('schedule_rows')
+      .update({ requested_delivery: requested }).eq('id', row.id), req).select('*');
+    return (data && data[0]) || row;
+  }
+  const { data: j } = await _scopeCompany(supabase.from('jobs')
+    .select('id, client_name, site_address'), req).eq('id', jobId).maybeSingle();
+  if (!j) return null;
+  // A row has to be called something on the board; without a name there is
+  // nothing to click, so an unnamed job is left off rather than added blank.
+  const name = String(j.client_name || '').trim();
+  if (!name) return null;
+  const row = {
+    id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+    job_id: jobId, client_name: name.slice(0, 200),
+    site_address: String(j.site_address || '').slice(0, 300), email: '',
+    length_days: 1, notes: '', progress_pct: null, deposit_paid: null,
+    ordered: true, delivery_check: false, confirmed_delivery: null,
+    requested_delivery: requested, sort_pos: null, archived: false,
+    last_notified: null, handover_done: false, created_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from('schedule_rows').insert(row).select('*').single();
+  if (error) throw new Error(error.message);
+  return data || row;
+}
 
 // The job number a save is carrying, which lives inside the quote.
 function _jobRefOf(drawState){
@@ -5378,7 +5429,8 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
     // Explicit defaults: the DB has them, but the test double doesn't apply
     // DDL defaults, and an absent `archived` fails the eq(false) filter there.
     progress_pct: null, deposit_paid: null, ordered: null, delivery_check: false,
-    confirmed_delivery: null, sort_pos: null, archived: false, last_notified: null, handover_done: false,
+    confirmed_delivery: null, requested_delivery: b.requested_delivery || null,
+    sort_pos: null, archived: false, last_notified: null, handover_done: false,
     created_at: new Date().toISOString(),
   };
   try {
@@ -5400,7 +5452,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
-  'sort_pos', 'archived', 'job_id', 'handover_done'];
+  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done'];
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   const patch = {};
   for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
@@ -8024,6 +8076,12 @@ const _MIGRATION_SQL = [
   "alter table public.schedule_rows add column if not exists user_id uuid",
   "alter table public.schedule_blocks add column if not exists user_id uuid",
   "alter table public.schedule_rows add column if not exists handover_done boolean not null default false",
+  // The delivery the supplier was ASKED for, carried over from the material
+  // order. confirmed_delivery (already here) is the one they came back and
+  // agreed to — the board shows the requested date in orange and the
+  // confirmed one in green, so at a glance you can see what is still only a
+  // request.
+  "alter table public.schedule_rows add column if not exists requested_delivery date",
 
   // 10c. inbox — the comms hub (Business tier). A company connects its real
   //      email accounts over IMAP/SMTP; messages are mirrored here so the

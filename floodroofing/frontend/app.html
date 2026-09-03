@@ -2965,9 +2965,16 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-block.pencil{ background:#c00000; }
 .sched-block .rz{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; }
 .sched-block.dragging{ opacity:.75; cursor:grabbing; z-index:3; }
-.sched-flag{ position:absolute; top:-2px; width:var(--sched-dayw, 24px); text-align:center; font-size:11px;
-  line-height:14px; opacity:.55; z-index:4; cursor:pointer; }
-.sched-flag:hover{ opacity:1; }
+/* The envelopes were 11px and half-faded — small enough to miss on a board
+   this dense, and they are the buttons that send the customer their emails. */
+.sched-flag{ position:absolute; top:-4px; width:var(--sched-dayw, 24px); text-align:center; font-size:16px;
+  line-height:18px; opacity:.72; z-index:4; cursor:pointer; }
+.sched-flag:hover{ opacity:1; transform:scale(1.12); }
+/* The delivery the roof was ordered for. Orange is what the supplier was
+   ASKED for; green is what they came back and confirmed. */
+.sched-deliv{ position:absolute; bottom:-3px; width:var(--sched-dayw, 24px); text-align:center;
+  font-size:14px; line-height:15px; z-index:5; cursor:pointer; }
+.sched-deliv:hover{ transform:scale(1.15); }
 .sched-empty{ padding:26px; font-size:13px; color:var(--text2); }
 .sched-menu{ position:fixed; z-index:9999; background:#fff; border:1px solid var(--border); border-radius:10px;
   box-shadow:0 10px 34px rgba(10,22,40,.22); padding:6px; min-width:190px; }
@@ -5621,6 +5628,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="delivery_check"> Delivery checked</label>
         <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="handover_done"> Handover done</label>
       </div>
+      <!-- Delivery. The date arrives here on its own when the roof is
+           ordered; this is where it gets corrected and confirmed. -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center">
+          <label style="color:var(--text2)">Delivery date</label>
+          <input type="date" data-iedit="requested_delivery" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        </div>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px;margin-top:8px">
+          <input type="checkbox" id="schedInfoDelivOk"> Delivery confirmed by the supplier
+        </label>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Orange on the board is the day you asked for. Ticking this turns it green.</div>
+      </div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
         <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
@@ -8062,6 +8081,18 @@ function _schedRender(){
       blocks += '<span class="sched-flag" data-flag="' + f.kind + '" data-flagrow="' + r.id + '"' +
         ' title="Send the ' + f.label + ' email" style="left:' + (fi * _SCHED.dayW) + 'px;color:' + f.col + '">✉</span>';
     });
+    // The delivery. Confirmed wins over requested, and only one shows — two
+    // truck icons on one row would read as two deliveries.
+    var dDate = r.confirmed_delivery || r.requested_delivery;
+    var dOk = !!r.confirmed_delivery;
+    if (dDate){
+      var di = dayIdx[String(dDate).slice(0, 10)];
+      if (di != null)
+        blocks += '<span class="sched-deliv" data-delivrow="' + r.id + '"' +
+          ' title="' + (dOk ? 'Delivery confirmed for ' : 'Delivery requested for ') + esc(String(dDate).slice(0, 10)) +
+          ' — click the job name to change it" style="left:' + (di * _SCHED.dayW) + 'px;color:' +
+          (dOk ? '#16a34a' : '#ea580c') + '">🚚</span>';
+    }
     h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
          '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
   });
@@ -8361,12 +8392,36 @@ function _schedInfoOpen(rowId){
       var val = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (f === 'length_days') val = Math.max(1, parseInt(val, 10) || 1);
       if (f === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+      // A date column will not take an empty string; cleared means null.
+      if (f === 'requested_delivery' || f === 'confirmed_delivery') val = inp.value || null;
       r[f] = val;
       var patch = {}; patch[f] = val;
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
       _schedRender();
     };
   });
+  // "let me click a tick box to say that delivery date has been confirmed
+  // which then turns the indicator green". Confirming is not a flag of its
+  // own — it IS the confirmed date, so the tick copies the day across and
+  // clearing it takes the day back off, and the board reads one field to
+  // decide the colour rather than two that can disagree.
+  var dOk = document.getElementById('schedInfoDelivOk');
+  if (dOk){
+    dOk.checked = !!r.confirmed_delivery;
+    dOk.onchange = function(){
+      var day = dOk.checked
+        ? (r.confirmed_delivery || r.requested_delivery ||
+           (m.querySelector('[data-iedit="requested_delivery"]') || {}).value || '')
+        : '';
+      if (dOk.checked && !day){
+        alert('Put the delivery date in first, then tick it as confirmed.');
+        dOk.checked = false; return;
+      }
+      r.confirmed_delivery = day || null;
+      _schedApi('PATCH', '/schedule/rows/' + rowId, { confirmed_delivery: r.confirmed_delivery });
+      _schedRender();
+    };
+  }
   document.getElementById('schedInfoOverlay').style.display = 'block';
   m.style.display = 'flex';
 }
@@ -15464,7 +15519,8 @@ async function fetchRecentDrafts(){
   var orders = (jobs || []).filter(function(j){ return j && (j.status === 'ordered' || (j.order_sent && j.order_sent.at)); })
     .map(function(j){ return { id: j.id, client: j.client_name, addr: j.site_address,
       at: (j.order_sent && j.order_sent.at) || j.updated_at, to: (j.order_sent && j.order_sent.to) || '',
-      by: (j.order_sent && j.order_sent.by_name) || '', madeBy: j.created_by || '' }; });
+      by: (j.order_sent && j.order_sent.by_name) || '', madeBy: j.created_by || '',
+      delivery: (j.order_sent && j.order_sent.delivery_date) || '' }; });
   orders.sort(function(a, b){ return new Date(b.at || 0) - new Date(a.at || 0); });
   window._ordersSentRows = orders;
   window._selectJobsCache = jobs || [];   // keep the home job-search instant
@@ -15474,6 +15530,16 @@ async function fetchRecentDrafts(){
 // Six Fergus-style columns painted from three sources: the recent-drafts
 // rows (fetchRecentDrafts), the quote-activity feed (fetchQuoteActivity)
 // and the orders-sent stamps that ride along on the jobs list.
+// A delivery date on its own — no time of day, because a supplier gives you
+// a day, not an hour.
+function _hbDay(d){
+  if (!d) return '';
+  var p = String(d).split('-');
+  if (p.length !== 3) return String(d);
+  var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+  return isNaN(dt) ? String(d)
+    : dt.toLocaleDateString('en-NZ', { weekday:'short', day:'numeric', month:'short' });
+}
 function _hbWhen(t){
   return t ? new Date(t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
 }
@@ -15543,7 +15609,11 @@ function _renderHomeBoard(){
       '<span class="hb-row-badge" style="background:#e0f2fe;color:#0369a1">Ordered</span>' +
       '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(o.client || '(untitled)') + '</div>' +
       '<div class="hb-row-sub">' + esc2(o.addr || '—') + (o.to ? ' · order to ' + esc2(o.to) : '') +
-        (o.by ? '<span style="opacity:.75"> · sent by ' + esc2(o.by) + '</span>' : '') + '</div></div>' +
+        (o.by ? '<span style="opacity:.75"> · sent by ' + esc2(o.by) + '</span>' : '') + '</div>' +
+        // The date the delivery was asked for. It is the first hard date a
+        // job has, so it belongs where the order is read, not two tabs away.
+        (o.delivery ? '<div class="hb-row-sub" style="color:#b45309;font-weight:600">🚚 Delivery ' +
+          esc2(_hbDay(o.delivery)) + '</div>' : '') + '</div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(o.at)) + '</div>' +
     '</div>';
   });
@@ -53349,6 +53419,9 @@ function _orderEmailGather(){
   return {
     supplier: s,
     cc: _orderEmailCc(),
+    // The raw yyyy-mm-dd, not the pretty one: it is stamped on the job and
+    // becomes the requested delivery on the schedule board.
+    deliveryDate: (dateEl && dateEl.value) || '',
     subject: (subjEl && subjEl.value.trim()) || defs.subject,
     body: (bodyEl && bodyEl.value) || defs.body,
     filename: ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf'
@@ -53396,8 +53469,10 @@ async function _orderEmailOpen(mode){
         'subject=' + encodeURIComponent(o.subject) + '&body=' + encodeURIComponent(o.body);
       window.location.href = m;
     }
+    // Ordered is ordered, however it went out.
+    _stampOrderSent(o);
     _closeOrderEmail();
-    _matMsg('✓ Order PDF downloaded (' + o.filename + ') — attach it in the email, then send.', true);
+    _matMsg('✓ Order PDF downloaded (' + o.filename + ') — attach it in the email, then send. Marked as ordered.', true);
   } catch(err) {
     console.error('order email open failed:', err);
     _matMsg('Could not open the email: ' + (err.message || err), false);
@@ -53421,6 +53496,43 @@ function _orderEmailStatus(text, kind){
 // supplier with the PDF attached and the office CC'd — no Gmail tab, no
 // manual attaching.  Needs SMTP configured on the server (Railway env);
 // until then it reports how to set it up and the compose buttons still work.
+// Mark the job as ordered — whichever way the order actually left.
+//
+// This used to live inside the in-app send alone, so "Open in Gmail instead"
+// and "Default mail" built the PDF, opened the compose window and stamped
+// nothing: "i just send a job pack/order roof, but it's not showing on the
+// home page as orders sent". Those two are how most orders go out while
+// in-app sending is still being set up, so they were the common case, not
+// the edge one.
+//
+// The stamp is optimistic on those two paths, deliberately: the button says
+// send the order, the PDF has been built and downloaded, and the compose
+// window is open with the supplier in it. An order that shows as not-sent
+// when it was is the more expensive mistake — that is the one that gets
+// ordered twice.
+//
+// The detail lives in draw_state via the snapshot; the cheap status column
+// flips to 'ordered' so the board never decompresses every job's multi-MB
+// draw_state just to find the ordered ones.
+function _stampOrderSent(o){
+  try {
+    S.orderSent = { at: new Date().toISOString(), to: o.supplier.email,
+                    supplier: (o.supplier.name || ''), by: _meLabel(),
+                    delivery_date: o.deliveryDate || '' };
+    Promise.resolve(saveCurrentJob()).then(function(){
+      // Stamped SERVER-side so the board can say who sent it — the office
+      // shares one job list, and "ordered" without a name is half the story.
+      // The server also puts the job on the schedule board for that delivery.
+      if (S.currentJobId) return api('POST', '/jobs/' + S.currentJobId + '/order-sent',
+        { to: o.supplier.email, supplier: (o.supplier.name || ''),
+          delivery_date: o.deliveryDate || '' });
+    }).then(function(){
+      try { fetchRecentDrafts(); } catch(e){}
+      try { if (window._SCHED && _SCHED.rows) _schedLoad(); } catch(e){}
+    }).catch(function(e){ console.warn('order stamp save failed:', e && e.message); });
+  } catch(e){}
+}
+
 async function _orderEmailSendNow(){
   var btn = document.getElementById('orderEmailSendBtn');
   try {
@@ -53446,19 +53558,7 @@ async function _orderEmailSendNow(){
     });
     _orderEmailStatus('✓ Sent to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : ''), 'ok');
     _matMsg('✓ Order emailed to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : '') + '.', true);
-    // Stamp the job so the home board's "Orders Sent" column picks it up:
-    // the detail lives in draw_state (via the snapshot) and the cheap-to-list
-    // status column flips to 'ordered' so the board never has to decompress
-    // every job's multi-MB draw_state just to find ordered ones.
-    try {
-      S.orderSent = { at: new Date().toISOString(), to: o.supplier.email, supplier: (o.supplier.name || ''), by: _meLabel() };
-      Promise.resolve(saveCurrentJob()).then(function(){
-        // Stamped SERVER-side so the board can say who sent it — the office
-        // shares one job list, and "ordered" without a name is half the story.
-        if (S.currentJobId) return api('POST', '/jobs/' + S.currentJobId + '/order-sent',
-          { to: o.supplier.email, supplier: (o.supplier.name || '') });
-      }).then(function(){ try { fetchRecentDrafts(); } catch(e){} }).catch(function(e){ console.warn('order stamp save failed:', e && e.message); });
-    } catch(e){}
+    _stampOrderSent(o);
     setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
   } catch(err) {
     var msg = String(err && err.message || err);
