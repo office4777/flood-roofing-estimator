@@ -3035,6 +3035,34 @@ html.customer-view .qp-edit-hint,
 html.customer-view .qp-placeholder,
 html.customer-view .no-print{ display:none !important; }
 html.customer-view .qp-editable{ cursor:default !important; }
+/* ── "Add your photo here" — the empty hero / crew band ──────────────
+   A brand-new company has no fleet shot and no crew photo, and it is not
+   entitled to ours, so those two bands used to render as nothing: a silent
+   gap on the cover with no clue that a photo belongs there. This is the
+   invitation to fill it — a dashed frame the office can click straight
+   through to the picker.
+
+   It is for the ROOFER's screen only. It must never reach a customer, so it
+   is struck out in all four of the ways a proposal leaves this app: the
+   customer link, the print sheet, the PDF snapshot, and the browser's own
+   print. A dashed "Add your photo" box on a quote a customer opens would be
+   worse than the blank space it replaces. */
+.qp-photoslot{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; cursor:pointer; text-align:center;
+  border:2px dashed rgba(0,153,204,.5); border-radius:8px;
+  background:rgba(0,153,204,.045); color:#0f6f93;
+  font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+  transition:background .12s, border-color .12s;
+}
+.qp-photoslot:hover{ background:rgba(0,153,204,.1); border-color:rgba(0,153,204,.85); }
+.qp-photoslot-icon{ font-size:22px; line-height:1; opacity:.75; }
+.qp-photoslot-ttl{ font-size:12.5px; font-weight:700; letter-spacing:.01em; }
+.qp-photoslot-sub{ font-size:11px; opacity:.8; max-width:34em; line-height:1.35; }
+html.customer-view .qp-photoslot,
+html.print-quote   .qp-photoslot,
+html.pdf-rendering .qp-photoslot{ display:none !important; }
+@media print { .qp-photoslot{ display:none !important; } }
 html.customer-view .qp-editable:hover{ background:transparent !important; outline:none !important; }
 /* Once the customer has ACCEPTED, the quote is locked — no option / roof /
    colour changes can be made (the selections are frozen at what they accepted).
@@ -6909,6 +6937,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button onclick="clearLogo()" type="button" class="tool-btn" style="font-size:11px">Remove logo</button>
         </div>
       </div>
+      <!-- The photo across the top of every quote's cover page. Set here or by
+           clicking the empty frame on the cover itself; either way it is saved
+           against the company, not the one quote. -->
+      <div style="margin-top:14px">
+        <label>Cover hero photo</label>
+        <div style="font-size:11px;color:var(--text2);margin:-2px 0 6px">Goes across the top of the first page of every quote — your truck, your crew, or a roof you are proud of.</div>
+        <input type="file" id="brHeroFile" accept="image/*" onchange="onCompanyHeroFile(event)">
+        <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
+          <img id="brHeroPreview" alt="cover hero preview" style="max-height:70px;max-width:240px;object-fit:cover;border-radius:6px;display:none">
+          <button onclick="clearCompanyHero()" type="button" class="tool-btn" style="font-size:11px">Remove hero photo</button>
+        </div>
+      </div>
     </div>
 
     <!-- QUOTE DEFAULTS -->
@@ -10259,6 +10299,11 @@ function defaultSettings(){
                 // and the Maxam page.  Job-specific photos still come from
                 // S.photos.
                 gallery_photos: [],
+                // The photo across the top of the cover page. Company-wide and
+                // set once: a per-quote slot assignment still wins for the one
+                // quote it is on, but a new business should not have to pick a
+                // hero shot again on every job it prices.
+                hero_photo: '',
                 // Saved proposal template — when the user clicks "Save as
                 // default template" we snapshot the customisable proposal
                 // fields here so every new proposal starts pre-populated
@@ -12527,6 +12572,11 @@ function refreshSettingsUI(){
   set('brPrimary', b.primary_color||'#0099cc'); set('brDark', b.dark_color||'#0a1628'); set('brAccent', b.accent_color||'#1a3a5c');
   var lp = document.getElementById('brLogoPreview');
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
+  var hp = document.getElementById('brHeroPreview');
+  if (hp){
+    if (b.hero_photo) { hp.src = b.hero_photo; hp.style.display = 'inline-block'; }
+    else { hp.style.display = 'none'; hp.removeAttribute('src'); }
+  }
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
   set('qdNextJobNo', q.next_job_no || '06121');
   var _qlInfo = document.getElementById('qdQuoteLinkInfo');
@@ -22827,6 +22877,66 @@ function _proposalPhoto(slotId, galleryIdx, file){
   try { var g = _galleryArr()[galleryIdx|0] || _galleryArr()[0]; if (g && g.src) return g.src; } catch(e){}
   return _stockPhoto(file);
 }
+// The empty band a new company sees where a photo belongs.
+//
+// _proposalPhoto returns '' when the account has nothing of its own and is
+// not entitled to the built-in set — correct, but it left a silent gap on
+// the cover, and a roofer setting up for the first time had no way of
+// knowing a photo was meant to go there. This puts a dashed frame in the
+// hole with the way to fill it.
+//
+// Screen only: .qp-photoslot is struck out of the customer link, the print
+// sheet, the PDF and the browser's print, so the customer still gets the
+// clean page they get today.
+function _photoSlotEmpty(slotId, title, sub, boxStyle, action){
+  var act = action || ('openSlotPicker(\''+slotId+'\')');
+  return '<div class="qp-photoslot no-print pdf-hide" style="'+(boxStyle||'')+'" ' +
+    'onclick="event.stopPropagation();try{'+act+'}catch(e){}" ' +
+    'title="Click to add a photo">'+
+      '<div class="qp-photoslot-icon">🖼</div>'+
+      '<div class="qp-photoslot-ttl">'+esc2(title)+'</div>'+
+      '<div class="qp-photoslot-sub">'+esc2(sub)+'</div>'+
+    '</div>';
+}
+// Setting the company's hero photo from the empty frame on the cover.
+//
+// Company-wide on purpose. The per-quote slot picker is still there and still
+// wins for the quote it is used on, but a business setting up for the first
+// time should pick its hero shot once and have every quote after it carry the
+// photo — which is what the empty frame offers.
+function pickCompanyHero(){
+  var inp = document.getElementById('brHeroFile');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+function onCompanyHeroFile(ev){
+  var f = ev && ev.target && ev.target.files && ev.target.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function(e){
+    _downscalePhoto(e.target.result, function(src){
+      if (!S.settings) S.settings = defaultSettings();
+      if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+      S.settings.branding.hero_photo = src;
+      var hp = document.getElementById('brHeroPreview');
+      if (hp){ hp.src = src; hp.style.display = 'inline-block'; }
+      try { refreshQuoteProposal(); } catch(err){}
+      try { renderSlotGrid(); } catch(err){}
+      try { saveSettings && saveSettings(); } catch(err){}
+    });
+  };
+  r.readAsDataURL(f);
+  if (ev && ev.target) ev.target.value = '';
+}
+function clearCompanyHero(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+  S.settings.branding.hero_photo = '';
+  var hp = document.getElementById('brHeroPreview');
+  if (hp){ hp.style.display = 'none'; hp.removeAttribute('src'); }
+  var fi = document.getElementById('brHeroFile'); if (fi) fi.value = '';
+  try { refreshQuoteProposal(); } catch(err){}
+  try { saveSettings && saveSettings(); } catch(err){}
+}
 // Who is signed in, for "prepared by" on a proposal.
 function _signedInName(){
   try {
@@ -22923,6 +23033,11 @@ function renderGallery(){
 // historical proposals keep their previous look.
 var PROPOSAL_SLOTS = [
   { id: 'cover_hero',  label: 'Cover hero',         ratio: '16/9' },
+  // The closing band under the signature block. It was always assignable —
+  // _proposalPhoto('signature_band', …) reads the same map — but it was not
+  // listed, so it never appeared in the settings grid and the picker could
+  // not title it.
+  { id: 'signature_band', label: 'Closing crew band', ratio: '1100/118' },
   { id: 'recent_1',    label: 'Recent work — 1',    ratio: '4/3'  },
   { id: 'recent_2',    label: 'Recent work — 2',    ratio: '4/3'  },
   { id: 'recent_3',    label: 'Recent work — 3',    ratio: '4/3'  },
@@ -25982,7 +26097,11 @@ function refreshQuoteProposal(){
     // Default (1100×322 banner crop) is the real fleet-lineup shot — an EXISTING
     // brand file, so it can't 404 (the old brand/fleet_lineup.jpg didn't exist,
     // which is why the hero vanished in the PDF).
-    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) || _stockPhoto('fleet_trucks.jpg');
+    // Then the company's own hero, set once in the empty frame below or in
+    // Settings, so every quote carries it without being told again. The
+    // built-in fleet shot is last and only for the account it belongs to.
+    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) ||
+               ((br && br.hero_photo) || '') || _stockPhoto('fleet_trucks.jpg');
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
@@ -25990,8 +26109,13 @@ function refreshQuoteProposal(){
     // width with no further cropping.
     partCover =
       // No hero at all when this account has nothing of its own to show —
-      // better a clean title plate than a competitor's fleet.
-      (!hero ? '' :
+      // better a clean title plate than a competitor's fleet. On the roofer's
+      // own screen that gap now invites them to fill it; the customer's copy
+      // is still the clean title plate, because .qp-photoslot is struck out
+      // of the customer view, the print sheet and the PDF.
+      (!hero ? _photoSlotEmpty('cover_hero', 'Add your hero photo',
+        'Your truck, your crew, or a roof you are proud of. Set it once — every quote you send from now on carries it.',
+        'aspect-ratio:1100/322;margin:0', 'pickCompanyHero()') :
       '<div style="position:relative;aspect-ratio:1100/322;overflow:hidden;background:var(--ed-ink);margin:0">'+
         '<img src="'+esc2(hero)+'" decoding="async" fetchpriority="high" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
         // Brand-blue gradient overlay at the bottom — ties hero to the
@@ -27437,7 +27561,9 @@ function refreshQuoteProposal(){
       // identically on screen and in the PDF.
       (function(){
         var _f = _proposalPhoto('signature_band', 3, 'fleet_wide.jpg');
-        if (!_f) return '';
+        if (!_f) return _photoSlotEmpty('signature_band', 'Add a closing photo',
+          'Your crew or your fleet, signing the quote off. Optional — leave it empty and the page simply ends here.',
+          'height:118px;margin:12px 0 6px');
         return '<div style="margin:12px -36px 6px;height:118px;overflow:hidden;background:var(--ed-ink) url('+esc2(_f)+') center 42%/cover no-repeat"></div>'+
           // Caption sits BELOW the photo (dark text on the cream page), not overlaid.
           '<div style="text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:12px;color:var(--ed-ink-2);letter-spacing:.03em">The '+esc2(_proposalCompanyName(br))+' crew</div>';
