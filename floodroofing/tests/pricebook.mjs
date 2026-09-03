@@ -77,8 +77,13 @@ let note = await pg.evaluate(() => {
   return els.map(e => ({ where: e.getAttribute('data-pb-listnote'),
                          txt: (e.textContent||'').replace(/\s+/g,' ').trim() }));
 });
+// The wording is the roofer's own: "put a red flag inside the pricing tab
+// banner and say 'Default price book, add your prices in setting'". Amber and
+// the word "sample" read as noted-and-carry-on; a quote priced on somebody
+// else's rates going to a customer is not that.
 check('…and warned about, in Settings and on the Pricing panel',
-  note.length === 2 && note.every(n => /Sample prices/.test(n.txt)), JSON.stringify(note.map(n=>n.where)));
+  note.length === 2 && note.every(n => /Default price book/i.test(n.txt) && /🚩/.test(n.txt)),
+  JSON.stringify(note.map(n => n.where + ': ' + n.txt.slice(0, 40))));
 check('…in words that say what to do about it',
   note.some(n => /not your supplier rates/.test(n.txt)), (note[0]||{}).txt);
 

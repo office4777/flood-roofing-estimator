@@ -1469,9 +1469,20 @@ html.no-jms .jms-only{display:none!important}
 /* "Sample prices" notice — a new account prices its first roof off indicative
    retail figures rather than off zero, and this is what stops those figures
    quietly becoming somebody's real quote. Removed by saving the price book. */
-.pb-listnote{background:var(--warn-soft);border:1px solid #fed7aa;border-left:4px solid #d97706;
-  border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#7c2d12;line-height:1.6;margin:0 0 12px}
-.pb-listnote strong{color:#7c2d12}
+/* Amber read as "noted, carry on". Prices a roofer has not checked leaving
+   the building on a real quote is not an amber problem, so this is red and
+   carries a flag. */
+.pb-listnote{background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;
+  border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#991b1b;line-height:1.6;margin:0 0 12px}
+.pb-listnote strong{color:#7f1d1d}
+.pb-listnote a{color:#991b1b}
+/* A material with no price in it. The line prices at nothing and quietly
+   drops out of the total, which is the one error a roofer cannot see by
+   reading the quote — the number just comes out low. */
+.pb-zero{background:#fef2f2 !important; outline:1px solid #fecaca; outline-offset:-1px}
+.pb-zero input{border-color:#fca5a5 !important; background:#fff}
+.pb-zero-tag{display:inline-flex;align-items:center;gap:4px;background:#fee2e2;color:#991b1b;
+  border-radius:5px;font-size:10px;font-weight:800;padding:1px 6px;line-height:1.6;white-space:nowrap}
 .result-box{display:none;background:var(--surface-2);border-radius:var(--radius);padding:14px 18px;margin-top:.75rem;border:1px solid var(--border)}
 .result-box-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
 .r-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
@@ -3151,7 +3162,13 @@ html.pdf-rendering .qp-photoslot{ display:none !important; }
   font-size:11px; color:var(--text2); background:#fff;
 }
 /* The proposal itself, at working size inside the window. */
-#qtEditWrap .qt-stage #qpRoot{ margin:0 auto; }
+/* An A4 page is portrait. The stage is far wider than one, so without a cap
+   the page fills the width and stops looking like a sheet of paper at all —
+   which is what "it looks like it's forced to landscape" was. Hold it to its
+   own width and centre it; the zoom slider changes the size, not the shape. */
+#qtEditWrap .qt-stage #qpRoot{ margin:0 auto; width:794px; max-width:none; }
+#qtEditWrap .qt-stage{ display:flex; justify-content:center; align-items:flex-start; }
+#qtEditWrap .qt-stage > #qpRoot > .rp-page{ box-shadow:0 2px 14px rgba(10,22,40,.14); margin-bottom:18px; }
 /* Never any part of what a customer or a printer sees. */
 html.customer-view #qtEditWrap, html.print-quote #qtEditWrap,
 html.pdf-rendering #qtEditWrap{ display:none !important; }
@@ -5915,13 +5932,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- Action bar -->
   <div class="card q-actionbar" style="display:flex;gap:5px;align-items:center;padding:7px 12px;flex-wrap:wrap">
     <div style="white-space:nowrap;margin-right:auto;font-size:12.5px;color:var(--text2)">Quote <strong id="qaRef" style="color:#0a1628">FR-001</strong> · <strong id="qaTotal" style="color:#0a1628">$0.00</strong> incl. GST</div>
-    <button onclick="saveQuote()" id="qaSaveBtn" style="padding:4px 9px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">💾 Save</button>
-    <button onclick="openQuoteEmail()" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
+    <!-- The Save button is gone: the quote autosaves, and a button that says
+         Save next to something that saves itself only makes people wonder
+         whether it did. The word stays so nobody has to guess. -->
+    <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
+    <button onclick="openQuoteEmail()" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:4px 9px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
     <button onclick="printQuote()" style="padding:4px 9px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
-    <button onclick="copyCustomerLink()" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="_qtOpen()" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🗂 Edit quote template</button>
-    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" title="Start this quote from one of your saved templates" style="padding:4px 8px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit"></select>
+    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" title="Swap this quote onto one of your saved templates" style="padding:4px 8px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit"></select>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
   </div>
@@ -7225,6 +7244,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- PRICE BOOK -->
     <div class="sub-panel settings-sub" id="set-pricebook" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Job Pack</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
+      <!-- Hands the whole book out as JSON: a backup, and the way to pass a
+           finished book to somebody who is setting the app up. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
+        <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
+      </div>
 
       <!-- Upload supplier price book -->
       <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
@@ -10994,6 +11019,39 @@ function collectPriceBookFromUI(){
   _pbListPriceNoticeSync();
 }
 
+// The whole price book as JSON, on the clipboard. A backup, and the way to
+// hand a finished book to somebody setting the app up for the first time —
+// the numbers a roofing company has negotiated are the slowest part of
+// getting started, and re-typing them is how people give up.
+function _pbCopyBook(){
+  var msg = document.getElementById('pbCopyMsg');
+  var say = function(t, ok){ if (!msg) return; msg.textContent = t;
+    msg.style.color = ok === false ? '#b91c1c' : '#15803d';
+    setTimeout(function(){ msg.textContent = ''; msg.style.color = ''; }, 6000); };
+  try {
+    var pb = (S.settings && S.settings.price_book) || {};
+    var out = JSON.parse(JSON.stringify(pb));
+    delete out.__materials_catalog;      // folded in only for saving
+    var txt = JSON.stringify({ price_book: out,
+      materials_catalog: (S.settings && S.settings.materials_catalog) || {} }, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt)
+        .then(function(){ say('✓ Copied — paste it wherever you need it.'); })
+        .catch(function(){ _pbCopyFallback(txt, say); });
+    } else _pbCopyFallback(txt, say);
+  } catch(e){ say('Could not copy: ' + (e.message || e), false); }
+}
+function _pbCopyFallback(txt, say){
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    say(ok ? '✓ Copied — paste it wherever you need it.' : 'Could not copy — check the browser permissions.', ok);
+  } catch(e){ say('Could not copy: ' + (e.message || e), false); }
+}
+
 // ── "These are list prices" notice ──────────────────────────────────
 // Shown until the price book is saved. It is not a nag: it says what the
 // numbers are, and links to the one screen that fixes them. Prices a roofer
@@ -11007,9 +11065,9 @@ function _pbListPriceNoticeHtml(where){
   var goto = where === 'settings' ? '' :
     ' <a href="#" onclick="showTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
   return '<div class="pb-listnote">' +
-    '<strong>Sample prices.</strong> This price book is still on indicative retail figures so you can ' +
-    'see a finished quote straight away. They are not your supplier rates — replace them before you ' +
-    'send anything to a customer.' + goto +
+    '<strong>🚩 Default price book — add your prices in Settings.</strong> These are indicative ' +
+    'figures so you can see a finished quote straight away. They are not your supplier rates — ' +
+    'replace them before you send anything to a customer.' + goto +
     '</div>';
 }
 function _pbListPriceNoticeSync(){
@@ -12007,8 +12065,15 @@ function renderMaterialPriceTable(){
     var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null) ? '<button onclick="_resetMatOverride(\''+r.key+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
     var custom   = r.isCustom ? ' <span style="font-size:9px;color:#0891b2;text-transform:uppercase;letter-spacing:.05em;font-weight:700">custom</span>' : '';
 
-    html += '<tr>'+
+    // A material with no price against it. The line prices at nothing and
+    // drops out of the total in silence — the roofer cannot see it by reading
+    // the quote, because the number simply comes out low. So the row is red
+    // and says what is wrong, and only when the job actually uses the item:
+    // a zero on something with no quantity is not a mistake.
+    var _zero = (!price || price <= 0) && (qty || 0) > 0;
+    html += '<tr'+(_zero ? ' class="pb-zero"' : '')+'>'+
       '<td>'+esc(r.label)+ custom +
+        (_zero ? ' <span class="pb-zero-tag">🚩 No price</span>' : '')+
         (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
       '</td>'+
       '<td>'+
@@ -12021,8 +12086,8 @@ function renderMaterialPriceTable(){
         '</div>'+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
       '</td>'+
-      '<td>$'+(price||0).toFixed(2)+'</td>'+
-      '<td style="text-align:right;font-weight:600">$'+lineTotal.toFixed(2)+'</td>'+
+      '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>$'+(price||0).toFixed(2)+'</td>'+
+      '<td style="text-align:right;font-weight:600'+(_zero ? ';color:#b91c1c' : '')+'">$'+lineTotal.toFixed(2)+'</td>'+
       '<td><button onclick="_deleteMatRow(\''+r.key+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
   });
@@ -25041,6 +25106,30 @@ function _qpNumberPagesAndToc(){
   var root = document.getElementById('qpRoot'); if (!root) return;
   var pages = root.querySelectorAll('.rp-page');
   if (!pages.length) return;
+  // Renumber the chapters from what is ACTUALLY on the page.
+  //
+  // Each heading band was built with its number baked in — "3", "of 6 pages"
+  // — from a fixed chapter list. Take a page out in the template editor and
+  // the rest carried on claiming their old positions: page 4 of a five-page
+  // quote still said "4 of 6 pages", and after a reorder the numbers ran out
+  // of sequence entirely. Counting the bands that survived fixes deleting,
+  // duplicating and reordering in one place, rather than seven call sites
+  // each guessing.
+  var bands = [];
+  Array.prototype.forEach.call(pages, function(pg){
+    var b = pg.querySelector('.ed-heading-band[data-step]');
+    if (b) bands.push(b);
+  });
+  bands.forEach(function(b, i){
+    var n = i + 1;
+    b.setAttribute('data-step', n);
+    if (b.hasAttribute('data-toc-num')) b.setAttribute('data-toc-num', n);
+    var num = b.querySelector('.ed-number');
+    if (!num) return;
+    var spans = num.querySelectorAll('span');
+    if (spans[0]) spans[0].textContent = String(n);
+    if (spans[1]) spans[1].textContent = 'of ' + bands.length + (bands.length === 1 ? ' page' : ' pages');
+  });
   var tocRows = [];
   Array.prototype.forEach.call(pages, function(pg, i){
     var h = pg.querySelector('[data-toc-title]');
@@ -25316,6 +25405,11 @@ function _fitProposalPages(){
   var root = document.getElementById('qpRoot');
   if (!wrap || !root) return;
   if (document.documentElement.classList.contains('print-quote')) { root.style.zoom = 1; return; }
+  // The template editor sets its own zoom from its slider. This fitter sizes
+  // the page to fill the working area, which in the editor's much wider stage
+  // blew an A4 portrait page up until it read as landscape — so while that
+  // window is open, leave the zoom alone.
+  try { if (window._QT && _QT.open) return; } catch(e){}
   var A4px = 794;                       // 210mm @ 96dpi
   // Fill the working area between the sidebar and the side pop-out. Computed
   // from viewport math (not clientWidth) so it's correct even mid-transition
@@ -28012,7 +28106,68 @@ function refreshQuoteProposal(){
 // pages down the side the way a slide deck does it. The proposal is MOVED in
 // here rather than copied, so what is being arranged is the document itself
 // and there is no second rendering path to drift out of step with the first.
-var _QT = { open: false, home: null, sel: 0, drag: null, openTpl: '' };
+var _QT = { open: false, home: null, sel: 0, drag: null, openTpl: '',
+            zoom: 100, undo: [], redo: [] };
+
+// ── zoom ──────────────────────────────────────────────────────────
+// The Quote tab's fitter sizes the page to fill the working area, which in
+// this much wider window turned an A4 portrait page into something that read
+// as landscape. Here the size is the roofer's choice and the shape is fixed.
+function _qtSetZoom(v){
+  var z = Math.max(40, Math.min(200, parseInt(v, 10) || 100));
+  _QT.zoom = z;
+  var root = document.getElementById('qpRoot');
+  if (root) root.style.zoom = (z / 100);
+  var sl = document.getElementById('qtZoom'); if (sl && +sl.value !== z) sl.value = z;
+  var out = document.getElementById('qtZoomOut'); if (out) out.textContent = z + '%';
+}
+
+// ── undo / redo ───────────────────────────────────────────────────
+// Only the page arrangement is tracked. Text typed on the proposal is edited
+// in place and already saved by the job's own autosave; putting that on this
+// stack as well would mean an Undo here could silently reach into the quote's
+// wording, which is not what the button appears to offer.
+function _qtSnapPages(){
+  var q = _qtState();
+  return JSON.stringify({ pages: q.pages, parked: q.parked });
+}
+function _qtPush(){
+  try {
+    _QT.undo.push(_qtSnapPages());
+    if (_QT.undo.length > 60) _QT.undo.shift();
+    _QT.redo.length = 0;
+    _qtSyncUndo();
+  } catch(e){}
+}
+function _qtRestore(json){
+  try {
+    var st = JSON.parse(json);
+    var q = _qtState();
+    q.pages = st.pages; q.parked = st.parked;
+    _qpSyncSections();
+    if (_QT.sel >= q.pages.length) _QT.sel = Math.max(0, q.pages.length - 1);
+    refreshQuoteProposal();
+    setTimeout(function(){ _qtRenderRail(); _qtSetZoom(_QT.zoom); }, 120);
+    try { autosaveJob && autosaveJob(); } catch(e){}
+  } catch(e){}
+}
+function _qtUndo(){
+  if (!_QT.undo.length) return;
+  _QT.redo.push(_qtSnapPages());
+  _qtRestore(_QT.undo.pop());
+  _qtSyncUndo();
+}
+function _qtRedo(){
+  if (!_QT.redo.length) return;
+  _QT.undo.push(_qtSnapPages());
+  _qtRestore(_QT.redo.pop());
+  _qtSyncUndo();
+}
+function _qtSyncUndo(){
+  var u = document.getElementById('qtUndoBtn'), r = document.getElementById('qtRedoBtn');
+  if (u){ u.disabled = !_QT.undo.length; u.style.opacity = _QT.undo.length ? '' : '.4'; }
+  if (r){ r.disabled = !_QT.redo.length; r.style.opacity = _QT.redo.length ? '' : '.4'; }
+}
 
 function _qtOpen(){
   var wrap = document.getElementById('qtEditWrap');
@@ -28025,9 +28180,20 @@ function _qtOpen(){
   wrap.classList.add('on');
   document.body.style.overflow = 'hidden';     // the window scrolls, not the page
   _QT.open = true;
+  _QT.undo.length = 0; _QT.redo.length = 0; _qtSyncUndo();
   _qtSyncTemplatePicker();
   _qtRenderRail();
-  try { _fitProposalPages(); } catch(e){}
+  // Open zoomed in and readable rather than at the Quote tab's thumbnail
+  // size — this window is for working ON the page, not glancing at it.
+  _qtSetZoom(_QT.zoom || 100);
+  document.addEventListener('keydown', _qtKeys, true);
+}
+function _qtKeys(ev){
+  if (!_QT.open) return;
+  if (!(ev.ctrlKey || ev.metaKey)) return;
+  var k = String(ev.key || '').toLowerCase();
+  if (k === 'z'){ ev.preventDefault(); (ev.shiftKey ? _qtRedo : _qtUndo)(); }
+  else if (k === 'y'){ ev.preventDefault(); _qtRedo(); }
 }
 function _qtClose(){
   var wrap = document.getElementById('qtEditWrap');
@@ -28038,6 +28204,9 @@ function _qtClose(){
   wrap.classList.remove('on');
   document.body.style.overflow = '';
   _QT.open = false;
+  document.removeEventListener('keydown', _qtKeys, true);
+  // Hand the zoom back to the Quote tab's own fitter.
+  try { var r2 = document.getElementById('qpRoot'); if (r2) r2.style.zoom = ''; } catch(e){}
   _qpSyncSections();
   try { autosaveJob && autosaveJob(); } catch(e){}
   try { _fitProposalPages(); } catch(e){}
@@ -28175,6 +28344,7 @@ function _qtMove(from, toList, toIdx){
     alert('Keep at least one page in the quote.');
     return;
   }
+  _qtPush();
   src.splice(from.i, 1);
   if (src === dst && from.i < toIdx) toIdx--;
   dst.splice(Math.max(0, Math.min(dst.length, toIdx)), 0, pg);
@@ -28182,6 +28352,7 @@ function _qtMove(from, toList, toIdx){
   _qtAfterChange();
 }
 function _qtPark(i){
+  _qtPush();
   var q = _qtState();
   if (q.pages.length <= 1){ alert('Keep at least one page in the quote.'); return; }
   var pg = q.pages.splice(i, 1)[0];
@@ -28190,6 +28361,7 @@ function _qtPark(i){
   _qtAfterChange();
 }
 function _qtUnpark(i){
+  _qtPush();
   var q = _qtState();
   var pg = q.parked.splice(i, 1)[0];
   if (pg) q.pages.push(pg);
@@ -28197,6 +28369,7 @@ function _qtUnpark(i){
   _qtAfterChange();
 }
 function _qtDup(i){
+  _qtPush();
   var q = _qtState();
   var pg = q.pages[i];
   if (!pg) return;
@@ -28209,7 +28382,7 @@ function _qtAfterChange(){
   try { refreshQuoteProposal(); } catch(e){}
   // The proposal re-renders asynchronously in places; let it settle before
   // the rail thumbnails are cut from it, or they come out blank.
-  setTimeout(function(){ _qtRenderRail(); }, 120);
+  setTimeout(function(){ _qtRenderRail(); _qtSetZoom(_QT.zoom); }, 120);
   try { autosaveJob && autosaveJob(); } catch(e){}
 }
 
@@ -28269,7 +28442,7 @@ function _qtSyncSavedPicker(){
   var sel = document.getElementById('qaTplSelect');
   if (!sel) return;
   var list = _qtTemplates();
-  sel.innerHTML = '<option value="">Select saved quote…</option>' +
+  sel.innerHTML = '<option value="">Change quote template…</option>' +
     (S.settings && S.settings.branding && S.settings.branding.proposal_template
       ? '<option value="__default">Default quote</option>' : '') +
     list.map(function(t){ return '<option value="' + esc2(t.id) + '">' + esc2(t.name) + '</option>'; }).join('');
@@ -35991,7 +36164,7 @@ var TOUR_STEPS = [
   { key:'q-pages', sel:'#qpRoot', tab:'quote', title:'Six pages, all editable',
     body:'Condition report, roof plan, selections, the material, terms, acceptance. Click any text to change it.\n\nOn the roof plan the customer taps a roof to include or leave it out and the price moves in front of them; on the selections page every option shows what it adds or takes off.' },
   { key:'q-link', sel:'[data-tour="q-link"]', tab:'quote', title:'Send it',
-    body:'**Customer link** copies the address of their live proposal — paste it into an email or a text. They open it on their phone, choose their options and sign it off online.\n\nWhen they accept, it lands in Quote activity on Home, and the deposit invoice can go out on its own.' },
+    body:'**Email Quote** sends the customer a link to their live proposal. They open it on their phone, choose their options and sign it off online.\n\nWhen they accept, it lands in Quote activity on Home, and the deposit invoice can go out on its own.' },
 
   // ── SETTINGS ────────────────────────────────────────────────────
   { key:'tab-set', gate:'#navSettingsBtn', tab:'settings', title:'Make it yours',
@@ -58104,6 +58277,15 @@ document.addEventListener('mousedown',function(e){
   <div class="qt-bar">
     <strong>Edit quote template</strong>
     <span class="qt-sub" id="qtEditSub">Drag pages to reorder · take pages out and they wait below</span>
+    <span style="width:1px;height:18px;background:rgba(255,255,255,.22);margin:0 4px"></span>
+    <button class="qt-btn" id="qtUndoBtn" onclick="_qtUndo()" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+    <button class="qt-btn" id="qtRedoBtn" onclick="_qtRedo()" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
+    <span style="width:1px;height:18px;background:rgba(255,255,255,.22);margin:0 4px"></span>
+    <span style="font-size:11px;opacity:.75">🔍</span>
+    <input type="range" id="qtZoom" min="40" max="200" step="5" value="100"
+      oninput="_qtSetZoom(this.value)" title="Zoom the page you are working on"
+      style="width:120px;accent-color:#0099cc;margin:0">
+    <span id="qtZoomOut" style="font-size:11px;min-width:38px;font-variant-numeric:tabular-nums;opacity:.85">100%</span>
     <span style="flex:1"></span>
     <select id="qtTplPick" onchange="_qtLoadTemplate(this.value)" title="Open a saved template to edit"
       style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:#0f2740;color:#fff;font-size:12px;font-family:inherit"></select>

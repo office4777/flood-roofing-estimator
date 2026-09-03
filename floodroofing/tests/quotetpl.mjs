@@ -205,6 +205,118 @@ check('…and tick it back on and the page returns',
     await new Promise(r => setTimeout(r, 500));
     return (S.quote.pages || []).some(p => p.type === 'terms'); }));
 
+// ── the window is for working IN ──────────────────────────────────
+// "give it a zoom bar like the quote tab so it's forced zoomed in a lot,
+//  also make it portrait, it looks like it's forced to landscape, also add
+//  undo/redo buttons"
+await pg.evaluate(() => _qtOpen());
+await pg.waitForTimeout(700);
+{
+  const z = await pg.evaluate(() => {
+    const root = document.getElementById('qpRoot');
+    return { slider: !!document.getElementById('qtZoom'),
+             zoom: String(root.style.zoom || ''),
+             width: getComputedStyle(root).width,
+             out: (document.getElementById('qtZoomOut') || {}).textContent };
+  });
+  check('THE ASK: the editor has its own zoom, and opens zoomed in to work at',
+    z.slider && parseFloat(z.zoom) >= 1, JSON.stringify(z));
+  // The Quote tab's fitter sizes a page to fill the working area. In this much
+  // wider window that blew an A4 page up until it stopped reading as a sheet
+  // of paper — "it looks like it's forced to landscape".
+  check('THE ASK: the page stays A4 portrait instead of stretching to the window',
+    z.width === '794px', z.width);
+  await pg.evaluate(() => _qtSetZoom(150));
+  await pg.waitForTimeout(200);
+  check('…and the slider changes the size', 
+    Math.abs(parseFloat(await pg.evaluate(() => document.getElementById('qpRoot').style.zoom)) - 1.5) < 0.01,
+    await pg.evaluate(() => document.getElementById('qpRoot').style.zoom));
+  check('…without changing the shape',
+    (await pg.evaluate(() => getComputedStyle(document.getElementById('qpRoot')).width)) === '794px');
+  await pg.evaluate(() => _qtSetZoom(100));
+}
+
+// ── undo and redo ─────────────────────────────────────────────────
+{
+  const before = (await st()).order;
+  check('undo starts with nothing to undo',
+    await pg.evaluate(() => document.getElementById('qtUndoBtn').disabled === true));
+  await pg.evaluate(() => _qtPark(1));
+  await pg.waitForTimeout(700);
+  const parked = (await st()).order;
+  check('taking a page out is something to undo',
+    parked !== before && !(await pg.evaluate(() => document.getElementById('qtUndoBtn').disabled)),
+    parked);
+  await pg.evaluate(() => _qtUndo());
+  await pg.waitForTimeout(700);
+  check('THE ASK: undo puts the page back exactly where it was',
+    (await st()).order === before, (await st()).order + ' / want ' + before);
+  await pg.evaluate(() => _qtRedo());
+  await pg.waitForTimeout(700);
+  check('THE ASK: redo takes it out again', (await st()).order === parked, (await st()).order);
+  await pg.evaluate(() => _qtUndo());
+  await pg.waitForTimeout(700);
+}
+
+// ── the pages renumber themselves ─────────────────────────────────
+// "when i delete a page, re-number the pages to suit the new number of pages"
+// The heading bands were built with their numbers baked in from a fixed
+// chapter list, so page 4 of a five-page quote still said "4 of 6 pages".
+const chapterNums = () => pg.evaluate(() =>
+  [...document.querySelectorAll('#qpRoot > .rp-page .ed-heading-band .ed-number')]
+    .map(n => n.textContent.replace(/\s+/g, ' ').trim()));
+{
+  const full = await chapterNums();
+  check('every chapter is numbered, and they agree on the total',
+    full.length > 1 && full.every(t => t.indexOf('of ' + full.length + ' page') >= 0),
+    JSON.stringify(full));
+  check('…and they run 1, 2, 3 in order',
+    full.every((t, i) => t.indexOf(String(i + 1)) === 0), JSON.stringify(full));
+  // Take out a page that carries a chapter heading — whichever one is there,
+  // since earlier steps have already rearranged this quote.
+  const removed = await pg.evaluate(() => {
+    const withBand = [...document.querySelectorAll('#qpRoot > .rp-page')]
+      .filter(p => p.querySelector('.ed-heading-band[data-step]'))
+      .map(p => +p.getAttribute('data-qp-page'));
+    if (!withBand.length) return null;
+    const i = withBand[withBand.length - 1];
+    _qtPark(i);
+    return i;
+  });
+  check('(a chapter page was there to take out)', removed !== null, String(removed));
+  await pg.waitForTimeout(800);
+  const fewer = await chapterNums();
+  check('THE ASK: deleting a page renumbers the rest to suit',
+    fewer.length === full.length - 1 &&
+    fewer.every((t, i) => t.indexOf(String(i + 1)) === 0 && t.indexOf('of ' + fewer.length + ' page') >= 0),
+    JSON.stringify(fewer));
+  await pg.evaluate(() => _qtUndo());
+  await pg.waitForTimeout(800);
+  check('…and putting it back renumbers them again',
+    (await chapterNums()).length === full.length, JSON.stringify(await chapterNums()));
+}
+await pg.evaluate(() => _qtClose());
+await pg.waitForTimeout(600);
+
+// ── the quote action bar ──────────────────────────────────────────
+{
+  const bar = await pg.evaluate(() => ({
+    save: !!document.getElementById('qaSaveBtn'),
+    autosave: (document.getElementById('qaAutosave') || {}).textContent || '',
+    custLink: [...document.querySelectorAll('#tab-quote .q-actionbar button')]
+                .some(b => /customer link/i.test(b.textContent || '')),
+    email: [...document.querySelectorAll('#tab-quote .q-actionbar button')]
+                .some(b => /email quote/i.test(b.textContent || '')),
+    picker: (document.querySelector('#qaTplSelect option') || {}).textContent || '',
+  }));
+  check('THE ASK: the Save button is gone — the quote saves itself',
+    bar.save === false && /autosave/i.test(bar.autosave), JSON.stringify(bar.autosave));
+  check('THE ASK: the Customer link button is gone, Email Quote does that job',
+    bar.custLink === false && bar.email === true, JSON.stringify({ custLink: bar.custLink, email: bar.email }));
+  check('THE ASK: and there is a Change quote template picker',
+    /change quote template/i.test(bar.picker), bar.picker);
+}
+
 // ── never any part of what the customer gets ──────────────────────
 for (const cls of ['customer-view', 'print-quote', 'pdf-rendering']){
   const hidden = await pg.evaluate((c) => {
