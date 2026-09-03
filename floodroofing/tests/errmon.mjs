@@ -191,6 +191,25 @@ r = await api('GET', '/admin/db-health?token=let-me-in-please-0000&migrate=1');
 check('…and ?migrate=1 reports why the migration cannot run here',
   r.body.migrate && /DATABASE_URL/.test(r.body.migrate.skipped || ''), JSON.stringify(r.body.migrate));
 
+// ── mail is the one road out, so it is counted ────────────────────
+// Quote links, invites, order emails and our own alerts all leave the same
+// way. When that closes, quotes stop reaching customers — and before this
+// nothing said so: failures were logged at the call site, and nobody reads
+// logs on a Tuesday morning. /health now answers "is mail getting out".
+{
+  const hr = await fetch(BASE + '/health');
+  const h = await hr.json();
+  check('health says whether mail is getting out at all', !!h.mail, JSON.stringify(h.mail));
+  check('…counting what was sent and what failed',
+    typeof h.mail.sent === 'number' && typeof h.mail.failed === 'number', JSON.stringify(h.mail));
+  check('…and naming the last thing that went wrong, so it can be acted on',
+    'lastError' in h.mail && 'lastErrorAt' in h.mail, JSON.stringify(h.mail));
+  // An alert about mail being down cannot itself be an email. This says
+  // whether another channel is configured to carry it.
+  check('…and whether alerts have a way out that is not mail itself',
+    typeof h.mail.alertsGoElsewhere === 'boolean', String(h.mail.alertsGoElsewhere));
+}
+
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');
 process.exit(pass === results.length ? 0 : 1);

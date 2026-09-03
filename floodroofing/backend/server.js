@@ -698,7 +698,37 @@ function _mailFromAddress(){
   const m = /<\s*([^>\s]+)\s*>/.exec(EMAIL_FROM || '');
   return (m && m[1]) || String(EMAIL_FROM || '').trim();
 }
-async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
+// Every email the platform sends leaves through _dispatchMail, so this is the
+// one place that can tell whether mail is working at all.
+//
+// It matters because there is a single way out: quote links, invites, order
+// emails and our own alerts all go the same road. When it closes, quotes stop
+// reaching customers — and nothing said so. Failures were logged at the call
+// site and that was all; nobody reads logs at nine on a Tuesday.
+//
+// So: count them, and report the first of each kind through recordError,
+// which deduplicates and rate-limits. Note the circularity — an alert about
+// mail being down cannot be an email. Setting ERROR_WEBHOOK_URL is what
+// breaks it, and until that is set the counters on /health are the honest
+// answer.
+const MAIL_STATS = { sent: 0, failed: 0, lastError: null, lastErrorAt: null, since: Date.now() };
+async function _dispatchMail(opts) {
+  try {
+    const r = await _dispatchMailInner(opts);
+    MAIL_STATS.sent++;
+    return r;
+  } catch (e) {
+    MAIL_STATS.failed++;
+    MAIL_STATS.lastError = String((e && e.message) || e).slice(0, 200);
+    MAIL_STATS.lastErrorAt = new Date().toISOString();
+    try {
+      recordError('server', new Error('Mail could not be sent: ' + MAIL_STATS.lastError),
+        { route: '_dispatchMail' });
+    } catch (e2) {}
+    throw e;                                  // callers still decide what the user sees
+  }
+}
+async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
@@ -833,7 +863,15 @@ app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features
   // quote writes use the targeted jsonb update instead of round-tripping the
   // whole multi-MB draw_state. If this reads false, set DATABASE_URL on the
   // Railway service (Supabase connection string) or run the index SQL by hand.
-  pg: !!process.env.DATABASE_URL, tokenCache: _tokenIdCache.size }));
+  pg: !!process.env.DATABASE_URL, tokenCache: _tokenIdCache.size,
+  // Is mail actually getting out? There is one way out for quote links,
+  // invites and order emails alike, and when it closes the quotes stop
+  // reaching customers. Counted since the process started.
+  mail: { sent: MAIL_STATS.sent, failed: MAIL_STATS.failed,
+          lastError: MAIL_STATS.lastError, lastErrorAt: MAIL_STATS.lastErrorAt,
+          since: new Date(MAIL_STATS.since).toISOString(),
+          // An alert about mail being down cannot itself be an email.
+          alertsGoElsewhere: !!ERR_WEBHOOK } }));
 
 // user_id → company_id, cached per process. Newer JWTs carry the company id
 // (payload.cid) so this is only hit for legacy 30-day tokens minted before the
@@ -882,6 +920,16 @@ async function requireAuth(req, res, next) {
   // with the same secret but are NOT session tokens — a leaked reset email
   // must never grant API access.
   if (req.user && req.user.purpose) return res.status(401).json({ error: 'Invalid token' });
+  // Has this session been ended since the token was issued? Signing out
+  // everywhere, changing a password, or being removed from a company all bump
+  // the number, and every token signed before that stops working. Cached for
+  // a minute so this does not become a database read on every request —
+  // meaning a revocation takes up to a minute to bite everywhere, which is
+  // the trade and is written down rather than discovered.
+  try {
+    const tv = await _tokenVersion(req.user.id);
+    if (tv > (req.user.tv || 0)) return res.status(401).json({ error: 'Signed out', code: 'SESSION_ENDED' });
+  } catch(e){ /* cannot check: let them in, as before — auth never breaks on a lookup */ }
   // Tenant scope: from the token when present, otherwise resolved (and cached).
   // On any failure fall back to null — every query then scopes by user_id, the
   // pre-upgrade behaviour, so auth NEVER breaks because company lookup did.
@@ -894,6 +942,30 @@ async function requireAuth(req, res, next) {
 // user_id → display name for everyone in a company. The board has to be able
 // to say WHO made a job, and doing that with a lookup per row would be a query
 // storm; this is one query per company, cached, and a name changes about never.
+// user id → the number their tokens must carry. Read on every authenticated
+// request, so it is cached; a minute is short enough that ending a session
+// still feels immediate and long enough that this is not a query per call.
+const _tvCache = new Map();
+const TV_CACHE_MS = 60 * 1000;
+async function _tokenVersion(userId){
+  if (!userId) return 0;
+  const hit = _tvCache.get(userId);
+  if (hit && Date.now() - hit.at < TV_CACHE_MS) return hit.v;
+  const { data } = await supabase.from('profiles').select('token_version').eq('id', userId).maybeSingle();
+  const v = (data && data.token_version) || 0;
+  _tvCache.set(userId, { at: Date.now(), v });
+  if (_tvCache.size > 5000) for (const [k, e] of _tvCache) if (Date.now() - e.at > TV_CACHE_MS) _tvCache.delete(k);
+  return v;
+}
+// End every session this person has. Returns the new number so a caller that
+// is issuing a fresh token can sign it with the right one.
+async function _endSessions(userId){
+  const now = await _tokenVersion(userId);
+  const next = now + 1;
+  await supabase.from('profiles').update({ token_version: next }).eq('id', userId);
+  _tvCache.set(userId, { at: Date.now(), v: next });
+  return next;
+}
 const _membersCache = new Map();   // companyId → { at, map }
 async function _companyMembers(companyId){
   if (!companyId) return {};
@@ -1277,6 +1349,10 @@ app.delete('/team/members/:userId', requireAuth, requireOwner, async (req, res) 
     if (row.role === 'owner' && owners.length <= 1)
       return res.status(400).json({ error: 'That is the only owner — make someone else an owner first.' });
     await supabase.from('company_users').delete().eq('company_id', req.companyId).eq('user_id', target);
+    // Taking someone off the team has to take their access with it. Without
+    // this they kept working for up to thirty days on the token already in
+    // their browser.
+    try { await _endSessions(target); } catch(e){ console.warn('[team] could not end sessions for removed member:', e.message); }
     await supabase.from('profiles').update({ company_id: null }).eq('id', target);
     _companyCache.delete(target);
     _membersCache.delete(req.companyId);
@@ -1380,7 +1456,7 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
     await supabase.from('company_invites').update({ accepted_at: new Date().toISOString(), accepted_by: userId }).eq('id', inv.id);
     _companyCache.set(userId, inv.company_id);
     _membersCache.delete(inv.company_id);
-    const authToken = jwt.sign({ id: userId, email, cid: inv.company_id }, JWT_SECRET, { expiresIn: '30d' });
+    const authToken = jwt.sign({ id: userId, email, cid: inv.company_id, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     const sub = await _companySubscription(inv.company_id, userId);
     res.json({ token: authToken, user: profile || { id: userId, email }, subscription: sub, company: await _companyBrief(inv.company_id, userId) });
@@ -1667,7 +1743,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
     if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
-    const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
   } catch (e) {
@@ -1739,7 +1815,8 @@ app.post('/auth/reset', rateLimit(10, 900000), async (req, res) => {
     const { error } = await supabase.auth.admin.updateUserById(payload.id, { password: String(password) });
     if (error) return res.status(400).json({ error: error.message });
     const cid = await _companyOf(payload.id);
-    const authToken = jwt.sign({ id: payload.id, email: payload.email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    const _tvNew = await _endSessions(payload.id);
+    const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: _tvNew }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
     res.json({ token: authToken, user: profile || { id: payload.id, email: payload.email }, company: await _companyBrief(cid, payload.id) });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1758,7 +1835,7 @@ app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey),
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     const cid = await _companyOf(userId);
     const sub = await _companySubscription(cid, userId);
-    const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { ...profile, company_id: cid }, subscription: sub, company: await _companyBrief(cid, userId) });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -7165,6 +7242,21 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
 // So: fixed recipient (the support desk), From our own support mailbox, and
 // Reply-To taken from the AUTHENTICATED session rather than the request body,
 // because a reply-to a caller can choose is a reply-to an attacker can choose.
+// Sign out — properly. Clearing the browser is not signing out: the token in
+// it stays good for thirty days, so a lost phone or a shared machine keeps
+// working access. This ends every session the person has, on every device.
+app.post('/auth/logout', requireAuth, rateLimit(20, 3600000), async (req, res) => {
+  try {
+    await _endSessions(req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    // The app clears its own storage regardless, so a failure here must not
+    // look like a failure to sign out on THIS device — say what did not
+    // happen instead.
+    res.status(503).json({ error: 'Signed out on this device, but other devices could not be signed out. Try again.' });
+  }
+});
+
 app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
   if (!EMAIL_ENABLED) {
     return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
@@ -7589,6 +7681,12 @@ const _MIGRATION_SQL = [
   "alter table public.jobs add column if not exists order_sent jsonb",
   // Last person to save the company's shared settings row.
   "alter table public.user_settings add column if not exists updated_by uuid",
+  // Signing out has to actually END the session. A token is good for thirty
+  // days, so before this a phone left in a ute — or somebody taken off the
+  // team — kept working access until that ran out, and there was nothing we
+  // could do about it. Every session token carries this number; bump it and
+  // every token issued before now stops being accepted.
+  "alter table public.profiles add column if not exists token_version integer not null default 0",
   // Each business's RoofMap address: <slug>.roofmap.co.nz. Unique, case-blind.
   "alter table public.companies add column if not exists slug text",
   // Which plan a business is on. Everything already in use predates plans, so

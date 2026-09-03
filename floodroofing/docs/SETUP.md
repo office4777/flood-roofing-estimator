@@ -224,11 +224,17 @@ in `PLANS`.
 **Keeping it running**
 
 ✅ Error monitoring — server, browser, and alerts  
+✅ An outage alarm: the five-minute `/health` ping FAILS when the backend does
+   not answer, and GitHub emails the repository owner about a failed run  
 ✅ Trials that actually expire, with a countdown in the app  
 ✅ Usage milestones — whether a trialist actually got anywhere  
-✅ 22 test suites in CI on every push  
+✅ 138 test suites in CI on every push, plus a sheet-layout gate, plus a
+   byte-for-byte check that the live site really is serving the promoted commit  
 ✅ Terms of Service and Privacy Policy  
 ✅ Duplicate job-number guard  
+✅ Two people on one job cannot silently overwrite each other  
+✅ Signing out ends the session on every device, not just this browser  
+✅ The app tells a tab left open all day that a newer version is live  
 
 ## Still To Build
 
@@ -239,6 +245,23 @@ in `PLANS`.
 - [ ] **Open registration** — currently invite-only (`REGISTRATION_INVITE_CODE`).
 - [ ] **Paid hosting.** Vercel and Railway hobby tiers are non-commercial by licence. This has to change before the first invoice.
 - [ ] **A restore drill.** Backups exist and have never been restored under pressure. An untested backup is a hope.
+  The drill, so it is not invented at 2am:
+  1. Supabase → the project → Database → Backups. Note the timestamp of the one you are taking.
+  2. Create a NEW, empty Supabase project — never restore over the live one.
+  3. Restore that backup into it, and write down how long it took start to finish. That number is
+     the real answer to "how long are we down", and it is the only one worth quoting.
+  4. Point a local backend at it: `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `DATABASE_URL` from the
+     new project, then `node floodroofing/backend/server.js` and open the app against it.
+  5. Check three things by eye: a job opens with its drawing and photos, `/team` lists the right
+     people, and a customer quote link resolves. If all three work, the backup is real.
+  6. Delete the scratch project. Repeat once a quarter and after any schema change.
+- [ ] **Uptime alerting with a phone alarm.** The failing `/health` run emails; it does not wake
+  anyone. UptimeRobot or Better Stack pointed at
+  `https://flood-roofing-estimator-production.up.railway.app/health`, with SMS or push, is five
+  minutes of work and is the difference between minutes and hours of an outage.
+- [ ] **Site photos out of the job row.** They live as base64 inside `draw_state`, so a job row runs
+  to tens of megabytes. Autosave no longer ships them on every save, which was the urgent half, but
+  the rows are still that big: they belong in Supabase Storage with `draw_state` keeping URLs.
 - [ ] Legal review of the Terms and Privacy Policy, and the placeholders in them filled in.
 - [ ] Trial-ending and welcome emails.
 - [ ] A colour/material visualiser — the one feature competitors sell hardest that RoofMap doesn't have.

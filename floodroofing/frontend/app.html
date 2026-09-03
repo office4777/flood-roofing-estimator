@@ -8707,8 +8707,13 @@ function _jmsPlanSync(){
 // later one hangs off whatever refreshed the company (sign-in, the Team
 // screen, a plan change).
 document.addEventListener('DOMContentLoaded', function(){ try { _navPlanSync(); } catch(e){} });
-function _navSignOut(){
+async function _navSignOut(){
   if (!confirm('Sign out of RoofMap on this device?')) return;
+  // Tell the server first, so the token in this browser stops working
+  // everywhere rather than just being forgotten here. Best effort: if it
+  // cannot be reached, signing out on THIS device still happens — that is
+  // what the roofer asked for and it must not fail on a dead connection.
+  try { await api('POST', '/auth/logout', {}); } catch(e){}
   try { window.doLogout(); } catch(e){
     try { localStorage.removeItem('fr_token'); localStorage.removeItem('fr_user'); localStorage.removeItem('fr_company'); } catch(_e){}
     location.reload();
