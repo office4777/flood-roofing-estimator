@@ -273,6 +273,7 @@ const ADMIN_TOKEN     = process.env.ADMIN_TOKEN || '';
 
 const _errRing  = [];              // newest last
 const _errSeen  = new Map();       // fingerprint → { count, first, last, announced }
+const ERR_SHAPES = 2000;           // most distinct error shapes held at once
 let   _errSentThisHour = 0, _errHourStartedAt = Date.now();
 
 // Two errors are "the same" when they'd be fixed by the same change: same
@@ -355,6 +356,20 @@ function recordError(kind, err, ctx){
     const seen = _errSeen.get(fingerprint) || { count: 0, first: Date.now(), last: 0, announced: 0 };
     seen.count++; seen.last = Date.now();
     _errSeen.set(fingerprint, seen);
+    // This map had no lid on it. /client-error is deliberately unauthenticated
+    // — a crash on the login screen is the one most worth hearing about — so
+    // the message and the stack are a stranger's to choose, and the
+    // fingerprint is a hash of them. Thirty a minute per IP, from enough IPs,
+    // and the map grows until the container runs out of memory and the whole
+    // app goes down for every customer. A real app has tens of distinct error
+    // shapes, so two thousand is far past anything genuine; past it, drop the
+    // ones nobody has seen for the longest.
+    if (_errSeen.size > ERR_SHAPES){
+      const stale = Array.from(_errSeen.entries())
+        .sort(function (a, b) { return a[1].last - b[1].last; })
+        .slice(0, _errSeen.size - Math.floor(ERR_SHAPES * 0.8));
+      stale.forEach(function (e) { _errSeen.delete(e[0]); });
+    }
 
     console.error('[error:' + kind + '] ' + fingerprint + ' ' + (rec.route || rec.url) + ' — ' + message);
     if (stack) console.error(stack);
@@ -7035,6 +7050,11 @@ async function _mailDnsProvider(domain){
     else nsList = await require('dns').promises.resolveNs(d);
     provider = _mailDnsProviderFromNs(nsList);
   } catch (e) { /* NXDOMAIN, timeouts, no resolver — the hint is optional */ }
+  // Keyed by domain, so it only ever holds the domains customers actually
+  // connect — but "only ever" is the sort of assumption that ages badly, and
+  // a cache with no lid on a process that never restarts is a leak waiting
+  // for a reason. A thousand is far more mail domains than this will see.
+  if (_nsCache.size > 1000) _nsCache.clear();
   _nsCache.set(d, { at: Date.now(), provider: provider });
   return provider;
 }

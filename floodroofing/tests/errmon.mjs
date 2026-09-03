@@ -217,6 +217,40 @@ check('…and ?migrate=1 reports why the migration cannot run here',
     typeof h.mail.alertsGoElsewhere === 'boolean', String(h.mail.alertsGoElsewhere));
 }
 
+// ── the recorder cannot be used to bring the server down ──────────
+// /client-error is deliberately open, because a crash on the login screen is
+// the one most worth hearing about. That means the message and the stack are
+// a stranger's to choose, and the fingerprint is a hash of them — so every
+// made-up message used to add a permanent entry to a map that was never
+// pruned. The per-IP rate limit is not the answer either: the IP is read from
+// x-forwarded-for, which the caller writes. Left alone, that is a way for one
+// person to grow the process until it runs out of memory, which takes the app
+// down for every customer at once, and it needs no login to do.
+{
+  const before = (await api('GET','/admin/errors?token=let-me-in-please-0000')).body.distinct;
+  const N = 2400;
+  for (let i = 0; i < N; i++){
+    await fetch(BASE + '/client-error', { method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 // A different IP each time, exactly as a real flood would.
+                 'x-forwarded-for': '10.' + ((i >> 16) & 255) + '.' + ((i >> 8) & 255) + '.' + (i & 255) },
+      body: JSON.stringify({ message: 'unique client fault ' + Math.random() + '-' + i + '-zzz',
+                             stack: 'Error\n    at f' + i + ' (a.js:' + i + ':1)' }) });
+  }
+  const after = (await api('GET','/admin/errors?token=let-me-in-please-0000')).body;
+  check('THE FIX: a flood of made-up crash reports cannot grow the recorder without limit',
+    after.distinct <= 2000, after.distinct + ' distinct shapes held after ' + N + ' reports (was ' + before + ')');
+  // Dropping the oldest is only acceptable if what just happened is still
+  // there — the point of the recorder is the error somebody hit a moment ago.
+  const fresh = (await api('GET','/admin/errors?token=let-me-in-please-0000')).body;
+  check('…and the most recent faults are the ones kept, not the ones dropped',
+    fresh.groups.length > 0 && fresh.recent.length > 0,
+    fresh.groups.length + ' groups, ' + fresh.recent.length + ' recent');
+  // And it still works afterwards, rather than having wedged itself.
+  const hr = await fetch(BASE + '/health');
+  check('…and the server is still answering after the flood', hr.status === 200, 'status ' + hr.status);
+}
+
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');
 process.exit(pass === results.length ? 0 : 1);
