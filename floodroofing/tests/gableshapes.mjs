@@ -46,6 +46,22 @@ const SHAPES = {
   'an H, two wings and a link':           [[300,250],[300,650],[450,650],[450,450],[700,450],[700,650],[900,650],
                                            [900,150],[700,150],[700,350],[450,350],[450,250]],
   'a stepped wing (report 34)':           [[285, 185], [285, 865], [670, 865], [670, 705], [1075, 705], [1075, 473], [627, 473], [627, 185]],
+  // The two stepped buildings from reports 36 and 37, verbatim.
+  //
+  // 36 came back as "wrong lines": the wing's ridge ran seventy-four pixels
+  // past the valley that ended it and stopped in mid-air, in the middle of a
+  // roof face. 37 came back as "hip ends instead of the selected gable ends":
+  // the main arm is a clean five-hundred-wide rectangle and both its ends
+  // should be gables, but a wing sitting two hundred pixels off to the SIDE
+  // was near enough to the ridge tip to be taken for something in the way, so
+  // both ends were hipped. 37 was also quietly missing the valley off one of
+  // its two inside corners — a hole in the roof, and a face the sheet engine
+  // cannot close.
+  //
+  // Every structural check below applies to them, which is the point of
+  // putting them here rather than writing new ones.
+  'the stepped building (report 36)':     [[285,185],[285,970],[799,970],[799,705],[1075,705],[1075,473],[627,473],[627,185]],
+  'the stepped building (report 37)':     [[285,168],[285,970],[799,970],[799,705],[1075,705],[1075,473],[785,473],[785,168]],
   'the reported staircase':               [[1129,997],[1129,1538],[1387,1538],[1387,1439],[1585,1439],
                                            [1585,1143],[1364,1143],[1364,997]],
   'a plus, four arms to a middle':        [[300,0],[600,0],[600,300],[900,300],[900,600],[600,600],[600,900],

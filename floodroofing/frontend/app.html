@@ -54722,7 +54722,30 @@ function buildRectilinearRoofLines(outline, gableEnds){
       var h3 = onAnyRidge(p3, v, dir);
       if (h3){ hitPt = h3; break; }
     }
-    if (hitPt) vrays.push({ v: v.slice(), dir: dir.slice(), hit: hitPt,
+    // A corner whose ray reaches no ridge used to be dropped here, and with it
+    // the valley. That is a hole in the roof: an inside corner ALWAYS throws a
+    // valley, and the sheet engine lays sheets on the faces these lines bound.
+    //
+    // It happens on the pair of corners either side of a link — the notch of
+    // an H, and the step on the reported building. Their two valleys run at
+    // each other and meet in the middle of the face, which is where the link's
+    // roof ends; neither one ever reaches a ridge on its own. Dropping the one
+    // that missed also destroyed the pair, so the meeting below was never
+    // found and the link's ridge was left stopping short of it.
+    //
+    // So keep it either way. Where it met no ridge its reach is how far it can
+    // run inside the building, and the pass below either pairs it with the
+    // valley coming the other way or, failing that, leaves an end the
+    // validation will refuse — which is the honest answer, not a missing line.
+    if (!hitPt){
+      var tEdge = 2;
+      for (var t4 = 2; t4 <= maxT; t4 += 1){
+        if (!inside(v[0] + dir[0]*t4, v[1] + dir[1]*t4)) break;
+        tEdge = t4;
+      }
+      hitPt = [v[0] + dir[0]*tEdge, v[1] + dir[1]*tEdge];
+    }
+    vrays.push({ v: v.slice(), dir: dir.slice(), hit: hitPt,
       t: Math.hypot(hitPt[0]-v[0], hitPt[1]-v[1]) });
   }
   // Two valleys off the two inside corners of a link between wings run at each
@@ -54897,8 +54920,27 @@ function buildRectilinearRoofLines(outline, gableEnds){
       }
       if (wallPos === null) return;                    // the arm carries on
       if (Math.abs(wallPos - tip[ax]) > reach) return;
+      // Getting here means the walk above reached the OUTSIDE of the building
+      // without the roof ever standing taller than this arm: a clean arm end,
+      // and on a gable roof that is a gable. A ridge that happens to be near
+      // the tip is only a reason to hip it if it is between the tip and that
+      // wall — actually in the way. nearestCrossing measures plain distance
+      // and its reach grows with the arm's width, so on a wide arm a wing
+      // sitting well off to the SIDE was close enough to count: the reported
+      // building lost both its gable ends to it and came back as "hip ends
+      // instead of the selected gable ends". A ridge behind the tip, or
+      // abreast of it, is not in the way.
       var onOther = nearestCrossing();
-      if (onOther){ joinCrossing(onOther); return; }
+      if (onOther && onOther.line){
+        var a9 = onOther.line.pts[0], b9 = onOther.line.pts[1];
+        var d9 = b9[ax] - a9[ax], e9 = b9[1-ax] - a9[1-ax];
+        var L9 = d9*d9 + e9*e9;
+        var t9 = L9 < 1e-9 ? 0 : ((tip[ax]-a9[ax])*d9 + (tip[1-ax]-a9[1-ax])*e9) / L9;
+        t9 = Math.max(0, Math.min(1, t9));
+        var near9 = a9[ax] + t9*d9;                    // where it sits along this arm
+        var lo9 = Math.min(tip[ax], wallPos) - 1, hi9 = Math.max(tip[ax], wallPos) + 1;
+        if (near9 >= lo9 && near9 <= hi9){ joinCrossing(onOther); return; }
+      }
       // How wide the building is at that wall, measured either side of the ridge.
       var inSide = wallPos - away * 1;
       var h1 = 0, h2 = 0, e;
@@ -54906,6 +54948,17 @@ function buildRectilinearRoofLines(outline, gableEnds){
       for (e = 1; e <= reach; e++){ var u2 = at(inSide, tip[1-ax] + e); if (!inside(u2[0], u2[1])) break; h2 = e; }
       if (h1 < 2 || h2 < 2) return;
       var c1 = at(wallPos, tip[1-ax] - h1 - 1), c2 = at(wallPos, tip[1-ax] + h2 + 1);
+      // Those two land a pixel outside, by the step that walked off the end of
+      // the wall. A rake barge's foot belongs ON the corner it comes down to,
+      // and where two arms both gable into the SAME corner the two feet have
+      // to be the same point — a pixel apart they draw as two lines not quite
+      // meeting, with the face left open between them.
+      var _snapCorner = function(q){
+        for (var ci = 0; ci < n; ci++)
+          if (Math.hypot(ol[ci][0]-q[0], ol[ci][1]-q[1]) <= 2.5) return ol[ci].slice();
+        return q;
+      };
+      c1 = _snapCorner(c1); c2 = _snapCorner(c2);
       var mid = at(wallPos, tip[1-ax]);
       capped.push(c1, c2);
       if (gableEnds){
@@ -55056,6 +55109,39 @@ function buildRectilinearRoofLines(outline, gableEnds){
         p6[1] >= O.rect.y0 - 1 && p6[1] <= O.rect.y1 + 1;
     });
   }
+  // A ridge that runs on PAST a valley landing on it.
+  //
+  // A low roof may die into the face of a taller one — that is the notch of
+  // an H, where the bar's roof ends in the wing's slope, and it is why the
+  // test above is generous. But once a valley has arrived on a ridge, that
+  // valley IS the end of the roof between them. Carrying the ridge on past it
+  // leaves a length of ridge with a valley on one side and nothing at all on
+  // the other, which is the "wrong lines" on the stepped building: the ridge
+  // ran seventy-four pixels beyond the valley that ended it and stopped in
+  // mid-air, in the middle of a roof face.
+  //
+  // This is geometry, not a tolerance: either a valley lands between the end
+  // and the rest of the ridge or it does not.
+  function ridgePastAValley(p5){
+    return out.some(function(L){
+      if (L.type !== 'ridge') return false;
+      var A = L.pts[0], B = L.pts[1];
+      var dA = Math.hypot(A[0]-p5[0], A[1]-p5[1]), dB = Math.hypot(B[0]-p5[0], B[1]-p5[1]);
+      if (Math.min(dA, dB) > 2) return false;            // not this ridge's end
+      var far = (dA <= dB) ? B : A;                       // the rest of the ridge
+      var dx = far[0]-p5[0], dy = far[1]-p5[1], LL = dx*dx + dy*dy;
+      if (LL < 4) return false;
+      return out.some(function(V){
+        if (V.type !== 'valley') return false;
+        return [0,1].some(function(e){
+          var q = V.pts[e];
+          var t = ((q[0]-p5[0])*dx + (q[1]-p5[1])*dy) / LL;
+          if (t <= 0.02 || t >= 0.98) return false;       // at an end, not between
+          return Math.hypot(p5[0]+t*dx-q[0], p5[1]+t*dy-q[1]) <= 2;
+        });
+      });
+    });
+  }
   var _end = {}, _ok = true;
   out.forEach(function(l){
     [0,1].forEach(function(e){
@@ -55077,7 +55163,7 @@ function buildRectilinearRoofLines(outline, gableEnds){
       if (t5 < 0 || t5 > 1) return false;
       return Math.hypot(l.pts[0][0]+t5*dx5-p5[0], l.pts[0][1]+t5*dy5-p5[1]) <= 2;
     });
-    if (!lands && !diesIntoTallerRoof(p5, _end[k].types[0])) _ok = false;
+    if (!lands && (ridgePastAValley(p5) || !diesIntoTallerRoof(p5, _end[k].types[0]))) _ok = false;
   });
   // Where two valleys MEET, that meeting is the end of the roof between them,
   // and a ridge has to arrive at it. On a building that steps, the two inside
@@ -55108,6 +55194,41 @@ function buildRectilinearRoofLines(outline, gableEnds){
     if (!served) _ok = false;
   });
   if (!_ok) return null;
+
+  // ── back onto the wall the roofer actually drew ───────────────────
+  // The whole layout runs on the squared-up outline, because walls a few
+  // pixels out of line are the same wall and treating them separately puts a
+  // sixty-pixel ridge on a five-hundred-pixel wing. But the roof is drawn over
+  // the roofer's own drawing. On the reported building the two inside corners
+  // of the wing are fourteen pixels apart, squaring put both at the average,
+  // and every line that should have started on a wall started seven pixels off
+  // it — a barge floating beside the building and a valley starting in the air.
+  //
+  // Only points that sit on the squared outline are moved, and only onto the
+  // nearest point of the real one. An interior junction is left alone, and
+  // points that coincide stay coincident, because the same input maps to the
+  // same output.
+  var _nearestOn = function(q, poly){
+    var bp = null, bd = Infinity;
+    for (var z = 0; z < poly.length; z++){
+      var a0 = poly[z], b0 = poly[(z+1)%poly.length];
+      var dx0 = b0[0]-a0[0], dy0 = b0[1]-a0[1], l0 = dx0*dx0 + dy0*dy0;
+      var t0 = l0 < 1e-9 ? 0 : ((q[0]-a0[0])*dx0 + (q[1]-a0[1])*dy0) / l0;
+      t0 = Math.max(0, Math.min(1, t0));
+      var cx0 = a0[0] + t0*dx0, cy0 = a0[1] + t0*dy0;
+      var d0 = Math.hypot(q[0]-cx0, q[1]-cy0);
+      if (d0 < bd){ bd = d0; bp = [cx0, cy0]; }
+    }
+    return { p: bp, d: bd };
+  };
+  out.forEach(function(l){
+    [0,1].forEach(function(e){
+      var q = l.pts[e];
+      if (_nearestOn(q, ol).d > 2.5) return;            // an interior junction
+      var real = _nearestOn(q, outline);
+      if (real.d > 0.01 && real.d <= snapTol + 3) l.pts[e] = real.p;
+    });
+  });
 
   return out;
 }
