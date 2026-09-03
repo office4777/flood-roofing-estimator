@@ -1204,7 +1204,7 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
      ResizeObserver: the button row wraps to two and three lines as the window
      narrows, so a hard-coded offset is right at exactly one window width. The
      fallback only applies for the frame before the observer first fires. */
-  position:sticky; top:calc(var(--qbar-top, 0px) + var(--qbar-h, 64px)); z-index:40;
+  position:sticky; top:calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 64px)); z-index:40;
   margin:-14px -16px 10px; padding:12px 16px;
   background:var(--surface);
   border-bottom:1px solid var(--border);
@@ -2236,7 +2236,12 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
    consumables, the roof map, the sheet plan, the job header) lives
    inside a page widget; pages can be added, deleted and reordered. */
 .jp-toolbar{
-  position:sticky; top:0; z-index:40;   /* stick to the top (job bar removed) */
+  /* --gtb-h is the global top bar's measured height. That bar is fixed at
+     top:0 with a HIGHER z-index, so sticking to 0 did not scroll the toolbar
+     away — it parked it underneath, which is why the buttons "disappeared"
+     on the way down the page. Measured, not hard-coded: the bar's buttons
+     depend on the plan and it wraps on a narrow window. */
+  position:sticky; top:var(--gtb-h, 0px); z-index:40;
   display:flex; flex-wrap:wrap; gap:6px; align-items:center;
   background:#fff; border:1px solid var(--border); border-radius:10px;
   padding:6px 12px; margin-bottom:14px;
@@ -2983,7 +2988,9 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
 #tab-quote > .q-actionbar{
   order:1;
   position:sticky;
-  top:var(--qbar-top, 0px);
+  /* Below the global top bar, for the same reason as .jp-toolbar above: it is
+     fixed at top:0 and painted over anything that stops at 0. */
+  top:calc(var(--qbar-top, 0px) + var(--gtb-h, 0px));
   /* Above the Proposal card header, which is also pinned. Both used to sit at
      top:0, and the header — solid background, higher z-index — was painted
      straight over the buttons: "the header buttons 'email quote' ect
@@ -6099,11 +6106,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
         <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">60%</span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
-        <span style="font-size:11px;color:var(--text2)">Draft:</span>
-        <div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-          <button type="button" id="qkBtn_roofing"  onclick="_setQuoteKind('roofing')"  style="padding:4px 12px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Roofing</button>
-          <button type="button" id="qkBtn_poleshed" onclick="_setQuoteKind('poleshed')" style="padding:4px 12px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">Pole Shed</button>
-        </div>
+        <span id="qkDraftToggle" style="display:inline-flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text2)">Draft:</span>
+          <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <button type="button" id="qkBtn_roofing"  onclick="_setQuoteKind('roofing')"  style="padding:4px 12px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Roofing</button>
+            <button type="button" id="qkBtn_poleshed" onclick="_setQuoteKind('poleshed')" style="padding:4px 12px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">Pole Shed</button>
+          </span>
+        </span>
         <button onclick="refreshQuoteProposal()" style="padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
       </div>
     </div>
@@ -6533,7 +6542,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
     <div class="f3"><div><label>Job number</label><input type="text" id="jobNo" placeholder="06121" style="font-weight:700">
       <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Auto-filled from Settings → Quote defaults → Next job number</div></div><div></div><div></div></div>
-    <div style="margin-top:12px"><label style="display:block;margin-bottom:5px">Job type</label>
+    <div style="margin-top:12px" id="jtTypeToggle"><label style="display:block;margin-bottom:5px">Job type</label>
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
         <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
@@ -15343,7 +15352,13 @@ function _setJobType(k){
   try { _syncQuoteKindToggle(); } catch(e){}
 }
 function _syncJobTypeToggle(){
-  var ps = (window._pendingJobType === 'poleshed');
+  // Same gate as the Quote tab's draft switch: no point offering a job type
+  // whose quote this account can never open.
+  var avail = _poleShedsAvailable();
+  var wrap = document.getElementById('jtTypeToggle');
+  if (wrap) wrap.style.display = avail ? '' : 'none';
+  if (!avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
+  var ps = avail && (window._pendingJobType === 'poleshed');
   ['roofing','poleshed'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
     if (!b) return;
@@ -22868,6 +22883,22 @@ function _stockSet(){
   return n.indexOf(STOCK_OWNER) === 0 ? STOCK_OWNER : '';
 }
 function _stockPhoto(file){ return _stockSet() === STOCK_OWNER ? ('brand/' + file) : ''; }
+// Pole sheds are Flood Roofing's own product line, not part of what RoofMap
+// sells to other roofing companies. Another company opening the Quote tab was
+// being offered a "Pole Shed" draft it has no business writing, with its own
+// pricing model and consent wording — so the choice is hidden unless the
+// account is theirs.
+//
+// Deliberately NOT keyed off _stockSet(): that answers "may this account show
+// the built-in photos", and turning the photos off should not take the shed
+// quote away with them. Same shape though — an explicit setting wins, so it
+// can be switched on for somebody by hand without a deploy.
+function _poleShedsAvailable(){
+  var br = (window.S && S.settings && S.settings.branding) || {};
+  if (br.poleshed_enabled != null && br.poleshed_enabled !== '') return !!br.poleshed_enabled;
+  var n = String(br.company_name || '').toLowerCase().replace(/[^a-z]/g, '');
+  return n.indexOf(STOCK_OWNER) === 0;
+}
 // A photo band in the proposal: an explicit slot assignment wins, then the
 // account's own stock gallery, then the built-in set if it is theirs. Returns
 // '' when there is nothing this account is entitled to show — callers drop
@@ -25218,7 +25249,15 @@ function _setPsConsent(v){
 }
 // Reflect the current draft type on the Quote-tab toggle buttons.
 function _syncQuoteKindToggle(){
-  var ps = S.quote && S.quote.quoteKind === 'poleshed';
+  // Off the shed accounts the choice is not offered — and any job that
+  // somehow carries a shed draft is put back to roofing rather than leaving
+  // the company looking at a Pole Shed proposal with no way back to a
+  // roofing one.
+  var avail = _poleShedsAvailable();
+  var wrap = document.getElementById('qkDraftToggle');
+  if (wrap) wrap.style.display = avail ? 'inline-flex' : 'none';
+  if (!avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
+  var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
   ['roofing','poleshed'].forEach(function(k){
     var b = document.getElementById('qkBtn_' + k);
     if (!b) return;
@@ -56874,6 +56913,32 @@ renderRoofSwitcher();
 // Email Quote, Customer link) and the Proposal card's own header. The second
 // has to start where the first ends, and the first changes height whenever its
 // buttons wrap, so the offset is measured rather than guessed.
+// The global top bar is fixed at top:0 and paints over anything that pins
+// there, so every sticky bar under it has to start where it ends. Measured
+// for the same reason the action bar is: its buttons come and go with the
+// plan and it wraps on a narrow window. It hides itself on the customer's
+// quote link and, in site mode, on the Map Roof tab — measuring gives 0 for
+// both without anything here having to know that.
+//
+// Site mode is left alone: it already carries its own hand-set offsets
+// (--qbar-top, and #jpToolbar's own top), which were sized for this bar.
+// Adding a measured height on top of those would count it twice.
+(function _trackGlobalBarHeight(){
+  var apply = function(){
+    var bar = document.getElementById('globalTopBar');
+    var sm = document.documentElement.classList.contains('site-mode');
+    var h = (!bar || sm) ? 0 : Math.round(bar.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--gtb-h', h + 'px');
+  };
+  apply();
+  var bar = document.getElementById('globalTopBar');
+  if (bar && window.ResizeObserver) new ResizeObserver(apply).observe(bar);
+  window.addEventListener('resize', apply);
+  // Site mode and the tab both flip on a click, and either can show or hide
+  // the bar. Cheap enough to re-measure after any of them.
+  document.addEventListener('click', function(){ setTimeout(apply, 0); }, true);
+})();
+
 (function _trackQuoteBarHeight(){
   var bar = document.querySelector('#tab-quote > .q-actionbar');
   if (!bar) return;

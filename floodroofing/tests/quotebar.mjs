@@ -69,6 +69,22 @@ const probe = () => {
     phoneBar: (function(){ const e = document.getElementById('phoneTopBar');
       if (!e || getComputedStyle(e).display === 'none') return null;
       const r = e.getBoundingClientRect(); return { bottom: r.bottom }; })(),
+    // And on the desktop the office banner owns the top of the screen the
+    // same way — fixed, and painted over anything that stops at zero.
+    globalBar: (function(){ const e = document.getElementById('globalTopBar');
+      if (!e || getComputedStyle(e).display === 'none') return null;
+      const r = e.getBoundingClientRect(); return { bottom: r.bottom }; })(),
+    // What is actually painted where the button is. Geometry alone cannot
+    // tell "on screen" from "on screen but behind the banner".
+    btnHit: (function(){
+      if (!btn) return 'none';
+      const r = btn.getBoundingClientRect();
+      const m = document.elementFromPoint(Math.round(r.left + r.width / 2),
+                                          Math.round(r.top + r.height / 2));
+      if (!m) return 'none';
+      return (m === btn || btn.contains(m) || m.contains(btn)) ? 'self'
+           : (m.id || m.className || m.tagName).toString().slice(0, 40);
+    })(),
     hdPos:  hd  ? getComputedStyle(hd).position  : null,
     vh: window.innerHeight,
   };
@@ -89,8 +105,18 @@ check('the Email Quote button is still on screen after scrolling',
   v.btn && v.btn.top >= -1 && v.btn.bottom <= v.vh,
   v.btn ? ('top ' + r0(v.btn.top) + ', bottom ' + r0(v.btn.bottom) + ', viewport ' + v.vh) : 'gone');
 check('…pinned to the top, not just happening to be in view',
-  v.bar && v.bar.top >= -1 && v.bar.top < 6 && v.barPos === 'sticky',
+  v.bar && v.bar.top >= -1 && v.barPos === 'sticky' &&
+  v.bar.top < (v.globalBar ? v.globalBar.bottom + 6 : 6),
   v.bar ? (v.barPos + ' at top ' + r0(v.bar.top)) : 'no bar');
+// The bar used to pin at zero, which is where the office banner already sits
+// — fixed, and with a higher z-index. It was never scrolled away; it was
+// underneath, and the buttons went with it. "the head bars … frozen to the
+// screen when i scroll down the page so i can always see them."
+check('THE REPORT: it clears the office banner instead of parking under it',
+  !v.globalBar || v.bar.top >= v.globalBar.bottom - 1,
+  v.globalBar ? ('banner ends ' + r0(v.globalBar.bottom) + ', bar starts ' + r0(v.bar.top)) : 'no banner');
+check('…so Email Quote is the thing painted at Email Quote, not the banner',
+  v.btnHit === 'self', String(v.btnHit));
 check('the Proposal header sits BELOW it, which is where it was asked for',
   v.hd && v.bar && v.hd.top >= v.bar.bottom - 1,
   v.hd && v.bar ? ('bar ends ' + r0(v.bar.bottom) + ', header starts ' + r0(v.hd.top)) : 'n/a');

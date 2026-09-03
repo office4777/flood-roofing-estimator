@@ -242,6 +242,38 @@ const after = await pg.evaluate(() => {
 check('and the page is fully editable again the moment the capture is done',
   after.n > 0 && after.live === after.n && after.flagged === 0, JSON.stringify(after));
 
+// ── the toolbar stays reachable all the way down the pack ─────────
+// "i want the head bars that have the buttons … frozen to the screen when i
+// scroll down the page so i can always see them."
+//
+// It was already sticky — but pinned to top:0, which is where the office
+// banner sits: fixed, and with a higher z-index. So it never scrolled away,
+// it parked underneath, and the buttons went with it. Geometry alone reads
+// that as "on screen", so this asks what is actually painted there.
+await pg.evaluate(() => window.scrollTo(0, 2200));
+await pg.waitForTimeout(400);
+const stick = await pg.evaluate(() => {
+  const t = document.getElementById('jpToolbar');
+  if (!t) return { missing: true };
+  const r = t.getBoundingClientRect();
+  const g = document.getElementById('globalTopBar');
+  const gb = (g && getComputedStyle(g).display !== 'none') ? g.getBoundingClientRect().bottom : null;
+  const hit = (f) => {
+    const m = document.elementFromPoint(Math.round(r.left + r.width * f), Math.round(r.top + r.height / 2));
+    return m ? ((m === t || t.contains(m)) ? 'self' : (m.id || m.className || m.tagName).toString().slice(0, 30)) : 'none';
+  };
+  return { pos: getComputedStyle(t).position, top: Math.round(r.top), bannerBottom: gb,
+           scrolled: Math.round(window.scrollY), hits: [hit(0.2), hit(0.5), hit(0.8)] };
+});
+check('scrolling the job pack actually moved it', stick.scrolled > 1200, stick.scrolled + 'px');
+check('THE REPORT: the Job Pack toolbar is still pinned after scrolling',
+  stick.pos === 'sticky' && stick.top >= -1, stick.pos + ' at top ' + stick.top);
+check('…clear of the office banner rather than parked under it',
+  stick.bannerBottom == null || stick.top >= stick.bannerBottom - 1,
+  'banner ends ' + stick.bannerBottom + ', toolbar starts ' + stick.top);
+check('…and the toolbar is what is painted across the toolbar',
+  stick.hits.every(h => h === 'self'), JSON.stringify(stick.hits));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;
