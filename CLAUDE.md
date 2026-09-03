@@ -35,12 +35,23 @@ Discipline (non-negotiable):
    commits into one ship when possible.
 4. After a green gate the pipeline lands in ~6 minutes; don't poll unless
    something looks wrong.
-5. **A ship is not done until the promote workflow is green.** Its last step
-   fetches roofmap.co.nz/app and compares it byte-for-byte with app.html at
-   the promoted commit; it fails if the site is still serving older code.
-   This is the only proof the change reached a user — `production` containing
-   the commit is NOT proof, and neither is a 201 from the Vercel deploy hook.
-   Both were true on three ships that never went live.
+5. **A ship is not done until the promote workflow is green.** It verifies
+   both halves, and both are the proof:
+   - the FRONTEND, by fetching roofmap.co.nz/app and comparing it byte-for-byte
+     with app.html at the promoted commit;
+   - the BACKEND, by reading `build` from the Railway service's `/health` and
+     comparing it with the promoted SHA. A failed backend deploy used to be
+     completely silent — promote went green, the site served the new
+     app.html, and the API behind it ran the old code, which is the worst
+     shape a half-ship can take because the frontend calls endpoints and
+     columns that are not there yet. That step is forgiving where it cannot
+     TELL (no answer, or a build of `unknown`): those warn and pass, because
+     a check that cries wolf gets ignored and is then worth nothing on the
+     day it is right. Only a backend definitely serving a different commit
+     fails it.
+
+   Neither `production` containing the commit nor a 201 from the Vercel deploy
+   hook is proof. Both were true on three ships that never went live.
    If that step goes red, the FIRST thing to check is the Vercel project's
    **Settings → Build and Deployment → Ignored Build Step**. It must be
    `Custom` with the command `exit 1` (exit 1 = build, exit 0 = skip). On

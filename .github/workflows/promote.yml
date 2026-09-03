@@ -134,3 +134,47 @@ jobs:
           done
           echo "::error title=The site is NOT serving this commit::production was promoted to $SHA and Vercel accepted a build, but after 8 minutes $APP_URL is still serving different code. Vercel most likely cancelled the build (the deploy hook and the branch push race each other). FIX: open the Vercel project -> Deployments -> newest -> Promote to Production. Then tell whoever shipped this, because the change they think is live is not."
           exit 1
+
+      # The other half. Everything above proves the FRONTEND is live; the
+      # backend is a separate deploy on Railway, and until now a failed one
+      # was completely silent — this workflow went green, the site served the
+      # new app.html, and the API behind it was still running the old code.
+      # That is the worst shape a half-ship can take, because the frontend
+      # calls endpoints and columns the backend does not have yet.
+      #
+      # /health reports the commit Railway actually built
+      # (RAILWAY_GIT_COMMIT_SHA, first 7). Compare it with the promoted one.
+      #
+      # Deliberately forgiving in the two cases where it cannot TELL: no
+      # answer at all, or a build of "unknown" because the env var is not
+      # set. Those warn and pass — a check that cries wolf gets ignored, and
+      # then it is worth nothing on the day it is right. Only a backend that
+      # is definitely serving a DIFFERENT commit fails this.
+      - name: Verify the backend is really running this commit
+        env:
+          API_URL: ${{ vars.API_URL || 'https://flood-roofing-estimator-production.up.railway.app' }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          WANT="${SHA:0:7}"
+          echo "Waiting for $API_URL/health to report build $WANT"
+          GOT=""
+          for i in $(seq 1 20); do
+            BODY=$(curl -fsSL --max-time 30 "$API_URL/health" 2>/dev/null || echo '')
+            GOT=$(printf '%s' "$BODY" | sed -n 's/.*"build":"\([^"]*\)".*/\1/p')
+            if [ "$GOT" = "$WANT" ]; then
+              echo "Live after $((i*20))s — the backend is running this commit."
+              exit 0
+            fi
+            echo "  check $i: backend reports '${GOT:-no answer}', want '$WANT'"
+            sleep 20
+          done
+          if [ -z "$GOT" ]; then
+            echo "::warning title=Could not read the backend build::$API_URL/health did not answer with a build in about 7 minutes, so whether the backend deployed is unknown. The frontend IS live. Check Railway -> the service -> Deployments, and confirm the API answers."
+            exit 0
+          fi
+          if [ "$GOT" = "unknown" ]; then
+            echo "::warning title=Backend build is not stamped::The backend answers but reports build 'unknown', so this check cannot tell which commit it is running. Railway normally sets RAILWAY_GIT_COMMIT_SHA itself; if it is missing, set GIT_SHA on the service. The frontend IS live."
+            exit 0
+          fi
+          echo "::error title=The backend is NOT running this commit::The site is serving $WANT but $API_URL reports build '$GOT'. The frontend and backend have shipped out of step, so the app is calling an API that does not have this change yet. FIX: open Railway -> the service -> Deployments. If the newest deploy failed, read its build log; if the service is set to manual deploys, deploy this commit. Then tell whoever shipped this, because half of their change is not live."
+          exit 1
