@@ -867,8 +867,14 @@ app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features
   // Is mail actually getting out? There is one way out for quote links,
   // invites and order emails alike, and when it closes the quotes stop
   // reaching customers. Counted since the process started.
+  // This endpoint is PUBLIC — no token, and the keep-warm ping hits it every
+  // five minutes from a workflow log. So the counts go here and the message
+  // does NOT: a bounce reads "550 5.1.1 <someone@theirdomain.co.nz> user
+  // unknown", which would put a customer's address on an open URL. WHETHER
+  // mail is getting out is the operational question; WHY goes to the error
+  // monitor, which is addressed to the owner.
   mail: { sent: MAIL_STATS.sent, failed: MAIL_STATS.failed,
-          lastError: MAIL_STATS.lastError, lastErrorAt: MAIL_STATS.lastErrorAt,
+          lastErrorAt: MAIL_STATS.lastErrorAt,
           since: new Date(MAIL_STATS.since).toISOString(),
           // An alert about mail being down cannot itself be an email.
           alertsGoElsewhere: !!ERR_WEBHOOK } }));
@@ -945,6 +951,10 @@ async function requireAuth(req, res, next) {
 // user id → the number their tokens must carry. Read on every authenticated
 // request, so it is cached; a minute is short enough that ending a session
 // still feels immediate and long enough that this is not a query per call.
+// Per process, like the rate limiter and the plan cache: this service must
+// stay at ONE instance. With two, a revocation reaches the other one only
+// when its own copy expires — bounded by the minute below, not indefinite,
+// but worth knowing before anybody adds a replica.
 const _tvCache = new Map();
 const TV_CACHE_MS = 60 * 1000;
 async function _tokenVersion(userId){

@@ -202,8 +202,15 @@ check('…and ?migrate=1 reports why the migration cannot run here',
   check('health says whether mail is getting out at all', !!h.mail, JSON.stringify(h.mail));
   check('…counting what was sent and what failed',
     typeof h.mail.sent === 'number' && typeof h.mail.failed === 'number', JSON.stringify(h.mail));
-  check('…and naming the last thing that went wrong, so it can be acted on',
-    'lastError' in h.mail && 'lastErrorAt' in h.mail, JSON.stringify(h.mail));
+  check('…and when the last failure was, so it can be acted on',
+    'lastErrorAt' in h.mail, JSON.stringify(h.mail));
+  // This endpoint is public — no token, and the keep-warm workflow prints it
+  // into a build log every five minutes. A bounce message reads "550 5.1.1
+  // <someone@theirdomain.co.nz> user unknown", so the reason must NOT be
+  // here. Whether mail is getting out is the operational question; why goes
+  // to the error monitor, which is addressed to the owner.
+  check('…but never WHY, because a bounce carries a customer\'s address and this endpoint is public',
+    !('lastError' in h.mail), JSON.stringify(h.mail));
   // An alert about mail being down cannot itself be an email. This says
   // whether another channel is configured to carry it.
   check('…and whether alerts have a way out that is not mail itself',
