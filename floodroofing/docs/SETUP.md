@@ -98,22 +98,48 @@ VERCEL_TEAM_ID=team_...
 ## Step 5 — Stripe (when ready for payments)
 
 1. stripe.com → Create account → activate with business details
-2. Create two products in Stripe dashboard:
-   - "RoofMap Monthly" → $X/month → copy Price ID
-   - "RoofMap Yearly" → $X/year → copy Price ID
-3. Add to Railway environment variables:
+2. Create THREE products, each with a monthly and a yearly price, in NZD.
+   Yearly is 10x monthly — two months free, as the pricing page advertises.
+   (`solo` is the plan the pricing page calls **Trade**; the internal key is
+   `solo` and must not be renamed.)
+
+   | Product           | Monthly | Yearly |
+   |-------------------|---------|--------|
+   | RoofMap Trade     | $149    | $1,490 |
+   | RoofMap Team      | $299    | $2,990 |
+   | RoofMap Business  | $549    | $5,490 |
+
+   Copy each **price** id (`price_…`) — not the product id (`prod_…`), which
+   is the usual mix-up.
+3. Add to Railway environment variables. These names are read verbatim by
+   `server.js`; an earlier version of this document named two that do not
+   exist, which is worth knowing if billing has ever been set up from it:
    ```
-   STRIPE_SECRET_KEY=sk_live_...
-   STRIPE_PRICE_MONTHLY=price_...
-   STRIPE_PRICE_YEARLY=price_...
-   STRIPE_WEBHOOK_SECRET=whsec_... (from Stripe webhook settings)
+   STRIPE_SECRET_KEY=sk_test_...   (test mode first — see step 7)
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   STRIPE_PRICE_SOLO=price_...
+   STRIPE_PRICE_TEAM=price_...
+   STRIPE_PRICE_BUSINESS=price_...
+   STRIPE_PRICE_SOLO_ANNUAL=price_...
+   STRIPE_PRICE_TEAM_ANNUAL=price_...
+   STRIPE_PRICE_BUSINESS_ANNUAL=price_...
    ```
+   **BILLING_ENABLED turns itself on the moment STRIPE_SECRET_KEY exists.**
+   Adding the live key IS switching billing on — do step 8 before that.
 4. In Stripe → Webhooks → Add endpoint:
    - URL: `https://floodroofing-backend.railway.app/billing/webhook`
    - Events: `checkout.session.completed`, `customer.subscription.updated`,
      `customer.subscription.deleted`, `invoice.payment_succeeded`,
      `invoice.payment_failed`
-5. Stripe → Settings → **Customer emails** → turn **"Successful payments" OFF**.
+5. Check the wiring rather than guessing at it:
+   `GET /admin/billing-readiness?token=<ADMIN_TOKEN>&format=text`
+   It asks STRIPE, not the environment, so it catches the mistakes that pass
+   an "is the variable set" check and then fail on the first real customer: a
+   product id where a price id belongs, the monthly and yearly ids swapped, a
+   test price under a live key, a price in USD, and a signing secret from a
+   different endpoint. It also counts who would be locked out (step 8) and
+   never prints a secret — the key is reported as test or live and no more.
+6. Stripe → Settings → **Customer emails** → turn **"Successful payments" OFF**.
    RoofMap sends its own tax invoice from `accounts@` (below); leaving Stripe's
    receipt on means the subscriber gets two emails for one payment.
 

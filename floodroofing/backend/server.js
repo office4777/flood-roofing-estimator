@@ -3112,6 +3112,44 @@ async function _stripeCall(path, params){
   }
   return j;
 }
+// The same, read-only. Retrieving a price is how the readiness check tells a
+// price id from a product id, NZD from USD, and a test key pointed at live
+// prices — none of which the dashboard makes obvious once they are pasted
+// into environment variables.
+async function _stripeGet(path){
+  const key = process.env.STRIPE_SECRET_KEY || '';
+  if (!key) { const e = new Error('Billing is not switched on yet.'); e.status = 400; throw e; }
+  const r = await fetch(STRIPE_API_BASE + path, { headers: { Authorization: 'Bearer ' + key } });
+  const j = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    const e = new Error((j.error && j.error.message) || ('Stripe refused (' + r.status + ')'));
+    e.status = r.status; throw e;
+  }
+  return j;
+}
+
+// Webhooks are the half of billing that fails silently: the endpoint URL has a
+// typo, or the signing secret belongs to a different endpoint, and everything
+// looks fine until a subscription is cancelled and the app never hears. So
+// every delivery is noted — the good ones AND the ones that failed the
+// signature, because a run of bad signatures IS the diagnosis.
+var _billingHookSeen = { ok: null, bad: null, okCount: 0, badCount: 0 };
+function _billingNoteWebhook(kind, type){
+  const now = new Date().toISOString();
+  if (kind === 'ok'){ _billingHookSeen.ok = { at: now, type: type }; _billingHookSeen.okCount++; }
+  else { _billingHookSeen.bad = { at: now }; _billingHookSeen.badCount++; }
+  // Durable, so a restart does not erase the evidence. Best effort: a missing
+  // platform_state table must never turn a webhook into an error for Stripe,
+  // which would make it retry a delivery that was in fact handled.
+  try {
+    supabase.from('platform_state').upsert(
+      { key: 'stripe:webhook:' + kind, value: { at: now, type: type || '' }, updated_at: now },
+      { onConflict: 'key' }
+    ).then(function(r){ if (r.error) console.warn('webhook note failed:', r.error.message); })
+     .catch(function(e){ console.warn('webhook note failed:', e.message); });
+  } catch (e) {}
+}
+
 // Did this business come in through early access? The waitlist row is the
 // record of that: somebody who was invited, or who went on to join, gets the
 // founding rate. Anyone who found the pricing page on their own does not.
@@ -3355,9 +3393,12 @@ function _stripeSigOk(rawBody, header){
 async function _stripeWebhook(req, res){
   try {
     const raw = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body || '');
-    if (!_stripeSigOk(raw, req.headers['stripe-signature']))
+    if (!_stripeSigOk(raw, req.headers['stripe-signature'])){
+      _billingNoteWebhook('bad', '');
       return res.status(400).json({ error: 'Bad signature' });
+    }
     let event; try { event = JSON.parse(raw); } catch (e) { return res.status(400).json({ error: 'Bad payload' }); }
+    _billingNoteWebhook('ok', event.type || '');
     const obj = (event.data && event.data.object) || {};
 
     if (event.type === 'checkout.session.completed'){
@@ -8634,6 +8675,160 @@ const _GRANDFATHER_PAGE = '<!doctype html><html lang="en-NZ"><head><meta charset
 'document.getElementById("apply").onclick=function(){send(false);};' +
 '(function(){var d=new Date();d.setFullYear(d.getFullYear()+1);document.getElementById("until").value=d.toISOString().slice(0,10);})();' +
 '<\/script></div></body></html>';
+
+// ── Is billing actually wired up? ─────────────────────────────────
+// Eight environment variables, six of them opaque ids, and a webhook whose
+// failure mode is silence. The Stripe dashboard cannot tell you what was
+// pasted into Railway, and Railway cannot tell you whether Stripe recognises
+// it — so this asks both and says what is still wrong in one screen.
+//
+// It never prints a secret. The key is reported as test or live from its
+// prefix and nothing more; the webhook secret only as present or absent.
+//
+//   GET /admin/billing-readiness?token=…              → JSON
+//   GET /admin/billing-readiness?token=…&format=text  → the same, readable
+const _BILLING_VARS = [
+  ['STRIPE_PRICE_SOLO',            'solo',     'month'],
+  ['STRIPE_PRICE_TEAM',            'team',     'month'],
+  ['STRIPE_PRICE_BUSINESS',        'business', 'month'],
+  ['STRIPE_PRICE_SOLO_ANNUAL',     'solo',     'year'],
+  ['STRIPE_PRICE_TEAM_ANNUAL',     'team',     'year'],
+  ['STRIPE_PRICE_BUSINESS_ANNUAL', 'business', 'year'],
+];
+async function _billingReadiness(){
+  const key = process.env.STRIPE_SECRET_KEY || '';
+  const mode = !key ? 'none'
+    : /^sk_live_/.test(key) ? 'live'
+    : /^sk_test_/.test(key) ? 'test' : 'unrecognised';
+  const out = {
+    billing_enabled: BILLING_ENABLED,
+    secret_key: { set: !!key, mode: mode },
+    webhook_secret: { set: !!STRIPE_WEBHOOK_SECRET },
+    early_access_coupon: { set: !!EARLY_ACCESS_COUPON },
+    prices: [], webhook: {}, grandfather: {}, blockers: [], warnings: [],
+  };
+  const B = function(t){ out.blockers.push(t); };
+  const W = function(t){ out.warnings.push(t); };
+
+  if (!key) B('STRIPE_SECRET_KEY is not set — billing is off, which is fine until you are ready to charge.');
+  else if (mode === 'unrecognised') B('STRIPE_SECRET_KEY does not look like a Stripe key (expected sk_test_… or sk_live_…).');
+  if (!STRIPE_WEBHOOK_SECRET) B('STRIPE_WEBHOOK_SECRET is not set — Stripe can tell you nothing, so cancellations and failed payments will be missed.');
+
+  // Each price, checked against Stripe rather than merely "is the variable
+  // non-empty" — which is the check that passes right up until launch day.
+  for (const [envName, plan, interval] of _BILLING_VARS){
+    const id = process.env[envName] || '';
+    // `found` is "Stripe recognised the id"; `ok` is "and it is the right
+    // one". They are not the same thing, and a checklist that ticks a price
+    // it has just listed as a blocker is worse than no checklist.
+    const row = { env: envName, plan: plan, expect_interval: interval, set: !!id, found: false, ok: false };
+    if (!id){ row.problem = 'not set'; B(envName + ' is not set — nobody can subscribe to that plan and cycle.'); out.prices.push(row); continue; }
+    if (!/^price_/.test(id)){
+      row.problem = 'that is not a price id';
+      B(envName + ' does not start with price_ — a product id (prod_…) is the usual mix-up; the price id is the one under the product.');
+      out.prices.push(row); continue;
+    }
+    if (!key){ row.problem = 'cannot check without a secret key'; out.prices.push(row); continue; }
+    try {
+      const p = await _stripeGet('/prices/' + encodeURIComponent(id));
+      row.amount = (typeof p.unit_amount === 'number') ? (p.unit_amount / 100) : null;
+      row.currency = String(p.currency || '').toUpperCase();
+      row.interval = (p.recurring && p.recurring.interval) || null;
+      row.livemode = !!p.livemode;
+      row.active = p.active !== false;
+      row.found = true;
+      const before = out.blockers.length;
+      if (!row.active) B(envName + ' points at a price that is archived in Stripe.');
+      if (row.currency && row.currency !== 'NZD') W(envName + ' is in ' + row.currency + ', not NZD.');
+      if (row.interval !== interval) B(envName + ' bills ' + (row.interval === 'month' ? 'monthly' : row.interval === 'year' ? 'yearly' : 'once') + ', but it is the ' + (interval === 'month' ? 'monthly' : 'yearly') + ' price — the monthly and yearly ids are the easiest two to swap.');
+      if (mode !== 'none' && row.livemode !== (mode === 'live'))
+        B(envName + ' is a ' + (row.livemode ? 'live' : 'test') + ' price but the key is ' + mode + ' — Stripe will refuse the checkout.');
+      row.ok = out.blockers.length === before;
+    } catch (e){
+      row.problem = e.message || 'Stripe did not recognise it';
+      B(envName + ': Stripe does not recognise that id (' + row.problem + ').');
+    }
+    out.prices.push(row);
+  }
+
+  // Has Stripe ever actually reached us? Memory first, then the durable note,
+  // so a restart does not make a working webhook look untested.
+  out.webhook = { last_ok: _billingHookSeen.ok, last_bad: _billingHookSeen.bad,
+                  ok_since_boot: _billingHookSeen.okCount, bad_since_boot: _billingHookSeen.badCount };
+  try {
+    const { data } = await supabase.from('platform_state')
+      .select('key, value, updated_at').in('key', ['stripe:webhook:ok', 'stripe:webhook:bad']);
+    (data || []).forEach(function(r){
+      if (r.key === 'stripe:webhook:ok'  && !out.webhook.last_ok)  out.webhook.last_ok  = r.value || { at: r.updated_at };
+      if (r.key === 'stripe:webhook:bad' && !out.webhook.last_bad) out.webhook.last_bad = r.value || { at: r.updated_at };
+    });
+  } catch (e) { out.webhook.note = 'could not read the durable record'; }
+  out.webhook.url = 'POST /billing/webhook on this service';
+  out.webhook.events_handled = ['checkout.session.completed', 'customer.subscription.updated',
+    'customer.subscription.deleted', 'invoice.payment_succeeded', 'invoice.payment_failed'];
+  if (!out.webhook.last_ok && STRIPE_WEBHOOK_SECRET)
+    W('No webhook has ever arrived and passed its signature. Send a test event from Stripe → Developers → Webhooks before you trust it.');
+  if (out.webhook.last_bad && !out.webhook.last_ok)
+    B('Webhooks are arriving but failing their signature — the STRIPE_WEBHOOK_SECRET belongs to a different endpoint.');
+
+  // The dangerous interaction: the moment the key goes in, every account with
+  // no subscription stops working. Better to see that here than to find out
+  // from the people it happens to.
+  try {
+    const roster = await _grandfatherRoster();
+    const risk = roster.filter(function(r){ return !r.survives_billing; });
+    out.grandfather = { companies: roster.length, would_be_locked_out: risk.length,
+                        names: risk.slice(0, 10).map(function(r){ return r.name; }) };
+    if (risk.length)
+      (BILLING_ENABLED ? B : W)(risk.length + ' business' + (risk.length === 1 ? '' : 'es') +
+        ' would stop working the moment billing is on. Sort them at /admin/grandfather FIRST — turning the key on is what locks them out.');
+  } catch (e) { out.grandfather = { error: 'could not read the roster' }; }
+
+  out.ready = out.blockers.length === 0 && !!key && !!STRIPE_WEBHOOK_SECRET;
+  return out;
+}
+function _billingReadinessText(d){
+  const L = [];
+  const tick = function(ok){ return ok ? 'OK  ' : 'NO  '; };
+  L.push('BILLING READINESS');
+  L.push('');
+  L.push(tick(d.secret_key.set) + 'STRIPE_SECRET_KEY' + (d.secret_key.set ? ' (' + d.secret_key.mode + ' mode)' : ''));
+  L.push(tick(d.webhook_secret.set) + 'STRIPE_WEBHOOK_SECRET');
+  L.push('');
+  d.prices.forEach(function(p){
+    const money = (typeof p.amount === 'number')
+      ? ('$' + p.amount.toLocaleString('en-NZ')) : '';
+    L.push(tick(p.ok) + p.env + '  ' +
+      (p.found ? (money + ' ' + p.currency + ' / ' + p.interval + (p.livemode ? '  [live]' : '  [test]'))
+               : ('— ' + (p.problem || 'not checked'))));
+  });
+  L.push('');
+  L.push('Webhook: ' + (d.webhook.last_ok
+    ? ('last good ' + d.webhook.last_ok.at + (d.webhook.last_ok.type ? ' (' + d.webhook.last_ok.type + ')' : ''))
+    : 'never received one that passed its signature'));
+  if (d.webhook.last_bad) L.push('         last BAD signature ' + d.webhook.last_bad.at);
+  L.push('');
+  L.push('Billing is currently ' + (d.billing_enabled ? 'ON — customers are being charged.' : 'OFF — nobody is charged and nobody is locked out.'));
+  if (d.grandfather && typeof d.grandfather.would_be_locked_out === 'number')
+    L.push('Grandfather: ' + d.grandfather.would_be_locked_out + ' of ' + d.grandfather.companies +
+      ' businesses would stop working when it goes on' + (d.grandfather.names.length ? ' (' + d.grandfather.names.join(', ') + ')' : '') + '.');
+  L.push('');
+  if (d.blockers.length){ L.push('STILL TO FIX'); d.blockers.forEach(function(b){ L.push('  - ' + b); }); }
+  else L.push('Nothing blocking.');
+  if (d.warnings.length){ L.push(''); L.push('WORTH KNOWING'); d.warnings.forEach(function(b){ L.push('  - ' + b); }); }
+  L.push('');
+  L.push(d.ready ? 'READY to switch on.' : 'NOT ready.');
+  return L.join('\n');
+}
+app.get('/admin/billing-readiness', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const d = await _billingReadiness();
+    if (String(req.query.format || '') === 'text')
+      return res.type('text/plain').send(_billingReadinessText(d));
+    res.json(d);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 app.get('/admin/grandfather', async (req, res) => {
   // A browser asking for a page gets the page; curl, fetch and the suites all
