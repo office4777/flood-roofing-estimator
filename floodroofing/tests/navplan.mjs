@@ -124,9 +124,15 @@ await pg.waitForFunction(() => {
   const el = document.getElementById('login-screen');
   return !!el && getComputedStyle(el).display !== 'none';
 }, null, { timeout: 20000 }).catch(() => null);
+// Report enough to tell the two halves apart when this fails: whether the
+// button was clicked and the question asked at all (asked === 2), or whether
+// it was asked and the sign-out still did not finish. Without that a failure
+// here is a guess, and this one has been guessed at twice.
 const after = await pg.evaluate(() => ({
   tok: localStorage.getItem('fr_token'), user: localStorage.getItem('fr_user'),
   co: localStorage.getItem('fr_company'),
+  asked: (window.__confirms || []).length,
+  seeded: sessionStorage.getItem('__seeded'),
   login: (function(){ const el = document.getElementById('login-screen');
     return !!el && getComputedStyle(el).display !== 'none'; })() }));
 check('signing out drops the session, not just the screen',
