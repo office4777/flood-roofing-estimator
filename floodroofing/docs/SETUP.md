@@ -124,8 +124,13 @@ VERCEL_TEAM_ID=team_...
    STRIPE_PRICE_TEAM_ANNUAL=price_...
    STRIPE_PRICE_BUSINESS_ANNUAL=price_...
    ```
-   **BILLING_ENABLED turns itself on the moment STRIPE_SECRET_KEY exists.**
-   Adding the live key IS switching billing on — do step 8 before that.
+   **BILLING_ENABLED turns itself on the moment STRIPE_SECRET_KEY exists** —
+   a sandbox key counts. Adding a key IS switching billing on, and from that
+   moment every account without a live subscription row gets a 403.
+   To wire Stripe up and test it WITHOUT gating anybody, set
+   `BILLING_ENABLED=false` alongside the key: an explicit `false` beats the
+   key's presence. Remove it (or set `true`) when you actually mean to charge,
+   and do step 8 first.
 4. In Stripe → Webhooks → Add endpoint:
    - URL: `https://floodroofing-backend.railway.app/billing/webhook`
    - Events: `checkout.session.completed`, `customer.subscription.updated`,

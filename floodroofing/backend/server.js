@@ -1030,7 +1030,14 @@ function _scopeCompany(q, req){
 // explicitly set true) we treat billing as "not yet configured" — and
 // the subscription gate becomes a no-op so a missing/expired trial row
 // in Supabase doesn't 403 every JMS/AI call.
-const BILLING_ENABLED = process.env.BILLING_ENABLED === 'true' || !!process.env.STRIPE_SECRET_KEY;
+//
+// BILLING_ENABLED=false is an explicit OFF switch and beats the key's mere
+// presence. Without that escape hatch, adding a *sandbox* key to the live
+// service to test the Stripe wiring silently switched the subscription gate
+// on for every real account, and the only way back was deleting the key.
+const BILLING_ENABLED = process.env.BILLING_ENABLED === 'false'
+  ? false
+  : (process.env.BILLING_ENABLED === 'true' || !!process.env.STRIPE_SECRET_KEY);
 
 // Where every emailed link points. This is deliberately NOT FRONTEND_URL:
 // that variable predates the real domain and still holds the *.vercel.app

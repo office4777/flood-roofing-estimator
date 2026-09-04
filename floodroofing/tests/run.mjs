@@ -33,7 +33,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // The real Express app against an in-memory stand-in for PostgREST. Fast,
 // no browser, and the place a multi-tenancy bug shows up first.
 const API = [
-  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'security', 'register', 'sharetoken', 'crosstenant', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'waitlist', 'metrics', 'flashguard', 'quoteremind', 'quotestats', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke',
+  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'billingoff', 'security', 'register', 'sharetoken', 'crosstenant', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'waitlist', 'metrics', 'flashguard', 'quoteremind', 'quotestats', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke',
 ];
 // The real app.html, driven by Playwright.
 const UI = [
