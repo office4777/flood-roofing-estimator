@@ -3923,6 +3923,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div><span class="hdr-field">System</span><span class="hdr-val">RoofMap v2</span></div>
     <div><span class="hdr-field">Region</span><span class="hdr-val">Whangarei, NZ</span></div>
     <div><span class="hdr-field">GST</span><span class="hdr-val">15%</span></div>
+    <!-- Which login this is. An empty board looks identical whether the jobs
+         are gone or you are simply signed in as somebody else, and there was
+         nothing on screen that could tell you which. -->
+    <div id="hdrSignedInRow" style="display:none"><span class="hdr-field">Signed in</span><span class="hdr-val" id="hdrSignedIn" style="overflow:hidden;text-overflow:ellipsis"></span></div>
   </div>
   <div class="hdr-right"></div>
 </div>
@@ -5772,9 +5776,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div style="margin-top:6px;color:#0a1628">
           <code>Client</code> · <code>Site</code> · <code>Job</code> (number) · <code>Special Notes</code> ·
           <code>Confirmed Delivery</code> · <code>Start</code> · <code>Days</code> · <code>Crew</code> ·
-          <code>Deposit Paid</code> · <code>Ordered</code> · <code>Folder</code>
+          <code>Deposit Paid</code> · <code>Ordered</code> · <code>Folder</code> · <code>Blocks</code>
         </div>
-        <div style="margin-top:6px">Add <code>Start</code> and <code>Days</code> columns in Excel if you want the coloured blocks painted on as well — otherwise the jobs come across and you paint them.</div>
+        <div style="margin-top:6px">Add <code>Start</code> and <code>Days</code> columns in Excel if you want the coloured blocks painted on as well — otherwise the jobs come across and you paint them.
+        A job with several runs on the calendar can carry them all in one <code>Blocks</code> cell:
+        <code>2026-08-26:2:Scaffold; 2026-08-28:1:Nick</code> — date, working days, crew.</div>
       </div>
       <textarea id="schedImpText" rows="7" oninput="_schedImportPreview()" placeholder="Paste here…" style="width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:ui-monospace,Menlo,monospace;resize:vertical"></textarea>
       <div id="schedImpMsg" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
@@ -8750,6 +8756,11 @@ var _SCHED_IMP_COLS = [
   { key:'deposit',  names:['deposit paid?','deposit paid','deposit'] },
   { key:'ordered',  names:['ordered?','ordered','material ordered','materials ordered'] },
   { key:'folder',   names:['folder','group','section'] },
+  // Every coloured run on the sheet's calendar, in one cell:
+  //   2026-08-26:2:Scaffold; 2026-08-28:1:Nick
+  // Start/Days only carry ONE booking, and a real job on a real board has a
+  // scaffold run, a crew run and a second visit after the rain.
+  { key:'blocks',   names:['blocks','bookings','calendar'] },
 ];
 function _schedImpNorm(h){ return String(h || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function _schedImpKeyFor(h){
@@ -8847,14 +8858,31 @@ function _schedImportParse(text){
       folder: _schedImpFolder(r.folder),
       _start: _schedImpDate(r.start),
       _crew: (r.crew || '').trim(),
+      _blocks: _schedImpBlocks(r.blocks),
       _deposit: _schedImpTick(r.deposit),
       _ordered: _schedImpTick(r.ordered),
     };
     if (r.delivery && !out.confirmed_delivery) warn.push('Row ' + i + ' (' + name + '): could not read the delivery date "' + r.delivery + '" — imported without it.');
     if (r.start && !out._start) warn.push('Row ' + i + ' (' + name + '): could not read the start date "' + r.start + '" — imported without a block.');
+    if (r.blocks && !out._blocks.length) warn.push('Row ' + i + ' (' + name + '): could not read the bookings "' + String(r.blocks).slice(0, 40) + '" — the job imports without them.');
     rows.push(out);
   }
   return { rows: rows, warn: warn };
+}
+// "2026-08-26:2:Scaffold; 2026-09-08:4" → the runs to paint. A piece that
+// cannot be read is dropped from the list and counted, never guessed at.
+function _schedImpBlocks(cell){
+  var out = [];
+  String(cell == null ? '' : cell).split(/[;|]/).forEach(function(part){
+    var p = part.trim(); if (!p) return;
+    var bits = p.split(':');
+    var start = _schedImpDate(bits[0]);
+    if (!start) return;
+    var days = parseInt(bits[1], 10);
+    out.push({ start: start, days: (isFinite(days) && days > 0) ? Math.min(120, days) : 1,
+               crew: (bits[2] || '').trim() });
+  });
+  return out;
 }
 function _schedImportPreview(){
   var t = document.getElementById('schedImpText');
@@ -8884,8 +8912,8 @@ function _schedImportPreview(){
         '<td style="padding:4px 6px">' + esc(r.site_address) + '</td>' +
         '<td style="padding:4px 6px">' + esc(String(r.notes).slice(0, 60)) + '</td>' +
         '<td style="padding:4px 6px">' + esc(r.confirmed_delivery || '—') + '</td>' +
-        '<td style="padding:4px 6px">' + esc(r._start || '—') + '</td>' +
-        '<td style="padding:4px 6px">' + esc(r.length_days) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r._start || (r._blocks.length ? r._blocks[0].start : '—')) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r._blocks.length ? (r._blocks.length + ' booking' + (r._blocks.length === 1 ? '' : 's')) : r.length_days) + '</td>' +
         '<td style="padding:4px 6px">' + esc(_schedFolderLabel(r.folder)) + '</td></tr>';
     }).join('') + '</table>';
 }
@@ -8924,11 +8952,16 @@ async function _schedImportRun(){
       if (Object.keys(patch).length){
         try { await _schedApi('PATCH', '/schedule/rows/' + row.id, patch); Object.assign(row, patch); } catch(e){}
       }
-      if (r._start){
-        var crew = _schedImpCrew(r._crew);
+      // Start/Days is one booking; Blocks is all of them. Both, so a sheet
+      // that only has a start date still lands on the calendar.
+      var paint = (r._blocks || []).slice();
+      if (r._start && !paint.length) paint.push({ start: r._start, days: r.length_days, crew: r._crew });
+      for (var bi = 0; bi < paint.length; bi++){
+        var pb = paint[bi];
+        var crew = _schedImpCrew(pb.crew);
         try {
           var blk = await _schedApi('POST', '/schedule/blocks', {
-            row_id: row.id, start_date: r._start, work_days: r.length_days,
+            row_id: row.id, start_date: pb.start, work_days: pb.days,
             kind: crew ? 'crew' : 'pencil', crew_id: crew ? crew.id : '',
           });
           if (blk && blk.id){ (_SCHED.data.blocks = _SCHED.data.blocks || []).push(blk); blocks++; }
@@ -13565,6 +13598,22 @@ function applyBranding(){
       hdrCo.innerHTML = '';
     }
   }
+  // Which login this is. An empty board looks exactly the same whether the
+  // work has gone or you are simply signed in as somebody else — a test
+  // account, a teammate's — and nothing on screen could tell you which. It
+  // cost a morning of worrying that a night's jobs had been lost.
+  try {
+    var _u = {};
+    try { _u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; } catch(e){}
+    var _who = String(_u.email || '').trim();
+    var _row = document.getElementById('hdrSignedInRow');
+    var _cell = document.getElementById('hdrSignedIn');
+    if (_row && _cell){
+      _row.style.display = _who ? '' : 'none';
+      _cell.textContent = _who;
+      _cell.title = _who + (_u.name ? (' — ' + _u.name) : '');
+    }
+  } catch(e){}
   // The RoofMap sub-line is the one thing that still tracks setup state — it
   // is where an unbranded account gets told where to go.
   var hdrSub = document.getElementById('hdrLogoSub');

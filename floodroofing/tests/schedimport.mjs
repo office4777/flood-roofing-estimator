@@ -138,6 +138,52 @@ check('a named crew is booked to that crew, not left pencilled',
 check('the importer closes itself once it is done',
   await pg.evaluate(() => getComputedStyle(document.getElementById('schedImpModal')).display === 'none'));
 
+// ── a real job has several runs on the calendar, not one ──────────────
+// Start/Days carries one booking. The sheet this was built from has a
+// scaffold run, a crew run and a second visit after the rain on the same
+// job — 145 coloured runs across 89 jobs — so one is not enough.
+calls.length = 0;
+const MULTI = [
+  'Job\tClient\tSite\tBlocks\tFolder',
+  '2917\tAmy Hunter\t1156 SH12, Oue\t2026-08-26:2:Scaffold; 2026-08-28:1:Nick; 2026-08-31:2:Nick\t',
+  '3125\tGreg Thomas\t98 Settlers Way\t2026-09-02:1:Scaffold; 2026-09-03:2:Luke\t',
+  '3148\tFreedom Whare\t9 Dickeson Street\t2026-09-14:5\t',
+  '3195\tPaihia Beach Resort\t130 Marsden Road\tnot a date at all\t',
+].join('\n');
+await pg.evaluate(() => _schedImportOpen());
+await pg.evaluate((t) => { document.getElementById('schedImpText').value = t; _schedImportPreview(); }, MULTI);
+await pg.waitForTimeout(200);
+const multi = await pg.evaluate(() => ({ rows: _SCHED_IMP.rows, warn: _SCHED_IMP.warn,
+  preview: document.getElementById('schedImpPreview').textContent }));
+const mby = (n) => multi.rows.find(r => r.client_name === n) || {};
+check('a Blocks cell carries every run on the job',
+  (mby('Amy Hunter')._blocks || []).length === 3, JSON.stringify(mby('Amy Hunter')._blocks));
+check('…each with its own start, length and crew',
+  JSON.stringify((mby('Amy Hunter')._blocks || [])[0]) === JSON.stringify({ start:'2026-08-26', days:2, crew:'Scaffold' }),
+  JSON.stringify((mby('Amy Hunter')._blocks || [])[0]));
+check('…and a run with no crew named is still a run',
+  (mby('Freedom Whare')._blocks || []).length === 1 && mby('Freedom Whare')._blocks[0].crew === '',
+  JSON.stringify(mby('Freedom Whare')._blocks));
+check('the preview says how many bookings a job has, not a length',
+  /3 bookings/.test(multi.preview), multi.preview.slice(0, 200));
+check('bookings it cannot read are named, and the job still imports',
+  multi.warn.some(w => /Paihia Beach Resort/.test(w)) && !!mby('Paihia Beach Resort').client_name,
+  JSON.stringify(multi.warn));
+
+await pg.evaluate(() => _schedImportRun());
+await pg.waitForTimeout(1500);
+const mb = calls.filter(c => c[0] === 'block').map(c => c[1]);
+check('every run is painted on the board, not just the first',
+  mb.length === 6, mb.length + ' blocks');
+check('…the scaffold run booked to the scaffolder',
+  !!mb.find(x => x.start_date === '2026-08-26' && x.work_days === 2), JSON.stringify(mb.slice(0, 2)));
+check('…a run whose crew is not on this board is pencilled, not dropped',
+  (mb.find(x => x.start_date === '2026-09-14') || {}).kind === 'pencil',
+  JSON.stringify(mb.find(x => x.start_date === '2026-09-14')));
+check('…and a named crew that IS on the board is booked to them',
+  (mb.find(x => x.start_date === '2026-09-03') || {}).crew_id === 'luke',
+  JSON.stringify(mb.find(x => x.start_date === '2026-09-03')));
+
 // ── the folders on the board ──
 await pg.evaluate(() => {
   _SCHED.data.rows = [
