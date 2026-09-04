@@ -5651,6 +5651,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="sched-chip" id="schedExtBtn" onclick="_schedExtToggle()" title="Overlay the board across the whole screen">⛶ Extended view</button>
         <button class="sched-chip" onclick="_schedAddOpen()">＋ Add job</button>
+        <button class="sched-chip" onclick="_schedImportOpen()" title="Paste your rows straight out of Excel">⇪ Import from a spreadsheet</button>
         <button class="sched-chip" id="schedArchBtn" onclick="_schedToggleArchived()">Archive</button>
         <button class="sched-chip" onclick="_schedSettingsOpen()" title="Crews, capacity, shutdowns, calendar feed">⚙</button>
       </span>
@@ -5752,6 +5753,35 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
         <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
         <button onclick="_schedInfoMail()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email the customer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import: paste the spreadsheet rows straight in -->
+  <div id="schedImpOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedImportClose()"></div>
+  <div id="schedImpModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:820px;max-width:96vw;max-height:90vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+    <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <strong style="flex:1;font-size:14px">Import jobs from your spreadsheet</strong>
+      <button onclick="_schedImportClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px">
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px">
+        In Excel, select the rows you want <strong>including the header row</strong>, copy, and paste them here.
+        Any of these column headings are understood — the rest are ignored, and the order doesn't matter:
+        <div style="margin-top:6px;color:#0a1628">
+          <code>Client</code> · <code>Site</code> · <code>Job</code> (number) · <code>Special Notes</code> ·
+          <code>Confirmed Delivery</code> · <code>Start</code> · <code>Days</code> · <code>Crew</code> ·
+          <code>Deposit Paid</code> · <code>Ordered</code> · <code>Folder</code>
+        </div>
+        <div style="margin-top:6px">Add <code>Start</code> and <code>Days</code> columns in Excel if you want the coloured blocks painted on as well — otherwise the jobs come across and you paint them.</div>
+      </div>
+      <textarea id="schedImpText" rows="7" oninput="_schedImportPreview()" placeholder="Paste here…" style="width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;font-family:ui-monospace,Menlo,monospace;resize:vertical"></textarea>
+      <div id="schedImpMsg" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
+      <div id="schedImpPreview" style="margin-top:10px;max-height:34vh;overflow:auto"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <span style="flex:1;font-size:11.5px;color:var(--text2)">Nothing is imported until you press the button.</span>
+        <button onclick="_schedImportClose()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12.5px;cursor:pointer">Cancel</button>
+        <button id="schedImpGo" onclick="_schedImportRun()" disabled style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Import</button>
       </div>
     </div>
   </div>
@@ -8689,6 +8719,225 @@ function _schedInfoMail(){
   var id = _schedInfoId; _schedInfoClose();
   var el = document.querySelector('[data-mail="' + id + '"]');
   _schedMailPick(id, el || { getBoundingClientRect: function(){ return { left: innerWidth / 2, bottom: innerHeight / 2 }; } });
+}
+// ── import: get the spreadsheet onto the board ──────────────────────────
+// A roofing office does not retype forty live jobs to try a new schedule, so
+// without this the board is only ever used for new work. Paste is
+// deliberately the way in rather than a file upload: Excel puts tab-separated
+// text on the clipboard, everybody already knows how to copy rows, and there
+// is no file format to get wrong.
+//
+// Nothing is written until the Import button is pressed, and what will be
+// written is shown first — an importer that guesses silently is worse than
+// no importer.
+var _SCHED_IMP = { rows: [], warn: [] };
+// Header synonyms. The spreadsheet this was built for says "Special Notes"
+// and "Confirmed Delivery"; another office's says "Notes" and "Delivery".
+var _SCHED_IMP_COLS = [
+  { key:'job_no',   names:['job','job no','job number','job #','number','quote'] },
+  { key:'client',   names:['client','customer','name','client name'] },
+  { key:'site',     names:['site','address','site address','job site'] },
+  { key:'notes',    names:['special notes','notes','note','comments','description'] },
+  { key:'delivery', names:['confirmed delivery','delivery','delivery date','del'] },
+  { key:'start',    names:['start','start date','on site','begins'] },
+  { key:'days',     names:['days','length','duration','work days','length (days)'] },
+  { key:'crew',     names:['crew','team','who'] },
+  { key:'deposit',  names:['deposit paid?','deposit paid','deposit'] },
+  { key:'ordered',  names:['ordered?','ordered','material ordered','materials ordered'] },
+  { key:'folder',   names:['folder','group','section'] },
+];
+function _schedImpNorm(h){ return String(h || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function _schedImpKeyFor(h){
+  var n = _schedImpNorm(h);
+  var hit = _SCHED_IMP_COLS.find(function(c){ return c.names.indexOf(n) >= 0; });
+  return hit ? hit.key : null;
+}
+// Excel writes tabs between cells. A comma split would break every address
+// with a comma in it, which is most of them.
+function _schedImpSplit(line){
+  if (line.indexOf('\t') >= 0) return line.split('\t');
+  return line.split(',');
+}
+// Dates as a spreadsheet writes them: 4-Nov, 27-Aug, 3-Sept, 4/09/2026,
+// 2026-09-04. Day-first, because that is what a NZ spreadsheet means. A
+// bare day-and-month with no year is read as the nearest sensible one —
+// stated in the preview, never guessed silently.
+var _SCHED_IMP_MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
+function _schedImpDate(v){
+  var t = String(v == null ? '' : v).trim();
+  if (!t) return null;
+  var m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m){
+    var y = parseInt(m[3], 10); if (y < 100) y += 2000;
+    return y + '-' + String(parseInt(m[2],10)).padStart(2,'0') + '-' + String(parseInt(m[1],10)).padStart(2,'0');
+  }
+  m = t.match(/^(\d{1,2})[\s\-_]*([A-Za-z]{3,4})\.?(?:[\s\-_]*(\d{2,4}))?$/);
+  if (m){
+    var mo = _SCHED_IMP_MONTHS[m[2].toLowerCase().slice(0,4)] || _SCHED_IMP_MONTHS[m[2].toLowerCase().slice(0,3)];
+    if (!mo) return null;
+    var yr = m[3] ? parseInt(m[3], 10) : null;
+    if (yr != null && yr < 100) yr += 2000;
+    if (yr == null){
+      // No year in the cell. Take the one that puts the date nearest today,
+      // so a board of this season's work lands in this season.
+      var now = new Date(), best = null, bestGap = Infinity;
+      [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].forEach(function(cand){
+        var gap = Math.abs(new Date(Date.UTC(cand, mo - 1, parseInt(m[1],10))) - now);
+        if (gap < bestGap){ bestGap = gap; best = cand; }
+      });
+      yr = best;
+    }
+    return yr + '-' + String(mo).padStart(2,'0') + '-' + String(parseInt(m[1],10)).padStart(2,'0');
+  }
+  return null;
+}
+function _schedImpTick(v){
+  var t = String(v == null ? '' : v).trim().toLowerCase();
+  if (!t) return null;
+  if (/^(y|yes|paid|true|1|x|✓|✔|done|ordered)$/.test(t)) return true;
+  if (/^(n|no|false|0)$/.test(t)) return false;
+  return null;
+}
+function _schedImpFolder(v){
+  var t = String(v == null ? '' : v).trim().toLowerCase();
+  if (!t) return '';
+  if (/pole/.test(t)) return 'poleshed';
+  if (/complete|done|finished/.test(t)) return 'completed';
+  if (/check|final|invoice/.test(t)) return 'checks';
+  return '';
+}
+function _schedImportOpen(){
+  _SCHED_IMP = { rows: [], warn: [] };
+  var t = document.getElementById('schedImpText'); if (t) t.value = '';
+  _schedImportPreview();
+  document.getElementById('schedImpOverlay').style.display = 'block';
+  document.getElementById('schedImpModal').style.display = 'flex';
+}
+function _schedImportClose(){
+  document.getElementById('schedImpOverlay').style.display = 'none';
+  document.getElementById('schedImpModal').style.display = 'none';
+}
+function _schedImportParse(text){
+  var lines = String(text || '').split(/\r?\n/).filter(function(l){ return l.trim() !== ''; });
+  if (lines.length < 2) return { rows: [], warn: lines.length ? ['Paste the header row as well as the jobs.'] : [] };
+  var head = _schedImpSplit(lines[0]).map(_schedImpKeyFor);
+  if (head.indexOf('client') < 0)
+    return { rows: [], warn: ['No "Client" column found in the header row. Headings understood: Client, Site, Job, Special Notes, Confirmed Delivery, Start, Days, Crew, Deposit Paid, Ordered, Folder.'] };
+  var rows = [], warn = [];
+  for (var i = 1; i < lines.length; i++){
+    var cells = _schedImpSplit(lines[i]);
+    var r = {};
+    head.forEach(function(k, ci){ if (k) r[k] = (cells[ci] == null ? '' : String(cells[ci]).trim()); });
+    var name = (r.client || '').trim();
+    if (!name) continue;                       // a spacer row in the sheet
+    var days = parseInt(r.days, 10);
+    var out = {
+      client_name: name.slice(0, 200),
+      site_address: (r.site || '').slice(0, 300),
+      notes: [(r.job_no ? ('Job ' + r.job_no) : ''), (r.notes || '')].filter(Boolean).join(' — ').slice(0, 2000),
+      length_days: (isFinite(days) && days > 0) ? Math.min(120, days) : 1,
+      confirmed_delivery: _schedImpDate(r.delivery),
+      folder: _schedImpFolder(r.folder),
+      _start: _schedImpDate(r.start),
+      _crew: (r.crew || '').trim(),
+      _deposit: _schedImpTick(r.deposit),
+      _ordered: _schedImpTick(r.ordered),
+    };
+    if (r.delivery && !out.confirmed_delivery) warn.push('Row ' + i + ' (' + name + '): could not read the delivery date "' + r.delivery + '" — imported without it.');
+    if (r.start && !out._start) warn.push('Row ' + i + ' (' + name + '): could not read the start date "' + r.start + '" — imported without a block.');
+    rows.push(out);
+  }
+  return { rows: rows, warn: warn };
+}
+function _schedImportPreview(){
+  var t = document.getElementById('schedImpText');
+  var parsed = _schedImportParse(t ? t.value : '');
+  _SCHED_IMP = parsed;
+  var msg = document.getElementById('schedImpMsg');
+  var host = document.getElementById('schedImpPreview');
+  var go = document.getElementById('schedImpGo');
+  if (go) go.disabled = !parsed.rows.length;
+  if (msg){
+    msg.innerHTML = parsed.rows.length
+      ? '<strong>' + parsed.rows.length + ' job' + (parsed.rows.length === 1 ? '' : 's') + '</strong> ready to import.' +
+        (parsed.warn.length ? '<div style="color:#b45309;margin-top:5px">' + parsed.warn.map(function(w){
+          return String(w).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }).join('<br>') + '</div>' : '')
+      : (parsed.warn.length ? '<span style="color:#b91c1c">' + String(parsed.warn[0]).replace(/</g,'&lt;') + '</span>' : '');
+  }
+  if (!host) return;
+  if (!parsed.rows.length){ host.innerHTML = ''; return; }
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  host.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
+    '<tr style="text-align:left;color:var(--text2)"><th style="padding:4px 6px">Client</th><th style="padding:4px 6px">Site</th>' +
+    '<th style="padding:4px 6px">Notes</th><th style="padding:4px 6px">Delivery</th><th style="padding:4px 6px">Start</th>' +
+    '<th style="padding:4px 6px">Days</th><th style="padding:4px 6px">Folder</th></tr>' +
+    parsed.rows.map(function(r){
+      return '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:4px 6px;font-weight:600">' + esc(r.client_name) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r.site_address) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(String(r.notes).slice(0, 60)) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r.confirmed_delivery || '—') + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r._start || '—') + '</td>' +
+        '<td style="padding:4px 6px">' + esc(r.length_days) + '</td>' +
+        '<td style="padding:4px 6px">' + esc(_schedFolderLabel(r.folder)) + '</td></tr>';
+    }).join('') + '</table>';
+}
+// Match a crew name from the sheet to a crew on the board. No match paints
+// the block as a pencil, which is the honest answer: roughly then, not
+// booked to anybody yet.
+function _schedImpCrew(name){
+  var n = String(name || '').trim().toLowerCase();
+  if (!n) return null;
+  var crews = ((_SCHED.data || {}).cfg || {}).crews || [];
+  return crews.find(function(c){ return String(c.name || '').trim().toLowerCase() === n; }) ||
+         crews.find(function(c){ return String(c.name || '').trim().toLowerCase().indexOf(n) === 0; }) || null;
+}
+async function _schedImportRun(){
+  var rows = (_SCHED_IMP.rows || []).slice();
+  if (!rows.length) return;
+  var go = document.getElementById('schedImpGo');
+  if (go){ go.disabled = true; go.textContent = 'Importing…'; }
+  var made = 0, blocks = 0, failed = 0;
+  for (var i = 0; i < rows.length; i++){
+    var r = rows[i];
+    try {
+      var row = await _schedApi('POST', '/schedule/rows', {
+        client_name: r.client_name, site_address: r.site_address, notes: r.notes,
+        length_days: r.length_days, confirmed_delivery: r.confirmed_delivery || null,
+        folder: r.folder || '',
+      });
+      if (!row || !row.id){ failed++; continue; }
+      made++;
+      (_SCHED.data.rows = _SCHED.data.rows || []).push(row);
+      // The ticks the sheet already carried, in a second call — POST takes the
+      // job, PATCH takes its state, and splitting it keeps the create simple.
+      var patch = {};
+      if (r._deposit != null) patch.deposit_paid = r._deposit;
+      if (r._ordered != null) patch.ordered = r._ordered;
+      if (Object.keys(patch).length){
+        try { await _schedApi('PATCH', '/schedule/rows/' + row.id, patch); Object.assign(row, patch); } catch(e){}
+      }
+      if (r._start){
+        var crew = _schedImpCrew(r._crew);
+        try {
+          var blk = await _schedApi('POST', '/schedule/blocks', {
+            row_id: row.id, start_date: r._start, work_days: r.length_days,
+            kind: crew ? 'crew' : 'pencil', crew_id: crew ? crew.id : '',
+          });
+          if (blk && blk.id){ (_SCHED.data.blocks = _SCHED.data.blocks || []).push(blk); blocks++; }
+        } catch(e){}
+      }
+    } catch(e){ failed++; }
+  }
+  if (go){ go.disabled = false; go.textContent = 'Import'; }
+  _schedImportClose();
+  _schedRender();
+  _schedMsg(made + ' job' + (made === 1 ? '' : 's') + ' imported' +
+    (blocks ? (', ' + blocks + ' booked in') : '') +
+    (failed ? (' — ' + failed + ' could not be added') : ''), !!failed);
+  _schedLoad();
 }
 // ── customer email ──
 function _schedMailPick(rowId, el){
@@ -15852,6 +16101,15 @@ function _renderHomeBoard(){
   var drafts = (window._recentDraftsRows || []).slice(0, 25);
   var orders = (window._ordersSentRows || []).slice(0, 25);
 
+  // Recent Drafts has always had a ✕; the other five lists did not, so a test
+  // quote sent or accepted during setup sat on the board for good. Same
+  // delete, same confirmation, everywhere a job is listed.
+  function _hbDelBtn(jobId, what){
+    if (!jobId) return '';
+    return '<button onclick="_hbDeleteJob(event,\'' + jobId + '\',\'' + (what || '') + '\')"' +
+      ' title="Delete this job" style="background:none;border:none;color:#b91c1c;cursor:pointer;' +
+      'font-size:15px;line-height:1;padding:2px 4px">✕</button>';
+  }
   function feedRow(f, badge, bg, fg, extra){
     return '<div class="hb-row" onclick="openJob(\'' + f.jobId + '\')">' +
       '<span class="hb-row-badge" style="background:' + bg + ';color:' + fg + '">' + badge + '</span>' +
@@ -15859,6 +16117,7 @@ function _renderHomeBoard(){
         (f.ref ? ' <span style="color:var(--text2);font-weight:400">· ' + esc2(f.ref) + '</span>' : '') + '</div>' +
         (extra || '') + '</div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(f.lastEventAt)) + '</div>' +
+      _hbDelBtn(f.jobId, String(badge || '').toLowerCase()) +
     '</div>';
   }
   var sent = feed.filter(function(f){ return f.status === 'sent' || f.status === 'opened'; }).map(function(f){
@@ -15911,6 +16170,7 @@ function _renderHomeBoard(){
         (o.delivery ? '<div class="hb-row-sub" style="color:#b45309;font-weight:600">🚚 Delivery ' +
           esc2(_hbDay(o.delivery)) + '</div>' : '') + '</div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(o.at)) + '</div>' +
+      _hbDelBtn(o.id, 'ordered') +
     '</div>';
   });
 
@@ -16309,6 +16569,32 @@ async function _deleteRecentDraft(ev, key){
   fetchRecentDrafts();
 }
 // Delete a saved job (with confirm), then refresh the list.
+// Delete a job from any of the home-board lists. An accepted quote is a real
+// piece of the business's history, so it says what it is deleting and asks
+// twice as clearly — but the office does need to clear out the tests it made
+// while learning the app, and there was no way to.
+//
+// The job's revision history survives the delete (job_revisions is keyed by
+// job_id and a deleted job can be restored from it), so this is recoverable
+// by us even though it is not offered as an undo.
+async function _hbDeleteJob(ev, id, what){
+  if (ev){ try { ev.stopPropagation(); } catch(e){} }
+  if (!id) return;
+  var heavy = /accept|order/.test(String(what || ''));
+  var msg = heavy
+    ? 'Delete this job?\n\nIt has been ' + (String(what).indexOf('order') >= 0 ? 'ordered' : 'accepted') +
+      ', so this is real work, not a draft. The quote, the pricing and the ' +
+      'drawing all go with it.\n\nDelete it anyway?'
+    : 'Delete this job? This cannot be undone from here.';
+  if (!confirm(msg)) return;
+  try {
+    await api('DELETE', '/jobs/' + id);
+    if (S.currentJobId === id) { S.currentJobId = null; setCurrentJobLabel(null); }
+  } catch(e){ alert('Delete failed: ' + (e && e.message ? e.message : e)); return; }
+  try { fetchRecentDrafts(); } catch(e){}
+  try { fetchQuoteActivity(); } catch(e){}
+  try { refreshJobsList(); } catch(e){}
+}
 async function _deleteRecentJob(ev, id){
   if (ev){ try { ev.stopPropagation(); } catch(e){} }
   if (!confirm('Delete this saved job? This cannot be undone.')) return;

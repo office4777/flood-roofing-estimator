@@ -5620,8 +5620,9 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
     // Explicit defaults: the DB has them, but the test double doesn't apply
     // DDL defaults, and an absent `archived` fails the eq(false) filter there.
     progress_pct: null, deposit_paid: null, ordered: null, delivery_check: false,
-    confirmed_delivery: null, requested_delivery: b.requested_delivery || null,
+    confirmed_delivery: b.confirmed_delivery || null, requested_delivery: b.requested_delivery || null,
     sort_pos: null, archived: false, last_notified: null, handover_done: false,
+    folder: String(b.folder || '').slice(0, 40),
     created_at: new Date().toISOString(),
   };
   try {
