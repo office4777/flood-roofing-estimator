@@ -39983,6 +39983,21 @@ function clearAll(silent) {
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
+  // The picture goes with the lines. Clear wiped the drawing and left the
+  // aerial sitting there, which is not what "clear everything" means — and
+  // because every start-a-new-job path comes through here, the previous
+  // job's aerial was still on the canvas of the new one. Those paths already
+  // cleared S.img64 (the saved preview); nothing cleared DRAW.bgImg, which is
+  // the picture actually being drawn.
+  //
+  // The view goes back to square with it: leaving a pan, a zoom or a rotation
+  // behind from the last photo puts the next one on at the wrong angle.
+  DRAW.bgImg = null;
+  DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+  try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; }
+  catch(e){ IMG_FINE_ROTATION = 0; }
+  try { if (window.S) S.img64 = null; } catch(e){}
+  try { window._aerialLoadedAddr = null; } catch(e){}
   hidePropPanel(); setTool('outline'); redrawAll(); syncToRoofData();
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
