@@ -100,6 +100,17 @@ const declined = await pg.evaluate(() => ({
   asked: window.__confirms.length, tok: localStorage.getItem('fr_token') }));
 check('signing out asks before it does anything', declined.asked === 1,
   declined.asked + ' asked');
+// It must not wait on the server to let you out. This used to await the
+// logout POST, so on a slow link — or a loaded test machine — you were still
+// looking at a signed-in app long after you asked to leave it.
+{
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
+  const fn = src.slice(src.indexOf('async function _navSignOut'), src.indexOf('async function _navSignOut') + 1400);
+  check('…and never waits on the network to let you out',
+    !/await api\('POST', '\/auth\/logout'/.test(fn) && /auth\/logout/.test(fn),
+    fn.split('\n').filter(l => /logout/.test(l)).join(' | ').slice(0, 150));
+}
 check('…and saying no keeps you signed in', declined.tok === 't', JSON.stringify(declined));
 
 // Yes means yes: the session is dropped and the reload returns the page to

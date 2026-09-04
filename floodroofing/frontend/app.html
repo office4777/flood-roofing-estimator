@@ -9387,11 +9387,14 @@ function _jmsPlanSync(){
 document.addEventListener('DOMContentLoaded', function(){ try { _navPlanSync(); } catch(e){} });
 async function _navSignOut(){
   if (!confirm('Sign out of RoofMap on this device?')) return;
-  // Tell the server first, so the token in this browser stops working
-  // everywhere rather than just being forgotten here. Best effort: if it
-  // cannot be reached, signing out on THIS device still happens — that is
-  // what the roofer asked for and it must not fail on a dead connection.
-  try { await api('POST', '/auth/logout', {}); } catch(e){}
+  // Tell the server, so the token in this browser stops working everywhere
+  // rather than just being forgotten here — but do NOT wait for it. The
+  // request is already in flight with the token on it, so revocation is
+  // still attempted; signing out on THIS device is what was asked for and it
+  // must not hang behind a round-trip on a dead connection or a phone in a
+  // valley. It used to await that call, which on a slow link left somebody
+  // staring at a signed-in app long after they had asked to leave it.
+  try { Promise.resolve(api('POST', '/auth/logout', {})).catch(function(){}); } catch(e){}
   try { window.doLogout(); } catch(e){
     try { localStorage.removeItem('fr_token'); localStorage.removeItem('fr_user'); localStorage.removeItem('fr_company'); } catch(_e){}
     location.reload();
