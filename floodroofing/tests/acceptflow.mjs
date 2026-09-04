@@ -115,6 +115,29 @@ check('…and the quote reference with it',
 check('…all of it under the right company', tasks.every(t => t.company_id === 'c1'));
 check('…none of them marked done, and none personal',
   tasks.every(t => !t.done && !t.personal));
+// Undated, all four land at the bottom of a list competing with everything
+// else on it, and ordering the roof is exactly as loud as a note to ring
+// somebody back.
+check('every task carries a due date, so the list sorts by what is urgent',
+  tasks.every(t => /^\d{4}-\d{2}-\d{2}$/.test(t.due_date || '')),
+  JSON.stringify(tasks.map(t => t.due_date)));
+check('…with Fergus and the deposit first and the schedule email last',
+  (titled(/Accept in Fergus/i) || {}).due_date < (titled(/Order the roof/i) || {}).due_date &&
+  (titled(/Order the roof/i) || {}).due_date < (titled(/tentative schedule/i) || {}).due_date,
+  JSON.stringify(tasks.map(t => t.title.slice(0, 22) + ' ' + t.due_date)));
+
+// ── a question reaches somebody ──
+await accept('tokblank', { type: 'queried', message: 'Does that price include the spouting?' });
+await settle();
+const qt = db.comms_tasks.filter(t => /question/i.test(t.title || ''));
+check('a customer question raises a task rather than only a status',
+  qt.length === 1, qt.length + ' tasks');
+check('…due today, because a question waiting is a job cooling off',
+  /^\d{4}-\d{2}-\d{2}$/.test((qt[0] || {}).due_date || ''), (qt[0] || {}).due_date);
+check('…carrying what they actually asked',
+  /spouting/.test((qt[0] || {}).notes || ''), (qt[0] || {}).notes);
+check('…left unassigned, so whoever picks it up owns it',
+  (qt[0] || {}).assignee_user_id == null, String((qt[0] || {}).assignee_user_id));
 
 // ── a replayed accept ──
 r = await accept('tok3206');
@@ -131,7 +154,8 @@ await settle();
 check('a job with no client name is left off the board rather than added blank',
   db.schedule_rows.filter(x => x.job_id === 'j-blank').length === 0);
 check('…but its checklist is still raised, so the work is not lost',
-  db.comms_tasks.filter(t => t.job_id === 'j-blank').length === 4);
+  db.comms_tasks.filter(t => t.job_id === 'j-blank' && /quote-accepted/.test(t.notes || '')).length === 4,
+  JSON.stringify(db.comms_tasks.filter(t => t.job_id === 'j-blank').map(t => t.title)));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

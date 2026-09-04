@@ -4149,6 +4149,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="card-hd"><span class="card-dot"></span><span id="homeBoardListTitle">Recent drafts</span>
       <span id="homeBoardListCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
     </div>
+    <div id="hbFergusPending" class="no-print" style="display:none;margin:0 0 9px;padding:8px 12px;border:1.5px solid #f59e0b;background:#fffbeb;border-radius:9px;font-size:12px;color:#92400e;line-height:1.6"></div>
     <div id="homeBoard" style="min-height:46vh;max-height:66vh;overflow-y:auto"></div>
   </div>
 </div>
@@ -5986,6 +5987,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
   </div>
+  <!-- A sent quote is LIVE, not a snapshot: the customer's link reads this
+       job's current quote, so anything edited here is what they see and what
+       they can accept. -->
+  <div id="qaLiveBar" class="no-print" style="display:none;margin:0 0 10px;padding:8px 12px;border:1.5px solid #f59e0b;background:#fffbeb;border-radius:9px;font-size:12px;color:#92400e;line-height:1.45"></div>
 
   <!-- Invoices on this job — deposit / progress / final. Lists what has been
        raised and what state it's in; the deposit usually raises itself when
@@ -15765,6 +15770,13 @@ function _siteToast(text){
   el.__t = setTimeout(function(){ el.style.display = 'none'; }, 3200);
 }
 
+// One click on the pending chip: open the job and let the automatic push do
+// its work. Deliberately the same path as opening it by hand rather than a
+// second, quieter way to push — one route to Fergus, not two.
+async function _hbPushToFergus(id){
+  try { await openJob(id); } catch(e){}
+  try { gotoTab('quote'); } catch(e){}
+}
 async function openJob(id){
   try {
     // Never let opening a job silently discard un-pushed edits to the
@@ -16133,7 +16145,10 @@ function _renderHomeBoard(){
   });
   var accepted = feed.filter(function(f){ return f.status === 'accepted'; }).map(function(f){
     return feedRow(f, 'Accepted', '#dcfce7', '#15803d',
-      f.accepted ? '<div class="hb-row-sub" style="color:#15803d;font-weight:600">Accepted by ' + esc2(f.accepted.name || '') + ' · ' + fmtMoney(f.accepted.total || 0) + '</div>' : '');
+      (f.accepted ? '<div class="hb-row-sub" style="color:#15803d;font-weight:600">Accepted by ' + esc2(f.accepted.name || '') + ' · ' + fmtMoney(f.accepted.total || 0) + '</div>' : '') +
+      // The push happens in this browser, so it waits for somebody to open
+      // the job. Waiting silently is the problem; waiting visibly is fine.
+      (f.fergusPending ? '<div class="hb-row-sub" style="color:#b45309;font-weight:600">⏳ Not yet in Fergus — opening this job pushes it</div>' : ''));
   });
   var draftRows = drafts.map(function(r){
     var resume = r.resume === 'draft' ? ("_resumeDraft('" + r.key + "')") : ("resumeSavedJob('" + r.id + "')");
@@ -16173,6 +16188,26 @@ function _renderHomeBoard(){
       _hbDelBtn(o.id, 'ordered') +
     '</div>';
   });
+
+  // One line above the lists when accepted work has not reached Fergus. The
+  // automatic push runs in the office browser (the pricing engine lives
+  // here), so it fires when somebody opens the job — which is fine as long as
+  // nobody has to remember which jobs are waiting.
+  var _fp = feed.filter(function(f){ return f.fergusPending; });
+  var pend = document.getElementById('hbFergusPending');
+  if (pend){
+    if (!_fp.length) pend.style.display = 'none';
+    else {
+      pend.style.display = 'block';
+      pend.innerHTML = '<strong>' + _fp.length + ' accepted quote' + (_fp.length === 1 ? '' : 's') +
+        ' not yet in Fergus.</strong> ' +
+        _fp.slice(0, 4).map(function(f){
+          return '<button onclick="_hbPushToFergus(\'' + f.jobId + '\')" style="margin:2px 4px 0 0;padding:3px 9px;background:#fff;color:#92400e;border:1.5px solid #f59e0b;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">' +
+            esc2(f.client || '—') + (f.ref ? (' · ' + esc2(f.ref)) : '') + ' →</button>';
+        }).join('') +
+        (_fp.length > 4 ? ('<span style="opacity:.8"> and ' + (_fp.length - 4) + ' more</span>') : '');
+    }
+  }
 
   var qaErr = window._quoteActivityError
     ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity. <button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
@@ -22135,6 +22170,45 @@ function _companyQuoteBase(){
   var slug = String(c.slug || '').trim().toLowerCase();
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }
+// A sent quote is LIVE, not a snapshot. The customer's link is served from
+// this job's CURRENT quote, so an edit made here after the email went out is
+// what they see and what they can accept — in either direction. Put a job up
+// two thousand dollars on Tuesday and a customer sitting on Monday's email
+// accepts Tuesday's number having never been shown it; correct a price down
+// and the old one is gone before they ever saw the fix.
+//
+// The quote already records what it was worth when the link was made
+// (share.sentTotal). Nothing was comparing it to what the quote says now,
+// which is the whole of this: say that the quote is live, and say it loudly
+// when the money has moved since.
+function _qaLiveBarSync(){
+  var el = document.getElementById('qaLiveBar');
+  if (!el) return;
+  var q = window.S && S.quote, sh = (q && q.share) || {};
+  var live = !window.__CUSTOMER_MODE && q && sh.token &&
+             (sh.status === 'sent' || sh.status === 'opened' || sh.status === 'queried');
+  if (!live){ el.style.display = 'none'; return; }
+  var sent = parseFloat(sh.sentTotal);
+  var now = 0;
+  try { now = parseFloat(_custBarTotalValue()) || 0; } catch(e){}
+  var moved = isFinite(sent) && sent > 0 && now > 0 && Math.abs(now - sent) >= 0.01;
+  var who = (q.client ? (' with ' + String(q.client).replace(/</g,'&lt;')) : ' with the customer');
+  var money = function(v){ try { return fmtMoney(v); } catch(e){ return '$' + (v || 0).toFixed(2); } };
+  el.style.display = 'block';
+  if (!moved){
+    el.style.borderColor = '#f59e0b'; el.style.background = '#fffbeb'; el.style.color = '#92400e';
+    el.innerHTML = '<strong>This quote is live' + who + '.</strong> Their link shows this quote as it ' +
+      'stands right now — anything you change here, they see, and can accept.';
+    return;
+  }
+  var up = now > sent;
+  el.style.borderColor = '#dc2626'; el.style.background = '#fef2f2'; el.style.color = '#991b1b';
+  el.innerHTML = '<strong>Careful — this quote is live' + who + ' and the price has changed.</strong> ' +
+    'They were sent <strong>' + money(sent) + '</strong>; it now reads <strong>' + money(now) + '</strong>' +
+    (up ? ' — and that is the figure they would accept, without ever having been shown it.'
+        : ' — the lower figure is what they would accept, and they have not been told.') +
+    ' Press <strong>Email Quote</strong> to send them the current one.';
+}
 function _customerLinkString(){
   if (!S.quote) return null;
   var token = _quoteShareToken();
@@ -26667,6 +26741,7 @@ function refreshQuoteProposal(){
   // quote is accepted (accepted quotes freeze the customer's selections).
   try { var _ub = document.getElementById('qaUnacceptBtn'); if (_ub) _ub.style.display = (!window.__CUSTOMER_MODE && S.quote && S.quote.accepted) ? '' : 'none'; } catch(e){}
   try { _fergusAutoPushOnAccept(); } catch(e){}
+  try { _qaLiveBarSync(); } catch(e){}
   // Customer: show a clear "accepted → locked" banner at the top so a frozen
   // proposal never just looks broken.
   try { var _ab = document.getElementById('custAcceptedBanner'); if (_ab) _ab.style.display = _qpAcceptedLock() ? 'block' : 'none'; } catch(e){}

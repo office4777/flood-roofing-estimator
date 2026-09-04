@@ -2966,6 +2966,9 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
       _acceptanceScheduleRow(job);
       _acceptanceTasks(job, quote);
     }
+    if (type === 'queried') {
+      _questionNotify(job, quote, message);
+    }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2978,6 +2981,67 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
 // sent the quote (see the lookup in /q/:token/accept-email). This is what's
 // used when that business has no email on file at all.
 const ACCEPT_NOTIFY_EMAIL = process.env.ACCEPT_NOTIFY_EMAIL || '';
+// Who at the roofing company hears about something a customer did. It has to
+// be the business that SENT the quote — a fixed address here mailed every
+// subscriber's acceptances into one inbox, which is a leak between
+// competitors, not just a wrong recipient.
+// Order: the address the office put on the quote → that company's settings →
+// the person whose job it is → the server default, last.
+async function _officeNotifyTo(job, quote){
+  let to = ((quote || {}).acceptNotify && String(quote.acceptNotify).trim()) || '';
+  if (!to) {
+    try {
+      // Company row first — same reason as the branding lookup: a job made by
+      // a teammate must still notify the address the BUSINESS set.
+      const st = await _settingsRowForJob(job);
+      to = String((((st || {}).quote_defaults || {}).email || {}).accept_to || '').trim();
+    } catch (e) {}
+  }
+  if (!to) {
+    try {
+      const { data: prof } = await supabase.from('profiles').select('email').eq('id', job.user_id).maybeSingle();
+      to = String((prof && prof.email) || '').trim();
+    } catch (e) {}
+  }
+  return to || ACCEPT_NOTIFY_EMAIL;
+}
+// A customer asking a question was the one thing that reached nobody. An
+// acceptance emails the office and a decline shows on the board, but a
+// question only flipped a status — so it waited until somebody happened to
+// look at the Home tab, which on a busy week is the next day. The ball is in
+// the office's court by definition, and nothing was telling them.
+async function _questionNotify(job, quote, message){
+  try {
+    if (!job) return;
+    const ref = (quote && quote.ref) ? String(quote.ref) : '';
+    const who = (job.client_name || (quote && quote.client) || 'A customer');
+    const lines = [
+      who + ' has asked a question about their quote.', '',
+      ref ? ('Quote reference: ' + ref) : '',
+      job.site_address ? ('Address: ' + job.site_address) : '',
+      '', 'What they asked:', '  ' + String(message || '(no message)').slice(0, 2000),
+      '', 'Open the job in RoofMap to reply.',
+    ].filter(l => l !== null);
+    if (EMAIL_ENABLED) {
+      const to = await _officeNotifyTo(job, quote);
+      if (to) await _dispatchMail({ to,
+        subject: 'Question on quote' + (ref ? (' — ' + ref) : '') + ' — ' + who,
+        text: lines.join('\n') });
+    }
+    // And on somebody's list, so it survives an unread inbox.
+    if (job.company_id) {
+      await supabase.from('comms_tasks').insert({
+        id: crypto.randomUUID(), company_id: job.company_id, user_id: job.user_id || null,
+        title: ('Answer ' + who + "'s question on quote" + (ref ? (' ' + ref) : '')).slice(0, 300),
+        notes: String(message || '').slice(0, 4000),
+        due_date: _schedISO(new Date()),          // today: a question waiting is a job cooling off
+        assignee_user_id: null, done: false, urgency: 85,
+        thread_id: null, job_id: job.id, personal: false,
+        done_at: null, created_at: new Date().toISOString(),
+      });
+    }
+  } catch (e) { console.warn('[question] notify failed:', e && e.message); }
+}
 app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
   try {
     if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
@@ -3051,22 +3115,7 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     // inbox, which is a leak between competitors, not just a wrong recipient.
     // Order: the recipient the office configured on the quote → that company's
     // settings → the person whose job it is → the server default, last.
-    let acceptTo = (quote.acceptNotify && String(quote.acceptNotify).trim()) || '';
-    if (!acceptTo) {
-      try {
-        // Company row first — same reason as the branding lookup: a job made
-        // by a teammate must still notify the address the BUSINESS set.
-        const st = await _settingsRowForJob(job);
-        acceptTo = String((((st || {}).quote_defaults || {}).email || {}).accept_to || '').trim();
-      } catch (e) {}
-    }
-    if (!acceptTo) {
-      try {
-        const { data: prof } = await supabase.from('profiles').select('email').eq('id', job.user_id).maybeSingle();
-        acceptTo = String((prof && prof.email) || '').trim();
-      } catch (e) {}
-    }
-    if (!acceptTo) acceptTo = ACCEPT_NOTIFY_EMAIL;
+    let acceptTo = await _officeNotifyTo(job, quote);
     if (!acceptTo) {
       console.warn('[accept-email] no recipient for job ' + job.id + ' — acceptance is still recorded');
       return res.json({ ok: false, code: 'NO_RECIPIENT' });
@@ -3768,12 +3817,16 @@ app.post('/invoices/:id/send', requireAuth, async (req, res) => {
 // settings (acceptance_tasks: [{title, who, urgency}]); `who` is matched
 // against the team's names, and an unmatched name simply leaves the task
 // unassigned rather than dropping it.
+// `days` is how long after the acceptance the job is due. Without them all
+// four land undated at the bottom of a list, competing with everything else
+// on it, and ordering the roof — the one that decides whether the job runs on
+// time — is exactly as loud as a note to ring somebody back.
 const ACCEPTANCE_TASKS_DEFAULT = [
-  { title: 'Complete job hand-over',                              who: 'Matt',  urgency: 70 },
-  { title: 'Order the roof',                                      who: 'Ethan', urgency: 80 },
-  { title: 'Accept in Fergus and send the 50% deposit invoice',   who: 'Paula', urgency: 90 },
+  { title: 'Accept in Fergus and send the 50% deposit invoice',   who: 'Paula', urgency: 90, days: 1 },
+  { title: 'Complete job hand-over',                              who: 'Matt',  urgency: 70, days: 2 },
+  { title: 'Order the roof',                                      who: 'Ethan', urgency: 80, days: 3 },
   { title: 'Check / adjust the dates in the schedule, then send the tentative schedule email',
-                                                                  who: 'Paula', urgency: 60 },
+                                                                  who: 'Paula', urgency: 60, days: 4 },
 ];
 // The team as a list, for matching a checklist's "Matt" to a real person.
 // Deliberately NOT called _companyMembers: that name is already taken by the
@@ -3821,7 +3874,7 @@ async function _acceptanceTasks(job, quote){
       id: crypto.randomUUID(), company_id: job.company_id, user_id: job.user_id || null,
       title: String(t.title || '').slice(0, 300) + (who ? (': ' + String(who).slice(0, 80)) : '') + ref,
       notes: marker,
-      due_date: null,
+      due_date: (t.days == null) ? null : _schedISO(new Date(Date.now() + Number(t.days) * 864e5)),
       assignee_user_id: (_memberByName(members, t.who) || {}).id || null,
       done: false, urgency: (t.urgency == null ? null : t.urgency),
       thread_id: null, job_id: job.id, personal: false,
@@ -3904,7 +3957,11 @@ async function _quoteShareRows(req, limit){
             'q_share:draw_state->state->quote->share, ' +
             'q_ref:draw_state->state->quote->ref, ' +
             'q_client:draw_state->state->quote->client, ' +
-            'q_accepted:draw_state->state->quote->accepted'), req)
+            'q_accepted:draw_state->state->quote->accepted,' +
+            // Enough to tell an accepted quote that has reached Fergus from
+            // one still waiting for somebody to open the job.
+            'q_pushed:draw_state->state->quote->fergusAutoPushedFor,' +
+            'q_linked:draw_state->state->linkedJobId'), req)
     // Only jobs that have actually been SHARED — filtered on the token
     // expression (there's a functional index on it), so Postgres doesn't
     // decompress every job's multi-MB draw_state.
@@ -3913,7 +3970,8 @@ async function _quoteShareRows(req, limit){
   if (!primary.error) {
     return (primary.data || []).map(function(j){
       return { id: j.id, client_name: j.client_name,
-               share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted };
+               share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
     }).filter(function(r){ return r.share && r.share.token; });
   }
   console.error('quote share rows narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
@@ -3925,7 +3983,9 @@ async function _quoteShareRows(req, limit){
   return (fb.data || []).map(function(j){
     const q = j.quote || {};
     return { id: j.id, client_name: j.client_name,
-             share: q.share, ref: q.ref, client: q.client, accepted: q.accepted };
+             share: q.share, ref: q.ref, client: q.client, accepted: q.accepted,
+             pushedFor: q.fergusAutoPushedFor || null,
+             linkedJobId: (((j.state || {}).linkedJobId) || null) };
   }).filter(function(r){ return r.share && r.share.token; });
 }
 
@@ -3948,6 +4008,10 @@ app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notificat
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
         accepted: r.accepted || null,
+        // "Accepted, linked to a Fergus job, and Fergus has not been told" —
+        // the state the home board had no way to show.
+        fergusPending: !!(r.accepted && r.accepted.at && r.linkedJobId &&
+                          r.pushedFor !== r.accepted.at),
         lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
         // The stamped history the in-app notification bell reads: every
         // customer open, question, acceptance and decline, each with its
