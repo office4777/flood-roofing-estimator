@@ -3007,6 +3007,30 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     if (acc.name && acc.name !== client) lines.push('Accepted by: ' + acc.name);
     if (acc.at) lines.push('Accepted: ' + acc.at);
     lines.push('', 'Accepted total (incl. GST): ' + _money(acc.total));
+    // What she actually chose, in the email itself. This used to live only
+    // inside the attached PDF, so settling "did she take MAXAM or ColorZen?"
+    // meant opening an attachment and reading a radio button — on the one
+    // question where getting it wrong means ordering the wrong steel.
+    const _po = quote.proposalOptions || {};
+    const _LBL = {
+      profile:        { _t:'Roof profile',   corrugate:'Corrugate', '5rib':'5-Rib' },
+      steelGrade:     { _t:'Steel grade',    maxam:'Colorsteel MAXAM', colorzen:'Armorsteel ColorZen',
+                        colourcote:'ColorCote', zincalume:'Zincalume (unpainted)' },
+      steelThickness: { _t:'Steel gauge',    '40':'0.40 gauge', '55':'0.55 gauge' },
+      gutterType:     { _t:'Guttering',      none:'Not included', box125:'125mm Colorsteel box gutter',
+                        marley_classic:'Marley Classic (PVC)', marley_typhoon:'Marley Typhoon (PVC)' },
+      gutterBracket:  { _t:'Gutter brackets', internal:'Internal', external:'External' },
+      downpipes:      { _t:'Downpipes',      yes:'Included', no:'Not included' },
+      disposal:       { _t:'Existing material', dispose:'We dispose of it', keep:'Kept on site' },
+    };
+    const _chosen = [];
+    for (const k of Object.keys(_LBL)) {
+      const v = _po[k];
+      if (v == null || v === '') continue;
+      _chosen.push('  • ' + _LBL[k]._t + ': ' + (_LBL[k][String(v)] || String(v)));
+    }
+    if (_po.colour) _chosen.push('  • Colour: ' + String(_po.colour).slice(0, 60));
+    if (_chosen.length) lines.push('', "The customer's selections:", ..._chosen);
     if (Array.isArray(acc.options) && acc.options.length) {
       lines.push('', 'Selected options:');
       acc.options.forEach(function (o) {
@@ -5394,6 +5418,8 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
           .select('id, status, order_sent, ' +
                   'q_accepted:draw_state->state->quote->accepted, ' +
                   'q_client:draw_state->state->quote->client, ' +
+                  'q_scope:draw_state->state->quote->scope, ' +
+                  'q_opts:draw_state->state->quote->proposalOptions, ' +
                   'q_ref:draw_state->state->quote->ref'), req)
           .in('id', jobIds);
         for (const j of (data || [])) {
@@ -5403,6 +5429,11 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
             accepted_at: acc.at || acc.date || null,
             client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || '',
             job_no: (j.q_ref == null) ? '' : String(j.q_ref),
+            // What the job IS and what steel is going on it — the two things
+            // the office looked up in the spreadsheet every time.
+            description: String(j.q_scope || '').slice(0, 600),
+            colour: String((j.q_opts && j.q_opts.colour) || '').slice(0, 60),
+            grade: String((j.q_opts && j.q_opts.steelGrade) || '').slice(0, 30),
           };
         }
       } catch (e) { /* board renders without auto-fill rather than not at all */ }
@@ -5423,6 +5454,9 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         email:        r.email || a.client_email || '',
         accepted_at:  a.accepted_at || null,
         job_no:       a.job_no || '',
+        description:  a.description || '',
+        colour:       a.colour || '',
+        grade:        a.grade || '',
       });
     });
 
@@ -5500,7 +5534,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
-  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done'];
+  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder'];
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   const patch = {};
   for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
@@ -8130,6 +8164,10 @@ const _MIGRATION_SQL = [
   // confirmed one in green, so at a glance you can see what is still only a
   // request.
   "alter table public.schedule_rows add column if not exists requested_delivery date",
+  // Sub-folders on the board — Pole Sheds, Completed Jobs, Checks to do &
+  // final invoice issued. Empty means the main list, so every existing row
+  // stays exactly where it is.
+  "alter table public.schedule_rows add column if not exists folder text not null default ''",
 
   // 10c. inbox — the comms hub (Business tier). A company connects its real
   //      email accounts over IMAP/SMTP; messages are mirrored here so the

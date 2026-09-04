@@ -298,7 +298,8 @@ await pg.evaluate(() => _schedInfoClose());
 await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
-check('…and » brings all eleven columns back', v === 11, v + ' header cells');
+check('…and » brings every column back — hand-over now has one of its own',
+  v === 12, v + ' header cells');
 
 // The ✎ chip edits crews & colours right from the header bar.
 calls.length = 0;

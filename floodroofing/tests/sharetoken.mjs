@@ -109,6 +109,16 @@ check('…though the invoice is still raised, so nothing is silently lost',
   /deposit left as a draft/.test(src) && src.indexOf('const trustworthy') < src.indexOf('if (trustworthy &&'));
 check('an accept records BOTH numbers, so a disagreement is visible',
   /sentTotal: Number\(\(share \|\| \{\}\)\.sentTotal\)/.test(src) && /totalVerified: _acceptedTotalPlausible/.test(src));
+// The acceptance email named the total and the extra options but never the
+// grade, profile or colour — so settling "did she take MAXAM or ColorZen?"
+// meant opening the attached PDF and reading a radio button, on the one
+// question where being wrong means ordering the wrong steel.
+check('the acceptance email spells out the selections, not just the total',
+  /The customer's selections:/.test(src) &&
+  /steelGrade:\s*\{ _t:'Steel grade'/.test(src) &&
+  /Armorsteel ColorZen/.test(src) && /Colorsteel MAXAM/.test(src));
+check('…including the colour they picked',
+  /if \(_po\.colour\) _chosen\.push\('  • Colour: '/.test(src));
 check('an ancient link is never handed a fresh window by falling back to now()',
   !/sh\.sentAt \|\| first \|\| Date\.now\(\)/.test(src) &&
   /sh\.sentAt \|\| first \|\| \(job \|\| \{\}\)\.created_at/.test(src));

@@ -2952,6 +2952,10 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-scroll{ overflow:auto; max-height:calc(100vh - 200px); position:relative; background:#fff;
   border:1px solid var(--border); border-radius:10px; }
 .sched-hd-row, .sched-row{ display:flex; width:max-content; }
+/* A folder heading on the board. Reads as a divider, not as a job. */
+.sched-row.sched-fold .sched-info{ background:#eef2f7; color:#0a1628; font-size:11px;
+  display:flex; align-items:center; }
+.sched-row.sched-fold:hover .sched-info{ background:#e2e8f0; }
 .sched-hd-row{ position:sticky; top:0; z-index:6; background:#fff; }
 .sched-hd-row.months{ height:20px; }
 .sched-cell{ flex:0 0 auto; border-right:1px solid #eef1f4; border-bottom:1px solid #eef1f4;
@@ -5705,6 +5709,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div id="schedInfoModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
     <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
       <strong id="schedInfoTitle" style="flex:1;font-size:14px">Job details</strong>
+      <span id="schedInfoIcons" style="display:flex;gap:9px;font-size:15px;line-height:1"></span>
       <span id="schedInfoNo" style="font-size:12px;opacity:.85"></span>
       <button onclick="_schedInfoClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
@@ -5716,13 +5721,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <label style="color:var(--text2)">Quote accepted</label><span id="schedInfoAccepted" style="color:#0a1628"></span>
         <label style="color:var(--text2)">Length (days)</label><input type="number" min="1" max="120" data-iedit="length_days" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Progress %</label><input type="number" min="0" max="100" data-iedit="progress_pct" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
-        <label style="color:var(--text2)">Notes</label><textarea data-iedit="notes" rows="2" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px;resize:vertical"></textarea>
+        <label style="color:var(--text2)">The job</label><div id="schedInfoDesc" style="color:#0a1628;line-height:1.35;max-height:84px;overflow-y:auto"></div>
+        <label style="color:var(--text2)">Colour</label><div id="schedInfoColour" style="display:flex;align-items:center;gap:7px;color:#0a1628"></div>
+        <label style="color:var(--text2)">Special notes</label><textarea data-iedit="notes" rows="2" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px;resize:vertical" placeholder="Anything the crew or the office needs to know"></textarea>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:12px">
-        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="deposit_paid"> Deposit / invoice paid</label>
-        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="ordered"> Materials ordered</label>
-        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="delivery_check"> Delivery checked</label>
-        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="handover_done"> Handover done</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="deposit_paid"> 💰 Deposit / invoice paid</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="handover_done"> 🤝 Hand-over complete</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="ordered"> 📦 Materials ordered</label>
+        <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="delivery_check"> 🚚 Delivery checked</label>
+      </div>
+      <!-- Which folder the job sits in. Empty = the main list. -->
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center;margin-top:12px">
+        <label style="color:var(--text2)">Folder</label>
+        <select data-iedit="folder" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px"></select>
       </div>
       <!-- Delivery. The date arrives here on its own when the roof is
            ordered; this is where it gets corrected and confirmed. -->
@@ -8022,22 +8034,54 @@ function _schedSnapStart(iso){
   return iso;
 }
 function _schedCrew(id){ return ((_SCHED.data.cfg || {}).crews || []).find(function(c){ return c.id === id; }) || null; }
+function _schedFolderRank(id){
+  var i = SCHED_FOLDERS.findIndex(function(f){ return f.id === (id || ''); });
+  return i < 0 ? SCHED_FOLDERS.length : i;
+}
 function _schedRowSorted(){
   var rows = (_SCHED.data.rows || []).slice();
   rows.sort(function(a, b){
+    // Folders group first — a job in Completed never sorts up among the live
+    // work just because it was accepted early.
+    var fa = _schedFolderRank(a.folder), fb = _schedFolderRank(b.folder);
+    if (fa !== fb) return fa - fb;
     var ka = (a.sort_pos != null) ? a.sort_pos : null, kb = (b.sort_pos != null) ? b.sort_pos : null;
     if (ka != null || kb != null){ if (ka == null) return 1; if (kb == null) return -1; return ka - kb; }
+    // Oldest quote-acceptance at the top: the job that has been waiting
+    // longest is the one that should be looked at first.
     var da = a.accepted_at || a.created_at || '', db2 = b.accepted_at || b.created_at || '';
     return da < db2 ? -1 : da > db2 ? 1 : 0;
   });
   return rows;
 }
+// Folders only appear once something is in one — a board with no folders
+// looks exactly as it did.
+function _schedFoldersInUse(rows){
+  return (rows || []).some(function(r){ return (r.folder || '') !== ''; });
+}
+function _schedFoldOpen(id){
+  try { return localStorage.getItem('fr_sched_fold_' + (id || 'main')) !== '0'; } catch(e){ return true; }
+}
+function _schedFoldToggle(id){
+  var open = _schedFoldOpen(id);
+  try { localStorage.setItem('fr_sched_fold_' + (id || 'main'), open ? '0' : '1'); } catch(e){}
+  _schedRender();
+}
 // ── render ──
 var _SCHED_COLS = [
   { key:'handle', w:14, hd:'' }, { key:'client', w:96, hd:'Client' }, { key:'site', w:96, hd:'Site' },
-  { key:'accepted', w:44, hd:'Acc.' }, { key:'len', w:30, hd:'Len' }, { key:'notes', w:64, hd:'Notes' },
-  { key:'progress', w:28, hd:'%' }, { key:'dep', w:26, hd:'Dep' }, { key:'ord', w:26, hd:'Ord' },
-  { key:'del', w:26, hd:'Del' }, { key:'mail', w:24, hd:'✉' },
+  { key:'accepted', w:44, hd:'Acc.', tip:'Date the customer accepted the quote' },
+  { key:'len', w:30, hd:'Len', tip:'How many working days the job runs' },
+  { key:'notes', w:64, hd:'Notes', tip:'Special notes on this job' },
+  { key:'progress', w:28, hd:'%', tip:'Work progress' },
+  // "Dep", "Ord" and "Del" in a 26px column came out as one letter and a
+  // guess. An icon carries further at that size, and the tooltip says what
+  // it means — the header and the popup use the same four.
+  { key:'dep', w:26, hd:'💰', tip:'Deposit / invoice paid' },
+  { key:'hand', w:26, hd:'🤝', tip:'Hand-over complete' },
+  { key:'ord', w:26, hd:'📦', tip:'Materials ordered' },
+  { key:'del', w:26, hd:'🚚', tip:'Delivery checked' },
+  { key:'mail', w:24, hd:'✉', tip:'Email the customer an update' },
 ];
 // Collapsed: the drag handle, a tiny ⓘ that opens the job-details popup,
 // and one column with the job number over the short address — the calendar
@@ -8137,13 +8181,33 @@ function _schedRender(){
   });
   var hcells = '';
   cols.forEach(function(c, i){
-    hcells += '<div class="sched-cell hd sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
+    hcells += '<div class="sched-cell hd sched-info"' + (c.tip ? ' title="' + c.tip + '"' : '') +
+      ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
   });
   h += '<div class="sched-hd-row" style="top:20px">' + hcells +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
 
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var _useFolders = _schedFoldersInUse(rows);
+  var _lastFolder = null, _bands = 0, _hiddenRows = 0;
   rows.forEach(function(r){
+    // A folder heading, once per group, carrying its own count and a
+    // collapse arrow — the spreadsheet did this with a blank row and a bold
+    // label further down the sheet.
+    var _fid = r.folder || '';
+    if (_useFolders && _fid !== _lastFolder){
+      _lastFolder = _fid;
+      var _n = rows.filter(function(x){ return (x.folder || '') === _fid; }).length;
+      var _open = _schedFoldOpen(_fid);
+      _bands++;
+      h += '<div class="sched-row sched-fold" data-fold="' + _fid + '">' +
+        '<div class="sched-cell sched-info" style="left:0;width:' + infoW + 'px;font-weight:700;cursor:pointer;gap:6px">' +
+        '<span style="color:#64748b">' + (_open ? '▾' : '▸') + '</span>' +
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(_schedFolderLabel(_fid)) + '</span>' +
+        '<span style="color:#94a3b8;font-weight:400">' + _n + '</span></div>' +
+        '<div class="sched-strip" style="width:' + stripW + 'px;height:30px;background:none"></div></div>';
+    }
+    if (_useFolders && !_schedFoldOpen(_fid)){ _hiddenRows++; return; }
     var cells = '';
     var accepted = r.accepted_at ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '—';
     cols.forEach(function(c, i){
@@ -8163,6 +8227,7 @@ function _schedRender(){
       if (c.key === 'notes') inner = '<input type="text" value="' + esc(r.notes) + '" data-edit="notes" data-row="' + r.id + '" placeholder="—">';
       if (c.key === 'progress') inner = '<input type="number" min="0" max="100" value="' + (r.progress_pct == null ? '' : r.progress_pct) + '" data-edit="progress_pct" data-row="' + r.id + '" placeholder="–">';
       if (c.key === 'dep') inner = '<input type="checkbox"' + (r.deposit_paid ? ' checked' : '') + ' data-edit="deposit_paid" data-row="' + r.id + '" title="Deposit paid' + (r.auto && r.auto.deposit_paid != null ? ' (auto-filled — ticking overrides)' : '') + '">';
+      if (c.key === 'hand') inner = '<input type="checkbox"' + (r.handover_done ? ' checked' : '') + ' data-edit="handover_done" data-row="' + r.id + '" title="Hand-over complete">';
       if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
       if (c.key === 'del') inner = '<input type="checkbox"' + (r.delivery_check ? ' checked' : '') + ' data-edit="delivery_check" data-row="' + r.id + '" title="Delivery checked">';
       if (c.key === 'mail') inner = '<span data-mail="' + r.id + '" style="cursor:pointer" title="Email the customer an update">✉</span>';
@@ -8204,7 +8269,7 @@ function _schedRender(){
   // Pad the board to 20 lines with blank rows, like the printed sheet.
   // Typing a client name into one creates the row inline; the strip has no
   // data-strip, so nothing paints until the row exists.
-  var pad = Math.max(0, 20 - rows.length);
+  var pad = Math.max(0, 20 - (rows.length - _hiddenRows) - _bands);
   for (var p = 0; p < pad; p++){
     var pcells = '';
     cols.forEach(function(c, i){
@@ -8218,7 +8283,7 @@ function _schedRender(){
   }
   // One shade layer over everything below the header (weekends, holidays,
   // shutdowns, over-capacity warnings, today). pointer-events:none.
-  var bodyH = (rows.length + pad) * 31 + 4;
+  var bodyH = (rows.length - _hiddenRows + _bands + pad) * 31 + 4;
   h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
   grid.style.position = 'relative';
   grid.style.setProperty('--sched-dayw', _SCHED.dayW + 'px');
@@ -8265,6 +8330,9 @@ function _schedWire(grid){
       var patch = {}; patch[field] = val;
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
     };
+  });
+  grid.querySelectorAll('[data-fold]').forEach(function(el){
+    el.onclick = function(){ _schedFoldToggle(el.getAttribute('data-fold')); };
   });
   var ct = grid.querySelector('[data-coltoggle]');
   if (ct) ct.onclick = function(){
@@ -8474,6 +8542,40 @@ function _schedRowMenu(rowId, ev){
 }
 function _schedToggleArchived(){ _SCHED.archived = !_SCHED.archived; _schedLoad(); }
 // ── job details popup: the sheet's admin columns, one row at a time ──
+// The board's sub-folders. The spreadsheet kept these as blocks of rows
+// further down the sheet; here a row carries the folder it belongs to and
+// the board groups them, so a job moves by changing one field.
+var SCHED_FOLDERS = [
+  { id:'',          label:'Schedule (main list)' },
+  { id:'poleshed',  label:'Pole Sheds' },
+  { id:'completed', label:'Completed Jobs' },
+  { id:'checks',    label:'Checks to do & final invoice issued' },
+];
+// The chip beside the colour name. Both supplier ranges already carry their
+// real hex, so the swatch is the actual colour rather than a guess; anything
+// unrecognised (a colour typed in by hand) gets a neutral chip instead of a
+// confidently wrong one.
+function _schedColourSwatch(name){
+  var want = String(name || '').trim().toLowerCase();
+  var all = [];
+  try { all = all.concat(MAXAM_COLOURS || []); } catch(e){}
+  try { all = all.concat(ARMORSTEEL_COLOURS || []); } catch(e){}
+  var hit = all.find(function(c){ return String(c.name || '').trim().toLowerCase() === want; });
+  return hit ? hit.hex : '#e2e8f0';
+}
+function _schedFolderLabel(id){
+  var f = SCHED_FOLDERS.find(function(x){ return x.id === (id || ''); });
+  return f ? f.label : (id || '');
+}
+// The three milestones as icons rather than a truncated word. "Dep"/"Ord"/
+// "Del" in a 26px column read as one letter and a guess; every one of these
+// carries its meaning in a tooltip instead.
+var SCHED_FLAG_ICONS = [
+  { key:'deposit_paid',  icon:'💰', label:'Deposit / invoice paid' },
+  { key:'handover_done', icon:'🤝', label:'Hand-over complete' },
+  { key:'ordered',       icon:'📦', label:'Materials ordered' },
+  { key:'delivery_check',icon:'🚚', label:'Delivery checked' },
+];
 var _schedInfoId = null;
 function _schedInfoOpen(rowId){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
@@ -8489,6 +8591,42 @@ function _schedInfoOpen(rowId){
     : 'Customer not updated yet';
   var oj = document.getElementById('schedInfoOpenJob');
   if (oj) oj.style.display = r.job_id ? '' : 'none';
+  // What the job is, and the colour going on it — both read off the quote,
+  // so they cannot drift from what the customer accepted.
+  var dEl = document.getElementById('schedInfoDesc');
+  if (dEl){
+    var _d = String(r.description || '').trim();
+    dEl.textContent = _d || '—';
+    dEl.style.color = _d ? '#0a1628' : 'var(--text2)';
+  }
+  var cEl = document.getElementById('schedInfoColour');
+  if (cEl){
+    var _c = String(r.colour || '').trim();
+    var _g = String(r.grade || '').trim();
+    var _gl = _c && _g && typeof _gradeLabel === 'function' ? (' · ' + _gradeLabel(_g)) : '';
+    cEl.innerHTML = _c
+      ? '<span style="width:13px;height:13px;border-radius:3px;border:1px solid #cbd5e1;background:' +
+        _schedColourSwatch(_c) + ';display:inline-block"></span><span>' +
+        String(_c).replace(/&/g,'&amp;').replace(/</g,'&lt;') +
+        String(_gl).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>'
+      : '<span style="color:var(--text2)">Not chosen yet</span>';
+  }
+  // The three milestones, as icons, right at the top where they can be read
+  // at a glance — each one saying what it means on hover.
+  var iEl = document.getElementById('schedInfoIcons');
+  if (iEl){
+    iEl.innerHTML = SCHED_FLAG_ICONS.map(function(f){
+      var on = !!r[f.key];
+      return '<span title="' + f.label + (on ? ' — done' : ' — not yet') + '"' +
+        ' data-schedflag="' + f.key + '" style="opacity:' + (on ? '1' : '.32') +
+        ';filter:' + (on ? 'none' : 'grayscale(1)') + '">' + f.icon + '</span>';
+    }).join('');
+  }
+  // Folder picker — built from the one list, so a folder added there appears
+  // here and on the board together.
+  var fSel = m.querySelector('[data-iedit="folder"]');
+  if (fSel) fSel.innerHTML = SCHED_FOLDERS.map(function(f){
+    return '<option value="' + f.id + '">' + f.label + '</option>'; }).join('');
   m.querySelectorAll('[data-iedit]').forEach(function(inp){
     var f = inp.getAttribute('data-iedit');
     if (inp.type === 'checkbox') inp.checked = !!r[f];
@@ -8503,6 +8641,15 @@ function _schedInfoOpen(rowId){
       var patch = {}; patch[f] = val;
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
       _schedRender();
+      // Re-open the flag strip against the new state so the icons at the top
+      // and the tickboxes below can never disagree.
+      var _ic = document.getElementById('schedInfoIcons');
+      if (_ic) _ic.innerHTML = SCHED_FLAG_ICONS.map(function(fl){
+        var on = !!r[fl.key];
+        return '<span title="' + fl.label + (on ? ' — done' : ' — not yet') + '"' +
+          ' data-schedflag="' + fl.key + '" style="opacity:' + (on ? '1' : '.32') +
+          ';filter:' + (on ? 'none' : 'grayscale(1)') + '">' + fl.icon + '</span>';
+      }).join('');
     };
   });
   // "let me click a tick box to say that delivery date has been confirmed
@@ -22568,8 +22715,17 @@ async function bootCustomerView(token){
         (S.quote.options || []).slice(1).forEach(function(o){ o.selected = false; });
         var _po = S.quote.proposalOptions = S.quote.proposalOptions || {};
         if (!_po.extraRoofsSel || typeof _po.extraRoofsSel !== 'object') _po.extraRoofsSel = {};
-        delete _po.steelGrade;        // every reader falls back to 'maxam'
-        S.quote.baseGrade = 'maxam';  // MAXAM reads "Standard · included"
+        /* The customer's page anchors to the grade the quote was PRICED at —
+           never a fixed one. This used to delete steelGrade and pin
+           baseGrade to 'maxam', so a quote built and priced on Armorsteel
+           ColorZen showed the customer "Colorsteel MAXAM — STANDARD ·
+           INCLUDED" at the ColorZen price. A customer accepted exactly that
+           and her signed PDF said MAXAM; the office screen said ColorZen.
+           A document that promises a grade the price does not cover is the
+           worst kind of bug this app can have. */
+        var _bg = S.quote.baseGrade || _po.steelGrade || 'maxam';
+        S.quote.baseGrade = _bg;
+        _po.steelGrade = _bg;   // no upgrade chosen = the quoted grade
       } catch(e){}
     }
     S.settings = S.settings || {};
@@ -51623,7 +51779,13 @@ function _readFergusMaterialItems(){
       var ov = ovs[r.key] || {};
       var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
       var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
-      var qty   = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      // The same rounding the pricing panel and the quote total use. Sending
+      // the RAW quantity put 149.21 m² of sheet on the Fergus quote where the
+      // job is priced on 142 — every line drifted, and the pushed total came
+      // out $1,116 above the quote the customer accepted.
+      var unit  = picked ? picked.unit : r.autoUnit;
+      var qty   = (typeof _matOrderQty === 'function') ? _matOrderQty(qtyRaw, unit) : qtyRaw;
       var price = picked ? picked.price : 0;
       qty = parseFloat(qty) || 0;
       if (qty > 0 && price > 0){
@@ -51699,14 +51861,30 @@ function _buildFergusItemisedSections(){
     // not whichever pricing tab the office happens to have open.
     var _rbuf = (typeof _roofMatQtyBufferPct === 'function') ? _roofMatQtyBufferPct(0) : 0;
     var _rmk  = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct(0) : 0;
+    var _rawMatTot = roofMat.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0);
+    // The steel-grade adjustment, exactly as the pricing panel shows it. The
+    // itemised lines above are MAXAM prices; a quote priced on a cheaper grade
+    // carries the difference as its own row, and it was NOT being sent — so a
+    // ColorZen job went to Fergus at MAXAM money. It was expected to arrive as
+    // a "selection change", but a selection change is measured against the
+    // quote's base grade, which on that job WAS ColorZen — so the delta was
+    // zero and $860 of discount simply vanished.
+    var _fgGrade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) ||
+                   (S.quote && S.quote.baseGrade) || 'maxam';
+    var _fgF = (typeof _gradeFactor === 'function') ? _gradeFactor(_fgGrade) : 1;
+    var _fgAdj = _rawMatTot * (_fgF - 1);
+    if (Math.abs(_fgAdj) > 0.005){
+      roofMat.push(matLine('Steel grade — ' + ((typeof _gradeLabel === 'function') ? _gradeLabel(_fgGrade) : _fgGrade) +
+        ' (vs Colorsteel MAXAM standard)', 1, _fgAdj));
+    }
     if (_rbuf > 0 || _rmk > 0){
-      var _rawMatTot = roofMat.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0);
-      if (_rawMatTot > 0){
-        // Same order as the pricing table: buffer on the raw cost, mark-up on
-        // the buffered cost. These land in Fergus, which only the roofer sees.
-        var _bufAmt = _rawMatTot * (_rbuf / 100);
+      // Same order and the same base as the pricing table: the buffer sits on
+      // the grade-adjusted cost, and the mark-up on top of that.
+      var _gradedMat = _rawMatTot + _fgAdj;
+      if (_gradedMat > 0){
+        var _bufAmt = _gradedMat * (_rbuf / 100);
         if (_bufAmt > 0) roofMat.push(matLine('Quantity safety buffer (' + _rbuf + '%)', 1, _bufAmt));
-        var _mkAmt2 = (_rawMatTot + _bufAmt) * (_rmk / 100);
+        var _mkAmt2 = (_gradedMat + _bufAmt) * (_rmk / 100);
         if (_mkAmt2 > 0) roofMat.push(matLine('Mark-up (' + _rmk + '%)', 1, _mkAmt2));
       }
     }
@@ -51793,6 +51971,28 @@ function _buildFergusItemisedSections(){
     (_qcl.gutter   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a){ (gutterOn ? gutterMat : roofMat).push(matLine((r.desc||'Custom gutter'), 1, a)); } });
   } catch(e){}
 
+  // ── The quote is the contract: make the pushed lines add up to it ──
+  // Every line above is derived, and a derivation that drifts is invisible —
+  // a Fergus quote went out at $18,118.05 against a quote the customer had
+  // accepted at $17,002.04, and nothing anywhere said so. The individual
+  // causes are fixed above; this is the backstop that makes a silent
+  // disagreement impossible in future. Any remainder becomes ONE visible
+  // line rather than a total nobody can reconcile.
+  var _fgReconcile = null;
+  try {
+    var _quoteSub = (typeof quoteSubtotal === 'function') ? (parseFloat(quoteSubtotal()) || 0) : 0;
+    if (_quoteSub > 0){
+      var _sumAll = function(arr){ return arr.reduce(function(a, li){ return a + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0); };
+      var _lineSum = _sumAll(roofLabour) + _sumAll(roofMat) + _sumAll(scaff) +
+                     _sumAll(gutterLabour) + _sumAll(gutterMat) + _sumAll(downpipes);
+      var _diff = +(_quoteSub - _lineSum).toFixed(2);
+      if (Math.abs(_diff) >= 0.01){
+        roofMat.push(matLine('Adjustment to quoted total', 1, _diff));
+        _fgReconcile = _diff;
+      }
+    }
+  } catch(e){}
+
   // ── Assemble the sections ──
   var sections = [], _so = 0;
   function addSection(name, items){ if (items && items.length){ _so += 10; sections.push({ name: name, sortOrder: _so, selectionMode: 'Fixed', lineItems: items }); } }
@@ -51810,7 +52010,8 @@ function _buildFergusItemisedSections(){
   }
   var _labCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return li.isLabour; }).length; }, 0);
   var _matCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return !li.isLabour; }).length; }, 0);
-  return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: _labCount, matCount: _matCount };
+  return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: _labCount, matCount: _matCount,
+           reconciled: _fgReconcile };
 }
 // Void every quote on the job except `keepId` (skip already-voided and
 // accepted ones). Fergus's void endpoint is POST /jobs/quotes/{id}/void.
