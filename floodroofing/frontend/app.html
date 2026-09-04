@@ -9455,6 +9455,101 @@ function _ibxFrame(html){
     '</head><body>' + html + '</body></html>';
   return '<iframe sandbox="allow-popups" srcdoc="' + doc.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></iframe>';
 }
+// ── a supplier's reply is where a delivery date actually lives ──────────
+// The board has a "delivery confirmed" tick, and confirming was a person
+// reading an email and then remembering to go and tick it. That is the step
+// where jobs slip: the steel is booked, the reply comes in, and nobody moves
+// the date on the board, so the crew turns up to nothing.
+//
+// The inbox already mirrors the real mail. When a message carries a date and
+// there is an order out with nothing confirmed against it, the thread offers
+// to set it. It never sets one by itself — a date read out of prose is a
+// suggestion, and the office is the one who knows which job it is about.
+var _IBX_DELIV_ASKED = false;
+function _ibxDatesIn(text){
+  var out = [], seen = {};
+  var t = String(text || '').slice(0, 4000);
+  // Same shapes the spreadsheet importer reads, plus "Monday 15 September".
+  var pats = [
+    /\b(\d{4})-(\d{2})-(\d{2})\b/g,
+    /\b(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})\b/g,
+    /\b(\d{1,2})(?:st|nd|rd|th)?[\s\-]+([A-Za-z]{3,9})\.?(?:[\s,]+(\d{4}))?\b/g,
+    /\b([A-Za-z]{3,9})\.?[\s\-]+(\d{1,2})(?:st|nd|rd|th)?(?:[\s,]+(\d{4}))?\b/g,
+  ];
+  pats.forEach(function(re, pi){
+    var m;
+    while ((m = re.exec(t)) !== null){
+      var iso = null;
+      if (pi === 0) iso = m[0];
+      else if (pi === 1) iso = _schedImpDate(m[1] + '/' + m[2] + '/' + m[3]);
+      // The month is trimmed to four letters because that is what the date
+      // reader matches on — a supplier writes "September", not "Sep".
+      else if (pi === 2) iso = _schedImpDate(m[1] + '-' + m[2].slice(0, 4) + (m[3] ? ('-' + m[3]) : ''));
+      else iso = _schedImpDate(m[2] + '-' + m[1].slice(0, 4) + (m[3] ? ('-' + m[3]) : ''));
+      if (iso && !seen[iso]){ seen[iso] = 1; out.push(iso); }
+      if (out.length >= 4) return;
+    }
+  });
+  return out;
+}
+// The jobs an answer could be about: ordered, and nothing confirmed yet.
+function _ibxOpenOrders(){
+  var rows = ((window._SCHED || {}).data || {}).rows || [];
+  return rows.filter(function(r){ return !r.archived && r.ordered && !r.confirmed_delivery; });
+}
+function _ibxDeliveryStrip(t, msgs){
+  try {
+    var last = (msgs || [])[(msgs || []).length - 1] || {};
+    var body = last.body_text || String(last.body_html || '').replace(/<[^>]+>/g, ' ');
+    var dates = _ibxDatesIn((last.subject || t.subject || '') + ' ' + body);
+    if (!dates.length) return '';
+    var open = _ibxOpenOrders();
+    // The board may simply not be loaded yet in this session. Ask for it
+    // once, then re-open the thread so the strip can appear.
+    if (!((window._SCHED || {}).data) && !_IBX_DELIV_ASKED){
+      _IBX_DELIV_ASKED = true;
+      try { Promise.resolve(_schedLoad()).then(function(){ if (_IBX.sel === t.id) _ibxOpen(t.id); }).catch(function(){}); } catch(e){}
+      return '';
+    }
+    if (!open.length) return '';
+    // A thread already tied to a job answers about that job and no other.
+    var mine = t.job_id ? open.filter(function(r){ return r.job_id === t.job_id; }) : [];
+    var cands = (mine.length ? mine : open).slice(0, 5);
+    var esc = _ibxEsc;
+    var day = function(iso){
+      try { return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-NZ',
+        { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' }); } catch(e){ return iso; }
+    };
+    return '<div id="ibxDelivStrip" style="margin:10px 12px 0;border:1.5px solid #16a34a;background:#f0fdf4;border-radius:10px;padding:9px 11px;font-size:12px;color:#14532d">' +
+      '<div style="font-weight:800;margin-bottom:5px">🚚 Is this a delivery date?</div>' +
+      '<div style="margin-bottom:6px;color:#166534">' +
+        (mine.length ? 'This thread is on a job with an order out.' :
+          (open.length + ' job' + (open.length === 1 ? ' has' : 's have') + ' an order out with no delivery confirmed.')) +
+        ' Setting it here turns the board green.</div>' +
+      dates.map(function(iso){
+        return cands.map(function(r){
+          return '<button class="ibx-chip" onclick="_ibxSetDelivery(\'' + r.id + '\',\'' + iso + '\')"' +
+            ' style="margin:2px 5px 0 0;border-color:#16a34a;color:#14532d">' +
+            day(iso) + ' — ' + esc(r.client_name || 'job') + '</button>';
+        }).join('');
+      }).join('') + '</div>';
+  } catch(e){ return ''; }
+}
+async function _ibxSetDelivery(rowId, iso){
+  try {
+    await _schedApi('PATCH', '/schedule/rows/' + rowId, { confirmed_delivery: iso, delivery_check: true });
+    var r = (((window._SCHED || {}).data || {}).rows || []).find(function(x){ return x.id === rowId; });
+    if (r){ r.confirmed_delivery = iso; r.delivery_check = true; }
+    var el = document.getElementById('ibxDelivStrip');
+    if (el) el.innerHTML = '<div style="font-weight:800">✓ Delivery confirmed for ' + iso +
+      ' — it is green on the schedule.</div>';
+    try { _schedRender(); } catch(e){}
+  } catch(e){
+    var el2 = document.getElementById('ibxDelivStrip');
+    if (el2) el2.innerHTML = '<div style="color:#b91c1c;font-weight:700">Couldn\u2019t save that: ' +
+      _ibxEsc((e && e.message) || 'unknown error') + '</div>';
+  }
+}
 async function _ibxOpen(id){
   _IBX.sel = id;
   _ibxRenderList();
@@ -9474,6 +9569,7 @@ async function _ibxOpen(id){
       '<button class="ibx-chip" data-ibxact="unread" title="Keep it bold">● Unread</button>' +
       '<button class="ibx-chip" data-ibxact="task" title="Make this someone\'s job">➕ Task</button>' +
       (t.job_id ? '<button class="ibx-chip" data-ibxjob="' + t.job_id + '" title="Open the linked RoofMap job">🔗 Job</button>' : '') + '</div>';
+    h += _ibxDeliveryStrip(t, msgs);
     msgs.forEach(function(m, i){
       var hasBlocked = /data-rsrc=/.test(m.body_html || '');
       // Like Gmail: only the newest message opens; the rest collapse to a

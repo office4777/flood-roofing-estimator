@@ -283,8 +283,21 @@ in `PLANS`.
      the real answer to "how long are we down", and it is the only one worth quoting.
   4. Point a local backend at it: `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `DATABASE_URL` from the
      new project, then `node floodroofing/backend/server.js` and open the app against it.
-  5. Check three things by eye: a job opens with its drawing and photos, `/team` lists the right
-     people, and a customer quote link resolves. If all three work, the backup is real.
+  5. Ask the checker rather than your eyes — three things by eye at 2am is how a drill turns back
+     into a hope:
+     ```
+     RESTORE_SUPABASE_URL=<scratch project URL> \
+     RESTORE_SUPABASE_SERVICE_KEY=<its service key> \
+     RESTORE_API=http://127.0.0.1:8080 \
+     RESTORE_TAKEN_AT=<when the backup was taken, ISO> \
+       node floodroofing/tools/restore-check.mjs
+     ```
+     It reads only, prints no keys, and exits non-zero if the restore is not proven. It checks every
+     core table is actually there (a half-run restore answers 200 on some and 404 on the rest —
+     the shape that fools people), that a job came back **with its drawing**, that every team
+     member still has a profile and each business still has an owner, and — with `RESTORE_API` —
+     that a customer quote link resolves. It also reports how much work the backup would have
+     lost, which is the number nobody thinks to ask for until the day they need it.
   6. Delete the scratch project. Repeat once a quarter and after any schema change.
 - [ ] **Uptime alerting with a phone alarm.** The failing `/health` run emails; it does not wake
   anyone. UptimeRobot or Better Stack pointed at
