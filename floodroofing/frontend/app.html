@@ -8105,12 +8105,15 @@ function _schedFoldToggle(id){
   _schedRender();
 }
 // ── render ──
+// The acceptance date, job length, notes and progress % were four columns
+// carrying one line of text each, squeezed to nothing, eating the calendar.
+// They all live in the popup now, which is where you go to change them
+// anyway — the board is left with what you READ at a glance: which job,
+// which street, and the four milestones.
 var _SCHED_COLS = [
-  { key:'handle', w:14, hd:'' }, { key:'client', w:96, hd:'Client' }, { key:'site', w:96, hd:'Site' },
-  { key:'accepted', w:44, hd:'Acc.', tip:'Date the customer accepted the quote' },
-  { key:'len', w:30, hd:'Len', tip:'How many working days the job runs' },
-  { key:'notes', w:64, hd:'Notes', tip:'Special notes on this job' },
-  { key:'progress', w:28, hd:'%', tip:'Work progress' },
+  { key:'open', w:26, hd:'', tip:'Open this job — drag to reorder' },
+  { key:'jobno', w:70, hd:'Job', tip:'The Fergus job number — opens it in Fergus' },
+  { key:'site', w:104, hd:'Site', tip:'The street this job is on' },
   // "Dep", "Ord" and "Del" in a 26px column came out as one letter and a
   // guess. An icon carries further at that size, and the tooltip says what
   // it means — the header and the popup use the same four.
@@ -8120,6 +8123,26 @@ var _SCHED_COLS = [
   { key:'del', w:26, hd:'🚚', tip:'Delivery checked' },
   { key:'mail', w:24, hd:'✉', tip:'Email the customer an update' },
 ];
+// "23, Don Buck Road, Massey" → "Don Buck Road". The number and the suburb
+// are noise on a board where every row is a different street; the full
+// address is in the popup and on the tooltip.
+function _schedStreet(addr){
+  var t = String(addr || '').split(',').map(function(p){ return p.trim(); }).filter(Boolean);
+  // The street is the first part that is not just a number (or a unit like
+  // "23A" / "1/14") — an address that leads with its number puts the street
+  // in the second part.
+  for (var i = 0; i < t.length; i++){
+    if (!/^\d+[A-Za-z]?$/.test(t[i]) && !/^\d+\s*\/\s*\d+[A-Za-z]?$/.test(t[i]))
+      return t[i].replace(/^\d+\s*\/?\s*\d*[A-Za-z]?\s+/, '');
+  }
+  return t[0] || '';
+}
+// Where a Fergus job lives on the web. The id in the address bar is the job
+// NUMBER, which is what the board shows and what a roofer recognises.
+function _schedFergusUrl(r){
+  var no = (r && (r.fergus_no || r.fergus_id)) || '';
+  return no ? ('https://app.fergus.com/jobs/view/' + encodeURIComponent(no)) : '';
+}
 // Collapsed: the drag handle, a tiny ⓘ that opens the job-details popup,
 // and one column with the job number over the short address — the calendar
 // gets nearly the whole width. Everything else lives in the popup.
@@ -8246,11 +8269,26 @@ function _schedRender(){
     }
     if (_useFolders && !_schedFoldOpen(_fid)){ _hiddenRows++; return; }
     var cells = '';
-    var accepted = r.accepted_at ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '—';
     cols.forEach(function(c, i){
       var inner = '';
-      if (c.key === 'handle') inner = '<span draggable="true" data-rowdrag="' + r.id + '" title="Drag to reorder" style="cursor:grab;color:#94a3b8">⋮⋮</span>';
-      if (c.key === 'client') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700" title="' + esc(r.client_name) + '">' + esc(r.client_name) + '</span>';
+      // One button, big enough to hit on a phone: it opens the job, and it is
+      // still the drag handle, because reordering is how the board gets put
+      // in the order the office works in.
+      if (c.key === 'open') inner = '<span draggable="true" data-rowdrag="' + r.id + '" data-info="' + r.id + '"' +
+        ' title="Open this job — drag to reorder" style="cursor:pointer;color:#0099cc;font-size:15px;line-height:1">ⓘ</span>';
+      if (c.key === 'jobno'){
+        var _fno = r.fergus_no || r.fergus_id || '';
+        var _url = _schedFergusUrl(r);
+        var _lbl = _fno || r.job_no || '';
+        inner = _url
+          ? '<a href="' + esc(_url) + '" target="_blank" rel="noopener" data-fergus="1"' +
+            ' title="Open Fergus job ' + esc(_fno) + ' — ' + esc(r.client_name) + '"' +
+            ' style="color:#0099cc;font-weight:700;text-decoration:underline">' + esc(_lbl) + '</a>'
+          // No Fergus job linked: show whatever names this row and still open
+          // the popup, rather than a blank cell that looks broken.
+          : '<span data-rowmenu="' + r.id + '" title="' + esc(r.client_name) + ' — not linked to a Fergus job"' +
+            ' style="cursor:pointer;font-weight:700">' + esc(_lbl || r.client_name) + '</span>';
+      }
       if (c.key === 'info') inner = '<span data-info="' + r.id + '" style="cursor:pointer;color:#0099cc;font-weight:700" title="Job details">ⓘ</span>';
       if (c.key === 'job'){
         var _short = String(r.site_address || '').split(',')[0];
@@ -8258,11 +8296,9 @@ function _schedRender(){
           '<div data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.client_name) + '">' + esc(r.job_no || r.client_name) + '</div>' +
           '<div style="font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.site_address) + '">' + esc(_short) + '</div></div>';
       }
-      if (c.key === 'site') inner = '<span title="' + esc(r.site_address) + '">' + esc(r.site_address) + '</span>';
-      if (c.key === 'accepted') inner = '<span style="color:var(--text2)">' + accepted + '</span>';
-      if (c.key === 'len') inner = '<input type="number" min="1" max="120" value="' + (r.length_days || 1) + '" data-edit="length_days" data-row="' + r.id + '">';
-      if (c.key === 'notes') inner = '<input type="text" value="' + esc(r.notes) + '" data-edit="notes" data-row="' + r.id + '" placeholder="—">';
-      if (c.key === 'progress') inner = '<input type="number" min="0" max="100" value="' + (r.progress_pct == null ? '' : r.progress_pct) + '" data-edit="progress_pct" data-row="' + r.id + '" placeholder="–">';
+      if (c.key === 'site') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer"' +
+        ' title="' + esc(r.site_address) + (r.client_name ? (' — ' + esc(r.client_name)) : '') + '">' +
+        esc(_schedStreet(r.site_address)) + '</span>';
       if (c.key === 'dep') inner = '<input type="checkbox"' + (r.deposit_paid ? ' checked' : '') + ' data-edit="deposit_paid" data-row="' + r.id + '" title="Deposit paid' + (r.auto && r.auto.deposit_paid != null ? ' (auto-filled — ticking overrides)' : '') + '">';
       if (c.key === 'hand') inner = '<input type="checkbox"' + (r.handover_done ? ' checked' : '') + ' data-edit="handover_done" data-row="' + r.id + '" title="Hand-over complete">';
       if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
@@ -8311,7 +8347,7 @@ function _schedRender(){
     var pcells = '';
     cols.forEach(function(c, i){
       var inner = '';
-      if (c.key === 'client' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '">';
+      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '" placeholder="Client name">';
       if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
       pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
@@ -8367,6 +8403,9 @@ function _schedWire(grid){
       var patch = {}; patch[field] = val;
       _schedApi('PATCH', '/schedule/rows/' + rowId, patch);
     };
+  });
+  grid.querySelectorAll('a[data-fergus]').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); };
   });
   grid.querySelectorAll('[data-fold]').forEach(function(el){
     el.onclick = function(){ _schedFoldToggle(el.getAttribute('data-fold')); };

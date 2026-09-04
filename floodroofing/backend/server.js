@@ -5592,6 +5592,10 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
                   'q_client:draw_state->state->quote->client, ' +
                   'q_scope:draw_state->state->quote->scope, ' +
                   'q_opts:draw_state->state->quote->proposalOptions, ' +
+                  // The Fergus job this RoofMap job is linked to — the board
+                  // shows its number and links straight through to it.
+                  'f_id:draw_state->state->linkedJobId, ' +
+                  'f_no:draw_state->state->linkedJobNo, ' +
                   'q_ref:draw_state->state->quote->ref'), req)
           .in('id', jobIds);
         for (const j of (data || [])) {
@@ -5603,6 +5607,8 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
             job_no: (j.q_ref == null) ? '' : String(j.q_ref),
             // What the job IS and what steel is going on it — the two things
             // the office looked up in the spreadsheet every time.
+            fergus_id: (j.f_id == null) ? '' : String(j.f_id).slice(0, 40),
+            fergus_no: (j.f_no == null) ? '' : String(j.f_no).slice(0, 40),
             description: String(j.q_scope || '').slice(0, 600),
             colour: String((j.q_opts && j.q_opts.colour) || '').slice(0, 60),
             grade: String((j.q_opts && j.q_opts.steelGrade) || '').slice(0, 30),
@@ -5627,6 +5633,8 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         accepted_at:  a.accepted_at || null,
         job_no:       a.job_no || '',
         description:  a.description || '',
+        fergus_id:    a.fergus_id || '',
+        fergus_no:    a.fergus_no || '',
         colour:       a.colour || '',
         grade:        a.grade || '',
       });

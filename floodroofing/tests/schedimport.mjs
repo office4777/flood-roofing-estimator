@@ -197,7 +197,9 @@ await pg.evaluate(() => {
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => ({
   bands: Array.from(document.querySelectorAll('.sched-fold')).map(e => e.textContent.trim()),
-  order: Array.from(document.querySelectorAll('.sched-row:not(.pad):not(.sched-fold) [data-rowmenu]')).map(e => e.textContent.trim()),
+  // The job cell, not every cell that opens the popup — the site cell does
+  // too now, and both would count.
+  order: Array.from(document.querySelectorAll('.sched-row:not(.pad):not(.sched-fold) .sched-cell:nth-child(2)')).map(e => e.textContent.trim()),
 }));
 check('the board groups the folders under headings',
   v.bands.length === 3 && /Pole Sheds/.test(v.bands.join('|')) && /Completed Jobs/.test(v.bands.join('|')),
@@ -209,7 +211,7 @@ check('collapsing a folder hides its jobs but keeps its heading', await (async (
   await pg.waitForTimeout(200);
   return pg.evaluate(() => {
     const bands = document.querySelectorAll('.sched-fold').length;
-    const names = Array.from(document.querySelectorAll('.sched-row:not(.pad):not(.sched-fold) [data-rowmenu]')).map(e => e.textContent.trim());
+    const names = Array.from(document.querySelectorAll('.sched-row:not(.pad):not(.sched-fold) .sched-cell:nth-child(2)')).map(e => e.textContent.trim());
     return bands === 3 && names.indexOf('A pole shed') < 0 && names.indexOf('Live job') >= 0;
   });
 })());

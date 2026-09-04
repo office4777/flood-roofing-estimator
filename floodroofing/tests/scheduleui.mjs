@@ -21,7 +21,7 @@ function mkSched(){
     rows: [
       { id:'r1', job_id:'j1', client_name:'Brian Lewis', site_address:'148 Horeke Road, Okaihau', email:'b@l.nz',
         length_days:8, notes:'', progress_pct:80, deposit_paid:true, ordered:true, delivery_check:false,
-        handover_done:false, last_notified:null, job_no:'FR-2996',
+        handover_done:false, last_notified:null, job_no:'FR-2996', fergus_no:'8801', fergus_id:'15576244',
         // Asked the supplier for the 18th; they have not come back yet.
         requested_delivery:'2026-09-18', confirmed_delivery:null,
         archived:false, created_at:'2026-08-01', accepted_at:'2026-08-27T09:00:00Z', auto:{} },
@@ -95,6 +95,60 @@ async function boot(opts){
   await pg.evaluate(() => gotoTab('schedule'));
   await pg.waitForTimeout(800);
   return { ctx, pg, calls };
+}
+
+// ── what the board shows at a glance ──────────────────────────────
+// Acceptance date, job length, notes and progress % were four columns
+// carrying one line each, squeezed to nothing and eating the calendar. They
+// live in the popup now — which is where they were edited from anyway.
+{
+  const { ctx: c0, pg: p0 } = await boot();
+  let g = await p0.evaluate(() => ({
+    heads: Array.from(document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd')).map(e => e.textContent.trim()),
+    // r1 by name, not "the first row" — the board sorts oldest acceptance
+    // first, so which row is on top is not this check's business.
+    job: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(2)') || {}).innerHTML || '',
+    site: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(3)') || {}).textContent || '',
+    siteTitle: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(3) span') || {}).title || '',
+    openBtn: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(1) [data-info]') || {}).outerHTML || '',
+  }));
+  check('the board no longer carries the four squeezed text columns',
+    !g.heads.some(h => /Acc|Len|Notes|%/.test(h)), JSON.stringify(g.heads));
+  check('…and still carries the four milestones', 
+    ['💰','🤝','📦','🚚'].every(i => g.heads.indexOf(i) >= 0), JSON.stringify(g.heads));
+  check('the job column is the Fergus number, as a link into Fergus',
+    /app\.fergus\.com\/jobs\/view\/8801/.test(g.job) && /FR-2996|8801/.test(g.job), g.job.slice(0, 160));
+  check('…drawn as a link, not plain text', /<a /.test(g.job) && /underline/.test(g.job), g.job.slice(0, 120));
+  check('…opening in a new tab, so the board is not navigated away from',
+    /target="_blank"/.test(g.job) && /rel="noopener"/.test(g.job), g.job.slice(0, 160));
+  check('the site column is the street on its own',
+    g.site.trim() === 'Horeke Road', JSON.stringify(g.site));
+  check('…with the whole address, and who it is for, on hover',
+    /148 Horeke Road/.test(g.siteTitle) && /Brian Lewis/.test(g.siteTitle), g.siteTitle);
+  check('the button beside it opens the job details',
+    /data-info/.test(g.openBtn), g.openBtn);
+  check('…and is still the drag handle, so the board can be put in order',
+    /draggable="true"/.test(g.openBtn) && /data-rowdrag/.test(g.openBtn), g.openBtn);
+  check('…and is big enough to hit', /font-size:15px/.test(g.openBtn), g.openBtn);
+
+  // A job with no Fergus link must not leave a blank cell.
+  g = await p0.evaluate(() => {
+    _SCHED.data.rows.find(x => x.id === 'r1').fergus_no = '';
+    _SCHED.data.rows.find(x => x.id === 'r1').fergus_id = '';
+    _schedRender();
+    const c = document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(2)');
+    return { html: c.innerHTML, text: c.textContent.trim() };
+  });
+  check('a job with no Fergus job linked still names itself',
+    !!g.text && !/<a /.test(g.html), g.html.slice(0, 140));
+  check('…and still opens its details', /data-rowmenu/.test(g.html), g.html.slice(0, 140));
+  // The street reader, on the shapes a NZ address comes in.
+  const st = await p0.evaluate(() => ['23, Don Buck Road, Massey', '148 Horeke Road , Okaihau',
+    '10/1 Ash Grove Circle, Haruru', '1156 SH12, Oue', 'Kemp House', ''].map(a => _schedStreet(a)));
+  check('the street is read out of an address however it is written',
+    JSON.stringify(st) === JSON.stringify(['Don Buck Road','Horeke Road','Ash Grove Circle','SH12','Kemp House','']),
+    JSON.stringify(st));
+  await c0.close();
 }
 
 // ── the board, unlocked ───────────────────────────────────────────
@@ -298,8 +352,10 @@ await pg.evaluate(() => _schedInfoClose());
 await pg.evaluate(() => document.querySelector('[data-coltoggle]').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
-check('…and » brings every column back — hand-over now has one of its own',
-  v === 12, v + ' header cells');
+// Acceptance date, length, notes and % came off the board and into the
+// popup: four columns of squeezed text that were eating the calendar.
+check('…and » brings the full set back — open, job, site and the milestones',
+  v === 8, v + ' header cells');
 
 // The ✎ chip edits crews & colours right from the header bar.
 calls.length = 0;
