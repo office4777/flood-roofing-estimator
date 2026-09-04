@@ -149,6 +149,20 @@ db.__missing = [];
     if (seen[m[1]]) dupes.push(m[1]); else seen[m[1]] = true;
   }
   check('no two functions in server.js share a name', dupes.length === 0, dupes.join(', '));
+
+  // app.html had five of them: getImgTransform, canvasToImg, imgToCanvas,
+  // closeMeasPanel and calcMeasurements. All five first copies were dead —
+  // the later declaration won every time — but getImgTransform was a live
+  // hazard: the dead one returned null with no background image where the
+  // real one keeps drawing, so anybody reading the file to fix a
+  // drawing-scale problem would have found the wrong function first. The
+  // drawing scale has been broken twice; it does not need a decoy as well.
+  const app = await readFile(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
+  const fseen = {}, fdupes = [];
+  for (const m of app.matchAll(/^(?:async )?function ([A-Za-z0-9_]+)\s*\(/gm)) {
+    if (fseen[m[1]]) fdupes.push(m[1]); else fseen[m[1]] = true;
+  }
+  check('nor in app.html', fdupes.length === 0, fdupes.join(', '));
 }
 
 console.log('\n' + results.filter(Boolean).length + '/' + results.length + ' passed');

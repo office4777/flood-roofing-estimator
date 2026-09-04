@@ -39726,31 +39726,13 @@ function clearAll(silent) {
 }
 
 // ── MAIN DRAW ────────────────────────────────────────────────────
-function getImgTransform() {
-  var cv=document.getElementById('roofCanvas');
-  if(!cv||!DRAW.bgImg) return null;
-  var dpr=window.devicePixelRatio||1;
-  var W=cv.width/dpr, H=cv.height/dpr;
-  var iw=DRAW.bgImg.naturalWidth, ih=DRAW.bgImg.naturalHeight;
-  var fitScale=Math.min(W/iw, H/ih);
-  var dispW=iw*fitScale*DRAW.zoom;
-  var dispH=ih*fitScale*DRAW.zoom;
-  var ix=(W-dispW)/2+IMG_OFFSET.x;
-  var iy=(H-dispH)/2+IMG_OFFSET.y;
-  var s=fitScale*DRAW.zoom;
-  return {ix:ix, iy:iy, s:s, dispW:dispW, dispH:dispH};
-}
-// Convert canvas pixel -> image space
-function canvasToImg(pt, t) {
-  if(!t) return pt;
-  return [(pt[0]-t.ix)/t.s, (pt[1]-t.iy)/t.s];
-}
-// Convert image space -> canvas pixel
-function imgToCanvas(pt, t) {
-  if(!t) return pt;
-  return [pt[0]*t.s+t.ix, pt[1]*t.s+t.iy];
-}
-
+// Everything below is the live copy. There used to be an EARLIER copy of
+// getImgTransform, canvasToImg and imgToCanvas right here, and of
+// closeMeasPanel/calcMeasurements further down. In each case the later
+// declaration silently won and the first was dead code that could be edited
+// all day with no effect — getImgTransform worst of all, because the dead
+// one returned null with no background image where the live one keeps
+// drawing. orgapi now refuses two functions of one name.
 function getImgTransform() {
   var cv=document.getElementById('roofCanvas');
   if(!cv) return null;
@@ -42389,105 +42371,6 @@ function showMeasurementsPanel() {
   document.getElementById('measResults').style.display='none';
   var mp=document.getElementById('measPanel'); mp.style.display='flex'; mp.style.flexDirection='column';
   document.getElementById('measPanelOverlay').style.display='block';
-}
-
-function closeMeasPanel() {
-  document.getElementById('measPanel').style.display='none';
-  document.getElementById('measPanelOverlay').style.display='none';
-}
-
-function calcMeasurements() {
-  function v(id){ return parseFloat(document.getElementById('mf_'+id).value)||0; }
-
-  var pitch    = v('pitch');
-  var roofW    = v('roofW');
-  var roofL    = v('roofL');
-  var ridgeLen = v('ridgeLen');
-  var slopeMm  = v('slopeD');
-  var hipEndMm = v('hipEnd');
-  var valleyLen= v('valleyLen');
-  var gutterLen= v('gutterLen');
-  var hipLen   = v('hipLen');
-  var sheetW   = v('sheetW') || 762;
-  var overlapMm= v('overlapMm') || 150;
-  var wastePct = v('wastePct') || 10;
-
-  var pitchRad = pitch * Math.PI / 180;
-  var pitchFactor = pitch > 0 ? 1/Math.cos(pitchRad) : 1;
-
-  // Slope in metres
-  var slopeM = slopeMm >= 100 ? slopeMm/1000 : slopeMm;
-  var hipEndM = hipEndMm >= 100 ? hipEndMm/1000 : hipEndMm;
-  var sheetEffM = sheetW/1000;
-  var overlapM = overlapMm/1000;
-
-  // Plan (footprint) area
-  var planArea = roofW > 0 && roofL > 0 ? roofW * roofL : 0;
-
-  // Roof area (actual slope area)
-  var roofArea = 0;
-  if(slopeM > 0 && roofW > 0) {
-    // Main slopes: 2 x (ridge + eave)/2 x slope (trapezoid for hip)
-    var mainSlope = 2 * ((ridgeLen > 0 ? ridgeLen : roofW) + roofW) / 2 * slopeM;
-    // Hip end triangles: 2 x (base x height / 2)
-    var hipEnds = hipEndM > 0 ? 2 * (hipEndM * slopeM / 2) : 0;
-    roofArea = mainSlope + hipEnds;
-  } else if(planArea > 0) {
-    roofArea = planArea * pitchFactor;
-  }
-
-  // With waste
-  var roofAreaWaste = roofArea * (1 + wastePct/100);
-
-  // Gutter lm
-  var gutterLm = gutterLen > 0 ? gutterLen : (roofW > 0 && roofL > 0 ? (roofW + roofL)*2 : 0);
-
-  // Ridge lm
-  var ridgeLm = ridgeLen > 0 ? ridgeLen : (roofW > 0 && hipEndM > 0 ? roofW - hipEndM*2 : roofW);
-
-  // Valley lm
-  var valleyLm = valleyLen > 0 ? valleyLen : 0;
-
-  // Hip rafter lm (per hip, 4 hips total)
-  var hipRafterLm = hipLen > 0 ? hipLen : (slopeM > 0 && hipEndM > 0 ? Math.sqrt(slopeM*slopeM + hipEndM*hipEndM) : 0);
-  var totalHipLm = hipRafterLm * 4;
-
-  // Sheets needed
-  var sheetsPerSlope = sheetEffM > 0 && roofW > 0 ? Math.ceil(roofW / sheetEffM) : 0;
-  var sheetLengthM   = slopeM > 0 ? slopeM + overlapM : 0;
-  var totalSheets    = sheetsPerSlope * 2; // 2 main slopes (rough)
-
-  // Roofing paper / underlay
-  var underlayM2 = roofAreaWaste;
-
-  function tile(icon, label, val, unit, color) {
-    return '<div style="background:#f8f9fa;border:1px solid #e0e0db;border-radius:8px;padding:12px;text-align:center">' +
-      '<div style="font-size:20px;margin-bottom:4px">'+icon+'</div>' +
-      '<div style="font-size:18px;font-weight:700;color:'+(color||'#0a1628')+'">'+val+'</div>' +
-      '<div style="font-size:11px;color:#666;font-weight:600">'+unit+'</div>' +
-      '<div style="font-size:10px;color:#999;margin-top:2px">'+label+'</div></div>';
-  }
-
-  var html = '';
-  html += tile('🟩','Total roof area',   roofArea.toFixed(1),     'm²',  '#059669');
-  html += tile('🟩','+ waste ('+wastePct+'%)', roofAreaWaste.toFixed(1),'m²',  '#059669');
-  html += tile('📐','Plan/footprint area', planArea.toFixed(1),   'm²',  '#0891b2');
-  html += tile('🔴','Ridge',              ridgeLm.toFixed(1),     'lm',  '#dc2626');
-  html += tile('🟠','Valley',             valleyLm.toFixed(1),    'lm',  '#f59e0b');
-  html += tile('🟣','Gutter',             gutterLm.toFixed(1),    'lm',  '#7c3aed');
-  html += tile('🟢','Hip rafter (×4)',    totalHipLm.toFixed(1),  'lm',  '#059669');
-  html += tile('📋','Sheets needed',      totalSheets||'—',       'sheets','#0a1628');
-  html += tile('📏','Sheet length',       sheetLengthM>0?sheetLengthM.toFixed(2):'—','m','#0a1628');
-  html += tile('🟤','Roofing paper',      underlayM2.toFixed(1),  'm²',  '#92400e');
-  html += tile('📐','Pitch factor',       pitchFactor.toFixed(3), 'x',   '#0a1628');
-  html += tile('🏠','Pitch angle',        pitch||'—',             '°',   '#0a1628');
-
-  document.getElementById('measResultsGrid').innerHTML = html;
-  document.getElementById('measResults').style.display = 'block';
-  document.getElementById('measResultsGrid').scrollIntoView({behavior:'smooth',block:'nearest'});
-
-  // Push results to scope area
-  if(roofArea > 0) document.getElementById('scopeArea').value = roofArea.toFixed(1);
 }
 
 // ── MEASUREMENTS PANEL ───────────────────────────────────────────
