@@ -26380,6 +26380,7 @@ function refreshQuoteProposal(){
   // Office: surface an "Undo acceptance" button on the action bar while the
   // quote is accepted (accepted quotes freeze the customer's selections).
   try { var _ub = document.getElementById('qaUnacceptBtn'); if (_ub) _ub.style.display = (!window.__CUSTOMER_MODE && S.quote && S.quote.accepted) ? '' : 'none'; } catch(e){}
+  try { _fergusAutoPushOnAccept(); } catch(e){}
   // Customer: show a clear "accepted → locked" banner at the top so a frozen
   // proposal never just looks broken.
   try { var _ab = document.getElementById('custAcceptedBanner'); if (_ab) _ab.style.display = _qpAcceptedLock() ? 'block' : 'none'; } catch(e){}
@@ -52013,6 +52014,45 @@ function _buildFergusItemisedSections(){
   return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: _labCount, matCount: _matCount,
            reconciled: _fgReconcile };
 }
+// An accepted quote pushes itself to Fergus — the customer's own selections
+// and the pricing that goes with them — so nobody has to remember to press
+// the button, and Fergus never carries the pre-acceptance version of a job
+// that has been sold.
+//
+// It runs in the OFFICE app rather than on the server, deliberately: every
+// number on a Fergus quote comes out of the pricing engine, which lives
+// here. Rebuilding that server-side would mean a second implementation of
+// the money, and two implementations of the money disagree eventually. The
+// cost is that it happens when the office next has the job open, not the
+// instant the customer clicks — which is why the acceptance also raises a
+// task for Paula to accept it in Fergus, and why the push is stamped.
+//
+// Stamped against the acceptance TIME, so re-accepting (or an undo and a
+// fresh accept at a new price) pushes again, while merely opening the job
+// a hundred times does not.
+function _fergusAutoPushOnAccept(){
+  if (window.__CUSTOMER_MODE) return;
+  var q = window.S && S.quote;
+  if (!q || !q.accepted || !q.accepted.at) return;
+  if (!S.linkedJobId) return;                       // nothing to push to
+  if (q.fergusAutoPushedFor === q.accepted.at) return;
+  if (window._fergusAutoPushBusy) return;
+  window._fergusAutoPushBusy = true;
+  // Claim it before the push, not after: two renders in the same second must
+  // not both fire, and a failed push should not retry on every keystroke —
+  // the Push to Fergus button is still there, and the task list still says
+  // to check it.
+  q.fergusAutoPushedFor = q.accepted.at;
+  setTimeout(function(){
+    Promise.resolve(pushQuotePricingToFergus(null, { silent: true }))
+      .catch(function(){})
+      .then(function(){
+        window._fergusAutoPushBusy = false;
+        // Persist the stamp, so a reload does not push a second time.
+        try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+      });
+  }, 400);
+}
 // Void every quote on the job except `keepId` (skip already-voided and
 // accepted ones). Fergus's void endpoint is POST /jobs/quotes/{id}/void.
 async function _fergusVoidOtherQuotes(jobId, keepId){
@@ -52038,16 +52078,21 @@ async function _fergusVoidOtherQuotes(jobId, keepId){
   return voided;
 }
 // Push the itemised pricing to Fergus as a NEW quote (a new version on the job).
-async function pushQuotePricingToFergus(btn){
+// `opts.silent` is the automatic push that follows an acceptance: same code
+// path, same numbers, but it never puts a dialog in front of somebody who
+// did not press anything.
+async function pushQuotePricingToFergus(btn, opts){
+  var _silent = !!(opts && opts.silent);
+  var _tell = function(msg){ if (!_silent) alert(msg); };
   if (!window.S || !S.linkedJobId){
     _qaMsg('No Fergus job linked — link one on the Home tab (📂 New Job / Select Job) first.', false);
-    alert('No Fergus job is linked to this quote.\n\nLink one on the Home tab (📂 New Job / Select Job → Fergus) first, then push.');
+    _tell('No Fergus job is linked to this quote.\n\nLink one on the Home tab (📂 New Job / Select Job → Fergus) first, then push.');
     return;
   }
   try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
   try { calcLabour(); } catch(e){}
   var built = _buildFergusItemisedSections();
-  if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); alert('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
+  if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); _tell('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
   _fergusBtnBusy(btn, true); _qaBar(true);
   try {
     // Generate the interactive online-quote link and ride it in the Fergus
@@ -52092,10 +52137,10 @@ async function pushQuotePricingToFergus(btn){
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
     _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + ' · ' + when, true);
-    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
+    _tell('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
-    alert('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
+    _tell('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
   } finally {
     _qaBar(false); _fergusBtnBusy(btn, false);
   }

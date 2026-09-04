@@ -2960,9 +2960,11 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     // to the ROOFER's company, not to whoever opened the link.
     if (type === 'accepted') {
       recordUsage('quote_accepted', { companyId: job.company_id || null });
-      // Raise (and maybe send) the deposit invoice — after the response, so
-      // an invoicing hiccup can never break the customer's accept.
+      // Everything after the yes — all of it after the response has gone, so
+      // a hiccup in any of it can never break the customer's accept.
       _autoDepositInvoice(job, quote);
+      _acceptanceScheduleRow(job);
+      _acceptanceTasks(job, quote);
     }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -3751,6 +3753,113 @@ app.post('/invoices/:id/send', requireAuth, async (req, res) => {
 // configured, the deposit invoice raises itself — and goes straight out if
 // auto-send is on and there is an address to send it to. Idempotent: a second
 // accept event never raises a second deposit.
+// ── what happens the moment a customer says yes ────────────────────────
+// Accepting used to raise a deposit invoice and stop. Everything after it —
+// putting the job on the board, the hand-over, ordering the roof, accepting
+// in Fergus, the tentative dates email — lived in somebody's head or in a
+// spreadsheet, and was remembered or not.
+//
+// None of this can use _scopeCompany: the customer accepting is not logged
+// in, so the job's own company_id/user_id are what the rows are written
+// under. Everything here is best-effort and independently wrapped — a
+// customer's accept must never fail because a follow-up did.
+
+// The office checklist an acceptance raises. A company can replace it in its
+// settings (acceptance_tasks: [{title, who, urgency}]); `who` is matched
+// against the team's names, and an unmatched name simply leaves the task
+// unassigned rather than dropping it.
+const ACCEPTANCE_TASKS_DEFAULT = [
+  { title: 'Complete job hand-over',                              who: 'Matt',  urgency: 70 },
+  { title: 'Order the roof',                                      who: 'Ethan', urgency: 80 },
+  { title: 'Accept in Fergus and send the 50% deposit invoice',   who: 'Paula', urgency: 90 },
+  { title: 'Check / adjust the dates in the schedule, then send the tentative schedule email',
+                                                                  who: 'Paula', urgency: 60 },
+];
+async function _companyMembers(companyId){
+  if (!companyId) return [];
+  try {
+    const [{ data: links }, { data: profs }] = await Promise.all([
+      supabase.from('company_users').select('user_id, role').eq('company_id', companyId),
+      supabase.from('profiles').select('id, name, email').eq('company_id', companyId),
+    ]);
+    const byId = {}; (profs || []).forEach(p => { byId[p.id] = p; });
+    return (links || []).map(l => ({ id: l.user_id,
+      name: (byId[l.user_id] || {}).name || '', email: (byId[l.user_id] || {}).email || '' }));
+  } catch (e) { return []; }
+}
+// Match "Paula" to the Paula on the team: first name, then anywhere in the
+// name, then the local part of the email. Never a fuzzy guess — assigning a
+// job to the wrong person is worse than leaving it for the office to pick up.
+function _memberByName(members, who){
+  const w = String(who || '').trim().toLowerCase();
+  if (!w) return null;
+  const first = (m) => String(m.name || '').trim().split(/\s+/)[0].toLowerCase();
+  return (members || []).find(m => first(m) === w)
+      || (members || []).find(m => String(m.name || '').toLowerCase().includes(w))
+      || (members || []).find(m => String(m.email || '').split('@')[0].toLowerCase() === w)
+      || null;
+}
+async function _acceptanceTasks(job, quote){
+  try {
+    if (!job || !job.company_id) return 0;
+    // Once per job. An accept can be replayed (a customer re-opening the
+    // link, a retry) and four duplicate tasks a day is how a task list gets
+    // ignored.
+    const marker = 'quote-accepted:' + job.id;
+    const { data: dupe } = await supabase.from('comms_tasks').select('id')
+      .eq('company_id', job.company_id).eq('job_id', job.id).eq('notes', marker).limit(1);
+    if (dupe && dupe.length) return 0;
+    const settingsRow = await _settingsRowForJob(job);
+    let list = ACCEPTANCE_TASKS_DEFAULT;
+    try {
+      const custom = settingsRow && settingsRow.acceptance_tasks;
+      if (Array.isArray(custom) && custom.length) list = custom.slice(0, 12);
+    } catch (e) {}
+    const members = await _companyMembers(job.company_id);
+    const who = (quote && quote.client) || job.client_name || '';
+    const ref = (quote && quote.ref) ? (' — ' + quote.ref) : '';
+    const rows = list.map(t => ({
+      id: crypto.randomUUID(), company_id: job.company_id, user_id: job.user_id || null,
+      title: String(t.title || '').slice(0, 300) + (who ? (': ' + String(who).slice(0, 80)) : '') + ref,
+      notes: marker,
+      due_date: null,
+      assignee_user_id: (_memberByName(members, t.who) || {}).id || null,
+      done: false, urgency: (t.urgency == null ? null : t.urgency),
+      thread_id: null, job_id: job.id, personal: false,
+      done_at: null, created_at: new Date().toISOString(),
+    })).filter(r => r.title);
+    if (!rows.length) return 0;
+    const { error } = await supabase.from('comms_tasks').insert(rows);
+    if (error) throw new Error(error.message);
+    return rows.length;
+  } catch (e) { console.warn('[accepted] tasks failed:', e && e.message); return 0; }
+}
+// Put the accepted job on the schedule board, oldest acceptance at the top.
+// Same rule as the order-sent path: a job with no name has nothing to click,
+// so it is left off rather than added blank.
+async function _acceptanceScheduleRow(job){
+  try {
+    if (!job || !job.company_id) return null;
+    const { data: existing } = await supabase.from('schedule_rows').select('id')
+      .eq('company_id', job.company_id).eq('job_id', job.id).limit(1);
+    if (existing && existing.length) return existing[0];
+    const name = String(job.client_name || '').trim();
+    if (!name) return null;
+    const row = {
+      id: crypto.randomUUID(), company_id: job.company_id, user_id: job.user_id || null,
+      job_id: job.id, client_name: name.slice(0, 200),
+      site_address: String(job.site_address || '').slice(0, 300), email: '',
+      length_days: 1, notes: '', progress_pct: null, deposit_paid: null,
+      ordered: null, delivery_check: false, confirmed_delivery: null,
+      requested_delivery: null, sort_pos: null, archived: false,
+      last_notified: null, handover_done: false, folder: '',
+      created_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('schedule_rows').insert(row).select('*').single();
+    if (error) throw new Error(error.message);
+    return data || row;
+  } catch (e) { console.warn('[accepted] schedule row failed:', e && e.message); return null; }
+}
 async function _autoDepositInvoice(job, quote){
   try {
     const settingsRow = await _settingsRowForJob(job);
@@ -8168,6 +8277,9 @@ const _MIGRATION_SQL = [
   // final invoice issued. Empty means the main list, so every existing row
   // stays exactly where it is.
   "alter table public.schedule_rows add column if not exists folder text not null default ''",
+  // A company's own version of the checklist an acceptance raises. Null =
+  // the shipped default, which is what every existing business gets.
+  "alter table public.user_settings add column if not exists acceptance_tasks jsonb",
 
   // 10c. inbox — the comms hub (Business tier). A company connects its real
   //      email accounts over IMAP/SMTP; messages are mirrored here so the
