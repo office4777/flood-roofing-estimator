@@ -38,21 +38,27 @@ async function open(user){
 
 let o = await open({ email:'aron@floodroofing.co.nz', name:'Aron Flood' });
 let v = await o.pg.evaluate(() => {
-  const row = document.getElementById('hdrSignedInRow');
   const cell = document.getElementById('hdrSignedIn');
-  return { shown: getComputedStyle(row).display !== 'none', text: cell.textContent,
-           title: cell.title, label: row.textContent };
+  const nav = document.getElementById('navSignOutBtn');
+  const r = nav && nav.getBoundingClientRect();
+  return { text: cell ? cell.textContent : null, title: cell ? cell.title : '',
+           inCompanyBlock: !!(cell && document.getElementById('hdrCompany').contains(cell)),
+           signOutOnScreen: !!(r && r.bottom <= window.innerHeight && r.width > 0) };
 });
-check('the sidebar says which login this is', v.shown && v.text === 'aron@floodroofing.co.nz', JSON.stringify(v));
-check('…labelled so it reads as an answer, not a stray address',
-  /Signed in/i.test(v.label), v.label);
-check('…with the person\'s name on hover', /Aron Flood/.test(v.title), v.title);
+check('the sidebar says which login this is', v.text === 'aron@floodroofing.co.nz', JSON.stringify(v));
+check('…under the company it is signed in to', v.inCompanyBlock, JSON.stringify(v));
+check('…saying so on hover, since the address alone is not self-explanatory',
+  /Signed in as/.test(v.title) && /Aron Flood/.test(v.title), v.title);
+// It is a fixed-height sidebar. The first go at this added a row to the info
+// grid, which pushed Sign out past the bottom of the nav where it could not
+// be clicked — the whole app's way out, gone, to answer a smaller question.
+check('…without pushing Sign out off the bottom of the nav', v.signOutOnScreen, JSON.stringify(v));
 await o.ctx.close();
 
 // The case that started this: a different login, same company branding.
 o = await open({ email:'test+solo@floodroofing.co.nz', name:'Test Solo' });
 v = await o.pg.evaluate(() => ({
-  who: document.getElementById('hdrSignedIn').textContent,
+  who: (document.getElementById('hdrSignedIn') || {}).textContent || '',
   co: (document.getElementById('hdrCompany') || {}).textContent || '',
 }));
 check('a different login shows a different address, not the company name',
@@ -63,11 +69,8 @@ await o.ctx.close();
 
 // Signed out / nothing stored: no labelled blank taking up room.
 o = await open(null);
-v = await o.pg.evaluate(() => ({
-  shown: getComputedStyle(document.getElementById('hdrSignedInRow')).display !== 'none',
-  text: document.getElementById('hdrSignedIn').textContent,
-}));
-check('with nobody signed in the row takes up no room at all', !v.shown && !v.text, JSON.stringify(v));
+v = await o.pg.evaluate(() => ({ el: !!document.getElementById('hdrSignedIn') }));
+check('with nobody signed in nothing is added at all', !v.el, JSON.stringify(v));
 check('no page errors', o.errs.length === 0, o.errs.join(' | '));
 await o.ctx.close();
 

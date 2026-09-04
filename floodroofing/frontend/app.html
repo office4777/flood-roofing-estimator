@@ -3923,10 +3923,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div><span class="hdr-field">System</span><span class="hdr-val">RoofMap v2</span></div>
     <div><span class="hdr-field">Region</span><span class="hdr-val">Whangarei, NZ</span></div>
     <div><span class="hdr-field">GST</span><span class="hdr-val">15%</span></div>
-    <!-- Which login this is. An empty board looks identical whether the jobs
-         are gone or you are simply signed in as somebody else, and there was
-         nothing on screen that could tell you which. -->
-    <div id="hdrSignedInRow" style="display:none"><span class="hdr-field">Signed in</span><span class="hdr-val" id="hdrSignedIn" style="overflow:hidden;text-overflow:ellipsis"></span></div>
   </div>
   <div class="hdr-right"></div>
 </div>
@@ -13602,16 +13598,21 @@ function applyBranding(){
   // work has gone or you are simply signed in as somebody else — a test
   // account, a teammate's — and nothing on screen could tell you which. It
   // cost a morning of worrying that a night's jobs had been lost.
+  // It goes INSIDE the company block, not as another row in .hdr-info: a
+  // new row there grew the fixed sidebar header and pushed Sign out past the
+  // bottom of the nav, where it could not be clicked at all.
   try {
     var _u = {};
     try { _u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; } catch(e){}
     var _who = String(_u.email || '').trim();
-    var _row = document.getElementById('hdrSignedInRow');
-    var _cell = document.getElementById('hdrSignedIn');
-    if (_row && _cell){
-      _row.style.display = _who ? '' : 'none';
-      _cell.textContent = _who;
-      _cell.title = _who + (_u.name ? (' — ' + _u.name) : '');
+    if (_who && hdrCo && hdrCo.innerHTML){
+      var _d = document.createElement('div');
+      _d.id = 'hdrSignedIn';
+      _d.title = 'Signed in as ' + _who + (_u.name ? (' — ' + _u.name) : '');
+      _d.setAttribute('style', 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;' +
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%');
+      _d.textContent = _who;
+      (hdrCo.firstElementChild || hdrCo).appendChild(_d);
     }
   } catch(e){}
   // The RoofMap sub-line is the one thing that still tracks setup state — it
