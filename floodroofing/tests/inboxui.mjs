@@ -13,6 +13,11 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 
 const b = await chromium.launch();
 
+// Fixture timestamps are relative, not hard-coded: the thread row's time is
+// asserted to READ as a relative time, which a fixed date quietly stops
+// doing a week after it is written.
+const _ago = h => new Date(Date.now() - h * 3600e3).toISOString();
+
 function mkData(){
   const accounts = [
     { id: 'acc1', label: 'Office', email: 'office@floodroofing.co.nz', provider: 'gmail', shared: true, status: 'ok', last_error: '' },
@@ -20,11 +25,11 @@ function mkData(){
   ];
   const threads = [
     { id: 't1', account_id: 'acc1', subject: 'Re-roof quote for 148 Horeke Road', participants: ['brian@lewis.co.nz', 'office@floodroofing.co.nz'],
-      snippet: 'It leaks over the kitchen.', last_date: '2026-08-28T02:00:00Z', status: 'inbox', unread: true,
+      snippet: 'It leaks over the kitchen.', last_date: _ago(3), status: 'inbox', unread: true,
       category: 'lead', urgency: 92, job_id: 'j1', ai_draft: 'Hi Brian,\n\nWe can look on Tuesday.\n\nFlood Roofing',
       msg_count: 2, account_email: 'office@floodroofing.co.nz', account_label: 'Office' },
     { id: 't2', account_id: 'acc1', subject: 'Price list update', participants: ['sales@supplier.co.nz'],
-      snippet: 'New prices attached.', last_date: '2026-08-28T03:00:00Z', status: 'inbox', unread: false,
+      snippet: 'New prices attached.', last_date: _ago(2), status: 'inbox', unread: false,
       category: 'supplier', urgency: 25, job_id: null, ai_draft: null,
       msg_count: 1, account_email: 'office@floodroofing.co.nz', account_label: 'Office' },
     { id: 't3', account_id: 'acc1', subject: 'Old enquiry', participants: ['x@y.nz'],
@@ -35,11 +40,11 @@ function mkData(){
     t1: [
       { from_addr: 'brian@lewis.co.nz', from_name: 'Brian Lewis', date: '2026-08-27T01:00:00Z',
         body_text: 'Hi, keen on a quote.', body_html: '', attachments: [] },
-      { from_addr: 'brian@lewis.co.nz', from_name: 'Brian Lewis', date: '2026-08-28T02:00:00Z',
+      { from_addr: 'brian@lewis.co.nz', from_name: 'Brian Lewis', date: _ago(3),
         body_text: '', body_html: '<p>It leaks over the kitchen.</p><img data-rsrc="https://photos.example/roof.jpg">',
         attachments: [{ name: 'leak.jpg', size: 5000, type: 'image/jpeg' }] },
     ],
-    t2: [{ from_addr: 'sales@supplier.co.nz', from_name: 'Steel Supplier', date: '2026-08-28T03:00:00Z',
+    t2: [{ from_addr: 'sales@supplier.co.nz', from_name: 'Steel Supplier', date: _ago(2),
       body_text: 'New prices attached.', body_html: '', attachments: [] }],
   };
   const members = [
