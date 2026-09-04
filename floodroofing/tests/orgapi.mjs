@@ -134,5 +134,22 @@ check('the job list still loads on a database missing the new column',
   r.status === 200 && r.body.length === 2 && r.body[0].created_by, 'status ' + r.status);
 db.__missing = [];
 
+// ── two functions with one name ────────────────────────────────────────
+// A helper added near the bottom of the file was called _companyMembers,
+// which was already the name of the id → name map _nameOf reads. The second
+// declaration silently won, and every "made by" and "sent by" line in the
+// app went blank — no error, nothing in the log, four checks in this suite
+// the only sign of it. The file is 9,000 lines; a person cannot hold its
+// function names in their head, so the file is asked instead.
+{
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
+  const seen = {}, dupes = [];
+  for (const m of src.matchAll(/^(?:async )?function ([A-Za-z0-9_]+)\s*\(/gm)) {
+    if (seen[m[1]]) dupes.push(m[1]); else seen[m[1]] = true;
+  }
+  check('no two functions in server.js share a name', dupes.length === 0, dupes.join(', '));
+}
+
 console.log('\n' + results.filter(Boolean).length + '/' + results.length + ' passed');
 process.exit(results.filter(x=>!x).length ? 1 : 0);

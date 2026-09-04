@@ -3775,16 +3775,15 @@ const ACCEPTANCE_TASKS_DEFAULT = [
   { title: 'Check / adjust the dates in the schedule, then send the tentative schedule email',
                                                                   who: 'Paula', urgency: 60 },
 ];
-async function _companyMembers(companyId){
+// The team as a list, for matching a checklist's "Matt" to a real person.
+// Deliberately NOT called _companyMembers: that name is already taken by the
+// id → name map _nameOf reads, and a second declaration of it silently won —
+// every "made by" and "sent by" line in the app went blank.
+async function _acceptanceTeam(companyId){
   if (!companyId) return [];
   try {
-    const [{ data: links }, { data: profs }] = await Promise.all([
-      supabase.from('company_users').select('user_id, role').eq('company_id', companyId),
-      supabase.from('profiles').select('id, name, email').eq('company_id', companyId),
-    ]);
-    const byId = {}; (profs || []).forEach(p => { byId[p.id] = p; });
-    return (links || []).map(l => ({ id: l.user_id,
-      name: (byId[l.user_id] || {}).name || '', email: (byId[l.user_id] || {}).email || '' }));
+    const { data } = await supabase.from('profiles').select('id, name, email').eq('company_id', companyId);
+    return (data || []).map(p => ({ id: p.id, name: p.name || '', email: p.email || '' }));
   } catch (e) { return []; }
 }
 // Match "Paula" to the Paula on the team: first name, then anywhere in the
@@ -3815,7 +3814,7 @@ async function _acceptanceTasks(job, quote){
       const custom = settingsRow && settingsRow.acceptance_tasks;
       if (Array.isArray(custom) && custom.length) list = custom.slice(0, 12);
     } catch (e) {}
-    const members = await _companyMembers(job.company_id);
+    const members = await _acceptanceTeam(job.company_id);
     const who = (quote && quote.client) || job.client_name || '';
     const ref = (quote && quote.ref) ? (' — ' + quote.ref) : '';
     const rows = list.map(t => ({
