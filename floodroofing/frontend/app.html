@@ -3982,7 +3982,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        customer happens where the work is, on the quote and on the schedule
        board. Both buttons stay in the DOM, hidden, because the bell's badge
        writes into #qnBadge and the plan gate hides #navInboxBtn by id. -->
-  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Email</button>
+  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Email</button>
   <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="display:none;position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -7147,6 +7147,17 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <img id="brHeroPreview" alt="cover hero preview" style="max-height:70px;max-width:240px;object-fit:cover;border-radius:6px;display:none">
           <button onclick="clearCompanyHero()" type="button" class="tool-btn" style="font-size:11px">Remove hero photo</button>
         </div>
+        <!-- Whether the shared inbox gets a place in the left menu. Some
+             offices run the whole job out of it; others only ever email a
+             customer from the quote and the schedule board, and a menu item
+             they never press is one more thing between them and the work. -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" id="brShowEmailTab" onchange="_emailTabToggle(this.checked)" style="width:auto;margin-top:2px">
+            <span><strong style="font-size:12.5px;color:#0a1628">Show the Email tab in the menu</strong>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">The shared inbox. Emailing a customer from the quote and from the schedule board works either way — this is only whether the inbox gets its own tab.</div></span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -9385,15 +9396,47 @@ function _planLimits(){
 // different hat: every one of them calls /inbox/... , which the server
 // refuses below Business. Leaving them visible on Solo is a button that
 // only ever produces an error.
-// navInboxBtn is deliberately NOT here any more: the Email item is off the
-// left menu for everybody, so a plan sync must not put it back. The inbox is
-// still plan-gated where it matters — the tab itself, and the server.
+// navInboxBtn is not in this map: whether the Email tab is in the menu is the
+// COMPANY's choice as well as the plan's, so it is decided in one place
+// (_emailTabSync) rather than being turned back on by every plan sync.
 var _NAV_PLAN_FEATURES = { navScheduleBtn: 'schedule',
   gtbChatBtn: 'inbox', gtbTasksBtn: 'inbox', gtbTodoBtn: 'inbox' };
+// Some offices run the whole job out of the shared inbox; others only ever
+// email a customer from the quote and the schedule board. Default ON where
+// the plan includes it — the inbox is what the Business tier sells, and a
+// paid feature that is hidden until you find a switch is a feature nobody
+// knows they bought.
+function _emailTabShown(){
+  var lim = _planLimits();
+  if (lim && lim.inbox === false) return false;
+  var b = (window.S && S.settings && S.settings.branding) || {};
+  return b.show_email_tab !== false;
+}
+function _emailTabSync(){
+  var btn = document.getElementById('navInboxBtn');
+  if (btn) btn.style.display = _emailTabShown() ? '' : 'none';
+  var box = document.getElementById('brShowEmailTab');
+  if (box){
+    var b = (window.S && S.settings && S.settings.branding) || {};
+    box.checked = b.show_email_tab !== false;
+  }
+  // Standing on the tab you just hid leaves you nowhere.
+  try {
+    if (!_emailTabShown() && document.body.getAttribute('data-tab') === 'inbox') gotoTab('select');
+  } catch(e){}
+}
+function _emailTabToggle(on){
+  if (!S.settings) S.settings = {};
+  if (!S.settings.branding) S.settings.branding = {};
+  S.settings.branding.show_email_tab = !!on;
+  _emailTabSync();
+  try { saveSettings(true); } catch(e){}
+}
 function _navPlanSync(){
   var lim = _planLimits();
   var hidden = {};
   if (lim && lim.inbox === false) hidden.inbox = 1;   // still bounces off the tab
+  try { _emailTabSync(); } catch(e){}
   Object.keys(_NAV_PLAN_FEATURES).forEach(function(id){
     var b = document.getElementById(id); if (!b) return;
     var off = !!lim && lim[_NAV_PLAN_FEATURES[id]] === false;
@@ -13645,6 +13688,9 @@ async function _swSave(){
       branding: S.settings.branding, quote_defaults: S.settings.quote_defaults,
       jms_keys: S.settings.jms_keys || {}, price_book: _pbOut,
       labour_pricing: S.settings.labour_pricing || {},
+      // The company's products. This was missing, so everything set up in
+      // Settings → Products stayed in the browser it was typed into.
+      selectables: S.settings.selectables || null,
     });
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
     try { applyBranding(); } catch(e){}
@@ -13693,6 +13739,7 @@ function applyBranding(){
   // It goes INSIDE the company block, not as another row in .hdr-info: a
   // new row there grew the fixed sidebar header and pushed Sign out past the
   // bottom of the nav, where it could not be clicked at all.
+  try { _emailTabSync(); } catch(e){}
   try {
     var _u = {};
     try { _u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; } catch(e){}

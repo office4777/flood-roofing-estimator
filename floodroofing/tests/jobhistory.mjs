@@ -54,12 +54,51 @@ let v = await pg.evaluate(() => {
            inboxTabExists: !!document.getElementById('tab-inbox'),
            schedule: vis('navScheduleBtn'), quote: vis('navQuoteBtn') };
 });
-check('the Email item is off the left menu', !v.email, JSON.stringify(v));
+// Default ON where the plan allows it — the inbox is what the Business tier
+// sells, and a paid feature hidden until you find a switch is one nobody
+// knows they bought. A company turns it off for itself.
+check('the Email item is in the menu by default', v.email, JSON.stringify(v));
 check('…and so is Notifications, which the bell already does', !v.notif, JSON.stringify(v));
 check('the bell is still there', v.bell);
 check('…and the inbox itself is untouched — only the menu item went',
   v.inboxTabExists, String(v.inboxTabExists));
 check('the tabs that do the work are where they were', v.schedule && v.quote);
+
+// ── the company's own choice ──
+v = await pg.evaluate(() => {
+  S.settings = S.settings || {}; S.settings.branding = S.settings.branding || {};
+  _emailTabToggle(false);
+  const btn = document.getElementById('navInboxBtn');
+  return { shown: getComputedStyle(btn).display !== 'none',
+           saved: S.settings.branding.show_email_tab,
+           box: document.getElementById('brShowEmailTab').checked };
+});
+check('turning the Email tab off takes it out of the menu', !v.shown, JSON.stringify(v));
+check('…and remembers the choice on the company, not the device',
+  v.saved === false, JSON.stringify(v));
+check('…with the settings tick in step', v.box === false, JSON.stringify(v));
+v = await pg.evaluate(() => {
+  // A plan sync must not put it back — that was the bug the first time.
+  _navPlanSync();
+  return getComputedStyle(document.getElementById('navInboxBtn')).display !== 'none';
+});
+check('…and a plan sync does not put it back', !v, String(v));
+v = await pg.evaluate(() => {
+  _emailTabToggle(true);
+  return getComputedStyle(document.getElementById('navInboxBtn')).display !== 'none';
+});
+check('turning it back on returns it', v, String(v));
+v = await pg.evaluate(() => {
+  // A plan without the inbox hides it whatever the company says.
+  localStorage.setItem('fr_company', JSON.stringify({ id:'c1', role:'owner', plan:'solo',
+    limits:{ inbox:false, schedule:false } }));
+  _emailTabSync();
+  const r = getComputedStyle(document.getElementById('navInboxBtn')).display !== 'none';
+  localStorage.removeItem('fr_company');
+  return r;
+});
+check('a plan without the inbox hides it whatever the company chose', !v, String(v));
+await pg.evaluate(() => { _emailTabSync(); });
 
 // ── the selected-job block ──
 v = await pg.evaluate(() => {

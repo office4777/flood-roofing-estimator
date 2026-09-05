@@ -134,6 +134,31 @@ check('the job list still loads on a database missing the new column',
   r.status === 200 && r.body.length === 2 && r.body[0].created_by, 'status ' + r.status);
 db.__missing = [];
 
+// ── the products a business sells must reach the business ──────────────
+// selectables was never in the settings PUT, so everything a roofer set up
+// in Settings → Products — its steel grades, its own priced options, its
+// profiles and their cover widths — lived in the one browser it was typed
+// into. Not on their phone, not on the office machine, not for the team, and
+// gone with the cache.
+r = await api('PUT', '/settings', { branding: { company_name: 'Flood Roofing' },
+  quote_defaults: {}, jms_keys: {}, price_book: {}, labour_pricing: {},
+  selectables: { grades: [{ id:'maxam', name:'MAXAM', pct:0, base:true }], profiles: [], gutters: [],
+                 extras: [{ id:'gg', title:'Gutter guard', rows:[{id:'a',name:'No'},{id:'b',name:'Yes',price:1450}] }] } }, matt);
+check('the products a company sets up are saved to the company', r.status === 200, String(r.status));
+r = await api('GET', '/settings', null, aaron);
+check('…and the next person to open the app gets them',
+  !!(r.body && r.body.selectables && r.body.selectables.extras &&
+     r.body.selectables.extras[0].title === 'Gutter guard'),
+  JSON.stringify(r.body && r.body.selectables && Object.keys(r.body.selectables)));
+// An older build, or a partial save, carries no products — and must not wipe
+// the ones that are stored.
+r = await api('PUT', '/settings', { branding: { company_name: 'Flood Roofing' },
+  quote_defaults: {}, jms_keys: {}, price_book: {}, labour_pricing: {} }, matt);
+r = await api('GET', '/settings', null, aaron);
+check('…and a save that carries none does not erase them',
+  !!(r.body && r.body.selectables && r.body.selectables.extras),
+  JSON.stringify(r.body && r.body.selectables));
+
 // ── two functions with one name ────────────────────────────────────────
 // A helper added near the bottom of the file was called _companyMembers,
 // which was already the name of the id → name map _nameOf reads. The second

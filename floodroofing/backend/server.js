@@ -2437,7 +2437,7 @@ app.put('/settings/ui-flags', requireAuth, async (req, res) => {
 });
 
 app.put('/settings', requireAuth, async (req, res) => {
-  const { branding, quote_defaults, jms_keys, price_book, labour_pricing } = req.body;
+  const { branding, quote_defaults, jms_keys, price_book, labour_pricing, selectables } = req.body;
   const payload = {
     branding: branding || {},
     quote_defaults: quote_defaults || {},
@@ -2446,6 +2446,13 @@ app.put('/settings', requireAuth, async (req, res) => {
     labour_pricing: labour_pricing || {},
     updated_at: new Date().toISOString(),
   };
+  // The products a business sells — its steel grades, roof profiles, gutter
+  // profiles and its own priced options. This was never sent, so everything a
+  // roofer set up in Settings → Products lived in ONE browser: not on their
+  // phone, not on the office machine, not for anyone else on the team, and
+  // gone with the cache. Undefined means "the client did not carry them" —
+  // an older build, or a partial save — and must not erase what is stored.
+  if (selectables !== undefined) payload.selectables = selectables;
   try {
     const existing = await _companySettingsRow(req);
     // ── The flashing library must survive writers that don't know it ──
@@ -8393,6 +8400,9 @@ const _MIGRATION_SQL = [
   // Every customer update sent from the board, so the job history can say
   // what was sent and when, not just that something was.
   "alter table public.schedule_rows add column if not exists notify_log jsonb",
+  // The company's own product list (Settings → Products). Null means the
+  // shipped list, which is what every account that has never touched it has.
+  "alter table public.user_settings add column if not exists selectables jsonb",
   // A company's own version of the checklist an acceptance raises. Null =
   // the shipped default, which is what every existing business gets.
   "alter table public.user_settings add column if not exists acceptance_tasks jsonb",
