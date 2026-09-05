@@ -20340,7 +20340,7 @@ function _selWorking(){
 function _selKindList(kind){ var w = _selWorking(); return w[kind] || []; }
 function _selEdit(kind, i, field, val){
   var list = _selKindList(kind), row = list[i]; if (!row) return;
-  if (field === 'pct' || field === 'extBracketLm') {
+  if (field === 'pct' || field === 'extBracketLm' || field === 'coverMm') {
     var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
   } else if (field === 'scaffoldUplift' || field === 'base') {
     row[field] = !!val;
@@ -20367,7 +20367,7 @@ function _selAdd(kind){
   var list = _selKindList(kind);
   var id = kind.slice(0, 1) + '_' + Date.now().toString(36);
   if (kind === 'grades')        list.push({ id: id, name: 'New grade', pct: 0, desc: '' });
-  else if (kind === 'profiles') list.push({ id: id, name: 'New profile', locksGauge: '', desc: '' });
+  else if (kind === 'profiles') list.push({ id: id, name: 'New profile', locksGauge: '', coverMm: 762, desc: '' });
   else                          list.push({ id: id, name: 'New gutter', scaffoldUplift: true, extBracketLm: 0, desc: '' });
   renderSelectablesUI();
 }
@@ -20464,10 +20464,11 @@ function renderSelectablesUI(){
           '<td>' + inp('grades', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('profiles', 'Roof profiles',
-      'If a profile is only supplied in one gauge, put it here — choosing that profile then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere.',
-      '<th>Name</th><th style="width:110px">Locks gauge</th><th>Shown to the customer as</th>',
+      'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere.',
+      '<th>Name</th><th style="width:110px">Cover (mm)</th><th style="width:110px">Locks gauge</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('profiles', i, 'name', r.name, 'Profile name') + '</td>' +
+          '<td>' + inp('profiles', i, 'coverMm', r.coverMm, '762', ' type="number" step="1" min="100" max="2000" title="The width ONE sheet covers once lapped — what the sheet count is worked out from"') + '</td>' +
           '<td><select onchange="_selEdit(\'profiles\',' + i + ',\'locksGauge\',this.value)" style="width:100%;font-size:12px;padding:4px 6px;margin:0">' +
             '<option value=""' + (!r.locksGauge ? ' selected' : '') + '>No</option>' +
             '<option value="40"' + (r.locksGauge === '40' ? ' selected' : '') + '>0.40 only</option>' +
@@ -20677,9 +20678,13 @@ function _defaultSelectables(){
       { id:'zincalume',  name:'Zincalume® (unpainted)', pct: -0.327 }
     ],
     profiles: [
-      { id:'corrugate', name:'Corrugate', locksGauge: '',
+      // coverMm is the EFFECTIVE cover — the width one sheet actually covers
+      // once it is lapped, which is what the sheet count divides by. Both
+      // shipped profiles are 762, the same figure the sheet-layout settings
+      // have always defaulted to, so nothing about an existing job moves.
+      { id:'corrugate', name:'Corrugate', locksGauge: '', coverMm: 762,
         desc:'The classic corrugated profile — proven, versatile and the standard choice for most homes.' },
-      { id:'5rib', name:'5-Rib', locksGauge: '55',
+      { id:'5rib', name:'5-Rib', locksGauge: '55', coverMm: 762,
         desc:'Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade.' }
     ],
     gutters: [
@@ -21616,13 +21621,67 @@ function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v
 // easily), so picking it forces + locks the thickness to 0.55 (which carries the
 // +22% gauge price); Corrugate frees the thickness choice again, defaulting back
 // to the standard 0.40.
+// The cover width a profile lays at, if it declares one. Absent means "leave
+// the sheet-layout setting alone" — which is every job that existed before
+// profiles carried a width.
+function _selProfileCoverMm(id){
+  var pr = _selProfileOf(id);
+  var n = pr ? parseFloat(pr.coverMm) : NaN;
+  return (isFinite(n) && n >= 100 && n <= 2000) ? n : 0;
+}
+// Choosing a profile is choosing a sheet width: a 500mm-cover tray needs
+// half again as many sheets as 762mm corrugate over the same roof. The sheet
+// count, the cut list and the material cost all read #sheetWidth, so setting
+// it here is what makes the profile mean anything.
+function _applyProfileCover(id){
+  var mm = _selProfileCoverMm(id);
+  if (!mm) return false;
+  var el = document.getElementById('sheetWidth');
+  if (!el || parseFloat(el.value) === mm) return false;
+  el.value = String(mm);
+  try { renderSheetLayout(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _autoSyncLabourMaterials(); } catch(e){}
+  return true;
+}
 function _setProposalOption_profile(v){
   if (!S.quote || _qpAcceptedLock()) return;
   if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
   var _lk = _selProfileLocksGauge(v);
   if (_lk)                    S.quote.proposalOptions.steelThickness = _lk;
   else if (v === 'corrugate') S.quote.proposalOptions.steelThickness = '40';
+  // Office only: the customer's browser has no sheet-layout settings and no
+  // business recomputing a take-off.
+  if (!window.__CUSTOMER_MODE) { try { _applyProfileCover(v); } catch(e){} }
   _setProposalOption('profile', v);
+}
+// "＋ Add a profile" — from Settings, or straight off the quote's profile card
+// when a customer asks for something the company has not set up yet. Name and
+// effective cover, saved to the company's own product list, selected on this
+// quote, and there for every quote after it.
+function _selAddProfilePrompt(pick){
+  if (window.__CUSTOMER_MODE) return null;
+  var name = prompt('What is this profile called?\n\ne.g. Trimrib, Multiclad, 5-Rib 800');
+  if (name == null) return null;
+  name = String(name).trim();
+  if (!name){ alert('A profile needs a name.'); return null; }
+  var raw = prompt('Effective cover width for ' + name + ', in millimetres.\n\n' +
+    'This is the width ONE sheet covers once it is lapped — not the sheet\'s overall width. ' +
+    'It is what the number of sheets is worked out from.\n\ne.g. 762 for corrugate, 500 for a tray');
+  if (raw == null) return null;
+  var mm = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
+  if (!isFinite(mm) || mm < 100 || mm > 2000){
+    alert('That cover width does not look right — it should be somewhere between 100mm and 2000mm.');
+    return null;
+  }
+  var list = _selKindList('profiles');
+  var id = 'p_' + Date.now().toString(36);
+  list.push({ id: id, name: name.slice(0, 60), locksGauge: '', coverMm: Math.round(mm), desc: '' });
+  try { renderSelectablesUI(); } catch(e){}
+  try { if (typeof saveSettings === 'function') saveSettings(); } catch(e){}
+  if (pick !== false) { try { _setProposalOption_profile(id); } catch(e){} }
+  try { refreshQuoteProposal(); } catch(e){}
+  return id;
 }
 function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
@@ -28458,7 +28517,15 @@ function refreshQuoteProposal(){
         // panels number down the left column then down the right (01, 02 …).
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;align-items:start">'+
           '<div style="display:grid;gap:6px;align-content:start">'+
-            selPanel('Roof profile', selCard('profile', PROFILES, pOpts.profile || 'corrugate', '_setProposalOption_profile', { flat: true }))+
+            selPanel('Roof profile', selCard('profile', PROFILES, pOpts.profile || 'corrugate', '_setProposalOption_profile', { flat: true }) +
+              // Office only. A customer asks for a profile the company has
+              // not set up; rather than leaving the quote to be rebuilt
+              // later, it goes on the card here and into the product list at
+              // the same time. The customer's copy never shows this.
+              (window.__CUSTOMER_MODE ? '' :
+                '<div class="no-print" style="border-top:1px solid var(--ed-line);padding:5px 12px;background:#fbfaf7">' +
+                '<button type="button" onclick="_selAddProfilePrompt()" style="background:none;border:none;padding:0;color:#0099cc;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;cursor:pointer">＋ Show another option — add a profile</button>' +
+                '<span style="font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-ink-2);margin-left:8px">its cover width sets the sheet count</span></div>'))+
             selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true, noWarranty: true }))+
             // 5-Rib forces + locks 0.55 gauge (no 0.40 5-Rib on offer). Show a
             // locked 0.55 row then; Corrugate shows the normal thickness picker.
