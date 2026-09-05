@@ -127,7 +127,17 @@ check('…and saying no keeps you signed in', declined.tok === 't', JSON.stringi
 // Yes means yes: the session is dropped and the reload returns the page to
 // the login screen. The wait is on the CONDITION, not a stopwatch — a slow
 // reload on a shared runner is not a bug.
-await pg.evaluate(() => { window.__confirmAnswer = true; });
+await pg.evaluate(() => {
+  window.__confirmAnswer = true;
+  // Did the click reach the handler at all? Recorded in sessionStorage,
+  // which survives the reload sign-out causes — window does not.
+  var real = window._navSignOut;
+  window._navSignOut = function(){
+    try { sessionStorage.setItem('__signout', 'entered'); } catch(e){}
+    return real.apply(this, arguments);
+  };
+  try { sessionStorage.removeItem('__signout'); } catch(e){}
+});
 await Promise.all([ pg.waitForNavigation({ timeout: 20000 }).catch(() => null),
                     pg.click('#navSignOutBtn') ]);
 await pg.waitForFunction(() => !localStorage.getItem('fr_token'), null, { timeout: 20000 }).catch(() => null);
@@ -144,6 +154,7 @@ const after = await pg.evaluate(() => ({
   co: localStorage.getItem('fr_company'),
   asked: (window.__confirms || []).length,
   askedEver: sessionStorage.getItem('__asked'),
+  entered: sessionStorage.getItem('__signout'),
   loads: sessionStorage.getItem('__loads'),
   err: sessionStorage.getItem('__err'),
   seeded: sessionStorage.getItem('__seeded'),
