@@ -2920,6 +2920,32 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
           const c = String(po.colour).slice(0, 60);
           if (c) quote.proposalOptions.colour = c;
         }
+        // The company's own priced options. There is no fixed allow-list to
+        // check these against — the groups are whatever the roofer made — so
+        // the guard is the SHAPE and the quote's own snapshot: a group id and
+        // a choice id, both plain and short, and only ones this quote
+        // actually carries. A payload naming a group that is not on this
+        // quote, or a choice that is not in that group, is dropped rather
+        // than stored, so nothing can be talked onto a quote from outside.
+        if (po.extras && typeof po.extras === 'object' && !Array.isArray(po.extras)) {
+          const ID = /^[A-Za-z0-9_-]{1,40}$/;
+          const known = ((quote.share || {}).priced || {}).extras || {};
+          const snap = quote.selectablesSnapshot || {};
+          const listed = Array.isArray(snap.extras) ? snap.extras : [];
+          const ex = {};
+          for (const gid of Object.keys(po.extras).slice(0, 30)) {
+            if (!ID.test(gid)) continue;
+            const rid = String(po.extras[gid] == null ? '' : po.extras[gid]);
+            if (!ID.test(rid)) continue;
+            // Known from the priced block the office stamped at send, or from
+            // the products snapshot that rode with the quote.
+            const fromPriced = known[gid] && known[gid].rows && known[gid].rows[rid];
+            const grp = listed.find(g => g && g.id === gid);
+            const fromSnap = grp && Array.isArray(grp.rows) && grp.rows.some(r => r && r.id === rid);
+            if (fromPriced || fromSnap) ex[gid] = rid;
+          }
+          quote.proposalOptions.extras = ex;
+        }
         // Index-keyed booleans. Bounded by the extra roofs this quote actually
         // carries (older quotes that predate the stash fall back to a hard cap)
         // so a crafted payload can't grow the stored object. Only the ticked

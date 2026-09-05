@@ -20371,6 +20371,54 @@ function _selAdd(kind){
   else                          list.push({ id: id, name: 'New gutter', scaffoldUplift: true, extBracketLm: 0, desc: '' });
   renderSelectablesUI();
 }
+// ── editing the company's own option groups ─────────────────────────────
+function _selExtrasRaw(){
+  var w = _selWorking();
+  if (!Array.isArray(w.extras)) w.extras = [];
+  return w.extras;
+}
+function _selExtraAddGroup(){
+  _selExtrasRaw().push({
+    id: 'x' + Date.now().toString(36),
+    title: 'New option',
+    rows: [
+      { id: 'r' + Date.now().toString(36) + 'a', name: 'Not included', desc: '', price: 0 },
+      { id: 'r' + Date.now().toString(36) + 'b', name: 'Added', desc: '', price: 0 },
+    ],
+  });
+  renderSelectablesUI();
+}
+function _selExtraDelGroup(gi){
+  var g = _selExtrasRaw()[gi]; if (!g) return;
+  if (!confirm('Remove "' + (g.title || 'this option') + '" from your quotes?\n\nQuotes already sent keep it.')) return;
+  _selExtrasRaw().splice(gi, 1);
+  renderSelectablesUI();
+  try { refreshQuoteProposal(); } catch(e){}
+}
+function _selExtraSetTitle(gi, v){
+  var g = _selExtrasRaw()[gi]; if (!g) return;
+  g.title = String(v == null ? '' : v);
+  try { refreshQuoteProposal(); } catch(e){}
+}
+function _selExtraAddRow(gi){
+  var g = _selExtrasRaw()[gi]; if (!g) return;
+  (g.rows = g.rows || []).push({ id: 'r' + Date.now().toString(36), name: 'Another choice', desc: '', price: 0 });
+  renderSelectablesUI();
+}
+function _selExtraDelRow(gi, ri){
+  var g = _selExtrasRaw()[gi]; if (!g || !g.rows) return;
+  if (ri === 0){ alert('The first choice is what the quote already includes — every other price is an addition to it. Rename it instead.'); return; }
+  if (g.rows.length <= 2){ alert('An option needs at least two choices: what is included, and what the customer can add.'); return; }
+  g.rows.splice(ri, 1);
+  renderSelectablesUI();
+  try { refreshQuoteProposal(); } catch(e){}
+}
+function _selExtraSetRow(gi, ri, field, v){
+  var g = _selExtrasRaw()[gi]; if (!g || !g.rows || !g.rows[ri]) return;
+  if (field === 'price'){ var n = parseFloat(v); g.rows[ri].price = isFinite(n) ? n : 0; }
+  else g.rows[ri][field] = String(v == null ? '' : v);
+  try { refreshQuoteProposal(); } catch(e){}
+}
 function _selResetAll(){
   if (!confirm('Put the steel grades, profiles and gutters back to the ones RoofMap ships with?\n\nQuotes you have already sent are not affected.')) return;
   S.settings.selectables = _defaultSelectables();
@@ -20467,6 +20515,43 @@ function renderSelectablesUI(){
         '<th>Called</th><th>Described as</th><th style="width:70px">Hide</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div>';
     }).join('') +
+    // Whatever else this company sells.
+    '<div style="margin-bottom:20px;padding-top:14px;border-top:1px solid var(--border)">' +
+      '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">Your own options</div>' +
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Anything else you sell — gutter guard, ridge vents, a wash-down, a longer warranty. Each one is a group of choices on the customer\'s Selections page. The <strong>first choice is what the quote already includes</strong>; every other one adds its price to the total, ex-GST. The customer cannot tell these from the options RoofMap ships.</div>' +
+      _selExtrasRaw().map(function(g, gi){
+        var rows = (g.rows || []).map(function(r, ri){
+          var f = function(field, v, ph, extra){
+            return '<input value="' + esc(v == null ? '' : String(v)) + '" placeholder="' + esc(ph) + '"' +
+              (extra || '') + ' onchange="_selExtraSetRow(' + gi + ',' + ri + ',\'' + field + '\',this.value)"' +
+              ' style="width:100%;font-size:12px;padding:5px 7px;margin:0">';
+          };
+          return '<tr><td>' + f('name', r.name, 'Choice name') + '</td>' +
+            '<td>' + f('desc', r.desc, 'Shown to the customer as') + '</td>' +
+            '<td>' + (ri === 0
+              ? '<span style="font-size:10.5px;color:var(--text2)">included</span>'
+              : f('price', r.price, '0.00', ' type="number" step="0.01" min="0"')) + '</td>' +
+            '<td style="text-align:right">' + (ri === 0 ? '' :
+              '<button type="button" onclick="_selExtraDelRow(' + gi + ',' + ri + ')" title="Remove this choice"' +
+              ' style="width:24px;height:24px;border:none;border-radius:6px;background:#f1f5f9;color:#64748b;font-size:12px;cursor:pointer">✕</button>') +
+            '</td></tr>';
+        }).join('');
+        return '<div style="border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:10px">' +
+          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">' +
+            '<input value="' + esc(g.title || '') + '" placeholder="What this group is called"' +
+              ' onchange="_selExtraSetTitle(' + gi + ',this.value)"' +
+              ' style="flex:1;font-size:12.5px;font-weight:700;padding:5px 8px;margin:0">' +
+            '<button type="button" onclick="_selExtraDelGroup(' + gi + ')"' +
+              ' style="padding:5px 11px;border:1px solid #f3c0c0;border-radius:7px;background:#fff;color:#b91c1c;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Remove</button>' +
+          '</div>' +
+          '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
+            '<th>Choice</th><th>Described as</th><th style="width:110px">Adds ($ ex-GST)</th><th style="width:44px"></th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>' +
+          '<button type="button" onclick="_selExtraAddRow(' + gi + ')" style="margin-top:6px;padding:5px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add a choice</button>' +
+          '</div>';
+      }).join('') +
+      '<button type="button" onclick="_selExtraAddGroup()" style="padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add an option of your own</button>' +
+    '</div>' +
     '<button type="button" onclick="_selResetAll()" style="padding:6px 14px;background:none;border:none;color:#0099cc;font-size:11.5px;cursor:pointer;text-decoration:underline;font-family:inherit;padding-left:0">↻ Back to the products RoofMap ships with</button>';
 }
 
@@ -20481,6 +20566,65 @@ function renderSelectablesUI(){
 // The first row of each group is the standard, the one every price is
 // measured from. It can be renamed but never hidden: a card with no standard
 // on it has nothing for the others to be a difference FROM.
+// ── the company's OWN priced options ────────────────────────────────────
+// The seven groups on the Selections page are the ones RoofMap knows how to
+// price. A roofing company sells things RoofMap has never heard of — gutter
+// guard, ridge vents, a wash-down, a longer warranty — and had no way to put
+// them in front of a customer.
+//
+// An extra group is a title and a list of choices, each with a price the
+// company types in. The first choice is what the quote already includes at no
+// change; every other one adds its price. Unlike grades or gauge there is no
+// engine behind these: the number the roofer typed IS the number, ex-GST,
+// which is what makes them safe to invent.
+// Ids reach an onclick attribute, so they are held to letters, digits, dash
+// and underscore — a group whose id came back from storage as something else
+// is skipped rather than written into markup. Titles and names are free text
+// and are escaped where they are printed.
+function _selIdOk(v){ return /^[A-Za-z0-9_-]{1,40}$/.test(String(v == null ? '' : v)); }
+function _selExtras(){
+  // _selectables(), not _selWorking(): the snapshot the quote carries wins
+  // over the company's current list, exactly as it does for grades and
+  // gutters. _selWorking() is the settings row — on a customer's page there
+  // is no settings row at all, so reading it there would drop every one of
+  // these groups off the quote they were sent.
+  var list = (_selectables() || {}).extras;
+  if (!Array.isArray(list)) return [];
+  return list.filter(function(g){
+    return g && !g.removed && _selIdOk(g.id) && String(g.title || '').trim() &&
+           Array.isArray(g.rows) && g.rows.length >= 2 &&
+           g.rows.every(function(r){ return r && _selIdOk(r.id); });
+  });
+}
+// What the customer has picked, per group. Absent means the first choice —
+// so a group added after a quote was sent never silently charges for
+// something nobody chose.
+function _selExtraPick(g){
+  var p = ((window.S && S.quote && S.quote.proposalOptions) || {}).extras || {};
+  var want = p[g.id];
+  var hit = (g.rows || []).find(function(r){ return r.id === want; });
+  return hit || (g.rows || [])[0] || null;
+}
+function _selExtraPrice(r){ var n = parseFloat(r && r.price); return isFinite(n) ? n : 0; }
+// Ex-GST, like every other entry in _qpSelectionChanges. The first row is the
+// baseline, so its price is never charged even if somebody typed one in.
+function _selExtraDelta(g, row){
+  if (!g || !row) return 0;
+  if ((g.rows || [])[0] && g.rows[0].id === row.id) return 0;
+  return _selExtraPrice(row);
+}
+function _setProposalOption_extra(groupId, rowId){
+  if (!window.S || !S.quote) return;
+  // Ask the lock BEFORE writing anything: an accepted quote's selections are
+  // frozen, and building the new map first would change it and then decline
+  // to save, which is the worst of both.
+  if (typeof _qpAcceptedLock === 'function' && _qpAcceptedLock()) return;
+  var cur = (S.quote.proposalOptions || {}).extras;
+  var next = {};
+  if (cur && typeof cur === 'object') Object.keys(cur).forEach(function(k){ next[k] = cur[k]; });
+  next[groupId] = rowId;
+  _setProposalOption('extras', next);
+}
 function _selCopy(){
   var w = _selWorking();
   if (!w.copy || typeof w.copy !== 'object') w.copy = {};
@@ -21102,6 +21246,13 @@ function _qpSelectionChanges(){
       delta: _gutterDelta()
     });
   }
+  // The company's own priced options, last — they are additions to a
+  // finished scope, and they read that way on the summary.
+  _selExtras().forEach(function(g){
+    var row = _selExtraPick(g);
+    var d = _selExtraDelta(g, row);
+    if (d) out.push({ label: (g.title || 'Option') + ' — ' + (row.name || row.id), delta: d });
+  });
   return out;
 }
 // ── SELL PRICES, NOT COST AND MARKUP ────────────────────────────────
@@ -21180,6 +21331,18 @@ function _qpBuildPriced(){
   });
   // Downpipes are priced per gutter LINE and do not vary by product, but they
   // are only charged once a gutter is on — mirrored by the reader.
+  // The company's own priced options ride along too, so a customer holding a
+  // sent quote keeps the price they were shown even if the office reprices
+  // or renames the option afterwards — the same rule every other product on
+  // this page follows.
+  out.extras = {};
+  _selExtras().forEach(function(g){
+    var rows = {};
+    (g.rows || []).forEach(function(r, i){
+      rows[r.id] = { name: r.name || r.id, price: (i === 0 ? 0 : _selExtraPrice(r)) };
+    });
+    out.extras[g.id] = { title: g.title || '', first: (g.rows[0] || {}).id || '', rows: rows };
+  });
   return out;
 }
 // The priced block a customer page should read, if this quote carries one.
@@ -21224,6 +21387,18 @@ function _qpSelectionChangesPriced(P){
     if (p.downpipes === 'yes')
       out.push({ label: 'New downpipes', delta: P.downpipes || 0 });
   }
+  // The company's own options, from the prices stamped at send. Read from the
+  // snapshot and not from settings, so repricing an option does not change a
+  // quote somebody is holding.
+  var _ex = (p.extras && typeof p.extras === 'object') ? p.extras : {};
+  Object.keys(P.extras || {}).forEach(function(gid){
+    var g = P.extras[gid] || {};
+    var pickId = _ex[gid] || g.first;
+    if (!pickId || pickId === g.first) return;          // the included choice
+    var row = (g.rows || {})[pickId];
+    if (!row || !(+row.price)) return;
+    out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
+  });
   return out;
 }
 
@@ -28326,7 +28501,29 @@ function refreshQuoteProposal(){
             selCard('disposal', DISPOSAL, pOpts.disposal || 'dispose', '_setProposalOption_disposal', { flat: true, compact: true })+
             '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:4px 12px 5px;line-height:1.35;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
           )+
-        '</div>';
+        '</div>'+
+        // Whatever else this company sells. Same card, same numbering, same
+        // behaviour as every group above it — the customer cannot tell which
+        // ones RoofMap ships and which ones the roofer added, which is the
+        // point.
+        _selExtras().map(function(g){
+          var pick = _selExtraPick(g);
+          var rows = (g.rows || []).map(function(r, i){
+            return { id: r.id, label: r.name || r.id, isDefault: (i === 0),
+                     delta: _dIncl(_selExtraDelta(g, r)), desc: r.desc || '' };
+          });
+          return '<div style="margin-bottom:6px">' +
+            selPanel(esc2(g.title || 'Options'),
+              // selCard emits `<fn>('<row id>')`, so the group is bound in
+              // here rather than smuggled through the row id.
+              selCard('extra:' + g.id, rows, (pick && pick.id) || rows[0].id,
+                      "_setProposalOption_extra.bind(null,'" + g.id + "')",
+                      // NOT compact: the description is the roofer's sales
+                      // pitch for something the customer has never heard of,
+                      // and compact hides it.
+                      { flat: true })) +
+            '</div>';
+        }).join('');
     }
 
     partColorsteel =
