@@ -5742,6 +5742,8 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
   'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder'];
+// notify_log is deliberately NOT writable from the client: it is the record
+// of what the server actually sent.
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   const patch = {};
   for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
@@ -5917,8 +5919,21 @@ app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
       fromAddress: _tenantSendAddress(req.companyId, brand.company_name, replyTo) || undefined,
     });
     const stamp = new Date().toISOString();
+    // last_notified is one timestamp — it answers "have we told them?" and
+    // nothing else. The job history needs "what did we tell them, and when",
+    // so every send is appended to a log as well. Capped, newest last; the
+    // subject is kept, the body is not (it is already in the customer's
+    // inbox, and a job row is not the place to keep a copy of every letter).
+    let log = [];
+    try {
+      const { data: cur } = await _scopeCompany(supabase.from('schedule_rows')
+        .select('notify_log'), req).eq('id', req.params.id).maybeSingle();
+      if (cur && Array.isArray(cur.notify_log)) log = cur.notify_log;
+    } catch (e) {}
+    log.push({ at: stamp, to: String(b.to).slice(0, 200), subject: String(b.subject).slice(0, 250) });
+    if (log.length > 50) log = log.slice(-50);
     await _scopeCompany(supabase.from('schedule_rows')
-      .update({ last_notified: stamp }), req).eq('id', req.params.id);
+      .update({ last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
     res.json({ ok: true, last_notified: stamp });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
@@ -8375,6 +8390,9 @@ const _MIGRATION_SQL = [
   // final invoice issued. Empty means the main list, so every existing row
   // stays exactly where it is.
   "alter table public.schedule_rows add column if not exists folder text not null default ''",
+  // Every customer update sent from the board, so the job history can say
+  // what was sent and when, not just that something was.
+  "alter table public.schedule_rows add column if not exists notify_log jsonb",
   // A company's own version of the checklist an acceptance raises. Null =
   // the shipped default, which is what every existing business gets.
   "alter table public.user_settings add column if not exists acceptance_tasks jsonb",

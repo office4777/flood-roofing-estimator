@@ -3939,11 +3939,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
          title="Tap to swap or edit the selected job"
          style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
          onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:2px">
-        <span style="color:var(--text2)">Selected job</span>
-        <span style="color:#0099cc;letter-spacing:.04em;flex-shrink:0">Change ▾</span>
-      </div>
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
+      <!-- Job number, then who it is for, then where it is. Three lines
+           because that is how a roofer says it out loud. -->
+      <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
+      <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
+      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
     </div>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
@@ -3970,8 +3975,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" id="navScheduleBtn" onclick="gotoTab('schedule')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5H14 M5 1.5v3 M11 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.5 9.5h3 M4.5 11.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Schedule</button>
-  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Email</button>
-  <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
+  <!-- Email and Notifications are off the left menu. Notifications was the
+       same list as the bell at the top of every tab, in two places. The
+       inbox tab is still THERE — gotoTab('inbox') works and every suite that
+       drives it is untouched — it just is not in the menu: emailing a
+       customer happens where the work is, on the quote and on the schedule
+       board. Both buttons stay in the DOM, hidden, because the bell's badge
+       writes into #qnBadge and the plan gate hides #navInboxBtn by id. -->
+  <button class="nav-btn" id="navInboxBtn" onclick="gotoTab('inbox')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.3"/><path d="m2.5 4.5 5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Email</button>
+  <button class="nav-btn" id="navNotifBtn" onclick="_qnToggle()" style="display:none;position:relative"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4.2 3.7 4.2 5.9V8.6L3 11H13L11.8 8.6V5.9C11.8 3.7 10.2 2 8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Notifications<span id="qnBadge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 7px;line-height:1.5"></span></button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
        kept so legacy gotoTab('order') calls don't blow up. -->
@@ -4031,6 +4043,17 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </div>
   <input type="text" id="gtbTodoNew" placeholder="Jot something down… (Enter)" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;margin-bottom:8px">
   <div id="gtbTodoItems"></div>
+</div>
+<!-- Job history: what has happened on this job and when. Assembled from
+     what the job already carries — nothing new is recorded for it. -->
+<div id="jobHistOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_jobHistoryClose()"></div>
+<div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+  <div style="background:#ea580c;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+    <strong style="flex:1;font-size:14px">Job history</strong>
+    <span id="jobHistWho" style="font-size:12px;opacity:.9"></span>
+    <button onclick="_jobHistoryClose()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+  </div>
+  <div id="jobHistBody" style="padding:14px 18px;overflow-y:auto;font-size:12.5px"></div>
 </div>
 <div class="global-job-bar no-print" id="globalJobBar" style="display:none">
   <div class="gjb-row">
@@ -9317,6 +9340,28 @@ function _ibxAvColor(key){
   for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return _IBX_AV_COLS[h % _IBX_AV_COLS.length];
 }
+// A column per teammate, each a different colour. The avatar colour is a
+// hash of the user id, which is stable but says nothing about the OTHER
+// people on the board — two teammates could land on the same colour, and on
+// a five-column board that is the difference between reading it at a glance
+// and having to read the names. Each column keeps its own colour where it
+// can and takes the next free one where it cannot, so no two columns beside
+// each other are ever the same.
+function _ibxColColors(keys){
+  var used = {}, out = [];
+  (keys || []).forEach(function(k, i){
+    var want = k ? _ibxAvColor(k) : '#b45309';           // Unassigned is amber
+    if (used[want]){
+      for (var n = 0; n < _IBX_AV_COLS.length; n++){
+        var c = _IBX_AV_COLS[(n + i) % _IBX_AV_COLS.length];
+        if (!used[c]){ want = c; break; }
+      }
+    }
+    used[want] = 1;
+    out.push(want);
+  });
+  return out;
+}
 function _ibxAvatar(name, key, size){
   size = size || 30;
   return '<span class="ibx-av" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + _ibxAvColor(key || name) +
@@ -9340,11 +9385,15 @@ function _planLimits(){
 // different hat: every one of them calls /inbox/... , which the server
 // refuses below Business. Leaving them visible on Solo is a button that
 // only ever produces an error.
-var _NAV_PLAN_FEATURES = { navInboxBtn: 'inbox', navScheduleBtn: 'schedule',
+// navInboxBtn is deliberately NOT here any more: the Email item is off the
+// left menu for everybody, so a plan sync must not put it back. The inbox is
+// still plan-gated where it matters — the tab itself, and the server.
+var _NAV_PLAN_FEATURES = { navScheduleBtn: 'schedule',
   gtbChatBtn: 'inbox', gtbTasksBtn: 'inbox', gtbTodoBtn: 'inbox' };
 function _navPlanSync(){
   var lim = _planLimits();
   var hidden = {};
+  if (lim && lim.inbox === false) hidden.inbox = 1;   // still bounces off the tab
   Object.keys(_NAV_PLAN_FEATURES).forEach(function(id){
     var b = document.getElementById(id); if (!b) return;
     var off = !!lim && lim[_NAV_PLAN_FEATURES[id]] === false;
@@ -10529,17 +10578,18 @@ function _ibxTasksRender(){
   var cols = [{ id: '', name: 'Unassigned' }].concat((_IBX.members || []).map(function(m){
     return { id: m.id, name: m.name || (m.email || '').split('@')[0] || 'Teammate' };
   }));
-  el.innerHTML = cols.map(function(c){
+  var _colCols = _ibxColColors(cols.map(function(c){ return c.id; }));
+  el.innerHTML = cols.map(function(c, _ci){
     var cards = (_IBX.tasks || []).filter(function(t){ return !t.personal && (t.assignee_user_id || '') === c.id; });
     var open = cards.filter(function(t){ return !t.done; }).length;
-    var ccol = c.id ? _ibxAvColor(c.id) : '#b45309';
+    var ccol = _colCols[_ci];
     return '<div class="ibx-tcol" data-tcol="' + c.id + '" style="border-top-color:' + ccol + ';background:' + ccol + '12">' +
       '<div class="th"><span style="width:8px;height:8px;border-radius:50%;background:' + ccol + ';display:inline-block;margin-right:5px;flex:0 0 auto"></span>' +
       '<span style="color:' + ccol + ';font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _ibxEsc(c.name) + '</span>' +
       '<span style="color:#94a3b8;font-weight:600">' + open + '</span></div>' +
       cards.map(function(t){
         var over = t.due_date && t.due_date < today && !t.done;
-        return '<div class="ibx-task' + (t.done ? ' done' : '') + '" draggable="true" data-task="' + t.id + '" style="border-left:3px solid ' + (t.assignee_user_id ? _ibxAvColor(t.assignee_user_id) : '#b45309') + '">' +
+        return '<div class="ibx-task' + (t.done ? ' done' : '') + '" draggable="true" data-task="' + t.id + '" style="border-left:3px solid ' + ccol + '">' +
           '<div style="display:flex;gap:7px;align-items:flex-start">' +
           '<input type="checkbox"' + (t.done ? ' checked' : '') + ' data-tdone="' + t.id + '" title="Done">' +
           '<div style="flex:1;min-width:0"><div class="tt">' + _ibxEsc(t.title) + '</div>' +
@@ -14109,6 +14159,9 @@ function restoreFromJob(j){
   // it back, and the server refuses to overwrite a row that has moved since
   // — which is how two people on one job stop losing each other's work.
   try { if (j.id) S._jobLoaded = { id: j.id, updatedAt: j.updated_at || null }; } catch(e){}
+  // When the job came in — the first date the history window shows, and the
+  // only one that is not already somewhere in the quote.
+  try { S.jobCreatedAt = j.created_at || null; } catch(e){}
   var snap = j.draw_state || {};
   if (snap.form) {
     Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
@@ -14303,9 +14356,28 @@ function updateGlobalJobBar(j){
     var navLabel = savedOrLinked ? label
       : (draftClient || draftAddr) ? ((draftClient || draftAddr) + ' — new (unsaved)')
       : 'No job selected';
-    navName.textContent = navLabel;
+    // The number is what the office and the crew say out loud, so it leads;
+    // the client and the street sit under it. A job with no number yet still
+    // names itself rather than showing a blank line.
+    var _no = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
+    var _client = draftClient || ((window.S && S.quote && S.quote.client) || '');
+    var _addr = draftAddr || ((window.S && S.quote && S.quote.addr) || '');
+    var noEl = document.getElementById('navJobNo');
+    if (noEl){
+      noEl.textContent = _no ? ('Job ' + _no) : '';
+      noEl.style.display = _no ? '' : 'none';
+    }
+    navName.textContent = _client || navLabel;
     navName.style.color = hasJob ? '#0a1628' : 'var(--text2)';
     navName.style.fontStyle = hasJob ? 'normal' : 'italic';
+    var adEl = document.getElementById('navJobAddr');
+    if (adEl){
+      adEl.textContent = _addr || '';
+      adEl.style.display = _addr ? '' : 'none';
+      adEl.title = _addr || '';
+    }
+    var btns = document.getElementById('navJobBtns');
+    if (btns) btns.style.display = hasJob ? 'flex' : 'none';
     // No job selected → show the "New Job / Select Job" button in the sidebar
     // (opens the same chooser as the Home tile); otherwise show the job name.
     var navInfo = document.getElementById('navJobInfo');
@@ -14408,6 +14480,101 @@ function _fergusDisplayNo(){
   return S.linkedJobNo || S.linkedJobId || '';
 }
 var _lastJobForChip = null;
+// ── job history ─────────────────────────────────────────────────────────
+// Every date on this job in one place: when it came in, when the quote went
+// out, when it was accepted, when the roof was ordered, and every update the
+// office has emailed the customer from the schedule board.
+//
+// Nothing is recorded specially for this — it reads what the job already
+// carries. A date that is not there is shown as not yet done rather than
+// left off, because "no order sent" is the answer somebody came here for.
+function _jobHistRows(){
+  var q = (window.S && S.quote) || {};
+  var sh = q.share || {};
+  var out = [];
+  var first = (sh.events || []).length ? sh.events[0].at : null;
+  out.push({ k:'enquiry', icon:'📩', label:'Enquiry',
+             at: (window.S && S.jobCreatedAt) || first || null,
+             note:'When this job first came in' });
+  out.push({ k:'sent', icon:'📤', label:'Quote sent', at: sh.sentAt || null,
+             note: sh.sentTotal ? ('Sent at ' + fmtMoney(sh.sentTotal)) : '' });
+  var opened = (sh.events || []).filter(function(e){ return e.type === 'opened'; });
+  if (opened.length) out.push({ k:'opened', icon:'👀', label:'Customer opened it',
+    at: opened[opened.length - 1].at,
+    note: opened.length > 1 ? (opened.length + ' times') : '' });
+  if (sh.query) out.push({ k:'queried', icon:'❓', label:'Customer asked a question',
+    at: sh.query.at || null, note: String(sh.query.message || '').slice(0, 120) });
+  out.push({ k:'accepted', icon:'✅', label:'Quote accepted',
+             at: (q.accepted && q.accepted.at) || null,
+             note: (q.accepted && q.accepted.name) ? ('by ' + q.accepted.name +
+               (q.accepted.total ? (' · ' + fmtMoney(q.accepted.total)) : '')) : '' });
+  if (sh.status === 'declined') out.push({ k:'declined', icon:'✖', label:'Quote declined',
+    at: sh.declinedAt || null, note:'' });
+  var os = (window.S && S.orderSent) || null;
+  out.push({ k:'ordered', icon:'📦', label:'Roof ordered',
+             at: (os && os.at) || null,
+             note: os ? [(os.supplier || os.to || ''), (os.delivery_date ? ('delivery ' + os.delivery_date) : '')]
+                        .filter(Boolean).join(' · ') : '' });
+  return out;
+}
+// The customer updates sent from the schedule board. Best effort: the board
+// is a Team-tier feature, so a company without it simply has none.
+async function _jobHistEmails(){
+  try {
+    var jid = (window.S && S.currentJobId) || null;
+    if (!jid) return [];
+    var d = await api('GET', '/schedule');
+    var row = ((d && d.rows) || []).find(function(r){ return r.job_id === jid; });
+    if (!row) return [];
+    if (Array.isArray(row.notify_log) && row.notify_log.length) return row.notify_log.slice().reverse();
+    // Rows that predate the log still know the last one.
+    return row.last_notified ? [{ at: row.last_notified, subject: 'Customer update' }] : [];
+  } catch(e){ return []; }
+}
+function _jobHistWhen(at){
+  if (!at) return null;
+  try { return new Date(at).toLocaleString('en-NZ',
+    { day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' }); }
+  catch(e){ return String(at); }
+}
+function _jobHistoryOpen(){
+  var body = document.getElementById('jobHistBody');
+  var who = document.getElementById('jobHistWho');
+  if (!body) return;
+  var q = (window.S && S.quote) || {};
+  var esc3 = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  if (who) who.textContent = [ (S.linkedJobNo || q.ref) ? ('Job ' + (S.linkedJobNo || q.ref)) : '',
+                               q.client || '' ].filter(Boolean).join(' · ');
+  var row = function(icon, label, at, note){
+    var when = _jobHistWhen(at);
+    return '<div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="font-size:15px;line-height:1.2;width:20px;flex-shrink:0;' + (when ? '' : 'opacity:.3') + '">' + icon + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:700;color:' + (when ? '#0a1628' : 'var(--text2)') + '">' + esc3(label) + '</div>' +
+        (note ? '<div style="color:var(--text2);font-size:11.5px;margin-top:1px">' + esc3(note) + '</div>' : '') +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0;font-size:11.5px;color:' + (when ? '#0a1628' : 'var(--text2)') + '">' +
+        (when ? esc3(when) : 'not yet') + '</div></div>';
+  };
+  body.innerHTML = _jobHistRows().map(function(r){ return row(r.icon, r.label, r.at, r.note); }).join('') +
+    '<div id="jobHistMail" style="margin-top:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--text2);margin-bottom:4px">Updates emailed from the schedule</div>' +
+    '<div style="color:var(--text2);font-size:11.5px">Looking…</div></div>';
+  document.getElementById('jobHistOverlay').style.display = 'block';
+  document.getElementById('jobHistModal').style.display = 'flex';
+  Promise.resolve(_jobHistEmails()).then(function(list){
+    var el = document.getElementById('jobHistMail');
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--text2);margin-bottom:4px">Updates emailed from the schedule</div>' +
+      (list.length
+        ? list.map(function(m){ return row('✉', m.subject || 'Customer update', m.at, m.to || ''); }).join('')
+        : '<div style="color:var(--text2);font-size:11.5px">None sent yet.</div>');
+  });
+}
+function _jobHistoryClose(){
+  var o = document.getElementById('jobHistOverlay'), m = document.getElementById('jobHistModal');
+  if (o) o.style.display = 'none';
+  if (m) m.style.display = 'none';
+}
 function updateSidebarJobChip(j){
   // Allow callers (autosave toggle, save-in-flight indicator) to refresh
   // the autosave pill without re-supplying the job by caching the last
