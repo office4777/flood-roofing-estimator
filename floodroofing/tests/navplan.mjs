@@ -39,9 +39,20 @@ async function open(company){
   // on every load would put the session straight back and hide the bug.
   await pg.addInitScript(([co]) => {
     // Runs again after the sign-out reload, which is where it is needed.
+    // Kept in sessionStorage, not on window: a reload wipes window, and the
+    // whole question when this fails is whether the page reloaded and, if it
+    // did, whether sign-out was what reloaded it.
     window.__confirms = [];
     window.__confirmAnswer = true;
-    window.confirm = function(m){ window.__confirms.push(String(m)); return window.__confirmAnswer !== false; };
+    window.confirm = function(m){
+      window.__confirms.push(String(m));
+      try { sessionStorage.setItem('__asked', String((+sessionStorage.getItem('__asked') || 0) + 1)); } catch(e){}
+      return window.__confirmAnswer !== false;
+    };
+    try { sessionStorage.setItem('__loads', String((+sessionStorage.getItem('__loads') || 0) + 1)); } catch(e){}
+    window.addEventListener('error', function(ev){
+      try { sessionStorage.setItem('__err', String((ev && ev.message) || 'error')); } catch(e){}
+    });
     if (sessionStorage.getItem('__seeded')) return;
     sessionStorage.setItem('__seeded','1');
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1');
@@ -132,6 +143,9 @@ const after = await pg.evaluate(() => ({
   tok: localStorage.getItem('fr_token'), user: localStorage.getItem('fr_user'),
   co: localStorage.getItem('fr_company'),
   asked: (window.__confirms || []).length,
+  askedEver: sessionStorage.getItem('__asked'),
+  loads: sessionStorage.getItem('__loads'),
+  err: sessionStorage.getItem('__err'),
   seeded: sessionStorage.getItem('__seeded'),
   login: (function(){ const el = document.getElementById('login-screen');
     return !!el && getComputedStyle(el).display !== 'none'; })() }));
