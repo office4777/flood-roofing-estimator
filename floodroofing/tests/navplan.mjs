@@ -138,8 +138,19 @@ await pg.evaluate(() => {
   };
   try { sessionStorage.removeItem('__signout'); } catch(e){}
 });
-await Promise.all([ pg.waitForNavigation({ timeout: 20000 }).catch(() => null),
-                    pg.click('#navSignOutBtn') ]);
+// Deliberately NOT Promise.all([waitForNavigation(), click()]). Signing out
+// reloads the page, and racing a navigation wait against the click that
+// causes it is the one construct here that can lose: the element is detached
+// mid-click, and what Playwright does then depends on when the reload lands.
+// The click is awaited on its own, and the waits below are on the CONDITION —
+// the session gone, the login screen up — which is what the checks assert
+// anyway. Those waits already tolerate a slow reload.
+//
+// This does not explain the intermittent failure it was chasing (loads:1,
+// askedEver:null — the page never reloaded and the handler was never
+// entered, which points at the click, not at the app). It removes the racy
+// part; the probes stay in so a future failure says which half broke.
+await pg.click('#navSignOutBtn', { timeout: 20000 });
 await pg.waitForFunction(() => !localStorage.getItem('fr_token'), null, { timeout: 20000 }).catch(() => null);
 await pg.waitForFunction(() => {
   const el = document.getElementById('login-screen');
