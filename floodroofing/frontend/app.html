@@ -20437,9 +20437,93 @@ function renderSelectablesUI(){
           '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0"') + '</td>' +
           '<td>' + inp('gutters', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
+    // The four groups whose ids ARE the pricing. A company can word them its
+    // own way and take one off the quote; it cannot invent a row here,
+    // because there would be no price behind it.
+    _selFixedGroups().map(function(g){
+      var c = _selCopy()[g.kind] || {};
+      var body = g.rows.map(function(r, i){
+        var o = c[r.id] || {};
+        var on = !!(o.hidden && i > 0);
+        var fin = function(f, v, ph){
+          return '<input value="' + esc(v == null ? '' : String(v)) + '" placeholder="' + esc(ph) + '"' +
+            ' onchange="_selCopyEdit(\'' + g.kind + '\',\'' + r.id + '\',\'' + f + '\',this.value)"' +
+            ' style="width:100%;font-size:12px;padding:5px 7px;margin:0">';
+        };
+        return '<tr style="' + (on ? 'opacity:.45' : '') + '">' +
+          '<td>' + fin('name', o.name, r.label) + '</td>' +
+          '<td>' + fin('desc', o.desc, r.desc) + '</td>' +
+          '<td style="text-align:center">' + (i === 0
+            ? '<span style="font-size:10.5px;color:var(--text2)">standard</span>'
+            : '<input type="checkbox" ' + (on ? 'checked' : '') +
+              ' onchange="_selCopyEdit(\'' + g.kind + '\',\'' + r.id + '\',\'hidden\',this.checked)"' +
+              ' title="Take this choice off the customer\'s quote" style="width:auto;margin:0">') +
+          '</td></tr>';
+      }).join('');
+      return '<div style="margin-bottom:20px">' +
+        '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">' + g.title + '</div>' +
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Leave a box empty to keep the wording RoofMap ships with. The first row is the standard every price is measured from — it can be renamed, not removed.</div>' +
+        '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
+        '<th>Called</th><th>Described as</th><th style="width:70px">Hide</th></tr></thead>' +
+        '<tbody>' + body + '</tbody></table></div>';
+    }).join('') +
     '<button type="button" onclick="_selResetAll()" style="padding:6px 14px;background:none;border:none;color:#0099cc;font-size:11.5px;cursor:pointer;text-decoration:underline;font-family:inherit;padding-left:0">↻ Back to the products RoofMap ships with</button>';
 }
 
+// Steel grades, profiles and gutters are the company's own list — added to,
+// repriced and removed in Settings → Products. The other four groups are not
+// a list: their ids ARE the pricing (gauge55, external brackets, downpipes,
+// disposal), and letting a roofer invent rows there would mean inventing
+// money to go with them. What a company legitimately wants is to call them
+// what it calls them, describe them in its own words, and take one off the
+// quote entirely — so that is exactly what this allows, and no more.
+//
+// The first row of each group is the standard, the one every price is
+// measured from. It can be renamed but never hidden: a card with no standard
+// on it has nothing for the others to be a difference FROM.
+function _selCopy(){
+  var w = _selWorking();
+  if (!w.copy || typeof w.copy !== 'object') w.copy = {};
+  return w.copy;
+}
+function _selFixed(kind, rows){
+  var c = _selCopy()[kind] || {};
+  return rows.map(function(r, i){
+    var o = c[r.id] || {};
+    return Object.assign({}, r, {
+      label: (o.name != null && String(o.name).trim()) ? String(o.name) : r.label,
+      desc:  (o.desc != null && String(o.desc).trim()) ? String(o.desc) : r.desc,
+      _hidden: !!(o.hidden && i > 0),
+    });
+  }).filter(function(r){ return !r._hidden; });
+}
+function _selCopyEdit(kind, id, field, val){
+  var c = _selCopy();
+  if (!c[kind]) c[kind] = {};
+  if (!c[kind][id]) c[kind][id] = {};
+  c[kind][id][field] = (field === 'hidden') ? !!val : String(val == null ? '' : val);
+  renderSelectablesUI();
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+}
+// What each fixed group ships as — the labels the renderer uses when a
+// company has not renamed anything. Kept here so the settings panel and the
+// proposal cannot drift apart.
+function _selFixedGroups(){
+  return [
+    { kind:'thickness', title:'Steel thickness', rows:[
+      { id:'40', label:'0.40 gauge', desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
+      { id:'55', label:'0.55 gauge', desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }] },
+    { kind:'brackets', title:'Gutter brackets', rows:[
+      { id:'internal', label:'Internal brackets', desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
+      { id:'external', label:'External brackets', desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }] },
+    { kind:'downpipes', title:'Downpipes', rows:[
+      { id:'no',  label:'Keep existing downpipes', desc:'Re-use the current downpipes.' },
+      { id:'yes', label:'New downpipes', desc:'Supply & install new downpipes to match the new guttering.' }] },
+    { kind:'disposal', title:'Existing roofing material', rows:[
+      { id:'dispose', label:'We dispose of all existing material', desc:'We strip and remove all old roofing sheets and flashings off site.' },
+      { id:'keep',    label:'Keep all existing material on site', desc:'We leave all old sheets and flashings stacked on site for you.' }] },
+  ];
+}
 function _defaultSelectables(){
   return {
     grades: [
@@ -27991,10 +28075,10 @@ function refreshQuoteProposal(){
                  delta: _dIncl(_CD.grade[g.id] != null ? _CD.grade[g.id] : 0),
                  desc: g.desc || c.desc || '', warranty: g.warranty || c.warranty || '' };
       });
-      var THICKS = [
+      var THICKS = _selFixed('thickness', [
         { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
         { id:'55', label:'0.55 gauge', delta:_dIncl(_CD.gauge), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
-      ];
+      ]);
       // A profile that LOCKS a gauge carries the gauge upgrade in its own card
       // price (the locked gauge row below then reads "Included") — otherwise
       // the profile looks free and the charge appears from nowhere. Which
@@ -28012,20 +28096,20 @@ function refreshQuoteProposal(){
           return { id: gt.id, label: gt.name || gt.id,
                    delta: _dIncl(_CD.gutter[gt.id] != null ? _CD.gutter[gt.id] : 0), desc: gt.desc || '' };
         }));
-      var BRACKETS = [
+      var BRACKETS = _selFixed('brackets', [
         { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
         { id:'external', label:'External brackets', delta:_dIncl(_CD.bracketExt), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
-      ];
-      var DOWNPIPES = [
+      ]);
+      var DOWNPIPES = _selFixed('downpipes', [
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
         { id:'yes', label:'New downpipes',           delta:_dIncl(_CD.downpipes), desc:'Supply & install new downpipes to match the new guttering.' }
-      ];
+      ]);
       // Both disposal choices are $0 — the scrap value of the old steel just
       // offsets the labour/time to strip and cart it away, so it's a wash.
-      var DISPOSAL = [
+      var DISPOSAL = _selFixed('disposal', [
         { id:'dispose', label:'We dispose of all existing material', isDefault:true, delta:0, desc:'We strip and remove all old roofing sheets and flashings off site.' },
         { id:'keep',    label:'Keep all existing material on site',  delta:0, desc:'We leave all old sheets and flashings stacked on site for you.' }
-      ];
+      ]);
       // Each selection group is a self-contained titled panel: a dark header
       // band (numbered + labelled) over a white body holding the flat option
       // rows. The bounded box + header makes every section read as its own
