@@ -3338,6 +3338,11 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       'metadata[plan]': plan,
       'subscription_data[metadata][company_id]': req.companyId,
       'subscription_data[metadata][plan]': plan,
+      // GST goes on top, worked out by Stripe Tax against the NZ registration:
+      // without this the checkout page showed $299 flat and no GST line. The
+      // customer's GST number is collected too, so it prints on the invoice.
+      'automatic_tax[enabled]': 'true',
+      'tax_id_collection[enabled]': 'true',
     };
     // The founding discount, applied without anybody having to remember a code.
     //
@@ -3352,8 +3357,13 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     } else {
       params.allow_promotion_codes = 'true';
     }
-    if (sub && sub.stripe_customer_id) params.customer = sub.stripe_customer_id;
-    else params.customer_email = req.user.email || undefined;
+    if (sub && sub.stripe_customer_id) {
+      params.customer = sub.stripe_customer_id;
+      // Automatic tax on an existing customer needs leave to save the address
+      // Checkout collects; Stripe refuses the session otherwise.
+      params['customer_update[address]'] = 'auto';
+      params['customer_update[name]'] = 'auto';
+    } else params.customer_email = req.user.email || undefined;
     const session = await _stripeCall('/v1/checkout/sessions', params);
     res.json({ url: session.url });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }

@@ -114,6 +114,11 @@ check('an early-access business gets the founding coupon applied for them',
 check('…and NOT the promotion-code box, which Stripe refuses alongside it',
   cc.body.get('allow_promotion_codes') === null,
   'allow_promotion_codes=' + cc.body.get('allow_promotion_codes'));
+// GST on top, worked out by Stripe Tax — the live checkout page showed $299
+// flat and no GST line until the session asked for it.
+check('checkout asks Stripe to add GST and to collect the customer\'s GST number',
+  cc.body.get('automatic_tax[enabled]') === 'true' && cc.body.get('tax_id_collection[enabled]') === 'true',
+  'automatic_tax=' + cc.body.get('automatic_tax[enabled]'));
 
 // Somebody who found the pricing page on their own is the other way round.
 // Their own company, not this one — adding a third seat to CO would push it
