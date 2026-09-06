@@ -45,9 +45,23 @@ const register = (body) => fetch(BASE + '/auth/register', {
   body: JSON.stringify(body),
 });
 
-// ── the invite gate ──────────────────────────────────────────────
-const wrong = await register({ email: 'nope@example.com', password: 'password123', invite: 'WRONG' });
-check('a wrong code is still refused', wrong.status === 403, 'status ' + wrong.status);
+// ── the front door is open ───────────────────────────────────────
+// RoofMap is sold as "start free, 14 days, no card", and a signup form that
+// answers "invite-only" is not that. The reason it was shut — a stranger
+// spending the server's Anthropic credit through /claude/* — is capped per
+// company per day instead.
+const noCode = await register({ email: 'walkin@example.com', password: 'password123',
+  name: 'Walk In', company: 'Walk In Roofing' });
+const nc = await noCode.json();
+check('somebody with no invite code can sign themselves up',
+  noCode.status === 200 && !!nc.token, 'status ' + noCode.status + ' ' + (nc.error || ''));
+check('…and lands on a real 14-day trial, not a pending account with nothing on it',
+  (function(){
+    var sub = db.subscriptions.find(function(x){ return x.user_id === (nc.user || {}).id; });
+    if (!sub) return false;
+    var left = new Date(sub.trial_ends_at) - Date.now();
+    return sub.status === 'trialing' && left > 13 * 864e5 && left <= 14 * 864e5;
+  })(), JSON.stringify(db.subscriptions.slice(-1)));
 
 const padded = await register({
   email: 'team1@example.com', password: 'password123', name: 'Sam',
@@ -59,12 +73,14 @@ check('a code pasted out of an email, whitespace and all, gets in',
 
 // ── what a successful signup leaves behind ───────────────────────
 check('…and it has its own company', !!pd.user && !!pd.user.company_id, JSON.stringify(pd.user || {}));
-check('…named after the business, in `companies`',
-  db.companies.length === 1 && db.companies[0].name === 'Sam Roofing',
-  JSON.stringify(db.companies));
+// Two signups by now — the walk-in above and this one — so these look for
+// THIS company rather than assuming it is the only one on the table.
+const _sam = db.companies.find(function(c){ return c.name === 'Sam Roofing'; });
+check('…named after the business, in `companies`', !!_sam, JSON.stringify(db.companies));
+const _samOwner = db.company_users.find(function(m){ return m.company_id === (pd.user || {}).company_id; });
 check('…with the owner attached to it',
-  db.company_users.length === 1 && db.company_users[0].company_id === pd.user.company_id &&
-  db.company_users[0].role === 'owner', JSON.stringify(db.company_users));
+  !!_samOwner && _samOwner.company_id === (_sam || {}).id && _samOwner.role === 'owner',
+  JSON.stringify(db.company_users));
 
 // ── each signup gets its OWN business ────────────────────────────
 const second = await register({

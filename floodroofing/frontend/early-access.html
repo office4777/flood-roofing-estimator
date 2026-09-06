@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Early access — RoofMap for New Zealand roofers</title>
-<meta name="description" content="RoofMap is opening to New Zealand roofing businesses a batch at a time. Tell us about your setup and we will get you in, set up properly.">
+<title>Book a 15-minute setup call — RoofMap</title>
+<meta name="description" content="Fifteen minutes on a call and your price book is loaded, so your first quote comes out at YOUR rates. Free either way — you can just start the trial instead.">
 <link rel="canonical" href="https://roofmap.co.nz/early-access">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="theme-color" content="#0a1628">
@@ -15,14 +15,14 @@
 <meta property="og:locale" content="en_NZ">
 <meta property="og:url" content="https://roofmap.co.nz/early-access">
 <meta property="og:title" content="Early access — RoofMap for New Zealand roofers">
-<meta property="og:description" content="RoofMap is opening to New Zealand roofing businesses a batch at a time. Tell us about your setup and we will get you in, set up properly.">
+<meta property="og:description" content="Fifteen minutes on a call and your price book is loaded, so your first quote comes out at YOUR rates. Free either way — you can just start the trial instead.">
 <meta property="og:image" content="https://roofmap.co.nz/brand/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="RoofMap — one drawing becomes the job pack, the merchant order and the customer quote">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Early access — RoofMap for New Zealand roofers">
-<meta name="twitter:description" content="RoofMap is opening to New Zealand roofing businesses a batch at a time. Tell us about your setup and we will get you in, set up properly.">
+<meta name="twitter:description" content="Fifteen minutes on a call and your price book is loaded, so your first quote comes out at YOUR rates. Free either way — you can just start the trial instead.">
 <meta name="twitter:image" content="https://roofmap.co.nz/brand/og-card.png">
 <link rel="stylesheet" href="/site.css">
 <script type="application/ld+json">
@@ -34,7 +34,7 @@
       "@id": "https://roofmap.co.nz/early-access#page",
       "url": "https://roofmap.co.nz/early-access",
       "name": "Early access — RoofMap for New Zealand roofers",
-      "description": "Request early access to RoofMap, roof estimating software for New Zealand roofers.",
+      "description": "Book a 15-minute call to get RoofMap set up with your own rates.",
       "inLanguage": "en-NZ",
       "isPartOf": { "@type": "WebSite", "@id": "https://roofmap.co.nz/#website" },
       "about": { "@type": "SoftwareApplication", "@id": "https://roofmap.co.nz/#software" }
@@ -106,10 +106,12 @@
   <div class="wrap">
     <div class="crumbs"><a href="/">RoofMap</a><span>›</span>Early access</div>
     <div class="eyebrow">Early access</div>
-    <h1>We are letting roofers in a batch at a time.</h1>
-    <p class="stand">Not because there is a queue for the sake of one. Because a roofer who hits a
-      rough edge with nobody watching tells the whole region, and we would rather get each business
-      set up properly than collect signups.</p>
+    <h1>Fifteen minutes, and your first quote is at your own rates.</h1>
+    <p class="stand">You do not have to do this — the trial is open, no card, and the sample job is
+      waiting. But the one job on setup is loading YOUR supplier rates, and it is the difference
+      between a quote you would send and a number you would not trust. Aron does it with you, on the
+      phone, in about fifteen minutes.</p>
+    <p class="stand" style="margin-top:14px"><a class="btn btn-dark" href="/signup">Or just start the trial — 14 days, no card</a></p>
   </div>
 </section>
 
@@ -238,7 +240,7 @@
           <input id="eaWebsite" type="text" tabindex="-1" autocomplete="off">
         </div>
 
-        <button type="submit" class="btn btn-primary" id="eaBtn">Request early access</button>
+        <button type="submit" class="btn btn-primary" id="eaBtn">Book my setup call</button>
         <div class="form-msg" id="eaMsg"></div>
         <div class="form-fine">
           We use this to get you set up and nothing else. No list is sold, ever.<br>
@@ -248,12 +250,14 @@
     </div>
 
     <div class="form-card ea-done" id="eaDone">
-      <h2>You are on the list.</h2>
-      <p id="eaDoneWho">We will be in touch from <strong>support@roofmap.co.nz</strong> — check that
+      <h2>Booked — Aron will be in touch.</h2>
+      <p id="eaDoneWho">You will hear from <strong>support@roofmap.co.nz</strong> to pick a time — check
         it has not landed in junk.</p>
       <p>While you wait, here is what RoofMap actually produces: a roof measured off an aerial, a cut
         list the merchant can price, and a quote your customer signs online.</p>
-      <a class="btn btn-dark" href="/" style="width:100%">See what it produces</a>
+      <a class="btn btn-primary" href="/signup" style="width:100%">Start the trial now — 14 days, no card</a>
+      <p style="margin-top:10px;font-size:14.5px;color:var(--muted)">No need to wait for the call. Sign up,
+        open the sample job, and have a look around — we will load your rates when we talk.</p>
       <p style="margin-top:18px;font-size:14.5px;color:var(--muted)">
         Thought of something else about your setup? Just reply to the email — it reaches a person.
       </p>
@@ -325,14 +329,14 @@
       });
       if (r.status === 429){
         say('That is a few tries in a short time — give it an hour, or email support@roofmap.co.nz.', 'bad');
-        btn.disabled = false; btn.textContent = 'Request early access';
+        btn.disabled = false; btn.textContent = 'Book my setup call';
         return;
       }
       var j = {};
       try { j = await r.json(); } catch(err){}
       if (!r.ok){
         say(j.error || 'Could not send that just now. Try again, or email support@roofmap.co.nz.', 'bad');
-        btn.disabled = false; btn.textContent = 'Request early access';
+        btn.disabled = false; btn.textContent = 'Book my setup call';
         return;
       }
       // Swap the card rather than replacing the page: the form has done its
@@ -346,7 +350,7 @@
       document.getElementById('eaDone').scrollIntoView({ block: 'nearest' });
     } catch(err){
       say('Could not reach us just now — check your connection, or email support@roofmap.co.nz.', 'bad');
-      btn.disabled = false; btn.textContent = 'Request early access';
+      btn.disabled = false; btn.textContent = 'Book my setup call';
     }
   });
 })();

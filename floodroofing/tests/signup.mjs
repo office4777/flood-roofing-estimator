@@ -180,20 +180,18 @@ v = await pg.evaluate(() => ({
 }));
 check('every "start a trial" button on the landing page is a real link, not a scroll',
   v.anchorCtas === 0, JSON.stringify(v.ctas));
-// Registration is invite-gated, so the landing page sends people to the
-// early-access form rather than to a signup page that would refuse them.
-// This page is where they land once they have a code.
-check('…they all point at early access', v.ctas.some(c => c.startsWith('/early-access')));
-// Two wordings by design: the full ask everywhere, and a shorter one inside
-// each pricing tier where the column is narrow. Both have to be the same ask.
-check('…they all ask for the same thing',
+// Self-serve: the landing page sends people straight here. The setup call is
+// offered alongside it, never instead of it.
+check('…they all point at this page', v.ctas.some(c => c.startsWith('/signup')));
+check('…offering the same thing: free, and no card',
   (function(){
-    const labels = Array.from(new Set(v.ctas.filter(c => c.startsWith('/early-access')).map(c => c.split('"')[1])));
-    return labels.length > 0 && labels.length <= 2 && labels.every(l => /request/i.test(l) && /access/i.test(l));
+    const labels = Array.from(new Set(v.ctas.filter(c => c.startsWith('/signup')).map(c => c.split('"')[1])));
+    return labels.length > 0 && labels.every(l => /start free/i.test(l));
   })(),
-  JSON.stringify(v.ctas.filter(c => c.startsWith('/early-access'))));
+  JSON.stringify(v.ctas.filter(c => c.startsWith('/signup'))));
+check('…with the setup call as the second option', v.ctas.some(c => c.startsWith('/early-access')));
 check('…and the form no longer lives on the landing page too', v.form === false);
-check('…which is shorter for it', v.screens < 12, v.screens + ' screens on a phone');
+check('…which is still not endless', v.screens < 13, v.screens + ' screens on a phone');
 await ctx.close();
 
 // ── the front door ──

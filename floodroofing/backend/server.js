@@ -1071,6 +1071,11 @@ async function _companySubscription(companyId, userId){
 // so the trial_ends_at date below was never reached. Harmless while billing
 // was off — and a permanent free account for everybody the day it goes on.
 // A trial is live until its end date and not one minute longer.
+// Fourteen days, no card. Accounts used to be created status:'pending' with
+// no trial at all, which read as "not live" the moment billing was switched
+// on — the whole point of the grandfather list. A trial that exists is also
+// a trial the app can count down, which is what the plan bar does.
+const TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 14) || 14;
 function _subscriptionLive(sub){
   if (!sub) return false;
   if (sub.status === 'active') return true;                    // paying
@@ -1702,13 +1707,16 @@ app.delete('/team/domains/:id', requireAuth, requireOwner, async (req, res) => {
 // more than a handful an hour.
 app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailKey), async (req, res) => {
   const { email, password, name, company } = req.body;
-  // Self-registration is invite-gated: with it open, a stranger could
-  // mint a trial account and spend the owner's Anthropic / Fergus keys
-  // through the authenticated proxies.  Set REGISTRATION_INVITE_CODE on
-  // Railway and share it when onboarding someone; set
-  // OPEN_REGISTRATION=true to deliberately restore open signup.
+  // Self-registration is OPEN: the product is sold as "start free, 14 days,
+  // no card", and a signup form that answers "invite-only" is not that.
+  //
+  // It was shut for a real reason — a stranger could mint an account and
+  // spend the owner's Anthropic credits through /claude/*, which proxies on
+  // the server's key. That is now capped per company per day for anyone not
+  // paying (_aiTrialCapOk), which is the mitigation that makes an open door
+  // affordable. Set OPEN_REGISTRATION=false to put the invite code back.
   let invitedViaCode = false;
-  if (process.env.OPEN_REGISTRATION !== 'true') {
+  if (process.env.OPEN_REGISTRATION === 'false') {
     // Trimmed on BOTH sides: the code reaches people by email, and a copy out
     // of an email client brings a trailing space or newline with it about half
     // the time. A stray character is not a wrong code, and "Registration is
@@ -1768,7 +1776,8 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     //
     // Accounts already mid-trial keep their trial_ends_at and run it out. This
     // changes what new businesses get, not what existing ones were promised.
-    const subRow = { user_id: userId, company_id: cid || null, status: 'pending', trial_ends_at: null };
+    const subRow = { user_id: userId, company_id: cid || null, status: 'trialing',
+                     trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 864e5).toISOString() };
     let { error: serr } = await supabase.from('subscriptions').insert(subRow);
     if (serr && /company_id/.test(serr.message || '')) {
       delete subRow.company_id;   // column not migrated yet
@@ -4320,8 +4329,34 @@ function httpsRequest(host, path, method, headers, body) {
   });
 }
 
+// An open front door means anybody can sign up, and /claude/* spends the
+// SERVER's Anthropic credit. A paying company is a customer; a free trial is
+// a stranger until it is not. So a company that is not paying gets a
+// generous but finite number of AI calls a day — enough that no honest
+// roofer will ever meet it, low enough that a script cannot run up a bill
+// overnight. Counted from usage_events, which is already written per call.
+const AI_TRIAL_CALLS_PER_DAY = Number(process.env.AI_TRIAL_CALLS_PER_DAY || 120) || 120;
+async function _aiTrialCapOk(req){
+  try {
+    if (!req.companyId) return true;
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (sub && sub.status === 'active') return true;              // paying: no cap
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const { count } = await supabase.from('usage_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', req.companyId).eq('name', 'ai_call').gte('created_at', since);
+    return !(typeof count === 'number' && count >= AI_TRIAL_CALLS_PER_DAY);
+  } catch (e) { return true; }   // never let the meter break the feature
+}
 app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'AI not configured' });
+  if (!(await _aiTrialCapOk(req))) {
+    return res.status(429).json({
+      error: 'That is a lot of AI in one day on a free trial. It resets in 24 hours — ' +
+             'or pick a plan and the cap comes off.',
+      code: 'AI_TRIAL_CAP' });
+  }
+  recordUsage('ai_call', req);
   const p = req.path.replace(/^\/claude/, '');
   try {
     const r = await httpsPost('api.anthropic.com', p, { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, req.body);
@@ -8545,7 +8580,8 @@ app.get('/admin/account', async (req, res) => {
           out.summary = 'This login has no business, and creating one just failed too — the reason is in the logs.';
           return res.status(500).json(out);
         }
-        if (!sub) await supabase.from('subscriptions').insert({ user_id: authUser.id, company_id: cid, status: 'pending', trial_ends_at: null });
+        if (!sub) await supabase.from('subscriptions').insert({ user_id: authUser.id, company_id: cid,
+          status: 'trialing', trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 864e5).toISOString() });
         out.repaired = true;
         out.company_id = cid;
         out.summary = 'This login had no business; one has been created and the account is now usable.';
@@ -8621,7 +8657,8 @@ const USAGE_EVENTS = [
   'quote_sent',       // a customer link went out
   'quote_accepted',   // a customer accepted one
   'order_sent',       // material ordered — the far end of the workflow
-  'waitlist_submit',  // a roofer asked for early access — the top of the funnel
+  'waitlist_submit',  // a roofer asked for a setup call — the top of the funnel
+  'ai_call',          // one AI request, so a free trial's daily cap can be counted
 ];
 async function recordUsage(name, req, props){
   try {
