@@ -146,6 +146,37 @@ check('…and exposes the rules as fields, not just names and prices', v.rules);
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
+// ── page 2 follows page 3 ─────────────────────────────────────────
+// "The line items say install gutter and downpipes, but they have selected
+// No new gutter." The scope text is the office's template; the customer's
+// picks decide which lines apply, and the list moves with every pick.
+{
+  const rows = () => pg.evaluate(() => Array.from(document.querySelectorAll('#qpRoot [data-scope-row]')).map(r => r.textContent.replace(/\s+/g,' ').trim()));
+  await pg.evaluate(() => {
+    S.quote = S.quote || {};
+    S.quote.scope = 'Strip existing roofing\nInstall new roof sheets\nInstall gutters\nInstall downpipes\nCleanup and disposal';
+    S.quote.proposalOptions = { gutterType: 'none' };
+    gotoTab('quote'); refreshQuoteProposal();
+  });
+  await pg.waitForTimeout(400);
+  let r = await rows();
+  check('with "No new gutter" chosen, page 2 shows no gutter or downpipe lines',
+    r.length === 3 && !r.some(t => /gutter|downpipe/i.test(t)), JSON.stringify(r));
+  check('…and the remaining lines are numbered 01, 02, 03', /01/.test(r[0]) && /02/.test(r[1]) && /03/.test(r[2]), JSON.stringify(r));
+  const note = await pg.evaluate(() => (document.querySelector('#qpRoot .qp-next-page-note') || {}).textContent || '');
+  check('…with "Select your options on the next page" at the foot of the list', /Select your options on the next page/.test(note), note);
+  await pg.evaluate(() => _setProposalOption('gutterType', 'box125'));
+  await pg.waitForTimeout(500);
+  r = await rows();
+  check('picking a gutter on page 3 brings the gutter and downpipe lines back on page 2',
+    r.length === 5 && r.some(t => /Install gutters/.test(t)) && r.some(t => /Install downpipes/.test(t)), JSON.stringify(r));
+  await pg.evaluate(() => _setProposalOption('gutterType', 'none'));
+  await pg.waitForTimeout(500);
+  r = await rows();
+  check('…and choosing "No new gutter" again takes them off', r.length === 3, JSON.stringify(r));
+  check('…the office\'s scope text itself is untouched', await pg.evaluate(() => /Install gutters/.test(S.quote.scope)));
+}
+
 await ctx.close();
 await b.close();
 const bad = results.filter(x => !x).length;

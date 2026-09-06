@@ -28676,6 +28676,20 @@ function refreshQuoteProposal(){
     var _mkEdit = function(idx, cls, style){ return '<div class="qp-scope-edit '+cls+'" contenteditable="true" spellcheck="true" data-scope-idx="'+idx+'" onblur="_scopeLineBlur(this)" onkeydown="_scopeLineKey(event,this)" style="flex:1;outline:none;'+style+'">'; };
     var _mkAdd = function(insertAt, label){ return '<button type="button" class="no-print" onclick="_scopeInsertAt('+insertAt+',\''+esc2(label==='warranty'?'New warranty line':'New inclusion')+'\')" style="margin:8px 0 2px;background:none;border:1px dashed var(--ed-line);border-radius:5px;color:var(--ed-accent);cursor:pointer;font-size:11px;padding:5px 12px;font-family:var(--ed-sans);letter-spacing:.03em">+ Add '+(label==='warranty'?'warranty line':'line')+'</button>'; };
     var inclList;
+    // The list follows what is chosen on the next page. "Install gutters"
+    // and "Install downpipes" sat in the list while the customer had picked
+    // "No new gutter" — the scope text is the office's template, and the
+    // customer's selections decide which of its lines apply. The text is
+    // left as written; the lines that do not apply are simply not shown,
+    // and come back the moment a gutter is selected.
+    var _gutterOn = false, _dpOn = false;
+    try { _gutterOn = _gutterOnQuote(); } catch(e){}
+    try { _dpOn = _gutterOn && ((S.quote.proposalOptions || {}).downpipes !== 'no'); } catch(e){}
+    var _lineApplies = function(l){
+      if (/downpipe/i.test(l)) return _dpOn;
+      if (/gutter/i.test(l)) return _gutterOn;
+      return true;
+    };
     if (_scopeRaw.trim()){
       var _srcLines = _scopeRaw.split('\n');
       var _n = 0, _parts = [];
@@ -28683,6 +28697,7 @@ function refreshQuoteProposal(){
       _srcLines.forEach(function(raw, idx){
         var l = raw.trim();
         if (!l){ _parts.push('<div style="height:9px"></div>'); return; }
+        if (!_lineApplies(l)) return;
         // The page band already reads "Scope & pricing", so drop a redundant
         // "Scope of Work – …" title line from the body.
         if (/^scope of work\b/i.test(l)) return;
@@ -28710,6 +28725,9 @@ function refreshQuoteProposal(){
       // Add button for the final section.
       if (_secHasItems) _parts.push(_mkAdd(_lastItemIdx + 1, _secKind));
       else _parts.push(_mkAdd(_lastHeadIdx >= 0 ? _lastHeadIdx + 1 : _srcLines.length, _secKind));
+      // Says so, at the foot of the list: the customer picks on the next
+      // page, and this list moves with those picks.
+      _parts.push('<div class="qp-next-page-note ed-body" style="margin-top:14px;font-family:var(--ed-sans);font-size:12px;font-style:italic;color:var(--ed-accent)">Select your options on the next page — this list updates to match what you choose.</div>');
       inclList = '<div>'+_parts.join('')+'</div>';
     } else {
       inclList = '<div class="ed-body qp-ph" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works — click below.</div>'+
