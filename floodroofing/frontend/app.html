@@ -11421,9 +11421,17 @@ async function saveSettings(auto){
   // Then attempt cloud sync
   try {
     var saved = await api('PUT', '/settings', S.settings);
-    S.settings.branding = saved.branding || S.settings.branding;
-    S.settings.quote_defaults = saved.quote_defaults || S.settings.quote_defaults;
+    // MERGE, don't replace. A backend that predates a field echoes the row
+    // back without it, and a straight replace then silently undoes the thing
+    // that was just saved — turning the Email tab off saved correctly, the
+    // echo came back with no show_email_tab, and the tab reappeared a beat
+    // later. Anything the server did send still wins; only fields it is
+    // silent about keep what is already in memory.
+    S.settings.branding = Object.assign({}, S.settings.branding || {}, saved.branding || {});
+    S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults || {}, saved.quote_defaults || {});
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
+    // …and put the menu back in step with whatever that merge settled on.
+    try { _emailTabSync(); } catch(e){}
     if (saved.price_book) S.settings.price_book = saved.price_book;
     if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
     // Unfold the catalog back out of the returned price_book so the live

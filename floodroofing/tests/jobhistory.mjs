@@ -77,6 +77,13 @@ check('turning the Email tab off takes it out of the menu', !v.shown, JSON.strin
 check('…and remembers the choice on the company, not the device',
   v.saved === false, JSON.stringify(v));
 check('…with the settings tick in step', v.box === false, JSON.stringify(v));
+// The settings PUT echoes the row back, and this stub's echo carries no
+// show_email_tab — exactly what a backend that predates the field sends.
+// Wait for that echo to land before asking, or the assertion races it and
+// only fails on a loaded CI runner.
+await pg.waitForTimeout(1200);
+v = await pg.evaluate(() => getComputedStyle(document.getElementById('navInboxBtn')).display !== 'none');
+check('…and the save\'s own echo cannot quietly turn it back on', !v, String(v));
 v = await pg.evaluate(() => {
   // A plan sync must not put it back — that was the bug the first time.
   _navPlanSync();
