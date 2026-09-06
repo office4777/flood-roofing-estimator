@@ -14,12 +14,17 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (~15 min, ~132 suites, and the sheet-layout gate on a full run), or one by
-  name: `node floodroofing/tests/run.mjs inboxui`. Pipe it through `tail` and
-  you get tail's exit code, not the runner's — use `set -o pipefail`.
+  (~17 min, ~161 suites, and the sheet-layout gate on a full run), or one by
+  name: `node floodroofing/tests/run.mjs inboxui`. A NEW suite must be added
+  to the list in `run.mjs` or it never runs. Pipe the runner through `tail`
+  and you get tail's exit code, not the runner's — use `set -o pipefail`.
 - `floodroofing/tests/fakepgrst.mjs` — in-process fake PostgREST. No DDL
   defaults (set every column explicitly on insert), no `in` filter (returns
   all rows), DELETE returns deleted rows.
+- `floodroofing/tools/` — generators, never their output (`.gitignore` keeps
+  it that way). `demo-shots.mjs` → `demo-slideshow.mjs` → `demo-record.mjs`
+  build the sales demo; `restore-check.mjs` verifies a backup restore;
+  `build-og-card.mjs` renders the link-preview card.
 
 ## Pipeline — how changes reach users
 
@@ -78,8 +83,17 @@ Discipline (non-negotiable):
   standard commit trailer.
 - Error monitoring emails the owner on uncaught exceptions and 5xx — silence
   false alarms at the source rather than muting the reporter.
+- A settings PUT echoes the row back. MERGE that echo into `S.settings`,
+  never replace with it: a backend that predates a field echoes the row
+  without it and silently undoes what was just saved.
+- The app and the API are different origins. A response header a `fetch()`
+  needs to read (`Content-Disposition`, say) must be named in
+  `Access-Control-Expose-Headers` or the browser withholds it.
+- A function that both alerts AND swallows its error makes every caller's
+  `catch` dead code. If any caller can recover, throw — see `openJob`'s
+  `quiet` option.
 
-## Two things that have been broken twice
+## Three things that have been broken twice
 
 **The roof engine.** `buildHipValleyLines` runs a real straight skeleton, then
 `_skelSnapRectilinear` tidies it: welds junctions the solver left a few pixels
@@ -98,6 +112,49 @@ canvas size and `DRAW.zoom` have nothing to do with it. Dividing by how large
 the photo happens to be drawn makes every measurement move when the roofer
 zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.
 The aerial's own Mapbox zoom does change it, and must.
+
+**Believing one API call.** Twice now a working Fergus link has reported
+itself dead because a single request failed: the connection test asks for the
+jobs list sorted and paged, and not every partner account answers that query
+string. It falls back through plainer requests now — but NOT on 401/403,
+where a rejected key must fail on the first call rather than be hammered.
+`tests/fergstale.mjs` pins both that and the stale job-mapping recovery.
+
+## Diagnosing a subscriber's integration
+
+Settings → "Something not working?" runs the probes support would run by
+hand. It emails the report to support AND offers it as a PDF
+(`POST /jms/diagnostic.pdf`, written by a small Courier-only PDF writer in
+server.js — no library, deliberately). The report carries the API key's
+LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
+the owner for that PDF before guessing at a Fergus fault.
+
+## Open at last handover — 2026-09-06
+
+Delete or rewrite this section as it is dealt with; a stale list here is
+worse than none.
+
+**Waiting on the owner (Aron):**
+- Rotate the Fergus API token and the Railway `ADMIN_TOKEN` — both were
+  readable in screenshots shared during a session.
+- Check `OPEN_REGISTRATION` on Railway is not the string `'false'`, or the
+  free trial stays invite-only whatever the site says.
+- Four aerial screenshots for the demo slideshow (Mapbox is unreachable from
+  the build environment, so those slides are placeholders): aerial found,
+  mid-trace, outline finished, roof lines generated.
+- Ring Sharon about the steel grade on quote 3206 before that roof is
+  ordered — the acceptance email and the PDF disagreed about which grade was
+  standard.
+- SMS/uptime alarm on `/health`; run the restore drill once
+  (`tools/restore-check.mjs`); add the crews then paste the schedule import;
+  paste the real price book so it can become the shipped default.
+
+**Product thinking, agreed but not built:** the trial's first twenty minutes
+should walk a new roofer to their OWN first quote — address, trace, quote, in
+that order — before the schedule or the inbox is mentioned, and should get
+their real supplier rates in before that first quote. Lead with measuring and
+quoting everywhere a stranger meets the product; the rest is why people stay,
+not why they try it.
 
 ## Working style
 
