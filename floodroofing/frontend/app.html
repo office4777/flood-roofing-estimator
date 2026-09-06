@@ -3005,6 +3005,17 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-selbox{ position:absolute; top:2px; bottom:2px; background:rgba(0,153,204,.18); border:1.5px dashed #0099cc;
   border-radius:5px; z-index:2; pointer-events:none; }
 .sched-row.sched-fold .sched-info{ cursor:grab; }
+.sched-cell.hd[data-tip]{ cursor:pointer; }
+/* The job button: a proper badge, not a thin text glyph. */
+.sched-i{ display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
+  background:#0099cc; color:#fff; font-weight:900; font-size:11px; font-family:Georgia,'Times New Roman',serif; font-style:italic;
+  line-height:1; cursor:pointer; box-shadow:0 1px 2px rgba(10,22,40,.25); user-select:none; }
+.sched-i:hover{ background:#0a1628; }
+/* "+ Add row" under the last job of each section, then a blank line
+   before the next heading so the sections breathe. */
+.sched-row.sched-add input{ color:#0099cc; font-weight:700; }
+.sched-row.sched-add input::placeholder{ color:#0099cc; opacity:.85; font-weight:700; }
+.sched-row.sched-gap .sched-cell, .sched-row.sched-gap .sched-strip{ border-bottom-color:transparent; }
 .sched-row.sched-fold.dragover .sched-info{ box-shadow:inset 0 3px 0 #0099cc; }
 /* Extended view: the board overlays the whole viewport — side menu and all.
    Below the modals (8998+) and menus (9999), above the sidebar (50). */
@@ -5751,6 +5762,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px">
       <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center">
         <label style="color:var(--text2)">Client</label><input type="text" data-iedit="client_name" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Fergus job no.</label><input type="text" data-iedit="job_ref" placeholder="e.g. 8801 — shows in the Job column and links to Fergus" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Site address</label><input type="text" data-iedit="site_address" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Customer email</label><input type="email" data-iedit="email" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Quote accepted</label><span id="schedInfoAccepted" style="color:#0a1628"></span>
@@ -8210,7 +8222,7 @@ function _schedStreet(addr){
 // Where a Fergus job lives on the web. The id in the address bar is the job
 // NUMBER, which is what the board shows and what a roofer recognises.
 function _schedFergusUrl(r){
-  var no = (r && (r.fergus_no || r.fergus_id)) || '';
+  var no = (r && (r.job_ref || r.fergus_no || r.fergus_id)) || '';
   return no ? ('https://app.fergus.com/jobs/view/' + encodeURIComponent(no)) : '';
 }
 // Collapsed: the drag handle, a tiny ⓘ that opens the job-details popup,
@@ -8324,12 +8336,34 @@ function _schedRender(){
 
   var _useFolders = _schedFoldersInUse(rows);
   var _lastFolder = null, _bands = 0, _hiddenRows = 0;
+  // "+ Add row" under the last job of a section (typing a client name into
+  // it starts a job IN that section), then one blank line before the next
+  // heading. Counted in _bands so the pad and the shade layer stay right.
+  var _addRow = function(fid, gap){
+    var cells = '';
+    cols.forEach(function(c, i){
+      var inner = '';
+      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="add-' + esc(fid) + '" data-newfolder="' + esc(fid) + '" placeholder="+ Add row" title="Type a client name to add a job here">';
+      if (c.key === 'site') inner = '<input type="text" value="" data-newsite="add-' + esc(fid) + '">';
+      cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
+    });
+    var out = '<div class="sched-row sched-add" data-addrow="' + esc(fid) + '">' + cells +
+      '<div class="sched-strip" style="width:' + stripW + 'px;height:30px"></div></div>';
+    _bands++;
+    if (gap){
+      _bands++;
+      out += '<div class="sched-row sched-gap"><div class="sched-cell sched-info" style="left:0;width:' + infoW + 'px"></div>' +
+        '<div class="sched-strip" style="width:' + stripW + 'px;height:30px;background:none"></div></div>';
+    }
+    return out;
+  };
   rows.forEach(function(r){
     // A folder heading, once per group, carrying its own count and a
     // collapse arrow — the spreadsheet did this with a blank row and a bold
     // label further down the sheet.
     var _fid = r.folder || '';
     if (_useFolders && _fid !== _lastFolder){
+      if (_lastFolder !== null && _schedFoldOpen(_lastFolder)) h += _addRow(_lastFolder, true);
       _lastFolder = _fid;
       var _n = rows.filter(function(x){ return (x.folder || '') === _fid; }).length;
       var _open = _schedFoldOpen(_fid);
@@ -8348,10 +8382,10 @@ function _schedRender(){
       // One button, big enough to hit on a phone: it opens the job, and it is
       // still the drag handle, because reordering is how the board gets put
       // in the order the office works in.
-      if (c.key === 'open') inner = '<span draggable="true" data-rowdrag="' + r.id + '" data-info="' + r.id + '"' +
-        ' title="Open this job — drag to reorder" style="cursor:pointer;color:#0099cc;font-size:15px;line-height:1">ⓘ</span>';
+      if (c.key === 'open') inner = '<span class="sched-i" draggable="true" data-rowdrag="' + r.id + '" data-info="' + r.id + '"' +
+        ' title="Open this job — drag to reorder">i</span>';
       if (c.key === 'jobno'){
-        var _fno = r.fergus_no || r.fergus_id || '';
+        var _fno = r.job_ref || r.fergus_no || r.fergus_id || '';
         var _url = _schedFergusUrl(r);
         var _lbl = _fno || r.job_no || '';
         inner = _url
@@ -8363,7 +8397,7 @@ function _schedRender(){
           : '<span data-rowmenu="' + r.id + '" title="' + esc(r.client_name) + ' — not linked to a Fergus job"' +
             ' style="cursor:pointer;font-weight:700">' + esc(_lbl || r.client_name) + '</span>';
       }
-      if (c.key === 'info') inner = '<span data-info="' + r.id + '" style="cursor:pointer;color:#0099cc;font-weight:700" title="Job details">ⓘ</span>';
+      if (c.key === 'info') inner = '<span class="sched-i" data-info="' + r.id + '" title="Job details">i</span>';
       if (c.key === 'job'){
         var _short = String(r.site_address || '').split(',')[0];
         inner = '<div style="line-height:1.25;overflow:hidden">' +
@@ -8416,6 +8450,10 @@ function _schedRender(){
     h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
          '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
   });
+  if (rows.length){
+    if (_useFolders){ if (_schedFoldOpen(_lastFolder)) h += _addRow(_lastFolder, false); }
+    else h += _addRow('', false);
+  }
   // Pad the board to 20 lines with blank rows, like the printed sheet.
   // Typing a client name into one creates the row inline; the strip has no
   // data-strip, so nothing paints until the row exists.
@@ -8522,7 +8560,8 @@ function _schedWire(grid){
       var n = inp.getAttribute('data-newclient');
       var siteInp = grid.querySelector('[data-newsite="' + n + '"]');
       var site = siteInp ? (siteInp.value || '').trim() : '';
-      _schedApi('POST', '/schedule/rows', { client_name: name, site_address: site, length_days: 1 })
+      var folder = inp.getAttribute('data-newfolder') || '';
+      _schedApi('POST', '/schedule/rows', { client_name: name, site_address: site, length_days: 1, folder: folder })
         .then(function(row){
           if (row && row.id){ (_SCHED.data.rows = _SCHED.data.rows || []).push(row); _schedRender(); }
         });
@@ -8837,7 +8876,8 @@ function _schedInfoOpen(rowId){
   _schedInfoId = rowId;
   var m = document.getElementById('schedInfoModal');
   document.getElementById('schedInfoTitle').textContent = r.client_name || 'Job details';
-  document.getElementById('schedInfoNo').textContent = r.job_no ? ('Job ' + r.job_no) : '';
+  var _fno = r.job_ref || r.fergus_no || '';
+  document.getElementById('schedInfoNo').textContent = [r.job_no ? ('Job ' + r.job_no) : '', _fno ? ('Fergus ' + _fno) : ''].filter(Boolean).join(' · ');
   document.getElementById('schedInfoAccepted').textContent = r.accepted_at
     ? new Date(r.accepted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }) : '—';
   document.getElementById('schedInfoNotified').textContent = r.last_notified

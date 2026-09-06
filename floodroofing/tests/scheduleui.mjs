@@ -129,7 +129,7 @@ async function boot(opts){
     /data-info/.test(g.openBtn), g.openBtn);
   check('…and is still the drag handle, so the board can be put in order',
     /draggable="true"/.test(g.openBtn) && /data-rowdrag/.test(g.openBtn), g.openBtn);
-  check('…and is big enough to hit', /font-size:15px/.test(g.openBtn), g.openBtn);
+  check('…and is a proper badge, big enough to hit', /class="sched-i"/.test(g.openBtn), g.openBtn);
 
   // A job with no Fergus link must not leave a blank cell.
   g = await p0.evaluate(() => {
@@ -155,7 +155,7 @@ async function boot(opts){
 let { ctx, pg, calls } = await boot();
 let v = await pg.evaluate(() => ({
   wrap: getComputedStyle(document.getElementById('schedWrap')).display !== 'none',
-  rows: document.querySelectorAll('.sched-row:not(.pad)').length,
+  rows: document.querySelectorAll('.sched-row:not(.pad):not(.sched-add):not(.sched-gap)').length,
   blocks: document.querySelectorAll('.sched-block').length,
   chips: document.querySelectorAll('#schedPalette [data-pal]').length,
   editChip: !!document.querySelector('#schedPalette [data-pal-edit]'),
@@ -303,7 +303,7 @@ check('typing a client name into a blank row creates the row inline',
   !!made && made[1].client_name === 'Lizzie Campbell', JSON.stringify(made && made[1]));
 v = await pg.evaluate(() => ({
   all: document.querySelectorAll('.sched-row').length,
-  real: document.querySelectorAll('.sched-row:not(.pad)').length,
+  real: document.querySelectorAll('.sched-row:not(.pad):not(.sched-add):not(.sched-gap)').length,
   named: /Lizzie Campbell/.test(document.getElementById('schedGrid').textContent),
 }));
 check('…and the new row takes a blank line — the board stays 20 deep',
@@ -492,6 +492,22 @@ v = await pg.evaluate(() => ({
   inputs: document.querySelectorAll('.sched-row.pad [data-newclient]').length,
 }));
 check('blank rows carry no "Client name" placeholder', v.ph === 0 && v.inputs > 0, JSON.stringify(v));
+// Under the last job sits one "+ Add row" line; typing into it starts a job.
+v = await pg.evaluate(() => ({
+  adds: document.querySelectorAll('.sched-row.sched-add').length,
+  ph: (document.querySelector('.sched-row.sched-add [data-newclient]') || {}).placeholder,
+  pointer: getComputedStyle(document.querySelector('.sched-hd-row [data-tip]')).cursor,
+  badge: getComputedStyle(document.querySelector('[data-rowzone="r1"] .sched-i')).borderRadius,
+}));
+check('one "+ Add row" line sits under the jobs', v.adds === 1 && v.ph === '+ Add row', JSON.stringify(v));
+check('the column icons show a pointer finger', v.pointer === 'pointer', v.pointer);
+check('the job button is a round badge', /50%/.test(v.badge), v.badge);
+calls.length = 0;
+await pg.fill('.sched-row.sched-add [data-newclient]', 'Lizzie Campbell');
+await pg.press('.sched-row.sched-add [data-newclient]', 'Enter');
+await pg.waitForTimeout(300);
+v = calls.find(c => c[0] === 'POST rows');
+check('typing into it creates the job', !!v && v[1].client_name === 'Lizzie Campbell' && v[1].folder === '', JSON.stringify(v && v[1]));
 
 // Hover half a second over a column icon → a legend says what it means.
 await pg.hover('.sched-hd-row [data-tip]:nth-of-type(4)');
@@ -604,6 +620,25 @@ await ctx.close();
   check('a block that began before the window shows the days left in it', Math.abs(v.w - (2 * 24 - 2)) < 2 && v.left === 0, JSON.stringify(v));
   check('folders sit in the order the company dragged them into', v.folds.join('|') === 'poleshed|', v.folds.join('|'));
   check('…and their headings are draggable', v.draggable);
+  // Each open section ends with "+ Add row", and a blank line separates it
+  // from the next heading. A typed name lands in THAT section.
+  v = await pg.evaluate(() => {
+    const kinds = Array.from(document.querySelectorAll('#schedGrid .sched-row')).map(e =>
+      e.classList.contains('sched-fold') ? 'F' : e.classList.contains('sched-add') ? 'A' : e.classList.contains('sched-gap') ? '_' : e.classList.contains('pad') ? 'p' : 'r');
+    return { seq: kinds.join('').replace(/p+$/, ''), folders: Array.from(document.querySelectorAll('[data-newfolder]')).map(e => e.getAttribute('data-newfolder')) };
+  });
+  check('each section ends with an add row, and a blank line before the next heading', v.seq === 'FrA_FrA', v.seq);
+  check('…and the add row knows its section', v.folders.join('|') === 'poleshed|', v.folders.join('|'));
+  calls.length = 0;
+  await pg.fill('[data-newclient="add-poleshed"]', 'Shed job');
+  await pg.press('[data-newclient="add-poleshed"]', 'Enter');
+  await pg.waitForTimeout(300);
+  const made = calls.find(c => c[0] === 'POST rows');
+  check('a job typed under Pole Sheds is created in Pole Sheds', !!made && made[1].folder === 'poleshed', JSON.stringify(made && made[1]));
+  // A job number typed by hand shows in the Job column and links to Fergus.
+  await pg.evaluate(() => { const r = _SCHED.data.rows.find(x => x.id === 'r2'); r.job_ref = '9123'; _schedRender(); });
+  v = await pg.evaluate(() => (document.querySelector('[data-rowzone="r2"] .sched-cell:nth-child(2)') || {}).innerHTML || '');
+  check('a hand-typed Fergus number shows as the Job link', /app\.fergus\.com\/jobs\/view\/9123/.test(v) && /9123/.test(v), v.slice(0, 120));
   await pg.evaluate(() => _schedFolderMove('', 'poleshed'));
   await pg.waitForTimeout(200);
   v = await pg.evaluate(() => Array.from(document.querySelectorAll('[data-fold]')).map(e => e.getAttribute('data-fold')).join('|'));

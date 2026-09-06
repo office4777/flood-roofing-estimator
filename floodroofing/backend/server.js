@@ -5768,6 +5768,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
     confirmed_delivery: b.confirmed_delivery || null, requested_delivery: b.requested_delivery || null,
     sort_pos: null, archived: false, last_notified: null, handover_done: false,
     folder: String(b.folder || '').slice(0, 40),
+    job_ref: String(b.job_ref || '').slice(0, 40),
     created_at: new Date().toISOString(),
   };
   try {
@@ -5789,7 +5790,7 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
-  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder'];
+  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder', 'job_ref'];
 // notify_log is deliberately NOT writable from the client: it is the record
 // of what the server actually sent.
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
@@ -8571,6 +8572,9 @@ const _MIGRATION_SQL = [
   // Every customer update sent from the board, so the job history can say
   // what was sent and when, not just that something was.
   "alter table public.schedule_rows add column if not exists notify_log jsonb",
+  // A Fergus job number typed by hand, for a row that is not linked to a
+  // synced job. The board shows it in the Job column and links it.
+  "alter table public.schedule_rows add column if not exists job_ref text not null default ''",
   // The company's own product list (Settings → Products). Null means the
   // shipped list, which is what every account that has never touched it has.
   "alter table public.user_settings add column if not exists selectables jsonb",

@@ -207,6 +207,11 @@ r = await as(A, '/schedule/config', { method: 'PUT', body: JSON.stringify({ fold
 body = await j(await as(A, '/schedule'));
 check('the folder order saves with the config', JSON.stringify(body.cfg.folder_order) === '["poleshed","","completed","checks"]', JSON.stringify(body.cfg.folder_order));
 check('…without touching the crews', (body.cfg.crews || []).some(c => c.name === 'Troy'), JSON.stringify(body.cfg.crews));
+// A Fergus job number typed into the popup sticks to the row.
+r = await as(A, '/schedule/rows/' + rowQ.id, { method: 'PATCH', body: JSON.stringify({ job_ref: '9123' }) });
+body = await j(await as(A, '/schedule'));
+check('a hand-typed Fergus job number saves on the row', r.status === 200 && (body.rows || []).some(x => x.id === rowQ.id && x.job_ref === '9123'),
+  JSON.stringify((body.rows || []).map(x => x.job_ref)));
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
