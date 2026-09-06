@@ -7059,6 +7059,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <span class="jms-spin" id="jmsDiagSpin" style="display:none"></span>
             <span id="jmsDiagBtnText">Run the check and send it</span>
           </button>
+          <button type="button" id="jmsDiagPdfBtn" onclick="_jmsDiagPdf(this)"
+            title="The same check, saved as a PDF you can send on yourself"
+            style="margin:0;width:auto;padding:10px 18px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+            <span class="jms-spin" id="jmsDiagPdfSpin" style="display:none"></span>
+            <span id="jmsDiagPdfText">Download it as a PDF</span>
+          </button>
           <span id="jmsDiagMsg" style="font-size:12px;color:var(--text2);flex:1;min-width:180px"></span>
         </div>
       </div>
@@ -16187,7 +16193,11 @@ async function _hbPushToFergus(id){
   try { await openJob(id); } catch(e){}
   try { gotoTab('quote'); } catch(e){}
 }
-async function openJob(id){
+// opts.quiet: don't alert, THROW instead — for callers that can recover
+// (the Fergus path falls back to starting the job fresh). The alert used to
+// be unconditional and the error was never rethrown, so every caller's catch
+// block was dead code and a recoverable miss became a dead end.
+async function openJob(id, opts){
   try {
     // Never let opening a job silently discard un-pushed edits to the
     // one that's already open: save it (or at least draft it) first.
@@ -16200,7 +16210,10 @@ async function openJob(id){
     // the map to its site address on the next Map Roof entry.
     window._aerialLoadedAddr = null;
     gotoTab('roof');
-  } catch(e) { alert('Could not open job: ' + e.message); }
+  } catch(e) {
+    if (opts && opts.quiet) throw e;
+    alert('Could not open job: ' + e.message);
+  }
 }
 
 async function deleteJob(id){
@@ -30230,6 +30243,58 @@ async function _sendJmsRequest(btn){
   }
 }
 
+// "Download it as a PDF" — the same check, handed straight back instead of
+// emailed, so a roofer can save it and send it on. api() parses JSON, and
+// this answer is a file, so it fetches directly.
+async function _jmsDiagPdf(btn){
+  var msg  = document.getElementById('jmsDiagMsg');
+  var what = document.getElementById('jmsDiagWhat');
+  var spin = document.getElementById('jmsDiagPdfSpin');
+  var txt  = document.getElementById('jmsDiagPdfText');
+  function show(t, ok){
+    if (!msg) return;
+    msg.textContent = t;
+    msg.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+  }
+  if (btn) btn.disabled = true;
+  if (spin) spin.style.display = '';
+  if (txt) txt.textContent = 'Building…';
+  show('Testing your Fergus connection — this takes a few seconds…');
+  try {
+    var r = await fetch(PROXY + '/jms/diagnostic.pdf', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('fr_token') || ''),
+                 'Content-Type': 'application/json' },
+      body: JSON.stringify({ problem: ((what || {}).value || '').trim() }),
+    });
+    if (!r.ok){
+      var t = await r.text().catch(function(){ return ''; });
+      var pl = null; try { pl = JSON.parse(t); } catch(e){}
+      throw new Error((pl && pl.error) || ('HTTP ' + r.status));
+    }
+    var blob = await r.blob();
+    // Name it from the header the server set, so the saved file says whose
+    // business and which day it is without anyone renaming it.
+    var name = 'roofmap-diagnostic.pdf';
+    try {
+      var cd = r.headers.get('content-disposition') || '';
+      var m = /filename="([^"]+)"/.exec(cd);
+      if (m) name = m[1];
+    } catch(e){}
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    show('✓ Saved as ' + name + ' — send that file to support and it has everything they need.', true);
+  } catch(err){
+    show('Could not build the PDF — ' + String((err && err.message) || err), false);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (spin) spin.style.display = 'none';
+    if (txt) txt.textContent = 'Download it as a PDF';
+  }
+}
 // The self-service diagnostic. The server answers 202 the moment it has the
 // description and does the probing afterwards, so this returns in a blink and
 // says so — the point is that nobody sits watching a spinner while somebody
@@ -33799,7 +33864,10 @@ async function useFergusJobInModal(jobId){
   var savedId = _fergJobMapGet(j.id);
   if (savedId){
     try {
-      await openJob(savedId);
+      // quiet: a RoofMap job that has since been deleted must fall through to
+      // starting this Fergus job fresh, not dead-end on "Could not open job:
+      // not found" with the mapping still pointing at the missing job.
+      await openJob(savedId, { quiet: true });
       if (!S.linkedJobId){ S.linkedJobId = j.id; S.linkedJobNo = j.jobNo || j.displayNo || j.id; }
       try { _refreshRoofFergusBtn(); } catch(e){}
       return;
@@ -34584,7 +34652,18 @@ async function testFergus(){
     //   pageSize (1-100, default 10), pageCursor (cursor, NOT page number),
     //   sortField (jobNo/createdAt/lastModified), sortOrder (asc/desc).
     // createdAt desc gives newest first directly from the API.
+    // Not every Fergus partner account answers the same query string. One
+    // subscriber's API returned jobs happily for a bare GET /jobs while the
+    // sorted, paged version failed — and the whole integration reported
+    // itself "not connected" on the strength of that one call. Fall back
+    // through progressively plainer requests before believing it.
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
+    if (!resp.ok && resp.status !== 401 && resp.status !== 403){
+      var _fallbacks = ['/jobs?pageSize=100', '/jobs?page=1', '/jobs'];
+      for (var _fi = 0; _fi < _fallbacks.length && !resp.ok; _fi++){
+        try { resp = await fergusCall('GET', _fallbacks[_fi]); } catch(_e){}
+      }
+    }
     if (!resp.ok){
       var _m = String(resp.status);
       // Fergus answers with `message`; RoofMap's own plan gate answers with
