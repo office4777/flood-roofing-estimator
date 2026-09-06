@@ -74,9 +74,9 @@ await pg.evaluate(() => { gotoTab('roof'); _fergusPanelOpen(true); });
 await pg.waitForTimeout(600);
 v = await pg.evaluate(() => {
   var g = document.getElementById('jobPhotosGrid');
-  return { btn: g ? /Use on canvas/.test(g.innerHTML) : false };
+  return { btn: g ? /Add to canvas/.test(g.innerHTML) : false };
 });
-check('every site photo offers "Use on canvas"', v.btn, JSON.stringify(v));
+check('every site photo offers "Add to canvas"', v.btn, JSON.stringify(v));
 v = await pg.evaluate(() => {
   _jobPhotoUseAsBg(0);
   return {
