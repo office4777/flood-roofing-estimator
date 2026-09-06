@@ -30209,7 +30209,7 @@ function _fbPreviewShow(kind){
     if (!cv || !drawn){ note('Nothing drawn yet — the Map Roof canvas will show here once a roof is traced.'); return; }
     // Bring the bitmap up to date first: the canvas may not have been
     // painted since the last change, or at all this session.
-    try { if (typeof drawAll === 'function') drawAll(); } catch(e){}
+    try { if (typeof redrawAll === 'function') redrawAll(); } catch(e){}
     try {
       body.innerHTML = '<img src="' + cv.toDataURL('image/png') + '" alt="The roof as drawn" style="display:block;width:100%;height:auto">';
     } catch(e){ note('The canvas can’t be copied here (a map tile from another site is on it). It is still attached to the report as measurements.'); }
