@@ -3955,9 +3955,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- Clickable: tapping the selected-job chip opens the same New Job /
          Select Job chooser as the button below, so the user can swap or
          edit the job from any tab without hunting for the Home tile. -->
-    <div id="navJobInfo" role="button" tabindex="0" onclick="openSelectJobModal('fergus')"
-         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSelectJobModal('fergus');}"
-         title="Tap to swap or edit the selected job"
+    <div id="navJobInfo" role="button" tabindex="0" onclick="_navJobTap()"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navJobTap();}"
+         title="Tap for this job's details — and to link it to a Fergus job"
          style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
          onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
       <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
@@ -6756,6 +6756,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
     <div class="f3"><div><label>Job number</label><input type="text" id="jobNo" placeholder="06121" style="font-weight:700">
       <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Auto-filled from Settings → Quote defaults → Next job number</div></div><div></div><div></div></div>
+    <!-- Whether this job is a Fergus job. Linking one pulls the client, site
+         and contact across from Fergus and keeps every line drawn and every
+         quote line here. -->
+    <div id="jobDetailsFergus" style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#f8fafc;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
     <div style="margin-top:12px" id="jtTypeToggle"><label style="display:block;margin-bottom:5px">Job type</label>
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
@@ -15705,6 +15709,7 @@ async function openSelectJobModal(opts){
   }
 }
 function closeSelectJobModal(){
+  window._fergLinkMode = false;
   var ov = document.getElementById('selectJobOverlay');
   var md = document.getElementById('selectJobModal');
   if (ov) ov.style.display = 'none';
@@ -16455,6 +16460,7 @@ async function newJob(){
   if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
   try { await _saveBeforeSwitch(); } catch(e){}
   S.currentJobId = null;
+  try { _UNT.tried = false; } catch(e){}
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
@@ -16612,8 +16618,82 @@ function _syncJobTypeToggle(){
     b.style.fontWeight = on ? '700' : '500';
   });
 }
+function _navJobTap(){
+  var has = false;
+  try {
+    has = !!(S.currentJobId || S.linkedJobId ||
+      ((document.getElementById('jobClient')||{}).value || '').trim() ||
+      ((document.getElementById('jobAddr')||{}).value || '').trim());
+  } catch(e){}
+  if (has) openJobDetailsModal('edit'); else openSelectJobModal('fergus');
+}
+function _jobDetailsFergusRender(){
+  var box = document.getElementById('jobDetailsFergus');
+  if (!box) return;
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var btn = 'padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;';
+  if (window.S && (S.linkedJobId || S.linkedJobNo)){
+    var no = S.linkedJobNo || S.linkedJobId;
+    box.innerHTML = '<span style="flex:1;min-width:180px">🔗 <strong>Fergus job #' + esc(no) + '</strong>' +
+      (S.linkedJobName ? ' <span style="color:var(--text2)">· ' + esc(S.linkedJobName) + '</span>' : '') + '</span>' +
+      '<a href="https://app.fergus.com/jobs/view/' + encodeURIComponent(no) + '" target="_blank" rel="noopener" style="' + btn + 'background:#0099cc;color:#fff;text-decoration:none">Open in Fergus</a>' +
+      '<button type="button" onclick="_fergusUnlink()" style="' + btn + 'background:#fff;color:#b91c1c;border:1px solid #fecaca">Unlink</button>';
+    return;
+  }
+  var can = false; try { can = _jmsLinked(); } catch(e){}
+  box.innerHTML = '<span style="flex:1;min-width:180px;color:var(--text2)">Not linked to a Fergus job.</span>' +
+    (can
+      ? '<button type="button" id="jobDetailsFergusLink" onclick="_fergusLinkStart()" style="' + btn + 'background:#0099cc;color:#fff">🔗 Link to a Fergus job</button>'
+      : '<span style="font-size:11px;color:var(--text2)">Connect Fergus under Settings → Job management software to link jobs.</span>');
+}
+// Link THIS job to a Fergus job: the picker opens in link mode, and the
+// job picked there is applied to the open job rather than opened instead
+// of it — client, site and contact come across from Fergus; the drawing
+// and the quote stay exactly as they are.
+function _fergusLinkStart(){
+  window._fergLinkMode = true;
+  closeJobDetailsModal();
+  openSelectJobModal('fergus');
+}
+function _fergusLinkApply(j){
+  window._fergLinkMode = false;
+  closeSelectJobModal();
+  S.linkedJobId   = j.id;
+  S.linkedJobNo   = j.jobNo || j.displayNo || j.id;
+  S.linkedJobName = (j.customer || '') + ' — ' + (j.address || '');
+  var _client = j.customer || j.client || '', _addr = j.address || j.siteAddress || '';
+  var put = function(id, v){ var el = document.getElementById(id); if (el && v) el.value = v; };
+  put('jobClient', _client); put('jobAddr', _addr); put('jobEmail', j.email); put('jobPhone', j.phone);
+  try {
+    if (S.quote){
+      if (_client) S.quote.client = _client;
+      if (_addr)   S.quote.addr   = _addr;
+      if (j.email) S.quote.email  = j.email;
+      if (j.phone) S.quote.phone  = j.phone;
+      if (S.linkedJobNo) S.quote.ref = String(S.linkedJobNo);
+    }
+  } catch(e){}
+  try { _fergJobMapSet(j.id, S.currentJobId); } catch(e){}
+  try { setCurrentJobLabel(S.currentJobId ? { id: S.currentJobId, client_name: _client, site_address: _addr } : null); } catch(e){}
+  try { updateGlobalJobBar(null); } catch(e){}
+  try { _refreshRoofFergusBtn(); } catch(e){}
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  openJobDetailsModal('edit');
+}
+function _fergusUnlink(){
+  var old = S.linkedJobId;
+  S.linkedJobId = null; S.linkedJobNo = null; S.linkedJobName = null;
+  try { if (old) _fergJobMapSet(old, null); } catch(e){}
+  try { updateGlobalJobBar(S.currentJobId ? { id: S.currentJobId,
+    client_name: (document.getElementById('jobClient')||{}).value || '', site_address: (document.getElementById('jobAddr')||{}).value || '' } : null); } catch(e){}
+  try { _refreshRoofFergusBtn(); } catch(e){}
+  try { if (S.currentJobId && typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  _jobDetailsFergusRender();
+}
 function openJobDetailsModal(mode){
   window._jobDetailsMode = (mode === 'edit') ? 'edit' : 'new';
+  try { _jobDetailsFergusRender(); } catch(e){}
   var ov = document.getElementById('jobDetailsOverlay');
   var md = document.getElementById('jobDetailsModal');
   if (!ov || !md) return;
@@ -34159,6 +34239,7 @@ async function _serverSearchSelectJobFergus(q, seq){
 async function useFergusJobInModal(jobId){
   var j = (S.fergJobsCache || []).find(function(x){ return String(x.id) === String(jobId); });
   if (!j) return;
+  if (window._fergLinkMode) return _fergusLinkApply(j);
   // Don't lose the currently-open job's edits when we switch.
   try { await _saveBeforeSwitch(); } catch(e){}
   closeSelectJobModal();
@@ -40857,7 +40938,30 @@ function _applySnapState(snapStr) {
 // Push a pre-captured snapshot string onto the undo stack. Used by
 // drag handlers that capture state at drag-start and only commit it
 // at drag-end if the user actually moved.
+// Drawing before a job is selected. The work used to live only in the
+// local "__new__" draft until somebody typed a client name; the office
+// wanted it to BE a job from the first corner — "Untitled", in recent
+// drafts, autosaving like any other — and named later. Fires once per
+// fresh job, off the first undo step, only online (offline site work has
+// its own draft path), and never for the sample.
+var _UNT = { busy: false, tried: false };
+function _untitledOnDraw(){
+  if (!window.S || S.currentJobId || S.linkedJobId || S.isSampleJob) return;
+  if (_UNT.busy || _UNT.tried) return;
+  var drawn = (DRAW.outline && DRAW.outline.length >= 1) || (DRAW.lines && DRAW.lines.length);
+  if (!drawn) return;
+  try { if (typeof _isOnline === 'function' && !_isOnline()) return; } catch(e){}
+  try { if (typeof _offlineSavesForThisDevice === 'function' && _offlineSavesForThisDevice()) return; } catch(e){}
+  if (typeof saveCurrentJob !== 'function') return;
+  var c = document.getElementById('jobClient');
+  if (c && !c.value.trim()) c.value = 'Untitled';
+  _UNT.busy = true; _UNT.tried = true;
+  Promise.resolve().then(function(){ return saveCurrentJob(); })
+    .catch(function(e){ console.warn('untitled job:', e); })
+    .then(function(){ _UNT.busy = false; try { fetchRecentDrafts(); } catch(e){} });
+}
 function _pushSnap(snapStr) {
+  try { _untitledOnDraw(); } catch(e){}
   if (!snapStr) return;
   DRAW.undoStack.push(snapStr);
   DRAW.redoStack = [];
