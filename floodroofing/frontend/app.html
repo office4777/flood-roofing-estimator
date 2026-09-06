@@ -17069,7 +17069,7 @@ function _billingRenderSection(){
   // paying for it. Saying nothing left them looking at three cards with no
   // way to tell which one they had.
   else if (s.plan && s.plan !== 'trial') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Nothing to pay at the moment' + (s.trial && s.trial.ends_at ? ' \u2014 covered until ' + _billingDate(s.trial.ends_at) : '') + '.</span></div>';
-  else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
+  else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial of Team \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
   else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
   else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
   var canBuy = !!(s && s.billing);

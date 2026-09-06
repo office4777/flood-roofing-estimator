@@ -49,10 +49,10 @@ const api = async (m, path, body) => {
 function setPlan(p){ db.companies[0].plan = p; }
 const settle = () => new Promise(r => setTimeout(r, 30));
 
-// ── trial gets everything, so a business can judge the whole product ──
+// ── the trial IS Team: what they try is what most of them buy ──
 let r = await api('GET', '/team');
-check('a trial reports itself as such, with everything unlocked',
-  r.body.plan.id === 'trial' && r.body.plan.slug && r.body.plan.domain && r.body.plan.jms && r.body.plan.seats.allowed === null,
+check('a trial reports itself as such, unlocked to exactly what Team has',
+  r.body.plan.id === 'trial' && r.body.plan.slug && !r.body.plan.domain && r.body.plan.jms && r.body.plan.seats.allowed === 5,
   JSON.stringify(r.body.plan));
 r = await api('POST', '/team/slug', { slug:'acmeroofing' });
 check('…and can set its RoofMap address', r.status === 200, String(r.status));
@@ -173,7 +173,7 @@ check('…it is only the next invitation that is refused',
 delete db.companies[0].plan; await settle();
 r = await api('GET', '/team');
 check('an account that predates plans is treated as a trial, not locked out',
-  r.body.plan.id === 'trial' && r.body.plan.seats.allowed === null, JSON.stringify(r.body.plan));
+  r.body.plan.id === 'trial' && r.body.plan.seats.allowed === 5, JSON.stringify(r.body.plan));
 
 console.log('\n' + results.filter(Boolean).length + '/' + results.length + ' passed');
 process.exit(results.filter(x=>!x).length ? 1 : 0);

@@ -1138,7 +1138,11 @@ app.get('/subscription', requireAuth, async (req, res) => {
 // before choosing — and so that every account that predates plans keeps
 // working unchanged.
 const PLANS = {
-  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
+  // The trial IS Team: what they try is what most of them buy, so paying
+  // changes nothing they have grown used to. Trade would hide the Fergus
+  // link and the schedule board from exactly the firms that buy for them;
+  // Business would give away an inbox and a domain they then feel losing.
+  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false },
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
@@ -3281,8 +3285,19 @@ function _billingNoteWebhook(kind, type){
 // Looked up on the owner's email rather than stored on the company, because
 // the waitlist row predates the company by definition — there was no account
 // when they filled the form in.
+// Anyone who came in before EARLY_ACCESS_UNTIL (an ISO date) is a founding
+// roofer — the plain signup link carries the discount, no waitlist, no
+// invite, no code. The waitlist route below still counts for those who
+// used it. Unset, only the waitlist route applies.
+function _earlyAccessOpen(){
+  const until = String(process.env.EARLY_ACCESS_UNTIL || '').trim();
+  if (!until) return false;
+  const t = Date.parse(until.length === 10 ? until + 'T23:59:59Z' : until);
+  return isFinite(t) && Date.now() <= t;
+}
 async function _earlyAccessEligible(email){
   if (!EARLY_ACCESS_COUPON) return false;
+  if (_earlyAccessOpen()) return true;
   const addr = String(email || '').trim().toLowerCase();
   if (!addr) return false;
   try {

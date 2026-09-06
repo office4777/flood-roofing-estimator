@@ -114,6 +114,24 @@ check('an early-access business gets the founding coupon applied for them',
 check('…and NOT the promotion-code box, which Stripe refuses alongside it',
   cc.body.get('allow_promotion_codes') === null,
   'allow_promotion_codes=' + cc.body.get('allow_promotion_codes'));
+// Founding pricing for everyone who signs up before a date, off the plain
+// signup link — no waitlist, no invite, no code. And off again after it.
+// The owner here IS on the waitlist, so that route is set aside to prove
+// the date rule on its own.
+const _wl = db.waitlist[0].status; db.waitlist[0].status = 'declined';
+process.env.EARLY_ACCESS_UNTIL = '2099-12-31';
+r = await call('POST', '/billing/checkout', { plan: 'business' }, T);
+const ccOpen = stripeCalls[stripeCalls.length - 1];
+check('with EARLY_ACCESS_UNTIL in the future, a plain signup gets the founding coupon',
+  r.status === 200 && ccOpen.body.get('discounts[0][coupon]') === 'coupon_founding30' && ccOpen.body.get('allow_promotion_codes') === null,
+  'coupon=' + ccOpen.body.get('discounts[0][coupon]'));
+process.env.EARLY_ACCESS_UNTIL = '2000-01-01';
+r = await call('POST', '/billing/checkout', { plan: 'business' }, T);
+const ccShut = stripeCalls[stripeCalls.length - 1];
+check('…and once the date has passed, the promotion-code box comes back instead',
+  r.status === 200 && ccShut.body.get('discounts[0][coupon]') === null && ccShut.body.get('allow_promotion_codes') === 'true',
+  'coupon=' + ccShut.body.get('discounts[0][coupon]'));
+delete process.env.EARLY_ACCESS_UNTIL; db.waitlist[0].status = _wl;
 // GST on top, worked out by Stripe Tax — the live checkout page showed $299
 // flat and no GST line until the session asked for it.
 check('checkout asks Stripe to add GST and to collect the customer\'s GST number',
