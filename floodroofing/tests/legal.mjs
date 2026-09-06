@@ -89,6 +89,16 @@ check('the retention period the policy promises is actually enforced',
   keepDays === 730 && /24 months, then deleted automatically/.test(privacy) &&
   /_pruneUsage/.test(server), keepDays + ' days, pruned on a timer');
 
+// ── the quote's own T&Cs must not print their own source code ──
+// Three clauses had \'+esc2(_proposalCompanyName(br))+\' INSIDE the single-
+// quoted string instead of concatenated around it, so every quote carrying
+// the Terms page told the customer their material remained the property of
+// '+esc2(_proposalCompanyName(br))+'. It reached production because nothing
+// read the rendered clause bodies.
+const rawConcat = (app.match(/\\'\+esc2\(/g) || []).length;
+check('no quote clause prints its own source instead of the company name',
+  rawConcat === 0, rawConcat + " occurrence(s) of an escaped \\'+esc2( in app.html");
+
 // ── the terms say the thing that matters most about a measuring tool ──
 check('the terms say measurements are estimates, in a callout',
   /Measurements are estimates/.test(terms) &&
