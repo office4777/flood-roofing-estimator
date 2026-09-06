@@ -4257,7 +4257,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             </button>
           </div>
         </div>
-        <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
+        <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button><button type="button" class="prev-rm" id="roofPrevToCanvas" onclick="_roofPrevToCanvas()" title="Put this photo under the drawing — on an empty canvas, or over the picture that is there" style="right:auto;left:8px;background:#0099cc;color:#fff;border-color:#0099cc">🗺 Add to canvas</button></div>
       </div>
     </div>
     </div><!-- end roofBgBody -->
@@ -5066,6 +5066,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span id="jobPhotosCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
         <span style="margin-left:auto;font-size:10px;color:var(--text2)">saved with the job</span>
       </div>
+      <button type="button" id="jobPhotosClearBg" onclick="_clearCanvasBg()" title="Take the picture off the canvas — the drawing stays" style="width:100%;margin-bottom:8px;padding:7px 8px;background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Delete background photo</button>
       <div style="display:flex;gap:8px;margin-bottom:9px">
         <button onclick="openRapidCamera()" class="rapidcam-btn" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📸 Rapid photos</button>
         <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
@@ -17407,8 +17408,36 @@ function clearRoofImg(){
   var _pv = document.getElementById('roofPrev');    if (_pv) _pv.style.display = 'none';
   var _uz = document.getElementById('roofUZ');      if (_uz) _uz.style.display = 'block';
   var _rf = document.getElementById('roofFile');    if (_rf) _rf.value = '';
-  var _rr = document.getElementById('roofResults'); if (_rr) _rr.style.display = 'none';
+  // #roofResults used to hold the AI analysis; it now wraps the whole
+  // drawing card. Hiding it here took the canvas off the screen with the
+  // picture — "it removed the whole canvas" (report 41) — and nothing put
+  // it back when a photo was added again. It is never hidden now.
+  var _rr = document.getElementById('roofResults'); if (_rr) _rr.style.display = '';
+  // The picture comes OFF the canvas — that is what Remove means — and the
+  // drawing stays exactly where it is; only the background and the view
+  // it was set for go. The lines never depended on the picture.
+  try {
+    DRAW.bgImg = null;
+    DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+    try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; } catch(e){ IMG_FINE_ROTATION = 0; }
+    window._aerialLoadedAddr = null;
+    redrawAll();
+  } catch(e){}
+  try { _expandRoofBg(); } catch(e){}
   try { _refreshRoofFergusBtn(); } catch(e){}
+}
+// "Delete background photo" in the photos window, and "Add to canvas" on the
+// upload preview: the same two operations, reachable from where the roofer
+// is looking.
+function _clearCanvasBg(){
+  clearRoofImg();
+  try { _setSaveStatus && _setSaveStatus('Background photo removed — the drawing is still there.', '#0369a1'); } catch(e){}
+}
+function _roofPrevToCanvas(){
+  var src = S.img64 || ((document.getElementById('roofPrevImg') || {}).src) || '';
+  if (!src) return;
+  _fergusSetCanvasBg(src);
+  try { _setSaveStatus && _setSaveStatus('🗺 Photo set as the roof background.', '#0369a1'); } catch(e){}
 }
 // ── "Roof image" step collapse ────────────────────────────────────
 // The aerial finder + upload cards only matter until an image is on the
@@ -19521,7 +19550,7 @@ function _renderJobPhotosGrid(){
     return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1;background:#f1f5f9">' +
       '<img src="' + p.src + '" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in">' +
       '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button>' +
-      '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;bottom:3px;left:3px;right:3px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:10px;line-height:1;cursor:pointer;font-family:inherit">Use on canvas</button>' +
+      '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;bottom:3px;left:3px;right:3px;height:20px;border:none;border-radius:6px;background:#0099cc;color:#fff;font-size:10px;line-height:1;cursor:pointer;font-family:inherit">Add to canvas</button>' +
     '</div>';
   }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--text2);text-align:center;padding:4px 0 2px">No photos yet — take one on site, it saves with the job.</div>';
 }
@@ -55143,6 +55172,7 @@ async function _fergusPickPhoto(f){
 // the office left it with.
 function _applyCanvasBg(img, view){
   DRAW.bgImg = img;
+  try { var _rr0 = document.getElementById('roofResults'); if (_rr0 && _rr0.style.display === 'none') _rr0.style.display = ''; } catch(e){}
   DRAW.zoom = (view && isFinite(+view.zoom) && +view.zoom > 0) ? +view.zoom : 1;
   IMG_OFFSET = { x: (view && +view.offX) || 0, y: (view && +view.offY) || 0 };
   IMG_ROTATION = 0;

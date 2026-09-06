@@ -93,6 +93,42 @@ for (const mode of ['on', 'off']){
   check(label + ': …and still leaves the drawing alone',
     v.outline === drawn.outline && v.lines === drawn.lines,
     v.outline + ' outline pts, ' + v.lines + ' lines');
+  // Report 41: "I clicked remove on the uploaded picture and it removed the
+  // whole canvas; adding the photo back didn't bring it back." Remove hid
+  // the container the drawing card lives in. The card must stay on screen,
+  // the picture must come off the canvas, and a photo added again must go
+  // back on — with the card still there.
+  let r41 = await pg.evaluate(() => ({
+    cardH: document.getElementById('roofPlanCard').offsetHeight,
+    wrapH: document.getElementById('canvasWrap').offsetHeight,
+    results: document.getElementById('roofResults').style.display,
+    bg: !!DRAW.bgImg,
+  }));
+  // The canvas wrap is what is measured: in site mode the card around it is
+  // stripped to nothing by design and the wrap stands on its own.
+  check(label + ': removing the picture leaves the drawing on screen',
+    r41.wrapH > 100 && r41.results !== 'none', JSON.stringify(r41));
+  check(label + ': …and takes the picture off the canvas', r41.bg === false, 'bg=' + r41.bg);
+  await pg.setInputFiles('#roofFile', { name:'a.png', mimeType:'image/png', buffer: Buffer.from(PNG2,'base64') });
+  await pg.waitForTimeout(1500);
+  r41 = await pg.evaluate(() => ({
+    cardH: document.getElementById('canvasWrap').offsetHeight, bg: !!DRAW.bgImg,
+    addBtn: !!document.getElementById('roofPrevToCanvas'),
+    delBtn: !!document.getElementById('jobPhotosClearBg'),
+    tile: (document.querySelector('#jobPhotosGrid button[title*="background"]') || {}).textContent || '',
+    outline:(DRAW.outline||[]).length, lines:(DRAW.lines||[]).length,
+  }));
+  check(label + ': adding the photo back puts it on the canvas, card still there',
+    r41.bg === true && r41.cardH > 100 && r41.outline === drawn.outline && r41.lines === drawn.lines, JSON.stringify(r41));
+  check(label + ': the upload preview offers "Add to canvas"', r41.addBtn, 'button present=' + r41.addBtn);
+  check(label + ': the photos window offers "Delete background photo", and each photo "Add to canvas"',
+    r41.delBtn && /Add to canvas/.test(r41.tile), 'delete=' + r41.delBtn + ' tile="' + r41.tile + '"');
+  await pg.evaluate(() => _clearCanvasBg());
+  await pg.waitForTimeout(300);
+  r41 = await pg.evaluate(() => ({ bg: !!DRAW.bgImg, cardH: document.getElementById('canvasWrap').offsetHeight,
+    lines:(DRAW.lines||[]).length }));
+  check(label + ': "Delete background photo" clears the picture and keeps the drawing and the card',
+    r41.bg === false && r41.cardH > 100 && r41.lines === drawn.lines, JSON.stringify(r41));
 
   // 4. what a save would persist — the drawing has to be IN it
   v = await pg.evaluate(() => {
