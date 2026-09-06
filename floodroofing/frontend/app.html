@@ -7632,7 +7632,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB: SEND FEEDBACK -->
 <div class="panel" id="tab-feedback">
-  <div class="card">
+<div id="fbLayout" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+  <div class="card" style="flex:1 1 560px;max-width:720px;min-width:320px">
     <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
     <p style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:12px">
       Report a bug or request a feature — it goes straight to the team, not into a ticket queue.
@@ -7721,6 +7722,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span id="fbMsg" style="font-size:12.5px;color:var(--text2)"></span>
     </div>
   </div>
+  <!-- What they are writing about, beside the box they write it in: a
+       picture of the canvas, the job pack or the quote as it stands right
+       now. A picture, not the live thing — nothing here can be edited, so
+       nothing here can change what is being reported. -->
+  <div id="fbPreview" style="flex:1 1 380px;min-width:300px;position:sticky;top:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <button type="button" class="fb-kind on" data-pv="canvas" onclick="_fbPreviewShow('canvas')">🗺 Canvas</button>
+      <button type="button" class="fb-kind" data-pv="jobpack" onclick="_fbPreviewShow('jobpack')">📦 Job Pack</button>
+      <button type="button" class="fb-kind" data-pv="quote" onclick="_fbPreviewShow('quote')">📄 Quote</button>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">A picture of it as it stands — for looking at while you type</span>
+    </div>
+    <div id="fbPreviewBody" style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:120px"></div>
+  </div>
+</div>
 </div>
 </div>
 
@@ -7806,7 +7821,7 @@ function gotoTab(t) {
     setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80);
   } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} try{ _scaleStateShow(); }catch(e){} }
-  if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
+  if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} try{ _fbPreviewShow(_fbPreviewKind); }catch(e){ console.warn('feedback preview:', e); } }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
   if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
@@ -30172,6 +30187,73 @@ function _syncFeedbackReplyTo(){
   el.textContent = who || 'your account email';
 }
 
+// ── Send feedback: the picture beside the form ─────────────────────
+// A snapshot of the canvas, the job pack or the quote, so the roofer can
+// look at the thing while describing what is wrong with it. The canvas is
+// its own bitmap; the other two are a scaled clone of the real document
+// with every canvas swapped for its picture and every id and editable
+// stripped, so it can neither be changed nor collide with the real one.
+var _fbPreviewKind = 'canvas';
+function _fbPreviewShow(kind){
+  kind = kind || 'canvas';
+  _fbPreviewKind = kind;
+  document.querySelectorAll('#fbPreview [data-pv]').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-pv') === kind);
+  });
+  var body = document.getElementById('fbPreviewBody');
+  if (!body) return;
+  var note = function(t){ body.innerHTML = '<div style="padding:26px;font-size:12.5px;color:var(--text2);text-align:center">' + t + '</div>'; };
+  if (kind === 'canvas'){
+    var cv = document.getElementById('roofCanvas');
+    var drawn = window.DRAW && Array.isArray(DRAW.outline) && DRAW.outline.length >= 3;
+    if (!cv || !drawn){ note('Nothing drawn yet — the Map Roof canvas will show here once a roof is traced.'); return; }
+    // Bring the bitmap up to date first: the canvas may not have been
+    // painted since the last change, or at all this session.
+    try { if (typeof drawAll === 'function') drawAll(); } catch(e){}
+    try {
+      body.innerHTML = '<img src="' + cv.toDataURL('image/png') + '" alt="The roof as drawn" style="display:block;width:100%;height:auto">';
+    } catch(e){ note('The canvas can’t be copied here (a map tile from another site is on it). It is still attached to the report as measurements.'); }
+    return;
+  }
+  var srcId = kind === 'quote' ? 'qpRoot' : 'jobPackPreview';
+  var designW = kind === 'quote' ? 794 : 900;      // A4 at screen size; the pack's own cards
+  try { if (kind === 'quote' && typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+  try { if (kind === 'jobpack' && typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
+  var src = document.getElementById(srcId);
+  if (!src || !src.innerHTML.trim() || !src.textContent.trim()){
+    note(kind === 'quote' ? 'No quote yet — open the Quote tab once and it will show here.' : 'No job pack yet — open the Job Pack tab once and it will show here.');
+    return;
+  }
+  var clone = src.cloneNode(true);
+  // A canvas clones empty; carry its picture across.
+  var srcCvs = src.querySelectorAll('canvas'), cloneCvs = clone.querySelectorAll('canvas');
+  for (var i = 0; i < cloneCvs.length; i++){
+    var im = document.createElement('img');
+    try { im.src = srcCvs[i].toDataURL('image/png'); } catch(e){}
+    im.style.cssText = cloneCvs[i].style.cssText; im.style.maxWidth = '100%';
+    cloneCvs[i].parentNode.replaceChild(im, cloneCvs[i]);
+  }
+  clone.querySelectorAll('[id]').forEach(function(el){ el.removeAttribute('id'); });
+  clone.querySelectorAll('[contenteditable]').forEach(function(el){ el.removeAttribute('contenteditable'); });
+  clone.querySelectorAll('script').forEach(function(el){ el.remove(); });
+  clone.querySelectorAll('.no-print').forEach(function(el){ el.remove(); });
+  clone.removeAttribute('id');
+  clone.style.zoom = 1;
+  var inner = document.createElement('div');
+  inner.style.cssText = 'width:' + designW + 'px;transform-origin:0 0;pointer-events:none;user-select:none';
+  inner.appendChild(clone);
+  var outer = document.createElement('div');
+  outer.style.cssText = 'overflow:hidden;position:relative';
+  outer.appendChild(inner);
+  body.innerHTML = ''; body.appendChild(outer);
+  var fit = function(){
+    var w = body.clientWidth || designW;
+    var k = Math.min(1, w / designW);
+    inner.style.transform = 'scale(' + k + ')';
+    outer.style.height = Math.ceil(inner.offsetHeight * k) + 'px';
+  };
+  fit(); setTimeout(fit, 60);
+}
 // ── Send feedback ─────────────────────────────────────────────────
 // Feedback goes by email to the team. Screenshots (optional) are downscaled
 // and stitched into a single PDF attachment, so they ride through the existing

@@ -109,6 +109,50 @@ check('…and carries no tag, because it is the ordinary case',
   !/^\[/.test((feedback || {}).title || ''), (feedback || {}).title);
 
 check('no page errors anywhere in that', errs.length === 0, errs.join(' | ') || 'clean');
+// ── the picture beside the form ──────────────────────────────────
+// What they are writing about sits beside the box they write it in: three
+// chips, a snapshot of the canvas by default, and the job pack or the quote
+// as a scaled, uneditable copy of the real document.
+{
+  await pg.evaluate(() => {
+    DRAW.outline = [[100,100],[500,100],[500,340],[100,340]];
+    try { drawPlanView(DRAW); } catch(e){}
+    gotoTab('feedback');
+  });
+  await pg.waitForTimeout(400);
+  let pv = await pg.evaluate(() => ({
+    chips: [].map.call(document.querySelectorAll('#fbPreview [data-pv]'), b => b.getAttribute('data-pv') + (b.classList.contains('on') ? '*' : '')),
+    img: (document.querySelector('#fbPreviewBody img') || {}).src || '',
+    beside: document.getElementById('fbPreview').getBoundingClientRect().left >
+            document.querySelector('#tab-feedback .card').getBoundingClientRect().left + 300,
+  }));
+  check('the feedback tab shows a Canvas / Job Pack / Quote picker beside the form',
+    pv.chips.join(' ') === 'canvas* jobpack quote' && pv.beside, JSON.stringify(pv.chips) + ' beside=' + pv.beside);
+  check('…opening on a picture of the canvas', /^data:image\/png/.test(pv.img), pv.img.slice(0, 30));
+  await pg.click('#fbPreview [data-pv="jobpack"]');
+  await pg.waitForTimeout(300);
+  pv = await pg.evaluate(() => ({
+    on: (document.querySelector('#fbPreview [data-pv].on') || {}).getAttribute('data-pv'),
+    sections: document.querySelectorAll('#fbPreviewBody [data-jp-section]').length,
+    ids: document.querySelectorAll('#fbPreviewBody [id]').length,
+    editable: document.querySelectorAll('#fbPreviewBody [contenteditable]').length,
+    dead: getComputedStyle(document.querySelector('#fbPreviewBody > div > div')).pointerEvents,
+    realStill: !!document.getElementById('jpCover'),
+  }));
+  check('Job Pack shows a copy of the real pack', pv.on === 'jobpack' && pv.sections >= 3, JSON.stringify(pv));
+  check('…with no ids or editables that could collide with or change the real one',
+    pv.ids === 0 && pv.editable === 0 && pv.dead === 'none' && pv.realStill, JSON.stringify(pv));
+  feedback = null;
+  await pg.click('#fbPreview [data-pv="quote"]');
+  await pg.waitForTimeout(400);
+  pv = await pg.evaluate(() => ({
+    on: (document.querySelector('#fbPreview [data-pv].on') || {}).getAttribute('data-pv'),
+    text: document.getElementById('fbPreviewBody').textContent.trim().length,
+  }));
+  check('Quote shows the proposal (or says there is none yet), and switching never submits',
+    pv.on === 'quote' && pv.text > 20 && feedback === null, JSON.stringify(pv) + ' sent=' + (feedback !== null));
+}
+
 await ctx.close();
 await b.close();
 const bad = results.filter(x => !x).length;
