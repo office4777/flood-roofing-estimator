@@ -56493,7 +56493,12 @@ function buildTRoofLines(ol){
     // ridge — the standard 4-way junction.)
     var V=[sxc, jy-sw/2];
     ln.push({t:'ridge', a:capWap, b:capEap});      // cap ridge (E-W), full
-    ln.push({t:'ridge', a:ridgeN, b:stemSap});     // stem ridge
+    // The stem ridge ENDS at V, where the two valleys meet: that is where the
+    // stem's roof dies into the cap's slope. It used to run on from the cap's
+    // ridge line, straight through V — "the vertical ridge line getting stuck
+    // to the horizontal ridge line" — leaving the valleys meeting at a point
+    // nothing else arrived at. At sw==ch, V sits on the cap ridge anyway.
+    ln.push({t:'ridge', a:V, b:stemSap});          // stem ridge
     ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
   }
   var inv=(4-nTurns)%4;
@@ -57717,6 +57722,97 @@ function buildRectilinearRoofLines(outline, gableEnds){
   return out;
 }
 
+// Square up a hand-traced outline whose walls are all within a few pixels
+// of square, so the roof can be worked out on a building that IS square.
+//
+// A roof traced over an aerial is never square to the pixel, and the solver
+// is honest about that: a wall two pixels out of line gives a hip two
+// pixels off 45°, a ridge that leans, and — where a stub's apex sits close
+// to the bar's ridge — a junction that lands on one side or the other of
+// it depending on which corner moved last. "Slight movement, big change":
+// the same roof came back with its stub ridge welded onto the bar's ridge,
+// the bar's ridge cut in two, and the valleys pulled off 45° to reach it.
+// The tidy-up that levels ridges and welds junctions refuses an outline with
+// any wall more than a pixel and a half off square, so on a hand-traced
+// roof it never ran at all.
+//
+// So walls a few pixels out of line are treated as the same wall, exactly
+// as the gable builder already does: the roof is built on the squared
+// outline, where every hip and valley is 45° and every ridge level or
+// plumb, and only the points that sit on a wall are then moved back onto
+// the wall the roofer actually drew. An interior junction is never moved.
+// A wall that is genuinely angled — more than the tolerance — leaves the
+// outline alone, and the solver draws the sloping roof it deserves.
+function _roofSquareUp(outline){
+  if (!outline || outline.length < 4) return null;
+  var xs = outline.map(function(p){ return p[0]; }), ys = outline.map(function(p){ return p[1]; });
+  var spanX = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+  var spanY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+  var tol = Math.max(2, Math.min(0.05 * Math.min(spanX, spanY), 12));
+  var n = outline.length, i, square = true, needs = false;
+  for (i = 0; i < n; i++){
+    var a = outline[i], b = outline[(i + 1) % n];
+    var minor = Math.min(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+    if (minor > tol){ square = false; break; }
+    if (minor > 0.01) needs = true;
+  }
+  // Angled for real, or square to the pixel already. A wall only a pixel
+  // out is still squared: at that size the tidy-up used to run on the raw
+  // outline and could still weld a stub's ridge onto the bar's.
+  if (!square || !needs) return null;
+  function cluster(vals){
+    var s2 = vals.slice().sort(function(p, q){ return p - q; }), map = {}, k = 0;
+    while (k < s2.length){
+      var e = k;
+      while (e + 1 < s2.length && s2[e + 1] - s2[k] <= tol) e++;
+      var m = 0; for (var q2 = k; q2 <= e; q2++) m += s2[q2];
+      m /= (e - k + 1);
+      for (var q3 = k; q3 <= e; q3++) map[s2[q3]] = m;
+      k = e + 1;
+    }
+    return map;
+  }
+  var mx = cluster(xs), my = cluster(ys);
+  var ol = outline.map(function(p){ return [mx[p[0]], my[p[1]]]; });
+  var clean = [];
+  for (i = 0; i < ol.length; i++){
+    var prev = clean.length ? clean[clean.length - 1] : ol[ol.length - 1];
+    if (Math.abs(ol[i][0] - prev[0]) > 0.01 || Math.abs(ol[i][1] - prev[1]) > 0.01) clean.push(ol[i]);
+  }
+  if (clean.length < 4) return null;
+  var nearestOn = function(q, poly){
+    var bp = null, bd = Infinity;
+    for (var z = 0; z < poly.length; z++){
+      var a0 = poly[z], b0 = poly[(z + 1) % poly.length];
+      var dx0 = b0[0] - a0[0], dy0 = b0[1] - a0[1], l0 = dx0 * dx0 + dy0 * dy0;
+      var t0 = l0 < 1e-9 ? 0 : ((q[0] - a0[0]) * dx0 + (q[1] - a0[1]) * dy0) / l0;
+      t0 = Math.max(0, Math.min(1, t0));
+      var cx0 = a0[0] + t0 * dx0, cy0 = a0[1] + t0 * dy0;
+      var d0 = Math.hypot(q[0] - cx0, q[1] - cy0);
+      if (d0 < bd){ bd = d0; bp = [cx0, cy0]; }
+    }
+    return { p: bp, d: bd };
+  };
+  return {
+    outline: clean,
+    // Only the points on the squared wall go back; a corner goes to the
+    // corner the roofer drew, so a hip still starts where it always did.
+    back: function(lines){
+      (lines || []).forEach(function(l){
+        [0, 1].forEach(function(e){
+          var q = l.pts[e];
+          if (nearestOn(q, clean).d > 2.5) return;      // an interior junction
+          var corner = null, cd = Infinity;
+          outline.forEach(function(c){ var d = Math.hypot(c[0] - q[0], c[1] - q[1]); if (d < cd){ cd = d; corner = c; } });
+          if (cd <= tol + 3){ l.pts[e] = corner.slice(); return; }
+          var real = nearestOn(q, outline);
+          if (real.d > 0.01 && real.d <= tol + 3) l.pts[e] = real.p;
+        });
+      });
+      return lines;
+    },
+  };
+}
 function buildHipValleyLines(outline) {
   // A square-walled building of a shape we recognise is built from the shape
   // itself, which is exact. Anything else falls through to the solver below.
@@ -57729,8 +57825,12 @@ function buildHipValleyLines(outline) {
   // square, by leaving hip ends in mid-air. tests/roofreal.mjs is that net.
   // The straight skeleton below takes this path.
   outline = _roofSimplifyOutline(outline, 18);
+  // Hand-traced but square: work on the squared outline (see _roofSquareUp),
+  // and put the wall ends back on the drawn walls at the end.
+  var _sq = _roofSquareUp(outline);
+  if (_sq) outline = _sq.outline;
   var _tLn = buildTRoofLines(outline);
-  if (_tLn) return _tLn;            // clean imposed topology for T-shapes
+  if (_tLn) return _sq ? _sq.back(_tLn) : _tLn;            // clean imposed topology for T-shapes
   var result = [];
   var EPS = 1.5;
   function vlen(v){return Math.sqrt(v[0]*v[0]+v[1]*v[1]);}
@@ -58019,6 +58119,7 @@ function buildHipValleyLines(outline) {
   // Square-walled buildings get their ridges levelled and their junctions
   // welded before anyone sees them — see _skelSnapRectilinear above.
   _skelSnapRectilinear(outline, result);
+  if (_sq) _sq.back(result);
   return result;
 }
 

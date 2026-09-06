@@ -33,6 +33,12 @@ const SHAPES = {
   'the H from report 29': [[921,1165],[921,1528],[1122,1528],[1122,1411],[1218,1411],[1218,1511],
                            [1462,1511],[1462,1159],[1202,1159],[1202,1247],[1118,1247],[1118,1165]],
   'a plain rectangle':    [[100,100],[500,100],[500,340],[100,340]],
+  // The T off the phone: a bar with a stub, traced by hand over an aerial,
+  // so every corner is a pixel or three off square. "Slight movement, big
+  // change" — the same roof came back with its stub ridge welded onto the
+  // bar's ridge, the bar's ridge cut in two, and the valleys pulled off 45°
+  // to reach it, depending on which corner had moved last.
+  'the T from the phone, traced by hand': [[2,111],[74,109],[77,-2],[281,1],[278,112],[376,110],[374,349],[-1,347]],
   'a U':                  [[100,100],[100,500],[220,500],[220,260],[380,260],[380,500],[500,500],[500,100]],
 };
 
@@ -116,7 +122,13 @@ const report = await pg.evaluate((shapes) => {
       kinds[k].filter(t => t === 'ridge').length >= 2).length;
     const valleyKnuckles = Object.keys(deg).filter(k =>
       kinds[k].filter(t => t === 'valley').length >= 2).length;
-    out[name] = { wingRidges, valleyOnRidge, valleyKnuckles,
+    // Hips and valleys on a square-walled building are 45°. The wall end of
+    // one may sit on the corner the roofer drew, a few pixels off the squared
+    // wall, so the allowance is a few pixels — not the ten to twenty the raw
+    // solver was giving.
+    const off45 = lines.filter(l => (l.type === 'hip' || l.type === 'valley') &&
+      Math.abs(Math.abs(l.p[1][0]-l.p[0][0]) - Math.abs(l.p[1][1]-l.p[0][1])) > 7).length;
+    out[name] = { wingRidges, valleyOnRidge, valleyKnuckles, off45,
       count: lines.length, strays: strays.map(l => l.type), dangling,
       openApex: openApex.length, kinked: kinked.length, skew: skewRidge.length, reflex,
       valleys: lines.filter(l => l.type === 'valley').length,
@@ -137,6 +149,21 @@ for (const [name, r] of Object.entries(report)){
     r.valleys >= 1, r.valleys + ' valleys for ' + r.reflex + ' inside corners');
   if (!r.reflex) check('…and a plain box needs exactly one ridge', r.ridges === 1, r.ridges + ' ridges');
 }
+// The hand-traced T: the stub is lower than the bar, so its ridge ends at
+// an apex short of the bar's ridge, the two valleys meet it there at 45°,
+// and the bar's ridge is one piece. Nothing welds onto anything.
+const TP = report['the T from the phone, traced by hand'];
+check('the hand-traced T keeps two ridges — the bar\'s in one piece, the stub\'s short of it',
+  TP.ridges === 2, TP.ridges + ' ridges');
+check('…with every hip and valley at 45°', TP.off45 === 0, TP.off45 + ' off 45°');
+check('…and no valley landing on a ridge line', TP.valleyOnRidge === 0, TP.valleyOnRidge + ' landed on one');
+// Every shape but the H. The H's link is narrower than its wings, and the
+// tidy-up that lets the link's roof die into the wing's face welds a short
+// connecting hip that comes out eleven pixels off 45° — a known, separate
+// fault of that weld, not of the squaring this check was added with.
+for (const [name, r] of Object.entries(report))
+  if (!/the H from/.test(name))
+    check(name + ': every hip and valley within a few pixels of 45°', r.off45 === 0, r.off45 + ' off');
 // The H is the shape this whole exercise started on, and the thing that was
 // wrong with it is worth pinning by name: a link between two wings is
 // NARROWER than either, so its ridge sits lower and its roof runs into the
