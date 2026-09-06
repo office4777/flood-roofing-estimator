@@ -19,6 +19,7 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 
 const b = await chromium.launch();
 const posted = [];
+const pdfPosted = [];
 let holdDiagnose = null;          // set to a promise to keep the request in flight
 
 async function open(){
@@ -27,6 +28,16 @@ async function open(){
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async (r) => {
     const u = r.request().url(), m = r.request().method();
+    if (/\/jms\/diagnostic\.pdf/.test(u) && m === 'POST'){
+      pdfPosted.push(r.request().postDataJSON());
+      return r.fulfill({ status: 200, contentType: 'application/pdf',
+        headers: { 'content-disposition': 'attachment; filename="roofmap-diagnostic-kauri-2026-09-06.pdf"',
+                   // The API is a different origin, so without this the page
+                   // cannot read the header at all — which is exactly how the
+                   // filename got lost the first time.
+                   'access-control-expose-headers': 'Content-Disposition' },
+        body: Buffer.from('%PDF-1.4\n(stub)\n%%EOF\n') });
+    }
     if (/\/jms\/diagnose/.test(u) && m === 'POST'){
       posted.push(r.request().postDataJSON());
       if (holdDiagnose) await holdDiagnose;
@@ -139,6 +150,33 @@ check('…and tells them to carry on working rather than wait',
   /carry on/i.test(after.msg), after.msg);
 check('…and the box is cleared, so nobody sends it twice by accident',
   after.box === '', JSON.stringify(after.box));
+
+// ── the PDF button ────────────────────────────────────────────────
+// "a pdf that i can quickly download and send you". The button has to be on
+// the same card, has to reach the server with what they typed, and has to
+// hand back a file rather than leaving them on a page that did nothing.
+let dl = null;
+pg.on('download', d => { dl = d; });
+await pg.fill('#jmsDiagWhat', 'Could not open job 3045.');
+await pg.click('#jmsDiagPdfBtn');
+await pg.waitForTimeout(1500);
+check('the PDF button is on the diagnostic card, not somewhere else',
+  await pg.isVisible('#jmsDiagPdfBtn'));
+check('…and it asks the server for the report', pdfPosted.length === 1,
+  JSON.stringify(pdfPosted));
+check('…sending what they actually typed, so the report names the job',
+  /3045/.test((pdfPosted[0] || {}).problem || ''), JSON.stringify(pdfPosted[0] || null));
+const pdfMsg = await pg.evaluate(() => (document.getElementById('jmsDiagMsg') || {}).textContent || '');
+check('…and says it saved, naming the file rather than just "done"',
+  /✓/.test(pdfMsg) && /\.pdf/.test(pdfMsg), pdfMsg);
+check('…under the name the server gave it, not a generic one',
+  /roofmap-diagnostic-kauri-2026-09-06\.pdf/.test(pdfMsg), pdfMsg);
+const pdfBtn = await pg.evaluate(() => ({
+  disabled: !!(document.getElementById('jmsDiagPdfBtn') || {}).disabled,
+  label: (document.getElementById('jmsDiagPdfText') || {}).textContent || '',
+}));
+check('…and the button comes back rather than staying stuck on "Building…"',
+  !pdfBtn.disabled && /download/i.test(pdfBtn.label), JSON.stringify(pdfBtn));
 
 check('no page errors anywhere in that', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close();

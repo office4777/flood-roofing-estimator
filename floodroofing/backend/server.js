@@ -7066,6 +7066,88 @@ function _jmsReportHtml(ctx, probes){
     '<div style="color:#64748b;font-size:12px;margin-top:16px">Sent by RoofMap on the subscriber\'s request. No credential is included in this report.</div>' +
   '</div>';
 }
+// ── A very small PDF writer ─────────────────────────────────────────────
+// The diagnostic is monospaced, tabular text, which is the one thing a PDF
+// can carry with no library at all: Courier is a base-14 font every reader
+// has built in, so the file needs no embedded font, no compression and no
+// dependency. Adding pdfkit to the backend to render forty lines of fixed
+// -width text would be a build-time risk for no gain.
+//
+// Returns a Buffer. Lines longer than the page are hard-wrapped, and the
+// page breaks every PDF_LINES_PER_PAGE lines.
+const PDF_LINES_PER_PAGE = 62;
+const PDF_COLS = 96;                     // Courier 8pt across an A4 page
+function _pdfEscape(t){
+  return String(t).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+    // Base-14 Courier is Latin-1; anything outside it would render as mojibake,
+    // so fold the few characters this report can contain and drop the rest.
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[–—]/g, '-').replace(/…/g, '...')
+    .replace(/[^\x20-\x7e]/g, '?');
+}
+function _pdfWrap(lines){
+  const out = [];
+  for (const raw of lines){
+    const line = String(raw == null ? '' : raw).replace(/\t/g, '    ');
+    if (line.length <= PDF_COLS) { out.push(line); continue; }
+    for (let i = 0; i < line.length; i += PDF_COLS) out.push(line.slice(i, i + PDF_COLS));
+  }
+  return out;
+}
+function _pdfFromLines(lines){
+  const wrapped = _pdfWrap(lines);
+  const pages = [];
+  for (let i = 0; i < wrapped.length; i += PDF_LINES_PER_PAGE) {
+    pages.push(wrapped.slice(i, i + PDF_LINES_PER_PAGE));
+  }
+  if (!pages.length) pages.push(['(empty)']);
+
+  // Object 1 catalog, 2 pages tree, 3 font, then a page + a stream per page.
+  const objs = [];
+  const pageIds = pages.map((_, i) => 4 + i * 2);
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') +
+            '] /Count ' + pages.length + ' >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+  pages.forEach((pageLines, i) => {
+    const id = pageIds[i];
+    objs[id] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ' +
+               '/Resources << /Font << /F1 3 0 R >> >> /Contents ' + (id + 1) + ' 0 R >>';
+    const body = 'BT /F1 8 Tf 11 TL 40 800 Td\n' +
+      pageLines.map(l => '(' + _pdfEscape(l) + ') Tj T*').join('\n') + '\nET';
+    objs[id + 1] = '<< /Length ' + Buffer.byteLength(body, 'latin1') + ' >>\nstream\n' +
+                   body + '\nendstream';
+  });
+
+  // Serialise, recording each object's byte offset for the xref table.
+  const chunks = [];
+  let len = 0;
+  const push = (str) => { const b = Buffer.from(str, 'latin1'); chunks.push(b); len += b.length; };
+  push('%PDF-1.4\n');
+  const offsets = [];
+  for (let i = 1; i < objs.length; i++){
+    if (!objs[i]) continue;
+    offsets[i] = len;
+    push(i + ' 0 obj\n' + objs[i] + '\nendobj\n');
+  }
+  const xref = len;
+  const count = objs.length;
+  let table = 'xref\n0 ' + count + '\n0000000000 65535 f \n';
+  for (let i = 1; i < count; i++){
+    table += String(offsets[i] || 0).padStart(10, '0') + ' 00000 n \n';
+  }
+  push(table);
+  push('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return Buffer.concat(chunks);
+}
+function _jmsReportPdf(ctx, probes){
+  return _pdfFromLines(_jmsReportText(ctx, probes).split('\n'));
+}
+function _jmsReportFilename(ctx){
+  const who = String(ctx.company || ctx.who || 'roofmap').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'roofmap';
+  return 'roofmap-diagnostic-' + who + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
+}
 function _jmsReportText(ctx, probes){
   return 'RoofMap — integration diagnostic\n\n' +
     'Business: ' + (ctx.company || '(not set)') + '\n' +
@@ -7122,12 +7204,60 @@ app.post('/jms/diagnose', requireAuth, requireSubscription,
       subject: 'RoofMap integration diagnostic: ' + (ctx.company || ctx.who),
       text: _jmsReportText(ctx, probes),
       html: _jmsReportHtml(ctx, probes),
+      // The same report as a PDF, so it can be forwarded as one file rather
+      // than copied out of an email body.
+      attachment: { filename: _jmsReportFilename(ctx),
+                    base64: _jmsReportPdf(ctx, probes).toString('base64') },
       fromName: 'RoofMap Diagnostics — ' + [ctx.company, ctx.who].filter(Boolean).join(' · '),
       fromAddress: MAIL_SUPPORT,
       replyTo: /.@./.test(ctx.who) ? ctx.who : undefined,
     });
   } catch (e) {
     console.error('jms diagnostic failed:', e.message);
+  }
+});
+
+// The same diagnostic as a downloadable file. /jms/diagnose emails it and
+// answers 202 immediately; this one waits for the probes and hands the PDF
+// straight back, so a subscriber can save it and forward it themselves
+// rather than going and finding the email. No credential is in it — the API
+// key is reported by length only, exactly as in the emailed copy.
+app.post('/jms/diagnostic.pdf', requireAuth, requireSubscription,
+  requirePlan('jms', 'The job-system link', 'Team'), rateLimit(6, 600000), async (req, res) => {
+  try {
+    const problem = String((req.body || {}).problem || '').trim().slice(0, 4000)
+      || '(no description given — report downloaded from Settings)';
+    const fergusKey = await _fergusKeyFor(req);
+    let row = null;
+    try { row = await _companySettingsRow(req); } catch (e) {}
+    const keys = (row && row.jms_keys) || {};
+    const ctx = {
+      software: 'Fergus',
+      problem,
+      who: String((req.user && req.user.email) || 'unknown user'),
+      company: String((((row || {}).branding) || {}).company_name || '').trim(),
+      plan: await _planOf(req.companyId).catch(() => 'unknown'),
+      when: new Date().toISOString(),
+      keyState: fergusKey ? ('set, ' + String(fergusKey).length + ' characters') : 'NOT SET',
+      jobNo: _jmsJobNoFrom(problem),
+      matAcct: keys.fergusMaterialsAccountId || '',
+      labAcct: keys.fergusLabourAccountId || '',
+    };
+    const probes = fergusKey ? await _jmsRunProbes(fergusKey, ctx.jobNo)
+      : [{ tag: 'No API key stored for this business', path: '—', status: 'SKIP',
+           verdict: 'Nothing to probe', ms: 0, shape: 'Connect Fergus first.' }];
+    const pdf = _jmsReportPdf(ctx, probes);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + _jmsReportFilename(ctx) + '"');
+    // The app is served from a different origin to the API, so a fetch() can
+    // only read the CORS-safelisted response headers. Without this the
+    // browser has the filename and refuses to hand it over, and the download
+    // saves as a generic name instead of one that says whose it is.
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Content-Length', pdf.length);
+    res.end(pdf);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not build the diagnostic: ' + e.message });
   }
 });
 

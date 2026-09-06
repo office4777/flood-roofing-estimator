@@ -161,6 +161,50 @@ for (let i = 0; i < 60 && !sent.length; i++) await new Promise(x => setTimeout(x
 check('…and support is told the key is missing rather than getting an empty probe',
   sent.length === 1 && /NOT SET/.test(JSON.stringify(sent[0])), sent.length + ' mails');
 
+// ── the PDF: emailed AND downloadable ─────────────────────────────
+// "make this get emailed to me in a pdf that i can quickly download and send
+// you". Two routes, one report: /jms/diagnose attaches it, and this one
+// hands the bytes straight back so it can be saved and forwarded.
+db.user_settings[0].jms_keys = { fergus: 'k'.repeat(88),
+  fergusMaterialsAccountId: '12345678', fergusLabourAccountId: '87654321' };
+const pdfPost = (body, u, c) => fetch(BASE + '/jms/diagnostic.pdf', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tokFor(u, c) },
+  body: JSON.stringify(body || {}),
+});
+r = await pdfPost({ problem: 'Could not open job 3045.' }, U, CO);
+check('the diagnostic can be downloaded as a PDF', r.status === 200, 'status ' + r.status);
+check('…served as a PDF, as an attachment with a dated name',
+  /application\/pdf/.test(r.headers.get('content-type') || '') &&
+  /attachment; filename="roofmap-diagnostic-[a-z0-9-]*\d{4}-\d{2}-\d{2}\.pdf"/
+    .test(r.headers.get('content-disposition') || ''),
+  (r.headers.get('content-disposition') || '(no disposition)'));
+const pdf = Buffer.from(await r.arrayBuffer());
+check('…and it is a real PDF a reader will open',
+  pdf.subarray(0, 8).toString() === '%PDF-1.4' && /%%EOF\s*$/.test(pdf.subarray(-16).toString()),
+  pdf.length + ' bytes');
+const flat = pdf.toString('latin1');
+check('…carrying the job number and what their Fergus answered',
+  /3045/.test(flat) && /Not offered by this API/.test(flat));
+// The whole reason the report exists is that it is safe to forward.
+check('…and NOT the API key, only its length',
+  flat.indexOf('k'.repeat(40)) < 0 && /set, 88 characters/.test(flat));
+check('…on the same paid plan as the link it diagnoses',
+  (await pdfPost({ problem: 'x' }, US, CS)).status === 403);
+// A roofer who clicks the button before typing anything still gets a report:
+// the probes are the useful half and they do not need a description.
+check('…and no description still produces one, rather than a refusal',
+  (await pdfPost({}, U, CO)).status === 200);
+
+// The emailed copy carries the same file.
+sent.length = 0;
+r = await post({ problem: 'Could not open job 3045.' }, U, CO);
+for (let i = 0; i < 60 && !sent.length; i++) await new Promise(x => setTimeout(x, 100));
+const att = sent.length && (sent[0].attachments || sent[0].attachment ||
+  (sent[0].payload && sent[0].payload.attachments));
+check('the emailed diagnostic carries the PDF too, not just the text',
+  !!att && /pdf/i.test(JSON.stringify(att)), JSON.stringify(att || null).slice(0, 120));
+
 await new Promise(x => relay.close(x));
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
