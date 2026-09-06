@@ -8341,11 +8341,17 @@ function _schedRender(){
   // heading. Counted in _bands so the pad and the shade layer stay right.
   var _addRow = function(fid, gap){
     var cells = '';
+    // The Job and Site cells become one wide input here: "+ Add row" does
+    // not fit a 70px column, and the name typed is what matters.
+    var siteW = 0; cols.forEach(function(c){ if (c.key === 'site') siteW = c.w; });
     cols.forEach(function(c, i){
-      var inner = '';
-      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="add-' + esc(fid) + '" data-newfolder="' + esc(fid) + '" placeholder="+ Add row" title="Type a client name to add a job here">';
-      if (c.key === 'site') inner = '<input type="text" value="" data-newsite="add-' + esc(fid) + '">';
-      cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
+      var inner = '', w = c.w;
+      if (c.key === 'site') return;
+      if (c.key === 'jobno' || c.key === 'job'){
+        w += siteW;
+        inner = '<input type="text" value="" data-newclient="add-' + esc(fid) + '" data-newfolder="' + esc(fid) + '" placeholder="+ Add row" title="Type a client name to add a job here">';
+      }
+      cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + w + 'px">' + inner + '</div>';
     });
     var out = '<div class="sched-row sched-add" data-addrow="' + esc(fid) + '">' + cells +
       '<div class="sched-strip" style="width:' + stripW + 'px;height:30px"></div></div>';
