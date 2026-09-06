@@ -137,8 +137,6 @@ worse than none.
 **Waiting on the owner (Aron):**
 - Rotate the Fergus API token and the Railway `ADMIN_TOKEN` — both were
   readable in screenshots shared during a session.
-- Check `OPEN_REGISTRATION` on Railway is not the string `'false'`, or the
-  free trial stays invite-only whatever the site says.
 - Four aerial screenshots for the demo slideshow (Mapbox is unreachable from
   the build environment, so those slides are placeholders): aerial found,
   mid-trace, outline finished, roof lines generated.

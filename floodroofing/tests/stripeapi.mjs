@@ -201,6 +201,15 @@ const swapped = JSON.stringify({ type: 'customer.subscription.updated', data: { 
 r = await call('POST', '/billing/webhook', swapped, null, { 'stripe-signature': sign(swapped) });
 check('a portal change onto the yearly price still resolves the plan',
   r.status === 200 && db.companies[0].plan === 'team', db.companies[0].plan);
+// Stripe's 2025+ API versions carry the period on the subscription ITEM, not
+// the subscription; the live webhook is on 2026-08-26. The renewal date must
+// still be recorded from there.
+const onItem = JSON.stringify({ type: 'customer.subscription.updated', data: { object: {
+  id: 'sub_9', status: 'active', items: { data: [{ price: { id: 'price_team_2990' }, current_period_end: 1790000000 }] } } } });
+r = await call('POST', '/billing/webhook', onItem, null, { 'stripe-signature': sign(onItem) });
+check('the renewal date is read from the subscription item on the new API versions',
+  r.status === 200 && String(((db.subscriptions || []).find(x => x.stripe_subscription_id === 'sub_9') || {}).current_period_end || '').startsWith('2026-09-21'),
+  String(((db.subscriptions || []).find(x => x.stripe_subscription_id === 'sub_9') || {}).current_period_end));
 
 const deleted = JSON.stringify({ type: 'customer.subscription.deleted', data: { object: { id: 'sub_9', status: 'canceled' } } });
 r = await call('POST', '/billing/webhook', deleted, null, { 'stripe-signature': sign(deleted) });

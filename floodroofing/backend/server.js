@@ -3552,7 +3552,12 @@ async function _stripeWebhook(req, res){
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted'){
       const status = event.type === 'customer.subscription.deleted' ? 'canceled' : String(obj.status || 'active');
       const patch = { status: status, updated_at: new Date().toISOString() };
-      if (obj.current_period_end) patch.current_period_end = new Date(obj.current_period_end * 1000).toISOString();
+      // Stripe moved the period off the subscription and onto each of its
+      // items in its 2025 API versions; the webhook is on 2026-08-26, so the
+      // item is where it is now, with the old place kept for an older event.
+      const _item0 = obj.items && obj.items.data && obj.items.data[0];
+      const _periodEnd = (_item0 && _item0.current_period_end) || obj.current_period_end;
+      if (_periodEnd) patch.current_period_end = new Date(_periodEnd * 1000).toISOString();
       // A plan changed through the portal shows up as a new price on the sub.
       const priceId = obj.items && obj.items.data && obj.items.data[0] && obj.items.data[0].price && obj.items.data[0].price.id;
       const newPlan = _stripePlanOfPrice(priceId);
