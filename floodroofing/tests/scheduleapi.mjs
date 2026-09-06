@@ -194,6 +194,19 @@ body = await j(await as(A, '/schedule'));
 check('…and the shutdown becomes non-working days', (body.nonwork || []).includes('2026-12-23'));
 check('…and crews round-trip', (body.cfg.crews || []).some(c => c.name === 'Troy'), JSON.stringify(body.cfg.crews));
 check('…and the feed secret never leaves the server', body.cfg.feed_secret === undefined);
+// The board looks one week back, not six — last month's jobs are not
+// what the office opens the schedule to see.
+{
+  const d = new Date(); d.setUTCDate(d.getUTCDate() - 7);
+  const wantFrom = d.toISOString().slice(0, 10);
+  check('the visible range starts exactly 7 days back', body.range.from === wantFrom, body.range.from + ' vs ' + wantFrom);
+}
+// The folder order the office drags into place is company config, so
+// it follows them to the next device.
+r = await as(A, '/schedule/config', { method: 'PUT', body: JSON.stringify({ folder_order: ['poleshed', '', 'completed', 'checks'] }) });
+body = await j(await as(A, '/schedule'));
+check('the folder order saves with the config', JSON.stringify(body.cfg.folder_order) === '["poleshed","","completed","checks"]', JSON.stringify(body.cfg.folder_order));
+check('…without touching the crews', (body.cfg.crews || []).some(c => c.name === 'Troy'), JSON.stringify(body.cfg.crews));
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

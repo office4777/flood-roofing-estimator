@@ -53,7 +53,7 @@ async function boot(opts){
   const pg = await ctx.newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   const calls = [];
-  const sched = mkSched();
+  const sched = opts.sched || mkSched();
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = r.request().url(), m = r.request().method();
     if (/\/schedule(\?|$)/.test(u) && m === 'GET'){ calls.push(['GET /schedule']);
@@ -483,6 +483,135 @@ await pg.waitForTimeout(300);
 v = await pg.evaluate(() => document.body.classList.contains('sched-extended'));
 check('…and leaving the tab drops back to the normal layout', v === false);
 await ctx.close();
+
+// ── the batch from the phone screenshots ──────────────────────────
+({ ctx, pg, calls } = await boot());
+// Blank rows no longer say "Client name" nineteen times over.
+v = await pg.evaluate(() => ({
+  ph: Array.from(document.querySelectorAll('.sched-row.pad input')).filter(i => i.placeholder).length,
+  inputs: document.querySelectorAll('.sched-row.pad [data-newclient]').length,
+}));
+check('blank rows carry no "Client name" placeholder', v.ph === 0 && v.inputs > 0, JSON.stringify(v));
+
+// Hover half a second over a column icon → a legend says what it means.
+await pg.hover('.sched-hd-row [data-tip]:nth-of-type(4)');
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => document.querySelectorAll('.sched-tip').length);
+check('no legend before half a second', v === 0, v + ' tips at 200ms');
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => (document.querySelector('.sched-tip') || {}).textContent || '');
+check('…and after it, the legend for that icon', /Deposit/.test(v), v);
+await pg.mouse.move(5, 5);
+await pg.waitForTimeout(100);
+v = await pg.evaluate(() => document.querySelectorAll('.sched-tip').length);
+check('…which goes when the mouse leaves', v === 0, v + ' tips');
+
+// Click an empty day with NOTHING selected: a popup offers pencil + crews.
+calls.length = 0;
+box = await pg.locator('[data-strip="r2"]').boundingBox();
+await pg.mouse.click(box.x + 4 * 24 + 12, box.y + 15);   // Mon 31 Aug
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({
+  menu: !!document.querySelector('.sched-menu[data-pick]'),
+  items: Array.from(document.querySelectorAll('.sched-menu button')).map(b => b.textContent.trim()),
+  sel: document.querySelectorAll('.sched-selbox').length,
+}));
+check('an empty day clicked with nothing selected opens the pencil/crew popup',
+  v.menu && v.items[0] === 'Pencil' && v.items.includes('Troy') && v.items.includes('Nick') && v.items.some(t => /crews/.test(t)),
+  JSON.stringify(v.items));
+check('…with the picked day highlighted', v.sel === 1, v.sel + ' boxes');
+check('…and nothing painted yet', !calls.some(c => c[0] === 'POST blocks'));
+// Clicking anywhere else closes it.
+await pg.mouse.click(box.x - 300, box.y + 15);
+await pg.waitForTimeout(100);
+v = await pg.evaluate(() => ({ menu: document.querySelectorAll('.sched-menu').length, sel: document.querySelectorAll('.sched-selbox').length }));
+check('clicking elsewhere closes the popup and clears the highlight', v.menu === 0 && v.sel === 0, JSON.stringify(v));
+check('…without painting anything', !calls.some(c => c[0] === 'POST blocks'));
+// Pick Nick from it → a crew block, the job's full length.
+await pg.mouse.click(box.x + 4 * 24 + 12, box.y + 15);
+await pg.waitForTimeout(200);
+await pg.evaluate(() => Array.from(document.querySelectorAll('.sched-menu button')).find(b => /Nick/.test(b.textContent)).click());
+await pg.waitForTimeout(300);
+paint = calls.find(c => c[0] === 'POST blocks');
+check('picking a crew from the popup paints the job there',
+  !!paint && paint[1].kind === 'crew' && paint[1].crew_id === 'nick' && paint[1].start_date === '2026-08-31' && paint[1].work_days === 4,
+  JSON.stringify(paint && paint[1]));
+await pg.waitForTimeout(800);
+
+// Hold and drag across days: the run dragged is exactly what gets painted.
+calls.length = 0;
+box = await pg.locator('[data-strip="r2"]').boundingBox();
+await pg.mouse.move(box.x + 18 * 24 + 12, box.y + 15);   // Mon 14 Sep
+await pg.mouse.down();
+await pg.mouse.move(box.x + 20 * 24 + 12, box.y + 15, { steps: 4 });
+await pg.mouse.move(box.x + 22 * 24 + 12, box.y + 15, { steps: 4 });   // → Fri 18 Sep
+await pg.waitForTimeout(100);
+v = await pg.evaluate(() => (document.querySelector('.sched-selbox') || { offsetWidth: 0 }).offsetWidth);
+check('dragging stretches the highlight over the days held', Math.abs(v - (5 * 24 - 2)) < 2, v + 'px');
+await pg.mouse.up();
+await pg.waitForTimeout(200);
+await pg.evaluate(() => Array.from(document.querySelectorAll('.sched-menu button')).find(b => /Pencil/.test(b.textContent)).click());
+await pg.waitForTimeout(300);
+paint = calls.find(c => c[0] === 'POST blocks');
+check('…and pencil paints those five working days, not the job length',
+  !!paint && paint[1].kind === 'pencil' && paint[1].start_date === '2026-09-14' && paint[1].work_days === 5,
+  JSON.stringify(paint && paint[1]));
+await pg.waitForTimeout(800);
+
+// Drag down across two rows with a crew selected: both rows get the block.
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-pal="troy"]').click());
+const b1 = await pg.locator('[data-strip="r1"]').boundingBox();
+const b2 = await pg.locator('[data-strip="r2"]').boundingBox();
+const top = Math.min(b1.y, b2.y), bot = Math.max(b1.y, b2.y);
+await pg.mouse.move(b1.x + 28 * 24 + 12, top + 15);      // Thu 24 Sep
+await pg.mouse.down();
+await pg.mouse.move(b1.x + 29 * 24 + 12, bot + 15, { steps: 6 });   // → Fri 25, next row
+await pg.mouse.up();
+await pg.waitForTimeout(300);
+v = calls.filter(c => c[0] === 'POST blocks').map(c => c[1]);
+check('holding across two rows paints both in the selected crew',
+  v.length === 2 && v.every(x => x.crew_id === 'troy' && x.start_date === '2026-09-24' && x.work_days === 2) &&
+  v.map(x => x.row_id).sort().join() === 'r1,r2', JSON.stringify(v));
+await pg.waitForTimeout(800);
+
+// The job details popup can take the row off the board.
+pg.on('dialog', d => d.accept());
+await pg.evaluate(() => _schedInfoOpen('r2'));
+await pg.waitForTimeout(100);
+calls.length = 0;
+await pg.evaluate(() => _schedInfoDelete());
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({ gone: !document.querySelector('[data-rowzone="r2"]'),
+  closed: document.getElementById('schedInfoModal').style.display === 'none' }));
+check('the details popup has a Delete row button that removes the row', v.gone && v.closed, JSON.stringify(v));
+await ctx.close();
+
+// A block that started before the window still shows what is left of it,
+// and folders sit in the company's dragged order.
+{
+  const sched = mkSched();
+  sched.blocks.push({ id:'b0', row_id:'r2', kind:'crew', crew_id:'troy', start_date:'2026-08-24', work_days:5 }); // Mon 24 → Fri 28; window opens Thu 27
+  sched.rows[0].folder = 'poleshed'; sched.rows[1].folder = '';
+  sched.cfg.folder_order = ['poleshed', '', 'completed', 'checks'];
+  ({ ctx, pg, calls } = await boot({ sched }));
+  v = await pg.evaluate(() => {
+    const el = document.querySelector('[data-block="b0"]');
+    const folds = Array.from(document.querySelectorAll('[data-fold]')).map(e => e.getAttribute('data-fold'));
+    return { w: el ? el.getBoundingClientRect().width : 0, left: el ? parseFloat(el.style.left) : -1, folds,
+             draggable: Array.from(document.querySelectorAll('[data-fold]')).every(e => e.getAttribute('draggable') === 'true') };
+  });
+  check('a block that began before the window shows the days left in it', Math.abs(v.w - (2 * 24 - 2)) < 2 && v.left === 0, JSON.stringify(v));
+  check('folders sit in the order the company dragged them into', v.folds.join('|') === 'poleshed|', v.folds.join('|'));
+  check('…and their headings are draggable', v.draggable);
+  await pg.evaluate(() => _schedFolderMove('', 'poleshed'));
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => Array.from(document.querySelectorAll('[data-fold]')).map(e => e.getAttribute('data-fold')).join('|'));
+  const put = calls.find(c => c[0] === 'PUT config');
+  check('dropping a folder above another reorders the board and saves the order',
+    v === '|poleshed' && !!put && put[1].folder_order[0] === '' && put[1].folder_order[1] === 'poleshed', v + ' ' + JSON.stringify(put && put[1]));
+  await ctx.close();
+}
 
 // ── locked plan ───────────────────────────────────────────────────
 ({ ctx, pg, calls } = await boot({ lockedPlan: true }));

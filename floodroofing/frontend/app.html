@@ -2996,6 +2996,16 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-menu button{ display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:transparent;
   border-radius:7px; font-size:12.5px; cursor:pointer; color:#0a1628; }
 .sched-menu button:hover{ background:#f1f5f9; }
+.sched-menu button .dot{ display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+/* The legend that appears after half a second over a column icon — the
+   native tooltip is too slow and too small to read what 💰 means. */
+.sched-tip{ position:fixed; z-index:9999; background:#0a1628; color:#fff; font-size:12px; line-height:1.4;
+  padding:7px 11px; border-radius:8px; box-shadow:0 8px 24px rgba(10,22,40,.28); max-width:240px; pointer-events:none; white-space:normal; }
+/* Days picked out by click-or-drag on the calendar, waiting for a colour. */
+.sched-selbox{ position:absolute; top:2px; bottom:2px; background:rgba(0,153,204,.18); border:1.5px dashed #0099cc;
+  border-radius:5px; z-index:2; pointer-events:none; }
+.sched-row.sched-fold .sched-info{ cursor:grab; }
+.sched-row.sched-fold.dragover .sched-info{ box-shadow:inset 0 3px 0 #0099cc; }
 /* Extended view: the board overlays the whole viewport — side menu and all.
    Below the modals (8998+) and menus (9999), above the sidebar (50). */
 body.sched-extended #tab-schedule{ position:fixed; inset:0; z-index:800; background:var(--bg);
@@ -5682,7 +5692,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span id="schedMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
     </div>
     <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Pick the pencil or a crew, then click a start day — the job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Or just type a client name into a blank row to start one. Ctrl + scroll zooms the calendar in and out.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Click an empty day (or hold and drag across days) and pick the pencil or a crew from the popup — or pick one up top first and click. The job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Type a client name into a blank row to start one; drag a folder heading to move it down the board. Ctrl + scroll zooms the calendar.</div>
   </div>
 
   <!-- Compose customer email -->
@@ -5775,6 +5785,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
+        <button onclick="_schedInfoDelete()" title="Take this row off the schedule" style="padding:8px 12px;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:8px;font-size:12px;cursor:pointer">🗑 Delete row</button>
         <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
         <button onclick="_schedInfoMail()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email the customer</button>
       </div>
@@ -8111,9 +8122,28 @@ function _schedSnapStart(iso){
   return iso;
 }
 function _schedCrew(id){ return ((_SCHED.data.cfg || {}).crews || []).find(function(c){ return c.id === id; }) || null; }
+// Folders sit in the order the company dragged them into (cfg.folder_order);
+// anything not yet placed keeps its built-in position.
+function _schedFolderOrder(){
+  var cfg = (_SCHED.data && _SCHED.data.cfg) || {};
+  var base = SCHED_FOLDERS.map(function(f){ return f.id; });
+  var want = Array.isArray(cfg.folder_order) ? cfg.folder_order.filter(function(x){ return base.indexOf(x) >= 0; }) : [];
+  base.forEach(function(x){ if (want.indexOf(x) < 0) want.push(x); });
+  return want;
+}
 function _schedFolderRank(id){
-  var i = SCHED_FOLDERS.findIndex(function(f){ return f.id === (id || ''); });
+  var i = _schedFolderOrder().indexOf(id || '');
   return i < 0 ? SCHED_FOLDERS.length : i;
+}
+// Drag a folder heading onto another: it lands where that one was, and the
+// order is saved for the whole company.
+function _schedFolderMove(moved, onto){
+  var order = _schedFolderOrder().filter(function(x){ return x !== moved; });
+  var at = order.indexOf(onto); if (at < 0) at = order.length;
+  order.splice(at, 0, moved);
+  (_SCHED.data.cfg = _SCHED.data.cfg || {}).folder_order = order;
+  _schedRender();
+  _schedApi('PUT', '/schedule/config', { folder_order: order });
 }
 function _schedRowSorted(){
   var rows = (_SCHED.data.rows || []).slice();
@@ -8242,6 +8272,7 @@ function _schedRender(){
   _SCHED.infoW = infoW; _SCHED.dayIdx = dayIdx; _SCHED.days = days;
   var stripW = days.length * _SCHED.dayW;
   var rows = _schedRowSorted();
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
 
   // How many jobs run on each day (pencil + crew both hold a slot).
   var dayLoad = {};
@@ -8281,13 +8312,12 @@ function _schedRender(){
   });
   var hcells = '';
   cols.forEach(function(c, i){
-    hcells += '<div class="sched-cell hd sched-info"' + (c.tip ? ' title="' + c.tip + '"' : '') +
+    hcells += '<div class="sched-cell hd sched-info"' + (c.tip ? ' data-tip="' + esc(c.tip) + '"' : '') +
       ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
   });
   h += '<div class="sched-hd-row" style="top:20px">' + hcells +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
 
-  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
   var _useFolders = _schedFoldersInUse(rows);
   var _lastFolder = null, _bands = 0, _hiddenRows = 0;
   rows.forEach(function(r){
@@ -8300,8 +8330,8 @@ function _schedRender(){
       var _n = rows.filter(function(x){ return (x.folder || '') === _fid; }).length;
       var _open = _schedFoldOpen(_fid);
       _bands++;
-      h += '<div class="sched-row sched-fold" data-fold="' + _fid + '">' +
-        '<div class="sched-cell sched-info" style="left:0;width:' + infoW + 'px;font-weight:700;cursor:pointer;gap:6px">' +
+      h += '<div class="sched-row sched-fold" data-fold="' + _fid + '" draggable="true" title="Click to fold; drag to move this folder up or down the board">' +
+        '<div class="sched-cell sched-info" style="left:0;width:' + infoW + 'px;font-weight:700;gap:6px">' +
         '<span style="color:#64748b">' + (_open ? '▾' : '▸') + '</span>' +
         '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(_schedFolderLabel(_fid)) + '</span>' +
         '<span style="color:#94a3b8;font-weight:400">' + _n + '</span></div>' +
@@ -8349,6 +8379,9 @@ function _schedRender(){
     var blocks = '';
     (_SCHED.data.blocks || []).filter(function(b){ return b.row_id === r.id; }).forEach(function(b){
       var span = _schedSpan(b), i2 = dayIdx[span.from], j2 = dayIdx[span.to];
+      // A block that started before the window still shows the part that
+      // is left — the board only looks a week back.
+      if (i2 == null && span.from < days[0] && j2 != null) i2 = 0;
       if (i2 == null || j2 == null) return;
       var crew = b.kind === 'crew' ? _schedCrew(b.crew_id) : null;
       var col = crew ? crew.colour : '#c00000';
@@ -8387,7 +8420,7 @@ function _schedRender(){
     var pcells = '';
     cols.forEach(function(c, i){
       var inner = '';
-      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '" placeholder="Client name">';
+      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '" title="Type a client name here to start a job">';
       if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
       pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
@@ -8449,6 +8482,26 @@ function _schedWire(grid){
   });
   grid.querySelectorAll('[data-fold]').forEach(function(el){
     el.onclick = function(){ _schedFoldToggle(el.getAttribute('data-fold')); };
+    el.addEventListener('dragstart', function(ev){ ev.dataTransfer.setData('text/foldid', el.getAttribute('data-fold') || '_main'); });
+    el.addEventListener('dragover', function(ev){
+      if (ev.dataTransfer.types.indexOf('text/foldid') >= 0){ ev.preventDefault(); el.classList.add('dragover'); }
+    });
+    el.addEventListener('dragleave', function(){ el.classList.remove('dragover'); });
+    el.addEventListener('drop', function(ev){
+      el.classList.remove('dragover');
+      var raw = ev.dataTransfer.getData('text/foldid'); if (!raw) return;
+      ev.preventDefault();
+      var moved = raw === '_main' ? '' : raw, onto = el.getAttribute('data-fold') || '';
+      if (moved !== onto) _schedFolderMove(moved, onto);
+    });
+  });
+  // Hover half a second over a column icon and a legend says what it means.
+  grid.querySelectorAll('[data-tip]').forEach(function(el){
+    var t = null;
+    el.addEventListener('mouseenter', function(){
+      t = setTimeout(function(){ _schedTipShow(el, el.getAttribute('data-tip')); }, 500);
+    });
+    el.addEventListener('mouseleave', function(){ clearTimeout(t); _schedTipHide(); });
   });
   var ct = grid.querySelector('[data-coltoggle]');
   if (ct) ct.onclick = function(){
@@ -8586,36 +8639,116 @@ function _schedStripDown(ev, strip){
     document.addEventListener('pointerup', onUp);
     return;
   }
-  // Empty day: paint, if a colour is selected.
-  if (!_SCHED.sel) return;
-  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
-  if (!r) return;
-  var kind = _SCHED.sel === 'pencil' ? 'pencil' : 'crew';
-  // First paint on an empty row lays down the whole job; anything after
-  // that is a one-day touch-up (extend with the edge drag instead).
-  var hasAny = (_SCHED.data.blocks || []).some(function(x){ return x.row_id === rowId; });
-  var body = { row_id: rowId, kind: kind, crew_id: kind === 'crew' ? _SCHED.sel : '',
-               start_date: _schedSnapStart(_SCHED.days[day]),
-               work_days: hasAny ? 1 : Math.max(1, r.length_days || 1) };
-  // Paint NOW — waiting for the server made every tap feel seconds slow on
-  // a phone. The temp block swaps to the server id when the POST answers;
-  // a failed POST reloads the board (in _schedApi), dropping the phantom.
-  var temp = Object.assign({ id: 'tmp-' + Date.now() }, body);
-  _SCHED.data.blocks.push(temp);
-  _schedRender();
-  _schedApi('POST', '/schedule/blocks', body).then(function(created){
-    if (created && created.id) temp.id = created.id;
-    _schedRender();
-  });
+  // Empty day. Hold and drag to pick out a run of days (down across rows
+  // too); let go and either paint them in the selected colour, or — with
+  // nothing selected — a popup offers the pencil and the crews right there.
+  var r0 = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+  if (!r0) return;
+  _schedCloseMenus();
+  var grid = strip.closest('#schedGrid') || document.getElementById('schedGrid');
+  var rowIds = Array.prototype.map.call(grid.querySelectorAll('[data-strip]'), function(s){ return s.getAttribute('data-strip'); });
+  var r0i = rowIds.indexOf(rowId);
+  var dayB = day, rowBi = r0i, dragged = false;
+  var rowAt = function(ev2){
+    var el = document.elementFromPoint(ev2.clientX, ev2.clientY);
+    var st = el && el.closest ? el.closest('[data-strip]') : null;
+    var i = st ? rowIds.indexOf(st.getAttribute('data-strip')) : -1;
+    return i < 0 ? rowBi : i;
+  };
+  var paintSel = function(){
+    document.querySelectorAll('.sched-selbox').forEach(function(m){ m.remove(); });
+    var a = Math.min(day, dayB), z = Math.max(day, dayB);
+    var ra = Math.min(r0i, rowBi), rz = Math.max(r0i, rowBi);
+    for (var i = ra; i <= rz; i++){
+      var st = grid.querySelector('[data-strip="' + rowIds[i] + '"]'); if (!st) continue;
+      var box = document.createElement('div');
+      box.className = 'sched-selbox';
+      box.style.left = (a * _SCHED.dayW) + 'px'; box.style.width = ((z - a + 1) * _SCHED.dayW - 2) + 'px';
+      st.appendChild(box);
+    }
+  };
+  var onMove = function(mv){
+    var d2 = Math.max(0, Math.min(_SCHED.days.length - 1, Math.floor((mv.clientX - rect.left) / _SCHED.dayW)));
+    var ri = rowAt(mv);
+    if (d2 === dayB && ri === rowBi) return;
+    dayB = d2; rowBi = ri; dragged = true;
+    paintSel();
+  };
+  var onUp = function(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    var a = Math.min(day, dayB), z = Math.max(day, dayB);
+    var ra = Math.min(r0i, rowBi), rz = Math.max(r0i, rowBi);
+    var ids = rowIds.slice(ra, rz + 1);
+    if (_SCHED.sel){ _schedPaint(ids, a, z, dragged, _SCHED.sel); return; }
+    // The popup first (opening it clears any old highlight), then the days.
+    _schedPickMenu(ids, a, z, dragged, { clientX: ev.clientX, clientY: ev.clientY });
+    paintSel();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
 }
-function _schedCloseMenus(){ document.querySelectorAll('.sched-menu').forEach(function(m){ m.remove(); }); }
-function _schedMenu(items, ev){
+// The popup for a click on empty calendar: the same choices as the bar
+// above the board, so nothing has to be selected first.
+function _schedPickMenu(rowIds, a, z, ranged, at){
+  var items = [];
+  items.push(['<span class="dot" style="background:#c00000"></span>Pencil', function(){ _schedPaint(rowIds, a, z, ranged, 'pencil'); }]);
+  (((_SCHED.data.cfg || {}).crews) || []).forEach(function(c){
+    items.push(['<span class="dot" style="background:' + c.colour + '"></span>' + String(c.name || '').replace(/</g, '&lt;'),
+      function(){ _schedPaint(rowIds, a, z, ranged, c.id); }]);
+  });
+  items.push(['✎ Add or edit crews', function(){ _schedCrewPopOpen(); }]);
+  var m = _schedMenu(items, at, true);
+  m.setAttribute('data-pick', '1');
+}
+// Lay blocks on the given rows over days a..z. A plain click on an empty
+// row lays down the job's whole length; a click on a row that already has
+// work adds one day; a dragged run is exactly the days dragged over.
+function _schedPaint(rowIds, a, z, ranged, sel){
+  _schedCloseMenus();
+  var kind = sel === 'pencil' ? 'pencil' : 'crew';
+  var n = 0;
+  for (var k = a; k <= z; k++){ if (!_SCHED.nonwork[_SCHED.days[k]]) n++; }
+  rowIds.forEach(function(rowId){
+    var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+    if (!r) return;
+    var hasAny = (_SCHED.data.blocks || []).some(function(x){ return x.row_id === rowId; });
+    var body = { row_id: rowId, kind: kind, crew_id: kind === 'crew' ? sel : '',
+                 start_date: _schedSnapStart(_SCHED.days[a]),
+                 work_days: ranged ? Math.max(1, n) : (hasAny ? 1 : Math.max(1, r.length_days || 1)) };
+    // Paint NOW — waiting for the server made every tap feel seconds slow on
+    // a phone. The temp block swaps to the server id when the POST answers;
+    // a failed POST reloads the board (in _schedApi), dropping the phantom.
+    var temp = Object.assign({ id: 'tmp-' + Date.now() + '-' + rowId }, body);
+    _SCHED.data.blocks.push(temp);
+    _schedApi('POST', '/schedule/blocks', body).then(function(created){
+      if (created && created.id) temp.id = created.id;
+      _schedRender();
+    });
+  });
+  _schedRender();
+}
+function _schedTipHide(){ document.querySelectorAll('.sched-tip').forEach(function(m){ m.remove(); }); }
+function _schedTipShow(el, text){
+  _schedTipHide();
+  var d = document.createElement('div');
+  d.className = 'sched-tip'; d.textContent = text;
+  var r = el.getBoundingClientRect();
+  d.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 250)) + 'px';
+  d.style.top = (r.bottom + 4) + 'px';
+  document.body.appendChild(d);
+}
+function _schedCloseMenus(){
+  document.querySelectorAll('.sched-menu').forEach(function(m){ m.remove(); });
+  document.querySelectorAll('.sched-selbox').forEach(function(m){ m.remove(); });
+}
+function _schedMenu(items, ev, html){
   _schedCloseMenus();
   var m = document.createElement('div');
   m.className = 'sched-menu';
   items.forEach(function(it){
     var b = document.createElement('button');
-    b.textContent = it[0];
+    if (html) b.innerHTML = it[0]; else b.textContent = it[0];
     b.onclick = function(){ _schedCloseMenus(); it[1](); };
     m.appendChild(b);
   });
@@ -8625,6 +8758,7 @@ function _schedMenu(items, ev){
   setTimeout(function(){ document.addEventListener('pointerdown', function once(e2){
     if (!m.contains(e2.target)){ _schedCloseMenus(); document.removeEventListener('pointerdown', once); }
   }); }, 0);
+  return m;
 }
 function _schedBlockMenu(b, ev){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === b.row_id; }) || {};
@@ -8796,6 +8930,15 @@ function _schedInfoOpen(rowId){
 function _schedInfoClose(){
   document.getElementById('schedInfoOverlay').style.display = 'none';
   document.getElementById('schedInfoModal').style.display = 'none';
+}
+function _schedInfoDelete(){
+  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === _schedInfoId; });
+  if (!r) return;
+  if (!confirm('Take "' + (r.client_name || 'this job') + '" off the schedule? Its blocks go with it.')) return;
+  _schedInfoClose();
+  _SCHED.data.rows = _SCHED.data.rows.filter(function(x){ return x.id !== r.id; });
+  _schedRender();
+  _schedApi('DELETE', '/schedule/rows/' + r.id);
 }
 function _schedInfoOpenJob(){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === _schedInfoId; });

@@ -5594,6 +5594,8 @@ function _schedCfgShape(raw){
       label: String(x.label || '').slice(0, 80),
     })).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.from) && /^\d{4}-\d{2}-\d{2}$/.test(x.to)),
     region: SCHED_REGIONS.includes(c.region) ? c.region : 'auckland',
+    // The order the folders sit in on the board, as dragged by the office.
+    folder_order: (Array.isArray(c.folder_order) ? c.folder_order : []).slice(0, 12).map(x => String(x).slice(0, 20)),
     feed_secret: String(c.feed_secret || ''),
     tpl_pencil: String(c.tpl_pencil || ''),
     tpl_week: String(c.tpl_week || ''),
@@ -5709,10 +5711,14 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
     });
 
     // The working-day calendar for the whole visible span.
+    // The board looks a week back and over a year ahead. The working-day
+    // calendar still reaches back to the oldest block so a job that
+    // started earlier is walked correctly and shows the part that is left.
     const today = _schedISO(new Date());
-    let from = _schedISO(_schedShift(new Date(), -45)), to = _schedISO(_schedShift(new Date(), 420));
-    for (const b of blocks) { if (b.start_date < from) from = b.start_date; }
-    const nonwork = _schedNonWork(cfg, from, to);
+    const from = _schedISO(_schedShift(new Date(), -7)), to = _schedISO(_schedShift(new Date(), 420));
+    let calFrom = from;
+    for (const b of blocks) { if (b.start_date < calFrom) calFrom = b.start_date; }
+    const nonwork = _schedNonWork(cfg, calFrom, to);
     const feedBase = PUBLIC_API_URL + '/schedule/feed.ics?c=' + encodeURIComponent(req.companyId || '') +
       '&sig=' + crypto.createHmac('sha256', cfg.feed_secret).update(String(req.companyId || '')).digest('hex');
     const cfgOut = Object.assign({}, cfg); delete cfgOut.feed_secret;
