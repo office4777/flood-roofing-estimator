@@ -8291,6 +8291,10 @@ function _schedRender(){
     var m = d.slice(0, 7);
     if (m !== lastM){
       lastM = m;
+      // A month with only a day or two showing (the window opens on the
+      // 31st) has no room for its name — it would print over the next one.
+      var n = 0; while (i + n < days.length && days[i + n].slice(0, 7) === m) n++;
+      if (n * _SCHED.dayW < 64) return;
       var name = new Date(d + 'T00:00:00Z').toLocaleString('en-NZ', { month:'short', year:'numeric', timeZone:'UTC' });
       months += '<div class="sched-month-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + name + '</div>';
     }
