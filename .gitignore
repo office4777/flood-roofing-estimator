@@ -24,3 +24,12 @@ npm-debug.log*
 # Screenshots the test suites take on the way through — regenerate by
 # running them (node floodroofing/tests/run.mjs).
 .test-artifacts/
+
+# Demo slideshow output — regenerate with the three scripts in
+# floodroofing/tools (demo-shots → demo-slideshow → demo-record). The
+# assembled HTML inlines every screenshot as base64, so it is megabytes of
+# generated content; the scripts are the thing worth keeping.
+floodroofing/tools/demo/shots/
+floodroofing/tools/demo/slideshow.html
+floodroofing/tools/demo/*.webm
+floodroofing/tools/demo/video/
