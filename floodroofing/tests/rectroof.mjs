@@ -102,16 +102,25 @@ for (const [name, ol, ends, valleys] of [
 const T40 = [[702,363],[702,541],[1027,541],[1027,363],[950,363],[950,272],[768,272],[768,363]];
 const G40 = await gen(T40, true);
 const R40 = G40.filter(l => l.t === 'ridge');
-check('the gabled T from report 40 has no hips at all', cnt(G40,'hip') === 0, cnt(G40,'hip') + ' hips');
+// No hip that IS a hip. The stub stands two pixels taller than the bar, so
+// the exact roof has a pair of two-pixel connectors where they meet; what
+// the report showed were hips thirty metres long crossing the whole roof.
+const G40hips = G40.filter(l => l.t === 'hip' && Math.hypot(l.b[0]-l.a[0], l.b[1]-l.a[1]) > 4);
+check('the gabled T from report 40 has no hips at all', G40hips.length === 0,
+  G40hips.map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join(' ') || 'none longer than a few pixels');
 check('…a gable on the stub and on both ends of the bar', gableEnds(G40) === 3, gableEnds(G40) + ' gable ends');
 check('…a valley out of each inside corner', cnt(G40,'valley') === 2, cnt(G40,'valley') + ' valleys');
 check('…and the stub\'s ridge runs from its gable wall down to the bar\'s ridge',
   R40.some(l => skew(l) < 0.5 && Math.abs(l.a[0]-l.b[0]) < 0.5 &&
     Math.min(l.a[1], l.b[1]) <= 273 && Math.abs(Math.max(l.a[1], l.b[1]) - 452) <= 3),
   R40.map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join('  '));
-check('…meeting it in one piece, not a bar ridge cut in two',
-  R40.filter(l => Math.abs(l.a[1]-l.b[1]) < 0.5).length === 1,
-  R40.filter(l => Math.abs(l.a[1]-l.b[1]) < 0.5).length + ' level ridges');
+// The stub is two pixels taller than the bar, so the exact roof has a pair
+// of two-pixel hips where they meet and the bar's ridge parts under them —
+// invisible, exact, and every junction closed. What must never come back is
+// a stub ridge welded onto the bar's, or a hip off 45°.
+check('…and every hip and valley on it is at 45° to the half-pixel',
+  G40.filter(l => l.t === 'hip' || l.t === 'valley').every(l => Math.abs(Math.abs(l.a[0]-l.b[0]) - Math.abs(l.a[1]-l.b[1])) <= 0.5),
+  G40.filter(l => (l.t === 'hip' || l.t === 'valley') && Math.abs(Math.abs(l.a[0]-l.b[0]) - Math.abs(l.a[1]-l.b[1])) > 0.5).map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join(' '));
 
 // ── hip roofs get the same treatment ──────────────────────────────
 const Hh = await gen(REPORTED, false);

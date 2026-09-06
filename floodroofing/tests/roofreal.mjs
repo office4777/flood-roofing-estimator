@@ -58,7 +58,11 @@ await pg.waitForTimeout(2800);
 
 const report = await pg.evaluate((shapes) => {
   const out = {};
-  for (const [name, ol] of Object.entries(shapes)){
+  for (const [name, drawn] of Object.entries(shapes)){
+    // As the app does before it builds: an outline square within tolerance
+    // snaps square, so the roof is measured against the walls it stands on.
+    const sq = (typeof _roofSquareUp === 'function') ? _roofSquareUp(drawn) : null;
+    const ol = sq ? sq.outline : drawn;
     const lines = buildHipValleyLines(ol).map(l => ({ type: l.type, p: l.pts || [l.a, l.b] }))
       .filter(l => l.p && l.p[0] && l.p[1]);
     const inPoly = (p) => {
@@ -103,7 +107,7 @@ const report = await pg.evaluate((shapes) => {
     const kinked = Object.keys(deg).filter(k => deg[k] === 2 &&
       !onWall(nodePt[k]));
     const skewRidge = lines.filter(l => l.type === 'ridge' &&
-      Math.min(Math.abs(l.p[1][0]-l.p[0][0]), Math.abs(l.p[1][1]-l.p[0][1])) > 3);
+      Math.min(Math.abs(l.p[1][0]-l.p[0][0]), Math.abs(l.p[1][1]-l.p[0][1])) > 0.5);
     const reflex = (() => {
       let n = 0;
       for (let i = 0; i < ol.length; i++){
@@ -127,7 +131,7 @@ const report = await pg.evaluate((shapes) => {
     // wall, so the allowance is a few pixels — not the ten to twenty the raw
     // solver was giving.
     const off45 = lines.filter(l => (l.type === 'hip' || l.type === 'valley') &&
-      Math.abs(Math.abs(l.p[1][0]-l.p[0][0]) - Math.abs(l.p[1][1]-l.p[0][1])) > 7).length;
+      Math.abs(Math.abs(l.p[1][0]-l.p[0][0]) - Math.abs(l.p[1][1]-l.p[0][1])) > 0.5).length;
     out[name] = { wingRidges, valleyOnRidge, valleyKnuckles, off45,
       count: lines.length, strays: strays.map(l => l.type), dangling,
       openApex: openApex.length, kinked: kinked.length, skew: skewRidge.length, reflex,
@@ -157,13 +161,12 @@ check('the hand-traced T keeps two ridges — the bar\'s in one piece, the stub\
   TP.ridges === 2, TP.ridges + ' ridges');
 check('…with every hip and valley at 45°', TP.off45 === 0, TP.off45 + ' off 45°');
 check('…and no valley landing on a ridge line', TP.valleyOnRidge === 0, TP.valleyOnRidge + ' landed on one');
-// Every shape but the H. The H's link is narrower than its wings, and the
-// tidy-up that lets the link's roof die into the wing's face welds a short
-// connecting hip that comes out eleven pixels off 45° — a known, separate
-// fault of that weld, not of the squaring this check was added with.
+// Every shape, the H included: a hip or valley on a square-walled building
+// is 45°, and a ridge is level or plumb. The only give is the wall end,
+// which goes back onto the corner the roofer actually drew — a few pixels
+// off where the squared wall put it.
 for (const [name, r] of Object.entries(report))
-  if (!/the H from/.test(name))
-    check(name + ': every hip and valley within a few pixels of 45°', r.off45 === 0, r.off45 + ' off');
+  check(name + ': every hip and valley at 45° to the half-pixel', r.off45 === 0, r.off45 + ' off');
 // The H is the shape this whole exercise started on, and the thing that was
 // wrong with it is worth pinning by name: a link between two wings is
 // NARROWER than either, so its ridge sits lower and its roof runs into the
