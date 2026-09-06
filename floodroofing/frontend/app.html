@@ -56975,12 +56975,18 @@ function buildRectilinearRoofLines(outline, gableEnds){
     }
     if (run) segs.push(run);
     segs.forEach(function(s){
-      // A scrap of ridge shorter than a fraction of its own height is the scan
-      // clipping a pixel of noise, not a run of roof — and capping one puts a
-      // gable end in the middle of nowhere.
-      if (Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]) < Math.max(3, rise * 0.25)) return;
+      // A scrap of ridge shorter than a fraction of its own height is usually
+      // the scan clipping a pixel of noise, not a run of roof — and capping
+      // one puts a gable end in the middle of nowhere. But not always: the
+      // gabled stub on the reported T stood at its own height for sixteen
+      // pixels before the roof under it rose towards the bar it joins, and
+      // that is the START of a ridge the crest pass below carries the rest
+      // of the way. Throwing it out here left the stub with no ridge at all,
+      // so its two outside corners threw hips clean across to the bar's
+      // ridge. So a scrap is kept, marked, and judged after the crest pass.
+      var short = Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]) < Math.max(3, rise * 0.25);
       var line = { type:'ridge', pts:[s[0].slice(), s[1].slice()] };
-      out.push(line); ridges.push({ line:line, rise:rise, rect:{x0:x0,x1:x1,y0:y0,y1:y1}, horiz:(w>=h) });
+      out.push(line); ridges.push({ line:line, rise:rise, rect:{x0:x0,x1:x1,y0:y0,y1:y1}, horiz:(w>=h), short:short });
     });
   });
   if (!ridges.length) return null;
@@ -57032,6 +57038,15 @@ function buildRectilinearRoofLines(outline, gableEnds){
       tip[ax] = q[ax];
     });
   });
+  // The scraps that are still scraps after that were noise after all.
+  ridges.forEach(function(R){
+    if (!R.short) return;
+    var pL = R.line.pts;
+    if (Math.hypot(pL[1][0]-pL[0][0], pL[1][1]-pL[0][1]) < Math.max(3, R.rise * 0.25)){
+      out.splice(out.indexOf(R.line), 1); R.line = null;
+    }
+  });
+  ridges = ridges.filter(function(R){ return R.line; });
 
   // ── valleys: out of every inside corner, at 45°, until it hits a ridge ──
   function isReflex(k){
@@ -57210,6 +57225,14 @@ function buildRectilinearRoofLines(outline, gableEnds){
         var hi4 = Math.max(O.line.pts[0][1-ax], O.line.pts[1][1-ax]) + 1;
         if (!(tip[1-ax] >= lo4 && tip[1-ax] <= hi4)) return;
         if (Math.abs(meet - tip[ax]) > reach) return;
+        // Two arms standing the SAME height: the ridges are level and simply
+        // meet, a T junction. The hips the pairing below comes back with are
+        // as long as the two roofs differ in height, so on the reported
+        // building — a gabled stub two pixels taller than its bar — they were
+        // two pixels long, and the bar's ridge was cut in half between them.
+        // A taller stem still ends short with its two hips; a lower link
+        // still dies into the wing's face.
+        if (Math.abs(R.rise - O.rise) <= 3){ tip[ax] = meet; return; }
         // This arm's ridge has run into a bigger one, and it does NOT climb
         // to it. Where the valleys out of the two inside corners land on the
         // bigger ridge, a hip comes back off each at 45°, and the two meet:

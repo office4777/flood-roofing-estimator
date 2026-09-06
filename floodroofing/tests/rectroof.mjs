@@ -90,6 +90,29 @@ for (const [name, ol, ends, valleys] of [
     g.filter(l=>l.t==='ridge').map(l=>JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join(' '));
 }
 
+// ── the gabled T from report 40 ───────────────────────────────────
+// A bar with a stub off its north side, drawn as gable + hip/valley. The
+// stub stood at its own height for sixteen pixels before the roof under it
+// rose towards the bar, and that scrap of ridge was thrown out as noise —
+// so the stub had no ridge, and its two outside corners threw hips clean
+// across to the bar's ridge: "the hips criss-cross and go all the way to
+// the ridge line". The stub is a gable end: its ridge runs from the gable
+// wall down to the bar's ridge, a valley out of each inside corner, and no
+// hips anywhere.
+const T40 = [[702,363],[702,541],[1027,541],[1027,363],[950,363],[950,272],[768,272],[768,363]];
+const G40 = await gen(T40, true);
+const R40 = G40.filter(l => l.t === 'ridge');
+check('the gabled T from report 40 has no hips at all', cnt(G40,'hip') === 0, cnt(G40,'hip') + ' hips');
+check('…a gable on the stub and on both ends of the bar', gableEnds(G40) === 3, gableEnds(G40) + ' gable ends');
+check('…a valley out of each inside corner', cnt(G40,'valley') === 2, cnt(G40,'valley') + ' valleys');
+check('…and the stub\'s ridge runs from its gable wall down to the bar\'s ridge',
+  R40.some(l => skew(l) < 0.5 && Math.abs(l.a[0]-l.b[0]) < 0.5 &&
+    Math.min(l.a[1], l.b[1]) <= 273 && Math.abs(Math.max(l.a[1], l.b[1]) - 452) <= 3),
+  R40.map(l => JSON.stringify(l.a)+'->'+JSON.stringify(l.b)).join('  '));
+check('…meeting it in one piece, not a bar ridge cut in two',
+  R40.filter(l => Math.abs(l.a[1]-l.b[1]) < 0.5).length === 1,
+  R40.filter(l => Math.abs(l.a[1]-l.b[1]) < 0.5).length + ' level ridges');
+
 // ── hip roofs get the same treatment ──────────────────────────────
 const Hh = await gen(REPORTED, false);
 // Counted, not enumerated. A correct straight skeleton puts a hip at every
