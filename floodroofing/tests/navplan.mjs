@@ -123,6 +123,13 @@ check('signing out asks before it does anything', declined.asked === 1,
     fn.split('\n').filter(l => /logout/.test(l)).join(' | ').slice(0, 150));
 }
 check('…and saying no keeps you signed in', declined.tok === 't', JSON.stringify(declined));
+// Which login this is: one place, above Sign out, always filled.
+const who = await pg.evaluate(() => { const el = document.getElementById('navAccountWho');
+  const r = el.getBoundingClientRect(); return { text: el.textContent, color: getComputedStyle(el).color, h: r.height,
+    label: (el.previousElementSibling || {}).textContent || '' }; });
+check('the sidebar says who is signed in, above Sign out', /bob@acmeroofing\.co\.nz/.test(who.text) && who.h > 8 && /Signed in as/i.test(who.label), JSON.stringify(who));
+check('…in ink, not white-on-white', who.color !== 'rgb(255, 255, 255)' && !/rgba\(255, 255, 255/.test(who.color), who.color);
+check('…and nowhere else, so nothing invisible is pretending to', !(await pg.evaluate(() => !!document.getElementById('hdrSignedIn'))));
 
 // Yes means yes: the session is dropped and the reload returns the page to
 // the login screen. The wait is on the CONDITION, not a stopwatch — a slow

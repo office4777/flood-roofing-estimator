@@ -4066,7 +4066,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        to leave an account was to clear the browser's storage. That matters
        more than usual on a shared office machine and on a phone. -->
   <div id="navAccount" style="margin-top:auto;padding:10px 4px 2px;border-top:1px solid var(--border)">
-    <div id="navAccountWho" style="font-size:11px;color:var(--text2);padding:0 8px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);padding:0 8px 1px">Signed in as</div>
+    <div id="navAccountWho" style="font-size:11.5px;font-weight:600;color:var(--ink);padding:0 8px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     <button class="nav-btn" id="navSignOutBtn" onclick="_navSignOut()"><svg viewBox="0 0 16 16" fill="none"><path d="M6.5 2.5H3.5v11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5.5L11.5 8L9 10.5 M11.5 8H6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sign out</button>
   </div>
 </div>
@@ -9696,7 +9697,19 @@ function _emailTabToggle(on){
   _emailTabSync();
   try { saveSettings(true); } catch(e){}
 }
+// Which login this is. It used to sit in the sidebar's info grid (gone) and
+// under the logo in white-on-white (invisible). One place now, above Sign
+// out, filled on its own so nothing that runs before it can leave it blank.
+function _navWhoSync(){
+  try {
+    var who = document.getElementById('navAccountWho'); if (!who) return;
+    var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    who.textContent = u.email || u.name || '—';
+    who.title = 'Signed in as ' + (u.email || '') + (u.name ? (' — ' + u.name) : '');
+  } catch(e){}
+}
 function _navPlanSync(){
+  try { _navWhoSync(); } catch(e){}
   var lim = _planLimits();
   var hidden = {};
   if (lim && lim.inbox === false) hidden.inbox = 1;   // still bounces off the tab
@@ -9718,14 +9731,6 @@ function _navPlanSync(){
     });
   } catch(e){}
   try { _jmsPlanSync(); } catch(e){}
-  try {
-    var who = document.getElementById('navAccountWho');
-    if (who){
-      var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
-      who.textContent = u.email || u.name || '';
-      who.title = who.textContent;
-    }
-  } catch(e){}
 }
 // Below Team, every control on the job-management screen would refuse. Show
 // the upgrade panel in place of the lot rather than a page of dead settings.
@@ -14012,20 +14017,7 @@ function applyBranding(){
   // new row there grew the fixed sidebar header and pushed Sign out past the
   // bottom of the nav, where it could not be clicked at all.
   try { _emailTabSync(); } catch(e){}
-  try {
-    var _u = {};
-    try { _u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; } catch(e){}
-    var _who = String(_u.email || '').trim();
-    if (_who && hdrCo && hdrCo.innerHTML){
-      var _d = document.createElement('div');
-      _d.id = 'hdrSignedIn';
-      _d.title = 'Signed in as ' + _who + (_u.name ? (' — ' + _u.name) : '');
-      _d.setAttribute('style', 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;' +
-        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%');
-      _d.textContent = _who;
-      (hdrCo.firstElementChild || hdrCo).appendChild(_d);
-    }
-  } catch(e){}
+  try { _navWhoSync(); } catch(e){}
   // The RoofMap sub-line is the one thing that still tracks setup state — it
   // is where an unbranded account gets told where to go.
   var hdrSub = document.getElementById('hdrLogoSub');
