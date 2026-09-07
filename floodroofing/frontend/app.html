@@ -23396,7 +23396,11 @@ async function _publishQuoteOnly(){
       .map(function(k){ return k + ' ' + Math.round(_sz[k] / 1024) + 'KB'; }).join(', ');
     try { console.log('[publish] quote', window._lastQuotePublishKB, 'KB · big fields:', window._lastQuoteBig); } catch(e){}
   } catch(e){}
-  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
+  var _qr = await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
+  // That save moved the job's stamp. Record it, or the next job save carries
+  // the stamp from when the job was opened and is refused as a conflict with
+  // "someone" — this very save.
+  try { if (_qr && _qr.updated_at && S._jobLoaded && String(S._jobLoaded.id) === String(S.currentJobId)) S._jobLoaded.updatedAt = _qr.updated_at; } catch(e){}
   return true;
 }
 // Make the customer link resolve as fast as possible: for an existing job,

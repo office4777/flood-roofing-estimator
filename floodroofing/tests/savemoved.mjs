@@ -39,6 +39,11 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   const j = (status, x) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(x) });
   if (/\/jobs\/job-77$/.test(u) && m === 'GET')
     return j(200, Object.assign({}, JOB, { updated_at: serverStamp, client_name: refuse ? 'Nikki Barrett' : 'Nikki Barrett' }));
+  // The quote's own save moves the job's stamp and hands the new one back.
+  if (/\/jobs\/job-77\/quote$/.test(u) && m === 'PUT'){
+    serverStamp = '2026-09-02T09:30:00.000Z';
+    return j(200, { ok: true, id: 'job-77', updated_at: serverStamp });
+  }
   if (/\/jobs\/job-77$/.test(u) && m === 'PUT'){
     const body = r.request().postDataJSON();
     puts.push(body);
@@ -96,6 +101,7 @@ check('…and the timestamp the save before it came back with', !!light &&
 await pg.evaluate(() => saveCurrentJob());
 await pg.waitForTimeout(400);
 check('saving again with nothing changed sends nothing', puts.length === 2, puts.length + ' saves');
+
 
 // ── a changed photo goes up again ────────────────────────────────
 await pg.evaluate(() => { S.photos.push({ src: 'data:image/jpeg;base64,NEW', caption: 'gutter' }); });
@@ -155,6 +161,26 @@ check('…and remembers the new timestamp, so the next save is against THEIR ver
   await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt));
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
+// ── the quote's own save must not turn the next job save into a "conflict" ──
+// Sending a quote saves it through its own route, which stamps the job. The
+// office then got "This job was changed on another device — someone saved
+// Sharon Thomson at 01:08 pm" on every job they opened and quoted: the
+// someone was their own quote save, and the job save was still carrying the
+// stamp from when the job was opened.
+const nQ = puts.length;
+await pg.evaluate(async () => { S.quote = S.quote || {}; S.quote.client = 'Nikki Barrett'; await _publishQuoteOnly(); });
+await pg.waitForTimeout(300);
+check('the quote save hands the app the job\'s new stamp',
+  (await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt)) === '2026-09-02T09:30:00.000Z',
+  await pg.evaluate(() => JSON.stringify(S._jobLoaded)));
+await pg.evaluate(() => { DRAW.lines.push({ type:'ridge', pts:[[130,240],[390,240]] }); });
+await pg.evaluate(() => saveCurrentJob());
+await pg.waitForTimeout(600);
+const afterQuote = puts[puts.length - 1];
+check('…and the next job save carries that stamp, so it is not refused as a conflict with yourself',
+  puts.length === nQ + 1 && afterQuote.base_updated_at === '2026-09-02T09:30:00.000Z',
+  puts.length + ' saves, base=' + (afterQuote && afterQuote.base_updated_at));
+
 await ctx.close();
 await b.close();
 const bad = results.filter(x => !x).length;

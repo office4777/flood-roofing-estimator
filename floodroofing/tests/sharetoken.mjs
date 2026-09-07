@@ -148,6 +148,11 @@ let r2 = await fetch(BASE + '/jobs/j-fresh/quote', { method: 'PUT',
   body: JSON.stringify({ quote: { client: 'C', gstRate: 15,
     share: { token: 'qfresh', status: 'sent', sentAt: ago(7), sentTotal: 20000, events: [] } } }) });
 check('saving a quote records its token in the durable map', r2.status === 200, 'status ' + r2.status);
+// The quote save moves the job's stamp, and hands the new one back — the app
+// records it, or its next job save is refused as a conflict with itself.
+const q2 = await r2.clone().json().catch(() => ({}));
+check('…and hands back the job\'s new stamp for the app to hold',
+  /^\d{4}-\d{2}-\d{2}T/.test(String(q2.updated_at || '')), String(q2.updated_at));
 await new Promise(res2 => setTimeout(res2, 300));   // the persist is fire-and-forget
 let row = await pstate('qtok:qfresh');
 check('…as platform_state qtok:<token> → job id',

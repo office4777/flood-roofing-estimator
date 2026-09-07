@@ -2278,10 +2278,16 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
         "coalesce(draw_state,'{}'::jsonb) || jsonb_build_object('state', " +
         "coalesce(draw_state->'state','{}'::jsonb) || jsonb_build_object('quote', $1::jsonb)), " +
         "client_name = coalesce($2, client_name), site_address = coalesce($3, site_address), " +
-        "updated_at = now() WHERE id = $4 AND (user_id = $5 OR ($6::uuid IS NOT NULL AND company_id = $6::uuid))";
+        "updated_at = now() WHERE id = $4 AND (user_id = $5 OR ($6::uuid IS NOT NULL AND company_id = $6::uuid)) RETURNING updated_at";
       const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id, req.companyId || null]);
       if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
-      res.json({ ok: true, id: req.params.id, fast: true });
+      // The new stamp goes back to the app, which records it as the version
+      // it holds. Without it the next job save carried the stamp from when
+      // the job was opened, the server saw a row that had moved, and the
+      // office was asked whether to write over "someone" — themselves,
+      // seconds earlier, from the quote save.
+      const _ua = r.rows && r.rows[0] && r.rows[0].updated_at;
+      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined });
       if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, req.params.id); }
       return;
     } catch (e) {
@@ -2300,7 +2306,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   if (siteAddr) patch.site_address = siteAddr;
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
-  res.json({ ok: true, id: job.id });
+  res.json({ ok: true, id: job.id, updated_at: patch.updated_at });
   if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, job.id); }
 });
 
