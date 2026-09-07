@@ -11949,7 +11949,7 @@ function _pbOnListPrices(){
 function _pbListPriceNoticeHtml(where){
   if (!_pbOnListPrices()) return '';
   var goto = where === 'settings' ? '' :
-    ' <a href="#" onclick="showTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
+    ' <a href="#" onclick="gotoTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
   return '<div class="pb-listnote">' +
     '<strong>🚩 Default price book — add your prices in Settings.</strong> These are indicative ' +
     'figures so you can see a finished quote straight away. They are not your supplier rates — ' +
@@ -17553,11 +17553,30 @@ function _openAerialModal(){
   doResize(); setTimeout(doResize, 60); setTimeout(doResize, 250); setTimeout(doResize, 650);
   setTimeout(function(){ var a = document.getElementById('aerialAddressInput'); if (a) a.focus(); }, 120);
 }
+// The "Satellite view" button in the job details popup: carry the site
+// address across and open the aerial finder ON TOP of the details popup
+// (which normally stacks above it), then put it back on close.
+function openSatelliteView(){
+  var addr = '';
+  try { addr = (document.getElementById('jobAddr').value || '').trim(); } catch(e){}
+  var ov = document.getElementById('aerialModalOverlay');
+  var md = document.getElementById('aerialModal');
+  if (ov) ov.style.zIndex = '10000';
+  if (md) md.style.zIndex = '10001';
+  _openAerialModal();
+  if (addr) {
+    var a = document.getElementById('aerialAddressInput');
+    if (a && a.value.trim() !== addr) {
+      a.value = addr; window._autoLat = null; window._autoLon = null;
+      setTimeout(function(){ try { searchAerialAddress(); } catch(e){} }, 150);
+    }
+  }
+}
 function _closeAerialModal(){
   var ov = document.getElementById('aerialModalOverlay');
   var md = document.getElementById('aerialModal');
-  if (ov) ov.style.display = 'none';
-  if (md) md.style.display = 'none';
+  if (ov) { ov.style.display = 'none'; ov.style.zIndex = ''; }
+  if (md) { md.style.display = 'none'; md.style.zIndex = ''; }
   try { closeAerialSuggest(); } catch(e){}
 }
 

@@ -118,6 +118,24 @@ await pg.evaluate(() => _fergusUnlink());
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => ({ linked: S.linkedJobId, ferg: document.getElementById('jobDetailsFergus').textContent, outline: DRAW.outline.length }));
 check('Unlink drops the Fergus link and keeps the work', !v.linked && /Not linked/.test(v.ferg) && v.outline === 4, JSON.stringify(v));
+// ── the details popup's Satellite view button ─────────────────────
+// It was shipped calling a function that never existed: one press, one
+// error email from a subscriber. Now it opens the aerial finder ABOVE the
+// details popup with the site address carried across, and closing the
+// finder puts the stacking back.
+await pg.route('**/nominatim.openstreetmap.org/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+await pg.evaluate(() => { document.getElementById('jobAddr').value = '12 Kamo Rd, Whangarei'; document.querySelector('#jobDetailsModal button[onclick="openSatelliteView()"]').click(); });
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => {
+  const md = document.getElementById('aerialModal'), dm = document.getElementById('jobDetailsModal');
+  return { shown: md.style.display, z: +getComputedStyle(md).zIndex, dz: +getComputedStyle(dm).zIndex,
+    addr: document.getElementById('aerialAddressInput').value };
+});
+check('Satellite view in the details popup opens the aerial finder on top with the address',
+  v.shown === 'block' && v.z > v.dz && v.addr === '12 Kamo Rd, Whangarei', JSON.stringify(v));
+await pg.evaluate(() => _closeAerialModal());
+v = await pg.evaluate(() => ({ shown: document.getElementById('aerialModal').style.display, z: document.getElementById('aerialModal').style.zIndex }));
+check('…and closing it puts the stacking back', v.shown === 'none' && v.z === '', JSON.stringify(v));
 check('no page errors along the way', errs.length === 0, errs.join(' | '));
 
 await ctx.close(); await b.close();
