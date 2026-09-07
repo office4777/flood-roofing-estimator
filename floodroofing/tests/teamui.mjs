@@ -243,6 +243,43 @@ check('…and lands them in the app, in the business that invited them',
   iv.app && iv.login && iv.co.slug === 'floodroofing' && iv.co.role === 'member', JSON.stringify(iv));
 await ictx.close();
 
+// ── the emailed confirmation link, and signing in before clicking it ──
+const vctx = await b.newContext({ viewport:{width:900,height:800} });
+const vpg = await vctx.newPage();
+vpg.on('pageerror', e => console.log('PAGEERROR', e.message));
+let verified = null, resent = null;
+await vpg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+  const q = r.request(), u = q.url();
+  const j = (x, status) => r.fulfill({status: status || 200, contentType:'application/json', body:JSON.stringify(x)});
+  if (/\/auth\/verify\/resend/.test(u)){ resent = q.postDataJSON(); return j({ ok:true }); }
+  if (/\/auth\/verify$/.test(u)){ verified = q.postDataJSON();
+    return j({ token:'t', user:{ id:'u7', email:'kiri@kiriroofing.co.nz', company_id:'co7' }, company:{ id:'co7', name:'Kiri Roofing', slug:null, role:'owner' } }); }
+  if (/\/auth\/login/.test(u)) return j({ error:'Please confirm your email address first — we sent a link to kiri@kiriroofing.co.nz.', verify_pending:true }, 403);
+  return j([]);
+});
+await vpg.goto('file://'+DIR+'/app.html');
+await vpg.waitForTimeout(1500);
+await vpg.fill('#li-email', 'kiri@kiriroofing.co.nz');
+await vpg.fill('#li-pass', 'password123');
+await vpg.evaluate(() => doLogin());
+await vpg.waitForTimeout(600);
+let vv = await vpg.evaluate(() => ({ err: document.getElementById('login-err').textContent, link: !!document.querySelector('#login-err a') }));
+check('signing in before confirming says so, with a way to get the link again',
+  /confirm your email/i.test(vv.err) && vv.link, vv.err.slice(0, 100));
+await vpg.click('#login-err a');
+await vpg.waitForTimeout(300);
+check('…and that link asks for another email', resent && resent.email === 'kiri@kiriroofing.co.nz', JSON.stringify(resent));
+await vpg.goto('file://'+DIR+'/app.html?verify=tok123');
+await vpg.waitForTimeout(1800);
+vv = await vpg.evaluate(() => ({
+  app: getComputedStyle(document.querySelector('.app')).display !== 'none',
+  login: getComputedStyle(document.getElementById('login-screen')).display === 'none',
+  co: JSON.parse(localStorage.getItem('fr_company')||'{}'), tok: localStorage.getItem('fr_token'),
+}));
+check('the emailed confirmation link confirms the address and opens the app',
+  verified && verified.token === 'tok123' && vv.app && vv.login && vv.tok === 't' && vv.co.name === 'Kiri Roofing', JSON.stringify({ verified, vv }));
+await vctx.close();
+
 await b.close();
 const bad = results.filter(x=>!x).length;
 console.log('\n'+(results.length-bad)+'/'+results.length+' passed');

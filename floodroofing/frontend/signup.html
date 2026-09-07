@@ -74,7 +74,7 @@
   /* Stacked, a grid gap would add to each field's own margin and make this
      one pair sit further apart than every other. */
   .two{ display:grid; grid-template-columns:1fr 1fr; gap:13px }
-  @media (max-width:520px){ .two{ grid-template-columns:1fr; gap:0 } }
+  @media (max-width:520px){ .two{ grid-template-columns:1fr; gap:0 } .two.keep{ grid-template-columns:1fr 1fr; gap:10px } .field{ margin-bottom:12px } .field input{ padding:11px 12px } }
   .btn{
     display:block; width:100%; padding:15px 20px; border:none; border-radius:11px;
     font-family:inherit; font-size:16.5px; font-weight:700; cursor:pointer;
@@ -167,9 +167,21 @@
             <input id="suEmail" name="email" type="email" placeholder="sam@acmeroofing.co.nz" autocomplete="email" required>
           </div>
         </div>
-        <div class="field">
-          <label for="suPass">Choose a password</label>
-          <input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+        <div class="two keep">
+          <div class="field">
+            <label for="suPhone">Phone</label>
+            <input id="suPhone" name="tel" type="tel" placeholder="021 000 0000" autocomplete="tel" required>
+          </div>
+          <div class="field">
+            <label for="suPass">Choose a password</label>
+            <input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+          </div>
+        </div>
+        <!-- Honeypot: people never see this field; a script filling in every
+             input does, and the server refuses the signup. -->
+        <div class="field" aria-hidden="true" style="display:none">
+          <label for="suWebsite">Website</label>
+          <input id="suWebsite" name="website" type="text" tabindex="-1" autocomplete="off">
         </div>
         <div class="field" id="suInviteWrap" style="display:none">
           <label for="suInvite">Invite code</label>
@@ -177,6 +189,10 @@
         </div>
         <button type="submit" class="btn" id="suBtn">Create my account</button>
         <div class="msg" id="suMsg"></div>
+        <div id="suVerify" style="display:none;padding:14px 16px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:14px;line-height:1.55;color:#14532d">
+          <strong>Check your email.</strong> We've sent a link to <span id="suVerifyEmail"></span> — one click and you're in.
+          Not there? Check spam, or <a href="#" id="suResend" style="color:#14532d;font-weight:600">send it again</a>.
+        </div>
         <div class="fine">
           By creating an account you agree to our <a href="/terms">Terms of Service</a>
           and <a href="/privacy">Privacy Policy</a>.
@@ -242,16 +258,19 @@
     var name    = document.getElementById('suName').value.trim();
     var email   = document.getElementById('suEmail').value.trim();
     var pass    = document.getElementById('suPass').value;
+    var phone   = document.getElementById('suPhone').value.trim();
+    var website = (document.getElementById('suWebsite') || {}).value || '';
     var invite  = (document.getElementById('suInvite') || {}).value || '';
     if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
     if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
+    if (phone.replace(/\D/g, '').length < 7){ say('Please add a phone number we can reach you on.', 'bad'); return; }
     btn.disabled = true; btn.textContent = 'Setting up your account…';
     say('');
     try {
       var r = await fetch(API + '/auth/register', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, password:pass, name:name, company:company, invite:invite })
+        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website })
       });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok){
@@ -265,6 +284,20 @@
           return;
         }
         throw new Error(d.error || ('Something went wrong (' + r.status + ')'));
+      }
+      if (d.verify){
+        // The account is made; the address has to be confirmed before the
+        // first sign-in. Swap the form for the "check your email" card.
+        form.querySelectorAll('.field, .two, .btn, .fine').forEach(function(el){ el.style.display = 'none'; });
+        say('');
+        document.getElementById('suVerifyEmail').textContent = d.email || email;
+        document.getElementById('suVerify').style.display = 'block';
+        document.getElementById('suResend').onclick = function(ev){
+          ev.preventDefault();
+          fetch(API + '/auth/verify/resend', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email }) }).catch(function(){});
+          this.textContent = 'sent again'; this.onclick = function(e){ e.preventDefault(); };
+        };
+        return;
       }
       try {
         localStorage.setItem('fr_token', d.token);

@@ -110,6 +110,21 @@ export function startFakePostgrest(tables){
     // Supabase Auth admin API. Without this, createUser resolves to undefined
     // and every downstream id comparison is undefined === undefined — which
     // passes for the wrong reason and hides real bugs.
+    // signInWithPassword. Answers from the users createUser registered, so a
+    // suite can sign in as somebody it just signed up.
+    if (u.pathname === '/auth/v1/token'){
+      let tb = '';
+      req.on('data', c => tb += c);
+      req.on('end', () => {
+        const body = JSON.parse(tb || '{}');
+        const ex = (db.__authUsers || []).find(x => x.email === body.email && x.password === body.password);
+        if (!ex){ res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'invalid_grant', error_description: 'Invalid login credentials' })); }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ access_token: 'fake', token_type: 'bearer', expires_in: 3600, refresh_token: 'r',
+          user: { id: ex.id, email: ex.email, aud: 'authenticated', created_at: new Date(0).toISOString() } }));
+      });
+      return;
+    }
     if (u.pathname.startsWith('/auth/v1/admin/users')){
       let ab = '';
       req.on('data', c => ab += c);

@@ -26,6 +26,18 @@ process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
 process.env.REGISTRATION_INVITE_CODE = 'ROOFMAP-2026';
+// A stand-in for the mail relay so a signup can send its confirmation link.
+import http from 'node:http';
+const sent = [];
+const relay = http.createServer((req, res) => {
+  let body = ''; req.on('data', c => body += c);
+  req.on('end', () => { try { sent.push(JSON.parse(body)); } catch (e) { sent.push({ raw: body }); }
+    res.writeHead(200, {'content-type':'application/json'}); res.end('{"ok":true}'); });
+});
+await new Promise(r => relay.listen(0, '127.0.0.1', r));
+process.env.GAS_MAIL_URL = 'http://127.0.0.1:' + relay.address().port;
+process.env.GAS_MAIL_TOKEN = 'tok';
+process.env.VERIFY_EMAIL = 'false';   // switched on further down
 const ADMIN = 'admin-token-for-the-suite';
 process.env.ADMIN_TOKEN = ADMIN;
 delete process.env.OPEN_REGISTRATION;
@@ -50,7 +62,7 @@ const register = (body) => fetch(BASE + '/auth/register', {
 // answers "invite-only" is not that. The reason it was shut — a stranger
 // spending the server's Anthropic credit through /claude/* — is capped per
 // company per day instead.
-const noCode = await register({ email: 'walkin@example.com', password: 'password123',
+const noCode = await register({ email: 'walkin@example.com', password: 'password123', phone: '021 555 0100',
   name: 'Walk In', company: 'Walk In Roofing' });
 const nc = await noCode.json();
 check('somebody with no invite code can sign themselves up',
@@ -64,7 +76,7 @@ check('…and lands on a real 14-day trial, not a pending account with nothing o
   })(), JSON.stringify(db.subscriptions.slice(-1)));
 
 const padded = await register({
-  email: 'team1@example.com', password: 'password123', name: 'Sam',
+  email: 'team1@example.com', password: 'password123', phone: '021 555 0100', name: 'Sam',
   company: 'Sam Roofing', invite: '  ROOFMAP-2026\n',
 });
 const pd = await padded.json();
@@ -84,7 +96,7 @@ check('…with the owner attached to it',
 
 // ── each signup gets its OWN business ────────────────────────────
 const second = await register({
-  email: 'team2@example.com', password: 'password123', name: 'Alex',
+  email: 'team2@example.com', password: 'password123', phone: '021 555 0100', name: 'Alex',
   company: 'Alex Roofing', invite: 'ROOFMAP-2026',
 });
 const sd = await second.json();
@@ -95,7 +107,7 @@ check('the next person to use the same code gets a separate business',
 // ── the rollback ─────────────────────────────────────────────────
 db.__failInsert = 'companies';
 const broken = await register({
-  email: 'orphan@example.com', password: 'password123', name: 'Jo',
+  email: 'orphan@example.com', password: 'password123', phone: '021 555 0100', name: 'Jo',
   company: 'Jo Roofing', invite: 'ROOFMAP-2026',
 });
 const bd = await broken.json();
@@ -110,7 +122,7 @@ check('…leaving no half-made login behind, so the retry can work',
   JSON.stringify((db.__authUsers || []).map(u => u.email)));
 
 const retry = await register({
-  email: 'orphan@example.com', password: 'password123', name: 'Jo',
+  email: 'orphan@example.com', password: 'password123', phone: '021 555 0100', name: 'Jo',
   company: 'Jo Roofing', invite: 'ROOFMAP-2026',
 });
 const rd = await retry.json();
@@ -126,7 +138,7 @@ for (let i = 0; i < 3 && !blocked; i++){
   const r = await fetch(BASE + '/auth/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'X-Forwarded-For': '203.0.113.77' },
-    body: JSON.stringify({ email: 'staff' + i + '@example.com', password: 'password123',
+    body: JSON.stringify({ email: 'staff' + i + '@example.com', password: 'password123', phone: '021 555 0100',
                            company: 'Desk ' + i, invite: 'ROOFMAP-2026' }),
   });
   if (r.status === 429) blocked = i;
@@ -171,6 +183,58 @@ const noTok = await fetch(BASE + '/admin/account?email=team1@example.com');
 check('without the admin token it is not there at all', noTok.status === 404, 'status ' + noTok.status);
 const wrongTok = await fetch(BASE + '/admin/account?token=nope&email=team1@example.com');
 check('…and a wrong token is the same', wrongTok.status === 404, 'status ' + wrongTok.status);
+
+// ── keeping bots and throwaways off the front door ───────────────
+const nophone = await register({ email: 'nophone@example.com', password: 'password123', name: 'N', company: 'N Roofing' });
+check('a signup with no phone number is refused', nophone.status === 400 && /phone/i.test((await nophone.json()).error || ''), 'status ' + nophone.status);
+const shortphone = await register({ email: 'shortphone@example.com', password: 'password123', phone: '12', name: 'N', company: 'N Roofing' });
+check('…and so is one with a couple of digits typed to get past it', shortphone.status === 400, 'status ' + shortphone.status);
+const throwaway = await register({ email: 'x@mailinator.com', password: 'password123', phone: '021 555 0100', name: 'T', company: 'T Roofing' });
+const tw = await throwaway.json();
+check('a throwaway email address is refused, and told to use the business one',
+  throwaway.status === 400 && /business email/i.test(tw.error || ''), 'status ' + throwaway.status + ' ' + (tw.error || ''));
+const bot = await register({ email: 'bot@example.com', password: 'password123', phone: '021 555 0100', name: 'B', company: 'B Roofing', website: 'http://spam.example' });
+check('a script that fills in the hidden website field is refused', bot.status === 400, 'status ' + bot.status);
+check('…and none of those left an account behind',
+  !db.profiles.some(p => /nophone|shortphone|mailinator|bot@/.test(p.email)), JSON.stringify(db.profiles.map(p => p.email)));
+check('a real signup records the phone number', db.profiles.some(p => p.email === 'walkin@example.com' && p.phone === '021 555 0100'),
+  JSON.stringify(db.profiles.find(p => p.email === 'walkin@example.com')));
+
+// ── the email address is confirmed before the first sign-in ──────
+process.env.VERIFY_EMAIL = 'true';
+sent.length = 0;
+const pending = await register({ email: 'kiri@kiriroofing.co.nz', password: 'password123', phone: '027 555 0199', name: 'Kiri Tane', company: 'Kiri Roofing' });
+const pj = await pending.json();
+await new Promise(r => setTimeout(r, 400));
+check('with mail set up, a signup makes the account but hands out no session yet',
+  pending.status === 200 && pj.verify === true && !pj.token, JSON.stringify(pj));
+check('…and the confirmation email goes out', sent.length === 1 && /Confirm/i.test(sent[0].subject || '') && sent[0].to === 'kiri@kiriroofing.co.nz',
+  JSON.stringify(sent[0] && { to: sent[0].to, subject: sent[0].subject }));
+const vlink = ((sent[0] && (sent[0].text || sent[0].body || '')) .match(/\/app\?verify=([^\s"<]+)/) || [])[1];
+check('…with a link into the app', !!vlink, (sent[0] && (sent[0].text || sent[0].body || '')).slice(0, 200));
+const login = (body) => fetch(BASE + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'X-Forwarded-For': '198.51.100.' + (++ipN) }, body: JSON.stringify(body) });
+const early = await login({ email: 'kiri@kiriroofing.co.nz', password: 'password123' });
+const ej = await early.json();
+check('signing in before confirming is refused, and says why', early.status === 403 && ej.verify_pending === true && /confirm/i.test(ej.error || ''), 'status ' + early.status + ' ' + (ej.error || ''));
+sent.length = 0;
+const again = await fetch(BASE + '/auth/verify/resend', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'KIRI@kiriroofing.co.nz' }) });
+await new Promise(r => setTimeout(r, 400));
+check('the link can be sent again', again.status === 200 && sent.length === 1, 'status ' + again.status + ', ' + sent.length + ' mail');
+sent.length = 0;
+await fetch(BASE + '/auth/verify/resend', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'walkin@example.com' }) });
+await new Promise(r => setTimeout(r, 300));
+check('…but not for an address that is already confirmed', sent.length === 0, sent.length + ' mail');
+const bogus = await fetch(BASE + '/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'nope' }) });
+check('a made-up confirmation link is refused', bogus.status === 401, 'status ' + bogus.status);
+const ok = await fetch(BASE + '/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: decodeURIComponent(vlink || '') }) });
+const oj = await ok.json();
+check('the emailed link confirms the address and signs the person in',
+  ok.status === 200 && !!oj.token && oj.user && oj.user.company_id, 'status ' + ok.status + ' ' + JSON.stringify(oj).slice(0, 160));
+const prof = db.profiles.find(p => p.email === 'kiri@kiriroofing.co.nz');
+check('…and the profile records it', prof && prof.verify_pending === false && !!prof.email_verified_at, JSON.stringify(prof));
+const later = await login({ email: 'kiri@kiriroofing.co.nz', password: 'password123' });
+check('…after which a normal sign-in works', later.status === 200 && !!(await later.json()).token, 'status ' + later.status);
+process.env.VERIFY_EMAIL = 'false';
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

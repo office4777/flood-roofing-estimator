@@ -1709,8 +1709,63 @@ app.delete('/team/domains/:id', requireAuth, requireOwner, async (req, res) => {
 // Registration creates a company and starts a trial, and sends mail. Teams
 // arrive through /auth/accept-invite rather than here, so a human never needs
 // more than a handful an hour.
+// ── Keeping bots and throwaways off the front door ─────────────────
+// Four cheap checks, no CAPTCHA (a CAPTCHA costs real signups):
+//   1. a honeypot field ("website") that people never see and bots fill in;
+//   2. throwaway email domains are refused — a roofer has a business address;
+//   3. a phone number is required — always real for a roofer, rarely for a bot,
+//      and it gives the owner a number to ring a new trial on;
+//   4. the email address is confirmed by a link before the first sign-in, so
+//      a made-up address never becomes a working account.
+// Verification needs a mail transport; without one (dev, the suites) the
+// account is live at once, as before. VERIFY_EMAIL=false turns it off.
+const DISPOSABLE_DOMAINS = new Set(('mailinator.com guerrillamail.com guerrillamail.net guerrillamail.org sharklasers.com ' +
+  '10minutemail.com 10minutemail.net temp-mail.org tempmail.com tempmail.net tempr.email throwawaymail.com ' +
+  'yopmail.com yopmail.fr dispostable.com trashmail.com trashmail.net getnada.com nada.email maildrop.cc ' +
+  'mailnesia.com fakeinbox.com mohmal.com emailondeck.com mintemail.com tempail.com burnermail.io ' +
+  'spamgourmet.com mytemp.email inboxkitten.com harakirimail.com 33mail.com mailcatch.com discard.email ' +
+  'tempinbox.com tmpmail.org tmpmail.net moakt.com getairmail.com guerrillamailblock.com spam4.me').split(/\s+/));
+function _disposableEmail(email){
+  const at = String(email || '').lastIndexOf('@');
+  return at > 0 && DISPOSABLE_DOMAINS.has(String(email).slice(at + 1).trim().toLowerCase());
+}
+function _cleanPhone(p){
+  const s = String(p || '').trim().slice(0, 40);
+  return s.replace(/\D/g, '').length >= 7 ? s : '';
+}
+function _verifyRequired(){ return EMAIL_ENABLED && process.env.VERIFY_EMAIL !== 'false'; }
+async function _sendVerifyMail(userId, email, name){
+  const t = jwt.sign({ id: userId, email, purpose: 'verify' }, JWT_SECRET, { expiresIn: '3d' });
+  const link = PUBLIC_APP_URL + '/app?verify=' + encodeURIComponent(t);
+  const hi = name ? 'Hi ' + String(name).split(/\s+/)[0] + ',' : 'Hi,';
+  await _dispatchMail({
+    to: email,
+    subject: 'Confirm your email to open RoofMap',
+    text: hi + '\n\nOne click and your RoofMap account is open:\n' + link + '\n\n' +
+          'The link works for 3 days. If you did not sign up for RoofMap, ignore this email and nothing happens.',
+    html: '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#1c2733;line-height:1.6">' +
+          '<p>' + hi + '</p><p>One click and your RoofMap account is open:</p>' +
+          '<p><a href="' + link + '" style="display:inline-block;background:#0a1628;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:600">Confirm my email</a></p>' +
+          '<p style="color:#667">The link works for 3 days. If you did not sign up for RoofMap, ignore this email and nothing happens.</p></div>',
+  });
+}
+
 app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailKey), async (req, res) => {
   const { email, password, name, company } = req.body;
+  if (String((req.body || {}).website || '').trim()) {
+    // The honeypot. A person cannot see the field; whoever filled it is a script.
+    console.warn('[auth] signup honeypot tripped from ' + req.ip);
+    return res.status(400).json({ error: 'Could not create your account.' });
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email || ''))) {
+    return res.status(400).json({ error: 'That doesn\'t look like an email address.' });
+  }
+  if (_disposableEmail(email)) {
+    return res.status(400).json({ error: 'Please sign up with your business email address — throwaway addresses can\'t be used.' });
+  }
+  const phone = _cleanPhone((req.body || {}).phone);
+  if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
+  const verifyFirst = _verifyRequired();
   // Self-registration is OPEN: the product is sold as "start free, 14 days,
   // no card", and a signup form that answers "invite-only" is not that.
   //
@@ -1745,7 +1800,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       return res.status(400).json({ error: error.message });
     }
     const userId = createdUserId = data.user.id;
-    await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '' });
+    await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '', phone, verify_pending: verifyFirst });
     // Registering ALWAYS creates your own business. Joining an existing one
     // happens only through a per-company invitation (POST /team/invites →
     // /auth/accept-invite), which is what makes self-onboarding possible:
@@ -1788,9 +1843,22 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
     if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
+    recordUsage('signed_up', { companyId: cid, user: { id: userId } });
+    if (verifyFirst) {
+      // No session until the address is confirmed. The account exists, so a
+      // second signup with this email says "already registered" — the resend
+      // route is the way back in.
+      try { await _sendVerifyMail(userId, email, name); }
+      catch (e) {
+        console.error('[auth] verification mail failed, opening the account anyway:', e.message);
+        await supabase.from('profiles').update({ verify_pending: false }).eq('id', userId);
+        const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
+        return res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
+      }
+      return res.json({ verify: true, email });
+    }
     const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
-    recordUsage('signed_up', { companyId: cid, user: { id: userId } });
   } catch (e) {
     // Same reasoning as the no-company rollback above: a half-made account is
     // worse than no account, because the email is now taken and there is
@@ -1803,6 +1871,35 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     }
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Email confirmation ─────────────────────────────────────────────
+// POST /auth/verify { token } → marks the address confirmed and signs the
+// person straight in, like a reset link does.
+app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
+  const token = String((req.body || {}).token || '');
+  let payload;
+  try { payload = jwt.verify(token, JWT_SECRET); }
+  catch { return res.status(401).json({ error: 'This confirmation link has expired — sign in and we\'ll send you a fresh one.' }); }
+  if (payload.purpose !== 'verify') return res.status(401).json({ error: 'Invalid confirmation link.' });
+  try {
+    await supabase.from('profiles').update({ verify_pending: false, email_verified_at: new Date().toISOString() }).eq('id', payload.id);
+    const cid = await _companyOf(payload.id);
+    const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: await _tokenVersion(payload.id) }, JWT_SECRET, { expiresIn: '30d' });
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
+    res.json({ token: authToken, user: { ...(profile || { id: payload.id, email: payload.email }), company_id: cid }, company: await _companyBrief(cid, payload.id) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// POST /auth/verify/resend { email } → another link, if that address is still
+// waiting on one. Always answers ok so it cannot be used to probe addresses.
+app.post('/auth/verify/resend', rateLimit(5, 900000), rateLimit(3, 900000, _emailKey), async (req, res) => {
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  res.json({ ok: true });
+  if (!email || !EMAIL_ENABLED) return;
+  try {
+    const { data: prof } = await supabase.from('profiles').select('id, name, verify_pending').ilike('email', email).maybeSingle();
+    if (prof && prof.verify_pending) await _sendVerifyMail(prof.id, email, prof.name);
+  } catch (e) { console.error('[auth] verify resend failed:', e.message); }
 });
 
 // ── Password reset ─────────────────────────────────────────────────
@@ -1878,6 +1975,9 @@ app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey),
     if (error) return res.status(401).json({ error: 'Invalid email or password' });
     const userId = data.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (profile && profile.verify_pending && _verifyRequired()) {
+      return res.status(403).json({ error: 'Please confirm your email address first — we sent a link to ' + email + '.', verify_pending: true });
+    }
     const cid = await _companyOf(userId);
     const sub = await _companySubscription(cid, userId);
     const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
@@ -8288,6 +8388,11 @@ const _MIGRATION_SQL = [
   // could do about it. Every session token carries this number; bump it and
   // every token issued before now stops being accepted.
   "alter table public.profiles add column if not exists token_version integer not null default 0",
+  // Signup asks for a phone number (a roofer always has one, a bot rarely
+  // gives a real one) and confirms the email address before the first sign-in.
+  "alter table public.profiles add column if not exists phone text",
+  "alter table public.profiles add column if not exists verify_pending boolean not null default false",
+  "alter table public.profiles add column if not exists email_verified_at timestamptz",
   // Each business's RoofMap address: <slug>.roofmap.co.nz. Unique, case-blind.
   "alter table public.companies add column if not exists slug text",
   // Which plan a business is on. Everything already in use predates plans, so
