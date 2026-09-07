@@ -39236,11 +39236,15 @@ function snap(x,y){var t=DRAW.tool;if(t==='hip'||t==='valley'){var pts=DRAW.curr
 //
 // 8px was the first calibration after report #19 (reachable corners), and
 // report #27 said it the other way: "the first 90° vertical snap point is too
-// vague, it needs to snap harder staying perfectly vertical". 16 screen px is
-// a normal hand-wobble at the end of a long drag; a deliberately diagonal
-// wall is still tens of pixels off its nearest axis and stays free.
-var SNAP_AXIS_PX = 16;
-var SNAP_AXIS_MAX_ANG = 15 * Math.PI / 180;
+// vague, it needs to snap harder staying perfectly vertical". 16px was the
+// middle. The owner then settled it: "make the snapping harder, so it's a
+// bit harder to draw it out of square" — the outline squares itself
+// afterwards anyway, so the help belongs up front. 24 screen px is a
+// decisive hand-wobble; a deliberately diagonal wall is still tens of
+// pixels off its nearest axis and stays free, and a corner 40px off a long
+// wall is still left where it was put.
+var SNAP_AXIS_PX = 24;
+var SNAP_AXIS_MAX_ANG = 20 * Math.PI / 180;
 // How close (screen px) the cursor must be to the computed closing corner of
 // an outline before it is offered. Used by _outlineSquareSnap.
 var SNAP_CLOSE_PX = 20;

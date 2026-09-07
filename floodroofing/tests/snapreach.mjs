@@ -57,10 +57,17 @@ let r = await snapAt(A, 540, 500);
 check('a corner 40px off a long axis is left where it was put',
   Math.abs(r.x - 540) <= 5, 'x=' + r.x + ' (wanted ~540, old code gave 500)');
 
-// 20 px off over the same 400 px — 2.9°, still well inside the old cone.
+// 20 px off over the same 400 px used to be left alone too. The owner then
+// asked for a harder snap — "a bit harder to draw it out of square" — so a
+// wobble of that size now squares up, and the line between help and hindrance
+// sits at 24 screen pixels. The 40px case above is the corner-reach
+// guarantee, and it still holds.
 r = await snapAt(A, 520, 500);
-check('…and so is one only 20px off',
-  Math.abs(r.x - 520) <= 5, 'x=' + r.x);
+check('…while one only 20px off now squares up',
+  Math.abs(r.x - 500) <= 1, 'x=' + r.x);
+r = await snapAt(A, 530, 500);
+check('…and 30px off is still let go',
+  Math.abs(r.x - 530) <= 5, 'x=' + r.x);
 
 // ── the help that must survive ─────────────────────────────────────
 // Genuinely running straight down: still squared, which is the whole point of
