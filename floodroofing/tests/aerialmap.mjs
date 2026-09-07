@@ -51,6 +51,20 @@ check('switching imagery source (linz/esri/mapbox) no longer throws',
 // half-migration this suite exists to block.
 const src = await pg.evaluate(() => document.documentElement.outerHTML);
 const leaflet = (src.match(/\bL\.(map|tileLayer|marker|latLng)\(/g) || []);
+// Report 43: with an aerial on the canvas, reopening the finder put it BEHIND
+// the drawing. It lives on <body> now, above every panel and sticky bar.
+await pg.evaluate(() => _openAerialModal());
+const stack = await pg.evaluate(() => {
+  const md = document.getElementById('aerialModal'), ov = document.getElementById('aerialModalOverlay');
+  const r = md.getBoundingClientRect();
+  const top = document.elementFromPoint(r.left + r.width / 2, r.top + 12);
+  return { onBody: md.parentNode === document.body && ov.parentNode === document.body,
+    z: +getComputedStyle(md).zIndex, shown: md.style.display, covered: !(top && md.contains(top)) };
+});
+check('the finder opens on top of the drawing, not behind it (report 43)',
+  stack.onBody && stack.shown === 'block' && stack.z >= 9000 && !stack.covered, JSON.stringify(stack));
+await pg.evaluate(() => _closeAerialModal());
+
 check('no Leaflet API calls survive anywhere in the page', leaflet.length === 0, leaflet.join(', '));
 
 await ctx.close();

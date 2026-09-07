@@ -4,8 +4,8 @@
 // Both autosave. The last save used to win, silently, and the other person
 // found out at quoting time. Now a save carries the updated_at the job was
 // opened with; when the server says the row has moved, the app stops and
-// asks — load theirs, or write over it — and autosave stands down until the
-// roofer has answered rather than asking the same thing every two seconds.
+// decides: this screen's version is saved over the top, an empty canvas never
+// writes over a drawn one, and a customer acceptance is carried across.
 //
 // The same suite holds the other half of the save path: once the server has
 // the aerial and the photos, later saves leave them out and name them, so a
@@ -66,6 +66,8 @@ await pg.evaluate(() => {
 });
 await pg.evaluate(() => openJob('job-77'));
 await pg.waitForTimeout(800);
+// A saved job opens locked (tests/joblock.mjs); this suite is about saving.
+await pg.evaluate(() => { S.jobLocked = false; _jobLockRender(); });
 
 check('opening a job remembers when the server last saved it',
   (await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt)) === JOB.updated_at,
@@ -113,52 +115,53 @@ check('adding a photo sends the photos again, and only the photos',
   puts[2] ? 'keep=' + JSON.stringify(puts[2].draw_state_keep) : '');
 
 // ── the job moves under us ───────────────────────────────────────
+// It used to stop and ask ("This job was changed on another device"), and the
+// question came up on nearly every quote — the "other device" was the
+// roofer's own phone, or the customer opening the quote. Now the app decides:
+// what is on THIS screen wins and is saved over the top, with two rules.
 refuse = true;
 await pg.evaluate(() => { DRAW.lines.push({ type:'hip', pts:[[100,100],[120,200]] }); });
+const nM = puts.length;
 await pg.evaluate(() => saveCurrentJob());
-await pg.waitForTimeout(600);
-const modal = await pg.evaluate(() => {
-  const m = document.getElementById('jobMovedModal');
-  return { there: !!m, text: m ? m.textContent.replace(/\s+/g, ' ') : '' };
-});
-check('THE FIX: a refused save asks instead of writing over the other version', modal.there, modal.text.slice(0, 80));
-check('…saying who and when', /another device/i.test(modal.text) && /Nikki Barrett/.test(modal.text) && /08:05|8:05/.test(modal.text),
-  modal.text.slice(0, 160));
-check('…with both ways out on offer', await pg.isVisible('#jobMovedReload') && await pg.isVisible('#jobMovedOverwrite'));
-check('…and autosave stands down while it is open', await pg.evaluate(() => S._jobConflict === true));
-const before = puts.length;
-await pg.evaluate(() => _runAutosave());
-await pg.waitForTimeout(500);
-check('…so the same question is not asked again two seconds later', puts.length === before, (puts.length - before) + ' more saves');
-
-// ── keep mine ────────────────────────────────────────────────────
-await pg.click('#jobMovedOverwrite');
-await pg.waitForTimeout(800);
+await pg.waitForTimeout(900);
+check('THE FIX: a refused save no longer asks', !(await pg.evaluate(() => !!document.getElementById('jobMovedModal'))));
 const forced = puts[puts.length - 1];
-check('"Keep mine" saves again without the timestamp, so it goes through', puts.length === before + 1 &&
-  !('base_updated_at' in forced), forced ? Object.keys(forced).join(',') : '');
-check('…and sends everything fresh, photos included — their photos are not mixed into mine',
-  !!forced && !forced.draw_state_keep && forced.draw_state.state.img64 === AERIAL && forced.draw_state.state.photos.length === 2,
-  forced ? 'keep=' + JSON.stringify(forced.draw_state_keep) : '');
-check('…and the question is gone', !(await pg.evaluate(() => !!document.getElementById('jobMovedModal'))) &&
-  await pg.evaluate(() => S._jobConflict === false));
+check('…it saves again straight away, against the server\'s own stamp, so it goes through',
+  puts.length === nM + 2 && forced.base_updated_at === new Date(Date.parse(serverStamp) - 60000).toISOString(),
+  puts.length - nM + ' saves, base=' + (forced && forced.base_updated_at) + ' vs ' + serverStamp);
+check('…keeping the drawing on this screen', !!forced && forced.draw_state.draw.lines.length === 2,
+  forced ? forced.draw_state.draw.lines.length + ' lines' : '');
+check('…and autosave carries on', await pg.evaluate(() => !S._jobConflict));
 
-// ── load theirs ──────────────────────────────────────────────────
+// Rule 1: what the customer did to the quote in the meantime is carried, not
+// lost — an autosave from the office cannot un-accept a quote.
+JOB.draw_state.state.quote = { ref: 'Q-1', share: { token: 'tok9', status: 'accepted', events: [{ kind: 'accept', at: '2026-09-02T08:04:00Z' }] },
+  accepted: { at: '2026-09-02T08:04:00Z', by: 'Nikki' } };
 refuse = true;
-await pg.evaluate(() => { DRAW.lines.push({ type:'valley', pts:[[400,100],[380,200]] }); });
-const mine = await pg.evaluate(() => DRAW.lines.length);
+await pg.evaluate(() => { S.quote = S.quote || {}; S.quote.share = { token: 'tok9', status: 'sent', events: [] }; DRAW.lines.push({ type:'valley', pts:[[400,100],[380,200]] }); });
 await pg.evaluate(() => saveCurrentJob());
-await pg.waitForTimeout(600);
-check('a second refusal asks again', await pg.evaluate(() => !!document.getElementById('jobMovedModal')));
-const n0 = puts.length;
-await pg.click('#jobMovedReload');
-await pg.waitForTimeout(800);
-check('"Load their version" loads the server\'s copy in place of mine',
-  (await pg.evaluate(() => DRAW.lines.length)) === 0 && mine > 0, 'had ' + mine + ' lines, now ' + (await pg.evaluate(() => DRAW.lines.length)));
-check('…without saving mine over the top on the way', puts.length === n0, (puts.length - n0) + ' saves');
-check('…and remembers the new timestamp, so the next save is against THEIR version',
-  (await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt)) === serverStamp,
-  await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt));
+await pg.waitForTimeout(900);
+const carried = puts[puts.length - 1];
+check('a customer acceptance that landed meanwhile is carried into the save',
+  !!carried && carried.draw_state.state.quote && carried.draw_state.state.quote.accepted && carried.draw_state.state.quote.accepted.by === 'Nikki' &&
+  carried.draw_state.state.quote.share.status === 'accepted',
+  carried ? JSON.stringify(carried.draw_state.state.quote).slice(0, 160) : '');
+check('…with the drawing still mine', !!carried && carried.draw_state.draw.lines.length === 3);
+delete JOB.draw_state.state.quote;
+
+// Rule 2: an empty canvas never writes over a drawn one. The server has a
+// roof; this screen has nothing — theirs is loaded instead.
+refuse = true;
+await pg.evaluate(() => { DRAW.outline = []; DRAW.lines = []; DRAW.roofs = []; });
+const nE = puts.length;
+await pg.evaluate(() => saveCurrentJob());
+await pg.waitForTimeout(900);
+check('an empty canvas does not write over the drawn one on the server',
+  puts.length === nE + 1, (puts.length - nE) + ' saves after the refusal');
+check('…the drawn one is loaded in its place', (await pg.evaluate(() => DRAW.outline.length)) === 4,
+  'outline now ' + (await pg.evaluate(() => DRAW.outline.length)) + ' corners');
+check('…and the next save is against that version',
+  (await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt)) === serverStamp);
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 // ── the quote's own save must not turn the next job save into a "conflict" ──

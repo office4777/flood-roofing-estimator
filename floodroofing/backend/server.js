@@ -8363,6 +8363,10 @@ const _MIGRATION_SQL = [
 
   // 1. share-token index (pre-existing migration, kept)
   "create index if not exists idx_jobs_share_token on public.jobs ((draw_state -> 'state' -> 'quote' -> 'share' ->> 'token'))",
+  // /quote-activity: the shared jobs of one company, newest first. Without
+  // this it walked the company's jobs by updated_at and hit the statement
+  // timeout on a cold morning.
+  "create index if not exists idx_jobs_shared_recent on public.jobs (company_id, updated_at desc) where (draw_state -> 'state' -> 'quote' -> 'share' ->> 'token') is not null",
 
   // 2. tenant tables + columns
   "create table if not exists public.companies (" +

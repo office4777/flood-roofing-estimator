@@ -167,6 +167,27 @@ v = await pg.evaluate(() => {
 check('Ctrl + scroll zooms the canvas and updates the % label',
   v.after > v.before && v.label === Math.round(v.after * 100) + '%', JSON.stringify(v));
 
+// ── the canvas keeps its centre when its size changes ─────────────
+// The photos panel opening, a tab coming back: the canvas got narrower and
+// the view stayed pinned to the top-left, so the roof the office had centred
+// was found half off the canvas on every return.
+v = await pg.evaluate(() => {
+  const c = document.getElementById('roofCanvas'), wrap = c.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  fitCanvasToWrap();
+  const w0 = c.width;
+  // A point in the middle of the canvas, in world (image) space
+  const t0 = getImgTransform(), cx0 = (c.width / dpr / 2 - t0.ix) / t0.s;
+  c.style.width = Math.round(c.getBoundingClientRect().width * 0.6) + 'px';
+  fitCanvasToWrap();
+  const t1 = getImgTransform(), cx1 = (c.width / dpr / 2 - t1.ix) / t1.s, w1 = c.width;
+  c.style.width = '';
+  fitCanvasToWrap();
+  return { w0, w1, cx0: Math.round(cx0), cx1: Math.round(cx1) };
+});
+check('when the canvas gets narrower, what was at its centre stays at its centre',
+  v.w1 < v.w0 && Math.abs(v.cx0 - v.cx1) <= 1, JSON.stringify(v));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;
