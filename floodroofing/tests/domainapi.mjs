@@ -49,7 +49,9 @@ await new Promise(r => vsrv.listen(0, '127.0.0.1', r));
 
 const db = {
   __missing: [],
-  companies: [{ id: CO, name:'Acme Roofing', slug:'acmeroofing' }, { id: CO2, name:'Other', slug:'other' }],
+  // On Business: your own domain is a Business feature, and the trial is
+  // Team now, so a company with no plan would be turned away at the door.
+  companies: [{ id: CO, name:'Acme Roofing', slug:'acmeroofing', plan:'business' }, { id: CO2, name:'Other', slug:'other', plan:'business' }],
   company_users: [{ company_id: CO, user_id: OWNER, role:'owner' }, { company_id: CO, user_id: MEMBER, role:'member' }],
   profiles: [{ id: OWNER, company_id: CO, name:'Bob', email:'bob@acmeroofing.co.nz' },
              { id: MEMBER, company_id: CO, name:'Sue', email:'sue@acmeroofing.co.nz' }],
