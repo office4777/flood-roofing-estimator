@@ -32,6 +32,13 @@ const SHAPES = {
   'the L from report 30': [[1162,1189],[1162,1535],[1241,1535],[1241,1398],[1467,1398],[1467,1189]],
   'the H from report 29': [[921,1165],[921,1528],[1122,1528],[1122,1411],[1218,1411],[1218,1511],
                            [1462,1511],[1462,1159],[1202,1159],[1202,1247],[1118,1247],[1118,1165]],
+  // Report 42: a bar whose top wall steps by thirty pixels, with a stub on
+  // it. "Still doing weird things with the lines." The old builder measured
+  // roof height as distance to the nearest wall SEGMENT, which under the
+  // stub picked a far corner, threw the stub's ridge away, and left the
+  // solver to draw a fourteen-pixel-skewed ridge. The exact skeleton draws
+  // a level ridge, a plumb stub ridge and two short 45° creases.
+  'the stepped T from report 42': [[105,250],[105,662],[1113,662],[1113,280],[839,280],[839,155],[460,155],[460,250]],
   'a plain rectangle':    [[100,100],[500,100],[500,340],[100,340]],
   // The T off the phone: a bar with a stub, traced by hand over an aerial,
   // so every corner is a pixel or three off square. "Slight movement, big

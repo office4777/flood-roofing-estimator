@@ -58015,6 +58015,160 @@ function _roofSquareUp(outline){
     },
   };
 }
+// ── the exact roof of a square-walled building ─────────────────────
+// The straight skeleton of a rectilinear outline, computed exactly: every
+// wall advances inward at the same speed, every corner rides a 45°
+// diagonal, and every event lands on a coordinate that is a wall position
+// plus a time. So every ridge is level or plumb and every hip and valley
+// is 45° to the pixel — there is no arithmetic to drift and nothing to
+// weld. "For every single type of roof shape, the lines must always be
+// perfectly vertical and perfectly level except for the hips and valleys,
+// which must be perfectly forty-five degrees. No exceptions." The two
+// events are a wall shrinking to nothing (its two corners meet) and an
+// inside corner running into a wall across the building (the outline
+// splits in two); a wing whose sides have met is the tip of a ridge that
+// appears all at once. Anything it cannot close hands back null, and the
+// caller checks the answer with _roofLinesExact before using it.
+// Exact straight skeleton of a rectilinear simple polygon.
+function buildOrthoSkeleton(outline){
+  var EPS = 1e-6;
+  var n = outline.length; if (n < 4) return null;
+  var area = 0; for (var i=0;i<n;i++){ var a=outline[i], b=outline[(i+1)%n]; area += a[0]*b[1]-b[0]*a[1]; }
+  var pts = outline.map(function(p){ return [p[0], p[1]]; });
+  if (area < 0) pts.reverse();
+  for (i=0;i<n;i++){ a=pts[i]; b=pts[(i+1)%n]; if (Math.abs(a[0]-b[0])>EPS && Math.abs(a[1]-b[1])>EPS) return null; }
+  var arcs = [];
+  function cross(a,b,c){ return (b[0]-a[0])*(c[1]-b[1])-(b[1]-a[1])*(c[0]-b[0]); }
+  function dedupe(Q){
+    var R=[]; for (var k=0;k<Q.length;k++){ var q=Q[k], prev=R[R.length-1]; if (prev && Math.hypot(prev.p[0]-q.p[0], prev.p[1]-q.p[1])<1e-6) continue; R.push(q); }
+    while (R.length>1 && Math.hypot(R[0].p[0]-R[R.length-1].p[0], R[0].p[1]-R[R.length-1].p[1])<1e-6) R.pop();
+    var S=[]; for (k=0;k<R.length;k++){ var a=R[(k-1+R.length)%R.length].p, b=R[k].p, c=R[(k+1)%R.length].p;
+      if (Math.abs(cross(a,b,c))<1e-6 && ((b[0]-a[0])*(c[0]-b[0])+(b[1]-a[1])*(c[1]-b[1]))>0) continue; S.push(R[k]); }
+    return S;
+  }
+  // A vertex whose two walls have folded back onto each other (a wing whose
+  // sides have met) is the tip of a ridge that appears all at once: emit the
+  // ridge out to where the shorter wall ends and carry on from there.
+  function retract(P){
+    var loops = 0;
+    while (P.length >= 3 && loops++ < 200){
+      var mm = P.length, found = -1;
+      for (var kk=0; kk<mm; kk++){
+        var pa = P[(kk-1+mm)%mm].p, pm = P[kk].p, pb = P[(kk+1)%mm].p;
+        var d1=[pm[0]-pa[0], pm[1]-pa[1]], d2=[pb[0]-pm[0], pb[1]-pm[1]];
+        var l1=Math.hypot(d1[0],d1[1]), l2=Math.hypot(d2[0],d2[1]);
+        if (l1 < 1e-6 || l2 < 1e-6) continue;
+        var dot=(d1[0]*d2[0]+d1[1]*d2[1])/(l1*l2), cr2=Math.abs(d1[0]*d2[1]-d1[1]*d2[0])/(l1*l2);
+        if (dot < -1+1e-6 && cr2 < 1e-6){ found = kk; break; }
+      }
+      if (found < 0) break;
+      kk = found; mm = P.length;
+      pa = P[(kk-1+mm)%mm].p; pm = P[kk].p; pb = P[(kk+1)%mm].p;
+      d2=[pb[0]-pm[0], pb[1]-pm[1]]; l1=Math.hypot(pm[0]-pa[0], pm[1]-pa[1]); l2=Math.hypot(d2[0],d2[1]);
+      var ov = Math.min(l1, l2);
+      var Q = [pm[0] + (d2[0]/l2)*ov, pm[1] + (d2[1]/l2)*ov];
+      arcs.push({ a:pm.slice(), b:Q.slice(), kind:null });
+      var NQ = [];
+      for (var k=0;k<mm;k++){
+        if (k===kk){ NQ.push({ p:Q, kind:null }); continue; }
+        if (k===(kk-1+mm)%mm && l1 <= l2 + 1e-6) continue;
+        if (k===(kk+1)%mm && l2 <= l1 + 1e-6) continue;
+        NQ.push(P[k]);
+      }
+      P = dedupe(NQ);
+    }
+    return P;
+  }
+  function run(P, depth){
+    if (depth > 60)return false;
+    P = retract(dedupe(P));
+    var guard = 0;
+    while (P.length >= 3 && guard++ < 400){
+      var m = P.length;
+      var nrm = [], dir = [];
+      for (var i=0;i<m;i++){ var a=P[i].p, b=P[(i+1)%m].p; var dx=b[0]-a[0], dy=b[1]-a[1]; var L=Math.hypot(dx,dy)||1; dir.push([dx/L,dy/L]); nrm.push([-dy/L, dx/L]); }
+      var vel = [], reflex = [];
+      for (i=0;i<m;i++){
+        var n1=nrm[(i-1+m)%m], n2=nrm[i];
+        var det=n1[0]*n2[1]-n1[1]*n2[0];
+        if (Math.abs(det) < EPS)return false;
+        vel.push([(n2[1]-n1[1])/det, (n1[0]-n2[0])/det]);
+        reflex.push(cross(P[(i-1+m)%m].p, P[i].p, P[(i+1)%m].p) < -EPS);
+      }
+      var best = Infinity, ev = null;
+      for (i=0;i<m;i++){
+        var va=vel[i], vb=vel[(i+1)%m], d=dir[i];
+        var L2=Math.hypot(P[(i+1)%m].p[0]-P[i].p[0], P[(i+1)%m].p[1]-P[i].p[1]);
+        var rate=(vb[0]-va[0])*d[0]+(vb[1]-va[1])*d[1];
+        if (rate < -EPS){ var t=L2/(-rate); if (t < best-1e-9){ best=t; ev={type:'edge', i:i}; } }
+      }
+      for (i=0;i<m;i++){
+        if (!reflex[i]) continue;
+        var r=P[i].p, vr=vel[i];
+        for (var j=0;j<m;j++){
+          if (j===i || (j+1)%m===i || j===(i-1+m)%m) continue;
+          var e0=P[j].p, e1=P[(j+1)%m].p, nn=nrm[j], dj=dir[j];
+          var dist=(r[0]-e0[0])*nn[0]+(r[1]-e0[1])*nn[1];
+          var vn=vr[0]*nn[0]+vr[1]*nn[1];
+          if (1 - vn <= EPS) continue;
+          var t2 = dist/(1 - vn);
+          if (t2 < -1e-9) continue;
+          var hit=[r[0]+vr[0]*t2, r[1]+vr[1]*t2];
+          var ea=[e0[0]+vel[j][0]*t2, e0[1]+vel[j][1]*t2], eb=[e1[0]+vel[(j+1)%m][0]*t2, e1[1]+vel[(j+1)%m][1]*t2];
+          var along=(hit[0]-ea[0])*dj[0]+(hit[1]-ea[1])*dj[1], len=(eb[0]-ea[0])*dj[0]+(eb[1]-ea[1])*dj[1];
+          if (along < -1e-6 || along > len+1e-6) continue;
+          if (t2 < best-1e-9){ best=t2; ev={type:'split', i:i, j:j}; }
+        }
+      }
+      if (!ev || !isFinite(best))return false;
+      if (best < 0) best = 0;
+      var newPos = P.map(function(v,k){ return [v.p[0]+vel[k][0]*best, v.p[1]+vel[k][1]*best]; });
+      for (var k=0;k<m;k++){ if (best > 1e-9) arcs.push({ a:P[k].p.slice(), b:newPos[k].slice(), kind:P[k].kind }); P[k] = { p:newPos[k], kind:P[k].kind }; }
+      if (ev.type === 'edge'){
+        var i0=ev.i, i1=(ev.i+1)%m, NP=[], mergedIdx=-1;
+        for (k=0;k<m;k++){ if (k===i0){ mergedIdx=NP.length; NP.push({ p:P[k].p.slice(), kind:null }); } else if (k!==i1) NP.push(P[k]); }
+        P = retract(dedupe(NP));
+      } else {
+        var hitPt=P[ev.i].p.slice(), A=[], B=[], c;
+        c=(ev.j+1)%m; while (c!==ev.i){ A.push(P[c]); c=(c+1)%m; } A.push({ p:hitPt.slice(), kind:null });
+        c=(ev.i+1)%m; while (c!==(ev.j+1)%m){ B.push(P[c]); c=(c+1)%m; } B.push({ p:hitPt.slice(), kind:null });
+        if (!run(retract(dedupe(A)), depth+1)) return false;
+        if (!run(retract(dedupe(B)), depth+1)) return false;
+        return true;
+      }
+    }
+    if (P.length === 2) arcs.push({ a:P[0].p.slice(), b:P[1].p.slice(), kind:null });
+    return P.length <= 2;
+  }
+  var V = pts.map(function(p,i){ var rf = cross(pts[(i-1+n)%n], p, pts[(i+1)%n]) < -EPS; return { p:[p[0],p[1]], kind: rf ? 'valley' : 'hip' }; });
+  if (!run(V, 0)) return null;
+  // merge collinear chains of the same vertex path; drop dots
+  var lines = arcs.filter(function(s){ return Math.hypot(s.b[0]-s.a[0], s.b[1]-s.a[1]) > 1e-6; });
+  var changed = true, iter = 0;
+  while (changed && iter++ < 50){
+    changed = false;
+    outer: for (var u=0;u<lines.length;u++) for (var w=u+1;w<lines.length;w++){
+      var A2=lines[u], B2=lines[w];
+      var pairs=[[A2.b,B2.a,A2.a,B2.b],[A2.b,B2.b,A2.a,B2.a],[A2.a,B2.a,A2.b,B2.b],[A2.a,B2.b,A2.b,B2.a]];
+      for (var q=0;q<pairs.length;q++){
+        var pp=pairs[q]; if (Math.hypot(pp[0][0]-pp[1][0], pp[0][1]-pp[1][1]) > 1e-6) continue;
+        var d1=[pp[0][0]-pp[2][0], pp[0][1]-pp[2][1]], d2=[pp[3][0]-pp[1][0], pp[3][1]-pp[1][1]];
+        var l1=Math.hypot(d1[0],d1[1]), l2=Math.hypot(d2[0],d2[1]);
+        if (Math.abs(d1[0]*d2[1]-d1[1]*d2[0]) > 1e-6*l1*l2 || (d1[0]*d2[0]+d1[1]*d2[1]) <= 0) continue;
+        // only merge if nothing else meets at the shared point
+        var shared=pp[0], others=0;
+        lines.forEach(function(L3,idx){ if (idx===u||idx===w) return; if (Math.hypot(L3.a[0]-shared[0],L3.a[1]-shared[1])<1e-6 || Math.hypot(L3.b[0]-shared[0],L3.b[1]-shared[1])<1e-6) others++; });
+        if (others) continue;
+        lines[u] = { a:pp[2], b:pp[3], kind: A2.kind || B2.kind }; lines.splice(w,1); changed = true; break outer;
+      }
+    }
+  }
+  return lines.map(function(s){
+    var dx=Math.abs(s.b[0]-s.a[0]), dy=Math.abs(s.b[1]-s.a[1]);
+    var type = s.kind || ((dx < 1e-6 || dy < 1e-6) ? 'ridge' : 'hip');
+    return { type:type, pts:[[+s.a[0].toFixed(3), +s.a[1].toFixed(3)], [+s.b[0].toFixed(3), +s.b[1].toFixed(3)]] };
+  });
+}
 // Is this roof exact? Every ridge level or plumb, every hip and valley at
 // 45°, every line inside the building, and every end either on a wall or
 // at a junction of at least three lines.
@@ -58079,6 +58233,10 @@ function buildHipValleyLines(outline) {
   // the solver below as before. The solver's arithmetic drifts, and the
   // welds that tidy it can only average junctions, which bent the H's link
   // hip eleven pixels off 45°: exactness is built, never welded.
+  try {
+    var _ortho = buildOrthoSkeleton(outline);
+    if (_ortho && _roofLinesExact(_ortho, outline)) return _sq ? _sq.back(_ortho) : _ortho;
+  } catch(e){}
   try {
     var _exact = buildRectilinearRoofLines(outline, false);
     if (_exact && _roofLinesExact(_exact, outline)) return _sq ? _sq.back(_exact) : _exact;
