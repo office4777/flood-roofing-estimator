@@ -36,29 +36,31 @@ async function open(user){
   return { ctx, pg, errs };
 }
 
+// It lives above Sign out now, labelled "Signed in as". The first two homes
+// went: a row in the info grid (removed at the owner's request) and a copy
+// under the logo in white-on-white, which nobody could see.
 let o = await open({ email:'aron@floodroofing.co.nz', name:'Aron Flood' });
 let v = await o.pg.evaluate(() => {
-  const cell = document.getElementById('hdrSignedIn');
+  const cell = document.getElementById('navAccountWho');
   const nav = document.getElementById('navSignOutBtn');
-  const r = nav && nav.getBoundingClientRect();
+  const r = nav && nav.getBoundingClientRect(), c = cell && cell.getBoundingClientRect();
   return { text: cell ? cell.textContent : null, title: cell ? cell.title : '',
-           inCompanyBlock: !!(cell && document.getElementById('hdrCompany').contains(cell)),
+           label: cell ? ((cell.previousElementSibling || {}).textContent || '') : '',
+           color: cell ? getComputedStyle(cell).color : '',
+           aboveSignOut: !!(c && r && c.bottom <= r.top + 1 && c.height > 8),
            signOutOnScreen: !!(r && r.bottom <= window.innerHeight && r.width > 0) };
 });
 check('the sidebar says which login this is', v.text === 'aron@floodroofing.co.nz', JSON.stringify(v));
-check('…under the company it is signed in to', v.inCompanyBlock, JSON.stringify(v));
-check('…saying so on hover, since the address alone is not self-explanatory',
-  /Signed in as/.test(v.title) && /Aron Flood/.test(v.title), v.title);
-// It is a fixed-height sidebar. The first go at this added a row to the info
-// grid, which pushed Sign out past the bottom of the nav where it could not
-// be clicked — the whole app's way out, gone, to answer a smaller question.
+check('…labelled, directly above Sign out', /Signed in as/i.test(v.label) && v.aboveSignOut, JSON.stringify(v));
+check('…in ink you can read, not white-on-white', v.color && !/rgba?\(255, 255, 255/.test(v.color), v.color);
+check('…saying so on hover too', /Signed in as/.test(v.title) && /Aron Flood/.test(v.title), v.title);
 check('…without pushing Sign out off the bottom of the nav', v.signOutOnScreen, JSON.stringify(v));
 await o.ctx.close();
 
 // The case that started this: a different login, same company branding.
 o = await open({ email:'test+solo@floodroofing.co.nz', name:'Test Solo' });
 v = await o.pg.evaluate(() => ({
-  who: (document.getElementById('hdrSignedIn') || {}).textContent || '',
+  who: (document.getElementById('navAccountWho') || {}).textContent || '',
   co: (document.getElementById('hdrCompany') || {}).textContent || '',
 }));
 check('a different login shows a different address, not the company name',
@@ -67,10 +69,10 @@ check('…even while the company branding is the same, which is the whole trap',
   /Flood Roofing/.test(v.co), v.co.slice(0, 60));
 await o.ctx.close();
 
-// Signed out / nothing stored: no labelled blank taking up room.
+// Signed out / nothing stored: no address is invented.
 o = await open(null);
-v = await o.pg.evaluate(() => ({ el: !!document.getElementById('hdrSignedIn') }));
-check('with nobody signed in nothing is added at all', !v.el, JSON.stringify(v));
+v = await o.pg.evaluate(() => ({ who: (document.getElementById('navAccountWho') || {}).textContent || '' }));
+check('with nobody signed in no address is shown', !/@/.test(v.who), JSON.stringify(v));
 check('no page errors', o.errs.length === 0, o.errs.join(' | '));
 await o.ctx.close();
 
