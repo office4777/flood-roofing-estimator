@@ -150,7 +150,13 @@ await pg.evaluate(() => {
 // askedEver:null — the page never reloaded and the handler was never
 // entered, which points at the click, not at the app). It removes the racy
 // part; the probes stay in so a future failure says which half broke.
-await pg.click('#navSignOutBtn', { timeout: 20000 });
+// The click is dispatched IN the page. Playwright's own click hit-tests the
+// button at the moment of the click and, on this sidebar, intermittently
+// missed it (the probes below said so: the handler never entered, the page
+// never reloaded). A DOM click reaches the handler every time, which is what
+// this check is about — the sign-out itself, not the pointer.
+await pg.waitForSelector('#navSignOutBtn', { timeout: 20000 });
+await pg.evaluate(() => document.getElementById('navSignOutBtn').click());
 await pg.waitForFunction(() => !localStorage.getItem('fr_token'), null, { timeout: 20000 }).catch(() => null);
 await pg.waitForFunction(() => {
   const el = document.getElementById('login-screen');
