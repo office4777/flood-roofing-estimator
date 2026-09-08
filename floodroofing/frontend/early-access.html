@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Book a 15-minute setup call — RoofMap</title>
+<title>Request a 15-minute setup call — RoofMap</title>
 <meta name="description" content="Fifteen minutes on a call and your price book is loaded, so your first quote comes out at YOUR rates. Free either way — you can just start the trial instead.">
 <link rel="canonical" href="https://roofmap.co.nz/early-access">
 <meta name="robots" content="index,follow,max-image-preview:large">
@@ -34,7 +34,7 @@
       "@id": "https://roofmap.co.nz/early-access#page",
       "url": "https://roofmap.co.nz/early-access",
       "name": "Early access — RoofMap for New Zealand roofers",
-      "description": "Book a 15-minute call to get RoofMap set up with your own rates.",
+      "description": "Request a 15-minute call to get RoofMap set up with your own rates.",
       "inLanguage": "en-NZ",
       "isPartOf": { "@type": "WebSite", "@id": "https://roofmap.co.nz/#website" },
       "about": { "@type": "SoftwareApplication", "@id": "https://roofmap.co.nz/#software" }
@@ -104,8 +104,8 @@
 <main>
 <section class="masthead">
   <div class="wrap">
-    <div class="crumbs"><a href="/">RoofMap</a><span>›</span>Early access</div>
-    <div class="eyebrow">Early access</div>
+    <div class="crumbs"><a href="/">RoofMap</a><span>›</span>Setup call</div>
+    <div class="eyebrow">Setup call</div>
     <h1>Fifteen minutes, and your first quote is at your own rates.</h1>
     <p class="stand">You do not have to do this — the trial is open, no card, and the sample job is
       waiting. But the one job on setup is loading YOUR supplier rates, and it is the difference
@@ -124,18 +124,18 @@
         <div>
           <span class="n">1</span>
           <div class="body">
-            <h3>We read it, and one of us replies</h3>
-            <p>Not a drip sequence. Aron or someone who has been on a roof reads what you wrote about
-               your setup, and answers from a real address you can reply to.</p>
+            <h3>Aron replies within one working day</h3>
+            <p>Not a drip sequence. Someone who has been on a roof reads what you wrote and answers
+               from a real address you can reply to, with a couple of times to pick from.</p>
           </div>
         </div>
         <div>
           <span class="n">2</span>
           <div class="body">
-            <h3>You get an access code and set your business up</h3>
-            <p>About a minute — business name, your name, a password. There is a finished sample job
-               waiting inside, so you can see a completed quote, cut list and material order before
-               you do your own.</p>
+            <h3>You sign up whenever you like — no code, no waiting</h3>
+            <p>About a minute at <a href="/signup" style="font-weight:600">roofmap.co.nz/signup</a> —
+               business name, your name, a password. There is a finished sample job waiting inside, so
+               you can see a completed quote, cut list and material order before you do your own.</p>
           </div>
         </div>
         <div>
@@ -156,11 +156,11 @@
           $209.30 instead of $299 on Team, $384.30 instead of $549 on Business, all plus GST.
           It comes off automatically when you subscribe; there is no code to enter.<br><br>
           You also get a direct line to the people building it. In return we ask for honest
-          feedback when something is wrong, which is the entire reason the batches are small.</span>
+          feedback when something is wrong.</span>
       </div>
 
       <p style="margin-top:26px;font-size:15px;color:var(--muted);line-height:1.6">
-        Already have an access code? <a href="/signup" style="color:var(--accent-deep);font-weight:600">Set your business up here.</a>
+        Already signed up? <a href="/app" style="color:var(--accent-deep);font-weight:600">Open RoofMap.</a>
       </p>
     </div>
 
@@ -196,40 +196,6 @@
           </select>
         </div>
         <div class="field">
-          <label for="eaVolume">Roofs you quote in a month</label>
-          <select id="eaVolume">
-            <option value="">Select…</option>
-            <option value="1-2">1–2</option>
-            <option value="3-5">3–5</option>
-            <option value="6-10">6–10</option>
-            <option value="10+">More than 10</option>
-            <option value="unsure">Varies / not sure</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="eaSoftware">What you quote on now</label>
-          <select id="eaSoftware">
-            <option value="">Select…</option>
-            <option value="spreadsheet">A spreadsheet</option>
-            <option value="paper">Paper and a calculator</option>
-            <option value="fergus">Fergus</option>
-            <option value="tradify">Tradify</option>
-            <option value="servicem8">ServiceM8</option>
-            <option value="simpro">simPRO</option>
-            <option value="other">Something else</option>
-          </select>
-          <div class="hint">This one decides what gets built next, so it is worth a moment.</div>
-        </div>
-        <div class="field">
-          <label for="eaPlan">Which plan looks right? <span style="font-weight:500;color:var(--muted)">— optional</span></label>
-          <select id="eaPlan">
-            <option value="unsure" selected>Not sure yet — happy to be pointed at one</option>
-            <option value="solo">Trade — $149/mo · one person</option>
-            <option value="team">Team — $299/mo · up to five people</option>
-            <option value="business">Business — $549/mo · unlimited people</option>
-          </select>
-        </div>
-        <div class="field">
           <label for="eaHeadache">What takes you longest, or goes wrong most <span style="font-weight:500;color:var(--muted)">— optional</span></label>
           <textarea id="eaHeadache" placeholder="example: the flashing metres are always short on the order and we find out on the roof"></textarea>
         </div>
@@ -240,7 +206,8 @@
           <input id="eaWebsite" type="text" tabindex="-1" autocomplete="off">
         </div>
 
-        <button type="submit" class="btn btn-primary" id="eaBtn">Book my setup call</button>
+        <button type="submit" class="btn btn-primary" id="eaBtn">Request my setup call</button>
+        <div class="hint" style="text-align:center;margin-top:8px">Aron replies within one working day with a couple of times to pick from.</div>
         <div class="form-msg" id="eaMsg"></div>
         <div class="form-fine">
           We use this to get you set up and nothing else. No list is sold, ever.<br>
@@ -250,7 +217,7 @@
     </div>
 
     <div class="form-card ea-done" id="eaDone">
-      <h2>Booked — Aron will be in touch.</h2>
+      <h2>Requested — Aron will be in touch within one working day.</h2>
       <p id="eaDoneWho">You will hear from <strong>support@roofmap.co.nz</strong> to pick a time — check
         it has not landed in junk.</p>
       <p>While you wait, here is what RoofMap actually produces: a roof measured off an aerial, a cut
@@ -317,9 +284,6 @@
           business: val('eaBusiness'),
           phone: val('eaPhone'),
           region: val('eaRegion'),
-          volume: val('eaVolume'),
-          current_software: val('eaSoftware'),
-          plan: val('eaPlan'),
           headache: val('eaHeadache'),
           website: val('eaWebsite'),          // the honeypot
           // Where they came from, so we know which page is doing the work.
@@ -329,14 +293,14 @@
       });
       if (r.status === 429){
         say('That is a few tries in a short time — give it an hour, or email support@roofmap.co.nz.', 'bad');
-        btn.disabled = false; btn.textContent = 'Book my setup call';
+        btn.disabled = false; btn.textContent = 'Request my setup call';
         return;
       }
       var j = {};
       try { j = await r.json(); } catch(err){}
       if (!r.ok){
         say(j.error || 'Could not send that just now. Try again, or email support@roofmap.co.nz.', 'bad');
-        btn.disabled = false; btn.textContent = 'Book my setup call';
+        btn.disabled = false; btn.textContent = 'Request my setup call';
         return;
       }
       // Swap the card rather than replacing the page: the form has done its
@@ -350,7 +314,7 @@
       document.getElementById('eaDone').scrollIntoView({ block: 'nearest' });
     } catch(err){
       say('Could not reach us just now — check your connection, or email support@roofmap.co.nz.', 'bad');
-      btn.disabled = false; btn.textContent = 'Book my setup call';
+      btn.disabled = false; btn.textContent = 'Request my setup call';
     }
   });
 })();

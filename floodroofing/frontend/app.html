@@ -4233,6 +4233,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- Filled by _sampleJobBannerSync() while this account has no jobs of its
        own. See openSampleJob(). -->
   <div id="sampleJobBanner"></div>
+  <!-- The three questions the setup-call form used to ask, asked once here
+       instead — optional, one tap to skip. See _aboutYouSync(). -->
+  <div id="aboutYouCard"></div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
@@ -17112,6 +17115,7 @@ function _renderHomeBoard(){
   if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
   host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
   try { _sampleJobBannerSync(); } catch(e){}
+  try { _aboutYouSync(); } catch(e){}
   try { _planGateSync(); } catch(e){}
 }
 // Back-compat aliases — older call sites repaint the whole board now.
@@ -17246,8 +17250,9 @@ function _billingRenderSection(){
       ';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">' + label + '</button>';
   };
   var cycleBar = anyAnnual
-    ? '<div id="billingCycleBar" style="display:flex;gap:8px;align-items:center;margin-top:12px">' +
+    ? '<div id="billingCycleBar" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">' +
         cycleBtn('monthly', 'Monthly') + cycleBtn('annual', 'Yearly — 2 months free') +
+        (_billingCycle === 'annual' ? '<span id="billingCycleNote" style="font-size:11.5px;color:var(--text2)">Yearly is two months free instead of the founding 30% — one or the other, not both.</span>' : '') +
       '</div>'
     : '';
   host.innerHTML = head + cycleBar +
@@ -17324,6 +17329,56 @@ function _sampleJobBannerHtml(){
     '</div>' +
     '<button type="button" class="sj-go" onclick="openSampleJob()">Open the sample job</button>' +
   '</div>';
+}
+// "About your setup": roofs a month, what they quote on now, which plan looks
+// right. It used to be on the setup-call form, where it made the form long
+// and stood between a roofer and a call. Asked once here, on the trial only,
+// and never again once answered or skipped.
+function _aboutYouShow(){
+  try {
+    if (localStorage.getItem('fr_about_done') === '1') return false;
+    var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    if (u.about) return false;
+    var c = JSON.parse(localStorage.getItem('fr_company') || '{}') || {};
+    return !c.plan || c.plan === 'trial';
+  } catch(e){ return false; }
+}
+function _aboutYouSync(){
+  var el = document.getElementById('aboutYouCard'); if (!el) return;
+  if (!_aboutYouShow()){ el.innerHTML = ''; return; }
+  var sel = function(id, label, opts){
+    return '<label style="display:block;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:4px">' + label + '</label>' +
+      '<select id="' + id + '" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:#fff">' +
+      opts.map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') + '</select>';
+  };
+  el.innerHTML =
+    '<div style="margin:0 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:11px;background:#f8fafc">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<strong style="font-size:13.5px">Two things about your setup, so we build the right bits next</strong>' +
+        '<span style="font-size:11.5px;color:var(--text2)">Optional — 10 seconds.</span>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">' +
+        '<div>' + sel('aboutVolume', 'Roofs you quote in a month', [['','Select…'],['1-2','1–2'],['3-5','3–5'],['6-10','6–10'],['10+','More than 10'],['unsure','Varies / not sure']]) + '</div>' +
+        '<div>' + sel('aboutSoftware', 'What you quote on now', [['','Select…'],['spreadsheet','A spreadsheet'],['paper','Paper and a calculator'],['fergus','Fergus'],['tradify','Tradify'],['servicem8','ServiceM8'],['simpro','simPRO'],['other','Something else']]) + '</div>' +
+        '<div>' + sel('aboutPlan', 'Which plan looks right?', [['unsure','Not sure yet'],['solo','Trade — one person'],['team','Team — up to five'],['business','Business — up to fifteen']]) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<button type="button" onclick="_aboutYouSend(false)" style="padding:7px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Send</button>' +
+        '<button type="button" onclick="_aboutYouSend(true)" style="padding:7px 14px;background:#fff;color:var(--text2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit">Skip</button>' +
+      '</div>' +
+    '</div>';
+}
+async function _aboutYouSend(skipped){
+  var v = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+  var body = skipped ? { skipped: true } : { volume: v('aboutVolume'), current_software: v('aboutSoftware'), plan: v('aboutPlan') };
+  try { localStorage.setItem('fr_about_done', '1'); } catch(e){}
+  try {
+    var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; u.about = Object.assign({ skipped: !!skipped }, body);
+    localStorage.setItem('fr_user', JSON.stringify(u));
+  } catch(e){}
+  _aboutYouSync();
+  if (!skipped) _siteToast('Thanks — that helps decide what gets built next');
+  try { await api('POST', '/auth/about', body); } catch(e){}
 }
 function _sampleJobBannerSync(){
   var el = document.getElementById('sampleJobBanner');

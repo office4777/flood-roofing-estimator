@@ -1987,6 +1987,36 @@ app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey),
   }
 });
 
+// POST /auth/about { volume, current_software, plan, skipped } — the optional
+// "about your setup" card on the Home tab. Stored on the profile; a real
+// answer is also mailed to sales, since it used to arrive with the setup-call
+// request and is what decides what gets built next.
+app.post('/auth/about', requireAuth, rateLimit(10, 3600000), async (req, res) => {
+  const b = req.body || {};
+  const about = {
+    volume: _wlPick(b.volume, WAITLIST_VOLUMES),
+    current_software: _wlPick(b.current_software, WAITLIST_SOFTWARE),
+    plan: _wlPick(b.plan, WAITLIST_PLANS),
+    skipped: !!b.skipped,
+    at: new Date().toISOString(),
+  };
+  try {
+    const { error } = await supabase.from('profiles').update({ about }).eq('id', req.user.id);
+    if (error) return res.status(500).json({ error: error.message });
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+  res.json({ ok: true, about });
+  if (!about.skipped && EMAIL_ENABLED && (about.volume || about.current_software || about.plan)) {
+    try {
+      const co = await _companyBrief(req.companyId, req.user.id);
+      const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
+      _dispatchMail({ to: MAIL_SALES, subject: 'About their setup: ' + ((co && co.name) || req.user.email),
+        fromName: 'RoofMap', text: 'A new business answered the setup questions inside RoofMap.\n\n' +
+          nice('Business', co && co.name) + 'Email: ' + req.user.email + '\n' +
+          nice('Roofs quoted a month', about.volume) + nice('Runs on now', about.current_software) + nice('Plan they picked', about.plan) })
+        .catch(function(e){ console.warn('[about] mail failed:', e.message); });
+    } catch (e) {}
+  }
+});
 app.get('/auth/me', requireAuth, async (req, res) => {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', req.user.id).single();
   const sub = await _companySubscription(req.companyId, req.user.id);
@@ -3473,7 +3503,9 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     // is an either/or, never both, and the test suite asserts exactly that:
     // the local Stripe stand-in answers any request, so it cannot catch the
     // combination the real API refuses.
-    if (await _earlyAccessEligible(req.user.email)) {
+    // Monthly only: yearly already carries two months free, and the site
+    // says it is one or the other. Stacking both was never the offer.
+    if (!annual && await _earlyAccessEligible(req.user.email)) {
       params['discounts[0][coupon]'] = EARLY_ACCESS_COUPON;
     } else {
       params.allow_promotion_codes = 'true';
@@ -8396,6 +8428,9 @@ const _MIGRATION_SQL = [
   // gives a real one) and confirms the email address before the first sign-in.
   "alter table public.profiles add column if not exists phone text",
   "alter table public.profiles add column if not exists verify_pending boolean not null default false",
+  // The three questions the setup-call form used to ask (roofs a month, what
+  // they quote on now, which plan) — asked once, optionally, inside the app.
+  "alter table public.profiles add column if not exists about jsonb",
   "alter table public.profiles add column if not exists email_verified_at timestamptz",
   // Each business's RoofMap address: <slug>.roofmap.co.nz. Unique, case-blind.
   "alter table public.companies add column if not exists slug text",

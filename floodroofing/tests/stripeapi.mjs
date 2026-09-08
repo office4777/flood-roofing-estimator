@@ -203,6 +203,11 @@ check('yearly checkout buys the yearly price, same plan metadata',
   r.status === 200 && ac.body.get('line_items[0][price]') === 'price_team_2990' &&
   ac.body.get('metadata[plan]') === 'team',
   r.status + ' ' + (ac && ac.body.get('line_items[0][price]')));
+// Yearly is two months free INSTEAD of the founding 30% — the site says one
+// or the other, and stacking both was never the offer.
+check('…and yearly never carries the founding coupon on top of its two free months',
+  ac.body.get('discounts[0][coupon]') === null && ac.body.get('allow_promotion_codes') === 'true',
+  'coupon=' + ac.body.get('discounts[0][coupon]') + ' promo=' + ac.body.get('allow_promotion_codes'));
 r = await call('POST', '/billing/checkout', { plan: 'team' }, T);
 ac = stripeCalls[stripeCalls.length - 1];
 check('no billing field still means monthly — old clients change nothing',

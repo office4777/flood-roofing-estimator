@@ -70,6 +70,9 @@ Discipline (non-negotiable):
 
 ## Conventions
 
+- The public pages (`landing`, `pricing`, `fergus`, `early-access`, `signup`)
+  must agree with the `PLANS` table in server.js about what each tier gets.
+  `tests/sitecopy.mjs` pins it; change the table and the pages together.
 - Every company-scoped table needs `company_id` AND `user_id` from day one —
   `_scopeCompany()` filters on both.
 - Test seams: `__TEST_MAIL_FETCHER`, `__TEST_MAIL_JSON`, `__TEST_SMTP_FAIL`,
