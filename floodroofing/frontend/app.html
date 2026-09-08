@@ -11256,6 +11256,10 @@ function _reportClientError(message, stack, where){
     if (_crashCount >= CRASH_MAX_PER_SESSION) return;
     // Same message and same top frame = same bug. Sending it forty times
     // because it fires on every mousemove helps nobody.
+    // A browser extension re-running this page's inline scripts inside an
+    // about:blank document (GetInlineScripts / GetUserDefinedFunctions…)
+    // finds no elements and throws on every one. Not ours, not a roofer's.
+    if (/about:blank/.test(String(stack || ''))) return;
     var key = String(message || '').slice(0, 160) + '|' + String(stack || '').split('\n')[1];
     if (_crashSent[key]) return;
     _crashSent[key] = 1; _crashCount++;
@@ -40807,7 +40811,7 @@ function showPropPanel(title) {
   document.getElementById('penetrationEditor').style.display='none';
   document.getElementById('outlineEditor').style.display='none';
 }
-function hidePropPanel() { document.getElementById('propPanel').style.display='none'; }
+function hidePropPanel() { var p = document.getElementById('propPanel'); if (p) p.style.display='none'; }
 
 function showOutlineEditor() {
   showPropPanel('Building outline — enter dimensions');
