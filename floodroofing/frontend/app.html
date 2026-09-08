@@ -17346,6 +17346,9 @@ function _aboutYouShow(){
 function _aboutYouSync(){
   var el = document.getElementById('aboutYouCard'); if (!el) return;
   if (!_aboutYouShow()){ el.innerHTML = ''; return; }
+  // Rendered once. This runs with every Home refresh, and re-rendering the
+  // card wiped whatever had been picked in it before Send was pressed.
+  if (el.firstElementChild) return;
   var sel = function(id, label, opts){
     return '<label style="display:block;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:4px">' + label + '</label>' +
       '<select id="' + id + '" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:#fff">' +
