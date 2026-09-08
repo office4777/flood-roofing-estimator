@@ -102,10 +102,10 @@ check('…and a failed store pages the office instead of only whispering to the 
 
 // ── two emails go out, from the right desks ───────────────────────
 check('two emails go out — one to us, one to them', sent.length === 2, sent.length + ' sent');
-const alert = sent.find(m => m.to === 'sales@roofmap.co.nz') || {};
+const alert = sent.find(m => m.to === 'support@roofmap.co.nz') || {};
 const receipt = sent.find(m => m.to === 'sam@acmeroofing.co.nz') || {};
 check('the lead alert reaches sales, not support',
-  alert.to === 'sales@roofmap.co.nz' && alert.from === 'sales@roofmap.co.nz', alert.to + ' / ' + alert.from);
+  alert.to === 'support@roofmap.co.nz' && alert.from === 'support@roofmap.co.nz', alert.to + ' / ' + alert.from);
 check('…with Reply pointed at the roofer', alert.replyTo === 'sam@acmeroofing.co.nz', alert.replyTo);
 check('…carrying the answers, so it can be triaged from the inbox',
   /Acme Roofing/.test(alert.text || '') && /6-10/.test(alert.text || '') && /spreadsheet/.test(alert.text || ''));
@@ -170,7 +170,7 @@ check('…nor write the private notes field', !other.notes, JSON.stringify(other
 check('…and a made-up plan is stored as empty, not as a lie',
   (function(){ return !other.plan; })(), JSON.stringify(other.plan));
 check('…and the alert still goes only to sales',
-  sent.every(m => m.to === 'sales@roofmap.co.nz' || m.to === 'other@example.com'),
+  sent.every(m => m.to === 'support@roofmap.co.nz' || m.to === 'other@example.com'),
   sent.map(m => m.to).join(','));
 
 // ── bots ──────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ await settle();
 check('…and works with one', r.status === 200, r.status + '');
 const inv = sent[0] || {};
 check('the invite reaches the roofer', inv.to === 'sam@acmeroofing.co.nz', inv.to);
-check('…from sales, where the conversation started', inv.from === 'sales@roofmap.co.nz', inv.from);
+check('…from support, where the conversation started', inv.from === 'support@roofmap.co.nz', inv.from);
 check('…carrying the code the signup gate actually checks',
   /ROOFMAP-2026/.test(inv.text || ''), (inv.text || '').split('\n').find(l => /code/i.test(l)));
 check('…and the link to use it', /roofmap\.co\.nz\/signup/.test(inv.text || ''));

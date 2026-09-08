@@ -490,7 +490,7 @@ const MAIL_SUPPORT  = (process.env.SUPPORT_EMAIL  || 'support@roofmap.co.nz').tr
 // Where a new early-access lead lands. A roofer asking for access is a sales
 // conversation, not a support ticket, and mixing the two means the one that
 // needs answering today sits under the one that does not.
-const MAIL_SALES    = (process.env.SALES_EMAIL    || 'sales@roofmap.co.nz').trim();
+const MAIL_SALES    = (process.env.SALES_EMAIL    || 'support@roofmap.co.nz').trim();   // one inbox: leads land where support does
 // The domain we are actually authorised to send from — whatever EMAIL_FROM
 // was verified as, falling back to the platform domain.
 function _mailSendingDomain(){
