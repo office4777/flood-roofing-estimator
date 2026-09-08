@@ -59,6 +59,7 @@ check('…and answers what the trial holds, what stays after, and that the price
 const demoAt = landing.indexOf('<section class="demo"'), howAt = landing.indexOf('<section id="how">'), heroAt = landing.indexOf('<div class="hero">');
 check('the homepage shows the product in motion straight under the opening',
   demoAt > heroAt && demoAt < howAt && /loom\.com\/embed\//.test(landing.slice(demoAt, howAt)));
+check('…and it is the 90-second one, not the six-minute walkthrough', /loom\.com\/embed\/cb3a3197f06d46e98e1c76261cc1fa51/.test(landing));
 check('…as one job in four steps', ['Draw the roof', 'Generate the job pack', 'picks an option', 'Send the material order'].every(t => landing.slice(demoAt, howAt).includes(t)));
 
 const bad = results.filter(x => !x).length;
