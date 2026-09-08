@@ -50,6 +50,7 @@ const PAGES = {
   '/tools/roof-pitch-calculator':       'tools-roof-pitch-calculator.html',
   '/tools/roofing-sheet-calculator':    'tools-roofing-sheet-calculator.html',
   '/about':                         'about.html',
+  '/case-studies/re-roof-quoted-in-ten-minutes': 'case-study-re-roof-quoted-in-ten-minutes.html',
   '/terms':                         'terms.html',
   '/privacy':                       'privacy.html',
 };
@@ -305,6 +306,16 @@ check('…and keeps crawlers out of the 2.9 MB app',
   check('the homepage says in words what RoofMap is and where', /Roof estimating and quoting software for New Zealand roofers/.test(landing));
   check('…links each feature blurb to its page', (landing.match(/class="feat-link"/g) || []).length >= 5);
   check('…and carries the walkthrough in words, for whoever does not play the video', /demo-words/.test(landing) && /Do you need Fergus\?/.test(landing));
+  const about = await readFile(_j(DIR, 'about.html'), 'utf8');
+  check('the About page shows the founder: a face, a name, and the story', /id="aron"/.test(about) && /<img src="\/brand\/[^"]+"[^>]*alt="Aron Flood/.test(about) && /Aron Flood<\/strong> owns and runs/.test(about));
+  const guides = Object.entries(PAGES).filter(([u]) => /^\/(guides|tools)\//.test(u));
+  let unsigned = [];
+  for (const [u, file] of guides){ const html = await readFile(_j(DIR, file), 'utf8'); if (!/byline-sm[\s\S]{0,120}Aron Flood/.test(html) || !/"author": \{\s*"@type": "Person"/.test(html)) unsigned.push(u); }
+  check('every guide and tool is checked by a named roofer, in words and in markup', unsigned.length === 0, unsigned.join(' '));
+  const cs = await readFile(_j(DIR, 'case-study-re-roof-quoted-in-ten-minutes.html'), 'utf8');
+  check('the case study is one real job with the numbers and the caveats', /job 3045/i.test(cs) && /ninety minutes/.test(cs) && /ten minutes/.test(cs) && /three in ten/.test(cs) && /five in ten/.test(cs) && /Honest caveats/.test(cs) && /exact measurements/i.test(cs));
+  const sheet = await readFile(_j(DIR, 'guides-calculating-sheet-lengths.html'), 'utf8');
+  check('the sheet-length guide links the manufacturer pages and states its assumptions', (sheet.match(/roof\.co\.nz\/product\//g) || []).length >= 5 && /dimond\.co\.nz/.test(sheet) && /What this guide assumes/.test(sheet));
   check('…with the founding rate and its conditions in the pricing markup', /UnitPriceSpecification[^}]*Founding rate[^}]*209\.30[^}]*validThrough/.test(landing));
 }
 

@@ -24,7 +24,7 @@ export const PAGES = {
   '/guides/re-roof-scope-of-work': 'guides-re-roof-scope-of-work.html',
   '/tools/roof-pitch-calculator': 'tools-roof-pitch-calculator.html',
   '/tools/roofing-sheet-calculator': 'tools-roofing-sheet-calculator.html',
-  '/about': 'about.html', '/terms': 'terms.html', '/privacy': 'privacy.html',
+  '/about': 'about.html', '/case-studies/re-roof-quoted-in-ten-minutes': 'case-study-re-roof-quoted-in-ten-minutes.html', '/terms': 'terms.html', '/privacy': 'privacy.html',
 };
 export function gitDate(file){
   try { return execSync('git log -1 --format=%cs -- ' + JSON.stringify(join(FRONT, file)), { cwd: FRONT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || null; }

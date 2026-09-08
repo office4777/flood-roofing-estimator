@@ -148,6 +148,11 @@
       "permanent": true
     },
     {
+      "source": "/case-study-re-roof-quoted-in-ten-minutes.html",
+      "destination": "/case-studies/re-roof-quoted-in-ten-minutes",
+      "permanent": true
+    },
+    {
       "source": "/guides-quote-a-re-roof.html",
       "destination": "/guides/how-to-quote-a-re-roof",
       "permanent": true
@@ -273,6 +278,10 @@
     {
       "source": "/about",
       "destination": "/about.html"
+    },
+    {
+      "source": "/case-studies/re-roof-quoted-in-ten-minutes",
+      "destination": "/case-study-re-roof-quoted-in-ten-minutes.html"
     },
     {
       "source": "/guides/how-to-quote-a-re-roof",

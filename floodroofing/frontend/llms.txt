@@ -69,6 +69,7 @@ barge, apron, change-of-pitch, coastal zones.
 - [Roof pitch calculator](https://roofmap.co.nz/tools/roof-pitch-calculator): degrees ↔ ratio, plus rafter, area, hip and valley multipliers, with the formulas.
 - [Roofing sheet calculator](https://roofmap.co.nz/tools/roofing-sheet-calculator): face size and pitch in; sheet length, count, lineal metres and true area out.
 - [About](https://roofmap.co.nz/about): Flood Roofing Limited, and why a roofing company wrote estimating software.
+- [A re-roof quoted in ten minutes — Flood Roofing case study](https://roofmap.co.nz/case-studies/re-roof-quoted-in-ten-minutes): one real job, before and after, with the founder's own numbers and caveats.
 - [Terms](https://roofmap.co.nz/terms) · [Privacy](https://roofmap.co.nz/privacy)
 
 ## Numbers on these pages that are worth getting right

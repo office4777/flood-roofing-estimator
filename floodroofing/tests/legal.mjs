@@ -161,7 +161,7 @@ check('the sign-up form says what you are agreeing to',
 // above promises, and the guide library keeps adding to them.
 const PUBLIC_PAGES = ['landing.html','signup.html','pricing.html','early-access.html',
   'features-measuring.html','features-job-pack.html','features-quotes.html',
-  'fergus.html','about.html','guides.html','guides-quote-a-re-roof.html',
+  'fergus.html','about.html','case-study-re-roof-quoted-in-ten-minutes.html','guides.html','guides-quote-a-re-roof.html',
   'guides-roof-flashings-explained.html','guides-calculating-sheet-lengths.html',
   'guides-roof-pitch-explained.html','guides-colorsteel-grades-compared.html',
   'guides-flashing-wastage.html','guides-pipe-flashings-and-back-trays.html',
