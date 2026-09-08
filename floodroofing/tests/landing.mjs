@@ -184,7 +184,9 @@ check('…and leads with the trial, which is the thing being offered',
   v.ctaVisible && v.ctaHref === '/signup', v.ctaHref);
 // It grew by the paragraph that offers the setup call. Still has to stay
 // somewhere near a scroll a roofer will finish on a phone.
-check('…on a page that is still not endless', v.screens < 13, v.screens + ' screens');
+// Was 13. The category line, the feature links and the collapsed walkthrough
+// are deliberate content; the proxy moved with them, once.
+check('…on a page that is still not endless', v.screens < 14, v.screens + ' screens');
 await pg.screenshot({ path: S+'/landing_phone.png', fullPage: true });
 await ctx.close();
 

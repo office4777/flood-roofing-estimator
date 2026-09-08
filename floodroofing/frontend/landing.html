@@ -55,11 +55,7 @@
       "logo": "https://roofmap.co.nz/brand/logo_square.png",
       "email": "support@roofmap.co.nz",
       "areaServed": { "@type": "Country", "name": "New Zealand" },
-      "parentOrganization": {
-        "@type": "Organization",
-        "name": "Flood Roofing Limited",
-        "url": "https://floodroofing.co.nz"
-      }
+      "founder": { "@type": "Person", "@id": "https://roofmap.co.nz/about#aron", "name": "Aron Flood" }
     },
     {
       "@type": "WebSite",
@@ -89,10 +85,22 @@
       ],
       "offers": [
         { "@type": "Offer", "name": "Trade", "price": "149", "priceCurrency": "NZD",
+          "priceSpecification": [
+            { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "104.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
+            { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "149", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
+          ],
           "category": "Monthly subscription", "url": "https://roofmap.co.nz/pricing" },
         { "@type": "Offer", "name": "Team", "price": "299", "priceCurrency": "NZD",
+          "priceSpecification": [
+            { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "209.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
+            { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "299", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
+          ],
           "category": "Monthly subscription", "url": "https://roofmap.co.nz/pricing" },
         { "@type": "Offer", "name": "Business", "price": "549", "priceCurrency": "NZD",
+          "priceSpecification": [
+            { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "384.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
+            { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "549", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
+          ],
           "category": "Monthly subscription", "url": "https://roofmap.co.nz/pricing" }
       ]
     }
@@ -122,6 +130,7 @@
     <div class="hero-inner">
       <div class="eyebrow">Map. Price. Quote. Order.</div>
       <h1>One drawing. <em>The job pack, the order and the quote.</em></h1>
+      <p class="hero-cat">Roof estimating and quoting software for New Zealand roofers.</p>
       <p class="hero-sub">
         Trace the roof to scale and RoofMap writes all three: a plan your crew can actually read, a
         material order you send to your merchant with one button, and a live interactive quote where
@@ -160,6 +169,25 @@
         <p class="demo-cta" style="margin:18px 0 0"><a href="/signup" class="btn btn-primary">Start free on one of your roofs</a></p>
       </div>
     </div>
+    <!-- The same walkthrough in words, for anyone (or anything) that does not
+         play the video, and the product in plain terms. Collapsed, so the
+         page stays a page. -->
+    <details class="demo-words">
+      <summary>Prefer to read? The walkthrough in words, and what RoofMap is in plain terms</summary>
+      <div class="demo-words-in">
+        <p><strong>Draw the roof.</strong> Type the address and RoofMap loads the aerial photo and sets the scale from it. Click the corners of the building; walls snap square, and the ridges, hips and valleys are worked out from the outline and the pitch. Every edge is measured as you go.</p>
+        <p><strong>Generate the job pack.</strong> The same drawing becomes the sheet layout for every plane, the cut list, the flashing schedule and the fixings — and shows where the hip offcuts come from. It goes to the crew as a PDF they can read on the roof.</p>
+        <p><strong>The customer picks an option.</strong> The quote is a six-page proposal with the roof plan on it. The customer chooses steel grade, gauge, guttering or whether the garage is in, watches the total move, and accepts from their phone. You are told the moment they open it and the moment they accept.</p>
+        <p><strong>Send the material order.</strong> Quantities are counted off the drawing and the order goes to your merchant with one button. Linked to Fergus, the job pack goes back to the Fergus job as well.</p>
+        <dl>
+          <dt>Who it is for</dt><dd>New Zealand roofing businesses quoting long-run steel: one estimator, or an office and several crews.</dd>
+          <dt>What you enter</dt><dd>A site address, the traced outline of the roof, the pitch, and your own supplier rates and labour.</dd>
+          <dt>What it produces</dt><dd>A measured roof plan, sheet cut lists and a flashing schedule, a merchant material order, a customer quote accepted online, and invoices.</dd>
+          <dt>Do you need Fergus?</dt><dd>No. RoofMap runs on its own. If you use Fergus, jobs and photos come across and the job pack goes back.</dd>
+          <dt>The trial</dt><dd>14 days of the Team plan, no card: up to five people, the schedule board and the Fergus link, with a finished sample job inside.</dd>
+        </dl>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -206,31 +234,37 @@
         <div class="ic">📐</div>
         <h3>A roof plan the crew can read</h3>
         <p>Gable, hip, Dutch gable, mono-pitch, stepped gutters, penetrations — drawn to scale and pitch-corrected, so what the plan says is what turns up on the truck.</p>
+        <a class="feat-link" href="/features/roof-measuring">How the measuring works →</a>
       </div>
       <div class="feat">
         <div class="ic">📋</div>
         <h3>Cut lists that match the roof</h3>
         <p>Sheet runs laid out per plane, flashings itemised by type and length, back trays worked out from the penetrations you drew.</p>
+        <a class="feat-link" href="/features/job-pack">Inside the job pack →</a>
       </div>
       <div class="feat">
         <div class="ic">💲</div>
         <h3>Your prices, your margin</h3>
         <p>Your price book, your labour rates, your scaffold. The gross profit sits on screen while you price, not in a spreadsheet afterwards.</p>
+        <a class="feat-link" href="/pricing">Plans and pricing →</a>
       </div>
       <div class="feat">
         <div class="ic">✍️</div>
         <h3>The customer changes it, not you</h3>
         <p>A real proposal with the roof plan on it. They choose their steel grade, gauge and guttering, watch the total move, and accept from their phone.</p>
+        <a class="feat-link" href="/features/quotes">See the customer quote →</a>
       </div>
       <div class="feat">
         <div class="ic">🔗</div>
         <h3>Feeds the system you already run</h3>
         <p>Linked to Fergus today, so quotes and material orders land where your jobs already live instead of being typed in twice.</p>
+        <a class="feat-link" href="/roofmap-and-fergus">RoofMap and Fergus →</a>
       </div>
       <div class="feat">
         <div class="ic">👥</div>
         <h3>Your whole office, one account</h3>
         <p>Everyone shares the same jobs, price book and job numbers — and every job says who made it and who sent the order.</p>
+        <a class="feat-link" href="/pricing">Team and Business plans →</a>
       </div>
     </div>
   </div>

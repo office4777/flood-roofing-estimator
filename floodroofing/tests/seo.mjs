@@ -18,6 +18,8 @@ const _ROOT = _j(_d(_f(import.meta.url)), '..');
 import { chromium } from 'playwright';
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { extname } from 'node:path';
 const DIR = _j(_ROOT, 'frontend');
 const results = [];
@@ -255,12 +257,56 @@ check('…and the installed app launches at the URL the app actually lives at',
 // ── robots.txt ────────────────────────────────────────────────────
 const robots = await readFile(_j(DIR, 'robots.txt'), 'utf8');
 check('robots.txt points at the sitemap', robots.includes('Sitemap: ' + SITE + '/sitemap.xml'));
+// A named crawler group does NOT inherit the wildcard group's rules, so
+// every named group has to carry the same exclusions itself — or GPTBot,
+// ClaudeBot and friends were free to crawl the app and the sign-up form.
+{
+  const groups = robots.split(/\n(?=User-agent:)/).map(g => g.trim()).filter(g => g.startsWith('User-agent:'));
+  const rules = g => g.split('\n').filter(l => /^(Allow|Disallow):/.test(l)).map(l => l.trim()).sort().join('|');
+  const star = groups.find(g => /^User-agent: \*/.test(g));
+  const named = groups.filter(g => !/^User-agent: \*/.test(g));
+  const odd = named.filter(g => rules(g) !== rules(star)).map(g => g.split('\n')[0]);
+  check('every named crawler group carries the same exclusions as the wildcard group',
+    !!star && named.length >= 5 && odd.length === 0, odd.join(', ') || (named.length + ' named groups'));
+}
+// The sitemap's dates come from git (tools/sitemap-dates.mjs), never by hand.
+// Only checkable with history; CI's shallow clone dates every file to HEAD.
+{
+  let shallow = true;
+  try { shallow = execSync('git rev-parse --is-shallow-repository', { cwd: DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() !== 'false'; } catch (e) {}
+  if (shallow) check('sitemap dates match git (skipped: shallow clone)', true, 'skipped');
+  else {
+    const { stamp } = await import(pathToFileURL(_j(_ROOT, 'tools', 'sitemap-dates.mjs')).href);
+    const cur = await readFile(_j(DIR, 'sitemap.xml'), 'utf8');
+    const { changed } = stamp(cur);
+    check('every sitemap date is the date its page last changed in git', changed === 0, changed + ' stale — run node floodroofing/tools/sitemap-dates.mjs');
+  }
+}
 const BOTS = ['GPTBot','OAI-SearchBot','ClaudeBot','PerplexityBot','Google-Extended','Applebot-Extended','cohere-ai'];
 check('…and names every answer engine explicitly, so a blanket block is a deliberate act',
   BOTS.every(x => new RegExp('User-agent: ' + x + '\\s*\\nAllow: /').test(robots)),
   BOTS.filter(x => !new RegExp('User-agent: ' + x + '\\s*\\nAllow: /').test(robots)).join(' ') || 'all present');
 check('…and keeps crawlers out of the 2.9 MB app',
   /Disallow: \/index\.html/.test(robots) && /Disallow: \/sheet-plan\.js/.test(robots));
+
+// The trial is open and RoofMap Limited is its own company — no page may
+// still say roofers come in batches, and no markup may call Flood Roofing
+// RoofMap's parent. Founder is the true relationship.
+{
+  const stale = [], parent = [];
+  for (const [u, file] of Object.entries(PAGES)){
+    const html = await readFile(_j(DIR, file), 'utf8');
+    if (/batch at a time|access code|batches are small/i.test(html)) stale.push(u);
+    if (/parentOrganization/.test(html)) parent.push(u);
+  }
+  check('no public page still says roofers are let in by the batch', stale.length === 0, stale.join(' '));
+  check('no markup calls Flood Roofing the parent of RoofMap', parent.length === 0, parent.join(' '));
+  const landing = await readFile(_j(DIR, 'landing.html'), 'utf8');
+  check('the homepage says in words what RoofMap is and where', /Roof estimating and quoting software for New Zealand roofers/.test(landing));
+  check('…links each feature blurb to its page', (landing.match(/class="feat-link"/g) || []).length >= 5);
+  check('…and carries the walkthrough in words, for whoever does not play the video', /demo-words/.test(landing) && /Do you need Fergus\?/.test(landing));
+  check('…with the founding rate and its conditions in the pricing markup', /UnitPriceSpecification[^}]*Founding rate[^}]*209\.30[^}]*validThrough/.test(landing));
+}
 
 // ── the sitemap must equal the site ───────────────────────────────
 const sitemap = await readFile(_j(DIR, 'sitemap.xml'), 'utf8');

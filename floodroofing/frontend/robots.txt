@@ -23,45 +23,167 @@ Disallow: /signup
 Disallow: /signup.html
 
 # ── Answer engines ──────────────────────────────────────────────────
-# These are already covered by the wildcard above. They are named anyway,
-# explicitly allowed, so that the decision is on the record: RoofMap wants to
-# be read and quoted by the assistants roofers actually ask. A future blanket
+# Named so the decision is on the record: RoofMap wants to be read and quoted
+# by the assistants roofers actually ask. A named group does NOT inherit the
+# wildcard group's rules — a crawler that matches its own name reads only
+# that group — so each carries the same exclusions in full. A future blanket
 # block would have to delete these lines to take effect, which makes it a
 # deliberate act rather than an accident.
+
 User-agent: GPTBot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Claude-User
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Claude-SearchBot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Perplexity-User
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Applebot-Extended
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: cohere-ai
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 User-agent: Bingbot
 Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
 
 Sitemap: https://roofmap.co.nz/sitemap.xml
