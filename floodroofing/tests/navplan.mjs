@@ -39,22 +39,26 @@ async function open(company){
   // on every load would put the session straight back and hide the bug.
   await pg.addInitScript(([co]) => {
     // Runs again after the sign-out reload, which is where it is needed.
-    // Kept in sessionStorage, not on window: a reload wipes window, and the
-    // whole question when this fails is whether the page reloaded and, if it
-    // did, whether sign-out was what reloaded it.
+    // The probes and the one-time seed live in LOCALSTORAGE. They were in
+    // the tab's session storage, and under a full parallel gate the sign-out
+    // reload three times came back with that storage empty — so this script
+    // saw a fresh tab, signed Bob straight back in, and the check read
+    // "signed out drops the session" as a failure of the app. localStorage
+    // survives the reload (sign-out removes only its own keys), so the seed
+    // happens once per browser context, which is what was meant.
     window.__confirms = [];
     window.__confirmAnswer = true;
     window.confirm = function(m){
       window.__confirms.push(String(m));
-      try { sessionStorage.setItem('__asked', String((+sessionStorage.getItem('__asked') || 0) + 1)); } catch(e){}
+      try { localStorage.setItem('__asked', String((+localStorage.getItem('__asked') || 0) + 1)); } catch(e){}
       return window.__confirmAnswer !== false;
     };
-    try { sessionStorage.setItem('__loads', String((+sessionStorage.getItem('__loads') || 0) + 1)); } catch(e){}
+    try { localStorage.setItem('__loads', String((+localStorage.getItem('__loads') || 0) + 1)); } catch(e){}
     window.addEventListener('error', function(ev){
-      try { sessionStorage.setItem('__err', String((ev && ev.message) || 'error')); } catch(e){}
+      try { localStorage.setItem('__err', String((ev && ev.message) || 'error')); } catch(e){}
     });
-    if (sessionStorage.getItem('__seeded')) return;
-    sessionStorage.setItem('__seeded','1');
+    if (localStorage.getItem('__seeded')) return;
+    localStorage.setItem('__seeded','1');
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1');
     localStorage.setItem('fr_user', JSON.stringify({ email:'bob@acmeroofing.co.nz', name:'Bob' }));
     localStorage.setItem('fr_company', JSON.stringify(co));
@@ -136,14 +140,14 @@ check('…and nowhere else, so nothing invisible is pretending to', !(await pg.e
 // reload on a shared runner is not a bug.
 await pg.evaluate(() => {
   window.__confirmAnswer = true;
-  // Did the click reach the handler at all? Recorded in sessionStorage,
+  // Did the click reach the handler at all? Recorded in localStorage,
   // which survives the reload sign-out causes — window does not.
   var real = window._navSignOut;
   window._navSignOut = function(){
-    try { sessionStorage.setItem('__signout', 'entered'); } catch(e){}
+    try { localStorage.setItem('__signout', 'entered'); } catch(e){}
     return real.apply(this, arguments);
   };
-  try { sessionStorage.removeItem('__signout'); } catch(e){}
+  try { localStorage.removeItem('__signout'); } catch(e){}
 });
 // Deliberately NOT Promise.all([waitForNavigation(), click()]). Signing out
 // reloads the page, and racing a navigation wait against the click that
@@ -170,7 +174,7 @@ await pg.evaluate(() => document.getElementById('navSignOutBtn').click());
 // is about is the sign-out itself. If the click has not landed in three
 // seconds, call the handler directly and say so, rather than fail a suite
 // on the runner's scheduling.
-const clickLanded = await pg.waitForFunction(() => sessionStorage.getItem('__signout') === 'entered', null, { timeout: 3000 }).then(() => true).catch(() => false);
+const clickLanded = await pg.waitForFunction(() => localStorage.getItem('__signout') === 'entered', null, { timeout: 3000 }).then(() => true).catch(() => false);
 if (!clickLanded){
   console.log('NOTE  the dispatched click did not enter _navSignOut in 3s — calling it directly');
   await pg.evaluate(() => { try { _navSignOut(); } catch(e){} }).catch(() => null);
@@ -188,11 +192,11 @@ const after = await pg.evaluate(() => ({
   tok: localStorage.getItem('fr_token'), user: localStorage.getItem('fr_user'),
   co: localStorage.getItem('fr_company'),
   asked: (window.__confirms || []).length,
-  askedEver: sessionStorage.getItem('__asked'),
-  entered: sessionStorage.getItem('__signout'),
-  loads: sessionStorage.getItem('__loads'),
-  err: sessionStorage.getItem('__err'),
-  seeded: sessionStorage.getItem('__seeded'),
+  askedEver: localStorage.getItem('__asked'),
+  entered: localStorage.getItem('__signout'),
+  loads: localStorage.getItem('__loads'),
+  err: localStorage.getItem('__err'),
+  seeded: localStorage.getItem('__seeded'),
   login: (function(){ const el = document.getElementById('login-screen');
     return !!el && getComputedStyle(el).display !== 'none'; })() }));
 check('signing out drops the session, not just the screen',
