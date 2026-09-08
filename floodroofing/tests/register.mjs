@@ -208,10 +208,15 @@ const pj = await pending.json();
 await new Promise(r => setTimeout(r, 400));
 check('with mail set up, a signup makes the account but hands out no session yet',
   pending.status === 200 && pj.verify === true && !pj.token, JSON.stringify(pj));
-check('…and the confirmation email goes out', sent.length === 1 && /Confirm/i.test(sent[0].subject || '') && sent[0].to === 'kiri@kiriroofing.co.nz',
-  JSON.stringify(sent[0] && { to: sent[0].to, subject: sent[0].subject }));
-const vlink = ((sent[0] && (sent[0].text || sent[0].body || '')) .match(/\/app\?verify=([^\s"<]+)/) || [])[1];
-check('…with a link into the app', !!vlink, (sent[0] && (sent[0].text || sent[0].body || '')).slice(0, 200));
+const confirmMail = sent.find(m => /Confirm/i.test(m.subject || ''));
+const alertMail = sent.find(m => /^New signup:/.test(m.subject || ''));
+check('…and the confirmation email goes out', !!confirmMail && confirmMail.to === 'kiri@kiriroofing.co.nz',
+  JSON.stringify(sent.map(m => ({ to: m.to, subject: m.subject }))));
+check('…and the owner is told a business signed up, with a way to ring them',
+  !!alertMail && alertMail.to === 'support@roofmap.co.nz' && /Kiri Roofing/.test(alertMail.subject) && /027 555 0199/.test(alertMail.text || alertMail.body || '') && /not confirmed/.test(alertMail.text || alertMail.body || ''),
+  JSON.stringify(alertMail && { to: alertMail.to, subject: alertMail.subject }));
+const vlink = ((confirmMail && (confirmMail.text || confirmMail.body || '')) .match(/\/app\?verify=([^\s"<]+)/) || [])[1];
+check('…with a link into the app', !!vlink, (confirmMail && (confirmMail.text || confirmMail.body || '')).slice(0, 200));
 const login = (body) => fetch(BASE + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'X-Forwarded-For': '198.51.100.' + (++ipN) }, body: JSON.stringify(body) });
 const early = await login({ email: 'kiri@kiriroofing.co.nz', password: 'password123' });
 const ej = await early.json();
@@ -226,8 +231,11 @@ await new Promise(r => setTimeout(r, 300));
 check('…but not for an address that is already confirmed', sent.length === 0, sent.length + ' mail');
 const bogus = await fetch(BASE + '/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'nope' }) });
 check('a made-up confirmation link is refused', bogus.status === 401, 'status ' + bogus.status);
+sent.length = 0;
 const ok = await fetch(BASE + '/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: decodeURIComponent(vlink || '') }) });
 const oj = await ok.json();
+await new Promise(r => setTimeout(r, 400));
+check('…and the owner is told the trial is confirmed', sent.some(m => /^Trial confirmed:/.test(m.subject || '') && m.to === 'support@roofmap.co.nz'), JSON.stringify(sent.map(m => m.subject)));
 check('the emailed link confirms the address and signs the person in',
   ok.status === 200 && !!oj.token && oj.user && oj.user.company_id, 'status ' + ok.status + ' ' + JSON.stringify(oj).slice(0, 160));
 const prof = db.profiles.find(p => p.email === 'kiri@kiriroofing.co.nz');

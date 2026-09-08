@@ -1844,6 +1844,9 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     }
     if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
+    // Tell the owner. A trial starting is the one event worth a ring, and
+    // until now nobody was told — signups were a number in the metrics.
+    _signupAlert({ company, name, email, phone, pending: verifyFirst }).catch(function(){});
     if (verifyFirst) {
       // No session until the address is confirmed. The account exists, so a
       // second signup with this email says "already registered" — the resend
@@ -1873,6 +1876,26 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   }
 });
 
+// The owner hears about every signup, and again when the address is
+// confirmed — so a real trial can be told from a typo. SIGNUP_ALERT_TO
+// overrides the address; empty string turns it off.
+const SIGNUP_ALERT_TO = process.env.SIGNUP_ALERT_TO == null ? MAIL_SUPPORT : String(process.env.SIGNUP_ALERT_TO).trim();
+async function _signupAlert(o){
+  if (!SIGNUP_ALERT_TO || !EMAIL_ENABLED) return;
+  const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
+  const who = [o.company, o.name].filter(Boolean).join(' · ') || o.email;
+  await _dispatchMail({
+    to: SIGNUP_ALERT_TO, fromName: 'RoofMap', replyTo: o.email,
+    subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who,
+    text: (o.confirmed
+      ? 'They have confirmed their email — the 14-day Team trial is under way.\n\n'
+      : 'A new business has signed up for the 14-day Team trial.\n\n') +
+      nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
+      (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
+      '\nReply to this email and it goes straight to them.',
+  });
+}
+
 // ── Email confirmation ─────────────────────────────────────────────
 // POST /auth/verify { token } → marks the address confirmed and signs the
 // person straight in, like a reset link does.
@@ -1883,7 +1906,9 @@ app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
   catch { return res.status(401).json({ error: 'This confirmation link has expired — sign in and we\'ll send you a fresh one.' }); }
   if (payload.purpose !== 'verify') return res.status(401).json({ error: 'Invalid confirmation link.' });
   try {
+    const { data: was } = await supabase.from('profiles').select('verify_pending, name, company, phone').eq('id', payload.id).maybeSingle();
     await supabase.from('profiles').update({ verify_pending: false, email_verified_at: new Date().toISOString() }).eq('id', payload.id);
+    if (was && was.verify_pending) _signupAlert({ company: was.company, name: was.name, email: payload.email, phone: was.phone, confirmed: true }).catch(function(){});
     const cid = await _companyOf(payload.id);
     const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: await _tokenVersion(payload.id) }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
