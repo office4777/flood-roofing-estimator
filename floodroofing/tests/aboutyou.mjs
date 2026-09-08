@@ -39,13 +39,21 @@ await o.pg.waitForTimeout(500);
 check('…the answers are sent', o.posts.length === 1 && o.posts[0].volume === '6-10' && o.posts[0].current_software === 'fergus' && o.posts[0].plan === 'team', JSON.stringify(o.posts));
 v = await card(o.pg);
 check('…and the card goes', !v.shown);
-await o.pg.reload();
-await o.pg.waitForFunction(() => typeof window._aboutYouSync === 'function' && document.getElementById('homeBoard'), null, { timeout: 20000 }).catch(() => null);
-await o.pg.waitForTimeout(600);
-const again = await o.pg.evaluate(() => { try { _aboutYouSync(); } catch(e){}
+const flagged = await o.pg.evaluate(() => ({ flag: localStorage.getItem('fr_about_done'), about: (JSON.parse(localStorage.getItem('fr_user') || '{}') || {}).about }));
+check('…and the answer is remembered on this device', flagged.flag === '1' && !!flagged.about, JSON.stringify(flagged));
+// A second page in the same browser shares the storage — the card must not
+// come back there either. (A reload was used here before, and under a full
+// parallel gate it twice came back with the storage empty; a fresh page is
+// the same question asked without the reload's timing.)
+const pg2 = await o.ctx.newPage();
+await pg2.goto('file://' + DIR + '/app.html');
+await pg2.waitForFunction(() => typeof window._aboutYouSync === 'function' && document.getElementById('homeBoard'), null, { timeout: 20000 }).catch(() => null);
+await pg2.waitForTimeout(800);
+const again = await pg2.evaluate(() => { try { _aboutYouSync(); } catch(e){}
   const el = document.getElementById('aboutYouCard');
   return { shown: !!(el && el.firstElementChild), flag: localStorage.getItem('fr_about_done'), user: localStorage.getItem('fr_user') }; });
 check('…for good', !again.shown, JSON.stringify(again));
+await pg2.close();
 await o.ctx.close();
 
 // ── skipping is one tap and just as final ────────────────────────
