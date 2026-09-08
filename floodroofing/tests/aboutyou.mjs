@@ -6,6 +6,21 @@ import { dirname as _d, join as _j } from 'node:path';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
 import { chromium } from 'playwright';
 const DIR = _j(_ROOT, 'frontend');
+
+// Served over http, not file://. On a file: page headless Chromium can lose
+// localStorage across a reload when it swaps renderer processes — more often
+// under a full parallel gate — and a suite that reloads then reads an empty
+// store and blames the app. A real origin keeps its storage.
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+const _TYPES = { '.html':'text/html', '.png':'image/png', '.jpg':'image/jpeg', '.css':'text/css', '.js':'text/javascript', '.json':'application/json', '.webmanifest':'application/manifest+json' };
+const _srv = http.createServer(async (req, res) => {
+  const path = decodeURIComponent(req.url.split('?')[0]);
+  try { const buf = await readFile(_j(DIR, path)); res.writeHead(200, { 'content-type': _TYPES[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream' }); res.end(buf); }
+  catch (e) { res.writeHead(404); res.end(''); }
+});
+await new Promise(r => _srv.listen(0, '127.0.0.1', r));
+const APP_URL = 'http://127.0.0.1:' + _srv.address().port + '/app.html';
 const results = [];
 function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  '+n+(d?('  — '+d):'')); }
 
@@ -23,7 +38,7 @@ async function open(company, user){
     localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.setItem('fr_settings', 'null');
     localStorage.setItem('fr_user', JSON.stringify(u)); localStorage.setItem('fr_company', JSON.stringify(c));
   }, [company, user]);
-  await pg.goto('file://' + DIR + '/app.html'); await pg.waitForTimeout(2200);
+  await pg.goto(APP_URL); await pg.waitForTimeout(2200);
   await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });
   return { ctx, pg, posts };
 }
@@ -46,7 +61,7 @@ check('…and the answer is remembered on this device', flagged.flag === '1' && 
 // parallel gate it twice came back with the storage empty; a fresh page is
 // the same question asked without the reload's timing.)
 const pg2 = await o.ctx.newPage();
-await pg2.goto('file://' + DIR + '/app.html');
+await pg2.goto(APP_URL);
 await pg2.waitForFunction(() => typeof window._aboutYouSync === 'function' && document.getElementById('homeBoard'), null, { timeout: 20000 }).catch(() => null);
 await pg2.waitForTimeout(800);
 const again = await pg2.evaluate(() => { try { _aboutYouSync(); } catch(e){}
@@ -72,7 +87,7 @@ o = await open({ id: 'c4', name: 'Rata Roofing', plan: 'trial', limits: {} }, { 
 check('nor one whose profile already carries an answer', !(await card(o.pg)).shown);
 await o.ctx.close();
 
-await b.close();
+await b.close(); _srv.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);
