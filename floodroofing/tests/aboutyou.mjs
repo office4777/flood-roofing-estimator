@@ -39,8 +39,13 @@ await o.pg.waitForTimeout(500);
 check('…the answers are sent', o.posts.length === 1 && o.posts[0].volume === '6-10' && o.posts[0].current_software === 'fergus' && o.posts[0].plan === 'team', JSON.stringify(o.posts));
 v = await card(o.pg);
 check('…and the card goes', !v.shown);
-await o.pg.reload(); await o.pg.waitForTimeout(2000);
-check('…for good', !(await card(o.pg)).shown);
+await o.pg.reload();
+await o.pg.waitForFunction(() => typeof window._aboutYouSync === 'function' && document.getElementById('homeBoard'), null, { timeout: 20000 }).catch(() => null);
+await o.pg.waitForTimeout(600);
+const again = await o.pg.evaluate(() => { try { _aboutYouSync(); } catch(e){}
+  const el = document.getElementById('aboutYouCard');
+  return { shown: !!(el && el.firstElementChild), flag: localStorage.getItem('fr_about_done'), user: localStorage.getItem('fr_user') }; });
+check('…for good', !again.shown, JSON.stringify(again));
 await o.ctx.close();
 
 // ── skipping is one tap and just as final ────────────────────────
