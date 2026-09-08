@@ -72,7 +72,7 @@ check('"Keep locked" leaves it locked', await pg.evaluate(() => S.jobLocked && !
 await pg.evaluate(() => gotoTab('quote'));
 await pg.waitForTimeout(900);
 const typed = await pg.evaluate(async () => {
-  const el = document.querySelector('#tab-quote input[type=text], #tab-quote input:not([type]), #tab-quote textarea, #tab-quote [contenteditable=true]');
+  const el = Array.from(document.querySelectorAll('#tab-quote input[type=text], #tab-quote input:not([type]), #tab-quote textarea, #tab-quote [contenteditable=true]')).find(x => x.offsetParent);
   if (!el) return { none: true };
   el.focus();
   const before = el.value !== undefined ? el.value : el.textContent;
@@ -89,6 +89,23 @@ if (!typed.none){
   check('typing into the locked quote asks to unlock', true, 'skipped: no field found');
   check('…and no save is sent', puts.length === 0, puts.length + ' saves');
 }
+
+// ── the question is asked only for a physical attempt (report 44) ─
+// It popped up while typing a feedback report, and on every render: the
+// autosave trigger fires from both. Those stand down quietly now.
+await pg.evaluate(() => { const m = document.getElementById('jobLockModal'); if (m) m.remove(); gotoTab('feedback'); });
+await pg.waitForTimeout(600);
+const fbField = await pg.evaluate(() => { const el = document.querySelector('#tab-feedback input[type=text], #tab-feedback textarea'); if (!el) return null; el.focus(); return el.id || el.className; });
+if (fbField){ await pg.keyboard.type('the roof'); await pg.waitForTimeout(300); }
+v = await pg.evaluate(() => { _scheduleAutosave(); saveSnapshot(); return { asked: !!document.getElementById('jobLockModal') }; });
+check('typing a feedback report, and renders that call autosave, do not ask to unlock', !v.asked && fbField !== null, JSON.stringify({ fbField, v }));
+await pg.evaluate(() => gotoTab('quote'));
+await pg.waitForTimeout(900);
+const picked = await pg.evaluate(() => { const sel = document.querySelector('#tab-quote select'); if (!sel || sel.options.length < 2) return null;
+  sel.selectedIndex = sel.selectedIndex === 0 ? 1 : 0; sel.dispatchEvent(new Event('change', { bubbles: true })); return sel.id || sel.name || 'select'; });
+v = await pg.evaluate(() => ({ asked: !!document.getElementById('jobLockModal') }));
+check('a pick in a quote drop-down is a physical attempt, and asks', picked === null || v.asked, JSON.stringify({ picked, v }));
+await pg.evaluate(() => { const m = document.getElementById('jobLockModal'); if (m) m.remove(); });
 
 // ── unlock from the sidebar, then changes save themselves ────────
 await pg.evaluate(() => gotoTab('roof'));

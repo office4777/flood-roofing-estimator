@@ -4615,7 +4615,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <span>Measurements are roughly to satellite scale, please click
     <button type="button" onclick="setTool('calibrate')" style="font:inherit;font-weight:800;color:#7a4c07;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Calibrate Scale</button>
     to override.</span>
-  <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-08-13p</span>
+  <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-09-09</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -7961,9 +7961,8 @@ function gotoTab(t) {
     } catch(e){}
     // Auto-fit the drawing when a job was just opened (deep link / Select Job /
     // resume). Deferred so the canvas has its real pixel size first.
-    if (DRAW._fitOnShow) {
-      DRAW._fitOnShow = false;
-      setTimeout(function(){ try { fitCanvasToWrap(); fitDrawingToCanvas(); } catch(e){} }, 200);
+    if (DRAW._fitOnShow || DRAW._pendingView) {
+      setTimeout(function(){ try { fitCanvasToWrap(); _applyPendingView(); } catch(e){} }, 200);
     }
   }
   if(t==='scope'){
@@ -14428,6 +14427,7 @@ function snapshotCurrentJob(){
              clearliteMaterial:S.clearliteMaterial||'fibreglass', jpFlashTypeOff:S.jpFlashTypeOff||{},
              orderSent:S.orderSent||null },
     draw: _lkgGuard({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
+            view:_viewForSave(),
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             notes:DRAW.notes||[],
             clearlites:DRAW.clearlites||[], sheetType:DRAW.sheetType||'steel-corrugate',
@@ -14559,11 +14559,15 @@ function restoreFromJob(j){
     // 1200px, and restoring THAT would mis-align every roof drawn on the
     // original, so it stays a preview).
     DRAW.bgImg = null;
+    DRAW._pendingView = (snap.draw.view && isFinite(+snap.draw.view.zoom)) ? snap.draw.view : null;
+    DRAW._bgLoading = false;
     if (snap.draw.bg){
       (function(){
         var _bimg = new Image();
         var _v = snap.draw.imgView || null;
-        _bimg.onload = function(){ try { _applyCanvasBg(_bimg, _v); } catch(e){} };
+        DRAW._bgLoading = true;
+        _bimg.onload = function(){ DRAW._bgLoading = false; try { _applyCanvasBg(_bimg, _v); } catch(e){} };
+        _bimg.onerror = function(){ DRAW._bgLoading = false; try { _applyPendingView(); } catch(e){} };
         _bimg.src = snap.draw.bg;
       })();
     } else {
@@ -14694,6 +14698,15 @@ document.addEventListener('beforeinput', function(e){
   var t = e.target; if (!t || !t.closest) return;
   if (t.closest('#aerialModal, #jobLockModal')) return;
   if (t.closest(_LOCK_SCOPE)){ e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt(); }
+}, true);
+// A pick in a drop-down or a tick in a box is a change too (a quote
+// selection, a job-pack measure). It cannot be cancelled after the fact, but
+// nothing is saved while locked, and the question is asked.
+document.addEventListener('change', function(e){
+  if (!_jobLockActive()) return;
+  var t = e.target; if (!t || !t.closest) return;
+  if (t.closest('#aerialModal, #jobLockModal')) return;
+  if (t.closest(_LOCK_SCOPE)){ e.stopImmediatePropagation(); _lockPrompt(); }
 }, true);
 
 function setCurrentJobLabel(j){
@@ -15006,8 +15019,11 @@ function _retiredUpdateSidebarJobChip(){
 // local job id or a Fergus link). Skips the chrome (sidebar, modals)
 // so opening the Select Job modal doesn't trigger a phantom save.
 function _scheduleAutosave(){
-  // Locked: the edit that got this far is held at the door, not written.
-  if (_jobLockActive()){ try { _lockPrompt(); } catch(e){} return; }
+  // Locked: nothing is written. Quietly — this fires from renders and from
+  // typing anywhere in the app (report 44: the question popped up while
+  // writing a feedback report). The question is asked only where a person
+  // physically tries to change the job: the canvas, and the job's fields.
+  if (_jobLockActive()) return;
   // The local draft is written on EVERY edit — even for a brand-new
   // job with no id yet, and even with autosave off — so nothing typed
   // or drawn can be lost to a dead connection or an accidental close.
@@ -41256,7 +41272,6 @@ function _untitledOnDraw(){
     .then(function(){ _UNT.busy = false; try { fetchRecentDrafts(); } catch(e){} });
 }
 function _pushSnap(snapStr) {
-  if (_jobLockActive()){ try { _lockPrompt(); } catch(e){} }
   try { _untitledOnDraw(); } catch(e){}
   if (!snapStr) return;
   DRAW.undoStack.push(snapStr);
@@ -55594,6 +55609,7 @@ function _applyCanvasBg(img, view){
     cv.height = Math.round(H * dpr2);
   }
   try { redrawAll(); } catch(e){}
+  try { _applyPendingView(); } catch(e){}
 }
 // Set a data-URL image as the Map Roof canvas background (trace-over
 // surface): load the image, then hand it to _applyCanvasBg.
@@ -56553,6 +56569,53 @@ function adjustZoom(delta) {
 // Zoom + pan so the whole drawn roof fits the canvas with a margin. Works
 // with or without a background image (the transform differs — see
 // getImgTransform — so we solve for the offset via the live transform).
+// The view, for the save: the zoom and the WORLD point under the canvas
+// centre. A pixel offset only means something on the canvas it was made on;
+// a phone's saved offset opened on a desktop put the roof half off the
+// screen (report 44). A world point can be put back under the centre of
+// any canvas.
+function _viewForSave(){
+  try {
+    var cv = document.getElementById('roofCanvas'); if (!cv) return null;
+    var dpr = window.devicePixelRatio || 1, W = cv.width / dpr, H = cv.height / dpr;
+    if (!(W > 10 && H > 10)) return null;
+    var t = getImgTransform(); if (!t) return null;
+    var c = canvasToImg([W / 2, H / 2], t);
+    var z = (isFinite(+DRAW.zoom) && +DRAW.zoom > 0) ? +DRAW.zoom : 1;
+    return { zoom: Math.round(z * 1000) / 1000, cx: Math.round(c[0] * 10) / 10, cy: Math.round(c[1] * 10) / 10 };
+  } catch(e){ return null; }
+}
+// Put a saved view back, or fit the whole drawing when there is none. Runs
+// only once the canvas has its real size — the roof tab may not be showing
+// when the job opens, and the aerial may still be loading (its size sets
+// the base scale) — so it is called from wherever those things happen and
+// stands down until they have.
+function _applyPendingView(){
+  var v = DRAW._pendingView, fit = !!DRAW._fitOnShow;
+  if (!v && !fit) return false;
+  var cv = document.getElementById('roofCanvas'); if (!cv) return false;
+  var r = cv.getBoundingClientRect(); if (!(r.width > 10 && r.height > 10)) return false;
+  var dpr = window.devicePixelRatio || 1, W = cv.width / dpr, H = cv.height / dpr;
+  if (!(W > 10 && H > 10)) return false;
+  if (DRAW._bgLoading) return false;            // the aerial's size is the base scale
+  DRAW._pendingView = null; DRAW._fitOnShow = false;
+  if (v && isFinite(+v.zoom) && +v.zoom > 0 && isFinite(+v.cx) && isFinite(+v.cy)){
+    DRAW.zoom = Math.max(0.05, Math.min(10, +v.zoom));
+    IMG_OFFSET.x = 0; IMG_OFFSET.y = 0;
+    var t = getImgTransform();
+    if (t){ var at = imgToCanvas([+v.cx, +v.cy], t); IMG_OFFSET.x = W / 2 - at[0]; IMG_OFFSET.y = H / 2 - at[1]; }
+    var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+    try { redrawAll(); } catch(e){}
+    return true;
+  }
+  try { fitDrawingToCanvas(); } catch(e){}
+  // The side panels are still settling when a job opens (the photos panel
+  // slides in), so the canvas shrinks again just after this fit. Fit again
+  // on any resize in the next moment, rather than keep a fit made for a
+  // canvas that no longer exists.
+  DRAW._refitUntil = Date.now() + 1500;
+  return true;
+}
 function fitDrawingToCanvas(){
   var cv = document.getElementById('roofCanvas'); if (!cv) return false;
   var dpr = window.devicePixelRatio || 1;
@@ -56847,7 +56910,7 @@ function fitCanvasToWrap(){
   var dpr = window.devicePixelRatio || 1;
   var newW = Math.round(w * dpr);
   var newH = Math.round(h * dpr);
-  if(cv.width === newW && cv.height === newH) { redrawAll(); return; }
+  if(cv.width === newW && cv.height === newH) { if (!_applyPendingView()) redrawAll(); return; }
   // The photos panel opening, a tab coming back, a window resized: the
   // canvas changes size and the view used to stay pinned to its top-left
   // corner, so the roof the office had centred was found "half falling off
@@ -56856,6 +56919,11 @@ function fitCanvasToWrap(){
   // also means a smaller image: an offset in pixels is worth more than it
   // was. Hold the WORLD point that was at the centre, whatever the scale.
   var oldW = cv.width, oldH = cv.height, world = null;
+  if (Date.now() < (DRAW._refitUntil || 0)){
+    cv.width = newW; cv.height = newH;
+    try { fitDrawingToCanvas(); } catch(e){ redrawAll(); }
+    return;
+  }
   try {
     if (oldW > 10 && oldH > 10 && window.IMG_OFFSET){
       var t0 = getImgTransform();
@@ -56875,7 +56943,7 @@ function fitCanvasToWrap(){
       }
     }
   } catch(e){}
-  redrawAll();
+  if (!_applyPendingView()) redrawAll();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
