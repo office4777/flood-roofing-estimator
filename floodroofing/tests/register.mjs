@@ -244,6 +244,18 @@ const later = await login({ email: 'kiri@kiriroofing.co.nz', password: 'password
 check('…after which a normal sign-in works', later.status === 200 && !!(await later.json()).token, 'status ' + later.status);
 process.env.VERIFY_EMAIL = 'false';
 
+// ── the list of everyone, for the owner ──────────────────────────
+const lst = await fetch(BASE + '/admin/accounts?token=' + ADMIN);
+const lj = await lst.json();
+check('the owner can list every business, newest first, with a way to ring them',
+  lst.status === 200 && lj.count >= 3 && lj.accounts.some(a => a.company === 'Kiri Roofing' && a.email === 'kiri@kiriroofing.co.nz' && a.phone === '027 555 0199' && a.confirmed === 'yes' && /trial|trialing/.test(a.plan + a.status)),
+  JSON.stringify((lj.accounts || []).slice(0, 2)));
+const html = await fetch(BASE + '/admin/accounts?token=' + ADMIN, { headers: { accept: 'text/html' } });
+check('…as a page in a browser', /text\/html/.test(html.headers.get('content-type') || '') && /Kiri Roofing/.test(await html.text()));
+const csv = await fetch(BASE + '/admin/accounts?token=' + ADMIN + '&format=csv');
+check('…or a spreadsheet', /text\/csv/.test(csv.headers.get('content-type') || '') && /^company,plan/.test(await csv.text()));
+check('…and not without the token', (await fetch(BASE + '/admin/accounts')).status === 404);
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

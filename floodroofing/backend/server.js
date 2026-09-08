@@ -8946,6 +8946,61 @@ app.get('/admin/account', async (req, res) => {
   }
 });
 
+// Every business on RoofMap, newest first — who they are, how to ring them,
+// what plan or trial they are on, and whether the email was ever confirmed.
+// Gated on ADMIN_TOKEN like the other /admin routes; an HTML table for a
+// browser, JSON for anything else, ?format=csv for a spreadsheet.
+app.get('/admin/accounts', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const [{ data: cos }, { data: profs }, { data: links }, { data: subs }] = await Promise.all([
+      supabase.from('companies').select('id, name, plan, created_at'),
+      supabase.from('profiles').select('id, email, name, phone, company_id, verify_pending, email_verified_at, about'),
+      supabase.from('company_users').select('company_id, user_id, role'),
+      supabase.from('subscriptions').select('company_id, user_id, status, trial_ends_at, stripe_customer_id'),
+    ]);
+    const byUser = new Map((profs || []).map(p => [p.id, p]));
+    const rows = (cos || []).map(function(c){
+      const members = (links || []).filter(l => l.company_id === c.id);
+      const owner = members.find(m => m.role === 'owner') || members[0] || null;
+      const prof = owner ? byUser.get(owner.user_id) : null;
+      const sub = (subs || []).find(x => x.company_id === c.id) || (owner && (subs || []).find(x => x.user_id === owner.user_id)) || null;
+      const trialLeft = sub && sub.trial_ends_at ? Math.ceil((Date.parse(sub.trial_ends_at) - Date.now()) / 864e5) : null;
+      const plan = c.plan || (sub && sub.status === 'trialing' ? 'trial' : (sub && sub.status) || 'trial');
+      return {
+        company: c.name || '', plan,
+        status: sub ? sub.status : '—',
+        trial: trialLeft == null ? '' : (trialLeft > 0 ? trialLeft + ' days left' : 'ended ' + (-trialLeft) + ' days ago'),
+        paying: !!(sub && sub.stripe_customer_id && /active|past_due/.test(String(sub.status || ''))),
+        owner: prof ? (prof.name || '') : '', email: prof ? (prof.email || '') : '', phone: prof ? (prof.phone || '') : '',
+        confirmed: prof ? (prof.verify_pending ? 'no' : 'yes') : '',
+        people: members.length,
+        signed_up: c.created_at || '',
+        about: prof && prof.about && !prof.about.skipped ? [prof.about.volume, prof.about.current_software, prof.about.plan].filter(Boolean).join(' / ') : '',
+      };
+    }).sort((a, b) => String(b.signed_up).localeCompare(String(a.signed_up)));
+    const fmt = String(req.query.format || '').toLowerCase();
+    const wantsHtml = fmt === 'html' || (!fmt && /text\/html/.test(String(req.headers.accept || '')));
+    if (fmt === 'csv') {
+      const cols = ['company', 'plan', 'status', 'trial', 'paying', 'owner', 'email', 'phone', 'confirmed', 'people', 'signed_up', 'about'];
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="roofmap-accounts.csv"');
+      return res.send(cols.join(',') + '\n' + rows.map(r => cols.map(k => esc(r[k])).join(',')).join('\n') + '\n');
+    }
+    if (!wantsHtml) return res.json({ count: rows.length, accounts: rows });
+    const h = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const day = v => v ? String(v).slice(0, 10) : '';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RoofMap accounts</title>' +
+      '<style>body{font:14px -apple-system,Segoe UI,sans-serif;color:#0a1628;margin:18px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #e5e9ef;vertical-align:top;font-size:13px}th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#5f6b7a;position:sticky;top:0;background:#fff}tr.paying td{background:#f0fdf4}tr.unconfirmed td{color:#8a94a3}.n{white-space:nowrap}</style>' +
+      '<h2 style="margin:0 0 4px">RoofMap accounts — ' + rows.length + '</h2>' +
+      '<p style="margin:0 0 14px;color:#5f6b7a">Newest first. Green rows are paying. Grey rows never confirmed their email. <a href="?token=' + h(req.query.token || '') + '&format=csv">Download CSV</a></p>' +
+      '<table><thead><tr><th>Signed up</th><th>Business</th><th>Owner</th><th>Email</th><th>Phone</th><th>Plan</th><th>Trial</th><th>People</th><th>Confirmed</th><th>About their setup</th></tr></thead><tbody>' +
+      rows.map(r => '<tr class="' + (r.paying ? 'paying' : '') + (r.confirmed === 'no' ? ' unconfirmed' : '') + '"><td class="n">' + h(day(r.signed_up)) + '</td><td><b>' + h(r.company) + '</b></td><td>' + h(r.owner) + '</td><td><a href="mailto:' + h(r.email) + '">' + h(r.email) + '</a></td><td class="n"><a href="tel:' + h(r.phone) + '">' + h(r.phone) + '</a></td><td>' + h(r.plan) + (r.paying ? ' · paying' : '') + '</td><td class="n">' + h(r.trial) + '</td><td>' + h(r.people) + '</td><td>' + h(r.confirmed) + '</td><td>' + h(r.about) + '</td></tr>').join('') +
+      '</tbody></table>');
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/admin/db-health', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).end();
   const out = { pg: !!process.env.DATABASE_URL };
