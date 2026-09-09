@@ -1398,6 +1398,14 @@ html.no-jms .jms-only{display:none!important}
   animation:spin .8s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+/* "Working…" pill: anything that takes a moment (sending, pushing to Fergus,
+   uploading, building a PDF) says so, so the app never looks frozen. */
+#workingPill{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:100000;
+  display:none;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;
+  background:rgba(10,24,40,.94);color:#fff;font-size:13px;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);pointer-events:none;max-width:90vw;white-space:nowrap}
+#workingPill.on{display:flex}
+#workingPill .spin{width:16px;height:16px;flex:0 0 auto}
 
 /* ── Upload zone ────────────────────────────────────────────── */
 .upload-zone{
@@ -14598,6 +14606,7 @@ function restoreFromJob(j){
     // original, so it stays a preview).
     DRAW.bgImg = null;
     DRAW._pendingView = (snap.draw.view && isFinite(+snap.draw.view.zoom)) ? snap.draw.view : null;
+    DRAW._lastLiveView = null;
     DRAW._bgLoading = false;
     if (snap.draw.bg){
       (function(){
@@ -22794,8 +22803,11 @@ function buildAcceptSummaryRows(){
   var _acScaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
   if (_acScaffBase > 0){
     rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">&#8627; Scaffolding <span style="color:var(--ed-text2)">(edge protection · included in main scope)</span></div>'+
-      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(_acScaffBase*(1+rate))+'</div>'+
+      // Report 47: "scaffolding was counted twice". It was not — but a bold
+      // figure on its own line under the quote total reads as an addition.
+      // Say plainly that it is part of the figure above, and keep it muted.
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2)">&#8627; of which scaffolding (edge protection) <span style="color:var(--ed-text2)">— already in the figure above, not extra</span></div>'+
+      '<div class="ed-serif" style="font-size:12px;font-weight:400;white-space:nowrap;color:var(--ed-text2)">incl. '+fmtMoney(_acScaffBase*(1+rate))+'</div>'+
     '</div>';
   }
   // Selections-page changes (steel / gutter / brackets) — the same
@@ -26078,43 +26090,65 @@ function _setRoofMapSize(sz){
 //
 // It is presentation laid ON TOP of the published frame. The viewBox is never
 // touched here: what the map is a picture OF stays the canvas view.
-function _qpRoofMapView(){
-  var v = (window.S && S.quote && S.quote.roofMapView) || null;
+// Two frames carry the map — the inclusions page and the accept page — and
+// they used to share one placement, so nudging the picture on one moved it on
+// the other. Each frame has a key now: 'main' (page 2, the original field) and
+// 'accept' (the last page, seeded from page 2 the first time it is asked for).
+function _qpRoofMapViewField(key){ return key === 'accept' ? 'roofMapViewAccept' : 'roofMapView'; }
+function _qpRoofMapView(key){
+  var q = (window.S && S.quote) || {};
+  var v = q[_qpRoofMapViewField(key)] || null;
+  if ((!v || typeof v !== 'object') && key === 'accept') v = q.roofMapView || null;
   if (!v || typeof v !== 'object') v = {};
   var z = +v.zoom;
   return { offX: +v.offX || 0, offY: +v.offY || 0, zoom: (isFinite(z) && z > 0) ? z : 1 };
 }
-function _qpRoofMapViewSet(patch){
+function _qpRoofMapViewSet(patch, key){
   if (!S.quote) return;
-  S.quote.roofMapView = Object.assign({}, _qpRoofMapView(), patch || {});
+  S.quote[_qpRoofMapViewField(key)] = Object.assign({}, _qpRoofMapView(key), patch || {});
+}
+// The frame an event or a button belongs to.
+function _qpRoofMapKeyOf(el){
+  try { var f = el && el.closest && el.closest('.qp-map-frame'); return (f && f.getAttribute('data-map-key')) || 'main'; }
+  catch(e){ return 'main'; }
 }
 // Write the transform straight onto what is already on screen rather than
 // re-rendering the proposal, so a drag stays smooth. Mirrors
 // _qpApplySlotTransform. Every frame on the page moves together — the map is
 // one picture that happens to appear on more than one page.
-function _qpApplyRoofMapTransform(){
-  var v = _qpRoofMapView();
-  var t = 'translate(' + v.offX + 'px,' + v.offY + 'px) scale(' + v.zoom + ')';
-  var els = document.querySelectorAll('.qp-map-inner');
-  for (var i = 0; i < els.length; i++) els[i].style.transform = t;
+function _qpApplyRoofMapTransform(key){
+  var frames = document.querySelectorAll('.qp-map-frame');
+  for (var i = 0; i < frames.length; i++){
+    var k = frames[i].getAttribute('data-map-key') || 'main';
+    if (key && k !== key) continue;
+    var v = _qpRoofMapView(k);
+    var inner = frames[i].querySelector('.qp-map-inner');
+    if (inner) inner.style.transform = 'translate(' + v.offX + 'px,' + v.offY + 'px) scale(' + v.zoom + ')';
+  }
 }
-function _qpRoofMapZoom(delta){
+function _qpRoofMapZoom(delta, key){
   if (window.__CUSTOMER_MODE) return;
-  var z = Math.max(0.3, Math.min(4, _qpRoofMapView().zoom + delta));
-  _qpRoofMapViewSet({ zoom: Math.round(z * 100) / 100 });
-  _qpApplyRoofMapTransform();
+  key = key || 'main';
+  var z = Math.max(0.3, Math.min(4, _qpRoofMapView(key).zoom + delta));
+  _qpRoofMapViewSet({ zoom: Math.round(z * 100) / 100 }, key);
+  _qpApplyRoofMapTransform(key);
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _qpRoofMapWheel(e){
   if (window.__CUSTOMER_MODE) return;
   e.preventDefault();
-  _qpRoofMapZoom(e.deltaY > 0 ? -0.08 : 0.08);
+  _qpRoofMapZoom(e.deltaY > 0 ? -0.08 : 0.08, _qpRoofMapKeyOf(e.currentTarget || e.target));
 }
-// Back to the canvas view, which is where every quote starts.
-function _qpRoofMapReset(){
+// Back to the canvas view, which is where every quote starts: the placement
+// goes back to neutral AND the framing is re-read from the canvas as it is
+// now, which is the one way to re-match the quote to a reframed canvas.
+function _qpRoofMapReset(key){
   if (window.__CUSTOMER_MODE) return;
-  _qpRoofMapViewSet({ offX: 0, offY: 0, zoom: 1 });
-  _qpApplyRoofMapTransform();
+  key = key || 'main';
+  _qpRoofMapViewSet({ offX: 0, offY: 0, zoom: 1 }, key);
+  _qpApplyRoofMapTransform(key);
+  try { if (window.DRAW) DRAW._viewTouched = true; } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _qpRoofMapDragStart(e){
@@ -26124,13 +26158,14 @@ function _qpRoofMapDragStart(e){
   // With free layout on, the box this sits in is itself draggable. A drag
   // that starts on the picture moves the picture, not the box.
   e.stopPropagation();
-  var v = _qpRoofMapView();
-  var sx = e.clientX, sy = e.clientY, ox = v.offX, oy = v.offY;
   var box = e.currentTarget;
+  var key = _qpRoofMapKeyOf(box);
+  var v = _qpRoofMapView(key);
+  var sx = e.clientX, sy = e.clientY, ox = v.offX, oy = v.offY;
   box.style.cursor = 'grabbing';
   function onMove(ev){
-    _qpRoofMapViewSet({ offX: ox + (ev.clientX - sx), offY: oy + (ev.clientY - sy) });
-    _qpApplyRoofMapTransform();
+    _qpRoofMapViewSet({ offX: ox + (ev.clientX - sx), offY: oy + (ev.clientY - sy) }, key);
+    _qpApplyRoofMapTransform(key);
   }
   function onUp(){
     window.removeEventListener('mousemove', onMove);
@@ -26148,9 +26183,10 @@ function _qpRoofMapDragStart(e){
 // aspect-ratio because the PDF is an html2canvas capture and html2canvas does
 // not compute aspect-ratio — the same reason the closing photo band is a
 // fixed-height background-cover div.
-function _qpRoofMapFrameHtml(svg, maxH){
+function _qpRoofMapFrameHtml(svg, maxH, key){
   if (!svg) return '';
-  var v = _qpRoofMapView();
+  key = (key === 'accept') ? 'accept' : 'main';
+  var v = _qpRoofMapView(key);
   var cust = !!window.__CUSTOMER_MODE;
   var h = Math.max(80, +maxH || _qpRoofMapMaxH());
   var btn = function(label, call, title, fs){
@@ -26158,7 +26194,7 @@ function _qpRoofMapFrameHtml(svg, maxH){
       'style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;' +
       'cursor:pointer;font-size:' + fs + 'px;line-height:1;display:flex;align-items:center;justify-content:center">' + label + '</button>';
   };
-  return '<div class="qp-map-frame" ' +
+  return '<div class="qp-map-frame" data-map-key="' + key + '" ' +
     (cust ? '' : 'onwheel="_qpRoofMapWheel(event)" onmousedown="_qpRoofMapDragStart(event)" ') +
     'style="position:relative;overflow:hidden;width:100%;height:' + h + 'px;background:#fff;' +
     'border:1px solid var(--ed-line);border-radius:6px;cursor:' + (cust ? 'default' : 'grab') + ';user-select:none">' +
@@ -26168,9 +26204,9 @@ function _qpRoofMapFrameHtml(svg, maxH){
     (cust ? '' :
       '<div class="qp-map-controls no-print" title="Drag the plan to move it; scroll to zoom" ' +
         'style="position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:.8">' +
-        btn('\u2212', '_qpRoofMapZoom(-0.1)', 'Zoom out', 14) +
-        btn('+',       '_qpRoofMapZoom(0.1)',  'Zoom in', 14) +
-        btn('\u21BA', '_qpRoofMapReset()',    'Back to the canvas view', 11) +
+        btn('\u2212', '_qpRoofMapZoom(-0.1,\'' + key + '\')', 'Zoom out', 14) +
+        btn('+',       '_qpRoofMapZoom(0.1,\'' + key + '\')',  'Zoom in', 14) +
+        btn('\u21BA', '_qpRoofMapReset(\'' + key + '\')',    'Back to the canvas view', 11) +
       '</div>') +
   '</div>';
 }
@@ -26430,7 +26466,14 @@ function _qpStashRoofGeom(showBg){
   // quote reproduces that view. Only meaningful when there IS an aerial; a
   // line-drawing map still frames itself around the roofs.
   var view = null;
-  if (bg && _carried){
+  // The quote used to re-read the canvas framing on EVERY render — and the
+  // canvas is re-laid-out whenever a tab or a side panel opens, so simply
+  // leaving the quote and coming back moved the aerial. The framing is now
+  // read from the canvas only when the office has actually zoomed, panned or
+  // turned it (DRAW._viewTouched); otherwise the framing the quote already
+  // has is kept. The map's ↺ button re-reads the canvas on demand.
+  var _keepFrame = !!(bg && !_carried && _prevG && _prevG.view && !DRAW._viewTouched);
+  if (bg && (_carried || _keepFrame)){
     view = _prevG.view || null;
   } else if (bg){
     try {
@@ -26459,7 +26502,7 @@ function _qpStashRoofGeom(showBg){
   // the two pictures came apart the moment the rotate slider was touched. That
   // is why this looked right on "use this view" and wrong after squaring up.
   var rot = 0;
-  if (_carried){
+  if (_carried || _keepFrame){
     rot = +(_prevG.rot) || 0;
   } else {
     try {
@@ -26468,6 +26511,7 @@ function _qpStashRoofGeom(showBg){
     } catch(e){ rot = 0; }
   }
   var R2 = function(v){ return +(+v).toFixed(1); };
+  if (bg && !_carried && !_keepFrame) DRAW._viewTouched = false;   // captured — until the next deliberate change
   S.quote.roofMapGeom = {
     bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
     roofs: roofs.map(function(r){
@@ -26707,7 +26751,7 @@ function _qpInteractiveRoofBlock(opts){
   var _mh = opts.maxH || _qpRoofMapMaxH();
   var svg = _qpRoofMapSvg({ sel: erSel, showBg: _qpRoofMapShowBg(), maxH: _mh, fill: true });
   if (!svg) return '';
-  svg = _qpRoofMapFrameHtml(svg, _mh);
+  svg = _qpRoofMapFrameHtml(svg, _mh, opts.mapKey);
   var legend = (hasExtras || anyExcl)
     ? '<div style="display:flex;gap:16px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);flex-wrap:wrap">'+
         '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span><span style="color:#16a34a;font-weight:800">✓</span> Included</span>'+
@@ -29792,7 +29836,7 @@ function refreshQuoteProposal(){
     // inclusions page, so the customer can still change which roofs to include
     // right before they accept (every total updates live).
     var _accMap = '';
-    try { var _b = _qpInteractiveRoofBlock({ maxH: 210, title: 'Your roof plan' }); if (_b) _accMap = '<div style="margin:4px 0 14px">'+_b+'</div>'; } catch(e){}
+    try { var _b = _qpInteractiveRoofBlock({ maxH: 210, title: 'Your roof plan', mapKey: 'accept' }); if (_b) _accMap = '<div style="margin:4px 0 14px">'+_b+'</div>'; } catch(e){}
     partSignature =
       // Full-height flex column: the flex:1 spacers below spread the summary
       // and accept blocks evenly down the page and push the closing photo
@@ -31252,7 +31296,20 @@ async function _quoteEmailSendNow(){
       : '';
     _quoteEmailStatus('✓ Sent to ' + to + (cc ? ' — copy CC’d to ' + cc : '') + _timing, 'ok');
     _qaMsg('✓ Quote link emailed to ' + to + (cc ? ' — CC’d to ' + cc : ''), true);
-    setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, 1600);
+    // Emailing the quote IS quoting the job: push the pricing to the linked
+    // Fergus job and publish it there, so Fergus marks the job quoted without
+    // a second button. Its own status line says how that went.
+    var _fergusNote = '';
+    if (S.linkedJobId && !window.__CUSTOMER_MODE){
+      try {
+        _quoteEmailStatus('✓ Sent · pushing the pricing to Fergus…');
+        await pushQuotePricingToFergus(null, { silent: true, publish: true });
+        var _pl = (S.quote && S.quote.share && S.quote.share.fergus) || {};
+        _fergusNote = _pl.published === true ? ' · Fergus quote published' : (_pl.published === false ? ' · Fergus quote created (draft — publish it in Fergus)' : ' · pushed to Fergus');
+      } catch(e){ _fergusNote = ' · Fergus push failed — use Push to Fergus'; }
+      _quoteEmailStatus('✓ Sent to ' + to + _fergusNote, 'ok');
+    }
+    setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, _fergusNote ? 2600 : 1600);
   } catch(err){
     var msg = String(err && err.message || err);
     if (msg.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || msg.indexOf('503') !== -1) {
@@ -37353,6 +37410,7 @@ document.addEventListener('mousemove', function(e) {
   var dx = e.clientX - PAN.startX;
   var dy = e.clientY - PAN.startY;
   PAN.totalMoved = (PAN.totalMoved||0) + Math.abs(dx) + Math.abs(dy);
+  DRAW._viewTouched = true;
   IMG_OFFSET.x = PAN.originX + dx;
   IMG_OFFSET.y = PAN.originY + dy;
   redrawAll();
@@ -37502,6 +37560,7 @@ document.addEventListener('mouseup', function(e) {
       // PAN continuation normally lives on document mousemove — replicate.
       var dx = e.clientX - PAN.startX, dy = e.clientY - PAN.startY;
       PAN.totalMoved = (PAN.totalMoved || 0) + Math.abs(dx) + Math.abs(dy);
+      DRAW._viewTouched = true;
       IMG_OFFSET.x = PAN.originX + dx;
       IMG_OFFSET.y = PAN.originY + dy;
       redrawAll();
@@ -46130,6 +46189,7 @@ function _setFineRotate(v){
   var n = Math.round((parseFloat(v) || 0) * 10) / 10;
   if (!isFinite(n)) n = 0;
   n = Math.max(-45, Math.min(100, n));        // the slider reaches 100; the box still takes a small negative
+  if (IMG_FINE_ROTATION !== n) DRAW._viewTouched = true;
   IMG_FINE_ROTATION = n;
   var el = document.getElementById('fineRotate');
   // Don't write back into the box while the user is typing in it — a
@@ -53661,7 +53721,12 @@ function _readFergusMaterialItems(){
 // Assemble Fergus quote sections with individual coded lines: one labour line
 // per worker (labour code/account), one material line per material item + the
 // scaffold + each selection add-on (material code/account).
-function _buildFergusItemisedSections(){
+function _buildFergusItemisedSections(opts){
+  // opts.base: the BASE quote only — labour, material, scaffold, custom lines
+  // — with no selection lines and no gutter itemisation. That is what the
+  // server keeps as the plan for the automatic versions it creates when the
+  // customer picks their options (see share.fergus).
+  var _base = !!(opts && opts.base);
   var k = (S.settings && S.settings.jms_keys) || {};
   var matAcct = k.fergusMaterialsAccountId || '';
   var labAcct = k.fergusLabourAccountId || '';
@@ -53703,7 +53768,7 @@ function _buildFergusItemisedSections(){
   }
   var st = _pricingState(); var L = st.L;
   var p = (S.quote && S.quote.proposalOptions) || {};
-  var gutterOn = !!(p.gutterType && p.gutterType !== 'none');
+  var gutterOn = !_base && !!(p.gutterType && p.gutterType !== 'none');
 
   // ── Roof labour ──
   var roofLabour = [];
@@ -53791,7 +53856,7 @@ function _buildFergusItemisedSections(){
   //    it's already itemised above into Gutter Labour + Gutter Material). ──
   var gmapNames = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
   var gutterTotalLabel = gmapNames[p.gutterType] || '';
-  (typeof _qpSelectionChanges === 'function' ? _qpSelectionChanges() : []).forEach(function(c){
+  ((!_base && typeof _qpSelectionChanges === 'function') ? _qpSelectionChanges() : []).forEach(function(c){
     if (!c.delta || Math.abs(c.delta) <= 0.005) return;
     var lbl = String(c.label || ''), low = lbl.toLowerCase();
     if (gutterOn && lbl === gutterTotalLabel) return;                           // itemised already
@@ -53873,7 +53938,9 @@ function _buildFergusItemisedSections(){
   var _labCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return li.isLabour; }).length; }, 0);
   var _matCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return !li.isLabour; }).length; }, 0);
   return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: _labCount, matCount: _matCount,
-           reconciled: _fgReconcile };
+           reconciled: _fgReconcile,
+           // The exact line shape Fergus accepted, for lines composed elsewhere.
+           template: { mat: matLine('', 1, 0), lab: labLine('', 1, 0, 0) } };
 }
 // An accepted quote pushes itself to Fergus — the customer's own selections
 // and the pricing that goes with them — so nobody has to remember to press
@@ -53916,6 +53983,16 @@ function _fergusAutoPushOnAccept(){
 }
 // Void every quote on the job except `keepId` (skip already-voided and
 // accepted ones). Fergus's void endpoint is POST /jobs/quotes/{id}/void.
+// The same key the server uses to tell whether the customer's picks have
+// changed since Fergus last saw them.
+function _fergusSelKeyOf(po){
+  po = po || {};
+  var pick = {};
+  ['profile', 'steelGrade', 'steelThickness', 'gutterType', 'gutterBracket', 'downpipes'].forEach(function(k){ if (po[k] != null) pick[k] = po[k]; });
+  pick.extras = po.extras || {};
+  pick.extraRoofsSel = po.extraRoofsSel || {};
+  return JSON.stringify(pick);
+}
 async function _fergusVoidOtherQuotes(jobId, keepId){
   var voided = 0;
   try {
@@ -53994,10 +54071,31 @@ async function pushQuotePricingToFergus(btn, opts){
     // draft remains live on the Fergus job.
     var voided = 0;
     if (newId){ try { _qaMsg('Voiding previous quote versions…'); voided = await _fergusVoidOtherQuotes(S.linkedJobId, newId); } catch(e){} }
+    // Publish it, so Fergus marks the job quoted rather than holding a draft.
+    var _published = null;
+    if (newId && opts && opts.publish){
+      try { _qaMsg('Publishing the quote in Fergus…'); var _pr = await api('POST', '/fergus-quote/publish', { quoteId: newId }); _published = !!(_pr && _pr.ok); }
+      catch(e){ _published = false; }
+    }
+    // The plan the server follows when the customer picks their options: the
+    // base sections exactly as pushed, the line shape, and where to push.
+    try {
+      var _basePlan = _buildFergusItemisedSections({ base: true });
+      S.quote.share = S.quote.share || {};
+      S.quote.share.fergus = {
+        jobId: String(S.linkedJobId), rev: S.quote.fergusQuoteRev || 1, lastQuoteId: newId,
+        title: 'Quote ' + (S.quote.ref || '') + ' — ' + (S.quote.client || 'Client'),
+        dueDays: dueDays, notes: _onlineLine + (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
+        baseSections: _basePlan.sections, template: _basePlan.template,
+        selKey: _fergusSelKeyOf(S.quote.proposalOptions), publish: !!(opts && opts.publish),
+        stampedAt: new Date().toISOString(), published: _published,
+      };
+    } catch(e){}
     try { await _savePromise; } catch(e){}   // make sure the backend save landed so the customer link resolves
+    try { if (S.currentJobId) await _publishQuoteOnly(); } catch(e){}   // …and carries the plan
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
-    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + ' · ' + when, true);
+    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + (_published === true ? ' · published' : (_published === false ? ' · still a draft — Fergus did not accept the publish call' : '')) + ' · ' + when, true);
     _tell('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
@@ -56608,6 +56706,7 @@ function renderFlashingsBreakdown() {
 // ── ROOF SHEET PLAN ──────────────────────────────────────────────
 
 function adjustZoom(delta) {
+  DRAW._viewTouched = true;
   DRAW.zoom = Math.max(0.1, Math.min(5, DRAW.zoom + delta));
   document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
   redrawAll();
@@ -56622,13 +56721,24 @@ function adjustZoom(delta) {
 // any canvas.
 function _viewForSave(){
   try {
-    var cv = document.getElementById('roofCanvas'); if (!cv) return null;
+    // A saved view that has not been put on the canvas yet (the job was
+    // opened on another tab, and unlocking it or an autosave saved it
+    // before Map Roof was ever shown) is still THE view. Reading the canvas
+    // now would save the framing of a canvas nobody has looked at — which is
+    // exactly the "opens zoomed to a corner" of report 48.
+    if (DRAW._pendingView && isFinite(+DRAW._pendingView.zoom)) return DRAW._pendingView;
+    var cv = document.getElementById('roofCanvas'); if (!cv) return DRAW._lastLiveView || null;
     var dpr = window.devicePixelRatio || 1, W = cv.width / dpr, H = cv.height / dpr;
-    if (!(W > 10 && H > 10)) return null;
-    var t = getImgTransform(); if (!t) return null;
+    if (!(W > 10 && H > 10)) return DRAW._lastLiveView || null;
+    // Hidden canvas: the last view that was actually on screen is the truth.
+    var r = cv.getBoundingClientRect();
+    if (!(r.width > 10 && r.height > 10) && DRAW._lastLiveView) return DRAW._lastLiveView;
+    var t = getImgTransform(); if (!t) return DRAW._lastLiveView || null;
     var c = canvasToImg([W / 2, H / 2], t);
     var z = (isFinite(+DRAW.zoom) && +DRAW.zoom > 0) ? +DRAW.zoom : 1;
-    return { zoom: Math.round(z * 1000) / 1000, cx: Math.round(c[0] * 10) / 10, cy: Math.round(c[1] * 10) / 10 };
+    var v = { zoom: Math.round(z * 1000) / 1000, cx: Math.round(c[0] * 10) / 10, cy: Math.round(c[1] * 10) / 10 };
+    if (r.width > 10 && r.height > 10) DRAW._lastLiveView = v;
+    return v;
   } catch(e){ return null; }
 }
 // Put a saved view back, or fit the whole drawing when there is none. Runs
@@ -56758,6 +56868,7 @@ function _fitMirrorByPixels(cv){
   }
 }
 function resetZoom() {
+  DRAW._viewTouched = true;
   // "Fit" button — actually fit the drawing to the canvas; only fall back to
   // 100% when there's nothing drawn yet.
   if (fitDrawingToCanvas()) return;
@@ -56776,6 +56887,7 @@ function onCanvasWheel(e) {
   // — and preventDefault keeps the browser from zooming the whole page.
   if (e.ctrlKey) {
     e.preventDefault();
+    DRAW._viewTouched = true;
     var stepC = e.deltaY > 0 ? -0.1 : 0.1;
     DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepC));
     try {
@@ -56801,6 +56913,7 @@ function onCanvasWheel(e) {
     // bg, and needing to switch to Move just to zoom is annoying.
     if (!DRAW.bgImg) {
       e.preventDefault();
+      DRAW._viewTouched = true;
       var stepG = e.deltaY > 0 ? -0.1 : 0.1;
       DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepG));
       try {
@@ -60269,6 +60382,52 @@ renderRoofSwitcher();
 // Time in the app, for the daily activity report. A minute counts when the
 // tab is visible and something was touched in the last five; minutes go up
 // in batches of five, and whatever is left goes when the tab is hidden.
+// ── "Working…" — a spinner for anything that takes a moment ──────────
+// Sending a quote, pushing to Fergus, uploading photos, building a PDF: each
+// used to sit silent for seconds and read as the app hanging. Every one of
+// those entry points is wrapped here: if it runs longer than half a second a
+// pill with a spinner appears at the bottom of the screen and stays until it
+// settles. Wrapped by NAME, so the buttons' own onclick handlers pick it up.
+var _workingDepth = 0;
+function _workingShow(label){
+  var el = document.getElementById('workingPill');
+  if (!el){ el = document.createElement('div'); el.id = 'workingPill'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+  el.innerHTML = '<span class="spin"></span><span>' + String(label || 'Working…').replace(/</g, '&lt;') + '</span>';
+  el.classList.add('on');
+}
+function _workingHide(){ var el = document.getElementById('workingPill'); if (el) el.classList.remove('on'); }
+function _workingWrap(name, label){
+  var orig = window[name];
+  if (typeof orig !== 'function' || orig._workingWrapped) return;
+  var w = function(){
+    var shown = false, finished = false;
+    var showT = setTimeout(function(){ if (finished) return; shown = true; _workingDepth++; _workingShow(label); }, 450);
+    var done = function(){
+      finished = true; clearTimeout(showT);
+      if (shown){ shown = false; _workingDepth = Math.max(0, _workingDepth - 1); }
+      if (_workingDepth === 0) _workingHide();
+    };
+    var r;
+    try { r = orig.apply(this, arguments); } catch(e){ done(); throw e; }
+    if (r && typeof r.then === 'function') r.then(done, done);
+    else done();
+    return r;
+  };
+  w._workingWrapped = true;
+  window[name] = w;
+}
+try {
+  [['_quoteEmailSendNow', 'Sending the quote…'], ['pushQuotePricingToFergus', 'Pushing the pricing to Fergus…'],
+   ['pushQuotePdfToFergus', 'Uploading the quote PDF to Fergus…'], ['pushScopePricingToFergus', 'Uploading the pricing to Fergus…'],
+   ['pushQuoteToJMS', 'Pushing to Fergus…'], ['printQuote', 'Building the quote PDF…'], ['printCustomerQuote', 'Building the quote PDF…'],
+   ['printJobPack', 'Building the job pack…'], ['saveMaterialsAsPdf', 'Building the materials PDF…'],
+   ['saveScopePricingAsPdf', 'Building the pricing PDF…'], ['printOrder', 'Building the order…'],
+   ['emailOrderToSupplier', 'Sending the order…'], ['_sendFeedback', 'Sending your feedback…'],
+   ['_jobPhotosAdd', 'Uploading photos…'], ['addPhotos', 'Adding photos…'], ['addGalleryPhotos', 'Adding photos…'],
+   ['uploadSlotFile', 'Uploading…'], ['_qpCondPhotoUpload', 'Uploading photo…'], ['onRoofImg', 'Loading the picture…'],
+   ['_jmsDiagPdf', 'Building the diagnostic PDF…'], ['saveCurrentJob', 'Saving…']
+  ].forEach(function(pair){ _workingWrap(pair[0], pair[1]); });
+} catch(e){}
 (function _appTime(){
   var lastAct = Date.now(), acc = 0;
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function(ev){

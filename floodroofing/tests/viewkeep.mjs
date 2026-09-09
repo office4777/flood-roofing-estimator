@@ -74,6 +74,29 @@ v = await corners(o.pg);
 check('with an aerial on the job, the saved view is applied once the picture has loaded', Math.abs(v.zoom - 1.5) < 0.01 && Math.abs(v.centre[0] - 1300) <= 1 && Math.abs(v.centre[1] - 1300) <= 1, JSON.stringify({ zoom: v.zoom, centre: v.centre, bg: await o.pg.evaluate(() => !!DRAW.bgImg) }));
 await o.ctx.close();
 
+// ── report 48: a save made before Map Roof was shown keeps the saved view ─
+// The job was opened from Home, unlocked (which saves), and only then was
+// Map Roof opened — zoomed to a corner at 100%. The unlock's save had read
+// the framing of a canvas nobody had looked at and written it over the view
+// the roofer left. A view that has not been applied yet is still the view.
+o = await open(1400);
+await o.pg.evaluate(({ g, png }) => { gotoTab('home'); restoreFromJob({ id: 'j3', client_name: 'R', updated_at: '2026-09-09T00:00:00Z', draw_state: { draw: Object.assign({}, g, { bg: png, bgW: 10, bgH: 10, view: { zoom: 1.5, cx: 1300, cy: 1300 } }) } }); S.jobLocked = false; }, { g: GEOM, png: PNG });
+await o.pg.waitForTimeout(800);
+const early = await o.pg.evaluate(() => snapshotCurrentJob().draw.view);
+check('a save made before Map Roof is shown carries the view the roofer left, not a blind one',
+  !!early && Math.abs(early.zoom - 1.5) < 0.01 && Math.abs(early.cx - 1300) <= 1 && Math.abs(early.cy - 1300) <= 1, JSON.stringify(early));
+await o.pg.evaluate(() => gotoTab('roof'));
+await o.pg.waitForTimeout(1500);
+v = await corners(o.pg);
+check('…and Map Roof then opens on that view', Math.abs(v.zoom - 1.5) < 0.01 && Math.abs(v.centre[0] - 1300) <= 1 && Math.abs(v.centre[1] - 1300) <= 1, JSON.stringify({ zoom: v.zoom, centre: v.centre }));
+// Off the roof tab again, the save still says what was last on screen.
+await o.pg.evaluate(() => gotoTab('quote'));
+await o.pg.waitForTimeout(600);
+const later = await o.pg.evaluate(() => snapshotCurrentJob().draw.view);
+check('…and a save from another tab afterwards still says what was last on screen',
+  !!later && Math.abs(later.zoom - 1.5) < 0.01 && Math.abs(later.cx - 1300) <= 2 && Math.abs(later.cy - 1300) <= 2, JSON.stringify(later));
+await o.ctx.close();
+
 await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

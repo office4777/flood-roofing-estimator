@@ -3199,6 +3199,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     if (type === 'queried') {
       _questionNotify(job, quote, message);
     }
+    // The customer's picks become the next quote version on the Fergus job,
+    // a little after they stop tapping. Never accepted from here.
+    if ((type === 'update' || type === 'accepted') && selections) _fergusAutoVersionSoon(job, quote);
+    if (type === 'accepted' && !selections) _fergusAutoVersionSoon(job, quote);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6302,6 +6306,225 @@ app.all('/fergus/*', requireAuth, requireSubscription,
     res.status(502).json({ error: e.message, host: FERGUS_HOST, path: upstreamPath });
   }
 });
+
+// ── Publishing a Fergus quote ─────────────────────────────────────
+// A quote pushed to Fergus arrives as a Draft, and a job with only a draft on
+// it is not "quoted" in Fergus's eyes. The owner wants the job marked quoted
+// the moment the quote is emailed. The Partner API's publish call is not in
+// the public docs we can reach from here, so this tries the shapes the rest of
+// the quote API uses (void is POST /jobs/quotes/{id}/void) and treats ONLY a
+// 2xx as done. FERGUS_QUOTE_PUBLISH_PATH pins the right one once it is known;
+// nothing here ever accepts a quote — that stays a human decision.
+const FERGUS_PUBLISH_CANDIDATES = [
+  '/jobs/quotes/{id}/publish', '/jobs/quotes/{id}/send', '/jobs/quotes/{id}/status',
+  '/quotes/{id}/publish',
+];
+async function _fergusPublishQuote(fergusKey, quoteId){
+  const id = encodeURIComponent(String(quoteId));
+  const paths = process.env.FERGUS_QUOTE_PUBLISH_PATH
+    ? [process.env.FERGUS_QUOTE_PUBLISH_PATH] : FERGUS_PUBLISH_CANDIDATES;
+  const attempts = [];
+  for (const tpl of paths) {
+    const path = FERGUS_PREFIX + tpl.replace('{id}', id);
+    const body = /\/status$/.test(tpl) ? { status: 'Published' } : {};
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, 'POST', {
+        'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json',
+      }, body);
+      attempts.push({ path: tpl, status: r.status });
+      if (r.status >= 200 && r.status < 300) return { ok: true, path: tpl, status: r.status, attempts };
+      // A rejected key must not be hammered through every candidate.
+      if (r.status === 401 || r.status === 403) return { ok: false, path: tpl, status: r.status, attempts, auth: true };
+    } catch (e) { attempts.push({ path: tpl, error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts };
+}
+app.post('/fergus-quote/publish', requireAuth, requireSubscription,
+  requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
+  const quoteId = String((req.body || {}).quoteId || '').slice(0, 80);
+  if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
+  try { res.json(await _fergusPublishQuote(fergusKey, quoteId)); }
+  catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+
+// ── A customer's selections become a new quote version in Fergus ───
+// The office pushes the quote to Fergus when it is emailed (a Draft, then
+// published), and stamps a PLAN on the share: the base sections exactly as
+// pushed (labour, material, scaffold, custom lines — no selection lines) and
+// the line shape Fergus accepted. When the customer picks a gutter, a grade,
+// an extra roof, the server composes base + the priced deltas for those
+// picks — the same sell prices the customer's own page shows, stamped at
+// send — and creates the next version on the job, voiding the earlier
+// unaccepted ones. It never accepts: the office does that by hand.
+//
+// Debounced per job, because a customer trying the options taps many times
+// in a minute and Fergus should see one version for the pair of minutes.
+const _FERGUS_AUTO_DEBOUNCE_MS = Number(process.env.FERGUS_AUTO_VERSION_DELAY_MS || 45000);
+const _fergusAutoTimers = new Map();
+function _fergusSelKey(po){
+  po = po || {};
+  const pick = {};
+  ['profile', 'steelGrade', 'steelThickness', 'gutterType', 'gutterBracket', 'downpipes'].forEach(k => { if (po[k] != null) pick[k] = po[k]; });
+  pick.extras = po.extras || {};
+  pick.extraRoofsSel = po.extraRoofsSel || {};
+  return JSON.stringify(pick);
+}
+// Port of the app's _qpSelectionChangesPriced: the same labels and deltas,
+// from the same stamped prices.
+function _fergusSelectionChanges(P, quote){
+  const p = (quote && quote.proposalOptions) || {};
+  const out = [];
+  const erSel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
+  (P.extraRoof || []).forEach(function(price, i){
+    if (erSel[i] && price > 0){
+      const nm = (P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2));
+      out.push({ label: 'Optional extra roof — ' + nm, delta: +price, roofName: nm, split: (P.extraRoofSplit || [])[i] || null });
+    }
+  });
+  const baseG = quote.baseGrade || 'maxam';
+  if (p.steelGrade && p.steelGrade !== baseG && P.grade && P.grade[p.steelGrade] != null)
+    out.push({ label: ((P.gradeLabel || {})[p.steelGrade] || p.steelGrade) + ' steel', delta: +P.grade[p.steelGrade] });
+  const lock = (P.profileLocks || {})[p.profile] || '';
+  if (lock) out.push({ label: ((P.profileLabel || {})[p.profile] || p.profile) + ' profile (supplied in 0.' + lock + ' gauge)', delta: +P.gaugeUpgrade || 0 });
+  else if (p.steelThickness && p.steelThickness !== '40') out.push({ label: '0.55 gauge steel', delta: +P.gaugeUpgrade || 0 });
+  if (p.gutterType !== undefined && P.gutter && P.gutter[p.gutterType] != null) {
+    const gd = (P.gutterOverride != null && !P.gutterExcluded) ? +P.gutterOverride : +P.gutter[p.gutterType];
+    out.push({ label: (P.gutterLabel || {})[p.gutterType] || p.gutterType, delta: gd, gutter: true });
+    const up = ((P.gutterUplift || {})[p.gutterType] === false) ? 0 : (+P.scaffoldUplift || 0);
+    if (up > 0) out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: up });
+    if ((p.gutterBracket || 'internal') === 'external') out.push({ label: 'External gutter brackets', delta: +(P.bracketExt || {})[p.gutterType] || 0 });
+    if (p.downpipes === 'yes') out.push({ label: 'New downpipes', delta: +P.downpipes || 0 });
+  }
+  const ex = (p.extras && typeof p.extras === 'object') ? p.extras : {};
+  Object.keys(P.extras || {}).forEach(function(gid){
+    const g = P.extras[gid] || {};
+    const pickId = ex[gid] || g.first;
+    if (!pickId || pickId === g.first) return;
+    const row = (g.rows || {})[pickId];
+    if (!row || !(+row.price)) return;
+    out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
+  });
+  return out;
+}
+function _fergusComposeSections(plan, P, quote){
+  const sections = JSON.parse(JSON.stringify(plan.baseSections || []));
+  let sort = 0;
+  sections.forEach(sec => (sec.lineItems || []).forEach(li => { if ((+li.sortOrder || 0) > sort) sort = +li.sortOrder; }));
+  const tmpl = plan.template || {};
+  const mk = (kind, name, qty, price, cost) => {
+    const base = tmpl[kind] || (kind === 'lab' ? { isLabour: true } : { isLabour: false });
+    const o = Object.assign({}, base);
+    sort += 10;
+    o.itemName = name; o.itemQuantity = +(+qty).toFixed(2) || 0;
+    o.itemPrice = +(+price).toFixed(2) || 0; o.itemRrp = o.itemPrice; o.itemCost = +(+cost || 0).toFixed(2) || 0;
+    o.sortOrder = sort;
+    return o;
+  };
+  const section = (name) => {
+    let sec = sections.find(x => x && x.name === name);
+    if (!sec){ sec = { name, sortOrder: (sections.length + 1) * 10, selectionMode: 'Fixed', lineItems: [] }; sections.push(sec); }
+    return sec;
+  };
+  const labourName = sections.some(x => x.name === 'Roof Labour') ? 'Roof Labour' : 'Labour';
+  const matName    = sections.some(x => x.name === 'Roof Material') ? 'Roof Material' : 'Materials';
+  const changes = _fergusSelectionChanges(P, quote);
+  changes.forEach(c => {
+    if (!c.delta || Math.abs(c.delta) <= 0.005) return;
+    const low = String(c.label || '').toLowerCase();
+    if (c.gutter){ section('Guttering').lineItems.push(mk('mat', 'Guttering — ' + c.label, 1, c.delta)); return; }
+    if (low.indexOf('downpipe') >= 0){ section('Downpipes').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
+    if (low.indexOf('bracket') >= 0){ section('Guttering').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
+    if (low.indexOf('scaffold') >= 0){ section('Scaffolding').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
+    if (c.split && (c.split.materials || c.split.labour || c.split.scaffold)){
+      const rn = c.roofName || c.label;
+      if (c.split.labour)    section(labourName).lineItems.push(mk('lab', rn + ' — roof labour', 1, c.split.labour, 0));
+      if (c.split.materials) section(matName).lineItems.push(mk('mat', rn + ' — roof material', 1, c.split.materials));
+      if (c.split.scaffold)  section('Scaffolding').lineItems.push(mk('mat', rn + ' — scaffolding', 1, c.split.scaffold));
+      const rem = +(c.delta - ((c.split.materials || 0) + (c.split.labour || 0) + (c.split.scaffold || 0))).toFixed(2);
+      if (Math.abs(rem) >= 0.01) section(matName).lineItems.push(mk('mat', rn + ' — rounding', 1, rem));
+      return;
+    }
+    section(matName).lineItems.push(mk('mat', 'Selection — ' + c.label, 1, c.delta));
+  });
+  const deltaSum = changes.reduce((a, c) => a + (+c.delta || 0), 0);
+  return { sections, changes, deltaSum, sub: (+P.base || 0) + deltaSum };
+}
+async function _fergusAutoVersionNow(jobId){
+  _fergusAutoTimers.delete(String(jobId));
+  const { data } = await supabase.from('jobs')
+    .select('id, user_id, company_id, client_name, quote:draw_state->state->quote').eq('id', jobId).limit(1);
+  const job = data && data[0];
+  const quote = _quoteOf(job);
+  const plan = quote && quote.share && quote.share.fergus;
+  if (!job || !quote || !plan || !plan.jobId) return null;
+  const P = quote.share.priced;
+  if (!P || P.v !== 1) return null;
+  if (quote.accepted && plan.auto && plan.auto.acceptedAt === quote.accepted.at) return null;
+  const selKey = _fergusSelKey(quote.proposalOptions);
+  const lastKey = (plan.auto && plan.auto.selKey) || plan.selKey || '';
+  if (selKey === lastKey && !(quote.accepted && !(plan.auto && plan.auto.acceptedAt))) return null;   // Fergus already carries this
+  const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
+  if (!fergusKey) return null;
+  const built = _fergusComposeSections(plan, P, quote);
+  const rev = (+plan.rev || 0) + 1;
+  const gst = built.sub * ((+P.gstRate || 0) / 100);
+  const title = (plan.title || ('Quote ' + (quote.ref || '') + ' — ' + (quote.client || job.client_name || 'Client'))) +
+    ' (v' + rev + (quote.accepted ? ' — accepted selections' : ' — customer’s selections') + ')';
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const r = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/' + encodeURIComponent(String(plan.jobId)) + '/quotes', 'POST', H, {
+    title, sections: built.sections, dueDays: +plan.dueDays || 30, total: +(built.sub + gst).toFixed(2),
+    notes: (plan.notes || '') + '\n\nCustomer selections: ' + built.changes.map(c => c.label).join('; ') + (quote.accepted ? '\nAccepted online by ' + (quote.accepted.name || 'the customer') + ' — accept in Fergus by hand.' : ''),
+    status: 'Draft',
+  });
+  if (!(r.status >= 200 && r.status < 300)) throw new Error('Fergus quote create failed (HTTP ' + r.status + '): ' + String(r.body || '').slice(0, 200));
+  let newId = null;
+  try { const parsed = JSON.parse(r.body || '{}'); newId = (parsed && ((parsed.data && parsed.data.id) || parsed.id)) || null; } catch (e) {}
+  let voided = 0;
+  if (newId){
+    try {
+      const lr = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/' + encodeURIComponent(String(plan.jobId)) + '/quotes', 'GET', H);
+      const list = JSON.parse(lr.body || '{}');
+      const quotes = (list && (list.data || list.value || list.quotes)) || [];
+      for (const q of quotes){
+        if (!q || !q.id || String(q.id) === String(newId) || q.voidedAt || q.isVoided || q.isAccepted || q.acceptedAt) continue;
+        const vr = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/quotes/' + encodeURIComponent(String(q.id)) + '/void', 'POST', H, {});
+        if (vr.status >= 200 && vr.status < 300) voided++;
+      }
+    } catch (e) {}
+  }
+  let published = null;
+  if (newId && plan.publish){ try { published = (await _fergusPublishQuote(fergusKey, newId)).ok; } catch (e) { published = false; } }
+  plan.rev = rev;
+  plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published,
+                acceptedAt: quote.accepted ? quote.accepted.at : null, total: +(built.sub + gst).toFixed(2) };
+  quote.share.fergus = plan;
+  if (!Array.isArray(quote.share.events)) quote.share.events = [];
+  quote.share.events.push({ type: 'fergus-version', at: plan.auto.at,
+    message: 'Quote v' + rev + ' created in Fergus for the customer’s selections' + (voided ? ' (' + voided + ' older voided)' : '') + (published ? ', published' : '') });
+  if (quote.share.events.length > 80) quote.share.events = quote.share.events.slice(-80);
+  await _saveQuoteBack(job, quote);
+  return plan.auto;
+}
+function _fergusAutoVersionSoon(job, quote){
+  try {
+    const plan = quote && quote.share && quote.share.fergus;
+    if (!job || !plan || !plan.jobId) return false;
+    if (process.env.FERGUS_AUTO_VERSION === 'false') return false;
+    const key = String(job.id);
+    const prev = _fergusAutoTimers.get(key);
+    if (prev) clearTimeout(prev);
+    const t = setTimeout(() => {
+      _fergusAutoVersionNow(job.id).catch(e => {
+        try { recordError('server', new Error('Fergus auto version failed: ' + (e && e.message || e)), { route: '/q/:token/event', company: job.company_id || '' }); } catch (e2) {}
+      });
+    }, _FERGUS_AUTO_DEBOUNCE_MS);
+    if (t.unref) t.unref();
+    _fergusAutoTimers.set(key, t);
+    return true;
+  } catch (e) { return false; }
+}
 
 // Fergus file uploads. The generic /fergus/* proxy above forwards JSON
 // bodies only — but file attachments need multipart/form-data, so this
