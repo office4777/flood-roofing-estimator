@@ -1405,6 +1405,13 @@ html.no-jms .jms-only{display:none!important}
   background:rgba(10,24,40,.94);color:#fff;font-size:13px;font-weight:600;
   box-shadow:0 8px 24px rgba(0,0,0,.28);pointer-events:none;max-width:90vw;white-space:nowrap}
 #workingPill.on{display:flex}
+/* Loading ring inside a dialog: fills over ~12 s so a long send visibly moves. */
+.ld-ring{width:22px;height:22px;border-radius:50%;flex:0 0 auto;
+  background:conic-gradient(#0099cc var(--ld-p,0%), #dbe3ea 0);
+  -webkit-mask:radial-gradient(circle 7px, transparent 6.5px, #000 7px);mask:radial-gradient(circle 7px, transparent 6.5px, #000 7px);
+  animation:ld-fill 12s linear forwards, spin 1.2s linear infinite}
+@property --ld-p{syntax:'<percentage>';inherits:false;initial-value:0%}
+@keyframes ld-fill{from{--ld-p:0%}to{--ld-p:100%}}
 #workingPill .spin{width:16px;height:16px;flex:0 0 auto}
 
 /* ── Upload zone ────────────────────────────────────────────── */
@@ -31202,6 +31209,14 @@ function _quoteEmailStatus(text, kind){
   if (!el) return;
   if (!text){ el.style.display = 'none'; el.textContent = ''; return; }
   el.style.display = 'block'; el.style.whiteSpace = 'pre-line'; el.textContent = text;
+  // While it is working, a ring fills over about twelve seconds beside the
+  // words — the popup itself shows the app is busy, not just a pill at the
+  // bottom of the screen that a phone may not show.
+  if (kind !== 'err' && kind !== 'ok'){
+    el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '10px';
+    var ring = document.createElement('span'); ring.className = 'ld-ring'; ring.setAttribute('aria-hidden', 'true');
+    el.insertBefore(ring, el.firstChild);
+  }
   el.style.background = kind === 'err' ? '#fef2f2' : kind === 'ok' ? '#ecfdf5' : '#f1f5f9';
   el.style.color      = kind === 'err' ? '#b91c1c' : kind === 'ok' ? '#047857' : '#334155';
   el.style.border     = '1px solid ' + (kind === 'err' ? '#fecaca' : kind === 'ok' ? '#a7f3d0' : '#e2e8f0');
@@ -53912,7 +53927,14 @@ function _buildFergusItemisedSections(opts){
   // line rather than a total nobody can reconcile.
   var _fgReconcile = null;
   try {
-    var _quoteSub = (typeof quoteSubtotal === 'function') ? (parseFloat(quoteSubtotal()) || 0) : 0;
+    // The quote the customer holds is base + their selections (_quoteMoney);
+    // the lines above carry those selections too. Reconciling against the
+    // base ALONE wrote one line of "Adjustment to quoted total −$12,996.41"
+    // that cancelled every selection on the Fergus quote. The base plan (no
+    // selection lines) reconciles against the base.
+    var _quoteSub = _base
+      ? ((typeof quoteSubtotal === 'function') ? (parseFloat(quoteSubtotal()) || 0) : 0)
+      : ((typeof _quoteMoney === 'function') ? (parseFloat(_quoteMoney().sub) || 0) : 0);
     if (_quoteSub > 0){
       var _sumAll = function(arr){ return arr.reduce(function(a, li){ return a + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0); };
       var _lineSum = _sumAll(roofLabour) + _sumAll(roofMat) + _sumAll(scaff) +

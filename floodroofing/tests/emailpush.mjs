@@ -64,6 +64,7 @@ await pg.evaluate(() => { openQuoteEmail(); document.getElementById('quoteEmailT
 const pillSeen = { during: false };
 const watcher = (async () => { for (let i = 0; i < 40; i++){ await pg.waitForTimeout(100); if (await pg.evaluate(() => { const p = document.getElementById('workingPill'); return !!(p && p.classList.contains('on') && /Sending|Pushing|Publishing/.test(p.textContent)); })) pillSeen.during = true; } })();
 const sendP = pg.evaluate(() => _quoteEmailSendNow());
+const ringP = (async () => { for (let i = 0; i < 30; i++){ await pg.waitForTimeout(100); if (await pg.evaluate(() => !!document.querySelector('#quoteEmailStatus .ld-ring'))) return true; } return false; })();
 await sendP;
 const status = await pg.evaluate(() => (document.getElementById('quoteEmailStatus') || {}).textContent || '');
 await watcher;
@@ -80,6 +81,22 @@ const stamped = calls.filter(c => c.kind === 'publishQuote').some(c => c.body &&
 check('…published to the customer link, so the server can read it', stamped);
 check('the send dialog says so', /Fergus quote published/.test(status), status);
 check('the "working" spinner showed while it ran', pillSeen.during);
+check('…and the popup itself shows a loading ring while sending', await ringP);
+check('…which is gone from the finished message', !/ld-ring/.test(await pg.evaluate(() => (document.getElementById('quoteEmailStatus') || {}).innerHTML || '')) || /Sent/.test(status));
+// The pushed pricing must equal the quote the customer holds — base PLUS
+// their selections. It was reconciled to the base alone, so one line of
+// "Adjustment to quoted total −$12,996" cancelled every selection in Fergus.
+const recon = await pg.evaluate(() => {
+  S.quote.proposalOptions = { steelGrade: 'maxam', gutterType: 'box125', downpipes: 'yes' };
+  S.quote.share = S.quote.share || {}; delete S.quote.share.priced;   // live calc
+  const b = _buildFergusItemisedSections();
+  const sum = b.sections.reduce((a, s) => a + s.lineItems.reduce((c, li) => c + li.itemQuantity * li.itemPrice, 0), 0);
+  const adj = b.sections.flatMap(s => s.lineItems).find(li => /Adjustment to quoted total/.test(li.itemName));
+  return { sum, quote: _quoteMoney().sub, base: quoteSubtotal(), adj: adj ? adj.itemPrice : 0 };
+});
+check('THE FIX: the pushed lines add up to the quote WITH the customer’s selections, not the base alone',
+  Math.abs(recon.sum - recon.quote) < 0.02 && recon.quote > recon.base, JSON.stringify(recon));
+check('…so no adjustment line cancels the selections', Math.abs(recon.adj) < Math.max(1, recon.quote - recon.base) * 0.5, 'adjustment $' + recon.adj);
 check('…and is gone once it settled', await pg.evaluate(() => { const p = document.getElementById('workingPill'); return !p || !p.classList.contains('on'); }));
 
 // ── the spinner is a general thing: any slow wrapped call shows it, a fast one never flickers ──
