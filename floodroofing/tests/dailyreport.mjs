@@ -36,6 +36,10 @@ const db = {
     { id: 'u3', email: 'jo@bay.co.nz',        name: 'Jo Hemi',    phone: '',        company_id: C3, verify_pending: false },
     { id: 'u4', email: 'ana@hokianga.co.nz',  name: 'Ana Wiremu', phone: '022 444', company_id: C4, verify_pending: false },
     { id: 'u5', email: 'ben@northland.co.nz', name: 'Ben Tane',   phone: '',        company_id: C1, verify_pending: false },
+    // The founding account: on the business by profile.company_id only —
+    // there is no company_users row for it. Its owner's own activity was
+    // missing from his own report.
+    { id: 'u6', email: 'aron@northland.co.nz', name: 'Aron Tane', phone: '',        company_id: C1, verify_pending: false },
   ],
   company_users: [
     { company_id: C1, user_id: 'u1', role: 'owner' }, { company_id: C1, user_id: 'u5', role: 'member' },
@@ -58,6 +62,10 @@ const db = {
     { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(9),  props: { minutes: 5 } },
     { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(10), props: { minutes: 5 } },
     { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(11), props: { minutes: 3 } },
+    { user_id: 'u6', company_id: C1, name: 'canvas_used',   at: inY(15), props: {} },
+    { user_id: 'u6', company_id: C1, name: 'app_time',      at: inY(15), props: { minutes: 5 } },
+    // Somebody nobody's list knows: events with a user id and no profile.
+    { user_id: 'u-stray', company_id: null, name: 'login',  at: inY(16), props: {} },
     { user_id: 'u2', company_id: C2, name: 'login',         at: inY(10), props: {} },
     { user_id: 'u2', company_id: C2, name: 'canvas_used',   at: inY(10), props: {} },
     // the day before, and today: not yesterday
@@ -103,6 +111,12 @@ const jo = rep.users.find(u => u.email === 'jo@bay.co.nz'), ana = rep.users.find
 check('…counting only yesterday: the day before and today do not show', jo && jo.logins === 0 && ana && ana.logins === 0, JSON.stringify([jo && jo.logins, ana && ana.logins]));
 check('…every member of a business is listed, quiet ones included', !!ben && ben.company === 'Northland Roofing' && ben.minutes === 0);
 check('…and the busiest person is first', rep.users[0].email === 'sam@northland.co.nz', rep.users[0].email);
+const aron = rep.users.find(u => u.email === 'aron@northland.co.nz');
+check('THE FIX: an owner on the business by profile alone is listed with his activity',
+  !!aron && aron.company === 'Northland Roofing' && aron.canvas === 1 && aron.minutes === 5, JSON.stringify(aron));
+const stray = rep.users.find(u => u.email === 'u-stray');
+check('…and somebody who did something but is on no business still shows, saying so',
+  !!stray && stray.logins === 1 && /not on any business/.test(stray.company), JSON.stringify(stray));
 check('a day can be asked for by date', (await (await fetch(BASE + '/admin/daily' + T + '&date=' + shiftDate(Y, -1))).json()).date === shiftDate(Y, -1));
 check('…and not without the token', (await fetch(BASE + '/admin/daily')).status === 404);
 
@@ -124,13 +138,27 @@ check('the send is recorded, with the day it was for', !!st && st.value.for_date
 const { createDaily } = require('./daily.js');
 const relayHits = sent.length;
 const D2 = createDaily({ supabase: require('@supabase/supabase-js').createClient(process.env.SUPABASE_URL, 'k'), dispatchMail: async () => { sent.push({ fake: true }); }, defaultTo: 'support@roofmap.co.nz' });
-const sixAm = nzMidnightUtc(today) + 6 * 3600e3 + 60e3, fiveAm = nzMidnightUtc(today) + 5 * 3600e3;
-check('not due before 6am New Zealand time', (await D2.due(fiveAm)) === false);
+const sixAm = nzMidnightUtc(today) + 3 * 3600e3 + 60e3, fiveAm = nzMidnightUtc(today) + 2 * 3600e3;
+check('not due before 3am New Zealand time', (await D2.due(fiveAm)) === false);
 check('…and not due again today once sent', (await D2.due(sixAm)) === false);
 db.platform_state.length = 0;
-check('…but due after 6am when today\'s has not gone', (await D2.due(sixAm)) === true);
+check('…but due after 3am when today\'s has not gone', (await D2.due(sixAm)) === true);
 const ticked = await D2.tick();
 check('tick sends it exactly once', ticked === true && sent.length === relayHits + 1 && (await D2.tick()) === false && sent.length === relayHits + 1);
+// The 6:44 of the 10th: the watermark write was lost in a database outage,
+// the next tick found no watermark, and every read came back empty — so a
+// second report went out reading "0 of 0 people did something".
+db.platform_state.length = 0;                     // the watermark is gone
+check('…and a lost watermark does not make the same process send again', (await D2.due(sixAm)) === false && (await D2.tick()) === false && sent.length === relayHits + 1);
+const D3 = createDaily({ supabase: require('@supabase/supabase-js').createClient(process.env.SUPABASE_URL, 'k'), dispatchMail: async () => { sent.push({ fake: true }); }, defaultTo: 'support@roofmap.co.nz' });
+db.__fail500 = 'companies';
+const t3 = await D3.tick();
+db.__fail500 = '';
+check('…and a fresh process with the database down sends nothing rather than an empty report', t3 === false && sent.length === relayHits + 1, sent.length + ' sent');
+db.__fail500 = 'platform_state';
+const t4 = await D3.tick();
+db.__fail500 = '';
+check('…nor when it cannot read the watermark to know whether today has gone', t4 === false && sent.length === relayHits + 1);
 
 await new Promise(x => setTimeout(x, 200));
 const bad = results.filter(x => !x).length;

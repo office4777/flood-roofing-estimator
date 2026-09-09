@@ -40,7 +40,7 @@ function createDaily(deps){
   const buildSha = deps.buildSha || '';
   const TO = (process.env.DAILY_REPORT_TO || deps.defaultTo || 'support@roofmap.co.nz').trim();
   const FROM = (process.env.METRICS_EMAIL_FROM || process.env.ACCOUNTS_EMAIL || 'accounts@roofmap.co.nz').trim();
-  const SEND_HOUR = Math.min(23, Math.max(0, parseInt(process.env.DAILY_REPORT_HOUR, 10) >= 0 ? parseInt(process.env.DAILY_REPORT_HOUR, 10) : 6));
+  const SEND_HOUR = Math.min(23, Math.max(0, parseInt(process.env.DAILY_REPORT_HOUR, 10) >= 0 ? parseInt(process.env.DAILY_REPORT_HOUR, 10) : 3));
   const SUBJECT = 'Activity daily report';
 
   async function rows(table, select, build){
@@ -50,7 +50,13 @@ function createDaily(deps){
       const r = await q;
       if (r.error) throw new Error(r.error.message);
       return r.data || [];
-    } catch (e){ warn('[daily] ' + table + ': ' + e.message); return []; }
+    } catch (e){
+      // A read that fails is not an empty table. The 6:44 report of the 10th
+      // went out during a database outage as "0 of 0 people did something",
+      // because every table came back empty and the report believed it.
+      warn('[daily] ' + table + ': ' + e.message);
+      throw new Error('could not read ' + table + ': ' + e.message);
+    }
   }
 
   // The report for one New Zealand calendar day (yesterday, unless asked).
@@ -71,7 +77,13 @@ function createDaily(deps){
 
     // What each business is: a trial with days left, expired, or paying on a plan.
     const companies = cos.map(function(c){
+      // Membership is company_users, plus anyone whose profile says they
+      // belong here — the founding accounts predate company_users, and the
+      // owner's own activity was missing from his own report for that.
       const members = links.filter(l => l.company_id === c.id);
+      profs.forEach(function(p){
+        if (p.company_id === c.id && !members.some(m => m.user_id === p.id)) members.push({ company_id: c.id, user_id: p.id, role: 'member' });
+      });
       const owner = members.find(m => m.role === 'owner') || members[0] || null;
       const sub = subs.find(x => x.company_id === c.id) || (owner && subs.find(x => x.user_id === owner.user_id)) || null;
       const paidPlan = c.plan && PLAN_PRICE[c.plan] != null ? c.plan : null;
@@ -114,11 +126,30 @@ function createDaily(deps){
         });
       });
     });
+    // Somebody who did something yesterday but is on no business's list is
+    // still shown — a row that says "not on any business" beats a row that
+    // is silently missing.
+    const listed = new Set(users.map(u => u.email));
+    const seen = new Set();
+    evs.forEach(function(e){
+      if (!e.user_id || seen.has(e.user_id)) return;
+      seen.add(e.user_id);
+      const p = profById.get(e.user_id);
+      const email = (p && p.email) || e.user_id;
+      if (listed.has(email) || users.some(u => u.email === email)) return;
+      const co = e.company_id ? byId.get(e.company_id) : null;
+      users.push({
+        company: co ? co.name : '(not on any business)', company_status: co ? co.status : 'unknown', plan: co ? co.plan : 'unknown', trial_days_left: co ? co.trial_days_left : null,
+        name: (p && p.name) || '', email,
+        logins: count(e.user_id, 'login'), canvas: count(e.user_id, 'canvas_used'), quotes: count(e.user_id, 'quote_sent'),
+        orders: count(e.user_id, 'order_sent'), feedback: count(e.user_id, 'feedback_sent'), minutes: minutes(e.user_id),
+      });
+    });
     users.sort((a, b) => (b.minutes + b.logins * 5) - (a.minutes + a.logins * 5) || a.company.localeCompare(b.company));
     const active = users.filter(u => u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
 
     return { date, nice: nzNice(date), range: { from: new Date(from).toISOString(), to: new Date(to).toISOString() },
-      new_trials: newTrials, trials, paid, mrr, users, active_count: active.length, events: evs.length, build: buildSha };
+      new_trials: newTrials, trials, paid, mrr, users, active_count: active.length, events: evs.length, businesses: cos.length, build: buildSha };
   }
 
   function planWord(c){
@@ -183,17 +214,20 @@ function createDaily(deps){
       '<p class="ft">Sent every morning at ' + SEND_HOUR + ':00 NZ time · logins and minutes count from the day this report shipped · build ' + h(rep.build || '—') + '</p></div></body></html>';
   }
 
-  async function getState(key){
-    try { const r = await supabase.from('platform_state').select('value').eq('key', key).maybeSingle(); if (r.error) return null; return (r.data && r.data.value) || null; }
-    catch (e){ return null; }
+  async function getState(key, strict){
+    try { const r = await supabase.from('platform_state').select('value').eq('key', key).maybeSingle(); if (r.error) return strict ? undefined : null; return (r.data && r.data.value) || null; }
+    catch (e){ return strict ? undefined : null; }
   }
   async function setState(key, value){
     try { const r = await supabase.from('platform_state').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' }); if (r.error) throw new Error(r.error.message); }
     catch (e){ warn('[daily] could not record the send: ' + e.message); }
   }
+  let _sentFor = null;   // the date this process last sent for — survives a failed watermark write
   async function sendNow(dateStr){
     const rep = await collect(dateStr);
+    if (!rep.businesses && !rep.users.length) throw new Error('nothing to report on — the reads came back empty, not sending');
     await dispatchMail({ to: TO, subject: SUBJECT, text: renderText(rep), html: renderHtml(rep), fromName: 'RoofMap', fromAddress: FROM, replyTo: FROM });
+    _sentFor = rep.date;
     await setState('daily_report', { last_sent_at: new Date().toISOString(), for_date: rep.date, to: TO });
     return rep;
   }
@@ -203,8 +237,11 @@ function createDaily(deps){
   async function due(nowMs){
     const t = nzParts(new Date(nowMs));
     if (t.hour < SEND_HOUR) return false;
-    const st = await getState('daily_report');
-    return !st || st.for_date !== shiftDate(t.date, -1);
+    const forDate = shiftDate(t.date, -1);
+    if (_sentFor === forDate) return false;
+    const st = await getState('daily_report', true);
+    if (st === undefined) return false;          // could not read the watermark — do not guess
+    return !st || st.for_date !== forDate;
   }
   async function tick(){
     try {

@@ -9397,7 +9397,7 @@ const METRICS = require('./metrics').createMetrics({
   warn: function(m){ console.warn(m); },
 });
 
-// The daily activity report: 6am NZ, to support@. ?date=YYYY-MM-DD for a
+// The daily activity report: 3am NZ (DAILY_REPORT_HOUR), to support@. ?date=YYYY-MM-DD for a
 // particular day; the preview shows it in a browser; send fires it now.
 const DAILY = require('./daily').createDaily({
   supabase: supabase, dispatchMail: _dispatchMail, buildSha: BUILD_SHA, defaultTo: MAIL_SUPPORT,
