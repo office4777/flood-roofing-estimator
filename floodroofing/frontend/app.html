@@ -41277,6 +41277,14 @@ function _untitledOnDraw(){
 }
 function _pushSnap(snapStr) {
   try { _untitledOnDraw(); } catch(e){}
+  // For the daily activity report: this person drew on the canvas today.
+  // Once per half hour, so a busy hour is one event, not two hundred.
+  try {
+    if (localStorage.getItem('fr_token') && (!window._canvasUsedAt || Date.now() - _canvasUsedAt > 30 * 60e3)){
+      window._canvasUsedAt = Date.now();
+      api('POST', '/usage', { name: 'canvas_used' }).catch(function(){});
+    }
+  } catch(e){}
   if (!snapStr) return;
   DRAW.undoStack.push(snapStr);
   DRAW.redoStack = [];
@@ -60235,6 +60243,30 @@ renderRoofSwitcher();
 // Site mode is left alone: it already carries its own hand-set offsets
 // (--qbar-top, and #jpToolbar's own top), which were sized for this bar.
 // Adding a measured height on top of those would count it twice.
+// Time in the app, for the daily activity report. A minute counts when the
+// tab is visible and something was touched in the last five; minutes go up
+// in batches of five, and whatever is left goes when the tab is hidden.
+(function _appTime(){
+  var lastAct = Date.now(), acc = 0;
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function(ev){
+    document.addEventListener(ev, function(){ lastAct = Date.now(); }, { passive: true, capture: true });
+  });
+  function flush(){
+    if (!acc) return;
+    var m = acc; acc = 0;
+    try { if (localStorage.getItem('fr_token')) api('POST', '/usage', { name: 'app_time', minutes: m }).catch(function(){}); } catch(e){}
+  }
+  function tick(){
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastAct > 5 * 60e3) return;
+    try { if (!localStorage.getItem('fr_token')) return; } catch(e){ return; }
+    acc++;
+    if (acc >= 5) flush();
+  }
+  setInterval(tick, 60e3);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') flush(); });
+  window._appTimeTick = tick; window._appTimeFlush = flush;   // the suites drive the clock
+})();
 (function _trackGlobalBarHeight(){
   var apply = function(){
     var bar = document.getElementById('globalTopBar');

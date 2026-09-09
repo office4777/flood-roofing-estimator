@@ -242,6 +242,7 @@ const prof = db.profiles.find(p => p.email === 'kiri@kiriroofing.co.nz');
 check('…and the profile records it', prof && prof.verify_pending === false && !!prof.email_verified_at, JSON.stringify(prof));
 const later = await login({ email: 'kiri@kiriroofing.co.nz', password: 'password123' });
 check('…after which a normal sign-in works', later.status === 200 && !!(await later.json()).token, 'status ' + later.status);
+check('…and a sign-in is counted for the daily activity report', db.usage_events.some(e => e.name === 'login' && e.user_id === (oj.user || {}).id), JSON.stringify(db.usage_events.filter(e => e.name === 'login').length));
 process.env.VERIFY_EMAIL = 'false';
 
 // ── the list of everyone, for the owner ──────────────────────────

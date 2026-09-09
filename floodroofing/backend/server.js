@@ -1913,6 +1913,7 @@ app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
     const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: await _tokenVersion(payload.id) }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
     res.json({ token: authToken, user: { ...(profile || { id: payload.id, email: payload.email }), company_id: cid }, company: await _companyBrief(cid, payload.id) });
+    recordUsage('login', { companyId: cid, user: { id: payload.id } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 // POST /auth/verify/resend { email } → another link, if that address is still
@@ -2007,6 +2008,7 @@ app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey),
     const sub = await _companySubscription(cid, userId);
     const token = jwt.sign({ id: userId, email, cid, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { ...profile, company_id: cid }, subscription: sub, company: await _companyBrief(cid, userId) });
+    recordUsage('login', { companyId: cid, user: { id: userId } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -8052,6 +8054,7 @@ app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
     };
     const info = await _dispatchMail(mail);
     res.json({ ok: true, id: (info && info.messageId) || null, to: MAIL_SUPPORT, replyTo: mail.replyTo || null });
+    recordUsage('feedback_sent', req);
   } catch (e) {
     console.error('feedback email failed:', e.message);
     res.status(502).json({ error: 'Email send failed: ' + e.message });
@@ -9059,6 +9062,11 @@ const USAGE_EVENTS = [
   'order_sent',       // material ordered — the far end of the workflow
   'waitlist_submit',  // a roofer asked for a setup call — the top of the funnel
   'ai_call',          // one AI request, so a free trial's daily cap can be counted
+  // The daily activity report (daily.js): who did what yesterday.
+  'login',            // a password sign-in, or the emailed confirmation link
+  'canvas_used',      // drew on the canvas (once per half hour per person)
+  'feedback_sent',    // a feedback report went to support
+  'app_time',         // props.minutes of active time in the app, in small batches
 ];
 async function recordUsage(name, req, props){
   try {
@@ -9079,9 +9087,11 @@ app.post('/usage', requireAuth, (req, res) => {
   // Only these two — every other name is recorded at the route that does the
   // thing, and accepting arbitrary names here is how an event pipe turns into
   // page tracking.
-  if (name !== 'sample_opened' && name !== 'roof_drawn') return res.status(400).json({ error: 'Unknown event' });
+  if (['sample_opened', 'roof_drawn', 'canvas_used', 'app_time'].indexOf(name) < 0) return res.status(400).json({ error: 'Unknown event' });
   res.json({ ok: true });
-  recordUsage(name, req);
+  // Minutes come in batches of a few; anything bigger is a bug or a script.
+  const props = name === 'app_time' ? { minutes: Math.max(1, Math.min(10, Math.round(Number((req.body || {}).minutes) || 1))) } : undefined;
+  recordUsage(name, req, props);
 });
 
 // The privacy policy says these are kept for 24 months. A retention period
@@ -9141,6 +9151,32 @@ const METRICS = require('./metrics').createMetrics({
   usageEvents: USAGE_EVENTS,
   buildSha: BUILD_SHA,
   warn: function(m){ console.warn(m); },
+});
+
+// The daily activity report: 6am NZ, to support@. ?date=YYYY-MM-DD for a
+// particular day; the preview shows it in a browser; send fires it now.
+const DAILY = require('./daily').createDaily({
+  supabase: supabase, dispatchMail: _dispatchMail, buildSha: BUILD_SHA, defaultTo: MAIL_SUPPORT,
+  warn: function(m){ console.warn(m); },
+});
+app.get('/admin/daily', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await DAILY.collect(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : undefined)); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/admin/daily/preview', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const rep = await DAILY.collect(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : undefined);
+    if (String(req.query.format || '') === 'text') res.type('text/plain').send(DAILY.renderText(rep));
+    else res.type('html').send(DAILY.renderHtml(rep));
+  } catch (e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/admin/daily/send', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { const rep = await DAILY.sendNow(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : undefined);
+    res.json({ ok: true, to: DAILY.config.to, subject: DAILY.config.subject, date: rep.date, users: rep.users.length, mrr: rep.mrr }); }
+  catch (e){ res.status(500).json({ error: e.message }); }
 });
 
 // The report as JSON, for looking at it without waiting until Monday.
@@ -9752,6 +9788,7 @@ app.listen(PORT, () => {
   // hasn't gone out in six days — deliberately NOT on boot, so a Monday
   // morning redeploy can't send a second copy of an email already sent.
   try { METRICS.start(); } catch(e){ console.warn('[metrics] schedule not started: ' + e.message); }
+  try { DAILY.start(); } catch(e){ console.warn('[daily] schedule not started: ' + e.message); }
   // Quote follow-up reminders: hourly check, DB watermark, deliberately not
   // on boot — a deploy storm must not turn into an email storm.
   const _remKick = setTimeout(function(){ _reminderTick(); }, 5 * 60e3);
