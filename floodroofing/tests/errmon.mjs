@@ -217,6 +217,32 @@ check('…and ?migrate=1 reports why the migration cannot run here',
     typeof h.mail.alertsGoElsewhere === 'boolean', String(h.mail.alertsGoElsewhere));
 }
 
+// ── one outage, one alert ──────────────────────────────────────────
+// A database or proxy blip arrived as four emails in four minutes: "upstream
+// request timeout", "fetch failed", the photo-keep 503, and Cloudflare's
+// whole HTML error page as the SUBJECT. One incident, one shape, one alert —
+// and never a page of markup in a subject line.
+{
+  alerts.length = 0;
+  // A fresh address: the per-IP limit is already spent by the noise above.
+  const post = (message) => fetch(BASE + '/client-error', { method:'POST', headers:{'Content-Type':'application/json', 'x-forwarded-for':'203.0.113.46'},
+    body: JSON.stringify({ message, stack:'', url:'https://roofmap.co.nz/app', where:'roof' }) });
+  await post('<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<html>');
+  await post('upstream request timeout');
+  await post('TypeError: fetch failed');
+  await post('Could not read the job to keep its photos — try again.');
+  await settle();
+  const adm2 = (await api('GET','/admin/errors?token=let-me-in-please-0000')).body;
+  const outage = adm2.recent.filter(x => /^Upstream (unavailable|returned an HTML error page)/.test(x.message || ''));
+  check('the four faces of one outage are recorded as one shape',
+    outage.length === 4 && new Set(outage.map(x => x.fingerprint)).size === 1,
+    outage.length + ' recorded, ' + new Set(outage.map(x => x.fingerprint)).size + ' fingerprint(s)');
+  check('…announced once, not four times', alerts.length === 1, alerts.length + ' alerts');
+  const line1 = ((alerts[0] || {}).text || '').split('\n')[0];
+  check('…and the subject is one plain line, not a page of markup',
+    line1.length > 0 && !/<|\n/.test(line1) && /Upstream/.test(line1), line1);
+}
+
 // ── the recorder cannot be used to bring the server down ──────────
 // /client-error is deliberately open, because a crash on the login screen is
 // the one most worth hearing about. That means the message and the stack are

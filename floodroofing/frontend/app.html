@@ -9708,6 +9708,19 @@ function _navWhoSync(){
     var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
     who.textContent = u.email || u.name || '—';
     who.title = 'Signed in as ' + (u.email || '') + (u.name ? (' — ' + u.name) : '');
+    // A login stored before the address was kept shows a dash (report 46's
+    // screenshots). Ask the server once and fill it in.
+    if (!u.email && !u.name && !window._navWhoAsked && localStorage.getItem('fr_token')){
+      window._navWhoAsked = true;
+      api('GET', '/auth/me').then(function(d){
+        var p = d && d.user; if (!p || !(p.email || p.name)) return;
+        var cur = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+        cur.email = p.email || cur.email; cur.name = p.name || cur.name;
+        localStorage.setItem('fr_user', JSON.stringify(cur));
+        who.textContent = cur.email || cur.name || '—';
+        who.title = 'Signed in as ' + (cur.email || '') + (cur.name ? (' — ' + cur.name) : '');
+      }).catch(function(){});
+    }
   } catch(e){}
 }
 function _navPlanSync(){
@@ -12584,6 +12597,15 @@ function renderMaterialsCostCard(){ try { renderMaterialPriceTable(); } catch(e)
 // extending snapshotCurrentJob to capture them would persist per job.
 var MATERIAL_OVERRIDES = {};
 var MATERIAL_DELETED = {};
+// One job-wide bucket meant a quantity typed on Roof 1 turned up on Roof 2
+// and every other tab, and a change on Roof 2 wrote back over Roof 1. On a
+// multi-roof job the key carries the pricing tab it belongs to.
+function _matOvKey(key, idx){
+  var multi = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  if (!multi) return key;
+  if (idx == null) { try { idx = _pricingRoofIdx(); } catch(e){ idx = 0; } }
+  return idx + ':' + key;
+}
 function _resetMatOverride(key){
   delete MATERIAL_OVERRIDES[key];
   delete MATERIAL_DELETED[key];
@@ -12915,7 +12937,11 @@ function renderMaterialPriceTable(){
   // Materials-tab view selection.
   var rows, _matSavedSel = null;
   if (_multiMat){
-    try { _matSavedSel = _matSelectedRoofIndices(); _syncCurrentToRoof && _syncCurrentToRoof(); _matSetSelectedRoofs([_matRi]); } catch(e){}
+    // The tab covers a GROUP — the main roof plus every roof folded into
+    // it — and the labour, the area tile and the quote all price the
+    // group. The material rows were built from the ONE roof, so a 267 m²
+    // building showed 120 m² of sheet (report 46).
+    try { _matSavedSel = _matSelectedRoofIndices(); _syncCurrentToRoof && _syncCurrentToRoof(); _matSetSelectedRoofs(_pricingRoofGroup(_matRi)); } catch(e){}
   }
   try { rows = _buildMaterialPriceRows(); }
   finally {
@@ -12927,9 +12953,11 @@ function renderMaterialPriceTable(){
     return;
   }
 
+  // _matRi is -1 on a single-roof job; that job's one roof is roof 0.
+  var _pctIdx = (_multiMat && _matRi >= 0) ? _matRi : 0;
   var deletedCount = 0;
   var visibleRows = rows.filter(function(r){
-    if (MATERIAL_DELETED[r.key]) { deletedCount++; return false; }
+    if (MATERIAL_DELETED[_matOvKey(r.key, _pctIdx)]) { deletedCount++; return false; }
     return true;
   });
 
@@ -12989,7 +13017,8 @@ function renderMaterialPriceTable(){
 
   var total = 0;
   visibleRows.forEach(function(r){
-    var ov = MATERIAL_OVERRIDES[r.key] || {};
+    var _ovk = _matOvKey(r.key, _pctIdx);
+    var ov = MATERIAL_OVERRIDES[_ovk] || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
     var price = picked ? picked.price : 0;
@@ -13006,7 +13035,7 @@ function renderMaterialPriceTable(){
     optsHtml += '<option disabled style="color:#999;font-style:italic">— Add Options In Price Settings —</option>';
 
     var ovBadge = (ov.qty != null && ov.qty !== '') ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '';
-    var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null) ? '<button onclick="_resetMatOverride(\''+r.key+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
+    var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null) ? '<button onclick="_resetMatOverride(\''+_ovk+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
     var custom   = r.isCustom ? ' <span style="font-size:9px;color:#0891b2;text-transform:uppercase;letter-spacing:.05em;font-weight:700">custom</span>' : '';
 
     // A material with no price against it. The line prices at nothing and
@@ -13021,18 +13050,18 @@ function renderMaterialPriceTable(){
         (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
       '</td>'+
       '<td>'+
-        '<select onchange="_onMatOverride(\''+r.key+'\',\'variant\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"'+(r.singleVariant?' disabled':'')+'>'+optsHtml+'</select>'+
+        '<select onchange="_onMatOverride(\''+_ovk+'\',\'variant\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"'+(r.singleVariant?' disabled':'')+'>'+optsHtml+'</select>'+
       '</td>'+
       '<td>'+
         '<div style="display:flex;align-items:center;gap:2px">'+
-        '<input type="number" step="1" min="0" value="'+(qty||0)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+r.key+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
+        '<input type="number" step="1" min="0" value="'+(qty||0)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+_ovk+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
         resetBtn +
         '</div>'+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
       '</td>'+
       '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>$'+(price||0).toFixed(2)+'</td>'+
       '<td style="text-align:right;font-weight:600'+(_zero ? ';color:#b91c1c' : '')+'">$'+lineTotal.toFixed(2)+'</td>'+
-      '<td><button onclick="_deleteMatRow(\''+r.key+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
+      '<td><button onclick="_deleteMatRow(\''+_ovk+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
   });
   // Custom material lines — sit directly under the item rows, above the
@@ -13063,11 +13092,16 @@ function renderMaterialPriceTable(){
   // quote: the quantity buffer first (it is a cost), then the mark-up on top
   // of the buffered cost (it is margin on that cost).
   // _matRi is -1 on a single-roof job; that job's one roof is roof 0.
-  var _pctIdx = (_multiMat && _matRi >= 0) ? _matRi : 0;
   var _bufPct = _roofMatQtyBufferPct(_pctIdx), _bufAmt = _gradeTotal * (_bufPct/100);
   var _bufferedMat = _gradeTotal + _bufAmt;
   var _mkPct = _roofMatMarkupPct(_pctIdx), _mkAmt = _bufferedMat * (_mkPct/100);
   var _finalMat = _bufferedMat + _mkAmt;
+  // Custom lines sit in the table but were left out of the green total, so a
+  // $12,000 custom material read "$0.00" underneath. They reach the quote as
+  // their own line items (not through S.materials), so they are added to the
+  // figure shown here only — never to S.materials, or they would count twice.
+  var _customMat = (!_multiMat || _matRi === 0) ? _qCustomTotal('material') : 0;
+  var _finalMatShown = _finalMat + _customMat;
   var _pctRow = function(label, sub, pct, amt, setter){
     return '<tr style="background:#f7f8fa">'+
       '<td style="font-weight:600">'+label+
@@ -13087,7 +13121,7 @@ function renderMaterialPriceTable(){
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMat.toFixed(2)+'</span>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMatShown.toFixed(2)+'</span>'+
     '</div>';
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
@@ -13195,8 +13229,8 @@ function _setRoofMatMarkup(val, idx){
 function _materialsTotalFromRows(rows, idx){
   var total = 0;
   (rows || []).forEach(function(r){
-    if (typeof MATERIAL_DELETED !== 'undefined' && MATERIAL_DELETED[r.key]) return;
-    var ov = (typeof MATERIAL_OVERRIDES !== 'undefined' && MATERIAL_OVERRIDES[r.key]) || {};
+    if (typeof MATERIAL_DELETED !== 'undefined' && MATERIAL_DELETED[_matOvKey(r.key, idx)]) return;
+    var ov = (typeof MATERIAL_OVERRIDES !== 'undefined' && MATERIAL_OVERRIDES[_matOvKey(r.key, idx)]) || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
     var unit = picked ? picked.unit : r.autoUnit;
@@ -14816,7 +14850,7 @@ function updateGlobalJobBarCosts(){
     rows.forEach(function(r){
       if (!r || !r.key) return;
       if (String(r.key).toLowerCase().indexOf('gutter') >= 0){
-        var ov = (typeof MATERIAL_OVERRIDES === 'object' && MATERIAL_OVERRIDES[r.key]) || {};
+        var ov = (typeof MATERIAL_OVERRIDES === 'object' && MATERIAL_OVERRIDES[_matOvKey(r.key, 0)]) || {};
         var variant = (ov.variant != null) ? ov.variant : r.defaultVariant;
         var picked = r.variants && r.variants.find(function(v){ return v.value === variant; });
         var qty = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
@@ -53603,8 +53637,8 @@ function _readFergusMaterialItems(){
     var del = (typeof MATERIAL_DELETED !== 'undefined') ? MATERIAL_DELETED : {};
     var ovs = (typeof MATERIAL_OVERRIDES !== 'undefined') ? MATERIAL_OVERRIDES : {};
     rows.forEach(function(r){
-      if (del[r.key]) return;
-      var ov = ovs[r.key] || {};
+      if (del[_matOvKey(r.key, 0)]) return;
+      var ov = ovs[_matOvKey(r.key, 0)] || {};
       var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
       var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
       var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
@@ -56787,24 +56821,13 @@ function onCanvasWheel(e) {
     }
     return inside;
   }
-  if (DRAW.roofs && DRAW.roofs.length > 1) {
-    var xy = getXY(e);
-    for (var ri = DRAW.roofs.length - 1; ri >= 0; ri--) {
-      if (ri === DRAW.activeRoofIdx) continue;
-      var r = DRAW.roofs[ri];
-      if (!r || !r._displayedPoly || r._displayedPoly.length < 3) continue;
-      if (_pip(xy[0], xy[1], r._displayedPoly)) {
-        e.preventDefault();
-        var z = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
-        var step = e.deltaY > 0 ? 0.92 : 1.08;
-        z = Math.max(0.25, Math.min(4, z * step));
-        r.viewZoom = z;
-        try { redrawAll(); } catch(err){}
-        return;
-      }
-    }
-  }
-  // No secondary-roof hit. If there's no bg image, fall through to
+  // A plain wheel over another roof used to scale THAT roof's view — so a
+  // roofer scrolling down the page shrank Roof 2 inside its own outline
+  // without meaning to (report 46). The wheel now scrolls the page like
+  // anywhere else; Ctrl + wheel zooms the whole drawing. The one exception
+  // stays: with no photo behind the sketch, the wheel is the zoom.
+  void _pip;
+  // If there's no bg image, fall through to
   // global wheel zoom so empty-canvas users can still zoom.
   if (!DRAW.bgImg) {
     e.preventDefault();

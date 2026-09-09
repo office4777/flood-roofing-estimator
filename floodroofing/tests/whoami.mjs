@@ -21,6 +21,10 @@ async function open(user){
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const j = (x) => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(x)});
+    // Nobody stored = nobody signed in; the server says so.
+    if (/\/auth\/me/.test(r.request().url())) return user
+      ? j({ user: { id:'u1', email:'aron@floodroofing.co.nz', name:'Aron Flood' } })
+      : r.fulfill({status:401,contentType:'application/json',body:'{"error":"no"}'});
     if (/\/settings/.test(r.request().url())) return j({ user_id:'u1',
       branding:{ company_name:'Flood Roofing Ltd' }, quote_defaults:{}, jms_keys:{} });
     return r.fulfill({status:200,contentType:'application/json',body:'[]'});
@@ -67,6 +71,18 @@ check('a different login shows a different address, not the company name',
   v.who === 'test+solo@floodroofing.co.nz', v.who);
 check('…even while the company branding is the same, which is the whole trap',
   /Flood Roofing/.test(v.co), v.co.slice(0, 60));
+await o.ctx.close();
+
+// A login stored before the address was kept — {} in fr_user — showed a
+// dash on the owner's own screen (report 46's screenshots). The sidebar asks
+// the server once and fills it in.
+o = await open({});
+await o.pg.waitForTimeout(1500);
+v = await o.pg.evaluate(() => ({ who: (document.getElementById('navAccountWho') || {}).textContent || '',
+  stored: JSON.parse(localStorage.getItem('fr_user') || '{}') }));
+check('a stored login with no address asks the server and shows it',
+  v.who === 'aron@floodroofing.co.nz', JSON.stringify(v));
+check('…and keeps it, so the next load does not ask again', v.stored.email === 'aron@floodroofing.co.nz', JSON.stringify(v.stored));
 await o.ctx.close();
 
 // Signed out / nothing stored: no address is invented.

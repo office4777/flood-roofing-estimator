@@ -281,6 +281,9 @@ let   _errSentThisHour = 0, _errHourStartedAt = Date.now();
 // the message are stripped so "job 41 not found" and "job 92 not found" don't
 // read as two separate problems.
 function _errFingerprint(kind, message, stack){
+  if (/^Upstream (unavailable|returned an HTML error page)/.test(String(message || ''))) {
+    return crypto.createHash('sha1').update(kind + '|upstream-outage').digest('hex').slice(0, 12);
+  }
   const shape = String(message || '')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<id>')
     .replace(/\b\d+\b/g, '<n>')
@@ -309,7 +312,7 @@ async function _errNotify(rec, seen){
   if (!_errAllowNotify()) return;
   _errSentThisHour++;
   const where = rec.route || rec.url || '—';
-  const title = '[RoofMap ' + rec.kind + '] ' + rec.message.slice(0, 140);
+  const title = '[RoofMap ' + rec.kind + '] ' + rec.message.replace(/\s+/g, ' ').slice(0, 140);
   const lines = [
     title,
     'Build:   ' + BUILD_SHA,
@@ -337,10 +340,26 @@ async function _errNotify(rec, seen){
     try { await _dispatchMail({ to: ERR_EMAIL_TO, subject: title, text: lines }); } catch(e){}
   }
 }
+// A database or proxy outage arrives as four different errors in four
+// minutes — "upstream request timeout", "fetch failed", a 503 the photo-keep
+// path answers, and Cloudflare's whole HTML error page used as a message —
+// and every one of them became its own email with its own subject. They are
+// one incident. Fold them to one shape, and never let a page of markup be an
+// email subject.
+function _errNormaliseMessage(msg){
+  const m = String(msg == null ? '' : msg);
+  if (/<!doctype\s+html|<html[\s>]/i.test(m) || /^\s*</.test(m)) {
+    return 'Upstream returned an HTML error page (database or proxy outage)';
+  }
+  if (/upstream request timeout|fetch failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up|EAI_AGAIN|Could not read the job to keep its photos/i.test(m)) {
+    return 'Upstream unavailable (database or proxy outage): ' + m.replace(/\s+/g, ' ').slice(0, 120);
+  }
+  return m;
+}
 function recordError(kind, err, ctx){
   try {
     ctx = ctx || {};
-    const message = _errRedact((err && err.message) || err || 'unknown error');
+    const message = _errRedact(_errNormaliseMessage((err && err.message) || err || 'unknown error'));
     const stack   = _errRedact((err && err.stack) || '');
     const fingerprint = _errFingerprint(kind, message, stack);
     const rec = {
@@ -747,7 +766,9 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
-  const subj = String(subject || '').slice(0, 300);
+  // Resend rejects a subject with a line break in it (422), and a subject
+  // is built from error messages that can carry anything. One line, always.
+  const subj = String(subject || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
   const body = String(text || '');
   const htmlBody = html ? String(html) : undefined;
   // Resend first: the Google relay is ONE Gmail account with a shared daily
