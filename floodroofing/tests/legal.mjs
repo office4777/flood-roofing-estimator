@@ -79,7 +79,7 @@ check('…which the policy says out loud',
 const declared = (server.match(/const USAGE_EVENTS = \[([\s\S]*?)\];/) || [])[1] || '';
 const eventNames = (declared.match(/'([a-z_]+)'/g) || []).map(x => x.replace(/'/g,''));
 check('the policy says how many milestones there are, and is right',
-  eventNames.length === 11 && /[Ee]leven milestones/.test(privacy),
+  eventNames.length === 15 && /[Ff]ifteen milestones/.test(privacy) && !/[Ee]leven milestones|nine milestones/.test(privacy),
   eventNames.length + ' in the code');
 check('…and there is still no page tracking to disclose',
   !/page_view|pageview|session_recording/.test(server) && /no page tracking/.test(privacy));
