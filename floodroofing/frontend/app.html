@@ -26472,7 +26472,12 @@ function _qpStashRoofGeom(showBg){
   // read from the canvas only when the office has actually zoomed, panned or
   // turned it (DRAW._viewTouched); otherwise the framing the quote already
   // has is kept. The map's ↺ button re-reads the canvas on demand.
-  var _keepFrame = !!(bg && !_carried && _prevG && _prevG.view && !DRAW._viewTouched);
+  // Held only while the canvas is OFF screen — that is the tab-switch case.
+  // With Map Roof showing, whatever the canvas shows is what the office is
+  // looking at, and the quote follows it as it always did.
+  var _cvHidden = true;
+  try { var _cvr = document.getElementById('roofCanvas').getBoundingClientRect(); _cvHidden = !(_cvr.width > 10 && _cvr.height > 10); } catch(e){}
+  var _keepFrame = !!(bg && !_carried && _prevG && _prevG.view && !DRAW._viewTouched && _cvHidden);
   if (bg && (_carried || _keepFrame)){
     view = _prevG.view || null;
   } else if (bg){
