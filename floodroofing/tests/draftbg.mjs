@@ -111,6 +111,10 @@ const back = await pg2.evaluate(() => {
     img: !!(DRAW.bgImg && DRAW.bgImg.naturalWidth),
     iw: DRAW.bgImg && DRAW.bgImg.naturalWidth, ih: DRAW.bgImg && DRAW.bgImg.naturalHeight,
     zoom: DRAW.zoom, off: IMG_OFFSET, rot: window.IMG_FINE_ROTATION,
+    // The world point under the centre of the canvas — the view is saved
+    // and restored as that, not as a pixel offset (report 44: an offset
+    // only means something on the canvas it was made on).
+    centre: (function(){ const dpr = window.devicePixelRatio || 1, t = getImgTransform(); const w = canvasToImg([c.width / dpr / 2, c.height / dpr / 2], t); return [Math.round(w[0]), Math.round(w[1])]; })(),
     canvasAspect: r.height / r.width,
     outline: DRAW.outline.length, quoteAerial: !!(S.quote.roofMapGeom && S.quote.roofMapGeom.bg),
   };
@@ -119,7 +123,9 @@ check('re-entering the draft brings the canvas photo back', back.img, JSON.strin
 check('…full size, so every roof lands where it was drawn',
   back.iw === 1330 && back.ih === 800, back.iw + '×' + back.ih);
 check('…with the same zoom', back.zoom === 1.4, String(back.zoom));
-check('…the same pan', back.off && back.off.x === 55 && back.off.y === -32, JSON.stringify(back.off));
+check('…the same pan — the same world point under the centre of the canvas',
+  !!snap.snap.draw.view && Math.abs(back.centre[0] - snap.snap.draw.view.cx) <= 1 && Math.abs(back.centre[1] - snap.snap.draw.view.cy) <= 1,
+  JSON.stringify({ saved: snap.snap.draw.view, back: back.centre }));
 check('…and the same rotation, slider included', back.rot === 2.5, String(back.rot));
 check('…and the canvas is shaped for the photo again',
   Math.abs(back.canvasAspect - 800 / 1330) < 0.02, String(back.canvasAspect));
