@@ -3174,6 +3174,16 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         totalVerified: _acceptedTotalPlausible(quote, total),
         options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
       share.status = 'accepted'; share.acceptedAt = now;
+      // Freeze the accepted quote, with the customer's selections as
+      // accepted, on the quote itself. The office's "Accepted Quote" button
+      // shows exactly this, whatever happens to the job afterwards.
+      try {
+        const frozen = JSON.parse(JSON.stringify(quote));
+        delete frozen.versions; delete frozen.roofMapImgs;
+        if (!quote.versions || typeof quote.versions !== 'object') quote.versions = { sent: null, accepted: null, drafts: [] };
+        quote.versions.accepted = { id: 'acc' + Date.now().toString(36), at: now, label: 'Accepted quote', total: total || 0,
+          client: quote.client || '', acceptedAt: now, acceptedBy: quote.accepted.name, quote: frozen };
+      } catch (e) {}
     } else if (type === 'declined') {
       share.status = 'declined'; share.declinedAt = now;
     } else if (type === 'queried') {

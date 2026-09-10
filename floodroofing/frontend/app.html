@@ -6088,13 +6088,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
          Save next to something that saves itself only makes people wonder
          whether it did. The word stays so nobody has to guess. -->
     <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
-    <button onclick="openQuoteEmail()" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
+    <button onclick="openQuoteEmail()" class="lock-ok" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:4px 9px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
     <button onclick="printQuote()" style="padding:4px 9px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="_qtOpen()" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🗂 Edit quote template</button>
     <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" title="Swap this quote onto one of your saved templates" style="padding:4px 8px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit"></select>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
+    <!-- Sent / Accepted (frozen, exactly as they went) · Create new draft ·
+         Saved drafts. Rendered by _qvRenderBar(). -->
+    <div id="qaVersions" class="no-print" style="width:100%;display:none;gap:6px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border);margin-top:4px"></div>
   </div>
   <!-- A sent quote is LIVE, not a snapshot: the customer's link reads this
        job's current quote, so anything edited here is what they see and what
@@ -14488,6 +14491,7 @@ function restoreFromJob(j){
     S.jpFlashTypeOff = {};
     S.clearliteMaterial = 'fibreglass';
     Object.assign(S, snap.state);
+    S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
     if (!Array.isArray(S.photos)) S.photos = [];
     if (!Array.isArray(S.files)) S.files = [];   // Object.assign above carried them if the job has any
     try { renderJobFiles(); } catch(e){}
@@ -14649,6 +14653,7 @@ function _jobLockRender(){
 }
 async function _jobLockToggle(){
   if (!S.currentJobId) return;
+  if (S._qvViewing){ _lockPrompt(); return; }
   if (S.jobLocked){
     S.jobLocked = false; _jobLockRender();
     _siteToast('Unlocked — changes now save automatically');
@@ -14668,21 +14673,61 @@ function _lockPrompt(){
   host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px');
   host.innerHTML =
     '<div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit">'+
-      '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">🔒 This job is locked</div>'+
-      '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px">It opened locked so nothing changes by accident. Unlock it to make changes — they will save automatically.</div>'+
-      '<div style="display:flex;gap:8px">'+
-        '<button type="button" id="jobLockUnlock" style="flex:1;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Unlock</button>'+
-        '<button type="button" id="jobLockKeep" style="flex:1;padding:10px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Keep locked</button>'+
-      '</div>'+
+      (S._qvViewing
+        ? '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">🔒 This is the ' + (S._qvViewing.kind === 'sent' ? 'sent' : 'accepted') + ' quote</div>'+
+          '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px">It is kept exactly as it ' + (S._qvViewing.kind === 'sent' ? 'went to the customer' : 'was accepted') + ' and cannot be changed. To make changes, create a new draft.</div>'+
+          '<div style="display:flex;gap:8px">'+
+            '<button type="button" id="jobLockNewDraft" style="flex:1;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Create new draft</button>'+
+            '<button type="button" id="jobLockKeep" style="flex:1;padding:10px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Keep viewing</button>'+
+          '</div>'
+        : '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">🔒 This job is locked — click here to unlock it</div>'+
+          '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px">It opened locked so nothing changes by accident. Unlock it to make changes — they will save automatically.</div>'+
+          '<div style="display:flex;gap:8px">'+
+            '<button type="button" id="jobLockUnlock" style="flex:1;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Unlock</button>'+
+            '<button type="button" id="jobLockKeep" style="flex:1;padding:10px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Keep locked</button>'+
+          '</div>')+
     '</div>';
   document.body.appendChild(host);
-  host.querySelector('#jobLockUnlock').onclick = function(){ host.remove(); S.jobLocked = false; _jobLockRender(); _siteToast('Unlocked — changes now save automatically'); };
+  var _u = host.querySelector('#jobLockUnlock'); if (_u) _u.onclick = function(){ host.remove(); S.jobLocked = false; _jobLockRender(); _siteToast('Unlocked — changes now save automatically'); };
+  var _n = host.querySelector('#jobLockNewDraft'); if (_n) _n.onclick = function(){ host.remove(); _qvNewDraft(); };
   host.querySelector('#jobLockKeep').onclick = function(){ host.remove(); };
 }
 function _jobLockActive(){ return !!(S.jobLocked && S.currentJobId && !S.isSampleJob); }
 // Where a change can start. Settings, chat, feedback and the address finder
 // are not the job and stay usable while it is locked.
-var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal';
+var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
+// Buttons and clicks. A locked job on job 3231 still let the aerial be
+// dragged on the quote and a roof switched between main / separate /
+// excluded — those are buttons and mouse drags, which the pointer, typing
+// and change guards never saw. Any click or press on a control inside the
+// job is now a physical attempt, except the things that only LOOK (switching
+// which roof the pricing shows, zoom, print, email, the version buttons).
+var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
+var _LOCK_OK_CALLS = /^\s*(_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
+function _lockClickAllowed(t){
+  if (!t || !t.closest) return true;
+  if (t.closest('.lock-ok, [data-lock-ok], .no-lock, input[type="range"], #qaMsg, #qaVersions, #jobLockModal, #qvAskModal, #aerialModal')) return true;
+  var ctl = t.closest('button, [onclick], [onmousedown], [onwheel], input, select, textarea, [role="button"], [contenteditable="true"], .qp-map-frame');
+  if (!ctl) return true;                                        // plain text, scrollbars, pages
+  var call = ctl.getAttribute && (ctl.getAttribute('onclick') || '');
+  if (call && _LOCK_OK_CALLS.test(call)) return true;
+  if (ctl.tagName === 'A') return true;                         // links open things, they change nothing
+  return false;
+}
+function _lockClickGuard(e){
+  if (!_jobLockActive()) return;
+  var t = e.target; if (!t || !t.closest) return;
+  if (!t.closest(_LOCK_CLICK_SCOPE)) return;
+  if (_lockClickAllowed(t)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt();
+}
+document.addEventListener('mousedown', _lockClickGuard, true);
+document.addEventListener('click', _lockClickGuard, true);
+document.addEventListener('wheel', function(e){
+  if (!_jobLockActive()) return;
+  var t = e.target; if (!t || !t.closest) return;
+  if (t.closest('.qp-map-frame, .qp-photo-frame, [onwheel]') && t.closest(_LOCK_CLICK_SCOPE)){ e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt(); }
+}, { capture: true, passive: false });
 document.addEventListener('pointerdown', function(e){
   if (!_jobLockActive()) return;
   var t = e.target; if (!t || !t.closest) return;
@@ -15963,6 +16008,10 @@ async function duplicateJob(id){
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
 
 async function saveCurrentJob(){
+  // A frozen version on screen is not the job. Nothing is written while one
+  // is showing — the draft it replaced is what would be saved, and it is safe
+  // where it is.
+  if (window.S && S._qvViewing) return false;
   if (_jobLockActive() && !(arguments[0] && arguments[0].force)) return;   // locked jobs are not written to
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
@@ -23116,6 +23165,214 @@ function _acceptQuoteFinalize(name){
   refreshQuoteProposal();
   alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
 }
+// ══════════════════════════════════════════════════════════════════
+// QUOTE VERSIONS — the quote that was SENT, the quote the customer
+// ACCEPTED, and saved drafts.
+//
+// The sent and accepted versions are frozen copies: what went out, and what
+// was agreed, exactly, whatever is done to the job afterwards. They live on
+// the quote (S.quote.versions) so they ride with the job wherever it goes.
+// Viewing one swaps it onto the screen read-only; the working draft is put
+// aside and comes back untouched. A draft is the editable quote; "Create new
+// draft" starts a fresh editable copy of whatever is on screen, and asks
+// first if the current draft has changes nobody saved.
+// ══════════════════════════════════════════════════════════════════
+function _qvStore(){
+  if (!S.quote) return null;
+  var v = S.quote.versions;
+  if (!v || typeof v !== 'object') v = S.quote.versions = { sent: null, accepted: null, drafts: [] };
+  if (!Array.isArray(v.drafts)) v.drafts = [];
+  return v;
+}
+// A frozen copy of a quote: everything the proposal renders from, minus the
+// versions themselves and the heavy image fallbacks (the inline map is
+// drawn from roofMapGeom, which is kept).
+function _qvCopyOf(q){
+  var c = JSON.parse(JSON.stringify(q || {}));
+  delete c.versions; delete c.roofMapImgs;
+  return c;
+}
+function _qvSnapshot(label){
+  var q = S.quote || {};
+  var M = (typeof _quoteMoney === 'function') ? _quoteMoney() : { tot: 0 };
+  return { id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: new Date().toISOString(),
+           label: label || 'Draft', total: Math.round((M.tot || 0) * 100) / 100, client: q.client || '', quote: _qvCopyOf(q) };
+}
+function _qvWhen(iso){
+  try { var d = new Date(iso); return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase(); }
+  catch(e){ return String(iso || ''); }
+}
+// The moment the quote is emailed: this is the sent quote, frozen.
+function _qvMarkSent(){
+  var v = _qvStore(); if (!v) return;
+  var snap = _qvSnapshot('Sent quote');
+  snap.sentTo = (S.quote.share && S.quote.share.sentTo) || '';
+  v.sent = snap;
+  _qvRenderBar();
+}
+// The accepted quote: the server freezes it the moment the customer accepts
+// (with their selections as accepted). The office does the same when it sees
+// an acceptance the store does not carry yet — an older accept, or a link
+// that came in while the server was on an older build.
+function _qvEnsureAccepted(){
+  var v = _qvStore(); if (!v || !S.quote.accepted || !S.quote.accepted.at) return;
+  if (v.accepted && v.accepted.acceptedAt === S.quote.accepted.at) return;
+  var snap = _qvSnapshot('Accepted quote');
+  snap.acceptedAt = S.quote.accepted.at; snap.acceptedBy = S.quote.accepted.name || '';
+  v.accepted = snap;
+}
+function _qvViewing(){ return (window.S && S._qvViewing) || null; }
+// Put a frozen version on screen. The working draft is set aside first.
+function _qvView(kind){
+  var v = _qvStore(); if (!v) return;
+  var V = kind === 'sent' ? v.sent : v.accepted;
+  if (!V || !V.quote){ _siteToast('There is no ' + kind + ' quote on this job yet'); return; }
+  if (!S._qvViewing) S._qvWork = _qvCopyOf(S.quote);          // the draft, kept whole (versions ride separately)
+  var keep = S.quote.versions;
+  S.quote = JSON.parse(JSON.stringify(V.quote));
+  S.quote.versions = keep;
+  S._qvViewing = { kind: kind, at: V.at, total: V.total };
+  S.jobLocked = true;
+  try { _jobLockRender(); } catch(e){}
+  try { buildQuote(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  _qvRenderBar();
+}
+// Back to the working draft, exactly as it was left.
+function _qvBackToDraft(opts){
+  if (!S._qvViewing) return;
+  var keep = S.quote.versions;
+  if (S._qvWork){ S.quote = JSON.parse(JSON.stringify(S._qvWork)); S.quote.versions = keep; }
+  S._qvViewing = null; S._qvWork = null;
+  if (!(opts && opts.stayLocked)){ S.jobLocked = false; try { _jobLockRender(); } catch(e){} }
+  try { buildQuote(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  _qvRenderBar();
+}
+// Is the working draft different from the draft it was last saved as?
+function _qvDraftDirty(){
+  var v = _qvStore(); if (!v) return false;
+  var work = S._qvViewing ? S._qvWork : _qvCopyOf(S.quote);
+  if (!work) return false;
+  var saved = v.drafts.find(function(d){ return d && d.id === work.draftId; });
+  if (!saved) return !!(work.lineItems && work.lineItems.length);   // never saved as a draft, and it has a price
+  var a = JSON.stringify(work), b = JSON.stringify(saved.quote);
+  return a !== b;
+}
+function _qvSaveDraft(work, label){
+  var v = _qvStore(); if (!v) return null;
+  work = work || _qvCopyOf(S.quote);
+  var snap = _qvSnapshot(label || 'Draft');
+  snap.quote = work;
+  snap.id = work.draftId || snap.id;
+  var i = v.drafts.findIndex(function(d){ return d && d.id === snap.id; });
+  if (i >= 0) v.drafts[i] = snap; else v.drafts.push(snap);
+  if (v.drafts.length > 20) v.drafts = v.drafts.slice(-20);
+  return snap;
+}
+// Start a fresh, editable draft from whatever is on screen. If the current
+// draft has changes nobody saved, ask: save it as a draft, or overwrite it.
+function _qvNewDraft(){
+  if (!S.quote) return;
+  var go = function(){
+    var base = _qvCopyOf(S.quote);                    // what is on screen — a frozen version, or the draft
+    var keep = S.quote.versions;
+    S.quote = base;
+    S.quote.versions = keep;
+    S.quote.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    S.quote.draftStartedAt = new Date().toISOString();
+    S._qvViewing = null; S._qvWork = null;
+    S.jobLocked = false;
+    try { _jobLockRender(); } catch(e){}
+    try { buildQuote(); } catch(e){}
+    try { refreshQuoteProposal(); } catch(e){}
+    try { recalcQuoteTotals(); } catch(e){}
+    _qvRenderBar();
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+    _siteToast('New draft — editable. The sent and accepted quotes are unchanged.');
+  };
+  if (!_qvDraftDirty()){ go(); return; }
+  _qvAsk('Your current draft has changes that are not saved as a draft.',
+    [{ label: 'Save existing draft', primary: true, run: function(){ _qvSaveDraft(S._qvViewing ? S._qvWork : null); go(); } },
+     { label: 'Overwrite existing draft', run: go },
+     { label: 'Cancel' }]);
+}
+// Open a saved draft as the working draft (same question first).
+function _qvOpenDraft(id){
+  var v = _qvStore(); if (!v) return;
+  var d = v.drafts.find(function(x){ return x && x.id === id; }); if (!d) return;
+  var go = function(){
+    var keep = S.quote.versions;
+    S.quote = JSON.parse(JSON.stringify(d.quote));
+    S.quote.versions = keep;
+    S.quote.draftId = d.id;
+    S._qvViewing = null; S._qvWork = null;
+    S.jobLocked = false;
+    try { _jobLockRender(); } catch(e){}
+    try { buildQuote(); } catch(e){}
+    try { refreshQuoteProposal(); } catch(e){}
+    try { recalcQuoteTotals(); } catch(e){}
+    _qvRenderBar();
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  };
+  if (!_qvDraftDirty()){ go(); return; }
+  _qvAsk('Your current draft has changes that are not saved as a draft.',
+    [{ label: 'Save existing draft', primary: true, run: function(){ _qvSaveDraft(S._qvViewing ? S._qvWork : null); go(); } },
+     { label: 'Overwrite existing draft', run: go },
+     { label: 'Cancel' }]);
+}
+function _qvSaveDraftNow(){
+  if (S._qvViewing){ _siteToast('This is a frozen version — create a new draft to save changes'); return; }
+  var snap = _qvSaveDraft();
+  _qvRenderBar();
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  if (snap) _siteToast('Draft saved · ' + _qvWhen(snap.at));
+}
+function _qvAsk(text, choices){
+  var old = document.getElementById('qvAskModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'qvAskModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100003;display:flex;align-items:center;justify-content:center;padding:20px');
+  host.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit">' +
+    '<div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:12px">' + text + '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+    choices.map(function(c, i){ return '<button type="button" data-i="' + i + '" style="padding:10px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ' + (c.primary ? '#0a1628' : 'var(--border)') + ';background:' + (c.primary ? '#0a1628' : '#fff') + ';color:' + (c.primary ? '#fff' : '#0a1628') + '">' + c.label + '</button>'; }).join('') +
+    '</div></div>';
+  document.body.appendChild(host);
+  host.querySelectorAll('button').forEach(function(b){ b.onclick = function(){ var c = choices[+b.getAttribute('data-i')]; host.remove(); if (c && c.run) c.run(); }; });
+}
+// The row of buttons in the frozen header.
+function _qvRenderBar(){
+  var bar = document.getElementById('qaVersions'); if (!bar) return;
+  if (window.__CUSTOMER_MODE || !S.quote){ bar.style.display = 'none'; return; }
+  var v = _qvStore();
+  var viewing = _qvViewing();
+  var btn = function(label, call, on, color, title){
+    return '<button type="button" class="lock-ok" onclick="' + call + '" title="' + (title || '') + '" style="padding:4px 10px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ' + color + ';background:' + (on ? color : '#fff') + ';color:' + (on ? '#fff' : color) + '">' + label + '</button>';
+  };
+  var html = '';
+  html += v.sent ? btn('📨 Sent Quote <span style="font-weight:500;opacity:.85">' + _qvWhen(v.sent.at) + '</span>', '_qvView(\'sent\')', viewing && viewing.kind === 'sent', '#0369a1', 'Exactly the quote that was emailed — locked')
+                 : '<span style="font-size:11px;color:var(--text3)">Not sent yet</span>';
+  html += v.accepted ? btn('✅ Accepted Quote <span style="font-weight:500;opacity:.85">' + _qvWhen(v.accepted.at) + '</span>', '_qvView(\'accepted\')', viewing && viewing.kind === 'accepted', '#15803d', 'Exactly what the customer accepted, with their selections — locked') : '';
+  html += btn('➕ Create new draft', '_qvNewDraft()', false, '#0a1628', 'A fresh, fully editable quote from what is on screen');
+  if (!viewing) html += btn('💾 Save draft', '_qvSaveDraftNow()', false, '#475569', 'Keep this draft in the Saved Drafts list');
+  if (v.drafts.length){
+    html += '<select class="lock-ok" onchange="if(this.value){_qvOpenDraft(this.value);this.value=\'\';}" style="padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:700;color:#0a1628;background:#fff;font-family:inherit;cursor:pointer">' +
+      '<option value="">📁 Saved Drafts (' + v.drafts.length + ')</option>' +
+      v.drafts.slice().reverse().map(function(d){ return '<option value="' + d.id + '">' + _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · current' : '') + '</option>'; }).join('') +
+      '</select>';
+  }
+  if (viewing){
+    html += '<span style="margin-left:auto;font-size:11.5px;font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:4px 10px">🔒 Viewing the ' + (viewing.kind === 'sent' ? 'sent' : 'accepted') + ' quote, ' + _qvWhen(viewing.at) + ' — cannot be changed</span>' +
+            btn('↩ Back to draft', '_qvBackToDraft()', false, '#475569', '');
+  } else {
+    html += '<span style="margin-left:auto;font-size:11px;color:var(--text2)">✎ Draft' + (S.quote.draftStartedAt ? ' · started ' + _qvWhen(S.quote.draftStartedAt) : '') + '</span>';
+  }
+  bar.innerHTML = html;
+  bar.style.display = 'flex';
+}
 function unacceptQuote(){
   if (!S.quote) return;
   if (!confirm('Clear the digital acceptance on this quote?')) return;
@@ -25800,6 +26057,7 @@ function _qCustomTableRows(area, opts){
 function _syncQuoteBaseLineItems(){
   if (!S.quote) return false;
   if (window.__CUSTOMER_MODE) return false;   // customer link has no live pricing state
+  if (S._qvViewing) return false;             // a frozen version: its lines are its lines
   if (!Array.isArray(S.quote.lineItems)) S.quote.lineItems = [];
   var updated = false;
   // Scaffolding is "included in every quote" — it must flow into the quote
@@ -26464,6 +26722,7 @@ var _QP_LINE_COLORS = { ridge:'#dc2626', valley:'#f59e0b', hip:'#059669', barge:
 function _qpStashRoofGeom(showBg){
   if (window.__CUSTOMER_MODE) return;
   if (!S.quote) return;
+  if (S._qvViewing) return;                   // the frozen version keeps its own map
   var roofs = (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : [];
   if (!roofs.length){ S.quote.roofMapGeom = null; return; }
   var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -28224,6 +28483,8 @@ function refreshQuoteProposal(){
   try { var _ub = document.getElementById('qaUnacceptBtn'); if (_ub) _ub.style.display = (!window.__CUSTOMER_MODE && S.quote && S.quote.accepted) ? '' : 'none'; } catch(e){}
   try { _fergusAutoPushOnAccept(); } catch(e){}
   try { _qaLiveBarSync(); } catch(e){}
+  try { if (!window.__CUSTOMER_MODE && !S._qvViewing) _qvEnsureAccepted(); } catch(e){}
+  try { _qvRenderBar(); } catch(e){}
   // Customer: show a clear "accepted → locked" banner at the top so a frozen
   // proposal never just looks broken.
   try { var _ab = document.getElementById('custAcceptedBanner'); if (_ab) _ab.style.display = _qpAcceptedLock() ? 'block' : 'none'; } catch(e){}
@@ -31376,6 +31637,8 @@ async function _quoteEmailSendNow(){
       : '';
     _quoteEmailStatus('✓ Sent to ' + to + (cc ? ' — copy CC’d to ' + cc : '') + _timing, 'ok');
     _qaMsg('✓ Quote link emailed to ' + to + (cc ? ' — CC’d to ' + cc : ''), true);
+    // This is the sent quote now — frozen exactly as it went.
+    try { _qvMarkSent(); Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
     // Emailing the quote IS quoting the job: push the pricing to the linked
     // Fergus job and publish it there, so Fergus marks the job quoted without
     // a second button. Its own status line says how that went.

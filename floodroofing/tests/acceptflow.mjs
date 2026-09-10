@@ -78,6 +78,15 @@ let r = await accept('tok3206');
 check('the customer\'s accept is answered straight away', r.status === 200, 'status ' + r.status);
 await settle();
 
+// ── the accepted quote is frozen on the job, selections and all ──
+{
+  const q = db.jobs.find(j => j.id === 'j-3206').draw_state.state.quote;
+  const A = q.versions && q.versions.accepted;
+  check('acceptance freezes the accepted quote on the job, with the customer\'s selections',
+    !!A && !!A.quote && A.quote.proposalOptions && A.quote.proposalOptions.steelGrade === 'colorzen' && A.acceptedBy === 'Sharon Thomson' && !A.quote.versions,
+    JSON.stringify(A && { at: A.at, by: A.acceptedBy, grade: A.quote && A.quote.proposalOptions && A.quote.proposalOptions.steelGrade }));
+}
+
 // ── the schedule board ──
 const rows = db.schedule_rows.filter(x => x.job_id === 'j-3206');
 check('the accepted job lands on the schedule on its own', rows.length === 1, rows.length + ' rows');
