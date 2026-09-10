@@ -19788,6 +19788,21 @@ function renderProfitability(){
   var gp = revenue - cost;
   var gpPct = revenue > 0 ? (gp / revenue * 100) : 0;
   var gpHr  = hrs > 0 ? (gp / hrs) : 0;
+  // Per square metre of the roof this price covers (the main roof and every
+  // roof folded into it), so a job can be judged against the last one.
+  var area = 0;
+  try { area = parseFloat(_labourCalcAutoQty(0).roof) || 0; } catch(e){ area = 0; }
+  var matM2 = area > 0 ? mat / area : 0, labM2 = area > 0 ? labourPrice / area : 0;
+  // GP/hr and labour $/m² are shown to the nearest dollar and can be nudged a
+  // dollar at a time; each nudge moves every charge-out rate by the same
+  // amount, so the two figures and the quote all move together.
+  function nudge(kind, enabled){
+    if (!enabled) return '';
+    var btn = function(d, sym){ return '<button type="button" onclick="_profitNudge(\'' + kind + '\',' + d + ')" title="' + (d > 0 ? 'Up' : 'Down') + ' $1" ' +
+      'style="width:22px;height:22px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-size:13px;line-height:1;padding:0;color:#0a1628">' + sym + '</button>'; };
+    return '<span style="display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle">' + btn(-1, '\u2212') + btn(1, '+') + '</span>';
+  }
+  var whole = function(n){ return '$' + Math.round(n).toLocaleString('en-NZ'); };   // to the nearest dollar, no cents
   function stat(label, val, sub, color){
     // Compact so all four tiles fit on one row even on a phone.
     return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 9px;min-width:0">'+
@@ -19802,7 +19817,11 @@ function renderProfitability(){
       stat('Job revenue', fmtMoney(revenue), 'ex GST · labour + materials + scaffold') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
       stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
-      stat('GP / hr', fmtMoney(gpHr), hrs.toFixed(1)+' labour hrs', gpColor) +
+      stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates', gpColor) +
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px">'+
+      stat('Material cost / m²', area > 0 ? fmtMoney(matM2) : '—', area > 0 ? ('over ' + area.toFixed(1) + ' m² of roof') : 'draw a roof first') +
+      stat('Labour price / m²', '<span id="profitLabM2">' + (area > 0 ? whole(labM2) : '—') + '</span>' + nudge('labm2', area > 0 && hrs > 0), area > 0 ? ('over ' + area.toFixed(1) + ' m² · ±$1 moves the charge-out rates') : 'draw a roof first') +
     '</div>'+
     '<div style="margin-top:10px;font-size:12px;color:var(--text2);display:flex;gap:18px;flex-wrap:wrap">'+
       '<span>Gross profit <strong style="color:#0a1628">'+fmtMoney(gp)+'</strong></span>'+
@@ -19811,6 +19830,39 @@ function renderProfitability(){
     '</div>';
 }
 
+// Nudge GP/hr or labour $/m² by a dollar: work out the extra labour charge
+// that needs, spread it over every hour as a change to each charge-out rate
+// (lead, apprentice, extra labourers alike), and let calcLabour carry it
+// through the quote. Targets the nearest whole dollar, so the figure shown
+// lands exactly on $108, not $107.63.
+function _profitNudge(kind, dir){
+  if (!S.quote || !S.quote.labour) return;
+  var f = function(v){ return parseFloat(v) || 0; };
+  var L = S.quote.labour;
+  var hrs = f(S.labourHours); if (!(hrs > 0)) return;
+  var labourPrice = f(S.labour), labourCost = f(S.labourCost), mat = f(S.materials);
+  var sc = _scaffoldEff((S.quote && S.quote.scaffold) || {});
+  var gp = (labourPrice + mat + sc.price) - (labourCost + mat + sc.cost);
+  var deltaPrice = 0;
+  if (kind === 'gphr'){
+    var cur = gp / hrs, target = Math.round(cur) + (dir > 0 ? 1 : -1);
+    deltaPrice = (target - cur) * hrs;
+  } else {
+    var area = 0; try { area = f(_labourCalcAutoQty(0).roof); } catch(e){}
+    if (!(area > 0)) return;
+    var curM2 = labourPrice / area, targetM2 = Math.round(curM2) + (dir > 0 ? 1 : -1);
+    deltaPrice = (targetM2 - curM2) * area;
+  }
+  var perHr = deltaPrice / hrs;
+  var bump = function(v){ return Math.max(0, Math.round((f(v) + perHr) * 100) / 100); };
+  L.leadPrice = bump(L.leadPrice); L.appPrice = bump(L.appPrice);
+  (L.extras || []).forEach(function(x){ x.price = bump(x.price); });
+  S.quote.labourRatesCustom = true;   // this job's rates, not the settings default
+  calcLabour();
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
 function _onLabourHoursChange(key, value){
   if (key.indexOf('custom:') === 0) {
     var idx = parseInt(key.split(':')[1], 10);
