@@ -9716,10 +9716,25 @@ function _emailTabToggle(on){
 // Which login this is. It used to sit in the sidebar's info grid (gone) and
 // under the logo in white-on-white (invisible). One place now, above Sign
 // out, filled on its own so nothing that runs before it can leave it blank.
+// The email inside the login token (a JWT: header.payload.signature, the
+// payload plain base64url JSON). No secret is needed to read it.
+function _tokenEmail(){
+  try {
+    var t = localStorage.getItem('fr_token') || '';
+    var parts = t.split('.'); if (parts.length !== 3) return '';
+    var b = parts[1].replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '=';
+    var p = JSON.parse(atob(b));
+    return (p && typeof p.email === 'string') ? p.email : '';
+  } catch(e){ return ''; }
+}
 function _navWhoSync(){
   try {
     var who = document.getElementById('navAccountWho'); if (!who) return;
     var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    // The login token itself carries the address. A login with no profile
+    // row on the server showed a dash for good — and a dash is exactly the
+    // case where knowing which login this is matters most.
+    if (!u.email){ var te = _tokenEmail(); if (te) u.email = te; }
     who.textContent = u.email || u.name || '—';
     who.title = 'Signed in as ' + (u.email || '') + (u.name ? (' — ' + u.name) : '');
     // A login stored before the address was kept shows a dash (report 46's
@@ -14723,11 +14738,10 @@ function _lockClickGuard(e){
 }
 document.addEventListener('mousedown', _lockClickGuard, true);
 document.addEventListener('click', _lockClickGuard, true);
-document.addEventListener('wheel', function(e){
-  if (!_jobLockActive()) return;
-  var t = e.target; if (!t || !t.closest) return;
-  if (t.closest('.qp-map-frame, .qp-photo-frame, [onwheel]') && t.closest(_LOCK_CLICK_SCOPE)){ e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt(); }
-}, { capture: true, passive: false });
+// The wheel is NOT guarded: scrolling the page over the aerial or a photo is
+// how you read a quote, and asking "unlock?" at every picture made the sent
+// quote unreadable. The picture handlers themselves stand down while locked
+// (below), so the page scrolls straight past them.
 document.addEventListener('pointerdown', function(e){
   if (!_jobLockActive()) return;
   var t = e.target; if (!t || !t.closest) return;
@@ -20330,6 +20344,7 @@ function _qpCondMarkRotate(idx, mi, step){
 }
 function _qpCondMarkWheel(e, idx, mi){
   if (window.__CUSTOMER_MODE) return;
+  if (_jobLockActive()) return;               // locked: the wheel scrolls the page
   e.preventDefault(); e.stopPropagation();
   var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
   var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
@@ -20725,6 +20740,7 @@ function _qpCondPhotoZoom(idx, delta){
 }
 function _qpCondPhotoWheel(e, idx){
   if (window.__CUSTOMER_MODE) return;
+  if (_jobLockActive()) return;               // locked: the wheel scrolls the page
   e.preventDefault();
   var delta = e.deltaY > 0 ? -0.08 : 0.08;
   _qpCondPhotoZoom(idx, delta);
@@ -26461,6 +26477,7 @@ function _qpRoofMapZoom(delta, key){
 }
 function _qpRoofMapWheel(e){
   if (window.__CUSTOMER_MODE) return;
+  if (_jobLockActive()) return;               // locked: the wheel scrolls the page
   e.preventDefault();
   _qpRoofMapZoom(e.deltaY > 0 ? -0.08 : 0.08, _qpRoofMapKeyOf(e.currentTarget || e.target));
 }
@@ -31637,8 +31654,6 @@ async function _quoteEmailSendNow(){
       : '';
     _quoteEmailStatus('✓ Sent to ' + to + (cc ? ' — copy CC’d to ' + cc : '') + _timing, 'ok');
     _qaMsg('✓ Quote link emailed to ' + to + (cc ? ' — CC’d to ' + cc : ''), true);
-    // This is the sent quote now — frozen exactly as it went.
-    try { _qvMarkSent(); Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
     // Emailing the quote IS quoting the job: push the pricing to the linked
     // Fergus job and publish it there, so Fergus marks the job quoted without
     // a second button. Its own status line says how that went.
@@ -31652,7 +31667,12 @@ async function _quoteEmailSendNow(){
       } catch(e){ _fergusNote = ' · Fergus push failed — use Push to Fergus'; }
       _quoteEmailStatus('✓ Sent to ' + to + _fergusNote, 'ok');
     }
+    // This is the sent quote now — frozen exactly as it went (Fergus plan and
+    // all), and what is on screen IS that quote: locked. Changing it is a
+    // deliberate "Create new draft", never a stray tap on the sent one.
+    try { _qvMarkSent(); await Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
     setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, _fergusNote ? 2600 : 1600);
+    try { _qvView('sent'); } catch(e){}
   } catch(err){
     var msg = String(err && err.message || err);
     if (msg.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || msg.indexOf('503') !== -1) {

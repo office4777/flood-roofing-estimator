@@ -85,6 +85,24 @@ check('a stored login with no address asks the server and shows it',
 check('…and keeps it, so the next load does not ask again', v.stored.email === 'aron@floodroofing.co.nz', JSON.stringify(v.stored));
 await o.ctx.close();
 
+// A login with NO profile row on the server (a founding account, or one made
+// before profiles existed): /auth/me has nobody to name, but the login token
+// itself carries the address, and that is what is shown.
+{
+  const payload = Buffer.from(JSON.stringify({ id: 'u9', email: 'tok@floodroofing.co.nz', cid: 'c1' })).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const ctx = await b.newContext({ viewport:{width:1400,height:950} });
+  const pg = await ctx.newPage();
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+    if (/\/auth\/me/.test(r.request().url())) return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ user: null, company: null })});
+    return r.fulfill({status:200,contentType:'application/json',body:'[]'});
+  });
+  await pg.addInitScript((tok) => { localStorage.setItem('fr_token', tok); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); localStorage.setItem('fr_user', '{}'); }, 'h.' + payload + '.s');
+  await pg.goto('file://'+DIR+'/app.html'); await pg.waitForTimeout(2500);
+  const who = await pg.evaluate(() => (document.getElementById('navAccountWho') || {}).textContent || '');
+  check('a login the server cannot name still shows its own address, read from the token', who === 'tok@floodroofing.co.nz', who);
+  await ctx.close();
+}
+
 // Signed out / nothing stored: no address is invented.
 o = await open(null);
 v = await o.pg.evaluate(() => ({ who: (document.getElementById('navAccountWho') || {}).textContent || '' }));

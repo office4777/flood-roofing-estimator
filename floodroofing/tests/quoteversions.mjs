@@ -65,6 +65,13 @@ await pg.waitForTimeout(800);
 let v = await pg.evaluate(() => ({ sent: S.quote.versions && S.quote.versions.sent, bar: document.getElementById('qaVersions').innerText }));
 check('THE FEATURE: emailing the quote freezes it as the Sent Quote', !!v.sent && Math.abs(v.sent.total - sentTotal) < 0.02 && !!v.sent.quote && !v.sent.quote.versions, JSON.stringify(v.sent && { total: v.sent.total, at: v.sent.at }));
 check('…and the header now has a Sent Quote button', /Sent Quote/.test(v.bar), v.bar.slice(0, 80));
+check('…and the screen switches to the sent quote, locked, straight away', await pg.evaluate(() => !!S._qvViewing && S._qvViewing.kind === 'sent' && S.jobLocked));
+// Reading it: the wheel over the aerial scrolls, it does not ask.
+await pg.evaluate(() => { const f = document.querySelector('#qpRoot .qp-map-frame'); if (f) f.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })); });
+await pg.waitForTimeout(150);
+check('scrolling over the aerial while viewing it asks nothing and moves nothing', await pg.evaluate(() => !document.getElementById('jobLockModal') && _qpRoofMapView('main').zoom === 1));
+await pg.evaluate(() => _qvBackToDraft());
+await pg.waitForTimeout(300);
 
 // ── change the draft, then look at the sent quote ──
 await pg.evaluate(() => { S.quote.lineItems = (S.quote.lineItems || []).concat([{ desc: 'Extra work after sending', qty: 1, unit: 1000 }]); refreshQuoteProposal(); recalcQuoteTotals(); });

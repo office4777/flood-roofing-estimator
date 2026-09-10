@@ -87,6 +87,7 @@ check('…which is gone from the finished message', !/ld-ring/.test(await pg.eva
 // their selections. It was reconciled to the base alone, so one line of
 // "Adjustment to quoted total −$12,996" cancelled every selection in Fergus.
 const recon = await pg.evaluate(() => {
+  if (S._qvViewing) _qvBackToDraft();          // the send left the sent quote on screen; the draft is what gets pushed next
   S.quote.proposalOptions = { steelGrade: 'maxam', gutterType: 'box125', downpipes: 'yes' };
   S.quote.share = S.quote.share || {}; delete S.quote.share.priced;   // live calc
   const b = _buildFergusItemisedSections();
