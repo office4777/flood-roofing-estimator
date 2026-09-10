@@ -148,35 +148,25 @@ await ppg.evaluate(() => {
   gotoTab('quote');
 });
 await ppg.waitForTimeout(1400);
-await ppg.evaluate(() => { try { calcLabour(); } catch(e){} renderPerRoofBreakdown(); });
+await ppg.evaluate(() => { try { calcLabour(); } catch(e){} });
 await ppg.waitForTimeout(600);
-let pr = await ppg.evaluate(() => {
-  const box = document.getElementById('perRoofBreakdownCard');
-  return { shown: getComputedStyle(box).display !== 'none',
-           text: (box.textContent||'').replace(/\s+/g,' '),
-           // Count the ROOF CARDS carrying a Guttering row, not every mention
-           // (the card's own intro paragraph names it too).
-           gutters: Array.from(box.querySelectorAll('[onclick^="_setPricingRoof"]'))
-                      .filter(c => /Guttering/.test(c.textContent||'')).length,
-           runs: DRAW.roofs.map((r,i) => _gutterRunForRoofIdx(i)),
-           prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)) };
-});
-check('every roof on the breakdown carries a gutter line',
-  pr.shown && pr.gutters === DRAW_ROOFS_EXPECTED, 'roofs with a Guttering row: ' + pr.gutters);
+// The per-roof breakdown card is gone; what it pinned — guttering priced per
+// roof off that roof's own run, optional until the customer takes it — is
+// pinned on the helpers themselves.
+let pr = await ppg.evaluate(() => ({
+  runs: DRAW.roofs.map((r,i) => _gutterRunForRoofIdx(i)),
+  prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)),
+  onQuote: _gutterOnQuote() }));
+check('every roof carries a gutter price', pr.prices.length === DRAW_ROOFS_EXPECTED && pr.prices.every(p => p > 0), 'roofs priced: ' + pr.prices.filter(p => p > 0).length);
 check('…each priced off that roof\'s own gutter run',
   pr.runs.every(r => r.lm > 0) && pr.prices.every(p => p > 0) && pr.prices[0] !== pr.prices[1],
   JSON.stringify({runs:pr.runs, prices:pr.prices.map(x=>+x.toFixed(2))}));
-check('…without either roof having guttering on the customer\'s quote yet',
-  /optional/.test(pr.text) && !/on the quote/.test(pr.text));
-await ppg.locator('#perRoofBreakdownCard').screenshot({ path: S+'/gutter_perroof.png' });
+check('…without either roof having guttering on the customer\'s quote yet', !pr.onQuote);
 
-await ppg.evaluate(() => { _toggleGutterExcluded(true); renderPerRoofBreakdown(); });
+await ppg.evaluate(() => { _toggleGutterExcluded(true); });
 await ppg.waitForTimeout(500);
-pr = await ppg.evaluate(() => ({
-  text: (document.getElementById('perRoofBreakdownCard').textContent||'').replace(/\s+/g,' '),
-  prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)) }));
-check('excluding gutter zeroes it on every roof too',
-  pr.prices.every(p => p === 0) && (pr.text.match(/excluded/g)||[]).length >= 2, JSON.stringify(pr.prices));
+pr = await ppg.evaluate(() => ({ prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)) }));
+check('excluding gutter zeroes it on every roof too', pr.prices.every(p => p === 0), JSON.stringify(pr.prices));
 await pctx.close();
 
 // ── CUSTOMER ──────────────────────────────────────────────────────

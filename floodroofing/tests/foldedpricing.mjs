@@ -196,25 +196,19 @@ check('…adding up to the two roofs together',
   Math.abs(lab.group.roof - (lab.alone.roof + lab.r1.roof)) < 0.2,
   lab.group.roof + ' vs ' + r2(lab.alone.roof + lab.r1.roof));
 
-// ── the breakdown card shows one card per PRICE ────────────────────
-// It used to list every roof drawn, so a folded roof got its own card with its
-// own scaffolding line — money the quote does not charge. Same grouping as
-// the tabs, or the card and the quote say different things.
+// ── the profitability panel offers one view per PRICE, plus the total ──
+// The per-roof breakdown card used to do this and is gone; the same grouping
+// as the tabs, or the panel and the quote say different things.
 const brk = await pg.evaluate(() => {
   _setPricingRoof(0);
-  renderPerRoofBreakdown();
-  const box = document.getElementById('perRoofBreakdownCard');
-  const t = box ? box.textContent : '';
-  return {
-    cards: box ? box.querySelectorAll('[role="button"]').length : -1,
-    tabs: _pricingRoofTabIdxs().length,
-    // The main card has to say what it covers, not silently swallow it.
-    namesFolded: /Roof ?2/.test(t),
-  };
+  renderProfitability();
+  const bar = document.getElementById('profitViewBar');
+  const btns = bar ? Array.from(bar.querySelectorAll('button')).map(b => b.textContent) : [];
+  return { views: btns.length, tabs: _pricingRoofTabIdxs().length, namesFolded: btns.some(t => /Roof ?2/.test(t)), noCard: !document.getElementById('perRoofBreakdownCard') };
 });
-check('the breakdown lists one card per price, not one per roof drawn',
-  brk.cards === brk.tabs, brk.cards + ' cards for ' + brk.tabs + ' tabs');
-check('…and the main card still names the roof folded into it',
+check('profitability offers the total plus one view per price, not one per roof drawn',
+  brk.views === brk.tabs + 1 && brk.noCard, brk.views + ' views for ' + brk.tabs + ' tabs');
+check('…and the main view still names the roof folded into it',
   brk.namesFolded, JSON.stringify(brk));
 
 // ── the map lights up the whole group ──────────────────────────────

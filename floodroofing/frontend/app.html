@@ -1180,8 +1180,6 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 #tab-scope #roofPriceTile .card-hd { background:#dbe8ff;color:#1d4ed8; }
 #tab-scope #gutterDownpipeCard          { border-color:#0891b2; }
 #tab-scope #gutterDownpipeCard .card-hd { background:#cdeef5;color:#0e7490; }
-#tab-scope #perRoofBreakdownCard          { border-color:#7c3aed; }
-#tab-scope #perRoofBreakdownCard .card-hd { background:#e7dcff;color:#6d28d9; }
 #tab-scope #profitCard          { border-color:#16a34a; }
 #tab-scope #profitCard .card-hd { background:#d6f0e0;color:#15803d; }
 /* The material sub-block's roof switch is redundant with the labour tabs
@@ -5065,8 +5063,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        base quote scope; each further roof is an optional extra priced from its
        own materials (auto, at the selected grade) + its own labour (entered
        here). Populated by renderPerRoofBreakdown(). -->
-  <div class="card" id="perRoofBreakdownCard" style="display:none"></div>
-
   <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
   <div class="card" id="profitCard">
     <div class="card-hd"><span class="tile-ic">📈</span>Job profitability<span class="tile-sub-note">Revenue (charge-out) vs cost — refresh material price above to update</span></div>
@@ -13712,61 +13708,10 @@ function _scaffoldPriceForRoof(i){ return _scaffoldEff(_roofScaffold(i)).price; 
 // scope (its own materials + labour + scaffold). Every further roof is an
 // optional extra priced from its OWN materials (auto, at the selected grade)
 // + its OWN labour (Lead/App hours entered here at the main table's rates).
-function renderPerRoofBreakdown(){
-  var box = document.getElementById('perRoofBreakdownCard'); if (!box) return;
-  if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length < 2){ box.style.display = 'none'; box.innerHTML = ''; return; }
-  box.style.display = '';
-  var gf = _gradeFactor();
-  var gLbl = _gradeLabel((S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam');
-  var cur = _pricingRoofIdx();
-  var money = function(v){ return '$' + (v || 0).toFixed(2); };
-  // Read-only summary — each roof's numbers are edited in the Labour / Scaffold
-  // / Material sections via the roof buttons; this card just totals them.
-  // One card per PRICE, not per roof drawn — the same grouping as the tabs
-  // above. A roof folded into the main one has no price of its own; listing
-  // it separately showed materials, labour and scaffolding the quote does not
-  // charge for, which is half of "the pricing tab doesnt match the quote".
-  var cards = _pricingRoofTabIdxs().map(function(i){
-    var r = DRAW.roofs[i] || {};
-    var nm = r.name || ('Roof ' + (i + 1));
-    var isBase = (i === 0);
-    var groupExtras = _pricingRoofGroupExtras(i);
-    var mat = _materialsCostForRoofIdx(i) * gf;
-    var lab = _labourPriceForRoof(i);
-    var scaff = _scaffoldPriceForRoof(i);
-    // Guttering is costed on every roof that has a gutter run drawn, whether or
-    // not the customer has taken it up — so the office can see, per roof, what
-    // adding it would come to. It stays OUT of the roof subtotal: the customer
-    // opts into guttering separately and the base quote must not silently
-    // include it. Excluding gutter pricing on the job zeroes it here too.
-    var gut = _gutterPriceForRoof(i);
-    var gutRun = _gutterRunForRoofIdx(i);
-    var sub = mat + lab + scaff;
-    var onCur = (i === cur);
-    var line = function(label, val){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">'+label+'</span><span style="font-weight:600">'+money(val)+'</span></div>'; };
-    return '<div role="button" onclick="_setPricingRoof('+i+')" title="Edit this roof" style="border:2px solid '+(onCur?'#0099cc':'var(--border)')+';border-radius:8px;padding:11px 13px;margin-bottom:8px;background:'+(isBase?'#f0f7ff':'#fff')+';cursor:pointer">'+
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-        '<span style="font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isBase?'#0099cc':'#e08a2e')+';color:#fff">'+(isBase?'Base quote':'Optional extra')+'</span>'+
-        '<strong style="font-size:13px">'+esc(nm)+'</strong>'+
-        (groupExtras.length ? '<span style="font-size:10px;color:var(--text2)">+ '+esc(groupExtras.join(', '))+'</span>' : '')+
-        (onCur?'<span style="margin-left:auto;font-size:9px;font-weight:700;color:#0099cc">● EDITING</span>':'<span style="margin-left:auto;font-size:10px;color:var(--text2)">tap to edit</span>')+
-      '</div>'+
-      line('Materials <span style="font-size:10px">('+esc(gLbl)+')</span>', mat)+
-      line('Labour', lab)+
-      line('Scaffolding', scaff)+
-      (_gutterExcluded()
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text3)">Guttering</span><span style="font-weight:600;color:var(--text3)">excluded</span></div>'
-        : (gut > 0
-            ? line('Guttering <span style="font-size:10px">('+gutRun.lm.toFixed(1)+' lm · '+(_gutterOnQuote()?'on the quote':'optional')+')</span>', gut)
-            : '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text3)">Guttering</span><span style="color:var(--text3);font-size:11px">no gutter drawn</span></div>'))+
-      '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);margin-top:6px;padding-top:7px"><strong style="font-size:12px">'+(isBase?'Base subtotal':'Extra roof price')+' <span style="font-weight:400;color:var(--text2);font-size:10px">(ex GST)</span></strong><strong style="font-size:15px;color:#2e7d32">'+money(sub)+'</strong></div>'+
-    '</div>';
-  }).join('');
-  box.innerHTML = '<div class="card-hd"><span class="tile-ic">📊</span>Per-roof price breakdown'+
-    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote, plus anything marked part of it · each separately-priced roof has its own materials + labour + scaffold</span></div>'+
-    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page. Guttering is priced per roof but sits outside the subtotal — the customer opts into it separately.</p>'+
-    cards;
-}
+// The per-roof price breakdown card is gone: the Job profitability panel
+// switches between the priced roofs and their total instead (report from the
+// owner: one place for the numbers, not two). Kept as a no-op for callers.
+function renderPerRoofBreakdown(){}
 
 function refreshSettingsUI(){
   if (!S.settings) { loadSettings().then(refreshSettingsUI); return; }
@@ -19770,17 +19715,59 @@ function _toggleDownpipesPricing(on){ if(!S.quote) return; if(!S.quote.proposalO
 function _clearGutterDownpipeOverrides(){ if(!S.quote) return; S.quote.gutterPriceOverride=null; S.quote.downpipePriceOverride=null; _gdChanged(); }
 
 // Job profitability dashboard.
+// Which roofs the profitability panel is showing: 'total' (every priced
+// roof together — the default) or the index of one priced roof.
+var _PROFIT_VIEW = 'total';
+function _profitView(){
+  var v = _PROFIT_VIEW;
+  if (v === 'total') return 'total';
+  var n = parseInt(v, 10);
+  try { if (_pricingRoofTabIdxs().indexOf(n) >= 0) return n; } catch(e){}
+  return 'total';
+}
+function _setProfitView(v){
+  _PROFIT_VIEW = (v === 'total') ? 'total' : parseInt(v, 10);
+  try { renderProfitability(); } catch(e){}
+}
+// The money behind one view. The main roof's figures are the roll-ups the
+// labour table and material table already keep (S.labour, S.materials…);
+// an extra roof has its own hours at the shared rates, its own take-off and
+// its own scaffold; the total is every priced roof added up.
+function _profitFigures(view){
+  var f = function(v){ return parseFloat(v) || 0; };
+  var multi = !!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var one = function(i){
+    var sc = _scaffoldEff(_roofScaffold(i));
+    var area = 0; try { area = f(_labourCalcAutoQty(i).roof); } catch(e){}
+    if (i === 0){
+      return { labourPrice: f(S.labour), labourCost: f(S.labourCost), hrs: f(S.labourHours),
+               mat: f(S.materials), scPrice: sc.price, scCost: sc.cost, area: area };
+    }
+    var rl = _roofLabour(i);
+    return { labourPrice: _labourPriceForRoof(i), labourCost: _labourCostForRoof(i), hrs: f(rl.leadHrs) + f(rl.appHrs),
+             mat: _materialsCostForRoofIdx(i), scPrice: sc.price, scCost: sc.cost, area: area };
+  };
+  if (!multi || view !== 'total') return one(multi ? view : 0);
+  var out = { labourPrice: 0, labourCost: 0, hrs: 0, mat: 0, scPrice: 0, scCost: 0, area: 0 };
+  _pricingRoofTabIdxs().forEach(function(i){
+    var x = one(i);
+    Object.keys(out).forEach(function(k){ out[k] += x[k]; });
+  });
+  return out;
+}
 function renderProfitability(){
   var wrap = document.getElementById('profitWrap');
   // Always nudge the persistent top job bar so the cost row stays
   // in sync even when the profitability dashboard panel isn't open.
   try { updateGlobalJobBarCosts(); } catch(e){}
   if (!wrap) return;
-  var st = _pricingState(); var sc = st.sc;
+  _pricingState();
   var f = function(v){ return parseFloat(v) || 0; };
-  var labourPrice = f(S.labour), labourCost = f(S.labourCost), hrs = f(S.labourHours);
-  var mat = f(S.materials);
-  var scEff = _scaffoldEff(sc); var scPrice = scEff.price, scCost = scEff.cost;
+  var view = _profitView();
+  var g = _profitFigures(view);
+  var labourPrice = g.labourPrice, labourCost = g.labourCost, hrs = g.hrs;
+  var mat = g.mat;
+  var scPrice = g.scPrice, scCost = g.scCost;
   // Revenue (ex-GST charge-out) and our cost. Materials pass through at
   // price-book cost, so GP comes from the labour + scaffold margin.
   var revenue = labourPrice + mat + scPrice;
@@ -19788,11 +19775,25 @@ function renderProfitability(){
   var gp = revenue - cost;
   var gpPct = revenue > 0 ? (gp / revenue * 100) : 0;
   var gpHr  = hrs > 0 ? (gp / hrs) : 0;
-  // Per square metre of the roof this price covers (the main roof and every
-  // roof folded into it), so a job can be judged against the last one.
-  var area = 0;
-  try { area = parseFloat(_labourCalcAutoQty(0).roof) || 0; } catch(e){ area = 0; }
-  var matM2 = area > 0 ? mat / area : 0, labM2 = area > 0 ? labourPrice / area : 0;
+  // Per square metre of the roof this view covers, so a job can be judged
+  // against the last one.
+  var area = g.area;
+  var matM2 = area > 0 ? mat / area : 0, labM2 = area > 0 ? labourPrice / area : 0, revM2 = area > 0 ? revenue / area : 0;
+  // Which roofs: the Total (every priced roof together, the default), or one
+  // priced roof — the main roof with everything folded into it, or an extra.
+  var _tabs = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) ? _pricingRoofTabIdxs() : [];
+  var switcher = '';
+  if (_tabs.length > 1){
+    var pill = function(key, label){
+      var on = String(view) === String(key);
+      return '<button type="button" onclick="_setProfitView(\'' + key + '\')" style="padding:5px 11px;border-radius:999px;border:1px solid ' + (on ? '#0a1628' : 'var(--border)') + ';' +
+        'background:' + (on ? '#0a1628' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">' + label + '</button>';
+    };
+    switcher = '<div id="profitViewBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">' +
+      pill('total', 'Total · all roofs') +
+      _tabs.map(function(i){ return pill(i, esc(_pricingRoofName(i)) + (i === 0 && _pricingRoofGroupExtras(0).length ? ' + ' + esc(_pricingRoofGroupExtras(0).join(', ')) : '')); }).join('') +
+      '</div>';
+  }
   // GP/hr and labour $/m² are shown to the nearest dollar and can be nudged a
   // dollar at a time; each nudge moves every charge-out rate by the same
   // amount, so the two figures and the quote all move together.
@@ -19812,16 +19813,20 @@ function renderProfitability(){
     '</div>';
   }
   var gpColor = gpPct >= 40 ? '#15803d' : (gpPct >= 25 ? '#b45309' : '#b91c1c');
-  wrap.innerHTML =
+  wrap.innerHTML = switcher +
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">'+
       stat('Job revenue', fmtMoney(revenue), 'ex GST · labour + materials + scaffold') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
       stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
       stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates', gpColor) +
     '</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px">'+
-      stat('Material cost / m²', area > 0 ? fmtMoney(matM2) : '—', area > 0 ? ('over ' + area.toFixed(1) + ' m² of roof') : 'draw a roof first') +
-      stat('Labour price / m²', '<span id="profitLabM2">' + (area > 0 ? whole(labM2) : '—') + '</span>' + nudge('labm2', area > 0 && hrs > 0), area > 0 ? ('over ' + area.toFixed(1) + ' m² · ±$1 moves the charge-out rates') : 'draw a roof first') +
+    // Per square metre sits apart from the job figures, under a rule.
+    '<div style="border-top:1px solid var(--border);margin:12px 0 10px"></div>'+
+    '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700;margin-bottom:6px">Per square metre' + (area > 0 ? ' · ' + area.toFixed(1) + ' m² of roof' : '') + '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px">'+
+      stat('Job revenue / m²', area > 0 ? fmtMoney(revM2) : '—', area > 0 ? 'ex GST · labour + materials + scaffold' : 'draw a roof first') +
+      stat('Material cost / m²', area > 0 ? fmtMoney(matM2) : '—', area > 0 ? 'from the price book' : 'draw a roof first') +
+      stat('Labour price / m²', '<span id="profitLabM2">' + (area > 0 ? whole(labM2) : '—') + '</span>' + nudge('labm2', area > 0 && hrs > 0), area > 0 ? '±$1 moves the charge-out rates' : 'draw a roof first') +
     '</div>'+
     '<div style="margin-top:10px;font-size:12px;color:var(--text2);display:flex;gap:18px;flex-wrap:wrap">'+
       '<span>Gross profit <strong style="color:#0a1628">'+fmtMoney(gp)+'</strong></span>'+
@@ -19839,16 +19844,19 @@ function _profitNudge(kind, dir){
   if (!S.quote || !S.quote.labour) return;
   var f = function(v){ return parseFloat(v) || 0; };
   var L = S.quote.labour;
-  var hrs = f(S.labourHours); if (!(hrs > 0)) return;
-  var labourPrice = f(S.labour), labourCost = f(S.labourCost), mat = f(S.materials);
-  var sc = _scaffoldEff((S.quote && S.quote.scaffold) || {});
-  var gp = (labourPrice + mat + sc.price) - (labourCost + mat + sc.cost);
+  // The view on screen: its hours, its figures. The rates are shared, so a
+  // change per hour moves this view by exactly what was asked and every
+  // other roof in proportion.
+  var g = _profitFigures(_profitView());
+  var hrs = g.hrs; if (!(hrs > 0)) return;
+  var labourPrice = g.labourPrice, labourCost = g.labourCost, mat = g.mat;
+  var gp = (labourPrice + mat + g.scPrice) - (labourCost + mat + g.scCost);
   var deltaPrice = 0;
   if (kind === 'gphr'){
     var cur = gp / hrs, target = Math.round(cur) + (dir > 0 ? 1 : -1);
     deltaPrice = (target - cur) * hrs;
   } else {
-    var area = 0; try { area = f(_labourCalcAutoQty(0).roof); } catch(e){}
+    var area = g.area;
     if (!(area > 0)) return;
     var curM2 = labourPrice / area, targetM2 = Math.round(curM2) + (dir > 0 ? 1 : -1);
     deltaPrice = (targetM2 - curM2) * area;

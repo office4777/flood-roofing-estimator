@@ -43,6 +43,26 @@ await pg.evaluate(() => {
 });
 await pg.waitForTimeout(400);
 
+// ── views: Total by default, one button per priced roof ──
+const views = await pg.evaluate(() => {
+  renderProfitability();
+  const bar = document.getElementById('profitViewBar');
+  const btns = bar ? Array.from(bar.querySelectorAll('button')).map(b => b.textContent) : [];
+  const total = _profitFigures('total'), main = _profitFigures(0);
+  const sum = _pricingRoofTabIdxs().reduce((a, i) => a + _profitFigures(i).labourPrice + _profitFigures(i).mat + _profitFigures(i).scPrice, 0);
+  const text = document.getElementById('profitWrap').innerText.replace(/\s+/g, ' ');
+  return { view: _profitView(), btns, tabs: _pricingRoofTabIdxs().length, totalRev: total.labourPrice + total.mat + total.scPrice, sum, mainMat: main.mat, totalMat: total.mat,
+           hasRule: !!document.querySelector('#profitWrap [style*="border-top"]'), text };
+});
+check('the panel opens on the Total by default', views.view === 'total');
+check('…with a button for the total and one per priced roof', views.btns.length === views.tabs + 1 && /Total/.test(views.btns[0]), views.btns.join(' | '));
+check('…and the total is every priced roof added up', Math.abs(views.totalRev - views.sum) < 0.02 && views.totalMat > views.mainMat, '$' + views.totalRev.toFixed(2));
+check('the per-m² figures sit under their own rule, with revenue per m² first', views.hasRule && /Per square metre/.test(views.text) && /Job revenue \/ m²/.test(views.text), views.text.slice(0, 120));
+check('the breakdown card is gone', await pg.evaluate(() => !document.getElementById('perRoofBreakdownCard')));
+await pg.evaluate(() => _setProfitView(0));
+await pg.waitForTimeout(200);
+check('picking the main roof shows its own figures', await pg.evaluate(() => _profitView() === 0));
+
 const read = () => pg.evaluate(() => {
   const w = document.getElementById('profitWrap');
   const t = w ? w.innerText.replace(/\s+/g, ' ') : '';
@@ -61,7 +81,7 @@ check('…and so is labour/m²', v.labM2Shown === '$' + Math.round(v.labM2).toLo
 
 // ── nudge GP/hr up a dollar ──
 const before = v;
-const btns = await pg.evaluate(() => document.querySelectorAll('#profitWrap button').length);
+const btns = await pg.evaluate(() => document.querySelectorAll('#profitWrap button[onclick*="_profitNudge"]').length);
 check('there are − and + buttons on GP/hr and on labour/m²', btns === 4, btns + ' buttons');
 await pg.evaluate(() => document.getElementById('profitGpHr').nextElementSibling.querySelectorAll('button')[1].click());
 await pg.waitForTimeout(400);
