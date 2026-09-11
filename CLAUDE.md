@@ -135,14 +135,59 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-06
+## Open at last handover — 2026-09-11
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
 
+Everything below the line "shipped this round" is live and promote-verified at
+`a3046c7`; main, the branch and `production` all sit there and the tree is
+clean.
+
+**Shipped this round (context for anything built on top of it):**
+- Daily activity report to support@roofmap.co.nz at 3am (`backend/daily.js`,
+  `DAILY_REPORT_HOUR`). It refuses to send an empty report, and counts a user
+  through company_users OR `profiles.company_id`, with a stray-user pass for
+  anyone with events and no business.
+- Quote versions. `_qv*` helpers sit just above `unacceptQuote()` in app.html:
+  Sent Quote and Accepted Quote are frozen snapshots, Saved Drafts is a
+  dropdown, Create New Draft prompts save-or-overwrite. While
+  `S._qvViewing` is set, `saveCurrentJob` returns false — that is the guard
+  that makes a viewed version unchangeable.
+- The job lock. `_lockClickGuard` on mousedown+click, scoped by
+  `_LOCK_CLICK_SCOPE` and allowed through by `_LOCK_OK_CALLS`. There is
+  deliberately NO wheel guard — one was added and the popup then fired on
+  every scroll past a photo. The three wheel handlers bail on
+  `_jobLockActive()` instead.
+- Per-frame aerial placement in the quote. `_qpRoofMapView(key)` and
+  `data-map-key` on `.qp-map-frame`, so page 2 and the last page no longer
+  share one placement; the accept page passes `mapKey:'accept'`.
+- Job profitability: GP/hr, labour $/m² and material $/m² adjustable by $1
+  (`_profitNudge`), each recomputing the others, rounded whole. Total and
+  per-roof buttons (`_profitView`). The old per-roof breakdown card is gone
+  and `renderPerRoofBreakdown` is a no-op stub.
+- Fergus: emailing a quote pushes pricing and publishes; a customer's
+  selections auto-create and publish a new version, never accept
+  (`_fergusAutoVersionSoon`, debounced by `FERGUS_AUTO_VERSION_DELAY_MS`).
+  Reconciliation targets `_quoteMoney().sub`, not the base — pushing against
+  the base produced a bogus "Adjustment to quoted total" line on a live job.
+- `_workingWrap`/`#workingPill` spinner over the ~20 slow operations, and a
+  12-second `.ld-ring` in the email popup.
+- Deleted jobs are recoverable: `GET /jobs/deleted` reads `job_revisions`
+  rows with `reason='delete'` and the Home board has a Deleted tile with
+  Restore. That route MUST stay registered above `app.get('/jobs/:id')` or
+  the `:id` route swallows it.
+
 **Waiting on the owner (Aron):**
 - Rotate the Fergus API token and the Railway `ADMIN_TOKEN` — both were
-  readable in screenshots shared during a session.
+  readable in screenshots shared during a session. Still not done.
+- Confirm job 3231 came back cleanly via Home -> Deleted -> Restore.
+- Set `EMAIL_FROM=RoofMap <noreply@roofmap.co.nz>` once roofmap.co.nz is
+  verified in Resend; the daily report currently arrives from
+  office@floodroofing.co.nz, which is why he asked.
+- Tell us Fergus's real publish endpoint so `FERGUS_QUOTE_PUBLISH_PATH` can
+  be pinned instead of `_fergusPublishQuote` trying four candidates.
+- Re-push job 3045 to Fergus so the bad reconciled version is voided.
 - Four aerial screenshots for the demo slideshow (Mapbox is unreachable from
   the build environment, so those slides are placeholders): aerial found,
   mid-trace, outline finished, roof lines generated.
@@ -153,15 +198,35 @@ worse than none.
   (`tools/restore-check.mjs`); add the crews then paste the schedule import;
   paste the real price book so it can become the shipped default.
 
+**Queued, not started:** mark system alert emails as auto-generated
+(Auto-Submitted / Precedence headers) so they stop bouncing around as replies.
+
 **Product thinking, agreed but not built:** the trial's first twenty minutes
 should walk a new roofer to their OWN first quote — address, trace, quote, in
 that order — before the schedule or the inbox is mentioned, and should get
 their real supplier rates in before that first quote. Lead with measuring and
 quoting everywhere a stranger meets the product; the rest is why people stay,
-not why they try it.
+not why they try it. This is the blocker on paid advertising being worth
+running — see below.
+
+**Marketing, in flight (not in the repo):** he is standing up a Facebook page
+and considering a paid campaign. Built for him this session, from job 3045's
+real aerial (extracted from a screenshot he pasted into a .docx — the app is
+unreachable from this environment, so a screenshot is the only way to get an
+aerial in): a 1640x624 wide cover, a 1280x720 mobile-shaped cover, and a
+1080x1350 4:5 feed post. He has a 40-second demo video and ad copy drafted.
+The advice given, and worth repeating: the audience is ~2,000 NZ roofing
+businesses that Facebook cannot target directly, so trade groups and RANZ
+beat paid reach, and the trial onboarding above should land before money goes
+in. These assets live in the session scratchpad, not in the repo.
 
 ## Working style
 
 The owner (Aron, office@floodroofing.co.nz) sends batches of fixes/features,
 often as phone screenshots. Keep replies tight; ship whole batches through
 one gate; report what shipped and what to try, in plain language.
+
+He also asks for non-code work — logos, social images, ad copy, marketing
+advice. Do it, and give a straight recommendation rather than a list of
+options. Where the answer is "this is not the thing that will move the
+needle", say so in a sentence and then do what was asked anyway.
