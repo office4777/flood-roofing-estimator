@@ -2380,6 +2380,41 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   res.json(_jobLight(data[0]));
 });
 
+// ── Recently deleted jobs, and putting one back ─────────────────────
+// A delete always leaves a final snapshot behind (trg_job_backup_del), and a
+// deleted job can be re-created from it — but until now that was a thing only
+// we could do, by hand, if somebody asked. The owner deleted a live job by
+// accident and had no way back. So the snapshots a delete leaves are listed
+// here, and the existing restore puts one back.
+//
+// Metadata only: a snapshot's draw_state is the whole job, photos and all, and
+// listing thirty of those would be tens of megabytes.
+app.get('/jobs/deleted', requireAuth, async (req, res) => {
+  try {
+    const { data: revs, error } = await _scopeCompany(
+      supabase.from('job_revisions')
+        .select('id, job_id, client_name, site_address, status, saved_at, reason')
+        .eq('reason', 'delete'), req)
+      .order('saved_at', { ascending: false }).limit(300);
+    if (error) return res.status(500).json({ error: error.message });
+    // A job deleted, restored and deleted again has more than one: the newest
+    // delete is the one that undoes the delete they just did.
+    const newest = new Map();
+    for (const r of (revs || [])) if (!newest.has(r.job_id)) newest.set(r.job_id, r);
+    if (!newest.size) return res.json([]);
+    // Anything that is back on the board is not deleted, whatever the
+    // snapshots say — restored once already, or the id reused.
+    const { data: live } = await _scopeCompany(supabase.from('jobs').select('id'), req);
+    const alive = new Set((live || []).map(j => String(j.id)));
+    res.json(Array.from(newest.values())
+      .filter(r => !alive.has(String(r.job_id)))
+      .map(r => ({ job_id: r.job_id, revision_id: r.id, client_name: r.client_name || '',
+                   site_address: r.site_address || '', status: r.status || 'draft', deleted_at: r.saved_at })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Registered ahead of /jobs/:id deliberately: Express matches in order, and
+// /jobs/:id would otherwise swallow this as a job whose id is "deleted".
 app.get('/jobs/:id', requireAuth, async (req, res) => {
   // A job row runs to tens of MB once site photos and the aerial land in
   // draw_state, and the PostgREST role carries Supabase's 8-second
