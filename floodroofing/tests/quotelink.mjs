@@ -112,6 +112,25 @@ check('…still gives the expiry, which is not a price',
 check('…and the subject still carries the quote reference',
   /3173/.test(mail.subject), mail.subject);
 
+// ── a dead link's error page must not throw on every tap ───────────
+// A quote link whose job is gone replaces the whole body with a "we can't
+// find this quote" page — which leaves the office-only right-click menu out
+// of the DOM. A document-level click handler read its .style regardless, so
+// every tap the customer made on that page (the "Try again" button included)
+// threw an uncaught TypeError and emailed the owner about it.
+const dead = await pg.evaluate(() => {
+  document.body.innerHTML = '<button id="deadRetry">Try again</button>';
+  const before = [];
+  const onErr = (e) => before.push(String(e.message || e));
+  window.addEventListener('error', onErr);
+  document.getElementById('deadRetry').click();
+  document.body.click();
+  window.removeEventListener('error', onErr);
+  return { thrown: before, ctx: !!document.getElementById('ctxMenu') };
+});
+check('with the office markup gone, a click on the customer page throws nothing',
+  dead.ctx === false && dead.thrown.length === 0, JSON.stringify(dead));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
 await ctx.close();

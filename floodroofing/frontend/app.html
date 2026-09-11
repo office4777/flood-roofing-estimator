@@ -40481,7 +40481,7 @@ function _placeBoxedPen(x0, y0, x1, y1){
 
 function onCanvasClick(e) {
   if(e.detail>=2) return;
-  document.getElementById('ctxMenu').style.display='none';
+  _ctxMenuHide();
 
   // Swallow the click immediately following a corner-drag mouseup —
   // otherwise the click handler hit-tests at the new corner position
@@ -57361,6 +57361,12 @@ function onCanvasWheel(e) {
 }
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────
+// Hiding it is asked for from document-level handlers that also run on the
+// customer link, where this markup does not exist.
+function _ctxMenuHide(){
+  var m = document.getElementById('ctxMenu');
+  if (m) m.style.display = 'none';
+}
 function onCanvasRightClick(e) {
   e.preventDefault();
   // Right-clicking a pitch label takes it off that roof, the same gesture that
@@ -57400,16 +57406,19 @@ function onCanvasRightClick(e) {
   else return; // nothing hit
 
   var menu = document.getElementById('ctxMenu');
+  if (!menu) return;
   menu.style.display='block';
   menu.style.left=(e.clientX+2)+'px';
   menu.style.top=(e.clientY+2)+'px';
 }
 document.addEventListener('click', function(){
-  document.getElementById('ctxMenu').style.display='none';
+  // Office-only markup. On the customer link — whose error page replaces the
+  // whole body — there is no ctxMenu, and this threw on every click they made.
+  _ctxMenuHide();
 });
 
 function ctxEdit() {
-  document.getElementById('ctxMenu').style.display='none';
+  _ctxMenuHide();
   // Focus label input if available
   if(DRAW.selectedLine>=0){
     var el=document.getElementById('editLineMeasM');
@@ -57420,7 +57429,7 @@ function ctxEdit() {
   }
 }
 function ctxDelete() {
-  document.getElementById('ctxMenu').style.display='none';
+  _ctxMenuHide();
   saveSnapshot();
   if(DRAW.selectedPen>=0){DRAW.penetrations.splice(DRAW.selectedPen,1);DRAW.selectedPen=-1;}
   else if(DRAW.selectedLine>=0){DRAW.lines.splice(DRAW.selectedLine,1);DRAW.selectedLine=-1;}
