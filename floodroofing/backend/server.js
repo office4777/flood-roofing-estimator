@@ -4262,30 +4262,50 @@ async function _autoDepositInvoice(job, quote){
 // (a ~1 MB base64 aerial each) and pulling it whole for a hundred jobs ran
 // to hundreds of MB and timed out. Falls back to the whole-subtree shape for
 // environments that choke on deep JSON-path selects.
+// The scoping OR is the reason this is not one query. _scopeCompany builds
+// `company_id = X OR (company_id is null AND user_id = me)`, and an OR is
+// exactly what stops Postgres using the partial index on the shared-token
+// expression: the legacy arm has no index to sit on, so the planner walks
+// EVERY job in the table and detoasts each multi-MB draw_state to test the
+// token — which on a real account blows the 8-second statement timeout and
+// 500s the home screen. Two separately indexed reads, merged here, each hit
+// their own index. The legacy arm is almost always empty (rows predating
+// companies), so this is one fast query in practice.
 async function _quoteShareRows(req, limit){
-  const primary = await _scopeCompany(supabase.from('jobs')
-    .select('id, client_name, ' +
-            'q_share:draw_state->state->quote->share, ' +
-            'q_ref:draw_state->state->quote->ref, ' +
-            'q_client:draw_state->state->quote->client, ' +
-            'q_accepted:draw_state->state->quote->accepted,' +
-            // Enough to tell an accepted quote that has reached Fergus from
-            // one still waiting for somebody to open the job.
-            'q_pushed:draw_state->state->quote->fergusAutoPushedFor,' +
-            'q_linked:draw_state->state->linkedJobId'), req)
-    // Only jobs that have actually been SHARED — filtered on the token
-    // expression (there's a functional index on it), so Postgres doesn't
-    // decompress every job's multi-MB draw_state.
-    .not('draw_state->state->quote->share->>token', 'is', null)
+  const SHARED_COLS = 'id, client_name, updated_at, ' +
+    'q_share:draw_state->state->quote->share, ' +
+    'q_ref:draw_state->state->quote->ref, ' +
+    'q_client:draw_state->state->quote->client, ' +
+    'q_accepted:draw_state->state->quote->accepted,' +
+    // Enough to tell an accepted quote that has reached Fergus from
+    // one still waiting for somebody to open the job.
+    'q_pushed:draw_state->state->quote->fergusAutoPushedFor,' +
+    'q_linked:draw_state->state->linkedJobId';
+  // Only jobs that have actually been SHARED — filtered on the token
+  // expression (there's a functional index on it), so Postgres doesn't
+  // decompress every job's multi-MB draw_state.
+  const shared = q => q.not('draw_state->state->quote->share->>token', 'is', null)
     .order('updated_at', { ascending: false }).limit(limit);
-  if (!primary.error) {
-    return (primary.data || []).map(function(j){
+  const reads = req.companyId
+    ? [shared(supabase.from('jobs').select(SHARED_COLS).eq('company_id', req.companyId)),
+       shared(supabase.from('jobs').select(SHARED_COLS).is('company_id', null).eq('user_id', req.user.id))]
+    : [shared(supabase.from('jobs').select(SHARED_COLS).eq('user_id', req.user.id))];
+  const parts = await Promise.all(reads);
+  const failed = parts.find(p => p.error);
+  if (!failed) {
+    const seen = {}, merged = [];
+    for (const p of parts) for (const j of (p.data || [])) {
+      if (seen[j.id]) continue;
+      seen[j.id] = 1; merged.push(j);
+    }
+    merged.sort(function(a, b){ return String(b.updated_at || '').localeCompare(String(a.updated_at || '')); });
+    return merged.slice(0, limit).map(function(j){
       return { id: j.id, client_name: j.client_name,
                share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
                pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
     }).filter(function(r){ return r.share && r.share.token; });
   }
-  console.error('quote share rows narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
+  console.error('quote share rows narrow select failed, falling back:', failed.error.message, failed.error.hint || '');
   const fb = await _scopeCompany(supabase.from('jobs')
     .select('id, client_name, quote:draw_state->state->quote'), req)
     .not('draw_state->state->quote->share->>token', 'is', null)
@@ -8743,6 +8763,11 @@ const _MIGRATION_SQL = [
   // this it walked the company's jobs by updated_at and hit the statement
   // timeout on a cold morning.
   "create index if not exists idx_jobs_shared_recent on public.jobs (company_id, updated_at desc) where (draw_state -> 'state' -> 'quote' -> 'share' ->> 'token') is not null",
+  // The other half of that feed: rows that predate companies (company_id
+  // null) are read by user_id, and without their own index the planner fell
+  // back to a full scan of the jobs table — detoasting every draw_state to
+  // test the token — and hit the statement timeout.
+  "create index if not exists idx_jobs_shared_recent_user on public.jobs (user_id, updated_at desc) where (draw_state -> 'state' -> 'quote' -> 'share' ->> 'token') is not null",
 
   // 2. tenant tables + columns
   "create table if not exists public.companies (" +

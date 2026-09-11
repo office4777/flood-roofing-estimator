@@ -34,6 +34,11 @@ const { port } = await startFakePostgrest({
     job('a4', 'cA', 'ua', { token: 't-a4', sentAt: daysAgo(100), status: 'sent', events: [] }),
     // Company B: one of its own
     job('b1', 'cB', 'ub', { token: 't-b1', sentAt: daysAgo(3), status: 'sent', events: [] }),
+    // A row from before companies existed: company_id null, owned by ua.
+    // The feed reads the company arm and this legacy arm as TWO indexed
+    // queries now (one OR'd query made Postgres scan every job and blow the
+    // statement timeout), so it has to still come back — exactly once.
+    job('a0', null, 'ua', { token: 't-a0', sentAt: daysAgo(120), status: 'sent', events: [] }),
   ],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
@@ -90,8 +95,17 @@ r = await get('/quote-analytics?days=30', tokFor('us', 'cS'));
 check('…and the numbers that go with it', r.status === 200 && typeof r.body.sent === 'number',
   'status ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
 r = await get('/quote-activity', tokFor('ua', 'cA'));
-check('Team still gets its feed', r.status === 200 && Array.isArray(r.body) && r.body.length === 4,
+check('Team still gets its feed', r.status === 200 && Array.isArray(r.body) && r.body.length === 5,
   'status ' + r.status + ', ' + (Array.isArray(r.body) ? r.body.length : '—') + ' rows');
+check('…including the pre-company row, once and only once',
+  r.body.filter(x => x.jobId === 'a0').length === 1,
+  JSON.stringify(r.body.map(x => x.jobId)));
+check('…and no other company\'s row rides in with it',
+  !r.body.some(x => x.jobId === 'b1'), JSON.stringify(r.body.map(x => x.jobId)));
+r = await get('/quote-activity', tokFor('ub', 'cB'));
+check('company B\'s feed is still only B\'s',
+  r.status === 200 && r.body.length === 1 && r.body[0].jobId === 'b1',
+  JSON.stringify((r.body || []).map(x => x.jobId)));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
