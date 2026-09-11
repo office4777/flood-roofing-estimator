@@ -13,6 +13,7 @@ import { dirname as _d, join as _j } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
 
+import { readFile } from 'node:fs/promises';
 import { startFakePostgrest } from './fakepgrst.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(_j(_ROOT, 'backend') + '/');
@@ -92,12 +93,35 @@ r = await as(A, '/fergus/jobs?pageSize=5'); body = await j(r);
 check("B's key does not bleed to company A", r.status === 400 && body.error === 'not_connected',
   'status ' + r.status);
 
-// ── the env key serves exactly the company that owns it ───────────
+// ── the env key is dead: it serves NOBODY, named or not ───────────
+// It used to serve the company named by FERGUS_COMPANY_ID. A trial account
+// still came up "Fergus: connected" with an empty key field and Flood
+// Roofing's job list behind it, so the fallback is gone entirely — every
+// business, the owner's included, connects with its own stored key.
 process.env.FERGUS_COMPANY_ID = A.company;
-r = await as(A, '/fergus/jobs?pageSize=5');
-check('FERGUS_COMPANY_ID grants the env key to its named company', r.status === 502, 'status ' + r.status);
+r = await as(A, '/fergus/jobs?pageSize=5'); body = await j(r);
+check('even FERGUS_COMPANY_ID does not hand out the env key', r.status === 400 &&
+  body.error === 'not_connected', 'status ' + r.status);
 r = await as(C, '/fergus/jobs?pageSize=5'); body = await j(r);
-check('…and to nobody else', r.status === 400 && body.error === 'not_connected', 'status ' + r.status);
+check('…and no other company gets it either', r.status === 400 && body.error === 'not_connected',
+  'status ' + r.status);
+body = await j(await as(A, '/jms/debug'));
+check('…/jms/debug agrees the owner has no key until one is stored',
+  body.fergus && body.fergus.key_set === false, JSON.stringify(body.fergus || {}).slice(0, 80));
+
+// ── a settings row stamped with ANOTHER company is not readable ───
+// The one shape that would still leak: a row carrying user C's user_id but
+// company A's company_id. The fallback-by-user_id lookup must refuse it
+// rather than hand C company A's key.
+await fetch('http://127.0.0.1:' + port + '/user_settings', { method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ user_id: C.user, company_id: A.company, branding: {},
+    quote_defaults: {}, jms_keys: { fergus: 'fergPAT_aaaa' }, price_book: {},
+    labour_pricing: {}, ui_flags: {}, selectables: {}, schedule_cfg: {},
+    updated_at: new Date().toISOString() }) });
+r = await as(C, '/fergus/jobs?pageSize=5'); body = await j(r);
+check('a settings row belonging to another company is never a key source',
+  r.status === 400 && body.error === 'not_connected', 'status ' + r.status);
 
 // ── the files surface is gated the same way ───────────────────────
 r = await as(C, '/fergus-files/list?jobId=123'); body = await j(r);
@@ -148,6 +172,25 @@ check('…and a later partial write MERGES — the first flag survives',
 body = await j(await as(B, '/settings'));
 check('…so any device reads both on login', body.ui_flags &&
   body.ui_flags.tour_done === true && body.ui_flags.setup_done === true, JSON.stringify(body.ui_flags));
+
+// ── the browser half: one business's link never outlives its session ──
+// The trial account that saw Flood Roofing's jobs also came up showing
+// "Fergus: connected" with an empty key box, because fr_jms_linked (and the
+// Fergus→job map) sat in localStorage from the previous account on that
+// phone. Sign-in AND sign-out clear the business-scoped keys.
+const APP = await readFile(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
+check('app.html defines the business-scoped local wipe',
+  /window\._frWipeBusinessLocal\s*=\s*function/.test(APP));
+for (const k of ['fr_jms_linked', 'fr_ferg2job', 'fr_jms']){
+  const wipe = APP.slice(APP.indexOf('_frWipeBusinessLocal'), APP.indexOf('_frWipeBusinessLocal') + 900);
+  check('…and it clears ' + k, wipe.includes(k));
+}
+check('signing out wipes before dropping the token',
+  /doLogout=function\(\)\{\s*try \{ window\._frWipeBusinessLocal\(\); \} catch\(e\)\{\}/.test(APP));
+check('an expired session wipes too',
+  /_frSessionExpired[\s\S]{0,400}_frWipeBusinessLocal/.test(APP));
+check('every sign-in that stores a token wipes first',
+  (APP.match(/_frWipeBusinessLocal\(\); \} catch\(_e\)\{\}\s*\n\s*localStorage\.setItem\('fr_token'/g) || []).length >= 5);
 
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');

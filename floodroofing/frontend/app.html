@@ -3570,6 +3570,26 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <script>
 (function(){
   var BACKEND='https://flood-roofing-estimator-production.up.railway.app';
+  // ── Nothing of one business may survive into another's session ──
+  // A phone or an office machine gets signed out and signed back in as a
+  // DIFFERENT account. Everything below is business-scoped state that used
+  // to be left behind: the "Fergus is linked" flag (which put a trial
+  // account into the connected Fergus UI with an empty key field), the
+  // Fergus-job→RoofMap-job map, and the cached panel/job state. Cleared on
+  // every sign-out AND on every sign-in, so a stale flag can't outlive the
+  // account that set it.
+  window._frWipeBusinessLocal = function(){
+    try {
+      ['fr_jms','fr_jms_linked','fr_ferg2job','fr_fergus_panel_w','fr_sidepop_w']
+        .forEach(function(k){ localStorage.removeItem(k); });
+    } catch(e){}
+    try { sessionStorage.removeItem('fr_fergus_panel_open'); } catch(e){}
+    try {
+      window._selectJobsCache = null;
+      if (window.S){ S.fergConnected = false; S.fergJobsCache = []; }
+      if (window._jmsState) window._jmsState.jobsCache = [];
+    } catch(e){}
+  };
   // Customer-facing shareable quote: ?q=<token> opens a read-only,
   // interactive proposal with no office login.  bootCustomerView()
   // (defined later) renders it once all scripts have loaded.
@@ -3633,6 +3653,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         body:JSON.stringify({token:window.__INVITE_TOKEN||'',password:pass,name:document.getElementById('inv-name').value})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not accept the invitation');
+      try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
@@ -3661,6 +3682,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   window._frSessionExpired=function(){
     if(window.__CUSTOMER_TOKEN) return;
     if(!localStorage.getItem('fr_token')) return;
+    try { window._frWipeBusinessLocal(); } catch(e){}
     localStorage.removeItem('fr_token');
     localStorage.removeItem('fr_user');
     localStorage.removeItem('fr_company');
@@ -3689,7 +3711,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         var r=await fetch(BACKEND+'/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_vt})});
         var d=await r.json();
         if(!r.ok) throw new Error(d.error||'This confirmation link is no longer valid.');
-        localStorage.setItem('fr_token',d.token);
+        try { window._frWipeBusinessLocal(); } catch(_e){}
+      localStorage.setItem('fr_token',d.token);
         localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
         if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
         try { window._navPlanSync && window._navPlanSync(); } catch(e){}
@@ -3770,6 +3793,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       var r=await fetch(BACKEND+'/auth/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:window.__RESET_TOKEN||'',password:pass})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not reset your password');
+      try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
@@ -3811,6 +3835,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         err.style.display='block'; btn.style.display='block'; spin.style.display='none';
         return;
       }
+      try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{email:email,name:name}));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
@@ -3843,6 +3868,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         btn.style.display='block'; spin.style.display='none'; return;
       }
       if(!r.ok) throw new Error(d.error||'Login failed');
+      try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user));
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
@@ -3857,6 +3883,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     btn.style.display='block'; spin.style.display='none';
   };
   window.doLogout=function(){
+    try { window._frWipeBusinessLocal(); } catch(e){}
     localStorage.removeItem('fr_token');
     localStorage.removeItem('fr_user');
     localStorage.removeItem('fr_company');
@@ -9801,6 +9828,7 @@ async function _navSignOut(){
   // staring at a signed-in app long after they had asked to leave it.
   try { Promise.resolve(api('POST', '/auth/logout', {})).catch(function(){}); } catch(e){}
   try { window.doLogout(); } catch(e){
+    try { window._frWipeBusinessLocal(); } catch(_e){}
     try { localStorage.removeItem('fr_token'); localStorage.removeItem('fr_user'); localStorage.removeItem('fr_company'); } catch(_e){}
     location.reload();
   }

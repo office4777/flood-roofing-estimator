@@ -2634,7 +2634,11 @@ async function _companySettingsRow(req){
       .eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1);
     if (data && data[0]) return data[0];
   }
+  // The caller's own legacy row (written before rows carried a company).
+  // If it is stamped with a DIFFERENT company than the caller is in now,
+  // it is not theirs to read — better no settings than another business's.
   const { data } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
+  if (data && req.companyId && data.company_id && String(data.company_id) !== String(req.companyId)) return null;
   return data || null;
 }
 
@@ -6306,23 +6310,46 @@ app.get('/schedule/feed.ics', async (req, res) => {
 // are env-configurable so they can be fixed without a code change.
 const FERGUS_HOST   = process.env.FERGUS_HOST        || 'api.fergus.com';
 const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
-// Which Fergus key may THIS request use? The company's own stored key
-// (Settings → Integrations → Fergus, saved as jms_keys.fergus) — never
-// anyone else's. The legacy FERGUS_API_KEY env var predates multi-tenancy
-// and used to serve EVERY authenticated company, which showed one
-// business's Fergus jobs to every other business; it now applies only to
-// the single company named by FERGUS_COMPANY_ID.
+// Which Fergus key may THIS request use? ONE answer only: the key this
+// company stored itself (Settings → Integrations → Fergus, saved as
+// jms_keys.fergus). There is no environment fallback and no shared key.
+// The legacy FERGUS_API_KEY env var predates multi-tenancy and served
+// EVERY authenticated company, which showed one business's Fergus jobs to
+// every other business — a trial account saw Flood Roofing's job list. It
+// is not read here at all now: a business with no key of its own gets
+// "not connected", never someone else's jobs.
+//
+// The row is checked against the caller's company as well. _companySettingsRow
+// is already scoped, but a key is the one thing where a wrong row leaks
+// another business's customers, so it is asserted at the point of use.
 async function _fergusKeyFor(req){
   try {
     const row = await _companySettingsRow(req);
-    const k = row && row.jms_keys && row.jms_keys.fergus;
+    if (!row) return null;
+    if (req.companyId && row.company_id && String(row.company_id) !== String(req.companyId)) return null;
+    const k = row.jms_keys && row.jms_keys.fergus;
     if (k && String(k).trim()) return String(k).trim();
   } catch (e) {}
-  if (process.env.FERGUS_API_KEY && process.env.FERGUS_COMPANY_ID &&
-      req.companyId && String(req.companyId) === String(process.env.FERGUS_COMPANY_ID)) {
-    return process.env.FERGUS_API_KEY;
-  }
   return null;
+}
+// See the boot call: the legacy FERGUS_API_KEY becomes the named company's
+// OWN stored key, once. After that Railway's variable can be deleted.
+async function _adoptLegacyFergusKey(){
+  const key = String(process.env.FERGUS_API_KEY || '').trim();
+  const cid = String(process.env.FERGUS_COMPANY_ID || '').trim();
+  if (!key || !cid) return;
+  try {
+    const { data } = await supabase.from('user_settings').select('user_id, jms_keys')
+      .eq('company_id', cid).order('updated_at', { ascending: false }).limit(1);
+    const row = data && data[0];
+    if (!row) { console.warn('[fergus] no settings row for FERGUS_COMPANY_ID — key not adopted'); return; }
+    if (row.jms_keys && String(row.jms_keys.fergus || '').trim()) return;   // already theirs
+    const keys = Object.assign({}, row.jms_keys || {}, { fergus: key });
+    const { error } = await supabase.from('user_settings').update({ jms_keys: keys })
+      .eq('user_id', row.user_id);
+    if (error) console.warn('[fergus] legacy key not adopted: ' + error.message);
+    else console.log('[fergus] legacy env key stored as the owning company\'s own key');
+  } catch (e) { console.warn('[fergus] legacy key adoption failed: ' + e.message); }
 }
 const _FERGUS_NOT_CONNECTED = { error: 'not_connected',
   message: 'Fergus is not connected for this business — add your Fergus API key under Settings → Job Management Software → Configure.' };
@@ -10070,6 +10097,12 @@ app.listen(PORT, () => {
   _reloadVerifiedDomains().catch(function(){});
   _reloadMailDomains().catch(function(){});
   _ensureSchema().catch(function(){});
+  // One-time landing for the legacy env key. _fergusKeyFor no longer reads
+  // FERGUS_API_KEY at all, so the company that used to ride it (the one named
+  // by FERGUS_COMPANY_ID) would come up disconnected on this deploy. Copy the
+  // key ONCE into that company's own settings row — where every other
+  // business keeps its key — and never overwrite a key already stored.
+  _adoptLegacyFergusKey().catch(function(){});
   // Enforce the retention period the privacy policy promises.
   _pruneUsage().catch(function(){});
   setInterval(function(){ _pruneUsage().catch(function(){}); }, 24 * 3600e3).unref();
