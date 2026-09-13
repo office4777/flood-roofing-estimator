@@ -15429,7 +15429,13 @@ function _isJobDirty(){
 // can't, so switching jobs can never silently discard work.
 async function _saveBeforeSwitch(){
   try {
-    if (_jobLockActive()) return;              // locked: nothing to carry over
+    // Locked: the server row must not be written to. But anything changed on
+    // screen since the lock went on still has to survive the switch, so it
+    // goes to THIS DEVICE as a draft rather than nowhere at all.
+    if (_jobLockActive()) {
+      try { if (_isJobDirty()) await _writeLocalDraftNow(); } catch(e){}
+      return;
+    }
     if (!_isJobDirty()) return;
     if ((S.currentJobId || S.linkedJobId) && typeof saveCurrentJob === 'function') {
       try { await saveCurrentJob(); } catch(e){}
@@ -16732,11 +16738,43 @@ function _resetQuoteForFreshJob(seed){
   try { refreshQuoteProposal && refreshQuoteProposal(); } catch(e){}
   try { recalcQuoteTotals && recalcQuoteTotals(); } catch(e){}
 }
+// Starting a new job has to let go of the OLD one completely — not just
+// blank the canvas. It did not, and a locked job was lost by it:
+//
+//   New job cleared the drawing and S.currentJobId but left the FERGUS link
+//   (S.linkedJobId / linkedJobNo / linkedJobName) pointing at the job just
+//   finished. The sidebar went on naming that job — "Job 3218" over an empty
+//   canvas — and worse, the first save of the blank job created a new record
+//   and then remapped Fergus job 3218 onto it, so re-opening 3218 from the
+//   Fergus list showed the empty roof. The real drawing was still in Saved
+//   jobs, but nothing said so.
+//
+//   The lock leaked the same way: _jobLockActive() needs a currentJobId, so
+//   nulling the id left S.jobLocked true but inert — and the moment the new
+//   job was saved it inherited a lock nobody asked for.
+//
+// Everything that says "which job this is" is cleared here, in one place,
+// so neither path can forget a piece of it again.
+function _releaseCurrentJob(){
+  var old = S.linkedJobId;
+  S.currentJobId = null;
+  S.jobLocked = false;
+  S.linkedJobId = null; S.linkedJobNo = null; S.linkedJobName = null;
+  S.linkedJobUrl = null;
+  S._jobLoaded = null;
+  S.orderSent = null;
+  try { window._photoAck = null; window._lastSent = null; } catch(e){}
+  try { _UNT.tried = false; } catch(e){}
+  // The Fergus job keeps pointing at the job it actually belongs to. Only
+  // the NEW job's own save may claim a mapping, and it has no link now.
+  try { if (old) _fergJobMapGet(old); } catch(e){}
+  try { _jobLockRender && _jobLockRender(); } catch(e){}
+  try { _refreshRoofFergusBtn && _refreshRoofFergusBtn(); } catch(e){}
+}
 async function newJob(){
   if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
   try { await _saveBeforeSwitch(); } catch(e){}
-  S.currentJobId = null; S.jobLocked = false;
-  try { _UNT.tried = false; } catch(e){}
+  _releaseCurrentJob();
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
@@ -16809,11 +16847,10 @@ function _adoptJobNo(oldNo, newNo){
 async function startNewJob(){
   if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
   try { await _saveBeforeSwitch(); } catch(e){}
-  S.currentJobId = null;
+  _releaseCurrentJob();
   ['jobClient','jobAddr','jobEmail','jobPhone','jobNo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
-  S.orderSent = null;
   S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
   _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
