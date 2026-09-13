@@ -5311,6 +5311,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            two of them are the ones anybody actually drags onto a job pack,
            so the other three start off and are one tick away. -->
       <div id="jpMapKinds" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"></div>
+      <!-- Which roofs the combined "All roofs" diagrams draw, and which
+           roofs get their own diagram. Every roof is on by default. -->
+      <div id="jpMapRoofs" style="display:none;align-items:center;gap:5px;flex-wrap:wrap"></div>
       <div style="display:flex;align-items:center;gap:9px">
         <span style="font-size:11px;color:var(--text2);white-space:nowrap;font-weight:500">🔍 Zoom</span>
         <input id="jpMapPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_jpMapPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
@@ -18913,7 +18916,9 @@ function _renderCalcCheckCanvas(sections, opts){
   var _lenCol = (typeof _ccLenColours === 'function') ? _ccLenColours(secs) : {};
   function _secCol(s){ return _lenCol[s.orderedMm] || s.color; }
   var scale = opts.thumb ? 1 : 2;   // hi-dpi for page/PDF use
-  var W = 960, titleH = 58, footH = 30, padX = 62, padTop = 34, padBot = 34;
+  // padTop clears the perimeter measurements, which are nudged ~16px OUTWARD
+  // from the roof — with a wrapped legend above them they used to land on it.
+  var W = 960, titleH = 58, footH = 30, padX = 62, padTop = 52, padBot = 40;
   // Empty / no-geometry fallback card.
   if (!secs.length){
     var H0 = 120;
@@ -18927,7 +18932,22 @@ function _renderCalcCheckCanvas(sections, opts){
     c0.fillText('Refresh the sheet plan first — nothing to check yet.', padX, 60);
     return cv0;
   }
-  var outline = (secs[0].outline && secs[0].outline.length >= 3) ? secs[0].outline : null;
+  // One diagram can carry SEVERAL roofs (the panel's combined "All roofs"
+  // capture passes every visible roof's sections at once), so collect every
+  // distinct outline rather than assuming the first section's is the only
+  // one — otherwise roof 2..n drew its columns with no roof under them and
+  // was faded out by the on-roof clip.
+  var outlines = [];
+  (function(){
+    var seen = {};
+    secs.forEach(function(s){
+      if (!(s.outline && s.outline.length >= 3)) return;
+      var key = s.outline.map(function(p){ return p[0]+','+p[1]; }).join(' ');
+      if (seen[key]) return;
+      seen[key] = 1; outlines.push(s.outline);
+    });
+  })();
+  var outline = outlines[0] || null;
   var scaleM  = secs[0].scaleM || 0;
 
   // Build each section's sheet columns in world (outline-px) space. The
@@ -18935,7 +18955,7 @@ function _renderCalcCheckCanvas(sections, opts){
   // gutter-anchored so its rounded-up last sheet overhangs the far eave.
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   function track(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
-  if (outline) outline.forEach(track);
+  outlines.forEach(function(o){ o.forEach(track); });
   var built = [], grand = 0, primaryWC = null;
   // Pass 1 — basic geometry + each section's world centre.
   secs.forEach(function(s){
@@ -18968,6 +18988,20 @@ function _renderCalcCheckCanvas(sections, opts){
     for (var j = 0; j <= b.per; j++){ track(b.w2(b.startU + j*b.cw, b.vMid-b.halfRun)); track(b.w2(b.startU + j*b.cw, b.vMid+b.halfRun)); }
     if (s.valleyExtra){ var vu = b.startU + span + b.cw; track(b.w2(vu, b.vMid)); track(b.w2(vu, b.vMid+b.halfRun)); }
   });
+  // Legend chips wrap onto as many rows as the roofs need — five roofs'
+  // worth of chips used to run off the right-hand edge of one row.
+  var _mctx = document.createElement('canvas').getContext('2d');
+  _mctx.font = '700 12px Inter, sans-serif';
+  var _chips = [], _chipRow = 0, _chipX = padX, _chipMaxX = W - padX;
+  secs.forEach(function(s){
+    var text = (s.roof ? s.roof + ' — ' : '') + _calcCheckColour(_secCol(s)) +
+               (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(2) + 'm';
+    var w = 18 + _mctx.measureText(text).width + 24;
+    if (_chipX > padX && _chipX + w > _chipMaxX) { _chipRow++; _chipX = padX; }
+    _chips.push({ x:_chipX, row:_chipRow, text:text, color:_secCol(s) });
+    _chipX += w;
+  });
+  titleH = titleH + _chipRow * 19;
   var spanX = (maxX-minX) || 1, spanY = (maxY-minY) || 1;
   var drawW = W - padX*2;
   var drawH = Math.max(200, Math.min(560, drawW * spanY/spanX));
@@ -18991,20 +19025,24 @@ function _renderCalcCheckCanvas(sections, opts){
   ctx.fillText('The roof tiled as gable sheet columns — count them against the cut list. Faded parts poke past the roof edge: those sheets round up to a full sheet but only a part is used.', padX, 42);
 
   // Section legend chips (top row) — keeps names off the roof grid.
-  var lgx = padX;
-  built.forEach(function(b){
-    var s = b.s;
-    var text = _calcCheckColour(_secCol(s)) + (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(2) + 'm';
-    ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
-    var tw = ctx.measureText(text).width;
-    ctx.fillStyle = _secCol(s); _roundRect(ctx, lgx, 63, 12, 12, 3); ctx.fill();
-    ctx.fillStyle = '#0a1628'; ctx.textAlign = 'left'; ctx.fillText(text, lgx + 18, 70);
-    lgx += 18 + tw + 24;
+  ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  _chips.forEach(function(c){
+    var y = 63 + c.row * 19;
+    ctx.fillStyle = c.color; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill();
+    ctx.fillStyle = '#0a1628'; ctx.fillText(c.text, c.x + 18, y + 7);
   });
   ctx.textBaseline = 'top';
 
   // Pale roof fill.
-  if (outline){ poly(outline.map(toC)); ctx.fillStyle = '#ecfdf5'; ctx.fill(); }
+  function polyOutlines(){
+    ctx.beginPath();
+    outlines.forEach(function(o){
+      o.map(toC).forEach(function(p, i){ i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]); });
+      ctx.closePath();
+    });
+  }
+  if (outlines.length){ polyOutlines(); ctx.fillStyle = '#ecfdf5'; ctx.fill(); }
 
   // Column drawing helper — draws all sections' columns + ridge. `faded`
   // draws at low opacity everywhere (whole ordered sheet, overhang and
@@ -19045,7 +19083,7 @@ function _renderCalcCheckCanvas(sections, opts){
   }
   drawColumns(true);                                   // whole sheets, faded
   ctx.save();
-  if (outline){ poly(outline.map(toC)); ctx.clip(); }  // solid only on-roof
+  if (outlines.length){ polyOutlines(); ctx.clip(); }   // solid only on-roof
   drawColumns(false);
   ctx.restore();
 
@@ -19058,10 +19096,10 @@ function _renderCalcCheckCanvas(sections, opts){
   });
 
   // Real roof outline on top.
-  if (outline){ poly(outline.map(toC)); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.4; ctx.stroke(); }
+  if (outlines.length){ polyOutlines(); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.4; ctx.stroke(); }
 
   // Perimeter edge measurements (metres), nudged outward from the centre.
-  if (outline && scaleM > 0){
+  if (outlines.length && scaleM > 0){ outlines.forEach(function(outline){
     var ocx = 0, ocy = 0; outline.forEach(function(p){ ocx += p[0]; ocy += p[1]; }); ocx /= outline.length; ocy /= outline.length;
     ctx.font = '700 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (var i = 0; i < outline.length; i++){
@@ -19077,6 +19115,29 @@ function _renderCalcCheckCanvas(sections, opts){
       ctx.fillStyle = 'rgba(255,255,255,0.9)'; _roundRect(ctx, lx-tw/2, ly-8, tw, 16, 4); ctx.fill();
       ctx.fillStyle = '#7c3aed'; ctx.fillText(txt, lx, ly);
     }
+  }); }
+  // Name each roof on a combined diagram so the columns can be read back
+  // to the roof they belong to.
+  if (outlines.length > 1){
+    var _nameFor = {};
+    secs.forEach(function(s){
+      if (!(s.outline && s.outline.length >= 3) || !s.roof) return;
+      _nameFor[s.outline.map(function(p){ return p[0]+','+p[1]; }).join(' ')] = s.roof;
+    });
+    ctx.font = '800 12px Inter, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    outlines.forEach(function(o){
+      var nm = _nameFor[o.map(function(p){ return p[0]+','+p[1]; }).join(' ')];
+      if (!nm) return;
+      // Top-LEFT corner: the top-edge measurement is centred, so a centred
+      // name sat straight on top of it.
+      var tx = Infinity, ty = Infinity;
+      o.forEach(function(p){ if (p[0] < tx) tx = p[0]; if (p[1] < ty) ty = p[1]; });
+      var c = toC([tx, ty]);
+      var tw = ctx.measureText(nm).width + 10;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'; _roundRect(ctx, c[0]+2, c[1]-19, tw, 16, 4); ctx.fill();
+      ctx.fillStyle = '#0a1628'; ctx.fillText(nm, c[0]+7, c[1]-5);
+    });
+    ctx.textBaseline = 'top';
   }
 
   // Column numbers (full opacity, so the faded overhang sheet still counts).
@@ -47981,9 +48042,73 @@ function _jpRenderMapKindToggles(){
   }).join('');
 }
 
+// ── Which roofs the Maps panel draws ──────────────────────────────
+// Every roof starts ON. The toggles add / remove that roof from the
+// combined "All roofs" diagrams AND from the per-roof list, so the panel
+// and the one diagram always agree about what is being looked at.
+function _jpRoofOn(i){
+  try {
+    var raw = localStorage.getItem('fr_jp_roof_' + i);
+    return raw == null ? true : raw === '1';
+  } catch(e){ return true; }
+}
+function _jpRoofSet(i, on){
+  // Never let the last roof be unticked — the combined diagram would have
+  // nothing in it and the panel would go empty with no way back.
+  if (!on && _jpVisibleRoofIndices().length <= 1) { try { _jpRenderRoofToggles(); } catch(e){} return; }
+  try { localStorage.setItem('fr_jp_roof_' + i, on ? '1' : '0'); } catch(e){}
+  var list = document.getElementById('jpMapPanelList');
+  if (list) list.__jpHtml = null;
+  try { renderJpMapPanel(); } catch(e){}
+}
+function _jpRoofCount(){ return (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.length : 0; }
+// Indices of the roofs currently ticked. Never empty for a drawn job: if
+// the user turns every roof off the diagrams would have nothing in them,
+// so the last tick cannot be removed (the chip is simply re-ticked).
+function _jpVisibleRoofIndices(){
+  var n = _jpRoofCount(), out = [];
+  for (var i = 0; i < n; i++) if (_jpRoofOn(i)) out.push(i);
+  return out;
+}
+function _jpSetAllRoofs(on){
+  var n = _jpRoofCount();
+  for (var i = 0; i < n; i++){
+    try { localStorage.setItem('fr_jp_roof_' + i, on ? '1' : '0'); } catch(e){}
+  }
+  if (!on) { try { localStorage.setItem('fr_jp_roof_0', '1'); } catch(e){} }
+  var list = document.getElementById('jpMapPanelList');
+  if (list) list.__jpHtml = null;
+  try { renderJpMapPanel(); } catch(e){}
+}
+function _jpRenderRoofToggles(){
+  var box = document.getElementById('jpMapRoofs'); if (!box) return;
+  var n = _jpRoofCount();
+  if (n < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'flex';
+  var vis = _jpVisibleRoofIndices();
+  var allOn = vis.length === n;
+  function chip(on, label, attrs, handler){
+    return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;' +
+      'padding:3px 8px 3px 6px;border-radius:20px;cursor:pointer;user-select:none;' +
+      'border:1px solid ' + (on ? '#0099cc' : 'var(--border)') + ';' +
+      'background:' + (on ? 'rgba(0,153,204,.10)' : '#fff') + ';' +
+      'color:' + (on ? '#0a1628' : 'var(--text2)') + '">' +
+      '<input type="checkbox"' + attrs + (on ? ' checked' : '') +
+        ' onchange="' + handler + '" style="width:auto;margin:0;accent-color:#0099cc">' +
+      esc(label) + '</label>';
+  }
+  var html = chip(allOn, 'Select all', ' data-jproofall="1"', '_jpSetAllRoofs(this.checked)');
+  for (var i = 0; i < n; i++){
+    var nm = (DRAW.roofs[i] && DRAW.roofs[i].name) || _nthName(i + 1);
+    html += chip(_jpRoofOn(i), nm, ' data-jproof="' + i + '"', '_jpRoofSet(' + i + ', this.checked)');
+  }
+  box.innerHTML = html;
+}
+
 function renderJpMapPanel(){
   var list = document.getElementById('jpMapPanelList'); if (!list) return;
   try { _jpRenderMapKindToggles(); } catch(e){}
+  try { _jpRenderRoofToggles(); } catch(e){}
   var items = _jpMapPanelItems().filter(function(it){
     return _jpMapKindOn(String(it.key).split(':')[0]);
   });
@@ -48029,8 +48154,20 @@ function _jpMapPanelItems(){
   // with the roof it belongs to.
   var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
   if (roofs && roofs.length > 1) {
-    roofs.forEach(function(r, i){
-      var name = r.name || _nthName(i + 1);
+    // ONE diagram per kind carrying every ticked roof, offered first —
+    // then the same kinds per roof, for the roofs that are ticked.
+    var vis = _jpVisibleRoofIndices();
+    var allSub = (vis.length === roofs.length)
+      ? 'All roofs'
+      : vis.map(function(i){ return (roofs[i] && roofs[i].name) || _nthName(i + 1); }).join(' + ');
+    items.push({ key:'detailed:all',  label:'Detailed map',     sub:allSub });
+    items.push({ key:'basic:all',     label:'Basic map',        sub:allSub });
+    items.push({ key:'sheetplan:all', label:'Sheet layout',     sub:allSub });
+    items.push({ key:'calccheck:all', label:'Sheet calc check', sub:allSub });
+    items.push({ key:'flashref:all',  label:'Flashing ref map', sub:allSub });
+    vis.forEach(function(i){
+      var r = roofs[i];
+      var name = (r && r.name) || _nthName(i + 1);
       items.push({ key:'detailed:'+i,  label:'Detailed map',     sub:name });
       items.push({ key:'basic:'+i,     label:'Basic map',        sub:name });
       items.push({ key:'sheetplan:'+i, label:'Sheet layout',     sub:name });
@@ -48052,6 +48189,7 @@ function _jpCaptureMap(mapKey, opts){
   opts = opts || {};
   var parts = mapKey.split(':');
   var kind = parts[0];
+  if (parts[1] === 'all') { try { return _jpCaptureCombined(kind, opts); } catch(e){ return null; } }
   var roofIdx = parts.length > 1 ? parseInt(parts[1], 10) : -1;
   try {
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
@@ -48061,6 +48199,138 @@ function _jpCaptureMap(mapKey, opts){
     if (kind === 'flashref') return _jpCaptureFlashRef(roofIdx, opts);
   } catch(e){ return null; }
   return null;
+}
+// ── Combined ("All roofs") capture ───────────────────────────────
+// One diagram carrying every roof the panel's roof toggles leave on,
+// instead of one diagram per roof. The per-roof diagrams are still
+// offered underneath — this is an extra, not a replacement.
+function _jpCaptureCombined(kind, opts){
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  if (!roofs || roofs.length < 2) {
+    // Single-roof job: the plain capture already IS every roof.
+    if (kind === 'detailed') return _jpCaptureDetailed(-1, opts);
+    if (kind === 'basic')    return _jpCaptureBasic(-1, opts);
+    if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts, -1);
+    if (kind === 'calccheck')return _jpCaptureCalcCheck(opts, -1);
+    if (kind === 'flashref') return _jpCaptureFlashRef(-1, opts);
+    return null;
+  }
+  var vis = _jpVisibleRoofIndices();
+  if (!vis.length) return null;
+  if (kind === 'sheetplan') return _jpCaptureSheetPlanCombined(vis, opts);
+  if (kind === 'calccheck') return _jpCaptureCalcCheckCombined(vis, opts);
+  // Canvas / SVG kinds draw from DRAW, so narrow DRAW.roofs to the ticked
+  // roofs and let the existing all-roofs path draw them together. Every
+  // field touched is put back in the finally, live canvas included.
+  var savedRoofs   = DRAW.roofs,
+      savedActive  = DRAW.activeRoofIdx,
+      savedShowAll = DRAW.showAllRoofs,
+      savedOutline = DRAW.outline,
+      savedLines   = DRAW.lines;
+  try {
+    // The active roof's live outline lives on DRAW, not in DRAW.roofs —
+    // push it back first or the ticked roofs draw from a stale snapshot.
+    try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+    DRAW.roofs = vis.map(function(i){ return savedRoofs[i]; });
+    var na = vis.indexOf(savedActive);
+    DRAW.activeRoofIdx = na >= 0 ? na : 0;
+    if (na < 0) {
+      var t = DRAW.roofs[0] || {};
+      DRAW.outline = (t.outline || []).map(function(pt){ return pt.slice(); });
+      DRAW.lines = (t.lines || []).map(function(l){
+        return Object.assign({}, l, { pts: (l.pts||[]).map(function(pt){ return pt.slice(); }) });
+      });
+    }
+    DRAW.showAllRoofs = true;
+    if (kind === 'detailed') return _jpCaptureDetailed(-1, opts);
+    if (kind === 'basic')    return _jpCaptureBasic(-1, opts);
+    if (kind === 'flashref') return _jpCaptureFlashRef(-1, opts);
+    return null;
+  } finally {
+    DRAW.roofs = savedRoofs;
+    DRAW.activeRoofIdx = savedActive;
+    DRAW.showAllRoofs = savedShowAll;
+    DRAW.outline = savedOutline;
+    DRAW.lines = savedLines;
+    try { redrawAll(); } catch(e){}
+  }
+}
+// Sheet calc check across roofs: the sections renderRoofSheetPlan
+// accumulated are tagged with the roof they came from, so drawing the
+// ticked roofs' sections together gives one to-scale diagram of the lot.
+function _jpCaptureCalcCheckCombined(vis, opts){
+  var names = vis.map(function(i){ return _nthName(i + 1); });
+  var secs = (window._lastSheetSections || []).filter(function(s){
+    return !s.roof || names.indexOf(s.roof) >= 0;
+  });
+  try { return _renderCalcCheckCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
+}
+// Sheet layout across roofs: each roof's plan is its own canvas in the
+// live output, so stack the ticked ones under a shared heading and finish
+// with ONE order tally covering the lot (same colour + length collapsed).
+function _jpCaptureSheetPlanCombined(vis, opts){
+  var parts = [];
+  vis.forEach(function(i){
+    var sec = document.getElementById('__rrspSect_' + i);
+    if (!sec) return;
+    var cv = sec.querySelector('canvas');
+    if (!cv || !cv.width) return;
+    var nm = (DRAW.roofs[i] && DRAW.roofs[i].name) || _nthName(i + 1);
+    parts.push({ name: nm, cv: cv, groups: _jpExtractLegendFrom(sec) });
+  });
+  if (!parts.length) return null;
+  // Merge the per-roof legends by (colour, ordered length).
+  var byKey = {}, order = [];
+  parts.forEach(function(pt){
+    pt.groups.forEach(function(g){
+      var k = (g.color || '') + '|' + g.orderedMm;
+      if (!byKey[k]) { byKey[k] = { color:g.color, orderedMm:g.orderedMm, count:0 }; order.push(k); }
+      byKey[k].count += g.count || 0;
+    });
+  });
+  var groups = order.map(function(k){ return byKey[k]; });
+  var pad = 14, hdrH = 30, gap = 10, rowH = 22, legHdrH = 26;
+  var W = 0;
+  parts.forEach(function(pt){ if (pt.cv.width > W) W = pt.cv.width; });
+  W = Math.max(320, W);
+  var H = pad;
+  parts.forEach(function(pt){
+    pt.drawW = W;
+    pt.drawH = Math.round(pt.cv.height * (W / pt.cv.width));
+    H += hdrH + pt.drawH + gap;
+  });
+  if (groups.length) H += legHdrH + groups.length * rowH + pad;
+  H += pad;
+  var off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  var ctx = off.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  var y = pad;
+  parts.forEach(function(pt){
+    ctx.fillStyle = '#eef6fd';
+    _roundRect(ctx, pad, y, W - pad * 2, hdrH - 8, 6); ctx.fill();
+    ctx.fillStyle = '#0a1628';
+    ctx.font = '800 15px Inter, -apple-system, sans-serif';
+    ctx.fillText(pt.name, pad + 10, y + 3);
+    y += hdrH;
+    try { ctx.drawImage(pt.cv, 0, 0, pt.cv.width, pt.cv.height, 0, y, pt.drawW, pt.drawH); } catch(e){}
+    y += pt.drawH + gap;
+  });
+  if (groups.length) {
+    ctx.fillStyle = '#0a1628';
+    ctx.font = '700 14px Inter, -apple-system, sans-serif';
+    ctx.fillText('SHEETS TO ORDER — ALL ROOFS SHOWN', pad, y);
+    ctx.font = '500 13px Inter, -apple-system, sans-serif';
+    groups.forEach(function(g, i){
+      var ry = y + legHdrH + i * rowH;
+      ctx.fillStyle = g.color || '#0a1628';
+      ctx.fillRect(pad, ry + 4, 14, 14);
+      ctx.fillStyle = '#0a1628';
+      ctx.fillText(g.count + ' × @ ' + g.orderedMm + 'mm (' + (g.orderedMm/1000).toFixed(2) + 'm)', pad + 22, ry + 2);
+    });
+  }
+  try { return off.toDataURL('image/png'); } catch(e){ return null; }
 }
 // Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
 // [{color, count, orderedMm}] array. Reads the input elements that
