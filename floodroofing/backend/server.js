@@ -67,13 +67,38 @@ function _emailKey(req) {
   return e ? 'email:' + e : 'ip:' + req.ip;
 }
 
+// Supabase sits behind a proxy that, during a database blip, answers a
+// perfectly ordinary read with a 502/503 and a page of HTML — or drops the
+// connection. One of those 500'd the caller (the home screen's feed, the job
+// board, a save's photo-keep read) even though the very next request would
+// have worked: the same "believing one API call" the Fergus link was fixed
+// for. A READ is safe to repeat, so it gets one short retry. A WRITE is
+// never repeated — a duplicated insert is worse than an error.
+const _SB_RETRY_MS = 300;
+async function _sbFetch(url, opts){
+  const method = String((opts && opts.method) || 'GET').toUpperCase();
+  let lastRes = null, lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++){
+    if (attempt) await new Promise(r => setTimeout(r, _SB_RETRY_MS));
+    try {
+      const res = await fetch(url, opts);
+      if (method !== 'GET' || res.status < 500) return res;
+      lastRes = res; lastErr = null;
+    } catch (e) {
+      if (method !== 'GET') throw e;
+      lastErr = e;
+    }
+  }
+  if (lastErr) throw lastErr;
+  return lastRes;
+}
 // Supabase data client — ALL .from() queries run through this. It must stay on
 // the service_role key so it bypasses RLS. `persistSession:false` keeps it
 // stateless (no stored session, no refresh timers) on the server.
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY,
-  { auth: { persistSession: false, autoRefreshToken: false } }
+  { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: _sbFetch } }
 );
 // SEPARATE client for password sign-in. signInWithPassword() mutates the calling
 // client's auth to the signed-in USER (role: authenticated), which RLS then
@@ -2081,17 +2106,43 @@ app.get('/auth/me', requireAuth, async (req, res) => {
 // material order, which is the whole point of several people sharing one set of
 // jobs. Names are resolved here rather than stored on the row, so renaming a
 // person fixes every job at once.
+// The job board. This 500'd with "canceling statement due to statement
+// timeout" on a real account, the same shape of failure the quote feed had:
+// _scopeCompany builds `company_id = X OR (company_id is null AND user_id =
+// me)`, and that OR stops Postgres using either single-column index, so it
+// walks the whole jobs table — which on an account that autosaves a drawing
+// every couple of seconds is a big, heavily churned heap — and blows the
+// PostgREST role's 8-second statement_timeout. Each arm is read on its own
+// index and merged here, newest first, exactly as the feed does; the legacy
+// (company_id null) arm is empty for anyone who joined after companies
+// existed, so in practice it is one fast indexed read.
 app.get('/jobs', requireAuth, async (req, res) => {
   const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent';
-  let { data, error } = await _scopeCompany(supabase.from('jobs').select(COLS), req).order('updated_at', { ascending: false });
+  const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id';
+  const newest = q => q.order('updated_at', { ascending: false });
+  const arms = cols => (req.companyId
+    ? [newest(supabase.from('jobs').select(cols).eq('company_id', req.companyId)),
+       newest(supabase.from('jobs').select(cols).is('company_id', null).eq('user_id', req.user.id))]
+    : [newest(supabase.from('jobs').select(cols).eq('user_id', req.user.id))]);
+  const merge = parts => {
+    const seen = {}, out = [];
+    for (const p of parts) for (const j of (p.data || [])) {
+      if (seen[j.id]) continue;
+      seen[j.id] = 1; out.push(j);
+    }
+    out.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    return out;
+  };
+  let parts = await Promise.all(arms(COLS));
+  let error = (parts.find(p => p.error) || {}).error || null;
   if (error && /order_sent/.test(error.message || '')) {
     // Column not migrated on this database yet — serve the list without it
     // rather than failing the whole board.
-    ({ data, error } = await _scopeCompany(supabase.from('jobs')
-      .select('id, client_name, site_address, created_at, updated_at, status, user_id'), req)
-      .order('updated_at', { ascending: false }));
+    parts = await Promise.all(arms(LEAN));
+    error = (parts.find(p => p.error) || {}).error || null;
   }
   if (error) return res.status(500).json({ error: error.message });
+  const data = merge(parts);
   const names = await _companyMembers(req.companyId);
   const me = (req.user.name || String(req.user.email || '').split('@')[0] || '');
   res.json((data || []).map(function (j) {
@@ -8870,6 +8921,11 @@ const _MIGRATION_SQL = [
   "alter table public.user_settings add column if not exists company_id uuid",
   "alter table public.profiles add column if not exists company_id uuid",
   "create index if not exists idx_jobs_company on public.jobs (company_id)",
+  // The job board reads its two scope arms separately and newest-first, so
+  // each arm gets an index it can walk in order — without these the board
+  // sorted the whole table and hit the statement timeout.
+  "create index if not exists idx_jobs_company_recent on public.jobs (company_id, updated_at desc)",
+  "create index if not exists idx_jobs_user_recent on public.jobs (user_id, updated_at desc)",
   // Job number lookup — backs the duplicate-job-number guard on create.
   "create index if not exists idx_jobs_quote_ref on public.jobs ((draw_state->'state'->'quote'->>'ref'))",
   "create index if not exists idx_jobs_user on public.jobs (user_id)",
