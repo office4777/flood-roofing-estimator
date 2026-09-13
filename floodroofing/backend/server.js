@@ -940,6 +940,27 @@ app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features
           // An alert about mail being down cannot itself be an email.
           alertsGoElsewhere: !!ERR_WEBHOOK } }));
 
+// A FAILED READ IS NOT AN EMPTY ANSWER.
+//
+// The Supabase client hands back { data: null, error } for a proxy 502
+// exactly as it does for "no rows matched", and code that looked only at
+// `data` turned a database blip into a confident lie: no settings (so no
+// Fergus key and no price book on screen), no subscription (so "No
+// subscription found" on a paid account), and — worst of the three —
+// no company, which had this service CREATE A NEW EMPTY ONE and move the
+// account into it, leaving the real jobs, settings and subscription behind
+// under the old company. Every read that decides who someone is, or what
+// they are entitled to, goes through this.
+function _mustRead(res, what){
+  if (res && res.error) {
+    const e = new Error('Could not read your ' + what + ' — the database did not answer. Try again in a moment.');
+    e.upstream = true;
+    e.detail = (res.error && res.error.message) || String(res.error);
+    throw e;
+  }
+  return res ? res.data : null;
+}
+
 // user_id → company_id, cached per process. Newer JWTs carry the company id
 // (payload.cid) so this is only hit for legacy 30-day tokens minted before the
 // multi-tenant upgrade; those self-heal here (a company is created on the fly
@@ -950,15 +971,37 @@ async function _companyOf(userId){
   if (!userId) return null;
   if (_companyCache.has(userId)) return _companyCache.get(userId);
   let cid = null;
-  try {
-    const { data } = await supabase.from('company_users').select('company_id').eq('user_id', userId).maybeSingle();
-    cid = (data && data.company_id) || null;
-    if (!cid) {
-      let cname = '';
-      try {
-        const { data: prof } = await supabase.from('profiles').select('company, name, email').eq('id', userId).maybeSingle();
-        cname = (prof && (prof.company || prof.name || prof.email)) || '';
-      } catch(e){}
+  // A read that FAILED must never reach the create below: an outage that
+  // answered "no membership" once was enough to build a second, empty
+  // company and move the account into it — every job, setting and
+  // subscription left behind on the real one.
+  // ALL of them, oldest first — not maybeSingle(). An account that this bug
+  // already moved has TWO memberships: the real company it has always been
+  // in, and the empty one a blip invented. maybeSingle() answers "more than
+  // one row" for that, which would strand them on an error forever. The
+  // oldest membership is the business they actually belong to, and it wins;
+  // the profile is repaired back onto it, which is what puts a moved account
+  // back where it belongs on its next sign-in.
+  const mems = _mustRead(await supabase.from('company_users')
+    .select('company_id, created_at').eq('user_id', userId)
+    .order('created_at', { ascending: true }), 'company');
+  cid = (mems && mems[0] && mems[0].company_id) || null;
+  if (cid && mems.length > 1) {
+    try { await supabase.from('profiles').update({ company_id: cid }).eq('id', userId); } catch(e){}
+    console.warn('[company] ' + userId + ' had ' + mems.length +
+                 ' memberships — keeping the oldest (' + cid + ')');
+  }
+  if (!cid) {
+    // The profile is the second opinion. If it already names a company, that
+    // is the company — adopt it and repair the missing membership rather
+    // than starting a new business for somebody who has one.
+    const prof = _mustRead(await supabase.from('profiles')
+      .select('company, name, email, company_id').eq('id', userId).maybeSingle(), 'account');
+    if (prof && prof.company_id) {
+      cid = prof.company_id;
+      try { await supabase.from('company_users').insert({ company_id: cid, user_id: userId, role: 'owner' }); } catch(e){}
+    } else {
+      const cname = (prof && (prof.company || prof.name || prof.email)) || '';
       const { data: co, error } = await supabase.from('companies').insert({ name: cname || 'My Company' }).select('id').single();
       if (error) console.error('[company] could not create a company for ' + userId + ':', error.message);
       if (!error && co) {
@@ -967,7 +1010,7 @@ async function _companyOf(userId){
         await supabase.from('profiles').update({ company_id: cid }).eq('id', userId);
       }
     }
-  } catch(e){ console.warn('_companyOf failed (continuing per-user):', e.message); }
+  }
   if (cid) {
     if (_companyCache.size > 2000) _companyCache.clear();
     _companyCache.set(userId, cid);
@@ -1000,9 +1043,15 @@ async function requireAuth(req, res, next) {
   // Tenant scope: from the token when present, otherwise resolved (and cached).
   // On any failure fall back to null — every query then scopes by user_id, the
   // pre-upgrade behaviour, so auth NEVER breaks because company lookup did.
+  // Scoping to null when the lookup FAILED served an empty app — no jobs, no
+  // settings — and looked exactly like a wiped account. A blip says "try
+  // again", it does not say "you have nothing".
   try {
     req.companyId = req.user.cid || await _companyOf(req.user.id);
-  } catch(e){ req.companyId = null; }
+  } catch(e){
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    req.companyId = null;
+  }
   next();
 }
 
@@ -1098,17 +1147,14 @@ const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').r
 // Falls back to a row keyed on the user for accounts that predate the change.
 async function _companySubscription(companyId, userId){
   if (companyId){
-    try {
-      const { data } = await supabase.from('subscriptions').select('*')
-        .eq('company_id', companyId).order('created_at', { ascending: false }).limit(1);
-      if (data && data[0]) return data[0];
-    } catch (e) { console.warn('[billing] company lookup failed:', e.message); }
+    const data = _mustRead(await supabase.from('subscriptions').select('*')
+      .eq('company_id', companyId).order('created_at', { ascending: false }).limit(1), 'subscription');
+    if (data && data[0]) return data[0];
   }
   if (!userId) return null;
-  try {
-    const { data } = await supabase.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
-    return data || null;
-  } catch (e) { return null; }
+  const data = _mustRead(await supabase.from('subscriptions').select('*')
+    .eq('user_id', userId).maybeSingle(), 'subscription');
+  return data || null;
 }
 // Is this business entitled to use the product right now?
 //
@@ -1143,6 +1189,9 @@ async function requireSubscription(req, res, next) {
     if (!_subscriptionLive(sub)) return res.status(403).json({ error: 'Subscription required', code: 'SUBSCRIPTION_REQUIRED' });
     next();
   } catch (e) {
+    // "No subscription found" on a paying account, because the database did
+    // not answer, is the worst thing this gate can say. Say what is true.
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     res.status(500).json({ error: e.message });
   }
 }
@@ -2681,14 +2730,15 @@ app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => 
 // deleted — an old row just stops being the one that's read.
 async function _companySettingsRow(req){
   if (req.companyId){
-    const { data } = await supabase.from('user_settings').select('*')
-      .eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1);
+    const data = _mustRead(await supabase.from('user_settings').select('*')
+      .eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1), 'settings');
     if (data && data[0]) return data[0];
   }
   // The caller's own legacy row (written before rows carried a company).
   // If it is stamped with a DIFFERENT company than the caller is in now,
   // it is not theirs to read — better no settings than another business's.
-  const { data } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
+  const data = _mustRead(await supabase.from('user_settings').select('*')
+    .eq('user_id', req.user.id).maybeSingle(), 'settings');
   if (data && req.companyId && data.company_id && String(data.company_id) !== String(req.companyId)) return null;
   return data || null;
 }
@@ -2697,7 +2747,12 @@ app.get('/settings', requireAuth, async (req, res) => {
   try {
     const row = await _companySettingsRow(req);
     res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    // Blank settings are not an acceptable stand-in for settings we could not
+    // read: the app would show the Fergus key gone and the price book empty.
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // The boot popups (setup guide, tutorial) remember their dismissal on the
