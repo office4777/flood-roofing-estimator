@@ -96,7 +96,21 @@ check('Deposit Paid auto-fills from the paid deposit invoice', linked.deposit_pa
 check('Ordered auto-fills from the sent order', linked.ordered === true, String(linked.ordered));
 check('the customer email auto-fills from the quote client', linked.email === 'brian@lewis.co.nz', linked.email);
 check('the job number rides along from the quote ref', linked.job_no === 'FR-2996', String(linked.job_no));
-check('weekends are non-working days', (body.nonwork || []).includes('2026-09-05'), 'sample Sat 2026-09-05');
+// Sampled from the range the board actually returned, not a date typed in
+// on the day this was written: the calendar starts a week back, so a fixed
+// Saturday silently walks out of the window and fails a year later.
+const _sat = (() => {
+  const d = new Date(String((body.range || {}).from) + 'T00:00:00Z');
+  while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
+const _sun = (() => {
+  const d = new Date(_sat + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
+check('weekends are non-working days',
+  (body.nonwork || []).includes(_sat) && (body.nonwork || []).includes(_sun),
+  'sample Sat ' + _sat + ' / Sun ' + _sun);
 check('NZ public holidays are non-working days', (body.nonwork || []).includes('2026-12-25'), 'Christmas Day');
 check('the feed URL is signed', /\/schedule\/feed\.ics\?c=.*&sig=[0-9a-f]{64}/.test(body.feed_url || ''), body.feed_url);
 const FEED_URL = body.feed_url;
