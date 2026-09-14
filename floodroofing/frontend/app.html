@@ -11792,6 +11792,7 @@ async function saveSettings(auto){
     S.settings.branding = Object.assign({}, S.settings.branding || {}, saved.branding || {});
     S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults || {}, saved.quote_defaults || {});
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
+    if (saved.billing_email !== undefined) S.settings.billing_email = saved.billing_email;
     // …and put the menu back in step with whatever that merge settled on.
     try { _emailTabSync(); } catch(e){}
     if (saved.price_book) S.settings.price_book = saved.price_book;
@@ -17483,7 +17484,47 @@ function _billingRenderSection(){
     }).join('') + '</div>' +
     (s && s.status === 'active' && hasAcct ? '' :
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
+    _billingEmailHtml() +
     '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
+}
+// Where the receipts go. The person who pays is often not the person who
+// signed up — the office, the bookkeeper, a shared bills@ address — so this
+// is asked for rather than assumed. It prefills Stripe's checkout and
+// addresses the tax invoice RoofMap sends itself.
+function _billingEmailHtml(){
+  var cur = '';
+  try { cur = String((S.settings && S.settings.billing_email) || ''); } catch(e){}
+  var esc = function(x){ return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var login = '';
+  try { login = String((JSON.parse(localStorage.getItem('fr_user') || '{}') || {}).email || ''); } catch(e){}
+  return '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:3px">Where receipts and tax invoices go</div>' +
+    '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">Leave it empty and they go to your login' +
+      (login ? ' (' + esc(login) + ')' : '') + '.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      '<input id="billingEmailInput" type="email" value="' + esc(cur) + '" placeholder="accounts@yourcompany.co.nz" ' +
+        'style="flex:1;min-width:220px;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">' +
+      '<button id="billingEmailSaveBtn" onclick="_billingEmailSave(this)" style="padding:9px 18px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>' +
+    '</div>' +
+    '<div id="billingEmailMsg" style="font-size:11.5px;color:var(--text2);margin-top:6px"></div>' +
+  '</div>';
+}
+async function _billingEmailSave(btn){
+  var inp = document.getElementById('billingEmailInput');
+  var msg = document.getElementById('billingEmailMsg');
+  var v = String((inp && inp.value) || '').trim();
+  if (v && !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(v)){
+    if (msg){ msg.textContent = 'That doesn\u2019t look like an email address.'; msg.style.color = '#b91c1c'; }
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (msg){ msg.textContent = 'Saving\u2026'; msg.style.color = ''; }
+  try {
+    S.settings.billing_email = v;
+    await saveSettings(true);
+    if (msg){ msg.textContent = v ? ('Billing mail will go to ' + v + '.') : 'Billing mail will go to your login.'; msg.style.color = '#15803d'; }
+  } catch(e){ if (msg){ msg.textContent = e.message || 'Could not save that.'; msg.style.color = '#b91c1c'; } }
+  if (btn) btn.disabled = false;
 }
 var PLAN_LABELS = { solo: 'Trade', team: 'Team', business: 'Business', trial: 'Trial' };
 // Back from Stripe: say what happened, then clean the address bar.

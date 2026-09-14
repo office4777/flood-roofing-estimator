@@ -73,7 +73,11 @@ await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing');
 await pg.waitForTimeout(500);
 v = await pg.evaluate(() => ({
   body: document.getElementById('billingBody').textContent,
-  disabled: [...document.querySelectorAll('#billingBody button')].every(b => b.disabled),
+  // The PLAN buttons — not every button in the panel. Saving the billing
+  // email is not a purchase and stays available whether billing is on or off.
+  disabled: [...document.querySelectorAll('#billingBody button')]
+    .filter(b => /^(Choose|Subscribe to|Manage billing)/.test(b.textContent.trim()))
+    .every(b => b.disabled),
 }));
 check('with billing off the section says so and disables the buy buttons',
   /isn’t switched on yet/.test(v.body) && /Nothing can be charged/.test(v.body) && v.disabled, v.body.slice(0,90));
@@ -211,6 +215,37 @@ v = await pg.evaluate(() => ({
 check('a paying account still gets Manage billing',
   v.btns.some(x => /Manage billing/.test(x)) &&
   /cancellation are in the billing portal/.test(v.body), JSON.stringify(v.btns));
+await ctx.close();
+
+// ── the billing email: where receipts and tax invoices go ─────────
+// Asked for, not assumed — the person who pays is often not the person who
+// signed up. Empty means the account's own login.
+({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, plan:'team',
+  billing_account:true, trial:null }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+check('the billing screen asks where receipts should go',
+  await pg.isVisible('#billingEmailInput'));
+const puts = [];
+await pg.route('**/flood-roofing-estimator-production.up.railway.app/settings', r => {
+  if (r.request().method() === 'PUT') puts.push(JSON.parse(r.request().postData() || '{}'));
+  return r.fulfill({ status:200, contentType:'application/json',
+    body: JSON.stringify({ user_id:'u1', branding:{company_name:'Acme'}, quote_defaults:{}, jms_keys:{},
+                           billing_email: puts.length ? puts[puts.length-1].billing_email : '' }) });
+});
+await pg.fill('#billingEmailInput', 'not-an-email');
+await pg.click('#billingEmailSaveBtn');
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => document.getElementById('billingEmailMsg').textContent);
+check('…and refuses something that is not an address', /doesn.t look like an email/i.test(v), v);
+check('…without sending anything to the server', puts.length === 0, JSON.stringify(puts));
+await pg.fill('#billingEmailInput', 'accounts@kauri.co.nz');
+await pg.click('#billingEmailSaveBtn');
+await pg.waitForTimeout(700);
+check('…and a real address is saved with the settings',
+  puts.length === 1 && puts[0].billing_email === 'accounts@kauri.co.nz', JSON.stringify(puts.map(x => x.billing_email)));
+v = await pg.evaluate(() => document.getElementById('billingEmailMsg').textContent);
+check('…and says where the mail will land now', /accounts@kauri\.co\.nz/.test(v), v);
 await ctx.close();
 
 await b.close();

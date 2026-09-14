@@ -46,6 +46,19 @@ const stripeSrv = http.createServer((req, res) => {
 });
 await new Promise(r => stripeSrv.listen(0, '127.0.0.1', r));
 
+// A stand-in for the Apps Script mail relay, so who the tax invoice went to
+// is observable rather than inferred.
+const mails = [];
+const mailSrv = http.createServer((req, res) => {
+  let body = '';
+  req.on('data', d => body += d);
+  req.on('end', () => { try { mails.push(JSON.parse(body)); } catch(e){ mails.push({ raw: body }); }
+    res.writeHead(200, {'Content-Type':'application/json'}); res.end('{"ok":true}'); });
+});
+await new Promise(r => mailSrv.listen(0, '127.0.0.1', r));
+process.env.GAS_MAIL_URL = 'http://127.0.0.1:' + mailSrv.address().port;
+process.env.GAS_MAIL_TOKEN = 'test-mail-token';
+
 const WH_SECRET = 'whsec_testsecret';
 const { port } = await startFakePostgrest(db);
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
@@ -245,7 +258,52 @@ check('a cancellation webhook lands', r.status === 200, r.status + '');
 r = await call('GET', '/subscription', undefined, T);
 check('…and the gate closes again', r.body.live === false && r.body.status === 'canceled', JSON.stringify(r.body).slice(0,90));
 
+// ── where the receipts go ─────────────────────────────────────────
+// The person paying is often not the person who signed up. A business that
+// nominates a billing address in Settings gets Stripe's checkout prefilled
+// with it, and RoofMap's own tax invoice addressed to it.
+db.user_settings.push({ user_id: U, company_id: CO, branding: {}, quote_defaults: {}, jms_keys: {},
+  price_book: {}, labour_pricing: {}, ui_flags: {}, selectables: {}, schedule_cfg: {},
+  billing_email: 'accounts@floodroofing.co.nz', updated_at: new Date().toISOString() });
+
+// A business subscribing for the FIRST time — no Stripe customer yet, which
+// is the only moment customer_email applies (an existing customer takes the
+// `customer` branch instead, and Stripe would refuse both).
+const CO3 = 'cccccccc-0000-0000-0000-000000000003';
+const U3 = 'uuuuuuuu-0000-0000-0000-000000000003';
+db.companies.push({ id: CO3, name: 'Kauri Roofing', plan: 'trial' });
+db.company_users.push({ company_id: CO3, user_id: U3, role: 'owner' });
+db.user_settings.push({ user_id: U3, company_id: CO3, branding: {}, quote_defaults: {}, jms_keys: {},
+  price_book: {}, labour_pricing: {}, ui_flags: {}, selectables: {}, schedule_cfg: {},
+  billing_email: 'bills@kauri.co.nz', updated_at: new Date().toISOString() });
+const T3 = jwtLib.sign({ id: U3, email: 'sam@kauri.co.nz', cid: CO3 }, 'test-secret', { expiresIn: '1h' });
+const _before = stripeCalls.length;
+r = await call('POST', '/billing/checkout', { plan: 'team' }, T3);
+const cc2 = stripeCalls[stripeCalls.length - 1];
+check('checkout prefills the nominated billing address, not the login',
+  r.status === 200 && stripeCalls.length > _before &&
+  cc2.body.get('customer_email') === 'bills@kauri.co.nz',
+  'customer_email=' + (cc2 && cc2.body.get('customer_email')));
+
+// The tax invoice RoofMap sends itself. Stripe's own customer_email on the
+// invoice is the fallback, NOT the winner: an office that put bills@ in
+// Settings expects it there, whoever happened to click Subscribe.
+db.subscriptions.push({ user_id: U, company_id: CO, status: 'active',
+  stripe_customer_id: 'cus_bill1', stripe_subscription_id: 'sub_bill1' });
+const paid = JSON.stringify({ type: 'invoice.payment_succeeded', data: { object: {
+  id: 'in_bill1', customer: 'cus_bill1', customer_email: 'whoever@clicked.co.nz',
+  amount_paid: 44195, currency: 'nzd', number: 'RM-001',
+} } });
+r = await call('POST', '/billing/webhook', paid, null, { 'stripe-signature': sign(paid) });
+check('a paid invoice webhook is accepted', r.status === 200, String(r.status));
+await new Promise(r => setTimeout(r, 400));
+const _inv = mails.find(m => /tax invoice/i.test(String(m.subject || '')));
+check('…and the settings row decides who the tax invoice is addressed to',
+  !!_inv && _inv.to === 'accounts@floodroofing.co.nz',
+  JSON.stringify(mails.map(m => ({ to: m.to, subject: m.subject }))));
+
 stripeSrv.close();
+mailSrv.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

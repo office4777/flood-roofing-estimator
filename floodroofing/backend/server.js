@@ -2752,7 +2752,7 @@ async function _companySettingsRow(req){
 app.get('/settings', requireAuth, async (req, res) => {
   try {
     const row = await _companySettingsRow(req);
-    res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
+    res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {}, billing_email: '' });
   } catch (e) {
     // Blank settings are not an acceptable stand-in for settings we could not
     // read: the app would show the Fergus key gone and the price book empty.
@@ -2801,6 +2801,11 @@ app.put('/settings', requireAuth, async (req, res) => {
   // gone with the cache. Undefined means "the client did not carry them" —
   // an older build, or a partial save — and must not erase what is stored.
   if (selectables !== undefined) payload.selectables = selectables;
+  // Where billing mail goes. Undefined means the writer didn't carry it (an
+  // older build, a partial save) and must not erase it; an empty string is a
+  // deliberate clear, which falls back to the account's own login address.
+  if (req.body.billing_email !== undefined)
+    payload.billing_email = String(req.body.billing_email || '').trim().slice(0, 200);
   try {
     const existing = await _companySettingsRow(req);
     // ── The flashing library must survive writers that don't know it ──
@@ -3729,7 +3734,15 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       // Checkout collects; Stripe refuses the session otherwise.
       params['customer_update[address]'] = 'auto';
       params['customer_update[name]'] = 'auto';
-    } else params.customer_email = req.user.email || undefined;
+    } else {
+      // Prefill the email Stripe asks for, with the address this business
+      // nominated for billing if it has set one (Settings → Billing) and its
+      // own login otherwise. The person paying is often not the person who
+      // signed up. The field stays editable on Stripe's page either way.
+      let _billTo = '';
+      try { const _row = await _companySettingsRow(req); _billTo = String((_row && _row.billing_email) || '').trim(); } catch (e) {}
+      params.customer_email = _billTo || req.user.email || undefined;
+    }
     const session = await _stripeCall('/v1/checkout/sessions', params);
     res.json({ url: session.url });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
@@ -3864,7 +3877,25 @@ function _subFailedEmail(inv){
 // Send it as accounts@, with replies going to accounts@ too. Never throws:
 // a mail problem must not make the webhook fail and be retried forever.
 async function _sendSubscriptionMail(inv, build){
-  const to = String((inv && (inv.customer_email || (inv.customer_address && inv.customer_address.email))) || '').trim();
+  // The business's nominated billing address wins over whatever Stripe has
+  // on the customer: an office that puts bills@ in Settings expects the tax
+  // invoice there, not at the login of whoever happened to click Subscribe.
+  let to = '';
+  try {
+    const cust = inv && inv.customer;
+    if (cust){
+      const { data: subs } = await supabase.from('subscriptions')
+        .select('company_id').eq('stripe_customer_id', cust).limit(1);
+      const cid = subs && subs[0] && subs[0].company_id;
+      if (cid){
+        const { data: rows } = await supabase.from('user_settings')
+          .select('billing_email').eq('company_id', cid)
+          .order('updated_at', { ascending: false }).limit(1);
+        to = String((rows && rows[0] && rows[0].billing_email) || '').trim();
+      }
+    }
+  } catch (e) { /* fall through to Stripe's own address */ }
+  if (!to) to = String((inv && (inv.customer_email || (inv.customer_address && inv.customer_address.email))) || '').trim();
   if (!to) { console.warn('[stripe] no customer_email on invoice ' + (inv && inv.id) + ' — nothing emailed'); return false; }
   if (!EMAIL_ENABLED) { console.warn('[stripe] email not configured — subscription invoice not sent'); return false; }
   const mail = build(inv);
@@ -9313,6 +9344,10 @@ const _MIGRATION_SQL = [
   "alter table public.chat_messages enable row level security",
   "alter table public.user_settings add column if not exists schedule_cfg jsonb",
   "alter table public.user_settings add column if not exists ui_flags jsonb",
+  // Where the subscription's receipts and tax invoices go. The person who
+  // pays is often not the person who signed up — the office, the accountant,
+  // a shared bills@ address — so it is asked for rather than assumed.
+  "alter table public.user_settings add column if not exists billing_email text",
 
   // 10. platform_state — one row per thing the platform needs to remember
   //     ACROSS RESTARTS. Right now that is exactly one thing: the date the
