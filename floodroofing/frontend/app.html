@@ -17421,7 +17421,6 @@ function _trialBannerHtml(){ return _planGateHtml(); }
 // moment the server refuses something for that reason. It is closeable: a
 // roofer who wants to look around first must be able to, and the banner and
 // Settings → Billing both still lead here.
-var _planGateShown = false;
 function _planGateNeeded(){
   var s = SUBSCRIPTION;
   // billing off, or the account is live = nothing to sell them right now.
@@ -17443,7 +17442,6 @@ function _planGateModalHtml(){
     '</div>';
   }).join('');
   return '<div class="pg-box" role="dialog" aria-modal="true" aria-label="' + head + '">' +
-    '<button class="pg-close" onclick="_planGateClose()" aria-label="Close">×</button>' +
     '<div class="pg-head">' + head + '</div>' +
     '<div class="pg-sub">' + sub + '</div>' +
     '<div class="pg-cards">' + cards + '</div>' +
@@ -17451,13 +17449,13 @@ function _planGateModalHtml(){
       'Cancelling is two clicks in Settings → Billing; you keep the plan until the month you have paid for runs out, ' +
       'and your jobs stay either way. Payment is handled by Stripe, so the card never touches RoofMap.</div>' +
     '<div class="pg-msg" id="planGateMsg"></div>' +
-    '<button class="pg-later" onclick="_planGateClose()">Not right now</button>' +
+    // No way past this except paying — but never a locked room: signing out
+    // always works, and a teammate who cannot buy has to be able to leave.
+    '<button class="pg-later" onclick="_navSignOut()">Sign out</button>' +
   '</div>';
 }
 function _planGateOpen(force){
-  if (!_planGateNeeded()) return;
-  if (_planGateShown && !force) return;
-  _planGateShown = true;
+  if (!_planGateNeeded()) { _planGateClose(); return; }
   var el = document.getElementById('planGateModal');
   if (!el){
     el = document.createElement('div');
@@ -17467,10 +17465,16 @@ function _planGateOpen(force){
   }
   el.innerHTML = _planGateModalHtml();
   el.style.display = 'flex';
+  // Nothing behind it is usable: an account that cannot save a job cannot
+  // half-use the app either. That was the old shape — a dismissable notice
+  // over an app that then refused every save, which reads as broken rather
+  // than as unpaid.
+  try { document.body.style.overflow = 'hidden'; } catch(e){}
 }
 function _planGateClose(){
   var el = document.getElementById('planGateModal');
   if (el) el.style.display = 'none';
+  try { document.body.style.overflow = ''; } catch(e){}
 }
 async function _planGatePick(plan, btn){
   var msg = document.getElementById('planGateMsg');
@@ -17550,6 +17554,12 @@ function _billingRenderSection(){
   // sits on a real plan with no Stripe customer behind it, and the screen used
   // to tell it its card was in the billing portal — then the portal answered
   // "no billing account yet", which is the truth arriving in the worst place.
+  // Already cancelled: the one thing they want to see is the date they keep
+  // working until, not another invitation to manage a card.
+  else if (s.status === 'active' && s.cancel_at) head = '<div style="font-size:13px"><strong>Cancelled \u2014 ' +
+    (PLAN_LABELS[s.plan] || s.plan) + ' stays on until ' + _billingDate(s.cancel_at) + '.</strong> ' +
+    '<span style="color:var(--text2)">You won\u2019t be charged again. Your jobs stay in your account for ' +
+    ((s.data_kept_days || 90)) + ' days after that \u2014 subscribe again inside that and everything is where you left it.</span></div>';
   else if (s.status === 'active' && s.billing_account) head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
   else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + ' \u2014 nothing to pay.</strong> <span style="color:var(--text2)">There\u2019s no card on file. Subscribe below whenever you want to start paying for it.</span></div>';
   // Comped and trial accounts are on a real plan too — they just aren't
@@ -17600,7 +17610,103 @@ function _billingRenderSection(){
     (s && s.status === 'active' && hasAcct ? '' :
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
     _billingEmailHtml() +
+    _billingCancelHtml() +
     '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
+}
+// Cancelling. Self-serve, in the app, no phone call and no email to us —
+// making somebody chase a human to stop paying earns chargebacks, not
+// loyalty. Only shown to a business that is actually paying and has not
+// already cancelled.
+function _billingCancelHtml(){
+  var s = SUBSCRIPTION;
+  if (!(s && s.status === 'active' && s.billing_account) || s.cancel_at) return '';
+  return '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">' +
+    '<button onclick="_cancelOpen()" style="background:none;border:none;color:#64748b;font-size:12px;' +
+      'text-decoration:underline;cursor:pointer;font-family:inherit;padding:2px 0">Cancel my subscription</button>' +
+  '</div>';
+}
+// The cancel window. Everything that decides the answer is on it BEFORE the
+// button: what they keep, until when, that there is no part-month refund,
+// and how long the work is kept. Then one question, which must be answered.
+function _cancelOpen(){
+  var s = SUBSCRIPTION || {};
+  var el = document.getElementById('cancelModal');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'cancelModal';
+    el.className = 'pg-wrap';
+    document.body.appendChild(el);
+  }
+  var days = s.data_kept_days || 90;
+  el.innerHTML = '<div class="pg-box" style="max-width:560px" role="dialog" aria-modal="true" aria-label="Cancel your subscription">' +
+    '<button class="pg-close" onclick="_cancelClose()" aria-label="Close">×</button>' +
+    '<div class="pg-head">Cancel your subscription</div>' +
+    '<div class="pg-sub">' +
+      '<ul style="margin:0 0 4px;padding-left:18px">' +
+        '<li>You keep ' + (PLAN_LABELS[s.plan] || s.plan || 'your plan') +
+          ' until the end of the month you have already paid for \u2014 nothing stops today.</li>' +
+        '<li>You won\u2019t be charged again.</li>' +
+        '<li>Part-months aren\u2019t refunded.</li>' +
+        '<li>Your jobs, quotes and photos stay in your account for ' + days +
+          ' days. Subscribe again inside that and everything is where you left it.</li>' +
+      '</ul>' +
+    '</div>' +
+    '<div style="font-size:13px;font-weight:700;color:#0a1628;margin:6px 0 4px">Why are you leaving?</div>' +
+    '<div style="font-size:11.5px;color:var(--text2);margin-bottom:7px">A sentence is plenty. It is read by the person who builds this.</div>' +
+    '<textarea id="cancelReason" rows="3" placeholder="What made you decide to stop?" ' +
+      'style="width:100%;padding:10px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;' +
+      'font-family:inherit;resize:vertical"></textarea>' +
+    '<div class="pg-msg" id="cancelMsg"></div>' +
+    '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px">' +
+      '<button id="cancelConfirmBtn" onclick="_cancelConfirm(this)" style="padding:10px 18px;background:#b91c1c;color:#fff;' +
+        'border:none;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit">Cancel my subscription</button>' +
+      '<button onclick="_cancelClose()" style="padding:10px 18px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;' +
+        'border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Keep my plan</button>' +
+    '</div>' +
+  '</div>';
+  el.style.display = 'flex';
+}
+function _cancelClose(){
+  var el = document.getElementById('cancelModal');
+  if (el) el.style.display = 'none';
+}
+// The question is required, and a one-word answer is not an answer. The
+// wording is deliberately not a telling-off: they are leaving, and the last
+// thing they read from us should still be civil.
+function _cancelReasonProblem(text){
+  var words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'Please leave an explanation to help us improve';
+  if (words.length < 4) return 'Please leave a slightly longer explanation to help us improve';
+  return null;
+}
+async function _cancelConfirm(btn){
+  var box = document.getElementById('cancelReason');
+  var msg = document.getElementById('cancelMsg');
+  var reason = String((box && box.value) || '');
+  var problem = _cancelReasonProblem(reason);
+  if (problem){
+    if (msg){ msg.textContent = problem; msg.style.color = '#b91c1c'; }
+    if (box) box.focus();
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (msg){ msg.textContent = 'Cancelling\u2026'; msg.style.color = 'var(--text2)'; }
+  try {
+    var r = await api('POST', '/billing/cancel', { reason: reason.trim() });
+    _cancelClose();
+    await loadSubscription();
+    try { _billingRenderSection(); } catch(e){}
+    var when = (r && r.ends_at) ? _billingDate(r.ends_at) : '';
+    var m = document.getElementById('billingMsg');
+    if (m){
+      m.textContent = 'Cancelled. ' + (when ? ('Your plan stays on until ' + when + '. ') : '') +
+        'A confirmation is on its way by email.';
+      m.style.color = '#15803d';
+    }
+  } catch(e){
+    if (msg){ msg.textContent = (e && e.message) || 'Could not cancel that — try again.'; msg.style.color = '#b91c1c'; }
+    if (btn) btn.disabled = false;
+  }
 }
 // Where the receipts go. The person who pays is often not the person who
 // signed up — the office, the bookkeeper, a shared bills@ address — so this

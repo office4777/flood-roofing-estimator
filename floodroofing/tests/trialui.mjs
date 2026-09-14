@@ -142,16 +142,20 @@ await ctx.close();
     /\$149/.test(v.txt) && /\$299/.test(v.txt) && /\$549/.test(v.txt), JSON.stringify(v.btns));
   check('…and says paying is month to month and cancellable',
     /cancel any time/i.test(v.txt) && /Settings . Billing/i.test(v.txt), v.txt.slice(-220));
-  // Closeable: a roofer who wants to look around first must be able to.
-  await pg.click('.pg-later');
-  await pg.waitForTimeout(200);
-  check('…and it can be dismissed',
-    await pg.evaluate(() => document.getElementById('planGateModal').style.display === 'none'));
-  // …but a refused save brings it straight back.
-  await pg.evaluate(() => { _planGateOpen(true); });
-  await pg.waitForTimeout(200);
-  check('…and comes back when the server refuses something',
-    await pg.evaluate(() => document.getElementById('planGateModal').style.display !== 'none'));
+  // There is no way past it. An account that cannot save a job must not be
+  // able to half-use the app either — that shape reads as broken rather than
+  // as unpaid, and it is how somebody spends an hour drawing a roof they are
+  // then refused the right to keep.
+  const v2 = await pg.evaluate(() => ({
+    close: !!document.querySelector('#planGateModal .pg-close'),
+    later: [...document.querySelectorAll('#planGateModal .pg-later')].map(b => b.textContent.trim()),
+    scroll: document.body.style.overflow,
+  }));
+  check('…there is no close button and no "not now"',
+    !v2.close && !v2.later.some(t => /not right now/i.test(t)), JSON.stringify(v2));
+  check('…the app behind it cannot be scrolled', v2.scroll === 'hidden', v2.scroll);
+  check('…but signing out is always possible',
+    v2.later.some(t => /sign out/i.test(t)), JSON.stringify(v2.later));
   await ctx.close();
 }
 

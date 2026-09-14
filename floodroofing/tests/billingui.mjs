@@ -17,11 +17,15 @@ async function boot(sub){
   const pg = await ctx.newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   pg.on('dialog', d => d.accept());
-  const checkouts = [];
+  const checkouts = [], cancels = [];
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = new URL(r.request().url());
     const j = x => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(x)});
     if (u.pathname === '/subscription') return j(sub);
+    if (u.pathname === '/billing/cancel'){
+      cancels.push(JSON.parse(r.request().postData() || '{}'));
+      return j({ ok:true, ends_at:'2026-10-15T00:00:00Z', data_kept_days:90 });
+    }
     if (u.pathname === '/billing/checkout'){
       checkouts.push(JSON.parse(r.request().postData() || '{}'));
       return j({ url: 'https://checkout.stripe.test/cs_1' });
@@ -38,7 +42,7 @@ async function boot(sub){
   // that behaviour). This suite is about the Settings → Billing panel behind
   // it, so dismiss it the way a roofer would before driving that panel.
   await pg.evaluate(() => { try { _planGateClose(); } catch(e){} });
-  return { ctx, pg, checkouts };
+  return { ctx, pg, checkouts, cancels };
 }
 
 // ── an expired trial with billing ON ──────────────────────────────
@@ -251,6 +255,67 @@ check('…and a real address is saved with the settings',
 v = await pg.evaluate(() => document.getElementById('billingEmailMsg').textContent);
 check('…and says where the mail will land now', /accounts@kauri\.co\.nz/.test(v), v);
 await ctx.close();
+
+// ── cancelling ────────────────────────────────────────────────────
+// Self-serve and in the app, with everything that decides the answer said
+// BEFORE the button — and one question that has to be answered.
+{
+  const { ctx, pg, cancels } = await boot({ status:'active', billing:true, live:true, plan:'business',
+    billing_account:true, cancel_at:null, data_kept_days:90, trial:null });
+  await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+  await pg.waitForTimeout(400);
+  check('a paying business can cancel without emailing anybody',
+    await pg.isVisible('text=Cancel my subscription'));
+  await pg.click('button:has-text("Cancel my subscription")');
+  await pg.waitForTimeout(300);
+  let t = await pg.evaluate(() => document.getElementById('cancelModal').textContent.replace(/\s+/g,' '));
+  check('…and is told what they keep, until when, and that part-months are not refunded',
+    /until the end of the month you have already paid for/i.test(t) &&
+    /won.t be charged again/i.test(t) && /Part-months aren.t refunded/i.test(t) &&
+    /90 days/.test(t), t.slice(0, 260));
+
+  // The question is required. Empty first.
+  await pg.click('#cancelConfirmBtn');
+  await pg.waitForTimeout(200);
+  t = await pg.evaluate(() => document.getElementById('cancelMsg').textContent);
+  check('…an empty answer is refused, in those words',
+    t === 'Please leave an explanation to help us improve', t);
+  check('…and nothing was cancelled', cancels.length === 0, JSON.stringify(cancels));
+
+  // Then too short.
+  await pg.fill('#cancelReason', 'too expensive');
+  await pg.click('#cancelConfirmBtn');
+  await pg.waitForTimeout(200);
+  t = await pg.evaluate(() => document.getElementById('cancelMsg').textContent);
+  check('…under four words is refused, in those words',
+    t === 'Please leave a slightly longer explanation to help us improve', t);
+  check('…and still nothing was cancelled', cancels.length === 0, JSON.stringify(cancels));
+
+  // Four words is enough.
+  await pg.fill('#cancelReason', 'too dear for me');
+  await pg.click('#cancelConfirmBtn');
+  await pg.waitForTimeout(700);
+  check('…four words goes through, reason and all',
+    cancels.length === 1 && cancels[0].reason === 'too dear for me', JSON.stringify(cancels));
+  t = await pg.evaluate(() => document.getElementById('billingMsg').textContent);
+  check('…and they are told the date they keep working until',
+    /15 Oct 2026/.test(t) && /confirmation/i.test(t), t);
+  await ctx.close();
+}
+
+// Already cancelled: the date, not another invitation to manage a card.
+{
+  const { ctx, pg } = await boot({ status:'active', billing:true, live:true, plan:'team',
+    billing_account:true, cancel_at:'2026-10-15T00:00:00Z', data_kept_days:90, trial:null });
+  await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+  await pg.waitForTimeout(400);
+  const t = await pg.evaluate(() => document.getElementById('billingBody').textContent.replace(/\s+/g,' '));
+  check('a cancelled subscription shows the date it runs to',
+    /Cancelled . Team stays on until 15 Oct 2026/.test(t), t.slice(0, 140));
+  check('…and does not offer to cancel again',
+    !/Cancel my subscription/.test(t), t.slice(0, 200));
+  await ctx.close();
+}
 
 await b.close();
 const bad = results.filter(x => !x).length;

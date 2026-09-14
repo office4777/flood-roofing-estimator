@@ -41,6 +41,11 @@ const stripeSrv = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (req.url === '/v1/checkout/sessions') return res.end(JSON.stringify({ id: 'cs_test_1', url: 'https://checkout.stripe.com/c/pay/cs_test_1' }));
     if (req.url === '/v1/billing_portal/sessions') return res.end(JSON.stringify({ id: 'bps_1', url: 'https://billing.stripe.com/p/session/bps_1' }));
+    if (/^\/v1\/subscriptions\//.test(req.url)) return res.end(JSON.stringify({
+      id: req.url.split('/').pop(), status: 'active', cancel_at_period_end: true,
+      // Stripe moved the period onto the item; the cancel date rides on the
+      // subscription itself once cancel_at_period_end is set.
+      cancel_at: 1792108800, items: { data: [{ current_period_end: 1792108800 }] } }));
     res.end('{}');
   });
 });
@@ -301,6 +306,49 @@ const _inv = mails.find(m => /tax invoice/i.test(String(m.subject || '')));
 check('…and the settings row decides who the tax invoice is addressed to',
   !!_inv && _inv.to === 'accounts@floodroofing.co.nz',
   JSON.stringify(mails.map(m => ({ to: m.to, subject: m.subject }))));
+
+// ── cancelling ────────────────────────────────────────────────────
+// The question is asked in the browser, and asked AGAIN here: a client that
+// skips the box must not be able to skip the question.
+db.subscriptions.push({ user_id: U3, company_id: CO3, status: 'active', plan: 'team',
+  stripe_customer_id: 'cus_k1', stripe_subscription_id: 'sub_k1' });
+const _mailsBefore = mails.length;
+r = await call('POST', '/billing/cancel', { reason: '' }, T3);
+check('cancelling with no reason is refused, in the words the screen uses',
+  r.status === 400 && r.body.error === 'Please leave an explanation to help us improve', JSON.stringify(r.body));
+r = await call('POST', '/billing/cancel', { reason: 'too expensive' }, T3);
+check('…and under four words gets the longer-answer wording',
+  r.status === 400 && r.body.error === 'Please leave a slightly longer explanation to help us improve', JSON.stringify(r.body));
+check('…and neither reached Stripe',
+  !stripeCalls.some(c => /^\/v1\/subscriptions\//.test(c.path)), 'stripe calls: ' +
+  JSON.stringify(stripeCalls.filter(c => /subscriptions/.test(c.path)).map(c => c.path)));
+
+r = await call('POST', '/billing/cancel', { reason: 'we went back to spreadsheets' }, T3);
+const _cancelCall = stripeCalls.filter(c => /^\/v1\/subscriptions\//.test(c.path)).pop();
+check('a real answer cancels', r.status === 200 && r.body.ok === true, JSON.stringify(r.body));
+check('…at the END of the paid month, never on the spot',
+  _cancelCall && _cancelCall.path === '/v1/subscriptions/sub_k1' &&
+  _cancelCall.body.get('cancel_at_period_end') === 'true', _cancelCall && _cancelCall.path);
+check('…and hands back the date they keep working until, and how long the work is kept',
+  /^2026-\d\d-\d\dT/.test(String(r.body.ends_at)) && r.body.data_kept_days === 90, JSON.stringify(r.body));
+check('…the row carries the date, so the app can show it',
+  !!(db.subscriptions.find(x => x.stripe_subscription_id === 'sub_k1') || {}).cancel_at,
+  String((db.subscriptions.find(x => x.stripe_subscription_id === 'sub_k1') || {}).cancel_at));
+check('…the reason is kept — it is the only honest feedback there is',
+  (db.cancellations || []).some(c => c.reason === 'we went back to spreadsheets'),
+  JSON.stringify((db.cancellations || []).map(c => c.reason)));
+await new Promise(r2 => setTimeout(r2, 500));
+const _conf = mails.slice(_mailsBefore).find(m => /cancelled/i.test(String(m.subject || '')));
+check('…and a confirmation goes out saying when access ends',
+  !!_conf && /already paid for/i.test(String(_conf.text || '')) && /90 days/.test(String(_conf.text || '')),
+  _conf ? String(_conf.subject) : JSON.stringify(mails.slice(_mailsBefore).map(m => m.subject)));
+
+// A member cannot cancel the business's subscription.
+const T3M = jwtLib.sign({ id: 'uuuuuuuu-0000-0000-0000-000000000009', email: 'hand@kauri.co.nz', cid: CO3 },
+  'test-secret', { expiresIn: '1h' });
+db.company_users.push({ company_id: CO3, user_id: 'uuuuuuuu-0000-0000-0000-000000000009', role: 'member' });
+r = await call('POST', '/billing/cancel', { reason: 'I am not the boss here' }, T3M);
+check('only the owner can cancel', r.status === 403 && r.body.code === 'OWNER_ONLY', JSON.stringify(r.body));
 
 stripeSrv.close();
 mailSrv.close();

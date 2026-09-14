@@ -1220,6 +1220,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
     // is the one button that cannot work without a customer. The screen needs
     // to tell "paying" from "on the plan for nothing" to offer the right one.
     billing_account: !!(sub && sub.stripe_customer_id),
+    // Set once they have cancelled: the day the plan actually stops. Until
+    // then they are still a paying subscriber and nothing is gated.
+    cancel_at: (sub && sub.cancel_at) || null,
+    data_kept_days: CANCEL_DATA_KEPT_DAYS,
     // Which plans have a yearly price configured — the billing screen offers
     // the two-months-free toggle only when there is something to buy.
     annual: {
@@ -3747,6 +3751,100 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     res.json({ url: session.url });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
+
+// ── CANCELLING ──────────────────────────────────────────────────────
+// Self-serve, in the app, no phone call: making somebody email to cancel is
+// the most resented thing in SaaS and it earns chargebacks rather than
+// loyalty. What it does NOT do is cancel on the spot — the month is paid
+// for, so it runs to the end of it, and the business keeps everything until
+// then. There is no part-month refund, and the screen says so before the
+// button is pressed rather than after.
+//
+// The reason is required, and required HERE as well as in the browser: it
+// is the only honest feedback a subscription business ever gets, and a
+// client that skips the box must not be able to skip the question.
+const CANCEL_MIN_WORDS = 4;
+function _cancelReasonProblem(reason){
+  const words = String(reason || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'Please leave an explanation to help us improve';
+  if (words.length < CANCEL_MIN_WORDS) return 'Please leave a slightly longer explanation to help us improve';
+  return null;
+}
+// How long a cancelled business's work is kept before it is anyone's to
+// delete. Said out loud on the cancel screen and in the confirmation email,
+// because "what happens to my quotes" is the actual question behind the
+// hesitation — those are their records.
+const CANCEL_DATA_KEPT_DAYS = 90;
+app.post('/billing/cancel', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const reason = String((req.body || {}).reason || '').trim().slice(0, 2000);
+    const problem = _cancelReasonProblem(reason);
+    if (problem) return res.status(400).json({ error: problem, code: 'REASON_REQUIRED' });
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (!sub || !sub.stripe_subscription_id)
+      return res.status(400).json({ error: 'There is no paid subscription on this account to cancel.' });
+    // At period end — never immediately. Stripe keeps billing off and the
+    // subscription alive until the date already paid for.
+    const updated = await _stripeCall('/v1/subscriptions/' + encodeURIComponent(sub.stripe_subscription_id),
+      { cancel_at_period_end: 'true' });
+    const item0 = updated.items && updated.items.data && updated.items.data[0];
+    const endsUnix = updated.cancel_at || (item0 && item0.current_period_end) || updated.current_period_end || null;
+    const endsAt = endsUnix ? new Date(endsUnix * 1000).toISOString() : null;
+    try {
+      await supabase.from('subscriptions').update({ cancel_at: endsAt, updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', sub.stripe_subscription_id);
+    } catch (e) { console.warn('[cancel] could not stamp cancel_at:', e.message); }
+    try {
+      await supabase.from('cancellations').insert({ company_id: req.companyId || null, user_id: req.user.id,
+        plan: String(sub.plan || ''), reason: reason, ends_at: endsAt });
+    } catch (e) { console.warn('[cancel] reason not stored:', e.message); }
+    try { recordUsage('subscription_cancelled', req); } catch (e) {}
+    // Say it in writing, with the date — the one thing somebody who has just
+    // cancelled wants is proof of what they are still entitled to.
+    _sendCancelMail(req, endsAt).catch(function(){});
+    // And tell the owner of the platform, because a cancellation is the one
+    // event worth reading the same day it happens.
+    try {
+      _dispatchMail({ to: ERR_EMAIL_TO || MAIL_ACCOUNTS,
+        subject: 'RoofMap cancellation — ' + (req.user.email || req.companyId || ''),
+        text: 'Plan: ' + (sub.plan || '?') + '\nEnds: ' + (endsAt || '?') + '\n\nWhy they left:\n' + reason,
+        fromName: 'RoofMap', fromAddress: MAIL_ACCOUNTS }).catch(function(){});
+    } catch (e) {}
+    res.json({ ok: true, ends_at: endsAt, data_kept_days: CANCEL_DATA_KEPT_DAYS });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+// The confirmation. Goes to the nominated billing address if there is one,
+// the owner's login otherwise.
+async function _sendCancelMail(req, endsAt){
+  let to = '';
+  try { const row = await _companySettingsRow(req); to = String((row && row.billing_email) || '').trim(); } catch (e) {}
+  if (!to) to = String(req.user.email || '').trim();
+  if (!to || !EMAIL_ENABLED) return false;
+  const when = endsAt ? new Date(endsAt).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const keeps = 'Your jobs, quotes and photos stay in your account for ' + CANCEL_DATA_KEPT_DAYS +
+    ' days. Subscribe again inside that and everything is exactly where you left it.';
+  const text = ['RoofMap — your subscription is cancelled', '',
+    when ? ('You will not be charged again. Your plan stays on until ' + when + ' — the month you have already paid for — and everything keeps working until then.')
+         : 'You will not be charged again.',
+    '', keeps, '',
+    'Changed your mind? Settings → Billing will start it up again.', '',
+    'If something went wrong that we could have fixed, reply to this email — it reaches a person.'].join('\n');
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6b7a">RoofMap</div>' +
+    '<h2 style="font-size:19px;margin:8px 0 14px">Your subscription is cancelled</h2>' +
+    '<p>You will not be charged again.' + (when ? (' Your plan stays on until <strong>' + esc(when) +
+      '</strong> — the month you have already paid for — and everything keeps working until then.') : '') + '</p>' +
+    '<p>' + esc(keeps) + '</p>' +
+    '<p style="font-size:12px;color:#5f6b7a">Changed your mind? Settings → Billing will start it up again. ' +
+    'If something went wrong that we could have fixed, reply to this email — it reaches a person.</p></div>';
+  try {
+    await _dispatchMail({ to: to, subject: 'RoofMap subscription cancelled' + (when ? ' — access until ' + when : ''),
+      text: text, html: html, fromName: 'RoofMap Accounts', fromAddress: MAIL_ACCOUNTS, replyTo: MAIL_ACCOUNTS });
+    return true;
+  } catch (e) { console.warn('[cancel] confirmation mail failed:', e.message); return false; }
+}
 
 // Stripe's customer portal: update the card, change plan, cancel. Their UI,
 // our link.
@@ -9366,6 +9464,24 @@ const _MIGRATION_SQL = [
   "  value jsonb not null default '{}'::jsonb," +
   "  updated_at timestamptz not null default now())",
   "alter table public.platform_state enable row level security",
+
+  // Why people leave, in their own words — asked once, at the moment they
+  // cancel, and kept because it is the only honest feedback a SaaS gets.
+  // Backend-only, like usage_events: nothing here belongs to a customer's
+  // own records.
+  "create table if not exists public.cancellations (" +
+  "  id bigserial primary key," +
+  "  company_id uuid," +
+  "  user_id uuid," +
+  "  plan text not null default ''," +
+  "  reason text not null default ''," +
+  "  ends_at timestamptz," +
+  "  created_at timestamptz not null default now())",
+  "alter table public.cancellations enable row level security",
+  // When a cancelled subscription actually stops. Until that date they keep
+  // everything they paid for, so the gate must not read a pending cancel as
+  // "not live".
+  "alter table public.subscriptions add column if not exists cancel_at timestamptz",
 ];
 
 async function _ensureSchema(){
