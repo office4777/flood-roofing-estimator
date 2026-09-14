@@ -123,6 +123,54 @@ const stillWorks = await ctx.pages()[0].evaluate(() => typeof gotoTab === 'funct
 check('…and the app still works', stillWorks);
 await ctx.close();
 
+// ── the window a trial ends on ────────────────────────────────────
+// A banner is easy to scroll past, and the first thing an expired account
+// used to meet was a 403 on saving a job. The plans come to them instead.
+{
+  const { ctx, pg } = await open(trial(0, true));
+  const v = await pg.evaluate(() => {
+    const el = document.getElementById('planGateModal');
+    return { shown: !!el && el.style.display !== 'none',
+             txt: el ? el.textContent.replace(/\s+/g,' ').trim() : '',
+             btns: el ? [...el.querySelectorAll('.pg-card button')].map(b => b.textContent.trim()) : [] };
+  });
+  check('an ended trial is met by the plan window, not a banner alone', v.shown);
+  check('…it says the trial ended and the work is safe',
+    /trial has ended/i.test(v.txt) && /nothing has been deleted/i.test(v.txt), v.txt.slice(0, 120));
+  check('…it offers all three plans with their prices',
+    v.btns.length === 3 && /Trade/.test(v.btns[0]) && /Team/.test(v.btns[1]) && /Business/.test(v.btns[2]) &&
+    /\$149/.test(v.txt) && /\$299/.test(v.txt) && /\$549/.test(v.txt), JSON.stringify(v.btns));
+  check('…and says paying is month to month and cancellable',
+    /cancel any time/i.test(v.txt) && /Settings . Billing/i.test(v.txt), v.txt.slice(-220));
+  // Closeable: a roofer who wants to look around first must be able to.
+  await pg.click('.pg-later');
+  await pg.waitForTimeout(200);
+  check('…and it can be dismissed',
+    await pg.evaluate(() => document.getElementById('planGateModal').style.display === 'none'));
+  // …but a refused save brings it straight back.
+  await pg.evaluate(() => { _planGateOpen(true); });
+  await pg.waitForTimeout(200);
+  check('…and comes back when the server refuses something',
+    await pg.evaluate(() => document.getElementById('planGateModal').style.display !== 'none'));
+  await ctx.close();
+}
+
+// A paying business must never see it.
+{
+  const { ctx, pg } = await open({ status:'active', billing:true, live:true, plan:'team', trial:null });
+  check('a paying business is never shown the plan window',
+    await pg.evaluate(() => !document.getElementById('planGateModal')));
+  await ctx.close();
+}
+
+// Billing off = nothing is gated, so selling a plan would be a lie.
+{
+  const { ctx, pg } = await open({ status:'pending', billing:false, live:true, plan:'trial', trial:null });
+  check('with billing switched off nobody is shown it either',
+    await pg.evaluate(() => !document.getElementById('planGateModal')));
+  await ctx.close();
+}
+
 await b.close();
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');

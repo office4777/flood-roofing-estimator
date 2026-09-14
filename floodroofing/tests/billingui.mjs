@@ -34,6 +34,10 @@ async function boot(sub){
   await pg.goto('file://'+DIR+'/app.html');
   await pg.waitForTimeout(2600);
   await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });
+  // A gated account is met by the plan window on sign-in (trialui.mjs owns
+  // that behaviour). This suite is about the Settings → Billing panel behind
+  // it, so dismiss it the way a roofer would before driving that panel.
+  await pg.evaluate(() => { try { _planGateClose(); } catch(e){} });
   return { ctx, pg, checkouts };
 }
 

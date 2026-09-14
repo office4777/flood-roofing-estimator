@@ -4253,6 +4253,31 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     .tb-out{background:var(--danger-soft);border:1px solid #fecaca;color:#7f1d1d}
     .tb a{color:inherit;font-weight:700}
 
+    /* The window a trial ends on. A banner is scrollable-past; the first
+       thing an expired account used to meet was a 403 on saving a job. */
+    .pg-wrap{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;
+      background:rgba(10,22,40,.55);padding:20px;overflow:auto}
+    .pg-box{position:relative;background:#fff;border-radius:16px;max-width:860px;width:100%;
+      padding:28px 26px 22px;box-shadow:0 24px 70px rgba(10,22,40,.34);margin:auto}
+    .pg-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:26px;
+      line-height:1;color:#94a3b8;cursor:pointer;font-family:inherit;padding:4px 8px}
+    .pg-head{font-size:21px;font-weight:800;color:#0a1628;margin-bottom:6px}
+    .pg-sub{font-size:13.5px;color:#43556a;line-height:1.55;margin-bottom:18px}
+    .pg-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+    .pg-card{border:1.5px solid #e2e8f0;border-radius:12px;padding:16px 15px 14px;display:flex;flex-direction:column}
+    .pg-card .pg-name{font-size:14px;font-weight:800;color:#0a1628}
+    .pg-card .pg-price{font-size:23px;font-weight:800;color:#0a1628;margin:3px 0 6px}
+    .pg-card .pg-price span{font-size:12px;font-weight:500;color:#64748b}
+    .pg-card .pg-blurb{font-size:11.5px;color:#43556a;line-height:1.55;margin-bottom:13px;flex:1}
+    .pg-card button{width:100%;padding:10px 0;background:#0a1628;color:#fff;border:none;border-radius:8px;
+      font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit}
+    .pg-card button:disabled{background:#e2e8f0;color:#94a3b8;cursor:default}
+    .pg-foot{font-size:11.5px;color:#43556a;line-height:1.6;margin-top:16px}
+    .pg-msg{font-size:12px;color:#b91c1c;margin-top:8px;min-height:1px}
+    .pg-later{margin-top:10px;background:none;border:none;color:#64748b;font-size:12px;
+      text-decoration:underline;cursor:pointer;font-family:inherit;padding:4px 0}
+    @media (max-width:560px){ .pg-box{padding:22px 16px 18px} .pg-head{font-size:18px} }
+
     /* The strip that rides along the top while a sample job is open. */
     .sj-open{display:flex;align-items:center;gap:12px;padding:9px 16px;background:#fff7ed;
       border:1px solid #fed7aa;border-left:4px solid #d97706;border-radius:0 8px 8px 0;
@@ -11321,6 +11346,10 @@ async function api(method, path, body) {
     var payload = null; try { payload = JSON.parse(t); } catch(e){}
     var err = new Error((payload && payload.error) || ('HTTP ' + r.status + ' ' + t.slice(0,200)));
     err.status = r.status; err.data = payload; err.code = payload && payload.code;
+    // The server refusing because there is no live subscription is the exact
+    // moment to show the plans — that refusal used to surface as a bare
+    // error on a save, which reads as the app being broken.
+    if (err.code === 'SUBSCRIPTION_REQUIRED') { try { _planGateOpen(true); } catch(e){} }
     throw err;
   }
   if (r.status === 204) return null;
@@ -17331,6 +17360,9 @@ async function loadSubscription(){
   try { SUBSCRIPTION = await api('GET', '/subscription'); }
   catch(e){ SUBSCRIPTION = null; }     // never let this block the app
   try { _planGateSync(); } catch(e){}
+  // Signing in to an account that cannot save anything is the moment to say
+  // so, with the plans in front of them — not three clicks later on a 403.
+  try { _planGateOpen(false); } catch(e){}
 }
 // The bar across the top of the app when the business cannot yet save jobs.
 //
@@ -17377,6 +17409,85 @@ function _planGateHtml(){
 }
 // Kept as an alias: existing call sites and trialui.mjs know this name.
 function _trialBannerHtml(){ return _planGateHtml(); }
+
+// ── The window a trial ends on ────────────────────────────────────────
+// A banner at the top of the screen is easy to scroll past, and the first
+// thing a roofer whose trial has run out used to meet was a 403 on saving a
+// job: a wall with no door on it. This is the door — what has happened, that
+// their work is safe, the three plans with what each one covers, and that
+// paying is month to month and cancellable.
+//
+// It opens once per session when the account cannot work, and again the
+// moment the server refuses something for that reason. It is closeable: a
+// roofer who wants to look around first must be able to, and the banner and
+// Settings → Billing both still lead here.
+var _planGateShown = false;
+function _planGateNeeded(){
+  var s = SUBSCRIPTION;
+  // billing off, or the account is live = nothing to sell them right now.
+  return !!(s && s.billing && !s.live && s.status !== 'active');
+}
+function _planGateModalHtml(){
+  var s = SUBSCRIPTION || {};
+  var ended = !!(s.trial && s.trial.expired);
+  var head = ended ? 'Your free trial has ended' : 'Pick a plan to start saving jobs';
+  var sub = ended
+    ? 'Every job, quote and photo you made is still here — nothing has been deleted. Pick a plan and carry straight on.'
+    : 'Look around as long as you like. Saving a job of your own is the part that needs a plan.';
+  var cards = PLAN_TIERS.map(function(t){
+    return '<div class="pg-card">' +
+      '<div class="pg-name">' + t.name + '</div>' +
+      '<div class="pg-price">' + t.price + '<span>/month + GST</span></div>' +
+      '<div class="pg-blurb">' + t.blurb + '</div>' +
+      '<button onclick="_planGatePick(\'' + t.key + '\',this)">Choose ' + t.name + '</button>' +
+    '</div>';
+  }).join('');
+  return '<div class="pg-box" role="dialog" aria-modal="true" aria-label="' + head + '">' +
+    '<button class="pg-close" onclick="_planGateClose()" aria-label="Close">×</button>' +
+    '<div class="pg-head">' + head + '</div>' +
+    '<div class="pg-sub">' + sub + '</div>' +
+    '<div class="pg-cards">' + cards + '</div>' +
+    '<div class="pg-foot"><strong>Month to month — cancel any time.</strong> ' +
+      'Cancelling is two clicks in Settings → Billing; you keep the plan until the month you have paid for runs out, ' +
+      'and your jobs stay either way. Payment is handled by Stripe, so the card never touches RoofMap.</div>' +
+    '<div class="pg-msg" id="planGateMsg"></div>' +
+    '<button class="pg-later" onclick="_planGateClose()">Not right now</button>' +
+  '</div>';
+}
+function _planGateOpen(force){
+  if (!_planGateNeeded()) return;
+  if (_planGateShown && !force) return;
+  _planGateShown = true;
+  var el = document.getElementById('planGateModal');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'planGateModal';
+    el.className = 'pg-wrap';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = _planGateModalHtml();
+  el.style.display = 'flex';
+}
+function _planGateClose(){
+  var el = document.getElementById('planGateModal');
+  if (el) el.style.display = 'none';
+}
+async function _planGatePick(plan, btn){
+  var msg = document.getElementById('planGateMsg');
+  if (btn) btn.disabled = true;
+  try {
+    var r = await api('POST', '/billing/checkout', { plan: plan, billing: 'monthly' });
+    if (r && r.url) { location.href = r.url; return; }
+    if (msg) msg.textContent = 'No checkout link came back — try again.';
+  } catch(e){
+    // A member rather than the owner is the one refusal worth naming: they
+    // cannot fix it themselves, and "403" tells them nothing.
+    if (msg) msg.textContent = (e && e.code === 'OWNER_ONLY')
+      ? 'Only the account owner can start a subscription — ask them to sign in and pick a plan.'
+      : ((e && e.message) || 'Could not start the checkout.');
+  }
+  if (btn) btn.disabled = false;
+}
 // Open Settings on the Billing section — the one place plans are chosen.
 function _billingOpen(){
   gotoTab('settings');
@@ -17411,6 +17522,14 @@ async function _billingPortal(btn){
 // Monthly is the default and the promise; yearly is two months free. The
 // toggle only appears when the server says a yearly price actually exists.
 var _billingCycle = 'monthly';
+// The plans, written once. The Billing section and the trial-ended window
+// both render from this, so the two can never drift apart on price or on
+// what a tier actually includes.
+var PLAN_TIERS = [
+  { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
+  { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
+  { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
+];
 function _billingSetCycle(c){ _billingCycle = c === 'annual' ? 'annual' : 'monthly'; _billingRenderSection(); }
 function _billingDate(iso){
   try { return new Date(iso).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); }
@@ -17420,11 +17539,7 @@ function _billingRenderSection(){
   var host = document.getElementById('billingBody');
   if (!host) return;
   var s = SUBSCRIPTION;
-  var tiers = [
-    { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
-    { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
-    { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
-  ];
+  var tiers = PLAN_TIERS;
   var annualAvail = (s && s.annual) || {};
   var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
   if (!anyAnnual) _billingCycle = 'monthly';
