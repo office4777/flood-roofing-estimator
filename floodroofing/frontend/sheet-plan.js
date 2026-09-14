@@ -6173,20 +6173,18 @@ function _renderRoofSheetPlanInner() {
       return o;
     }
     cutsU = uniqSorted(cutsU); cutsV = uniqSorted(cutsV);
-    var rects = [];
-    for (var a = 0; a + 1 < cutsU.length; a++) for (var b = 0; b + 1 < cutsV.length; b++){
+    // Leftover blocks on the cut grid.
+    var NA = cutsU.length - 1, NB = cutsV.length - 1, left = [];
+    for (var a = 0; a < NA; a++){ left.push([]); for (var b = 0; b < NB; b++){
       var i0 = Math.max(0, Math.floor((cutsU[a] - fu0) / g + 0.5)), i1 = Math.min(NU, Math.floor((cutsU[a+1] - fu0) / g + 0.5));
       var j0 = Math.max(0, Math.floor((cutsV[b] - fv0) / g + 0.5)), j1 = Math.min(NV, Math.floor((cutsV[b+1] - fv0) / g + 0.5));
       var cnt = 0, tot = 0;
       for (var j = j0; j < j1; j++) for (var i = i0; i < i1; i++){ var idx = j*NU + i; if (inside[idx]){ tot++; if (!claimed[idx]) cnt++; } }
-      if (!tot || cnt < tot * 0.6) continue;                    // not a leftover block
-      var area = cnt * g * g;
-      if (area < coverPx * coverPx * 0.5) continue;              // a sliver by a hip
-      rects.push({ u0: cutsU[a], u1: cutsU[a+1], v0: cutsV[b], v1: cutsV[b+1], sec: null });
-    }
-    // Which ridge, if any, runs right through a rectangle: the rectangle
-    // lies within the ridge's band (v within run either side of the ridge)
-    // and along its line.
+      left[a].push(!!tot && cnt >= tot * 0.6 && cnt * g * g >= coverPx * coverPx * 0.5);
+    } }
+    // Which ridge runs right through a rectangle: the rectangle lies within
+    // the ridge's band (v within run either side of the ridge) and along
+    // its line.
     function coversRect(sc, rc){
       var corners = [[rc.u0, rc.v0], [rc.u1, rc.v0], [rc.u0, rc.v1], [rc.u1, rc.v1]];
       for (var k = 0; k < 4; k++){
@@ -6197,43 +6195,38 @@ function _renderRoofSheetPlanInner() {
       }
       return true;
     }
-    // Leftover cells that share a full edge are joined BEFORE anyone is
-    // handed them, when one ridge runs through the union, or when no ridge
-    // runs through either. A wing's column then stays one piece down to the
-    // bottom eave instead of the main biting off its lower half, and a step
-    // column and the band under it read as ONE wing of their own.
-    function firstCover(rc){ for (var k = 0; k < secs.length; k++) if (coversRect(secs[k], rc)) return secs[k]; return null; }
-    // Wings run ACROSS the main ("work out the north and east wings
-    // separately"), so cells stacked across the main's ridge are joined
-    // first — a wing's column stays one piece to the bottom eave — and
-    // only then cells side by side along it.
-    [true, false].forEach(function(acrossOnly){
-      var changed = true;
-      while (changed){
-        changed = false;
-        for (var x = 0; x < rects.length && !changed; x++){
-          for (var y = 0; y < rects.length; y++){
-            if (x === y) continue;
-            var A2 = rects[x], B2 = rects[y];
-            var sameU = Math.abs(A2.u0 - B2.u0) < g && Math.abs(A2.u1 - B2.u1) < g;
-            var sameV = Math.abs(A2.v0 - B2.v0) < g && Math.abs(A2.v1 - B2.v1) < g;
-            var touchV = sameU && (Math.abs(A2.v1 - B2.v0) < g || Math.abs(B2.v1 - A2.v0) < g);
-            var touchU = sameV && (Math.abs(A2.u1 - B2.u0) < g || Math.abs(B2.u1 - A2.u0) < g);
-            if (!(acrossOnly ? touchV : (touchV || touchU))) continue;
-            var U = { u0: Math.min(A2.u0, B2.u0), u1: Math.max(A2.u1, B2.u1), v0: Math.min(A2.v0, B2.v0), v1: Math.max(A2.v1, B2.v1), sec: null };
-            // Across the main, stacked cells always join: a step box and the
-            // band under it are one east wing even when the main's band
-            // could have run through the lower half. Along the main a
-            // join needs a ridge running through the union, or none
-            // through either part.
-            var cA = firstCover(A2), cB = firstCover(B2);
-            if (!firstCover(U) && (acrossOnly ? (cA && cB) : (cA || cB))) continue;
-            rects[x] = U; rects.splice(y, 1); changed = true; break;
-          }
+    // "Always start with the longest sheets" holds for the leftovers too.
+    // Every rectangle of leftover blocks is a candidate, scored by the
+    // longest sheet it could carry: a ridge whose sheets run right through
+    // it (the stem of a T through the bar), or its own ridge along its long
+    // side (the 10 × 10 block of a double L, whose 5.39 m sheets beat any
+    // neighbour's). Longest wins, then the bigger rectangle; a ridge running
+    // through beats a new ridge at equal length. Taken greedily until no
+    // leftover is left.
+    var rects = [];
+    function rectOf(a0, a1, b0, b1){ return { u0: cutsU[a0], u1: cutsU[a1+1], v0: cutsV[b0], v1: cutsV[b1+1], sec: null }; }
+    var taken = []; for (var a3 = 0; a3 < NA; a3++){ taken.push([]); for (var b3 = 0; b3 < NB; b3++) taken[a3].push(false); }
+    for (;;){
+      var best = null;
+      for (var a0 = 0; a0 < NA; a0++) for (var a1 = a0; a1 < NA; a1++) for (var b0 = 0; b0 < NB; b0++) for (var b1 = b0; b1 < NB; b1++){
+        var all = true;
+        for (var aa = a0; aa <= a1 && all; aa++) for (var bb = b0; bb <= b1; bb++) if (!left[aa][bb] || taken[aa][bb]){ all = false; break; }
+        if (!all) continue;
+        var rc = rectOf(a0, a1, b0, b1);
+        var du = rc.u1 - rc.u0, dv = rc.v1 - rc.v0;
+        var ownRun = Math.min(du, dv) / 2, sec = null, runBest = ownRun;
+        for (var k = 0; k < secs.length; k++) if (coversRect(secs[k], rc) && secs[k].run >= runBest - coverPx*0.05){ if (!sec || secs[k].run > runBest + 1e-6){ sec = secs[k]; runBest = secs[k].run; } }
+        if (!(runBest > coverPx*0.2)) continue;
+        var score = { run: runBest, area: du*dv, ext: !!sec };
+        if (!best || score.run > best.run + coverPx*0.05 ||
+            (Math.abs(score.run - best.run) <= coverPx*0.05 && (score.area > best.area + 1 || (Math.abs(score.area - best.area) <= 1 && score.ext && !best.ext)))){
+          best = { run: score.run, area: score.area, ext: score.ext, rc: rc, sec: sec, a0: a0, a1: a1, b0: b0, b1: b1 };
         }
       }
-    });
-    rects.forEach(function(rc){ rc.sec = firstCover(rc); });               // longest first
+      if (!best) break;
+      best.rc.sec = best.sec; rects.push(best.rc);
+      for (var a4 = best.a0; a4 <= best.a1; a4++) for (var b4 = best.b0; b4 <= best.b1; b4++) taken[a4][b4] = true;
+    }
     // Hand each rectangle to its ridge as an extension, or make it a section.
     var own = [];
     rects.forEach(function(rc){
@@ -6245,7 +6238,7 @@ function _renderRoofSheetPlanInner() {
         sc.pieces.push([Math.min.apply(null, us2), Math.max.apply(null, us2)]);
       } else {
         var du = rc.u1 - rc.u0, dv = rc.v1 - rc.v0;
-        var along = du >= dv;                                   // ridge along the long side
+        var along = du >= dv;                                   // ridge along the long side (a square: either)
         var sc2 = along
           ? { R: F.R.slice(), P: F.P.slice(), ridgeP: (rc.v0 + rc.v1)/2, run: dv/2, uLo: rc.u0, uHi: rc.u1 }
           : { R: F.P.slice(), P: [-F.P[1], F.P[0]], ridgeP: 0, run: du/2, uLo: rc.v0, uHi: rc.v1 };

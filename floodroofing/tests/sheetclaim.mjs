@@ -3,10 +3,12 @@
 //   · a T: "71 is correct" — the stem's longer sheets run on through the
 //     bar (19 a side), the bar keeps its two ends (8 a side each).
 //   · a double L: "10 m ÷ 0.762 = 14 sheets each side, 28 long sheets, then
-//     work out the north and east wings separately" — the main is only the
-//     stretch where BOTH its slopes land on a gutter; the tall wing runs to
-//     the bottom eave as one piece; the step column and the band under it
-//     are a wing of their own.
+//     work out the north and east wings separately … it should look nearly
+//     exactly the same as the staircase; if there isn't a clear ridge on the
+//     main long-sheet section just choose a way, it's a perfect 10 × 10 m
+//     square" — the 10 × 10 block left between the wings carries the LONGEST
+//     sheets, so it is the main, and the north and east wings are counted
+//     to it.
 //   · the canonical L keeps its 65.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
@@ -53,15 +55,12 @@ check('T: 71 sheets, as the owner ruled', r.total === 71, r.total + ' — ' + JS
 // ── the double L ──────────────────────────────────────────────────
 r = await count(fx('fixtures-doublel.json'));
 main = r.secs.find(s => s.main) || {};
-check('double L: the main is 10 m ÷ 0.762 = 14 a side — only where both slopes reach a gutter',
-  main.perNeg === 14 && main.perPos === 14 && main.spare === 1, JSON.stringify(main));
-const wings = r.secs.filter(s => !s.main).map(s => s.perNeg + s.perPos).sort((a, b) => b - a);
-check('double L: the tall wing runs to the bottom eave as one piece (21 a side)',
-  wings[0] === 42, wings.join(','));
-check('double L: the step column and the band under it are an east wing of their own (14 a side)',
-  wings[1] === 28, wings.join(','));
-check('double L: both wings order the same 2.70 m sheet, one row',
-  Object.keys(byLen(r)).sort().join(',') === '2.7,3.2', JSON.stringify(byLen(r)));
+check('double L: the 10 × 10 block between the wings is the main — 14 a side of the longest sheet',
+  main.perNeg === 14 && main.perPos === 14 && main.spare === 1 && Math.abs(main.mm - 5390) < 40, JSON.stringify(main));
+const wings = r.secs.filter(s => !s.main).map(s => (s.perNeg + s.perPos) + '@' + (s.mm/1000).toFixed(1)).sort();
+check('double L: the east wing (10 m band) is 14 a side of 3.24 m, the north wing 8 a side of 2.70 m',
+  wings.join(',') === '16@2.7,28@3.2', wings.join(','));
+check('double L: 73 sheets', r.total === 73, r.total + ' — ' + JSON.stringify(byLen(r)));
 
 // ── the canonical L is untouched ──────────────────────────────────
 const ox = 140, oy = 140;
