@@ -65,16 +65,16 @@ check('…and the select-all box is there, ticked', v.allChip === true, String(v
 
 // ── one combined diagram per kind, listed first ───────────────────
 check('there is ONE combined diagram per map kind',
-  v.keys.filter(k => /:all$/.test(k)).sort().join(',') === 'calccheck:all,sheetplan:all',
+  v.keys.filter(k => /:all$/.test(k)).sort().join(',') === 'calccheck:all',
   v.keys.filter(k => /:all$/.test(k)).join(','));
 check('…listed above the per-roof ones',
-  /:all$/.test(v.keys[0]) && /:all$/.test(v.keys[1]) && !/:all$/.test(v.keys[2]),
+  /:all$/.test(v.keys[0]) && !/:all$/.test(v.keys[1]),
   v.keys.slice(0,4).join(' | '));
 check('…labelled "All roofs" while every roof is on',
   v.subs[0] === 'All roofs', v.subs[0]);
 check('and the per-roof diagrams are still there', 
-  v.keys.filter(k => /^sheetplan:\d+$/.test(k)).length === 5,
-  v.keys.filter(k => /^sheetplan:\d+$/.test(k)).join(','));
+  v.keys.filter(k => /^calccheck:\d+$/.test(k)).length === 5,
+  v.keys.filter(k => /^calccheck:\d+$/.test(k)).join(','));
 
 // ── the combined diagram really carries every roof ────────────────
 const drew = await pg.evaluate(() => {
@@ -100,8 +100,8 @@ await pg.evaluate(() => _jpRoofSet(2, false));
 await pg.waitForTimeout(1500);
 v = await st();
 check('unticking a roof drops its own diagrams', 
-  v.keys.indexOf('sheetplan:2') < 0 && v.keys.indexOf('sheetplan:3') >= 0,
-  v.keys.filter(k => /^sheetplan:/.test(k)).join(','));
+  v.keys.indexOf('calccheck:2') < 0 && v.keys.indexOf('calccheck:3') >= 0,
+  v.keys.filter(k => /^calccheck:/.test(k)).join(','));
 check('…and the combined diagram says which roofs it is now showing',
   v.subs[0] !== 'All roofs' && /Roof 3/.test(v.subs[0]) === false, v.subs[0]);
 check('…and select-all unticks itself', v.allChip === false, String(v.allChip));
@@ -114,7 +114,7 @@ await pg.waitForTimeout(1500);
 v = await st();
 check('select all brings every roof back', v.roofChips.every(c => c.on) && v.allChip === true);
 check('…and the combined diagram is whole again',
-  v.subs[0] === 'All roofs' && v.keys.filter(k => /^sheetplan:\d+$/.test(k)).length === 5);
+  v.subs[0] === 'All roofs' && v.keys.filter(k => /^calccheck:\d+$/.test(k)).length === 5);
 
 // ── the last roof cannot be turned off ────────────────────────────
 const last = await pg.evaluate(async () => {

@@ -6631,7 +6631,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <span style="font-size:10px;color:var(--text2);font-weight:400">Aerial + line measurements</span>
         </span>
       </label>
-      <label class="chk-item on" data-jp-inc="sheetlayout" onclick="toggleJobPackInc(event,this)">
+      <label class="chk-item on" data-jp-inc="sheetlayout" onclick="toggleJobPackInc(event,this)" style="display:none">
         <span class="chk-dot"></span>
         <span style="display:flex;flex-direction:column;gap:1px">
           <strong style="font-size:12px">Sheet layout</strong>
@@ -6672,7 +6672,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="card-hd"><span class="card-dot"></span>Roof map</div>
       <div id="jpRoofMap" style="text-align:center;padding:10px 0;color:var(--text2);font-size:12px">— click Refresh preview to capture the current roof map —</div>
     </div>
-    <div class="card" data-jp-section="sheetlayout">
+    <div class="card" data-jp-section="sheetlayout" style="display:none">
       <div class="card-hd"><span class="card-dot"></span>Sheet layout</div>
       <div id="jpSheetLayout" style="text-align:center;padding:10px 0;color:var(--text2);font-size:12px">— click Refresh preview to capture the current sheet layout —</div>
     </div>
@@ -47977,12 +47977,12 @@ function _jpPageTypes(){
   return [
     { value:'header',      label:'Job header' },
     { value:'roofmap',     label:'Roof map' },
-    { value:'sheetplan',   label:'Sheet plan' },
+    SHEET_LAYOUT_HIDDEN ? null : { value:'sheetplan',   label:'Sheet plan' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
     { value:'consumables', label:'Consumables' },
     { value:'notes',       label:'Notes / custom' }
-  ];
+  ].filter(Boolean);
 }
 // ── Pricing slide-out (Quote tab) ──────────────────────────────────
 // The Scope & Pricing panel (#tab-scope) used to be its own nav tab. It now
@@ -48120,14 +48120,22 @@ function _jpMapApplyZoom(){
 // detailed / basic / flashing-ref maps are occasional. All five per roof made
 // the panel a scroll, so the occasional three start off and are one tick away.
 // The order here is the order they are offered in, calc check first.
-var JP_MAP_KINDS = [
+// The sheet LAYOUT diagram (the tiled cut plan) is hidden from users while
+// it is reworked — the owner's call, 2026-09-14. The counts and the calc
+// check are unaffected: the engine still runs, only the picture is withheld.
+// Flip this to false to bring it back everywhere (panel, page types, prints).
+var SHEET_LAYOUT_HIDDEN = true;
+function _jpMapKindHidden(kind){ return SHEET_LAYOUT_HIDDEN && kind === 'sheetplan'; }
+var JP_MAP_KINDS_ALL = [
   { kind:'calccheck', label:'Sheet calc check', on:true  },
   { kind:'sheetplan', label:'Sheet layout',     on:true  },
   { kind:'detailed',  label:'Detailed map',     on:false },
   { kind:'basic',     label:'Basic map',        on:false },
   { kind:'flashref',  label:'Flashing ref',     on:false },
 ];
+var JP_MAP_KINDS = JP_MAP_KINDS_ALL.filter(function(k){ return !_jpMapKindHidden(k.kind); });
 function _jpMapKindOn(kind){
+  if (_jpMapKindHidden(kind)) return false;
   var d = JP_MAP_KINDS.filter(function(k){ return k.kind === kind; })[0];
   var def = d ? d.on : true;
   try {
@@ -48764,6 +48772,7 @@ function _jpHandleDrop(ev, pageIdx){
 function _jpMountImagesOnPage(pageEl, page, pageIdx){
   if (!page || !Array.isArray(page.images) || !page.images.length) return;
   page.images.forEach(function(im, ii){
+    if (_jpMapKindHidden(String(im.mapKey || '').split(':')[0])) return;
     var src = _jpCaptureMap(im.mapKey, {});
     if (!src) return;
     var wrap = document.createElement('div');
@@ -49826,6 +49835,12 @@ function _jpSetRoofMapView(idx, view){
   renderJobPack();
 }
 function _jpRenderSheetPlan(content, page, idx){
+  if (SHEET_LAYOUT_HIDDEN){
+    content.innerHTML = '<div class="jp-block-title">Sheet layout</div>' +
+      '<div style="padding:14px;font-size:12px;color:var(--text2)">The sheet layout diagram is being reworked and is not shown for now. ' +
+      'The sheet counts and the Sheet calc check are unaffected — use the Maps panel to place the calc check instead.</div>';
+    return;
+  }
   content.innerHTML =
     '<div class="jp-block-title">Sheet layout</div>' +
     '<div id="jpSheetPlanOut_'+idx+'" style="flex:1;overflow:auto"></div>';

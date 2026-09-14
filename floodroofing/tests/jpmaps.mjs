@@ -48,16 +48,16 @@ const st = () => pg.evaluate(() => ({
 }));
 
 let v = await st();
-check('there is a tick per map kind', v.toggles.length === 5,
+check('there is a tick per map kind, the hidden sheet layout excluded', v.toggles.length === 4,
   v.toggles.map(t => t.kind).join(','));
 check('…sitting above the zoom, where they were asked for', v.aboveZoom);
-check('Sheet calc check and Sheet layout are on by default',
-  v.toggles.filter(t => t.on).map(t => t.kind).sort().join(',') === 'calccheck,sheetplan',
+check('Sheet calc check is on by default (the layout diagram is withheld)',
+  v.toggles.filter(t => t.on).map(t => t.kind).sort().join(',') === 'calccheck',
   v.toggles.filter(t => t.on).map(t => t.kind).join(','));
 check('…and those are the only maps offered',
-  v.kinds.join(',') === 'calccheck,sheetplan', v.kinds.join(',') + ' (' + v.n + ' thumbs)');
-check('…with calc check listed first', await pg.evaluate(() =>
-  JP_MAP_KINDS[0].kind === 'calccheck' && JP_MAP_KINDS[1].kind === 'sheetplan'));
+  v.kinds.join(',') === 'calccheck', v.kinds.join(',') + ' (' + v.n + ' thumbs)');
+check('…with calc check listed first and no sheet layout offered', await pg.evaluate(() =>
+  JP_MAP_KINDS[0].kind === 'calccheck' && !JP_MAP_KINDS.some(k => k.kind === 'sheetplan') && !_jpMapKindOn('sheetplan')));
 
 // ── ticking one on brings its maps in ─────────────────────────────
 const before = v.n;
@@ -70,7 +70,7 @@ await pg.evaluate(() => _jpMapKindSet('detailed', false));
 await pg.waitForTimeout(1200);
 v = await st();
 check('…and unticking takes them back out',
-  v.kinds.join(',') === 'calccheck,sheetplan', v.kinds.join(','));
+  v.kinds.join(',') === 'calccheck', v.kinds.join(','));
 
 // ── the choice sticks ─────────────────────────────────────────────
 check('the choice is remembered for next time', await pg.evaluate(() => {
@@ -82,16 +82,16 @@ await pg.waitForTimeout(900);
 
 // ── all off says why, rather than looking broken ──────────────────
 v = await pg.evaluate(async () => {
-  ['calccheck','sheetplan'].forEach(k => _jpMapKindSet(k, false));
+  ['calccheck'].forEach(k => _jpMapKindSet(k, false));
   await new Promise(r => setTimeout(r, 600));
   return document.getElementById('jpMapPanelList').textContent.trim();
 });
 check('with every kind off the panel says why, not "draw your roof"',
   /No map types ticked/.test(v), v.slice(0, 60));
-await pg.evaluate(() => { ['calccheck','sheetplan'].forEach(k => _jpMapKindSet(k, true)); });
+await pg.evaluate(() => { ['calccheck'].forEach(k => _jpMapKindSet(k, true)); });
 await pg.waitForTimeout(1200);
 v = await st();
-check('…and ticking back on restores them', v.kinds.join(',') === 'calccheck,sheetplan',
+check('…and ticking back on restores them', v.kinds.join(',') === 'calccheck',
   v.kinds.join(','));
 
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
