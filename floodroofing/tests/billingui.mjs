@@ -82,7 +82,10 @@ check('…and a quiet mid-trial banner stays quiet', v.trim() === '', v.slice(0,
 await ctx.close();
 
 // ── an active subscriber sees where they stand ────────────────────
-({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, trial:null, plan:'team' }));
+// billing_account true = there IS a Stripe customer, which is what makes the
+// billing portal a real destination. Active alone does not.
+({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, trial:null,
+  plan:'team', billing_account:true }));
 await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
 await pg.waitForTimeout(500);
 v = await pg.evaluate(() => ({
@@ -167,6 +170,47 @@ await pg.waitForTimeout(1200);
 check('Choose Team in yearly view buys the ANNUAL team plan',
   checkouts.length === 1 && checkouts[0].plan === 'team' && checkouts[0].billing === 'annual',
   JSON.stringify(checkouts));
+await ctx.close();
+
+// ── "active" with no Stripe customer: comped, and wanting to pay ──
+// The owner's own account read status 'active' on Business with no customer
+// behind it, so the Business card offered Manage billing — which answers "no
+// billing account yet — subscribe first". The one plan a comped business
+// could not subscribe to was its own. The card offers the checkout now.
+({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, plan:'business',
+  billing_account:false, trial:null }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  body: document.getElementById('billingBody').textContent,
+  // The BUTTONS, not the body text — the footer note mentions Manage billing
+  // in passing, so reading the whole panel cannot tell you what is clickable.
+  btns: [...document.querySelectorAll('#billingBody button')].map(b => b.textContent.trim()),
+}));
+check('an active account with no card is not told its card is in the portal',
+  !/cancellation are in the billing portal/.test(v.body), v.body.slice(0, 140));
+check('…it is told plainly there is no card on file', /no card on file/i.test(v.body), v.body.slice(0, 160));
+check('…and its own plan offers Subscribe, not Manage billing',
+  v.btns.includes('Subscribe to Business') && !v.btns.some(x => /Manage billing/.test(x)),
+  JSON.stringify(v.btns));
+await pg.click('button:has-text("Subscribe to Business")');
+await pg.waitForTimeout(700);
+check('…and that button really starts a Business checkout',
+  checkouts.length === 1 && checkouts[0].plan === 'business', JSON.stringify(checkouts));
+await ctx.close();
+
+// ── active AND paying: the portal is right for them ───────────────
+({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, plan:'team',
+  billing_account:true, trial:null }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  body: document.getElementById('billingBody').textContent,
+  btns: [...document.querySelectorAll('#billingBody button')].map(b => b.textContent.trim()),
+}));
+check('a paying account still gets Manage billing',
+  v.btns.some(x => /Manage billing/.test(x)) &&
+  /cancellation are in the billing portal/.test(v.body), JSON.stringify(v.btns));
 await ctx.close();
 
 await b.close();

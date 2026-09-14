@@ -1214,6 +1214,12 @@ app.get('/subscription', requireAuth, async (req, res) => {
       expired: ms <= 0,
     },
     plan: await _planOf(req.companyId),
+    // Is there a Stripe customer behind this account at all? A comped or
+    // grandfathered business reads as "active" on a real plan while having
+    // never paid — and the billing screen offered it "Manage billing", which
+    // is the one button that cannot work without a customer. The screen needs
+    // to tell "paying" from "on the plan for nothing" to offer the right one.
+    billing_account: !!(sub && sub.stripe_customer_id),
     // Which plans have a yearly price configured — the billing screen offers
     // the two-months-free toggle only when there is something to buy.
     annual: {

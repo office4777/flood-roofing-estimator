@@ -17430,7 +17430,12 @@ function _billingRenderSection(){
   var head;
   if (!s) head = '<div style="font-size:12.5px;color:var(--text2)">Couldn\u2019t check the subscription \u2014 reload to try again.</div>';
   else if (!s.billing) head = '<div style="font-size:12.5px;color:var(--text2)">Billing isn\u2019t switched on yet \u2014 plans below are what it will look like. Nothing can be charged.</div>';
-  else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
+  // "Active" is not the same as "paying". A comped or grandfathered business
+  // sits on a real plan with no Stripe customer behind it, and the screen used
+  // to tell it its card was in the billing portal — then the portal answered
+  // "no billing account yet", which is the truth arriving in the worst place.
+  else if (s.status === 'active' && s.billing_account) head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
+  else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + ' \u2014 nothing to pay.</strong> <span style="color:var(--text2)">There\u2019s no card on file. Subscribe below whenever you want to start paying for it.</span></div>';
   // Comped and trial accounts are on a real plan too — they just aren't
   // paying for it. Saying nothing left them looking at three cards with no
   // way to tell which one they had.
@@ -17439,6 +17444,8 @@ function _billingRenderSection(){
   else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
   else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
   var canBuy = !!(s && s.billing);
+  // Only a business with a Stripe customer has anything to manage.
+  var hasAcct = !!(s && s.billing_account);
   var cycleBtn = function(key, label){
     var on = _billingCycle === key;
     return '<button onclick="_billingSetCycle(\'' + key + '\')" style="padding:6px 14px;border-radius:20px;border:1.5px solid ' +
@@ -17465,12 +17472,16 @@ function _billingRenderSection(){
         '<div style="font-size:14px;font-weight:800">' + t.name + (current ? ' <span style="font-size:10px;color:#0099cc;font-weight:800;letter-spacing:.06em">CURRENT</span>' : '') + '</div>' +
         '<div style="font-size:22px;font-weight:800;margin:4px 0 2px">' + priceLine + '</div>' +
         '<div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:12px">' + t.blurb + '</div>' +
-        (current
+        (current && hasAcct
           ? '<button onclick="_billingPortal(this)" style="width:100%;padding:9px 0;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Manage billing</button>'
-          : '<button onclick="_billingCheckout(\'' + t.key + '\',this)"' + (canBuy ? '' : ' disabled') + ' style="width:100%;padding:9px 0;background:' + (canBuy ? '#0a1628' : '#e2e8f0') + ';color:' + (canBuy ? '#fff' : '#94a3b8') + ';border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:' + (canBuy ? 'pointer' : 'default') + ';font-family:inherit">Choose ' + t.name + '</button>') +
+          // The plan they are ON but have never paid for. Manage billing is a
+          // dead end here (no Stripe customer to manage), so the card offers
+          // the checkout instead — otherwise the ONLY plan a comped business
+          // cannot subscribe to is its own.
+          : '<button onclick="_billingCheckout(\'' + t.key + '\',this)"' + (canBuy ? '' : ' disabled') + ' style="width:100%;padding:9px 0;background:' + (canBuy ? '#0a1628' : '#e2e8f0') + ';color:' + (canBuy ? '#fff' : '#94a3b8') + ';border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:' + (canBuy ? 'pointer' : 'default') + ';font-family:inherit">' + (current ? 'Subscribe to ' : 'Choose ') + t.name + '</button>') +
         '</div>';
     }).join('') + '</div>' +
-    (s && s.status === 'active' ? '' :
+    (s && s.status === 'active' && hasAcct ? '' :
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
     '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
 }
