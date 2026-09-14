@@ -6,21 +6,47 @@ accordingly.
 
 ## Layout
 
-- `floodroofing/frontend/app.html` — the entire app: one very large HTML file
-  (CSS + markup + JS). Edit it with careful, count-asserted replacements; when
-  scripting edits with Python, always read/write with
+- `floodroofing/frontend/app.html` — the app: one very large HTML file
+  (CSS + markup + JS, ~62k lines). Edit it with careful, count-asserted
+  replacements; when scripting edits with Python, always read/write with
   `encoding='utf-8', errors='surrogateescape'` (the file contains emoji).
+  Syntax-check after scripted edits by feeding each inline `<script>` to
+  `new Function()` — a stray quote in a 62k-line file is otherwise found by
+  a customer.
+- `floodroofing/frontend/sheet-plan.js` — the sheet engine (plain global
+  script loaded last, not a module): `renderRoofSheetPlan` → per-roof
+  `_renderRoofSheetPlanInner`, the ridge-claim takeoff
+  (`_ridgeClaimSections`), the `_sheetsAcross` rounding rule and the
+  section/group data the Job Pack reads (`window._lastSheetSections`,
+  `window._lastSheetCounts.groups`).
+- `floodroofing/frontend/sw.js` — service worker, network-first with a 5 s
+  timeout, so a reload picks up a new build. "Still seeing the old numbers"
+  means the app was not reloaded, not that the ship failed.
 - `floodroofing/backend/server.js` — the entire Express backend, including the
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (~17 min, ~161 suites, and the sheet-layout gate on a full run), or one by
-  name: `node floodroofing/tests/run.mjs inboxui`. A NEW suite must be added
-  to the list in `run.mjs` or it never runs. Pipe the runner through `tail`
-  and you get tail's exit code, not the runner's — use `set -o pipefail`.
+  (~19 min, ~186 suites four at a time, plus the sheet-layout gate on a full
+  run; `JOBS=1` for one at a time), or one by name:
+  `node floodroofing/tests/run.mjs inboxui`. A NEW suite must be added to
+  the list in `run.mjs` or it never runs. Pipe the runner through `tail` and
+  you get tail's exit code, not the runner's — use `set -o pipefail`.
+  Run the full gate in the background and never `pkill -f tests/run.mjs`
+  from the same shell (it kills its own command).
+- `floodroofing/docs/ci_sheet_tests.js` — the sheet-layout gate (37 shapes;
+  Big-L expects 66 strips). Runs alone in ~40 s and has its own GitHub
+  workflow, so run it first after any engine change.
 - `floodroofing/tests/fakepgrst.mjs` — in-process fake PostgREST. No DDL
   defaults (set every column explicitly on insert), no `in` filter (returns
-  all rows), DELETE returns deleted rows.
+  all rows), DELETE returns deleted rows. Failure seams on the db object:
+  `__fail500 = 'table'` (+ `__failMsg` for the error text), `__failInsert`,
+  `__missing = ['column']`.
+- Test fixtures worth knowing: `fixtures-report41.json` is the five-roof job
+  behind reports 51 and 52; `fixtures-report50.json`, `fixtures-doublel.json`
+  and `fixtures-tee.json` are the hip-and-valley shapes the owner counted by
+  hand. `tools/sheet-shots.mjs` renders any fixture to PNGs of the layout,
+  the calc check and the cut list — send those to the owner BEFORE the gate
+  when the counts are in question.
 - `floodroofing/tools/` — generators, never their output (`.gitignore` keeps
   it that way). `demo-shots.mjs` → `demo-slideshow.mjs` → `demo-record.mjs`
   build the sales demo; `restore-check.mjs` verifies a backup restore;
@@ -98,8 +124,21 @@ Discipline (non-negotiable):
 - A function that both alerts AND swallows its error makes every caller's
   `catch` dead code. If any caller can recover, throw — see `openJob`'s
   `quiet` option.
+- A failed database read is an ERROR, never an empty result. `_mustRead()`
+  turns a PostgREST failure into a 503 `UPSTREAM_UNAVAILABLE`; reading it as
+  "no rows" once logged the owner out of his company, dropped the Fergus
+  key and showed "No subscription found" after a reload.
+- Sheet counting rule (the owner's, pinned in `tests/report52.mjs`): each
+  roof counts its OWN gutter ÷ sheet cover, rounded up from a tenth of a
+  sheet (10 m / 0.762 = 13.12 → 14; 13.05 → 13). Overlapping roofs never
+  change each other's count. Every count site goes through `_sheetsAcross`.
+- The Job Pack cut list belongs to the office once touched. The first
+  edit (quantity, length, hide, add row) freezes it in
+  `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
+  carrying the edits onto the nearest new rows, and "Reset from map" throws
+  the freeze away. Never re-derive a row the office has typed on.
 
-## Three things that have been broken twice
+## Four things that have been broken twice
 
 **The roof engine.** `buildHipValleyLines` runs a real straight skeleton, then
 `_skelSnapRectilinear` tidies it: welds junctions the solver left a few pixels
@@ -126,6 +165,17 @@ string. It falls back through plainer requests now — but NOT on 401/403,
 where a rejected key must fail on the first call rather than be hammered.
 `tests/fergstale.mjs` pins both that and the stale job-mapping recovery.
 
+**The cut list.** Three feedback reports in a row (50, 51, 52) were the
+same fault in different clothes: rows re-derived from the roof on every
+render, with the office's edits re-attached by each row's original length.
+Any re-render that shuffled the rows (a tab switch before the map had
+drawn, the bump-out splitter peeling or not, a label matched to a different
+row) put a typed quantity on a different row and lost rows. The freeze above
+is the fix; the splitter and value-matcher in `_jpBuildSheetRowsAuto` still
+run for an untouched list, and the feedback report now carries the whole
+cut-list state (`cutList` in `_roofGeometryPayload`) — read that before
+guessing.
+
 ## Diagnosing a subscriber's integration
 
 Settings → "Something not working?" runs the probes support would run by
@@ -135,7 +185,7 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-06
+## Open at last handover — 2026-09-14
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
@@ -152,6 +202,16 @@ worse than none.
 - SMS/uptime alarm on `/health`; run the restore drill once
   (`tools/restore-check.mjs`); add the crews then paste the schedule import;
   paste the real price book so it can become the shipped default.
+- Send the customer email about the report 50–52 fixes (drafted 2026-09-14)
+  with the "please reload the app" line kept in.
+
+**Recently shipped, watch for fallout:** the ridge-claim takeoff for
+hip-and-valley roofs with two or more ridges (`_ridgeClaimSections`, pinned
+by `tests/sheetclaim.mjs` on the owner's hand counts: T = 71, staircase =
+69, double L = 73); the cut-list freeze; `/quote-activity` serving its last
+good feed after a statement timeout (`tests/quotefeedcache.mjs`). If a
+5xx email names `/quote-activity` again it is an office that never had a
+good read in that server's lifetime — look at the query, not the cache.
 
 **Product thinking, agreed but not built:** the trial's first twenty minutes
 should walk a new roofer to their OWN first quote — address, trace, quote, in
