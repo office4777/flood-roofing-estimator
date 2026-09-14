@@ -4377,7 +4377,37 @@ async function _autoDepositInvoice(job, quote){
 // 500s the home screen. Two separately indexed reads, merged here, each hit
 // their own index. The legacy arm is almost always empty (rows predating
 // companies), so this is one fast query in practice.
+// The feed's last good answer per scope. A cold morning can push the read
+// past the statement timeout even with the partial indexes in place — the
+// planner still detoasts 120 multi-MB draw_states to pull the share out of
+// each — and the office would rather see the feed as of a minute ago than a
+// 500. On a timeout the read is retried smaller, then served from here.
+const _quoteFeedCache = new Map();
 async function _quoteShareRows(req, limit){
+  const key = (req.companyId || '') + '|' + (req.user && req.user.id);
+  const isTimeout = e => /statement timeout|canceling statement|57014/i.test(String(e && (e.message || e)));
+  try {
+    const rows = await _quoteShareRowsRead(req, limit);
+    _quoteFeedCache.set(key, { at: Date.now(), rows });
+    return rows;
+  } catch (e) {
+    if (!isTimeout(e)) throw e;
+    console.error('quote share rows timed out, retrying smaller:', e.message);
+    try {
+      const rows = await _quoteShareRowsRead(req, Math.min(limit, 30));
+      _quoteFeedCache.set(key, { at: Date.now(), rows });
+      return rows;
+    } catch (e2) {
+      const c = _quoteFeedCache.get(key);
+      if (c && Date.now() - c.at < 6 * 3600 * 1000) {
+        console.error('quote share rows served from cache after timeout:', e2.message);
+        return c.rows;
+      }
+      throw e2;
+    }
+  }
+}
+async function _quoteShareRowsRead(req, limit){
   const SHARED_COLS = 'id, client_name, updated_at, ' +
     'q_share:draw_state->state->quote->share, ' +
     'q_ref:draw_state->state->quote->ref, ' +
@@ -4410,6 +4440,10 @@ async function _quoteShareRows(req, limit){
                share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
                pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
     }).filter(function(r){ return r.share && r.share.token; });
+  }
+  if (/statement timeout|canceling statement|57014/i.test(String(failed.error.message))) {
+    // Falling back to the wide read after a timeout only times out slower.
+    const err = new Error(failed.error.message); err.http = 500; throw err;
   }
   console.error('quote share rows narrow select failed, falling back:', failed.error.message, failed.error.hint || '');
   const fb = await _scopeCompany(supabase.from('jobs')

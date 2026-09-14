@@ -8,6 +8,19 @@
 // geometry builders, polyCentroid, _sheetKey, renderMaterialsCutLists, …)
 // is already defined by the time any of these functions is CALLED.
 
+// Sheets across a span: the gutter (or ridge) length divided by the sheet
+// cover, rounded UP from a tenth of a sheet: 10 m / 0.762 = 13.12 → 14,
+// 8.38 m / 0.762 = 10.997 → 11, but 13.05 stays 13 (that last few
+// centimetres is a lap, not a sheet). Every roof counts its OWN gutter —
+// an overlap with another roof never changes this number.
+function _sheetsAcross(px, coverPx){
+  if (!(coverPx > 0)) return 1;
+  var x = px / coverPx;
+  var n = Math.floor(x + 1e-9);
+  if (x - n >= 0.1 - 1e-9) n += 1;
+  return Math.max(1, n);
+}
+
 // Multi-roof dispatcher: when several roofs are drawn, iterate each and
 // ── Customisable sheet plan — Phase 1: click-to-delete sheets ──────
 // A stable per-sheet ID (centroid + ordered length + colour) survives
@@ -298,7 +311,7 @@ function _ccHipBandSections(outline, lines, coverPx, lenOf){
   var _BPAL = ['#f97316','#2563eb','#a855f7','#16a34a','#0891b2','#db2777','#ca8a04','#dc2626'];
   var _bpi = 0;
   function mkBand(e, kind){
-    var per = Math.max(1, Math.ceil((e.uHi - e.uLo)/coverPx - 1e-6));
+    var per = _sheetsAcross(e.uHi - e.uLo, coverPx);
     return { kind: kind, color: _BPAL[(_bpi++) % _BPAL.length], gcol: '#f97316', perSide: per, valleyExtra: 0,
       total: per, orderedMm: lenOf(e.depth), isPrimary: true, mono: true, srcGutter: e.g,
       rdir: e.R.slice(), obU0: e.uLo, obU1: e.uHi,
@@ -5706,7 +5719,7 @@ function _renderRoofSheetPlanInner() {
         });
         if(!best) return;
         var eaveLen=Math.hypot(best.pts[1][0]-best.pts[0][0], best.pts[1][1]-best.pts[0][1]);
-        var ps=Math.max(1, Math.ceil(eaveLen/coverPx - 1e-6));
+        var ps=_sheetsAcross(eaveLen, coverPx);
         // Tile across the full END EAVE (not the shorter, centred gablet base)
         // so the first short sheet sits flush on the roof edge.
         var e0=best.pts[0], e1=best.pts[1];
@@ -6281,10 +6294,9 @@ function _renderRoofSheetPlanInner() {
       });
       merged.forEach(function(pc){
         if (pc[1] - pc[0] < coverPx*0.4) return;
-        // A span a few millimetres over a whole number of sheets is that
-        // whole number: 8.38 m ÷ 0.762 is 11 sheets to the office, not 12.
-        var span = Math.max(coverPx, (pc[1]-pc[0]) - coverPx*0.02);
-        var nCols = Math.max(1, Math.ceil(span / coverPx - 1e-6));
+        // Whole covers plus a remainder: 0.1 m or more of remainder is
+        // one more sheet, less is a lap (_sheetsAcross).
+        var nCols = _sheetsAcross(pc[1]-pc[0], coverPx);
         // Each side counts its own columns; a column is a sheet only where
         // its slope reaches roof (a step leaves one slope short).
         var perNeg = 0, perPos = 0;
@@ -6296,7 +6308,7 @@ function _renderRoofSheetPlanInner() {
         }
         if (!perNeg && !perPos) return;
         out.push({ col: COL_ORANGE, mm: orderedLengthMm(sc.run * effectiveScale * pitchFactor),
-          runPx: 2*sc.run, eavePx: span, ridgePx: span, valley: false, valleys: 0,
+          runPx: 2*sc.run, eavePx: pc[1]-pc[0], ridgePx: pc[1]-pc[0], valley: false, valleys: 0,
           rdir: sc.R.slice(), obU0: pc[0], obU1: pc[1],
           obV0: sc.ridgeP - sc.run, obV1: sc.ridgeP + sc.run, _claim: true,
           _perNeg: perNeg, _perPos: perPos });
@@ -6374,13 +6386,13 @@ function _renderRoofSheetPlanInner() {
     // already tiles, so take the larger of the two.
     var _eaveSpan = s._claim ? s.eavePx : Math.max(s.eavePx || 0, (s.obU1 - s.obU0) || 0);
     if (i === primary) {
-      perSide = Math.max(1, Math.ceil(_eaveSpan / coverPx - 1e-6));   // main runs full-length
+      perSide = _sheetsAcross(_eaveSpan, coverPx);   // main runs full-length
     } else if (s.valleys >= 2) {
       // Protruding stem (a T): two valleys, no shared corner to borrow from
       // the main — cover its FULL length, like the main does.
-      perSide = Math.max(1, Math.ceil(_eaveSpan / coverPx - 1e-6));
+      perSide = _sheetsAcross(_eaveSpan, coverPx);
     } else {
-      perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // tucked wing: ridge span
+      perSide = _sheetsAcross(s.ridgePx, coverPx);  // tucked wing: ridge span
     }
     // Two slopes meet at a ridge → 2 columns of sheets per bay. A
     // MONO-PITCH roof is a SINGLE slope (one gutter, no ridge), so it must

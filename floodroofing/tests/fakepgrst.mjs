@@ -190,7 +190,7 @@ export function startFakePostgrest(tables){
       if (req.method === 'GET'){
         // Deliberate breakage, so a caller's "if the lookup fails" path can be
         // exercised for real rather than assumed.
-        if (db.__fail500 === table) return send(500, { message: 'injected failure' });
+        if (db.__fail500 === table) return send(500, { message: db.__failMsg || 'injected failure' });
         let rows = db[table].filter(match);
         const ord = u.searchParams.get('order');
         if (ord){

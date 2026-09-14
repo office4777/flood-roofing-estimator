@@ -2094,6 +2094,7 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 #fergusRoofPanel .frp-hd{ padding:11px 14px 11px 20px; border-bottom:1px solid var(--border); color:#0a1628; }
 #fergusRoofPhotoScroll{ flex:1; overflow:auto; padding:10px 12px 16px 18px; -webkit-overflow-scrolling:touch; cursor:grab; touch-action:none; }
 #fergusRoofPhotoScroll.is-grabbing{ cursor:grabbing; user-select:none; }
+#fergusRoofPhotoScroll img{ -webkit-user-drag:none; user-drag:none; user-select:none; -webkit-touch-callout:none; }
 /* On the Job Pack the photos pop-out sits as a second tab under MAPS. */
 #fergusRoofPanel.jp-second #fergusRoofPanelToggle{ top:180px; }
 #fergusRoofPhotoGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
@@ -36704,6 +36705,7 @@ function _roofGeometryPayload(){
             manualMeasures: (DRAW.manualSheetMeasures || []).map(function(m){ return m && m.lengthM; }),
             sheetOverrides: DRAW.sheetOverrides || {},
             extras: DRAW.matSheetExtras || [],
+            frozen: DRAW.matSheetFrozen || null,
             hidden: DRAW.matSheetRowHidden || {},
             mapLabels: ((window._roofCanvasHits && window._roofCanvasHits.sheets) || []).map(function(h){
               return { label: h.label, cols: (h.runLo != null && h.runHi != null && DRAW.scaleMetresPerPx)
@@ -41868,6 +41870,7 @@ function _captureSnapState() {
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
+    matSheetFrozen: DRAW.matSheetFrozen || null,
     matSheetRowHidden: DRAW.matSheetRowHidden || {},
     matCutListExtras: DRAW.matCutListExtras || {},
     sheetPlanDeletedIds: DRAW.sheetPlanDeletedIds || [],
@@ -41919,6 +41922,7 @@ function _applySnapState(snapStr) {
   DRAW.manualSheetMeasures = s.manualSheetMeasures || [];
   DRAW.sheetOverrides = s.sheetOverrides || {};
   DRAW.matSheetExtras = s.matSheetExtras || [];
+  DRAW.matSheetFrozen = (s.matSheetFrozen && Array.isArray(s.matSheetFrozen.rows)) ? s.matSheetFrozen : null;
   DRAW.matSheetRowHidden = s.matSheetRowHidden || {};
   DRAW.matCutListExtras = s.matCutListExtras || {};
   DRAW.gutterRowHidden = s.gutterRowHidden || {};
@@ -42046,6 +42050,9 @@ function clearAll(silent) {
   DRAW.sheetOverrides = {};
   DRAW.sheetGroupOverrides = {};
   DRAW.sheetGroupQtyOverrides = {};
+  DRAW.matSheetFrozen = null;
+  DRAW.matSheetRowHidden = {};
+  DRAW.matSheetExtras = [];
   DRAW.measLabelOffsets = {};
   DRAW.flashLetterOffsets = {};
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
@@ -49920,6 +49927,10 @@ function _jpRenderCutLists(content, page, idx){
       '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
   html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
+  if (_jpSheetFrozen()){
+    html += '<button class="mat-add-btn" style="margin-left:8px;color:#64748b" title="Throw away every edit to the sheet rows and count them from the roof again" '+
+      'onclick="if(confirm(\'Rebuild the sheet rows from the roof map? Your edits to these rows will be lost.\'))_jpSheetUnfreeze()">Reset from map</button>';
+  }
   html += '</div>';
 
   // ── Clearlite sheets ──
@@ -51122,7 +51133,87 @@ function _jpSpecColourChange(sel){
 // (2 decimals) so the cut list matches the on-map sheet labels exactly (a
 // 5691 mm sheet reads "5.69", same as the map arrow).
 function _sheetLenM(mm){ var n = Math.round(+mm || 0); return (n/1000).toFixed(2); }
+// ── The cut list belongs to the office once they touch it ───────────
+// Every row used to be re-derived from the roof on every render and the
+// office's edits re-attached by the row's original length. A re-render
+// that shuffled the rows — a tab switch before the map had drawn, a
+// bump-out peeled or not peeled, a label matched to a different row — put
+// a typed quantity on a different row and made rows vanish. So the FIRST
+// edit (quantity, length, hide, add row) freezes the list as it stands:
+// DRAW.matSheetFrozen = { sig, rows }. From then on the rows come back
+// verbatim, and the setters edit that list directly. Only when the ROOF
+// changes (the tiler's groups no longer match `sig`) are the rows built
+// afresh, with every frozen row's edits carried onto its nearest new row
+// and rows the office typed kept. "Reset from map" throws the freeze away.
+function _jpSheetSig(sc){
+  if (!sc || !sc.groups || !sc.groups.length) return '';
+  var parts = {};
+  sc.groups.forEach(function(g){ var k = String(Math.round((g.orderedMm||0) / 50) * 50); parts[k] = (parts[k] || 0) + (g.count || 0); });
+  return Object.keys(parts).sort(function(a, b){ return a - b; }).map(function(k){ return k + ':' + parts[k]; }).join(',');
+}
+function _jpSheetFrozen(){
+  var f = DRAW.matSheetFrozen;
+  return (f && Array.isArray(f.rows)) ? f : null;
+}
+function _jpSheetFreeze(){
+  if (_jpSheetFrozen()) return DRAW.matSheetFrozen;
+  var rows = [];
+  try { rows = _jpBuildSheetRows(window._lastSheetCounts || {}); } catch(e){ rows = []; }
+  DRAW.matSheetFrozen = { sig: _jpSheetSig(window._lastSheetCounts || {}),
+    rows: rows.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty, autoQty: r.qty }; }) };
+  return DRAW.matSheetFrozen;
+}
+function _jpSheetUnfreeze(){
+  DRAW.matSheetFrozen = null;
+  DRAW.matSheetRowHidden = {};
+  DRAW.sheetGroupQtyOverrides = {};
+  DRAW.sheetGroupOverrides = {};
+  try { saveSnapshot(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
 function _jpBuildSheetRows(sc){
+  var rows = [];
+  var _fz = _jpSheetFrozen();
+  if (_fz){
+    var _sigNow = _jpSheetSig(sc);
+    // No groups yet (the map has not drawn this session) → the frozen list
+    // IS the list; the same roof → the frozen list verbatim.
+    if (!_sigNow || _sigNow === _fz.sig){
+      return _fz.rows.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty }; })
+        .sort(function(a, b){ return b.len - a.len; });
+    }
+    // The roof changed: build the new rows, then carry the office's edits
+    // onto them by nearest length. A frozen row nothing is near (one they
+    // typed, or a peeled bump-out) stays as it was.
+    var fresh = _jpBuildSheetRowsAuto(sc);
+    var pairs = [];
+    _fz.rows.forEach(function(fr, fi){
+      fresh.forEach(function(nr, ni){
+        var d = Math.abs(fr.origLen - nr.origLen);
+        if (d <= Math.max(250, fr.origLen * 0.08)) pairs.push({ fi: fi, ni: ni, d: d });
+      });
+    });
+    pairs.sort(function(a, b){ return a.d - b.d; });
+    var fUsed = {}, nUsed = {}, merged = [];
+    pairs.forEach(function(p){
+      if (fUsed[p.fi] || nUsed[p.ni]) return;
+      fUsed[p.fi] = 1; nUsed[p.ni] = 1;
+      var fr = _fz.rows[p.fi], nr = fresh[p.ni];
+      // A typed quantity/length stays; an untouched row takes the new count.
+      var typedQty = fr.qty !== fr.autoQty && fr.autoQty != null;
+      var typedLen = fr.len !== fr.origLen;
+      merged.push({ origLen: nr.origLen, len: typedLen ? fr.len : nr.len, qty: typedQty ? fr.qty : nr.qty, autoQty: nr.qty });
+    });
+    _fz.rows.forEach(function(fr, fi){ if (!fUsed[fi]) merged.push({ origLen: fr.origLen, len: fr.len, qty: fr.qty, autoQty: fr.autoQty }); });
+    fresh.forEach(function(nr, ni){ if (!nUsed[ni]) merged.push({ origLen: nr.origLen, len: nr.len, qty: nr.qty, autoQty: nr.qty }); });
+    DRAW.matSheetFrozen = { sig: _sigNow, rows: merged };
+    return merged.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty }; })
+      .sort(function(a, b){ return b.len - a.len; });
+  }
+  return _jpBuildSheetRowsAuto(sc);
+}
+function _jpBuildSheetRowsAuto(sc){
   var rows = [];
   if (!sc || !sc.groups || !sc.groups.length) return rows;
   var byLen = {};
@@ -51391,11 +51482,17 @@ function _jpBuildSheetRows(sc){
   rows.sort(function(a, b){ return b.len - a.len; });
   return rows;
 }
+function _jpSheetRow(origLen){
+  var f = _jpSheetFreeze();
+  for (var i = 0; i < f.rows.length; i++) if (+f.rows[i].origLen === +origLen) return f.rows[i];
+  return null;
+}
 function _jpSheetSetQty(origLen, value){
   var n = parseInt(value, 10);
   if (!DRAW.sheetGroupQtyOverrides) DRAW.sheetGroupQtyOverrides = {};
   if (!isFinite(n) || n < 0) n = 0;
   DRAW.sheetGroupQtyOverrides[origLen] = n;
+  var fr = _jpSheetRow(origLen); if (fr) fr.qty = n;
   try { saveSnapshot(); } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderJobPack(); } catch(e){}
@@ -51405,6 +51502,7 @@ function _jpSheetSetLen(origLen, valueM){
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
   if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
   else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
+  var fr = _jpSheetRow(origLen); if (fr && isFinite(f) && f > 0) fr.len = Math.round(f * 1000);
   // Reverse sync ("…and vice versa"): if this cut-list row is fed by roof-map
   // sheet numbers, push the retyped length back onto them so the on-canvas
   // label tracks the cut list. The display map records which source each row
@@ -51436,11 +51534,14 @@ function _jpSheetSetLen(origLen, valueM){
 function _jpSheetHide(origLen){
   if (!DRAW.matSheetRowHidden) DRAW.matSheetRowHidden = {};
   DRAW.matSheetRowHidden[origLen] = true;
+  var fz = _jpSheetFreeze();
+  fz.rows = fz.rows.filter(function(r){ return +r.origLen !== +origLen; });
   try { saveSnapshot(); } catch(e){}
   try { renderJobPack(); } catch(e){}
 }
 function _jpSheetExtraAdd(){
   if (!Array.isArray(DRAW.matSheetExtras)) DRAW.matSheetExtras = [];
+  _jpSheetFreeze();   // adding a row means the list is theirs now
   DRAW.matSheetExtras.push({ lenMm: 3000, qty: 1 });
   try { saveSnapshot(); } catch(e){}
   try { renderJobPack(); } catch(e){}
@@ -52138,6 +52239,7 @@ function _setSheetGroupQtyOverride(origMm, newValue){
   saveSnapshot();
   if (nextVal === undefined) delete DRAW.sheetGroupQtyOverrides[origMm];
   else DRAW.sheetGroupQtyOverrides[origMm] = nextVal;
+  try { var _fr = _jpSheetRow(origMm); if (_fr && nextVal !== undefined) _fr.qty = nextVal; } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
 }
@@ -56423,7 +56525,11 @@ function _grabPan(el){
     if (e.target.closest('button, input, select, textarea, a, [contenteditable], [draggable="true"]')) return;
     drag = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop, moved: false, id: e.pointerId };
     try { el.setPointerCapture(e.pointerId); } catch(err){}
+    // The browser would otherwise start a native drag-and-drop of the
+    // photo (ghost image, a few px of movement, then nothing): stop it.
+    if (e.target.tagName === 'IMG') e.preventDefault();
   });
+  el.addEventListener('dragstart', function(e){ e.preventDefault(); });
   el.addEventListener('pointermove', function(e){
     if (!drag || e.pointerId !== drag.id) return;
     var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
