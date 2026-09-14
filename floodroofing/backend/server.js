@@ -9665,6 +9665,32 @@ app.post('/admin/daily/send', async (req, res) => {
   catch (e){ res.status(500).json({ error: e.message }); }
 });
 
+// Live analytics: the daily report's numbers, snapshotted every hour and
+// shown on a page. /admin/analytics/page?token=… once; the page keeps the
+// token in the browser and asks /admin/analytics by header from then on.
+const ANALYTICS = require('./analytics').createAnalytics({
+  supabase: supabase, daily: DAILY, buildSha: BUILD_SHA, warn: function(m){ console.warn(m); },
+});
+app.get('/admin/analytics', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await ANALYTICS.collect()); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/admin/analytics/refresh', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { const s = await ANALYTICS.snapshot(); res.json({ ok: true, at: s.latest.at, points: s.series.length }); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/admin/analytics/page', (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  // The global API policy blocks a page's own inline style and script; widen
+  // it for this response only, to exactly what the page needs.
+  res.setHeader('Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
+    "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.type('html').send(ANALYTICS.renderPage());
+});
+
 // The report as JSON, for looking at it without waiting until Monday.
 app.get('/admin/metrics', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
@@ -10281,6 +10307,7 @@ app.listen(PORT, () => {
   // morning redeploy can't send a second copy of an email already sent.
   try { METRICS.start(); } catch(e){ console.warn('[metrics] schedule not started: ' + e.message); }
   try { DAILY.start(); } catch(e){ console.warn('[daily] schedule not started: ' + e.message); }
+  try { ANALYTICS.start(); } catch(e){ console.warn('[analytics] schedule not started: ' + e.message); }
   // Quote follow-up reminders: hourly check, DB watermark, deliberately not
   // on boot — a deploy storm must not turn into an email storm.
   const _remKick = setTimeout(function(){ _reminderTick(); }, 5 * 60e3);
