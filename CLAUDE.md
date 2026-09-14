@@ -132,6 +132,16 @@ Discipline (non-negotiable):
   roof counts its OWN gutter ÷ sheet cover, rounded up from a tenth of a
   sheet (10 m / 0.762 = 13.12 → 14; 13.05 → 13). Overlapping roofs never
   change each other's count. Every count site goes through `_sheetsAcross`.
+- The sheet LAYOUT diagram (the tiled cut-plan picture) is HIDDEN from
+  users since 2026-09-14 — the owner judged it not right yet. One flag,
+  `SHEET_LAYOUT_HIDDEN` in app.html, takes it out of the Maps panel kinds,
+  the page types, placed pictures and the legacy print sections; a saved
+  page of that type shows a note. The engine still runs underneath, so the
+  counts, the cut list, the Sheet calc check and the sheet-layout gate are
+  unchanged. Flip the flag to false to bring it back everywhere, and put
+  `sheetplan` back into `tests/jpmaps.mjs` and `tests/jpallroofs.mjs` when
+  you do. Do not offer the layout diagram to users again without the owner
+  looking at screenshots of it first (`tools/sheet-shots.mjs`).
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
@@ -204,6 +214,11 @@ worse than none.
   paste the real price book so it can become the shipped default.
 - Send the customer email about the report 50–52 fixes (drafted 2026-09-14)
   with the "please reload the app" line kept in.
+
+**Being reworked:** the sheet layout diagram is hidden (see Conventions).
+Bringing it back means a layout that matches the owner's counting rule
+sheet-for-sheet: longest sheets first, that area squared off, then each wing
+worked out separately — the calc check already draws that; the tiler does not.
 
 **Recently shipped, watch for fallout:** the ridge-claim takeoff for
 hip-and-valley roofs with two or more ridges (`_ridgeClaimSections`, pinned
