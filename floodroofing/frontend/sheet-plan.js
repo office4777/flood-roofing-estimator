@@ -5971,7 +5971,12 @@ function _renderRoofSheetPlanInner() {
     (!_isGable || _gableHasHips);
   if (_isMultiRidgeHip){
     var _rc = _ridgeClaimSections();
-    if (_rc && _rc.length) secData = _rc;
+    if (_rc && _rc.length){
+      secData = _rc;
+      // The gable-hv path had already counted its strips into the order;
+      // the sections are the order now.
+      Object.keys(groups).forEach(function(k){ delete groups[k]; });
+    }
   }
   function _ridgeClaimSections(){
     var secs = [];
@@ -6063,69 +6068,229 @@ function _renderRoofSheetPlanInner() {
       if (!(fwd < Infinity) || !(bak < Infinity)) return;
       var um = mx*R[0] + my*R[1];
       secs.push({ R: R, P: P, ridgeP: ridgeP, run: run, up: up, dn: dn,
-                  uLo: um - bak, uHi: um + fwd, ridgeLen: L });
+                  uLo: um - bak, uHi: um + fwd, ridgeLen: L, dLo: rLo, dHi: rHi });
     });
     if (!secs.length) return null;
-    // Longest sheet first; equal sheets → the longer square.
+    // Longest sheet first; equal sheets → the longer line.
     secs.sort(function(x, y){
       if (Math.abs(x.run - y.run) > coverPx*0.3) return y.run - x.run;
       return (y.uHi - y.uLo) - (x.uHi - x.uLo);
     });
-    // Each claimed square as a convex quad in world px.
-    function quad(sc, u0, u1){
-      var v0 = sc.ridgeP - sc.dn, v1 = sc.ridgeP + sc.up;
-      function w(u, v){ return [u*sc.R[0] + v*sc.P[0], u*sc.R[1] + v*sc.P[1]]; }
-      return [w(u0, v0), w(u1, v0), w(u1, v1), w(u0, v1)];
+    // ── How the office reads it, in three steps ───────────────────────
+    //  1. A ridge's OWN square is where both of its slopes land on a
+    //     gutter: "10 m ÷ 0.762 = 14 sheets each side". Under a wing, or
+    //     inside a step, a slope runs into other roof, not a gutter, and
+    //     that is not this ridge's square.
+    //  2. What is left over is taken by a neighbouring ridge whose sheets
+    //     run right through it — the stem of a T carries on through the
+    //     bar, the main of an L carries on under its wing. Longest sheet
+    //     first when two could.
+    //  3. Left-over roof that no ridge runs through is a rectangle of its
+    //     own — "then work out the north and east wings separately" — with
+    //     its ridge along its long side.
+    var tol = coverPx * 0.35, edgeTol = coverPx * 0.15;
+    function wpt(sc, u, v){ return [u*sc.R[0] + v*sc.P[0], u*sc.R[1] + v*sc.P[1]]; }
+    function onEdge(q){
+      for (var oi = 0; oi < outline.length; oi++){
+        var A = outline[oi], B = outline[(oi+1)%outline.length];
+        var vx = B[0]-A[0], vy = B[1]-A[1], L2 = vx*vx + vy*vy || 1;
+        var t = Math.max(0, Math.min(1, ((q[0]-A[0])*vx + (q[1]-A[1])*vy) / L2));
+        if (Math.hypot(q[0] - (A[0]+vx*t), q[1] - (A[1]+vy*t)) <= edgeTol) return true;
+      }
+      return false;
     }
-    var claimed = [], out = [];
-    secs.forEach(function(sc, i){
-      // Pieces of this ridge's line not inside any earlier square.
-      var pieces = [[sc.uLo, sc.uHi]];
-      claimed.forEach(function(q){
-        var next = [];
-        pieces.forEach(function(pc){
-          // Where the ridge line (v = ridgeP) crosses the earlier square —
-          // clipped EXACTLY against the square's four edges. Sampling this
-          // put the cut up to half a sheet out and left one-sheet slivers
-          // behind, so an L's wing gained a sheet it never had.
-          var lo = pc[0], hi = pc[1];
-          var cx = 0, cy = 0; q.forEach(function(v){ cx += v[0]/4; cy += v[1]/4; });
-          for (var k = 0; k < 4 && lo < hi; k++){
-            var A = q[k], B = q[(k+1)%4];
-            var nx = B[1]-A[1], ny = A[0]-B[0], d = nx*A[0] + ny*A[1];
-            if (nx*cx + ny*cy - d > 0){ nx = -nx; ny = -ny; d = -d; }   // inside: n·p <= d
-            // n·p(u) - d = f0 + f1·u, with p(u) = u·R + ridgeP·P
-            var f1 = nx*sc.R[0] + ny*sc.R[1];
-            var f0 = (nx*sc.P[0] + ny*sc.P[1])*sc.ridgeP - d;
-            if (Math.abs(f1) < 1e-9){ if (f0 > 1e-6){ lo = hi; } continue; }   // parallel: all in or all out
-            var uc = -f0/f1;
-            if (f1 > 0) hi = Math.min(hi, uc); else lo = Math.max(lo, uc);
-          }
-          if (!(hi - lo > 1e-6)){ next.push(pc); return; }               // the square misses this line
-          if (lo - pc[0] > coverPx*0.4) next.push([pc[0], lo]);
-          if (pc[1] - hi > coverPx*0.4) next.push([hi, pc[1]]);
-        });
-        pieces = next;
+    // The roof as a grid of cells, in the frame of the longest-sheet ridge
+    // (its R across, its P down). Rectilinear roofs — every ridge lies
+    // along one of those two axes — are what this is for.
+    var F = secs[0], g = coverPx / 2;
+    var fu0 = Infinity, fu1 = -Infinity, fv0 = Infinity, fv1 = -Infinity;
+    outline.forEach(function(p){
+      var u = p[0]*F.R[0] + p[1]*F.R[1], v = p[0]*F.P[0] + p[1]*F.P[1];
+      if (u < fu0) fu0 = u; if (u > fu1) fu1 = u; if (v < fv0) fv0 = v; if (v > fv1) fv1 = v;
+    });
+    var NU = Math.max(1, Math.ceil((fu1 - fu0) / g)), NV = Math.max(1, Math.ceil((fv1 - fv0) / g));
+    if (NU * NV > 250000) return null;                          // absurdly large: leave it to the old path
+    var inside = new Uint8Array(NU * NV), claimed = new Uint8Array(NU * NV);
+    for (var j = 0; j < NV; j++) for (var i = 0; i < NU; i++){
+      var w = wpt(F, fu0 + (i + 0.5)*g, fv0 + (j + 0.5)*g);
+      if (_spPointInPoly(w[0], w[1], outline)) inside[j*NU + i] = 1;
+    }
+    // Mark every cell inside the quad (u0..u1 along sc.R, v0..v1 along sc.P).
+    function claimQuad(sc, u0, u1, v0, v1){
+      for (var j = 0; j < NV; j++) for (var i = 0; i < NU; i++){
+        var idx = j*NU + i; if (!inside[idx] || claimed[idx]) continue;
+        var w = wpt(F, fu0 + (i + 0.5)*g, fv0 + (j + 0.5)*g);
+        var u = w[0]*sc.R[0] + w[1]*sc.R[1], v = w[0]*sc.P[0] + w[1]*sc.P[1];
+        if (u >= u0 - 1e-6 && u <= u1 + 1e-6 && v >= v0 - 1e-6 && v <= v1 + 1e-6) claimed[idx] = 1;
+      }
+    }
+    // Step 1 — cores. A core grows out from the DRAWN ridge, column by
+    // column, and stops at the first column whose slopes miss a gutter. It
+    // never jumps: two wings whose ridges happen to line up (report 50's
+    // east and west) would otherwise each claim the other's square too.
+    secs.forEach(function(sc){
+      sc.pieces = [];
+      var step = coverPx / 8;
+      var okAt = function(u){ return onEdge(wpt(sc, u, sc.ridgeP - sc.run)) && onEdge(wpt(sc, u, sc.ridgeP + sc.run)); };
+      // Seed: the first point along the drawn ridge whose slopes land on
+      // gutters (a ridge can start in a hip end whose eaves are elsewhere).
+      var seed = null;
+      for (var u = sc.dLo; u <= sc.dHi + 1e-6; u += step){ if (okAt(u)){ seed = u; break; } }
+      if (seed == null) return;
+      var lo = seed, hi = seed;
+      while (lo - step >= sc.uLo - 1e-6 && okAt(lo - step)) lo -= step;
+      while (hi + step <= sc.uHi + 1e-6 && okAt(hi + step)) hi += step;
+      // Snap to the line's ends, or to a building corner, when within a
+      // step: the core then measures the wall, not the last sample.
+      if (lo - sc.uLo < step + 1e-6) lo = sc.uLo;
+      if (sc.uHi - hi < step + 1e-6) hi = sc.uHi;
+      var vus = outline.map(function(q){ return q[0]*sc.R[0] + q[1]*sc.R[1]; });
+      vus.forEach(function(vu){
+        if (Math.abs(vu - lo) <= step + 1e-6 && vu >= sc.uLo - 1e-6) lo = vu;
+        if (Math.abs(vu - hi) <= step + 1e-6 && vu <= sc.uHi + 1e-6) hi = vu;
       });
-      pieces.forEach(function(pc){
+      if (hi - lo >= coverPx*0.4) sc.pieces.push([lo, hi]);
+      sc.pieces.forEach(function(pc){ claimQuad(sc, pc[0], pc[1], sc.ridgeP - sc.run, sc.ridgeP + sc.run); });
+    });
+    // Step 2/3 — the leftovers, as rectangles cut along the cores' edges.
+    var cutsU = [fu0, fu1], cutsV = [fv0, fv1];
+    secs.forEach(function(sc){
+      sc.pieces.forEach(function(pc){
+        // The piece's corners in the frame → its u/v extents there.
+        var us = [], vs = [];
+        [[pc[0], sc.ridgeP - sc.run], [pc[1], sc.ridgeP - sc.run], [pc[0], sc.ridgeP + sc.run], [pc[1], sc.ridgeP + sc.run]].forEach(function(uv){
+          var w = wpt(sc, uv[0], uv[1]);
+          us.push(w[0]*F.R[0] + w[1]*F.R[1]); vs.push(w[0]*F.P[0] + w[1]*F.P[1]);
+        });
+        cutsU.push(Math.min.apply(null, us), Math.max.apply(null, us));
+        cutsV.push(Math.min.apply(null, vs), Math.max.apply(null, vs));
+      });
+    });
+    function uniqSorted(a){
+      a = a.slice().sort(function(x, y){ return x - y; });
+      var o = [];
+      a.forEach(function(x){ if (!o.length || x - o[o.length-1] > g*0.6) o.push(x); });
+      return o;
+    }
+    cutsU = uniqSorted(cutsU); cutsV = uniqSorted(cutsV);
+    var rects = [];
+    for (var a = 0; a + 1 < cutsU.length; a++) for (var b = 0; b + 1 < cutsV.length; b++){
+      var i0 = Math.max(0, Math.floor((cutsU[a] - fu0) / g + 0.5)), i1 = Math.min(NU, Math.floor((cutsU[a+1] - fu0) / g + 0.5));
+      var j0 = Math.max(0, Math.floor((cutsV[b] - fv0) / g + 0.5)), j1 = Math.min(NV, Math.floor((cutsV[b+1] - fv0) / g + 0.5));
+      var cnt = 0, tot = 0;
+      for (var j = j0; j < j1; j++) for (var i = i0; i < i1; i++){ var idx = j*NU + i; if (inside[idx]){ tot++; if (!claimed[idx]) cnt++; } }
+      if (!tot || cnt < tot * 0.6) continue;                    // not a leftover block
+      var area = cnt * g * g;
+      if (area < coverPx * coverPx * 0.5) continue;              // a sliver by a hip
+      rects.push({ u0: cutsU[a], u1: cutsU[a+1], v0: cutsV[b], v1: cutsV[b+1], sec: null });
+    }
+    // Which ridge, if any, runs right through a rectangle: the rectangle
+    // lies within the ridge's band (v within run either side of the ridge)
+    // and along its line.
+    function coversRect(sc, rc){
+      var corners = [[rc.u0, rc.v0], [rc.u1, rc.v0], [rc.u0, rc.v1], [rc.u1, rc.v1]];
+      for (var k = 0; k < 4; k++){
+        var w = wpt(F, corners[k][0], corners[k][1]);
+        var u = w[0]*sc.R[0] + w[1]*sc.R[1], v = w[0]*sc.P[0] + w[1]*sc.P[1];
+        if (v < sc.ridgeP - sc.run - tol || v > sc.ridgeP + sc.run + tol) return false;
+        if (u < sc.uLo - tol || u > sc.uHi + tol) return false;
+      }
+      return true;
+    }
+    // Leftover cells that share a full edge are joined BEFORE anyone is
+    // handed them, when one ridge runs through the union, or when no ridge
+    // runs through either. A wing's column then stays one piece down to the
+    // bottom eave instead of the main biting off its lower half, and a step
+    // column and the band under it read as ONE wing of their own.
+    function firstCover(rc){ for (var k = 0; k < secs.length; k++) if (coversRect(secs[k], rc)) return secs[k]; return null; }
+    // Wings run ACROSS the main ("work out the north and east wings
+    // separately"), so cells stacked across the main's ridge are joined
+    // first — a wing's column stays one piece to the bottom eave — and
+    // only then cells side by side along it.
+    [true, false].forEach(function(acrossOnly){
+      var changed = true;
+      while (changed){
+        changed = false;
+        for (var x = 0; x < rects.length && !changed; x++){
+          for (var y = 0; y < rects.length; y++){
+            if (x === y) continue;
+            var A2 = rects[x], B2 = rects[y];
+            var sameU = Math.abs(A2.u0 - B2.u0) < g && Math.abs(A2.u1 - B2.u1) < g;
+            var sameV = Math.abs(A2.v0 - B2.v0) < g && Math.abs(A2.v1 - B2.v1) < g;
+            var touchV = sameU && (Math.abs(A2.v1 - B2.v0) < g || Math.abs(B2.v1 - A2.v0) < g);
+            var touchU = sameV && (Math.abs(A2.u1 - B2.u0) < g || Math.abs(B2.u1 - A2.u0) < g);
+            if (!(acrossOnly ? touchV : (touchV || touchU))) continue;
+            var U = { u0: Math.min(A2.u0, B2.u0), u1: Math.max(A2.u1, B2.u1), v0: Math.min(A2.v0, B2.v0), v1: Math.max(A2.v1, B2.v1), sec: null };
+            // Across the main, stacked cells always join: a step box and the
+            // band under it are one east wing even when the main's band
+            // could have run through the lower half. Along the main a
+            // join needs a ridge running through the union, or none
+            // through either part.
+            var cA = firstCover(A2), cB = firstCover(B2);
+            if (!firstCover(U) && (acrossOnly ? (cA && cB) : (cA || cB))) continue;
+            rects[x] = U; rects.splice(y, 1); changed = true; break;
+          }
+        }
+      }
+    });
+    rects.forEach(function(rc){ rc.sec = firstCover(rc); });               // longest first
+    // Hand each rectangle to its ridge as an extension, or make it a section.
+    var own = [];
+    rects.forEach(function(rc){
+      if (rc.sec){
+        var sc = rc.sec, us2 = [];
+        [[rc.u0, rc.v0], [rc.u1, rc.v0], [rc.u0, rc.v1], [rc.u1, rc.v1]].forEach(function(uv){
+          var w = wpt(F, uv[0], uv[1]); us2.push(w[0]*sc.R[0] + w[1]*sc.R[1]);
+        });
+        sc.pieces.push([Math.min.apply(null, us2), Math.max.apply(null, us2)]);
+      } else {
+        var du = rc.u1 - rc.u0, dv = rc.v1 - rc.v0;
+        var along = du >= dv;                                   // ridge along the long side
+        var sc2 = along
+          ? { R: F.R.slice(), P: F.P.slice(), ridgeP: (rc.v0 + rc.v1)/2, run: dv/2, uLo: rc.u0, uHi: rc.u1 }
+          : { R: F.P.slice(), P: [-F.P[1], F.P[0]], ridgeP: 0, run: du/2, uLo: rc.v0, uHi: rc.v1 };
+        if (!along){ sc2.ridgeP = ((rc.u0 + rc.u1)/2) * (F.R[0]*sc2.P[0] + F.R[1]*sc2.P[1]); }
+        if (!(sc2.run > coverPx*0.2)) return;
+        sc2.pieces = [[sc2.uLo, sc2.uHi]]; sc2.own = true;
+        own.push(sc2);
+      }
+    });
+    // Two drawn ridges on one line with one run (the bar of a cross, split
+    // by the stem's junction) are one section: their pieces join.
+    for (var m1 = 0; m1 < secs.length; m1++){
+      for (var m2 = secs.length - 1; m2 > m1; m2--){
+        var s1 = secs[m1], s2 = secs[m2];
+        var par = Math.abs(s1.R[0]*s2.R[0] + s1.R[1]*s2.R[1]) > 0.999;
+        if (!par || Math.abs(s1.run - s2.run) > coverPx*0.3) continue;
+        var flip = (s1.R[0]*s2.R[0] + s1.R[1]*s2.R[1]) < 0;
+        var rp2 = flip ? -s2.ridgeP : s2.ridgeP;
+        if (Math.abs(rp2 - s1.ridgeP) > tol) continue;
+        s2.pieces.forEach(function(pc){ s1.pieces.push(flip ? [-pc[1], -pc[0]] : pc.slice()); });
+        if (flip){ s1.uLo = Math.min(s1.uLo, -s2.uHi); s1.uHi = Math.max(s1.uHi, -s2.uLo); }
+        else { s1.uLo = Math.min(s1.uLo, s2.uLo); s1.uHi = Math.max(s1.uHi, s2.uHi); }
+        secs.splice(m2, 1);
+      }
+    }
+    var all = secs.concat(own), out = [];
+    all.forEach(function(sc){
+      // Core + extensions along one line become one run of sheets.
+      var ps = sc.pieces.slice().sort(function(p1, p2){ return p1[0] - p2[0]; }), merged = [];
+      ps.forEach(function(pc){
+        var last = merged[merged.length-1];
+        if (last && pc[0] <= last[1] + coverPx*0.5) last[1] = Math.max(last[1], pc[1]); else merged.push(pc.slice());
+      });
+      merged.forEach(function(pc){
         if (pc[1] - pc[0] < coverPx*0.4) return;
-        claimed.push(quad(sc, pc[0], pc[1]));
-        // A span that is a few millimetres over a whole number of sheets is
-        // that whole number: 8.38 m ÷ 0.762 is 11 sheets to the office, and
-        // the 1 mm the pixels add must not order a twelfth. The lap absorbs
-        // it. So the span is shaved by 2 % of a cover before rounding up.
+        // A span a few millimetres over a whole number of sheets is that
+        // whole number: 8.38 m ÷ 0.762 is 11 sheets to the office, not 12.
         var span = Math.max(coverPx, (pc[1]-pc[0]) - coverPx*0.02);
-        // Each SIDE of the ridge counts its own columns, and a column is a
-        // sheet only where its slope reaches a roof edge. On a staircase
-        // the square runs the full width but one slope exists across only
-        // part of it — the rest is the step, with no roof under the sheet.
         var nCols = Math.max(1, Math.ceil(span / coverPx - 1e-6));
+        // Each side counts its own columns; a column is a sheet only where
+        // its slope reaches roof (a step leaves one slope short).
         var perNeg = 0, perPos = 0;
         for (var ci = 0; ci < nCols; ci++){
-          var uc = pc[0] + (ci + 0.5) * coverPx;
-          if (uc > pc[1]) uc = (pc[0] + ci*coverPx + pc[1]) / 2;
-          var eNeg = [uc*sc.R[0] + (sc.ridgeP - sc.run*0.85)*sc.P[0], uc*sc.R[1] + (sc.ridgeP - sc.run*0.85)*sc.P[1]];
-          var ePos = [uc*sc.R[0] + (sc.ridgeP + sc.run*0.85)*sc.P[0], uc*sc.R[1] + (sc.ridgeP + sc.run*0.85)*sc.P[1]];
+          var uc = pc[0] + (ci + 0.5) * coverPx; if (uc > pc[1]) uc = (pc[0] + ci*coverPx + pc[1]) / 2;
+          var eNeg = wpt(sc, uc, sc.ridgeP - sc.run*0.85), ePos = wpt(sc, uc, sc.ridgeP + sc.run*0.85);
           if (_spPointInPoly(eNeg[0], eNeg[1], outline)) perNeg++;
           if (_spPointInPoly(ePos[0], ePos[1], outline)) perPos++;
         }
