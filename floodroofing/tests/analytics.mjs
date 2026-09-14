@@ -131,6 +131,20 @@ check('…under a policy that lets its own style and script run', /style-src 'un
 check('nothing answers without the token', (await fetch(BASE + '/admin/analytics')).status === 404 && (await fetch(BASE + '/admin/analytics/page')).status === 404 &&
   (await fetch(BASE + '/admin/analytics/refresh', { method: 'POST' })).status === 404);
 
+// ── any day, and a run of days ───────────────────────────────────
+const dayR = await (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: H })).json();
+check('a picked day is that day\'s report', dayR.date === Y && dayR.summary.active === yd.active_count && dayR.users.length === yd.users.length, JSON.stringify(dayR.summary));
+check('a bad date is refused', (await fetch(BASE + '/admin/analytics/day?date=nope', { headers: H })).status === 400);
+const wk = await (await fetch(BASE + '/admin/analytics/days?end=' + today + '&n=7', { headers: H })).json();
+check('seven days come back ending today', wk.days.length === 7 && wk.days[6].date === today && wk.days[5].date === Y, wk.days.map(d => d.date).join(','));
+const yrow = wk.days[5], trow = wk.days[6];
+check('yesterday\'s row counts every login, canvas, quote, order, feedback and minute across everyone',
+  yrow.logins === 4 && yrow.canvas === 3 && yrow.quotes === 1 && yrow.orders === 1 && yrow.feedback === 1 && yrow.minutes === 18 && yrow.active === 4, JSON.stringify(yrow));
+check('…and the business that signed up yesterday', yrow.signups === 1 && trow.signups === 0, yrow.signups + '/' + trow.signups);
+check('today\'s row has today\'s one login and nothing borrowed', trow.logins === 1 && trow.quotes === 0, JSON.stringify(trow));
+check('the first read already carries the week', Array.isArray(a.week && a.week.days) && a.week.days.length === 7);
+check('the page has the day picker and the week table', /id="dayPick"/.test(html) && /moveWeek\(-7\)/.test(html) && /New sign-ups/.test(html));
+
 // ── a database outage is not an empty morning ─────────────────────
 db.__fail500 = 'companies';
 const down = await fetch(BASE + '/admin/analytics/refresh', { method: 'POST', headers: H });

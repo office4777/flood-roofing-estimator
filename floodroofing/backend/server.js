@@ -9676,6 +9676,20 @@ app.get('/admin/analytics', async (req, res) => {
   try { res.json(await ANALYTICS.collect()); }
   catch (e){ res.status(500).json({ error: e.message }); }
 });
+app.get('/admin/analytics/day', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const d = String(req.query.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ error: 'date=YYYY-MM-DD' });
+  try { res.json(await ANALYTICS.day(d)); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/admin/analytics/days', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const end = String(req.query.end || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return res.status(400).json({ error: 'end=YYYY-MM-DD' });
+  try { res.json(await ANALYTICS.days(end, parseInt(req.query.n, 10) || 7)); }
+  catch (e){ res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/analytics/refresh', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { const s = await ANALYTICS.snapshot(); res.json({ ok: true, at: s.latest.at, points: s.series.length }); }

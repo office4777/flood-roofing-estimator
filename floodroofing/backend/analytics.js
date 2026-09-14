@@ -9,7 +9,7 @@
 // through /admin/analytics and re-fetches itself every hour; "Sync now"
 // takes a snapshot on the spot.
 const { nzParts, PLAN_PRICE } = require('./metrics');
-const { shiftDate } = require('./daily');
+const { shiftDate, nzMidnightUtc } = require('./daily');
 
 const HOUR = 3600e3;
 const KEEP_HOURS = 24 * 45;      // 45 days of hourly points
@@ -79,6 +79,40 @@ function createAnalytics(deps){
     return { latest, series };
   }
 
+  // Any one day, computed live from the stored events — the same collector
+  // as the email, so a day picked on the page reads as that morning's report.
+  async function day(dateStr){
+    const rep = await daily.collect(dateStr);
+    return { date: rep.date, nice: rep.nice, summary: summarise(rep, Date.now()), users: slimUsers(rep), new_trials: rep.new_trials.map(slimCo) };
+  }
+
+  // A run of days ending on `end` (inclusive): per day, the businesses that
+  // signed up, and the logins, canvas uses, quotes, orders, feedback and
+  // minutes across everyone — read once for the whole window and bucketed by
+  // New Zealand calendar day. A read that fails is an error, not zeros.
+  async function days(endDate, n){
+    n = Math.min(31, Math.max(1, n || 7));
+    const start = shiftDate(endDate, -(n - 1));
+    const from = nzMidnightUtc(start), to = nzMidnightUtc(shiftDate(endDate, 1));
+    const [ev, cos] = await Promise.all([
+      supabase.from('usage_events').select('name, user_id, props, at').gte('at', new Date(from).toISOString()).lt('at', new Date(to).toISOString()).limit(50000),
+      supabase.from('companies').select('id, name, created_at').gte('created_at', new Date(from).toISOString()).lt('created_at', new Date(to).toISOString()).limit(5000),
+    ]);
+    if (ev.error) throw new Error('could not read usage_events: ' + ev.error.message);
+    if (cos.error) throw new Error('could not read companies: ' + cos.error.message);
+    const byDay = {};
+    for (let i = 0; i < n; i++){ const d = shiftDate(start, i); byDay[d] = { date: d, dow: nzParts(new Date(nzMidnightUtc(d) + 12 * HOUR)).dow, signups: 0, logins: 0, canvas: 0, quotes: 0, orders: 0, feedback: 0, minutes: 0, people: {} }; }
+    const KEY = { login: 'logins', canvas_used: 'canvas', quote_sent: 'quotes', order_sent: 'orders', feedback_sent: 'feedback' };
+    (ev.data || []).forEach(function(e){
+      const b = byDay[nzParts(new Date(e.at)).date]; if (!b) return;
+      if (KEY[e.name]) b[KEY[e.name]] += 1;
+      else if (e.name === 'app_time') b.minutes += Number((e.props || {}).minutes) || 0;
+      if (e.user_id) b.people[e.user_id] = 1;
+    });
+    (cos.data || []).forEach(function(c){ const b = byDay[nzParts(new Date(c.created_at)).date]; if (b) b.signups += 1; });
+    return { start, end: endDate, days: Object.keys(byDay).sort().map(function(k){ const b = byDay[k]; b.active = Object.keys(b.people).length; delete b.people; return b; }) };
+  }
+
   // What the page reads. Takes the first snapshot itself if there is none.
   async function collect(){
     let latest = await getState('analytics_latest');
@@ -87,7 +121,9 @@ function createAnalytics(deps){
       const s = await snapshot();
       latest = s.latest; series = s.series;
     }
-    return { latest, series, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
+    let week = null;
+    try { week = await days(latest.today.date, 7); } catch (e){ warn('[analytics] week read failed: ' + e.message); }
+    return { latest, series, week, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
   }
 
   // Hourly: a snapshot once the last one is more than 55 minutes old. The
@@ -142,6 +178,7 @@ function createAnalytics(deps){
     'table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:top}th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}' +
     'td.n,th.n{text-align:right;white-space:nowrap}tr.q td{color:var(--mute)}.p{color:var(--green);font-weight:700}.m{color:var(--mute)}ul{margin:0;padding-left:18px}li{margin:3px 0}' +
     '.tabs{display:flex;gap:6px;margin-bottom:8px}.tabs button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:20px;padding:4px 12px;cursor:pointer;font-size:12px}.tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}' +
+    '.wk td{position:relative}.wk .bar{position:absolute;right:0;top:4px;bottom:4px;background:var(--blue);opacity:.18;border-radius:3px}.wk .v{position:relative;font-variant-numeric:tabular-nums}.wk th.d{text-align:right;white-space:nowrap}.wk td.tot{font-weight:700}.tabs button:disabled{opacity:.4;cursor:default}' +
     '.tw{overflow-x:auto}.ft{color:var(--mute);font-size:12px;text-align:center;padding:10px 0}.err{background:#fde8e8;color:#7f1d1d;border-radius:8px;padding:10px 14px;margin-bottom:12px}' +
     '</style></head><body><div class="w">' +
     '<div class="hd"><div><h1>RoofMap — live activity</h1><p id="sub">Loading…</p></div><div><button id="sync" onclick="syncNow()">Sync now</button></div></div>' +
@@ -153,7 +190,9 @@ function createAnalytics(deps){
     '<div class="c"><h2>Quotes sent, by day</h2><div id="chQuotes"></div></div>' +
     '<div class="c"><h2>Minutes in the app, by day</h2><div id="chMinutes"></div></div>' +
     '<div class="c"><h2>Activity today, hour by hour</h2><div id="chHours"></div></div></div>' +
-    '<div class="c"><div class="tabs"><button id="tabT" class="on" onclick="showDay(\'today\')">Today so far</button><button id="tabY" onclick="showDay(\'yesterday\')">Yesterday</button></div>' +
+    '<div class="c"><h2 id="wkH">Last 7 days</h2><div class="tabs" style="margin-bottom:10px"><button onclick="moveWeek(-7)">‹ Earlier</button><button id="wkNext" onclick="moveWeek(7)">Later ›</button><button onclick="moveWeek(0)">This week</button></div><div class="tw" id="week"></div></div>' +
+    '<div class="c"><div class="tabs"><button id="tabT" class="on" onclick="showDay(\'today\')">Today so far</button><button id="tabY" onclick="showDay(\'yesterday\')">Yesterday</button>' +
+    '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)">or a day <input type="date" id="dayPick" onchange="pickDay(this.value)" style="font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)"></label></div>' +
     '<h2 id="actH"></h2><div class="tw"><table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th class="n">Logins</th><th class="n">Canvas</th><th class="n">Quotes</th><th class="n">Orders</th><th class="n">Feedback</th><th class="n">Minutes</th></tr></thead><tbody id="rows"></tbody></table></div></div>' +
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
@@ -162,7 +201,7 @@ function createAnalytics(deps){
     '<script>' + PAGE_JS + '</script></body></html>';
   }
 
-  return { collect, snapshot, tick, start, due, renderPage, summarise };
+  return { collect, snapshot, tick, start, due, renderPage, summarise, day, days };
 }
 
 const PAGE_JS = String.raw`
@@ -231,7 +270,8 @@ function render(){
   $('chMinutes').innerHTML = barChart(days.slice(-21), 'minutes', function(p){ return p.minutes + ' min'; });
   var todayPts = DATA.series.filter(function(p){ return p.date === T.date; });
   $('chHours').innerHTML = barChart(todayPts, 'events', function(p){ return p.events + ' events by ' + p.hour + ':00'; }, function(p){ return p.hour + ':00'; });
-  showDay(DAY);
+  showDay(DAY === 'picked' && PICKED ? 'picked' : DAY);
+  WEEK = DATA.week; renderWeek();
   $('ntH').textContent = 'New trials today — ' + T.new_trials.length + (Y.new_trials.length ? ' (' + Y.new_trials.length + ' yesterday)' : '');
   $('newTrials').innerHTML = list(T.new_trials);
   $('trH').textContent = 'On a trial now — ' + T.trials.length;
@@ -242,17 +282,63 @@ function render(){
   $('paid').innerHTML = paidHtml;
   $('ft').textContent = 'Same numbers as the morning email, taken hourly · logins and minutes count from the day they shipped · build ' + (DATA.build || '—');
 }
+var PICKED = null;   // { date, nice, summary, users } for a chosen day
+async function pickDay(date){
+  if (!date) return;
+  if (date === DATA.latest.today.date) return showDay('today');
+  if (date === DATA.latest.yesterday.date) return showDay('yesterday');
+  $('actH').textContent = 'Loading ' + date + '…';
+  try {
+    var r = await fetch(API + '/day?date=' + encodeURIComponent(date), { headers: { 'x-admin-token': TOKEN } });
+    if (!r.ok) throw new Error('could not read that day: ' + r.status);
+    PICKED = await r.json();
+    showDay('picked');
+  } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
+}
 function showDay(which){
   DAY = which;
   $('tabT').className = which === 'today' ? 'on' : ''; $('tabY').className = which === 'yesterday' ? 'on' : '';
-  var D = DATA.latest[which];
-  $('actH').textContent = 'Activity ' + (which === 'today' ? 'today so far' : 'yesterday') + ' — ' + D.summary.active + ' of ' + D.users.length + ' people did something';
+  var D = which === 'picked' ? PICKED : DATA.latest[which];
+  if (!D) return;
+  $('dayPick').value = D.date; $('dayPick').max = DATA.latest.today.date;
+  var label = which === 'today' ? 'today so far' : which === 'yesterday' ? 'yesterday' : 'on ' + D.nice;
+  $('actH').textContent = 'Activity ' + label + ' — ' + D.summary.active + ' of ' + D.users.length + ' people did something';
   $('rows').innerHTML = D.users.map(function(u){
     var quiet = !(u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
     var plan = u.company_status === 'paying' ? '<span class="p">' + esc((DATA.plan_label || {})[u.plan] || u.plan) + '</span>' : esc(planWord(u));
     return '<tr class="' + (quiet ? 'q' : '') + '"><td><b>' + esc(u.name || u.email) + '</b>' + (u.name ? '<br><span class="m">' + esc(u.email) + '</span>' : '') + '</td><td>' + esc(u.company) + '</td><td>' + plan + '</td>' +
       ['logins','canvas','quotes','orders','feedback','minutes'].map(function(k){ return '<td class="n">' + (u[k] || '·') + '</td>'; }).join('') + '</tr>';
   }).join('') || '<tr><td colspan="9" class="m">Nobody yet.</td></tr>';
+}
+
+// ── the last 7 days, one row per thing, a bar in every cell ──
+var WEEK = null;
+var WEEK_ROWS = [['signups','New sign-ups'],['logins','Logins'],['canvas','Canvas'],['quotes','Quotes'],['orders','Orders'],['feedback','Feedback'],['minutes','Minutes'],['active','People active']];
+var DOWN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+async function moveWeek(delta){
+  var end = delta === 0 ? DATA.latest.today.date : shift(WEEK ? WEEK.end : DATA.latest.today.date, delta);
+  if (end > DATA.latest.today.date) end = DATA.latest.today.date;
+  try {
+    var r = await fetch(API + '/days?end=' + end + '&n=7', { headers: { 'x-admin-token': TOKEN } });
+    if (!r.ok) throw new Error('could not read those days: ' + r.status);
+    WEEK = await r.json(); renderWeek();
+  } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
+}
+function shift(date, days){ var t = Date.parse(date + 'T12:00:00Z') + days * 864e5; return new Date(t).toISOString().slice(0, 10); }
+function renderWeek(){
+  if (!WEEK){ $('week').innerHTML = '<p class="m">The last seven days could not be read.</p>'; return; }
+  var D = WEEK.days, today = DATA.latest.today.date;
+  $('wkH').textContent = (WEEK.end === today ? 'Last 7 days' : '7 days') + ' — ' + D[0].date + ' to ' + WEEK.end + (WEEK.end === today ? ' (today so far)' : '');
+  $('wkNext').disabled = WEEK.end >= today;
+  var head = '<tr><th></th>' + D.map(function(d){ return '<th class="d">' + DOWN[d.dow] + '<br><span class="m">' + d.date.slice(5) + '</span></th>'; }).join('') + '<th class="d">7 days</th></tr>';
+  var body = WEEK_ROWS.map(function(rw){
+    var k = rw[0], max = Math.max.apply(null, D.map(function(d){ return d[k]; })), tot = D.reduce(function(s, d){ return s + d[k]; }, 0);
+    return '<tr><th>' + rw[1] + '</th>' + D.map(function(d){
+      var w = max ? Math.round(100 * d[k] / max) : 0;
+      return '<td class="n"><span class="bar" style="width:' + w + '%"></span><span class="v">' + (d[k] || '·') + '</span></td>';
+    }).join('') + '<td class="n tot">' + (k === 'active' ? '' : tot) + '</td></tr>';
+  }).join('');
+  $('week').innerHTML = '<table class="wk"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
 }
 
 // ── charts: one hue, thin marks, hover tooltip ──
