@@ -145,12 +145,31 @@ check('today\'s row has today\'s one login and nothing borrowed', trow.logins ==
 check('the first read already carries the week', Array.isArray(a.week && a.week.days) && a.week.days.length === 7);
 check('the page has the day picker and the week table', /id="dayPick"/.test(html) && /moveWeek\(-7\)/.test(html) && /New sign-ups/.test(html));
 
+// ── without Flood Roofing's own accounts ─────────────────────────
+// The fixture has no Flood Roofing rows; make Northland the owner's business
+// by name and one of its people by email, then everything under the toggle
+// must leave them out.
+db.profiles.find(p => p.id === 'u6').email = 'aron@floodroofing.co.nz';
+db.companies.find(c => c.id === C1).name = 'Flood Roofing Ltd';
+await fetch(BASE + '/admin/analytics/refresh', { method: 'POST', headers: H });
+const ex = await (await fetch(BASE + '/admin/analytics', { headers: H })).json();
+const yx = ex.latest.yesterday.ext;
+check('the day\'s people without Flood Roofing leave out everyone on that business',
+  yx.users.every(u => !/northland|floodroofing/.test(u.email) && u.company !== 'Flood Roofing Ltd') && yx.users.length === ex.latest.yesterday.users.length - 3, yx.users.map(u => u.email).join(','));
+check('…and the numbers follow: no Team MRR, fewer active', ex.latest.today.ext.summary.mrr === 549 && yx.summary.active === ex.latest.yesterday.summary.active - 2, JSON.stringify({ mrr: ex.latest.today.ext.summary.mrr, act: yx.summary.active, all: ex.latest.yesterday.summary.active }));
+check('the hourly point carries both views', ex.series[ex.series.length - 1].ext && ex.series[ex.series.length - 1].ext.mrr === 549 && ex.series[ex.series.length - 1].mrr === 848);
+const wk2 = await (await fetch(BASE + '/admin/analytics/days?end=' + today + '&n=7', { headers: H })).json();
+check('the week has a without-Flood-Roofing twin', Array.isArray(wk2.days_ext) && wk2.days_ext[5].logins === wk2.days[5].logins - 2 && wk2.days_ext[5].minutes === 0 && wk2.days_ext[5].active === 2, JSON.stringify(wk2.days_ext[5]));
+const dx = await (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: H })).json();
+check('a picked day too, still knowing which day it is', dx.ext && dx.ext.users.length === dx.users.length - 3 && dx.ext.date === Y && dx.ext.nice === dx.nice);
+check('the page has the toggle and the grouped bars', /Exclude Flood Roofing/.test(html) && /groupedBars/.test(html));
+
 // ── a database outage is not an empty morning ─────────────────────
 db.__fail500 = 'companies';
 const down = await fetch(BASE + '/admin/analytics/refresh', { method: 'POST', headers: H });
 db.__fail500 = '';
 const kept = await (await fetch(BASE + '/admin/analytics', { headers: H })).json();
-check('a failed read is an error, not a snapshot of zeros', down.status === 500 && kept.series.length === 2 && kept.latest.today.summary.businesses === 4, down.status + ' ' + kept.series.length);
+check('a failed read is an error, not a snapshot of zeros', down.status === 500 && kept.series.length === 3 && kept.latest.today.summary.businesses === 4, down.status + ' ' + kept.series.length);
 
 relay.close();
 const bad = results.filter(x => !x).length;
