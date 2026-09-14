@@ -10012,7 +10012,11 @@ async function _billingReadiness(){
     }
     if (!key){ row.problem = 'cannot check without a secret key'; out.prices.push(row); continue; }
     try {
-      const p = await _stripeGet('/prices/' + encodeURIComponent(id));
+      // /v1 — same as every other Stripe call. Without it Stripe answers
+      // "Unrecognized request URL", which the checklist then reported as six
+      // unrecognised price ids: a readiness page crying wolf about the very
+      // thing it exists to confirm.
+      const p = await _stripeGet('/v1/prices/' + encodeURIComponent(id));
       row.amount = (typeof p.unit_amount === 'number') ? (p.unit_amount / 100) : null;
       row.currency = String(p.currency || '').toUpperCase();
       row.interval = (p.recurring && p.recurring.interval) || null;

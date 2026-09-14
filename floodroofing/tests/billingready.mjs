@@ -35,10 +35,14 @@ const PRICES = {
   price_biz_y:  { id:'price_biz_y',  unit_amount:549000, currency:'nzd', active:true, livemode:true,  recurring:{ interval:'year' } },
 };
 const stripe = http.createServer((req, res) => {
-  const m = (req.url || '').match(/^\/prices\/([^/?]+)/);
+  // The /v1 prefix is REQUIRED here, exactly as the real Stripe requires it.
+  // This stand-in used to answer a bare /prices/… too, so it happily served a
+  // call that live Stripe rejects with "Unrecognized request URL" — and the
+  // readiness page reported all six real price ids as unrecognised.
+  const m = (req.url || '').match(/^\/v1\/prices\/([^/?]+)/);
   const p = m && PRICES[decodeURIComponent(m[1])];
   res.setHeader('content-type', 'application/json');
-  if (!p){ res.writeHead(404); return res.end(JSON.stringify({ error:{ message:'No such price' } })); }
+  if (!p){ res.writeHead(404); return res.end(JSON.stringify({ error:{ message: /^\/v1\//.test(req.url || '') ? 'No such price' : 'Unrecognized request URL (GET: ' + req.url + ')' } })); }
   res.writeHead(200); res.end(JSON.stringify(p));
 });
 await new Promise(r => stripe.listen(0, '127.0.0.1', r));
