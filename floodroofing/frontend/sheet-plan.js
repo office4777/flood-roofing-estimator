@@ -5934,6 +5934,130 @@ function _renderRoofSheetPlanInner() {
     });
   });
   }
+  // ── Multi-ridge HIP roofs: the ridge-claim takeoff ─────────────────
+  // How the office actually counts a hip roof with more than one ridge
+  // (feedback report 50, an inverted-T with three ridges):
+  //
+  //   "Always start with the longest sheets. The area with the longest
+  //    sheet is turned into a square, then you work down from there
+  //    working out what's left over."
+  //
+  // Every ridge is a section. Its sheet length is the run from the ridge
+  // to its eave; its "square" is the ridge EXTENDED to the outline along
+  // its own line, by the run either side. Longest sheet first: that
+  // section claims its whole square (both slopes, gutter ÷ cover per side,
+  // hip ends cut from those sheets). Each later ridge keeps only the part
+  // of its own line that no earlier square already covers, and counts
+  // that. One long spare covers the valley cuts.
+  //
+  // The face-grouping path above could not see this roof: the tiler paints
+  // the main and the band the same colour, so the main's section grabbed
+  // the wrong ridge and its sheets came out ninety degrees round — running
+  // ALONG the 2.94 m ridge instead of across it.
+  // The DRAWN lines, not the tiler's imposed T topology (_tLines): what is
+  // on the map is what the roofer counted from, and the imposed T put the
+  // stem's ridge where this roof has none.
+  var _drawnLines = (__origDrawLines || DRAW.lines) || [];
+  var _drawnRidges  = _drawnLines.filter(function(l){ return l && l.type === 'ridge'  && l.pts && l.pts.length === 2; });
+  var _drawnValleys = _drawnLines.filter(function(l){ return l && l.type === 'valley' && l.pts && l.pts.length === 2; });
+  var _isMultiRidgeHip = !_isGable && _rspType !== 'mono' && _rspType !== 'dutch' &&
+    _drawnRidges.length >= 2 &&
+    _drawnLines.some(function(l){ return l && l.type === 'hip'; });
+  if (_isMultiRidgeHip){
+    var _rc = _ridgeClaimSections();
+    if (_rc && _rc.length) secData = _rc;
+  }
+  function _ridgeClaimSections(){
+    var secs = [];
+    _drawnRidges.forEach(function(r){
+      var a = r.pts[0], b = r.pts[1];
+      var L = Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if (L < coverPx*0.3) return;
+      var R = [(b[0]-a[0])/L, (b[1]-a[1])/L], P = [-R[1], R[0]];
+      var ridgeP = a[0]*P[0] + a[1]*P[1];
+      var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+      // Run to the eave each side, sampled along the ridge and taken as
+      // the smallest — a hip end is farther than the eave, and it is the
+      // eave that sets the sheet.
+      var up = Infinity, dn = Infinity;
+      [0.2, 0.5, 0.8].forEach(function(t){
+        var x = a[0] + (b[0]-a[0])*t, y = a[1] + (b[1]-a[1])*t;
+        var u1 = _sgmRayDist(x, y, P[0], P[1]), d1 = _sgmRayDist(x, y, -P[0], -P[1]);
+        if (u1 < up) up = u1; if (d1 < dn) dn = d1;
+      });
+      if (!(up < Infinity) || !(dn < Infinity)) return;
+      var run = Math.min(up, dn);
+      if (!(run > coverPx*0.2)) return;
+      // The ridge line extended to the outline: the along-ridge span the
+      // square covers before anything else has claimed it.
+      var fwd = _sgmRayDist(mx, my, R[0], R[1]), bak = _sgmRayDist(mx, my, -R[0], -R[1]);
+      if (!(fwd < Infinity) || !(bak < Infinity)) return;
+      var um = mx*R[0] + my*R[1];
+      secs.push({ R: R, P: P, ridgeP: ridgeP, run: run, up: up, dn: dn,
+                  uLo: um - bak, uHi: um + fwd, ridgeLen: L });
+    });
+    if (!secs.length) return null;
+    // Longest sheet first; equal sheets → the longer square.
+    secs.sort(function(x, y){
+      if (Math.abs(x.run - y.run) > coverPx*0.3) return y.run - x.run;
+      return (y.uHi - y.uLo) - (x.uHi - x.uLo);
+    });
+    // Each claimed square as a convex quad in world px.
+    function quad(sc, u0, u1){
+      var v0 = sc.ridgeP - sc.dn, v1 = sc.ridgeP + sc.up;
+      function w(u, v){ return [u*sc.R[0] + v*sc.P[0], u*sc.R[1] + v*sc.P[1]]; }
+      return [w(u0, v0), w(u1, v0), w(u1, v1), w(u0, v1)];
+    }
+    var claimed = [], out = [];
+    secs.forEach(function(sc, i){
+      // Pieces of this ridge's line not inside any earlier square.
+      var pieces = [[sc.uLo, sc.uHi]];
+      claimed.forEach(function(q){
+        var next = [];
+        pieces.forEach(function(pc){
+          // Where the ridge line (v = ridgeP) crosses the earlier square —
+          // clipped EXACTLY against the square's four edges. Sampling this
+          // put the cut up to half a sheet out and left one-sheet slivers
+          // behind, so an L's wing gained a sheet it never had.
+          var lo = pc[0], hi = pc[1];
+          var cx = 0, cy = 0; q.forEach(function(v){ cx += v[0]/4; cy += v[1]/4; });
+          for (var k = 0; k < 4 && lo < hi; k++){
+            var A = q[k], B = q[(k+1)%4];
+            var nx = B[1]-A[1], ny = A[0]-B[0], d = nx*A[0] + ny*A[1];
+            if (nx*cx + ny*cy - d > 0){ nx = -nx; ny = -ny; d = -d; }   // inside: n·p <= d
+            // n·p(u) - d = f0 + f1·u, with p(u) = u·R + ridgeP·P
+            var f1 = nx*sc.R[0] + ny*sc.R[1];
+            var f0 = (nx*sc.P[0] + ny*sc.P[1])*sc.ridgeP - d;
+            if (Math.abs(f1) < 1e-9){ if (f0 > 1e-6){ lo = hi; } continue; }   // parallel: all in or all out
+            var uc = -f0/f1;
+            if (f1 > 0) hi = Math.min(hi, uc); else lo = Math.max(lo, uc);
+          }
+          if (!(hi - lo > 1e-6)){ next.push(pc); return; }               // the square misses this line
+          if (lo - pc[0] > coverPx*0.4) next.push([pc[0], lo]);
+          if (pc[1] - hi > coverPx*0.4) next.push([hi, pc[1]]);
+        });
+        pieces = next;
+      });
+      pieces.forEach(function(pc){
+        if (pc[1] - pc[0] < coverPx*0.4) return;
+        claimed.push(quad(sc, pc[0], pc[1]));
+        // A span that is a few millimetres over a whole number of sheets is
+        // that whole number: 8.38 m ÷ 0.762 is 11 sheets to the office, and
+        // the 1 mm the pixels add must not order a twelfth. The lap absorbs
+        // it. So the span is shaved by 2 % of a cover before rounding up.
+        var span = Math.max(coverPx, (pc[1]-pc[0]) - coverPx*0.02);
+        out.push({ col: COL_ORANGE, mm: orderedLengthMm(sc.run * effectiveScale * pitchFactor),
+          runPx: 2*sc.run, eavePx: span, ridgePx: span, valley: false, valleys: 0,
+          rdir: sc.R.slice(), obU0: pc[0], obU1: pc[1],
+          obV0: sc.ridgeP - sc.run, obV1: sc.ridgeP + sc.run, _claim: true });
+      });
+    });
+    if (!out.length) return null;
+    // One long spare for the valley cuts, however many valleys there are:
+    // "22 sheets @ 2.82 m, plus one extra at the longest length, 23".
+    out._valleySpare = _drawnValleys.length ? 1 : 0;
+    return out;
+  }
   // ── Shared count (both hip faces and gable ridges land here) ─────
   if (!secData.length) {
     // Nothing to take off (e.g. an outline the tiler couldn't resolve).
@@ -5970,12 +6094,25 @@ function _renderRoofSheetPlanInner() {
   // Gable sections were built colourless — give them their display colour so
   // the SHEETS-TO-ORDER legend distinguishes main from wing too.
   secData.forEach(function(s, i){ if (s._rsegs) s.col = _dcols[i]; });
+  // Ridge-claim sections: the main is orange; wings are coloured by their
+  // sheet LENGTH, so two wings ordering the same sheet share one legend row
+  // ("14 × 1.39 m"), the way the office says it.
+  (function(){
+    var byMm = {}, ci = 0;
+    secData.forEach(function(s, i){
+      if (!s._claim) return;
+      if (i === primary){ s.col = '#f97316'; return; }
+      if (!byMm[s.mm]) byMm[s.mm] = _DPAL[(ci++) % _DPAL.length];
+      s.col = byMm[s.mm];
+    });
+  })();
   // Valley spare: ONE extra sheet of the LONGEST length per wing that meets
   // a valley — the installer cuts a full-length sheet at the valley and
   // re-uses the offcut, so the spare is a long, not a short.  These live on
   // the main (it carries the longest sheets); a wing never adds its own.
   var _valleyWings = 0;
   secData.forEach(function(s, i){ if (i !== primary && (s.valleys >= 1 || s.valley)) _valleyWings++; });
+  if (secData._valleySpare != null) _valleyWings = secData._valleySpare;   // the ridge-claim takeoff: one spare in total
   var _checkSections = [];
   secData.forEach(function(s, i){
     var perSide, valleyExtra = 0;
@@ -5985,7 +6122,7 @@ function _renderRoofSheetPlanInner() {
     // instead of the eave, undercounting the sheets ~4x. The oriented-bbox
     // u-extent (obU1-obU0) is the reliable along-ridge span the overlay
     // already tiles, so take the larger of the two.
-    var _eaveSpan = Math.max(s.eavePx || 0, (s.obU1 - s.obU0) || 0);
+    var _eaveSpan = s._claim ? s.eavePx : Math.max(s.eavePx || 0, (s.obU1 - s.obU0) || 0);
     if (i === primary) {
       perSide = Math.max(1, Math.ceil(_eaveSpan / coverPx - 1e-6));   // main runs full-length
     } else if (s.valleys >= 2) {
@@ -6096,7 +6233,43 @@ function _renderRoofSheetPlanInner() {
   // when the cookie pieces cover the roof.
   try {
     var __ccLines = (_tLines || __origDrawLines || DRAW.lines);
-    var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono')
+    // A multi-ridge hip counted by the ridge-claim takeoff lays out the
+    // same way it was counted: columns across each ridge, cut along the
+    // DRAWN hips and valleys (the map's lines, not the imposed T's).
+    // …but only where the legacy cascade cannot draw the roof. A plain L
+    // or T keeps the cascade (its L/T topologies are the signed-off
+    // pictures the sheet gate pins). The cascade's imposed T puts the
+    // stem's ridge ACROSS the bar's; report 50's roof has all three ridges
+    // parallel, which that model cannot say — so when the drawn ridges do
+    // not match the imposed ones, or the outline is richer than an L/T
+    // (three or more internal corners), the roof is laid from the sections.
+    var __claimLayout = false;
+    if (typeof _isMultiRidgeHip !== 'undefined' && _isMultiRidgeHip){
+      var __reflex = 0;
+      try {
+        var __n = outline.length, __sgn = 0;
+        for (var __i = 0; __i < __n; __i++){
+          var __a = outline[(__i+__n-1)%__n], __b = outline[__i], __c = outline[(__i+1)%__n];
+          var __cr = (__b[0]-__a[0])*(__c[1]-__b[1]) - (__b[1]-__a[1])*(__c[0]-__b[0]);
+          __sgn += __cr;
+        }
+        for (var __j = 0; __j < __n; __j++){
+          var __a2 = outline[(__j+__n-1)%__n], __b2 = outline[__j], __c2 = outline[(__j+1)%__n];
+          var __cr2 = (__b2[0]-__a2[0])*(__c2[1]-__b2[1]) - (__b2[1]-__a2[1])*(__c2[0]-__b2[0]);
+          if ((__cr2 > 0) !== (__sgn > 0) && Math.abs(__cr2) > 1e-6) __reflex++;
+        }
+      } catch(e){}
+      var __ridgeDir = function(l){ var d = [l.pts[1][0]-l.pts[0][0], l.pts[1][1]-l.pts[0][1]], L = Math.hypot(d[0], d[1]) || 1; return [d[0]/L, d[1]/L]; };
+      var __drawnR = _drawnRidges.map(__ridgeDir);
+      var __impR = (_tLines || []).filter(function(l){ return l && l.type === 'ridge' && l.pts && l.pts.length === 2; }).map(__ridgeDir);
+      var __parallel = function(u, v){ return Math.abs(u[0]*v[0] + u[1]*v[1]) > 0.97; };
+      var __mismatch = !!_tLines && (
+        __drawnR.some(function(u){ return !__impR.some(function(v){ return __parallel(u, v); }); }) ||
+        __impR.some(function(v){ return !__drawnR.some(function(u){ return __parallel(u, v); }); }));
+      __claimLayout = __reflex >= 3 || __mismatch;
+    }
+    if (__claimLayout) __ccLines = _drawnLines;
+    var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono' || __claimLayout)
       ? _ccBuildCookiePlan(window._lastSheetSections, outline, __ccLines)
       : null;
     // Hip & valley: lay it the way the crew does (see _ccHipBandSections —
@@ -6129,7 +6302,7 @@ function _renderRoofSheetPlanInner() {
       }
     }
     if (__ccPlan && __ccPlan.ok){
-      _ccDrawCookiePlan(cv, __ccPlan, outline, (_tLines || __origDrawLines || DRAW.lines),
+      _ccDrawCookiePlan(cv, __ccPlan, outline, __ccLines,
                         { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H });
       allStrips = __ccPlan.strips;
       try { window.__lastAllStrips = allStrips; } catch(e){}

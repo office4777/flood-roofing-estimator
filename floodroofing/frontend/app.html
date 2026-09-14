@@ -19032,7 +19032,8 @@ function _renderCalcCheckCanvas(sections, opts){
   var _chips = [], _chipRow = 0, _chipX = padX, _chipMaxX = W - padX;
   secs.forEach(function(s){
     var text = (s.roof ? s.roof + ' — ' : '') + _calcCheckColour(_secCol(s)) +
-               (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(2) + 'm';
+               (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(2) + 'm' +
+               (s.valleyExtra ? ' (' + (s.total - s.valleyExtra) + ' + ' + s.valleyExtra + ' valley spare)' : '');
     var w = 18 + _mctx.measureText(text).width + 24;
     if (_chipX > padX && _chipX + w > _chipMaxX) { _chipRow++; _chipX = padX; }
     _chips.push({ x:_chipX, row:_chipRow, text:text, color:_secCol(s) });
@@ -19103,9 +19104,14 @@ function _renderCalcCheckCanvas(sections, opts){
           ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
         }
       });
-      // valley spare(s) — one hatched column per valley, on the bottom slope
+      // valley spare(s) — one hatched column per valley, on the bottom slope.
+      // Drawn only where it lands ON the roof: past the end of a main that
+      // fills its whole span it would float in space beside the building,
+      // so there it is the legend's "+1" alone.
       for (var vi = 0; vi < (s.valleyExtra || 0); vi++){
         var vu0 = b.startU + b.per*b.cw + vi*b.cw, vu1 = vu0 + b.cw;
+        var _vc = b.w2((vu0+vu1)/2, b.vMid + b.halfRun*0.5);
+        if (!outlines.some(function(o){ return _spPointInPoly(_vc[0], _vc[1], o); })) continue;
         var vq = [b.w2(vu0,b.vMid), b.w2(vu1,b.vMid), b.w2(vu1, b.vMid+b.halfRun), b.w2(vu0, b.vMid+b.halfRun)].map(toC);
         ctx.save(); poly(vq); ctx.fillStyle = _secCol(s); ctx.fill(); ctx.clip();
         ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.4;
@@ -19213,6 +19219,8 @@ function _renderCalcCheckCanvas(sections, opts){
     });
     for (var vi = 0; vi < (s.valleyExtra || 0); vi++){
       var vc = toC(b.w2(b.startU + b.per*b.cw + (vi+0.5)*b.cw, b.vMid + b.halfRun*0.55));
+      var _vw = b.w2(b.startU + b.per*b.cw + (vi+0.5)*b.cw, b.vMid + b.halfRun*0.5);
+      if (!outlines.some(function(o){ return _spPointInPoly(_vw[0], _vw[1], o); })) continue;
       ctx.font = '700 '+Math.max(8,numFont-1)+'px Inter, sans-serif';
       ctx.fillStyle = '#0a1628'; ctx.fillText('+1', vc[0], vc[1]);
     }
