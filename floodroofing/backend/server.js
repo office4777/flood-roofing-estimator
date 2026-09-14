@@ -9677,38 +9677,68 @@ app.post('/admin/daily/send', async (req, res) => {
 const ANALYTICS = require('./analytics').createAnalytics({
   supabase: supabase, daily: DAILY, buildSha: BUILD_SHA, warn: function(m){ console.warn(m); },
 });
+// Who may read the analytics: the admin token, or a signed-in RoofMap owner
+// (ANALYTICS_OWNERS, the platform's own people) — so the page works on a
+// phone with the ordinary RoofMap login and never needs the token typed in.
+const ANALYTICS_OWNERS = String(process.env.ANALYTICS_OWNERS || 'office@floodroofing.co.nz, aron@floodroofing.co.nz')
+  .split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(Boolean);
+async function _analyticsOk(req){
+  if (_adminOk(req)) return true;
+  const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
+  if (!token) return false;
+  let u; try { u = jwt.verify(token, JWT_SECRET); } catch (e){ return false; }
+  if (!u || u.purpose || !u.id || ANALYTICS_OWNERS.indexOf(String(u.email || '').toLowerCase()) < 0) return false;
+  try { const tv = await _tokenVersion(u.id); if (tv > (u.tv || 0)) return false; } catch (e){}
+  return true;
+}
 app.get('/admin/analytics', async (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   try { res.json(await ANALYTICS.collect()); }
   catch (e){ res.status(500).json({ error: e.message }); }
 });
 app.get('/admin/analytics/day', async (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   const d = String(req.query.date || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ error: 'date=YYYY-MM-DD' });
   try { res.json(await ANALYTICS.day(d)); }
   catch (e){ res.status(500).json({ error: e.message }); }
 });
 app.get('/admin/analytics/days', async (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   const end = String(req.query.end || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return res.status(400).json({ error: 'end=YYYY-MM-DD' });
   try { res.json(await ANALYTICS.days(end, parseInt(req.query.n, 10) || 7)); }
   catch (e){ res.status(500).json({ error: e.message }); }
 });
 app.post('/admin/analytics/refresh', async (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   try { const s = await ANALYTICS.snapshot(); res.json({ ok: true, at: s.latest.at, points: s.series.length }); }
   catch (e){ res.status(500).json({ error: e.message }); }
 });
+// The page itself carries no data — every number comes through the gated
+// reads above — so it is served to anyone, and shows a sign-in until the
+// browser holds an owner's login or the admin token.
 app.get('/admin/analytics/page', (req, res) => {
-  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   // The global API policy blocks a page's own inline style and script; widen
   // it for this response only, to exactly what the page needs.
   res.setHeader('Content-Security-Policy',
-    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
-    "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'; img-src 'self' data:; " +
+    "connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   res.type('html').send(ANALYTICS.renderPage());
+});
+// Installable on a phone: a manifest, an icon and a small service worker
+// scoped to this page, so "Add to Home Screen" gives a standalone app.
+app.get('/admin/analytics/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').send(JSON.stringify({
+    name: 'RoofMap analytics', short_name: 'Analytics', start_url: '/admin/analytics/page', scope: '/admin/analytics/',
+    display: 'standalone', background_color: '#0a1628', theme_color: '#0a1628',
+    icons: [{ src: '/admin/analytics/icon.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/admin/analytics/icon.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' }],
+  }));
+});
+app.get('/admin/analytics/icon.png', (req, res) => { res.setHeader('Cache-Control', 'public, max-age=86400'); res.type('png').send(ANALYTICS.iconPng()); });
+app.get('/admin/analytics/sw.js', (req, res) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self'");
+  res.type('application/javascript').send(ANALYTICS.serviceWorker());
 });
 
 // The report as JSON, for looking at it without waiting until Monday.

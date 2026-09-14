@@ -9,6 +9,7 @@ import { startFakePostgrest } from './fakepgrst.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(_j(_ROOT, 'backend') + '/');
 const { nzMidnightUtc, shiftDate } = require('./daily.js');
+const jwt = require('jsonwebtoken');
 const { nzParts } = require('./metrics.js');
 const results = [];
 function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  '+n+(d?('  — '+d):'')); }
@@ -127,8 +128,8 @@ const html = await pg.text();
 check('the page is served with the token', pg.status === 200 && /RoofMap — live activity/.test(html) && /Sync now/.test(html));
 check('…keeps the token in the browser and off the address bar', /localStorage\.setItem\('rm_admin_token'/.test(html) && /history\.replaceState/.test(html));
 check('…and refreshes itself every hour', /setInterval\(load, 60 \* 60e3\)/.test(html));
-check('…under a policy that lets its own style and script run', /style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'/.test(pg.headers.get('content-security-policy') || ''), pg.headers.get('content-security-policy'));
-check('nothing answers without the token', (await fetch(BASE + '/admin/analytics')).status === 404 && (await fetch(BASE + '/admin/analytics/page')).status === 404 &&
+check('…under a policy that lets its own style and script run', /style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'; img-src 'self' data:; connect-src 'self'/.test(pg.headers.get('content-security-policy') || ''), pg.headers.get('content-security-policy'));
+check('no data answers without a token or an owner login', (await fetch(BASE + '/admin/analytics')).status === 404 &&
   (await fetch(BASE + '/admin/analytics/refresh', { method: 'POST' })).status === 404);
 
 // ── any day, and a run of days ───────────────────────────────────
@@ -163,6 +164,26 @@ check('the week has a without-Flood-Roofing twin', Array.isArray(wk2.days_ext) &
 const dx = await (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: H })).json();
 check('a picked day too, still knowing which day it is', dx.ext && dx.ext.users.length === dx.users.length - 3 && dx.ext.date === Y && dx.ext.nice === dx.nice);
 check('the page has the toggle and the grouped bars', /Exclude Flood Roofing/.test(html) && /groupedBars/.test(html));
+
+// ── an owner's RoofMap login opens it too; a stranger's does not ──
+const ownerTok = jwt.sign({ id: 'u6', email: 'office@floodroofing.co.nz', cid: C1, tv: 0 }, 'test-secret');
+const otherTok = jwt.sign({ id: 'u3', email: 'jo@bay.co.nz', cid: C3, tv: 0 }, 'test-secret');
+check('a signed-in owner reads the analytics with no admin token', (await fetch(BASE + '/admin/analytics', { headers: { Authorization: 'Bearer ' + ownerTok } })).status === 200);
+check('…and the days and a day', (await fetch(BASE + '/admin/analytics/days?end=' + today, { headers: { Authorization: 'Bearer ' + ownerTok } })).status === 200 &&
+  (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: { Authorization: 'Bearer ' + ownerTok } })).status === 200);
+check('a customer\'s login is turned away', (await fetch(BASE + '/admin/analytics', { headers: { Authorization: 'Bearer ' + otherTok } })).status === 404);
+check('a made-up token is turned away', (await fetch(BASE + '/admin/analytics', { headers: { Authorization: 'Bearer nope' } })).status === 404);
+const openPage = await fetch(BASE + '/admin/analytics/page');
+const openHtml = await openPage.text();
+check('the page opens without any token and offers a sign-in', openPage.status === 200 && /id="login"/.test(openHtml) && /\/auth\/login/.test(openHtml));
+const man = await fetch(BASE + '/admin/analytics/manifest.webmanifest');
+const manJ = await man.json();
+check('it is installable: a manifest with standalone display and an icon', man.status === 200 && manJ.display === 'standalone' && manJ.start_url === '/admin/analytics/page' && manJ.icons.length === 2, JSON.stringify(manJ).slice(0, 100));
+const ic = await fetch(BASE + '/admin/analytics/icon.png');
+const icB = Buffer.from(await ic.arrayBuffer());
+check('…a real PNG icon', ic.status === 200 && icB.slice(1, 4).toString() === 'PNG' && icB.length > 500, icB.length + ' bytes');
+const sw = await fetch(BASE + '/admin/analytics/sw.js');
+check('…and a service worker scoped to the page', sw.status === 200 && /addEventListener\('fetch'/.test(await sw.text()) && /rel="manifest"/.test(openHtml) && /serviceWorker\.register/.test(openHtml));
 
 // ── a database outage is not an empty morning ─────────────────────
 db.__fail500 = 'companies';

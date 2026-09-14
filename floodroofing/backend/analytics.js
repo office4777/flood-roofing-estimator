@@ -193,8 +193,11 @@ function createAnalytics(deps){
   // the address bar; the page then asks /admin/analytics with a header, every
   // hour and whenever the tab comes back into view.
   function renderPage(){
-    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>RoofMap analytics</title><style>' +
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
+    '<title>RoofMap analytics</title>' +
+    '<link rel="manifest" href="/admin/analytics/manifest.webmanifest"><link rel="icon" href="/admin/analytics/icon.png"><link rel="apple-touch-icon" href="/admin/analytics/icon.png">' +
+    '<meta name="theme-color" content="#0a1628"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Analytics"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' +
+    '<style>' +
     ':root{--bg:#f3f5f8;--card:#fff;--line:#e3e8ef;--ink:#0a1628;--ink2:#52514e;--mute:#7b8a99;--blue:#2a78d6;--green:#008300;--orange:#eb6834;--grid:#eef1f5}' +
     '@media(prefers-color-scheme:dark){:root{--bg:#111214;--card:#1a1a19;--line:#2b2d31;--ink:#fff;--ink2:#c3c2b7;--mute:#8b9099;--blue:#3987e5;--orange:#d95926;--grid:#26282c}}' +
     '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}' +
@@ -218,8 +221,13 @@ function createAnalytics(deps){
     '.gb{font-size:9.5px;fill:var(--ink);font-weight:700}.gd{font-size:11px;fill:var(--ink);font-weight:700}.gs{font-size:9.5px;fill:var(--ink2)}' +
     '.tw{overflow-x:auto}.ft{color:var(--mute);font-size:12px;text-align:center;padding:10px 0}.err{background:#fde8e8;color:#7f1d1d;border-radius:8px;padding:10px 14px;margin-bottom:12px}' +
     '</style></head><body><div class="w">' +
-    '<div class="hd"><div><h1>RoofMap — live activity</h1><p id="sub">Loading…</p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="tog" title="Leave Flood Roofing\'s own accounts out of every number"><input type="checkbox" id="exInt" onchange="setExcl(this.checked)"> Exclude Flood Roofing</label><button id="sync" onclick="syncNow()">Sync now</button></div></div>' +
+    '<div class="hd"><div><h1>RoofMap — live activity</h1><p id="sub">Loading…</p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="tog" title="Leave Flood Roofing\'s own accounts out of every number"><input type="checkbox" id="exInt" onchange="setExcl(this.checked)"> Exclude Flood Roofing</label><button id="sync" onclick="syncNow()">Sync now</button><button id="out" onclick="signOut()" style="display:none;background:transparent;color:#9fb3c8;font-weight:400;padding:8px 6px">Sign out</button></div></div>' +
     '<div id="err" class="err" style="display:none"></div>' +
+    '<div id="login" class="c" style="display:none;max-width:420px;margin:30px auto"><h2>Sign in</h2><p class="m" style="margin:0 0 10px">Your RoofMap login. Only the platform\'s own accounts can see this page.</p>' +
+    '<form onsubmit="return signIn(event)"><input id="liEmail" type="email" autocomplete="username" placeholder="Email" required style="width:100%;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--card);color:var(--ink)">' +
+    '<input id="liPass" type="password" autocomplete="current-password" placeholder="Password" required style="width:100%;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;background:var(--card);color:var(--ink)">' +
+    '<button id="liBtn" style="width:100%;background:var(--blue);color:#fff;border:0;border-radius:8px;padding:10px;font-weight:700;font-size:14px;cursor:pointer">Sign in</button><p id="liErr" class="m" style="margin:8px 0 0;color:#b91c1c"></p></form></div>' +
+    '<div id="main">' +
     '<div id="tiles" class="tiles"></div>' +
     '<div class="grid2"><div class="c"><h2>MRR, paying businesses combined</h2><div id="chMrr"></div></div>' +
     '<div class="c"><h2>Businesses on a trial</h2><div id="chTrials"></div></div>' +
@@ -235,12 +243,23 @@ function createAnalytics(deps){
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
     '<div class="c"><h2 id="pdH">Paying</h2><div id="paid"></div></div></div>' +
-    '<p class="ft" id="ft"></p></div><div class="tip" id="tip"></div>' +
+    '<p class="ft" id="ft"></p></div></div><div class="tip" id="tip"></div>' +
     '<script>' + PAGE_JS + '</script></body></html>';
   }
 
-  return { collect, snapshot, tick, start, due, renderPage, summarise, day, days, isInternalUser };
+  function iconPng(){ return Buffer.from(ICON_B64, 'base64'); }
+  // Network first, shell from cache when offline — the numbers are never cached.
+  function serviceWorker(){
+    return "const SHELL='rm-analytics-v1';" +
+      "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(SHELL).then(c=>c.addAll(['/admin/analytics/page','/admin/analytics/icon.png'])));});" +
+      "self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim());});" +
+      "self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||!/\\/admin\\/analytics\\/(page|icon\\.png)$/.test(u.pathname))return;" +
+      "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(SHELL).then(x=>x.put(e.request,c));return r;}).catch(()=>caches.match(e.request)));});";
+  }
+  return { collect, snapshot, tick, start, due, renderPage, summarise, day, days, isInternalUser, iconPng, serviceWorker };
 }
+
+const ICON_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAFV0lEQVR4nOzdvW8bdRzH8d/ZPj8maZ4TQmhC00jBICHEQyqhNgMSArGxM4BgQAz9IxhgYELqVAaQOsCGxFaVhQc1QCtERcoApYW0TWry/ODHOx+WKhCCxmffJ/Qu8fu1Jfd1Bufte5Dufk5kh2cMEFTCAAICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgI6ABInnw4MT0Y603f/dEr1pzf1soXfrFqdRM2i1Vao8zK2rk3nrHzI//d5N7e2jlzsb6ya0IVM4iw1Nyxe9bTEB/rybz8qAkbAUWafeJos61PPGhScRMqAoowOx4f7mqy3YpZ8aFmA/cBJ9ERVnMbifjM+A78zwgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICGh/DKesk8Px8ZwVs5rd4VX3vJu73hcF94+KZw4FAtoHzz8Qf+/J9JFkqzcHbla9t74tf1lwzcHHPdGq493W+0+3UU9DY/jsifR092F48wlI9dpUMpNo+8bkxktenbLNwcchTJU/EvC29qlDsQciIFUi6HMR2ZCf6NofBAQJAUFCQJAQECQEBAkBQUJAkBAQJAQECQFBQkCQEBAkBAQJAUFCQJAQECQEBEkHBdQ1/Vx3/sXUwDHfSWd3tby0sDr/gVfdMWiqIwKyEumhudPZidkW5xO5ga7jp9Kj+cLn71ZXfzXYW0c8lZHsn2y9nr8luga7Zl4waKoj9kCpkbwJJD3yiEFTnbEHGpg0gdg9o43Dn8HeOmIP5FWLJhArFvecssHeuIyHhIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEiiFVAs09uTfynZP+l7K7tX2ams/Ly58JlxawbhiVBA6bHHh+ZOxzO9Lc5nJ2dzU6cKF95xtu8YhCQyj/UkUgPPvtl6PXcl+472PfWKQXiiElCyb8LuHjbty07M8uhWiCITUNBn/6xY3O4eNQhJZM6BPOFLaGOH4pu3DiYu4yEhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKCJCorlDk7KyYod3fVZ6C0bgJxWnjhajXg0ljLpbrvjLtVbj5Q3yiZUEUloOradRNIZe13t7zRfKa0tGACKd+64jvzdcExgVxccX1nnKuFZltvbXpbFROqqARUL21sfP+Jad/6/Fnfmcryj8Ub35g21Wul9UvnfMc+vOZc2/bfl/xL4yXnrvuXV/p0wSvvuRB26eMfTNjidm7QRENp+SfjuemRvGW1lHXjH7zy1ZnS4qVWhouLlxO5wWT/pGlN45B65/zbztZt30nXM+eXnNnB+Eim1U/jdyvu6/PlzVZWSC87tasF+7ERK2P/89de2Sl+dLl2ZdmEzcoOz5hISaSSvQ+1slJ9df2GaZNl5+y+cStmNx9rnFQ520umTWMZazxrxSyr2V/2vMXd+rLPic09xIa6rL6/3pNizb25aaIhegHhQOEyHhICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIkj8BAAD//2LAKYUAAAAGSURBVAMAws8Ij0ULiCcAAAAASUVORK5CYII=';
 
 const PAGE_JS = String.raw`
 var TOKEN = (function(){
@@ -249,6 +268,24 @@ var TOKEN = (function(){
   try { return localStorage.getItem('rm_admin_token') || ''; } catch(e){ return ''; }
 })();
 var API = location.pathname.replace(/\/page\/?$/, '');
+var JWT = (function(){ try { return localStorage.getItem('rm_owner_jwt') || ''; } catch(e){ return ''; } })();
+function authHeaders(){ var h = {}; if (TOKEN) h['x-admin-token'] = TOKEN; if (JWT) h['Authorization'] = 'Bearer ' + JWT; return h; }
+function showLogin(msg){ $('login').style.display = ''; $('main').style.display = 'none'; $('liErr').textContent = msg || ''; }
+function hideLogin(){ $('login').style.display = 'none'; $('main').style.display = ''; $('out').style.display = JWT ? '' : 'none'; }
+async function signIn(ev){
+  ev.preventDefault();
+  var b = $('liBtn'); b.disabled = true; $('liErr').textContent = '';
+  try {
+    var r = await fetch('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('liEmail').value.trim(), password: $('liPass').value }) });
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok || !j.token) throw new Error(j.error || 'Could not sign in');
+    JWT = j.token; try { localStorage.setItem('rm_owner_jwt', JWT); } catch(e){}
+    hideLogin(); await load();
+  } catch (e){ $('liErr').textContent = e.message; }
+  b.disabled = false; return false;
+}
+function signOut(){ JWT = ''; try { localStorage.removeItem('rm_owner_jwt'); } catch(e){} DATA = null; showLogin(); }
+if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('/admin/analytics/sw.js', { scope: '/admin/analytics/' }); } catch(e){} }
 var DATA = null, DAY = 'today';
 var EXCL = (function(){ try { return localStorage.getItem('rm_excl_internal') === '1'; } catch(e){ return false; } })();
 function setExcl(on){ EXCL = !!on; try { localStorage.setItem('rm_excl_internal', on ? '1' : '0'); } catch(e){} if (DATA) render(); }
@@ -270,17 +307,19 @@ function list(arr, extra){ return arr.length ? '<ul>' + arr.map(function(c){ ret
 
 async function load(){
   try {
-    var r = await fetch(API, { headers: { 'x-admin-token': TOKEN } });
-    if (r.status === 404) throw new Error('Not signed in: open this page from the link with your admin token once, and it remembers it.');
+    if (!TOKEN && !JWT){ showLogin(); return; }
+    var r = await fetch(API, { headers: authHeaders() });
+    if (r.status === 404 || r.status === 401){ if (JWT){ signOut(); showLogin('That login is not allowed here, or has expired. Sign in again.'); } else showLogin(); return; }
     if (!r.ok) throw new Error('The server answered ' + r.status);
     DATA = await r.json();
     $('err').style.display = 'none';
+    hideLogin();
     render();
   } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
 }
 async function syncNow(){
   var b = $('sync'); b.disabled = true; b.textContent = 'Syncing…';
-  try { var r = await fetch(API + '/refresh', { method: 'POST', headers: { 'x-admin-token': TOKEN } }); if (!r.ok) throw new Error('sync failed: ' + r.status); await load(); }
+  try { var r = await fetch(API + '/refresh', { method: 'POST', headers: authHeaders() }); if (!r.ok) throw new Error('sync failed: ' + r.status); await load(); }
   catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
   b.disabled = false; b.textContent = 'Sync now';
 }
@@ -334,7 +373,7 @@ async function pickDay(date){
   if (date === DATA.latest.yesterday.date) return showDay('yesterday');
   $('actH').textContent = 'Loading ' + date + '…';
   try {
-    var r = await fetch(API + '/day?date=' + encodeURIComponent(date), { headers: { 'x-admin-token': TOKEN } });
+    var r = await fetch(API + '/day?date=' + encodeURIComponent(date), { headers: authHeaders() });
     if (!r.ok) throw new Error('could not read that day: ' + r.status);
     PICKED = await r.json();
     showDay('picked');
@@ -364,7 +403,7 @@ async function moveWeek(delta){
   var end = delta === 0 ? DATA.latest.today.date : shift(WEEK ? WEEK.end : DATA.latest.today.date, delta);
   if (end > DATA.latest.today.date) end = DATA.latest.today.date;
   try {
-    var r = await fetch(API + '/days?end=' + end + '&n=7', { headers: { 'x-admin-token': TOKEN } });
+    var r = await fetch(API + '/days?end=' + end + '&n=7', { headers: authHeaders() });
     if (!r.ok) throw new Error('could not read those days: ' + r.status);
     WEEK = await r.json(); renderWeek();
   } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
