@@ -59,8 +59,6 @@ check('…at 1.4 m', wings.every(w => Math.abs(w.mm - 1400) < 40), wings.map(w =
 const byMm = {}; r.groups.forEach(g => { byMm[Math.round(g.mm / 100)] = (byMm[Math.round(g.mm / 100)] || 0) + g.count; });
 check('SHEETS TO ORDER says 23 long and 14 short', byMm[28] === 23 && byMm[14] === 14, JSON.stringify(r.groups));
 check('the total is 37', r.groups.reduce((a, g) => a + g.count, 0) === 37);
-check('the layout diagram is cut from those sections, not the cascade\'s diagonal triangles',
-  r.cookie, r.stripCount + ' strips, cookie=' + r.cookie);
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

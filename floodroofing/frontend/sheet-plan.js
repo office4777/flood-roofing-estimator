@@ -5973,21 +5973,66 @@ function _renderRoofSheetPlanInner() {
       var a = r.pts[0], b = r.pts[1];
       var L = Math.hypot(b[0]-a[0], b[1]-a[1]);
       if (L < coverPx*0.3) return;
+      // A section's ridge has a hip from at least one end down to the
+      // building's edge. A ridge with none is the skeleton's LINK between
+      // two sections (the short join in a Z): its hips run to other ridges
+      // and its valleys to the internal corners. It is not a run of sheets
+      // — the sections either side already cover it — and left in, it read
+      // the roof beside it as its own and claimed the lot.
+      var _onOutline = function(q){
+        for (var oi = 0; oi < outline.length; oi++){
+          var A = outline[oi], B = outline[(oi+1)%outline.length];
+          var vx = B[0]-A[0], vy = B[1]-A[1], L2 = vx*vx + vy*vy || 1;
+          var t = Math.max(0, Math.min(1, ((q[0]-A[0])*vx + (q[1]-A[1])*vy) / L2));
+          if (Math.hypot(q[0] - (A[0]+vx*t), q[1] - (A[1]+vy*t)) <= coverPx*0.3) return true;
+        }
+        return false;
+      };
+      var _hipToEdge = _drawnLines.some(function(h){
+        if (!h || h.type !== 'hip' || !h.pts || h.pts.length !== 2) return false;
+        return [a, b].some(function(end){
+          var near0 = Math.hypot(h.pts[0][0]-end[0], h.pts[0][1]-end[1]) <= coverPx*0.3;
+          var near1 = Math.hypot(h.pts[1][0]-end[0], h.pts[1][1]-end[1]) <= coverPx*0.3;
+          return (near0 && _onOutline(h.pts[1])) || (near1 && _onOutline(h.pts[0]));
+        });
+      });
+      if (!_hipToEdge) return;
       var R = [(b[0]-a[0])/L, (b[1]-a[1])/L], P = [-R[1], R[0]];
       var ridgeP = a[0]*P[0] + a[1]*P[1];
       var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
-      // Run to the eave each side, sampled along the ridge and taken as
-      // the smallest — a hip end is farther than the eave, and it is the
-      // eave that sets the sheet.
-      var up = Infinity, dn = Infinity;
-      [0.2, 0.5, 0.8].forEach(function(t){
-        var x = a[0] + (b[0]-a[0])*t, y = a[1] + (b[1]-a[1])*t;
-        var u1 = _sgmRayDist(x, y, P[0], P[1]), d1 = _sgmRayDist(x, y, -P[0], -P[1]);
-        if (u1 < up) up = u1; if (d1 < dn) dn = d1;
+      // The sheet run is the distance from the ridge to the GUTTER that
+      // runs parallel to it and sits alongside it — the eave its own two
+      // slopes fall to. A ray fired from the ridge is not that: on a Z, the
+      // short link ridge in the join fires past the step into the far
+      // block, reads a run the size of the building, sorts itself first
+      // and claims the whole roof. Gutters that do not lie alongside the
+      // drawn ridge (a band's edge off to one side) do not count.
+      var uA = a[0]*R[0] + a[1]*R[1], uB = b[0]*R[0] + b[1]*R[1];
+      var rLo = Math.min(uA, uB), rHi = Math.max(uA, uB);
+      var run = Infinity;
+      _drawnLines.forEach(function(g){
+        if (!g || g.type !== 'gutter' || !g.pts || g.pts.length !== 2) return;
+        var gd = [g.pts[1][0]-g.pts[0][0], g.pts[1][1]-g.pts[0][1]];
+        var gl = Math.hypot(gd[0], gd[1]); if (gl < 1) return;
+        if (Math.abs((gd[0]*R[0] + gd[1]*R[1]) / gl) < 0.97) return;         // not parallel
+        var g0 = g.pts[0][0]*R[0] + g.pts[0][1]*R[1], g1 = g.pts[1][0]*R[0] + g.pts[1][1]*R[1];
+        if (Math.min(g0, g1) > rHi - coverPx*0.2 || Math.max(g0, g1) < rLo + coverPx*0.2) return;   // not alongside
+        var d = Math.abs(g.pts[0][0]*P[0] + g.pts[0][1]*P[1] - ridgeP);
+        if (d > coverPx*0.2 && d < run) run = d;
       });
-      if (!(up < Infinity) || !(dn < Infinity)) return;
-      var run = Math.min(up, dn);
-      if (!(run > coverPx*0.2)) return;
+      if (!(run < Infinity)){
+        // No parallel gutter drawn alongside (hand-drawn roofs): the nearest
+        // outline edge either side, from the middle of the ridge.
+        var up = Infinity, dn = Infinity;
+        [0.2, 0.5, 0.8].forEach(function(t){
+          var x = a[0] + (b[0]-a[0])*t, y = a[1] + (b[1]-a[1])*t;
+          var u1 = _sgmRayDist(x, y, P[0], P[1]), d1 = _sgmRayDist(x, y, -P[0], -P[1]);
+          if (u1 < up) up = u1; if (d1 < dn) dn = d1;
+        });
+        run = Math.min(up, dn);
+      }
+      if (!(run < Infinity) || !(run > coverPx*0.2)) return;
+      var up = run, dn = run;
       // The ridge line extended to the outline: the along-ridge span the
       // square covers before anything else has claimed it.
       var fwd = _sgmRayDist(mx, my, R[0], R[1]), bak = _sgmRayDist(mx, my, -R[0], -R[1]);
@@ -6154,7 +6199,13 @@ function _renderRoofSheetPlanInner() {
       // (cookie-cutter deletions reduce that group); vHigh = the v of the
       // section's HIGH edge (the ridge splits a two-sided band in half).
       gcol: s.col, vHigh: (s.obV0 + s.obV1) / 2,
-      outline: (outline || []).map(function(p){ return p.slice(); }), scaleM: effectiveScale });
+      outline: (outline || []).map(function(p){ return p.slice(); }), scaleM: effectiveScale,
+      // The DRAWN hips, valleys and ridges, so the check map can lay its
+      // columns under the roof lines the roofer already knows instead of
+      // inventing its own.
+      roofLines: (typeof _drawnLines !== 'undefined' ? _drawnLines : ((__origDrawLines || DRAW.lines) || []))
+        .filter(function(l){ return l && l.pts && l.pts.length === 2 && /^(hip|valley|ridge)$/.test(l.type); })
+        .map(function(l){ return { type: l.type, pts: l.pts.map(function(q){ return q.slice(); }) }; }) });
   });
   // Expose the per-section breakdown for the "Sheet calculation check" map.
   try { window._lastSheetSections = _checkSections; } catch(e){}
@@ -6233,43 +6284,7 @@ function _renderRoofSheetPlanInner() {
   // when the cookie pieces cover the roof.
   try {
     var __ccLines = (_tLines || __origDrawLines || DRAW.lines);
-    // A multi-ridge hip counted by the ridge-claim takeoff lays out the
-    // same way it was counted: columns across each ridge, cut along the
-    // DRAWN hips and valleys (the map's lines, not the imposed T's).
-    // …but only where the legacy cascade cannot draw the roof. A plain L
-    // or T keeps the cascade (its L/T topologies are the signed-off
-    // pictures the sheet gate pins). The cascade's imposed T puts the
-    // stem's ridge ACROSS the bar's; report 50's roof has all three ridges
-    // parallel, which that model cannot say — so when the drawn ridges do
-    // not match the imposed ones, or the outline is richer than an L/T
-    // (three or more internal corners), the roof is laid from the sections.
-    var __claimLayout = false;
-    if (typeof _isMultiRidgeHip !== 'undefined' && _isMultiRidgeHip){
-      var __reflex = 0;
-      try {
-        var __n = outline.length, __sgn = 0;
-        for (var __i = 0; __i < __n; __i++){
-          var __a = outline[(__i+__n-1)%__n], __b = outline[__i], __c = outline[(__i+1)%__n];
-          var __cr = (__b[0]-__a[0])*(__c[1]-__b[1]) - (__b[1]-__a[1])*(__c[0]-__b[0]);
-          __sgn += __cr;
-        }
-        for (var __j = 0; __j < __n; __j++){
-          var __a2 = outline[(__j+__n-1)%__n], __b2 = outline[__j], __c2 = outline[(__j+1)%__n];
-          var __cr2 = (__b2[0]-__a2[0])*(__c2[1]-__b2[1]) - (__b2[1]-__a2[1])*(__c2[0]-__b2[0]);
-          if ((__cr2 > 0) !== (__sgn > 0) && Math.abs(__cr2) > 1e-6) __reflex++;
-        }
-      } catch(e){}
-      var __ridgeDir = function(l){ var d = [l.pts[1][0]-l.pts[0][0], l.pts[1][1]-l.pts[0][1]], L = Math.hypot(d[0], d[1]) || 1; return [d[0]/L, d[1]/L]; };
-      var __drawnR = _drawnRidges.map(__ridgeDir);
-      var __impR = (_tLines || []).filter(function(l){ return l && l.type === 'ridge' && l.pts && l.pts.length === 2; }).map(__ridgeDir);
-      var __parallel = function(u, v){ return Math.abs(u[0]*v[0] + u[1]*v[1]) > 0.97; };
-      var __mismatch = !!_tLines && (
-        __drawnR.some(function(u){ return !__impR.some(function(v){ return __parallel(u, v); }); }) ||
-        __impR.some(function(v){ return !__drawnR.some(function(u){ return __parallel(u, v); }); }));
-      __claimLayout = __reflex >= 3 || __mismatch;
-    }
-    if (__claimLayout) __ccLines = _drawnLines;
-    var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono' || __claimLayout)
+    var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono')
       ? _ccBuildCookiePlan(window._lastSheetSections, outline, __ccLines)
       : null;
     // Hip & valley: lay it the way the crew does (see _ccHipBandSections —
@@ -6302,7 +6317,7 @@ function _renderRoofSheetPlanInner() {
       }
     }
     if (__ccPlan && __ccPlan.ok){
-      _ccDrawCookiePlan(cv, __ccPlan, outline, __ccLines,
+      _ccDrawCookiePlan(cv, __ccPlan, outline, (_tLines || __origDrawLines || DRAW.lines),
                         { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H });
       allStrips = __ccPlan.strips;
       try { window.__lastAllStrips = allStrips; } catch(e){}

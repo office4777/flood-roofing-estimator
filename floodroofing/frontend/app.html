@@ -19130,13 +19130,33 @@ function _renderCalcCheckCanvas(sections, opts){
   drawColumns(false);
   ctx.restore();
 
-  // Ridge line (red) down each section's middle — mono-pitch has no ridge.
-  built.forEach(function(b){
-    if (b.s && b.s.mono) return;
-    var r0 = toC(b.w2(b.startU, b.vMid)), r1 = toC(b.w2(b.startU + b.per*b.cw, b.vMid));
-    ctx.beginPath(); ctx.moveTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]);
-    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.4; ctx.stroke();
+  // The roof's own lines over the columns. A hip & valley roof shows the
+  // hips, valleys and ridges exactly as drawn on the map — the sheet
+  // columns sit UNDER the lines the roofer already knows, and no new
+  // lines are invented for the check. Only a roof that carries no drawn
+  // lines (a plain gable section) gets the synthetic red ridge.
+  var _roofLines = [], _seenRL = {};
+  secs.forEach(function(s){
+    (s.roofLines || []).forEach(function(l){
+      var k = l.type + ':' + l.pts.map(function(p){ return p[0]+','+p[1]; }).join('>');
+      if (_seenRL[k]) return; _seenRL[k] = 1; _roofLines.push(l);
+    });
   });
+  if (_roofLines.length){
+    _roofLines.forEach(function(l){
+      var p0 = toC(l.pts[0]), p1 = toC(l.pts[1]);
+      ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]);
+      ctx.strokeStyle = l.type === 'ridge' ? '#dc2626' : (l.type === 'valley' ? '#2563eb' : '#0a1628');
+      ctx.lineWidth = l.type === 'ridge' ? 2.4 : 2; ctx.stroke();
+    });
+  } else {
+    built.forEach(function(b){
+      if (b.s && b.s.mono) return;
+      var r0 = toC(b.w2(b.startU, b.vMid)), r1 = toC(b.w2(b.startU + b.per*b.cw, b.vMid));
+      ctx.beginPath(); ctx.moveTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]);
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.4; ctx.stroke();
+    });
+  }
 
   // Real roof outline on top.
   if (outlines.length){ polyOutlines(); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.4; ctx.stroke(); }
