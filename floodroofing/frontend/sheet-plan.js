@@ -5312,9 +5312,16 @@ function _renderRoofSheetPlanInner() {
   // always wins, and a roof with a ridge is still a gable.
   function _rspRoofType(){
     var t = (typeof DRAW !== 'undefined' && DRAW.roofType) || '';
-    if (t) return t;
     var ls = (typeof DRAW !== 'undefined' && DRAW.lines) || [];
     var has = function(k){ return ls.some(function(l){ return l && l.type === k; }); };
+    // The label a roof carries can be wrong about the lines on it: a
+    // lean-to added to a gable job inherited "gable", and the gable takeoff
+    // — finding no ridge — counted nothing, so three of a five-roof job's
+    // roofs were missing from the order and the check map. The LINES say
+    // what the roof is: no ridge, no hip, a gutter → a mono-pitch.
+    if (t === 'gable' && has('gutter') && !has('ridge') && !has('hip') && !has('valley')) return 'mono';
+    if (t === 'hip' && has('gutter') && !has('hip') && !has('valley')) return has('ridge') ? 'gable' : 'mono';
+    if (t) return t;
     if (!has('gutter')) return '';                       // nothing to hang a guess on
     if (has('hip') || has('valley')) return '';          // leave the complex path alone
     return has('ridge') ? 'gable' : 'mono';
