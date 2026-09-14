@@ -36675,7 +36675,31 @@ function _roofGeometryPayload(){
       }),
       roofs: (DRAW.roofs || []).map(roof),
       activeRoofIdx: DRAW.activeRoofIdx,
-      sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; }))
+      sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
+      // Everything the CUT LIST is built from besides the geometry — the
+      // typed quantities and lengths, sheets deleted off the plan, measure
+      // arrows, extra rows, hidden rows — and the rows it came up with. A
+      // cut list that reads 1 @ 2.95 on a roof that needs 11 was
+      // unreproducible from the geometry alone; this is what was missing.
+      cutList: (function(){
+        try {
+          var sc = window._lastSheetCounts || {};
+          return {
+            qtyOverrides: DRAW.sheetGroupQtyOverrides || {},
+            lenOverrides: DRAW.sheetGroupOverrides || {},
+            deletedIds: (DRAW.sheetPlanDeletedIds || []).slice(0, 200),
+            manualMeasures: (DRAW.manualSheetMeasures || []).map(function(m){ return m && m.lengthM; }),
+            sheetOverrides: DRAW.sheetOverrides || {},
+            extras: DRAW.matSheetExtras || [],
+            hidden: DRAW.matSheetRowHidden || {},
+            mapLabels: ((window._roofCanvasHits && window._roofCanvasHits.sheets) || []).map(function(h){
+              return { label: h.label, cols: (h.runLo != null && h.runHi != null && DRAW.scaleMetresPerPx)
+                ? +((Math.abs(h.runHi - h.runLo) * DRAW.scaleMetresPerPx) / 0.762).toFixed(2) : null, roof: h.roofIdx }; }),
+            groups: (sc.groups || []).map(function(g){ return { mm: g.orderedMm, n: g.count }; }),
+            rows: (typeof _jpBuildSheetRows === 'function') ? _jpBuildSheetRows(sc).map(function(r){ return { orig: r.origLen, len: r.len, qty: r.qty }; }) : null
+          };
+        } catch(e){ return { error: String(e && e.message || e) }; }
+      })()
     };
   } catch(e){ g = { error: String(e && e.message || e) }; }
   return g;
@@ -51227,10 +51251,20 @@ function _jpBuildSheetRows(sc){
       // length claims its closest unclaimed row, and only a length still
       // unclaimed when every row is taken is a genuine bump-out. Equal counts
       // — the ordinary case — now peel nothing at all.
+      // …within reason. Nearest-first with NO ceiling let a length pair
+      // with a row half a metre away once the closer rows were taken, and
+      // the rows it left behind were then "absorbed" and peeled down to
+      // one sheet each: a five-roof job read 1 @ 2.95 where the roof needs
+      // 11. A row is a match only when it is within the barge-versus-drop
+      // allowance of the map length; a length no row is near is the only
+      // thing that ever peels.
+      var _nearMm = function(mm, r){ return Math.abs(r.origLen - mm) <= Math.max(250, mm * 0.08); };
       var _claimPairs = [];
       Object.keys(_colsByMm).forEach(function(k){
         rows.forEach(function(r, ri){
-          _claimPairs.push({ mm: parseInt(k, 10), ri: ri, d: Math.abs(r.origLen - parseInt(k, 10)) });
+          var mm = parseInt(k, 10);
+          if (!_nearMm(mm, r)) return;
+          _claimPairs.push({ mm: mm, ri: ri, d: Math.abs(r.origLen - mm) });
         });
       });
       _claimPairs.sort(function(a, b){ return a.d - b.d; });
@@ -51238,6 +51272,12 @@ function _jpBuildSheetRows(sc){
       _claimPairs.forEach(function(p){
         if (_mmClaimed[p.mm] || _rowClaimed[p.ri]) return;
         _mmClaimed[p.mm] = 1; _rowClaimed[p.ri] = 1;
+      });
+      // A map length that is near a row but lost it to a nearer length is
+      // the SAME sheet, not a bump-out — never peel for it.
+      Object.keys(_colsByMm).forEach(function(k){
+        var mm = parseInt(k, 10);
+        if (!_mmClaimed[mm] && rows.some(function(r){ return _nearMm(mm, r); })) _mmClaimed[mm] = 1;
       });
       Object.keys(_colsByMm).forEach(function(k){
         var _mm   = parseInt(k, 10);
@@ -51258,7 +51298,9 @@ function _jpBuildSheetRows(sc){
         var _peel = Math.min(_cols, _src.qty - 1);   // leave >=1 in the source
         if (_peel < 1) return;
         _src.qty -= _peel;
-        rows.push({ origLen: _mm, len: _mm, qty: _peel });
+        // A quantity typed on this row is keyed by the length it was born
+        // with, the same as every other row — so it sticks here too.
+        rows.push({ origLen: _mm, len: _mm, qty: (qtyOv[_mm] != null) ? +qtyOv[_mm] : _peel });
       });
     }
   } catch(e){}
@@ -51279,11 +51321,35 @@ function _jpBuildSheetRows(sc){
         if (m && +m.lengthM > 0) ms.push({ mm: Math.round(+m.lengthM * 1000), manualIdx: mi, key: null });
       });
     }
+    // The same number drawn twice (a gable's two sides both read 2.93 m)
+    // is ONE length, not two claims: left as two, the second took the next
+    // row along — the 2.95 m row — and every label below it shifted one
+    // row down, so the row that said 2.95 was really another group and a
+    // quantity typed on it changed a different sheet. And a label never
+    // claims a row it is nowhere near.
+    (function(){
+      var seen = {}, out = [];
+      ms.forEach(function(m){
+        var k = String(m.mm);
+        if (seen[k]){
+          if (m.manualIdx != null) seen[k].idxs.push(m.manualIdx);
+          if (m.key) seen[k].keys.push(m.key);
+          return;
+        }
+        var one = { mm: m.mm, manualIdx: m.manualIdx, key: m.key, idxs: [], keys: [] };
+        if (m.manualIdx != null) one.idxs.push(m.manualIdx);
+        if (m.key) one.keys.push(m.key);
+        seen[k] = one; out.push(one);
+      });
+      ms = out;
+    })();
     if (ms.length && rows.length){
       var pairs = [];
       ms.forEach(function(m, i){
         rows.forEach(function(r){
-          pairs.push({ i: i, m: m, r: r, d: Math.abs(m.mm - r.origLen) });
+          var d = Math.abs(m.mm - r.origLen);
+          if (d > Math.max(250, m.mm * 0.08)) return;
+          pairs.push({ i: i, m: m, r: r, d: d });
         });
       });
       pairs.sort(function(a, b){ return a.d - b.d; });
@@ -51294,8 +51360,10 @@ function _jpBuildSheetRows(sc){
         p.r.len = p.m.mm;
         if (!manualMap[p.r.origLen]) manualMap[p.r.origLen] = { mm: p.m.mm, idxs: [], keys: [] };
         manualMap[p.r.origLen].mm = p.m.mm;
-        if (p.m.manualIdx != null) manualMap[p.r.origLen].idxs.push(p.m.manualIdx);
-        if (p.m.key) manualMap[p.r.origLen].keys.push(p.m.key);
+        // Every arrow that carried this number feeds the row, so retyping
+        // the row's length pushes back onto all of them.
+        (p.m.idxs || []).forEach(function(ix){ manualMap[p.r.origLen].idxs.push(ix); });
+        (p.m.keys || []).forEach(function(kk){ manualMap[p.r.origLen].keys.push(kk); });
       });
     }
   } catch(e){}
