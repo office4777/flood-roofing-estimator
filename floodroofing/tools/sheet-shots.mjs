@@ -30,6 +30,16 @@ await pg.evaluate((g) => {
   DRAW.activeRoofIdx = g.activeRoofIdx || 0; DRAW.showAllRoofs = true;
   // An outline-only fixture: let the app draw the roof lines itself.
   if (g.autoType && !(g.lines || []).length) { DRAW.activeRoofIdx = -1; try { autoGenerateRoof(g.autoType); } catch (e) {} }
+  // Multi-roof fixture with per-roof autoType: draw each roof's lines in turn.
+  if (DRAW.roofs.length && DRAW.roofs.some(r => r.autoType && !(r.lines || []).length)) {
+    DRAW.roofs.forEach((r, i) => {
+      if (!r.autoType || (r.lines || []).length) return;
+      _loadRoofToCurrent(i); DRAW.roofType = r.autoType;
+      try { autoGenerateRoof(r.autoType); } catch (e) {}
+      _syncCurrentToRoof();
+    });
+    _loadRoofToCurrent(g.activeRoofIdx || 0); DRAW.showAllRoofs = true;
+  }
   try { redrawAll(); } catch (e) {}
   gotoTab('materials');
 }, GEOM);

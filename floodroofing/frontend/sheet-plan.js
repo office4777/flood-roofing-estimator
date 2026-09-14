@@ -5960,9 +5960,15 @@ function _renderRoofSheetPlanInner() {
   var _drawnLines = (__origDrawLines || DRAW.lines) || [];
   var _drawnRidges  = _drawnLines.filter(function(l){ return l && l.type === 'ridge'  && l.pts && l.pts.length === 2; });
   var _drawnValleys = _drawnLines.filter(function(l){ return l && l.type === 'valley' && l.pts && l.pts.length === 2; });
-  var _isMultiRidgeHip = !_isGable && _rspType !== 'mono' && _rspType !== 'dutch' &&
+  // Also the gable with hip-and-valley corners (an L or T drawn as
+  // gable-hv): its ridges end on the outline at the barges and meet at a
+  // hip and valley in the corner. That path counted strips and offered NO
+  // sections — the check map was blank for it — and the same rule reads it.
+  // The clean-tee gable (valleys only, no hips) keeps its own model.
+  var _isMultiRidgeHip = _rspType !== 'mono' && _rspType !== 'dutch' &&
     _drawnRidges.length >= 2 &&
-    _drawnLines.some(function(l){ return l && l.type === 'hip'; });
+    _drawnLines.some(function(l){ return l && l.type === 'hip'; }) &&
+    (!_isGable || _gableHasHips);
   if (_isMultiRidgeHip){
     var _rc = _ridgeClaimSections();
     if (_rc && _rc.length) secData = _rc;
@@ -5979,7 +5985,22 @@ function _renderRoofSheetPlanInner() {
       // and its valleys to the internal corners. It is not a run of sheets
       // — the sections either side already cover it — and left in, it read
       // the roof beside it as its own and claimed the lot.
+      // An INTERNAL corner does not count: in a staircase the skeleton's
+      // link ridge sends hips to the step's inside corners, and a hip to
+      // an inside corner is the valley's twin, not a fall to an eave.
+      var _reflex = [];
+      (function(){
+        var n = outline.length, area = 0;
+        for (var k = 0; k < n; k++){ var A = outline[k], B = outline[(k+1)%n]; area += A[0]*B[1] - B[0]*A[1]; }
+        for (var k = 0; k < n; k++){
+          var A = outline[(k+n-1)%n], B = outline[k], C = outline[(k+1)%n];
+          var cr = (B[0]-A[0])*(C[1]-B[1]) - (B[1]-A[1])*(C[0]-B[0]);
+          if (Math.abs(cr) > 1e-6 && (cr > 0) !== (area > 0)) _reflex.push(B);
+        }
+      })();
       var _onOutline = function(q){
+        for (var ri = 0; ri < _reflex.length; ri++)
+          if (Math.hypot(q[0]-_reflex[ri][0], q[1]-_reflex[ri][1]) <= coverPx*0.3) return false;
         for (var oi = 0; oi < outline.length; oi++){
           var A = outline[oi], B = outline[(oi+1)%outline.length];
           var vx = B[0]-A[0], vy = B[1]-A[1], L2 = vx*vx + vy*vy || 1;
@@ -5996,7 +6017,10 @@ function _renderRoofSheetPlanInner() {
           return (near0 && _onOutline(h.pts[1])) || (near1 && _onOutline(h.pts[0]));
         });
       });
-      if (!_hipToEdge) return;
+      // A gable ridge has no hip at its end — it runs out to the barge on
+      // the building's edge. That end is on the outline, and it counts.
+      var _endOnEdge = _onOutline(a) || _onOutline(b);
+      if (!_hipToEdge && !_endOnEdge) return;
       var R = [(b[0]-a[0])/L, (b[1]-a[1])/L], P = [-R[1], R[0]];
       var ridgeP = a[0]*P[0] + a[1]*P[1];
       var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
@@ -6091,10 +6115,26 @@ function _renderRoofSheetPlanInner() {
         // the 1 mm the pixels add must not order a twelfth. The lap absorbs
         // it. So the span is shaved by 2 % of a cover before rounding up.
         var span = Math.max(coverPx, (pc[1]-pc[0]) - coverPx*0.02);
+        // Each SIDE of the ridge counts its own columns, and a column is a
+        // sheet only where its slope reaches a roof edge. On a staircase
+        // the square runs the full width but one slope exists across only
+        // part of it — the rest is the step, with no roof under the sheet.
+        var nCols = Math.max(1, Math.ceil(span / coverPx - 1e-6));
+        var perNeg = 0, perPos = 0;
+        for (var ci = 0; ci < nCols; ci++){
+          var uc = pc[0] + (ci + 0.5) * coverPx;
+          if (uc > pc[1]) uc = (pc[0] + ci*coverPx + pc[1]) / 2;
+          var eNeg = [uc*sc.R[0] + (sc.ridgeP - sc.run*0.85)*sc.P[0], uc*sc.R[1] + (sc.ridgeP - sc.run*0.85)*sc.P[1]];
+          var ePos = [uc*sc.R[0] + (sc.ridgeP + sc.run*0.85)*sc.P[0], uc*sc.R[1] + (sc.ridgeP + sc.run*0.85)*sc.P[1]];
+          if (_spPointInPoly(eNeg[0], eNeg[1], outline)) perNeg++;
+          if (_spPointInPoly(ePos[0], ePos[1], outline)) perPos++;
+        }
+        if (!perNeg && !perPos) return;
         out.push({ col: COL_ORANGE, mm: orderedLengthMm(sc.run * effectiveScale * pitchFactor),
           runPx: 2*sc.run, eavePx: span, ridgePx: span, valley: false, valleys: 0,
           rdir: sc.R.slice(), obU0: pc[0], obU1: pc[1],
-          obV0: sc.ridgeP - sc.run, obV1: sc.ridgeP + sc.run, _claim: true });
+          obV0: sc.ridgeP - sc.run, obV1: sc.ridgeP + sc.run, _claim: true,
+          _perNeg: perNeg, _perPos: perPos });
       });
     });
     if (!out.length) return null;
@@ -6184,11 +6224,15 @@ function _renderRoofSheetPlanInner() {
     // loaded before this runs, so it's the current roof's type.
     var _mono = (_rspType === 'mono');
     var n = (_mono ? 1 : 2) * perSide;
+    // The ridge-claim takeoff counted each slope on its own.
+    if (s._claim && s._perNeg != null){ n = s._perNeg + s._perPos; perSide = Math.max(s._perNeg, s._perPos); }
     if (i === primary && _valleyWings > 0) { n += _valleyWings; valleyExtra = _valleyWings; }  // long valley spares
     var key = s.col + ':' + s.mm;
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
     _checkSections.push({ color: _dcols[i], perSide: perSide, valleyExtra: valleyExtra,
+      perNeg: (s._claim && s._perNeg != null) ? s._perNeg : null,
+      perPos: (s._claim && s._perPos != null) ? s._perPos : null,
       total: n, orderedMm: s.mm, isPrimary: (i === primary), mono: _mono,
       // Geometry for the to-scale overlay: ridge direction and the
       // section's oriented bounding box (u = along ridge, v = across),

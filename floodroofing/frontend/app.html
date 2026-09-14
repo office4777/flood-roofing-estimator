@@ -19095,7 +19095,8 @@ function _renderCalcCheckCanvas(sections, opts){
       // is one full-depth face (no ridge), so draw a single full-height band.
       var _sds = s.mono ? [1] : [-1, 1];
       _sds.forEach(function(sd){
-        for (var j = 0; j < b.per; j++){
+        var _perSd = (sd < 0 && s.perNeg != null) ? s.perNeg : ((sd > 0 && s.perPos != null) ? s.perPos : b.per);
+        for (var j = 0; j < _perSd; j++){
           var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
           var vLo = s.mono ? (b.vMid - b.halfRun) : b.vMid;
           var vHi = b.vMid + sd*b.halfRun;
@@ -19220,7 +19221,8 @@ function _renderCalcCheckCanvas(sections, opts){
     if (_prevLen !== null && _len !== _prevLen) _crun = 0;         // new length → restart at 1
     _prevLen = _len;
     _numBase.set(b, _crun);
-    _crun += (b.s.mono ? 1 : 2) * b.per;                           // columns this section consumes
+    _crun += (b.s.perNeg != null && b.s.perPos != null) ? (b.s.perNeg + b.s.perPos)
+           : (b.s.mono ? 1 : 2) * b.per;                           // columns this section consumes
   });
   built.forEach(function(b){
     var s = b.s, colWpx = b.cw*sc, numFont = Math.max(8, Math.min(13, colWpx*0.5));
@@ -19229,9 +19231,12 @@ function _renderCalcCheckCanvas(sections, opts){
     // Mono = one row of numbers (single face); gable/hip = one row per slope,
     // the second slope continuing after the first (base + per).
     var _nsds = s.mono ? [0] : [-1, 1];
+    var _base = _base0;
     _nsds.forEach(function(sd, si){
-      var base = _base0 + si*b.per;
-      for (var j = 0; j < b.per; j++){
+      var base = _base;
+      var _perSd = (sd < 0 && s.perNeg != null) ? s.perNeg : ((sd > 0 && s.perPos != null) ? s.perPos : b.per);
+      _base += _perSd;
+      for (var j = 0; j < _perSd; j++){
         var nc = toC(b.w2(b.startU + (j+0.5)*b.cw, b.vMid + sd*b.halfRun*0.6));
         ctx.fillStyle = 'rgba(255,255,255,0.85)'; _roundRect(ctx, nc[0]-8, nc[1]-7, 16, 14, 3); ctx.fill();
         ctx.fillStyle = '#0a1628'; ctx.fillText(String(base + j + 1), nc[0], nc[1]);
