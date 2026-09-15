@@ -2731,18 +2731,101 @@ app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => 
 // Per-user settings: branding, quote defaults, JMS API keys. A user with no
 // settings row yet inherits their company's most recent one (so a teammate
 // joining an existing company starts with the company branding + price book).
-// The company's ONE settings row. Price book, branding, labour rates and the
-// job-number counter belong to the BUSINESS, not to whoever happens to be
-// logged in: three office staff each editing a private copy is exactly how
-// price books drift apart and how two people hand out job 06121 on the same
-// morning. Canonical = the company's most recently updated row, so existing
-// per-user rows converge on one the first time anybody saves. Nothing is
-// deleted — an old row just stops being the one that's read.
+// The company's ONE settings row. Price book, branding, labour rates, the
+// Fergus key and the job-number counter belong to the BUSINESS, not to
+// whoever happens to be logged in: three office staff each editing a private
+// copy is exactly how price books drift apart and how two people hand out job
+// 06121 on the same morning.
+//
+// Canonical USED to be "the company's most recently updated row", and that
+// was wrong in a way that only shows up with a second person on the account.
+// Every user carries their own user_settings row (the company_id back-fill
+// gave them all the same company), so the business's settings were whoever
+// saved last: a teammate signing in and saving anything at all made HIS row
+// the company's, and with it went the Fergus key ("Fergus isn't connected
+// yet" on an account that was connected five minutes ago), the price book,
+// and the job-number counter — which then handed out a number somebody
+// already had.
+//
+// It is now chosen deterministically: the OWNER's row, and only if the owner
+// has none does the most recently updated row stand in. Nothing is deleted.
+// Because the rows have been flip-flopping, each field also falls back to the
+// newest sibling row that HAS it, so a key or a price book written onto a
+// teammate's row while it was "the" row is not lost — and the next save
+// writes it onto the canonical row, which is how a company heals.
+const _COMPANY_OWNER_TTL_MS = 60000;
+const _companyOwnerCache = new Map();   // companyId -> { at, userId }
+async function _companyOwnerUserId(companyId){
+  if (!companyId) return null;
+  const hit = _companyOwnerCache.get(String(companyId));
+  if (hit && (Date.now() - hit.at) < _COMPANY_OWNER_TTL_MS) return hit.userId;
+  let userId = null;
+  try {
+    const { data } = await supabase.from('company_users').select('user_id, role')
+      .eq('company_id', companyId).eq('role', 'owner');
+    // More than one owner is allowed; pick the same one every time.
+    const ids = (data || []).map(r => String(r.user_id)).filter(Boolean).sort();
+    userId = ids[0] || null;
+  } catch (e) { userId = null; }
+  _companyOwnerCache.set(String(companyId), { at: Date.now(), userId });
+  return userId;
+}
+function _settingsValueEmpty(v){
+  if (v == null) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+const _SETTINGS_MERGE_FIELDS = ['branding', 'quote_defaults', 'price_book', 'selectables',
+  'acceptance_tasks', 'schedule_cfg', 'ui_flags', 'billing_email'];
+// Newest first, so the first sibling that has a field wins.
+function _bySettingsRecency(a, b){
+  return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+}
+function _mergeCompanySettings(primary, rows){
+  if (!primary || !rows || rows.length < 2) return primary;
+  const others = rows.filter(r => r !== primary).sort(_bySettingsRecency);
+  const out = Object.assign({}, primary);
+  for (const f of _SETTINGS_MERGE_FIELDS){
+    if (!_settingsValueEmpty(out[f])) continue;
+    const donor = others.find(r => !_settingsValueEmpty(r[f]));
+    if (donor) out[f] = donor[f];
+  }
+  // jms_keys merges key by KEY, not wholesale: a canonical row carrying
+  // {fergus:''} is not "has a value", and that empty string is exactly what
+  // was disconnecting a connected business.
+  const keys = Object.assign({}, primary.jms_keys || {});
+  for (const r of others){
+    const k = r.jms_keys || {};
+    for (const name of Object.keys(k)){
+      if (!String(keys[name] || '').trim() && String(k[name] || '').trim()) keys[name] = k[name];
+    }
+  }
+  if (Object.keys(keys).length) out.jms_keys = keys;
+  return out;
+}
+function _pickCompanySettingsRow(rows, ownerUserId){
+  if (!rows || !rows.length) return null;
+  const owned = ownerUserId && rows.find(r => String(r.user_id) === String(ownerUserId));
+  return owned || rows.slice().sort(_bySettingsRecency)[0];
+}
+// The company's settings by id, for the paths that have no req: the
+// unauthenticated accept page, and Stripe's webhook.
+async function _companySettingsRowById(companyId){
+  if (!companyId) return null;
+  try {
+    const { data } = await supabase.from('user_settings').select('*').eq('company_id', companyId);
+    if (!data || !data.length) return null;
+    return _mergeCompanySettings(_pickCompanySettingsRow(data, await _companyOwnerUserId(companyId)), data);
+  } catch (e) { return null; }
+}
 async function _companySettingsRow(req){
   if (req.companyId){
     const data = _mustRead(await supabase.from('user_settings').select('*')
-      .eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1), 'settings');
-    if (data && data[0]) return data[0];
+      .eq('company_id', req.companyId), 'settings');
+    if (data && data.length)
+      return _mergeCompanySettings(_pickCompanySettingsRow(data, await _companyOwnerUserId(req.companyId)), data);
   }
   // The caller's own legacy row (written before rows carried a company).
   // If it is stamped with a DIFFERENT company than the caller is in now,
@@ -2894,10 +2977,16 @@ app.post('/settings/next-job-no', requireAuth, async (req, res) => {
   const pool = _pgPool();
   if (pool && req.companyId){
     try {
+      // The counter belongs to the company's CANONICAL row — the owner's.
+      // Taking "the most recently updated row" meant a teammate saving their
+      // settings moved the counter to a row that had never issued a number,
+      // and the next job came out as one somebody already had.
+      const _canon = await _companyOwnerUserId(req.companyId);
       const sql =
         "WITH cur AS (" +
         "  SELECT user_id, coalesce(quote_defaults->>'next_job_no','06121') AS n" +
         "    FROM public.user_settings WHERE company_id = $1" +
+        "     AND ($2::uuid is null or user_id = $2::uuid)" +
         "   ORDER BY updated_at DESC NULLS LAST LIMIT 1 FOR UPDATE)" +
         " UPDATE public.user_settings s" +
         "    SET quote_defaults = jsonb_set(coalesce(s.quote_defaults,'{}'::jsonb), '{next_job_no}'," +
@@ -2907,7 +2996,7 @@ app.post('/settings/next-job-no', requireAuth, async (req, res) => {
         "        updated_at = now()" +
         "   FROM cur WHERE s.user_id = cur.user_id" +
         " RETURNING cur.n AS allocated, s.quote_defaults->>'next_job_no' AS next";
-      const r = await pool.query(sql, [req.companyId]);
+      const r = await pool.query(sql, [req.companyId, _canon || null]);
       if (r.rowCount) return res.json({ jobNo: r.rows[0].allocated, next: r.rows[0].next, atomic: true });
     } catch (e) { console.warn('[jobno] atomic allocation failed, falling back:', e.message); }
   }
@@ -4072,10 +4161,8 @@ async function _sendSubscriptionMail(inv, build){
         .select('company_id').eq('stripe_customer_id', cust).limit(1);
       const cid = subs && subs[0] && subs[0].company_id;
       if (cid){
-        const { data: rows } = await supabase.from('user_settings')
-          .select('billing_email').eq('company_id', cid)
-          .order('updated_at', { ascending: false }).limit(1);
-        to = String((rows && rows[0] && rows[0].billing_email) || '').trim();
+        const _srow = await _companySettingsRowById(cid);
+        to = String((_srow && _srow.billing_email) || '').trim();
       }
     }
   } catch (e) { /* fall through to Stripe's own address */ }
@@ -4217,14 +4304,13 @@ const INVOICE_TYPES = ['deposit', 'progress', 'final'];
 const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'void'];
 
 // The settings row that governs a job — needed on the UNAUTHENTICATED accept
-// path where there is no req, only the job row. Company row first (newest
-// wins, same rule as _companySettingsRow), then the job owner's.
+// path where there is no req, only the job row. Company row first (the
+// owner's row, same rule as _companySettingsRow), then the job owner's.
 async function _settingsRowForJob(job){
   try {
     if (job.company_id){
-      const { data } = await supabase.from('user_settings').select('*')
-        .eq('company_id', job.company_id).order('updated_at', { ascending: false }).limit(1);
-      if (data && data[0]) return data[0];
+      const row = await _companySettingsRowById(job.company_id);
+      if (row) return row;
     }
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', job.user_id).maybeSingle();
     return data || null;
@@ -6738,9 +6824,7 @@ async function _adoptLegacyFergusKey(){
   const cid = String(process.env.FERGUS_COMPANY_ID || '').trim();
   if (!key || !cid) return;
   try {
-    const { data } = await supabase.from('user_settings').select('user_id, jms_keys')
-      .eq('company_id', cid).order('updated_at', { ascending: false }).limit(1);
-    const row = data && data[0];
+    const row = await _companySettingsRowById(cid);
     if (!row) { console.warn('[fergus] no settings row for FERGUS_COMPANY_ID — key not adopted'); return; }
     if (row.jms_keys && String(row.jms_keys.fergus || '').trim()) return;   // already theirs
     const keys = Object.assign({}, row.jms_keys || {}, { fergus: key });

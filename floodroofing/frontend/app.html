@@ -3077,6 +3077,10 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
 
 
+/* ── Busy overlay ───────────────────────────────────────────── */
+.busy-spin{width:26px;height:26px;border-radius:50%;border:3px solid #dbeafe;border-top-color:#0099cc;animation:busySpin .8s linear infinite;flex:0 0 auto}
+@keyframes busySpin{to{transform:rotate(360deg)}}
+
 /* ── Tooltip ────────────────────────────────────────────────── */
 #appTooltip{
   position:fixed;
@@ -3488,6 +3492,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
      showTip()/hideTip() pair but no ELEMENT, so getElementById came back null
      and not one tooltip in the app had ever appeared. -->
 <div id="appTooltip" role="tooltip" aria-hidden="true"></div>
+
+<!-- Opening a job saves the one on screen, fetches the new one and rebuilds
+     the canvas from it — on a big drawing that is several seconds during
+     which NOTHING moved, and an app that does not move is an app that has
+     crashed as far as anyone using it is concerned. -->
+<div id="appBusy" style="display:none;position:fixed;inset:0;z-index:100001;background:rgba(10,22,40,.45);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:22px 30px;box-shadow:0 18px 50px rgba(0,0,0,.3);display:flex;align-items:center;gap:14px;font-family:inherit">
+    <div class="busy-spin" aria-hidden="true"></div>
+    <div><div id="appBusyMsg" style="font-size:15px;font-weight:700;color:#0a1628">Loading…</div>
+         <div id="appBusySub" style="font-size:12px;color:#64748b;margin-top:2px"></div></div>
+  </div>
+</div>
 
 <!-- ── LOGIN SCREEN ─────────────────────────────────────────────────────── -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0a1628;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -16795,11 +16811,16 @@ async function _hbPushToFergus(id){
 // be unconditional and the error was never rethrown, so every caller's catch
 // block was dead code and a recoverable miss became a dead end.
 async function openJob(id, opts){
+  // Nested opens (the Fergus picker calls this after putting its own message
+  // up) must not take the overlay down early — busyShow/busyHide count.
+  busyShow('Opening job\u2026', 'Saving what is on screen, then loading the drawing');
   try {
     // Never let opening a job silently discard un-pushed edits to the
     // one that's already open: save it (or at least draft it) first.
     try { await _saveBeforeSwitch(); } catch(e){}
+    busyMsg('Opening job\u2026', 'Loading the drawing');
     var j = await api('GET', '/jobs/' + id);
+    busyMsg('Opening job\u2026', 'Rebuilding the roof map');
     restoreFromJob(j);
     S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
     refreshJobsList();
@@ -16810,6 +16831,8 @@ async function openJob(id, opts){
   } catch(e) {
     if (opts && opts.quiet) throw e;
     alert('Could not open job: ' + e.message);
+  } finally {
+    busyHide();
   }
 }
 
@@ -35849,37 +35872,48 @@ async function _serverSearchSelectJobFergus(q, seq){
   var box = document.getElementById('selectJobFergList'); if (!box) return;
   // Same endpoint pair runFergSearch uses — both confirmed working on
   // the Flood Roofing tenant by the /jms/debug/fergus-find probe.
-  var proms = [
-    fergusCall('GET', '/jobs?pageSize=20&filterSearchText=' + encodeURIComponent(q))
+  //
+  // These used to be awaited TOGETHER, which meant typing a job number made
+  // you wait for the slower of the two. filterJobNo on a tenant with a few
+  // thousand jobs comes back quickly; filterSearchText is a text scan and can
+  // take the better part of a minute — so looking up job 2971 sat on an empty
+  // list for a minute while the answer had been available for two seconds.
+  // Each lookup now paints the moment it lands, and the second one just adds
+  // to the list.
+  var lookup = function(qs){
+    return fergusCall('GET', '/jobs?pageSize=20&' + qs)
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
-      .catch(function(){ return []; })
-  ];
-  if (/^\d+$/.test(q)) {
-    proms.push(
-      fergusCall('GET', '/jobs?pageSize=20&filterJobNo=' + encodeURIComponent(q))
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
-        .catch(function(){ return []; })
-    );
-  }
-  var batches = await Promise.all(proms);
-  // Stale-result guard: another keystroke fired after this one started
-  if (seq !== _sjFergSearchSeq) return;
-  var serverJobs = [].concat.apply([], batches).map(_fergJobView);
-  // Merge into cache so future opens of the modal find them locally
-  S.fergJobsCache = S.fergJobsCache || [];
-  var seen = {}; S.fergJobsCache.forEach(function(j){ seen[j.id] = 1; });
-  serverJobs.forEach(function(j){ if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.unshift(j); } });
-  // Re-filter combined cache + render. _fergMatches handles the
-  // displayNo / jobNo / customer / address fields.
-  var all = S.fergJobsCache || [];
-  var matched = all.filter(function(j){
-    return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
-      : ((j.customer||'').toLowerCase().indexOf(q.toLowerCase())>=0 || (j.address||'').toLowerCase().indexOf(q.toLowerCase())>=0 || String(j.jobNo||'').indexOf(q)>=0);
-  });
-  if (typeof _fergRecencyComp === 'function') matched.sort(_fergRecencyComp);
-  _paintSelectJobFergusList(box, matched.slice(0, 80), q, all.length, false);
+      .catch(function(){ return []; });
+  };
+  var pending = 0;
+  var land = function(jobs){
+    pending--;
+    // Stale-result guard: another keystroke fired after this one started.
+    if (seq !== _sjFergSearchSeq) return;
+    var serverJobs = (jobs || []).map(_fergJobView);
+    // Merge into cache so future opens of the modal find them locally.
+    S.fergJobsCache = S.fergJobsCache || [];
+    var seen = {}; S.fergJobsCache.forEach(function(j){ seen[j.id] = 1; });
+    serverJobs.forEach(function(j){ if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.unshift(j); } });
+    // Re-filter combined cache + render. _fergMatches handles the
+    // displayNo / jobNo / customer / address fields.
+    var all = S.fergJobsCache || [];
+    var matched = all.filter(function(j){
+      return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
+        : ((j.customer||'').toLowerCase().indexOf(q.toLowerCase())>=0 || (j.address||'').toLowerCase().indexOf(q.toLowerCase())>=0 || String(j.jobNo||'').indexOf(q)>=0);
+    });
+    if (typeof _fergRecencyComp === 'function') matched.sort(_fergRecencyComp);
+    // Still searching while the other lookup is out, so the list keeps saying
+    // so rather than reading as "that job does not exist".
+    _paintSelectJobFergusList(box, matched.slice(0, 80), q, all.length, pending > 0);
+  };
+  // A pure number is a job number: ask for it FIRST and paint on it.
+  var calls = /^\d+$/.test(q)
+    ? ['filterJobNo=' + encodeURIComponent(q), 'filterSearchText=' + encodeURIComponent(q)]
+    : ['filterSearchText=' + encodeURIComponent(q)];
+  pending = calls.length;
+  calls.forEach(function(qs){ lookup(qs).then(land); });
 }
 
 // Re-route searchbox input to the Fergus list when that tab is on.
@@ -35895,6 +35929,8 @@ async function useFergusJobInModal(jobId){
   var j = (S.fergJobsCache || []).find(function(x){ return String(x.id) === String(jobId); });
   if (!j) return;
   if (window._fergLinkMode) return _fergusLinkApply(j);
+  busyShow('Opening job\u2026', (j.customer || j.address || ''));
+  try {
   // Don't lose the currently-open job's edits when we switch.
   try { await _saveBeforeSwitch(); } catch(e){}
   closeSelectJobModal();
@@ -35958,6 +35994,7 @@ async function useFergusJobInModal(jobId){
   try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
   try { _writeLocalDraftNow(); } catch(e){}
   gotoTab('roof');
+  } finally { busyHide(); }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -47799,6 +47836,31 @@ function hideTip() {
   clearTimeout(_tipTimer);
   var el = document.getElementById('appTooltip');
   if(el) el.style.display = 'none';
+}
+
+// ── "It looks frozen" ────────────────────────────────────────────
+// Opening a job is several seconds of real work — save what is on screen,
+// fetch the job, rebuild the canvas — and every one of those seconds looked
+// like a hung app, because nothing on screen moved. Reference-counted, so a
+// nested open (the Fergus picker calls openJob) does not take the overlay
+// down while the outer one is still working.
+var _busyDepth = 0;
+function busyShow(msg, sub){
+  _busyDepth++;
+  busyMsg(msg, sub);
+  var el = document.getElementById('appBusy'); if (el) el.style.display = 'flex';
+}
+// Change the words WITHOUT taking another reference — a step of the same
+// operation, not a new one. Showing twice and hiding once is how an overlay
+// gets stuck over a working app.
+function busyMsg(msg, sub){
+  var m = document.getElementById('appBusyMsg'); if (m) m.textContent = msg || 'Loading\u2026';
+  var t = document.getElementById('appBusySub'); if (t) t.textContent = sub || '';
+}
+function busyHide(all){
+  _busyDepth = all ? 0 : Math.max(0, _busyDepth - 1);
+  if (_busyDepth > 0) return;
+  var el = document.getElementById('appBusy'); if (el) el.style.display = 'none';
 }
 
 // ── MATERIALS FROM LINES ─────────────────────────────────────────

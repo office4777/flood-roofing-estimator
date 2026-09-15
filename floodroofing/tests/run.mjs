@@ -33,7 +33,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // The real Express app against an in-memory stand-in for PostgREST. Fast,
 // no browser, and the place a multi-tenancy bug shows up first.
 const API = [
-  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'billingoff', 'security', 'register', 'sharetoken', 'acceptflow', 'crosstenant', 'joblist', 'sbretry', 'blipsafe', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'waitlist', 'metrics', 'flashguard', 'quoteremind', 'quotestats', 'quotefeedcache', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke',
+  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'billingoff', 'security', 'register', 'sharetoken', 'acceptflow', 'crosstenant', 'joblist', 'sbretry', 'blipsafe', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'waitlist', 'metrics', 'flashguard', 'quoteremind', 'quotestats', 'quotefeedcache', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'teamsettings', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke',
 ];
 // The real app.html, driven by Playwright.
 const UI = [
@@ -42,7 +42,7 @@ const UI = [
   'trialui', 'navplan', 'jobhistory', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'selcopy', 'selextras', 'profilecover', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'report46', 'fergusauto', 'emailpush', 'quotemapkeep', 'gphr', 'quoteversions', 'undelete', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'clearbg', 'roofmenu', 'sheetrun1024', 'bgmatch', 'tutorial', 'seo', 'sitebrand', 'quotelink', 'quotebar', 'roofhistory', 'lkgguard', 'rotatefine', 'roofpdf', 'jobbgleak', 'adminblind', 'snapreach', 'roofpitch', 'pricingarea', 'fergussplit', 'gradetruth', 'autopush', 'hbdelete', 'livequote', 'delivmail', 'restoredrill', 'roofmapcrop', 'platformscaff', 'draftbg', 'clearfit', 'emailtpl', 'extrasguard', 'truemeas', 'scalemode', 'notifybell', 'flashpitch', 'custbarside', 'suppliercolours', 'qnstats', 'maildomainui', 'grandfatherui', 'hroofsnap', 'rectroof', 'roofreal', 'hip45', 'gableshapes', 'sheetstep', 'cornerpad', 'savemoved', 'appupdate', 'autoscale', 'jmsdiagui', 'fbkind', 'scalecaution', 'scheduleui', 'schedimport', 'whoami', 'inboxui',
   // Browser-driven despite exercising backend behaviour — they import
   // playwright, and the CI Backend job runs the API list without it.
-  'gutterexclude', 'sheetbarge', 'jpmaps', 'jpallroofs', 'newjobkeep', 'report50', 'sheetclaim', 'cutlistwire', 'report51', 'report52', 'fergstale', 'untitledjob', 'joblock', 'sitecopy', 'aboutyou', 'viewkeep', 'dailyreport', 'analytics', 'apptime',
+  'gutterexclude', 'sheetbarge', 'jpmaps', 'jpallroofs', 'newjobkeep', 'report50', 'sheetclaim', 'cutlistwire', 'report51', 'report52', 'fergstale', 'untitledjob', 'joblock', 'sitecopy', 'aboutyou', 'viewkeep', 'busyopen', 'dailyreport', 'analytics', 'apptime',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();
