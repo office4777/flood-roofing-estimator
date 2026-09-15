@@ -251,6 +251,25 @@ check('…and a plain "/" is rewritten to the landing page',
 const aliasRw = (vercelCfg.rewrites || []).find(r => r.source === '/index.html');
 check('…while /index.html still resolves, for anyone who has the app installed',
   !!aliasRw && aliasRw.destination === '/app.html', JSON.stringify(aliasRw));
+// Vercel validates vercel.json against a strict schema and REFUSES the whole
+// build on an unknown key — no partial deploy, no fallback to the last config.
+// A "comment" key added to a headers rule to explain a cache time did exactly
+// that: every production build errored for two ships, the promote gate went
+// green (it only byte-compares app.html, which those ships had not touched)
+// and the site quietly served the previous frontend. JSON has no comments.
+const _allowed = {
+  headers: ['source', 'headers', 'has', 'missing'],
+  redirects: ['source', 'destination', 'permanent', 'statusCode', 'has', 'missing'],
+  rewrites: ['source', 'destination', 'has', 'missing'],
+};
+const _stray = [];
+for (const [section, keys] of Object.entries(_allowed))
+  for (const rule of (vercelCfg[section] || []))
+    for (const k of Object.keys(rule))
+      if (!keys.includes(k)) _stray.push(section + '.' + k);
+check('vercel.json carries no key the Vercel schema will reject the build over',
+  _stray.length === 0, _stray.join(' ') || 'clean');
+
 const manifest = JSON.parse(await readFile(_j(DIR, 'manifest.webmanifest'), 'utf8'));
 check('…and the installed app launches at the URL the app actually lives at',
   manifest.start_url === '/app', manifest.start_url);
