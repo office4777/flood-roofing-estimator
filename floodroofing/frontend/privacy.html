@@ -62,6 +62,7 @@
     <h2>What's in here</h2>
     <ol>
       <li><a href="#short">The short version</a></li>
+      <li><a href="#floodroofing">RoofMap is run by a roofing company</a></li>
       <li><a href="#roles">Whose information is whose</a></li>
       <li><a href="#collect">What we hold</a></li>
       <li><a href="#why">Why we hold it</a></li>
@@ -86,11 +87,59 @@
   <ul>
     <li>We hold what you put in — your account, your business details, your jobs, your customers' contact details, your drawings, your photos and your prices.</li>
     <li><strong>We do not sell it, rent it, or use it to advertise to anyone.</strong></li>
+    <li><strong>RoofMap is run by Flood Roofing, a roofing company — and nobody there can open your jobs, your quotes, your prices or your customers.</strong> That is worth its own section: <a href="#floodroofing">read it</a>.</li>
     <li>Your price book is never shown to another subscriber and never shared with a supplier.</li>
     <li>We use no tracking cookies and no third-party analytics. What we measure is fifteen milestones — did a business set itself up, did it draw a roof, did someone sign in — and nothing about your customers.</li>
     <li>Roof images and supplier price lists go to an AI service <strong>only when you press the button that does that</strong>, and are not used to train anything.</li>
     <li>You can get your data out or have it deleted. Ask us and we will do it.</li>
   </ul>
+</section>
+
+<section id="floodroofing">
+  <h2>RoofMap is run by a roofing company</h2>
+  <p class="gloss">The obvious question, answered before you have to ask it.</p>
+  <p>
+    RoofMap is built and run by <strong>Flood Roofing Limited</strong>, a working roofing company in
+    Whangarei. So you are being asked to put your jobs, your customers, your margins and your price
+    book into software owned by another roofer. That is a fair thing to be uneasy about, and the
+    answer is not "trust us" — it is what the software will and will not let anyone do.
+  </p>
+  <h3>What nobody at Flood Roofing can do</h3>
+  <ul>
+    <li><strong>Open your jobs.</strong> Every job, drawing, photo, quote and price book belongs to one
+      business, and that separation is enforced by the database itself with row-level security, not
+      merely by the app on top of it. Flood Roofing's own RoofMap account is an ordinary account with
+      exactly the same walls around it as yours.</li>
+    <li><strong>See your work through the support tools.</strong> The admin screens we use to run the
+      service show <em>accounts</em> — business name, the owner's name and contact, which plan, how
+      many people, whether the trial has run out, how many roofs have been drawn. They do not show a
+      single job, quote, price, drawing or homeowner. That is not a promise about our manners: an
+      automated test feeds a job full of customer details and prices through every one of those
+      screens and fails the build if any of it comes back out.</li>
+    <li><strong>See your price book or your margins.</strong> Your rates are never shown to another
+      subscriber, never sent to a supplier, and never used to work out what anyone else should
+      charge.</li>
+    <li><strong>Be told who your customers are.</strong> When you send us a feedback report from
+      inside the app, it carries the roof's measurements and nothing else — no client, no address,
+      no photo, no price. That is deliberate, and it is pinned by a test too.</li>
+  </ul>
+  <h3>The part we will not dress up</h3>
+  <p>
+    Somebody has to be able to reach the database to keep the service running — restore a backup,
+    fix a broken save, work out why an account cannot log in. At our size that is one or two people,
+    and at Flood Roofing. We are not going to claim a technical impossibility that is not true: what
+    we can tell you is that this access exists to run RoofMap and for nothing else, that the everyday
+    tools deliberately cannot reach your work, and that we do not look at a subscriber's jobs,
+    quotes or prices. If we ever need to look at something of yours to fix a fault you have reported,
+    we will ask you first.
+  </p>
+  <h3>Competing with us</h3>
+  <p>
+    Plenty of RoofMap subscribers quote against Flood Roofing. Nothing about your use of RoofMap is
+    visible to that side of the business: not the addresses you quote, not what you charged, not
+    whether you won it. If you would rather not take our word for any of this, ask — we will walk
+    you through exactly what the support screens show, on your own account.
+  </p>
 </section>
 
 <section id="roles">
@@ -347,7 +396,7 @@
     <li>Passwords are hashed by Supabase Auth. Nobody at RoofMap can see one.</li>
     <li>Sessions are signed tokens that expire, and are checked on every request.</li>
     <li>Customer quote links are guarded by a long random token, and stop working when the quote is withdrawn or the account is closed.</li>
-    <li>Access to production data is limited to the people who need it to run the service.</li>
+    <li>Access to production data is limited to the people who need it to run the service — and what the everyday support tools can reach is narrower still: accounts, never anyone's work (<a href="#floodroofing">why that matters here</a>).</li>
     <li>Errors are monitored, and secrets are stripped before an error is recorded or sent.</li>
     <li>Changes are covered by an automated test suite that runs on every deployment.</li>
   </ul>

@@ -86,6 +86,24 @@ check('…before it says what to do instead', /aerial/i.test(heroSub) && /minute
 check('…and the search result says the same thing',
   /measuring|aerial/i.test((/<meta name="description" content="([^"]*)"/.exec(landing) || [])[1] || ''));
 
+// ── the conflict of interest, answered where it is felt ───────────
+// RoofMap is run by a roofing company, so a careful roofer goes straight to
+// the privacy page before signing up. tests/adminblind.mjs is the enforcement
+// (no admin route can return a job, a price or a homeowner); these pin that
+// the answer is actually PRINTED, in both places somebody looks for it, and
+// that it keeps the caveat rather than overclaiming.
+const privacy = read('privacy.html');
+check('the privacy policy answers the Flood Roofing conflict in its own section',
+  /id="floodroofing"/.test(privacy) && /run by a roofing company/i.test(privacy));
+check('…says plainly that nobody there can open a subscriber\'s work',
+  /nobody there can open your jobs/i.test(privacy));
+check('…backs it with the support tools, not with a promise about manners',
+  /do not show a\s+single job/i.test(privacy) && /fails the build/i.test(privacy));
+check('…and keeps the caveat about database access instead of overclaiming',
+  /will not dress up/i.test(privacy) && /restore a backup/i.test(privacy));
+check('the pricing page answers it too, where the doubt actually forms',
+  /Can you see my jobs and my prices\?/.test(pricing) && /privacy#floodroofing/.test(pricing));
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);
