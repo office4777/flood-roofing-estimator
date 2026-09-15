@@ -142,6 +142,40 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     v.caps.join('|') === 'Plan — page 1|Plan — page 2|Plan — page 3', JSON.stringify(v.caps));
   check('…as ordinary images, so they save with the job like any photo', v.src === true);
 
+  // In the photos panel they behave exactly like the Fergus photos beside
+  // them: whole pictures at panel width, a zoom slider that widens them past
+  // the panel, and a box you drag to move around a zoomed page. An 84px
+  // cropped square of an A1 sheet is a grey rectangle, not a plan.
+  await pg.evaluate(() => { try { _fergusPanelOpen ? _fergusPanelOpen() : null; } catch(e){} _renderJobPhotosGrid(); });
+  await pg.waitForTimeout(300);
+  let panel = await pg.evaluate(() => {
+    const g = document.getElementById('jobPhotosGrid');
+    const im = g && g.querySelector('img');
+    return {
+      scroll: !!document.getElementById('jobPhotosScroll'),
+      slider: !!document.getElementById('jobPhotosZoom'),
+      fit: im ? getComputedStyle(im).objectFit : '',
+      h: im ? im.style.height : '',
+      caps: [...g.querySelectorAll('div[style*="rgba(0,0,0,.6)"]')].map(d => d.textContent),
+      width: g ? g.style.width : '',
+    };
+  });
+  check('the pages sit in a pannable scroll box with its own zoom',
+    panel.scroll && panel.slider, JSON.stringify(panel));
+  check('…shown whole, not cropped to a square',
+    panel.fit !== 'cover' && panel.h === 'auto', JSON.stringify({ fit: panel.fit, h: panel.h }));
+  check('…each captioned with its page number', panel.caps.length === 3, JSON.stringify(panel.caps));
+  await pg.evaluate(() => { const sl = document.getElementById('jobPhotosZoom'); sl.value = 250; _jobPhotosZoom(250); });
+  await pg.waitForTimeout(200);
+  panel = await pg.evaluate(() => ({
+    width: (document.getElementById('jobPhotosGrid') || {}).style?.width,
+    out: (document.getElementById('jobPhotosZoomOut') || {}).textContent,
+    grab: getComputedStyle(document.getElementById('jobPhotosScroll')).cursor,
+  }));
+  check('…and the zoom really widens them past the panel',
+    panel.width === '250%' && panel.out === '250%', JSON.stringify(panel));
+  check('…with the box set up to be dragged around', panel.grab === 'grab', panel.grab);
+
   // Looking through them is the point: the viewer pages.
   await pg.evaluate(() => _jobPhotoView(0));
   await pg.waitForTimeout(250);

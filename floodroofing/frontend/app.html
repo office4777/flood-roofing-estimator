@@ -2098,6 +2098,13 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 /* On the Job Pack the photos pop-out sits as a second tab under MAPS. */
 #fergusRoofPanel.jp-second #fergusRoofPanelToggle{ top:180px; }
 #fergusRoofPhotoGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
+/* The job's own photos — including every page of a PDF plan — behave
+   exactly like the Fergus column above: full width, zoomable past the
+   panel, and the box pans. */
+#jobPhotosScroll{ max-height:46vh; overflow:auto; -webkit-overflow-scrolling:touch; cursor:grab; touch-action:none; border-radius:8px; }
+#jobPhotosScroll.is-grabbing{ cursor:grabbing; user-select:none; }
+#jobPhotosScroll img{ -webkit-user-drag:none; user-drag:none; user-select:none; -webkit-touch-callout:none; }
+#jobPhotosGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:70px; right:0; bottom:16px;
@@ -5190,7 +5197,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button onclick="openRapidCamera()" class="rapidcam-btn" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📸 Rapid photos</button>
         <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
       </div>
-      <div id="jobPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px"></div>
+      <!-- Same shape as the Fergus photo column below: full-width pictures,
+           a zoom slider that widens them past the panel, and a scroll box you
+           drag to move around a zoomed one. A plan page is A1 — a 84px
+           thumbnail of it is not a plan, it is a grey rectangle. -->
+      <div style="display:flex;align-items:center;gap:9px;margin:0 0 8px">
+        <span style="font-size:11px;color:var(--text2);white-space:nowrap">🔍 Zoom</span>
+        <input id="jobPhotosZoom" type="range" min="100" max="400" step="10" value="100" oninput="_jobPhotosZoom(this.value)" style="flex:1;accent-color:#0099cc">
+        <span id="jobPhotosZoomOut" style="font-size:11px;color:#0a1628;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
+      </div>
+      <div id="jobPhotosScroll"><div id="jobPhotosGrid"></div></div>
       <!-- FILES ON THE JOB — for the businesses without a Fergus to hold
            them: council plans, the old quote, a PDF from the homeowner.
            They ride inside the job the same as photos. -->
@@ -20775,13 +20791,33 @@ function _renderJobPhotosGrid(){
   var ph = (window.S && S.photos) || [];
   var c = document.getElementById('jobPhotosCount');
   if (c) c.textContent = ph.length ? String(ph.length) : '';
+  // Whole pictures, not cropped squares: a page of a plan has its detail at
+  // the edges, and object-fit:cover threw those away. The caption rides over
+  // the bottom the same way the Fergus photos' filenames do.
   g.innerHTML = ph.length ? ph.map(function(p, i){
-    return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1;background:#f1f5f9">' +
-      '<img src="' + p.src + '" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in">' +
-      '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button>' +
-      '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;bottom:3px;left:3px;right:3px;height:20px;border:none;border-radius:6px;background:#0099cc;color:#fff;font-size:10px;line-height:1;cursor:pointer;font-family:inherit">Add to canvas</button>' +
+    var cap = String(p.caption || '').replace(/[<>&"]/g, '');
+    return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#fff">' +
+      '<img src="' + p.src + '" loading="lazy" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:auto;display:block;cursor:zoom-in">' +
+      (cap ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:5px 9px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none">' + cap + '</div>' : '') +
+      '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(10,22,40,.62);color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>' +
+      '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;top:5px;left:5px;height:24px;padding:0 10px;border:none;border-radius:7px;background:#0099cc;color:#fff;font-size:11px;line-height:1;cursor:pointer;font-family:inherit">Add to canvas</button>' +
     '</div>';
   }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--text2);text-align:center;padding:4px 0 2px">No photos yet — take one on site, it saves with the job.</div>';
+  _jobPhotosApplyZoom();
+}
+// The zoom slider widens the photo column past the panel; the scroll box
+// pans. Same mechanism as the Fergus column, deliberately — it is the
+// behaviour the owner already knows, so it needs no learning.
+function _jobPhotosZoom(v){
+  var g = document.getElementById('jobPhotosGrid');
+  var out = document.getElementById('jobPhotosZoomOut');
+  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
+  if (g) g.style.width = z + '%';
+  if (out) out.textContent = z + '%';
+}
+function _jobPhotosApplyZoom(){
+  var sl = document.getElementById('jobPhotosZoom');
+  _jobPhotosZoom(sl ? sl.value : 100);
 }
 // ── FILES ON THE JOB ────────────────────────────────────────────────
 // A business with no JMS still gets council plans, the old quote, a PDF
@@ -57186,6 +57222,7 @@ function _grabPan(el){
 }
 document.addEventListener('DOMContentLoaded', function(){
   _grabPan(document.getElementById('fergusRoofPhotoScroll'));
+  _grabPan(document.getElementById('jobPhotosScroll'));
 });
 // Zoom slider (100–400%) scales the photo column width; the scroll box pans.
 // Sets the width INLINE so it always wins (the load flow also writes an inline
