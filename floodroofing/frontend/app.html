@@ -4361,13 +4361,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
              ondragover="_roofUzDragOver(event)" ondragleave="_roofUzDragLeave(event)" ondrop="_roofUzDrop(event)"
              style="margin-top:6px;padding:14px 16px">
           <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
-          <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag a photo straight in, or use the buttons below</div>
+          <div class="uz-sub" style="margin-bottom:10px">JPG, PNG or a PDF plan — drag it straight in, or use the buttons below</div>
           <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
+          <input type="file" id="roofPdfFile" accept="application/pdf,.pdf" onchange="_roofPdfPick(event)" style="display:none">
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
             <button type="button" onclick="document.getElementById('roofFile').click()"
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
               <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
               Upload from PC
+            </button>
+            <button type="button" onclick="document.getElementById('roofPdfFile').click()"
+                    title="A council plan, an architect's drawing, the old quote — pick which page to draw on"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+              📄 Roof plan PDF
             </button>
             <button type="button" class="jms-only" onclick="openFergusPhotoPicker('canvas')"
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
@@ -4615,10 +4621,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <div id="viewMenuWrap" style="position:relative;display:inline-block">
           <button type="button" id="viewMenuBtn" onclick="toggleViewMenu(event)" style="border:1px solid #cbd5e1;background:#fff;color:#0a1628;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span aria-hidden="true" class="rt-emo">⚙</span><span>View</span><span style="font-size:10px;opacity:.7">▾</span>
+            <span aria-hidden="true" class="rt-emo">⚙</span><span>Edit font size / rotate image</span><span style="font-size:10px;opacity:.7">▾</span>
           </button>
           <div id="viewMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:12px 14px;min-width:250px;font-size:12px;color:#334155;font-weight:400">
-            <button type="button" id="btn-copygeom" onclick="copyRoofGeometry()" style="width:100%;margin-bottom:10px;padding:7px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📋 Copy roof geometry <span style="font-weight:400;color:#94a3b8">— for a bug report</span></button>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Canvas view</div>
             <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px" title="Hold Shift while clicking to drop a point with no snap at all.">
               <input type="checkbox" id="snapGrid" checked> Snap to grid <span style="font-size:10px;color:#94a3b8">(Shift = off)</span>
@@ -4646,8 +4651,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
             <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
-            <button type="button" id="siteModeBtn" onclick="_toggleSiteMode()" style="width:100%;margin:0 0 7px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Site mode = stripped-back onsite drawing (canvas, header, toolbar). Office mode = the full UI.">📐 Switch to Site mode</button>
-            <div style="border-top:1px solid #eef1f5;margin:0 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
             <input type="range" id="fineRotateSlider" min="0" max="100" step="0.1" value="0"
               style="width:100%;margin:0 0 8px;accent-color:#0099cc;cursor:pointer"
@@ -18365,6 +18368,166 @@ function _storeAerialCompressed(dataUrl){
     try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
   });
 }
+// ── A PDF PLAN AS THE THING YOU DRAW ON ──────────────────────────────
+// Roofers are handed plans far more often than aerials: council drawings,
+// an architect's set, the old quote. Every one of them arrives as a PDF with
+// the roof on page 4 of 11, so the app asks WHICH page rather than guessing,
+// then draws on it exactly as it would on a photo.
+//
+// The renderer (pdf.js) is fetched only when somebody actually picks a PDF —
+// it is a megabyte nobody who never opens one should pay for, and the app
+// must still start on a site with no signal. If it cannot be fetched, that
+// is said plainly instead of a button that does nothing.
+var PDFJS_VER = '3.11.174';
+var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VER;
+var _pdfjsPromise = null;
+function _pdfjsLoad(){
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);       // already here, or stubbed by a test
+  if (_pdfjsPromise) return _pdfjsPromise;
+  _pdfjsPromise = new Promise(function(resolve, reject){
+    var sc = document.createElement('script');
+    sc.src = PDFJS_BASE + '/pdf.min.js';
+    sc.onload = function(){
+      if (!window.pdfjsLib) return reject(new Error('pdf.js loaded but did not register'));
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + '/pdf.worker.min.js'; } catch(e){}
+      resolve(window.pdfjsLib);
+    };
+    sc.onerror = function(){ _pdfjsPromise = null; reject(new Error('could not load the PDF reader')); };
+    document.head.appendChild(sc);
+  });
+  return _pdfjsPromise;
+}
+function _roofPdfPick(e){
+  var f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (f) _roofPdfOpen(f);
+}
+// One page rendered to a canvas. `scale` is pdf.js's own: 1 is 72dpi, which
+// is unreadable for a plan, so the caller asks for what it needs.
+function _pdfRenderPage(page, scale){
+  var vp = page.getViewport({ scale: scale });
+  var cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(vp.width));
+  cv.height = Math.max(1, Math.round(vp.height));
+  var ctx = cv.getContext('2d');
+  // White behind it: a PDF page is transparent where it is blank, and a
+  // transparent background on a dark canvas is a black rectangle.
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  return Promise.resolve(page.render({ canvasContext: ctx, viewport: vp }).promise)
+    .then(function(){ return cv.toDataURL('image/jpeg', 0.92); });
+}
+var PDF_MAX_PAGES = 40;
+async function _roofPdfOpen(file){
+  var wrap = document.getElementById('roofPdfModal');
+  if (!wrap){
+    wrap = document.createElement('div');
+    wrap.id = 'roofPdfModal';
+    wrap.className = 'pg-wrap';
+    document.body.appendChild(wrap);
+  }
+  var show = function(inner){ wrap.innerHTML = '<div class="pg-box" style="max-width:720px">' + inner + '</div>'; wrap.style.display = 'flex'; };
+  show('<div class="pg-head">Reading the plan\u2026</div>' +
+       '<div class="pg-sub">Opening ' + String(file.name || 'the PDF').replace(/[<>&]/g, '') + '.</div>');
+  var lib;
+  try { lib = await _pdfjsLoad(); }
+  catch(e){
+    show('<div class="pg-head">Couldn\u2019t open the PDF</div>' +
+      '<div class="pg-sub">The PDF reader needs to be downloaded the first time, and it could not be reached \u2014 ' +
+      'usually no signal. Try again on wi-fi, or take a screenshot of the plan page and use <strong>Upload from PC</strong>.</div>' +
+      '<button class="pg-later" onclick="_roofPdfClose()">Close</button>');
+    return;
+  }
+  var buf;
+  try { buf = await file.arrayBuffer(); }
+  catch(e){ show('<div class="pg-head">Couldn\u2019t read that file</div><div class="pg-sub">' +
+    (e.message || 'Unknown error') + '</div><button class="pg-later" onclick="_roofPdfClose()">Close</button>'); return; }
+  var doc;
+  try { doc = await lib.getDocument({ data: new Uint8Array(buf) }).promise; }
+  catch(e){
+    show('<div class="pg-head">That PDF could not be read</div>' +
+      '<div class="pg-sub">' + String(e.message || 'It may be password-protected or damaged.').replace(/[<>&]/g, '') + '</div>' +
+      '<button class="pg-later" onclick="_roofPdfClose()">Close</button>');
+    return;
+  }
+  var total = Math.min(doc.numPages || 1, PDF_MAX_PAGES);
+  window._roofPdfDoc = doc;
+  show('<div class="pg-head">Which page is the roof plan?</div>' +
+    '<div class="pg-sub">Tap the page to draw on. Every page is saved to this job\u2019s photos as well, so you can look through the rest while you work.' +
+    (doc.numPages > PDF_MAX_PAGES ? ' <strong>Showing the first ' + PDF_MAX_PAGES + ' of ' + doc.numPages + ' pages.</strong>' : '') + '</div>' +
+    '<div id="roofPdfPages" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;max-height:56vh;overflow:auto;margin-top:6px"></div>' +
+    '<div class="pg-msg" id="roofPdfMsg"></div>' +
+    '<button class="pg-later" onclick="_roofPdfClose()">Cancel</button>');
+  var grid = document.getElementById('roofPdfPages');
+  for (var n = 1; n <= total; n++){
+    var cell = document.createElement('div');
+    cell.id = 'roofPdfThumb' + n;
+    cell.style.cssText = 'border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#f8fafc;cursor:pointer';
+    cell.innerHTML = '<div style="aspect-ratio:1/1.4;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">page ' + n + '\u2026</div>';
+    cell.setAttribute('onclick', '_roofPdfUsePage(' + n + ')');
+    grid.appendChild(cell);
+  }
+  // Thumbnails one at a time — a twenty-page architectural set rendered all
+  // at once is a frozen phone.
+  for (var i = 1; i <= total; i++){
+    try {
+      var page = await doc.getPage(i);
+      var src = await _pdfRenderPage(page, 0.5);
+      var c = document.getElementById('roofPdfThumb' + i);
+      if (c) c.innerHTML = '<img src="' + src + '" style="width:100%;display:block">' +
+        '<div style="font-size:11px;font-weight:700;color:#0a1628;text-align:center;padding:5px 0">Page ' + i + '</div>';
+    } catch(e){ /* one bad page must not stop the rest */ }
+  }
+}
+function _roofPdfClose(){
+  var w = document.getElementById('roofPdfModal');
+  if (w) w.style.display = 'none';
+  try { window._roofPdfDoc = null; } catch(e){}
+}
+// The chosen page goes under the drawing at a size worth drawing on, and
+// EVERY page joins the job photos — the roofer flicks through the rest the
+// same way they flick through site photos, because they are site photos now.
+async function _roofPdfUsePage(n){
+  var doc = window._roofPdfDoc;
+  var msg = document.getElementById('roofPdfMsg');
+  if (!doc) return;
+  if (msg){ msg.style.color = 'var(--text2)'; msg.textContent = 'Putting page ' + n + ' on the canvas\u2026'; }
+  try {
+    var page = await doc.getPage(n);
+    // 2.5 ≈ 180dpi: sharp enough to trace a dimension off, small enough to
+    // live inside a job row.
+    var big = await _pdfRenderPage(page, 2.5);
+    _setRoofImgFromDataUrl(big);
+    try { _roofPrevToCanvas(); } catch(e){}
+    try { _collapseRoofBg(); } catch(e){}
+  } catch(e){
+    if (msg){ msg.style.color = '#b91c1c'; msg.textContent = 'That page could not be rendered: ' + (e.message || 'unknown error'); }
+    return;
+  }
+  _roofPdfClose();
+  _roofPdfPagesToPhotos(doc);
+}
+function _roofPdfPagesToPhotos(doc){
+  var total = Math.min(doc.numPages || 1, PDF_MAX_PAGES);
+  if (!Array.isArray(S.photos)) S.photos = [];
+  var i = 1;
+  var next = function(){
+    if (i > total) {
+      try { renderPhotos(); } catch(e){}
+      try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+      return;
+    }
+    var n = i++;
+    doc.getPage(n).then(function(page){ return _pdfRenderPage(page, 1.4); }).then(function(src){
+      _downscalePhoto(src, function(small){
+        S.photos.push({ src: small, caption: 'Plan \u2014 page ' + n });
+        try { renderPhotos(); } catch(e){}
+        next();
+      });
+    }).catch(next);
+  };
+  next();
+}
+
 function _setRoofImgFromDataUrl(dataUrl){
   var b64 = dataUrl.split(',')[1];
   if (!b64) return;
@@ -18562,6 +18725,10 @@ function _roofUzDrop(ev){
   var dt = ev.dataTransfer; if (!dt) return;
   // Files first (drag from desktop / Fergus tab once downloaded).
   var f = dt.files && dt.files[0];
+  if (f && (/pdf$/i.test(f.type || '') || /\.pdf$/i.test(f.name || ''))){
+    _roofPdfOpen(f);
+    return;
+  }
   if (f && f.type.startsWith('image/')){
     var r = new FileReader();
     r.onload = function(rev){ _setRoofImgFromDataUrl(String(rev.target.result)); };
@@ -20697,14 +20864,45 @@ function _jobPhotoRemove(i){
   S.photos.splice(i, 1);
   renderPhotos();
 }
+// The photo viewer pages through the whole set — arrows, keyboard, or a
+// swipe. It matters most for a PDF plan: eleven pages arrive at once, and
+// closing and re-opening the grid to see page 5 is not looking at a plan.
 function _jobPhotoView(i){
-  var p = (S.photos || [])[i];
-  if (!p) return;
+  var ph = (S.photos || []);
+  if (!ph[i]) return;
+  var at = i;
   var ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(10,22,40,.92);display:flex;align-items:center;justify-content:center;padding:14px;cursor:zoom-out';
-  ov.innerHTML = '<img src="' + p.src + '" style="max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.5)">' +
-    '<button style="position:fixed;top:14px;right:14px;width:38px;height:38px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer">✕</button>';
-  ov.onclick = function(){ ov.remove(); };
+  ov.id = 'jobPhotoViewer';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(10,22,40,.92);display:flex;align-items:center;justify-content:center;padding:14px';
+  var arrow = 'position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;font-family:inherit';
+  var paint = function(){
+    var p = ph[at] || {};
+    var many = ph.length > 1;
+    ov.innerHTML = '<img id="jobPhotoViewerImg" src="' + p.src + '" style="max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.5);cursor:zoom-out">' +
+      '<button id="jobPhotoViewerClose" style="position:fixed;top:14px;right:14px;width:38px;height:38px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer">✕</button>' +
+      (many ? '<button id="jobPhotoPrev" style="' + arrow + ';left:10px">‹</button>' +
+              '<button id="jobPhotoNext" style="' + arrow + ';right:10px">›</button>' : '') +
+      '<div id="jobPhotoViewerCap" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;color:#e2e8f0;font-size:12.5px;pointer-events:none">' +
+        (p.caption ? String(p.caption).replace(/[<>&]/g, '') + ' · ' : '') + (at + 1) + ' of ' + ph.length + '</div>';
+  };
+  var step = function(d){ at = (at + d + ph.length) % ph.length; paint(); };
+  ov.onclick = function(ev){
+    var id = ev.target && ev.target.id;
+    if (id === 'jobPhotoPrev') { ev.stopPropagation(); return step(-1); }
+    if (id === 'jobPhotoNext') { ev.stopPropagation(); return step(1); }
+    close();
+  };
+  var onKey = function(ev){
+    if (ev.key === 'ArrowLeft') step(-1);
+    else if (ev.key === 'ArrowRight') step(1);
+    else if (ev.key === 'Escape') close();
+  };
+  function close(){
+    try { document.removeEventListener('keydown', onKey); } catch(e){}
+    ov.remove();
+  }
+  document.addEventListener('keydown', onKey);
+  paint();
   document.body.appendChild(ov);
 }
 // Keep the side-panel grid fresh whenever the panel opens.
