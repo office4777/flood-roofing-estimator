@@ -369,7 +369,9 @@ for (const [url, p] of Object.entries(seen)){
     const clean = h.split(/[?#]/)[0];
     if (!clean || clean === '/') return;
     if (PAGES[clean] || NOINDEX[clean]) return;
-    if (/^\/(brand|site\.css|legal\.css|robots\.txt|llms\.txt|sitemap\.xml)/.test(clean)) return;
+    // Static assets, not pages: images, the css, and /media (the demo video
+    // and its poster, served from our own domain rather than an embed).
+    if (/^\/(brand|media|site\.css|legal\.css|robots\.txt|llms\.txt|sitemap\.xml)/.test(clean)) return;
     unknown.push(url + ' → ' + clean);
   });
 }

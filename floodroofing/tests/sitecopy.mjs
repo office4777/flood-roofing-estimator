@@ -58,10 +58,33 @@ check('…and answers what the trial holds, what stays after, and that the price
 // ── the product, under the opening ───────────────────────────────
 const demoAt = landing.indexOf('<section class="demo"'), howAt = landing.indexOf('<section id="how">'), heroAt = landing.indexOf('<div class="hero">');
 check('the homepage shows the product in motion straight under the opening',
-  demoAt > heroAt && demoAt < howAt && /loom\.com\/embed\//.test(landing.slice(demoAt, howAt)));
-check('…and it is the 90-second one, not the six-minute walkthrough', /loom\.com\/embed\/cb3a3197f06d46e98e1c76261cc1fa51/.test(landing));
+  demoAt > heroAt && demoAt < howAt && /<video[\s\S]{0,400}roofmap-demo\.mp4/.test(landing.slice(demoAt, howAt)));
+// Ours, from our own domain: no third-party embed to load, nothing tracking
+// the visitor, and it still plays on the day Loom is down.
+check('…and it is our own file, not an embed', !/loom\.com\/embed\//.test(landing) &&
+  /src="\/media\/roofmap-demo\.mp4"/.test(landing));
+check('…with a poster frame, so the block is not a black hole before it plays',
+  /poster="\/media\/roofmap-demo-poster\.jpg"/.test(landing));
+check('…and preload="none", so a phone on data pays for it only if it is watched',
+  /preload="none"/.test(landing));
 check('…with the six-minute walkthrough offered underneath for the detail', /loom\.com\/share\/57f969a8894c4e438dc30f7482058b7e/.test(landing) && /full six-minute walkthrough/.test(landing));
 check('…as one job in four steps', ['Draw the roof', 'Generate the job pack', 'picks an option', 'Send the material order'].every(t => landing.slice(demoAt, howAt).includes(t)));
+
+// ── the homepage leads with the cost, not the feature ─────────────
+// "Map roofs faster" is a feature. The reason a roofer pays is the half-day
+// lost measuring a job that went to someone else — so that is what the first
+// screenful says, and this is here so it does not quietly drift back into
+// feature-speak on the next edit.
+const h1 = (/<h1>([\s\S]*?)<\/h1>/.exec(landing) || [])[1] || '';
+const heroSub = (/<p class="hero-sub">([\s\S]*?)<\/p>/.exec(landing) || [])[1] || '';
+check('the homepage opens on the roofs you DON\'T win, not on the software',
+  /never going to win|you.ll never win|might never win/i.test(h1), h1.replace(/<[^>]+>/g, '').trim());
+check('…and the first paragraph names what that costs — the drive, the time, the lost job',
+  /half a day|drive/i.test(heroSub) && /someone else|never win/i.test(heroSub),
+  heroSub.replace(/\s+/g, ' ').trim().slice(0, 120));
+check('…before it says what to do instead', /aerial/i.test(heroSub) && /minutes/i.test(heroSub));
+check('…and the search result says the same thing',
+  /measuring|aerial/i.test((/<meta name="description" content="([^"]*)"/.exec(landing) || [])[1] || ''));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

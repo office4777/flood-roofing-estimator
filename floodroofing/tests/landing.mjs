@@ -72,7 +72,10 @@ let v = await pg.evaluate(() => ({
   body: document.body.innerText.replace(/\s+/g, ' '),
 }));
 check('the page loads with a real title and description', /RoofMap/.test(v.title) && (v.desc||'').length > 60, v.title);
-check('the headline says what it does', /One drawing/.test(v.h1||''), v.h1);
+// The headline leads with what it costs to quote a roof the old way — the
+// half-day that goes to a job somebody else wins. sitecopy.mjs owns the
+// wording; this only asks that the h1 is the pain, not the feature list.
+check('the headline leads with the roofs you don\'t win', /never going to win|never win/i.test(v.h1||''), v.h1);
 // The page sells three specific things a roofing business loses money on, and
 // it used to sell speed instead. This is the guard against drifting back to a
 // feature list: each of the three has to be NAMED, not implied.

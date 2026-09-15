@@ -206,8 +206,11 @@ section{ padding:88px 0 }
 /* The product, in motion, straight under the opening — one real job. */
 .demo{ padding:56px 0 8px }
 .demo .demo-grid{ display:grid; grid-template-columns:1.45fr 1fr; gap:28px; align-items:start }
-.demo .video{ position:relative; padding-top:56.25%; border-radius:16px; overflow:hidden; background:#0a1628; box-shadow:0 18px 50px rgba(10,22,40,.22) }
-.demo .video iframe{ position:absolute; inset:0; width:100%; height:100%; border:0 }
+/* 4:3 — the screen recording's own shape. A 16:9 box letterboxed it with
+   black bars down both sides, which on a phone is most of the picture. */
+.demo .video{ position:relative; padding-top:75%; border-radius:16px; overflow:hidden; background:#0a1628; box-shadow:0 18px 50px rgba(10,22,40,.22) }
+.demo .video iframe,
+.demo .video video{ position:absolute; inset:0; width:100%; height:100%; border:0; object-fit:contain; background:#0a1628 }
 .demo ol{ margin:0; padding:0; list-style:none; display:grid; gap:12px; counter-reset:d }
 .demo li{ display:flex; gap:12px; align-items:flex-start; font-size:15.5px; line-height:1.45 }
 .demo li::before{ counter-increment:d; content:counter(d); flex:0 0 28px; height:28px; border-radius:50%; background:var(--accent); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; margin-top:1px }

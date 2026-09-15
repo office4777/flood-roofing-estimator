@@ -30,6 +30,13 @@
       ]
     },
     {
+      "comment": "The demo video and its poster. Cached for a day rather than a year: the file name stays the same when the video is re-cut, and a year-long cache would leave last month's video on every machine that had seen it.",
+      "source": "/media/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
       "source": "/brand/(.*)",
       "headers": [
         {
