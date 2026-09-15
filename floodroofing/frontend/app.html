@@ -4373,7 +4373,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button type="button" onclick="document.getElementById('roofPdfFile').click()"
                     title="A council plan, an architect's drawing, the old quote — pick which page to draw on"
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
-              📄 Roof plan PDF
+              📄 PDF Plans
             </button>
             <button type="button" class="jms-only" onclick="openFergusPhotoPicker('canvas')"
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
@@ -18248,7 +18248,14 @@ function _clearCanvasBg(){
   try { _setSaveStatus && _setSaveStatus('Background photo removed — the drawing is still there.', '#0369a1'); } catch(e){}
 }
 function _roofPrevToCanvas(){
-  var src = S.img64 || ((document.getElementById('roofPrevImg') || {}).src) || '';
+  // S.img64 is RAW base64 with no data: prefix — that is what the saved job
+  // holds, and handing it straight to an <img> makes the browser treat it as
+  // a relative URL, which 404s and lands on "Could not display that photo".
+  // The preview already holds a real data URL, and it is the FULL-resolution
+  // one; S.img64 is the downscaled copy kept for saving. Preview first.
+  var el = document.getElementById('roofPrevImg');
+  var fromPrev = (el && el.src && /^(data:|https?:|blob:)/.test(el.src)) ? el.src : '';
+  var src = fromPrev || _img64ToDataUrl(S.img64);
   if (!src) return;
   _fergusSetCanvasBg(src);
   try { _setSaveStatus && _setSaveStatus('🗺 Photo set as the roof background.', '#0369a1'); } catch(e){}
@@ -18404,7 +18411,18 @@ function _roofPdfPick(e){
 }
 // One page rendered to a canvas. `scale` is pdf.js's own: 1 is 72dpi, which
 // is unreadable for a plan, so the caller asks for what it needs.
+var PDF_MAX_CANVAS_PX = 4.2e6;     // ~2000×2100. Mobile browsers refuse far less than desktop.
+var PDF_MAX_SIDE = 2600;
 function _pdfRenderPage(page, scale){
+  // An A1 sheet at scale 2.5 is 4200×5900 = 25 megapixels, which is past what
+  // a phone will allocate: the canvas comes back blank and toDataURL returns
+  // "data:," — a background that silently fails to load. Cap the ask.
+  try {
+    var nat = page.getViewport({ scale: 1 });
+    var byArea = Math.sqrt(PDF_MAX_CANVAS_PX / Math.max(1, nat.width * nat.height));
+    var bySide = PDF_MAX_SIDE / Math.max(1, nat.width, nat.height);
+    scale = Math.max(0.2, Math.min(scale, byArea, bySide));
+  } catch(e){}
   var vp = page.getViewport({ scale: scale });
   var cv = document.createElement('canvas');
   cv.width = Math.max(1, Math.round(vp.width));
@@ -20864,37 +20882,123 @@ function _jobPhotoRemove(i){
   S.photos.splice(i, 1);
   renderPhotos();
 }
-// The photo viewer pages through the whole set — arrows, keyboard, or a
-// swipe. It matters most for a PDF plan: eleven pages arrive at once, and
-// closing and re-opening the grid to see page 5 is not looking at a plan.
+// The photo viewer: page through the set, and zoom into any of them.
+//
+// Zoom is not a nicety here. A plan page is A1 shrunk onto a phone screen —
+// the roof pitch, the eaves dimension, the bracing note are all unreadable
+// until it is magnified, and a viewer that only fits-to-screen is a picture
+// of a plan rather than the plan. Wheel, pinch, the +/− buttons and a
+// double-tap all zoom; dragging moves the picture when it is bigger than the
+// window; paging resets it so the next page starts whole.
 function _jobPhotoView(i){
   var ph = (S.photos || []);
   if (!ph[i]) return;
-  var at = i;
+  var at = i, z = 1, ox = 0, oy = 0;
+  var ZMIN = 1, ZMAX = 8;
   var ov = document.createElement('div');
   ov.id = 'jobPhotoViewer';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(10,22,40,.92);display:flex;align-items:center;justify-content:center;padding:14px';
-  var arrow = 'position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;font-family:inherit';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(10,22,40,.92);overflow:hidden;touch-action:none';
+  var arrow = 'position:fixed;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;font-family:inherit;z-index:2';
+  var chip = 'border:none;border-radius:9px;background:rgba(255,255,255,.14);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:38px;height:38px';
   var paint = function(){
     var p = ph[at] || {};
     var many = ph.length > 1;
-    ov.innerHTML = '<img id="jobPhotoViewerImg" src="' + p.src + '" style="max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.5);cursor:zoom-out">' +
-      '<button id="jobPhotoViewerClose" style="position:fixed;top:14px;right:14px;width:38px;height:38px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer">✕</button>' +
+    ov.innerHTML =
+      '<div id="jobPhotoStage" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:14px">' +
+        '<img id="jobPhotoViewerImg" src="' + p.src + '" draggable="false" style="max-width:100%;max-height:100%;border-radius:10px;' +
+          'box-shadow:0 18px 60px rgba(0,0,0,.5);transform-origin:center center;will-change:transform;user-select:none;-webkit-user-drag:none">' +
+      '</div>' +
+      '<button id="jobPhotoViewerClose" style="position:fixed;top:14px;right:14px;width:38px;height:38px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer;z-index:2">✕</button>' +
       (many ? '<button id="jobPhotoPrev" style="' + arrow + ';left:10px">‹</button>' +
               '<button id="jobPhotoNext" style="' + arrow + ';right:10px">›</button>' : '') +
-      '<div id="jobPhotoViewerCap" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;color:#e2e8f0;font-size:12.5px;pointer-events:none">' +
+      '<div style="position:fixed;left:50%;transform:translateX(-50%);bottom:52px;display:flex;gap:8px;align-items:center;z-index:2">' +
+        '<button id="jobPhotoZoomOut" style="' + chip + '">−</button>' +
+        '<span id="jobPhotoZoomOut2" style="color:#e2e8f0;font-size:12px;min-width:46px;text-align:center;font-variant-numeric:tabular-nums" id="jobPhotoZoomLbl"></span>' +
+        '<button id="jobPhotoZoomIn" style="' + chip + '">+</button>' +
+        '<button id="jobPhotoZoomReset" style="' + chip + ';width:auto;padding:0 12px;font-size:12px">Fit</button>' +
+      '</div>' +
+      '<div id="jobPhotoViewerCap" style="position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#e2e8f0;font-size:12.5px;pointer-events:none;z-index:2">' +
         (p.caption ? String(p.caption).replace(/[<>&]/g, '') + ' · ' : '') + (at + 1) + ' of ' + ph.length + '</div>';
+    apply();
   };
-  var step = function(d){ at = (at + d + ph.length) % ph.length; paint(); };
+  var apply = function(){
+    var im = document.getElementById('jobPhotoViewerImg');
+    if (im) {
+      im.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + z + ')';
+      im.style.cursor = z > 1 ? 'grab' : 'zoom-in';
+    }
+    var lbl = document.getElementById('jobPhotoZoomOut2');
+    if (lbl) lbl.textContent = Math.round(z * 100) + '%';
+  };
+  var setZoom = function(nz){
+    nz = Math.max(ZMIN, Math.min(ZMAX, nz));
+    if (nz === 1) { ox = 0; oy = 0; }
+    z = nz; apply();
+  };
+  var step = function(d){ at = (at + d + ph.length) % ph.length; z = 1; ox = 0; oy = 0; paint(); };
   ov.onclick = function(ev){
+    // A drag ends in a click, and a click on the surround closes. Without
+    // this, moving a zoomed plan around and letting go shut the viewer.
+    if (justDragged){ justDragged = false; return; }
     var id = ev.target && ev.target.id;
-    if (id === 'jobPhotoPrev') { ev.stopPropagation(); return step(-1); }
-    if (id === 'jobPhotoNext') { ev.stopPropagation(); return step(1); }
+    if (id === 'jobPhotoPrev'){ ev.stopPropagation(); return step(-1); }
+    if (id === 'jobPhotoNext'){ ev.stopPropagation(); return step(1); }
+    if (id === 'jobPhotoZoomIn'){ ev.stopPropagation(); return setZoom(z * 1.5); }
+    if (id === 'jobPhotoZoomOut'){ ev.stopPropagation(); return setZoom(z / 1.5); }
+    if (id === 'jobPhotoZoomReset'){ ev.stopPropagation(); return setZoom(1); }
+    // Clicking the picture itself zooms in; clicking the dark surround, or
+    // clicking a zoomed picture, closes. Dragging never closes (below).
+    if (id === 'jobPhotoViewerImg'){ ev.stopPropagation(); return setZoom(z > 1 ? 1 : 2.5); }
     close();
   };
+  ov.addEventListener('wheel', function(ev){
+    ev.preventDefault();
+    setZoom(z * (ev.deltaY < 0 ? 1.15 : 1 / 1.15));
+  }, { passive: false });
+  // Drag to move a zoomed picture; pinch with two fingers to zoom it.
+  var pts = {}, last = null, pinch0 = 0, z0 = 1, moved = 0, justDragged = false;
+  ov.addEventListener('pointerdown', function(ev){
+    if (ev.target && /^jobPhoto(Prev|Next|ZoomIn|ZoomOut|ZoomReset|ViewerClose)/.test(ev.target.id || '')) return;
+    pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var ids = Object.keys(pts);
+    moved = 0;
+    if (ids.length === 2){
+      var a = pts[ids[0]], b = pts[ids[1]];
+      pinch0 = Math.hypot(a.x - b.x, a.y - b.y) || 1; z0 = z;
+    } else { last = { x: ev.clientX, y: ev.clientY }; }
+    try { ov.setPointerCapture(ev.pointerId); } catch(e){}
+  });
+  ov.addEventListener('pointermove', function(ev){
+    if (!pts[ev.pointerId]) return;
+    pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var ids = Object.keys(pts);
+    if (ids.length === 2){
+      var a = pts[ids[0]], b = pts[ids[1]];
+      var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      moved = 99;
+      setZoom(z0 * (d / pinch0));
+      return;
+    }
+    if (!last) return;
+    var dx = ev.clientX - last.x, dy = ev.clientY - last.y;
+    moved += Math.abs(dx) + Math.abs(dy);
+    last = { x: ev.clientX, y: ev.clientY };
+    if (z > 1){ ox += dx; oy += dy; apply(); }
+  });
+  var up = function(ev){
+    delete pts[ev.pointerId];
+    if (!Object.keys(pts).length) last = null;
+    if (moved > 6) justDragged = true;      // swallowed by the click handler above
+    moved = 0;
+  };
+  ov.addEventListener('pointerup', up);
+  ov.addEventListener('pointercancel', up);
   var onKey = function(ev){
     if (ev.key === 'ArrowLeft') step(-1);
     else if (ev.key === 'ArrowRight') step(1);
+    else if (ev.key === '+' || ev.key === '=') setZoom(z * 1.5);
+    else if (ev.key === '-') setZoom(z / 1.5);
+    else if (ev.key === '0') setZoom(1);
     else if (ev.key === 'Escape') close();
   };
   function close(){
@@ -20902,8 +21006,11 @@ function _jobPhotoView(i){
     ov.remove();
   }
   document.addEventListener('keydown', onKey);
-  paint();
+  // Attach FIRST: paint() reaches for its own elements by id, and getElementById
+  // cannot see them while the overlay is still detached — which left the very
+  // first page with no transform on it at all.
   document.body.appendChild(ov);
+  paint();
 }
 // Keep the side-panel grid fresh whenever the panel opens.
 (function(){

@@ -79,7 +79,7 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     accepts: (document.getElementById('roofPdfFile') || {}).accept,
     sub: (document.querySelector('#roofUZ .uz-sub') || {}).textContent,
   }));
-  check('the upload box offers a roof plan PDF', v.btn.some(t => /Roof plan PDF/i.test(t)), JSON.stringify(v.btn));
+  check('the upload box offers PDF plans', v.btn.some(t => /PDF Plans/i.test(t)), JSON.stringify(v.btn));
   check('…and the picker only takes PDFs', /pdf/i.test(String(v.accepts)), String(v.accepts));
   check('…and the drop zone says a PDF is welcome too', /PDF/.test(String(v.sub)), String(v.sub));
   await ctx.close();
@@ -113,6 +113,11 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
   }));
   check('choosing a page closes the chooser and puts it on the canvas',
     v.closed === 'none' && v.prev === true, JSON.stringify({ closed: v.closed, prev: v.prev }));
+  // THE BUG: _roofPrevToCanvas handed an <img> the RAW base64 out of S.img64,
+  // with no data: prefix, so the browser treated it as a relative URL and
+  // every plan page ended on "Could not display that photo — try another."
+  check('…and the background really loads, rather than 404ing as a relative URL',
+    v.bg === true, 'DRAW.bgImg set: ' + v.bg);
   check('…rendered big enough to trace off, not at thumbnail size',
     v.scales.some(s => s[0] === 2 && s[1] >= 2), JSON.stringify(v.scales));
   await ctx.close();
@@ -142,6 +147,38 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
   await pg.waitForTimeout(250);
   let cap = await pg.evaluate(() => (document.getElementById('jobPhotoViewerCap') || {}).textContent || '');
   check('the viewer says where you are in the set', /page 1 · 1 of 3/.test(cap), cap);
+
+  // A plan page on a phone is unreadable at fit-to-screen. Zoom and drag are
+  // the feature, not the trimming.
+  let zv = await pg.evaluate(() => ({
+    hasIn: !!document.getElementById('jobPhotoZoomIn'),
+    hasOut: !!document.getElementById('jobPhotoZoomOut'),
+    hasFit: !!document.getElementById('jobPhotoZoomReset'),
+    t: (document.getElementById('jobPhotoViewerImg') || {}).style?.transform || '',
+  }));
+  check('…and it can be zoomed', zv.hasIn && zv.hasOut && zv.hasFit, JSON.stringify(zv));
+  check('…starting at fit', /scale\(1\)/.test(zv.t), zv.t);
+  await pg.click('#jobPhotoZoomIn');
+  await pg.waitForTimeout(150);
+  zv = await pg.evaluate(() => ({
+    t: (document.getElementById('jobPhotoViewerImg') || {}).style?.transform || '',
+    lbl: (document.getElementById('jobPhotoZoomOut2') || {}).textContent || '',
+  }));
+  check('…zooming in really scales the picture', /scale\(1\.5\)/.test(zv.t) && /150%/.test(zv.lbl), JSON.stringify(zv));
+  // Dragging moves it once it is bigger than the window.
+  await pg.mouse.move(700, 500); await pg.mouse.down();
+  await pg.mouse.move(760, 540, { steps: 4 }); await pg.mouse.up();
+  await pg.waitForTimeout(150);
+  zv = await pg.evaluate(() => ({
+    t: (document.getElementById('jobPhotoViewerImg') || {}).style?.transform || '',
+    open: !!document.getElementById('jobPhotoViewer'),
+  }));
+  check('…dragging a zoomed page moves it', /translate\((?!0px,\s*0px)/.test(zv.t), zv.t);
+  check('…and dragging does NOT close the viewer', zv.open === true);
+  await pg.click('#jobPhotoZoomReset');
+  await pg.waitForTimeout(150);
+  zv = await pg.evaluate(() => (document.getElementById('jobPhotoViewerImg') || {}).style?.transform || '');
+  check('…and Fit puts it back', /scale\(1\)/.test(zv) && /translate\(0px, 0px\)/.test(zv), zv);
   await pg.click('#jobPhotoNext');
   await pg.waitForTimeout(200);
   cap = await pg.evaluate(() => (document.getElementById('jobPhotoViewerCap') || {}).textContent || '');
