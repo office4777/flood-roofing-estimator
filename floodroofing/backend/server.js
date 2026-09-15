@@ -2176,7 +2176,7 @@ app.get('/auth/me', requireAuth, async (req, res) => {
 // (company_id null) arm is empty for anyone who joined after companies
 // existed, so in practice it is one fast indexed read.
 app.get('/jobs', requireAuth, async (req, res) => {
-  const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent';
+  const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent, version_of, version_name';
   const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id';
   // A LIMIT, which this never had. Without one the read has to find EVERY
   // matching row before it can answer, so an office with a few thousand jobs
@@ -2201,7 +2201,7 @@ app.get('/jobs', requireAuth, async (req, res) => {
   };
   let parts = await Promise.all(arms(COLS, _lim));
   let error = (parts.find(p => p.error) || {}).error || null;
-  if (error && /order_sent/.test(error.message || '')) {
+  if (error && /order_sent|version_of|version_name/.test(error.message || '')) {
     // Column not migrated on this database yet — serve the list without it
     // rather than failing the whole board.
     parts = await Promise.all(arms(LEAN, _lim));
@@ -2227,6 +2227,126 @@ app.get('/jobs', requireAuth, async (req, res) => {
       order_sent: os ? Object.assign({}, os, { by_name: names[os.by] || '' }) : (j.order_sent || null),
     });
   }));
+});
+
+
+// ══════════════════════════════════════════════════════════════════
+// VERSIONS OF A JOB
+// ══════════════════════════════════════════════════════════════════
+// Two people on one job used to mean two people on one ROW: whoever saved
+// last won, and the other's afternoon was gone. A version is a full job row
+// of its own — its own drawing, quote and cut list — tied to the first one by
+// version_of. Everything that already works on a job (autosave, the lock,
+// history, the Fergus link) works on a version, because it IS a job.
+const JOB_VERSION_COLS = 'id, client_name, site_address, updated_at, created_at, user_id, status, version_of, version_name';
+// The id every version in this group hangs off: the first one's.
+function _versionRootOf(job){ return String((job && (job.version_of || job.id)) || ''); }
+// Every version of the job `id` belongs to, newest-updated last-created
+// first, with the root at the top. Scoped like any other read.
+async function _versionGroup(req, job){
+  const root = _versionRootOf(job);
+  if (!root) return [];
+  const [self, kids] = await Promise.all([
+    _scopeCompany(supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', root), req),
+    _scopeCompany(supabase.from('jobs').select(JOB_VERSION_COLS).eq('version_of', root), req),
+  ]);
+  if (self.error && /version_of|version_name/.test(self.error.message || '')) return [];
+  const rows = [].concat(self.data || [], kids.data || []);
+  rows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  return rows;
+}
+async function _jobForVersions(req, id){
+  const { data, error } = await _scopeCompany(
+    supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', id), req).single();
+  if (error || !data) return null;
+  return data;
+}
+// A name for a version nobody has named: whoever is making it.
+function _defaultVersionName(req, taken){
+  const who = String(req.user.name || String(req.user.email || '').split('@')[0] || 'New').trim();
+  const first = who.split(/[\s.@]+/)[0] || 'New';
+  const base = first.charAt(0).toUpperCase() + first.slice(1) + "'s version";
+  const used = new Set((taken || []).map(t => String(t || '').toLowerCase()));
+  if (!used.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 50; n++){
+    const t = base + ' ' + n;
+    if (!used.has(t.toLowerCase())) return t;
+  }
+  return base + ' ' + Date.now();
+}
+app.get('/jobs/:id/versions', requireAuth, async (req, res) => {
+  try {
+    const job = await _jobForVersions(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'not found' });
+    const rows = await _versionGroup(req, job);
+    const names = await _companyMembers(req.companyId);
+    const root = _versionRootOf(job);
+    res.json({
+      root: root,
+      current: job.id,
+      versions: rows.map((r, i) => ({
+        id: r.id,
+        name: r.version_name || (String(r.id) === root ? 'Original' : 'Version ' + (i + 1)),
+        is_root: String(r.id) === root,
+        updated_at: r.updated_at,
+        created_at: r.created_at,
+        created_by: names[r.user_id] || '',
+      })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// Duplicate the version being worked on into a new one, and hand it back so
+// the app can open it. The copy is a fresh piece of work: the customer's
+// share link and their acceptance belong to the version they were sent, not
+// to this one, so they do not come across.
+app.post('/jobs/:id/versions', requireAuth, requireSubscription, async (req, res) => {
+  try {
+    const src = await _scopeCompany(
+      supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
+    if (src.error || !src.data) return res.status(404).json({ error: 'not found' });
+    const job = src.data;
+    const root = _versionRootOf(job);
+    const group = await _versionGroup(req, job);
+    const taken = group.map(r => r.version_name).filter(Boolean);
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 80) ||
+                 _defaultVersionName(req, taken);
+    const ds = job.draw_state && typeof job.draw_state === 'object'
+      ? JSON.parse(JSON.stringify(job.draw_state)) : {};
+    try {
+      const q = ds.state && ds.state.quote;
+      if (q){ q.share = null; q.accepted = null; q.sent = null; }
+    } catch (e) {}
+    const row = {
+      user_id: req.user.id, company_id: req.companyId || null,
+      client_name: job.client_name || '', site_address: job.site_address || '',
+      draw_state: ds, settings: job.settings || {}, status: 'draft',
+      version_of: root, version_name: name,
+    };
+    const ins = await supabase.from('jobs').insert(row).select(JOB_VERSION_COLS).single();
+    if (ins.error) return res.status(500).json({ error: ins.error.message });
+    // The first version has been an unnamed job until now. Give it a name so
+    // the switcher has two things to choose between rather than one and a
+    // blank.
+    try {
+      const rootRow = group.find(r => String(r.id) === root);
+      if (rootRow && !rootRow.version_name)
+        await supabase.from('jobs').update({ version_name: 'Original' }).eq('id', root);
+    } catch (e) {}
+    res.json({ id: ins.data.id, name: name, root: root });
+    recordUsage('job_saved', req);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// Rename the version being worked on.
+app.put('/jobs/:id/version-name', requireAuth, async (req, res) => {
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: 'A version needs a name.' });
+  try {
+    const job = await _jobForVersions(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'not found' });
+    const { error } = await supabase.from('jobs').update({ version_name: name }).eq('id', job.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, id: job.id, name: name });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // The office emails a material order. Stamped SERVER-side so the "who" is the
@@ -9264,6 +9384,14 @@ const _MIGRATION_SQL = [
   // Who sent the material order, and when — stamped server-side so the board
   // can say "Ethan ordered this" rather than just "ordered".
   "alter table public.jobs add column if not exists order_sent jsonb",
+  // Versions of one job. A version IS a job row — same table, same saving,
+  // same locking, same Fergus link — tied to the first one by version_of, so
+  // Aron and Ethan can each work a copy of job 3045 without either of them
+  // overwriting the other. version_of is the FIRST version's id; that row
+  // carries null and is the group's root.
+  "alter table public.jobs add column if not exists version_of uuid",
+  "alter table public.jobs add column if not exists version_name text",
+  "create index if not exists idx_jobs_version_of on public.jobs (version_of)",
   // Last person to save the company's shared settings row.
   "alter table public.user_settings add column if not exists updated_by uuid",
   // Signing out has to actually END the session. A token is good for thirty

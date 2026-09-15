@@ -3494,6 +3494,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
      and not one tooltip in the app had ever appeared. -->
 <div id="appTooltip" role="tooltip" aria-hidden="true"></div>
 
+<!-- The version switcher. One menu, opened from the sidebar button and from
+     the job-details window, so there is one list to keep right. -->
+<div id="versionMenu" class="lock-ok" style="display:none;position:fixed;z-index:100002;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.22);min-width:260px;max-width:340px;overflow:hidden;font-family:inherit"></div>
+
 <!-- Opening a job saves the one on screen, fetches the new one and rebuilds
      the canvas from it — on a big drawing that is several seconds during
      which NOTHING moved, and an app that does not move is an app that has
@@ -4080,7 +4084,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
       <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <!-- Which version of this job is on screen. Hidden until the job has
+           more than one, so a job nobody has branched reads exactly as it
+           always did. -->
+      <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
+    <!-- Versions. Two people on one job used to mean two people on one
+         record; this is how Aron's copy and Ethan's copy live side by side. -->
+    <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
     <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
       <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
       <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
@@ -6938,6 +6950,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- Whether this job is a Fergus job. Linking one pulls the client, site
          and contact across from Fergus and keeps every line drawn and every
          quote line here. -->
+    <!-- Which version of this job is open, and the way to another one. -->
+    <div id="jobDetailsVersion" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid #ddd6fe;border-radius:9px;background:#faf5ff"></div>
     <div id="jobDetailsFergus" style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#f8fafc;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
     <div style="margin-top:12px" id="jtTypeToggle"><label style="display:block;margin-bottom:5px">Job type</label>
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
@@ -16183,6 +16197,161 @@ async function duplicateJob(id){
   } catch(e) { alert('Could not duplicate job: ' + e.message); }
 }
 
+
+// ══ VERSIONS OF A JOB ════════════════════════════════════════════
+// Two people on one job used to mean two people on one record: whoever saved
+// last won and the other's afternoon was gone. A version is a full job of its
+// own — its own drawing, quote and cut list — tied to the first one, so
+// Aron's copy and Ethan's copy of job 3045 sit side by side and either can be
+// opened, worked on and sent.
+//
+// S.versionName is what is on screen; S.versions is the group, refreshed
+// whenever a job opens and after a new version is made.
+function _versionLabel(){
+  return (window.S && S.versionName) ? S.versionName : '';
+}
+function _versionCount(){ return (window.S && Array.isArray(S.versions)) ? S.versions.length : 0; }
+// The sidebar line and button, kept in step with S. A job nobody has
+// branched shows neither, so it reads exactly as it always did.
+function _versionRender(){
+  var many = _versionCount() > 1;
+  var name = _versionLabel();
+  var line = document.getElementById('navJobVersion');
+  if (line){
+    line.textContent = name ? ('⑂ ' + name) : '';
+    line.style.display = (many && name) ? '' : 'none';
+    line.title = name || '';
+  }
+  var btn = document.getElementById('navVersionBtn');
+  if (btn){
+    btn.textContent = '⑂ Version' + (name ? ': ' + name : 's');
+    btn.style.display = (window.S && S.currentJobId) ? 'block' : 'none';
+    btn.title = many ? (_versionCount() + ' versions of this job') : 'Make a second version of this job';
+  }
+  try { _versionRenderDetails(); } catch(e){}
+}
+// Ask the server for the group. Quiet: a backend that predates versions just
+// leaves the job with one, which is the truth for every job made before this.
+async function _versionRefresh(){
+  if (!(window.S && S.currentJobId)){ S.versions = []; S.versionName = ''; _versionRender(); return; }
+  try {
+    var r = await api('GET', '/jobs/' + S.currentJobId + '/versions');
+    S.versions = (r && r.versions) || [];
+    var me = S.versions.find(function(v){ return String(v.id) === String(S.currentJobId); });
+    S.versionName = (me && me.name) || S.versionName || '';
+  } catch(e){ S.versions = []; }
+  _versionRender();
+}
+function _versionMenuClose(){
+  var m = document.getElementById('versionMenu'); if (m) m.style.display = 'none';
+}
+document.addEventListener('mousedown', function(e){
+  var m = document.getElementById('versionMenu');
+  if (!m || m.style.display === 'none') return;
+  if (m.contains(e.target)) return;
+  if (e.target && e.target.closest && e.target.closest('#navVersionBtn, #jobDetailsVersionBtn')) return;
+  _versionMenuClose();
+}, true);
+function _versionMenuToggle(ev){
+  var m = document.getElementById('versionMenu'); if (!m) return;
+  if (m.style.display !== 'none'){ _versionMenuClose(); return; }
+  var anchor = (ev && ev.currentTarget) || document.getElementById('navVersionBtn');
+  var list = (window.S && S.versions) || [];
+  var when = function(v){
+    try {
+      var d = new Date(v.updated_at || v.created_at);
+      return d.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) + ' ' +
+             d.toLocaleTimeString('en-NZ', { hour:'numeric', minute:'2-digit' });
+    } catch(e){ return ''; }
+  };
+  var rows = list.map(function(v){
+    var on = String(v.id) === String(S.currentJobId);
+    return '<button type="button" class="lock-ok" onclick="_versionSwitch(\'' + esc(String(v.id)) + '\')" ' +
+      'style="display:block;width:100%;text-align:left;border:none;background:' + (on ? '#f5f3ff' : '#fff') + ';' +
+      'padding:9px 12px;cursor:' + (on ? 'default' : 'pointer') + ';font-family:inherit;border-bottom:1px solid #f1f5f9">' +
+      '<div style="font-size:12.5px;font-weight:' + (on ? '800' : '600') + ';color:' + (on ? '#7c3aed' : '#0a1628') + '">' +
+        (on ? '● ' : '') + esc(v.name) + (v.is_root ? ' <span style="font-weight:500;color:#94a3b8">· first</span>' : '') + '</div>' +
+      '<div style="font-size:10.5px;color:#64748b;margin-top:1px">' +
+        (v.created_by ? esc(v.created_by) + ' · ' : '') + esc(when(v)) + '</div>' +
+    '</button>';
+  }).join('');
+  if (!rows) rows = '<div style="padding:10px 12px;font-size:12px;color:#64748b">This job has one version.</div>';
+  m.innerHTML =
+    '<div style="padding:8px 12px;background:#faf5ff;border-bottom:1px solid #eee;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#7c3aed">Versions of this job</div>' +
+    rows +
+    '<button type="button" class="lock-ok" onclick="_versionCreate()" style="display:block;width:100%;text-align:left;border:none;background:#fff;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;color:#0a1628">' +
+      '＋ Create new version' +
+      '<div style="font-size:10.5px;font-weight:500;color:#64748b;margin-top:1px">Copies the version on screen and opens it</div>' +
+    '</button>' +
+    ((window.S && S.currentJobId) ? '<button type="button" class="lock-ok" onclick="_versionRename()" style="display:block;width:100%;text-align:left;border:none;border-top:1px solid #f1f5f9;background:#fff;padding:9px 12px;cursor:pointer;font-family:inherit;font-size:12px;color:#475569">✎ Rename this version</button>' : '');
+  m.style.display = 'block';
+  // Under the button it was opened from, kept on screen.
+  try {
+    var r = anchor.getBoundingClientRect();
+    m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.left)) + 'px';
+    var top = r.bottom + 6;
+    if (top + m.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - m.offsetHeight - 6);
+    m.style.top = top + 'px';
+  } catch(e){}
+}
+async function _versionSwitch(id){
+  _versionMenuClose();
+  if (!id || String(id) === String(S.currentJobId)) return;
+  try { await openJob(id); } catch(e){ alert('Could not open that version: ' + (e && e.message || e)); }
+}
+async function _versionCreate(){
+  _versionMenuClose();
+  if (!(window.S && S.currentJobId)){
+    alert('Save this job first — then it can have versions.');
+    return;
+  }
+  busyShow('Creating a version…', 'Copying this one, then opening it');
+  try {
+    // What is on screen belongs in the copy, so anything unsaved goes down
+    // first — a version that starts a step behind is how work gets lost.
+    try { await _saveBeforeSwitch(); } catch(e){}
+    var r = await api('POST', '/jobs/' + S.currentJobId + '/versions', {});
+    if (!r || !r.id) throw new Error('no version came back');
+    await openJob(r.id);
+    await _versionRefresh();
+    _siteToast('New version: ' + (r.name || 'copy') + ' — you are working on it now');
+    try { refreshJobsList(); } catch(e){}
+  } catch(e){
+    alert('Could not create a version: ' + (e && e.message || e));
+  } finally { busyHide(); }
+}
+function _versionRename(){
+  _versionMenuClose();
+  if (!(window.S && S.currentJobId)) return;
+  _styledPrompt({ title:'Rename this version', message:'What should this version be called? Everyone on the account sees it.',
+                  value: _versionLabel() || '', inputType:'text', okLabel:'Rename' }, async function(v){
+    var name = String(v || '').trim();
+    if (!name) return;
+    try {
+      await api('PUT', '/jobs/' + S.currentJobId + '/version-name', { name: name });
+      S.versionName = name;
+      await _versionRefresh();
+      try { refreshJobsList(); } catch(e){}
+    } catch(e){ alert('Could not rename: ' + (e && e.message || e)); }
+  });
+}
+// The same control inside Edit job details, so the question "which version am
+// I looking at?" is answered where the job is named.
+function _versionRenderDetails(){
+  var box = document.getElementById('jobDetailsVersion'); if (!box) return;
+  if (!(window.S && S.currentJobId)){ box.style.display = 'none'; return; }
+  var name = _versionLabel() || 'Original';
+  var n = _versionCount();
+  box.style.display = '';
+  box.innerHTML =
+    '<div style="font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7c3aed">Version</div>' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">' +
+      '<strong style="font-size:13.5px;color:#0a1628">' + esc(name) + '</strong>' +
+      (n > 1 ? '<span style="font-size:11.5px;color:#64748b">' + n + ' versions of this job</span>' : '') +
+      '<button type="button" id="jobDetailsVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)" ' +
+        'style="margin-left:auto;padding:7px 12px;border:1px solid #7c3aed;border-radius:8px;background:#fff;color:#7c3aed;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Switch / new ▾</button>' +
+    '</div>';
+}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
 
 async function saveCurrentJob(){
@@ -16833,6 +17002,13 @@ async function openJob(id, opts){
     busyMsg('Opening job\u2026', 'Rebuilding the roof map');
     restoreFromJob(j);
     S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
+    // Which version this is, and what else the job has. The name comes off
+    // the row so the sidebar is right immediately; the group is asked for
+    // behind the render rather than held in front of it.
+    S.versionName = j.version_name || '';
+    S.versionOf = j.version_of || null;
+    try { _versionRender(); } catch(e){}
+    try { _versionRefresh(); } catch(e){}
     refreshJobsList();
     // Forget the last satellite address so opening this job re-flies
     // the map to its site address on the next Map Roof entry.
@@ -16893,6 +17069,8 @@ function _releaseCurrentJob(){
   var old = S.linkedJobId;
   S.currentJobId = null;
   S.jobLocked = false;
+  S.versionName = ''; S.versionOf = null; S.versions = [];
+  try { _versionRender(); } catch(e){}
   S.linkedJobId = null; S.linkedJobNo = null; S.linkedJobName = null;
   S.linkedJobUrl = null;
   S._jobLoaded = null;
@@ -17141,6 +17319,7 @@ function _fergusUnlink(){
 function openJobDetailsModal(mode){
   window._jobDetailsMode = (mode === 'edit') ? 'edit' : 'new';
   try { _jobDetailsFergusRender(); } catch(e){}
+  try { _versionRenderDetails(); } catch(e){}
   var ov = document.getElementById('jobDetailsOverlay');
   var md = document.getElementById('jobDetailsModal');
   if (!ov || !md) return;
