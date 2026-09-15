@@ -14599,6 +14599,12 @@ function restoreFromJob(j){
     // decision gets the default, not the last job's.
     S.jpFlashTypeOff = {};
     S.clearliteMaterial = 'fibreglass';
+    // And the picture itself (report 53: "opened this job and the previous
+    // job's uploaded picture was there"). Object.assign only overwrites keys
+    // the incoming job HAS — a job with no picture left the last job's img64
+    // sitting in S, which is not merely shown: the next save writes it into
+    // THIS job. Reset before the assign, like every leak above.
+    S.img64 = null;
     Object.assign(S, snap.state);
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
     if (!Array.isArray(S.photos)) S.photos = [];
@@ -14611,6 +14617,14 @@ function restoreFromJob(j){
         var pv=document.getElementById('roofPrev'); if(pv) pv.style.display='block';
         var uz=document.getElementById('roofUZ'); if(uz) uz.style.display='none';
       }
+    } else {
+      // The other half of report 53: with no else, the preview card kept the
+      // last job's photo on screen and the upload zone stayed hidden, so the
+      // roofer was looking at another roof's picture on this job.
+      var _img0 = document.getElementById('roofPrevImg'); if (_img0) _img0.removeAttribute('src');
+      var _pv0 = document.getElementById('roofPrev');     if (_pv0) _pv0.style.display = 'none';
+      var _uz0 = document.getElementById('roofUZ');       if (_uz0) _uz0.style.display = 'block';
+      var _rf0 = document.getElementById('roofFile');     if (_rf0) _rf0.value = '';
     }
   }
   if (snap.draw) {
@@ -57267,7 +57281,8 @@ async function _loadFergusRoofPhotos(force){
   // Photos fill the panel width (grid width follows the zoom var); each keeps
   // its aspect ratio and stacks vertically — the scroll box pans when zoomed.
   grid.innerHTML = '';
-  res.files.forEach(function(f){
+  _fergusPanelFiles = res.files;
+  res.files.forEach(function(f, fi){
     var cell = document.createElement('div');
     cell.style.cssText = 'cursor:zoom-in;border-radius:8px;overflow:hidden;background:#08111f;position:relative;width:100%';
     cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:10px">loading…</div>';
@@ -57275,13 +57290,42 @@ async function _loadFergusRoofPhotos(force){
     grid.appendChild(cell);
     _fergusDownloadBlob(f.thumbnail || f.url).then(function(blob){
       var u = URL.createObjectURL(blob); _fergusRoofPhotoUrls.push(u);
+      // Add to canvas, same as the job's own photos. A site photo of the roof
+      // is the thing a roofer most wants to trace, and until now the only way
+      // to get one under the drawing was the separate picker on the tab —
+      // which is a different screen for the same job's photos.
       cell.innerHTML = '<img src="'+u+'" loading="lazy" style="width:100%;height:auto;display:block">'+
+        '<button onclick="_fergusPanelToCanvas(event,'+fi+')" title="Use as the roof drawing background" style="position:absolute;top:5px;left:5px;height:24px;padding:0 10px;border:none;border-radius:7px;background:#0099cc;color:#fff;font-size:11px;line-height:1;cursor:pointer;font-family:inherit">Add to canvas</button>'+
         (f.name ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:5px 9px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name)+'</div>' : '');
     }).catch(function(){
       cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:11px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
     });
   });
   _fergusApplyZoom();   // honour the current zoom on the freshly-loaded grid
+}
+// The full-size download for "Add to canvas" on a Fergus photo — the panel
+// shows thumbnails, and a thumbnail is not something to measure a roof on.
+var _fergusPanelFiles = [];
+async function _fergusPanelToCanvas(ev, i){
+  try { ev.stopPropagation(); } catch(e){}          // never open the lightbox as well
+  var f = _fergusPanelFiles[i];
+  if (!f) return;
+  var btn = ev && ev.currentTarget;
+  var was = btn ? btn.textContent : '';
+  if (btn){ btn.disabled = true; btn.textContent = 'Loading…'; }
+  try {
+    var blob = await _fergusDownloadBlob(f.url || f.thumbnail);
+    var dataUrl = await _blobToDataUrl(blob);
+    _storeAerialCompressed(dataUrl);                 // so it saves with the job
+    var pi = document.getElementById('roofPrevImg'); if (pi) pi.src = dataUrl;
+    var pv = document.getElementById('roofPrev');    if (pv) pv.style.display = 'block';
+    var uz = document.getElementById('roofUZ');      if (uz) uz.style.display = 'none';
+    _fergusSetCanvasBg(dataUrl);
+    try { _setSaveStatus && _setSaveStatus('🗺 ' + (f.name || 'Photo') + ' is on the canvas.', '#0369a1'); } catch(e){}
+  } catch(e){
+    alert('Could not download that photo from Fergus: ' + (e.message || 'unknown error'));
+  }
+  if (btn){ btn.disabled = false; btn.textContent = was || 'Add to canvas'; }
 }
 // Full-size preview of a tapped Fergus photo.
 async function _fergusRoofPhotoLightbox(f){
