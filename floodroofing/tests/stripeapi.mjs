@@ -73,7 +73,8 @@ const PORT = process.env.TEST_PORT || '34592';
 process.env.PORT = PORT;
 process.env.STRIPE_SECRET_KEY = 'sk_test_123';        // flips BILLING_ENABLED on — the real deployment shape
 process.env.STRIPE_API_BASE = 'http://127.0.0.1:' + stripeSrv.address().port;
-process.env.STRIPE_WEBHOOK_SECRET = WH_SECRET;
+process.env.STRIPE_WEBHOOK_SECRET = '  ' + WH_SECRET + '\n';   // deliberately whitespaced: a pasted secret usually is
+process.env.ADMIN_TOKEN = 'admin-token-for-the-readiness-check';
 process.env.STRIPE_PRICE_SOLO = 'price_solo_149';
 process.env.STRIPE_PRICE_TEAM = 'price_team_299';
 process.env.STRIPE_PRICE_BUSINESS = 'price_biz_549';
@@ -349,6 +350,43 @@ const T3M = jwtLib.sign({ id: 'uuuuuuuu-0000-0000-0000-000000000009', email: 'ha
 db.company_users.push({ company_id: CO3, user_id: 'uuuuuuuu-0000-0000-0000-000000000009', role: 'member' });
 r = await call('POST', '/billing/cancel', { reason: 'I am not the boss here' }, T3M);
 check('only the owner can cancel', r.status === 403 && r.body.code === 'OWNER_ONLY', JSON.stringify(r.body));
+
+// ── a rejected webhook says WHY ───────────────────────────────────
+// "Bad signature" alone is the same answer for four different faults with
+// four different fixes, and it cost a day of a real launch: Stripe was
+// delivering, the backend was rejecting, and nothing said which.
+{
+  const payload = JSON.stringify({ type: 'invoice.paid', data: { object: { id: 'in_x' } } });
+  const t = Math.floor(Date.now() / 1000);
+  const wrong = crypto.createHmac('sha256', 'whsec_someoneelses').update(t + '.' + payload).digest('hex');
+  let rr = await call('POST', '/billing/webhook', payload, null, { 'stripe-signature': 't=' + t + ',v1=' + wrong });
+  check('a signature from the wrong secret is refused', rr.status === 400, String(rr.status));
+  check('…and the refusal names the cause, with the secret\'s SHAPE not its value',
+    /does not match the secret this service holds/.test(String(rr.body.reason)) &&
+    /characters/.test(String(rr.body.reason)) && !/whsec_testsecret/.test(JSON.stringify(rr.body)),
+    String(rr.body.reason));
+
+  // A clock adrift is a different fault with a different fix, and says so.
+  const old = t - 4000;
+  const oldSig = crypto.createHmac('sha256', WH_SECRET).update(old + '.' + payload).digest('hex');
+  rr = await call('POST', '/billing/webhook', payload, null, { 'stripe-signature': 't=' + old + ',v1=' + oldSig });
+  check('…and a clock out of step is named as that, not as a bad secret',
+    rr.status === 400 && /clock/.test(String(rr.body.reason)), String(rr.body.reason));
+
+  rr = await call('POST', '/billing/webhook', payload, null, {});
+  check('…and a missing header is named too',
+    rr.status === 400 && /no stripe-signature header/.test(String(rr.body.reason)), String(rr.body.reason));
+
+  // The readiness page carries the last reason, so the fix is one page away.
+  const rd = await call('GET', '/admin/billing-readiness?token=' + encodeURIComponent(process.env.ADMIN_TOKEN || ''), undefined, null);
+  check('…and the readiness page carries the last reason, so the fix is one page away',
+    rd.status === 200 && /no stripe-signature header/.test(String((rd.body.webhook || {}).last_bad && rd.body.webhook.last_bad.reason)),
+    JSON.stringify((rd.body || {}).webhook || {}).slice(0, 200));
+  check('…and reports the secret\'s shape without ever printing it',
+    rd.body.webhook_secret && rd.body.webhook_secret.looks_right === true &&
+    rd.body.webhook_secret.length === WH_SECRET.length && !JSON.stringify(rd.body).includes(WH_SECRET),
+    JSON.stringify(rd.body.webhook_secret));
+}
 
 stripeSrv.close();
 mailSrv.close();

@@ -136,16 +136,29 @@ check('…and the events it needs are named, so they can be ticked in Stripe',
   JSON.stringify(d.webhook.events_handled));
 
 // A delivery that fails its signature is the diagnosis, not just a 400.
+// Timestamped NOW and signed with the wrong secret — the shape of the real
+// fault that cost a launch day: Stripe delivering, the backend rejecting,
+// and "Bad signature" the only thing either side said about it.
+const _body = JSON.stringify({ type:'invoice.paid' });
+const _t = Math.floor(Date.now() / 1000);
+const _sig = (await import('node:crypto')).createHmac('sha256', 'whsec_notthisone')
+  .update(_t + '.' + _body).digest('hex');
 r = await fetch(BASE + '/billing/webhook', { method:'POST',
-  headers: { 'Content-Type':'application/json', 'stripe-signature':'t=1,v1=deadbeef' },
-  body: JSON.stringify({ type:'invoice.paid' }) });
+  headers: { 'Content-Type':'application/json', 'stripe-signature':'t=' + _t + ',v1=' + _sig },
+  body: _body });
 check('a delivery with a bad signature is still refused', r.status === 400, 'status ' + r.status);
+const _refusal = await r.json().catch(() => ({}));
+check('…and the refusal Stripe SHOWS says which fault it is',
+  /does not match the secret/.test(String(_refusal.reason)), String(_refusal.reason).slice(0, 120));
 const d2 = await (await fetch(BASE + '/admin/billing-readiness?token=' + TOK)).json();
 check('THE POINT: and it is remembered, because a run of them IS the diagnosis',
   !!d2.webhook.last_bad && d2.webhook.bad_since_boot >= 1, JSON.stringify(d2.webhook.last_bad));
 check('…and it says the signing secret is the thing that is wrong',
-  d2.blockers.some(b => /signature/i.test(b) && /different endpoint/i.test(b)),
-  d2.blockers.join(' | ').slice(0, 120));
+  d2.blockers.some(b => /REJECTED/.test(b) && /does not match the secret/.test(b)),
+  d2.blockers.join(' | ').slice(0, 160));
+check('…naming the secret\'s shape, never the secret',
+  d2.webhook_secret.looks_right === true && typeof d2.webhook_secret.length === 'number' &&
+  !JSON.stringify(d2).includes('whsec_notthisone'), JSON.stringify(d2.webhook_secret));
 
 // ── who it would lock out ─────────────────────────────────────────
 check('it counts the businesses that would stop working the day it goes on',

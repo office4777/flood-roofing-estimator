@@ -3547,7 +3547,13 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
 // real money by swapping STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET and the
 // three price ids in Railway.
 const STRIPE_API_BASE = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+// Trimmed, and unwrapped from quotes. A signing secret pasted into a hosting
+// dashboard picks up a trailing newline or a stray space more often than
+// anyone believes, and the result is indistinguishable from the wrong secret:
+// every delivery answers "Bad signature", Stripe retries for three days, and
+// the subscription a customer has genuinely paid for never lands.
+const STRIPE_WEBHOOK_SECRET = String(process.env.STRIPE_WEBHOOK_SECRET || '')
+  .trim().replace(/^['"]|['"]$/g, '').trim();
 const STRIPE_PRICES = {
   solo:     process.env.STRIPE_PRICE_SOLO     || '',
   team:     process.env.STRIPE_PRICE_TEAM     || '',
@@ -3620,16 +3626,16 @@ async function _stripeGet(path){
 // every delivery is noted — the good ones AND the ones that failed the
 // signature, because a run of bad signatures IS the diagnosis.
 var _billingHookSeen = { ok: null, bad: null, okCount: 0, badCount: 0 };
-function _billingNoteWebhook(kind, type){
+function _billingNoteWebhook(kind, type, reason){
   const now = new Date().toISOString();
   if (kind === 'ok'){ _billingHookSeen.ok = { at: now, type: type }; _billingHookSeen.okCount++; }
-  else { _billingHookSeen.bad = { at: now }; _billingHookSeen.badCount++; }
+  else { _billingHookSeen.bad = { at: now, reason: reason || '' }; _billingHookSeen.badCount++; }
   // Durable, so a restart does not erase the evidence. Best effort: a missing
   // platform_state table must never turn a webhook into an error for Stripe,
   // which would make it retry a delivery that was in fact handled.
   try {
     supabase.from('platform_state').upsert(
-      { key: 'stripe:webhook:' + kind, value: { at: now, type: type || '' }, updated_at: now },
+      { key: 'stripe:webhook:' + kind, value: { at: now, type: type || '', reason: reason || '' }, updated_at: now },
       { onConflict: 'key' }
     ).then(function(r){ if (r.error) console.warn('webhook note failed:', r.error.message); })
      .catch(function(e){ console.warn('webhook note failed:', e.message); });
@@ -4007,24 +4013,42 @@ async function _sendSubscriptionMail(inv, build){
 
 // Stripe's word on what happened, verified by signature over the raw bytes.
 // v1 = HMAC-SHA256(secret, "<timestamp>.<payload>") per their scheme.
-function _stripeSigOk(rawBody, header){
-  if (!STRIPE_WEBHOOK_SECRET || !header) return false;
+//
+// This returns WHY it failed, not just that it did. "Bad signature" on its own
+// cost a day: it is the same answer for a secret from a different endpoint, a
+// secret with a newline on the end, a clock adrift, and a body something has
+// re-encoded on the way in — and those have four different fixes. The reason
+// never contains any part of the secret or the payload.
+function _stripeSigReason(rawBody, header){
+  if (!STRIPE_WEBHOOK_SECRET) return 'STRIPE_WEBHOOK_SECRET is not set on this service';
+  if (!header) return 'the request carried no stripe-signature header';
   const parts = {};
   String(header).split(',').forEach(function(p){ const i = p.indexOf('='); if (i > 0) parts[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
-  if (!parts.t || !parts.v1) return false;
-  if (Math.abs(Date.now() / 1000 - Number(parts.t)) > 300) return false;   // 5-minute replay window
+  if (!parts.t || !parts.v1) return 'the stripe-signature header was not in the expected t=…,v1=… shape';
+  const skew = Math.round(Date.now() / 1000 - Number(parts.t));
+  if (Math.abs(skew) > 300)
+    return 'the event was signed ' + Math.abs(skew) + 's ' + (skew > 0 ? 'ago' : 'in the future') +
+           ', outside the 5-minute window — this service\'s clock and Stripe\'s disagree';
   const crypto = require('crypto');
   const expected = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET).update(parts.t + '.' + rawBody).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(parts.v1, 'hex'));
-  } catch (e) { return false; }
+  let ok = false;
+  try { ok = crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(parts.v1, 'hex')); } catch (e) { ok = false; }
+  if (ok) return null;
+  return 'the signature does not match the secret this service holds (' + STRIPE_WEBHOOK_SECRET.length +
+         ' characters, ' + (/^whsec_/.test(STRIPE_WEBHOOK_SECRET) ? 'starts with whsec_' : 'does NOT start with whsec_') +
+         ') — copy the signing secret from THIS endpoint in Stripe → Webhooks and paste it again';
 }
+function _stripeSigOk(rawBody, header){ return _stripeSigReason(rawBody, header) === null; }
 async function _stripeWebhook(req, res){
   try {
     const raw = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body || '');
-    if (!_stripeSigOk(raw, req.headers['stripe-signature'])){
-      _billingNoteWebhook('bad', '');
-      return res.status(400).json({ error: 'Bad signature' });
+    const why = _stripeSigReason(raw, req.headers['stripe-signature']);
+    if (why){
+      _billingNoteWebhook('bad', '', why);
+      console.warn('[stripe] webhook rejected: ' + why);
+      // Stripe shows this body in the dashboard, next to the failed delivery.
+      // The person looking at it is the person who can fix it.
+      return res.status(400).json({ error: 'Bad signature', reason: why });
     }
     let event; try { event = JSON.parse(raw); } catch (e) { return res.status(400).json({ error: 'Bad payload' }); }
     _billingNoteWebhook('ok', event.type || '');
@@ -10172,7 +10196,10 @@ async function _billingReadiness(){
   const out = {
     billing_enabled: BILLING_ENABLED,
     secret_key: { set: !!key, mode: mode },
-    webhook_secret: { set: !!STRIPE_WEBHOOK_SECRET },
+    // Shape only, never the secret: length and prefix are enough to tell a
+    // signing secret from an API key or a half-copied one.
+    webhook_secret: { set: !!STRIPE_WEBHOOK_SECRET, length: STRIPE_WEBHOOK_SECRET.length,
+                      looks_right: /^whsec_/.test(STRIPE_WEBHOOK_SECRET) },
     early_access_coupon: { set: !!EARLY_ACCESS_COUPON },
     prices: [], webhook: {}, grandfather: {}, blockers: [], warnings: [],
   };
@@ -10182,6 +10209,7 @@ async function _billingReadiness(){
   if (!key) B('STRIPE_SECRET_KEY is not set — billing is off, which is fine until you are ready to charge.');
   else if (mode === 'unrecognised') B('STRIPE_SECRET_KEY does not look like a Stripe key (expected sk_test_… or sk_live_…).');
   if (!STRIPE_WEBHOOK_SECRET) B('STRIPE_WEBHOOK_SECRET is not set — Stripe can tell you nothing, so cancellations and failed payments will be missed.');
+  else if (!/^whsec_/.test(STRIPE_WEBHOOK_SECRET)) B('STRIPE_WEBHOOK_SECRET does not start with whsec_ — that is not a signing secret. It is on the endpoint\'s own page in Stripe → Webhooks, behind the eye icon.');
 
   // Each price, checked against Stripe rather than merely "is the variable
   // non-empty" — which is the check that passes right up until launch day.
@@ -10242,7 +10270,9 @@ async function _billingReadiness(){
   if (!out.webhook.last_ok && STRIPE_WEBHOOK_SECRET)
     W('No webhook has ever arrived and passed its signature. Send a test event from Stripe → Developers → Webhooks before you trust it.');
   if (out.webhook.last_bad && !out.webhook.last_ok)
-    B('Webhooks are arriving but failing their signature — the STRIPE_WEBHOOK_SECRET belongs to a different endpoint.');
+    B('Webhooks are ARRIVING and being REJECTED: ' +
+      (out.webhook.last_bad.reason || 'the signature did not verify') +
+      '. Stripe keeps retrying for about three days, so fixing this lands the payments that have already been made.');
 
   // The dangerous interaction: the moment the key goes in, every account with
   // no subscription stops working. Better to see that here than to find out
@@ -10279,7 +10309,14 @@ function _billingReadinessText(d){
   L.push('Webhook: ' + (d.webhook.last_ok
     ? ('last good ' + d.webhook.last_ok.at + (d.webhook.last_ok.type ? ' (' + d.webhook.last_ok.type + ')' : ''))
     : 'never received one that passed its signature'));
-  if (d.webhook.last_bad) L.push('         last BAD signature ' + d.webhook.last_bad.at);
+  if (d.webhook.last_bad){
+    L.push('         last REJECTED ' + d.webhook.last_bad.at);
+    if (d.webhook.last_bad.reason) L.push('         why: ' + d.webhook.last_bad.reason);
+  }
+  L.push('Webhook secret: ' + (d.webhook_secret.set
+    ? (d.webhook_secret.length + ' characters, ' +
+       (d.webhook_secret.looks_right ? 'starts with whsec_' : 'does NOT start with whsec_ — that is not a signing secret'))
+    : 'NOT SET'));
   L.push('');
   L.push('Billing is currently ' + (d.billing_enabled ? 'ON — customers are being charged.' : 'OFF — nobody is charged and nobody is locked out.'));
   if (d.grandfather && typeof d.grandfather.would_be_locked_out === 'number')
