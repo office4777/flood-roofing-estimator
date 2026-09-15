@@ -2178,11 +2178,18 @@ app.get('/auth/me', requireAuth, async (req, res) => {
 app.get('/jobs', requireAuth, async (req, res) => {
   const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent';
   const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id';
-  const newest = q => q.order('updated_at', { ascending: false });
-  const arms = cols => (req.companyId
-    ? [newest(supabase.from('jobs').select(cols).eq('company_id', req.companyId)),
-       newest(supabase.from('jobs').select(cols).is('company_id', null).eq('user_id', req.user.id))]
-    : [newest(supabase.from('jobs').select(cols).eq('user_id', req.user.id))]);
+  // A LIMIT, which this never had. Without one the read has to find EVERY
+  // matching row before it can answer, so an office with a few thousand jobs
+  // on a churned table runs past the PostgREST role's 8-second
+  // statement_timeout and the job list 500s — which is what it did, to a
+  // subscriber in their first week. With a limit the composite index
+  // (company_id, updated_at desc) is walked newest-first and stops early.
+  const _lim = Math.min(2000, Math.max(1, parseInt(req.query.limit, 10) || 500));
+  const newest = (q, lim) => q.order('updated_at', { ascending: false }).limit(lim);
+  const arms = (cols, lim) => (req.companyId
+    ? [newest(supabase.from('jobs').select(cols).eq('company_id', req.companyId), lim),
+       newest(supabase.from('jobs').select(cols).is('company_id', null).eq('user_id', req.user.id), lim)]
+    : [newest(supabase.from('jobs').select(cols).eq('user_id', req.user.id), lim)]);
   const merge = parts => {
     const seen = {}, out = [];
     for (const p of parts) for (const j of (p.data || [])) {
@@ -2192,16 +2199,25 @@ app.get('/jobs', requireAuth, async (req, res) => {
     out.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     return out;
   };
-  let parts = await Promise.all(arms(COLS));
+  let parts = await Promise.all(arms(COLS, _lim));
   let error = (parts.find(p => p.error) || {}).error || null;
   if (error && /order_sent/.test(error.message || '')) {
     // Column not migrated on this database yet — serve the list without it
     // rather than failing the whole board.
-    parts = await Promise.all(arms(LEAN));
+    parts = await Promise.all(arms(LEAN, _lim));
     error = (parts.find(p => p.error) || {}).error || null;
   }
+  // A timed-out read is not an empty job list and it is not a dead app: come
+  // back once for the most recent handful. A roofer seeing their last fifty
+  // jobs is working; a roofer seeing "could not load jobs" is ringing us.
+  if (error && /statement timeout|57014/i.test(error.message || '')) {
+    console.warn('[jobs] list timed out for company ' + (req.companyId || '-') + ' — retrying at 50');
+    parts = await Promise.all(arms(LEAN, 50));
+    const retryErr = (parts.find(p => p.error) || {}).error || null;
+    if (!retryErr) error = null;
+  }
   if (error) return res.status(500).json({ error: error.message });
-  const data = merge(parts);
+  const data = merge(parts).slice(0, _lim);
   const names = await _companyMembers(req.companyId);
   const me = (req.user.name || String(req.user.email || '').split('@')[0] || '');
   res.json((data || []).map(function (j) {

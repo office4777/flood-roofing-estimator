@@ -29,7 +29,7 @@ const job = (id, user_id, company_id, updated_at) => ({
   order_sent: null, draw_state: { state: {} },
 });
 
-const { port } = await startFakePostgrest({
+const { port, db } = await startFakePostgrest({
   profiles: [{ id: A.user, company_id: A.company }, { id: B.user, company_id: B.company },
              { id: mate, company_id: A.company }],
   company_users: [{ company_id: A.company, user_id: A.user, role: 'owner' },
@@ -78,6 +78,30 @@ const bRows = await list(B);
 check('the other business sees its own board, unchanged',
   (bRows || []).map(j => j.id).sort().join(',') === 'b-legacy,b-own',
   (bRows || []).map(j => j.id).join(','));
+
+// ── a big board does not take the whole table with it ────────────
+// The read had no LIMIT, so it had to find EVERY matching row before it could
+// answer — and an office with a few thousand jobs on a churned table ran past
+// the PostgREST role's 8-second statement_timeout. A subscriber in their
+// first week got a 500 where their job list should be.
+for (let i = 0; i < 620; i++)
+  db.jobs.push(job('bulk-' + i, A.user, A.company, '2026-02-' + String((i % 27) + 1).padStart(2, '0') + 'T00:00:00.000Z'));
+const big = await list(A);
+check('a board of hundreds of jobs comes back capped, not whole',
+  Array.isArray(big) && big.length <= 500, String((big || []).length));
+const ten = await (await fetch(BASE + '/jobs?limit=10', { headers: { Authorization: 'Bearer ' + tok(A) } })).json();
+check('…and the caller can ask for fewer', Array.isArray(ten) && ten.length === 10, String((ten || []).length));
+check('…newest first is still what it means', ten[0] && ten[0].id === 'a-new', ten[0] && ten[0].id);
+
+// A timed-out read is not an empty job list and not a dead app: it comes back
+// once for the most recent handful, so the office is working rather than
+// ringing us.
+db.__fail500 = 'jobs'; db.__fail500Once = true; db.__failMsg = 'canceling statement due to statement timeout';
+const afterTimeout = await list(A);
+db.__fail500 = null; db.__failMsg = null;
+check('a statement timeout on the board is retried, not served as a 500',
+  Array.isArray(afterTimeout) && afterTimeout.length > 0,
+  Array.isArray(afterTimeout) ? (afterTimeout.length + ' jobs') : JSON.stringify(afterTimeout).slice(0, 80));
 
 // ── and the indexes each arm needs are in the boot migration ──────
 const src = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');

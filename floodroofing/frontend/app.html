@@ -2448,6 +2448,7 @@ html.pdf-rendering .mat-fl-empty,      html.jp-preview #jpPages .mat-fl-empty,
 html.pdf-rendering .mat-spec-row,      html.jp-preview #jpPages .mat-spec-row,
 html.pdf-rendering .cons-row-sub,      html.jp-preview #jpPages .cons-row-sub,
 html.pdf-rendering .pdf-hide,          html.jp-preview #jpPages .pdf-hide,
+.mat-print-page.mp-capturing .pdf-hide, .mat-print-page.mp-capturing .no-print,
 html.pdf-rendering .mat-section.is-empty-section,
 html.jp-preview #jpPages .mat-section.is-empty-section:not(.keep-in-preview){
   display:none!important;
@@ -5214,11 +5215,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- Fergus job photos slide-out — Map Roof tab. Resizable (drag the left edge),
      photos auto-fit the width, zoom slider scales them. -->
 <aside id="fergusRoofPanel" class="no-print">
-  <button id="fergusRoofPanelToggle" onclick="_fergusPanelToggle()" title="Job photos — compare while you draw">
+  <button id="fergusRoofPanelToggle" class="lock-ok" onclick="_fergusPanelToggle()" title="Job photos — compare while you draw">
     <span class="frp-arrow">◀</span>
     <span class="frp-text">PHOTOS</span>
   </button>
-  <div id="fergusRoofPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
+  <div id="fergusRoofPanelResize" class="lock-ok" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
   <div class="frp-hd">
     <!-- JOB PHOTOS — taken on site (camera) or picked from the gallery, saved
          INSIDE the job file so they're on the office computer as soon as the
@@ -5382,11 +5383,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        layout + per-roof variants when multi-roof). Drag any thumbnail
        onto any .jp-page to drop it as a movable, resizable picture. -->
   <aside id="jpMapPanel" class="no-print">
-    <button id="jpMapPanelToggle" onclick="_jpToggleMapPanel()" title="Maps panel — drag any map onto a page">
+    <button id="jpMapPanelToggle" class="lock-ok" onclick="_jpToggleMapPanel()" title="Maps panel — drag any map onto a page">
       <span class="jp-mp-arrow">◀</span>
       <span class="jp-mp-text">MAPS</span>
     </button>
-    <div id="jpMapPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
+    <div id="jpMapPanelResize" class="lock-ok" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
     <div class="jp-map-hd" style="flex-direction:column;align-items:stretch;gap:9px;padding-bottom:11px">
       <div style="display:flex;align-items:center;gap:9px">
         <span>📂 Maps</span>
@@ -14866,10 +14867,16 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // job is now a physical attempt, except the things that only LOOK (switching
 // which roof the pricing shows, zoom, print, email, the version buttons).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
-  if (t.closest('.lock-ok, [data-lock-ok], .no-lock, input[type="range"], #qaMsg, #qaVersions, #jobLockModal, #qvAskModal, #aerialModal')) return true;
+  // Surfaces that only LOOK. The lock exists so no measurement, quantity or
+  // price can move while a job is out with a customer — not to stop the
+  // person who sent it reading it back. Photos, the maps panel, the photo
+  // viewer and the page/zoom chrome are all browsing.
+  if (t.closest('.lock-ok, [data-lock-ok], .no-lock, input[type="range"], #qaMsg, #qaVersions, ' +
+                '#jobLockModal, #qvAskModal, #aerialModal, #fergusRoofPanel, #jobPhotoViewer, ' +
+                '#photoLightbox, #jpMapPanelToggle, #jpMapPanelResize')) return true;
   var ctl = t.closest('button, [onclick], [onmousedown], [onwheel], input, select, textarea, [role="button"], [contenteditable="true"], .qp-map-frame');
   if (!ctl) return true;                                        // plain text, scrollbars, pages
   var call = ctl.getAttribute && (ctl.getAttribute('onclick') || '');
@@ -14890,15 +14897,18 @@ document.addEventListener('click', _lockClickGuard, true);
 // how you read a quote, and asking "unlock?" at every picture made the sent
 // quote unreadable. The picture handlers themselves stand down while locked
 // (below), so the page scrolls straight past them.
-document.addEventListener('pointerdown', function(e){
-  if (!_jobLockActive()) return;
-  var t = e.target; if (!t || !t.closest) return;
-  if (t.closest('#aerialModal, #jobLockModal')) return;
-  // The drawing itself: a press with the main button is the start of an edit.
-  if (t.closest('#roofCanvas') && (e.button === 0 || e.button === undefined)){
-    e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt();
-  }
-}, true);
+// The canvas is NOT blocked any more. Checking a locked job means moving the
+// picture around and zooming into it, and a press that only pans changes no
+// measurement — so a press on the drawing pans while locked (see
+// onCanvasMouseDown) and the question is asked at the point an edit would
+// actually be committed: the click and the double-click.
+function _lockCanvasEditGuard(e){
+  if (!_jobLockActive()) return false;
+  // A pan that moved the picture is not a click on it.
+  if (window.PAN && PAN.totalMoved > 3) return false;
+  e.preventDefault(); e.stopPropagation(); _lockPrompt();
+  return true;
+}
 document.addEventListener('beforeinput', function(e){
   if (!_jobLockActive()) return;
   var t = e.target; if (!t || !t.closest) return;
@@ -38329,6 +38339,17 @@ function _drawRidgeSnapDots(){
 }
 
 function onCanvasMouseDown(e) {
+  // Locked: every press is a pan, whichever tool is selected. Nothing on the
+  // drawing can move, so the roofer can shift the picture around and read it
+  // without unlocking the job.
+  if (_jobLockActive()){
+    PAN.active = true; PAN.totalMoved = 0;
+    PAN.startX = e.clientX; PAN.startY = e.clientY;
+    PAN.originX = IMG_OFFSET.x; PAN.originY = IMG_OFFSET.y;
+    var _lcv = document.getElementById('roofCanvas'); if (_lcv) _lcv.style.cursor = 'grabbing';
+    e.preventDefault();
+    return;
+  }
   // Info star drag — let the user nudge the amber star in Move
   // (select) and Info tools. Skipped in Delete (so a tap still
   // deletes the star) and in the line-drawing tools (so the click
@@ -41424,6 +41445,7 @@ function _placeBoxedPen(x0, y0, x1, y1){
 }
 
 function onCanvasClick(e) {
+  if (_lockCanvasEditGuard(e)) return;
   if(e.detail>=2) return;
   _ctxMenuHide();
 
@@ -41853,6 +41875,7 @@ function _setOutlineEdgeLength(edgeIdx, newLenM){
   try { autosaveJob && autosaveJob(); } catch(e){}
 }
 function onCanvasDblClick(e) {
+  if (_lockCanvasEditGuard(e)) return;
   // In Move mode on a finished, calibrated outline, double-clicking a wall
   // opens a "set exact length" editor. Otherwise fall through to finish.
   if (DRAW.tool === 'select' && DRAW.outlineDone && DRAW.scaleMetresPerPx > 0 && DRAW.outline && DRAW.outline.length >= 3){
@@ -47014,7 +47037,17 @@ function _penSheetGeom(p, ctx, allowBox){
     if (L < 8) return;
     var ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
     var along = (p.cx-a[0])*ux + (p.cy-a[1])*uy;     // position along the high edge
-    if (along < -L*0.15 || along > L*1.15) return;   // pipe isn't under this edge
+    // On a HIP roof the top of a face is the ridge PLUS the two hips running
+    // down to the corners, and the ridge is shorter than the face below it.
+    // Requiring the pipe to sit within the ridge's own ends (±15%) therefore
+    // threw away every flue standing on the hipped part of a face: no top
+    // edge, no geometry, and the back-tray reached the supplier's order as a
+    // name with a dash where its length should be — which is how a roof got
+    // ordered with no back-tray on it (report 5). Out past the ridge ends is
+    // allowed now, but only when a gutter parallel to it runs BELOW the pipe
+    // (the loop below proves that), and a face whose ridge really does span
+    // the pipe still wins over one that does not.
+    var alongOK = (along >= -L*0.15 && along <= L*1.15);
     var perp = (p.cx-a[0])*nx + (p.cy-a[1])*ny;
     var perpAbs = Math.abs(perp);
     if (perpAbs < 1) return;
@@ -47033,7 +47066,11 @@ function _penSheetGeom(p, ctx, allowBox){
       if (gperp <= 4) return;
       if (gperp < bestG) bestG = gperp;
     });
-    if (!best || perpAbs < best.perpAbs) best = { perpAbs:perpAbs, gutterPerp:isFinite(bestG)?bestG:0 };
+    var gp = isFinite(bestG) ? bestG : 0;
+    if (!alongOK && !(gp > 0)) return;              // past this edge's ends with nothing below it
+    if (!best || (alongOK && !best.alongOK) ||
+        (alongOK === best.alongOK && perpAbs < best.perpAbs))
+      best = { perpAbs:perpAbs, gutterPerp:gp, alongOK:alongOK };
   });
   if (!best) return out;
   out.topToPenM = best.perpAbs * spp * pitchF;                              // raw slope distance top → pipe
@@ -47240,16 +47277,37 @@ function _backTrayLineDesc(bt){
 // Grouped back-trays for the order + Fergus — collapsed by name + mode +
 // length so identical trays share one qty line but a different length or
 // full/short split into their own.
+// The Job Pack lets the office strike a tray off, retype its quantity and
+// retype its length, and add a tray the drawing knows nothing about. The
+// order ignored every one of those and re-derived from the drawing — the
+// same fault the cut list had three reports running. It reads them now.
 function _backTrayOrderList(){
-  var groups = {};
+  var groups = {}, out = [];
   _backTrayPenList().forEach(function(d){
-    var lenLbl = d.hasGeom ? (d.lengthM.toFixed(1) + 'm') : '';
+    if (typeof _btOff === 'function' && _btOff(d)) return;          // struck off by the office
+    var len = (typeof _btLenOf === 'function') ? _btLenOf(d) : d.lengthM;
+    var qty = (typeof _btQtyOf === 'function') ? _btQtyOf(d) : 1;
+    if (!(qty > 0)) return;
+    var lenLbl = (len > 0) ? (len.toFixed(1) + 'm') : '';
     var key = d.name + '|' + d.mode + '|' + lenLbl;
-    if (!groups[key]) groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl,
-                                      lengthM:(d.hasGeom ? d.lengthM : 0), soft:d.soft };
-    groups[key].qty++;
+    if (!groups[key]){
+      groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl,
+                      lengthM:(len > 0 ? len : 0), soft:d.soft };
+      out.push(groups[key]);
+    }
+    groups[key].qty += qty;
   });
-  return Object.keys(groups).map(function(k){ return groups[k]; });
+  // Trays typed in by hand. A tray the drawing does not know about still has
+  // to reach the merchant.
+  if (typeof _btExtras === 'function'){
+    _btExtras().forEach(function(x){
+      var q = parseFloat(x && x.qty) || 0, l = parseFloat(x && x.len) || 0;
+      if (!(q > 0)) return;
+      out.push({ name: (x.name || 'Back-tray'), qty: q, mode: 'full',
+                 lengthLabel: (l > 0 ? l.toFixed(1) + 'm' : ''), lengthM: l, soft: false, extra: true });
+    });
+  }
+  return out;
 }
 
 // ── BOXED PENETRATION FLASHING SET ───────────────────────────────
@@ -56760,8 +56818,13 @@ function _matBuildPrintOrderDetails(mount) {
   // sheet length it's on + 0.1m; Short = the top of the sheet down to the
   // pipe + 1m, and is soft-edged at one end. Drawing is pulled from the
   // flashing library by name.
-  var _btList = (typeof _backTrayPenList === 'function') ? _backTrayPenList() : [];
-  if (_btList.length){
+  // Same list the Job Pack card shows, with the office's edits on it — a
+  // tray struck off does not print, and a retyped quantity or length is what
+  // the merchant reads.
+  var _btList = ((typeof _backTrayPenList === 'function') ? _backTrayPenList() : [])
+    .filter(function(bt){ return !(typeof _btOff === 'function' && _btOff(bt)); });
+  var _btEx = (typeof _btExtras === 'function') ? _btExtras().filter(function(x){ return (parseFloat(x && x.qty) || 0) > 0; }) : [];
+  if (_btList.length || _btEx.length){
     var _btLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
     var _btUncal = !(DRAW.scaleMetresPerPx > 0);
     var _btBlocks = _btList.map(function(bt){
@@ -56769,7 +56832,13 @@ function _matBuildPrintOrderDetails(mount) {
       var img = (entry && entry.sketch)
         ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
         : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in the flashing library</div>';
-      var lenTxt = bt.hasGeom ? ('1 @ ' + bt.lengthM.toFixed(1) + 'm') : (_btUncal ? 'calibrate map to size' : '—');
+      var _q = (typeof _btQtyOf === 'function') ? _btQtyOf(bt) : 1;
+      var _l = (typeof _btLenOf === 'function') ? _btLenOf(bt) : bt.lengthM;
+      // A supplier cannot pick "—" off a shelf. When the length will not
+      // resolve, say what to do about it rather than printing a dash.
+      var lenTxt = (_l > 0) ? (_q + ' @ ' + _l.toFixed(1) + 'm')
+                 : (_btUncal ? (_q + ' — calibrate the map to size it')
+                             : (_q + ' — length to confirm'));
       var soft = (bt.mode === 'short') ? '<div style="font-size:9.5px;font-weight:700;color:#b45309;text-align:center;margin-top:1px">Soft-edge one end</div>' : '';
       function _btBtn(m, label){
         var on = (bt.mode === m);
@@ -56785,6 +56854,15 @@ function _matBuildPrintOrderDetails(mount) {
         soft+
         '<div class="pdf-hide" style="display:flex;margin-top:4px">'+_btBtn('full','Full')+_btBtn('short','Short')+'</div>'+
       '</div>';
+    });
+    // Hand-typed trays print beside the drawn ones.
+    _btEx.forEach(function(x){
+      var l = parseFloat(x.len) || 0;
+      _btBlocks.push('<div style="break-inside:avoid">'+
+        '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Added by hand</div>'+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(x.name || 'Back-tray')+'</div>'+
+        '<div style="font-size:13px;font-weight:800;color:#0a1628;text-align:center;margin-top:2px">'+esc((parseFloat(x.qty)||0) + (l > 0 ? (' @ ' + l.toFixed(1) + 'm') : ''))+'</div>'+
+      '</div>');
     });
     html += '<h2 class="mp-h" style="margin-top:14px">Back-trays <span style="font-weight:400;font-size:11px;color:#6f6a60">&middot; auto-selected per pipe penetration</span></h2>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+

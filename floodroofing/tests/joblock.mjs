@@ -136,6 +136,59 @@ await pg.click('#jobLockUnlock');
 await pg.waitForTimeout(200);
 check('"Unlock" on the question unlocks it', await pg.evaluate(() => !S.jobLocked && !document.getElementById('jobLockModal')));
 
+
+// ── a locked job can still be READ ───────────────────────────────
+// "The job-is-locked popup should only appear when I actually try to change
+// something… I still need to be able to double-check things without
+// unlocking." Opening the Maps panel on the Job Pack asked to unlock a job,
+// for a panel that only shows pictures.
+await pg.evaluate(() => { S.jobLocked = true; try { _jobLockRender(); } catch(e){} });
+const viewing = await pg.evaluate(() => {
+  const out = {};
+  const ask = el => {
+    document.getElementById('jobLockModal')?.remove();
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const asked = !!document.getElementById('jobLockModal');
+    document.getElementById('jobLockModal')?.remove();
+    return asked;
+  };
+  out.maps   = ask(document.getElementById('jpMapPanelToggle'));
+  out.photos = ask(document.getElementById('fergusRoofPanelToggle'));
+  return out;
+});
+check('opening the Maps panel on a locked job asks nothing — it only shows pictures', viewing.maps === false);
+check('…nor does the job photos panel', viewing.photos === false);
+
+// The canvas: a press pans the picture instead of drawing on it, so the roof
+// can be moved around and read. A CLICK is where an edit would land, and that
+// is where the question belongs.
+const dragged = await pg.evaluate(() => {
+  S.jobLocked = true; DRAW.tool = 'ridge'; IMG_OFFSET.x = 0; IMG_OFFSET.y = 0;
+  const before = (DRAW.lines || []).length;
+  const ev = (type, x, y) => ({ type, clientX: x, clientY: y, button: 0, target: document.getElementById('roofCanvas'),
+                                preventDefault(){}, stopPropagation(){}, stopImmediatePropagation(){} });
+  onCanvasMouseDown(ev('mousedown', 200, 200));
+  // The pan itself is applied by the document-level mousemove listener.
+  document.dispatchEvent(new MouseEvent('mousemove', { clientX: 262, clientY: 244, bubbles: true }));
+  document.dispatchEvent(new MouseEvent('mouseup', { clientX: 262, clientY: 244, bubbles: true }));
+  const moved = { x: IMG_OFFSET.x, y: IMG_OFFSET.y, asked: !!document.getElementById('jobLockModal'),
+                  drew: (DRAW.lines || []).length - before };
+  document.getElementById('jobLockModal')?.remove();
+  // A click is where an edit lands, so that is where the question belongs.
+  PAN.totalMoved = 0;
+  onCanvasClick(ev('click', 320, 120));
+  moved.clickAsked = !!document.getElementById('jobLockModal');
+  moved.clickDrew = (DRAW.lines || []).length - before;
+  return moved;
+});
+check('dragging a locked roof map moves the picture instead of drawing on it',
+  Math.abs(dragged.x) > 10 && Math.abs(dragged.y) > 10, JSON.stringify(dragged));
+check('…and asks nothing, because nothing changed', dragged.asked === false && dragged.drew === 0);
+check('but a click, which would draw, still asks', dragged.clickAsked === true);
+check('…and nothing was drawn while it asked', dragged.clickDrew === 0);
+await pg.evaluate(() => { document.getElementById('jobLockModal')?.remove(); S.jobLocked = false; });
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;
