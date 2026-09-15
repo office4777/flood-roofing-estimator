@@ -3758,6 +3758,86 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
+// ── ASKING STRIPE DIRECTLY ──────────────────────────────────────────
+// The webhook is one channel, and a subscription that exists ONLY because a
+// webhook arrived is a subscription that does not exist on the day the
+// webhook is rejected. That is not hypothetical: the owner's own first live
+// payment was refused nine times over a signing secret, so Stripe held a
+// paying customer while the app went on offering to sell him the plan he had
+// just bought.
+//
+// So the app can also ASK. Every checkout stamps the company id into the
+// subscription's metadata, which makes the subscription findable without
+// knowing anything we failed to record. Called on the way back from Stripe's
+// checkout page and from a button, it reconciles what we hold with what
+// Stripe says — the webhook stays the fast path, this is the truth.
+async function _syncSubscriptionFromStripe(companyId, userId){
+  if (!companyId) return { ok: false, reason: 'no company' };
+  const q = "metadata['company_id']:'" + String(companyId).replace(/'/g, '') + "'";
+  const found = await _stripeGet('/v1/subscriptions/search?limit=10&query=' + encodeURIComponent(q));
+  const subs = (found && found.data) || [];
+  // Newest first, and a live one beats a dead one — cancelled subscriptions
+  // from an earlier attempt must not overwrite the one being paid for.
+  const rank = (x) => (x.status === 'active' || x.status === 'trialing' || x.status === 'past_due') ? 1 : 0;
+  subs.sort(function(a, b){ return (rank(b) - rank(a)) || ((b.created || 0) - (a.created || 0)); });
+  const sub = subs[0];
+  if (!sub) return { ok: false, reason: 'Stripe has no subscription for this business' };
+  const item0 = sub.items && sub.items.data && sub.items.data[0];
+  const priceId = item0 && item0.price && item0.price.id;
+  const plan = _stripePlanOfPrice(priceId) || (sub.metadata && sub.metadata.plan) || '';
+  const row = {
+    user_id: userId || null,
+    company_id: companyId,
+    status: String(sub.status || 'active'),
+    stripe_customer_id: sub.customer || null,
+    stripe_subscription_id: sub.id || null,
+    trial_ends_at: null,
+    cancel_at: sub.cancel_at ? new Date(sub.cancel_at * 1000).toISOString() : null,
+    updated_at: new Date().toISOString(),
+  };
+  if (plan) row.plan = plan;
+  const periodEnd = (item0 && item0.current_period_end) || sub.current_period_end;
+  if (periodEnd) row.current_period_end = new Date(periodEnd * 1000).toISOString();
+  // Update the company's existing row if there is one; only insert when there
+  // is nothing at all, so a teammate's stale row is never the one that wins.
+  const { data: existing } = await supabase.from('subscriptions')
+    .select('user_id').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1);
+  let error;
+  if (existing && existing[0]){
+    ({ error } = await supabase.from('subscriptions').update(row).eq('user_id', existing[0].user_id));
+  } else {
+    ({ error } = await supabase.from('subscriptions').upsert(row, { onConflict: 'user_id' }));
+  }
+  if (error) return { ok: false, reason: error.message };
+  if (plan){
+    await supabase.from('companies').update({ plan: plan }).eq('id', companyId);
+    _planCache.delete(companyId);
+  }
+  return { ok: true, status: row.status, plan: plan || null, synced: true };
+}
+app.post('/billing/sync', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const out = await _syncSubscriptionFromStripe(req.companyId, req.user.id);
+    if (!out.ok) return res.status(404).json({ error: out.reason || 'Nothing to sync', code: 'NO_SUBSCRIPTION' });
+    console.log('[stripe] synced company ' + req.companyId + ' from Stripe → ' + out.status + ' ' + (out.plan || ''));
+    res.json(out);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+// Same thing with the admin token, for a business that cannot do it itself —
+// support fixing an account without a database console.
+app.post('/admin/billing-sync', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const companyId = String((req.body || {}).company_id || req.query.company_id || '').trim();
+  if (!companyId) return res.status(400).json({ error: 'company_id is required' });
+  try {
+    const { data: link } = await supabase.from('company_users')
+      .select('user_id').eq('company_id', companyId).eq('role', 'owner').limit(1);
+    const out = await _syncSubscriptionFromStripe(companyId, link && link[0] && link[0].user_id);
+    res.status(out.ok ? 200 : 404).json(out);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CANCELLING ──────────────────────────────────────────────────────
 // Self-serve, in the app, no phone call: making somebody email to cancel is
 // the most resented thing in SaaS and it earns chargebacks rather than

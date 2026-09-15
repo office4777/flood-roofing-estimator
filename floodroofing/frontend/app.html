@@ -17609,6 +17609,7 @@ function _billingRenderSection(){
     }).join('') + '</div>' +
     (s && s.status === 'active' && hasAcct ? '' :
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
+    _billingSyncHtml() +
     _billingEmailHtml() +
     _billingCancelHtml() +
     '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
@@ -17617,6 +17618,38 @@ function _billingRenderSection(){
 // making somebody chase a human to stop paying earns chargebacks, not
 // loyalty. Only shown to a business that is actually paying and has not
 // already cancelled.
+// For a business that HAS paid and is still being asked to. One click asks
+// Stripe directly. It should never be needed; the day it is, it is the only
+// thing standing between a paying customer and a locked app.
+function _billingSyncHtml(){
+  var s = SUBSCRIPTION;
+  if (!s || !s.billing || s.billing_account) return '';
+  return '<div style="margin-top:12px">' +
+    '<button onclick="_billingSync(this)" style="background:none;border:none;color:#0284b5;font-size:12px;' +
+      'text-decoration:underline;cursor:pointer;font-family:inherit;padding:2px 0">' +
+      'Already paid? Check with Stripe</button></div>';
+}
+async function _billingSync(btn){
+  var msg = document.getElementById('billingMsg');
+  if (btn) btn.disabled = true;
+  if (msg){ msg.textContent = 'Asking Stripe\u2026'; msg.style.color = 'var(--text2)'; }
+  try {
+    await api('POST', '/billing/sync', {});
+    await loadSubscription();
+    try { _planGateSync(); _billingRenderSection(); } catch(e){}
+    var m2 = document.getElementById('billingMsg');
+    if (m2){ m2.textContent = 'Found it \u2014 your subscription is up to date.'; m2.style.color = '#15803d'; }
+    return;
+  } catch(e){
+    if (msg){
+      msg.textContent = (e && e.code === 'NO_SUBSCRIPTION')
+        ? 'Stripe has no subscription for this business yet. If you have just paid, give it a minute and try again.'
+        : ((e && e.message) || 'Could not reach Stripe.');
+      msg.style.color = '#b91c1c';
+    }
+  }
+  if (btn) btn.disabled = false;
+}
 function _billingCancelHtml(){
   var s = SUBSCRIPTION;
   if (!(s && s.status === 'active' && s.billing_account) || s.cancel_at) return '';
@@ -17756,7 +17789,13 @@ var PLAN_LABELS = { solo: 'Trade', team: 'Team', business: 'Business', trial: 'T
     setTimeout(function(){
       try {
         if (m[1] === 'success') alert('Payment set up \u2014 you\u2019re all go. Thanks!');
-        loadSubscription().then(function(){ _planGateSync(); _billingRenderSection(); });
+        // Ask Stripe ourselves rather than trusting the webhook to have
+        // arrived. It usually has, and this is then a no-op; on the day it
+        // has NOT, this is the difference between a paying customer and an
+        // app that carries on asking them to pay.
+        var done = function(){ loadSubscription().then(function(){ _planGateSync(); _billingRenderSection(); }); };
+        if (m[1] === 'success') api('POST', '/billing/sync', {}).then(done).catch(done);
+        else done();
       } catch(e){}
     }, 1200);
     history.replaceState(null, '', location.pathname);

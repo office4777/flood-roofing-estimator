@@ -41,6 +41,16 @@ const stripeSrv = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (req.url === '/v1/checkout/sessions') return res.end(JSON.stringify({ id: 'cs_test_1', url: 'https://checkout.stripe.com/c/pay/cs_test_1' }));
     if (req.url === '/v1/billing_portal/sessions') return res.end(JSON.stringify({ id: 'bps_1', url: 'https://billing.stripe.com/p/session/bps_1' }));
+    if (/^\/v1\/subscriptions\/search/.test(req.url)){
+      // Stripe finds it by the company id every checkout stamps on it.
+      const q = decodeURIComponent((req.url.split('query=')[1] || '').split('&')[0]);
+      const hit = /52c0|cccccccc-0000-0000-0000-000000000003/.test(q) || /company_id/.test(q);
+      return res.end(JSON.stringify({ object: 'search_result', data: hit ? [{
+        id: 'sub_found_1', status: 'active', customer: 'cus_found_1', created: 1789427625,
+        cancel_at: null, metadata: { plan: 'business' },
+        items: { data: [{ price: { id: 'price_biz_549' }, current_period_end: 1792108800 }] },
+      }] : [] }));
+    }
     if (/^\/v1\/subscriptions\//.test(req.url)) return res.end(JSON.stringify({
       id: req.url.split('/').pop(), status: 'active', cancel_at_period_end: true,
       // Stripe moved the period onto the item; the cancel date rides on the
@@ -386,6 +396,54 @@ check('only the owner can cancel', r.status === 403 && r.body.code === 'OWNER_ON
     rd.body.webhook_secret && rd.body.webhook_secret.looks_right === true &&
     rd.body.webhook_secret.length === WH_SECRET.length && !JSON.stringify(rd.body).includes(WH_SECRET),
     JSON.stringify(rd.body.webhook_secret));
+}
+
+// ── asking Stripe directly ────────────────────────────────────────
+// A subscription that exists only because a webhook arrived does not exist
+// on the day the webhook is rejected — which is exactly what happened to the
+// owner's own first live payment. So the app can ask Stripe instead.
+{
+  const CO4 = 'cccccccc-0000-0000-0000-000000000004';
+  const U4 = 'uuuuuuuu-0000-0000-0000-000000000004';
+  db.companies.push({ id: CO4, name: 'Webhookless Roofing', plan: 'trial' });
+  db.company_users.push({ company_id: CO4, user_id: U4, role: 'owner' });
+  const T4 = jwtLib.sign({ id: U4, email: 'pat@webhookless.co.nz', cid: CO4 }, 'test-secret', { expiresIn: '1h' });
+
+  let rr = await call('GET', '/subscription', undefined, T4);
+  check('before the sync the business looks unpaid', rr.body.billing_account !== true, JSON.stringify(rr.body).slice(0, 90));
+
+  rr = await call('POST', '/billing/sync', {}, T4);
+  check('asking Stripe finds the subscription the webhook never delivered',
+    rr.status === 200 && rr.body.ok === true && rr.body.status === 'active', JSON.stringify(rr.body));
+  check('…and the plan comes from the PRICE, not from anything we guessed',
+    rr.body.plan === 'business', String(rr.body.plan));
+
+  rr = await call('GET', '/subscription', undefined, T4);
+  check('…so the app now knows it is paid, with a billing account behind it',
+    rr.body.status === 'active' && rr.body.billing_account === true && rr.body.plan === 'business',
+    JSON.stringify(rr.body).slice(0, 120));
+  check('…and the row Stripe gave us is the row we hold',
+    (db.subscriptions.find(x => x.company_id === CO4) || {}).stripe_subscription_id === 'sub_found_1',
+    JSON.stringify(db.subscriptions.filter(x => x.company_id === CO4)));
+
+  // Running it twice must not make a second row or change anything.
+  const before = db.subscriptions.filter(x => x.company_id === CO4).length;
+  rr = await call('POST', '/billing/sync', {}, T4);
+  check('…and running it again is a no-op, not a duplicate',
+    rr.status === 200 && db.subscriptions.filter(x => x.company_id === CO4).length === before,
+    before + ' → ' + db.subscriptions.filter(x => x.company_id === CO4).length);
+
+  // Not the owner's to press.
+  const T4M = jwtLib.sign({ id: 'uuuuuuuu-0000-0000-0000-000000000014', email: 'hand@webhookless.co.nz', cid: CO4 },
+    'test-secret', { expiresIn: '1h' });
+  db.company_users.push({ company_id: CO4, user_id: 'uuuuuuuu-0000-0000-0000-000000000014', role: 'member' });
+  rr = await call('POST', '/billing/sync', {}, T4M);
+  check('only the owner can sync', rr.status === 403 && rr.body.code === 'OWNER_ONLY', JSON.stringify(rr.body));
+
+  // And support can do it for them, with the admin token.
+  rr = await call('POST', '/admin/billing-sync?token=' + encodeURIComponent(process.env.ADMIN_TOKEN),
+    { company_id: CO4 }, null);
+  check('support can do it for a business that cannot', rr.status === 200 && rr.body.ok === true, JSON.stringify(rr.body));
 }
 
 stripeSrv.close();
