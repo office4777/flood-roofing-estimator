@@ -3484,6 +3484,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 </head>
 <body data-tab="select">
 
+<!-- The hover tooltip every toolbar button asks for by name. It had CSS and a
+     showTip()/hideTip() pair but no ELEMENT, so getElementById came back null
+     and not one tooltip in the app had ever appeared. -->
+<div id="appTooltip" role="tooltip" aria-hidden="true"></div>
+
 <!-- ── LOGIN SCREEN ─────────────────────────────────────────────────────── -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0a1628;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <style>
@@ -4611,6 +4616,22 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button onclick="redoLast()" class="tool-btn">↪ Redo</button>
           <button onclick="clearAll()" class="tool-btn" style="color:#dc2626;border-color:#dc2626">🗑 Clear</button>
         </div>
+      </div>
+
+      <!-- Under the Calibrate button: which way an edit behaves, and the
+           warning that the plan has stopped being exact. Its own thin row so
+           the toolbar above keeps its shape on a phone. -->
+      <div id="scaleIntegrityRow" style="display:flex;gap:8px;align-items:center;margin:0 .75rem .4rem;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:#64748b">Edits:</span>
+        <button type="button" id="btnModeScaled" onclick="setEditMode('scaled')"
+                onmouseenter="showTip('btn-mode-scaled',event,500)" onmouseleave="hideTip()"
+                style="padding:5px 10px;font-size:11.5px;font-family:inherit;border:1px solid #0a1628;border-radius:7px;background:#0a1628;color:#fff;font-weight:800;cursor:pointer">📐 Scaled edits</button>
+        <button type="button" id="btnModeVisual" onclick="setEditMode('visual')"
+                onmouseenter="showTip('btn-mode-visual',event,500)" onmouseleave="hideTip()"
+                style="padding:5px 10px;font-size:11.5px;font-family:inherit;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-weight:600;cursor:pointer">✏️ Visual edits</button>
+        <button type="button" id="btnNotToScale" onclick="openNotToScale()"
+                onmouseenter="showTip('btn-nottoscale',event,500)" onmouseleave="hideTip()"
+                style="display:none;align-items:center;gap:5px;padding:5px 11px;font-size:11.5px;font-family:inherit;border:1px solid #f59e0b;border-radius:7px;background:#fffbeb;color:#b45309;font-weight:800;cursor:pointer">⚠ No longer to Scale</button>
       </div>
 
       <!-- Compact view bar: Zoom stays out; every other display setting
@@ -14547,6 +14568,7 @@ function snapshotCurrentJob(){
             matBackTrayOff:DRAW.matBackTrayOff||{}, matBackTrayQty:DRAW.matBackTrayQty||{},
             matBackTrayLen:DRAW.matBackTrayLen||{}, matBackTrayExtras:DRAW.matBackTrayExtras||[],
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
+            editMode:DRAW.editMode||'scaled', offScale:DRAW.offScale||null,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
             gableRidgeOffset:DRAW.gableRidgeOffset||0,
@@ -14648,6 +14670,8 @@ function restoreFromJob(j){
     DRAW.sheetType = snap.draw.sheetType || 'steel-corrugate';
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.scaleAuto = !!snap.draw.scaleAuto; DRAW.geoScale = snap.draw.geoScale || null;
+    DRAW.editMode = (snap.draw.editMode === 'visual') ? 'visual' : 'scaled';
+    DRAW.offScale = snap.draw.offScale || null;
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
     DRAW.sheetPlanDeletedIds = snap.draw.sheetPlanDeletedIds || [];
@@ -18443,7 +18467,7 @@ function _roofPdfPick(e){
 // is unreadable for a plan, so the caller asks for what it needs.
 var PDF_MAX_CANVAS_PX = 4.2e6;     // ~2000×2100. Mobile browsers refuse far less than desktop.
 var PDF_MAX_SIDE = 2600;
-function _pdfRenderPage(page, scale){
+function _pdfRenderPage(page, scale, quality){
   // An A1 sheet at scale 2.5 is 4200×5900 = 25 megapixels, which is past what
   // a phone will allocate: the canvas comes back blank and toDataURL returns
   // "data:," — a background that silently fails to load. Cap the ask.
@@ -18462,9 +18486,13 @@ function _pdfRenderPage(page, scale){
   // transparent background on a dark canvas is a black rectangle.
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
   return Promise.resolve(page.render({ canvasContext: ctx, viewport: vp }).promise)
-    .then(function(){ return cv.toDataURL('image/jpeg', 0.92); });
+    .then(function(){ return cv.toDataURL('image/jpeg', (quality > 0) ? quality : 0.92); });
 }
 var PDF_MAX_PAGES = 40;
+// Asked-for scale for a plan page going into the photo panel. _pdfRenderPage
+// clamps it to PDF_MAX_SIDE and PDF_MAX_CANVAS_PX, so this is "as sharp as
+// this device will render", not a promise of 6×.
+var PDF_PLAN_SCALE = 6;
 async function _roofPdfOpen(file){
   var wrap = document.getElementById('roofPdfModal');
   if (!wrap){
@@ -18565,12 +18593,17 @@ function _roofPdfPagesToPhotos(doc){
       return;
     }
     var n = i++;
-    doc.getPage(n).then(function(page){ return _pdfRenderPage(page, 1.4); }).then(function(src){
-      _downscalePhoto(src, function(small){
-        S.photos.push({ src: small, caption: 'Plan \u2014 page ' + n });
-        try { renderPhotos(); } catch(e){}
-        next();
-      });
+    // A plan is not a snapshot of a roof — it is line work with dimensions,
+    // notes and a bracing schedule printed on it, and the whole point of it
+    // being in the panel is that somebody zooms in and READS it. Rendered at
+    // 1.4 and then put through the 900px/quality-0.6 photo downscaler it came
+    // out a grey smear at any useful zoom. Plan pages are rendered at the
+    // biggest size the page-render cap allows and skip the downscaler, so
+    // zooming in gets you the pitch and the eaves dimension, not mush.
+    doc.getPage(n).then(function(page){ return _pdfRenderPage(page, PDF_PLAN_SCALE, 0.85); }).then(function(src){
+      S.photos.push({ src: src, caption: 'Plan \u2014 page ' + n, kind: 'plan' });
+      try { renderPhotos(); } catch(e){}
+      next();
     }).catch(next);
   };
   next();
@@ -37186,7 +37219,16 @@ var DRAW = {
   calibratePixels: 0,   // pixel distance of calibration line
   scaleMetresPerPx: 0,  // real metres per drawing pixel (set after calibration)
   scaleAuto: false,     // true while the scale is the aerial's own, ours to redo
-  geoScale: null        // {lat, zoom, retina} the aerial's scale is worked out from
+  geoScale: null,       // {lat, zoom, retina} the aerial's scale is worked out from
+  // Scaled edits vs visual edits. In 'scaled' (the default) a typed
+  // measurement MOVES the drawing so the plan stays true to the scale. In
+  // 'visual' a typed number changes only what is printed on that one item and
+  // nothing else on the map moves — which is what you want once the plan is
+  // no longer exact, because chasing a wrong number with the outline only
+  // spreads the error. offScale records WHY it stopped being exact and is
+  // what the "No longer to Scale" button reads out.
+  editMode: 'scaled',
+  offScale: null        // {since, reasons:[{kind, what, from, to, at}]}
 };
 
 var FACE_COLORS  = ['#c8e6c9','#bbdefb','#fff9c4','#fce4ec','#b2dfdb','#ffe0b2','#e1bee7','#f0f4c3'];
@@ -41731,6 +41773,31 @@ function _hitActiveOutlineEdge(imgX, imgY){
 // same rectilinear stretch the corner-drag uses.
 function _setOutlineEdgeLength(edgeIdx, newLenM){
   if (!(newLenM > 0) || !DRAW.scaleMetresPerPx) return;
+  // Visual edits: setting a wall length is a GEOMETRY move — the outline
+  // stretches and everything hanging off it follows. That is exactly what
+  // visual mode exists to prevent, so the wall is left where it is and the
+  // typed length is recorded as drift instead.
+  if (_visualEdits()){
+    var _a = DRAW.outline[edgeIdx], _b = DRAW.outline[(edgeIdx+1)%DRAW.outline.length];
+    var _curM = Math.sqrt((_b[0]-_a[0])*(_b[0]-_a[0]) + (_b[1]-_a[1])*(_b[1]-_a[1])) * DRAW.scaleMetresPerPx;
+    try { saveSnapshot(); } catch(e){}
+    // The typed number still has to APPEAR somewhere, or the edit looks
+    // ignored: it goes onto the line drawn along that wall (its gutter or
+    // barge), as a label. The corner does not move and nothing else changes.
+    var _lbl = newLenM.toFixed(2) + 'm', _shown = 0;
+    (DRAW.lines || []).forEach(function(l){
+      if (!l || !l.pts || l.pts.length < 2) return;
+      function near(p, q){ return Math.abs(p[0]-q[0]) < 6 && Math.abs(p[1]-q[1]) < 6; }
+      if ((near(l.pts[0], _a) && near(l.pts[1], _b)) || (near(l.pts[0], _b) && near(l.pts[1], _a))){
+        l.measM = newLenM; l.label = _lbl; _shown++;
+      }
+    });
+    markOffScale('meas', 'Wall', _curM, newLenM);
+    if (_shown){ try { syncToRoofData(); } catch(e){} }
+    redrawAll(); updateMeasTotals();
+    try { autosaveJob && autosaveJob(); } catch(e){}
+    return;
+  }
   var n = DRAW.outline.length;
   var i0 = edgeIdx, i1 = (edgeIdx+1)%n;
   var A = DRAW.outline[i0], B = DRAW.outline[i1];
@@ -42323,6 +42390,11 @@ function _recalibrateFromLine(line, realM){
 }
 function _syncMeasureGroup(edited, newM){
   if (!edited || !(newM > 0)) return;
+  // Visual edits: the number changes on the line the user typed on, and
+  // nowhere else. No group, no opposite wall, and above all no
+  // _recalibrateFromLine — re-scaling off a line in visual mode would move
+  // every measurement on the map, which is the opposite of what was asked.
+  if (_visualEdits()) return;
   var lbl = newM.toFixed(2)+'m';
   var t = edited.type;
   if (t === 'ridge' || t === 'gutter'){
@@ -42481,6 +42553,7 @@ function updateLine() {
   var subLabels = {side:'Side ',head:'Head ',starter:'Starter ',finish:'Finish '};
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
   document.getElementById('propTitle').textContent = 'Edit: ' + pretty;
+  try { _checkLineDrift(l); } catch(e){}
   redrawAll(); syncToRoofData(); updateMeasTotals();
 }
 
@@ -42555,7 +42628,9 @@ function _captureSnapState() {
     calMeasType: DRAW.calMeasType || 'flat',
     calRealM: DRAW.calRealM || 0,
     calPitchAtCal: DRAW.calPitchAtCal || 0,
-    scaleLabel: DRAW.scaleLabel || ''
+    scaleLabel: DRAW.scaleLabel || '',
+    editMode: DRAW.editMode || 'scaled',
+    offScale: DRAW.offScale || null
   });
 }
 function _applySnapState(snapStr) {
@@ -42597,6 +42672,8 @@ function _applySnapState(snapStr) {
   DRAW.gutterRowLen = s.gutterRowLen || {};
   if (s.flashLayoutOverrides) DRAW.flashLayoutOverrides = s.flashLayoutOverrides;
   if (s.scaleMetresPerPx != null) DRAW.scaleMetresPerPx = s.scaleMetresPerPx;
+  DRAW.editMode = (s.editMode === 'visual') ? 'visual' : 'scaled';
+  DRAW.offScale = s.offScale || null;
   if (s.scaleAuto != null) DRAW.scaleAuto = !!s.scaleAuto;
   if (s.geoScale != null) DRAW.geoScale = s.geoScale;
   // Calibration state (only present on snapshots captured after this was
@@ -42722,6 +42799,8 @@ function clearAll(silent) {
   DRAW.matSheetExtras = [];
   DRAW.measLabelOffsets = {};
   DRAW.flashLetterOffsets = {};
+  DRAW.editMode = 'scaled';
+  DRAW.offScale = null;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -43361,9 +43440,162 @@ function _autoScaleFromAerial(lat, zoom, retina){
 }
 // The roofer has measured something real. Their number is the truth from here.
 function _scaleSetByHand(){ DRAW.scaleAuto = false; DRAW.geoScale = null; }
+
+// ══ SCALED EDITS vs VISUAL EDITS ═════════════════════════════════
+// A roof map is "to scale" while every number on it is one the geometry
+// itself produces: type a wall at 8.40 m in Scaled mode and the wall MOVES
+// to 8.40 m, so the area, the sheets and every other measure stay honest.
+// Some numbers cannot be realised that way — a hip face's sheet run, a
+// cut-list row, a barge on another roof — and typing one of those stores an
+// override instead. From that moment the picture and the numbers disagree,
+// and the roofer needs to know: that is the "No longer to Scale" button.
+//
+// The sheet tolerance is the owner's: a sheet length is routinely nudged a
+// few centimetres for more or less overhang while the rest of the plan is
+// still perfectly true, so a change of 0.1 m or less on a sheet measure is
+// NOT drift. Everything else gets a rounding-sized tolerance only.
+var SCALE_TOL_SHEET_M = 0.1;
+var SCALE_TOL_MEAS_M  = 0.02;
+function _editModeIs(m){ return (DRAW.editMode === 'visual' ? 'visual' : 'scaled') === m; }
+function _visualEdits(){ return _editModeIs('visual'); }
+function _isOffScale(){ return !!(DRAW.offScale && DRAW.offScale.reasons && DRAW.offScale.reasons.length); }
+// What the calibrated drawing says this line measures, ignoring any typed
+// value. null when there is no scale to compare against.
+function _trueMeasureForLine(l, pitch){
+  if (!(DRAW.scaleMetresPerPx > 0) || !l || !l.pts || l.pts.length < 2) return null;
+  var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
+  var planM = Math.sqrt(dx*dx + dy*dy) * DRAW.scaleMetresPerPx;
+  var p = (pitch != null) ? pitch : _activePitch();
+  return Math.round(planM * slopeFactorForLineType(l.type, p) * 100) / 100;
+}
+// Record a typed value the drawing does not support. Returns true if this
+// actually counted as drift (i.e. it was bigger than the tolerance).
+function markOffScale(kind, what, fromM, toM){
+  var tol = (kind === 'sheet') ? SCALE_TOL_SHEET_M : SCALE_TOL_MEAS_M;
+  var f = parseFloat(fromM), t = parseFloat(toM);
+  if (isFinite(f) && isFinite(t) && Math.abs(t - f) <= tol) return false;
+  if (!DRAW.offScale) DRAW.offScale = { since: Date.now(), reasons: [] };
+  DRAW.offScale.reasons.push({ kind: kind, what: String(what || ''),
+    from: isFinite(f) ? +f.toFixed(2) : null, to: isFinite(t) ? +t.toFixed(2) : null, at: Date.now() });
+  // Keep the list short — the popup shows the recent ones and the count.
+  if (DRAW.offScale.reasons.length > 40) DRAW.offScale.reasons.splice(0, DRAW.offScale.reasons.length - 40);
+  // Once the plan is no longer true, nothing further should drag the outline
+  // around to chase a number that is already wrong. Visual from here.
+  DRAW.editMode = 'visual';
+  try { _scaleStatusRender(); } catch(e){}
+  return true;
+}
+function setEditMode(m, quiet){
+  DRAW.editMode = (m === 'visual') ? 'visual' : 'scaled';
+  try { _scaleStatusRender(); } catch(e){}
+  if (!quiet){ try { autosaveJob && autosaveJob(); } catch(e){} }
+}
+// The two mode buttons and the warning button, kept in step with DRAW.
+// Called from _scaleStateShow, so every redraw refreshes it.
+function _scaleStatusRender(){
+  var vis = _visualEdits();
+  function paint(id, on){
+    var b = document.getElementById(id); if (!b) return;
+    b.style.background   = on ? '#0a1628' : '#fff';
+    b.style.color        = on ? '#fff'    : '#475569';
+    b.style.borderColor  = on ? '#0a1628' : '#cbd5e1';
+    b.style.fontWeight   = on ? '800'     : '600';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  paint('btnModeScaled', !vis);
+  paint('btnModeVisual', vis);
+  var w = document.getElementById('btnNotToScale');
+  if (w) w.style.display = _isOffScale() ? 'inline-flex' : 'none';
+}
+function _lineNiceName(l){
+  var t = (l && l.type) || 'line';
+  var names = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',
+               changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing',outline:'Wall',unknown:'Line'};
+  return names[t] || (t.charAt(0).toUpperCase() + t.slice(1));
+}
+// After a measurement edit, ask the drawing what that line really measures.
+// Still matching (a wall that was stretched, a ridge that re-calibrated the
+// scale) means the plan is true and nothing is flagged.
+function _checkLineDrift(l){
+  if (!l || !(l.measM > 0)) return;
+  var truth = _trueMeasureForLine(l);
+  if (truth == null) return;
+  markOffScale((l.type === 'barge') ? 'sheet' : 'meas', _lineNiceName(l), truth, +l.measM);
+}
+function _offScaleReasonLine(r){
+  var name = r.what || (r.kind === 'sheet' ? 'A sheet length' : 'A measurement');
+  if (r.from != null && r.to != null) return name + ': ' + r.from.toFixed(2) + ' m → ' + r.to.toFixed(2) + ' m';
+  if (r.to != null) return name + ' set to ' + r.to.toFixed(2) + ' m';
+  return name + ' changed';
+}
+function openNotToScale(){
+  var reasons = (DRAW.offScale && DRAW.offScale.reasons) || [];
+  var recent = reasons.slice(-6).reverse();
+  var older = reasons.length - recent.length;
+  var wrap = document.createElement('div');
+  wrap.id = '_ntsWrap';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.3);font-family:inherit';
+  var list = recent.map(function(r){ return '<li style="margin:3px 0">' + esc(_offScaleReasonLine(r)) + '</li>'; }).join('');
+  card.innerHTML =
+    '<div style="font-size:18px;font-weight:800;color:#b45309;margin-bottom:6px">⚠ This roof map is no longer to scale</div>' +
+    '<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#334155">' +
+      'You have typed measurements the drawing itself cannot produce, so the picture and the numbers no longer agree. ' +
+      'The numbers you typed are what the quote, the cut list and the order use — the drawing is now a sketch of them, not a measurement of them.' +
+    '</p>' +
+    (list ? ('<div style="font-size:12.5px;font-weight:700;color:#475569;margin-bottom:4px">What changed</div>' +
+             '<ul style="margin:0 0 12px 18px;padding:0;font-size:13px;color:#334155">' + list + '</ul>' +
+             (older > 0 ? '<p style="margin:-6px 0 12px;font-size:12px;color:#64748b">…and ' + older + ' earlier change' + (older === 1 ? '' : 's') + '.</p>' : '')) : '') +
+    '<p style="margin:0 0 14px;font-size:13px;line-height:1.55;color:#475569">' +
+      'Nudging a sheet length by 0.1 m or less for overhang does <strong>not</strong> do this — the rest of the plan is still true and this warning stays away. ' +
+      'While the map is off scale it stays in <strong>Visual edits</strong> mode, so a number you change from here affects nothing else on the map.' +
+    '</p>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
+      '<button id="_ntsKeep" style="padding:9px 15px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-family:inherit">Keep my edits</button>' +
+      '<button id="_ntsReset" style="padding:9px 16px;font-size:13px;font-weight:800;background:#059669;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit">📐 Reset to exact scale</button>' +
+    '</div>';
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  function close(){ var w = document.getElementById('_ntsWrap'); if (w) w.remove(); }
+  card.querySelector('#_ntsKeep').onclick = close;
+  card.querySelector('#_ntsReset').onclick = function(){ close(); resetToExactScale(); };
+  wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
+}
+// Throw every typed override away and read the measurements back off the
+// calibrated geometry — which is what "exact scale" means. Snapshotted, so
+// Undo brings the edits back if it was pressed by mistake.
+function resetToExactScale(){
+  if (!(DRAW.scaleMetresPerPx > 0)){
+    alert('There is no scale set yet — calibrate the map first, then the measurements can be read off it.');
+    return;
+  }
+  try { saveSnapshot(); } catch(e){}
+  DRAW.sheetOverrides = {};
+  DRAW.sheetGroupOverrides = {};
+  // Flashing rows: drop the typed LENGTH only. A letter, a hidden row or a
+  // quantity is the office's filing, not a measurement, and survives.
+  try {
+    var fo = DRAW.flashLayoutOverrides || {};
+    Object.keys(fo).forEach(function(k){ if (fo[k]) delete fo[k].lengthM; });
+  } catch(e){}
+  try { _recalcAllRoofsMeas(); } catch(e){ try { autoCalcLineMeasurements(); } catch(e2){} }
+  DRAW.offScale = null;
+  DRAW.editMode = 'scaled';
+  try { syncToRoofData(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { updateMeasTotals(); } catch(e){}
+  try { populateMaterialsFromLines(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
 // Say plainly where the scale came from, so nobody measures off an aerial
 // assuming it was never set — and so it is obvious that Calibrate overrides it.
 function _scaleStateShow(){
+  try { _scaleStatusRender(); } catch(e){}
   // The caution above the canvas is about ONE thing: a scale that came off a
   // satellite picture rather than off a tape. If no aerial was ever loaded
   // there is nothing to caution about — the toolbar already says "No scale
@@ -45630,6 +45862,7 @@ function confirmLineMeas() {
     conn.forEach(function(ci){ if(!DRAW.lines[ci].measM) DRAW.lines[ci].measM = val; });
   }
 
+  try { _checkLineDrift(l); } catch(e){}
   closeLineMeasPopup();
   redrawAll();
   updateMeasTotals();
@@ -47540,10 +47773,13 @@ var TOOLTIPS = {
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
   'btn-calibrate':    'Calibrate scale: click two points on a known distance (e.g. a wall edge), enter the real measurement. All drawn lines will then auto-calculate their real length.',
-  'btn-addmeas':      'Add Measurements: click any drawn line to enter its length in metres. Totals are calculated automatically.'
+  'btn-addmeas':      'Add Measurements: click any drawn line to enter its length in metres. Totals are calculated automatically.',
+  'btn-mode-scaled':  'Scaled edits: a measurement you type MOVES the drawing to match, so the whole plan stays true to the scale — the area, the sheets and every other length follow it.',
+  'btn-mode-visual':  'Visual edits: a measurement you type changes only what is printed on that one item. Nothing else on the map moves — the outline, the other lengths and the sheet runs all stay exactly where they are.',
+  'btn-nottoscale':   'This map is no longer to scale: you have typed numbers the drawing cannot produce. Click to see what changed, and to reset every measurement back to the exact scale.'
 };
 
-function showTip(id, e) {
+function showTip(id, e, delayMs) {
   var txt = TOOLTIPS[id];
   if(!txt) return;
   _tipTimer = setTimeout(function(){
@@ -47557,7 +47793,7 @@ function showTip(id, e) {
     var r = el.getBoundingClientRect();
     if(r.right > window.innerWidth - 10) el.style.left = (window.innerWidth - r.width - 12) + 'px';
     if(r.bottom > window.innerHeight - 10) el.style.top = (e.clientY - r.height - 8) + 'px';
-  }, 800);
+  }, (delayMs > 0) ? delayMs : 800);
 }
 function hideTip() {
   clearTimeout(_tipTimer);
@@ -52182,6 +52418,8 @@ function _jpSheetSetQty(origLen, value){
 function _jpSheetSetLen(origLen, valueM){
   var f = parseFloat(valueM);
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
+  // origLen is in mm — the length the roof map produced for this group.
+  try { if (isFinite(f) && f > 0) markOffScale('sheet', 'Cut-list sheet', (parseFloat(origLen) || 0) / 1000, f); } catch(e){}
   if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
   else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
   var fr = _jpSheetRow(origLen); if (fr && isFinite(f) && f > 0) fr.len = Math.round(f * 1000);
@@ -52722,7 +52960,7 @@ function _applySheetMeasureChange(hit, raw){
       // every recomputed measure now reads the typed value.
       var _stretched = false;
       try {
-        if (DRAW.scaleMetresPerPx > 0 && (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx)) {
+        if (!_visualEdits() && DRAW.scaleMetresPerPx > 0 && (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx)) {
           var _tb = _bargesForSheetRun(hit, DRAW.lines || []);
           for (var _tbi = 0; _tbi < _tb.length && !_stretched; _tbi++){
             var _bl = _tb[_tbi];
@@ -52738,16 +52976,20 @@ function _applySheetMeasureChange(hit, raw){
         }
       } catch(e){}
       if (!_stretched) {
-        // Fallback (hip faces, other roofs, uncalibrated): label-only
-        // override, plus the barges on its own face/step — the old
-        // behaviour, which never touches the outline.
+        // Fallback (hip faces, other roofs, uncalibrated, or visual mode):
+        // label-only override, which never touches the outline. The drawing
+        // and the number now disagree, so unless it is an overhang-sized
+        // nudge (0.1 m or less) the map is no longer to scale.
         DRAW.sheetOverrides[hit.key] = n;
+        try { markOffScale('sheet', 'Sheet length', parseFloat(String(current).replace(/m$/, '')), n); } catch(e){}
         try {
           var _lines = (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx)
             ? DRAW.lines
             : (DRAW.roofs && DRAW.roofs[hit.roofIdx] && DRAW.roofs[hit.roofIdx].lines);
           var _lbl = n.toFixed(2) + 'm';
-          _bargesForSheetRun(hit, _lines || []).forEach(function(b){ b.measM = n; b.label = _lbl; });
+          // Visual edits stop at the label the user typed on — the barges
+          // that share this run keep their own numbers.
+          if (!_visualEdits()) _bargesForSheetRun(hit, _lines || []).forEach(function(b){ b.measM = n; b.label = _lbl; });
         } catch(e){}
       } else {
         // Geometry is now true — clear any stale label override for this run.
@@ -53746,6 +53988,12 @@ function _matInlineSetLength(inp){
   var n = parseFloat(inp.value);
   var matches = _matInlineMatchesFor(rowKey);
   if (!matches.length) return;
+  // The row key carries the length the drawing produced, so the typed value
+  // can be compared with it without re-deriving anything.
+  try {
+    var _was = parseFloat(String(rowKey).split('::')[2]);
+    if (isFinite(n) && n > 0) markOffScale('meas', 'Cut-list flashing', _was, n);
+  } catch(e){}
   if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
   matches.forEach(function(m){
     var ov = DRAW.flashLayoutOverrides[m.key] || {};

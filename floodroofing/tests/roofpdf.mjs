@@ -142,6 +142,28 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     v.caps.join('|') === 'Plan — page 1|Plan — page 2|Plan — page 3', JSON.stringify(v.caps));
   check('…as ordinary images, so they save with the job like any photo', v.src === true);
 
+  // A plan is line work that gets zoomed into and READ — the pitch, the eaves
+  // dimension, the bracing note. Rendered at 1.4 and then put through the
+  // photo downscaler (900px, JPEG quality 0.6) it was a grey smear at any
+  // useful zoom: "very blurry when I zoom in". Plan pages now render at the
+  // largest size the page-render cap allows and skip the downscaler.
+  const sharp = await pg.evaluate(async () => {
+    const scales = (window.__renderedScales || []).filter(s => s[1] >= 4).length;
+    const px = await new Promise(res => {
+      const im = new Image();
+      im.onload = () => res(im.naturalWidth);
+      im.onerror = () => res(0);
+      im.src = (S.photos[0] || {}).src || '';
+    });
+    return { scales, px, kind: (S.photos[0] || {}).kind };
+  });
+  check('plan pages are rendered at reading resolution, not thumbnail scale',
+    sharp.scales >= 3, JSON.stringify(sharp));
+  check('…and are NOT put through the 900px photo downscaler on the way in',
+    sharp.px >= 600, String(sharp.px));
+  check('…and are marked as plans, so nothing downstream treats one as a snap',
+    sharp.kind === 'plan', String(sharp.kind));
+
   // In the photos panel they behave exactly like the Fergus photos beside
   // them: whole pictures at panel width, a zoom slider that widens them past
   // the panel, and a box you drag to move around a zoomed page. An 84px
