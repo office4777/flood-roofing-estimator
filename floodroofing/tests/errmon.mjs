@@ -102,6 +102,31 @@ check('…and it was announced, once', alerts.length === alertsAtStart + 1,
 check('…in a form Slack or Discord would print', typeof (alerts[alerts.length-1]||{}).text === 'string' && /RoofMap/.test(alerts[alerts.length-1].text),
   ((alerts[alerts.length-1]||{}).text||'').split('\n')[0]);
 
+// ── a cancelled request is not a crash ───────────────────────────
+// Mapbox aborts its own tile fetches whenever the map pans or zooms, and the
+// app reported that as "[RoofMap client] Fetch is aborted" — one email per
+// subscriber who used the aerial. The app stopped sending them, but a browser
+// still holding yesterday's build keeps sending them until it reloads, so the
+// same narrow filter stands here: the abort MESSAGE only, never a library.
+{
+  const before = await api('GET', '/admin/errors?token=let-me-in-please-0000');
+  const n0 = (before.body && before.body.total) || 0;
+  const post = m => fetch(BASE + '/client-error', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ message:m, stack:'at abortTile@https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js:45:51215' }) });
+  for (const m of ['Fetch is aborted', 'The user aborted a request.', 'The operation was aborted.']) await post(m);
+  await settle(200);
+  let after = await api('GET', '/admin/errors?token=let-me-in-please-0000');
+  check('a cancelled request is not recorded as a client error',
+    ((after.body && after.body.total) || 0) === n0, ((after.body && after.body.total) || 0) - n0 + ' recorded');
+  await post('Style is not done loading');
+  await settle(200);
+  after = await api('GET', '/admin/errors?token=let-me-in-please-0000');
+  check('…while a real failure from the same library still is',
+    ((after.body && after.body.total) || 0) === n0 + 1 &&
+    (after.body.recent || []).some(e => /Style is not done loading/.test(e.message || '')),
+    ((after.body && after.body.total) || 0) - n0 + ' recorded');
+}
+
 // ── the same failure again is not a second alert ──
 const before = alerts.length;
 for (let i = 0; i < 4; i++){ db.__fail500 = 'jobs'; await api('GET','/jobs'); db.__fail500 = ''; }

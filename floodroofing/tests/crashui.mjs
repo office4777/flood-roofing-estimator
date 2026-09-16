@@ -62,6 +62,32 @@ await pg.evaluate(() => { const i=new Image(); i.src='brand/definitely-not-here.
 await pg.waitForTimeout(600);
 check('a missing image is not reported as a crash', reports.length === 2, String(reports.length));
 
+// ── a cancelled request is not a crash ───────────────────────────
+// Mapbox aborts its own tile fetches every time the map pans, zooms or drops
+// a tile it no longer needs. That surfaced as "[RoofMap client] Fetch is
+// aborted" in the owner's inbox, with a stack entirely inside mapbox-gl.js:
+// nothing broken, nothing to fix, and one email per subscriber who used the
+// aerial — which is how a real crash report ends up read past.
+for (const m of ['Fetch is aborted', 'The user aborted a request.', 'The operation was aborted.', 'signal is aborted without reason']){
+  await pg.evaluate((msg) => {
+    const e = new Error(msg); e.name = 'AbortError';
+    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.reject(e).catch(() => {}), reason: e }));
+  }, m);
+  await pg.waitForTimeout(150);
+}
+check('a cancelled request is not reported as a crash', reports.length === 2, reports.length + ' sent');
+// …but a real failure from the same library still is. The filter is on the
+// abort MESSAGE, not on whose code it came from.
+await pg.evaluate(() => {
+  const e = new Error('Style is not done loading');
+  e.stack = 'at _render@https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js:45:682258';
+  window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.reject(e).catch(() => {}), reason: e }));
+});
+await pg.waitForTimeout(400);
+check('…but a genuine failure in the same library still is',
+  reports.length === 3 && /Style is not done loading/.test((reports[2] || {}).message || ''),
+  reports.length + ' sent');
+
 // and it stops eventually
 for (let i = 0; i < 12; i++){
   await pg.evaluate((n) => { setTimeout(() => { throw new Error('distinct failure ' + n); }, 0); }, i);

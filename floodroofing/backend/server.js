@@ -10268,6 +10268,13 @@ app.post('/client-error', (req, res) => {
     if (hit.n > 30) return res.status(429).json({ ok: false });
 
     const b = req.body || {};
+    // A cancelled request is not a crash. The app stopped sending these, but
+    // a browser holding yesterday's build keeps sending them until it
+    // reloads, so the same narrow filter stands here too: the abort MESSAGE
+    // only, never a whole library.
+    const _msg = String(b.message || '').trim();
+    if (/^(fetch is aborted|aborted|request aborted|the user aborted a request\.?|the operation was aborted\.?|signal is aborted without reason)$/i.test(_msg)
+        || /^AbortError\b/.test(_msg)) return res.json({ ok: true, ignored: 'aborted request' });
     const err = new Error(String(b.message || 'client error').slice(0, 500));
     err.stack = String(b.stack || '').slice(0, 4000);
     recordError('client', err, {

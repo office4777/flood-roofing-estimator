@@ -11499,16 +11499,36 @@ function _fbNoteError(msg, stack, kind){
     if (FB_ERRS.length > 8) FB_ERRS.shift();
   } catch(e){}
 }
+// A CANCELLED request is not a crash. Mapbox aborts its own tile fetches
+// every time the map pans, zooms or drops a tile it no longer needs, and the
+// rejection surfaces here as "Fetch is aborted" with a stack entirely inside
+// mapbox-gl.js. Nothing is broken, nothing can be fixed, and nobody can act
+// on it — but it emailed the owner, once per subscriber who used the aerial,
+// which is exactly how a real crash report gets read past. The wording is the
+// browser's, and they all differ, so match the ones they actually send.
+//
+// Narrow on purpose: only the abort MESSAGE is ignored. A genuine failure
+// inside Mapbox, or anywhere else, still reports.
+function _isAbortNoise(err, message){
+  try {
+    if (err && err.name === 'AbortError') return true;
+    var m = String(message || (err && err.message) || '').trim();
+    return /^(fetch is aborted|aborted|request aborted|the user aborted a request\.?|the operation was aborted\.?|signal is aborted without reason)$/i.test(m)
+        || /^AbortError\b/.test(m);
+  } catch(e){ return false; }
+}
 window.addEventListener('error', function(e){
   // Ignore resource load failures (a missing image fires this too) — they
   // have no error object and are not what this is for.
   if (!e || !e.error) return;
+  if (_isAbortNoise(e.error, e.message)) return;
   _fbNoteError(e.message || String(e.error), e.error && e.error.stack);
   _reportClientError(e.message || String(e.error), e.error && e.error.stack);
 });
 window.addEventListener('unhandledrejection', function(e){
   var r = e && e.reason;
   if (!r) return;
+  if (_isAbortNoise(r, r && r.message)) return;
   // A rejected api() call the code already handles is not a crash — only
   // report rejections nobody caught, which is what this event means.
   _fbNoteError((r && r.message) || String(r), r && r.stack, 'promise');
