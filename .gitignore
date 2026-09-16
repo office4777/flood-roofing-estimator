@@ -29,6 +29,7 @@ npm-debug.log*
 # floodroofing/tools (demo-shots → demo-slideshow → demo-record). The
 # assembled HTML inlines every screenshot as base64, so it is megabytes of
 # generated content; the scripts are the thing worth keeping.
+floodroofing/tools/out-onboarding/
 floodroofing/tools/demo/shots/
 floodroofing/tools/demo/slideshow.html
 floodroofing/tools/demo/*.webm

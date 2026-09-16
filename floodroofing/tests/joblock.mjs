@@ -59,7 +59,7 @@ check('…without asking anything just for opening', !v.asked);
 // ── drawing on it asks first, and changes nothing ────────────────
 const n0 = await pg.evaluate(() => DRAW.outline.length + DRAW.lines.length);
 const cv = await pg.locator('#roofCanvas').boundingBox();
-await pg.mouse.click(cv.x + 60, cv.y + 60);
+await pg.locator('#roofCanvas').click({ position: { x: 60, y: 60 } });
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({ asked: !!document.getElementById('jobLockModal'), n: DRAW.outline.length + DRAW.lines.length, pts: DRAW.currentPts.length }));
 check('a tap on the locked canvas asks to unlock', v.asked, JSON.stringify(v));
@@ -130,7 +130,7 @@ check('locking again saves what changed first', puts.length === n1 + 1 && puts[p
   (puts.length - n1) + ' saves, locked=' + v.locked);
 
 // ── the question's own Unlock button ─────────────────────────────
-await pg.mouse.click(cv.x + 80, cv.y + 80);
+await pg.locator('#roofCanvas').click({ position: { x: 80, y: 80 } });
 await pg.waitForTimeout(300);
 await pg.click('#jobLockUnlock');
 await pg.waitForTimeout(200);
