@@ -157,8 +157,19 @@ await pg.evaluate(async () => {
   await new Promise(r => { im.onload = r; });
   DRAW.bgImg = im; DRAW.zoom = 2; IMG_OFFSET = {x:0,y:0}; redrawAll();
 });
-const s2 = await pg.evaluate(() => getImgTransform().s);
-check('the working-zoom transform is live', s2 > 1, String(s2));
+// Zoom really is magnifying — measured against the SAME canvas at 1:1, not
+// against a hard-coded number. The canvas is sized to whatever the panel
+// gives it, and since Map Roof became the landing tab that is a real
+// measured container rather than the element's default attributes, so a bare
+// "s > 1" was reading the old canvas size, not the zoom.
+const s2 = await pg.evaluate(() => {
+  const at2 = getImgTransform().s;
+  DRAW.zoom = 1; redrawAll();
+  const at1 = getImgTransform().s;
+  DRAW.zoom = 2; redrawAll();
+  return { at1: at1, at2: at2 };
+});
+check('the working-zoom transform is live', s2.at2 > s2.at1 * 1.9, JSON.stringify(s2));
 
 // A first wall drawn 5 image px off plumb over 250 — a ~10 screen-px hand
 // wobble at this zoom. It must come out perfectly vertical.

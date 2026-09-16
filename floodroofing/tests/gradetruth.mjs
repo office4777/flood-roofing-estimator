@@ -118,7 +118,7 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
 await pg.goto(`http://127.0.0.1:${PORT}/app.html`);
 await pg.waitForTimeout(3000);
 await pg.evaluate(() => { const w=document.getElementById('setupWizard'); if(w) w.remove(); });
-await pg.click('#sampleJobBanner .sj-go');
+await pg.click('.panel.active .sj-go');
 await pg.waitForTimeout(2500);
 
 async function build(grade){

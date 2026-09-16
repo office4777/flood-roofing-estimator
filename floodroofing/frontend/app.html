@@ -4343,9 +4343,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- Filled by _sampleJobBannerSync() while this account has no jobs of its
        own. See openSampleJob(). -->
   <div id="sampleJobBanner"></div>
-  <!-- The three questions the setup-call form used to ask, asked once here
-       instead — optional, one tap to skip. See _aboutYouSync(). -->
-  <div id="aboutYouCard"></div>
+  <!-- The three questions the setup-call form used to ask now live on the
+       Map Roof tab, which is where signing in lands. Moved rather than
+       copied: it is a form, and two of it would mean duplicate ids. -->
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
@@ -4362,7 +4362,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div data-sample-strip class="no-print"></div>
   <!-- Same offer as the Home one, on the tab a new account now lands on.
        Both are filled by _sampleJobBannerSync() from one piece of html. -->
+  <div id="trialBannerRoof" class="no-print"></div>
   <div id="sampleJobBannerRoof" class="no-print"></div>
+  <!-- The three questions the setup-call form used to ask, asked once here
+       instead — optional, one tap to skip. See _aboutYouSync(). -->
+  <div id="aboutYouCard"></div>
   <div class="card" id="roofBgCard">
     <!-- Collapsible "set roof image" step — auto-collapses once an image
          is chosen so the drawing canvas isn't buried two screens down.
@@ -18094,8 +18098,14 @@ var PLAN_LABELS = { solo: 'Trade', team: 'Team', business: 'Business', trial: 'T
   } catch(e){}
 })();
 function _planGateSync(){
-  var el = document.getElementById('trialBanner');
-  if (el) el.innerHTML = _planGateHtml();
+  // Home and Map Roof both. A trial running out has to be seen on the tab
+  // the roofer is actually on, and since this ship that is Map Roof. The
+  // html carries no ids, so two of it is safe.
+  var html = _planGateHtml();
+  ['trialBanner', 'trialBannerRoof'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
 }
 
 // ── THE SAMPLE JOB ───────────────────────────────────────────────────

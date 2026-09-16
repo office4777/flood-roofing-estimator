@@ -64,6 +64,13 @@ check('the job carries a roof map history panel', v.exists);
 check('…collapsed until it is wanted', v.open === false, String(v.open));
 check('…on the Map Roof tab, where you notice a map has gone', v.tab, String(v.tab));
 
+// Open the card, the way anyone reading their history has to. Until this
+// ship the Map Roof panel was hidden at boot, so a collapsed <details> still
+// answered innerText with its text; now the panel is the landing tab and
+// collapsed means genuinely invisible — which is the honest thing to read.
+await pg.evaluate(() => { const c = document.getElementById('roofHistoryCard'); if (c) c.open = true; });
+await pg.waitForTimeout(150);
+
 // ── with no job open it says so rather than erroring ──────────────
 await pg.evaluate(() => { S.currentJobId = null; S.linkedJobId = null; return _roofHistoryLoad(true); });
 await pg.waitForTimeout(300);

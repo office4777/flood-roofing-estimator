@@ -52,7 +52,7 @@ let v = await pg.evaluate(() => (document.getElementById('trialBanner')||{}).tex
 check('the expired banner offers a button, not an email address',
   /Choose a plan/.test(v) && !/office@floodroofing/.test(v), v.replace(/\s+/g,' ').slice(0,90));
 
-await pg.click('#trialBanner button');
+await pg.click('.panel.active #trialBanner button, .panel.active #trialBannerRoof button');
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => ({
   tab: document.body.getAttribute('data-tab'),
@@ -136,7 +136,7 @@ check('a pending business is prompted rather than left to hit a 403',
   /Pick a plan to start saving jobs/.test(v), v.replace(/\s+/g,' ').slice(0,90));
 check('…and the banner offers the same button, not an email address',
   /Choose a plan/.test(v) && !/office@floodroofing/.test(v), v.replace(/\s+/g,' ').slice(0,90));
-await pg.click('#trialBanner button');
+await pg.click('.panel.active #trialBanner button, .panel.active #trialBannerRoof button');
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => ({
   tab: document.body.getAttribute('data-tab'),
@@ -161,7 +161,7 @@ await ctx.close();
 ({ ctx, pg, checkouts } = await boot({ status:'trialing', billing:true, live:false,
   trial:{ ends_at:'2026-08-01T00:00:00Z', days_left:0, expired:true }, plan:'trial',
   annual:{ solo:true, team:true, business:false } }));
-await pg.click('#trialBanner button');
+await pg.click('.panel.active #trialBanner button, .panel.active #trialBannerRoof button');
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => ({
   bar: !!document.getElementById('billingCycleBar'),
