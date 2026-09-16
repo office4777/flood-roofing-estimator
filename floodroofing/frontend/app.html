@@ -4360,6 +4360,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- TAB 1: ROOF MAP -->
 <div class="panel" id="tab-roof">
   <div data-sample-strip class="no-print"></div>
+  <!-- Same offer as the Home one, on the tab a new account now lands on.
+       Both are filled by _sampleJobBannerSync() from one piece of html. -->
+  <div id="sampleJobBannerRoof" class="no-print"></div>
   <div class="card" id="roofBgCard">
     <!-- Collapsible "set roof image" step — auto-collapses once an image
          is chosen so the drawing canvas isn't buried two screens down.
@@ -18181,9 +18184,14 @@ async function _aboutYouSend(skipped){
   try { await api('POST', '/auth/about', body); } catch(e){}
 }
 function _sampleJobBannerSync(){
-  var el = document.getElementById('sampleJobBanner');
-  if (!el) return;
-  el.innerHTML = _hasOwnWork() ? '' : _sampleJobBannerHtml();
+  // Home and Map Roof both carry it: signing in lands on Map Roof, and an
+  // account with no work of its own should meet the finished sample wherever
+  // it lands. One piece of html, so the two can never drift apart.
+  var html = _hasOwnWork() ? '' : _sampleJobBannerHtml();
+  ['sampleJobBanner', 'sampleJobBannerRoof'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
 }
 // The strip that stays visible while the sample is open, so nobody emails it
 // to a customer thinking it is their own job.

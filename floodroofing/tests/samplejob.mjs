@@ -83,14 +83,23 @@ check('…and is small enough to ship in the app shell',
 let { ctx, pg } = await open([]);
 let v = await pg.evaluate(() => {
   const el = document.getElementById('sampleJobBanner');
-  return { html: !!(el && el.innerHTML.trim()), txt: (el ? el.textContent : '').replace(/\s+/g,' ').trim() };
+  // Signing in lands on Map Roof, so the offer has to be on the tab the
+  // account actually arrives at — not only on Home, where nobody starts.
+  const vis = [...document.querySelectorAll('#sampleJobBanner, #sampleJobBannerRoof')]
+    .filter(n => n.innerHTML.trim() && n.closest('.panel') && n.closest('.panel').classList.contains('active'));
+  return { html: !!(el && el.innerHTML.trim()), onLanding: vis.length > 0,
+           landedOn: document.body.getAttribute('data-tab'),
+           txt: (el ? el.textContent : '').replace(/\s+/g,' ').trim() };
 });
 check('a business with no jobs is offered the sample', v.html, v.txt.slice(0, 80));
+check('…on the tab they actually land on, not only on Home',
+  v.onLanding, 'landed on ' + v.landedOn);
 check('…and told it will not be saved to their account',
   /Nothing is saved to your account until you save it/i.test(v.txt), v.txt.slice(-90));
 
 // ── opening it ──
-await pg.click('#sampleJobBanner .sj-go');
+// Whichever copy of the offer is in front of them.
+await pg.click('.panel.active .sj-go');
 await pg.waitForTimeout(2200);
 let o = await pg.evaluate(() => ({
   flag: S.isSampleJob, jobId: S.currentJobId,
