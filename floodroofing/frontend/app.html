@@ -18400,6 +18400,16 @@ function resumeSavedJob(id){ return openJob(id); }
   function tryBoot(){
     if (window.__CUSTOMER_TOKEN) return; // customer view — skip office boot
     if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
+    // Signing in lands on MAP ROOF, not Home. Measuring a roof is what people
+    // open RoofMap to do; the Home tiles were a menu in front of the work.
+    // Only from the default tab, so anything that has already sent the user
+    // somewhere deliberate — a quote link, an inbox deep link, a resumed
+    // draft, a job opened straight from the chooser — is left alone. Once per
+    // page load, so it cannot yank a tab away mid-use.
+    if (!window.__LANDED){
+      window.__LANDED = 1;
+      try { if (document.body.getAttribute('data-tab') === 'select') gotoTab('roof'); } catch(e){}
+    }
     loadSettings().catch(function(e){console.warn(e);});
     // First run on this device: the setup guide. After loadSettings so the
     // Settings screens it sends people to are populated when they arrive,
