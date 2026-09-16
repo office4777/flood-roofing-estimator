@@ -839,6 +839,8 @@ html.site-mode #fergusRoofPanelResize{display:none!important}
 #tourHand{position:absolute;font-size:23px;line-height:1;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(10,22,40,.45));animation:tourNudge 1.15s ease-in-out infinite}
 @keyframes tourNudge{0%,100%{transform:translate(0,0)}50%{transform:translate(-4px,-2px)}}
+#tourCard #tourNext,#tourCard #tourBack{white-space:nowrap}
+#tourCard.tour-light #tourRing{box-shadow:0 0 0 5px rgba(0,153,204,.28)}
 #tourCard{position:absolute;width:min(330px,92vw);background:#fff;border-radius:13px;
   padding:15px 16px 13px;box-shadow:0 20px 52px rgba(10,22,40,.34);pointer-events:auto}
 @media (prefers-reduced-motion:reduce){
@@ -40154,6 +40156,7 @@ function _tourPlace(){
   if (!el){ return tourStep(TOUR.i + 1); }
   var r = el.getBoundingClientRect(), pad = 7;
   ring.style.display = 'block';
+  ring.style.boxShadow = st.light ? '0 0 0 5px rgba(0,153,204,.28)' : '';
   ring.style.left = (r.left - pad) + 'px';   ring.style.top = (r.top - pad) + 'px';
   ring.style.width = (r.width + pad * 2) + 'px';
   ring.style.height = (r.height + pad * 2) + 'px';
@@ -40189,9 +40192,11 @@ function _tourRender(){
   // element it actually ended up ringing.
   var el = st.centre ? null : _tourEl(st);
   st._done = false;
+  st._at = Date.now();
+  var _card = w.querySelector('#tourCard'); if (_card) _card.classList.toggle('tour-light', !!st.light);
   if (typeof st.onEnter === 'function'){ try { st.onEnter(); } catch(e){} }
   try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'shown'); } catch(e){}
-  w.querySelector('#tourBody').innerHTML = _tourBodyHtml(_tourStepBody(st));
+  w.querySelector('#tourBody').innerHTML = _tourBodyHtml(typeof st.body === 'function' ? st.body() : _tourStepBody(st));
   // A step can carry its own buttons (the practice job's start and finish
   // cards) — rendered under the body, wired by the step itself.
   var extra = w.querySelector('#tourExtra');
@@ -40267,7 +40272,7 @@ function openTour(force, steps, kind){
     // (opens the popup, applies the fallback picture) or skips it, and says
     // which. Either way the reader is never stuck behind a step.
     if (st && st.until && !st.until()){
-      if (typeof st.onNext === 'function'){
+      if (typeof st.onNext === 'function' && !st.manual){
         try { st.onNext(); } catch(e){}
         if (!st.until()) return;   // the action is asynchronous — the poller moves on when it lands
       } else {
@@ -40291,11 +40296,24 @@ function openTour(force, steps, kind){
   TOUR._poll = setInterval(function(){
     if (!TOUR.open) return;
     var st = TOUR.steps[TOUR.i]; if (!st) return;
+    // A step whose body changes as they work (corner count, say).
+    if (typeof st.body === 'function'){
+      var bt = _tourBodyHtml(st.body());
+      var bel = document.getElementById('tourBody');
+      if (bel && bel.innerHTML !== bt) bel.innerHTML = bt;
+    }
     if (st.until && !st._done && st.until()){
-      st._done = true;
-      try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'done'); } catch(e){}
-      setTimeout(function(){ if (TOUR.open && TOUR.steps[TOUR.i] === st) tourStep(TOUR.i + 1); }, st.settle || 500);
-      return;
+      if (st.manual){
+        // Done when THEY say so: the button turns from Skip into Next and
+        // the walkthrough waits — nobody gets yanked off a step mid-drag.
+        var nb = document.getElementById('tourNext');
+        if (nb && nb.textContent !== (st.doneNext || 'Next')) nb.textContent = st.doneNext || 'Next';
+      } else {
+        st._done = true;
+        try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'done'); } catch(e){}
+        setTimeout(function(){ if (TOUR.open && TOUR.steps[TOUR.i] === st) tourStep(TOUR.i + 1); }, st.settle || 500);
+        return;
+      }
     }
     if (!st.centre) _tourPlace();
   }, 350);
@@ -40382,8 +40400,9 @@ function openTestJob(){
   S.isSampleJob = true; S.demoKind = 'test';
   S.jobLocked = false; try { _jobLockRender(); } catch(e){}
   try { setCurrentJobLabel({ client_name: FIRST_ROOF.client, site_address: FIRST_ROOF.addr }); } catch(e){}
-  // The finder flies straight to the address — no geocoder round trip to fail.
-  window._autoLat = FIRST_ROOF.lat; window._autoLon = FIRST_ROOF.lon;
+  // The finder geocodes the address like any other job's; the coordinates
+  // in FIRST_ROOF are only the fallback when the geocoder cannot answer.
+  window._autoLat = null; window._autoLon = null;
   try { var a = document.getElementById('aerialAddressInput'); if (a) a.value = FIRST_ROOF.addr; } catch(e){}
   window._aerialLoadedAddr = null;
   try { _sampleJobStripSync(); } catch(e){}
@@ -40434,6 +40453,7 @@ function _firstRoofSteps(){
   // Popups are position:fixed, whose offsetParent is null — measure them.
   var vis = function(id){ var el = document.getElementById(id); return !!el && el.style.display !== 'none' && el.getBoundingClientRect().width > 0; };
   var hasRoof = function(){ return !!(DRAW.outlineDone || (DRAW.roofs && DRAW.roofs.length)); };
+  var after = function(ms){ return function(){ var st = TOUR.steps[TOUR.i]; return !!st && (Date.now() - (st._at || 0)) > ms; }; };
   var btn = function(label, fn, primary){
     return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
       (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
@@ -40451,29 +40471,53 @@ function _firstRoofSteps(){
     { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
       body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
       until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
-    { key: 'pan', sel: '#roofCanvas', tab: 'roof', title: 'Put the roof in the middle',
-      body: 'Drag the picture so the roof sits in the middle of the canvas.',
+    { key: 'move', sel: '#btn-move', tab: 'roof', title: 'Put the roof in the middle',
+      body: 'Click **Move / Edit** — that is the tool for dragging the picture around.',
+      until: function(){ return DRAW.tool === 'select'; }, onNext: function(){ setTool('select'); }, next: 'Select it for me' },
+    { key: 'pan', sel: '#roofCanvas', tab: 'roof', light: true, manual: true, title: 'Drag it into the middle',
+      body: 'Drag the picture so the roof sits in the middle of the canvas. Take your time — click **Next** when it is where you want it.',
       onEnter: function(){ base.pan = JSON.stringify(IMG_OFFSET); },
-      until: function(){ return JSON.stringify(IMG_OFFSET) !== base.pan; }, next: 'It’s fine where it is' },
-    { key: 'zoom', sel: '#roofZoomStepper', tab: 'roof', title: 'Zoom in on it',
-      body: 'Use **+** and **−** (or the mouse wheel) so the roof is big enough to click its corners accurately.',
-      alt: { sel: '#roofCanvas', body: 'Roll the mouse wheel over the picture (or pinch on a touch screen) so the roof is big enough to click its corners accurately.' },
+      until: function(){ return JSON.stringify(IMG_OFFSET) !== base.pan; }, next: 'Skip' },
+    { key: 'zoom', sel: '#roofZoomStepper', tab: 'roof', light: true, manual: true, title: 'Zoom in on it',
+      body: 'Use **+** and **−** (or the mouse wheel) so the roof is big enough to click its corners accurately. Click **Next** when it looks right.',
+      alt: { sel: '#roofCanvas', body: 'Roll the mouse wheel over the picture (or pinch on a touch screen) so the roof is big enough to click its corners accurately. Click **Next** when it looks right.' },
       onEnter: function(){ base.zoom = DRAW.zoom; },
-      until: function(){ return DRAW.zoom !== base.zoom; }, next: 'Zoom is fine' },
-    { key: 'rotate', sel: '#fineRotateSlider', tab: 'roof', title: 'Straighten it',
-      body: 'Turn the picture so the walls run straight across and up and down — it makes the tracing tidier.\n\nOptional: skip it if the roof already looks square.',
-      alt: { sel: '#roofCanvas', body: 'The **Rotate** control (in the View menu above the picture) turns it so the walls run straight across and up and down — it makes the tracing tidier.\n\nOptional: skip it if the roof already looks square.' },
+      until: function(){ return DRAW.zoom !== base.zoom; }, next: 'Skip' },
+    { key: 'rotate-open', sel: '#viewMenuBtn', tab: 'roof', title: 'Straighten it',
+      body: 'The rotate control lives under **Edit font size / rotate image**. Click it.\n\nOptional — skip this if the roof already looks square.',
+      until: function(){ return vis('viewMenu'); }, onNext: function(){ var b = document.getElementById('viewMenuBtn'); if (b) b.click(); }, next: 'Open it for me' },
+    { key: 'rotate', sel: '#fineRotateSlider', wait: true, light: true, manual: true, title: 'Turn the picture',
+      body: 'Slide **Rotate photo** (or the −.1 / +.1 buttons) until the walls run straight across and up and down. Click **Next** when you are happy.',
       onEnter: function(){ base.rot = IMG_FINE_ROTATION; },
       until: function(){ return IMG_FINE_ROTATION !== base.rot; }, next: 'Skip — looks square' },
     { key: 'outline', sel: '#btn-outline', tab: 'roof', title: 'Trace the building',
-      body: 'Click **Building outline**, then click each corner of the roof in turn. Press **Enter** when you are back at the first corner.',
-      until: function(){ return hasRoof(); } , onNext: function(){ setTool('outline'); }, next: 'Select the tool for me', settle: 300 },
-    { key: 'roofsetup', sel: '#_rsModal', wait: true, title: 'Roof type and pitch',
-      body: 'Pick the shape that matches (hip and valley is the common one), put the **pitch** in — 15° is a fair guess for this house — and click **Draw the roof**.',
-      until: function(){ return hasRoof() && !document.getElementById('_rsModal'); }, next: 'Skip this' , settle: 700 },
+      body: 'Click **Building outline**.',
+      onEnter: function(){ try { closeViewMenu(); } catch(e){} },
+      until: function(){ return DRAW.tool === 'outline' || hasRoof(); }, onNext: function(){ setTool('outline'); }, next: 'Select it for me' },
+    { key: 'corners', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click each corner',
+      body: function(){
+        var n = (DRAW.currentPts || []).length;
+        if (n >= 4) return 'That looks like all of them (' + n + ' corners). Press **Enter** — or keep clicking if the roof has more corners, then press Enter.';
+        if (n > 0) return 'Corner ' + n + ' done. Keep going round the roof, one click per corner.';
+        return 'Click on each corner of the roof you are mapping, going round in order.';
+      },
+      until: function(){ return hasRoof(); }, onNext: function(){ if ((DRAW.currentPts || []).length >= 3) finishCurrent(); }, next: 'Finish the outline for me', settle: 300 },
+    { key: 'rooftype', sel: '#_rsTypes', wait: true, title: 'Select your roof type',
+      body: 'Pick the shape that matches. **Hip & valley** is the common one, and it is already suggested.',
+      onEnter: function(){
+        var st = TOUR.steps[TOUR.i]; st._picked = false;
+        document.addEventListener('click', function h(ev){ if (ev.target && ev.target.closest && ev.target.closest('[data-rstype]')){ st._picked = true; document.removeEventListener('click', h, true); } }, true);
+      },
+      until: function(){ var st = TOUR.steps[TOUR.i]; return !!(st && st._picked) || (hasRoof() && !document.getElementById('_rsModal')); }, next: 'Hip & valley is right' },
+    { key: 'pitch', sel: '#_rsPitch', wait: true, title: 'Enter the roof pitch',
+      body: 'Type the **pitch** in degrees — 15° is a fair guess for this house — then click **Draw the roof**.',
+      until: function(){ return hasRoof() && !document.getElementById('_rsModal'); }, noNext: true, settle: 700 },
     { key: 'scale', sel: '#btn-calibrate', tab: 'roof', title: 'How big is it?',
-      body: 'The satellite picture already carries a scale, and it is roughly right — good enough for a practice run.\n\nOn a real job, click **Calibrate scale**, click both ends of a wall you know the length of, and type the length. Every number after that is exact.',
-      next: 'Got it' },
+      body: 'The satellite picture already carries a scale, and it is roughly right.\n\nFor an exact one, click **Calibrate scale**: you tell it the length of one wall and everything scales off that.',
+      until: function(){ return DRAW.tool === 'calibrate'; }, next: 'Skip — satellite scale is fine' },
+    { key: 'calibrate-line', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click a line to calibrate',
+      body: 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that is exact.',
+      until: function(){ return DRAW.calibratePixels > 0 || DRAW.tool !== 'calibrate'; }, next: 'Skip', settle: 600 },
     { key: 'jobpack', gate: '#navJobPackBtn', tab: 'roof', title: 'Now the numbers',
       body: 'The roof is measured. Click **Job Pack** to see what it turned into.' },
     { key: 'lineitems', sel: '#jpPages', tab: 'materials', title: 'Always check the calculations',
@@ -40483,10 +40527,16 @@ function _firstRoofSteps(){
       body: 'Click **Order Roof**. A checklist comes up first so nothing goes to the merchant unconfirmed.',
       until: function(){ return vis('orderChecklistModal'); }, onNext: function(){ orderRoofViaSupplier(); }, next: 'Open it for me' },
     { key: 'checklist', sel: '#orderChecklistModal', wait: true, title: 'Confirm every line',
-      body: 'Tick each box to say you have checked it — sheet lengths, colour, gutter, grade. Then **Confirm & order roof**.',
+      body: 'On a real job you tick each line as you check it — sheet lengths, colour, gutter, grade — or **Tick every line** once you have. The practice job is already ticked.',
+      until: after(3000), noNext: true },
+    { key: 'confirm', sel: '#orderChecklistGo', wait: true, title: 'Let’s send a test order to yourself',
+      body: 'Click **Confirm & order roof**.',
       until: function(){ return vis('orderEmailModal'); }, noNext: true },
-    { key: 'send', sel: '#orderEmailModal', wait: true, title: 'Send the test order to yourself',
-      body: 'On a real job this goes to your supplier. On the practice job it is addressed to **you**, so you can see exactly what a merchant receives — the PDF order and the covering email.\n\nClick **Send email now**.',
+    { key: 'supplier', sel: '#orderEmailSupplier', wait: true, title: 'Who it goes to',
+      body: 'On a real job this list is your suppliers, with your default one already picked. **Set up your default suppliers in Settings.**\n\nOn the practice job it goes to you.',
+      until: after(3000), noNext: true },
+    { key: 'send', sel: '#orderEmailSendBtn', wait: true, title: 'Send it',
+      body: 'Click **Send email now**. This sends an example order — the PDF and the covering email, exactly as a merchant would get it — to your own email address.',
       until: function(){ return !!window.__demoOrderSent; }, noNext: true, settle: 1700 },
     { key: 'done', centre: true, title: 'That is a roof, measured and ordered',
       body: 'The order is on its way to your inbox. On your own job that is the whole process: find, trace, check, order.\n\nThe quote is the other half — the customer’s proposal, priced from the same roof.',
@@ -50096,7 +50146,30 @@ function _cropCanvasToContent(srcCanvas, padPx){
   } catch(e){ return null; }
 }
 
-function _jpCaptureDetailed(roofIdx, opts){
+// A picture for a PDF is drawn at up to three times the screen's pixel
+// density: the live canvas is redrawn into a bigger backing store (redrawAll
+// scales by devicePixelRatio, so the layout is identical), captured, and put
+// back exactly as it was. Report: "the roof map in the order PDF is blurry".
+function _withCaptureDpr(fn){
+  var cv = document.getElementById('roofCanvas'); if (!cv || !cv.width) return fn();
+  var realDpr = window.devicePixelRatio || 1;
+  var w0 = cv.width, h0 = cv.height, cssW = w0 / realDpr, cssH = h0 / realDpr;
+  var k = Math.max(realDpr, Math.min(3, Math.sqrt(16e6 / Math.max(1, cssW * cssH))));
+  if (k <= realDpr + 0.05) return fn();
+  var ok = false;
+  try { window.devicePixelRatio = k; ok = Math.abs(window.devicePixelRatio - k) < 1e-6; } catch(e){}
+  if (!ok) return fn();
+  try {
+    cv.width = Math.round(cssW * k); cv.height = Math.round(cssH * k);
+    return fn();
+  } finally {
+    try { window.devicePixelRatio = realDpr; } catch(e){}
+    cv.width = w0; cv.height = h0;
+    try { redrawAll(); } catch(e){}
+  }
+}
+function _jpCaptureDetailed(roofIdx, opts){ return _withCaptureDpr(function(){ return _jpCaptureDetailedRaw(roofIdx, opts); }); }
+function _jpCaptureDetailedRaw(roofIdx, opts){
   var src = document.getElementById('roofCanvas');
   if (!src || !src.width) return null;
   // Snapshot every piece of DRAW state we mutate so any throw inside
@@ -55780,7 +55853,7 @@ async function _buildJobPackPdf() {
       var pageEl = pages[i];
       _matMsg('Rendering page ' + (i+1) + ' of ' + pages.length + '…');
       var canvas = await html2canvas(pageEl, {
-        scale: 1.5,   // internal Job Pack — lower scale renders ~1.8x faster; customer quote/proposal stays at 2.0
+        scale: 2,     // 1.5 read blurry on the roof map once it was printed and on a phone; 2 matches the quote
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
@@ -58831,6 +58904,9 @@ function _openOrderChecklist(){
       '<button onclick="closeOrderChecklist()" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">✕</button>'+
     '</div>'+
     '<div style="padding:14px 16px 4px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">'+
+      '<label style="display:flex;align-items:center;gap:9px;margin:0 0 10px;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer">'+
+        '<input type="checkbox" id="ordckAll" onchange="_ocTickAll(this.checked)" style="width:17px;height:17px;margin:0"> Tick every line'+
+      '</label>'+
       rows+
     '</div>'+
     '<div style="padding:12px 16px;border-top:1px solid #eef2f6;display:flex;gap:9px;background:#fafbfc">'+
@@ -58848,10 +58924,19 @@ function _openOrderChecklist(){
       });
     }
   } catch(e){}
+  // The practice job arrives ticked: the point of that step is to see the
+  // checklist, not to work through it. A real job starts blank, every time.
+  if (_isDemoJob()) _ocTickAll(true);
+  _orderChecklistSync();
+}
+function _ocTickAll(on){
+  Array.prototype.forEach.call(document.querySelectorAll('#orderChecklistModal .ordck'), function(b){ b.checked = !!on; });
   _orderChecklistSync();
 }
 function _orderChecklistSync(){
   var boxes = Array.prototype.slice.call(document.querySelectorAll('#orderChecklistModal .ordck'));
+  var all0 = document.getElementById('ordckAll');
+  if (all0) all0.checked = boxes.length > 0 && boxes.every(function(b){ return b.checked; });
   // Remember the tick state so it survives closing/reopening the modal.
   try {
     if (window.S){ S.order = S.order || {}; S.order.ocChecks = S.order.ocChecks || {};
@@ -63282,6 +63367,7 @@ function searchAerialAddress() {
     .then(function(r){ return r.json(); })
     .then(function(data) {
       if(!data || data.length === 0) {
+        if (typeof _isTestJob === 'function' && _isTestJob()){ showAerialMap(FIRST_ROOF.lat, FIRST_ROOF.lon); return; }
         document.getElementById('aerialHint').textContent = '❌ Address not found — try selecting from the dropdown suggestions';
         return;
       }
@@ -63291,6 +63377,7 @@ function searchAerialAddress() {
       showAerialMap(lat, lon);
     })
     .catch(function(err) {
+      if (typeof _isTestJob === 'function' && _isTestJob()){ showAerialMap(FIRST_ROOF.lat, FIRST_ROOF.lon); return; }
       document.getElementById('aerialHint').textContent = '❌ Search failed — check your internet connection.';
     });
 }

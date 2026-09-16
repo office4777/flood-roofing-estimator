@@ -250,6 +250,25 @@ const mini = await pg.evaluate(() => {
 check('the pricing mini map still sizes itself',
   /height:auto/.test(mini.style) && /max-height:150px/.test(mini.style) && !mini.frame, mini.style);
 
+// ── the Job Pack's roof-map picture is captured sharp ─────────────
+// "The roof map in the test order PDF is blurry": the picture used to be the
+// live canvas at screen density. It is drawn at up to three times that for
+// the capture and the live canvas is put back exactly as it was.
+const sharp = await pg.evaluate(async () => {
+  const cv = document.getElementById('roofCanvas');
+  const before = { w: cv.width, h: cv.height, dpr: window.devicePixelRatio };
+  const url = _jpCaptureDetailed(-1, {});
+  const after = { w: cv.width, h: cv.height, dpr: window.devicePixelRatio };
+  const load = u => new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res(null); im.src = u || ''; });
+  const dims = await load(url);
+  const plain = await load(_jpCaptureDetailedRaw(-1, {}));   // the same picture at screen density
+  return { before, after, dims, plain };
+});
+check('the roof-map capture is drawn at more than twice the screen density',
+  !!sharp.dims && !!sharp.plain && sharp.dims.w > sharp.plain.w * 2, JSON.stringify(sharp));
+check('…and the live canvas is put back as it was',
+  sharp.before.w === sharp.after.w && sharp.before.h === sharp.after.h && sharp.before.dpr === sharp.after.dpr, JSON.stringify([sharp.before, sharp.after]));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 const fails = results.filter(x => !x).length;
