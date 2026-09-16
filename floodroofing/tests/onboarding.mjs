@@ -90,11 +90,20 @@ await pg.evaluate(() => document.getElementById('tourNext').click());
 await sleep(1800);
 v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, scale: DRAW.scaleMetresPerPx, modal: document.getElementById('aerialModal').style.display, key: TOUR.steps[TOUR.i].key }));
 check('with no satellite reachable, the picture still lands (a labelled practice picture), scaled, finder closed', v.img && v.scale > 0 && v.modal === 'none', JSON.stringify(v));
-check('…and the walkthrough points at Move / Edit first', await waitStep(pg, 'move'), await stepKey(pg));
+check('…and the walkthrough starts with straightening, the rotate menu already open', await waitStep(pg, 'rotate'), await stepKey(pg));
 check('…the failure was reported as the picture source, then the fallback', usage.some(u => u.name === 'roof_source' && u.props.failed) && usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
 check('…and the address was not pinned to guessed coordinates — the geocoder gets first go', await pg.evaluate(() => window._autoLat === null && /Don Buck/.test(document.getElementById('aerialAddressInput').value)));
-
-// Centre, zoom, rotate: they finish in their own time — nothing jumps on.
+await sleep(600);
+v = await pg.evaluate(() => ({ menu: document.getElementById('viewMenu').style.display, next: document.getElementById('tourNext').textContent,
+  top: document.getElementById('roofPlanCard').getBoundingClientRect().top, ring: document.getElementById('tourRing').style.display }));
+check('the picture landing scrolled the roof toolbar to the top of the screen and opened the rotate menu', v.menu === 'block' && v.top < 140 && v.ring === 'block', JSON.stringify(v));
+check('…straightening is optional — the button says skip', /Skip/.test(v.next), v.next);
+await pg.evaluate(() => _setFineRotate(2));
+await sleep(900);
+v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, next: document.getElementById('tourNext').textContent }));
+check('rotating does NOT yank them off the step — the button turns into Next and waits', v.key === 'rotate' && v.next === 'Next', JSON.stringify(v));
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('Next → Move / Edit, and the rotate menu is closed out of the way', await waitStep(pg, 'move') && await pg.evaluate(() => document.getElementById('viewMenu').style.display !== 'block'), await stepKey(pg));
 await pg.click('#btn-move');
 check('clicking Move / Edit moves on to dragging', await waitStep(pg, 'pan'), await stepKey(pg));
 v = await pg.evaluate(() => ({ light: document.getElementById('tourCard').classList.contains('tour-light'), next: document.getElementById('tourNext').textContent, shadow: document.getElementById('tourRing').style.boxShadow }));
@@ -102,22 +111,14 @@ check('…the screen stays light while they drag, and the button says Skip until
 await pg.evaluate(() => { IMG_OFFSET = { x: 40, y: 20 }; redrawAll(); });
 await sleep(900);
 v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, next: document.getElementById('tourNext').textContent }));
-check('dragging does NOT yank them off the step — the button turns into Next and waits', v.key === 'pan' && v.next === 'Next', JSON.stringify(v));
+check('dragging waits for Next too', v.key === 'pan' && v.next === 'Next', JSON.stringify(v));
 await pg.evaluate(() => document.getElementById('tourNext').click());
 check('Next → zoom', await waitStep(pg, 'zoom'), await stepKey(pg));
 await pg.evaluate(() => adjustZoom(0.1));
 await sleep(900);
-check('zooming waits for Next too', (await stepKey(pg)) === 'zoom' && (await pg.evaluate(() => document.getElementById('tourNext').textContent)) === 'Next');
+check('zooming waits for Next as well', (await stepKey(pg)) === 'zoom' && (await pg.evaluate(() => document.getElementById('tourNext').textContent)) === 'Next');
 await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then it points at the Edit font size / rotate image button', await waitStep(pg, 'rotate-open'), await stepKey(pg));
-await pg.click('#viewMenuBtn');
-check('…opening the menu rings the rotate slider itself', await waitStep(pg, 'rotate'), await stepKey(pg));
-v = await pg.evaluate(() => document.getElementById('tourNext').textContent);
-check('straightening is optional — the button says skip', /Skip/.test(v), v);
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('…and skipping lands on "trace the building"', await waitStep(pg, 'outline'), await stepKey(pg));
-check('…the skip was reported', usage.some(u => u.name === 'walkthrough' && u.props.step === 'rotate' && u.props.action === 'skipped'));
-check('…and the view menu was closed out of the way', await pg.evaluate(() => document.getElementById('viewMenu').style.display !== 'block'));
+check('then "trace the building"', await waitStep(pg, 'outline'), await stepKey(pg));
 
 // Trace: the tool, then the corners one by one, then Enter.
 await pg.click('#btn-outline');
@@ -186,7 +187,7 @@ check('…remembers it as done, on this device and on the account', flag === 'do
 check('…without marking the 29-step tutorial as seen', !(await pg.evaluate(() => localStorage.getItem('fr_tour_done'))) && !puts.some(p => p.tour_done));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step was reported as it was shown, and the end as finished',
-  shown.join() === 'start,find,useview,move,pan,zoom,rotate-open,rotate,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
+  shown.join() === 'start,find,useview,rotate,move,pan,zoom,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
   shown.join());
 check('…and the order milestone carries the example flag', usage.some(u => u.name === 'output_created' && u.props.example === true && u.props.kind === 'order'));
 check('…and every event from the demo job says so', usage.filter(u => /walkthrough|roof_source|output_created/.test(u.name)).every(u => u.props.example === true));

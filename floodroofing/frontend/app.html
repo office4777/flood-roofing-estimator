@@ -18721,6 +18721,20 @@ function openSatelliteView(){
     }
   }
 }
+// The picture has just landed: bring the roof toolbar to the top of the
+// screen so the canvas fills it (the image card and the questions above
+// were taking half the window), and open the rotate control — the first
+// thing to do with a fresh aerial is square it up.
+function _afterAerialPlaced(){
+  var card = document.getElementById('roofPlanCard');
+  if (card) { try { card.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch(e){ card.scrollIntoView(true); } }
+  setTimeout(function(){
+    try {
+      var m = document.getElementById('viewMenu');
+      if (m && m.style.display !== 'block') m.style.display = 'block';
+    } catch(e){}
+  }, 350);
+}
 function _closeAerialModal(){
   var ov = document.getElementById('aerialModalOverlay');
   var md = document.getElementById('aerialModal');
@@ -40442,6 +40456,7 @@ function _firstRoofFallbackImage(){
     redrawAll();
     try { _collapseRoofBg(); } catch(e){}
     try { _closeAerialModal(); } catch(e){}
+    try { _afterAerialPlaced(); } catch(e){}
     try { _usageEvent('roof_source', { type: 'fallback' }); } catch(e){}
     var hint = document.getElementById('aerialHint');
     if (hint) hint.innerHTML = '<span style="color:#b45309">Satellite image unavailable — a practice picture is on the canvas instead.</span>';
@@ -40471,8 +40486,16 @@ function _firstRoofSteps(){
     { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
       body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
       until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
+    { key: 'rotate', sel: '#fineRotateSlider', wait: true, light: true, manual: true, title: 'Straighten it first',
+      body: 'Slide **Rotate photo** (or the −.1 / +.1 buttons) until the walls run straight across and up and down — tracing is much tidier on a square picture. Click **Next** when you are happy, or Skip if it already looks square.',
+      onEnter: function(){
+        base.rot = IMG_FINE_ROTATION;
+        try { var m = document.getElementById('viewMenu'); if (m && m.style.display !== 'block') m.style.display = 'block'; } catch(e){}
+      },
+      until: function(){ return IMG_FINE_ROTATION !== base.rot; }, next: 'Skip — looks square' },
     { key: 'move', sel: '#btn-move', tab: 'roof', title: 'Put the roof in the middle',
       body: 'Click **Move / Edit** — that is the tool for dragging the picture around.',
+      onEnter: function(){ try { closeViewMenu(); } catch(e){} },
       until: function(){ return DRAW.tool === 'select'; }, onNext: function(){ setTool('select'); }, next: 'Select it for me' },
     { key: 'pan', sel: '#roofCanvas', tab: 'roof', light: true, manual: true, title: 'Drag it into the middle',
       body: 'Drag the picture so the roof sits in the middle of the canvas. Take your time — click **Next** when it is where you want it.',
@@ -40483,13 +40506,6 @@ function _firstRoofSteps(){
       alt: { sel: '#roofCanvas', body: 'Roll the mouse wheel over the picture (or pinch on a touch screen) so the roof is big enough to click its corners accurately. Click **Next** when it looks right.' },
       onEnter: function(){ base.zoom = DRAW.zoom; },
       until: function(){ return DRAW.zoom !== base.zoom; }, next: 'Skip' },
-    { key: 'rotate-open', sel: '#viewMenuBtn', tab: 'roof', title: 'Straighten it',
-      body: 'The rotate control lives under **Edit font size / rotate image**. Click it.\n\nOptional — skip this if the roof already looks square.',
-      until: function(){ return vis('viewMenu'); }, onNext: function(){ var b = document.getElementById('viewMenuBtn'); if (b) b.click(); }, next: 'Open it for me' },
-    { key: 'rotate', sel: '#fineRotateSlider', wait: true, light: true, manual: true, title: 'Turn the picture',
-      body: 'Slide **Rotate photo** (or the −.1 / +.1 buttons) until the walls run straight across and up and down. Click **Next** when you are happy.',
-      onEnter: function(){ base.rot = IMG_FINE_ROTATION; },
-      until: function(){ return IMG_FINE_ROTATION !== base.rot; }, next: 'Skip — looks square' },
     { key: 'outline', sel: '#btn-outline', tab: 'roof', title: 'Trace the building',
       body: 'Click **Building outline**.',
       onEnter: function(){ try { closeViewMenu(); } catch(e){} },
@@ -63511,6 +63527,7 @@ function captureFromMapbox(lat, lon, zoom) {
         redrawAll();
         try { _collapseRoofBg(); } catch(e){}
         try { _closeAerialModal(); } catch(e){}
+        try { _afterAerialPlaced(); } catch(e){}
         try { _usageEvent('roof_source', { type: 'aerial' }); } catch(e){}
         if (hint) hint.innerHTML = '<span style="color:#059669">✅ Aerial image loaded (' + metersPerPx.toFixed(3) + 'm/px). Draw your building outline on top.</span>';
       };
