@@ -71,7 +71,7 @@ function createAnalytics(deps){
   function slimUsers(rep){
     return rep.users.map(u => ({ name: u.name, email: u.email, company: u.company, company_status: u.company_status,
       plan: u.plan, trial_days_left: u.trial_days_left, logins: u.logins, canvas: u.canvas, quotes: u.quotes,
-      orders: u.orders, feedback: u.feedback, minutes: u.minutes }));
+      orders: u.orders, feedback: u.feedback, minutes: u.minutes, screens: u.screens || {} }));
   }
   function slimCo(c){ return { name: c.name, plan: c.plan, status: c.status, trial_days_left: c.trial_days_left, mrr: c.mrr, owner: c.owner, created_at: c.created_at }; }
 
@@ -128,13 +128,16 @@ function createAnalytics(deps){
     const intUser = new Set();
     (profs.data || []).forEach(p => { if (isInternalEmail(p.email) || intCo.has(p.company_id)) intUser.add(p.id); });
     (links.data || []).forEach(l => { if (intCo.has(l.company_id)) intUser.add(l.user_id); });
-    const blank = d => ({ date: d, dow: nzParts(new Date(nzMidnightUtc(d) + 12 * HOUR)).dow, signups: 0, logins: 0, canvas: 0, quotes: 0, orders: 0, feedback: 0, minutes: 0, people: {} });
+    const blank = d => ({ date: d, dow: nzParts(new Date(nzMidnightUtc(d) + 12 * HOUR)).dow, signups: 0, logins: 0, canvas: 0, quotes: 0, orders: 0, feedback: 0, minutes: 0, screens: {}, people: {} });
     const byDay = {}, byDayExt = {};
     for (let i = 0; i < n; i++){ const d = shiftDate(start, i); byDay[d] = blank(d); byDayExt[d] = blank(d); }
     const KEY = { login: 'logins', canvas_used: 'canvas', quote_sent: 'quotes', order_sent: 'orders', feedback_sent: 'feedback' };
     const add = (b, e) => {
       if (KEY[e.name]) b[KEY[e.name]] += 1;
-      else if (e.name === 'app_time') b.minutes += Number((e.props || {}).minutes) || 0;
+      else if (e.name === 'app_time'){
+        const m = Number((e.props || {}).minutes) || 0; b.minutes += m;
+        if (e.props && e.props.screen) b.screens[String(e.props.screen)] = (b.screens[String(e.props.screen)] || 0) + m;
+      }
       if (e.user_id) b.people[e.user_id] = 1;
     };
     (ev.data || []).forEach(function(e){
@@ -236,10 +239,11 @@ function createAnalytics(deps){
     '<div class="c"><h2>Minutes in the app, by day</h2><div id="chMinutes"></div></div>' +
     '<div class="c"><h2>Activity today, hour by hour</h2><div id="chHours"></div></div></div>' +
     '<div class="c"><h2 id="wkH">Last 7 days</h2><div class="tabs" style="margin-bottom:10px"><button onclick="moveWeek(-7)">‹ Earlier</button><button id="wkNext" onclick="moveWeek(7)">Later ›</button><button onclick="moveWeek(0)">This week</button></div>' +
-    '<div id="weekChart"></div><div class="lg" id="weekLegend"></div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--mute)">The numbers as a table</summary><div class="tw" id="week"></div></details></div>' +
+    '<div id="weekChart"></div><div class="lg" id="weekLegend"></div>' +
+    '<h2 style="margin-top:14px">Where the time went</h2><div id="screens"></div><details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--mute)">The numbers as a table</summary><div class="tw" id="week"></div></details></div>' +
     '<div class="c"><div class="tabs"><button id="tabT" class="on" onclick="showDay(\'today\')">Today so far</button><button id="tabY" onclick="showDay(\'yesterday\')">Yesterday</button>' +
     '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)">or a day <input type="date" id="dayPick" onchange="pickDay(this.value)" style="font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)"></label></div>' +
-    '<h2 id="actH"></h2><div class="tw"><table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th class="n">Logins</th><th class="n">Canvas</th><th class="n">Quotes</th><th class="n">Orders</th><th class="n">Feedback</th><th class="n">Minutes</th></tr></thead><tbody id="rows"></tbody></table></div></div>' +
+    '<h2 id="actH"></h2><div class="tw"><table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th class="n">Logins</th><th class="n">Canvas</th><th class="n">Quotes</th><th class="n">Orders</th><th class="n">Feedback</th><th class="n">Minutes</th><th>Screens</th></tr></thead><tbody id="rows"></tbody></table></div></div>' +
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
     '<div class="c"><h2 id="pdH">Paying</h2><div id="paid"></div></div></div>' +
@@ -391,7 +395,8 @@ function showDay(which){
     var quiet = !(u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
     var plan = u.company_status === 'paying' ? '<span class="p">' + esc((DATA.plan_label || {})[u.plan] || u.plan) + '</span>' : esc(planWord(u));
     return '<tr class="' + (quiet ? 'q' : '') + '"><td><b>' + esc(u.name || u.email) + '</b>' + (u.name ? '<br><span class="m">' + esc(u.email) + '</span>' : '') + '</td><td>' + esc(u.company) + '</td><td>' + plan + '</td>' +
-      ['logins','canvas','quotes','orders','feedback','minutes'].map(function(k){ return '<td class="n">' + (u[k] || '·') + '</td>'; }).join('') + '</tr>';
+      ['logins','canvas','quotes','orders','feedback','minutes'].map(function(k){ return '<td class="n">' + (u[k] || '·') + '</td>'; }).join('') +
+      '<td class="m" style="font-size:12px;white-space:nowrap">' + esc(screenWords(u.screens)) + '</td></tr>';
   }).join('') || '<tr><td colspan="9" class="m">Nobody yet.</td></tr>';
 }
 
@@ -409,6 +414,24 @@ async function moveWeek(delta){
   } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
 }
 function shift(date, days){ var t = Date.parse(date + 'T12:00:00Z') + days * 864e5; return new Date(t).toISOString().slice(0, 10); }
+// Screens: the tab names as the office says them.
+var SCREEN = { home: 'Home', select: 'Home', jobs: 'Jobs', roof: 'Map Roof', materials: 'Job Pack', jobpack: 'Job Pack', scope: 'Scope', quote: 'Quote', 'quote-send': 'Sending a quote', order: 'Order', schedule: 'Schedule', inbox: 'Inbox', feedback: 'Feedback', settings: 'Settings', setup: 'Setup', roofsetup: 'Roof setup', aerial: 'Aerial', unknown: 'Untagged' };
+function screenWords(m){
+  if (!m) return '';
+  var ks = Object.keys(m).filter(function(k){ return m[k] > 0 && k !== 'unknown'; }).sort(function(a, b){ return m[b] - m[a]; });
+  return ks.map(function(k){ return (SCREEN[k] || k) + ' ' + m[k]; }).join(' · ');
+}
+// One horizontal bar per screen: minutes across the week, longest first.
+function screensChart(D){
+  var tot = {}; D.forEach(function(d){ Object.keys(d.screens || {}).forEach(function(k){ tot[k] = (tot[k] || 0) + d.screens[k]; }); });
+  var ks = Object.keys(tot).sort(function(a, b){ return tot[b] - tot[a]; });
+  if (!ks.length) return '<p class="m">No screen minutes yet — they count from the day this shipped.</p>';
+  var max = tot[ks[0]], all = ks.reduce(function(s, k){ return s + tot[k]; }, 0);
+  return '<table class="wk" style="width:auto;min-width:60%"><tbody>' + ks.map(function(k){
+    var w = Math.round(100 * tot[k] / max);
+    return '<tr><th style="white-space:nowrap">' + esc(SCREEN[k] || k) + '</th><td style="min-width:220px"><span class="bar" style="left:0;right:auto;width:' + w + '%;opacity:.35"></span><span class="v" style="padding-left:6px">' + tot[k] + ' min · ' + Math.round(100 * tot[k] / all) + '%</span></td></tr>';
+  }).join('') + '</tbody></table>';
+}
 // Grouped bars per day, the way the financials hub draws a month: one bar
 // per thing in a fixed colour order, its value on top, and the day's other
 // numbers written under the date.
@@ -439,6 +462,7 @@ function renderWeek(){
   if (!WEEK){ $('week').innerHTML = '<p class="m">The last seven days could not be read.</p>'; $('weekChart').innerHTML = ''; return; }
   var D = (EXCL && WEEK.days_ext) ? WEEK.days_ext : WEEK.days, today = DATA.latest.today.date;
   $('weekChart').innerHTML = groupedBars(D);
+  $('screens').innerHTML = screensChart(D);
   $('weekLegend').innerHTML = GROUP.map(function(g){ return '<span><i style="background:' + g[2] + '"></i>' + g[1] + '</span>'; }).join('') + '<span class="m">· minutes and people active are written under each day</span>';
   $('wkH').textContent = (WEEK.end === today ? 'Last 7 days' : '7 days') + ' — ' + D[0].date + ' to ' + WEEK.end + (WEEK.end === today ? ' (today so far)' : '');
   $('wkNext').disabled = WEEK.end >= today;

@@ -53,6 +53,9 @@ const db = {
     { user_id: 'u4', company_id: C4, status: 'active',   plan: 'business', stripe_customer_id: 'cus_4', trial_ends_at: null },
   ],
   usage_events: [
+    // tagged minutes: where u1 spent them
+    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(13), props: { minutes: 4, screen: 'roof' } },
+    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(14), props: { minutes: 2, screen: 'quote' } },
     { user_id: 'u1', company_id: C1, name: 'login',         at: inY(8),  props: {} },
     { user_id: 'u1', company_id: C1, name: 'login',         at: inY(14), props: {} },
     { user_id: 'u1', company_id: C1, name: 'canvas_used',   at: inY(9),  props: {} },
@@ -140,7 +143,7 @@ const wk = await (await fetch(BASE + '/admin/analytics/days?end=' + today + '&n=
 check('seven days come back ending today', wk.days.length === 7 && wk.days[6].date === today && wk.days[5].date === Y, wk.days.map(d => d.date).join(','));
 const yrow = wk.days[5], trow = wk.days[6];
 check('yesterday\'s row counts every login, canvas, quote, order, feedback and minute across everyone',
-  yrow.logins === 4 && yrow.canvas === 3 && yrow.quotes === 1 && yrow.orders === 1 && yrow.feedback === 1 && yrow.minutes === 18 && yrow.active === 4, JSON.stringify(yrow));
+  yrow.logins === 4 && yrow.canvas === 3 && yrow.quotes === 1 && yrow.orders === 1 && yrow.feedback === 1 && yrow.minutes === 24 && yrow.active === 4, JSON.stringify(yrow));
 check('…and the business that signed up yesterday', yrow.signups === 1 && trow.signups === 0, yrow.signups + '/' + trow.signups);
 check('today\'s row has today\'s one login and nothing borrowed', trow.logins === 1 && trow.quotes === 0, JSON.stringify(trow));
 check('the first read already carries the week', Array.isArray(a.week && a.week.days) && a.week.days.length === 7);
@@ -164,6 +167,14 @@ check('the week has a without-Flood-Roofing twin', Array.isArray(wk2.days_ext) &
 const dx = await (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: H })).json();
 check('a picked day too, still knowing which day it is', dx.ext && dx.ext.users.length === dx.users.length - 3 && dx.ext.date === Y && dx.ext.nice === dx.nice);
 check('the page has the toggle and the grouped bars', /Exclude Flood Roofing/.test(html) && /groupedBars/.test(html));
+
+// ── screen time: which part of the app the minutes were spent in ──
+const scr = await (await fetch(BASE + '/admin/analytics/day?date=' + Y, { headers: H })).json();
+const sam = scr.users.find(u => u.email === 'sam@northland.co.nz');
+check('a person\'s row says where the minutes went', sam && sam.screens && sam.screens.roof === 4 && sam.screens.quote === 2 && sam.minutes === 19, JSON.stringify(sam && sam.screens) + ' ' + (sam && sam.minutes));
+const wk3 = await (await fetch(BASE + '/admin/analytics/days?end=' + today + '&n=7', { headers: H })).json();
+check('the week carries minutes per screen per day', wk3.days[5].screens.roof === 4 && wk3.days[5].screens.quote === 2 && wk3.days[5].minutes === 24, JSON.stringify(wk3.days[5].screens));
+check('the page shows a Screens column and where the time went', /<th>Screens<\/th>/.test(html) && /Where the time went/.test(html));
 
 // ── an owner's RoofMap login opens it too; a stranger's does not ──
 const ownerTok = jwt.sign({ id: 'u6', email: 'office@floodroofing.co.nz', cid: C1, tv: 0 }, 'test-secret');
