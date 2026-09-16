@@ -6302,7 +6302,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <label style="font-size:12px;font-weight:600;color:#334155">Message <span style="font-weight:400;color:#64748b">— this is what gets sent, edit as needed</span>
         <textarea id="quoteEmailBody" rows="10" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;min-height:180px;box-sizing:border-box;color:#0a1628"></textarea>
       </label>
-      <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5"><strong>Send email now</strong> sends it for you — the customer gets a big green <strong>“View this Quote” button</strong> that opens their live quote (no PDF attached), and a copy is CC'd to <strong id="quoteEmailCc">office@floodroofing.co.nz</strong>.</div>
+      <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5"><strong>Send email now</strong> sends it for you — the customer gets a big green <strong>“View this Quote” button</strong> that opens their live quote (no PDF attached), and a copy is CC'd to <strong id="quoteEmailCc"></strong>.</div>
       <div id="quoteEmailStatus" style="display:none;font-size:12px;line-height:1.5;border-radius:8px;padding:9px 11px"></div>
       <button id="quoteEmailSendBtn" onclick="_quoteEmailSendNow()" style="width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">📤 Send email now — with quote link</button>
     </div>
@@ -18223,6 +18223,10 @@ function _sampleJobBannerHtml(){
 function _aboutYouShow(){
   try {
     if (localStorage.getItem('fr_about_done') === '1') return false;
+    // Not until the practice job is behind them: three questions and a plan
+    // picker above the canvas are not what a first roof needs.
+    if (!localStorage.getItem('fr_first_roof')) return false;
+    if (window.TOUR && TOUR.open) return false;
     var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
     if (u.about) return false;
     var c = JSON.parse(localStorage.getItem('fr_company') || '{}') || {};
@@ -18273,7 +18277,7 @@ function _sampleJobBannerSync(){
   // Home and Map Roof both carry it: signing in lands on Map Roof, and an
   // account with no work of its own should meet the finished sample wherever
   // it lands. One piece of html, so the two can never drift apart.
-  var html = _hasOwnWork() ? '' : _sampleJobBannerHtml();
+  var html = (_hasOwnWork() || (window.S && S.isSampleJob)) ? '' : _sampleJobBannerHtml();
   ['sampleJobBanner', 'sampleJobBannerRoof'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.innerHTML = html;
@@ -32227,11 +32231,17 @@ async function emailQuote(){
 function _emailCfg(){
   return (window.S && S.settings && S.settings.quote_defaults && S.settings.quote_defaults.email) || {};
 }
+// Settings → Email first, then the business's branding email, then the
+// signed-in person's own address. NEVER our office: that was the last
+// fallback, and with the branding wizard no longer forced at sign-in every
+// new business's orders and quotes were being CC'd to Flood Roofing.
 function _emailRecip(key){
   var v = (_emailCfg()[key] || '').trim();
   if (v) return v;
   var br = (window.S && S.settings && S.settings.branding) || {};
-  return br.email || 'office@floodroofing.co.nz';
+  if (br.email) return String(br.email).trim();
+  try { var me = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; if (me.email) return String(me.email).trim(); } catch(e){}
+  return '';
 }
 function _quoteEmailCc(){ return _emailRecip('quote_cc'); }
 function _orderEmailCc(){ return _emailRecip('order_cc'); }
@@ -40102,6 +40112,7 @@ function closeTour(cancelled){
     var _st = TOUR.steps[TOUR.i] || {};
     try { _walkthroughEvent(_st.key || '', cancelled ? 'stopped' : 'finished'); } catch(e){}
     try { _firstRoofMark(cancelled ? 'stopped' : 'done'); } catch(e){}
+    try { _aboutYouSync(); } catch(e){}   // the deferred questions may show now
     TOUR.kind = 'main';
     window.removeEventListener('resize', _tourPlace);
     window.removeEventListener('scroll', _tourPlace, true);
@@ -40419,7 +40430,7 @@ function openTestJob(){
   window._autoLat = null; window._autoLon = null;
   try { var a = document.getElementById('aerialAddressInput'); if (a) a.value = FIRST_ROOF.addr; } catch(e){}
   window._aerialLoadedAddr = null;
-  try { _sampleJobStripSync(); } catch(e){}
+  try { _sampleJobStripSync(); _sampleJobBannerSync(); _aboutYouSync(); } catch(e){}
   try { _usageEvent('onboarding_path', { path: 'practice' }); } catch(e){}
   gotoTab('roof');
   try { _fergusPanelClose(); } catch(e){}
@@ -40468,7 +40479,6 @@ function _firstRoofSteps(){
   // Popups are position:fixed, whose offsetParent is null — measure them.
   var vis = function(id){ var el = document.getElementById(id); return !!el && el.style.display !== 'none' && el.getBoundingClientRect().width > 0; };
   var hasRoof = function(){ return !!(DRAW.outlineDone || (DRAW.roofs && DRAW.roofs.length)); };
-  var after = function(ms){ return function(){ var st = TOUR.steps[TOUR.i]; return !!st && (Date.now() - (st._at || 0)) > ms; }; };
   var btn = function(label, fn, primary){
     return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
       (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
@@ -40529,28 +40539,30 @@ function _firstRoofSteps(){
       body: 'Type the **pitch** in degrees — 15° is a fair guess for this house — then click **Draw the roof**.',
       until: function(){ return hasRoof() && !document.getElementById('_rsModal'); }, noNext: true, settle: 700 },
     { key: 'scale', sel: '#btn-calibrate', tab: 'roof', title: 'How big is it?',
-      body: 'The satellite picture already carries a scale, and it is roughly right.\n\nFor an exact one, click **Calibrate scale**: you tell it the length of one wall and everything scales off that.',
-      until: function(){ return DRAW.tool === 'calibrate'; }, next: 'Skip — satellite scale is fine' },
+      body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\nOn a real job, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length. Every number then comes from your measurement, not the satellite.',
+      until: function(){ return DRAW.tool === 'calibrate'; }, next: 'Use approximate scale for this practice' },
     { key: 'calibrate-line', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click a line to calibrate',
-      body: 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that is exact.',
+      body: 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that comes from your known measurement.',
       until: function(){ return DRAW.calibratePixels > 0 || DRAW.tool !== 'calibrate'; }, next: 'Skip', settle: 600 },
     { key: 'jobpack', gate: '#navJobPackBtn', tab: 'roof', title: 'Now the numbers',
       body: 'The roof is measured. Click **Job Pack** to see what it turned into.' },
     { key: 'lineitems', sel: '#jpPages', tab: 'materials', title: 'Always check the calculations',
-      body: 'Scroll down through the pages: the sheet cut list, the flashings, the gutter, the fasteners.\n\nEvery quantity and length can be clicked and changed. **Check them against the roof every time** — the drawing is only as good as the outline, and you know the site.',
-      next: 'I’ve looked' },
+      body: 'Scroll down through the pages: the sheet cut list, the flashings, the gutter, the fasteners.\n\nEvery quantity and length can be clicked and changed. **Check them against the roof every time** — the drawing is only as good as the outline, and you know the site.\n\nThat is a roof measured. If measuring is what you came for, you are done — or carry on and see how an order goes out.',
+      extra: btn('Try a sample order', 'tourStep(TOUR.i + 1)', true) +
+             btn('Start my own roof', 'closeTour(false); startNewJob()'),
+      noNext: true },
     { key: 'order', sel: '[data-tour="jp-order"]', tab: 'materials', title: 'Order the roof',
       body: 'Click **Order Roof**. A checklist comes up first so nothing goes to the merchant unconfirmed.',
       until: function(){ return vis('orderChecklistModal'); }, onNext: function(){ orderRoofViaSupplier(); }, next: 'Open it for me' },
     { key: 'checklist', sel: '#orderChecklistModal', wait: true, title: 'Confirm every line',
       body: 'On a real job you tick each line as you check it — sheet lengths, colour, gutter, grade — or **Tick every line** once you have. The practice job is already ticked.',
-      until: after(3000), noNext: true },
+      next: 'Next' },
     { key: 'confirm', sel: '#orderChecklistGo', wait: true, title: 'Let’s send a test order to yourself',
       body: 'Click **Confirm & order roof**.',
       until: function(){ return vis('orderEmailModal'); }, noNext: true },
     { key: 'supplier', sel: '#orderEmailSupplier', wait: true, title: 'Who it goes to',
-      body: 'On a real job this list is your suppliers, with your default one already picked. **Set up your default suppliers in Settings.**\n\nOn the practice job it goes to you.',
-      until: after(3000), noNext: true },
+      body: 'On a real job this list is your suppliers, with your default one already picked. **Set up your default suppliers in Settings.**\n\nOn the practice job it goes to you, and to nobody else.',
+      next: 'Next' },
     { key: 'send', sel: '#orderEmailSendBtn', wait: true, title: 'Send it',
       body: 'Click **Send email now**. This sends an example order — the PDF and the covering email, exactly as a merchant would get it — to your own email address.',
       until: function(){ return !!window.__demoOrderSent; }, noNext: true, settle: 1700 },
@@ -59143,7 +59155,7 @@ function _orderEmailGather(){
   return {
     supplier: s,
     test: !!s.test,
-    cc: _orderEmailCc(),
+    cc: s.test ? '' : _orderEmailCc(),
     // The raw yyyy-mm-dd, not the pretty one: it is stamped on the job and
     // becomes the requested delivery on the schedule board.
     deliveryDate: (dateEl && dateEl.value) || '',

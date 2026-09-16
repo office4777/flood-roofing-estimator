@@ -36,6 +36,7 @@ async function open(company, user){
   });
   await pg.addInitScript(([c, u]) => {
     localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.setItem('fr_settings', 'null');
+    localStorage.setItem('fr_first_roof', 'done');   // the questions wait until the practice job is behind them
     localStorage.setItem('fr_user', JSON.stringify(u)); localStorage.setItem('fr_company', JSON.stringify(c));
   }, [company, user]);
   await pg.goto(APP_URL); await pg.waitForTimeout(2200);

@@ -8902,6 +8902,15 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     // to / cc may be a comma-separated list of addresses — validate each part.
     const validList = (v) => { const p = String(v || '').split(',').map(s => s.trim()).filter(Boolean); return p.length > 0 && p.every(a => emailRe.test(a)); };
     if (!to || !validList(to)) return res.status(400).json({ error: 'Valid "to" address required' });
+    // A practice-job order goes to the person doing the practice and to
+    // nobody else — enforced here, not just in the form, so no edit to the
+    // page can send one to a merchant.
+    if (req.body && req.body.test === true) {
+      const mine = String((req.user && req.user.email) || '').trim().toLowerCase();
+      const toList = String(to).split(',').map(a => a.trim().toLowerCase()).filter(Boolean);
+      if (!mine || toList.length !== 1 || toList[0] !== mine) return res.status(400).json({ error: 'A test order can only be sent to your own address.', code: 'TEST_ORDER_RECIPIENT' });
+      if (cc) return res.status(400).json({ error: 'A test order is not copied to anyone.', code: 'TEST_ORDER_RECIPIENT' });
+    }
     if (cc && !validList(cc))  return res.status(400).json({ error: 'CC address is not a valid email' });
     if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject required' });
     if (attachment && attachment.base64) {

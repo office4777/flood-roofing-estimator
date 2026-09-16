@@ -71,6 +71,7 @@ v = await pg.evaluate(() => ({
   title: document.getElementById('tourTitle').textContent, buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent),
   label: (document.getElementById('navJobName') || {}).textContent || '',
 }));
+check('…no survey and no sample banner crowd the practice job', await pg.evaluate(() => !document.querySelector('#aboutYouCard select') && !document.querySelector('#sampleJobBannerRoof .sj-card')));
 check('…it is John Smith at 23 Don Buck Road, Massey, as a demo job with no id', /John Smith/.test(v.client) && /23 Don Buck Road, Massey/.test(v.addr) && v.no === 'TEST-1' && v.demo && !v.id, JSON.stringify(v));
 check('…the strip says it is the practice job and nothing saves', /practice job/.test(v.strip) && /not.*saved/.test(v.strip), v.strip.slice(0, 80));
 check('…and the card offers start, the finished sample, or skip', /practice job/i.test(v.title) && v.buttons.length === 3 && /finished job/.test(v.buttons[1]) && /Skip/.test(v.buttons[2]), JSON.stringify(v.buttons));
@@ -139,7 +140,8 @@ check('picking a type moves on to the pitch', await waitStep(pg, 'pitch'), await
 await pg.evaluate(() => { document.getElementById('_rsPitch').value = '15'; document.getElementById('_rsOk').click(); });
 check('Draw the roof → the scale explanation', await waitStep(pg, 'scale'), await stepKey(pg));
 v = await pg.evaluate(() => document.getElementById('tourBody').textContent);
-check('…which says the satellite scale is roughly right and how to calibrate for exact', /roughly right/.test(v) && /Calibrate scale/.test(v), v.slice(0, 80));
+check('…which calls the satellite scale approximate and says to calibrate using a known measurement', /approximate/.test(v) && /calibrate using a known measurement/.test(v) && !/exact/.test(v), v.slice(0, 80));
+check('…and the skip button says so too', /Use approximate scale for this practice/.test(await pg.evaluate(() => document.getElementById('tourNext').textContent)));
 await pg.click('#btn-calibrate');
 check('clicking Calibrate scale → "click a line to calibrate"', await waitStep(pg, 'calibrate-line'), await stepKey(pg));
 await pg.evaluate(() => document.getElementById('tourNext').click());
@@ -148,20 +150,28 @@ await pg.click('#navJobPackBtn');
 check('clicking Job Pack lands on "always check the calculations"', await waitStep(pg, 'lineitems'), await stepKey(pg));
 v = await pg.evaluate(() => ({ tab: document.body.getAttribute('data-tab'), body: document.getElementById('tourBody').textContent }));
 check('…on the Job Pack tab, telling them to check every quantity against the roof', v.tab === 'materials' && /Check them against the roof/.test(v.body), JSON.stringify(v).slice(0, 120));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then Order Roof', await waitStep(pg, 'order'), await stepKey(pg));
+v = await pg.evaluate(() => Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent));
+check('…and this is a finishing point: try a sample order, or start my own roof', v.length === 2 && /sample order/.test(v[0]) && /own roof/.test(v[1]), JSON.stringify(v));
+await pg.evaluate(() => document.querySelector('#tourExtra button').click());
+check('"Try a sample order" → Order Roof', await waitStep(pg, 'order'), await stepKey(pg));
 
 // Order: the checklist arrives ticked, then confirm, supplier, send.
 await pg.evaluate(() => orderRoofViaSupplier());
 check('the checklist opens — and NOT the branding wizard, on a demo job', await waitStep(pg, 'checklist') && !(await overlays(pg)).wizard, await stepKey(pg));
 v = await pg.evaluate(() => ({ all: Array.from(document.querySelectorAll('#orderChecklistModal .ordck')).every(b => b.checked), tickAll: document.getElementById('ordckAll').checked, go: !document.getElementById('orderChecklistGo').disabled }));
 check('…every line is pre-ticked on the practice job, the Tick-every-line box with them, Confirm enabled', v.all && v.tickAll && v.go, JSON.stringify(v));
-check('…and after three seconds it points at Confirm & order roof by itself', await waitStep(pg, 'confirm', 5000), await stepKey(pg));
+await sleep(1200);
+check('…and it waits for Next, not a timer', (await stepKey(pg)) === 'checklist' && (await pg.evaluate(() => document.getElementById('tourNext').textContent)) === 'Next');
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('Next → Confirm & order roof', await waitStep(pg, 'confirm'), await stepKey(pg));
 await pg.evaluate(() => document.getElementById('orderChecklistGo').click());
 check('confirming opens the email and points at the supplier list', await waitStep(pg, 'supplier'), await stepKey(pg));
 v = await pg.evaluate(() => document.getElementById('tourBody').textContent);
 check('…saying to set default suppliers up in Settings', /default suppliers in Settings/.test(v), v.slice(0, 80));
-check('…then, after three seconds, the Send button', await waitStep(pg, 'send', 5000), await stepKey(pg));
+await sleep(1200);
+check('…and waits for Next there too', (await stepKey(pg)) === 'supplier');
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('Next → the Send button', await waitStep(pg, 'send'), await stepKey(pg));
 v = await pg.evaluate(() => ({ to: document.getElementById('orderEmailCustomTo').value, ro: document.getElementById('orderEmailCustomTo').readOnly,
   sel: document.getElementById('orderEmailSupplier').disabled, opt: document.getElementById('orderEmailSupplier').options[0].textContent,
   subject: document.getElementById('orderEmailSubject').value, body: document.getElementById('tourBody').textContent }));
@@ -174,7 +184,7 @@ await pg.evaluate(() => { window._orderEmailBuildBlob = async () => new Blob(['p
 await pg.evaluate(() => _orderEmailSendNow());
 check('sending lands on the finish card', await waitStep(pg, 'done', 6000), await stepKey(pg));
 check('…the send went to them, flagged as a test, and stamped no job into the account',
-  sends.length === 1 && sends[0].to === 'me@acmeroofing.co.nz' && sends[0].test === true && /TEST ORDER/.test(sends[0].subject) && !(await pg.evaluate(() => S.currentJobId || S.orderSent)),
+  sends.length === 1 && sends[0].to === 'me@acmeroofing.co.nz' && sends[0].test === true && !sends[0].cc && /TEST ORDER/.test(sends[0].subject) && !(await pg.evaluate(() => S.currentJobId || S.orderSent)),
   JSON.stringify(sends.map(s => [s.to, s.test])));
 v = await pg.evaluate(() => Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent));
 check('the finish card offers quoting or their own job', v.length === 2 && /quoting/.test(v[0]) && /own job/.test(v[1]), JSON.stringify(v));
@@ -255,8 +265,8 @@ v = await pg.evaluate(() => ({ wiz: !!document.getElementById('setupWizard'), gu
 check('"later" closes it and nothing follows it onto the screen', !v.wiz && !v.guide && !v.tour && !v.active && v.ran === 0, JSON.stringify(v));
 v = await pg.evaluate(() => { S.isSampleJob = true; S.demoKind = 'sample'; const t = _brandingBeforeSend(function(){}); const w = !!document.getElementById('setupWizard'); S.isSampleJob = false; return { t, w }; });
 check('…and the sample job never asks — nothing it sends is real', !v.t && !v.w);
-v = await pg.evaluate(() => (document.getElementById('aboutYouCard') || {}).textContent || '');
-check('the setup questions card says "Three things" and counts three', /Three things/.test(v) && !/Two things/.test(v) && (await pg.evaluate(() => document.querySelectorAll('#aboutYouCard select').length)) === 3, v.slice(0, 60));
+v = await pg.evaluate(() => { localStorage.setItem('fr_first_roof', 'done'); _aboutYouSync(); return (document.getElementById('aboutYouCard') || {}).textContent || ''; });
+check('the setup questions card, once the practice job is behind them, says "Three things" and counts three', /Three things/.test(v) && !/Two things/.test(v) && (await pg.evaluate(() => document.querySelectorAll('#aboutYouCard select').length)) === 3, v.slice(0, 60));
 // Help with this step: the feedback form, with the step named.
 v = await pg.evaluate(() => { openTour(true); _tourHelp(); return { tab: document.body.getAttribute('data-tab'), title: document.getElementById('fbTitle').value, details: document.getElementById('fbDetails').value, tour: !!document.getElementById('tourWrap') }; });
 check('"Help with this step" opens Feedback with the step already named, tutorial still up', v.tab === 'feedback' && /Stuck at: /.test(v.title) && /could not get past it/.test(v.details) && v.tour, JSON.stringify(v).slice(0, 140));

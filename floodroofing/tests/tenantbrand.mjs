@@ -61,6 +61,32 @@ check('…and they stay labelled as somebody else\'s rates until the roofer load
 check('…with a disclaimer that names nobody',
   /PB_DISCLAIMER/.test(src) && !/PB_DISCLAIMER[\s\S]{0,2000}?Flood/.test(src));
 
+// ── another business's orders and quotes are never CC'd to our office ──
+// The recipient fallback used to end at office@floodroofing.co.nz. With the
+// branding wizard deferred, a new business with nothing in Settings → Email
+// and no branding email would have had every order and quote copied to us.
+{
+  const { ctx, pg } = await open({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} });
+  const cc = await pg.evaluate(() => {
+    const out = { blank: { order: _orderEmailCc(), quote: _quoteEmailCc(), accept: _acceptNotifyTo() } };
+    localStorage.removeItem('fr_user');
+    out.nobody = { order: _orderEmailCc(), quote: _quoteEmailCc() };
+    S.settings.branding = { company_name: 'Acme Roofing Ltd', email: 'admin@acmeroofing.co.nz' };
+    out.branded = _orderEmailCc();
+    S.settings.quote_defaults = { email: { order_cc: 'orders@acmeroofing.co.nz' } };
+    out.configured = _orderEmailCc();
+    return out;
+  });
+  check('with nothing configured, the CC is the signed-in person, not our office',
+    cc.blank.order === 'sam@acmeroofing.co.nz' && cc.blank.quote === 'sam@acmeroofing.co.nz' && cc.blank.accept === 'sam@acmeroofing.co.nz', JSON.stringify(cc.blank));
+  check('…with nobody signed in it is empty — never Flood Roofing', cc.nobody.order === '' && cc.nobody.quote === '', JSON.stringify(cc.nobody));
+  check('…the branding email wins over the person, and Settings → Email over both',
+    cc.branded === 'admin@acmeroofing.co.nz' && cc.configured === 'orders@acmeroofing.co.nz', cc.branded + ' / ' + cc.configured);
+  check('…and the quote-send note carries no hard-coded office address in the markup',
+    !/id="quoteEmailCc">office@/.test(src));
+  await ctx.close();
+}
+
 // ── a brand-new business is asked to set itself up ──
 // Not at sign-in any more: at the first send, which is what this stands in for.
 let { ctx, pg } = await open({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} });

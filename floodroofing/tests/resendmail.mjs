@@ -109,6 +109,20 @@ check('…CC intact', JSON.stringify((o.body || {}).cc || []).includes('office@h
 check('…PDF attachment intact', !!((o.body || {}).attachments || [])[0] &&
   (o.body.attachments[0].filename === 'order.pdf') && !!o.body.attachments[0].content, '');
 
+// ── a practice-job order can only go to the person doing the practice ──
+// The form locks the address; this is the server refusing anyway, so no
+// edit to the page can send a "test" order to a merchant or copy anyone.
+resendSeen.length = 0;
+const testBody = (to, cc) => JSON.stringify({ to, cc, test: true, subject: 'TEST ORDER', text: 'x',
+  attachment: { filename: 'order.pdf', base64: Buffer.from('%PDF-1.4 test').toString('base64') } });
+r = await fetch(BASE + '/email/send-order', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok }, body: testBody('supplier@steel.nz') });
+check('a test order to a merchant is refused by the server', r.status === 400 && /own address/.test(JSON.stringify(await r.json())) && resendSeen.length === 0, 'status ' + r.status);
+r = await fetch(BASE + '/email/send-order', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok }, body: testBody('hemi@hemisroofing.co.nz', 'office@hemisroofing.co.nz') });
+check('…and one copied to anyone else is refused too', r.status === 400 && resendSeen.length === 0, 'status ' + r.status);
+r = await fetch(BASE + '/email/send-order', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok }, body: testBody('Hemi@HemisRoofing.co.nz') });
+await new Promise(x => setTimeout(x, 400));
+check('…to themselves it goes', r.status < 400 && resendSeen.length === 1, 'status ' + r.status + ', resend ' + resendSeen.length);
+
 // ── a stale key must not take the mail down ───────────────────────
 // The exact production hazard: a RESEND_API_KEY from an old account, domain
 // never verified there. The send must degrade to the Google relay — same
