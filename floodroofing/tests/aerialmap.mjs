@@ -67,6 +67,27 @@ await pg.evaluate(() => _closeAerialModal());
 
 check('no Leaflet API calls survive anywhere in the page', leaflet.length === 0, leaflet.join(', '));
 
+// ── the picture is the view they chose ────────────────────────────
+// "Use this view" used to ask the static API for a 1280x1280 square at a
+// ROUNDED zoom: the roof sat somewhere else in the picture than in the map
+// box, and further from its edges. The request now carries the map's own
+// fractional zoom and bearing and a box the same shape as the map.
+const req = await pg.evaluate(async () => {
+  _openAerialModal();   // the box is only measurable while the finder is open, which is when Use this view is clicked
+  const mapEl = document.getElementById('aerialLeafletMap2');
+  mapEl.style.width = '800px'; mapEl.style.height = '400px';
+  window._aerialMap = { getCenter: () => ({ lat: -36.83, lng: 174.61 }), getZoom: () => 19.37, getBearing: () => 12.3 };
+  let url = null;
+  const realFetch = window.fetch;
+  window.fetch = (u, o) => { if (/api\.mapbox\.com\/styles/.test(String(u))) { url = String(u); return Promise.reject(new Error('stub')); } return realFetch(u, o); };
+  captureFromMapbox(-36.83, 174.61, 19);
+  await new Promise(r => setTimeout(r, 50));
+  window.fetch = realFetch; window._aerialMap = null; _closeAerialModal();
+  return url;
+});
+check('the static image is asked for at the map\u2019s own zoom and bearing, in the map box\u2019s shape',
+  !!req && /,19\.37,12\.3\/1280x640@2x/.test(req), req);
+
 await ctx.close();
 await b.close();
 const bad = results.filter(x=>!x).length;

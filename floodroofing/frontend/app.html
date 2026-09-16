@@ -839,7 +839,7 @@ html.site-mode #fergusRoofPanelResize{display:none!important}
 #tourHand{position:absolute;font-size:23px;line-height:1;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(10,22,40,.45));animation:tourNudge 1.15s ease-in-out infinite}
 @keyframes tourNudge{0%,100%{transform:translate(0,0)}50%{transform:translate(-4px,-2px)}}
-#tourCard #tourNext,#tourCard #tourBack{white-space:nowrap}
+#tourCard #tourBack{white-space:nowrap}
 #tourCard.tour-light #tourRing{box-shadow:0 0 0 5px rgba(0,153,204,.28)}
 #tourCard{position:absolute;width:min(330px,92vw);background:#fff;border-radius:13px;
   padding:15px 16px 13px;box-shadow:0 20px 52px rgba(10,22,40,.34);pointer-events:auto}
@@ -40278,13 +40278,17 @@ function openTour(force, steps, kind){
       '</div>' +
       '<div id="tourTitle" style="font-size:16px;font-weight:800;color:#0a1628;margin:5px 0 8px;line-height:1.25"></div>' +
       '<div id="tourBody" style="font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;max-height:40vh;overflow:auto"></div>' +
-      '<div style="display:flex;align-items:center;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
-        '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0">' + _cancelLbl + '</button>' +
-        '<button type="button" id="tourHelp" onclick="_tourHelp()" style="background:none;border:none;color:#0099cc;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">Help with this step</button>' +
-        (TOUR.kind !== 'main' ? '' :
-          '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>') +
-        '<button type="button" id="tourBack" style="margin-left:auto;padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
-        '<button type="button" id="tourNext" style="padding:7px 15px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
+      '<div style="margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
+        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px">' +
+          '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">' + _cancelLbl + '</button>' +
+          '<button type="button" id="tourHelp" onclick="_tourHelp()" style="background:none;border:none;color:#0099cc;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">Help with this step</button>' +
+          (TOUR.kind !== 'main' ? '' :
+            '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>') +
+        '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:flex-end;gap:9px">' +
+          '<button type="button" id="tourBack" style="padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
+          '<button type="button" id="tourNext" style="padding:7px 15px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;max-width:100%;white-space:normal;text-align:center">Next</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
   document.body.appendChild(w);
@@ -63471,8 +63475,23 @@ function captureFromMapbox(lat, lon, zoom) {
   var T = 'pk.eyJ1IjoiYXJvbmZsb29kMTIzIiwiYSI6ImNtb2tmZm93dDAyeXAzMXE0d2d1bnZmb3cifQ.ZYN0R9qF0j9V1IaQuF_c2g';
   // Always read the live map center+zoom — never use stale closed-over coords
   var mc = window._aerialMap ? window._aerialMap.getCenter() : {lat:lat, lng:lon};
-  var liveZ = window._aerialMap ? Math.round(window._aerialMap.getZoom()) : Math.round(zoom||19);
-  var z = Math.min(Math.max(liveZ, 18), 20);
+  // The picture must be the view they chose: same centre, the map's OWN zoom
+  // (fractional — rounding it to a whole number re-framed the roof), the
+  // same rotation, and the same shape as the map box rather than a square.
+  // The scale maths takes a fractional zoom (2^z), so nothing else changes.
+  var liveZ = window._aerialMap ? window._aerialMap.getZoom() : (zoom || 19);
+  var z = Math.round(Math.min(Math.max(liveZ, 16), 21) * 100) / 100;
+  var bearing = 0;
+  try { bearing = window._aerialMap ? Math.round(window._aerialMap.getBearing() * 10) / 10 : 0; } catch(e){}
+  var boxW = 1280, boxH = 1280;
+  try {
+    var mapEl = document.getElementById('aerialLeafletMap2');
+    var bw = mapEl ? mapEl.clientWidth : 0, bh = mapEl ? mapEl.clientHeight : 0;
+    if (bw > 50 && bh > 50){
+      var f = Math.min(1280 / bw, 1280 / bh);   // the largest same-shape box the static API allows
+      boxW = Math.max(200, Math.round(bw * f)); boxH = Math.max(200, Math.round(bh * f));
+    }
+  } catch(e){}
 
   // Check which source is selected
   var srcSel = document.getElementById('imagerySource');
@@ -63493,7 +63512,7 @@ function captureFromMapbox(lat, lon, zoom) {
   if (src === 'mapbox' || src === 'esri') {
     // Always use Mapbox for the canvas snap — it gives the best quality
     imageUrl = 'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/'
-      + mc.lng.toFixed(6) + ',' + mc.lat.toFixed(6) + ',' + z + ',0/1280x1280@2x?access_token=' + T;
+      + mc.lng.toFixed(6) + ',' + mc.lat.toFixed(6) + ',' + z + ',' + bearing + '/' + boxW + 'x' + boxH + '@2x?access_token=' + T;
   }
 
   if (hint) hint.innerHTML = '⏳ Loading satellite image...';
@@ -63517,7 +63536,7 @@ function captureFromMapbox(lat, lon, zoom) {
         IMG_OFFSET = {x:0, y:0};
         IMG_ROTATION = 0;
         IMG_FINE_ROTATION = 0;
-        _autoScaleFromAerial(mc.lat, z, true);   // 1280x1280@2x
+        _autoScaleFromAerial(mc.lat, z, true);   // @2x of the map box, at the map's own zoom
         var metersPerPx = DRAW.scaleMetresPerPx;
 
         // Resize canvas to match image aspect ratio — use DPR for crisp rendering

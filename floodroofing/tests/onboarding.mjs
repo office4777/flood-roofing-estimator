@@ -86,6 +86,12 @@ check('…clicking it (not Next) moves the walkthrough on to "take the picture"'
 v = await pg.evaluate(() => ({ modal: document.getElementById('aerialModal').style.display, addr: document.getElementById('aerialAddressInput').value,
   wait: (document.getElementById('tourRing') || {}).style.display, nextLbl: document.getElementById('tourNext').textContent }));
 check('…the finder is open with the address already in it', v.modal === 'block' && /Don Buck/.test(v.addr), JSON.stringify(v));
+v = await pg.evaluate(() => {
+  const card = document.getElementById('tourCard').getBoundingClientRect();
+  return ['tourCancel', 'tourHelp', 'tourBack', 'tourNext'].map(id => { const r = document.getElementById(id).getBoundingClientRect();
+    return { id, inside: r.left >= card.left - 1 && r.right <= card.right + 1 && r.top >= card.top - 1 && r.bottom <= card.bottom + 1, w: Math.round(r.width) }; });
+});
+check('every button sits inside the card, even with a long label', v.every(b => b.inside), JSON.stringify(v));
 // Satellite blocked: "Use this view" falls back to a practice picture.
 await pg.evaluate(() => document.getElementById('tourNext').click());
 await sleep(1800);
