@@ -85,6 +85,9 @@ const mail = await pg.evaluate(async () => {
   set('qdAddr', '4 Hillcrest Road, Kaikohe');
   set('qdValidUntil', '25/09/2026');
   set('qdGstRate', '15');
+  // A named business: an unbranded one is asked for its details before a
+  // quote can go out (tests/onboarding.mjs), which is not what this is about.
+  S.settings = S.settings || {}; S.settings.branding = Object.assign({}, S.settings.branding, { company_name: 'Acme Roofing Ltd' });
   S.quote = S.quote || {};
   S.quote.share = { token: 'tok123' };
   S.quote.lineItems = [{ desc:'Labour', qty:1, unit:20000 },

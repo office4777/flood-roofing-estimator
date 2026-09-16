@@ -62,14 +62,19 @@ check('…with a disclaimer that names nobody',
   /PB_DISCLAIMER/.test(src) && !/PB_DISCLAIMER[\s\S]{0,2000}?Flood/.test(src));
 
 // ── a brand-new business is asked to set itself up ──
+// Not at sign-in any more: at the first send, which is what this stands in for.
 let { ctx, pg } = await open({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} });
 let v = await pg.evaluate(() => {
+  const before = !!document.getElementById('setupWizard');
+  _brandingBeforeSend(function(){});
   const w = document.getElementById('setupWizard');
+  window.__wizBefore = before;
   return { shown: !!w, txt: w ? (w.textContent||'').replace(/\s+/g,' ') : '',
            company: (document.getElementById('swCompany')||{}).value,
            email: (document.getElementById('swEmail')||{}).value };
 });
-check('a new business is asked to set itself up before it can send anything', v.shown, v.txt.slice(0,70));
+check('a new business is asked to set itself up before it can send anything — at the send, not at sign-in',
+  v.shown && !(await pg.evaluate(() => window.__wizBefore)), v.txt.slice(0,70));
 check('…prefilled with what we already know about them',
   v.company === 'Acme Roofing Ltd' && v.email === 'sam@acmeroofing.co.nz', JSON.stringify(v));
 check('…and told their prices are theirs to enter', /Price book/.test(v.txt) && /swap them for your rates/.test(v.txt), v.txt.slice(-160));
