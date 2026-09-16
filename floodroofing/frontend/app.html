@@ -63483,13 +63483,21 @@ function captureFromMapbox(lat, lon, zoom) {
   var z = Math.round(Math.min(Math.max(liveZ, 16), 21) * 100) / 100;
   var bearing = 0;
   try { bearing = window._aerialMap ? Math.round(window._aerialMap.getBearing() * 10) / 10 : 0; } catch(e){}
+  // The map box is enlarged to the biggest same-shape box the static API
+  // allows (1280 on the long side) for a sharper picture — and the zoom is
+  // raised by the same factor, because a bigger box at the SAME zoom shows
+  // more ground: the canvas was carrying a road name and a bus the map
+  // never showed. Box × f, zoom + log2(f): the same ground, more pixels.
   var boxW = 1280, boxH = 1280;
   try {
     var mapEl = document.getElementById('aerialLeafletMap2');
     var bw = mapEl ? mapEl.clientWidth : 0, bh = mapEl ? mapEl.clientHeight : 0;
     if (bw > 50 && bh > 50){
-      var f = Math.min(1280 / bw, 1280 / bh);   // the largest same-shape box the static API allows
+      var f = Math.min(1280 / bw, 1280 / bh, 4);
+      var zUp = z + Math.log(f) / Math.LN2;
+      if (zUp > 22){ f = Math.pow(2, 22 - z); zUp = 22; }   // the imagery stops at 22
       boxW = Math.max(200, Math.round(bw * f)); boxH = Math.max(200, Math.round(bh * f));
+      z = Math.round(zUp * 100) / 100;
     }
   } catch(e){}
 

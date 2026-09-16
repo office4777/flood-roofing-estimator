@@ -85,8 +85,10 @@ const req = await pg.evaluate(async () => {
   window.fetch = realFetch; window._aerialMap = null; _closeAerialModal();
   return url;
 });
-check('the static image is asked for at the map\u2019s own zoom and bearing, in the map box\u2019s shape',
-  !!req && /,19\.37,12\.3\/1280x640@2x/.test(req), req);
+// 800x400 grows by 1.6 to 1280x640, so the zoom goes up by log2(1.6) = 0.68:
+// 19.37 → 20.05. Same ground as the map box, more pixels.
+check('the static image is asked for at the map\u2019s own zoom (raised to match the bigger box) and bearing, in the map box\u2019s shape',
+  !!req && /,20\.05,12\.3\/1280x640@2x/.test(req), req);
 
 await ctx.close();
 await b.close();
