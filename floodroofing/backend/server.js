@@ -2255,12 +2255,6 @@ async function _versionGroup(req, job){
   rows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
   return rows;
 }
-async function _jobForVersions(req, id){
-  const { data, error } = await _scopeCompany(
-    supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', id), req).single();
-  if (error || !data) return null;
-  return data;
-}
 // A name for a version nobody has named: whoever is making it.
 function _defaultVersionName(req, taken){
   const who = String(req.user.name || String(req.user.email || '').split('@')[0] || 'New').trim();
@@ -2276,7 +2270,9 @@ function _defaultVersionName(req, taken){
 }
 app.get('/jobs/:id/versions', requireAuth, async (req, res) => {
   try {
-    const job = await _jobForVersions(req, req.params.id);
+    const one = await _scopeCompany(
+      supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', req.params.id), req).single();
+    const job = (!one.error && one.data) ? one.data : null;
     if (!job) return res.status(404).json({ error: 'not found' });
     const rows = await _versionGroup(req, job);
     const names = await _companyMembers(req.companyId);
@@ -2341,7 +2337,9 @@ app.put('/jobs/:id/version-name', requireAuth, async (req, res) => {
   const name = String((req.body && req.body.name) || '').trim().slice(0, 80);
   if (!name) return res.status(400).json({ error: 'A version needs a name.' });
   try {
-    const job = await _jobForVersions(req, req.params.id);
+    const one = await _scopeCompany(
+      supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', req.params.id), req).single();
+    const job = (!one.error && one.data) ? one.data : null;
     if (!job) return res.status(404).json({ error: 'not found' });
     const { error } = await supabase.from('jobs').update({ version_name: name }).eq('id', job.id);
     if (error) return res.status(500).json({ error: error.message });
