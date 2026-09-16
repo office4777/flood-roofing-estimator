@@ -79,10 +79,18 @@ check('…which the policy says out loud',
 const declared = (server.match(/const USAGE_EVENTS = \[([\s\S]*?)\];/) || [])[1] || '';
 const eventNames = (declared.match(/'([a-z_]+)'/g) || []).map(x => x.replace(/'/g,''));
 check('the policy says how many milestones there are, and is right',
-  eventNames.length === 15 && /[Ff]ifteen milestones/.test(privacy) && !/[Ee]leven milestones|nine milestones/.test(privacy),
+  eventNames.length === 21 && /[Tt]wenty-one milestones/.test(privacy) && !/[Ff]ifteen milestones|[Ee]leven milestones|nine milestones/.test(privacy),
   eventNames.length + ' in the code');
 check('…and there is still no page tracking to disclose',
   !/page_view|pageview|session_recording/.test(server) && /no page tracking/.test(privacy));
+// The screen-time and walkthrough events are the one thing that got
+// broader, and the policy has to say so in the same words the code uses:
+// a named screen, never what was typed, clicked or drawn.
+check('…and the policy discloses the screen-time and walkthrough events it now records',
+  /which of the app's main\s+screens/.test(privacy) && /practice walkthrough/.test(privacy) && /never\s+what was typed, clicked or drawn/.test(privacy) &&
+  /USAGE_SCREENS = \[/.test(server) && /'screen_left'/.test(server) && /'walkthrough'/.test(server));
+check('…and every property those events carry is allow-listed on the server',
+  /function _usageProps\(/.test(server) && /pick\('screen', USAGE_SCREENS\)/.test(server) && /pick\('step'\)/.test(server));
 // A retention period nobody enforces is not a retention period.
 const keepDays = Number((server.match(/const USAGE_KEEP_DAYS = (\d+)/) || [])[1] || 0);
 check('the retention period the policy promises is actually enforced',

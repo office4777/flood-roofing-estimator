@@ -14,7 +14,8 @@ mkdirSync(OUT, { recursive: true });
 const shots = [];
 let n = 0;
 
-const SETTINGS_NEW = { user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{}, price_book:{} };
+const SETTINGS_NEW = { user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{}, price_book:{}, ui_flags:{ first_roof:'offer' } };
+const SETTINGS_SEEN = { user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{}, price_book:{}, ui_flags:{ first_roof:'done' } };
 
 async function newPage(b, { token = true, settings = SETTINGS_NEW, company = { id:'c1', name:'', plan:'trial', limits:{} } } = {}){
   const ctx = await b.newContext({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 });
@@ -28,6 +29,7 @@ async function newPage(b, { token = true, settings = SETTINGS_NEW, company = { i
       status:'trialing', plan:'trial', live:true, billing:true, billing_account:false,
       trial:{ ends_at: new Date(Date.now()+12*864e5).toISOString(), days_left:12, expired:false },
     });
+    if (/\/email\/send-order/.test(u)) return j({ ok:true, id:'m1' });
     if (/\/jobs\b/.test(u)) return j([]);
     return j([]);
   });
@@ -85,22 +87,68 @@ const b = await chromium.launch();
   await ctx.close();
 }
 
-// ── 3. First sign-in: the branding wizard ────────────────────────
+// ── 3. First sign-in: the practice job, step by step ─────────────
+// What a new account actually meets: Map Roof, John Smith's job at 23 Don
+// Buck Road open, and one card. The satellite is unreachable here, so the
+// walkthrough shows its fallback picture — on a real connection the same
+// step shows the aerial of the property.
 {
   const { ctx, pg } = await newPage(b);
   await pg.goto('file://' + DIR + '/app.html');
+  const stepKey = () => pg.evaluate(() => (window.TOUR && TOUR.open && TOUR.steps[TOUR.i]) ? TOUR.steps[TOUR.i].key : '');
+  const waitStep = async (key, ms) => { const t0 = Date.now(); while (Date.now() - t0 < (ms || 5000)){ if (await stepKey() === key) return true; await pg.waitForTimeout(150); } return false; };
+  const cardTitle = () => pg.evaluate(() => (document.getElementById('tourTitle') || {}).textContent || '');
+  const total = 15;
+  let i = 0;
+  const step = async (key, note) => { await waitStep(key, 7000); await pg.waitForTimeout(500); i++; await shot(pg, 'Practice job ' + i + ' of ' + total + ' — ' + (await cardTitle()), note); };
+  await step('start', 'What a brand-new account sees first: Map Roof, the practice job open, and this one card. Nothing else opens on top of it.');
+  await pg.evaluate(() => document.querySelector('#tourExtra button').click());
+  await step('find', 'The finder button is ringed; the address is already filled in. Clicking it moves the card on — Next only does it for them.');
+  await pg.click('#aerialFindBtn');
+  await step('useview', 'The satellite finder. On a real connection the map is on the property; here the imagery is unreachable so it is blank.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('pan', 'The picture is on the canvas (the labelled practice picture stands in for the aerial here). Dragging it completes the step.');
+  await pg.evaluate(() => { IMG_OFFSET = { x: 40, y: 20 }; redrawAll(); });
+  await step('zoom', 'Zooming completes it.');
+  await pg.evaluate(() => adjustZoom(0.1));
+  await step('rotate', 'Optional — the button says Skip.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('outline', 'Trace the building. Completes when the outline closes.');
+  await pg.evaluate(() => { DRAW.tool = 'outline'; DRAW.currentPts = [[220,200],[720,200],[720,560],[220,560]]; finishCurrent(); });
+  await step('roofsetup', 'Roof type and pitch — the app\u2019s own popup, with the card waiting beside it.');
+  await pg.evaluate(() => { document.getElementById('_rsPitch').value = '15'; document.getElementById('_rsOk').click(); });
+  await step('scale', 'Satellite scale is roughly right; Calibrate scale for exact. Read and Next.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('jobpack', 'The Job Pack gate: clicking the tab is the step.');
+  await pg.click('#navJobPackBtn');
+  await step('lineitems', 'Always check the calculations.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('order', 'Order Roof.');
+  await pg.evaluate(() => orderRoofViaSupplier());
+  await step('checklist', 'The order checklist — every box before Confirm.');
+  await pg.evaluate(() => { document.querySelectorAll('#orderChecklistModal .ordck').forEach(b => { b.checked = true; }); _orderChecklistSync(); document.getElementById('orderChecklistGo').click(); });
+  await step('send', 'The order email, addressed to the signed-in person and locked there. Subject says TEST ORDER.');
+  await pg.evaluate(() => { window._orderEmailBuildBlob = async () => new Blob(['pdf'], { type: 'application/pdf' }); _orderEmailSendNow(); });
+  await step('done', 'Finished: carry on to quoting, or start their own job.');
+  await ctx.close();
+}
+
+// ── 3b. The branding wizard — now only when something first goes out ──
+{
+  const { ctx, pg } = await newPage(b, { settings: SETTINGS_SEEN });
+  await pg.goto('file://' + DIR + '/app.html');
   await pg.waitForTimeout(3000);
-  await pg.evaluate(() => { try { openSetupWizard(); } catch(e){} });
+  await pg.evaluate(() => { try { _brandingBeforeSend(function(){}); } catch(e){} });
   await pg.waitForTimeout(700);
-  await shot(pg, 'Set your business up (first sign-in, modal)',
-    'Opens by itself on a new account. Everything here lands on quotes, job packs and customer emails.');
+  await shot(pg, 'Set your business up (asked once, at the first real send)',
+    'No longer opens at sign-in. It appears the first time a quote, an order or a job pack is about to go out under their name, and says why.');
   await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });
   await ctx.close();
 }
 
 // ── 4. The setup guide, card by card ─────────────────────────────
 {
-  const { ctx, pg } = await newPage(b);
+  const { ctx, pg } = await newPage(b, { settings: SETTINGS_SEEN });
   await pg.goto('file://' + DIR + '/app.html');
   await pg.waitForTimeout(3000);
   await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });
@@ -113,7 +161,7 @@ const b = await chromium.launch();
       return { key: st.key || '', title: (document.querySelector('#setupGuide h2, #setupGuide [id*=Title]') || {}).textContent || st.title || '' };
     });
     await shot(pg, 'Setup guide ' + (i+1) + ' of ' + total + ' — ' + (t.title || t.key),
-      'Runs itself once on a new account. Re-openable any time from Settings → General.');
+      'Opt-in now: Settings → General → Open the setup guide. It no longer runs by itself.');
     if (i < total - 1){
       await pg.click('#sgNext').catch(() => {});
       await pg.waitForTimeout(450);
@@ -125,7 +173,7 @@ const b = await chromium.launch();
 
 // ── 5. The tutorial, step by step ────────────────────────────────
 {
-  const { ctx, pg } = await newPage(b);
+  const { ctx, pg } = await newPage(b, { settings: SETTINGS_SEEN });
   await pg.goto('file://' + DIR + '/app.html');
   await pg.waitForTimeout(3000);
   await pg.evaluate(() => { ['setupWizard','setupGuide'].forEach(id => { const w = document.getElementById(id); if (w) w.remove(); }); });
@@ -140,7 +188,7 @@ const b = await chromium.launch();
       return { key: st.key || '', title: st.title || (h ? h.textContent : '') };
     });
     await shot(pg, 'Tutorial ' + (i+1) + ' of ' + total + ' — ' + (t.title || t.key),
-      'The guided tour. Re-openable from Settings → General.');
+      'The 29-step tour. Opt-in now: Settings → General → Run the tutorial. Every card carries "Help with this step".');
     if (i < total - 1){
       await pg.click('#tourNext').catch(() => {});
       await pg.waitForTimeout(500);
@@ -152,7 +200,7 @@ const b = await chromium.launch();
 
 // ── 6. Where a new account lands once the guides are done ────────
 {
-  const { ctx, pg } = await newPage(b);
+  const { ctx, pg } = await newPage(b, { settings: SETTINGS_SEEN });
   await pg.goto('file://' + DIR + '/app.html');
   await pg.waitForTimeout(3200);
   await pg.evaluate(() => { ['setupWizard','setupGuide','tourWrap'].forEach(id => { const w = document.getElementById(id); if (w) w.remove(); }); });

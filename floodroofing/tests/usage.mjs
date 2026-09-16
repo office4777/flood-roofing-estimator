@@ -89,6 +89,42 @@ r = await api('POST', '/usage', { name: 'roof_drawn' });
 await settle();
 check('…and finishing a roof', r.status === 200 && names().indexOf('roof_drawn') >= 0);
 
+// ── the onboarding events, with their properties allow-listed ──
+r = await api('POST', '/usage', { name: 'walkthrough', props: { step: 'outline', action: 'shown', example: true, secret: 'x', notes: 'typed text' } });
+await settle();
+let ev = db.usage_events.filter(e => e.name === 'walkthrough').pop();
+check('a walkthrough step is recorded with its step and action',
+  r.status === 200 && ev && ev.props.step === 'outline' && ev.props.action === 'shown' && ev.props.example === true, JSON.stringify(ev && ev.props));
+check('…and nothing that was not allow-listed comes with it', ev && !('secret' in ev.props) && !('notes' in ev.props));
+r = await api('POST', '/usage', { name: 'walkthrough', props: { step: 'has spaces and <html>', action: 'danced' } });
+await settle();
+ev = db.usage_events.filter(e => e.name === 'walkthrough').pop();
+check('…a step that is not a plain word, or an action that is not one of the named ones, is dropped',
+  ev && !('step' in ev.props) && !('action' in ev.props), JSON.stringify(ev && ev.props));
+r = await api('POST', '/usage', { name: 'app_time', minutes: 5, props: { screen: 'jobpack' } });
+await settle();
+ev = db.usage_events.filter(e => e.name === 'app_time').pop();
+check('active minutes carry which screen they were spent on', ev && ev.props.minutes === 5 && ev.props.screen === 'jobpack', JSON.stringify(ev && ev.props));
+r = await api('POST', '/usage', { name: 'app_time', minutes: 5, props: { screen: '/jobs/123/edit' } });
+await settle();
+ev = db.usage_events.filter(e => e.name === 'app_time').pop();
+check('…but a screen that is not one of the named ones is not stored — no URL can sneak in', ev && !('screen' in ev.props), JSON.stringify(ev && ev.props));
+r = await api('POST', '/usage', { name: 'screen_left', props: { screen: 'jobpack', seconds: 94, walkthrough: true } });
+await settle();
+ev = db.usage_events.filter(e => e.name === 'screen_left').pop();
+check('the screen they closed on is recorded with the seconds spent there',
+  ev && ev.props.screen === 'jobpack' && ev.props.seconds === 94 && ev.props.walkthrough === true, JSON.stringify(ev && ev.props));
+r = await api('POST', '/usage', { name: 'roof_source', props: { type: 'aerial', failed: true } });
+await settle();
+ev = db.usage_events.filter(e => e.name === 'roof_source').pop();
+check('a failed satellite fetch is recorded as such', ev && ev.props.type === 'aerial' && ev.props.failed === true);
+r = await api('POST', '/usage', { name: 'onboarding_path', props: { path: 'practice' } });
+r = await api('POST', '/usage', { name: 'help_requested', props: { step: 'outline', kind: 'firstroof' } });
+r = await api('POST', '/usage', { name: 'output_created', props: { kind: 'order', example: true } });
+await settle();
+check('the path taken, a help request and an example output are all accepted',
+  ['onboarding_path', 'help_requested', 'output_created'].every(n => names().indexOf(n) >= 0));
+
 // ── and nothing else ──
 r = await api('POST', '/usage', { name: 'clicked_button' });
 check('an event name nobody allowed is refused', r.status === 400, JSON.stringify(r.body));

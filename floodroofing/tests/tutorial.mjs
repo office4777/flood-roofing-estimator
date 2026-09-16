@@ -228,22 +228,21 @@ check('…with the wording for that button, not the fallback',
 await pg.evaluate(() => closeTour(false));
 await ctx.close();
 
-// ── first login: it follows the setup guide, once ─────────────────
+// ── first login: neither the guide nor the tutorial opens by itself ──
+// Both are opt-in now (Settings → General). A new account meets the practice
+// job instead — tests/onboarding.mjs — and the guide finishing must not
+// start the tour, which is how "Step 1 of 9" once landed under "Step 1 of 29".
 ({ ctx, pg, errs } = await boot({ firstRun: true }));
 v = await pg.evaluate(() => ({ guide: !!document.getElementById('setupGuide'), tour: !!document.getElementById('tourWrap') }));
-check('the setup guide comes first on a brand-new account', v.guide, JSON.stringify(v));
-check('…and the tutorial does not fight it for the screen', !v.tour);
-await pg.evaluate(() => closeSetupGuide(false));
+check('nothing opens on its own on a brand-new account — not the guide, not the tutorial', !v.guide && !v.tour, JSON.stringify(v));
+await pg.evaluate(() => { openSetupGuide(true); closeSetupGuide(false); });
 await pg.waitForTimeout(1200);
 v = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'),
                                title: (document.getElementById('tourTitle')||{}).textContent || '' }));
-check('finishing the setup guide starts the tutorial', v.tour, v.title);
-await pg.evaluate(() => closeTour(false));
-await pg.waitForTimeout(200);
-// Second time round it must not reappear.
-await pg.evaluate(() => { closeSetupGuide(false); });
-await pg.waitForTimeout(1200);
-check('…but only ever once', !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
+check('finishing the setup guide does NOT start the tutorial', !v.tour, v.title);
+v = await pg.evaluate(() => { openSetupGuide(true); openTour(true); const t = !!document.getElementById('tourWrap'); closeSetupGuide(false); return t; });
+check('…and the tutorial cannot open on top of the guide', !v);
+check('…while opened on demand it is the same 29 steps', await pg.evaluate(() => { openTour(true); const n = TOUR.steps.length; closeTour(false); return n; }) === 29);
 check('no page errors on the first run', errs.length === 0, errs.slice(0,2).join(' | '));
 await ctx.close();
 

@@ -59,9 +59,20 @@ const db = {
     { user_id: 'u1', company_id: C1, name: 'quote_sent',    at: inY(10), props: {} },
     { user_id: 'u1', company_id: C1, name: 'order_sent',    at: inY(11), props: {} },
     { user_id: 'u1', company_id: C1, name: 'feedback_sent', at: inY(12), props: {} },
-    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(9),  props: { minutes: 5 } },
-    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(10), props: { minutes: 5 } },
+    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(9),  props: { minutes: 5, screen: 'roof' } },
+    { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(10), props: { minutes: 5, screen: 'jobpack' } },
     { user_id: 'u1', company_id: C1, name: 'app_time',      at: inY(11), props: { minutes: 3 } },
+    // Sam's practice job: an order sent from it is NOT a merchant order.
+    { user_id: 'u1', company_id: C1, name: 'order_sent',    at: inY(11), props: { example: true } },
+    { user_id: 'u1', company_id: C1, name: 'onboarding_path', at: inY(8), props: { path: 'practice' } },
+    { user_id: 'u1', company_id: C1, name: 'walkthrough',   at: inY(8),  props: { step: 'start', action: 'shown' } },
+    { user_id: 'u1', company_id: C1, name: 'walkthrough',   at: inY(8),  props: { step: 'find', action: 'shown' } },
+    { user_id: 'u1', company_id: C1, name: 'walkthrough',   at: inY(9),  props: { step: 'outline', action: 'shown' } },
+    { user_id: 'u1', company_id: C1, name: 'walkthrough',   at: inY(9),  props: { step: 'outline', action: 'stopped' } },
+    { user_id: 'u1', company_id: C1, name: 'help_requested', at: inY(9), props: { step: 'outline' } },
+    { user_id: 'u1', company_id: C1, name: 'screen_left',   at: inY(12), props: { screen: 'jobpack', seconds: 130 } },
+    { user_id: 'u1', company_id: C1, name: 'screen_left',   at: inY(9),  props: { screen: 'roof', seconds: 30 } },
+    { user_id: 'u6', company_id: C1, name: 'screen_left',   at: inY(15), props: { screen: 'jobpack', seconds: 10 } },
     { user_id: 'u6', company_id: C1, name: 'canvas_used',   at: inY(15), props: {} },
     { user_id: 'u6', company_id: C1, name: 'app_time',      at: inY(15), props: { minutes: 5 } },
     // Somebody nobody's list knows: events with a user id and no profile.
@@ -111,6 +122,16 @@ const jo = rep.users.find(u => u.email === 'jo@bay.co.nz'), ana = rep.users.find
 check('…counting only yesterday: the day before and today do not show', jo && jo.logins === 0 && ana && ana.logins === 0, JSON.stringify([jo && jo.logins, ana && ana.logins]));
 check('…every member of a business is listed, quiet ones included', !!ben && ben.company === 'Northland Roofing' && ben.minutes === 0);
 check('…and the busiest person is first', rep.users[0].email === 'sam@northland.co.nz', rep.users[0].email);
+// The onboarding questions: where the minutes went, where they closed the
+// app, how far the practice job got — and a test order is not an order.
+check('the minutes are broken down by screen', sam && sam.screens.roof === 5 && sam.screens.jobpack === 5 && sam.screens.unknown === 3, JSON.stringify(sam && sam.screens));
+check('…the screen they closed the app on is the LAST one, with the time spent there', sam && sam.left_at && sam.left_at.screen === 'jobpack' && sam.left_at.seconds === 130, JSON.stringify(sam && sam.left_at));
+check('…the practice walkthrough says how far it got and how it ended',
+  sam && sam.path === 'practice' && sam.walkthrough && sam.walkthrough.steps === 3 && sam.walkthrough.step === 'outline' && /stopped at outline/.test(sam.walkthrough.outcome) && sam.helps.join() === 'outline',
+  JSON.stringify(sam && sam.walkthrough));
+check('…and an order sent from the practice job is counted as a test order, not a merchant order', sam && sam.orders === 1 && sam.example_orders === 1, JSON.stringify([sam && sam.orders, sam && sam.example_orders]));
+check('where people closed the app is counted across everyone', rep.stops && rep.stops.jobpack === 2 && rep.stops.roof === 1, JSON.stringify(rep.stops));
+check('…and how many reached each walkthrough step', rep.walkthrough_steps && rep.walkthrough_steps.outline === 1 && rep.walkthrough_steps.start === 1, JSON.stringify(rep.walkthrough_steps));
 const aron = rep.users.find(u => u.email === 'aron@northland.co.nz');
 check('THE FIX: an owner on the business by profile alone is listed with his activity',
   !!aron && aron.company === 'Northland Roofing' && aron.canvas === 1 && aron.minutes === 5, JSON.stringify(aron));
@@ -122,7 +143,11 @@ check('…and not without the token', (await fetch(BASE + '/admin/daily')).statu
 
 // ── the email ────────────────────────────────────────────────────
 const prev = await fetch(BASE + '/admin/daily/preview' + T);
-check('the preview is the email as a page', /text\/html/.test(prev.headers.get('content-type') || '') && /Northland Roofing/.test(await prev.text()));
+const prevHtml = await prev.text();
+check('the preview is the email as a page', /text\/html/.test(prev.headers.get('content-type') || '') && /Northland Roofing/.test(prevHtml));
+check('…and it shows where the minutes went, where they left, and the practice job, in words',
+  /Map Roof 5, Job Pack 5|Job Pack 5, Map Roof 5/.test(prevHtml) && /Job Pack after 2 min/.test(prevHtml) && /stopped at outline/.test(prevHtml) && /1 test order/.test(prevHtml) && /Where people closed the app/.test(prevHtml),
+  prevHtml.match(/stopped at[^<]*/) + '');
 const s = await fetch(BASE + '/admin/daily/send' + T, { method: 'POST' }); const sj = await s.json();
 await new Promise(x => setTimeout(x, 400));
 const mail = sent[sent.length - 1] || {};

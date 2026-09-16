@@ -2388,7 +2388,7 @@ app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
   }
   res.json({ ok: true, scheduled,
              order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
-  recordUsage('order_sent', req);
+  recordUsage('order_sent', req, (req.body && req.body.test) ? { example: true } : undefined);
 });
 
 // Put a job on the schedule board with the delivery it has just been ordered
@@ -2973,7 +2973,20 @@ async function _companySettingsRow(req){
 app.get('/settings', requireAuth, async (req, res) => {
   try {
     const row = await _companySettingsRow(req);
-    res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {}, billing_email: '' });
+    const out = row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {}, billing_email: '' };
+    // The practice job is offered by the SERVER, once: an account that has
+    // never answered the walkthrough and has no jobs of its own gets
+    // ui_flags.first_roof = 'offer'. The app starts nothing on its own guess,
+    // so a stubbed or failed read can never surprise anyone with a tutorial.
+    try {
+      const uf = Object.assign({}, out.ui_flags || {});
+      if (!uf.first_roof){
+        const { data, error } = await _scopeCompany(supabase.from('jobs').select('id'), req).limit(1);
+        if (!error) uf.first_roof = (data || []).length ? 'has-work' : 'offer';
+      }
+      out.ui_flags = uf;
+    } catch (e2){ /* the offer is not worth failing settings over */ }
+    res.json(out);
   } catch (e) {
     // Blank settings are not an acceptable stand-in for settings we could not
     // read: the app would show the Fergus key gone and the price book empty.
@@ -2989,6 +3002,12 @@ app.put('/settings/ui-flags', requireAuth, async (req, res) => {
   const b = req.body || {};
   const patch = {};
   for (const k of ['setup_done', 'tour_done']) if (b[k] !== undefined) patch[k] = !!b[k];
+  // Where the practice walkthrough stands: done, stopped, has-work… a word,
+  // not a boolean, so "they stopped at step 6" can be told from "finished".
+  if (b.first_roof !== undefined){
+    const v = String(b.first_roof || '');
+    if (/^[a-z-]{1,24}$/.test(v)) patch.first_roof = v;
+  }
   try {
     const row = await _companySettingsRow(req);
     const flags = Object.assign({}, (row && row.ui_flags) || {}, patch);
@@ -8916,6 +8935,9 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     }
     const info = await _dispatchMail(mail);
     res.json({ ok: true, id: info.messageId || null });
+    // A practice-job order never touches a job row, so its milestone is
+    // recorded here — flagged as the example it is.
+    if (req.body && req.body.test === true) recordUsage('order_sent', req, { example: true });
   } catch (e) {
     console.error('send-order email failed:', e.message);
     res.status(502).json({ error: 'Email send failed: ' + e.message });
@@ -10039,8 +10061,39 @@ const USAGE_EVENTS = [
   'login',            // a password sign-in, or the emailed confirmation link
   'canvas_used',      // drew on the canvas (once per half hour per person)
   'feedback_sent',    // a feedback report went to support
-  'app_time',         // props.minutes of active time in the app, in small batches
+  'app_time',         // props.minutes of active time in the app, in small batches, props.screen says on which screen
+  // The onboarding questions: which path a new account took, how far the
+  // practice walkthrough got, where a picture came from, which screen they
+  // were on when they left, and whether they asked for help. Every property
+  // is allow-listed in _usageProps below — a step name, a screen name, never
+  // free text.
+  'onboarding_path',  // props.path: practice | sample | sample-instead | skipped
+  'walkthrough',      // props.step + props.action: shown | done | skipped | stopped | finished | started
+  'roof_source',      // props.type: aerial | photo | pdf | fallback, props.failed
+  'screen_left',      // props.screen + props.seconds: the last screen before the tab was hidden or closed
+  'help_requested',   // props.step: "Help with this step" was pressed
+  'output_created',   // props.kind: order | quote | jobpack — with example:true on a demo job
 ];
+// The screens the app can name. Coarse by design: a tab or a popup, never a
+// page, a click or a field.
+const USAGE_SCREENS = ['home', 'roof', 'jobpack', 'quote', 'settings', 'feedback', 'inbox', 'schedule', 'setup', 'order', 'roofsetup', 'aerial', 'quote-send', 'unknown'];
+function _usageProps(name, raw){
+  const b = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  const word = v => (typeof v === 'string' && /^[a-z0-9_-]{1,32}$/i.test(v)) ? v : undefined;
+  const pick = (k, allowed) => { const v = word(b[k]); if (v !== undefined && (!allowed || allowed.indexOf(v) >= 0)) out[k] = v; };
+  if (name === 'app_time') out.minutes = Math.max(1, Math.min(10, Math.round(Number(b.minutes) || 1)));
+  if (name === 'app_time' || name === 'screen_left') pick('screen', USAGE_SCREENS);
+  if (name === 'screen_left') { out.seconds = Math.max(0, Math.min(7200, Math.round(Number(b.seconds) || 0))); if (b.walkthrough) out.walkthrough = true; }
+  if (name === 'walkthrough' || name === 'help_requested') pick('step');
+  if (name === 'walkthrough') pick('action', ['shown', 'done', 'skipped', 'stopped', 'finished', 'started']);
+  if (name === 'help_requested') pick('kind', ['main', 'inbox', 'firstroof']);
+  if (name === 'onboarding_path') pick('path', ['practice', 'sample', 'sample-instead', 'skipped']);
+  if (name === 'roof_source') { pick('type', ['aerial', 'photo', 'pdf', 'fallback']); if (b.failed) out.failed = true; }
+  if (name === 'output_created') pick('kind', ['order', 'quote', 'jobpack']);
+  if (b.example) out.example = true;
+  return out;
+}
 async function recordUsage(name, req, props){
   try {
     if (USAGE_EVENTS.indexOf(name) < 0) return;   // an allow-list, so this can never become page tracking
@@ -10060,11 +10113,15 @@ app.post('/usage', requireAuth, (req, res) => {
   // Only these two — every other name is recorded at the route that does the
   // thing, and accepting arbitrary names here is how an event pipe turns into
   // page tracking.
-  if (['sample_opened', 'roof_drawn', 'canvas_used', 'app_time'].indexOf(name) < 0) return res.status(400).json({ error: 'Unknown event' });
+  if (['sample_opened', 'roof_drawn', 'canvas_used', 'app_time', 'onboarding_path', 'walkthrough', 'roof_source',
+       'screen_left', 'help_requested', 'output_created'].indexOf(name) < 0) return res.status(400).json({ error: 'Unknown event' });
   res.json({ ok: true });
   // Minutes come in batches of a few; anything bigger is a bug or a script.
-  const props = name === 'app_time' ? { minutes: Math.max(1, Math.min(10, Math.round(Number((req.body || {}).minutes) || 1))) } : undefined;
-  recordUsage(name, req, props);
+  // Every other property goes through the allow-list: an unknown key or a
+  // value that is not one of the named words is dropped, never stored.
+  const body = req.body || {};
+  const props = _usageProps(name, Object.assign({}, body.props || {}, body.minutes !== undefined ? { minutes: body.minutes } : {}));
+  recordUsage(name, req, Object.keys(props).length ? props : undefined);
 });
 
 // The privacy policy says these are kept for 24 months. A retention period
@@ -10089,7 +10146,7 @@ app.get('/admin/usage', async (req, res) => {
   let rows = [];
   try {
     const { data, error } = await supabase.from('usage_events')
-      .select('company_id, name, at').gte('at', since).limit(50000);
+      .select('company_id, name, at, props').gte('at', since).limit(50000);
     if (error) throw new Error(error.message);
     rows = data || [];
   } catch(e){
@@ -10098,7 +10155,16 @@ app.get('/admin/usage', async (req, res) => {
   // A company counts once per milestone, however many times it hit it —
   // otherwise one busy subscriber drowns out ten who never got started.
   const reached = new Map();   // milestone → Set(companyId)
+  const steps = new Map();     // walkthrough step → Set(companyId) that got there
   for (const r of rows){
+    const p = r.props || {};
+    if (r.name === 'walkthrough'){
+      if (p.step && p.action === 'shown'){ if (!steps.has(p.step)) steps.set(p.step, new Set()); steps.get(p.step).add(r.company_id || 'anon'); }
+      continue;
+    }
+    // A roof drawn or an order sent on the sample or the practice job is
+    // the tutorial working, not the business reaching the milestone.
+    if (p.example) continue;
     if (!reached.has(r.name)) reached.set(r.name, new Set());
     reached.get(r.name).add(r.company_id || 'anon');
   }
@@ -10108,7 +10174,9 @@ app.get('/admin/usage', async (req, res) => {
     return { milestone: n, businesses: c,
              of_signups: signed ? Math.round((c / signed) * 100) + '%' : '—' };
   });
-  res.json({ window_days: days, since, events: rows.length, signups: signed, funnel });
+  const walkthrough = {};
+  steps.forEach((set, k) => { walkthrough[k] = set.size; });
+  res.json({ window_days: days, since, events: rows.length, signups: signed, funnel, walkthrough });
 });
 
 // ══════════════════════════════════════════════════════════════════

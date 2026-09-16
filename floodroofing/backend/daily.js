@@ -114,6 +114,40 @@ function createDaily(deps){
     const count = (uid, name) => evs.filter(e => e.user_id === uid && e.name === name).length;
     const minutes = uid => evs.filter(e => e.user_id === uid && e.name === 'app_time')
       .reduce((s, e) => s + (Number((e.props || {}).minutes) || 0), 0);
+    // Where the minutes went: { roof: 12, jobpack: 3 } — the "did the sheet
+    // calculation scare them off" question is answered by a Job Pack column
+    // that is tiny next to Map Roof, and by where they were when they left.
+    const screens = uid => {
+      const out = {};
+      evs.filter(e => e.user_id === uid && e.name === 'app_time').forEach(e => {
+        const sc = (e.props || {}).screen || 'unknown';
+        out[sc] = (out[sc] || 0) + (Number((e.props || {}).minutes) || 0);
+      });
+      return out;
+    };
+    // The last screen they were on before the tab was hidden or closed.
+    const leftAt = uid => {
+      const l = evs.filter(e => e.user_id === uid && e.name === 'screen_left').sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+      return l ? { screen: (l.props || {}).screen || 'unknown', seconds: Number((l.props || {}).seconds) || 0, example: !!(l.props || {}).example } : null;
+    };
+    // How far the practice walkthrough got: the last step shown, and whether
+    // it finished, was stopped, or is just where they left it.
+    const walkthrough = uid => {
+      const w = evs.filter(e => e.user_id === uid && e.name === 'walkthrough').sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+      if (!w.length) return null;
+      const last = w[w.length - 1], p = last.props || {};
+      const shown = w.filter(e => (e.props || {}).action === 'shown').map(e => (e.props || {}).step);
+      return { step: shown[shown.length - 1] || p.step || '', steps: shown.length,
+               outcome: p.action === 'finished' ? 'finished' : (p.action === 'stopped' ? 'stopped at ' + (p.step || '?') : 'left at ' + (shown[shown.length - 1] || '?')) };
+    };
+    const path = uid => { const e = evs.find(x => x.user_id === uid && x.name === 'onboarding_path'); return e ? ((e.props || {}).path || '') : ''; };
+    const helps = uid => evs.filter(e => e.user_id === uid && e.name === 'help_requested').map(e => (e.props || {}).step || '?');
+    // Real milestones, and the example ones kept apart: an order sent from
+    // the practice job is the tutorial working, not a merchant order.
+    const realCount = (uid, name) => evs.filter(e => e.user_id === uid && e.name === name && !(e.props || {}).example).length;
+    const exampleCount = (uid, name) => evs.filter(e => e.user_id === uid && e.name === name && (e.props || {}).example).length;
+    const detail = uid => ({ screens: screens(uid), left_at: leftAt(uid), walkthrough: walkthrough(uid), path: path(uid), helps: helps(uid),
+                             example_orders: exampleCount(uid, 'order_sent'), example_roofs: exampleCount(uid, 'roof_drawn') });
     const users = [];
     companies.forEach(function(c){
       c.members.forEach(function(uid){
@@ -122,7 +156,8 @@ function createDaily(deps){
           company: c.name, company_status: c.status, plan: c.plan, trial_days_left: c.trial_days_left,
           name: (p && p.name) || '', email: (p && p.email) || uid,
           logins: count(uid, 'login'), canvas: count(uid, 'canvas_used'), quotes: count(uid, 'quote_sent'),
-          orders: count(uid, 'order_sent'), feedback: count(uid, 'feedback_sent'), minutes: minutes(uid),
+          orders: realCount(uid, 'order_sent'), feedback: count(uid, 'feedback_sent'), minutes: minutes(uid),
+          ...detail(uid),
         });
       });
     });
@@ -142,16 +177,42 @@ function createDaily(deps){
         company: co ? co.name : '(not on any business)', company_status: co ? co.status : 'unknown', plan: co ? co.plan : 'unknown', trial_days_left: co ? co.trial_days_left : null,
         name: (p && p.name) || '', email,
         logins: count(e.user_id, 'login'), canvas: count(e.user_id, 'canvas_used'), quotes: count(e.user_id, 'quote_sent'),
-        orders: count(e.user_id, 'order_sent'), feedback: count(e.user_id, 'feedback_sent'), minutes: minutes(e.user_id),
+        orders: realCount(e.user_id, 'order_sent'), feedback: count(e.user_id, 'feedback_sent'), minutes: minutes(e.user_id),
+        ...detail(e.user_id),
       });
     });
     users.sort((a, b) => (b.minutes + b.logins * 5) - (a.minutes + a.logins * 5) || a.company.localeCompare(b.company));
     const active = users.filter(u => u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
+    // Where people stopped, across everyone: the screen they were on when
+    // they closed the app, counted. One line answers "at what point are
+    // people closing out".
+    const stops = {};
+    evs.filter(e => e.name === 'screen_left').forEach(e => { const sc = (e.props || {}).screen || 'unknown'; stops[sc] = (stops[sc] || 0) + 1; });
+    const wsteps = {};
+    evs.filter(e => e.name === 'walkthrough' && (e.props || {}).action === 'shown').forEach(e => { const st = (e.props || {}).step || '?'; wsteps[st] = (wsteps[st] || 0) + 1; });
 
-    return { date, nice: nzNice(date), range: { from: new Date(from).toISOString(), to: new Date(to).toISOString() },
+    return { date, nice: nzNice(date), stops, walkthrough_steps: wsteps, range: { from: new Date(from).toISOString(), to: new Date(to).toISOString() },
       new_trials: newTrials, trials, paid, mrr, users, active_count: active.length, events: evs.length, businesses: cos.length, build: buildSha };
   }
 
+  const SCREEN_LABEL = { home: 'Home', roof: 'Map Roof', jobpack: 'Job Pack', quote: 'Quote', settings: 'Settings', feedback: 'Feedback', inbox: 'Inbox', schedule: 'Schedule',
+                         setup: 'setup wizard', order: 'order popup', roofsetup: 'roof type popup', aerial: 'satellite finder', 'quote-send': 'quote email', unknown: '?' };
+  function screensWord(u){
+    const s = u.screens || {}; const ks = Object.keys(s).sort((a, b) => s[b] - s[a]);
+    return ks.length ? ks.map(k => (SCREEN_LABEL[k] || k) + ' ' + s[k]).join(', ') : '';
+  }
+  function leftWord(u){
+    if (!u.left_at) return '';
+    return (SCREEN_LABEL[u.left_at.screen] || u.left_at.screen) + (u.left_at.seconds ? ' after ' + Math.round(u.left_at.seconds / 60) + ' min' : '') + (u.left_at.example ? ' (on a demo)' : '');
+  }
+  function walkWord(u){
+    const bits = [];
+    if (u.path) bits.push(u.path === 'practice' ? 'started the practice job' : u.path === 'sample' || u.path === 'sample-instead' ? 'opened the sample' : 'skipped the walkthrough');
+    if (u.walkthrough) bits.push(u.walkthrough.outcome + ' (' + u.walkthrough.steps + ' steps seen)');
+    if (u.helps && u.helps.length) bits.push('asked for help at ' + u.helps.join(', '));
+    if (u.example_orders) bits.push(u.example_orders + ' test order' + (u.example_orders > 1 ? 's' : ''));
+    return bits.join('; ');
+  }
   function planWord(c){
     if (c.status === 'paying') return PLAN_LABEL[c.plan] || c.plan;
     if (c.status === 'trial') return 'trial' + (c.trial_days_left != null ? ', ' + c.trial_days_left + ' day' + (c.trial_days_left === 1 ? '' : 's') + ' left' : '');
@@ -177,10 +238,15 @@ function createDaily(deps){
     L.push('MRR, paying businesses combined: ' + money(rep.mrr) + ' + GST a month (list price; a founding discount is not netted off)');
     L.push('');
     L.push('ACTIVITY YESTERDAY — ' + rep.active_count + ' of ' + rep.users.length + ' people did something');
-    L.push('person | business | plan | logins | canvas | quotes | orders | feedback | minutes');
+    L.push('person | business | plan | logins | canvas | quotes | orders | feedback | minutes | where the minutes went | left at | practice job');
     rep.users.forEach(u => L.push([ (u.name || u.email), u.company, (u.company_status === 'paying' ? 'paying ' + (PLAN_LABEL[u.plan] || u.plan) : planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left })),
-      u.logins, u.canvas, u.quotes, u.orders, u.feedback, u.minutes ].join(' | ')));
+      u.logins, u.canvas, u.quotes, u.orders, u.feedback, u.minutes, screensWord(u), leftWord(u), walkWord(u) ].join(' | ')));
     L.push('');
+    const stopKeys = Object.keys(rep.stops || {}).sort((a, b) => rep.stops[b] - rep.stops[a]);
+    if (stopKeys.length){
+      L.push('WHERE PEOPLE CLOSED THE APP: ' + stopKeys.map(k => SCREEN_LABEL[k] || k).map((k, i) => k + ' ' + rep.stops[stopKeys[i]]).join(', '));
+      L.push('');
+    }
     L.push('Logins and minutes count from the day this report shipped; earlier days show zero. Build ' + (rep.build || '—') + '.');
     return L.join('\n');
   }
@@ -194,15 +260,20 @@ function createDaily(deps){
       const quiet = !(u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
       const plan = u.company_status === 'paying' ? '<span class="p">' + h(PLAN_LABEL[u.plan] || u.plan) + '</span>' : h(planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left }));
       return '<tr class="' + (quiet ? 'q' : '') + '"><td><b>' + h(u.name || u.email) + '</b>' + (u.name ? '<br><span class="m">' + h(u.email) + '</span>' : '') + '</td><td>' + h(u.company) + '</td><td>' + plan + '</td>' +
-        ['logins','canvas','quotes','orders','feedback','minutes'].map(k => '<td class="n">' + (u[k] || '·') + '</td>').join('') + '</tr>';
+        ['logins','canvas','quotes','orders','feedback','minutes'].map(k => '<td class="n">' + (u[k] || '·') + '</td>').join('') +
+        '<td class="s">' + h(screensWord(u) || '·') + '</td><td class="s">' + h(leftWord(u) || '·') + '</td><td class="s">' + h(walkWord(u) || '·') + '</td></tr>';
     }).join('');
+    const stopKeys = Object.keys(rep.stops || {}).sort((a, b) => rep.stops[b] - rep.stops[a]);
+    const stopsHtml = stopKeys.length
+      ? '<p>' + stopKeys.map(k => '<b>' + h(SCREEN_LABEL[k] || k) + '</b> ' + rep.stops[k]).join(' · ') + '</p><p class="m">The screen that was open when someone closed the app or put it in the background, counted over the day. A big number on Job Pack next to a small one on Quote is people stopping at the cut list.</p>'
+      : '<p class="m">Nobody closed the app on a named screen yesterday (or the build that records it was not live yet).</p>';
     return '<!doctype html><html><head><meta charset="utf-8"><title>' + h(SUBJECT) + '</title><style>' +
       'body{margin:0;background:#f3f5f8;font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#0a1628}.w{max-width:760px;margin:0 auto;padding:18px}' +
       '.hd{background:#0a1628;color:#fff;border-radius:12px;padding:16px 20px;margin-bottom:12px}.hd h1{margin:0;font-size:18px}.hd p{margin:4px 0 0;color:#9fb3c8;font-size:13px}' +
       '.c{background:#fff;border:1px solid #e3e8ef;border-radius:12px;padding:14px 18px;margin-bottom:12px}.c h2{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5f6b7a}' +
       'ul{margin:0;padding-left:18px}li{margin:3px 0}.m{color:#7b8a99}.big{font-size:26px;font-weight:800;margin:0}' +
       'table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eef1f5;vertical-align:top}th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#5f6b7a}' +
-      'td.n{text-align:right;white-space:nowrap}tr.q td{color:#9aa5b1}.p{color:#15803d;font-weight:700}.ft{color:#7b8a99;font-size:12px;text-align:center;padding:6px 0 18px}' +
+      'td.n{text-align:right;white-space:nowrap}td.s{font-size:12px;color:#334155;max-width:180px}tr.q td{color:#9aa5b1}.p{color:#15803d;font-weight:700}.ft{color:#7b8a99;font-size:12px;text-align:center;padding:6px 0 18px}' +
       '</style></head><body><div class="w">' +
       '<div class="hd"><h1>RoofMap — activity for ' + h(rep.nice) + '</h1><p>Who started, who is trialling, who pays, and what everyone did.</p></div>' +
       sec('New trials yesterday — ' + rep.new_trials.length, list(rep.new_trials)) +
@@ -210,7 +281,8 @@ function createDaily(deps){
       Object.keys(PLAN_PRICE).map(k => sec((PLAN_LABEL[k] || k) + ' · ' + money(PLAN_PRICE[k]) + '/mo — ' + rep.paid[k].length, list(rep.paid[k]))).join('') +
       sec('MRR, paying businesses combined', '<p class="big">' + h(money(rep.mrr)) + ' <span class="m" style="font-size:13px;font-weight:400">+ GST a month · list price, a founding discount is not netted off</span></p>') +
       sec('Activity yesterday — ' + rep.active_count + ' of ' + rep.users.length + ' people did something',
-        '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +
+        '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th><th>Where the minutes went</th><th>Left at</th><th>Practice job</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +
+      sec('Where people closed the app', stopsHtml) +
       '<p class="ft">Sent every morning at ' + SEND_HOUR + ':00 NZ time · logins and minutes count from the day this report shipped · build ' + h(rep.build || '—') + '</p></div></body></html>';
   }
 

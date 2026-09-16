@@ -46,18 +46,27 @@ async function boot(opts){
                                   _swLater(); return true; }))
       await pg.waitForTimeout(1600);
   }
+  // The guide is opt-in now (Settings → General, or the setup card) — a new
+  // account meets the practice job instead. Every test below is about the
+  // guide's contents, so open it the way the button does, unless a test is
+  // specifically about what opens on its own.
+  if (!(opts||{}).raw) await pg.evaluate(() => openSetupGuide(true));
   return { ctx, pg, errs };
 }
 
-// ── it shows up on a first run, and not after ─────────────────────
-let { ctx, pg, errs } = await boot({});
-let v = await pg.evaluate(() => ({
+// ── it no longer opens on its own; Settings opens it ──────────────
+let { ctx, pg, errs } = await boot({ raw:true });
+let v = await pg.evaluate(() => ({ open: !!document.getElementById('setupGuide'), tour: !!document.getElementById('tourWrap'), wiz: !!document.getElementById('setupWizard') }));
+check('a first login does NOT open the setup guide by itself any more (the practice job is what a new account meets)',
+  !v.open && !v.tour && !v.wiz, JSON.stringify(v));
+await pg.evaluate(() => openSetupGuide(true));
+v = await pg.evaluate(() => ({
   open: !!document.getElementById('setupGuide'),
   steps: ((window.SETUP && SETUP.steps) || []).length,
   title: (document.getElementById('sgTitle') || {}).textContent || '',
   dots: document.querySelectorAll('#sgDots span').length,
 }));
-check('a first login opens the setup guide', v.open, v.title);
+check('opened from Settings, it is the same guide', v.open, v.title);
 check('…at step one of nine', v.steps === 9 && v.dots === 9 && /Welcome/.test(v.title),
   v.steps + ' steps');
 
@@ -261,7 +270,7 @@ check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page 
 await ctx.close();
 
 // ── second visit ──────────────────────────────────────────────────
-({ ctx, pg, errs } = await boot({ done:true }));
+({ ctx, pg, errs } = await boot({ done:true, raw:true }));
 v = await pg.evaluate(() => !!document.getElementById('setupGuide'));
 check('it does not come back on the next login', !v);
 v = await pg.evaluate(() => { openSetupGuide(true); return !!document.getElementById('setupGuide'); });
@@ -291,12 +300,21 @@ await ctx.close();
 // overlay on top of the modal branding wizard. That swallowed the clicks on
 // its "Save and get started" button, so a first-time user could not enter
 // their own business details at all — the one thing they MUST do.
-({ ctx, pg, errs } = await boot({ keepWizard:true }));
+// The wizard itself now waits for the first real send (a quote, an order),
+// so here it is summoned the way that send would summon it.
+({ ctx, pg, errs } = await boot({ keepWizard:true, raw:true }));
 v = await pg.evaluate(() => ({
   wiz: !!document.getElementById('setupWizard'),
   guide: !!document.getElementById('setupGuide'),
 }));
-check('the branding wizard goes first, on its own', v.wiz && !v.guide,
+check('an unbranded account is asked for nothing at sign-in — no wizard, no guide', !v.wiz && !v.guide,
+  'wizard=' + v.wiz + ' guide=' + v.guide);
+await pg.evaluate(() => _brandingBeforeSend(function(){}));
+v = await pg.evaluate(() => ({
+  wiz: !!document.getElementById('setupWizard'),
+  guide: !!document.getElementById('setupGuide'),
+}));
+check('the branding wizard, when a send calls for it, has the screen on its own', v.wiz && !v.guide,
   'wizard=' + v.wiz + ' guide=' + v.guide);
 check('…so its Save button is actually clickable', await pg.evaluate(async () => {
   const btn = document.getElementById('swSaveBtn'); if (!btn) return false;
@@ -304,13 +322,15 @@ check('…so its Save button is actually clickable', await pg.evaluate(async () 
   const top = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
   return !!top && (top === btn || btn.contains(top));
 }));
-// Dismiss it and the guide takes over.
+// Dismiss it: nothing follows it onto the screen, and the guide can be opened.
 await pg.evaluate(() => _swLater());
 await pg.waitForTimeout(1800);
 v = await pg.evaluate(() => ({ wiz: !!document.getElementById('setupWizard'),
                                guide: !!document.getElementById('setupGuide') }));
-check('…and the guide follows once the wizard is gone', !v.wiz && v.guide,
+check('…and once the wizard is gone nothing else jumps in', !v.wiz && !v.guide,
   'wizard=' + v.wiz + ' guide=' + v.guide);
+v = await pg.evaluate(() => { openSetupGuide(true); return !!document.getElementById('setupGuide'); });
+check('…the guide opens fine afterwards', v);
 check('nothing threw while they took turns', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
 
@@ -366,7 +386,7 @@ check('ticked (the default) + Skip remembers', v === '1', String(v));
 await ctx.close();
 
 // ── not up a ladder ───────────────────────────────────────────────
-({ ctx, pg, errs } = await boot({ site:true }));
+({ ctx, pg, errs } = await boot({ site:true, raw:true }));
 v = await pg.evaluate(() => ({ site: document.documentElement.classList.contains('site-mode'),
                                guide: !!document.getElementById('setupGuide') }));
 check('Site mode is left alone — nobody sets a price book up a ladder',
