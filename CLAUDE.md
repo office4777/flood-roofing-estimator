@@ -195,7 +195,7 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-14
+## Open at last handover — 2026-09-16
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
@@ -214,6 +214,26 @@ worse than none.
   paste the real price book so it can become the shipped default.
 - Send the customer email about the report 50–52 fixes (drafted 2026-09-14)
   with the "please reload the app" line kept in.
+
+**Onboarding, shipped 2026-09-16 — watch the first real accounts through it:**
+a new account (server says `ui_flags.first_roof = 'offer'`: no jobs, never
+answered) lands on Map Roof with the practice job open — John Smith,
+23 Don Buck Road, Massey (`FIRST_ROOF` in app.html, opened like the sample
+with `S.demoKind = 'test'`) — and the tour engine runs `_firstRoofSteps()`
+as kind `firstroof`: steps complete on `until()`, Next does `onNext` or
+skips, `wait: true` parks the card until its popup exists. The `ONB`
+arbiter allows one layer at a time; the branding wizard is summoned by
+`_brandingBeforeSend(then)` at the first real send, never at sign-in; the
+setup guide and 29-step tour are opt-in. `tests/onboarding.mjs` drives the
+whole walkthrough with imagery blocked (the labelled fallback picture).
+The practice address flies to hard-coded coordinates (`FIRST_ROOF.lat/lon`,
+approximate — check the aerial actually shows 23 Don Buck Road and adjust).
+Measurement: `app_time` carries `screen`, `screen_left` is sent on hide/
+close, `walkthrough`/`onboarding_path`/`roof_source`/`help_requested`/
+`output_created` are allow-listed in `_usageProps` (server.js); the daily
+report shows where the minutes went, where each person left and how far
+the practice job got. Privacy policy v1.1 discloses it — the policy's own
+30-day-notice clause means the owner owes subscribers an email about it.
 
 **Being reworked:** the sheet layout diagram is hidden (see Conventions).
 Bringing it back means a layout that matches the owner's counting rule
