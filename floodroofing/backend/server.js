@@ -9399,7 +9399,7 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     res.json({ ok: true, id: info.messageId || null });
     // A practice-job order never touches a job row, so its milestone is
     // recorded here — flagged as the example it is.
-    if (req.body && req.body.test === true) recordUsage('order_sent', req, { example: true });
+    if (req.body && req.body.test === true) recordUsage(req.body.kind === 'quote' ? 'quote_sent' : 'order_sent', req, { example: true });
   } catch (e) {
     console.error('send-order email failed:', e.message);
     res.status(502).json({ error: 'Email send failed: ' + e.message });

@@ -32260,6 +32260,7 @@ function _emailRecip(key){
   return '';
 }
 function _quoteEmailCc(){ return _emailRecip('quote_cc'); }
+function _myEmail(){ try { var me = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; return String(me.email || '').trim(); } catch(e){ return ''; } }
 function _orderEmailCc(){ return _emailRecip('order_cc'); }
 function _acceptNotifyTo(){ return _emailRecip('accept_to'); }
 // Send a clearly-labelled test email to every address configured in Settings →
@@ -32873,10 +32874,18 @@ async function openQuoteEmail(){
   var subject = t.subject, body = t.body;
   // Pull the customer's email from the quote / the linked Fergus job details.
   var _custEmail = q.email || ((document.getElementById('jobEmail')||{}).value || '').trim();
-  var toEl = document.getElementById('quoteEmailTo'); if (toEl) toEl.value = _custEmail || '';
+  var toEl = document.getElementById('quoteEmailTo');
+  if (toEl){
+    // The practice job's quote goes to the person doing the practice, and to
+    // nobody else — the address is theirs and locked, like the test order.
+    var _demoQ = (typeof _isDemoJob === 'function') && _isDemoJob();
+    toEl.value = _demoQ ? _myEmail() : (_custEmail || '');
+    toEl.readOnly = !!_demoQ;
+    toEl.style.background = _demoQ ? '#f1f5f9' : '';
+  }
   var suEl = document.getElementById('quoteEmailSubject'); if (suEl) suEl.value = subject;
   var boEl = document.getElementById('quoteEmailBody'); if (boEl) boEl.value = body;
-  var ccEl = document.getElementById('quoteEmailCc'); if (ccEl) ccEl.textContent = _quoteEmailCc();
+  var ccEl = document.getElementById('quoteEmailCc'); if (ccEl) ccEl.textContent = ((typeof _isDemoJob === 'function') && _isDemoJob()) ? 'nobody — this is the practice job' : _quoteEmailCc();
   _quoteEmailStatus('');
   var o = document.getElementById('quoteEmailOverlay'), m = document.getElementById('quoteEmailModal');
   if (o) o.style.display = 'block'; if (m) m.style.display = 'block';
@@ -32905,6 +32914,37 @@ async function _quoteEmailSendNow(){
   var cc = _quoteEmailCc();
   var _t0 = (function(){ try { return (window.performance && performance.now) ? performance.now() : +new Date(); } catch(e){ return 0; } })();
   var _tPub = 0, _tSend = 0;
+  if ((typeof _isDemoJob === 'function') && _isDemoJob()){
+    // The practice job: to them, as a PDF of the pages, no customer link —
+    // publishing one would save the practice job into their account.
+    var mine = _myEmail();
+    if (!mine || to.toLowerCase() !== mine.toLowerCase()){ _quoteEmailStatus('The practice quote can only go to your own address.', 'err'); return; }
+    try {
+      if (btn){ btn.disabled = true; btn.textContent = 'Building the quote PDF…'; }
+      _quoteEmailStatus('Building the quote PDF…');
+      var _pdfDoc = null, _pdfBlob = null;
+      try { _pdfDoc = await _buildQuotePdf({ scale: 1.5 }); } catch(e){}
+      try { _pdfBlob = _pdfDoc ? (_pdfDoc instanceof Blob ? _pdfDoc : (_pdfDoc.output ? _pdfDoc.output('blob') : null)) : null; } catch(e){ _pdfBlob = null; }
+      var _b64 = _pdfBlob ? await new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1] || ''); }; fr.onerror = rej; fr.readAsDataURL(_pdfBlob); }) : '';
+      var tBody = body.replace(/https?:\/\/[^\s]+/g, '(on a real job this is the customer’s live quote link)') +
+        '\n\n— This is the practice quote from your RoofMap walkthrough. Nothing was sent to a customer.';
+      if (btn) btn.textContent = 'Sending…';
+      _quoteEmailStatus('Sending to ' + to + '…');
+      await api('POST', '/email/send-order', {
+        to: to, subject: 'TEST QUOTE — ' + subject, text: tBody, html: _quoteEmailHtml(tBody), test: true, kind: 'quote',
+        attachment: _b64 ? { filename: 'RoofMap-test-quote.pdf', base64: _b64 } : undefined
+      });
+      window.__demoQuoteSent = Date.now();
+      try { _usageEvent('output_created', { kind: 'quote', example: true }); } catch(e){}
+      _quoteEmailStatus('✓ Sent to ' + to + ' — the test quote is in your inbox.', 'ok');
+      setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, 1600);
+    } catch(err2){
+      _quoteEmailStatus('Send failed: ' + String(err2 && err2.message || err2).slice(0, 220), 'err');
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '📤 Send email now — with quote link'; }
+    }
+    return;
+  }
   try {
     if (btn){ btn.disabled = true; btn.textContent = 'Publishing quote link…'; }
     _quoteEmailStatus('Publishing the customer quote link…');
@@ -40068,7 +40108,7 @@ function _tourBodyHtml(txt){
 function _tourFind(sel){
   if (!sel) return null;
   var el = null;
-  try { el = document.querySelector(sel); } catch(e){ return null; }
+  try { el = (typeof sel === 'function') ? sel() : document.querySelector(sel); } catch(e){ return null; }
   if (!el) return null;
   var r = el.getBoundingClientRect();
   // Zero-sized or display:none — present in the markup, not on the screen.
@@ -40664,6 +40704,21 @@ function _firstRoofSteps(path){
     return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
       (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
   };
+  var panelOpen = function(){ var p = document.getElementById('quotePricingPanel'); return !!(p && p.classList.contains('is-open')); };
+  var openPanel = function(){ try { if (!panelOpen()) _togglePricingPanel(); } catch(e){} };
+  var closePanel = function(){ try { if (panelOpen()) _togglePricingPanel(); } catch(e){} };
+  // The customer's pages, by chapter number (0 = the cover). Found live,
+  // because the proposal re-renders and the template can reorder them.
+  var qpPage = function(n){
+    return function(){
+      var pages = document.querySelectorAll('#qpRoot .rp-page');
+      if (!pages.length) return null;
+      var band = function(p){ return p.querySelector('.ed-heading-band[data-step]'); };
+      if (n === 0){ for (var i = 0; i < pages.length; i++) if (!band(pages[i])) return pages[i]; return pages[0]; }
+      for (var k = 0; k < pages.length; k++){ var b = band(pages[k]); if (b && String(b.getAttribute('data-step')) === String(n)) return pages[k]; }
+      return pages[Math.min(n, pages.length - 1)] || null;
+    };
+  };
   var steps = [];
   if (own){
     steps.push(
@@ -40673,10 +40728,19 @@ function _firstRoofSteps(path){
       { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
         body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
         until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
-      { key: 'adjust', sel: '#roofCanvas', tab: 'roof', light: true, manual: true, title: 'Square it up',
-        body: 'The rotate control is open: turn the picture until the walls run straight. Then **Move / Edit** to drag it, and the zoom **+** / **−** until the roof fills the canvas. Click **Next** when it looks right.',
-        onEnter: function(){ base.adj = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|'); },
-        until: function(){ return [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|') !== base.adj; }, next: 'Looks right already' }
+      { key: 'adjust', sel: '#fineRotateSlider', alt: { sel: '#roofCanvas' }, tab: 'roof', light: true, manual: true, title: 'Square it up',
+        body: 'Slide the **Rotate photo** bar until the walls run straight. Then **Move / Edit** to drag the picture, and the zoom **+** / **−** until the roof fills the canvas. Click **Next** when it looks right.',
+        onEnter: function(){
+          base.img = DRAW.bgImg; base.adj = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|');
+          try { var m = document.getElementById('viewMenu'); if (m && m.style.display !== 'block') m.style.display = 'block'; } catch(e){}
+        },
+        until: function(){
+          var now = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|');
+          // A new picture landing resets the baseline: its own zoom and
+          // offset are the capture's, not the reader's adjustment.
+          if (DRAW.bgImg !== base.img){ base.img = DRAW.bgImg; base.adj = now; return false; }
+          return now !== base.adj;
+        }, next: 'Looks right already' }
     );
   }
   steps.push(
@@ -40705,15 +40769,28 @@ function _firstRoofSteps(path){
     { key: 'scale', sel: '#btn-calibrate', tab: 'roof', title: 'How big is it?',
       body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\n' + (own ? 'For a quote you will stand behind, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length.' : 'On a real job, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length. Every number then comes from your measurement, not the satellite.'),
       until: function(){ return DRAW.tool === 'calibrate'; }, next: own ? 'Use approximate scale for now' : 'Use approximate scale for this practice' },
+    // Done when the scale is SET — the Calibrate button pressed and the popup
+    // gone — not when the line is picked: that used to jump on before the
+    // length was typed.
     { key: 'calibrate-line', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click a line to calibrate',
-      body: 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that comes from your known measurement.',
-      until: function(){ return DRAW.calibratePixels > 0 || DRAW.tool !== 'calibrate'; }, next: 'Skip', settle: 600 },
+      body: function(){
+        if (vis('calPopup')) return 'Type the **real length** of that wall, then click **Calibrate**.';
+        return 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that comes from your known measurement.';
+      },
+      onEnter: function(){ base.cal = DRAW.scaleLabel || ''; },
+      until: function(){
+        if (vis('calPopup')) return false;
+        // Never started calibrating (the scale step was skipped, or the tool
+        // put down without a line): nothing to wait for.
+        if (DRAW.tool !== 'calibrate' && !DRAW.calibratePixels) return true;
+        return !!DRAW.scaleLabel && DRAW.scaleLabel !== base.cal;
+      }, next: 'Skip', settle: 600 },
     { key: 'jobpack', gate: '#navJobPackBtn', tab: 'roof', title: 'Now the numbers',
       body: 'The roof is measured. Click **Job Pack** to see what it turned into.' },
     { key: 'lineitems', sel: '#jpPages', tab: 'materials', title: 'Always check the calculations',
       body: 'Scroll down through the pages: the sheet cut list, the flashings, the gutter, the fasteners.\n\nEvery quantity and length can be clicked and changed. **Check them against the roof every time** — the drawing is only as good as the outline, and you know the site.\n\nThat is a roof measured. If measuring is what you came for, you are done — or carry on to the price.',
       extra: (own ? btn('Price it', 'tourStep(TOUR.i + 1)', true)
-                  : btn('Try a sample order', 'tourStep(TOUR.i + 1)', true) + btn('Skip to the price', '_firstRoofSkipTo(\'quote\')')) +
+                  : btn('Send test order', 'tourStep(TOUR.i + 1)', true) + btn('Skip to the price', '_firstRoofSkipTo(\'quote\')')) +
              btn(own ? 'Finish here' : 'Start my own roof', own ? 'closeTour(false)' : 'closeTour(false); startNewJob()'),
       noNext: true }
   );
@@ -40736,28 +40813,77 @@ function _firstRoofSteps(path){
         until: function(){ return !!window.__demoOrderSent; }, noNext: true, settle: 1700 }
     );
   }
-  // The other half: the customer's quote, priced from the same roof.
+  // The other half: the customer's quote, priced from the same roof. First
+  // the pricing panel, card by card; then the pages the customer opens, one
+  // by one; then the send.
   steps.push(
     { key: 'quote', gate: '#navQuoteBtn', tab: 'materials', title: 'Now the price',
       body: 'The quote is built from the same roof. Click **Quote**.',
       onEnter: function(){ try { _closeOrderEmail(); closeOrderChecklist(); } catch(e){} } },
     { key: 'pricing', sel: '#quotePricingPanelToggle', tab: 'quote', title: 'Where the price is built',
-      body: 'Labour, scaffolding and materials, a tab per roof. The rates come from **Settings → Price book** — ' + (own ? 'put your own in before this goes to a customer, or the number is somebody else’s.' : 'the practice job is priced on the sample rates.') + '\n\nOpen the panel and have a look.',
-      onEnter: function(){ try { var p = document.getElementById('quotePricingPanel'); if (p && !p.classList.contains('is-open')) _togglePricingPanel(); } catch(e){} },
+      body: 'Labour, scaffolding and materials, a tab per roof. The rates come from **Settings → Price book** — ' + (own ? 'put your own in before this goes to a customer, or the number is somebody else’s.' : 'the practice job is priced on the sample rates.') + '\n\nThe panel is open. Let’s go through it.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'p-scaffold', sel: '#scaffoldCard', tab: 'quote', light: true, title: 'Scaffolding',
+      body: 'Enter your **scaffolding price** here. It is one price for the main roof and everything that is part of it, and it goes on every quote.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'p-labour', sel: '#labourTableWrap', tab: 'quote', light: true, title: 'Roofing labour',
+      body: 'RoofMap works out the **hours** automatically from the roof’s area, pitch and shape — the auto pricing hours calculator.\n\nYou know your crew: **overwrite the calculated hours** if they are wrong for this job, and adjust the **charge-out rate** to what you charge.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'p-material', sel: '#materialPriceTableWrap', tab: 'quote', light: true, title: 'Materials',
+      body: 'Every sheet, flashing, fastener and gutter length is **calculated automatically** from the cut list and priced from your price book.\n\nNeed something the roof did not generate — a skylight, a vent, extra timber? **Add extra items** here.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'p-gutters', sel: '#gutterDownpipeCard', tab: 'quote', light: true, title: 'Gutters and downpipes',
+      body: 'This prices the **optional gutter selection** the customer sees in the quote. It is **not added to the roof price** — it is offered as a separate option, and the customer (or you) can leave it out of the quote.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'p-profit', sel: '#profitCard', tab: 'quote', light: true, title: 'Job profitability',
+      body: 'Revenue against cost for the whole job. Nudge the **labour price per m²** or the **price per hour** here and every charge-out rate moves with it — the quickest way to set the overall price.',
+      onEnter: openPanel, next: 'Next' },
+    { key: 'q-close', sel: '#quotePricingPanelToggle', tab: 'quote', title: 'Now the quote itself',
+      body: 'Close the pricing tab and let’s look at the quote your customer opens.',
+      until: function(){ return !panelOpen(); }, onNext: closePanel, next: 'Close it for me' },
+    { key: 'q-cover', sel: qpPage(0), tab: 'quote', light: true, title: 'The cover page',
+      body: 'Your business, your logo, the customer’s name and address, and what is inside. Click any text on any page to change it.',
+      onEnter: closePanel, next: 'Next' },
+    { key: 'q-page1', sel: qpPage(1), tab: 'quote', light: true, title: 'Page 1 — the existing roof',
+      body: 'Shows the customer the **condition of their roof today**. Add your **existing roof photos** here from the site visit — the ones that make the case for the work.',
       next: 'Next' },
-    { key: 'qpages', sel: '#qpRoot', tab: 'quote', light: true, title: 'This is what your customer opens',
-      body: 'Condition report, roof plan, selections, the material, terms, acceptance. Click any text to change it. On the roof plan the customer taps a roof to include it or leave it out and the price moves in front of them.',
-      onEnter: function(){ try { var p = document.getElementById('quotePricingPanel'); if (p && p.classList.contains('is-open')) _togglePricingPanel(); } catch(e){} },
+    { key: 'q-page2', sel: qpPage(2), tab: 'quote', light: true, title: 'Page 2 — what is included',
+      body: 'The roof plan and the scope. With **more than one roof** on the job, each extra roof becomes an **option** the customer can include or leave out, and the price moves in front of them.',
       next: 'Next' },
-    { key: 'qsend', sel: '[data-tour="q-link"]', tab: 'quote', title: 'Send it',
-      body: own ? '**Email Quote** sends your customer a link to their live proposal. They open it on their phone, choose their options and accept it online. When they accept, it lands on Home.\n\nSend it when the price is yours.'
-                : '**Email Quote** sends the customer a link to their live proposal. They open it on their phone, choose their options and accept it online.\n\nOn the practice job nothing is sent — that is for your own roof.',
+    { key: 'q-page3', sel: qpPage(3), tab: 'quote', light: true, title: 'Page 3 — the customer’s selections',
+      body: 'Steel grade, gauge, colour, gutters: the customer picks these on their phone. **Your own selections and wording are edited in Settings.**',
       next: 'Next' },
-    { key: 'done', centre: true, title: own ? 'That is your roof, measured and priced' : 'That is a roof, measured, ordered and priced',
+    { key: 'q-page4', sel: qpPage(4), tab: 'quote', light: true, title: 'Page 4 — the product',
+      body: 'A write-up of your **most common roofing product** — what it is, why you use it. Written once, on every quote.',
+      next: 'Next' },
+    { key: 'q-page5', sel: qpPage(5), tab: 'quote', light: true, title: 'Page 5 — your terms',
+      body: 'Your **terms and conditions**. Edit them in the quote editor and they carry to every quote from then on.',
+      next: 'Next' },
+    { key: 'q-page6', sel: qpPage(6), tab: 'quote', light: true, title: 'Page 6 — summary and acceptance',
+      body: 'The final total, the deposit, and the **Accept quote** button. When the customer accepts online it lands on your Home screen, and you are told.',
+      next: 'Next' },
+    own
+      ? { key: 'qsend', sel: '[data-tour="q-link"]', tab: 'quote', title: 'Send it',
+          body: '**Email Quote** sends your customer a link to their live proposal. They open it on their phone, choose their options and accept it online. When they accept, it lands on Home.\n\nSend it when the price is yours.',
+          next: 'Next' }
+      : { key: 'qsend', sel: '[data-tour="q-link"]', tab: 'quote', title: 'Send yourself the test quote',
+          body: 'On a real job **Email Quote** sends the customer a link to their live proposal, to open on their phone and accept online.\n\nClick **Email Quote** — on the practice job it goes to you.',
+          until: function(){ return vis('quoteEmailModal'); }, onNext: function(){ openQuoteEmail(); }, next: 'Open it for me' }
+  );
+  if (!own){
+    steps.push(
+      { key: 'qsend-go', sel: '#quoteEmailSendBtn', wait: true, title: 'Send it',
+        body: 'It is addressed to you. Click **Send email now** — the test quote arrives in your inbox as a PDF, the way a customer sees it.',
+        until: function(){ return !!window.__demoQuoteSent; }, noNext: true, settle: 1700 }
+    );
+  }
+  steps.push(
+    { key: 'done', centre: true, title: own ? 'That is your roof, measured and priced' : 'You’ve completed your first job',
       body: own ? 'It is saved as your first job. Put your rates in Settings → Price book and the price is yours; send the quote when it is.\n\nFind, trace, check, price: that is every job from here.'
-                : 'On your own job that is the whole process: find, trace, check, order, price.',
+                : 'You’ve mapped the roof, sent the order and sent the quote. **Go and take a look at the test order and the test quote in your email.**\n\nOn your own job that is the whole process: find, trace, check, order, price, send.',
+      onEnter: function(){ try { _closeQuoteEmail(); } catch(e){} },
       extra: (own ? btn('Put my rates in', 'closeTour(false); gotoTab(\'settings\'); try { switchSettingsSub(\'set-pricebook\'); } catch(e){}', true) + btn('Finish', 'closeTour(false)')
-                  : btn('Start my own roof', 'closeTour(false); startNewJob()', true) + btn('Finish', 'closeTour(false)')),
+                  : btn('Finish', 'closeTour(false)', true) + btn('Start my own roof', 'closeTour(false); startNewJob()')),
       noNext: true }
   );
   return steps;
@@ -63658,6 +63784,9 @@ function useAerialView() {
   captureFromMapbox(mc.lat, mc.lng, snapZoom);
 }
 
+// How much more ground the canvas picture carries than the map box showed,
+// on each side (1.5 = half as much again). See captureFromMapbox.
+var AERIAL_PAD = 1.5;
 // Single source of truth: always fetch from Mapbox via proxy-image
 function captureFromMapbox(lat, lon, zoom) {
   var hint = document.getElementById('aerialHint');
@@ -63677,7 +63806,7 @@ function captureFromMapbox(lat, lon, zoom) {
   // raised by the same factor, because a bigger box at the SAME zoom shows
   // more ground: the canvas was carrying a road name and a bus the map
   // never showed. Box × f, zoom + log2(f): the same ground, more pixels.
-  var boxW = 1280, boxH = 1280;
+  var boxW = 1280, boxH = 1280, padZoom = 1;
   try {
     var mapEl = document.getElementById('aerialLeafletMap2');
     var bw = mapEl ? mapEl.clientWidth : 0, bh = mapEl ? mapEl.clientHeight : 0;
@@ -63686,7 +63815,15 @@ function captureFromMapbox(lat, lon, zoom) {
       var zUp = z + Math.log(f) / Math.LN2;
       if (zUp > 22){ f = Math.pow(2, 22 - z); zUp = 22; }   // the imagery stops at 22
       boxW = Math.max(200, Math.round(bw * f)); boxH = Math.max(200, Math.round(bh * f));
+      // The canvas is bigger than the map box, and once the picture is
+      // turned to square the walls up its corners fall short of the edges.
+      // So the picture covers AERIAL_PAD times the ground the map showed
+      // (zoom down by log2 of it, same box) and is drawn AERIAL_PAD times
+      // larger, so the roof lands the same size, centred, with ground all
+      // round it. The scale is metres per image pixel and follows the zoom.
+      zUp = zUp - Math.log(AERIAL_PAD) / Math.LN2;
       z = Math.round(zUp * 100) / 100;
+      padZoom = AERIAL_PAD;
     }
   } catch(e){}
 
@@ -63729,7 +63866,7 @@ function captureFromMapbox(lat, lon, zoom) {
       img.onload = function() {
         // Apply directly to DRAW.bgImg — skip the extra canvas conversion
         DRAW.bgImg = img;
-        DRAW.zoom = 1;
+        DRAW.zoom = padZoom;   // the wider picture, drawn so the roof is the size the map showed
         IMG_OFFSET = {x:0, y:0};
         IMG_ROTATION = 0;
         IMG_FINE_ROTATION = 0;

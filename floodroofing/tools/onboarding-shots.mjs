@@ -119,11 +119,11 @@ const b = await chromium.launch();
   await pg.evaluate(() => { document.getElementById('_rsPitch').value = '15'; document.getElementById('_rsOk').click(); });
   await step('scale', 'Satellite scale is approximate; calibrate using a known measurement.');
   await click('btn-calibrate');
-  await step('calibrate-line', 'Pointing at the roof: click a line to calibrate.');
+  await step('calibrate-line', 'Pointing at the roof: click a line to calibrate — waits for the Calibrate button, not the line.');
   await pg.evaluate(() => document.getElementById('tourNext').click());
   await step('jobpack', 'The Job Pack gate: clicking the tab is the step.');
   await click('navJobPackBtn');
-  await step('lineitems', 'Always check the calculations — and a finishing point: try a sample order, skip to the price, or start my own roof.');
+  await step('lineitems', 'Always check the calculations — and a finishing point: send a test order, skip to the price, or start my own roof.');
   await pg.evaluate(() => document.querySelector('#tourExtra button').click());
   await step('order', 'Order Roof.');
   await pg.evaluate(() => orderRoofViaSupplier());
@@ -138,12 +138,18 @@ const b = await chromium.launch();
   await step('quote', 'The other half: the Quote gate.');
   await click('navQuoteBtn');
   await step('pricing', 'Where the price is built — the pricing panel opened, rates from Settings → Price book.');
+  for (const [k, note] of [['p-scaffold', 'Scaffolding: enter your price.'], ['p-labour', 'Roofing labour: hours calculated, overwrite them, adjust the charge-out.'], ['p-material', 'Materials: calculated automatically; add extra items.'], ['p-gutters', 'Gutters: the optional selection in the quote, not in the roof price.'], ['p-profit', 'Job profitability: labour per m² or per hour.'], ['q-close', 'Close the pricing tab and look at the quote.']]){
+    await pg.evaluate(() => document.getElementById('tourNext').click()); await step(k, note);
+  }
+  for (const [k, note] of [['q-cover', 'The cover page.'], ['q-page1', 'Page 1: the existing roof, add photos.'], ['q-page2', 'Page 2: what is included; extra roofs become options.'], ['q-page3', 'Page 3: the customer’s selections, edited in Settings.'], ['q-page4', 'Page 4: the product write-up.'], ['q-page5', 'Page 5: terms, edited in the quote editor.'], ['q-page6', 'Page 6: summary and acceptance.']]){
+    await pg.evaluate(() => document.getElementById('tourNext').click()); await step(k, note);
+  }
   await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('qpages', 'This is what the customer opens.');
+  await step('qsend', 'Email Quote — send yourself the test quote.');
   await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('qsend', 'Email Quote — the real send on their own roof; nothing sent on the practice job.');
-  await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('done', 'Finished: start my own roof, or finish.');
+  await step('qsend-go', 'Addressed to them; Send email now.');
+  await pg.evaluate(() => { window._buildQuotePdf = async () => null; _quoteEmailSendNow(); });
+  await step('done', 'You’ve completed your first job — look at the test order and quote in your email. Finish.');
   await ctx.close();
 }
 

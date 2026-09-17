@@ -124,15 +124,21 @@ check('…which calls the satellite scale approximate and says to calibrate usin
 check('…and the skip button says so too', /Use approximate scale for this practice/.test(await pg.evaluate(() => document.getElementById('tourNext').textContent)));
 await pg.click('#btn-calibrate');
 check('clicking Calibrate scale → "click a line to calibrate"', await waitStep(pg, 'calibrate-line'), await stepKey(pg));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then the Job Pack gate', await waitStep(pg, 'jobpack'), await stepKey(pg));
+// Picking the line opens the Set scale popup; the step must WAIT for the
+// Calibrate button, not jump on before the length is typed.
+await pg.evaluate(() => { DRAW.calibratePixels = 200; document.getElementById('calPopup').style.display = 'block'; });
+await sleep(900);
+v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, body: document.getElementById('tourBody').textContent }));
+check('picking the line does not move on — the card now says to type the length and click Calibrate', v.key === 'calibrate-line' && /click Calibrate/.test(v.body), JSON.stringify(v));
+await pg.evaluate(() => { document.getElementById('calPopup').style.display = 'none'; DRAW.scaleLabel = '1px=20.00mm | ref:10m flat'; });
+check('Calibrate (scale set, popup gone) → the Job Pack gate', await waitStep(pg, 'jobpack'), await stepKey(pg));
 await pg.click('#navJobPackBtn');
 check('clicking Job Pack lands on "always check the calculations"', await waitStep(pg, 'lineitems'), await stepKey(pg));
 v = await pg.evaluate(() => ({ tab: document.body.getAttribute('data-tab'), body: document.getElementById('tourBody').textContent, buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent) }));
 check('…on the Job Pack tab, telling them to check every quantity against the roof', v.tab === 'materials' && /Check them against the roof/.test(v.body), JSON.stringify(v).slice(0, 120));
-check('…and this is a finishing point: sample order, skip to the price, or start my own roof', v.buttons.length === 3 && /sample order/.test(v.buttons[0]) && /price/.test(v.buttons[1]) && /own roof/.test(v.buttons[2]), JSON.stringify(v.buttons));
+check('…and this is a finishing point: send a test order, skip to the price, or start my own roof', v.buttons.length === 3 && /Send test order/.test(v.buttons[0]) && /price/.test(v.buttons[1]) && /own roof/.test(v.buttons[2]), JSON.stringify(v.buttons));
 await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('"Try a sample order" → Order Roof', await waitStep(pg, 'order'), await stepKey(pg));
+check('"Send test order" → Order Roof', await waitStep(pg, 'order'), await stepKey(pg));
 
 // Order: the checklist arrives ticked, then confirm, supplier, send.
 await pg.evaluate(() => orderRoofViaSupplier());
@@ -171,15 +177,45 @@ await pg.click('#navQuoteBtn');
 check('clicking Quote lands on "where the price is built" with the pricing panel open', await waitStep(pg, 'pricing') && await pg.evaluate(() => document.getElementById('quotePricingPanel').classList.contains('is-open')), await stepKey(pg));
 v = await pg.evaluate(() => document.getElementById('tourBody').textContent);
 check('…which says the rates come from Settings → Price book and the practice job uses the sample rates', /Price book/.test(v) && /sample rates/.test(v), v.slice(0, 100));
+// The pricing panel, card by card — each one pointed at with the panel open.
+const PRICE_STEPS = [['p-scaffold', /scaffolding price/, '#scaffoldCard'], ['p-labour', /overwrite the calculated hours/, '#labourTableWrap'], ['p-material', /calculated automatically/, '#materialPriceTableWrap'], ['p-gutters', /not added to the roof price/, '#gutterDownpipeCard'], ['p-profit', /labour price per m²/, '#profitCard']];
+let priceOk = true, priceWhy = '';
+for (const [k, re, sel] of PRICE_STEPS){
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  const got = await waitStep(pg, k);
+  const st = await pg.evaluate(sel => ({ body: document.getElementById('tourBody').textContent, open: document.getElementById('quotePricingPanel').classList.contains('is-open'), there: !!document.querySelector(sel) && document.querySelector(sel).getBoundingClientRect().width > 0 }), sel);
+  if (!got || !re.test(st.body) || !st.open || !st.there){ priceOk = false; priceWhy += k + ':' + JSON.stringify({ got, st: { open: st.open, there: st.there, body: st.body.slice(0, 60) } }) + ' '; }
+}
+check('Next walks the pricing panel: scaffolding, labour hours, materials, gutters, profitability — panel open, each card on screen', priceOk, priceWhy);
 await pg.evaluate(() => document.getElementById('tourNext').click());
-check('Next → the customer’s pages, panel closed again', await waitStep(pg, 'qpages') && !(await pg.evaluate(() => document.getElementById('quotePricingPanel').classList.contains('is-open'))), await stepKey(pg));
+check('then "close the pricing tab and look at the quote"', await waitStep(pg, 'q-close') && /Close the pricing tab/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)), await stepKey(pg));
 await pg.evaluate(() => document.getElementById('tourNext').click());
-check('Next → Email Quote, which on the practice job sends nothing', await waitStep(pg, 'qsend') && /nothing is sent/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)), await stepKey(pg));
+check('"Close it for me" closes the panel and lands on the cover page', await waitStep(pg, 'q-cover') && !(await pg.evaluate(() => document.getElementById('quotePricingPanel').classList.contains('is-open'))), await stepKey(pg));
+const PAGE_STEPS = [['q-page1', /existing roof photos/], ['q-page2', /include or leave out/], ['q-page3', /edited in Settings/], ['q-page4', /most common roofing product/], ['q-page5', /terms and conditions/], ['q-page6', /Accept quote/]];
+let pageOk = true, pageWhy = '';
+for (const [k, re] of PAGE_STEPS){
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  const got = await waitStep(pg, k);
+  const st = await pg.evaluate(() => ({ body: document.getElementById('tourBody').textContent, ring: !!document.getElementById('tourRing') && document.getElementById('tourRing').getBoundingClientRect().height > 40 }));
+  if (!got || !re.test(st.body)){ pageOk = false; pageWhy += k + ':' + JSON.stringify({ got, body: st.body.slice(0, 60) }) + ' '; }
+}
+check('then the six pages, one step each: condition + photos, what is included + options, selections, product, terms, acceptance', pageOk, pageWhy);
 await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then the finish card', await waitStep(pg, 'done'), await stepKey(pg));
+check('Next → Email Quote: on the practice job, send yourself the test quote', await waitStep(pg, 'qsend') && /goes to you/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)), await stepKey(pg));
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('"Open it for me" opens the email and points at Send', await waitStep(pg, 'qsend-go'), await stepKey(pg));
+v = await pg.evaluate(() => ({ to: document.getElementById('quoteEmailTo').value, ro: document.getElementById('quoteEmailTo').readOnly, cc: document.getElementById('quoteEmailCc').textContent }));
+check('…addressed to the signed-in person, locked, copied to nobody', v.to === 'me@acmeroofing.co.nz' && v.ro && /nobody/.test(v.cc), JSON.stringify(v));
+await pg.evaluate(() => { window._buildQuotePdf = async () => null; _quoteEmailSendNow(); });
+check('sending lands on the finish card', await waitStep(pg, 'done', 6000), await stepKey(pg));
+check('…the quote went to them as a TEST QUOTE, flagged, with no customer link published and no job saved',
+  sends.length === 2 && sends[1].to === 'me@acmeroofing.co.nz' && sends[1].test === true && sends[1].kind === 'quote' && !sends[1].cc && /TEST QUOTE/.test(sends[1].subject) && !/https?:\/\//.test(sends[1].text) && !(await pg.evaluate(() => S.currentJobId)),
+  JSON.stringify(sends.map(s => [s.to, s.test, s.kind, s.subject])));
+v = await pg.evaluate(() => ({ title: document.getElementById('tourTitle').textContent, body: document.getElementById('tourBody').textContent, buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent) }));
+check('…which says the first job is complete and to look at the test order and quote in their email, with Finish first', /completed your first job/.test(v.title) && /test order and the test quote/.test(v.body) && v.buttons[0] === 'Finish', JSON.stringify(v));
 v = await pg.evaluate(() => Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent));
-check('the finish card offers their own roof, or finish', v.length === 2 && /own roof/.test(v[0]) && /Finish/.test(v[1]), JSON.stringify(v));
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
+check('the finish card offers finish, or their own roof', v.length === 2 && /Finish/.test(v[0]) && /own roof/.test(v[1]), JSON.stringify(v));
+await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[0].click());
 await sleep(500);
 v = await overlays(pg);
 const flag = await pg.evaluate(() => localStorage.getItem('fr_first_roof'));
@@ -188,7 +224,7 @@ check('…remembers it as done, on this device and on the account, and clears th
 check('…without marking the 29-step tutorial as seen', !(await pg.evaluate(() => localStorage.getItem('fr_tour_done'))) && !puts.some(p => p.tour_done));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step was reported as it was shown, and the end as finished',
-  shown.join() === 'start,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,qpages,qsend,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
+  shown.join() === 'start,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,p-scaffold,p-labour,p-material,p-gutters,p-profit,q-close,q-cover,q-page1,q-page2,q-page3,q-page4,q-page5,q-page6,qsend,qsend-go,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
   shown.join());
 check('…and the order milestone carries the example flag', usage.some(u => u.name === 'output_created' && u.props.example === true && u.props.kind === 'order'));
 check('…and every event from the demo job says so', usage.filter(u => /roof_source|output_created/.test(u.name)).every(u => u.props.example === true));
@@ -215,6 +251,8 @@ check('the finder opens → "take the picture"', await waitStep(pg, 'useview'), 
 // No imagery here: put a picture on the canvas the way Use this view would.
 await pg.evaluate(() => { _closeAerialModal(); _firstRoofFallbackImage(); });
 check('the picture landing → one "square it up" step (rotate, move, zoom together)', await waitStep(pg, 'adjust', 6000), await stepKey(pg));
+v = await pg.evaluate(() => ({ body: document.getElementById('tourBody').textContent, menu: document.getElementById('viewMenu').style.display, sel: typeof TOUR.steps[TOUR.i].sel === 'string' ? TOUR.steps[TOUR.i].sel : '' }));
+check('…pointing at the Rotate photo slider, with the menu open, saying to slide the bar to square it up', v.sel === '#fineRotateSlider' && v.menu === 'block' && /Slide the/.test(v.body) && /Rotate photo/.test(v.body), JSON.stringify(v));
 v = await pg.evaluate(() => ({ next: document.getElementById('tourNext').textContent, light: document.getElementById('tourCard').classList.contains('tour-light') }));
 check('…light, and skippable', /Looks right/.test(v.next) && v.light, JSON.stringify(v));
 await pg.evaluate(() => document.getElementById('tourNext').click());
@@ -235,8 +273,9 @@ check('"Price it" → the Quote gate', await waitStep(pg, 'quote'), await stepKe
 await pg.click('#navQuoteBtn');
 await waitStep(pg, 'pricing');
 check('…the pricing card tells them to put their OWN rates in before it goes to a customer', /put your own in/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)));
-await pg.evaluate(() => document.getElementById('tourNext').click()); await waitStep(pg, 'qpages');
-await pg.evaluate(() => document.getElementById('tourNext').click()); await waitStep(pg, 'qsend');
+for (const k of ['p-scaffold', 'p-labour', 'p-material', 'p-gutters', 'p-profit', 'q-close', 'q-cover', 'q-page1', 'q-page2', 'q-page3', 'q-page4', 'q-page5', 'q-page6', 'qsend']){
+  await pg.evaluate(() => document.getElementById('tourNext').click()); if (!(await waitStep(pg, k))) { check('own roof walks the pricing cards and the pages to Email Quote', false, 'stuck before ' + k + ' at ' + (await stepKey(pg))); break; }
+}
 check('…Email Quote is explained as the real send on their own roof', /your customer a link/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)));
 await pg.evaluate(() => document.getElementById('tourNext').click());
 check('then the finish card, offering the price book', await waitStep(pg, 'done') && /rates/.test((await pg.evaluate(() => document.querySelector('#tourExtra button').textContent))), await stepKey(pg));
