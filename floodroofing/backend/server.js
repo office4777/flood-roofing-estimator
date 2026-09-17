@@ -3050,6 +3050,17 @@ app.put('/settings/ui-flags', requireAuth, async (req, res) => {
     const v = String(b.first_roof || '');
     if (/^[a-z-]{1,24}$/.test(v)) patch.first_roof = v;
   }
+  // Where a walkthrough that was left mid-way can pick up: the step, the
+  // path (their own roof or the practice one) and, for their own, the job.
+  if (b.first_roof_at !== undefined){
+    const a = b.first_roof_at && typeof b.first_roof_at === 'object' ? b.first_roof_at : null;
+    if (!a) patch.first_roof_at = null;
+    else {
+      const step = String(a.step || ''), path = String(a.path || ''), jobId = String(a.jobId || '');
+      if (/^[a-z-]{1,24}$/.test(step) && /^(own|practice)$/.test(path) && (!jobId || /^[0-9a-f-]{8,40}$/i.test(jobId)))
+        patch.first_roof_at = { step, path, jobId: jobId || null };
+    }
+  }
   try {
     const row = await _companySettingsRow(req);
     const flags = Object.assign({}, (row && row.ui_flags) || {}, patch);
@@ -10137,9 +10148,9 @@ function _usageProps(name, raw){
   if (name === 'app_time' || name === 'screen_left') pick('screen', USAGE_SCREENS);
   if (name === 'screen_left') { out.seconds = Math.max(0, Math.min(7200, Math.round(Number(b.seconds) || 0))); if (b.walkthrough) out.walkthrough = true; }
   if (name === 'walkthrough' || name === 'help_requested') pick('step');
-  if (name === 'walkthrough') pick('action', ['shown', 'done', 'skipped', 'stopped', 'finished', 'started']);
+  if (name === 'walkthrough') pick('action', ['shown', 'done', 'skipped', 'stopped', 'finished', 'started', 'resumed']);
   if (name === 'help_requested') pick('kind', ['main', 'inbox', 'firstroof']);
-  if (name === 'onboarding_path') pick('path', ['practice', 'sample', 'sample-instead', 'skipped']);
+  if (name === 'onboarding_path') pick('path', ['own', 'practice', 'sample', 'sample-instead', 'skipped', 'resumed']);
   if (name === 'roof_source') { pick('type', ['aerial', 'photo', 'pdf', 'fallback']); if (b.failed) out.failed = true; }
   if (name === 'output_created') pick('kind', ['order', 'quote', 'jobpack']);
   if (b.example) out.example = true;

@@ -18277,7 +18277,7 @@ function _sampleJobBannerSync(){
   // Home and Map Roof both carry it: signing in lands on Map Roof, and an
   // account with no work of its own should meet the finished sample wherever
   // it lands. One piece of html, so the two can never drift apart.
-  var html = (_hasOwnWork() || (window.S && S.isSampleJob)) ? '' : _sampleJobBannerHtml();
+  var html = (_hasOwnWork() || (window.S && S.isSampleJob) || (window.TOUR && TOUR.open && TOUR.kind === 'firstroof')) ? '' : _sampleJobBannerHtml();
   ['sampleJobBanner', 'sampleJobBannerRoof'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.innerHTML = html;
@@ -40110,9 +40110,17 @@ function closeTour(cancelled){
   if (TOUR.kind === 'firstroof'){
     keep = false;
     var _st = TOUR.steps[TOUR.i] || {};
+    if (TOUR._switching){
+      // The start card handing over to a path: not a stop, nothing to record.
+      TOUR._switching = false; TOUR.kind = 'main';
+      window.removeEventListener('resize', _tourPlace);
+      window.removeEventListener('scroll', _tourPlace, true);
+      return;
+    }
     try { _walkthroughEvent(_st.key || '', cancelled ? 'stopped' : 'finished'); } catch(e){}
     try { _firstRoofMark(cancelled ? 'stopped' : 'done'); } catch(e){}
-    try { _aboutYouSync(); } catch(e){}   // the deferred questions may show now
+    try { _firstRoofAtSave(cancelled ? _st.key : null); } catch(e){}
+    try { _aboutYouSync(); _sampleJobBannerSync(); } catch(e){}   // the deferred questions and the sample banner may show now
     TOUR.kind = 'main';
     window.removeEventListener('resize', _tourPlace);
     window.removeEventListener('scroll', _tourPlace, true);
@@ -40347,6 +40355,9 @@ function openTour(force, steps, kind){
     if (!st.centre) _tourPlace();
   }, 350);
   try { if (TOUR.kind === 'firstroof') _walkthroughEvent('start', 'started'); } catch(e){}
+  // The walkthrough has the screen: the sample banner and the setup
+  // questions stay out of its way until it is done.
+  try { if (TOUR.kind === 'firstroof'){ _sampleJobBannerSync(); _aboutYouSync(); } } catch(e){}
   tourStep(0);
 }
 // "Help with this step": the feedback form, with the step already named, so
@@ -40382,39 +40393,131 @@ function _tourMaybeAutoStart(){
 // email know which demo they are on. The walkthrough is the tour engine with
 // steps that complete when the reader does the thing.
 var FIRST_ROOF = { client: 'John Smith', addr: '23 Don Buck Road, Massey, Auckland 0614', jobNo: 'TEST-1',
-                   lat: -36.8312, lon: 174.6110 };
+                   lat: -36.8312, lon: 174.6110, path: null };
 function _isTestJob(){ return !!(window.S && S.isSampleJob && S.demoKind === 'test'); }
 function _firstRoofState(){ try { return localStorage.getItem('fr_first_roof') || ''; } catch(e){ return ''; } }
 function _firstRoofMark(v){
   try { localStorage.setItem('fr_first_roof', v); } catch(e){}
   try { api('PUT', '/settings/ui-flags', { first_roof: v }).catch(function(){}); } catch(e){}
 }
-// The server says whether this account should be offered the practice job:
+// Where they got to, so a walkthrough left mid-way carries on from there next
+// login instead of starting again: the step, the path, and their job if it
+// was their own roof. Kept on the account and on this device.
+function _firstRoofAt(){ try { return JSON.parse(localStorage.getItem('fr_first_roof_at') || 'null'); } catch(e){ return null; } }
+function _firstRoofAtSave(stepKey, opts){
+  var at = null;
+  if (stepKey && stepKey !== 'start' && stepKey !== 'done'){
+    at = { step: String(stepKey), path: (window.FIRST_ROOF && FIRST_ROOF.path) || 'practice',
+           jobId: ((window.FIRST_ROOF && FIRST_ROOF.path) === 'own' && S.currentJobId) ? S.currentJobId : null };
+  }
+  try { if (at) localStorage.setItem('fr_first_roof_at', JSON.stringify(at)); else localStorage.removeItem('fr_first_roof_at'); } catch(e){}
+  var body = JSON.stringify({ first_roof_at: at, first_roof: (opts && opts.state) || undefined });
+  try {
+    var tok = localStorage.getItem('fr_token'); if (!tok) return;
+    if (opts && opts.keepalive){
+      fetch(PROXY + '/settings/ui-flags', { method: 'PUT', keepalive: true, headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: body }).catch(function(){});
+    } else {
+      api('PUT', '/settings/ui-flags', JSON.parse(body)).catch(function(){});
+    }
+  } catch(e){}
+}
+// Closing the tab mid-walkthrough: remember the step (state 'left'), so the
+// next login offers to carry on. A deliberate Stop is 'stopped' and is not
+// offered again.
+window.addEventListener('pagehide', function(){
+  try {
+    if (!(window.TOUR && TOUR.open && TOUR.kind === 'firstroof')) return;
+    var st = TOUR.steps[TOUR.i] || {};
+    if (!st.key || st.key === 'start' || st.key === 'done') return;
+    try { localStorage.setItem('fr_first_roof', 'left'); } catch(e){}
+    _firstRoofAtSave(st.key, { keepalive: true, state: 'left' });
+  } catch(e){}
+});
+// The server says whether this account should be offered the walkthrough:
 // ui_flags.first_roof comes back 'offer' for an account with no jobs and no
-// answer yet. Nothing starts on a device's own guess — a stubbed or failed
-// settings read means no walkthrough, not a surprise one.
+// answer yet, 'left' for one that closed the tab part-way. The app starts
+// nothing on a device's own guess — a stubbed or failed settings read means
+// no walkthrough, not a surprise one.
 function _firstRoofMaybeStart(){
   try {
     if (window.__CUSTOMER_MODE) return;
     if (!localStorage.getItem('fr_token')) return;
-    if (_firstRoofState()) return;
+    var local = _firstRoofState();
+    if (local && local !== 'left' && local !== 'offer') return;
     if (document.documentElement.classList.contains('site-mode')) return;
     var tries = 0;
     (function wait(){
       var uf = window.__uiFlags || null;
       if (!uf || !window.__settingsLive){ if (++tries < 40) return setTimeout(wait, 250); return; }
-      if (uf.first_roof && uf.first_roof !== 'offer'){ try { localStorage.setItem('fr_first_roof', String(uf.first_roof)); } catch(e){} return; }
-      if (uf.first_roof !== 'offer') return;
+      var st = uf.first_roof || '';
+      if (st && st !== 'offer' && st !== 'left'){ try { localStorage.setItem('fr_first_roof', String(st)); } catch(e){} return; }
+      if (st !== 'offer' && st !== 'left') return;
       if (_onbActive() || document.getElementById('setupWizard') || document.getElementById('setupGuide') || document.getElementById('tourWrap')) return;
       if (S.currentJobId || S.linkedJobId) return;
-      startFirstRoof();
+      var at = (st === 'left') ? (uf.first_roof_at || _firstRoofAt()) : null;
+      if (at && at.step){ try { localStorage.setItem('fr_first_roof_at', JSON.stringify(at)); } catch(e){} }
+      startFirstRoof(at && at.step ? at : null);
     })();
   } catch(e){}
 }
-// Settings → General and Help can start it again at any time.
-function startFirstRoof(){
+// Settings → General and Help start it again at any time. With a resume
+// point, the first card offers to carry on from there.
+function startFirstRoof(resumeAt){
   try { closeTour(true); } catch(e){}
-  return openTestJob().then(function(){ openTour(true, _firstRoofSteps(), 'firstroof'); });
+  FIRST_ROOF.path = null;
+  openTour(true, _firstRoofStartSteps(resumeAt || null), 'firstroof');
+}
+// The start card handed over to a path: their own roof (a real job, theirs
+// to keep) or the practice roof. The card's tour is closed without being
+// recorded as a stop, the job is set up, and the path's own steps open.
+function _firstRoofGo(path, addr, resumeAt){
+  try { TOUR._switching = true; closeTour(true); } catch(e){}
+  if (path === 'own'){
+    FIRST_ROOF.path = 'own';
+    try { _usageEvent('onboarding_path', { path: resumeAt ? 'resumed' : 'own', example: false }); } catch(e){}
+    var ready = (resumeAt && resumeAt.jobId)
+      ? Promise.resolve(openJob(resumeAt.jobId, { quiet: true })).catch(function(){ return null; })
+      : Promise.resolve(_firstRoofOwnJob(addr));
+    ready.then(function(){
+      openTour(true, _firstRoofSteps('own'), 'firstroof');
+      if (resumeAt && resumeAt.step) _firstRoofJumpTo(resumeAt.step);
+    });
+    return;
+  }
+  FIRST_ROOF.path = 'practice';
+  openTestJob().then(function(){
+    openTour(true, _firstRoofSteps('practice'), 'firstroof');
+    if (resumeAt && resumeAt.step) _firstRoofJumpTo(resumeAt.step);
+    try { _usageEvent('onboarding_path', { path: resumeAt ? 'resumed' : 'practice' }); } catch(e){}
+  });
+}
+function _firstRoofJumpTo(key){
+  var i = -1;
+  TOUR.steps.forEach(function(st, k){ if (st.key === key) i = k; });
+  if (i > 0){ TOUR.i = i; try { _tourRender(); } catch(e){} }
+  try { _walkthroughEvent(key, 'resumed'); } catch(e){}
+}
+// Their own roof: a real job with the address they typed, nothing else
+// filled in. It saves like any job — that is the point.
+async function _firstRoofOwnJob(addr){
+  try { await _saveBeforeSwitch(); } catch(e){}
+  try { _releaseCurrentJob(); } catch(e){}
+  try { clearAll && clearAll(true); } catch(e){}
+  S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.files = [];
+  try { _resetQuoteForFreshJob && _resetQuoteForFreshJob(); } catch(e){}
+  var set = function(id, v){ var el = document.getElementById(id); if (el) el.value = v; };
+  ['jobClient', 'jobEmail', 'jobPhone', 'jobNo'].forEach(function(id){ set(id, ''); });
+  set('jobAddr', addr || '');
+  S.currentJobId = null; S._jobLoaded = null;
+  S.isSampleJob = false; S.demoKind = null;
+  window._autoLat = null; window._autoLon = null; window._aerialLoadedAddr = null;
+  try { var a = document.getElementById('aerialAddressInput'); if (a) a.value = addr || ''; } catch(e){}
+  try { setCurrentJobLabel({ client_name: '', site_address: addr || '' }); } catch(e){}
+  try { _sampleJobStripSync(); _sampleJobBannerSync(); _aboutYouSync(); } catch(e){}
+  gotoTab('roof');
+  try { _fergusPanelClose(); } catch(e){}
+  try { _expandRoofBg && _expandRoofBg(); } catch(e){}
+  try { redrawAll(); } catch(e){}
 }
 // The practice picture: the owner's own TEST-1 aerial, served by the API
 // with its scale and view. When it cannot be fetched, the drawn stand-in.
@@ -40455,7 +40558,6 @@ async function openTestJob(){
   try { var a = document.getElementById('aerialAddressInput'); if (a) a.value = FIRST_ROOF.addr; } catch(e){}
   window._aerialLoadedAddr = null;
   try { _sampleJobStripSync(); _sampleJobBannerSync(); _aboutYouSync(); } catch(e){}
-  try { _usageEvent('onboarding_path', { path: 'practice' }); } catch(e){}
   gotoTab('roof');
   try { _fergusPanelClose(); } catch(e){}
   // Straight to the canvas: the picture card is folded away and the roof
@@ -40501,7 +40603,43 @@ function _firstRoofFallbackImage(){
   };
   img.src = c.toDataURL('image/png');
 }
-function _firstRoofSteps(){
+// The first card: their own roof first, the practice roof as the fallback,
+// and — when a walkthrough was left part-way — carrying on from there.
+function _firstRoofStartSteps(resumeAt){
+  var btn = function(label, fn, primary){
+    return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
+      (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
+  };
+  if (resumeAt && resumeAt.step){
+    var title = '';
+    try { title = (_firstRoofSteps(resumeAt.path || 'practice').filter(function(st){ return st.key === resumeAt.step; })[0] || {}).title || ''; } catch(e){}
+    window.__frResume = resumeAt;
+    return [{ key: 'resume', centre: true, title: 'Carry on where you left off?',
+      body: 'You got to **' + (title || resumeAt.step) + '** on ' + (resumeAt.path === 'own' ? 'your own roof' : 'the practice roof') + ' last time.',
+      extra: btn('Carry on from there', '_firstRoofGo(window.__frResume.path, null, window.__frResume)', true) +
+             btn('Start over', 'FIRST_ROOF.path = null; _firstRoofAtSave(null); TOUR._switching = true; closeTour(true); startFirstRoof(null)') +
+             btn('Skip — I’ll find my own way', 'closeTour(true); _firstRoofAtSave(null); _usageEvent(\'onboarding_path\', { path: \'skipped\', example: false })'),
+      noNext: true }];
+  }
+  return [{ key: 'start', centre: true, title: 'What roof are you quoting this week?',
+    body: 'Type the address and RoofMap walks you through it on **your** roof: find it on the aerial, trace it, check the numbers, price it. It saves as your first job.\n\nNo job on the go? Use the practice roof instead.',
+    extra: '<input id="frAddr" type="text" placeholder="e.g. 12 Kerikeri Road, Kerikeri" autocomplete="street-address" ' +
+           'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_firstRoofOwnGo();}" ' +
+           'style="width:100%;box-sizing:border-box;margin-top:8px;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit">' +
+           btn('Quote this roof', '_firstRoofOwnGo()', true) +
+           btn('Use the practice roof instead', '_firstRoofGo(\'practice\')') +
+           btn('Skip — I’ll find my own way', 'closeTour(true); _usageEvent(\'onboarding_path\', { path: \'skipped\', example: false })'),
+    noNext: true }];
+}
+function _firstRoofOwnGo(){
+  var el = document.getElementById('frAddr');
+  var addr = ((el && el.value) || '').trim();
+  if (addr.length < 4){ if (el){ el.style.borderColor = '#dc2626'; el.focus(); } return; }
+  _firstRoofGo('own', addr);
+}
+function _firstRoofSteps(path){
+  path = path || (FIRST_ROOF.path || 'practice');
+  var own = path === 'own';
   var base = {};
   // Popups are position:fixed, whose offsetParent is null — measure them.
   var vis = function(id){ var el = document.getElementById(id); return !!el && el.style.display !== 'none' && el.getBoundingClientRect().width > 0; };
@@ -40510,15 +40648,24 @@ function _firstRoofSteps(){
     return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
       (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
   };
-  return [
-    { key: 'start', centre: true, title: 'Let’s run through a practice job together',
-      body: 'This is **John Smith’s** roof at **23 Don Buck Road, Massey** — the aerial is already on the canvas. It is an example, so nothing you do here is saved to your account or sent to a supplier.\n\nYou will trace the roof, check the numbers, and — if you want — send yourself the material order. Five minutes.',
-      extra: btn('Start the practice job', 'tourStep(1)', true) +
-             btn('Show me a finished job instead', 'closeTour(true); openSampleJob(); _usageEvent(\'onboarding_path\', { path: \'sample-instead\' })') +
-             btn('Skip — I’ll find my own way', 'closeTour(true); _usageEvent(\'onboarding_path\', { path: \'skipped\' })'),
-      noNext: true },
+  var steps = [];
+  if (own){
+    steps.push(
+      { key: 'find', sel: '#aerialFindBtn', tab: 'roof', title: 'Find the property',
+        body: 'Click **Find your property**. The address you typed is already in the box.',
+        until: function(){ return vis('aerialModal'); }, onNext: function(){ openSatelliteView(); }, next: 'Open it for me' },
+      { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
+        body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
+        until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
+      { key: 'adjust', sel: '#roofCanvas', tab: 'roof', light: true, manual: true, title: 'Square it up',
+        body: 'The rotate control is open: turn the picture until the walls run straight. Then **Move / Edit** to drag it, and the zoom **+** / **−** until the roof fills the canvas. Click **Next** when it looks right.',
+        onEnter: function(){ base.adj = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|'); },
+        until: function(){ return [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|') !== base.adj; }, next: 'Looks right already' }
+    );
+  }
+  steps.push(
     { key: 'outline', sel: '#btn-outline', tab: 'roof', title: 'Trace the building',
-      body: 'Click **Building outline**. (On your own jobs the picture comes from the satellite finder or a photo — the Roof image card above.)',
+      body: own ? 'Click **Building outline**.' : 'Click **Building outline**. (On your own jobs the picture comes from the satellite finder or a photo — the Roof image card above.)',
       onEnter: function(){ try { closeViewMenu(); } catch(e){} },
       until: function(){ return DRAW.tool === 'outline' || hasRoof(); }, onNext: function(){ setTool('outline'); }, next: 'Select it for me' },
     { key: 'corners', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click each corner',
@@ -40537,42 +40684,71 @@ function _firstRoofSteps(){
       },
       until: function(){ var st = TOUR.steps[TOUR.i]; return !!(st && st._picked) || (hasRoof() && !document.getElementById('_rsModal')); }, next: 'Hip & valley is right' },
     { key: 'pitch', sel: '#_rsPitch', wait: true, title: 'Enter the roof pitch',
-      body: 'Type the **pitch** in degrees — 15° is a fair guess for this house — then click **Draw the roof**.',
+      body: own ? 'Type the **pitch** in degrees, then click **Draw the roof**.' : 'Type the **pitch** in degrees — 15° is a fair guess for this house — then click **Draw the roof**.',
       until: function(){ return hasRoof() && !document.getElementById('_rsModal'); }, noNext: true, settle: 700 },
     { key: 'scale', sel: '#btn-calibrate', tab: 'roof', title: 'How big is it?',
-      body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\nOn a real job, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length. Every number then comes from your measurement, not the satellite.',
-      until: function(){ return DRAW.tool === 'calibrate'; }, next: 'Use approximate scale for this practice' },
+      body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\n' + (own ? 'For a quote you will stand behind, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length.' : 'On a real job, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length. Every number then comes from your measurement, not the satellite.'),
+      until: function(){ return DRAW.tool === 'calibrate'; }, next: own ? 'Use approximate scale for now' : 'Use approximate scale for this practice' },
     { key: 'calibrate-line', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click a line to calibrate',
       body: 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that comes from your known measurement.',
       until: function(){ return DRAW.calibratePixels > 0 || DRAW.tool !== 'calibrate'; }, next: 'Skip', settle: 600 },
     { key: 'jobpack', gate: '#navJobPackBtn', tab: 'roof', title: 'Now the numbers',
       body: 'The roof is measured. Click **Job Pack** to see what it turned into.' },
     { key: 'lineitems', sel: '#jpPages', tab: 'materials', title: 'Always check the calculations',
-      body: 'Scroll down through the pages: the sheet cut list, the flashings, the gutter, the fasteners.\n\nEvery quantity and length can be clicked and changed. **Check them against the roof every time** — the drawing is only as good as the outline, and you know the site.\n\nThat is a roof measured. If measuring is what you came for, you are done — or carry on and see how an order goes out.',
-      extra: btn('Try a sample order', 'tourStep(TOUR.i + 1)', true) +
-             btn('Start my own roof', 'closeTour(false); startNewJob()'),
-      noNext: true },
-    { key: 'order', sel: '[data-tour="jp-order"]', tab: 'materials', title: 'Order the roof',
-      body: 'Click **Order Roof**. A checklist comes up first so nothing goes to the merchant unconfirmed.',
-      until: function(){ return vis('orderChecklistModal'); }, onNext: function(){ orderRoofViaSupplier(); }, next: 'Open it for me' },
-    { key: 'checklist', sel: '#orderChecklistModal', wait: true, title: 'Confirm every line',
-      body: 'On a real job you tick each line as you check it — sheet lengths, colour, gutter, grade — or **Tick every line** once you have. The practice job is already ticked.',
+      body: 'Scroll down through the pages: the sheet cut list, the flashings, the gutter, the fasteners.\n\nEvery quantity and length can be clicked and changed. **Check them against the roof every time** — the drawing is only as good as the outline, and you know the site.\n\nThat is a roof measured. If measuring is what you came for, you are done — or carry on to the price.',
+      extra: (own ? btn('Price it', 'tourStep(TOUR.i + 1)', true)
+                  : btn('Try a sample order', 'tourStep(TOUR.i + 1)', true) + btn('Skip to the price', '_firstRoofSkipTo(\'quote\')')) +
+             btn(own ? 'Finish here' : 'Start my own roof', own ? 'closeTour(false)' : 'closeTour(false); startNewJob()'),
+      noNext: true }
+  );
+  if (!own){
+    steps.push(
+      { key: 'order', sel: '[data-tour="jp-order"]', tab: 'materials', title: 'Order the roof',
+        body: 'Click **Order Roof**. A checklist comes up first so nothing goes to the merchant unconfirmed.',
+        until: function(){ return vis('orderChecklistModal'); }, onNext: function(){ orderRoofViaSupplier(); }, next: 'Open it for me' },
+      { key: 'checklist', sel: '#orderChecklistModal', wait: true, title: 'Confirm every line',
+        body: 'On a real job you tick each line as you check it — sheet lengths, colour, gutter, grade — or **Tick every line** once you have. The practice job is already ticked.',
+        next: 'Next' },
+      { key: 'confirm', sel: '#orderChecklistGo', wait: true, title: 'Let’s send a test order to yourself',
+        body: 'Click **Confirm & order roof**.',
+        until: function(){ return vis('orderEmailModal'); }, noNext: true },
+      { key: 'supplier', sel: '#orderEmailSupplier', wait: true, title: 'Who it goes to',
+        body: 'On a real job this list is your suppliers, with your default one already picked. **Set up your default suppliers in Settings.**\n\nOn the practice job it goes to you, and to nobody else.',
+        next: 'Next' },
+      { key: 'send', sel: '#orderEmailSendBtn', wait: true, title: 'Send it',
+        body: 'Click **Send email now**. This sends an example order — the PDF and the covering email, exactly as a merchant would get it — to your own email address.',
+        until: function(){ return !!window.__demoOrderSent; }, noNext: true, settle: 1700 }
+    );
+  }
+  // The other half: the customer's quote, priced from the same roof.
+  steps.push(
+    { key: 'quote', gate: '#navQuoteBtn', tab: 'materials', title: 'Now the price',
+      body: 'The quote is built from the same roof. Click **Quote**.',
+      onEnter: function(){ try { _closeOrderEmail(); closeOrderChecklist(); } catch(e){} } },
+    { key: 'pricing', sel: '#quotePricingPanelToggle', tab: 'quote', title: 'Where the price is built',
+      body: 'Labour, scaffolding and materials, a tab per roof. The rates come from **Settings → Price book** — ' + (own ? 'put your own in before this goes to a customer, or the number is somebody else’s.' : 'the practice job is priced on the sample rates.') + '\n\nOpen the panel and have a look.',
+      onEnter: function(){ try { var p = document.getElementById('quotePricingPanel'); if (p && !p.classList.contains('is-open')) _togglePricingPanel(); } catch(e){} },
       next: 'Next' },
-    { key: 'confirm', sel: '#orderChecklistGo', wait: true, title: 'Let’s send a test order to yourself',
-      body: 'Click **Confirm & order roof**.',
-      until: function(){ return vis('orderEmailModal'); }, noNext: true },
-    { key: 'supplier', sel: '#orderEmailSupplier', wait: true, title: 'Who it goes to',
-      body: 'On a real job this list is your suppliers, with your default one already picked. **Set up your default suppliers in Settings.**\n\nOn the practice job it goes to you, and to nobody else.',
+    { key: 'qpages', sel: '#qpRoot', tab: 'quote', light: true, title: 'This is what your customer opens',
+      body: 'Condition report, roof plan, selections, the material, terms, acceptance. Click any text to change it. On the roof plan the customer taps a roof to include it or leave it out and the price moves in front of them.',
+      onEnter: function(){ try { var p = document.getElementById('quotePricingPanel'); if (p && p.classList.contains('is-open')) _togglePricingPanel(); } catch(e){} },
       next: 'Next' },
-    { key: 'send', sel: '#orderEmailSendBtn', wait: true, title: 'Send it',
-      body: 'Click **Send email now**. This sends an example order — the PDF and the covering email, exactly as a merchant would get it — to your own email address.',
-      until: function(){ return !!window.__demoOrderSent; }, noNext: true, settle: 1700 },
-    { key: 'done', centre: true, title: 'That is a roof, measured and ordered',
-      body: 'The order is on its way to your inbox. On your own job that is the whole process: find, trace, check, order.\n\nThe quote is the other half — the customer’s proposal, priced from the same roof.',
-      extra: btn('Carry on to quoting', 'closeTour(false); gotoTab(\'quote\')', true) +
-             btn('Finish — start my own job', 'closeTour(false); startNewJob()'),
-      noNext: true },
-  ];
+    { key: 'qsend', sel: '[data-tour="q-link"]', tab: 'quote', title: 'Send it',
+      body: own ? '**Email Quote** sends your customer a link to their live proposal. They open it on their phone, choose their options and accept it online. When they accept, it lands on Home.\n\nSend it when the price is yours.'
+                : '**Email Quote** sends the customer a link to their live proposal. They open it on their phone, choose their options and accept it online.\n\nOn the practice job nothing is sent — that is for your own roof.',
+      next: 'Next' },
+    { key: 'done', centre: true, title: own ? 'That is your roof, measured and priced' : 'That is a roof, measured, ordered and priced',
+      body: own ? 'It is saved as your first job. Put your rates in Settings → Price book and the price is yours; send the quote when it is.\n\nFind, trace, check, price: that is every job from here.'
+                : 'On your own job that is the whole process: find, trace, check, order, price.',
+      extra: (own ? btn('Put my rates in', 'closeTour(false); gotoTab(\'settings\'); try { switchSettingsSub(\'set-pricebook\'); } catch(e){}', true) + btn('Finish', 'closeTour(false)')
+                  : btn('Start my own roof', 'closeTour(false); startNewJob()', true) + btn('Finish', 'closeTour(false)')),
+      noNext: true }
+  );
+  return steps;
+}
+function _firstRoofSkipTo(key){
+  var i = -1; TOUR.steps.forEach(function(st, k){ if (st.key === key) i = k; });
+  if (i >= 0){ try { _walkthroughEvent(TOUR.steps[TOUR.i].key, 'skipped'); } catch(e){} tourStep(i); }
 }
 
 // ── RAPID CAMERA ────────────────────────────────────────────────────
