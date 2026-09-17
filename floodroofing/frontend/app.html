@@ -40236,7 +40236,7 @@ function _tourRender(){
   if (!extra){ extra = document.createElement('div'); extra.id = 'tourExtra'; w.querySelector('#tourBody').parentNode.insertBefore(extra, w.querySelector('#tourBody').nextSibling); }
   extra.innerHTML = st.extra ? st.extra : '';
   extra.style.display = st.extra ? 'block' : 'none';
-  w.querySelector('#tourCount').textContent = 'Step ' + (TOUR.i + 1) + ' of ' + TOUR.steps.length;
+  w.querySelector('#tourCount').textContent = (TOUR.steps.length > 1) ? ('Step ' + (TOUR.i + 1) + ' of ' + TOUR.steps.length) : '';
   w.querySelector('#tourBack').style.visibility = TOUR.i ? 'visible' : 'hidden';
   var nextBtn = w.querySelector('#tourNext');
   if (el && !st.centre){
@@ -40271,7 +40271,7 @@ function openTour(force, steps, kind){
   if (!TOUR.steps.length) { _onbRelease('tour'); return; }
   TOUR.kind = kind || 'main';
   TOUR.i = 0; TOUR.open = true;
-  var _hdr = TOUR.kind === 'inbox' ? 'Inbox guide' : (TOUR.kind === 'firstroof' ? 'Your first roof — a practice job' : 'RoofMap tutorial');
+  var _hdr = TOUR.kind === 'inbox' ? 'Inbox guide' : (TOUR.kind === 'firstroof' ? (FIRST_ROOF.path === 'practice' ? 'Your first roof — the practice job' : 'Your first roof') : 'RoofMap tutorial');
   var _cancelLbl = TOUR.kind === 'inbox' ? 'Close guide' : (TOUR.kind === 'firstroof' ? 'Stop the walkthrough' : 'Cancel tutorial');
   var w = document.createElement('div');
   w.id = 'tourWrap';
@@ -40357,7 +40357,7 @@ function openTour(force, steps, kind){
   try { if (TOUR.kind === 'firstroof') _walkthroughEvent('start', 'started'); } catch(e){}
   // The walkthrough has the screen: the sample banner and the setup
   // questions stay out of its way until it is done.
-  try { if (TOUR.kind === 'firstroof'){ _sampleJobBannerSync(); _aboutYouSync(); } } catch(e){}
+  try { if (TOUR.kind === 'firstroof'){ _sampleJobBannerSync(); _aboutYouSync(); _fergusPanelClose(); } } catch(e){}
   tourStep(0);
 }
 // "Help with this step": the feedback form, with the step already named, so
