@@ -17814,7 +17814,8 @@ function _planGateModalHtml(){
   var sub = ended
     ? 'Every job, quote and photo you made is still here — nothing has been deleted. Pick a plan and carry straight on.'
     : 'Look around as long as you like. Saving a job of your own is the part that needs a plan.';
-  var cards = PLAN_TIERS.map(function(t){
+  var _pgOffered = (SUBSCRIPTION && SUBSCRIPTION.offered) || {};
+  var cards = PLAN_TIERS.filter(function(t){ return !t.offered || _pgOffered[t.key] || (SUBSCRIPTION && SUBSCRIPTION.plan === t.key); }).map(function(t){
     return '<div class="pg-card">' +
       '<div class="pg-name">' + t.name + '</div>' +
       '<div class="pg-price">' + t.price + '<span>/month + GST</span></div>' +
