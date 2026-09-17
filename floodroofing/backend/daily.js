@@ -66,12 +66,14 @@ function createDaily(deps){
     const date = dateStr || shiftDate(today, -1);
     const from = nzMidnightUtc(date), to = nzMidnightUtc(shiftDate(date, 1));
 
-    const [cos, profs, links, subs, evs] = await Promise.all([
+    const [cos, profs, links, subs, evs, allEvs] = await Promise.all([
       rows('companies', 'id, name, plan, created_at'),
       rows('profiles', 'id, email, name, phone, company_id, verify_pending'),
       rows('company_users', 'company_id, user_id, role'),
       rows('subscriptions', 'company_id, user_id, status, trial_ends_at, stripe_customer_id, plan'),
       rows('usage_events', 'name, company_id, user_id, props, at', q => q.gte('at', new Date(from).toISOString()).lt('at', new Date(to).toISOString())),
+      // Everything up to the end of the day, for each person's all-time line.
+      rows('usage_events', 'name, user_id, props, at', q => q.lt('at', new Date(to).toISOString()).limit(200000)),
     ]);
     const profById = new Map(profs.map(p => [p.id, p]));
 
@@ -148,6 +150,25 @@ function createDaily(deps){
     const exampleCount = (uid, name) => evs.filter(e => e.user_id === uid && e.name === name && (e.props || {}).example).length;
     const detail = uid => ({ screens: screens(uid), left_at: leftAt(uid), walkthrough: walkthrough(uid), path: path(uid), helps: helps(uid),
                              example_orders: exampleCount(uid, 'order_sent'), example_roofs: exampleCount(uid, 'roof_drawn') });
+    // All time, per person: every login, canvas use, quote, order and
+    // feedback report, every minute and where it went, the days they were
+    // active and the day they first appeared — so the report can rank people
+    // by how much they have used the product, not just by yesterday.
+    const lifeBy = {};
+    allEvs.forEach(function(e){
+      if (!e.user_id) return;
+      const t = lifeBy[e.user_id] || (lifeBy[e.user_id] = { logins: 0, canvas: 0, quotes: 0, orders: 0, feedback: 0, minutes: 0, screens: {}, days: {}, first: null });
+      const K = { login: 'logins', canvas_used: 'canvas', quote_sent: 'quotes', order_sent: 'orders', feedback_sent: 'feedback' };
+      if (K[e.name] && !(e.name === 'order_sent' && (e.props || {}).example)) t[K[e.name]] += 1;
+      else if (e.name === 'app_time'){ const m = Number((e.props || {}).minutes) || 0; t.minutes += m; const sc = (e.props || {}).screen; if (sc) t.screens[sc] = (t.screens[sc] || 0) + m; }
+      if (e.at){ t.days[nzParts(new Date(e.at)).date] = 1; if (!t.first || e.at < t.first) t.first = e.at; }
+    });
+    const lifetime = uid => {
+      const t = lifeBy[uid];
+      if (!t) return { logins: 0, canvas: 0, quotes: 0, orders: 0, feedback: 0, minutes: 0, screens: {}, active_days: 0, first_seen: null };
+      return { logins: t.logins, canvas: t.canvas, quotes: t.quotes, orders: t.orders, feedback: t.feedback, minutes: t.minutes, screens: t.screens,
+               active_days: Object.keys(t.days).length, first_seen: t.first ? nzParts(new Date(t.first)).date : null };
+    };
     const users = [];
     companies.forEach(function(c){
       c.members.forEach(function(uid){
@@ -157,7 +178,7 @@ function createDaily(deps){
           name: (p && p.name) || '', email: (p && p.email) || uid,
           logins: count(uid, 'login'), canvas: count(uid, 'canvas_used'), quotes: count(uid, 'quote_sent'),
           orders: realCount(uid, 'order_sent'), feedback: count(uid, 'feedback_sent'), minutes: minutes(uid),
-          ...detail(uid),
+          ...detail(uid), total: lifetime(uid),
         });
       });
     });
@@ -178,7 +199,7 @@ function createDaily(deps){
         name: (p && p.name) || '', email,
         logins: count(e.user_id, 'login'), canvas: count(e.user_id, 'canvas_used'), quotes: count(e.user_id, 'quote_sent'),
         orders: realCount(e.user_id, 'order_sent'), feedback: count(e.user_id, 'feedback_sent'), minutes: minutes(e.user_id),
-        ...detail(e.user_id),
+        ...detail(e.user_id), total: lifetime(e.user_id),
       });
     });
     users.sort((a, b) => (b.minutes + b.logins * 5) - (a.minutes + a.logins * 5) || a.company.localeCompare(b.company));
@@ -220,6 +241,13 @@ function createDaily(deps){
   }
   function who(c){ return c.name + (c.owner ? ' — ' + [c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(', ') : ''); }
 
+  // All-time score: minutes plus five a login, the same weighting as the day.
+  function totalScore(u){ const t = u.total || {}; return (t.minutes || 0) + (t.logins || 0) * 5 + (t.quotes || 0) * 10; }
+  function byTotal(users){ return users.slice().sort((a, b) => totalScore(b) - totalScore(a) || a.company.localeCompare(b.company)); }
+  function screensWordOf(m){
+    const ks = Object.keys(m || {}).filter(k => m[k] > 0 && k !== 'unknown').sort((a, b) => m[b] - m[a]);
+    return ks.map(k => (SCREEN_LABEL[k] || k) + ' ' + m[k]).join(', ');
+  }
   function renderText(rep){
     const L = [];
     L.push('RoofMap — activity for ' + rep.nice);
@@ -242,6 +270,11 @@ function createDaily(deps){
     rep.users.forEach(u => L.push([ (u.name || u.email), u.company, (u.company_status === 'paying' ? 'paying ' + (PLAN_LABEL[u.plan] || u.plan) : planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left })),
       u.logins, u.canvas, u.quotes, u.orders, u.feedback, u.minutes, screensWord(u), leftWord(u), walkWord(u) ].join(' | ')));
     L.push('');
+    L.push('ALL-TIME ACTIVITY — every person, highest first');
+    L.push('person | business | plan | logins | canvas | quotes | orders | feedback | minutes | days active | since | where the minutes went');
+    byTotal(rep.users).forEach(u => { const t = u.total || {}; L.push([ (u.name || u.email), u.company, (u.company_status === 'paying' ? 'paying ' + (PLAN_LABEL[u.plan] || u.plan) : planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left })),
+      t.logins || 0, t.canvas || 0, t.quotes || 0, t.orders || 0, t.feedback || 0, t.minutes || 0, t.active_days || 0, t.first_seen || '—', screensWordOf(t.screens) ].join(' | ')); });
+    L.push('');
     const stopKeys = Object.keys(rep.stops || {}).sort((a, b) => rep.stops[b] - rep.stops[a]);
     if (stopKeys.length){
       L.push('WHERE PEOPLE CLOSED THE APP: ' + stopKeys.map(k => SCREEN_LABEL[k] || k).map((k, i) => k + ' ' + rep.stops[stopKeys[i]]).join(', '));
@@ -263,6 +296,13 @@ function createDaily(deps){
         ['logins','canvas','quotes','orders','feedback','minutes'].map(k => '<td class="n">' + (u[k] || '·') + '</td>').join('') +
         '<td class="s">' + h(screensWord(u) || '·') + '</td><td class="s">' + h(leftWord(u) || '·') + '</td><td class="s">' + h(walkWord(u) || '·') + '</td></tr>';
     }).join('');
+    const totalHtml = byTotal(rep.users).map(u => {
+      const t = u.total || {};
+      const plan = u.company_status === 'paying' ? '<span class="p">' + h(PLAN_LABEL[u.plan] || u.plan) + '</span>' : h(planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left }));
+      return '<tr class="' + (totalScore(u) ? '' : 'q') + '"><td><b>' + h(u.name || u.email) + '</b>' + (u.name ? '<br><span class="m">' + h(u.email) + '</span>' : '') + '</td><td>' + h(u.company) + '</td><td>' + plan + '</td>' +
+        ['logins','canvas','quotes','orders','feedback','minutes','active_days'].map(k => '<td class="n">' + (t[k] || '·') + '</td>').join('') +
+        '<td class="s">' + h(t.first_seen || '·') + '</td><td class="s">' + h(screensWordOf(t.screens) || '·') + '</td></tr>';
+    }).join('');
     const stopKeys = Object.keys(rep.stops || {}).sort((a, b) => rep.stops[b] - rep.stops[a]);
     const stopsHtml = stopKeys.length
       ? '<p>' + stopKeys.map(k => '<b>' + h(SCREEN_LABEL[k] || k) + '</b> ' + rep.stops[k]).join(' · ') + '</p><p class="m">The screen that was open when someone closed the app or put it in the background, counted over the day. A big number on Job Pack next to a small one on Quote is people stopping at the cut list.</p>'
@@ -283,6 +323,9 @@ function createDaily(deps){
       sec('Activity yesterday — ' + rep.active_count + ' of ' + rep.users.length + ' people did something',
         '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th><th>Where the minutes went</th><th>Left at</th><th>Practice job</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +
       sec('Where people closed the app', stopsHtml) +
+      sec('All-time activity — every person, highest first',
+        '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th><th>Days active</th><th>Since</th><th>Where the minutes went</th></tr></thead><tbody>' + totalHtml + '</tbody></table>' +
+        '<p class="m">Everything recorded for each person since they first appeared, ranked by minutes, logins and quotes. Logins and minutes count from the day they started being recorded.</p>') +
       '<p class="ft">Sent every morning at ' + SEND_HOUR + ':00 NZ time · logins and minutes count from the day this report shipped · build ' + h(rep.build || '—') + '</p></div></body></html>';
   }
 

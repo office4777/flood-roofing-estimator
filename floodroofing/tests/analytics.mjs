@@ -176,6 +176,15 @@ const wk3 = await (await fetch(BASE + '/admin/analytics/days?end=' + today + '&n
 check('the week carries minutes per screen per day', wk3.days[5].screens.roof === 4 && wk3.days[5].screens.quote === 2 && wk3.days[5].minutes === 24, JSON.stringify(wk3.days[5].screens));
 check('the page shows a Screens column and where the time went', /<th>Screens<\/th>/.test(html) && /Where the time went/.test(html));
 
+// ── all-time, per person, highest first ──────────────────────────
+const at = await (await fetch(BASE + '/admin/analytics', { headers: H })).json();
+const tu = at.latest.today.users;
+const samT = tu.find(u => u.email === 'sam@northland.co.nz').total, joT = tu.find(u => u.email === 'jo@bay.co.nz').total;
+check('every person carries an all-time tally', tu.every(u => u.total && typeof u.total.minutes === 'number'));
+check('…Sam\'s counts everything since he first appeared, yesterday included', samT.logins === 2 && samT.quotes === 1 && samT.orders === 1 && samT.minutes === 19 && samT.active_days === 1 && samT.first_seen === Y, JSON.stringify(samT));
+check('…Jo\'s login the day before yesterday is in her total though not in the day', joT.logins === 1 && tu.find(u => u.email === 'jo@bay.co.nz').logins === 0, JSON.stringify(joT));
+check('the page has the all-time table', /All-time activity/.test(html) && /renderAllTime/.test(html));
+
 // ── an owner's RoofMap login opens it too; a stranger's does not ──
 const ownerTok = jwt.sign({ id: 'u6', email: 'office@floodroofing.co.nz', cid: C1, tv: 0 }, 'test-secret');
 const otherTok = jwt.sign({ id: 'u3', email: 'jo@bay.co.nz', cid: C3, tv: 0 }, 'test-secret');

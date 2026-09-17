@@ -155,6 +155,10 @@ check('"send now" emails it to support@ with the asked-for subject', s.status ==
 const text = mail.text || mail.body || '';
 check('…and the email carries every section', /NEW TRIALS YESTERDAY: 1/.test(text) && /Kaipara Roofing/.test(text) && /ON A TRIAL NOW: 2/.test(text) && /TEAM \(\$299\/mo\): 1/.test(text) && /MRR, paying businesses combined: \$848/.test(text) && /Sam Tane \| Northland Roofing \| paying Team \| 2 \| 1 \| 1 \| 1 \| 1 \| 13/.test(text), text.slice(0, 400));
 
+check('…and every person\'s all-time line, highest first', /ALL-TIME ACTIVITY/.test(text) &&
+  text.indexOf('ALL-TIME ACTIVITY') < text.indexOf('Sam Tane | Northland Roofing | paying Team | 2 | 1 | 1 | 1 | 1 | 13 | 1 | ' + Y) &&
+  /Jo Hemi \| Bay Roofing \| trial, 5 days left \| 1 \| 0 \| 0 \| 0 \| 0 \| 0 \| 1 \| /.test(text) && /All-time activity/.test(mail.html || ''), text.slice(text.indexOf('ALL-TIME'), text.indexOf('ALL-TIME') + 400));
+
 // ── the clock ────────────────────────────────────────────────────
 const DAILY = { due: null };
 // the watermark was written by the send: today's report has gone

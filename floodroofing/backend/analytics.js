@@ -71,7 +71,7 @@ function createAnalytics(deps){
   function slimUsers(rep){
     return rep.users.map(u => ({ name: u.name, email: u.email, company: u.company, company_status: u.company_status,
       plan: u.plan, trial_days_left: u.trial_days_left, logins: u.logins, canvas: u.canvas, quotes: u.quotes,
-      orders: u.orders, feedback: u.feedback, minutes: u.minutes, screens: u.screens || {} }));
+      orders: u.orders, feedback: u.feedback, minutes: u.minutes, screens: u.screens || {}, total: u.total || null }));
   }
   function slimCo(c){ return { name: c.name, plan: c.plan, status: c.status, trial_days_left: c.trial_days_left, mrr: c.mrr, owner: c.owner, created_at: c.created_at }; }
 
@@ -244,6 +244,8 @@ function createAnalytics(deps){
     '<div class="c"><div class="tabs"><button id="tabT" class="on" onclick="showDay(\'today\')">Today so far</button><button id="tabY" onclick="showDay(\'yesterday\')">Yesterday</button>' +
     '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)">or a day <input type="date" id="dayPick" onchange="pickDay(this.value)" style="font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)"></label></div>' +
     '<h2 id="actH"></h2><div class="tw"><table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th class="n">Logins</th><th class="n">Canvas</th><th class="n">Quotes</th><th class="n">Orders</th><th class="n">Feedback</th><th class="n">Minutes</th><th>Screens</th></tr></thead><tbody id="rows"></tbody></table></div></div>' +
+    '<div class="c"><h2 id="allH">All-time activity — every person, highest first</h2><div class="tw"><table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th class="n">Logins</th><th class="n">Canvas</th><th class="n">Quotes</th><th class="n">Orders</th><th class="n">Feedback</th><th class="n">Minutes</th><th class="n">Days active</th><th>Since</th><th>Screens</th></tr></thead><tbody id="allRows"></tbody></table></div>' +
+    '<p class="m" style="font-size:12px;margin:8px 0 0">Everything recorded for each person since they first appeared, ranked by minutes, logins and quotes.</p></div>' +
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
     '<div class="c"><h2 id="pdH">Paying</h2><div id="paid"></div></div></div>' +
@@ -359,6 +361,7 @@ function render(){
   var todayPts = series.filter(function(p){ return p.date === T.date; });
   $('chHours').innerHTML = barChart(todayPts, 'events', function(p){ return p.events + ' events by ' + p.hour + ':00'; }, function(p){ return p.hour + ':00'; });
   showDay(DAY === 'picked' && PICKED ? 'picked' : DAY);
+  renderAllTime(T.users);
   WEEK = DATA.week; renderWeek();
   $('ntH').textContent = 'New trials today — ' + T.new_trials.length + (Y.new_trials.length ? ' (' + Y.new_trials.length + ' yesterday)' : '');
   $('newTrials').innerHTML = list(T.new_trials);
@@ -382,6 +385,18 @@ async function pickDay(date){
     PICKED = await r.json();
     showDay('picked');
   } catch (e){ $('err').style.display = ''; $('err').textContent = e.message; }
+}
+function totalScore(u){ var t = u.total || {}; return (t.minutes || 0) + (t.logins || 0) * 5 + (t.quotes || 0) * 10; }
+function renderAllTime(users){
+  var rows = users.filter(function(u){ return u.total; }).sort(function(a, b){ return totalScore(b) - totalScore(a) || a.company.localeCompare(b.company); });
+  $('allH').textContent = 'All-time activity — ' + rows.length + ' people, highest first';
+  $('allRows').innerHTML = rows.map(function(u){
+    var t = u.total;
+    var plan = u.company_status === 'paying' ? '<span class="p">' + esc((DATA.plan_label || {})[u.plan] || u.plan) + '</span>' : esc(planWord(u));
+    return '<tr class="' + (totalScore(u) ? '' : 'q') + '"><td><b>' + esc(u.name || u.email) + '</b>' + (u.name ? '<br><span class="m">' + esc(u.email) + '</span>' : '') + '</td><td>' + esc(u.company) + '</td><td>' + plan + '</td>' +
+      ['logins','canvas','quotes','orders','feedback','minutes','active_days'].map(function(k){ return '<td class="n">' + (t[k] || '·') + '</td>'; }).join('') +
+      '<td class="m" style="white-space:nowrap">' + esc(t.first_seen || '·') + '</td><td class="m" style="font-size:12px;white-space:nowrap">' + esc(screenWords(t.screens)) + '</td></tr>';
+  }).join('') || '<tr><td colspan="12" class="m">Nothing recorded yet.</td></tr>';
 }
 function showDay(which){
   DAY = which;
