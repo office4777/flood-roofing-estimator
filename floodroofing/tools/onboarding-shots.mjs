@@ -30,6 +30,7 @@ async function newPage(b, { token = true, settings = SETTINGS_NEW, company = { i
       trial:{ ends_at: new Date(Date.now()+12*864e5).toISOString(), days_left:12, expired:false },
     });
     if (/\/email\/send-order/.test(u)) return j({ ok:true, id:'m1' });
+    if (/\/practice\/job/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', body: '{}' });   // unreachable here: the drawn stand-in shows
     if (/\/jobs\b/.test(u)) return j([]);
     return j([]);
   });
@@ -98,23 +99,11 @@ const b = await chromium.launch();
   const stepKey = () => pg.evaluate(() => (window.TOUR && TOUR.open && TOUR.steps[TOUR.i]) ? TOUR.steps[TOUR.i].key : '');
   const waitStep = async (key, ms) => { const t0 = Date.now(); while (Date.now() - t0 < (ms || 5000)){ if (await stepKey() === key) return true; await pg.waitForTimeout(150); } return false; };
   const cardTitle = () => pg.evaluate(() => (document.getElementById('tourTitle') || {}).textContent || '');
-  const total = 21;
+  const total = 15;
   let i = 0;
   const step = async (key, note) => { await waitStep(key, 7000); await pg.waitForTimeout(500); i++; await shot(pg, 'Practice job ' + i + ' of ' + total + ' — ' + (await cardTitle()), note); };
-  await step('start', 'What a brand-new account sees first: Map Roof, the practice job open, and this one card. Nothing else opens on top of it.');
+  await step('start', 'What a brand-new account sees first: Map Roof, the practice job open with the aerial already on the canvas, and this one card. Nothing else opens on top of it.');
   await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-  await step('find', 'The finder button is ringed; the address is already filled in and is geocoded like any job’s. Clicking it moves the card on.');
-  await pg.click('#aerialFindBtn');
-  await step('useview', 'The satellite finder. On a real connection the map is on the property; here the imagery is unreachable so it is blank.');
-  await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('rotate', 'The picture lands with the toolbar scrolled to the top and the rotate menu open: straighten it first. Optional — Skip.');
-  await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('move', 'Move / Edit is pointed at — the tool for dragging the picture.');
-  await pg.click('#btn-move');
-  await step('pan', 'Screen kept light. Dragging turns Skip into Next; nothing moves on until they click it.');
-  await pg.evaluate(() => { IMG_OFFSET = { x: 40, y: 20 }; redrawAll(); document.getElementById('tourNext').click(); });
-  await step('zoom', 'Same: zoom, then Next when they are happy.');
-  await pg.evaluate(() => document.getElementById('tourNext').click());
   await step('outline', 'Building outline.');
   await pg.click('#btn-outline');
   await step('corners', 'Pointing at the canvas: click each corner. Counts the corners as they go; after the fourth it says to press Enter.');

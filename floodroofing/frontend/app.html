@@ -40414,18 +40414,38 @@ function _firstRoofMaybeStart(){
 // Settings → General and Help can start it again at any time.
 function startFirstRoof(){
   try { closeTour(true); } catch(e){}
-  openTestJob();
-  openTour(true, _firstRoofSteps(), 'firstroof');
+  return openTestJob().then(function(){ openTour(true, _firstRoofSteps(), 'firstroof'); });
 }
-function openTestJob(){
+// The practice picture: the owner's own TEST-1 aerial, served by the API
+// with its scale and view. When it cannot be fetched, the drawn stand-in.
+async function _firstRoofLoadPicture(){
+  var job = null;
+  try { job = await api('GET', '/practice/job'); } catch(e){ job = null; }
+  if (job && job.draw_state && (job.draw_state.draw.bg || job.draw_state.state.img64)){
+    try {
+      restoreFromJob({ draw_state: { state: { img64: job.draw_state.state.img64 || null }, draw: job.draw_state.draw } });
+      // restoreFromJob loads the picture asynchronously; wait for it (briefly).
+      var t0 = Date.now();
+      while (!DRAW.bgImg && Date.now() - t0 < 6000) await new Promise(function(r){ setTimeout(r, 100); });
+      if (DRAW.bgImg) { try { _usageEvent('roof_source', { type: 'aerial', example: true }); } catch(e){} return true; }
+    } catch(e){}
+  }
+  S.isSampleJob = true; S.demoKind = 'test';   // so the stand-in's event is flagged as the example it is
+  _firstRoofFallbackImage();
+  var t1 = Date.now();
+  while (!DRAW.bgImg && Date.now() - t1 < 3000) await new Promise(function(r){ setTimeout(r, 100); });
+  return !!DRAW.bgImg;
+}
+async function openTestJob(){
   try { _releaseCurrentJob(); } catch(e){}
   try { clearAll && clearAll(true); } catch(e){}
   S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.files = [];
   try { _resetQuoteForFreshJob && _resetQuoteForFreshJob(); } catch(e){}
+  await _firstRoofLoadPicture();
   var set = function(id, v){ var el = document.getElementById(id); if (el) el.value = v; };
   set('jobClient', FIRST_ROOF.client); set('jobAddr', FIRST_ROOF.addr); set('jobNo', FIRST_ROOF.jobNo);
   set('jobEmail', ''); set('jobPhone', '');
-  S.currentJobId = null;
+  S.currentJobId = null; S._jobLoaded = null;
   S.isSampleJob = true; S.demoKind = 'test';
   S.jobLocked = false; try { _jobLockRender(); } catch(e){}
   try { setCurrentJobLabel({ client_name: FIRST_ROOF.client, site_address: FIRST_ROOF.addr }); } catch(e){}
@@ -40438,7 +40458,11 @@ function openTestJob(){
   try { _usageEvent('onboarding_path', { path: 'practice' }); } catch(e){}
   gotoTab('roof');
   try { _fergusPanelClose(); } catch(e){}
-  try { _expandRoofBg && _expandRoofBg(); } catch(e){}
+  // Straight to the canvas: the picture card is folded away and the roof
+  // toolbar scrolled to the top of the screen.
+  try { _collapseRoofBg(); } catch(e){}
+  try { var card = document.getElementById('roofPlanCard'); if (card) card.scrollIntoView({ block: 'start' }); } catch(e){}
+  try { redrawAll(); } catch(e){}
 }
 // When the satellite image cannot be fetched (no signal, a blocked network,
 // the imagery service down) the practice job still needs something to trace.
@@ -40471,7 +40495,6 @@ function _firstRoofFallbackImage(){
     redrawAll();
     try { _collapseRoofBg(); } catch(e){}
     try { _closeAerialModal(); } catch(e){}
-    try { _afterAerialPlaced(); } catch(e){}
     try { _usageEvent('roof_source', { type: 'fallback' }); } catch(e){}
     var hint = document.getElementById('aerialHint');
     if (hint) hint.innerHTML = '<span style="color:#b45309">Satellite image unavailable — a practice picture is on the canvas instead.</span>';
@@ -40489,39 +40512,13 @@ function _firstRoofSteps(){
   };
   return [
     { key: 'start', centre: true, title: 'Let’s run through a practice job together',
-      body: 'This is **John Smith’s** roof at **23 Don Buck Road, Massey** — an example, so nothing you do here is saved to your account or sent to a supplier.\n\nYou will find the property, trace the roof, check the numbers and send yourself the material order. It takes about the time it takes to make a coffee.',
+      body: 'This is **John Smith’s** roof at **23 Don Buck Road, Massey** — the aerial is already on the canvas. It is an example, so nothing you do here is saved to your account or sent to a supplier.\n\nYou will trace the roof, check the numbers, and — if you want — send yourself the material order. Five minutes.',
       extra: btn('Start the practice job', 'tourStep(1)', true) +
              btn('Show me a finished job instead', 'closeTour(true); openSampleJob(); _usageEvent(\'onboarding_path\', { path: \'sample-instead\' })') +
              btn('Skip — I’ll find my own way', 'closeTour(true); _usageEvent(\'onboarding_path\', { path: \'skipped\' })'),
       noNext: true },
-    { key: 'find', sel: '#aerialFindBtn', tab: 'roof', title: 'Find the property',
-      body: 'Click **Find your property**. The address is already filled in, so the map goes straight to it.',
-      until: function(){ return vis('aerialModal'); }, onNext: function(){ openSatelliteView(); }, next: 'Open it for me' },
-    { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
-      body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
-      until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
-    { key: 'rotate', sel: '#fineRotateSlider', wait: true, light: true, manual: true, title: 'Straighten it first',
-      body: 'Slide **Rotate photo** (or the −.1 / +.1 buttons) until the walls run straight across and up and down — tracing is much tidier on a square picture. Click **Next** when you are happy, or Skip if it already looks square.',
-      onEnter: function(){
-        base.rot = IMG_FINE_ROTATION;
-        try { var m = document.getElementById('viewMenu'); if (m && m.style.display !== 'block') m.style.display = 'block'; } catch(e){}
-      },
-      until: function(){ return IMG_FINE_ROTATION !== base.rot; }, next: 'Skip — looks square' },
-    { key: 'move', sel: '#btn-move', tab: 'roof', title: 'Put the roof in the middle',
-      body: 'Click **Move / Edit** — that is the tool for dragging the picture around.',
-      onEnter: function(){ try { closeViewMenu(); } catch(e){} },
-      until: function(){ return DRAW.tool === 'select'; }, onNext: function(){ setTool('select'); }, next: 'Select it for me' },
-    { key: 'pan', sel: '#roofCanvas', tab: 'roof', light: true, manual: true, title: 'Drag it into the middle',
-      body: 'Drag the picture so the roof sits in the middle of the canvas. Take your time — click **Next** when it is where you want it.',
-      onEnter: function(){ base.pan = JSON.stringify(IMG_OFFSET); },
-      until: function(){ return JSON.stringify(IMG_OFFSET) !== base.pan; }, next: 'Skip' },
-    { key: 'zoom', sel: '#roofZoomStepper', tab: 'roof', light: true, manual: true, title: 'Zoom in on it',
-      body: 'Use **+** and **−** (or the mouse wheel) so the roof is big enough to click its corners accurately. Click **Next** when it looks right.',
-      alt: { sel: '#roofCanvas', body: 'Roll the mouse wheel over the picture (or pinch on a touch screen) so the roof is big enough to click its corners accurately. Click **Next** when it looks right.' },
-      onEnter: function(){ base.zoom = DRAW.zoom; },
-      until: function(){ return DRAW.zoom !== base.zoom; }, next: 'Skip' },
     { key: 'outline', sel: '#btn-outline', tab: 'roof', title: 'Trace the building',
-      body: 'Click **Building outline**.',
+      body: 'Click **Building outline**. (On your own jobs the picture comes from the satellite finder or a photo — the Roof image card above.)',
       onEnter: function(){ try { closeViewMenu(); } catch(e){} },
       until: function(){ return DRAW.tool === 'outline' || hasRoof(); }, onNext: function(){ setTool('outline'); }, next: 'Select it for me' },
     { key: 'corners', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click each corner',

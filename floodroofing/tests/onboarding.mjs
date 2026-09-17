@@ -31,6 +31,12 @@ async function boot(opts){
     const j = x => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
     if (/\/usage/.test(u) && m === 'POST'){ try { usage.push(JSON.parse(r.request().postData() || '{}')); } catch(e){} return j({ ok: true }); }
     if (/\/settings\/ui-flags/.test(u)){ try { puts.push(JSON.parse(r.request().postData() || '{}')); } catch(e){} return j({ ok: true }); }
+    if (/\/practice\/job/.test(u)){
+      if (opts.noPractice) return r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'No practice picture' }) });
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#6f8f5a"/><rect x="250" y="150" width="400" height="300" fill="#5d6970"/></svg>';
+      return j({ job_no: 'TEST-1', draw_state: { state: { img64: null }, draw: { bg: 'data:image/svg+xml;utf8,' + encodeURIComponent(svg), bgW: 900, bgH: 600,
+        imgView: { zoom: 1, offX: 0, offY: 0, rot: 0 }, scaleMetresPerPx: 0.03, scaleAuto: false, geoScale: null, rotation: 0 } } });
+    }
     if (/\/email\/send-order/.test(u)){ try { sends.push(JSON.parse(r.request().postData() || '{}')); } catch(e){} return j({ ok: true, id: 'm1' }); }
     if (/\/settings/.test(u) && m === 'GET') return j({ branding: opts.branded ? { company_name: 'Acme Roofing Ltd' } : {}, quote_defaults: {}, jms_keys: {},
                                                         ui_flags: opts.flags === undefined ? { first_roof: 'offer' } : opts.flags });
@@ -78,54 +84,15 @@ check('…and the card offers start, the finished sample, or skip', /practice jo
 check('the path is reported the moment it starts', usage.some(u => u.name === 'onboarding_path' && u.props.path === 'practice') && usage.some(u => u.name === 'walkthrough' && u.props.action === 'started'),
   JSON.stringify(usage.map(u => u.name + ':' + JSON.stringify(u.props))));
 
-// Step 1: find the property. The click opens the finder; the card moves on by itself.
+// The picture is already there: the owner's TEST-1 aerial, served by the API.
+v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx, folded: document.getElementById('roofBgBody').style.display,
+  top: document.getElementById('roofPlanCard').getBoundingClientRect().top, title: document.getElementById('tourTitle').textContent, body: document.getElementById('tourBody').textContent }));
+check('the practice job opens with the prepared aerial already on the canvas, at its saved scale', v.img && v.w === 900 && v.scale === 0.03, JSON.stringify(v));
+check('…the picture card folded away and the roof toolbar at the top of the screen', v.folded === 'none' && v.top < 140, JSON.stringify(v));
+check('…and the start card says so — no satellite step', /already on the canvas/.test(v.body));
+check('…reported as an aerial source, not a fallback', usage.some(u => u.name === 'roof_source' && u.props.type === 'aerial') && !usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
 await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('Start goes to "find the property", ringing the finder button', await waitStep(pg, 'find'), await stepKey(pg));
-await pg.click('#aerialFindBtn');
-check('…clicking it (not Next) moves the walkthrough on to "take the picture"', await waitStep(pg, 'useview'), await stepKey(pg));
-v = await pg.evaluate(() => ({ modal: document.getElementById('aerialModal').style.display, addr: document.getElementById('aerialAddressInput').value,
-  wait: (document.getElementById('tourRing') || {}).style.display, nextLbl: document.getElementById('tourNext').textContent }));
-check('…the finder is open with the address already in it', v.modal === 'block' && /Don Buck/.test(v.addr), JSON.stringify(v));
-v = await pg.evaluate(() => {
-  const card = document.getElementById('tourCard').getBoundingClientRect();
-  return ['tourCancel', 'tourHelp', 'tourBack', 'tourNext'].map(id => { const r = document.getElementById(id).getBoundingClientRect();
-    return { id, inside: r.left >= card.left - 1 && r.right <= card.right + 1 && r.top >= card.top - 1 && r.bottom <= card.bottom + 1, w: Math.round(r.width) }; });
-});
-check('every button sits inside the card, even with a long label', v.every(b => b.inside), JSON.stringify(v));
-// Satellite blocked: "Use this view" falls back to a practice picture.
-await pg.evaluate(() => document.getElementById('tourNext').click());
-await sleep(1800);
-v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, scale: DRAW.scaleMetresPerPx, modal: document.getElementById('aerialModal').style.display, key: TOUR.steps[TOUR.i].key }));
-check('with no satellite reachable, the picture still lands (a labelled practice picture), scaled, finder closed', v.img && v.scale > 0 && v.modal === 'none', JSON.stringify(v));
-check('…and the walkthrough starts with straightening, the rotate menu already open', await waitStep(pg, 'rotate'), await stepKey(pg));
-check('…the failure was reported as the picture source, then the fallback', usage.some(u => u.name === 'roof_source' && u.props.failed) && usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
-check('…and the address was not pinned to guessed coordinates — the geocoder gets first go', await pg.evaluate(() => window._autoLat === null && /Don Buck/.test(document.getElementById('aerialAddressInput').value)));
-await sleep(600);
-v = await pg.evaluate(() => ({ menu: document.getElementById('viewMenu').style.display, next: document.getElementById('tourNext').textContent,
-  top: document.getElementById('roofPlanCard').getBoundingClientRect().top, ring: document.getElementById('tourRing').style.display }));
-check('the picture landing scrolled the roof toolbar to the top of the screen and opened the rotate menu', v.menu === 'block' && v.top < 140 && v.ring === 'block', JSON.stringify(v));
-check('…straightening is optional — the button says skip', /Skip/.test(v.next), v.next);
-await pg.evaluate(() => _setFineRotate(2));
-await sleep(900);
-v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, next: document.getElementById('tourNext').textContent }));
-check('rotating does NOT yank them off the step — the button turns into Next and waits', v.key === 'rotate' && v.next === 'Next', JSON.stringify(v));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('Next → Move / Edit, and the rotate menu is closed out of the way', await waitStep(pg, 'move') && await pg.evaluate(() => document.getElementById('viewMenu').style.display !== 'block'), await stepKey(pg));
-await pg.click('#btn-move');
-check('clicking Move / Edit moves on to dragging', await waitStep(pg, 'pan'), await stepKey(pg));
-v = await pg.evaluate(() => ({ light: document.getElementById('tourCard').classList.contains('tour-light'), next: document.getElementById('tourNext').textContent, shadow: document.getElementById('tourRing').style.boxShadow }));
-check('…the screen stays light while they drag, and the button says Skip until they have', v.light && v.next === 'Skip' && /5px/.test(v.shadow) && !/9999/.test(v.shadow), JSON.stringify(v));
-await pg.evaluate(() => { IMG_OFFSET = { x: 40, y: 20 }; redrawAll(); });
-await sleep(900);
-v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, next: document.getElementById('tourNext').textContent }));
-check('dragging waits for Next too', v.key === 'pan' && v.next === 'Next', JSON.stringify(v));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('Next → zoom', await waitStep(pg, 'zoom'), await stepKey(pg));
-await pg.evaluate(() => adjustZoom(0.1));
-await sleep(900);
-check('zooming waits for Next as well', (await stepKey(pg)) === 'zoom' && (await pg.evaluate(() => document.getElementById('tourNext').textContent)) === 'Next');
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then "trace the building"', await waitStep(pg, 'outline'), await stepKey(pg));
+check('Start goes straight to "trace the building"', await waitStep(pg, 'outline'), await stepKey(pg));
 
 // Trace: the tool, then the corners one by one, then Enter.
 await pg.click('#btn-outline');
@@ -203,7 +170,7 @@ check('…remembers it as done, on this device and on the account', flag === 'do
 check('…without marking the 29-step tutorial as seen', !(await pg.evaluate(() => localStorage.getItem('fr_tour_done'))) && !puts.some(p => p.tour_done));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step was reported as it was shown, and the end as finished',
-  shown.join() === 'start,find,useview,rotate,move,pan,zoom,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
+  shown.join() === 'start,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
   shown.join());
 check('…and the order milestone carries the example flag', usage.some(u => u.name === 'output_created' && u.props.example === true && u.props.kind === 'order'));
 check('…and every event from the demo job says so', usage.filter(u => /walkthrough|roof_source|output_created/.test(u.name)).every(u => u.props.example === true));
@@ -214,6 +181,14 @@ await sleep(600);
 v = usage.filter(u => u.name === 'screen_left').pop();
 check('hiding the tab reports which screen they were on and for how long', !!v && v.props.screen === 'quote' && typeof v.props.seconds === 'number', JSON.stringify(v));
 check('nothing threw along the way', errs.length === 0, errs.join(' | ').slice(0, 200) || 'no page errors');
+await ctx.close();
+
+// ── no practice picture on the server: the drawn stand-in ─────────
+({ ctx, pg, errs, usage } = await boot({ noPractice: true }));
+await waitStep(pg, 'start', 9000);
+v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx }));
+check('with no practice picture on the server, the labelled stand-in is on the canvas instead', v.img && v.w === 1280 && v.scale > 0, JSON.stringify(v));
+check('…and it says so in the events', usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
 await ctx.close();
 
 // ── the other two doors on the start card ─────────────────────────
@@ -243,7 +218,9 @@ await sleep(4500);
 v = await overlays(pg);
 check('a device that already did it sees nothing either', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));
 check('…the setup guide and the tutorial do not open on their own any more', !v.guide && !v.tour);
-v = await pg.evaluate(() => { startFirstRoof(); return { tour: !!document.getElementById('tourWrap'), kind: TOUR.kind, client: document.getElementById('jobClient').value }; });
+await pg.evaluate(() => startFirstRoof());
+await waitStep(pg, 'start', 9000);
+v = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), kind: TOUR.kind, client: document.getElementById('jobClient').value }));
 check('Settings → General → "Run the practice job" starts it again on demand', v.tour && v.kind === 'firstroof' && /John Smith/.test(v.client), JSON.stringify(v));
 check('…and the button is on the General settings screen', await pg.evaluate(() => !!document.querySelector('[data-tour="set-practice"]')));
 await ctx.close();

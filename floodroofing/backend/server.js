@@ -2995,6 +2995,48 @@ app.get('/settings', requireAuth, async (req, res) => {
   }
 });
 
+// The practice job's picture: the aerial (and its scale and view) from the
+// platform owner's own job numbered TEST-1, so the walkthrough starts on a
+// real roof with no satellite fetch. Only the picture block is served —
+// no lines, photos, quote or customer — and it is cached for ten minutes.
+const PRACTICE_JOB_OWNER = String(process.env.PRACTICE_JOB_OWNER || 'aron@floodroofing.co.nz').trim().toLowerCase();
+const PRACTICE_JOB_NO = String(process.env.PRACTICE_JOB_NO || 'TEST-1').trim();
+let _practiceCache = { at: 0, body: null };
+async function _practiceJobRow(){
+  const { data: prof, error: pe } = await supabase.from('profiles').select('id').eq('email', PRACTICE_JOB_OWNER).maybeSingle();
+  if (pe) throw new Error(pe.message);
+  if (!prof) return null;
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const r = await pool.query(
+        "select draw_state from public.jobs where user_id = $1 and draw_state->'form'->>'jobNo' = $2 order by updated_at desc nulls last limit 1",
+        [prof.id, PRACTICE_JOB_NO]);
+      if (r.rows.length) return r.rows[0];
+    } catch (e) { console.warn('[practice] direct read failed, falling back to PostgREST:', e.message); }
+  }
+  const { data, error } = await supabase.from('jobs').select('draw_state, updated_at')
+    .eq('user_id', prof.id).eq('draw_state->form->>jobNo', PRACTICE_JOB_NO).order('updated_at', { ascending: false }).limit(1);
+  if (error) throw new Error(error.message);
+  return (data || [])[0] || null;
+}
+app.get('/practice/job', requireAuth, async (req, res) => {
+  try {
+    if (_practiceCache.body && Date.now() - _practiceCache.at < 10 * 60e3) return res.json(_practiceCache.body);
+    const row = await _practiceJobRow();
+    const ds = (row && row.draw_state) || null;
+    const d = (ds && ds.draw) || {};
+    const st = (ds && ds.state) || {};
+    if (!ds || !(d.bg || st.img64)) return res.status(404).json({ error: 'No practice picture', code: 'NO_PRACTICE_JOB' });
+    const body = { job_no: PRACTICE_JOB_NO, draw_state: {
+      state: { img64: st.img64 || null },
+      draw: { bg: d.bg || null, bgW: d.bgW || null, bgH: d.bgH || null, imgView: d.imgView || null,
+              scaleMetresPerPx: d.scaleMetresPerPx || 0, scaleAuto: !!d.scaleAuto, geoScale: d.geoScale || null, rotation: d.rotation || 0 } } };
+    _practiceCache = { at: Date.now(), body };
+    res.json(body);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // The boot popups (setup guide, tutorial) remember their dismissal on the
 // ACCOUNT, not just in one browser's localStorage — a merge-only write so a
 // true can never be lost to a partial update from another device.
