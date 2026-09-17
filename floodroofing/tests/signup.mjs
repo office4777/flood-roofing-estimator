@@ -93,8 +93,8 @@ let v = await pg.evaluate(() => ({
   noindex: (document.querySelector('meta[name=robots]')||{}).content,
 }));
 check('it is a short page, not another sales pitch', v.words < 700, v.words + ' words');
-check('…asking for five things', v.visible === 5, v.visible + ' visible fields');
-check('…with the invite-code field and the honeypot kept out of sight', v.fields === 7 && v.visible === 5);
+check('…asking for five things, plus what interests them (four ticks)', v.visible === 9, v.visible + ' visible fields');
+check('…with the invite-code field and the honeypot kept out of sight', v.fields === 11 && v.visible === 9);
 check('…and says what you are agreeing to, next to the button',
   /By creating an account you agree/.test(v.fine) && /Terms of Service/.test(v.fine) && /Privacy Policy/.test(v.fine));
 // The clean URLs, not the .html ones — those 301 now, and an internal link
@@ -121,7 +121,7 @@ await ctx.close();
 mode = 'invite'; posts.length = 0;
 ({ ctx, pg } = await open('signup.html', 1360, 900));
 await pg.fill('#suCompany','Acme Roofing Ltd'); await pg.fill('#suName','Sam');
-await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough');
+await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
 await pg.click('#suBtn'); await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({ msg: document.getElementById('suMsg').textContent,
   invite: !!document.getElementById('suInviteWrap').offsetParent,
@@ -135,7 +135,7 @@ await ctx.close();
 mode = 'error';
 ({ ctx, pg } = await open('signup.html', 1360, 900));
 await pg.fill('#suCompany','Acme Roofing Ltd'); await pg.fill('#suName','Sam');
-await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough');
+await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
 await pg.click('#suBtn'); await pg.waitForTimeout(400);
 check('a rejected signup shows the reason, not a status code',
   /already been registered/.test(await pg.evaluate(()=>document.getElementById('suMsg').textContent)));
@@ -145,7 +145,7 @@ await ctx.close();
 mode = 'ok'; posts.length = 0;
 ({ ctx, pg } = await open('signup.html', 1360, 900));
 await pg.fill('#suCompany','Acme Roofing Ltd'); await pg.fill('#suName','Sam');
-await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough');
+await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
 await pg.click('#suBtn'); await pg.waitForTimeout(900);
 check('signing up posts the business, the person, the phone and the password',
   posts.length === 1 && posts[0].company === 'Acme Roofing Ltd' && posts[0].name === 'Sam' &&
@@ -175,7 +175,7 @@ await ctx.close();
 mode = 'verify'; posts.length = 0;
 ({ ctx, pg } = await open('signup.html', 1360, 900));
 await pg.fill('#suCompany','Acme Roofing Ltd'); await pg.fill('#suName','Sam');
-await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough');
+await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPhone','021 555 0100'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
 await pg.click('#suBtn'); await pg.waitForTimeout(900);
 v = await pg.evaluate(() => ({ card: !!document.getElementById('suVerify').offsetParent, text: document.getElementById('suVerify').textContent,
   form: !!document.getElementById('suCompany').offsetParent, tok: localStorage.getItem('fr_token') }));

@@ -51,11 +51,28 @@ await new Promise(r => setTimeout(r, 700));
 
 const BASE = 'http://127.0.0.1:' + PORT;
 let ipN = 0;
+// Every sign-up says what interests them (compulsory); the helper supplies
+// one so the rest of the suite is about registration, not the question.
 const register = (body) => fetch(BASE + '/auth/register', {
   method: 'POST',
   headers: { 'content-type': 'application/json', 'X-Forwarded-For': '198.51.100.' + (++ipN) },
-  body: JSON.stringify(body),
+  body: JSON.stringify(Object.assign({ interests: ['satellite'] }, body)),
 });
+
+// ── the sign-up question ─────────────────────────────────────────
+{
+  const none = await register({ email: 'quiet@example.com', password: 'password123', phone: '021 555 0100', name: 'Q', company: 'Quiet Roofing', interests: [] });
+  check('a sign-up with nothing ticked is refused', none.status === 400 && /at least one/.test(JSON.stringify(await none.json())), String(none.status));
+  const junk = await register({ email: 'junk@example.com', password: 'password123', phone: '021 555 0100', name: 'J', company: 'Junk Roofing', interests: ['<script>', 'pricing'] });
+  check('…and unknown answers count for nothing', junk.status === 400);
+  const two = await register({ email: 'two@example.com', password: 'password123', phone: '021 555 0100', name: 'T', company: 'Two Roofing', interests: ['quotes', 'ordering', 'quotes'] });
+  const twoBody = await two.json();
+  const prof = db.profiles.find(p => p.email === 'two@example.com');
+  check('two answers are stored on the profile, once each', two.status === 200 && prof && JSON.stringify(prof.interests) === JSON.stringify(['quotes', 'ordering']), JSON.stringify(prof && prof.interests));
+  await new Promise(r => setTimeout(r, 300));
+  const alert = sent.find(m => /New signup: Two Roofing/.test(JSON.stringify(m)));
+  check('…and the signup alert names them in words', !!alert && /Interested in: Live interactive quotes, Auto-calculated material ordering/.test(JSON.stringify(alert)), alert ? '' : 'no alert');
+}
 
 // ── the front door is open ───────────────────────────────────────
 // RoofMap is sold as "start free, 14 days, no card", and a signup form that

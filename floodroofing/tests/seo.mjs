@@ -56,7 +56,7 @@ const PAGES = {
 };
 // Deliberately out of the sitemap: a form nobody should land on from a search,
 // and the app.
-const NOINDEX = { '/signup': 'signup.html', '/app': 'app.html' };
+const NOINDEX = { '/signup': 'signup.html', '/app': 'app.html', '/trial-ended': 'trial-ended.html' };
 
 const TYPES = { '.html':'text/html','.css':'text/css','.png':'image/png','.jpg':'image/jpeg',
                 '.js':'text/javascript','.txt':'text/plain','.xml':'application/xml',

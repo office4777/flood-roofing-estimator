@@ -74,6 +74,18 @@
   /* Stacked, a grid gap would add to each field's own margin and make this
      one pair sit further apart than every other. */
   .two{ display:grid; grid-template-columns:1fr 1fr; gap:13px }
+  .ticks{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px }
+  .ticks label{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:500; color:var(--ink); margin:0; cursor:pointer }
+  .ticks input{ width:17px; height:17px; margin:0; accent-color:var(--accent) }
+  /* A small phone: the form still fits without scrolling with the four ticks
+     in it. The eyebrow repeats the headline, so it goes; everything else
+     tightens a little. */
+  @media (max-width:520px){
+    .top{ padding-top:10px } .cols{ gap:10px } .pitch .eyebrow{ display:none } h1{ font-size:21px; margin:0 0 8px; line-height:1.2 }
+    .ticks{ grid-template-columns:1fr; gap:1px } .ticks label{ font-size:12.5px; line-height:1.5 } .ticks input{ width:15px; height:15px }
+    .card{ padding:14px 14px 12px } .field{ margin-bottom:9px } .field label{ margin-bottom:3px; font-size:12.5px } .field input{ padding:9px 11px; font-size:15px }
+    .btn{ padding:12px 16px; margin-top:2px; font-size:15px }
+  }
   @media (max-width:520px){ .two{ grid-template-columns:1fr; gap:0 } .two.keep{ grid-template-columns:1fr 1fr; gap:10px } .field{ margin-bottom:12px } .field input{ padding:11px 12px } }
   .btn{
     display:block; width:100%; padding:15px 20px; border:none; border-radius:11px;
@@ -177,6 +189,15 @@
             <input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
           </div>
         </div>
+        <div class="field" id="suInterestWrap">
+          <label>What interests you most about RoofMap? <span style="font-weight:400;color:var(--muted)">Pick one or more</span></label>
+          <div class="ticks">
+            <label><input type="checkbox" name="interest" value="satellite"> Satellite measuring</label>
+            <label><input type="checkbox" name="interest" value="drawings"> Scaled drawings &amp; auto quantities</label>
+            <label><input type="checkbox" name="interest" value="quotes"> Live interactive quotes</label>
+            <label><input type="checkbox" name="interest" value="ordering"> Auto-calculated material ordering</label>
+          </div>
+        </div>
         <!-- Honeypot: people never see this field; a script filling in every
              input does, and the server refuses the signup. -->
         <div class="field" aria-hidden="true" style="display:none">
@@ -261,16 +282,18 @@
     var phone   = document.getElementById('suPhone').value.trim();
     var website = (document.getElementById('suWebsite') || {}).value || '';
     var invite  = (document.getElementById('suInvite') || {}).value || '';
+    var interests = Array.prototype.map.call(document.querySelectorAll('input[name=interest]:checked'), function(i){ return i.value; });
     if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
     if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
     if (phone.replace(/\D/g, '').length < 7){ say('Please add a phone number we can reach you on.', 'bad'); return; }
+    if (!interests.length){ say('Pick at least one thing that interests you about RoofMap.', 'bad'); return; }
     btn.disabled = true; btn.textContent = 'Setting up your account…';
     say('');
     try {
       var r = await fetch(API + '/auth/register', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website })
+        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website, interests:interests })
       });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok){

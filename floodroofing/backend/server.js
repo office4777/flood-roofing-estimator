@@ -1870,6 +1870,10 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   }
   const phone = _cleanPhone((req.body || {}).phone);
   if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
+  // What brought them here — at least one of the four, so every trial
+  // arrives with a reason we can follow up on.
+  const interests = _cleanInterests((req.body || {}).interests);
+  if (!interests.length) return res.status(400).json({ error: 'Pick at least one thing that interests you about RoofMap.' });
   const verifyFirst = _verifyRequired();
   // Self-registration is OPEN: the product is sold as "start free, 14 days,
   // no card", and a signup form that answers "invite-only" is not that.
@@ -1905,7 +1909,9 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       return res.status(400).json({ error: error.message });
     }
     const userId = createdUserId = data.user.id;
-    await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '', phone, verify_pending: verifyFirst });
+    let { error: perr } = await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '', phone, verify_pending: verifyFirst, interests });
+    if (perr && /interests/.test(perr.message || '')) ({ error: perr } = await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '', phone, verify_pending: verifyFirst }));
+    if (perr) throw new Error(perr.message);
     // Registering ALWAYS creates your own business. Joining an existing one
     // happens only through a per-company invitation (POST /team/invites →
     // /auth/accept-invite), which is what makes self-onboarding possible:
@@ -1951,7 +1957,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
     // Tell the owner. A trial starting is the one event worth a ring, and
     // until now nobody was told — signups were a number in the metrics.
-    _signupAlert({ company, name, email, phone, pending: verifyFirst }).catch(function(){});
+    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst }).catch(function(){});
     if (verifyFirst) {
       // No session until the address is confirmed. The account exists, so a
       // second signup with this email says "already registered" — the resend
@@ -1985,6 +1991,19 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
 // confirmed — so a real trial can be told from a typo. SIGNUP_ALERT_TO
 // overrides the address; empty string turns it off.
 const SIGNUP_ALERT_TO = process.env.SIGNUP_ALERT_TO == null ? MAIL_SUPPORT : String(process.env.SIGNUP_ALERT_TO).trim();
+// The sign-up question: what interests them most. Keys are stored; labels
+// are what people (and the alert email) see.
+const INTERESTS = {
+  satellite: 'Satellite measuring',
+  drawings:  'Scaled drawings & auto quantities',
+  quotes:    'Live interactive quotes',
+  ordering:  'Auto-calculated material ordering',
+};
+function _cleanInterests(v){
+  const arr = Array.isArray(v) ? v : (typeof v === 'string' ? v.split(',') : []);
+  const seen = {};
+  return arr.map(x => String(x || '').trim().toLowerCase()).filter(k => INTERESTS[k] && !seen[k] && (seen[k] = 1));
+}
 async function _signupAlert(o){
   if (!SIGNUP_ALERT_TO || !EMAIL_ENABLED) return;
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
@@ -1996,10 +2015,153 @@ async function _signupAlert(o){
       ? 'They have confirmed their email — the 14-day Team trial is under way.\n\n'
       : 'A new business has signed up for the 14-day Team trial.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
+      nice('Interested in', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
       '\nReply to this email and it goes straight to them.',
   });
 }
+
+// ── The trial has ended ────────────────────────────────────────────
+// Once, the day a trial runs out with no plan picked: an email with two
+// buttons — pick a plan and carry on, or cancel. Cancelling opens a short
+// form (why, what would have kept them) that comes to support@. Trials that
+// ended more than TRIAL_END_LOOKBACK_DAYS ago are left alone, so the first
+// deploy of this does not mail every account that ever lapsed.
+const TRIAL_END_LOOKBACK_DAYS = Math.max(1, parseInt(process.env.TRIAL_END_LOOKBACK_DAYS || '3', 10) || 3);
+const CANCEL_REASONS = {
+  mapping:     'Mapping the roof is too hard',
+  complicated: 'RoofMap is too complicated',
+  time:        'Not enough time to learn RoofMap',
+  expected:    "Wasn't what I thought it would be",
+};
+async function _trialOwnerFor(sub){
+  // The person to write to: the company's owner, else the row's own user.
+  try {
+    if (sub.company_id){
+      const { data: cu } = await supabase.from('company_users').select('user_id, role').eq('company_id', sub.company_id);
+      const owner = (cu || []).find(r => r.role === 'owner') || (cu || [])[0];
+      if (owner){
+        const { data: p } = await supabase.from('profiles').select('id, email, name, company').eq('id', owner.user_id).maybeSingle();
+        if (p && p.email) return p;
+      }
+    }
+    if (sub.user_id){
+      const { data: p2 } = await supabase.from('profiles').select('id, email, name, company').eq('id', sub.user_id).maybeSingle();
+      if (p2 && p2.email) return p2;
+    }
+  } catch (e) {}
+  return null;
+}
+function _trialEndedMail(p, sub){
+  const token = jwt.sign({ purpose: 'cancel-trial', id: p.id, email: p.email, cid: sub.company_id || null }, JWT_SECRET, { expiresIn: '60d' });
+  const planUrl = PUBLIC_APP_URL + '/app?billing=plans';
+  const cancelUrl = PUBLIC_APP_URL + '/trial-ended?t=' + encodeURIComponent(token);
+  const first = String(p.name || '').split(' ')[0] || 'there';
+  const text = 'Hi ' + first + ',\n\nYour 14-day RoofMap trial has ended.\n\n' +
+    'Everything you measured, drew and quoted is still there — pick a plan and carry on where you left off:\n' + planUrl + '\n\n' +
+    'Not for you? Tell us why and we will close it off:\n' + cancelUrl + '\n\n' +
+    'Either way, thanks for giving it a go. Reply to this email and it comes straight to me.\n\nAron\nRoofMap';
+  const btn = (href, label, bg) => '<a href="' + href + '" style="display:inline-block;padding:13px 22px;border-radius:9px;background:' + bg + ';color:#fff;font-weight:800;text-decoration:none;font-size:15px;margin:6px 8px 6px 0">' + label + '</a>';
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<h2 style="margin:8px 0 12px;font-size:22px">Your trial has ended</h2>' +
+    '<p>Hi ' + _esc(first) + ',</p>' +
+    '<p>Your 14-day RoofMap trial has ended. Everything you measured, drew and quoted is still there.</p>' +
+    '<p style="margin:22px 0">' + btn(planUrl, 'Select a plan and continue', '#0099cc') + btn(cancelUrl, 'Cancel RoofMap', '#64748b') + '</p>' +
+    '<p style="color:#475569;font-size:13.5px">Either way, thanks for giving it a go. Reply to this email and it comes straight to me.</p>' +
+    '<p>Aron<br>RoofMap</p></div>';
+  return { to: p.email, subject: 'Your RoofMap trial has ended', text, html, fromName: 'RoofMap', replyTo: MAIL_SUPPORT };
+}
+function _esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
+async function _trialEndedSweep(){
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  const now = Date.now();
+  const since = new Date(now - TRIAL_END_LOOKBACK_DAYS * 864e5).toISOString();
+  const { data: subs, error } = await supabase.from('subscriptions')
+    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, trial_ended_mail_at')
+    .eq('status', 'trialing').lt('trial_ends_at', new Date(now).toISOString()).gte('trial_ends_at', since).limit(500);
+  if (error) throw new Error(error.message);
+  for (const sub of (subs || [])){
+    out.checked++;
+    if (sub.trial_ended_mail_at || sub.stripe_customer_id){ out.skipped++; continue; }
+    try {
+      const p = await _trialOwnerFor(sub);
+      if (!p){ out.skipped++; continue; }
+      // Mark first, send second: a crash between the two costs one email,
+      // the other order costs a duplicate every hour.
+      const { error: uerr } = await supabase.from('subscriptions').update({ trial_ended_mail_at: new Date().toISOString() }).eq('id', sub.id);
+      if (uerr) throw new Error(uerr.message);
+      await _dispatchMail(_trialEndedMail(p, sub));
+      out.sent++;
+    } catch (e) { out.errors++; console.error('[trial-ended] ' + (e && e.message)); }
+  }
+  return out;
+}
+async function _trialEndedDue(){
+  try {
+    const r = await supabase.from('platform_state').select('value').eq('key', 'trial_ended').maybeSingle();
+    const last = Date.parse(((r.data || {}).value || {}).last_run_at || '');
+    return !isFinite(last) || (Date.now() - last) > 6 * 3600e3;
+  } catch (e) { return false; }
+}
+async function _trialEndedTick(){
+  try {
+    if (!EMAIL_ENABLED) return;
+    if (!(await _trialEndedDue())) return;
+    await supabase.from('platform_state').upsert(
+      { key: 'trial_ended', value: { last_run_at: new Date().toISOString() }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const r = await _trialEndedSweep();
+    if (r.sent || r.errors) console.log('[trial-ended] checked ' + r.checked + ', sent ' + r.sent + ', skipped ' + r.skipped + ', errors ' + r.errors);
+  } catch (e) { console.error('[trial-ended] tick failed: ' + (e && e.message)); }
+}
+app.post('/admin/trial-ended/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _trialEndedSweep()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+// The cancel form posts here with the token from the email. Every answer is
+// compulsory: at least one reason, why in their words, and what would have
+// kept them. It is stored, it goes to support@, and the trial is closed.
+app.post('/trial/cancel-feedback', rateLimit(20, 3600000), async (req, res) => {
+  const b = req.body || {};
+  let payload;
+  try { payload = jwt.verify(String(b.token || ''), JWT_SECRET); } catch (e) { return res.status(401).json({ error: 'This link has expired. Reply to the email instead.' }); }
+  if (!payload || payload.purpose !== 'cancel-trial' || !payload.id) return res.status(401).json({ error: 'This link is not valid.' });
+  const reasons = (Array.isArray(b.reasons) ? b.reasons : []).map(x => String(x || '').trim()).filter(k => CANCEL_REASONS[k]);
+  const detail = String(b.detail || '').trim().slice(0, 4000);
+  const keep = String(b.keep || '').trim().slice(0, 4000);
+  if (!reasons.length) return res.status(400).json({ error: 'Tick at least one reason.' });
+  if (!detail) return res.status(400).json({ error: 'Tell us why in your own words.' });
+  if (!keep) return res.status(400).json({ error: 'Tell us what would make you want to stay.' });
+  let prof = null;
+  try { const { data } = await supabase.from('profiles').select('id, email, name, company, phone').eq('id', payload.id).maybeSingle(); prof = data; } catch (e) {}
+  const email = (prof && prof.email) || payload.email || '';
+  try {
+    await supabase.from('cancel_feedback').insert({ company_id: payload.cid || null, user_id: payload.id, email, reasons, detail, keep });
+  } catch (e) { console.warn('[trial-ended] feedback not stored: ' + (e && e.message)); }
+  // Close the trial: only a trial that is still 'trialing' with no card on
+  // file — a paying subscription is never touched from here.
+  try {
+    let q = supabase.from('subscriptions').update({ status: 'canceled', cancel_at: new Date().toISOString() }).eq('status', 'trialing').is('stripe_customer_id', null);
+    q = payload.cid ? q.eq('company_id', payload.cid) : q.eq('user_id', payload.id);
+    await q;
+  } catch (e) {}
+  res.json({ ok: true });
+  try {
+    const who = [(prof && prof.company), (prof && prof.name)].filter(Boolean).join(' · ') || email;
+    await _dispatchMail({
+      to: MAIL_SUPPORT, fromName: 'RoofMap', replyTo: email || undefined,
+      subject: 'Trial cancelled: ' + who,
+      text: 'They cancelled at the end of the trial.\n\n' +
+        (prof && prof.company ? 'Business: ' + prof.company + '\n' : '') + (prof && prof.name ? 'Name: ' + prof.name + '\n' : '') +
+        'Email: ' + email + '\n' + (prof && prof.phone ? 'Phone: ' + prof.phone + '\n' : '') +
+        '\nReasons ticked:\n' + reasons.map(k => '  • ' + CANCEL_REASONS[k]).join('\n') + '\n' +
+        '\nIn their words:\n' + detail + '\n' +
+        '\nWhat would make them stay:\n' + keep + '\n' +
+        '\nReply to this email and it goes straight to them.',
+    });
+  } catch (e) { console.error('[trial-ended] support mail failed: ' + (e && e.message)); }
+});
 
 // ── Email confirmation ─────────────────────────────────────────────
 // POST /auth/verify { token } → marks the address confirmed and signs the
@@ -9896,6 +10058,9 @@ const _MIGRATION_SQL = [
   // everything they paid for, so the gate must not read a pending cancel as
   // "not live".
   "alter table public.subscriptions add column if not exists cancel_at timestamptz",
+  "alter table public.subscriptions add column if not exists trial_ended_mail_at timestamptz",
+  "alter table public.profiles add column if not exists interests jsonb",
+  "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
 ];
 
 async function _ensureSchema(){
@@ -10998,6 +11163,10 @@ app.listen(PORT, () => {
   const _remKick = setTimeout(function(){ _reminderTick(); }, 5 * 60e3);
   if (_remKick.unref) _remKick.unref();
   setInterval(function(){ _reminderTick(); }, 3600e3).unref();
+  // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
+  const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
+  if (_teKick.unref) _teKick.unref();
+  setInterval(function(){ _trialEndedTick(); }, 3600e3).unref();
   console.log('Weekly metrics: ' + (String(process.env.METRICS_ENABLED || 'true') === 'false'
     ? 'disabled (METRICS_ENABLED=false)'
     : METRICS.config.to + ' every ' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][METRICS.config.day]

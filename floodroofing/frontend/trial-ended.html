@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cancel RoofMap | RoofMap</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="brand/roofmap_icon.png">
+<style>
+  *,*::before,*::after{ box-sizing:border-box }
+  :root{ --ink:#0a1628; --muted:#5f6b7a; --accent:#0099cc; --line:#dbe3ec; --bg:#f4f7fa }
+  html,body{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 -apple-system,"Segoe UI",Roboto,Inter,sans-serif }
+  .wrap{ max-width:560px; margin:0 auto; padding:28px 16px 60px }
+  .brand{ font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--accent) }
+  h1{ font-size:24px; margin:8px 0 6px }
+  p.lead{ color:var(--muted); margin:0 0 18px }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 20px 18px }
+  .field{ margin-bottom:16px }
+  .field label{ display:block; font-size:13.5px; font-weight:700; margin-bottom:6px }
+  textarea{ width:100%; min-height:88px; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:9px; font:inherit; font-size:15px; resize:vertical }
+  textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,153,204,.14) }
+  .ticks label{ display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:500; margin:0 0 8px; cursor:pointer }
+  .ticks input{ width:18px; height:18px; margin:0; accent-color:var(--accent) }
+  .btn{ width:100%; padding:13px; border:none; border-radius:10px; background:var(--ink); color:#fff; font:inherit; font-size:15px; font-weight:800; cursor:pointer }
+  .btn[disabled]{ opacity:.6; cursor:default }
+  .alt{ display:block; text-align:center; margin-top:12px; color:var(--accent); font-weight:700; text-decoration:none }
+  .msg{ display:none; margin-top:12px; font-size:14px; font-weight:600 }
+  .done{ display:none }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">RoofMap</div>
+  <h1>Sorry to see you go</h1>
+  <p class="lead">Two minutes, and every answer goes straight to Aron. It is the only way RoofMap gets better for the next roofer.</p>
+  <form class="card" id="cfForm" novalidate>
+    <div class="field">
+      <label>Why are you cancelling? <span style="font-weight:400;color:var(--muted)">tick every one that applies</span></label>
+      <div class="ticks">
+        <label><input type="checkbox" name="reason" value="mapping"> Mapping the roof is too hard</label>
+        <label><input type="checkbox" name="reason" value="complicated"> RoofMap is too complicated</label>
+        <label><input type="checkbox" name="reason" value="time"> Not enough time to learn RoofMap</label>
+        <label><input type="checkbox" name="reason" value="expected"> Wasn't what I thought it would be</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="cfDetail">In your own words</label>
+      <textarea id="cfDetail" placeholder="What got in the way?"></textarea>
+    </div>
+    <div class="field">
+      <label for="cfKeep">What's something we can change or add that would make you want to stay?</label>
+      <textarea id="cfKeep" placeholder="Anything — a feature, a price, a fix"></textarea>
+    </div>
+    <button type="submit" class="btn" id="cfBtn">Cancel RoofMap</button>
+    <a class="alt" href="/app?billing=plans">Actually — show me the plans</a>
+    <div class="msg" id="cfMsg"></div>
+  </form>
+  <div class="card done" id="cfDone">
+    <h2 style="margin:0 0 6px;font-size:19px">Done — and thank you</h2>
+    <p style="margin:0;color:var(--muted)">Your trial is closed and your answers are with Aron. If something changes, your work is kept and <a href="/app?billing=plans" style="color:var(--accent);font-weight:700">a plan picks it back up</a>.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var API = 'https://flood-roofing-estimator-production.up.railway.app';
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var form = document.getElementById('cfForm'), msg = document.getElementById('cfMsg'), btn = document.getElementById('cfBtn');
+  function say(t, kind){ msg.style.display = t ? 'block' : 'none'; msg.textContent = t || ''; msg.style.color = kind === 'bad' ? '#b91c1c' : '#15803d'; }
+  if (!token) say('This link is missing its key — open it from the email we sent you.', 'bad');
+  form.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var reasons = Array.prototype.map.call(document.querySelectorAll('input[name=reason]:checked'), function(i){ return i.value; });
+    var detail = document.getElementById('cfDetail').value.trim();
+    var keep = document.getElementById('cfKeep').value.trim();
+    if (!reasons.length){ say('Tick at least one reason.', 'bad'); return; }
+    if (!detail){ say('Tell us why in your own words.', 'bad'); document.getElementById('cfDetail').focus(); return; }
+    if (!keep){ say('Tell us what would make you want to stay.', 'bad'); document.getElementById('cfKeep').focus(); return; }
+    btn.disabled = true; say('');
+    try {
+      var r = await fetch(API + '/trial/cancel-feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, reasons: reasons, detail: detail, keep: keep }) });
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok) throw new Error(d.error || 'Could not send that — try again.');
+      form.style.display = 'none'; document.getElementById('cfDone').style.display = 'block';
+    } catch (e){ say(e.message, 'bad'); btn.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>

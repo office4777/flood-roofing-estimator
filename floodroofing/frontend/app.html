@@ -3594,6 +3594,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <input id="su-email" type="email" placeholder="matt@floodroofing.co.nz" class="li-input">
       <label class="li-label">Phone</label>
       <input id="su-phone" type="tel" placeholder="021 000 0000" class="li-input" autocomplete="tel">
+      <label class="li-label">What interests you most about RoofMap? <span style="font-weight:400;color:#888">pick one or more</span></label>
+      <div id="su-interests" style="display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;margin:0 0 12px">
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><input type="checkbox" name="su-interest" value="satellite" style="width:16px;height:16px;margin:0"> Satellite measuring</label>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><input type="checkbox" name="su-interest" value="drawings" style="width:16px;height:16px;margin:0"> Scaled drawings &amp; auto quantities</label>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><input type="checkbox" name="su-interest" value="quotes" style="width:16px;height:16px;margin:0"> Live interactive quotes</label>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><input type="checkbox" name="su-interest" value="ordering" style="width:16px;height:16px;margin:0"> Auto-calculated material ordering</label>
+      </div>
       <label class="li-label">Invite code</label>
       <input id="su-invite" type="text" placeholder="Code from Flood Roofing" class="li-input">
       <label class="li-label">Choose a password</label>
@@ -3858,12 +3865,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     err.style.display='none';
     if(!email || !pass){ err.textContent='Enter your email and choose a password.'; err.style.display='block'; return; }
     if(phone.replace(/\D/g,'').length<7){ err.textContent='Please add a phone number we can reach you on.'; err.style.display='block'; return; }
+    var interests=Array.prototype.map.call(document.querySelectorAll('input[name=su-interest]:checked'),function(i){return i.value;});
+    if(!interests.length){ err.textContent='Pick at least one thing that interests you about RoofMap.'; err.style.display='block'; return; }
     if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
     if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
     var btn=document.getElementById('setup-btn'), spin=document.getElementById('setup-spinner');
     btn.style.display='none'; spin.style.display='block';
     try{
-      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite})});
+      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite,interests:interests})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not set up your login');
       if(d.verify){
@@ -18514,6 +18523,8 @@ function resumeSavedJob(id){ return openJob(id); }
     if (!window.__LANDED){
       window.__LANDED = 1;
       try { if (document.body.getAttribute('data-tab') === 'select') gotoTab('roof'); } catch(e){}
+      // The trial-ended email's "Select a plan" button lands here.
+      try { if (new URLSearchParams(location.search).get('billing') === 'plans') setTimeout(function(){ _billingOpen(); }, 600); } catch(e){}
     }
     loadSettings().catch(function(e){console.warn(e);});
     // First run on this device: the setup guide. After loadSettings so the
