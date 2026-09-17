@@ -169,6 +169,29 @@ r = await api('POST', '/team/invites', { email:'onemore@acmeroofing.co.nz' });
 check('…it is only the next invitation that is refused',
   r.status === 403 && r.body.code === 'PLAN_SEATS', String(r.status));
 
+// ── Measure: the tape measure and nothing that leaves the building ──
+setPlan('measure'); await settle();
+r = await api('GET', '/team');
+check('Measure is one seat, no Fergus, no schedule board, no notifications',
+  r.body.plan.label === 'Measure' && r.body.plan.seats.allowed === 1 && !r.body.plan.jms && !r.body.plan.schedule && !r.body.plan.activity,
+  JSON.stringify(r.body.plan));
+r = await api('PUT', '/jobs/j1/quote', { quote: { share: { token: 'abc' } } });
+check('…a quote with a customer link is refused by the server, naming Trade',
+  r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Trade', r.status + ' ' + JSON.stringify(r.body));
+r = await api('PUT', '/jobs/j1/quote', { quote: { total: 100 } });
+check('…while a quote kept in-house (no link) is not a plan matter', r.status !== 403, String(r.status));
+r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x' });
+check('…and a merchant order is refused, naming Trade',
+  r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Trade', r.status + ' ' + JSON.stringify(r.body));
+setPlan('solo'); await settle();
+r = await api('PUT', '/jobs/j1/quote', { quote: { share: { token: 'abc' } } });
+check('Trade sends quotes (the gate is not in the way of a real plan)', r.status !== 403, String(r.status));
+r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x' });
+check('…and orders', r.status !== 403, String(r.status));
+r = await api('GET', '/subscription');
+check('the billing screen is told Measure is not for sale until it has a price',
+  r.status === 200 && r.body.offered && r.body.offered.measure === false, JSON.stringify(r.body.offered));
+
 // ── a company with no plan yet keeps working ──
 delete db.companies[0].plan; await settle();
 r = await api('GET', '/team');

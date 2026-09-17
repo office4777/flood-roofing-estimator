@@ -35,12 +35,13 @@ const DAY = 864e5;
 // apart silently — if the tiers move, these move with an env var on the day
 // rather than at the next deploy.
 const PLAN_PRICE = {
+  measure:  Number(process.env.PLAN_PRICE_MEASURE  || 79),
   solo:     Number(process.env.PLAN_PRICE_SOLO     || 149),
   team:     Number(process.env.PLAN_PRICE_TEAM     || 299),
   business: Number(process.env.PLAN_PRICE_BUSINESS || 549),
   monthly:  Number(process.env.PLAN_PRICE_SOLO     || 149),   // legacy rows from before the tiers
 };
-const PLAN_LABEL = { solo:'Solo', team:'Team', business:'Business', monthly:'Solo (legacy)' };
+const PLAN_LABEL = { measure:'Measure', solo:'Solo', team:'Team', business:'Business', monthly:'Solo (legacy)' };
 
 const SITE = (process.env.METRICS_SITE_URL || process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
 

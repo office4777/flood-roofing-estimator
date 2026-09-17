@@ -13,7 +13,7 @@ const { shiftDate, nzMidnightUtc } = require('./daily');
 
 const HOUR = 3600e3;
 const KEEP_HOURS = 24 * 45;      // 45 days of hourly points
-const PLAN_LABEL = { solo: 'Trade', team: 'Team', business: 'Business', monthly: 'Legacy' };
+const PLAN_LABEL = { measure: 'Measure', solo: 'Trade', team: 'Team', business: 'Business', monthly: 'Legacy' };
 
 // The owner's own people: Flood Roofing's accounts, by email domain or by
 // business name. The page offers a toggle that leaves them out of every
@@ -41,6 +41,7 @@ function createAnalytics(deps){
   const daily = deps.daily;
   const warn = deps.warn || function(){};
   const buildSha = deps.buildSha || '';
+  const cancelReasons = deps.cancelReasons || {};
 
   async function getState(key){
     const r = await supabase.from('platform_state').select('value').eq('key', key).maybeSingle();
@@ -160,7 +161,38 @@ function createAnalytics(deps){
     }
     let week = null;
     try { week = await days(latest.today.date, 7); } catch (e){ warn('[analytics] week read failed: ' + e.message); }
-    return { latest, series, week, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
+    let cancels = null;
+    try { cancels = await cancelFeedback(); } catch (e){ warn('[analytics] cancel feedback read failed: ' + e.message); }
+    return { latest, series, week, cancels, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
+  }
+
+  // Why trials cancelled: every reason ticked on the cancel form, counted,
+  // and the last forty in full — the business, what they said and what
+  // would have kept them. One tally instead of one email at a time.
+  async function cancelFeedback(){
+    const r = await supabase.from('cancel_feedback').select('company_id, user_id, email, reasons, detail, keep, created_at').order('created_at', { ascending: false }).limit(500);
+    if (r.error) throw new Error(r.error.message);
+    const rows = r.data || [];
+    const tally = {};
+    Object.keys(cancelReasons).forEach(k => { tally[k] = 0; });
+    rows.forEach(row => { (Array.isArray(row.reasons) ? row.reasons : []).forEach(k => { tally[k] = (tally[k] || 0) + 1; }); });
+    // Who they were, from the profile — the form stores the email only.
+    const ids = Array.from(new Set(rows.map(x => x.user_id).filter(Boolean))).slice(0, 60);
+    const prof = {};
+    for (const id of ids){
+      try { const q = await supabase.from('profiles').select('id, name, company, phone').eq('id', id).maybeSingle(); if (q.data) prof[id] = q.data; } catch (e){}
+    }
+    // The business by its row, when the profile does not carry the name.
+    const cos = {};
+    for (const cid of Array.from(new Set(rows.slice(0, 40).map(x => x.company_id).filter(Boolean)))){
+      try { const q = await supabase.from('companies').select('id, name').eq('id', cid).maybeSingle(); if (q.data) cos[cid] = q.data.name || ''; } catch (e){}
+    }
+    const recent = rows.slice(0, 40).map(row => {
+      const pr = prof[row.user_id] || {};
+      return { at: row.created_at, email: row.email || '', name: pr.name || '', company: pr.company || cos[row.company_id] || '', phone: pr.phone || '',
+               reasons: (Array.isArray(row.reasons) ? row.reasons : []).map(k => cancelReasons[k] || k), detail: row.detail || '', keep: row.keep || '' };
+    });
+    return { total: rows.length, tally, labels: cancelReasons, recent };
   }
 
   // Hourly: a snapshot once the last one is more than 55 minutes old. The
@@ -249,6 +281,7 @@ function createAnalytics(deps){
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
     '<div class="c"><h2 id="pdH">Paying</h2><div id="paid"></div></div></div>' +
+    '<div class="c"><h2 id="cfH">Why trials cancelled</h2><div id="cancels"></div></div>' +
     '<p class="ft" id="ft"></p></div></div><div class="tip" id="tip"></div>' +
     '<script>' + PAGE_JS + '</script></body></html>';
   }
@@ -368,12 +401,31 @@ function render(){
   $('trH').textContent = 'On a trial now — ' + T.trials.length;
   $('trials').innerHTML = list(T.trials, planWord);
   var paidHtml = '';
-  Object.keys(T.paid).forEach(function(k){ if (k === 'monthly' && !T.paid[k].length) return; paidHtml += '<h2 style="margin-top:8px">' + esc(P[k] || k) + ' · ' + money((DATA.plan_price || {})[k]) + '/mo — ' + T.paid[k].length + '</h2>' + list(T.paid[k]); });
+  Object.keys(T.paid).forEach(function(k){ if ((k === 'monthly' || k === 'measure') && !T.paid[k].length) return; paidHtml += '<h2 style="margin-top:8px">' + esc(P[k] || k) + ' · ' + money((DATA.plan_price || {})[k]) + '/mo — ' + T.paid[k].length + '</h2>' + list(T.paid[k]); });
   $('pdH').textContent = 'Paying — ' + s.paying_total;
   $('paid').innerHTML = paidHtml;
+  renderCancels(DATA.cancels);
   $('ft').textContent = 'Same numbers as the morning email, taken hourly · logins and minutes count from the day they shipped · build ' + (DATA.build || '—');
 }
 var PICKED = null;   // { date, nice, summary, users } for a chosen day
+function renderCancels(c){
+  if (!c){ $('cfH').textContent = 'Why trials cancelled'; $('cancels').innerHTML = '<p class="m">Could not read the cancel feedback.</p>'; return; }
+  $('cfH').textContent = 'Why trials cancelled — ' + c.total + (c.total === 1 ? ' form' : ' forms') + ' filled in';
+  if (!c.total){ $('cancels').innerHTML = '<p class="m">Nobody has cancelled through the form yet.</p>'; return; }
+  var keys = Object.keys(c.tally).sort(function(a, b){ return c.tally[b] - c.tally[a]; });
+  var max = Math.max.apply(null, keys.map(function(k){ return c.tally[k]; }).concat([1]));
+  var bars = '<table class="wk" style="margin-bottom:10px"><tbody>' + keys.map(function(k){
+    var n = c.tally[k], w = Math.round(100 * n / max);
+    return '<tr><td style="width:55%">' + esc(c.labels[k] || k) + '</td><td class="n" style="width:45%"><span class="bar" style="width:' + w + '%"></span><span class="v">' + n + ' · ' + Math.round(100 * n / c.total) + '%</span></td></tr>';
+  }).join('') + '</tbody></table>';
+  var rows = c.recent.map(function(r){
+    return '<li><b>' + esc(r.company || r.name || r.email) + '</b> <span class="m">' + esc([r.name, r.email, r.phone].filter(Boolean).join(' · ')) + (r.at ? ' · ' + nz(r.at, { day: 'numeric', month: 'short' }) : '') + '</span>' +
+      '<div class="m" style="font-size:12px">Ticked: ' + esc(r.reasons.join(', ') || '—') + '</div>' +
+      '<div style="font-size:13px;margin-top:2px"><span class="m">Why:</span> ' + esc(r.detail) + '</div>' +
+      '<div style="font-size:13px"><span class="m">Would stay if:</span> ' + esc(r.keep) + '</div></li>';
+  }).join('');
+  $('cancels').innerHTML = bars + '<details' + (c.recent.length <= 5 ? ' open' : '') + '><summary style="cursor:pointer;font-size:12px;color:var(--mute)">In their words — the last ' + c.recent.length + '</summary><ul style="margin-top:6px">' + rows + '</ul></details>';
+}
 async function pickDay(date){
   if (!date) return;
   if (date === DATA.latest.today.date) return showDay('today');

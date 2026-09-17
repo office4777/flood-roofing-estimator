@@ -9,7 +9,7 @@
 const { PLAN_PRICE, nzParts } = require('./metrics');
 
 const DAY = 86400e3;
-const PLAN_LABEL = { solo: 'Trade', team: 'Team', business: 'Business' };
+const PLAN_LABEL = { measure: 'Measure', solo: 'Trade', team: 'Team', business: 'Business' };
 
 // 00:00 on a New Zealand calendar day, as a UTC timestamp — found by asking
 // Intl rather than by doing offset arithmetic that breaks twice a year.

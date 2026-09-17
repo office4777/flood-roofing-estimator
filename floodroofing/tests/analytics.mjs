@@ -76,6 +76,10 @@ const db = {
     { user_id: 'u4', company_id: C4, name: 'login',         at: new Date(y1 + 3600e3).toISOString(), props: {} },
   ],
   platform_state: [],
+  cancel_feedback: [
+    { company_id: C3, user_id: 'u3', email: 'jo@bay.co.nz', reasons: ['mapping', 'time'], detail: 'Could not get the scale right', keep: 'A video for the calibrate step', created_at: d(2) },
+    { company_id: null, user_id: 'u-gone', email: 'gone@x.co.nz', reasons: ['mapping'], detail: 'Too fiddly on the phone', keep: 'An app', created_at: d(5) },
+  ],
 };
 
 // A stand-in for the mail relay, so the email itself can be read.
@@ -116,6 +120,13 @@ check('today so far counts today\'s login and no yesterday activity', a.latest.t
 check('the users table is the same rows as the email, minus nothing the page shows',
   a.latest.yesterday.users[0].email === yd.users[0].email && a.latest.yesterday.users[0].minutes === yd.users[0].minutes);
 check('the snapshot is in platform_state', db.platform_state.some(r => r.key === 'analytics_latest') && db.platform_state.some(r => r.key === 'analytics_series'));
+// Why trials cancelled: the form's reasons counted, the words kept.
+check('the page carries the cancel feedback, reasons tallied',
+  a.cancels && a.cancels.total === 2 && a.cancels.tally.mapping === 2 && a.cancels.tally.time === 1 && a.cancels.tally.complicated === 0, JSON.stringify(a.cancels && a.cancels.tally));
+check('…newest first, with who they were and what they said',
+  a.cancels.recent[0].email === 'jo@bay.co.nz' && a.cancels.recent[0].company === 'Bay Roofing' && a.cancels.recent[0].reasons.includes('Mapping the roof is too hard') && /calibrate/.test(a.cancels.recent[0].keep),
+  JSON.stringify(a.cancels.recent[0]));
+check('…and a form from somebody with no profile still shows', a.cancels.recent[1].email === 'gone@x.co.nz' && a.cancels.recent[1].company === '', JSON.stringify(a.cancels.recent[1]));
 
 // ── the hourly job ───────────────────────────────────────────────
 const again = await (await fetch(BASE + '/admin/analytics', { headers: H })).json();
@@ -131,6 +142,7 @@ const html = await pg.text();
 check('the page is served with the token', pg.status === 200 && /RoofMap — live activity/.test(html) && /Sync now/.test(html));
 check('…keeps the token in the browser and off the address bar', /localStorage\.setItem\('rm_admin_token'/.test(html) && /history\.replaceState/.test(html));
 check('…and refreshes itself every hour', /setInterval\(load, 60 \* 60e3\)/.test(html));
+check('…with a "Why trials cancelled" card', /Why trials cancelled/.test(html) && /renderCancels/.test(html));
 check('…under a policy that lets its own style and script run', /style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'; img-src 'self' data:; connect-src 'self'/.test(pg.headers.get('content-security-policy') || ''), pg.headers.get('content-security-policy'));
 check('no data answers without a token or an owner login', (await fetch(BASE + '/admin/analytics')).status === 404 &&
   (await fetch(BASE + '/admin/analytics/refresh', { method: 'POST' })).status === 404);

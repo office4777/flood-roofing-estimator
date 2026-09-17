@@ -17911,6 +17911,9 @@ var _billingCycle = 'monthly';
 // both render from this, so the two can never drift apart on price or on
 // what a tier actually includes.
 var PLAN_TIERS = [
+  // Measuring only. Shown when the server says it is for sale (a Stripe
+  // price exists), or when the business is already on it.
+  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · no customer quotes or merchant orders', offered: true },
   { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
   { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
   { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
@@ -17924,9 +17927,10 @@ function _billingRenderSection(){
   var host = document.getElementById('billingBody');
   if (!host) return;
   var s = SUBSCRIPTION;
-  var tiers = PLAN_TIERS;
+  var offered = (s && s.offered) || {};
+  var tiers = PLAN_TIERS.filter(function(t){ return !t.offered || offered[t.key] || (s && s.plan === t.key); });
   var annualAvail = (s && s.annual) || {};
-  var anyAnnual = !!(annualAvail.solo || annualAvail.team || annualAvail.business);
+  var anyAnnual = tiers.some(function(t){ return !!annualAvail[t.key]; });
   if (!anyAnnual) _billingCycle = 'monthly';
   var head;
   if (!s) head = '<div style="font-size:12.5px;color:var(--text2)">Couldn\u2019t check the subscription \u2014 reload to try again.</div>';
@@ -18161,7 +18165,7 @@ async function _billingEmailSave(btn){
   } catch(e){ if (msg){ msg.textContent = e.message || 'Could not save that.'; msg.style.color = '#b91c1c'; } }
   if (btn) btn.disabled = false;
 }
-var PLAN_LABELS = { solo: 'Trade', team: 'Team', business: 'Business', trial: 'Trial' };
+var PLAN_LABELS = { measure: 'Measure', solo: 'Trade', team: 'Team', business: 'Business', trial: 'Trial' };
 // Back from Stripe: say what happened, then clean the address bar.
 (function(){
   try {

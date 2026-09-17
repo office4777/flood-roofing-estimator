@@ -129,6 +129,29 @@
     <h2 class="sr-only-head">The three plans</h2>
     <div class="tiers">
 
+      <!-- Measure: measuring only, for the roofer who quotes elsewhere. The
+           card stays hidden until the price is confirmed and the Stripe
+           price (STRIPE_PRICE_MEASURE) exists — remove the hidden attribute,
+           add its Offer to the JSON-LD above and update the intro line. -->
+      <div class="tier" hidden data-plan="measure">
+        <h3>Measure</h3>
+        <div class="who">Just the tape measure.</div>
+        <div class="amt">$55.30<span class="was">$79</span></div>
+        <div class="per">per month + GST · founding rate, first 12 months</div>
+        <div class="then">Then <strong>$79</strong> a month + GST</div>
+        <ul>
+          <li>One login</li>
+          <li>Unlimited roofs measured from the aerial</li>
+          <li>Sheet counts, flashing lengths and the cut list</li>
+          <li>Job pack PDF to print or file</li>
+          <li>Works offline on site</li>
+          <li class="off">Customer quotes and online acceptance</li>
+          <li class="off">Merchant orders</li>
+          <li class="off">Extra seats, scheduling, the team inbox</li>
+        </ul>
+        <a class="btn btn-dark" href="/signup">Start free — no card</a>
+      </div>
+
       <div class="tier">
         <h3>Trade</h3>
         <div class="who">One person doing the quoting.</div>

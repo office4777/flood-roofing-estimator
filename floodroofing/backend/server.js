@@ -1226,7 +1226,11 @@ app.get('/subscription', requireAuth, async (req, res) => {
     data_kept_days: CANCEL_DATA_KEPT_DAYS,
     // Which plans have a yearly price configured — the billing screen offers
     // the two-months-free toggle only when there is something to buy.
+    // Measure is offered only once it has a Stripe price — until then the
+    // billing screen shows the three plans it always did.
+    offered: { measure: !!STRIPE_PRICES.measure },
     annual: {
+      measure:  !!STRIPE_PRICES_ANNUAL.measure,
       solo:     !!STRIPE_PRICES_ANNUAL.solo,
       team:     !!STRIPE_PRICES_ANNUAL.team,
       business: !!STRIPE_PRICES_ANNUAL.business,
@@ -1247,16 +1251,22 @@ const PLANS = {
   // changes nothing they have grown used to. Trade would hide the Fergus
   // link and the schedule board from exactly the firms that buy for them;
   // Business would give away an inbox and a domain they then feel losing.
-  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false },
+  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false, quote: true,  order: true  },
+  // Measuring only: the aerial, the outline, the sheet counts, flashings and
+  // the cut list — for the roofer who quotes in another system and wanted
+  // just the tape measure. No customer quote and no merchant order go out
+  // from it; those are what Trade is for. It is sold only where a Stripe
+  // price for it exists (STRIPE_PRICE_MEASURE), so it can sit here unpriced.
+  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: false },
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
-  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false },
+  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: true  },
   // A schedule board is meaningless at one person and hurting by three, and
   // firms running Fergus are Team-shaped rather than Business-shaped. Both
   // sit here so that "more than one person" is the reason to leave Solo.
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false },
-  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true  },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false, quote: true,  order: true  },
+  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
 };
 // Business is the largest plan we sell off the shelf; past it is Enterprise,
 // which is a conversation rather than a button. So a company that fills its
@@ -2165,6 +2175,225 @@ app.post('/trial/cancel-feedback', rateLimit(20, 3600000), async (req, res) => {
   } catch (e) { console.error('[trial-ended] support mail failed: ' + (e && e.message)); }
 });
 
+// ── The trial, day by day ──────────────────────────────────────────
+// Four emails across the fortnight, each sent once, all from support@ and
+// signed Aron: day 1 (the practice roof), day 3 (have you traced your own
+// roof — skipped for anyone who already has), day 7 (an offer of a call)
+// and day 12 (two days left). The day is counted from when the trial
+// started, so an extended trial simply starts the clock again. Nothing
+// goes to a paying account or a lapsed trial, and a step whose day has
+// passed by more than two days is marked over rather than sent late — so
+// the first deploy of this mails nobody mid-trial four times in an hour.
+// The record of what went is subscriptions.trial_drip ({ d1: iso, … }).
+const TRIAL_DRIP_ENABLED = String(process.env.TRIAL_DRIP_ENABLED || 'true') !== 'false';
+const TRIAL_DRIP_STEPS = [
+  { key: 'd1',  day: 1,  subject: 'Your first roof on RoofMap takes ten minutes' },
+  { key: 'd3',  day: 3,  subject: 'Have you traced your own roof yet?', unlessRoof: true },
+  { key: 'd7',  day: 7,  subject: 'Want a hand with RoofMap? I can call' },
+  { key: 'd12', day: 12, subject: 'Two days left on your RoofMap trial' },
+];
+const TRIAL_DRIP_LATE_DAYS = 2;
+function _dripText(step, first, appUrl){
+  const sig = '\n\nAron\nRoofMap · reply to this email and it comes straight to me';
+  if (step.key === 'd1') return 'Hi ' + first + ',\n\n' +
+    'Thanks for starting a RoofMap trial. The quickest way to see what it does is the practice roof: open the app, ' +
+    'trace the four corners of the building, pick the roof type, and RoofMap works out the sheets, flashings and ' +
+    'a quote you can send. Ten minutes, start to finish.\n\n' + appUrl + '\n\n' +
+    'Then type in an address of a job you are quoting this week and do the same on the real thing.' + sig;
+  if (step.key === 'd3') return 'Hi ' + first + ',\n\n' +
+    'You are three days into the trial and have not measured a roof of your own yet — which usually means the ' +
+    'first step was not obvious, not that it is not for you.\n\n' +
+    'Open the app, press New job, type the address, and RoofMap finds the aerial photo. Trace the corners, pick the ' +
+    'roof type, and the sheet counts and the quote come out the other end.\n\n' + appUrl + '\n\n' +
+    'If something stopped you, reply and tell me what — I read every one.' + sig;
+  if (step.key === 'd7') return 'Hi ' + first + ',\n\n' +
+    'A week in. If RoofMap is not yet doing what you hoped, the fastest fix is a ten-minute call: you share your ' +
+    'screen, I watch you quote a real roof and we sort out whatever is in the way — a scale that will not calibrate, ' +
+    'a price book to set up, an order that needs your supplier on it.\n\n' +
+    'Reply with a time that suits and a number, and I will ring you.' + sig;
+  return 'Hi ' + first + ',\n\n' +
+    'Your RoofMap trial ends in two days. Everything you have measured, drawn and quoted stays in your account — ' +
+    'pick a plan and it carries on exactly where you left it:\n\n' + appUrl + '?billing=plans\n\n' +
+    'Not sure it earns its keep? Reply and tell me what is missing. If it is something I can build, I usually will.' + sig;
+}
+function _trialDripMail(step, p){
+  const first = String(p.name || '').split(' ')[0] || 'there';
+  const text = _dripText(step, first, PUBLIC_APP_URL + '/app');
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
+    text.split('\n\n').map(par => '<p>' + _esc(par).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0099cc">$1</a>') + '</p>').join('') + '</div>';
+  return { to: p.email, subject: step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT };
+}
+function _trialStartMs(sub){
+  const ends = Date.parse(sub.trial_ends_at || '');
+  const created = Date.parse(sub.created_at || '');
+  // The trial's own end minus its length is the truth even after an
+  // extension; created_at only when there is no end to count back from.
+  if (isFinite(ends)) return ends - TRIAL_DAYS * 864e5;
+  return isFinite(created) ? created : NaN;
+}
+async function _companyHasRealRoof(sub){
+  try {
+    let q = supabase.from('usage_events').select('id, props').eq('name', 'roof_drawn').limit(50);
+    q = sub.company_id ? q.eq('company_id', sub.company_id) : q.eq('user_id', sub.user_id);
+    const { data } = await q;
+    return (data || []).some(e => !((e.props || {}).example));
+  } catch (e) { return false; }
+}
+async function _trialDripSweep(){
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  const now = Date.now();
+  const { data: subs, error } = await supabase.from('subscriptions')
+    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, trial_drip, created_at')
+    .eq('status', 'trialing').gt('trial_ends_at', new Date(now).toISOString()).limit(500);
+  if (error) throw new Error(error.message);
+  for (const sub of (subs || [])){
+    out.checked++;
+    if (sub.stripe_customer_id){ out.skipped++; continue; }
+    const start = _trialStartMs(sub);
+    if (!isFinite(start)){ out.skipped++; continue; }
+    const dayNo = (now - start) / 864e5;
+    const drip = Object.assign({}, sub.trial_drip || {});
+    const due = TRIAL_DRIP_STEPS.filter(s => !drip[s.key] && dayNo >= s.day);
+    if (!due.length){ out.skipped++; continue; }
+    try {
+      // Only the newest due step goes; older ones are marked over.
+      const stamp = new Date().toISOString();
+      const send = due[due.length - 1];
+      due.slice(0, -1).forEach(s => { drip[s.key] = 'missed ' + stamp; });
+      let p = null, reason = '';
+      if (dayNo - send.day > TRIAL_DRIP_LATE_DAYS) reason = 'late';
+      else if (send.unlessRoof && await _companyHasRealRoof(sub)) reason = 'has-roof';
+      else { p = await _trialOwnerFor(sub); if (!p) reason = 'no-owner'; }
+      drip[send.key] = reason ? (reason + ' ' + stamp) : stamp;
+      // Mark first, send second — a crash between the two costs one email,
+      // the other order costs a repeat every hour.
+      const { error: uerr } = await supabase.from('subscriptions').update({ trial_drip: drip }).eq('id', sub.id);
+      if (uerr) throw new Error(uerr.message);
+      if (!p){ out.skipped++; continue; }
+      await _dispatchMail(_trialDripMail(send, p));
+      out.sent++;
+    } catch (e) { out.errors++; console.error('[trial-drip] ' + (e && e.message)); }
+  }
+  return out;
+}
+async function _trialDripTick(){
+  try {
+    if (!EMAIL_ENABLED || !TRIAL_DRIP_ENABLED) return;
+    const r = await supabase.from('platform_state').select('value').eq('key', 'trial_drip').maybeSingle();
+    if (r.error) return;   // cannot read the watermark → do not guess
+    const last = Date.parse(((r.data || {}).value || {}).last_run_at || '');
+    if (isFinite(last) && (Date.now() - last) < 50 * 60e3) return;
+    await supabase.from('platform_state').upsert(
+      { key: 'trial_drip', value: { last_run_at: new Date().toISOString() }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const s = await _trialDripSweep();
+    if (s.sent || s.errors) console.log('[trial-drip] checked ' + s.checked + ', sent ' + s.sent + ', skipped ' + s.skipped + ', errors ' + s.errors);
+  } catch (e) { console.error('[trial-drip] tick failed: ' + (e && e.message)); }
+}
+app.post('/admin/trial-drip/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _trialDripSweep()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── A trial that has gone quiet ────────────────────────────────────
+// Once per trial: when nobody on a trialing business has done anything for
+// QUIET_TRIAL_DAYS days (or never signed in at all, that long after signing
+// up), support@ gets one email naming them, their phone, how many days are
+// left and how far they got — logins, roofs, quotes, orders, minutes, the
+// last screen they were on. It is the list to ring. Recorded in
+// subscriptions.quiet_alert_at so nobody is reported twice.
+const QUIET_TRIAL_DAYS = Math.max(1, parseInt(process.env.QUIET_TRIAL_DAYS || '3', 10) || 3);
+const _QUIET_SCREEN = { home: 'Home', roof: 'Map Roof', jobpack: 'Job Pack', quote: 'Quote', settings: 'Settings', feedback: 'Feedback', inbox: 'Inbox', schedule: 'Schedule',
+                        setup: 'setup wizard', order: 'order popup', roofsetup: 'roof type popup', aerial: 'satellite finder', 'quote-send': 'quote email' };
+async function _trialProgress(sub){
+  // Everything the business has recorded, summed: what they got to.
+  const t = { events: 0, last_at: null, logins: 0, roofs: 0, practice_roofs: 0, quotes: 0, orders: 0, practice_orders: 0, minutes: 0, screens: {}, left_screen: '', walk_step: '', walk_action: '' };
+  let q = supabase.from('usage_events').select('name, at, props').limit(5000);
+  q = sub.company_id ? q.eq('company_id', sub.company_id) : q.eq('user_id', sub.user_id);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  (data || []).sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0)).forEach(e => {
+    const p = e.props || {};
+    t.events++;
+    if (e.at && (!t.last_at || e.at > t.last_at)) t.last_at = e.at;
+    if (e.name === 'login') t.logins++;
+    else if (e.name === 'roof_drawn') { if (p.example) t.practice_roofs++; else t.roofs++; }
+    else if (e.name === 'quote_sent') t.quotes++;
+    else if (e.name === 'order_sent') { if (p.example) t.practice_orders++; else t.orders++; }
+    else if (e.name === 'app_time') { const m = Number(p.minutes) || 0; t.minutes += m; if (p.screen) t.screens[p.screen] = (t.screens[p.screen] || 0) + m; }
+    else if (e.name === 'screen_left') t.left_screen = p.screen || '';
+    else if (e.name === 'walkthrough') { t.walk_step = p.step || t.walk_step; t.walk_action = p.action || ''; }
+  });
+  return t;
+}
+function _quietMail(p, sub, t, quietDays){
+  const daysLeft = Math.max(0, Math.ceil((Date.parse(sub.trial_ends_at) - Date.now()) / 864e5));
+  const who = [p.company, p.name].filter(Boolean).join(' · ') || p.email;
+  const screens = Object.keys(t.screens).sort((a, b) => t.screens[b] - t.screens[a]).map(k => (_QUIET_SCREEN[k] || k) + ' ' + Math.round(t.screens[k])).join(', ');
+  const got = t.orders ? 'sent a real material order' : t.quotes ? 'sent a real quote' : t.roofs ? 'drew a real roof' :
+    t.practice_orders ? 'sent the practice order' : t.practice_roofs ? 'drew the practice roof' : t.logins ? 'signed in and looked around' : 'never signed in';
+  const walk = t.walk_step ? ('Walkthrough: ' + (t.walk_action === 'finished' ? 'finished' : (t.walk_action || 'left') + ' at ' + t.walk_step) + '\n') : '';
+  const text = (t.last_at ? 'Nothing from them for ' + quietDays + ' days' : 'They signed up ' + quietDays + ' days ago and have never signed in') +
+    ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left on the trial. Worth a ring.\n\n' +
+    'Business: ' + (p.company || '—') + '\nName: ' + (p.name || '—') + '\nEmail: ' + p.email + '\nPhone: ' + (p.phone || '—') + '\n\n' +
+    'How far they got: ' + got + '.\n' +
+    'Logins ' + t.logins + ' · roofs ' + t.roofs + (t.practice_roofs ? ' (+' + t.practice_roofs + ' practice)' : '') +
+    ' · quotes ' + t.quotes + ' · orders ' + t.orders + (t.practice_orders ? ' (+' + t.practice_orders + ' practice)' : '') +
+    ' · ' + Math.round(t.minutes) + ' min in the app\n' +
+    (screens ? 'Where the minutes went: ' + screens + '\n' : '') + walk +
+    (t.left_screen ? 'Last screen before they closed it: ' + (_QUIET_SCREEN[t.left_screen] || t.left_screen) + '\n' : '') +
+    (t.last_at ? 'Last seen: ' + new Date(t.last_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) + '\n' : '') +
+    '\nReply to this email and it goes straight to them.';
+  return { to: MAIL_SUPPORT, fromName: 'RoofMap', replyTo: p.email, subject: 'Gone quiet: ' + who + ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left', text };
+}
+async function _quietTrialSweep(){
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  const now = Date.now();
+  const { data: subs, error } = await supabase.from('subscriptions')
+    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, quiet_alert_at, created_at')
+    .eq('status', 'trialing').gt('trial_ends_at', new Date(now).toISOString()).limit(500);
+  if (error) throw new Error(error.message);
+  for (const sub of (subs || [])){
+    out.checked++;
+    if (sub.stripe_customer_id || sub.quiet_alert_at){ out.skipped++; continue; }
+    const start = _trialStartMs(sub);
+    if (!isFinite(start) || now - start < QUIET_TRIAL_DAYS * 864e5){ out.skipped++; continue; }
+    try {
+      const t = await _trialProgress(sub);
+      const lastMs = t.last_at ? Date.parse(t.last_at) : start;
+      const quietDays = Math.floor((now - lastMs) / 864e5);
+      if (quietDays < QUIET_TRIAL_DAYS){ out.skipped++; continue; }
+      const p = await _trialOwnerFor(sub);
+      if (!p){ out.skipped++; continue; }
+      const { error: uerr } = await supabase.from('subscriptions').update({ quiet_alert_at: new Date().toISOString() }).eq('id', sub.id);
+      if (uerr) throw new Error(uerr.message);
+      let prof = p;
+      try { const { data } = await supabase.from('profiles').select('id, email, name, company, phone').eq('id', p.id).maybeSingle(); if (data) prof = data; } catch (e) {}
+      await _dispatchMail(_quietMail(prof, sub, t, quietDays));
+      out.sent++;
+    } catch (e) { out.errors++; console.error('[quiet-trial] ' + (e && e.message)); }
+  }
+  return out;
+}
+async function _quietTrialTick(){
+  try {
+    if (!EMAIL_ENABLED) return;
+    const r = await supabase.from('platform_state').select('value').eq('key', 'quiet_trial').maybeSingle();
+    if (r.error) return;
+    const last = Date.parse(((r.data || {}).value || {}).last_run_at || '');
+    if (isFinite(last) && (Date.now() - last) < 20 * 3600e3) return;   // once a day
+    await supabase.from('platform_state').upsert(
+      { key: 'quiet_trial', value: { last_run_at: new Date().toISOString() }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const s = await _quietTrialSweep();
+    if (s.sent || s.errors) console.log('[quiet-trial] checked ' + s.checked + ', sent ' + s.sent + ', skipped ' + s.skipped + ', errors ' + s.errors);
+  } catch (e) { console.error('[quiet-trial] tick failed: ' + (e && e.message)); }
+}
+app.post('/admin/quiet-trials/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _quietTrialSweep()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Email confirmation ─────────────────────────────────────────────
 // POST /auth/verify { token } → marks the address confirmed and signs the
 // person straight in, like a reset link does.
@@ -2889,6 +3118,10 @@ function _pgPool(){
 app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   const quote = req.body && req.body.quote;
   if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
+  // A share token is a customer link going out: not on a measuring-only plan.
+  if (quote.share && quote.share.token){
+    try { if (!_limitsFor(await _planOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
+  }
   const clientName = req.body.client_name ? String(req.body.client_name).slice(0, 300) : null;
   const siteAddr   = req.body.site_address ? String(req.body.site_address).slice(0, 500) : null;
   const pool = _pgPool();
@@ -4014,6 +4247,7 @@ const STRIPE_API_BASE = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
 const STRIPE_WEBHOOK_SECRET = String(process.env.STRIPE_WEBHOOK_SECRET || '')
   .trim().replace(/^['"]|['"]$/g, '').trim();
 const STRIPE_PRICES = {
+  measure:  process.env.STRIPE_PRICE_MEASURE  || '',
   solo:     process.env.STRIPE_PRICE_SOLO     || '',
   team:     process.env.STRIPE_PRICE_TEAM     || '',
   business: process.env.STRIPE_PRICE_BUSINESS || '',
@@ -4023,6 +4257,7 @@ const STRIPE_PRICES = {
 // same Products. Unset is a valid state: no yearly price simply means the
 // billing screen never offers yearly for that plan.
 const STRIPE_PRICES_ANNUAL = {
+  measure:  process.env.STRIPE_PRICE_MEASURE_ANNUAL  || '',
   solo:     process.env.STRIPE_PRICE_SOLO_ANNUAL     || '',
   team:     process.env.STRIPE_PRICE_TEAM_ANNUAL     || '',
   business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || '',
@@ -4150,7 +4385,7 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
   try {
     if (!(await _requireBillingOwner(req, res))) return;
     const plan = String((req.body || {}).plan || '').toLowerCase();
-    if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: solo, team or business.' });
+    if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: measure, solo, team or business.' });
     // Yearly = two months free; anything that isn't exactly 'annual' bills
     // monthly, so an old client that never sends the field changes nothing.
     const annual = String((req.body || {}).billing || '').toLowerCase() === 'annual';
@@ -9110,6 +9345,7 @@ app.delete('/email/domain', requireAuth, requireOwner, async (req, res) => {
 // no Gmail tab, no manual attaching.  CC goes to the office mailbox so
 // the sender always gets their copy.
 app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res) => {
+  try { if (!_limitsFor(await _planOf(req.companyId)).order) return _planBlocked(res, 'Emailing a material order', 'Trade'); } catch (e) {}
   if (!EMAIL_ENABLED) {
     return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
   }
@@ -10061,6 +10297,8 @@ const _MIGRATION_SQL = [
   // "not live".
   "alter table public.subscriptions add column if not exists cancel_at timestamptz",
   "alter table public.subscriptions add column if not exists trial_ended_mail_at timestamptz",
+  "alter table public.subscriptions add column if not exists trial_drip jsonb",
+  "alter table public.subscriptions add column if not exists quiet_alert_at timestamptz",
   "alter table public.profiles add column if not exists interests jsonb",
   "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
 ];
@@ -10454,6 +10692,7 @@ app.post('/admin/daily/send', async (req, res) => {
 // token in the browser and asks /admin/analytics by header from then on.
 const ANALYTICS = require('./analytics').createAnalytics({
   supabase: supabase, daily: DAILY, buildSha: BUILD_SHA, warn: function(m){ console.warn(m); },
+  cancelReasons: CANCEL_REASONS,
 });
 // Who may read the analytics: the admin token, or a signed-in RoofMap owner
 // (ANALYTICS_OWNERS, the platform's own people) — so the page works on a
@@ -10791,6 +11030,8 @@ const _GRANDFATHER_PAGE = '<!doctype html><html lang="en-NZ"><head><meta charset
 //   GET /admin/billing-readiness?token=…              → JSON
 //   GET /admin/billing-readiness?token=…&format=text  → the same, readable
 const _BILLING_VARS = [
+  ['STRIPE_PRICE_MEASURE',         'measure',  'month', true],
+  ['STRIPE_PRICE_MEASURE_ANNUAL',  'measure',  'year',  true],
   ['STRIPE_PRICE_SOLO',            'solo',     'month'],
   ['STRIPE_PRICE_TEAM',            'team',     'month'],
   ['STRIPE_PRICE_BUSINESS',        'business', 'month'],
@@ -10823,8 +11064,9 @@ async function _billingReadiness(){
 
   // Each price, checked against Stripe rather than merely "is the variable
   // non-empty" — which is the check that passes right up until launch day.
-  for (const [envName, plan, interval] of _BILLING_VARS){
+  for (const [envName, plan, interval, optional] of _BILLING_VARS){
     const id = process.env[envName] || '';
+    if (!id && optional){ W(envName + ' is not set — the ' + plan + ' plan is not offered until it is.'); continue; }
     // `found` is "Stripe recognised the id"; `ok` is "and it is the right
     // one". They are not the same thing, and a checklist that ticks a price
     // it has just listed as a blocker is worse than no checklist.
@@ -11169,6 +11411,13 @@ app.listen(PORT, () => {
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();
   setInterval(function(){ _trialEndedTick(); }, 3600e3).unref();
+  // The trial drip and the gone-quiet alert: same shape again, staggered.
+  const _tdKick = setTimeout(function(){ _trialDripTick(); }, 9 * 60e3);
+  if (_tdKick.unref) _tdKick.unref();
+  setInterval(function(){ _trialDripTick(); }, 3600e3).unref();
+  const _qtKick = setTimeout(function(){ _quietTrialTick(); }, 11 * 60e3);
+  if (_qtKick.unref) _qtKick.unref();
+  setInterval(function(){ _quietTrialTick(); }, 3600e3).unref();
   console.log('Weekly metrics: ' + (String(process.env.METRICS_ENABLED || 'true') === 'false'
     ? 'disabled (METRICS_ENABLED=false)'
     : METRICS.config.to + ' every ' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][METRICS.config.day]
