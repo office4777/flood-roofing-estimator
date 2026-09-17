@@ -88,53 +88,62 @@ const b = await chromium.launch();
   await ctx.close();
 }
 
-// ── 3. First sign-in: the practice job, step by step ─────────────
-// What a new account actually meets: Map Roof, John Smith's job at 23 Don
-// Buck Road open, and one card. The satellite is unreachable here, so the
-// walkthrough shows its fallback picture — on a real connection the same
-// step shows the aerial of the property.
+// ── 3. First sign-in: their own roof first, the practice roof as fallback ──
+// What a new account actually meets: Map Roof and one card asking what roof
+// they are quoting. The practice path is captured here (the satellite is
+// unreachable from this machine, so the drawn stand-in shows where the TEST-1
+// aerial does live).
 {
   const { ctx, pg } = await newPage(b);
   await pg.goto('file://' + DIR + '/app.html');
   const stepKey = () => pg.evaluate(() => (window.TOUR && TOUR.open && TOUR.steps[TOUR.i]) ? TOUR.steps[TOUR.i].key : '');
   const waitStep = async (key, ms) => { const t0 = Date.now(); while (Date.now() - t0 < (ms || 5000)){ if (await stepKey() === key) return true; await pg.waitForTimeout(150); } return false; };
   const cardTitle = () => pg.evaluate(() => (document.getElementById('tourTitle') || {}).textContent || '');
-  const total = 15;
+  const click = id => pg.evaluate(id => { const el = document.getElementById(id); if (el) el.click(); }, id);
+  const total = 19;
   let i = 0;
-  const step = async (key, note) => { await waitStep(key, 7000); await pg.waitForTimeout(500); i++; await shot(pg, 'Practice job ' + i + ' of ' + total + ' — ' + (await cardTitle()), note); };
-  await step('start', 'What a brand-new account sees first: Map Roof, the practice job open with the aerial already on the canvas, and this one card. Nothing else opens on top of it.');
-  await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-  await step('outline', 'Building outline.');
-  await pg.click('#btn-outline');
+  const step = async (key, note) => { await waitStep(key, 9000); await pg.waitForTimeout(500); i++; await shot(pg, 'First roof ' + i + ' of ' + total + ' — ' + (await cardTitle()), note); };
+  await step('start', 'What a brand-new account sees first: one card asking what roof THEY are quoting. Their own address starts a real job; the practice roof is the fallback.');
+  await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
+  await step('outline', 'The practice path: the prepared aerial is already on the canvas (the drawn stand-in here, the TEST-1 aerial live). Building outline.');
+  await click('btn-outline');
   await step('corners', 'Pointing at the canvas: click each corner. Counts the corners as they go; after the fourth it says to press Enter.');
   await pg.evaluate(() => { DRAW.currentPts = [[220,200],[720,200],[720,560],[220,560]]; });
   await pg.waitForTimeout(700);
-  i++; await shot(pg, 'Practice job ' + i + ' of ' + total + ' — ' + (await cardTitle()) + ' (four corners in)', 'The card now says to press Enter.');
-  total; i--; // the extra frame is not a step
+  i++; await shot(pg, 'First roof ' + i + ' of ' + total + ' — ' + (await cardTitle()) + ' (four corners in)', 'The card now says to press Enter.');
+  i--;
   await pg.evaluate(() => finishCurrent());
   await step('rooftype', 'The app’s own roof popup, with the roof types ringed: select your roof type.');
   await pg.evaluate(() => document.querySelector('#_rsTypes [data-rstype="hip"]').click());
   await step('pitch', 'Then the pitch box: enter the pitch and click Draw the roof.');
   await pg.evaluate(() => { document.getElementById('_rsPitch').value = '15'; document.getElementById('_rsOk').click(); });
-  await step('scale', 'Satellite scale is roughly right; Calibrate scale for exact. Skip, or click it.');
-  await pg.click('#btn-calibrate');
+  await step('scale', 'Satellite scale is approximate; calibrate using a known measurement.');
+  await click('btn-calibrate');
   await step('calibrate-line', 'Pointing at the roof: click a line to calibrate.');
   await pg.evaluate(() => document.getElementById('tourNext').click());
   await step('jobpack', 'The Job Pack gate: clicking the tab is the step.');
-  await pg.click('#navJobPackBtn');
-  await step('lineitems', 'Always check the calculations — and a finishing point: try a sample order, or start my own roof.');
+  await click('navJobPackBtn');
+  await step('lineitems', 'Always check the calculations — and a finishing point: try a sample order, skip to the price, or start my own roof.');
   await pg.evaluate(() => document.querySelector('#tourExtra button').click());
   await step('order', 'Order Roof.');
   await pg.evaluate(() => orderRoofViaSupplier());
-  await step('checklist', 'The checklist, pre-ticked on the practice job, with a Tick-every-line box for real jobs. Next when they are ready.');
+  await step('checklist', 'The checklist, pre-ticked on the practice job, with a Tick-every-line box for real jobs. Next when ready.');
   await pg.evaluate(() => document.getElementById('tourNext').click());
-  await step('confirm', 'Then Confirm & order roof: let’s send a test order to yourself.');
+  await step('confirm', 'Confirm & order roof: let’s send a test order to yourself.');
   await pg.evaluate(() => document.getElementById('orderChecklistGo').click());
-  await step('supplier', 'The supplier list: set up your default suppliers in Settings. Next when read.');
+  await step('supplier', 'The supplier list: set up your default suppliers in Settings.');
   await pg.evaluate(() => document.getElementById('tourNext').click());
   await step('send', 'Send email now — an example order to their own address.');
   await pg.evaluate(() => { window._orderEmailBuildBlob = async () => new Blob(['pdf'], { type: 'application/pdf' }); _orderEmailSendNow(); });
-  await step('done', 'Finished: carry on to quoting, or start their own job.');
+  await step('quote', 'The other half: the Quote gate.');
+  await click('navQuoteBtn');
+  await step('pricing', 'Where the price is built — the pricing panel opened, rates from Settings → Price book.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('qpages', 'This is what the customer opens.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('qsend', 'Email Quote — the real send on their own roof; nothing sent on the practice job.');
+  await pg.evaluate(() => document.getElementById('tourNext').click());
+  await step('done', 'Finished: start my own roof, or finish.');
   await ctx.close();
 }
 
