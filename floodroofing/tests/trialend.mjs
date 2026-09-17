@@ -72,6 +72,8 @@ check('the sweep looks at trials that have ended and sends to the one that quali
 const m = sent.find(x => /trial has ended/i.test(mailText(x)));
 check('…to the business owner, with the two buttons', !!m && /bob@acmeroofing.co.nz/.test(mailText(m)) && /Select a plan and continue/.test(mailText(m)) && /Cancel RoofMap/.test(mailText(m)), m ? '' : 'no mail');
 check('…"Select a plan" lands in the app on Billing', !!m && /roofmap\.co\.nz\/app\?billing=plans/.test(mailText(m)));
+check('…and it comes FROM support@roofmap.co.nz, signed Aron, replies to the same place',
+  !!m && /support@roofmap\.co\.nz/.test(String(m.from || m.fromAddress || '')) && /Aron/.test(String(m.fromName || '') + String(m.from || '')) && /support@roofmap\.co\.nz/.test(String(m.replyTo || m.reply_to || '')), JSON.stringify({ from: m && (m.from || m.fromAddress), fromName: m && m.fromName, replyTo: m && (m.replyTo || m.reply_to) }));
 const cancelUrl = (mailText(m).match(/https:\/\/roofmap\.co\.nz\/trial-ended\?t=[A-Za-z0-9._%-]+/) || [])[0];
 check('…"Cancel RoofMap" carries a signed link to the form', !!cancelUrl, cancelUrl || 'no link');
 check('a trial with days left is not mailed', !sent.some(x => /sam@bay/.test(mailText(x))));

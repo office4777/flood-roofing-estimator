@@ -2070,7 +2070,9 @@ function _trialEndedMail(p, sub){
     '<p style="margin:22px 0">' + btn(planUrl, 'Select a plan and continue', '#0099cc') + btn(cancelUrl, 'Cancel RoofMap', '#64748b') + '</p>' +
     '<p style="color:#475569;font-size:13.5px">Either way, thanks for giving it a go. Reply to this email and it comes straight to me.</p>' +
     '<p>Aron<br>RoofMap</p></div>';
-  return { to: p.email, subject: 'Your RoofMap trial has ended', text, html, fromName: 'RoofMap', replyTo: MAIL_SUPPORT };
+  // From support@roofmap.co.nz (an address on our own domain, so every
+  // pipe will send it), signed Aron, replies to the same place.
+  return { to: p.email, subject: 'Your RoofMap trial has ended', text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT };
 }
 function _esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
 async function _trialEndedSweep(){
