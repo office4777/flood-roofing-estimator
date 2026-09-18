@@ -90,6 +90,24 @@ check('the pages run cover, roof condition, proposal, then a page per choice, th
 
 // ── the price does not appear before the proposal page ────────────
 check('no price on the cover', !v.hasPrice, v.price);
+
+// The cover photo is a BANNER, not the whole first screen. It was sized in
+// vh — the browser window — but the page is the window minus the top strip
+// and the nav bar, so the photo ran to most of the screen and pushed the
+// title, the details and Start below the fold. It is sized from its own
+// width now, which is the same fraction of the page on every phone.
+const cov = await m.pg.evaluate(() => {
+  const st = document.getElementById('qbStage'), hero = document.querySelector('.qb-hero');
+  const sr = st.getBoundingClientRect(), hr = hero.getBoundingClientRect();
+  const fits = sel => { const e = document.querySelector(sel); if (!e) return false;
+    const r = e.getBoundingClientRect(); return r.top >= sr.top - 1 && r.bottom <= sr.bottom + 1; };
+  return { pct: Math.round(hr.height / sr.height * 100),
+           title: fits('.qb-hero-txt h1'), stats: fits('.qb-stats'), cta: fits('.qb-cta') };
+});
+check('the cover photo is a banner, not the whole first screen',
+      cov.pct >= 25 && cov.pct <= 45, cov.pct + '% of the page');
+check('…so the title, the details and Start are all there without scrolling',
+      cov.title && cov.stats && cov.cta, JSON.stringify(cov));
 await m.pg.evaluate(() => _qbGo(1));
 await m.pg.waitForTimeout(400);
 v = await read(m.pg);

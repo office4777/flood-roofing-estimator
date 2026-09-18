@@ -3359,7 +3359,14 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-price-val{ font-size:21px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
 .qb-price-gst{ font-size:9.5px; color:rgba(255,255,255,.5); }
 /* cover */
-.qb-hero{ position:relative; min-height:38vh; background:#0a1628 center/cover no-repeat; display:flex; align-items:flex-end; }
+/* The cover photo is sized from its own WIDTH, never the viewport. vh is the
+   browser window, but the book's page is the window minus the top strip and
+   the nav bar — and inside the office's phone frame it is not the window at
+   all — so a vh hero ran to most of the first screen and pushed the title,
+   the details and Start below the fold. An aspect ratio is the same fraction
+   of the page everywhere, and the cap stops it running away on a wide phone. */
+.qb-hero{ position:relative; aspect-ratio:16/11; max-height:300px; min-height:150px;
+  background:#0a1628 center/cover no-repeat; display:flex; align-items:flex-end; flex:0 0 auto; }
 .qb-hero-veil{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(10,22,40,.15) 0%,rgba(10,22,40,.82) 100%); }
 .qb-hero-txt{ position:relative; padding:22px 18px 20px; color:#fff; }
 .qb-kicker{ display:block; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#54bdec; margin-bottom:7px; font-weight:600; }
