@@ -245,6 +245,32 @@ v = await pg.evaluate(() => {
 check('…and with no active roof, DRAW does not end up claiming somebody else’s',
   v.idx === -1, 'visited ' + v.seen + ' roofs, activeRoofIdx ended at ' + v.idx);
 
+// ── resuming an EMPTY draft while another job's drawing is in memory ──
+// _resumeDraft hands restoreFromJob no id, so the guard's key is still the
+// job that was open. The dirty-tracker baseline at the end of restoreFromJob
+// is a read, not a save: it must not page anybody, and must not swap the old
+// job's roof into the new draft.
+await load();
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => {
+  S.currentJobId = null;                         // an unsaved job: its drawing is filed under 'draft'
+  _lkgRebase();
+  _lkgReported = {};                             // a fresh session has no dedupe history
+  const n0 = _lkgReports;
+  DRAW.outline = []; DRAW.lines = []; DRAW.roofs = []; DRAW.activeRoofIdx = -1;
+  const emptySnap = (function(){ _lkgGuard._readOnly = true; try { return snapshotCurrentJob(); } finally { _lkgGuard._readOnly = false; } })();
+  const msgEl = document.getElementById('saveJobMsg'); if (msgEl) msgEl.textContent = '';
+  // As _resumeDraft does — no id yet; a draft that never drew carries no `draw`.
+  restoreFromJob({ draw_state: { form: emptySnap.form, state: emptySnap.state } });
+  return { reported: _lkgReports - n0, roFlagCleared: !_lkgGuard._readOnly,
+           status: (document.getElementById('saveJobMsg') || {}).textContent || '' };
+});
+// Counted in the page: the wire reporter caps and dedupes per session, so a
+// report it swallowed would still be a report.
+check('resuming an empty draft over an open job is not reported as a blocked save', v.reported === 0, v.reported + ' report(s)');
+check('…says nothing about a blank roof map', !/blank/.test(v.status), v.status.slice(0, 100) || 'quiet');
+check('…and the read-only flag does not stick', v.roFlagCleared, '');
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();
