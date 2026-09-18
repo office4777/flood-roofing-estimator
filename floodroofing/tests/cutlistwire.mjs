@@ -36,6 +36,8 @@ await pg.evaluate((g) => {
   DRAW.roofs = g.roofs.map(r => Object.assign({}, r, { lines:(r.lines||[]).map(l => Object.assign({}, l)) }));
   DRAW.activeRoofIdx = g.activeRoofIdx; DRAW.showAllRoofs = true;
   try { redrawAll(); } catch(e){}
+  // Every roof in the pack, picked by hand: the pack follows the quote otherwise.
+  try { _jpSelectAllRoofs(); } catch(e){}
   gotoTab('materials');
 }, GEOM);
 await pg.waitForTimeout(3500);
@@ -46,7 +48,8 @@ const rows = () => pg.evaluate(() => {
   // Pin the map's labels, then build the rows straight from them — the
   // way the Job Pack does — without a redraw replacing the list.
   window._roofCanvasHits = { sheets: ['2.93m','2.93m','5.90m','3.88m','2.95m','3.28m','2.10m'].map((l, i) =>
-    ({ label: l, runLo: 0, runHi: 10 * (0.762 / DRAW.scaleMetresPerPx), key: 'k' + i, roofIdx: i })) };
+    // A label belongs to a roof the pack covers.
+    ({ label: l, runLo: 0, runHi: 10 * (0.762 / DRAW.scaleMetresPerPx), key: 'k' + i, roofIdx: i % DRAW.roofs.length })) };
   const built = _jpBuildSheetRows(window._lastSheetCounts);
   return built.map(r => ({ qty: r.qty, len: r.len / 1000, key: r.origLen }));
 });

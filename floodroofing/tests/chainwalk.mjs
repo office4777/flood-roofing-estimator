@@ -95,7 +95,7 @@ check('…and no roof has quietly adopted another roof’s',
   pens.stored.reduce((a,c) => a+c, 0) === 2, JSON.stringify(pens.stored));
 
 // ── 2. the drawing and the cut lists agree ─────────────────────────
-await pg.evaluate(() => { gotoTab('materials'); });
+await pg.evaluate(() => { try { _jpSelectAllRoofs(); } catch(e){} gotoTab('materials'); });   // every roof in the pack, picked by hand
 await pg.waitForTimeout(2600);
 const geom = await pg.evaluate(() => {
   const d = _matDrawTotals();
