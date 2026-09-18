@@ -177,6 +177,16 @@ Discipline (non-negotiable):
   Proposal page and not before it. `_fitCustomerView` settles the `qp-book`
   class BEFORE its printing guard, or a Save-as-PDF prints the A4 document
   with the phone's layout rules still applied. `tests/quotebook.mjs`.
+  The office can LOOK at that book without sending anything: the Quote tab's
+  Computer / Phone switch (`_setQuotePreviewMode`, `QP_PREVIEW.phone`) frames
+  the same book as a phone inside the preview card under
+  `html.qp-phone-preview`. That class is deliberately NOT `qp-book` — the
+  customer's layer takes the page's scrolling away and the app around the
+  frame has to keep working. Both print paths drop the frame and re-render
+  before capturing, because a print is always the A4 document. The book's
+  cover photo resolves through the SAME chain as the paper's (slot
+  assignment → the company's `branding.hero_photo` → the built-in fleet
+  shot), never a job photo. `tests/quotepreview.mjs`.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in

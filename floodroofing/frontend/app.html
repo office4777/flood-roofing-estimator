@@ -3499,6 +3499,22 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-accepted span{ display:block; font-size:12.5px; line-height:1.5; color:#3d6b51; margin-top:3px; }
 .qb-fine{ margin:16px 0 0; font-size:11px; color:#8b98a7; text-align:center; line-height:1.5; }
 /* The price breakdown slides up from the book's own bottom bar. */
+/* The office LOOKING at the phone book: the same book, framed as a phone
+   inside the Quote tab's preview card. The app around it keeps scrolling,
+   so this is deliberately NOT html.qp-book — that class is the customer's
+   full-viewport layer and takes the page's scrolling away. */
+html.qp-phone-preview .report-preview{
+  background:#e8edf3; padding:26px 0 30px; display:flex; justify-content:center;
+}
+html.qp-phone-preview .report-preview #qpRoot{
+  flex:0 0 auto; width:390px !important; height:812px !important; zoom:1 !important;
+  position:relative; isolation:isolate; overflow:hidden; background:#fff;
+  border:10px solid #0a1628; border-radius:34px; margin:0 !important;
+  box-shadow:0 20px 54px rgba(10,22,40,.30);
+}
+html.qp-phone-preview .report-preview #qpRoot .qb{ position:absolute; z-index:0; }
+html.qp-phone-preview #qpZoomSlider, html.qp-phone-preview #qpZoomOut,
+html.qp-phone-preview .qp-zoom-lbl{ display:none !important; }
 html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(safe-area-inset-bottom)) !important; }
 
 /* ── Print ─────────────────────────────────────────────────── */
@@ -6745,7 +6761,15 @@ html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(sa
   <div class="card js-proposal-print">
     <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
       <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
-        <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
+        <span class="no-print qp-view-toggle" id="qpViewToggle" style="display:inline-flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text2)">View:</span>
+          <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <button type="button" id="qpViewBtn_desktop" onclick="_setQuotePreviewMode('desktop')" title="The proposal as a computer shows it" style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">💻 Computer</button>
+            <button type="button" id="qpViewBtn_phone" onclick="_setQuotePreviewMode('phone')" title="The proposal as the customer's phone shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">📱 Phone</button>
+          </span>
+        </span>
+        <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
+        <span class="no-print qp-zoom-lbl" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
         <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">60%</span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
@@ -23394,8 +23418,8 @@ function _selFixedGroups(){
       { id:'40', label:'0.40 gauge', desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
       { id:'55', label:'0.55 gauge', desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }] },
     { kind:'brackets', title:'Gutter brackets', rows:[
-      { id:'internal', label:'Internal brackets', desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
-      { id:'external', label:'External brackets', desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }] },
+      { id:'internal', label:'Internal brackets', desc:'The typical gutter bracket, tucked inside the gutter for a clean look. Standard on your quote.' },
+      { id:'external', label:'External brackets', desc:'Sits on the outside of the gutter — stronger, and makes cleaning the gutter out much easier.' }] },
     { kind:'downpipes', title:'Downpipes', rows:[
       { id:'no',  label:'Keep existing downpipes', desc:'Re-use the current downpipes.' },
       { id:'yes', label:'New downpipes', desc:'Supply & install new downpipes to match the new guttering.' }] },
@@ -26035,9 +26059,44 @@ function customerQuery(){
 // still get the A4 document, untouched.
 var QB = { i: 0, g: 0, t: null };
 function _qpBookActive(){
-  if (!window.__CUSTOMER_MODE) return false;
+  // A print or a PDF is ALWAYS the A4 document, whoever is looking.
   if (window.__PRINTING_QUOTE) return false;
+  // The office can ask to see what the customer's phone shows — the same
+  // book, framed as a phone in the Quote tab (_setQuotePreviewMode).
+  if (!window.__CUSTOMER_MODE) return !!(QP_PREVIEW && QP_PREVIEW.phone);
   try { return _qpIsMobileView(); } catch(e){ return false; }
+}
+// Which way the Quote tab shows the proposal to the roofer: the A4 document
+// as a computer gets it, or the book as a phone gets it. Never saved with
+// the job — it is how you are looking, not what you quoted.
+var QP_PREVIEW = { phone: false };
+function _setQuotePreviewMode(m){
+  var phone = (m === 'phone');
+  if (QP_PREVIEW.phone === phone){ _syncQuotePreviewToggle(); return; }
+  QP_PREVIEW.phone = phone;
+  if (phone) QB.i = 0;
+  document.documentElement.classList.toggle('qp-phone-preview', phone);
+  var root = document.getElementById('qpRoot');
+  if (root && !phone){ root.style.width = ''; root.style.zoom = ''; }
+  _syncQuotePreviewToggle();
+  try { refreshQuoteProposal(); } catch(e){}
+  // Back on the computer view the zoom slider is in charge again.
+  if (!phone){
+    try {
+      var sl = document.getElementById('qpZoomSlider');
+      if (sl && typeof _setDocZoomFactor === 'function') _setDocZoomFactor(sl.value);
+    } catch(e){}
+  }
+}
+function _syncQuotePreviewToggle(){
+  ['desktop','phone'].forEach(function(k){
+    var b = document.getElementById('qpViewBtn_' + k);
+    if (!b) return;
+    var on = (k === 'phone') === !!QP_PREVIEW.phone;
+    b.style.background = on ? '#0a1628' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--text2)';
+    b.style.fontWeight = on ? '700' : '500';
+  });
 }
 // Money, as the customer reads it: GST-inclusive, whole dollars.
 function _qbMoney(v){ return fmtMoney(v); }
@@ -26172,11 +26231,18 @@ function _qbBindSwipe(){
 function _qbCover(){
   var q = S.quote || {};
   var br = (S.settings && S.settings.branding) || {};
+  // The SAME hero the A4 cover uses, resolved the same way: an explicit
+  // slot assignment, then the company's own hero photo, then the built-in
+  // fleet shot for the account that owns it. Never a job photo — the paper
+  // deliberately does not fall back to those (it could be the roof sketch),
+  // and the phone must not show a different picture from the computer.
   var hero = '';
   try {
     var asn = (typeof _slotAssignments === 'function') ? _slotAssignments().cover_hero : null;
-    hero = (asn && asn.src) || br.hero_url || _qbBestJobPhoto() || '';
-  } catch(e){ hero = _qbBestJobPhoto() || ''; }
+    hero = (asn && typeof resolveSlotSrc === 'function' && resolveSlotSrc('cover_hero')) ||
+           (br && br.hero_photo) ||
+           ((typeof _stockPhoto === 'function') ? _stockPhoto('fleet_trucks.jpg') : '') || '';
+  } catch(e){ hero = (br && br.hero_photo) || ''; }
   var client = String(q.client || '').trim();
   var surname = client.split(/\s+/).slice(-1)[0] || '';
   var title = q.coverTitle || ((surname ? surname + ' Residence' : 'Your home'));
@@ -26665,8 +26731,8 @@ function _qbGutterKit(){
   var brackets = [], downpipes = [];
   try {
     brackets = _selFixed('brackets', [
-      { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'The bracket sits behind the fascia — a cleaner line from the street.' },
-      { id:'external', label:'External brackets', delta:_qbIncl(CD.bracketExt), desc:'The bracket clips to the front of the fascia — quicker to fit.' }
+      { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'The typical gutter bracket, tucked inside the gutter for a clean look.' },
+      { id:'external', label:'External brackets', delta:_qbIncl(CD.bracketExt), desc:'Sits on the outside of the gutter — stronger, and makes cleaning the gutter out much easier.' }
     ]);
     downpipes = _selFixed('downpipes', [
       { id:'no',  label:'Keep the existing downpipes', isDefault:true, delta:0, desc:'We re-use what is already there.' },
@@ -32152,8 +32218,8 @@ function refreshQuoteProposal(){
                    delta: _dIncl(_CD.gutter[gt.id] != null ? _CD.gutter[gt.id] : 0), desc: gt.desc || '' };
         }));
       var BRACKETS = _selFixed('brackets', [
-        { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
-        { id:'external', label:'External brackets', delta:_dIncl(_CD.bracketExt), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
+        { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'The typical gutter bracket, tucked inside the gutter for a clean look. Standard on your quote.' },
+        { id:'external', label:'External brackets', delta:_dIncl(_CD.bracketExt), desc:'Sits on the outside of the gutter — stronger, and makes cleaning the gutter out much easier.' }
       ]);
       var DOWNPIPES = _selFixed('downpipes', [
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
@@ -32951,12 +33017,14 @@ function refreshQuoteProposal(){
   _fitProposalPages();
   // On a phone the customer reads a BOOK, not a stack of A4: one decision a
   // page, arrows to turn it. Same quote, same figures — it is rendered from
-  // the same helpers — so the two can never disagree. Never in the office,
-  // never on a tablet, never while printing.
+  // the same helpers — so the two can never disagree. Never on a tablet and
+  // never while printing; in the office only when the roofer asks for it
+  // with the Computer/Phone switch above the preview.
   if (_qpBookActive()){
     try { _qbBindExtraSetters(); _qbRender(); } catch(e){ console.warn('quote book:', e); }
   }
   try { _syncQuoteKindToggle(); } catch(e){}
+  try { _syncQuotePreviewToggle(); } catch(e){}
   try { _qtSyncSavedPicker(); } catch(e){}
   try { _toggleShedEstimator(); } catch(e){}
 
@@ -34346,8 +34414,10 @@ function printCustomerQuote(){
   var htmlEl = document.documentElement;
   var root = document.getElementById('qpRoot');
   var wasMobile = htmlEl.classList.contains('customer-mobile');
+  var wasPhonePv = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.phone);
   window.__PRINTING_QUOTE = true;
   htmlEl.classList.remove('customer-mobile');
+  htmlEl.classList.remove('qp-phone-preview');
   if (root){ root.style.width = ''; root.style.zoom = 1; }
   // Re-render so any free-layout / stacked-mobile boxes return to A4.
   try { refreshQuoteProposal(); } catch(e){}
@@ -34360,6 +34430,8 @@ function printCustomerQuote(){
       htmlEl.classList.remove('print-quote');
       if (wasMobile) htmlEl.classList.add('customer-mobile');
       window.__PRINTING_QUOTE = false;
+      if (wasPhonePv){ htmlEl.classList.add('qp-phone-preview');
+        try { refreshQuoteProposal(); } catch(e){} }
       try { _fitCustomerView(); } catch(e){}
     }, 600);
   }, 150);
@@ -58245,6 +58317,15 @@ async function _buildQuotePdf(opts){
   var _htmlEl = document.documentElement;
   var _wasCustMobile = _htmlEl.classList.contains('customer-mobile');
   window.__PRINTING_QUOTE = true;
+  // The roofer may be LOOKING at the phone book. A PDF is always the A4
+  // document, so take the phone frame off and re-render before capturing.
+  var _wasPhonePv = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.phone);
+  if (_wasPhonePv){
+    _htmlEl.classList.remove('qp-phone-preview');
+    root.style.width = ''; root.style.zoom = '';
+    try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  }
   if (window.__CUSTOMER_MODE && _wasCustMobile){
     _htmlEl.classList.remove('customer-mobile');
     root.style.width = '';
@@ -58305,6 +58386,8 @@ async function _buildQuotePdf(opts){
     root.style.zoom = prevZoom || '';
     if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
     window.__PRINTING_QUOTE = false;
+    if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
+      try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
     try { window.scrollTo(0, savedScrollY); } catch(e){}
     try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
     return null;
@@ -58316,6 +58399,8 @@ async function _buildQuotePdf(opts){
   root.style.zoom = prevZoom || '';
   if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
   window.__PRINTING_QUOTE = false;
+  if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
+    try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
   try { window.scrollTo(0, savedScrollY); } catch(e){}
   try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
 
