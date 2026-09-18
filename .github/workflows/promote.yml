@@ -123,7 +123,13 @@ jobs:
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           WANT=$(git show "$SHA:floodroofing/frontend/app.html" | sha256sum | cut -d' ' -f1)
           echo "Waiting for $APP_URL to serve app.html from $SHA (sha256 ${WANT:0:12}…)"
-          for i in $(seq 1 24); do
+          # 60 x 20s = 20 minutes. It used to be 8, and on 2026-09-18 three
+          # promotes in a row went red on a build that was still running and
+          # then landed fine — one of them left a real change unshipped for
+          # half an hour because nobody trusted the red. Vercel builds here
+          # have taken up to 18 minutes. Waiting longer costs a slow workflow
+          # on a slow day; giving up early costs the whole point of the check.
+          for i in $(seq 1 60); do
             GOT=$(curl -fsSL --max-time 30 "$APP_URL" 2>/dev/null | sha256sum | cut -d' ' -f1)
             if [ "$GOT" = "$WANT" ]; then
               echo "Live after $((i*20))s — the site is serving this commit."
@@ -132,7 +138,7 @@ jobs:
             echo "  check $i: serving ${GOT:0:12}…, want ${WANT:0:12}…"
             sleep 20
           done
-          echo "::error title=The site is NOT serving this commit::production was promoted to $SHA and Vercel accepted a build, but after 8 minutes $APP_URL is still serving different code. Vercel most likely cancelled the build (the deploy hook and the branch push race each other). FIX: open the Vercel project -> Deployments -> newest -> Promote to Production. Then tell whoever shipped this, because the change they think is live is not."
+          echo "::error title=The site is NOT serving this commit::production was promoted to $SHA and Vercel accepted a build, but after 20 minutes $APP_URL is still serving different code. Either the build failed, or Vercel cancelled it (the deploy hook and the branch push race each other), or the Ignored Build Step is on Automatic and skipped this SHA because a branch preview already built it. FIX: open the Vercel project -> Deployments. If the newest one errored, read its log; if it is READY but not promoted, use Promote to Production; if it was skipped, set Settings -> Build and Deployment -> Ignored Build Step to Custom with the command 'exit 1'. Then tell whoever shipped this, because the change they think is live is not."
           exit 1
 
       # The other half. Everything above proves the FRONTEND is live; the
@@ -158,7 +164,7 @@ jobs:
           WANT="${SHA:0:7}"
           echo "Waiting for $API_URL/health to report build $WANT"
           GOT=""
-          for i in $(seq 1 20); do
+          for i in $(seq 1 30); do
             BODY=$(curl -fsSL --max-time 30 "$API_URL/health" 2>/dev/null || echo '')
             GOT=$(printf '%s' "$BODY" | sed -n 's/.*"build":"\([^"]*\)".*/\1/p')
             if [ "$GOT" = "$WANT" ]; then
@@ -169,7 +175,7 @@ jobs:
             sleep 20
           done
           if [ -z "$GOT" ]; then
-            echo "::warning title=Could not read the backend build::$API_URL/health did not answer with a build in about 7 minutes, so whether the backend deployed is unknown. The frontend IS live. Check Railway -> the service -> Deployments, and confirm the API answers."
+            echo "::warning title=Could not read the backend build::$API_URL/health did not answer with a build in about 10 minutes, so whether the backend deployed is unknown. The frontend IS live. Check Railway -> the service -> Deployments, and confirm the API answers."
             exit 0
           fi
           if [ "$GOT" = "unknown" ]; then

@@ -81,6 +81,13 @@ Discipline (non-negotiable):
      day it is right. Only a backend definitely serving a different commit
      fails it.
 
+   The frontend step waits 20 MINUTES and the backend 10, raised from 8 and 7
+   on 2026-09-18 after three promotes in a row went red on Vercel builds that
+   were still running and then landed fine — one of them left a real change
+   unshipped because the red was assumed to be the usual false alarm. Vercel
+   builds here have taken up to 18 minutes. Waiting longer costs a slow
+   workflow on a slow day; giving up early costs the whole point of the check.
+
    Neither `production` containing the commit nor a 201 from the Vercel deploy
    hook is proof. Both were true on three ships that never went live.
    If that step goes red, the FIRST thing to check is the Vercel project's
