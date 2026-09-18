@@ -8,7 +8,7 @@
 // on a phone the video and an "email me the link" box instead.
 import { fileURLToPath as _f, pathToFileURL } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import http from 'node:http';
 import { chromium } from 'playwright';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
@@ -70,10 +70,11 @@ check('the playground header entry comes after the catch-all, so it wins', verce
 
 // ── the homepage ─────────────────────────────────────────────────
 const landing = readFileSync(_j(DIR, 'landing.html'), 'utf8');
-check('the homepage has a Try it section between the video and how it works', landing.indexOf('<section id="try"') > landing.indexOf('<section class="demo"') && landing.indexOf('<section id="try"') < landing.indexOf('<section id="how">'));
+check('the homepage has a Try it section straight under the opening, above the video', landing.indexOf('<section id="try"') > landing.indexOf('<div class="hero">') && landing.indexOf('<section id="try"') < landing.indexOf('<section class="demo"'));
 check('…with a nav link to it', /<a href="#try">Try it<\/a>/.test(landing));
-check('…that loads the app in a frame only when asked (2 MB is not for every visitor)', /id="tryOpen"/.test(landing) && /f\.src = '\/app\?try=1'/.test(landing) && !/<iframe[^>]*src="\/app/.test(landing));
-check('…falls back to opening it as a page if the frame never reports in', /roofmap-try/.test(landing) && /location\.href = '\/app\?try=1'/.test(landing));
+check('…that loads the app in a frame as the section comes into view, no button first', /IntersectionObserver/.test(landing) && /f\.src = '\/app\?try=1'/.test(landing) && !/<iframe[^>]*src="\/app/.test(landing) && !/id="tryOpen"/.test(landing));
+check('…behind the traced-roof picture until the frame reports in, with the page as the fallback', /brand\/try-bg\.jpg/.test(landing) && /roofmap-try/.test(landing) && /id="tryOpenPage" href="\/app\?try=1"/.test(landing));
+check('…and the chooser inside wears the same picture', /url\(\/brand\/try-bg\.jpg\)/.test(readFileSync(_j(DIR, 'app.html'), 'utf8')) && existsSync(_j(DIR, 'brand', 'try-bg.jpg')));
 check('…and on a phone offers the video and an "email me the link" box instead', /max-width: 799px/.test(landing) && /id="tryLinkForm"/.test(landing) && /\/try\/link/.test(landing));
 check('…and says it saves nothing and sends nothing', /saves nothing and sends nothing/.test(landing));
 

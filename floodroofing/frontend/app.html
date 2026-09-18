@@ -40225,7 +40225,10 @@ function _tourClearGate(){
 // Forward from wherever we are, skipping anything that is not on screen.
 function tourStep(n){
   if (!TOUR.open) return;
-  var dir = (n > TOUR.i) ? 1 : -1;
+  // Forward unless asked for an earlier step: opening on step 0 from step 0
+  // used to walk backwards off the start and close the tour when the first
+  // step's target was folded away.
+  var dir = (n >= TOUR.i) ? 1 : -1;
   var i = Math.max(0, Math.min(TOUR.steps.length - 1, n));
   var guard = 0;
   while (guard++ < TOUR.steps.length){
@@ -40546,13 +40549,18 @@ function _firstRoofMaybeStart(){
 function startFirstRoof(resumeAt){
   try { closeTour(true); } catch(e){}
   FIRST_ROOF.path = null;
-  openTour(true, _firstRoofStartSteps(resumeAt || null), 'firstroof');
+  if (resumeAt && resumeAt.step){ openTour(true, _firstRoofStartSteps(resumeAt), 'firstroof'); return; }
+  // No card to read first: the practice job opens on Map Roof with the
+  // satellite finder in view and the practice address already in it.
+  _firstRoofGo('practice', null, null);
 }
 // The start card handed over to a path: their own roof (a real job, theirs
 // to keep) or the practice roof. The card's tour is closed without being
 // recorded as a stop, the job is set up, and the path's own steps open.
 function _firstRoofGo(path, addr, resumeAt){
-  try { TOUR._switching = true; closeTour(true); } catch(e){}
+  // Only a card that is actually open is a switch; with nothing open the
+  // flag would sit set and swallow the walkthrough's own finish later.
+  try { if (TOUR.open){ TOUR._switching = true; closeTour(true); } } catch(e){}
   if (path === 'own'){
     FIRST_ROOF.path = 'own';
     try { _usageEvent('onboarding_path', { path: resumeAt ? 'resumed' : 'own', example: false }); } catch(e){}
@@ -40566,7 +40574,10 @@ function _firstRoofGo(path, addr, resumeAt){
     return;
   }
   FIRST_ROOF.path = 'practice';
-  openTestJob().then(function(){
+  // The picture is fetched by the walkthrough's own first steps; a resume
+  // past those steps needs it on the canvas before the step can show.
+  var pastPicture = !!(resumeAt && resumeAt.step && ['find', 'useview'].indexOf(resumeAt.step) < 0);
+  openTestJob({ noPicture: !pastPicture }).then(function(){
     openTour(true, _firstRoofSteps('practice'), 'firstroof');
     if (resumeAt && resumeAt.step) _firstRoofJumpTo(resumeAt.step);
     try { _usageEvent('onboarding_path', { path: resumeAt ? 'resumed' : 'practice' }); } catch(e){}
@@ -40620,12 +40631,13 @@ async function _firstRoofLoadPicture(){
   while (!DRAW.bgImg && Date.now() - t1 < 3000) await new Promise(function(r){ setTimeout(r, 100); });
   return !!DRAW.bgImg;
 }
-async function openTestJob(){
+async function openTestJob(opts){
+  opts = opts || {};
   try { _releaseCurrentJob(); } catch(e){}
   try { clearAll && clearAll(true); } catch(e){}
   S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.files = [];
   try { _resetQuoteForFreshJob && _resetQuoteForFreshJob(); } catch(e){}
-  await _firstRoofLoadPicture();
+  if (opts.noPicture){ DRAW.bgImg = null; } else { await _firstRoofLoadPicture(); }
   var set = function(id, v){ var el = document.getElementById(id); if (el) el.value = v; };
   set('jobClient', FIRST_ROOF.client); set('jobAddr', FIRST_ROOF.addr); set('jobNo', FIRST_ROOF.jobNo);
   set('jobEmail', ''); set('jobPhone', '');
@@ -40641,10 +40653,16 @@ async function openTestJob(){
   try { _sampleJobStripSync(); _sampleJobBannerSync(); _aboutYouSync(); } catch(e){}
   gotoTab('roof');
   try { _fergusPanelClose(); } catch(e){}
-  // Straight to the canvas: the picture card is folded away and the roof
-  // toolbar scrolled to the top of the screen.
-  try { _collapseRoofBg(); } catch(e){}
-  try { var card = document.getElementById('roofPlanCard'); if (card) card.scrollIntoView({ block: 'start' }); } catch(e){}
+  if (opts.noPicture){
+    // The satellite box is the first thing to see: the card open, in view.
+    try { _expandRoofBg && _expandRoofBg(); } catch(e){}
+    try { var bgc = document.getElementById('roofBgCard'); if (bgc) bgc.scrollIntoView({ block: 'start' }); } catch(e){}
+  } else {
+    // Straight to the canvas: the picture card is folded away and the roof
+    // toolbar scrolled to the top of the screen.
+    try { _collapseRoofBg(); } catch(e){}
+    try { var card = document.getElementById('roofPlanCard'); if (card) card.scrollIntoView({ block: 'start' }); } catch(e){}
+  }
   try { redrawAll(); } catch(e){}
 }
 // When the satellite image cannot be fetched (no signal, a blocked network,
@@ -40702,6 +40720,8 @@ function _firstRoofStartSteps(resumeAt){
              btn('Skip — I’ll find my own way', 'closeTour(true); _firstRoofAtSave(null); _usageEvent(\'onboarding_path\', { path: \'skipped\', example: false })'),
       noNext: true }];
   }
+  // No start card any more: startFirstRoof() goes straight to the practice
+  // job on Map Roof. Kept as a one-card fallback for a caller that asks.
   return [{ key: 'start', centre: true, title: 'What roof are you quoting this week?',
     body: 'Type the address and RoofMap walks you through it on **your** roof: find it on the aerial, trace it, check the numbers, price it. It saves as your first job.\n\nNo job on the go? Use the practice roof instead.',
     extra: '<input id="frAddr" type="text" placeholder="e.g. 12 Kerikeri Road, Kerikeri" autocomplete="street-address" ' +
@@ -40745,13 +40765,21 @@ function _firstRoofSteps(path){
     };
   };
   var steps = [];
-  if (own){
+  // Every walkthrough starts at the satellite box: find the property, take
+  // the picture, square it up. On the practice job the address is already in
+  // the finder — 23 Don Buck Road, Massey.
+  {
     steps.push(
       { key: 'find', sel: '#aerialFindBtn', tab: 'roof', title: 'Find the property',
-        body: 'Click **Find your property**. The address you typed is already in the box.',
-        until: function(){ return vis('aerialModal'); }, onNext: function(){ openSatelliteView(); }, next: 'Open it for me' },
+        body: own ? 'Click **Find your property**. The address you typed is already in the box.'
+                  : 'Click **Find your property**. The practice address — 23 Don Buck Road, Massey — is already in the box.',
+        onEnter: function(){ try { _expandRoofBg && _expandRoofBg(); var a = document.getElementById('aerialAddressInput'); if (a && !a.value) a.value = FIRST_ROOF.addr; } catch(e){} },
+        until: function(){ return vis('aerialModal') || !!DRAW.bgImg; }, onNext: function(){ openSatelliteView(); }, next: 'Open it for me' },
       { key: 'useview', sel: '#aerialUseBtn', wait: true, title: 'Take the picture',
         body: 'Zoom until the roof fills the middle of the map, then click **Use this view**. That picture becomes the drawing.',
+        // No satellite picture (no signal, imagery down): the practice job
+        // can still go on with the prepared picture or the drawn stand-in.
+        extra: own ? '' : btn('No satellite picture? Use the practice picture', '_firstRoofPictureInstead()'),
         until: function(){ return !!DRAW.bgImg; }, onNext: function(){ useAerialView(); }, next: 'Use this view for me', settle: 800 },
       { key: 'adjust', sel: '#fineRotateSlider', alt: { sel: '#roofCanvas' }, tab: 'roof', light: true, manual: true, title: 'Square it up',
         body: 'Slide the **Rotate photo** bar until the walls run straight. Then **Move / Edit** to drag the picture, and the zoom **+** / **−** until the roof fills the canvas. Click **Next** when it looks right.',
@@ -40770,8 +40798,8 @@ function _firstRoofSteps(path){
   }
   steps.push(
     { key: 'outline', sel: '#btn-outline', tab: 'roof', title: 'Trace the building',
-      body: own ? 'Click **Building outline**.' : 'Click **Building outline**. (On your own jobs the picture comes from the satellite finder or a photo — the Roof image card above.)',
-      onEnter: function(){ try { closeViewMenu(); } catch(e){} },
+      body: 'Click **Building outline**.',
+      onEnter: function(){ try { closeViewMenu(); _collapseRoofBg && _collapseRoofBg(); } catch(e){} },
       until: function(){ return DRAW.tool === 'outline' || hasRoof(); }, onNext: function(){ setTool('outline'); }, next: 'Select it for me' },
     { key: 'corners', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click each corner',
       body: function(){
@@ -40949,7 +40977,8 @@ function _tryStyle(){
     'html.playground #roofPlanCard{box-shadow:none;border:1px solid #e3e8ef}' +
     'html.playground .try-off{opacity:.35 !important;pointer-events:none !important;filter:grayscale(1)}' +
     'html.playground.try-drawn #roofAreaVal,html.playground.try-drawn #roofAreaBox b{filter:blur(6px);user-select:none}' +
-    '#tryStart{position:absolute;inset:0;z-index:40;background:rgba(243,245,248,.96);display:flex;align-items:center;justify-content:center;border-radius:12px}' +
+    '#tryStart{position:absolute;inset:0;z-index:40;background:rgba(243,245,248,.55) url(/brand/try-bg.jpg) center/cover;background-blend-mode:lighten;display:flex;align-items:center;justify-content:center;border-radius:12px}' +
+    '#tryStart .try-box{background:rgba(255,255,255,.92);border-radius:16px;padding:26px 28px;box-shadow:0 16px 48px rgba(10,22,40,.18)}' +
     '#tryStart .try-box{max-width:640px;width:92%;text-align:center;font-family:inherit}' +
     '#tryStart h2{margin:0 0 6px;font-size:22px;color:#0a1628}#tryStart p{margin:0 0 18px;color:#52514e;font-size:14px}' +
     '#tryStart .try-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}' +
@@ -41056,6 +41085,18 @@ function _tryDone(){
   try { parent.postMessage({ type: 'roofmap-try', state: 'drawn' }, '*'); } catch(e){}
 }
 function _tryAgain(){ try { location.reload(); } catch(e){} }
+// "No satellite picture? Use the practice picture": the prepared TEST-1
+// aerial from the API, else the drawn stand-in — and the finder closed.
+function _firstRoofPictureInstead(){
+  try { _closeAerialModal(); } catch(e){}
+  _firstRoofLoadPicture().then(function(){
+    // restoreFromJob wrote a job state over the practice job's: it is still
+    // the practice job, with nothing saved and the checklist pre-ticked.
+    S.isSampleJob = true; S.demoKind = 'test'; S.currentJobId = null; S._jobLoaded = null;
+    try { _sampleJobStripSync(); _sampleJobBannerSync(); } catch(e){}
+    try { _collapseRoofBg(); redrawAll(); } catch(e){}
+  });
+}
 function _firstRoofSkipTo(key){
   var i = -1; TOUR.steps.forEach(function(st, k){ if (st.key === key) i = k; });
   if (i >= 0){ try { _walkthroughEvent(TOUR.steps[TOUR.i].key, 'skipped'); } catch(e){} tourStep(i); }
@@ -63973,7 +64014,7 @@ function useAerialView() {
 
 // How much more ground the canvas picture carries than the map box showed,
 // on each side (1.5 = half as much again). See captureFromMapbox.
-var AERIAL_PAD = 1.5;
+var AERIAL_PAD = 2;
 // Single source of truth: always fetch from Mapbox via proxy-image
 function captureFromMapbox(lat, lon, zoom) {
   var hint = document.getElementById('aerialHint');

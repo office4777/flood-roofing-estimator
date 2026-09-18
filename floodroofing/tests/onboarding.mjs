@@ -65,35 +65,36 @@ const overlays = pg => pg.evaluate(() => ({
   tab: document.body.getAttribute('data-tab'),
 }));
 
-// ── a new account: one card, their own roof first ─────────────────
+// ── a new account: straight onto Map Roof, at the satellite box ───
 let { ctx, pg, errs, usage, puts, sends } = await boot({});
-await waitStep(pg, 'start', 7000);
+await waitStep(pg, 'find', 9000);
 let v = await overlays(pg);
-check('a first sign-in lands on Map Roof with ONE thing open: the first-roof card', v.tab === 'roof' && v.tour && v.kind === 'firstroof' && !v.wizard && !v.guide,
+check('a first sign-in lands on Map Roof with ONE thing open: the walkthrough, at "find the property"', v.tab === 'roof' && v.tour && v.kind === 'firstroof' && !v.wizard && !v.guide,
   JSON.stringify(v));
-v = await pg.evaluate(() => ({ title: document.getElementById('tourTitle').textContent, addr: !!document.getElementById('frAddr'),
-  buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent), demo: !!S.isSampleJob, client: document.getElementById('jobClient').value }));
-check('…it asks what roof THEY are quoting, with the practice roof as the fallback and a skip',
-  /What roof are you quoting/.test(v.title) && v.addr && v.buttons.length === 3 && /Quote this roof/.test(v.buttons[0]) && /practice roof/.test(v.buttons[1]) && /Skip/.test(v.buttons[2]), JSON.stringify(v));
-check('…and nothing has been opened yet — no demo job, no practice job', !v.demo && v.client === '');
-check('…no survey and no sample banner crowd it', await pg.evaluate(() => !document.querySelector('#aboutYouCard select') && !document.querySelector('#sampleJobBannerRoof .sj-card')));
-check('an empty address is refused, not accepted', await pg.evaluate(() => { _firstRoofOwnGo(); return !!document.getElementById('frAddr') && TOUR.steps[TOUR.i].key === 'start'; }));
-
-// The practice path.
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
-check('"Use the practice roof" opens the practice job and goes straight to "trace the building"', await waitStep(pg, 'outline', 9000), await stepKey(pg));
 v = await pg.evaluate(() => ({
   client: document.getElementById('jobClient').value, addr: document.getElementById('jobAddr').value, no: document.getElementById('jobNo').value,
   demo: !!(S.isSampleJob && S.demoKind === 'test'), id: S.currentJobId, strip: (document.querySelector('[data-sample-strip]') || {}).textContent || '',
-  img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx, folded: document.getElementById('roofBgBody').style.display,
-  top: document.getElementById('roofPlanCard').getBoundingClientRect().top, path: FIRST_ROOF.path,
+  img: !!DRAW.bgImg, finder: document.getElementById('aerialAddressInput').value, open: document.getElementById('roofBgBody').style.display !== 'none',
+  sel: TOUR.steps[TOUR.i].sel, body: document.getElementById('tourBody').textContent, path: FIRST_ROOF.path,
 }));
 check('…it is John Smith at 23 Don Buck Road, Massey, as a demo job with no id', /John Smith/.test(v.client) && /23 Don Buck Road, Massey/.test(v.addr) && v.no === 'TEST-1' && v.demo && !v.id && v.path === 'practice', JSON.stringify(v));
 check('…the strip says it is the practice job and nothing saves', /practice job/.test(v.strip) && /not.*saved/.test(v.strip), v.strip.slice(0, 80));
-check('…with the prepared aerial already on the canvas, at its saved scale, card folded, toolbar in view', v.img && v.w === 900 && v.scale === 0.03 && v.folded === 'none' && v.top < 420, JSON.stringify(v));
+check('…no picture yet: the card points at the satellite box, with 23 Don Buck Road in the finder', !v.img && v.open && v.sel === '#aerialFindBtn' && /23 Don Buck Road/.test(v.finder) && /23 Don Buck Road/.test(v.body), JSON.stringify(v));
+check('…no survey and no sample banner crowd it', await pg.evaluate(() => !document.querySelector('#aboutYouCard select') && !document.querySelector('#sampleJobBannerRoof .sj-card')));
 check('the path is reported the moment it starts', usage.some(u => u.name === 'onboarding_path' && u.props.path === 'practice') && usage.some(u => u.name === 'walkthrough' && u.props.action === 'started'),
   JSON.stringify(usage.map(u => u.name + ':' + JSON.stringify(u.props))));
+await pg.click('#aerialFindBtn');
+check('the finder opens → "take the picture"', await waitStep(pg, 'useview'), await stepKey(pg));
+v = await pg.evaluate(() => ({ finder: document.getElementById('aerialAddressInput').value, buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent) }));
+check('…with the practice address in the finder and a way through when there is no satellite picture', /23 Don Buck Road/.test(v.finder) && v.buttons.length === 1 && /practice picture/.test(v.buttons[0]), JSON.stringify(v));
+// No imagery here: the fallback puts the prepared picture on the canvas.
+await pg.evaluate(() => document.querySelector('#tourExtra button').click());
+check('the picture landing → "square it up", pointing at the Rotate photo slider with the menu open', await waitStep(pg, 'adjust', 8000) && (await pg.evaluate(() => TOUR.steps[TOUR.i].sel === '#fineRotateSlider' && document.getElementById('viewMenu').style.display === 'block')), await stepKey(pg));
+v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx, folded: document.getElementById('roofBgBody').style.display }));
+check('…the prepared aerial is on the canvas at its saved scale, the picture card folded away', v.img && v.w === 900 && v.scale === 0.03 && v.folded === 'none', JSON.stringify(v));
 check('…reported as an aerial source, not a fallback', usage.some(u => u.name === 'roof_source' && u.props.type === 'aerial') && !usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('"Looks right already" → trace the building', await waitStep(pg, 'outline'), await stepKey(pg));
 v = await pg.evaluate(() => {
   const card = document.getElementById('tourCard').getBoundingClientRect();
   return ['tourCancel', 'tourHelp', 'tourBack', 'tourNext'].map(id => { const r = document.getElementById(id).getBoundingClientRect();
@@ -224,7 +225,7 @@ check('…remembers it as done, on this device and on the account, and clears th
 check('…without marking the 29-step tutorial as seen', !(await pg.evaluate(() => localStorage.getItem('fr_tour_done'))) && !puts.some(p => p.tour_done));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step was reported as it was shown, and the end as finished',
-  shown.join() === 'start,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,p-scaffold,p-labour,p-material,p-gutters,p-profit,q-close,q-cover,q-page1,q-page2,q-page3,q-page4,q-page5,q-page6,qsend,qsend-go,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
+  shown.join() === 'find,useview,adjust,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,p-scaffold,p-labour,p-material,p-gutters,p-profit,q-close,q-cover,q-page1,q-page2,q-page3,q-page4,q-page5,q-page6,qsend,qsend-go,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
   shown.join());
 check('…and the order milestone carries the example flag', usage.some(u => u.name === 'output_created' && u.props.example === true && u.props.kind === 'order'));
 check('…and every event from the demo job says so', usage.filter(u => /roof_source|output_created/.test(u.name)).every(u => u.props.example === true));
@@ -237,58 +238,14 @@ check('hiding the tab reports which screen they were on and for how long', !!v &
 check('nothing threw along the way', errs.length === 0, errs.join(' | ').slice(0, 200) || 'no page errors');
 await ctx.close();
 
-// ── their own roof: a real job, theirs to keep ────────────────────
-({ ctx, pg, errs, usage, puts } = await boot({}));
-await waitStep(pg, 'start', 7000);
-await pg.fill('#frAddr', '12 Kerikeri Road, Kerikeri');
-await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('"Quote this roof" sets up a real job at that address and points at the finder', await waitStep(pg, 'find', 8000), await stepKey(pg));
-v = await pg.evaluate(() => ({ addr: document.getElementById('jobAddr').value, finder: document.getElementById('aerialAddressInput').value, demo: !!S.isSampleJob, strip: (document.querySelector('[data-sample-strip]') || {}).textContent || '', path: FIRST_ROOF.path }));
-check('…the address is on the job and in the finder, and it is NOT a demo', /Kerikeri Road/.test(v.addr) && /Kerikeri Road/.test(v.finder) && !v.demo && !v.strip && v.path === 'own', JSON.stringify(v));
-check('…the path is reported as their own, not an example', usage.some(u => u.name === 'onboarding_path' && u.props.path === 'own' && !u.props.example));
-await pg.click('#aerialFindBtn');
-check('the finder opens → "take the picture"', await waitStep(pg, 'useview'), await stepKey(pg));
-// No imagery here: put a picture on the canvas the way Use this view would.
-await pg.evaluate(() => { _closeAerialModal(); _firstRoofFallbackImage(); });
-check('the picture landing → one "square it up" step (rotate, move, zoom together)', await waitStep(pg, 'adjust', 6000), await stepKey(pg));
-v = await pg.evaluate(() => ({ body: document.getElementById('tourBody').textContent, menu: document.getElementById('viewMenu').style.display, sel: typeof TOUR.steps[TOUR.i].sel === 'string' ? TOUR.steps[TOUR.i].sel : '' }));
-check('…pointing at the Rotate photo slider, with the menu open, saying to slide the bar to square it up', v.sel === '#fineRotateSlider' && v.menu === 'block' && /Slide the/.test(v.body) && /Rotate photo/.test(v.body), JSON.stringify(v));
-v = await pg.evaluate(() => ({ next: document.getElementById('tourNext').textContent, light: document.getElementById('tourCard').classList.contains('tour-light') }));
-check('…light, and skippable', /Looks right/.test(v.next) && v.light, JSON.stringify(v));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then trace', await waitStep(pg, 'outline'), await stepKey(pg));
-await pg.evaluate(() => { DRAW.tool = 'outline'; DRAW.currentPts = [[120,120],[520,120],[520,420],[120,420]]; finishCurrent(); });
-await waitStep(pg, 'rooftype');
-await pg.evaluate(() => { document.querySelector('#_rsTypes [data-rstype="hip"]').click(); });
-await waitStep(pg, 'pitch');
-await pg.evaluate(() => { document.getElementById('_rsPitch').value = '22'; document.getElementById('_rsOk').click(); });
-check('roof type and pitch as before → scale', await waitStep(pg, 'scale'), await stepKey(pg));
-check('…worded for a real quote', /quote you will stand behind/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)) && /for now/.test(await pg.evaluate(() => document.getElementById('tourNext').textContent)));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-await waitStep(pg, 'jobpack');
-await pg.click('#navJobPackBtn');
-check('Job Pack → check the calculations, with Price it / Finish here (no ordering on their own roof)', await waitStep(pg, 'lineitems') && (await pg.evaluate(() => Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent))).join() === 'Price it,Finish here', await stepKey(pg));
-await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('"Price it" → the Quote gate', await waitStep(pg, 'quote'), await stepKey(pg));
-await pg.click('#navQuoteBtn');
-await waitStep(pg, 'pricing');
-check('…the pricing card tells them to put their OWN rates in before it goes to a customer', /put your own in/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)));
-for (const k of ['p-scaffold', 'p-labour', 'p-material', 'p-gutters', 'p-profit', 'q-close', 'q-cover', 'q-page1', 'q-page2', 'q-page3', 'q-page4', 'q-page5', 'q-page6', 'qsend']){
-  await pg.evaluate(() => document.getElementById('tourNext').click()); if (!(await waitStep(pg, k))) { check('own roof walks the pricing cards and the pages to Email Quote', false, 'stuck before ' + k + ' at ' + (await stepKey(pg))); break; }
-}
-check('…Email Quote is explained as the real send on their own roof', /your customer a link/.test(await pg.evaluate(() => document.getElementById('tourBody').textContent)));
-await pg.evaluate(() => document.getElementById('tourNext').click());
-check('then the finish card, offering the price book', await waitStep(pg, 'done') && /rates/.test((await pg.evaluate(() => document.querySelector('#tourExtra button').textContent))), await stepKey(pg));
-await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-await sleep(400);
-check('"Put my rates in" closes the walkthrough on the price book', await pg.evaluate(() => !document.getElementById('tourWrap') && document.body.getAttribute('data-tab') === 'settings'));
-check('nothing threw on their own roof', errs.length === 0, errs.join(' | ').slice(0, 200) || 'no page errors');
-await ctx.close();
-
 // ── left mid-way: carry on from there ─────────────────────────────
 ({ ctx, pg, errs, usage, puts } = await boot({}));
-await waitStep(pg, 'start', 7000);
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
+await waitStep(pg, 'find', 9000);
+await pg.click('#aerialFindBtn');
+await waitStep(pg, 'useview');
+await pg.evaluate(() => document.querySelector('#tourExtra button').click());
+await waitStep(pg, 'adjust', 8000);
+await pg.evaluate(() => document.getElementById('tourNext').click());
 await waitStep(pg, 'outline', 9000);
 await pg.click('#btn-outline');
 await waitStep(pg, 'corners');
@@ -315,22 +272,24 @@ await ctx.close();
 
 // ── no practice picture on the server: the drawn stand-in ─────────
 ({ ctx, pg, errs, usage } = await boot({ noPractice: true }));
-await waitStep(pg, 'start', 9000);
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
-await waitStep(pg, 'outline', 9000);
+await waitStep(pg, 'find', 9000);
+await pg.click('#aerialFindBtn');
+await waitStep(pg, 'useview');
+await pg.evaluate(() => document.querySelector('#tourExtra button').click());
+await waitStep(pg, 'adjust', 9000);
 v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx }));
 check('with no practice picture on the server, the labelled stand-in is on the canvas instead', v.img && v.w === 1280 && v.scale > 0, JSON.stringify(v));
 check('…and it says so in the events', usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));
 await ctx.close();
 
-// ── the other two doors on the start card ─────────────────────────
+// ── "Stop the walkthrough" on the first card ──────────────────────
 ({ ctx, pg, errs, usage, puts } = await boot({}));
-await waitStep(pg, 'start', 7000);
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[2].click());
+await waitStep(pg, 'find', 9000);
+await pg.evaluate(() => document.getElementById('tourCancel').click());
 await sleep(400);
 v = await overlays(pg);
 const f2 = await pg.evaluate(() => localStorage.getItem('fr_first_roof'));
-check('"Skip" closes it, remembers it as stopped, and opens nothing else', !v.tour && !v.wizard && !v.guide && f2 === 'stopped' && usage.some(u => u.name === 'onboarding_path' && u.props.path === 'skipped'), JSON.stringify(v) + ' ' + f2);
+check('stopping it closes it, remembers it as stopped, and opens nothing else', !v.tour && !v.wizard && !v.guide && f2 === 'stopped', JSON.stringify(v) + ' ' + f2);
 await ctx.close();
 
 // ── it is offered once, by the server ─────────────────────────────
@@ -351,9 +310,7 @@ v = await overlays(pg);
 check('a device that already did it sees nothing either', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));
 check('…the setup guide and the tutorial do not open on their own any more', !v.guide && !v.tour);
 await pg.evaluate(() => startFirstRoof());
-await waitStep(pg, 'start', 9000);
-await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
-await waitStep(pg, 'outline', 9000);
+await waitStep(pg, 'find', 9000);
 v = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), kind: TOUR.kind, client: document.getElementById('jobClient').value }));
 check('Settings → General → "Run the practice job" starts it again on demand', v.tour && v.kind === 'firstroof' && /John Smith/.test(v.client), JSON.stringify(v));
 check('…and the button is on the General settings screen', await pg.evaluate(() => !!document.querySelector('[data-tour="set-practice"]')));
