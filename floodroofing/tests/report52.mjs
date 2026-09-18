@@ -36,31 +36,43 @@ await pg.evaluate((g) => {
   DRAW.roofType = 'gable';
   DRAW.activeRoofIdx = g.activeRoofIdx; DRAW.showAllRoofs = true;
   try { redrawAll(); } catch(e){}
+  // Every roof in the pack, picked by hand: the pack follows the quote otherwise.
+  try { _jpSelectAllRoofs(); } catch(e){}
   gotoTab('materials');
 }, GEOM);
 await pg.waitForTimeout(3500);
 
-const rows0 = await pg.evaluate(() => _jpBuildSheetRows(window._lastSheetCounts).map(x => ({ len: x.len, qty: x.qty, origLen: x.origLen })));
-check('the five-roof job lists its rows', rows0.length >= 5, JSON.stringify(rows0));
-check('nothing is frozen before the office touches a row', await pg.evaluate(() => !_jpSheetFrozen()));
+// A multi-roof pack lists its sheets one roof at a time (report 54): the
+// office's edits below go on the main roof's list (two rows) through its
+// scope, and a row is hidden on Roof 2's list — each roof's edits are its own.
+const RI = 0, RH = 1;
+const rowsOf = (ri) => pg.evaluate((ri) => _jpSheetScope(ri, () => _jpBuildSheetRows(_jpSheetCountsInScope()).map(x => ({ len: x.len, qty: x.qty, origLen: x.origLen }))), ri);
+const rows0 = await rowsOf(RI), rowsH0 = await rowsOf(RH);
+const allRows = await pg.evaluate(() => _jpSheetRowsAll().reduce((n, g) => n + g.rows.length, 0));
+check('the five-roof job lists its rows, a roof at a time', rows0.length >= 2 && rowsH0.length >= 1 && allRows >= 5, JSON.stringify(rows0) + ' / ' + allRows + ' rows over the roofs');
+check('nothing is frozen before the office touches a row', await pg.evaluate((ri) => _jpSheetScope(ri, () => !_jpSheetFrozen()), RI));
 
-// Type a quantity on one row, hide another, add a row.
-const edited = rows0[1], hidden = rows0[3];
-await pg.evaluate(([o, h]) => { _jpSheetSetQty(o, 12); _jpSheetHide(h); _jpSheetExtraAdd(); _jpSheetExtraUpdate(0, 'lenMm', 2.95); _jpSheetExtraUpdate(0, 'qty', 11); }, [edited.origLen, hidden.origLen]);
+// Type a quantity on one row, hide a row on another roof, add a row.
+const edited = rows0[1], hidden = rowsH0[0];
+await pg.evaluate(([o, h, ri, rh]) => { _jpSheetScoped(ri, '_jpSheetSetQty', o, 12); _jpSheetScoped(rh, '_jpSheetHide', h); _jpSheetScoped(ri, '_jpSheetExtraAdd'); _jpSheetScoped(ri, '_jpSheetExtraUpdate', 0, 'lenMm', 2.95); _jpSheetScoped(ri, '_jpSheetExtraUpdate', 0, 'qty', 11); }, [edited.origLen, hidden.origLen, RI, RH]);
 await pg.waitForTimeout(300);
-const read = () => pg.evaluate(() => ({
-  rows: _jpBuildSheetRows(window._lastSheetCounts).map(x => ({ len: x.len, qty: x.qty, origLen: x.origLen })),
-  extras: (DRAW.matSheetExtras || []).map(x => ({ lenMm: x.lenMm, qty: x.qty })),
-  frozen: !!_jpSheetFrozen(),
-  inputs: [...document.querySelectorAll('#jpPages .mat-list-row input')].map(i => i.value) }));
+const read = () => pg.evaluate(([ri, rh]) => {
+  const main = _jpSheetScope(ri, () => ({
+    rows: _jpBuildSheetRows(_jpSheetCountsInScope()).map(x => ({ len: x.len, qty: x.qty, origLen: x.origLen })),
+    extras: (DRAW.matSheetExtras || []).map(x => ({ lenMm: x.lenMm, qty: x.qty })),
+    frozen: !!_jpSheetFrozen() }));
+  main.rowsH = _jpSheetScope(rh, () => _jpBuildSheetRows(_jpSheetCountsInScope()).map(x => ({ len: x.len, qty: x.qty, origLen: x.origLen })));
+  main.inputs = [...document.querySelectorAll('#jpPages .mat-list-row input')].map(i => i.value);
+  return main;
+}, [RI, RH]);
 let st = await read();
 check('the first edit freezes the list', st.frozen);
 check('the typed 12 is on the row it was typed on',
   st.rows.find(x => x.origLen === edited.origLen).qty === 12, JSON.stringify(st.rows));
-check('every other row still says what it said', rows0.filter(x => x.origLen !== edited.origLen && x.origLen !== hidden.origLen)
+check('every other row still says what it said', rows0.filter(x => x.origLen !== edited.origLen)
   .every(x => { const n = st.rows.find(y => y.origLen === x.origLen); return n && n.qty === x.qty && n.len === x.len; }), JSON.stringify(st.rows));
-check('the hidden row is gone and the added row stands at 11 @ 2.95',
-  !st.rows.some(x => x.origLen === hidden.origLen) && st.extras.length === 1 && st.extras[0].qty === 11 && st.extras[0].lenMm === 2950, JSON.stringify(st.extras));
+check('the hidden row is gone from its roof and the added row stands at 11 @ 2.95 on the main roof',
+  !st.rowsH.some(x => x.origLen === hidden.origLen) && st.extras.length === 1 && st.extras[0].qty === 11 && st.extras[0].lenMm === 2950, JSON.stringify([st.rowsH, st.extras]));
 
 // Switch tabs, come back, redraw: nothing may change.
 await pg.evaluate(() => { gotoTab('draw'); });
@@ -68,22 +80,24 @@ await pg.waitForTimeout(300);
 await pg.evaluate(() => { try { redrawAll(); renderRoofSheetPlan(); } catch(e){} gotoTab('materials'); });
 await pg.waitForTimeout(1500);
 const st2 = await read();
-check('after a tab switch and a redraw the rows are exactly as edited', JSON.stringify(st2.rows) === JSON.stringify(st.rows), JSON.stringify(st2.rows));
+check('after a tab switch and a redraw the rows are exactly as edited', JSON.stringify(st2.rows) === JSON.stringify(st.rows) && JSON.stringify(st2.rowsH) === JSON.stringify(st.rowsH), JSON.stringify(st2.rows));
 check('…and the extra row too', JSON.stringify(st2.extras) === JSON.stringify(st.extras));
 
 // A second row's quantity changes THAT row only.
 const other = st2.rows.find(x => x.origLen !== edited.origLen);
-await pg.evaluate((o) => _jpSheetSetQty(o, 7), other.origLen);
+await pg.evaluate(([o, ri]) => _jpSheetScoped(ri, '_jpSheetSetQty', o, 7), [other.origLen, RI]);
 await pg.waitForTimeout(300);
 const st3 = await read();
 check('typing 7 on another row leaves the 12 alone',
   st3.rows.find(x => x.origLen === other.origLen).qty === 7 && st3.rows.find(x => x.origLen === edited.origLen).qty === 12, JSON.stringify(st3.rows));
-check('the rows survive a save/load round trip', await pg.evaluate(() => {
-  const snap = JSON.parse(JSON.stringify(DRAW.matSheetFrozen)); return snap && Array.isArray(snap.rows) && snap.rows.length === DRAW.matSheetFrozen.rows.length; }));
+check('the rows survive a save/load round trip', await pg.evaluate((ri) => {
+  _lkgGuard._readOnly = true; const snap = JSON.parse(JSON.stringify(snapshotCurrentJob())); _lkgGuard._readOnly = false;
+  const fz = snap.draw.matSheetByRoof && snap.draw.matSheetByRoof[ri] && snap.draw.matSheetByRoof[ri].matSheetFrozen;
+  return fz && Array.isArray(fz.rows) && fz.rows.length === DRAW.matSheetByRoof[ri].matSheetFrozen.rows.length; }, RI));
 
 // "Reset from map" is offered while frozen and brings the map's numbers back.
 check('the Job Pack offers Reset from map while the list is frozen', await pg.evaluate(() => /Reset from map/.test(document.getElementById('jpPages').innerHTML)));
-await pg.evaluate(() => _jpSheetUnfreeze());
+await pg.evaluate((ri) => _jpSheetScoped(ri, '_jpSheetUnfreeze'), RI);
 await pg.waitForTimeout(300);
 const st4 = await read();
 check('Reset from map brings every row back from the roof', !st4.frozen && JSON.stringify(st4.rows) === JSON.stringify(rows0), JSON.stringify(st4.rows));

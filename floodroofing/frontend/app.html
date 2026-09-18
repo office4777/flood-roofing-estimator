@@ -5193,7 +5193,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
       <div id="materialPriceTableWrap">
-        <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
+        <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Quote's Product Options — this table will auto-populate.</p>
       </div>
     </div>
   </div>
@@ -7160,16 +7160,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <div class="set-grp">Pricing</div>
-        <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI()">Products</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
         <div class="set-grp">Quoting</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-invoicing',this)">Invoicing</button>
         <div class="set-grp">App</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">General</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-guides',this)">Guides</button>
       </nav>
       <div class="set-body">
     <div class="set-head">
@@ -7178,9 +7178,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="saveSettings()" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
 
-    <!-- General: autosave — one toggle and one number don't earn a card of
-         their own at the top of the page. -->
-    <div class="sub-panel settings-sub" id="set-general" style="margin-top:14px">
+    <!-- Guides: the setup guide, the tutorial and the practice job. -->
+    <div class="sub-panel settings-sub" id="set-guides" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Four ways to learn the app. Each one can be run as often as you like.</p>
+      <!-- The owner's six-minute run-through (Loom). Loaded only when the
+           Guides tab is opened, so the frame costs nothing until then. -->
+      <div style="background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:12.5px;font-weight:700;color:var(--text)">Six-minute run-through</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">One real job from the aerial to the customer's quote — Fergus, the job pack, the order email and the customer's side of the quote.</div>
+        <div id="guideVideo" data-src="https://www.loom.com/embed/57f969a8894c4e438dc30f7482058b7e" style="position:relative;padding-bottom:56.25%;height:0;border-radius:8px;overflow:hidden;background:#0a1628 url(brand/try-bg.jpg) center/cover">
+          <button type="button" id="guideVideoPlay" onclick="_guideVideoPlay()" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(10,22,40,.45);color:#fff;font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">▶ Play the six-minute run-through</button>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
         <div style="flex:1;min-width:200px">
           <div style="font-size:12.5px;font-weight:700;color:var(--text)">Setup guide</div>
@@ -7198,8 +7207,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div style="font-size:11.5px;color:var(--text2)">Walks you through every tab and points out what each part of the screen does. Two minutes, and you can stop it at any step.</div>
         </div>
         <button type="button" data-tour="set-tutorial" onclick="openTour(true)" class="tool-btn" style="font-size:11.5px">Run the tutorial</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">Practice job</div>
+          <div style="font-size:11.5px;color:var(--text2)">John Smith, 23 Don Buck Road — find the roof, trace it, price it and send yourself the order and the quote, one step at a time.</div>
+        </div>
         <button type="button" data-tour="set-practice" onclick="startFirstRoof()" class="tool-btn" style="font-size:11.5px" title="The practice job — John Smith, 23 Don Buck Road — walked through step by step">Run the practice job</button>
       </div>
+    </div>
+
+    <!-- General: autosave — one toggle and one number don't earn a card of
+         their own at the top of the page. -->
+    <div class="sub-panel settings-sub" id="set-general" style="margin-top:14px">
       <div class="set-row">
         <div class="set-row-txt">
           <b>Autosave the open job</b>
@@ -7465,6 +7485,181 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </p>
       <div id="selectablesUI"></div>
       <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
+
+      <!-- PRICE BOOK -->
+      <div class="card-hd" style="margin-top:22px"><span class="card-dot"></span>Price book</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Job Pack</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
+      <!-- Roofing sheets, flashings and back-trays are priced PER STEEL GRADE:
+           one button per grade on the Products list above, one set of inputs.
+           The base grade's set is the price book itself; every other grade
+           keeps its own under price_book.by_grade and falls back to the
+           percentage on the list until it has prices of its own. -->
+      <div id="pbGradeBlock" style="margin-bottom:18px;padding:14px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <strong style="font-size:13px">Roofing sheets, flashings &amp; back-trays — by steel grade</strong>
+          <span style="font-size:11px;color:var(--text2)">— pick a grade, then type its prices</span>
+        </div>
+        <div id="pbGradeTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 6px"></div>
+        <div id="pbGradeNote" style="font-size:11.5px;color:var(--text2);margin-bottom:12px"></div>
+        <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:12.5px">Roofing sheets</strong>
+          <span style="font-size:11px;color:var(--text2)">— add a row per product variant</span>
+          <button type="button" onclick="addPriceBookSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add sheet variant</button>
+        </div>
+        <div id="pbSheetsList"></div>
+        <div style="margin-top:10px">
+          <label style="font-size:11px">Default product for this job</label>
+          <select id="pbDefaultSheet" style="max-width:340px"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">The Materials tab cost uses this product's $/lm × total gutter length (sheets are ordered by gutter run × number of sheets across).</div>
+        </div>
+      </div>
+
+        <div style="margin-bottom:16px">
+          <div style="margin-bottom:8px"><strong style="font-size:12.5px">Flashings</strong>
+            <span style="font-size:11px;color:var(--text2);margin-left:6px">— $/lm</span></div>
+          <div class="f3">
+            <div><label>Ridge / Hip cap ($/lm)</label><input type="number" id="pbRidgeLm" step="0.01" min="0" placeholder="0.00"></div>
+            <div><label>Valley flashing ($/lm)</label><input type="number" id="pbValleyLm" step="0.01" min="0" placeholder="0.00"></div>
+            <div><label>Barge flashing ($/lm)</label><input type="number" id="pbBargeLm" step="0.01" min="0" placeholder="0.00"></div>
+          </div>
+          <div class="f3" style="margin-top:6px">
+            <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
+            <div><label>Change-of-pitch flashing ($/lm)</label><input type="number" id="pbChangepitchLm" step="0.01" min="0" placeholder="0.00"></div>
+            <div><label>Boxed penetration flashing ($/lm)</label><input type="number" id="pbBoxPenLm" step="0.01" min="0" placeholder="same as apron"></div>
+          </div>
+        </div>
+        <div>
+          <div style="margin-bottom:6px"><strong style="font-size:12.5px">Back-trays</strong>
+            <span style="font-size:11px;color:var(--text2);margin-left:6px">— $/lm; trays are folded to each pipe's own tray length, so this is a rate per metre, not per tray. Leave blank for $0.</span></div>
+          <div id="pbBackTrayList" class="f3"></div>
+        </div>
+      </div>
+
+      <!-- Gutter $/lm and the fixings — the same whatever the steel -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Gutter &amp; fixings</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— the same whichever grade is chosen</span></div>
+        <div class="f3">
+          <div><label>Gutter ($/lm)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
+          <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
+        </div>
+      </div>
+
+      <!-- The underlay and screw products the Order Material dropdowns offer
+           (the roof products themselves are the steel grades above). -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Underlays</strong>
+          <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper — offered on the Order Material tab</span>
+          <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
+        </div>
+        <div id="catalogUnderlays"></div>
+      </div>
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Screws</strong>
+          <span style="font-size:11px;color:var(--text2)">— e.g. 12g × 65mm Tek hex, 14g × 100mm timber screw — offered on the Order Material tab</span>
+          <button type="button" onclick="addCatalogItem('screws')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add screw</button>
+        </div>
+        <div id="catalogScrews"></div>
+      </div>
+      <!-- Hands the whole book out as JSON: a backup, and the way to pass a
+           finished book to somebody who is setting the app up. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
+        <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
+      </div>
+
+      <!-- Upload supplier price book -->
+      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
+        <div data-pb-listnote="settings"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong style="font-size:13px">📤 Upload supplier price book</strong>
+          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
+          <span id="pbUploadMsg" style="font-size:11px;color:var(--text2)"></span>
+        </div>
+        <p style="font-size:11px;color:var(--text2);margin-top:6px">CSV columns: <code>description, unit, price</code> (header row optional). Rows we recognise — ridge, valley, barge, screws, gutter profiles — update the matching rate; the rest go to <strong>Custom price-book items</strong> below. You see a preview before anything changes.</p>
+        <div id="pbCsvPreview" style="display:none;margin-top:10px"></div>
+      </div>
+
+      <!-- Underlay per roll size -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay / paper</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— $ per roll, by size</span></div>
+        <div class="f3">
+          <div><label>50 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay50" step="0.01" min="0" placeholder="0.00"></div></div>
+          <div><label>75 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay75" step="0.01" min="0" placeholder="0.00"></div></div>
+          <div><label>100 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay100" step="0.01" min="0" placeholder="0.00"></div></div>
+        </div>
+      </div>
+
+      <!-- Guttering & spouting (long-run) — customer Selections page -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Guttering &amp; spouting</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— long-run spouting the customer can add on the Selections page</span></div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon is itemised off the supplier invoice (spouting + fittings). The box &amp; Classic profiles use a single all-in $/lm. Leave a field blank if you don't supply that item.</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Typhoon — itemised</div>
+        <div class="f3">
+          <div><label>Typhoon spouting ($/lm)</label><input type="number" id="pbGutTyphoonSpouting" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon bracket ($/each)</label><input type="number" id="pbGutTyphoonBracket" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon 80mm outlet ($/each)</label><input type="number" id="pbGutTyphoonOutlet" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>Typhoon joiner ($/each)</label><input type="number" id="pbGutTyphoonJoiner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon corner / angle ($/each)</label><input type="number" id="pbGutTyphoonCorner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon stop-end ($/each)</label><input type="number" id="pbGutTyphoonStopend" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>Typhoon expansion joiner ($/each)</label><input type="number" id="pbGutTyphoonExpJoiner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon weld solvent ($/tube)</label><input type="number" id="pbGutTyphoonWeldSolvent" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
+        <div class="f3">
+          <div><label>125mm box gutter ($/lm, all-in)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Marley Classic ($/lm, all-in)</label><input type="number" id="pbGutMarleyClassicLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Marley Typhoon simple ($/lm)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>External bracket upcharge — box ($/lm)</label><input type="number" id="pbGutExtBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+      </div>
+
+      <!-- Pipe penetrations -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Pipe penetrations</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— every flue, vent and pipe you draw picks its own boot size (the back-trays are priced by grade above)</span></div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:6px 0 6px">Pipe flashings — Aquaseal / Dektite ($/each) <span style="font-weight:400;color:var(--text3)">— the size is chosen from the pipe's outside diameter. Leave blank for $0.</span></div>
+        <div id="pbAquasealList" class="f3"></div>
+      </div>
+
+      <!-- Downpipes -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
+        <div class="f3">
+          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div><div></div>
+        </div>
+      </div>
+
+      <!-- Custom extras -->
+      <div style="margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Custom price-book items</strong>
+          <span style="font-size:11px;color:var(--text2)">— special items beyond the auto-quantified list (skylights, dektites, vents, etc.)</span>
+          <button type="button" onclick="clearPriceBookExtraQtys()" class="tool-btn" style="margin-left:auto;font-size:11px" title="Set every custom item's quantity to 0 so none of them are charged on a job">Clear all quantities</button>
+          <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="font-size:11px">+ Add item</button>
+        </div>
+        <div id="pbExtrasList"></div>
+      </div>
     </div>
 
     <div class="sub-panel settings-sub" id="set-billing" style="margin-top:14px">
@@ -7584,145 +7779,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
     </div>
 
-    <!-- PRICE BOOK -->
-    <div class="sub-panel settings-sub" id="set-pricebook" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Job Pack</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
-      <!-- Hands the whole book out as JSON: a backup, and the way to pass a
-           finished book to somebody who is setting the app up. -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
-        <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
-      </div>
-
-      <!-- Upload supplier price book -->
-      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
-        <div data-pb-listnote="settings"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <strong style="font-size:13px">📤 Upload supplier price book</strong>
-          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
-          <span id="pbUploadMsg" style="font-size:11px;color:var(--text2)"></span>
-        </div>
-        <p style="font-size:11px;color:var(--text2);margin-top:6px">CSV columns: <code>description, unit, price</code> (header row optional). Rows we recognise — ridge, valley, barge, screws, gutter profiles — update the matching rate; the rest go to <strong>Custom price-book items</strong> below. You see a preview before anything changes.</p>
-        <div id="pbCsvPreview" style="display:none;margin-top:10px"></div>
-      </div>
-
-      <!-- Roofing sheets — multi-variant -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Roofing sheets</strong>
-          <span style="font-size:11px;color:var(--text2)">— add a row per product variant</span>
-          <button type="button" onclick="addPriceBookSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add sheet variant</button>
-        </div>
-        <div id="pbSheetsList"></div>
-        <div style="margin-top:10px">
-          <label style="font-size:11px">Default product for this job</label>
-          <select id="pbDefaultSheet" style="max-width:340px"></select>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">The Materials tab cost uses this product's $/lm × total gutter length (sheets are ordered by gutter run × number of sheets across).</div>
-        </div>
-      </div>
-
-      <!-- Underlay per roll size -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay / paper</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— $ per roll, by size</span></div>
-        <div class="f3">
-          <div><label>50 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay50" step="0.01" min="0" placeholder="0.00"></div></div>
-          <div><label>75 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay75" step="0.01" min="0" placeholder="0.00"></div></div>
-          <div><label>100 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay100" step="0.01" min="0" placeholder="0.00"></div></div>
-        </div>
-      </div>
-
-      <!-- Per-LM flashings + per-each fixings -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Flashings &amp; fixings</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— default unit prices</span></div>
-        <div class="f3">
-          <div><label>Ridge / Hip cap ($/lm)</label><input type="number" id="pbRidgeLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Valley flashing ($/lm)</label><input type="number" id="pbValleyLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Gutter ($/lm)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
-        </div>
-        <div class="f3" style="margin-top:6px">
-          <div><label>Barge flashing ($/lm)</label><input type="number" id="pbBargeLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Change-of-pitch flashing ($/lm)</label><input type="number" id="pbChangepitchLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Boxed penetration flashing ($/lm)</label><input type="number" id="pbBoxPenLm" step="0.01" min="0" placeholder="same as apron"></div>
-        </div>
-        <div class="f3" style="margin-top:6px">
-          <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
-          <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
-          <div></div>
-        </div>
-      </div>
-
-      <!-- Guttering & spouting (long-run) — customer Selections page -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Guttering &amp; spouting</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— long-run spouting the customer can add on the Selections page</span></div>
-        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon is itemised off the supplier invoice (spouting + fittings). The box &amp; Classic profiles use a single all-in $/lm. Leave a field blank if you don't supply that item.</div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Typhoon — itemised</div>
-        <div class="f3">
-          <div><label>Typhoon spouting ($/lm)</label><input type="number" id="pbGutTyphoonSpouting" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Typhoon bracket ($/each)</label><input type="number" id="pbGutTyphoonBracket" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Typhoon 80mm outlet ($/each)</label><input type="number" id="pbGutTyphoonOutlet" step="0.01" min="0" placeholder="0.00"></div>
-        </div>
-        <div class="f3" style="margin-top:6px">
-          <div><label>Typhoon joiner ($/each)</label><input type="number" id="pbGutTyphoonJoiner" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Typhoon corner / angle ($/each)</label><input type="number" id="pbGutTyphoonCorner" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Typhoon stop-end ($/each)</label><input type="number" id="pbGutTyphoonStopend" step="0.01" min="0" placeholder="0.00"></div>
-        </div>
-        <div class="f3" style="margin-top:6px">
-          <div><label>Typhoon expansion joiner ($/each)</label><input type="number" id="pbGutTyphoonExpJoiner" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Typhoon weld solvent ($/tube)</label><input type="number" id="pbGutTyphoonWeldSolvent" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div>
-        </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
-        <div class="f3">
-          <div><label>125mm box gutter ($/lm, all-in)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Marley Classic ($/lm, all-in)</label><input type="number" id="pbGutMarleyClassicLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Marley Typhoon simple ($/lm)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
-        </div>
-        <div class="f3" style="margin-top:6px">
-          <div><label>External bracket upcharge — box ($/lm)</label><input type="number" id="pbGutExtBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div>
-        </div>
-      </div>
-
-      <!-- Pipe penetrations -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Pipe penetrations</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— every flue, vent and pipe you draw picks its own boot size and back-tray</span></div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:6px 0 6px">Pipe flashings — Aquaseal / Dektite ($/each) <span style="font-weight:400;color:var(--text3)">— the size is chosen from the pipe's outside diameter. Leave blank for $0.</span></div>
-        <div id="pbAquasealList" class="f3"></div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Back-trays ($/lm) <span style="font-weight:400;color:var(--text3)">— trays are folded to each pipe's own tray length, so this is a rate per metre, not per tray. Leave blank for $0.</span></div>
-        <div id="pbBackTrayList" class="f3"></div>
-      </div>
-
-      <!-- Downpipes -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
-        <div class="f3">
-          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div><div></div>
-        </div>
-      </div>
-
-      <!-- Custom extras -->
-      <div style="margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Custom price-book items</strong>
-          <span style="font-size:11px;color:var(--text2)">— special items beyond the auto-quantified list (skylights, dektites, vents, etc.)</span>
-          <button type="button" onclick="clearPriceBookExtraQtys()" class="tool-btn" style="margin-left:auto;font-size:11px" title="Set every custom item's quantity to 0 so none of them are charged on a job">Clear all quantities</button>
-          <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="font-size:11px">+ Add item</button>
-        </div>
-        <div id="pbExtrasList"></div>
-      </div>
-    </div>
-
     <!-- LABOUR PRICING -->
     <div class="sub-panel settings-sub" id="set-labour" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Default hour budgets used by the editable <strong>Labour</strong> breakdown on the Scope &amp; Pricing tab. The user can still tweak hours per job; this just sets the starting numbers.</p>
@@ -7764,7 +7820,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- SUPPLIERS & MATERIALS -->
     <div class="sub-panel settings-sub" id="set-supl" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Manage the lists that drive the dropdowns on the <strong>Order Material</strong> tab. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The companies you buy material from, and the flashing types the <strong>Order Material</strong> tab offers. The roof products, underlays and screws it offers come from <strong>Quote's Product Options</strong>. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
 
       <!-- Suppliers -->
       <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
@@ -7774,36 +7830,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button type="button" onclick="addSupplier()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add supplier</button>
         </div>
         <div id="supplierList"></div>
-      </div>
-
-      <!-- Roof products -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Roof products</strong>
-          <span style="font-size:11px;color:var(--text2)">— e.g. Colorsteel Maxam, Colorcote, Zincalume</span>
-          <button type="button" onclick="addCatalogItem('products')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add product</button>
-        </div>
-        <div id="catalogProducts"></div>
-      </div>
-
-      <!-- Underlays -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Underlays</strong>
-          <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper</span>
-          <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
-        </div>
-        <div id="catalogUnderlays"></div>
-      </div>
-
-      <!-- Screws -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Screws</strong>
-          <span style="font-size:11px;color:var(--text2)">— e.g. 12g × 65mm Tek hex, 14g × 100mm timber screw</span>
-          <button type="button" onclick="addCatalogItem('screws')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add screw</button>
-        </div>
-        <div id="catalogScrews"></div>
       </div>
 
       <!-- Flashing types -->
@@ -11408,7 +11434,10 @@ function switchSettingsSub(id,btn){
   // Opening the price book is the moment the disclaimer matters, so it is
   // tied to that rather than to finishing the setup guide — which anyone
   // can skip.
-  if (id === 'set-pricebook'){ try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){} }
+  // The price book lives on the Quote's Product Options panel now; the old
+  // id is still what the wizard, the tests and old links call it.
+  if (id === 'set-pricebook'){ id = 'set-products'; try { renderSelectablesUI(); } catch(e){} }
+  if (id === 'set-products'){ try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){} try { _pbGradeTabsRender(); } catch(e){} }
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
   var panel = document.getElementById(id);
   if (panel) panel.classList.add('on');
@@ -11424,6 +11453,12 @@ function switchSettingsSub(id,btn){
   if (id === 'set-flashings') {
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
+}
+// The Loom frame is only loaded when somebody presses play — nothing from a
+// third party until then.
+function _guideVideoPlay(){
+  var gv = document.getElementById('guideVideo'); if (!gv) return;
+  gv.innerHTML = '<iframe src="' + gv.getAttribute('data-src') + '?autoplay=1" title="RoofMap six-minute run-through" allowfullscreen allow="autoplay; fullscreen" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe>';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -12168,31 +12203,173 @@ function addLabourItem(){
 // (underlay-per-roll, ridge/valley/gutter/screws/rivets) map 1:1 to
 // inputs by id.
 function _num(id){ var v = parseFloat((document.getElementById(id)||{}).value); return isNaN(v) ? 0 : v; }
+// ── PRICES BY STEEL GRADE ──────────────────────────────────────────
+// Roofing sheets, back-trays and flashings are priced per steel grade:
+// the Quote's Product Options screen shows one button per grade, and each
+// grade keeps its own set (price_book.by_grade[gradeId]). The base grade's
+// set IS the legacy top-level fields (pb.sheets, pb.ridge_lm …), so every
+// reader that never heard of grades keeps working. A grade with prices of
+// its own is priced from them — the material table, the order and the
+// customer's grade deltas — instead of the percentage on the Products list;
+// a grade without falls back to that percentage as before.
+var PB_GRADE_KEYS = ['ridge_lm', 'valley_lm', 'barge_lm', 'apron_lm', 'changepitch_lm', 'box_pen_lm'];
+window.__pbGrade = null;            // the grade the Settings inputs are showing
+window.__pbGradeOverride = null;    // a grade to price with, for one calculation
+function _pbBaseId(){ try { return _selBaseGradeId(); } catch(e){ return 'maxam'; } }
+function _pbActiveGrade(){
+  var id = window.__pbGrade;
+  try { if (!id || !_selGradeOf(id)) id = _pbBaseId(); } catch(e){ id = id || 'maxam'; }
+  return id;
+}
+function _pbPick(src){
+  var o = { sheets: JSON.parse(JSON.stringify(src.sheets || [])), defaultSheetProduct: src.defaultSheetProduct || '', backtray_prices: Object.assign({}, src.backtray_prices || {}) };
+  PB_GRADE_KEYS.forEach(function(k){ o[k] = parseFloat(src[k]) || 0; });
+  return o;
+}
+// The set a grade prices from: the base grade's is the book itself.
+function _pbGradeSet(gradeId){
+  var pb = (S.settings && S.settings.price_book) || {};
+  if (!gradeId || gradeId === _pbBaseId()) return _pbPick(pb);
+  var s = (pb.by_grade || {})[gradeId];
+  return s ? _pbPick(s) : null;
+}
+function _pbGradeHasPrices(gradeId){
+  if (!gradeId || gradeId === _pbBaseId()) return false;
+  var s = _pbGradeSet(gradeId); if (!s) return false;
+  if (PB_GRADE_KEYS.some(function(k){ return s[k] > 0; })) return true;
+  if ((s.sheets || []).some(function(x){ return parseFloat(x.price) > 0; })) return true;
+  return Object.keys(s.backtray_prices || {}).some(function(k){ return parseFloat(s.backtray_prices[k]) > 0; });
+}
+// The book as this grade sees it: its own sheets, flashings and back-trays
+// over everything else (underlay, gutters, screws, extras are not graded).
+function _pbForGrade(gradeId){
+  var pb = (S.settings && S.settings.price_book) || {};
+  if (!_pbGradeHasPrices(gradeId)) return pb;
+  var s = _pbGradeSet(gradeId), out = Object.assign({}, pb);
+  ['sheets', 'defaultSheetProduct', 'backtray_prices'].forEach(function(k){ out[k] = s[k]; });
+  PB_GRADE_KEYS.forEach(function(k){ out[k] = s[k]; });
+  return out;
+}
+// Which grade the job is being priced at right now.
+function _pbGradeInUse(){
+  if (window.__pbGradeOverride) return window.__pbGradeOverride;
+  try { var g = S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade; if (g && _selGradeOf(g)) return g; } catch(e){}
+  return _pbBaseId();
+}
+// The graded part of the material cost, priced as grade g would price it —
+// the difference between two grades is the customer's grade delta.
+function _gradeMaterialTotal(g){
+  var rows = [];
+  window.__pbGradeOverride = g;
+  try { rows = (typeof _buildMaterialPriceRows === 'function') ? _buildMaterialPriceRows() : []; }
+  catch(e){ rows = []; }
+  finally { window.__pbGradeOverride = null; }
+  var total = 0;
+  rows.forEach(function(r){
+    var k = String(r.key || '');
+    if (!(k === 'sheets' || k === 'ridge' || k === 'valley' || k === 'barge' || k === 'apron' || k === 'changepitch' || k.indexOf('backtray:') === 0 || k.indexOf('boxflash') === 0)) return;
+    var v = (r.variants || []).filter(function(x){ return x.value === r.defaultVariant; })[0] || (r.variants || [])[0];
+    if (!v) return;
+    total += (parseFloat(r.autoQty) || 0) * (parseFloat(v.price) || 0);
+  });
+  return total;
+}
+// The deltas the customer's Selections page shows, frozen onto the quote
+// when it is built so the customer link (which has no price book) reads
+// the same numbers. Only when some grade is priced on its own; otherwise
+// the percentage rule stands and nothing is stored.
+function _gradeDeltasSnapshot(){
+  var base = (S.quote && S.quote.baseGrade) || _pbBaseId();
+  var any = false;
+  try { any = _selGradesAll().some(function(g){ return _pbGradeHasPrices(g.id); }) || _pbGradeHasPrices(base); } catch(e){}
+  if (!any) return null;
+  var out = {}, baseTotal = _gradeMaterialTotal(base);
+  _selGradesAll().forEach(function(g){ out[g.id] = _gradeMaterialTotal(g.id) - baseTotal; });
+  return out;
+}
+
+// ── the Settings screen: one button per grade, one set of inputs ──
+function _pbGradeTabsRender(){
+  var box = document.getElementById('pbGradeTabs'); if (!box) return;
+  var active = _pbActiveGrade();
+  var grades = []; try { grades = _selGrades(); } catch(e){}
+  box.innerHTML = grades.map(function(g){
+    var on = g.id === active, own = g.id === _pbBaseId() || _pbGradeHasPrices(g.id);
+    return '<button type="button" data-pb-grade="' + esc(g.id) + '" onclick="_pbGradeSelect(\'' + esc(g.id) + '\')" style="padding:7px 14px;border-radius:20px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;border:1.5px solid ' +
+      (on ? '#0a1628;background:#0a1628;color:#fff' : 'var(--border);background:#fff;color:#0a1628') + '">' + esc(g.name) +
+      (g.id === _pbBaseId() ? ' <span style="font-size:10px;font-weight:600;opacity:.75">base</span>' : (own ? ' <span title="Priced on its own" style="font-size:10px;opacity:.75">●</span>' : '')) + '</button>';
+  }).join('') || '<span style="font-size:12px;color:var(--text2)">Add a steel grade above first.</span>';
+  var note = document.getElementById('pbGradeNote');
+  if (note){
+    var g0 = null; try { g0 = _selGradeOf(active); } catch(e){}
+    note.textContent = (active === _pbBaseId())
+      ? 'These are the base prices — every other grade starts from them.'
+      : ((g0 && g0.name) || 'This grade') + (_pbGradeHasPrices(active) ? ' is priced on its own below.' : ' has no prices of its own yet: the Products list’s percentage applies until you type some in. The base prices are shown as placeholders.');
+  }
+}
+function _pbGradeSelect(id){
+  try { _pbGradeCollect(); } catch(e){}
+  window.__pbGrade = id;
+  _pbGradeFill();
+  _pbGradeTabsRender();
+}
+// The inputs → the active grade's set (in memory; Save settings persists).
+function _pbGradeCollect(){
+  if (!S.settings || !S.settings.price_book) return;
+  var pb = S.settings.price_book, active = _pbActiveGrade();
+  var set = { sheets: [], defaultSheetProduct: '', backtray_prices: {} };
+  set.sheets = Array.from(document.querySelectorAll('#pbSheetsList > [data-pb-sheet]')).map(function(row){
+    return { product: (row.querySelector('input[data-f="product"]')||{}).value || '', unit: (row.querySelector('input[data-f="unit"]')||{}).value || 'lm', price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0 };
+  }).filter(function(r){ return r.product; });
+  set.defaultSheetProduct = (document.getElementById('pbDefaultSheet')||{}).value || '';
+  var ids = { ridge_lm: 'pbRidgeLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
+  PB_GRADE_KEYS.forEach(function(k){ var v = parseFloat((document.getElementById(ids[k])||{}).value); set[k] = isFinite(v) ? v : 0; });
+  Array.from(document.querySelectorAll('#pbBackTrayList [data-bt-name]')).forEach(function(inp){
+    var nm = inp.getAttribute('data-bt-name'), v = parseFloat(inp.value);
+    if (nm && isFinite(v) && v > 0) set.backtray_prices[nm] = v;
+  });
+  if (active === _pbBaseId()){
+    // The base grade is the book itself.
+    if (set.sheets.length) pb.sheets = set.sheets;
+    pb.defaultSheetProduct = set.defaultSheetProduct;
+    PB_GRADE_KEYS.forEach(function(k){ pb[k] = set[k]; });
+    pb.backtray_prices = set.backtray_prices;
+  } else {
+    if (!pb.by_grade) pb.by_grade = {};
+    pb.by_grade[active] = set;
+  }
+}
+// The active grade's set → the inputs. A grade without a set shows empty
+// fields with the base prices as placeholders.
+function _pbGradeFill(){
+  if (!S.settings || !S.settings.price_book) return;
+  var pb = S.settings.price_book, active = _pbActiveGrade();
+  var base = _pbPick(pb), set = _pbGradeSet(active) || { sheets: [], defaultSheetProduct: '', backtray_prices: {} };
+  var isBase = active === _pbBaseId();
+  renderPriceBookSheets(set.sheets || []);
+  refreshDefaultSheetPicker(set.sheets || [], set.defaultSheetProduct || '');
+  var ids = { ridge_lm: 'pbRidgeLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
+  PB_GRADE_KEYS.forEach(function(k){
+    var el = document.getElementById(ids[k]); if (!el) return;
+    var v = set[k]; el.value = (v == null || v === 0) ? '' : v;
+    el.placeholder = isBase ? '0.00' : (base[k] > 0 ? ('base ' + base[k]) : '0.00');
+  });
+  _renderBackTrayPriceInputs(set.backtray_prices || {}, isBase ? null : base.backtray_prices);
+}
+
 function collectPriceBookFromUI(){
   if (!S.settings.price_book) S.settings.price_book = defaultSettings().price_book;
   var pb = S.settings.price_book;
-  // Sheets — read back from rendered rows
-  pb.sheets = Array.from(document.querySelectorAll('#pbSheetsList > [data-pb-sheet]')).map(function(row){
-    return {
-      product: (row.querySelector('input[data-f="product"]')||{}).value || '',
-      unit:    (row.querySelector('input[data-f="unit"]')||{}).value || 'lm',
-      price:   parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
-    };
-  }).filter(function(r){ return r.product; });
-  if (!pb.sheets.length) pb.sheets = defaultSettings().price_book.sheets;
-  pb.defaultSheetProduct = (document.getElementById('pbDefaultSheet')||{}).value || '';
+  // Sheets, flashings and back-trays: the inputs show ONE grade's set —
+  // the base grade's is the book itself, any other's goes under by_grade.
+  _pbGradeCollect();
+  if (!(pb.sheets || []).length) pb.sheets = defaultSettings().price_book.sheets;
   pb.underlay = {
     '50':  _num('pbUnderlay50'),
     '75':  _num('pbUnderlay75'),
     '100': _num('pbUnderlay100')
   };
-  pb.ridge_lm       = _num('pbRidgeLm');
-  pb.valley_lm      = _num('pbValleyLm');
   pb.gutter_lm      = _num('pbGutterLm');
-  pb.barge_lm       = _num('pbBargeLm');
-  pb.apron_lm       = _num('pbApronLm');
-  pb.changepitch_lm = _num('pbChangepitchLm');
-  pb.box_pen_lm     = _num('pbBoxPenLm');
   pb.screws_each    = _num('pbScrewsEach');
   pb.rivets_each    = _num('pbRivetsEach');
   pb.downpipe_ea    = _num('pbDownpipeEach');
@@ -12211,12 +12388,7 @@ function collectPriceBookFromUI(){
     ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
     ext_bracket_marley_lm: _num('pbGutExtMarleyLm')
   };
-  pb.backtray_prices = {};
-  Array.from(document.querySelectorAll('#pbBackTrayList [data-bt-name]')).forEach(function(inp){
-    var nm = inp.getAttribute('data-bt-name');
-    var v = parseFloat(inp.value);
-    if (nm && isFinite(v) && v > 0) pb.backtray_prices[nm] = v;
-  });
+  // back-trays: read per grade by _pbGradeCollect() above
   pb.aquaseal = {};
   Array.from(document.querySelectorAll('#pbAquasealList [data-aq-id]')).forEach(function(inp){
     var id = inp.getAttribute('data-aq-id');
@@ -12299,19 +12471,11 @@ function renderPriceBookUI(){
   try { _pbListPriceNoticeSync(); } catch(e){}
   if (!S.settings || !S.settings.price_book) return;
   var pb = S.settings.price_book;
-  renderPriceBookSheets(pb.sheets || []);
-  refreshDefaultSheetPicker(pb.sheets || [], pb.defaultSheetProduct || '');
   function setN(id, v){ var el=document.getElementById(id); if (el) el.value = (v == null || v === 0) ? '' : v; }
   setN('pbUnderlay50',  (pb.underlay||{})['50']);
   setN('pbUnderlay75',  (pb.underlay||{})['75']);
   setN('pbUnderlay100', (pb.underlay||{})['100']);
-  setN('pbRidgeLm',       pb.ridge_lm);
-  setN('pbValleyLm',      pb.valley_lm);
   setN('pbGutterLm',      pb.gutter_lm);
-  setN('pbBargeLm',       pb.barge_lm);
-  setN('pbApronLm',       pb.apron_lm);
-  setN('pbChangepitchLm', pb.changepitch_lm);
-  setN('pbBoxPenLm',      pb.box_pen_lm);
   setN('pbScrewsEach',    pb.screws_each);
   setN('pbRivetsEach',    pb.rivets_each);
   setN('pbDownpipeEach',  pb.downpipe_ea);
@@ -12329,9 +12493,11 @@ function renderPriceBookUI(){
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
   setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
   setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
-  _renderBackTrayPriceInputs();
   _renderAquasealPriceInputs();
   renderPriceBookExtras(pb.extras || []);
+  // Sheets, flashings and back-trays: the grade the buttons have picked.
+  _pbGradeFill();
+  _pbGradeTabsRender();
 }
 // Render the pipe-flashing $/each inputs — one per stock Aquaseal size,
 // labelled with the pipe diameters it covers so the office can read the
@@ -12352,14 +12518,18 @@ function _renderAquasealPriceInputs(){
   box.innerHTML = rows.join('');
 }
 // Render the back-tray $/lm inputs (one per standard tray name).
-function _renderBackTrayPriceInputs(){
+// `map` is the set to show (default: the book's own); `placeholders` the
+// base grade's prices, shown greyed under an unpriced grade's fields.
+function _renderBackTrayPriceInputs(map, placeholders){
   var box = document.getElementById('pbBackTrayList'); if (!box) return;
   var names = (typeof BACKTRAY_NAMES !== 'undefined') ? BACKTRAY_NAMES : [];
-  var m = (S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
+  var m = map || (S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
+  var ph = placeholders || {};
   box.innerHTML = names.map(function(nm){
     var v = parseFloat(m[nm]); v = (isFinite(v) && v > 0) ? v : '';
+    var p = parseFloat(ph[nm]); p = (isFinite(p) && p > 0) ? ('base ' + p) : '0.00';
     return '<div><label style="font-size:11px">'+esc(nm)+'</label>'+
-      '<input type="number" step="0.01" min="0" data-bt-name="'+esc(nm)+'" value="'+v+'" placeholder="0.00"></div>';
+      '<input type="number" step="0.01" min="0" data-bt-name="'+esc(nm)+'" value="'+v+'" placeholder="'+p+'"></div>';
   }).join('');
 }
 
@@ -12725,7 +12895,7 @@ function _parseCsv(text){
 function computeMaterialsCost(){
   var out = { total: 0, breakdown: [] };
   if (!S.settings) return out;
-  var pb = S.settings.price_book || {};
+  var pb = _pbForGrade(_pbGradeInUse());
   if (!window.DRAW) return out;
 
   var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
@@ -12893,7 +13063,7 @@ function openPriceSettings(){
   gotoTab('settings');
   // Click the Price book sub-tab so the user lands directly in it
   setTimeout(function(){
-    var btn = document.querySelector('button[onclick*="set-pricebook"]');
+    var btn = document.querySelector('button[onclick*="set-products"]');
     if (btn) btn.click();
   }, 0);
 }
@@ -12975,7 +13145,7 @@ function _gutterOnJob(){
 function _buildMaterialPriceRows(){
   var rows = [];
   if (!S.settings || !S.settings.price_book || !window.DRAW) return rows;
-  var pb = S.settings.price_book;
+  var pb = _pbForGrade(_pbGradeInUse());
 
   var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
   var sheetWidthM  = sheetWidthMm / 1000;
@@ -13203,11 +13373,11 @@ function renderMaterialPriceTable(){
     // it — and the labour, the area tile and the quote all price the
     // group. The material rows were built from the ONE roof, so a 267 m²
     // building showed 120 m² of sheet (report 46).
-    try { _matSavedSel = _matSelectedRoofIndices(); _syncCurrentToRoof && _syncCurrentToRoof(); _matSetSelectedRoofs(_pricingRoofGroup(_matRi)); } catch(e){}
+    try { _syncCurrentToRoof && _syncCurrentToRoof(); _matSavedSel = { prev: _matSelOverride(_pricingRoofGroup(_matRi)) }; } catch(e){}
   }
   try { rows = _buildMaterialPriceRows(); }
   finally {
-    if (_multiMat && _matSavedSel){ try { _matSetSelectedRoofs(_matSavedSel); } catch(e){} }
+    if (_multiMat && _matSavedSel){ try { _matSelOverride(_matSavedSel.prev); } catch(e){} }
   }
   if (!rows.length) {
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No quantifiable items yet — draw your roof on the Map Roof tab.</p>';
@@ -13419,6 +13589,9 @@ function renderMaterialPriceTable(){
 // the material subtotal so the quoted material cost reflects the chosen grade.
 function _gradeFactor(grade){
   if (grade == null) grade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
+  // A grade priced on its own in the price book is already in the material
+  // rows at its own prices — no percentage on top.
+  try { if (_pbGradeHasPrices(grade)) return 1; } catch(e){}
   var pct = (typeof _selGradePctOf === 'function') ? _selGradePctOf(grade) : 0;
   return 1 + (pct || 0);
 }
@@ -13513,16 +13686,16 @@ function _materialsCostForRoofIdx(idx){
   if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
     return _materialsTotalFromRows(_buildMaterialPriceRows(), 0);
   }
-  var savedSel = _matSelectedRoofIndices();
   var leave = _roofScopeEnter();
   var group = (typeof _pricingRoofGroup === 'function') ? _pricingRoofGroup(idx) : [idx];
+  var prevSel = null;
   try {
     _syncCurrentToRoof();
-    _matSetSelectedRoofs(group);
+    prevSel = _matSelOverride(group);
     return _materialsTotalFromRows(_buildMaterialPriceRows(), idx);
   } catch(e){ return 0; }
   finally {
-    _matSetSelectedRoofs(savedSel);
+    _matSelOverride(prevSel);
     leave();
   }
 }
@@ -14714,6 +14887,8 @@ function snapshotCurrentJob(){
              condition:S.condition, photos:S.photos, files:S.files, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
              clearliteMaterial:S.clearliteMaterial||'fibreglass', jpFlashTypeOff:S.jpFlashTypeOff||{},
+             // The job pack's own state: its pages and which roofs it covers.
+             jobPack:S.jobPack||null,
              orderSent:S.orderSent||null },
     draw: _lkgGuard({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             view:_viewForSave(),
@@ -14728,6 +14903,25 @@ function snapshotCurrentJob(){
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
             editMode:DRAW.editMode||'scaled', offScale:DRAW.offScale||null,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
+            // The office's cut-list and sheet edits travel with the job. They
+            // used to live only in the undo stack — a reload dropped every
+            // typed quantity, hidden row and sheet arrow, and the next job
+            // opened inherited whatever the last one left in DRAW.
+            sheetGroupOverrides:DRAW.sheetGroupOverrides||{},
+            sheetGroupQtyOverrides:DRAW.sheetGroupQtyOverrides||{},
+            sheetLabelOffsets:DRAW.sheetLabelOffsets||{},
+            sheetTextScale:DRAW.sheetTextScale||{},
+            manualSheetMeasures:DRAW.manualSheetMeasures||[],
+            sheetOverrides:DRAW.sheetOverrides||{},
+            matSheetExtras:DRAW.matSheetExtras||[],
+            matSheetFrozen:DRAW.matSheetFrozen||null,
+            matSheetRowHidden:DRAW.matSheetRowHidden||{},
+            matCutListExtras:DRAW.matCutListExtras||{},
+            gutterRowHidden:DRAW.gutterRowHidden||{},
+            gutterRowQty:DRAW.gutterRowQty||{},
+            gutterRowLen:DRAW.gutterRowLen||{},
+            flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
+            matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
             gableRidgeOffset:DRAW.gableRidgeOffset||0,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
@@ -14785,6 +14979,7 @@ function restoreFromJob(j){
     // sitting in S, which is not merely shown: the next save writes it into
     // THIS job. Reset before the assign, like every leak above.
     S.img64 = null;
+    S.jobPack = null;   // and the job pack: a job without one starts from the default pages, not the last job's
     Object.assign(S, snap.state);
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
     if (!Array.isArray(S.photos)) S.photos = [];
@@ -14826,6 +15021,24 @@ function restoreFromJob(j){
     DRAW.matBackTrayLen = snap.draw.matBackTrayLen || {};
     DRAW.matBackTrayExtras = snap.draw.matBackTrayExtras || [];
     DRAW.sheetType = snap.draw.sheetType || 'steel-corrugate';
+    // The cut-list and sheet edits saved with the job (defaults for a job
+    // saved before they were — never the previous job's).
+    DRAW.sheetGroupOverrides = snap.draw.sheetGroupOverrides || {};
+    DRAW.sheetGroupQtyOverrides = snap.draw.sheetGroupQtyOverrides || {};
+    DRAW.sheetLabelOffsets = snap.draw.sheetLabelOffsets || {};
+    DRAW.sheetTextScale = snap.draw.sheetTextScale || {};
+    DRAW.manualSheetMeasures = snap.draw.manualSheetMeasures || [];
+    DRAW.sheetOverrides = snap.draw.sheetOverrides || {};
+    DRAW.matSheetExtras = snap.draw.matSheetExtras || [];
+    DRAW.matSheetFrozen = snap.draw.matSheetFrozen || null;
+    DRAW.matSheetRowHidden = snap.draw.matSheetRowHidden || {};
+    DRAW.matCutListExtras = snap.draw.matCutListExtras || {};
+    DRAW.gutterRowHidden = snap.draw.gutterRowHidden || {};
+    DRAW.gutterRowQty = snap.draw.gutterRowQty || {};
+    DRAW.gutterRowLen = snap.draw.gutterRowLen || {};
+    DRAW.flashLayoutOverrides = snap.draw.flashLayoutOverrides || {};
+    DRAW.matSheetFrozen = (DRAW.matSheetFrozen && Array.isArray(DRAW.matSheetFrozen.rows)) ? DRAW.matSheetFrozen : null;
+    DRAW.matSheetByRoof = snap.draw.matSheetByRoof || {};
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.scaleAuto = !!snap.draw.scaleAuto; DRAW.geoScale = snap.draw.geoScale || null;
     DRAW.editMode = (snap.draw.editMode === 'visual') ? 'visual' : 'scaled';
@@ -14938,8 +15151,14 @@ function restoreFromJob(j){
   // job (incl. via the PDF deep link) doesn't land zoomed-in on a corner.
   DRAW._fitOnShow = true;
   // Freshly-opened job = clean state for the dirty tracker, so
-  // switching away again without edits doesn't trigger a save.
-  try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
+  // switching away again without edits doesn't trigger a save. A baseline
+  // read, not a save: with the guard live here, resuming an EMPTY draft
+  // while another job's drawing was still filed in memory under the old
+  // key (the id is settled by the caller AFTER this returns) had the guard
+  // swap that drawing into the baseline and page the office about a save
+  // that never happened.
+  try { _lkgGuard._readOnly = true; DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
+  finally { _lkgGuard._readOnly = false; }
 }
 
 // ── Lock ────────────────────────────────────────────────────────────
@@ -23410,6 +23629,17 @@ function _setRoofAttached(i, val){
 }
 function _selGradeDelta(gradeId){
   if (!_selGradeOf(gradeId)) return 0;
+  var q0 = (window.S && S.quote) || {};
+  // Grades priced on their own in the price book: the delta is the real
+  // difference in the graded rows (sheets, flashings, back-trays), frozen
+  // onto the quote when it was built so the customer link reads the same.
+  if (q0.gradeDeltas && q0.gradeDeltas[gradeId] != null) return parseFloat(q0.gradeDeltas[gradeId]) || 0;
+  try {
+    if (window.S && S.settings && typeof _gradeDeltasSnapshot === 'function' && _selGradesAll().some(function(g){ return _pbGradeHasPrices(g.id); })){
+      var base0 = q0.baseGrade || _selBaseGradeId();
+      return _gradeMaterialTotal(gradeId) - _gradeMaterialTotal(base0);
+    }
+  } catch(e){}
   var pct = _selGradePctOf(gradeId);
   // Delta is RELATIVE to the grade the base quote was built at (baseGrade,
   // default Maxam) so a base already priced at a non-Maxam grade shows that
@@ -29849,6 +30079,8 @@ function refreshQuoteProposal(){
     // The grade the base quote was built at — so the customer Selections grade
     // deltas read relative to it (a non-Maxam base shows as "Included").
     S.quote.baseGrade = _selGrade0;
+    // Grades priced on their own: freeze each grade's real difference.
+    try { var _gd = _gradeDeltasSnapshot(); if (_gd) S.quote.gradeDeltas = _gd; else delete S.quote.gradeDeltas; } catch(e){}
     // Stash the roof pitch (calibration is authoritative) so the quote's page-1
     // stat shows it — and the customer link, which has no live drawing/roofData,
     // still shows the pitch.
@@ -33352,7 +33584,6 @@ function addCatalogItem(key){
     _origCollect();
     var cat = _ensureCatalog();
     cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
-    cat.products  = collectListEditor('catalogProducts', ['name']);
     cat.underlays = collectListEditor('catalogUnderlays', ['name']);
     cat.screws    = collectListEditor('catalogScrews', ['name']);
     cat.flashings = collectListEditor('catalogFlashings', ['name']);
@@ -33428,7 +33659,10 @@ function populateOrderDropdowns(){
     dl.innerHTML = html;
   }
   fillList('orderSupplierList', (cat.suppliers||[]).map(function(s){return {name:s.name};}));
-  fillList('orderProductList',  cat.products);
+  // Roof products are the steel grades on Quote's Product Options (plus
+  // anything typed into the old Roof products list).
+  var grades = []; try { grades = _selGrades(); } catch(e){}
+  fillList('orderProductList',  grades.concat(cat.products || []));
   fillList('orderUnderlayList', cat.underlays);
   fillList('orderScrewsList',   cat.screws);
 }
@@ -37885,7 +38119,9 @@ function _roofGeometryPayload(){
               return { label: h.label, cols: (h.runLo != null && h.runHi != null && DRAW.scaleMetresPerPx)
                 ? +((Math.abs(h.runHi - h.runLo) * DRAW.scaleMetresPerPx) / 0.762).toFixed(2) : null, roof: h.roofIdx }; }),
             groups: (sc.groups || []).map(function(g){ return { mm: g.orderedMm, n: g.count }; }),
-            rows: (typeof _jpBuildSheetRows === 'function') ? _jpBuildSheetRows(sc).map(function(r){ return { orig: r.origLen, len: r.len, qty: r.qty }; }) : null
+            rows: (typeof _jpBuildSheetRows === 'function') ? _jpBuildSheetRows(sc).map(function(r){ return { orig: r.origLen, len: r.len, qty: r.qty }; }) : null,
+            roofSel: (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null,
+            byRoof: (typeof _jpSheetRowsAll === 'function') ? _jpSheetRowsAll().map(function(g){ return { roof: g.roofIdx, title: g.title, rows: g.rows }; }) : null
           };
         } catch(e){ return { error: String(e && e.message || e) }; }
       })()
@@ -39730,7 +39966,7 @@ var SETUP_STEPS = [
 
   { key:'pricebook', title:'Your price book — read this one',
     body:'__PB_DISCLAIMER__',
-    go:{ tab:'settings', sub:'set-pricebook' }, cta:'Open the price book', where:'Price book' },
+    go:{ tab:'settings', sub:'set-products' }, cta:'Open the price book', where:'Quote\'s Product Options' },
 
   { key:'brand', title:'Make the quotes yours',
     // The branding wizard collects the same fields on first run. If it has
@@ -39756,7 +39992,7 @@ var SETUP_STEPS = [
     body:'Steel grades, sheet profiles and gutter profiles — add, edit or remove them so the ' +
          'options your customer sees are the ones you really offer, priced the way you price them.\n\n' +
          'A grade you never fit should not be on the page.',
-    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products', where:'Products' },
+    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products', where:'Quote\'s Product Options' },
 
   { key:'labour', title:'Your labour and scaffolding',
     body:'Charge-out rates for a lead roofer and an apprentice, and the hours a roof of a given ' +
@@ -39772,7 +40008,7 @@ var SETUP_STEPS = [
          'retyping a cut list into an email, no rebuilding the order in the merchant\u2019s portal.\n\n' +
          'A copy of every order also goes to whichever address you nominate, so you have the ' +
          'confirmation in your own inbox and a record of exactly what was ordered and when.',
-    go:{ tab:'settings', sub:'set-supl' }, cta:'Set up your suppliers', where:'Suppliers & materials' },
+    go:{ tab:'settings', sub:'set-supl' }, cta:'Set up your suppliers', where:'Suppliers' },
 
   { key:'jms', title:'Fergus — only if you use it',
     body:'If your business runs on Fergus, paste your API key and RoofMap connects to it. What that ' +
@@ -40100,10 +40336,10 @@ var TOUR_STEPS = [
   { key:'tab-set', gate:'#navSettingsBtn', tab:'settings', title:'Make it yours',
     body:'Click **Settings**.' },
   { key:'set-nav', sel:'.set-nav', tab:'settings', title:'Everything the quote is built from',
-    body:'**Branding** puts your business on what the customer sees. **Price book** is every rate — upload a merchant CSV or type over any number. **Products** decides what the customer is offered. **Labour pricing** sets your hours and rates. **Flashing library** holds the folded profiles. **Team**, **Billing** and **Invoicing** are here too.' },
-  { key:'set-tutorial', sel:'[data-tour="set-tutorial"]', tab:'settings', sub:'set-general',
+    body:'**Branding** puts your business on what the customer sees. **Quote\u2019s Product Options** is what the customer is offered and every rate behind it — sheets, flashings and back-trays priced per steel grade; upload a merchant CSV or type over any number. **Labour pricing** sets your hours and rates. **Flashing library** holds the folded profiles. **Team**, **Billing** and **Invoicing** are here too.' },
+  { key:'set-tutorial', sel:'[data-tour="set-tutorial"]', tab:'settings', sub:'set-guides',
     title:'And this is how you get me back',
-    body:'**Settings → General → Run the tutorial.** Any time.\n\nThe **setup guide** beside it is the other one — that walks through getting your prices, branding and products in.' },
+    body:'**Settings → Guides → Run the tutorial.** Any time.\n\nThe **setup guide** beside it is the other one — that walks through getting your prices, branding and products in.' },
 
   // ── FEEDBACK ────────────────────────────────────────────────────
   { key:'tab-fb', gate:'#navFeedbackBtn', tab:'feedback', title:'When something is wrong',
@@ -40356,7 +40592,7 @@ function openTour(force, steps, kind){
   TOUR.kind = kind || 'main';
   TOUR.i = 0; TOUR.open = true;
   var _hdr = TOUR.kind === 'inbox' ? 'Inbox guide' : (TOUR.kind === 'firstroof' ? (FIRST_ROOF.path === 'practice' ? 'Your first roof — the practice job' : 'Your first roof') : 'RoofMap tutorial');
-  var _cancelLbl = TOUR.kind === 'inbox' ? 'Close guide' : (TOUR.kind === 'firstroof' ? 'Stop the walkthrough' : 'Cancel tutorial');
+  var _cancelLbl = TOUR.kind === 'inbox' ? 'Close guide' : (TOUR.kind === 'firstroof' ? 'Cancel practice job' : 'Cancel tutorial');
   var w = document.createElement('div');
   w.id = 'tourWrap';
   w.className = 'no-print';
@@ -40372,7 +40608,7 @@ function openTour(force, steps, kind){
       '<div id="tourBody" style="font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;max-height:40vh;overflow:auto"></div>' +
       '<div style="margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px">' +
-          '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">' + _cancelLbl + '</button>' +
+          '<button type="button" id="tourCancel" style="background:#fff;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:8px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:5px 10px;white-space:nowrap">' + _cancelLbl + '</button>' +
           '<button type="button" id="tourHelp" onclick="_tourHelp()" style="background:none;border:none;color:#0099cc;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">Help with this step</button>' +
           (TOUR.kind !== 'main' ? '' :
             '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>') +
@@ -40669,7 +40905,47 @@ async function openTestJob(opts){
 // the imagery service down) the practice job still needs something to trace.
 // A drawn stand-in — ground, a drive, a plain hip-roof house — labelled for
 // what it is. Scaled like a zoom-19 aerial so the numbers come out sensible.
+// The owner's own aerial of the practice roof ships with the app, so the
+// stand-in is the real picture, at its real scale (1 px = 63.92 mm — the
+// same figure the practice job was calibrated to). Fetched as a blob so the
+// canvas it lands on is never tainted; when it cannot be fetched (a file://
+// test, an offline tab) the drawn picture below stands in for it.
+var PRACTICE_AERIAL = { src: 'brand/practice-aerial.jpg', scaleMetresPerPx: 0.0639223 };
 function _firstRoofFallbackImage(){
+  var done = false;
+  function place(img, scale){
+    if (done) return; done = true;
+    DRAW.bgImg = img; DRAW.zoom = 1; IMG_OFFSET = { x: 0, y: 0 }; IMG_ROTATION = 0; IMG_FINE_ROTATION = 0;
+    if (scale > 0){ DRAW.scaleMetresPerPx = scale; DRAW.scaleAuto = false; }
+    else { try { _autoScaleFromAerial(FIRST_ROOF.lat, 19, true); } catch(e){} }
+    var cv = document.getElementById('roofCanvas'), wrap = document.getElementById('canvasWrap');
+    if (cv && wrap){
+      var dpr2 = window.devicePixelRatio || 1, W = wrap.offsetWidth || 900, H = Math.round(W * (scale > 0 ? 0.62 : 1));
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      cv.width = Math.round(W * dpr2); cv.height = Math.round(H * dpr2);
+    }
+    redrawAll();
+    try { if (scale > 0) fitDrawingToCanvas(); } catch(e){}
+    try { _collapseRoofBg(); } catch(e){}
+    try { _closeAerialModal(); } catch(e){}
+    try { _usageEvent('roof_source', { type: 'fallback', bundled: scale > 0 }); } catch(e){}
+    var hint = document.getElementById('aerialHint');
+    if (hint) hint.innerHTML = scale > 0
+      ? '<span>The practice roof — 23 Don Buck Road, Massey. Trace it.</span>'
+      : '<span style="color:#b45309">Satellite image unavailable — a practice picture is on the canvas instead.</span>';
+  }
+  try {
+    if (location.protocol === 'file:') throw new Error('no fetch on file:');
+    fetch(PRACTICE_AERIAL.src, { cache: 'force-cache' }).then(function(r){ if (!r.ok) throw new Error(r.status); return r.blob(); })
+      .then(function(bl){
+        var im = new Image();
+        im.onload = function(){ place(im, PRACTICE_AERIAL.scaleMetresPerPx); };
+        im.onerror = function(){ _firstRoofDrawnPicture(place); };
+        im.src = URL.createObjectURL(bl);
+      }).catch(function(){ _firstRoofDrawnPicture(place); });
+  } catch(e){ _firstRoofDrawnPicture(place); }
+}
+function _firstRoofDrawnPicture(place){
   var c = document.createElement('canvas'); c.width = 1280; c.height = 1280;
   var g = c.getContext('2d');
   g.fillStyle = '#6f8f5a'; g.fillRect(0, 0, 1280, 1280);
@@ -40684,22 +40960,7 @@ function _firstRoofFallbackImage(){
   g.fillStyle = '#fff'; g.font = 'bold 26px sans-serif';
   g.fillText('Practice picture — the satellite image could not be loaded here. Trace this roof.', 20, 36);
   var img = new Image();
-  img.onload = function(){
-    DRAW.bgImg = img; DRAW.zoom = 1; IMG_OFFSET = { x: 0, y: 0 }; IMG_ROTATION = 0; IMG_FINE_ROTATION = 0;
-    try { _autoScaleFromAerial(FIRST_ROOF.lat, 19, true); } catch(e){}
-    var cv = document.getElementById('roofCanvas'), wrap = document.getElementById('canvasWrap');
-    if (cv && wrap){
-      var dpr2 = window.devicePixelRatio || 1, W = wrap.offsetWidth || 900, H = Math.round(W);
-      cv.style.width = W + 'px'; cv.style.height = H + 'px';
-      cv.width = Math.round(W * dpr2); cv.height = Math.round(H * dpr2);
-    }
-    redrawAll();
-    try { _collapseRoofBg(); } catch(e){}
-    try { _closeAerialModal(); } catch(e){}
-    try { _usageEvent('roof_source', { type: 'fallback' }); } catch(e){}
-    var hint = document.getElementById('aerialHint');
-    if (hint) hint.innerHTML = '<span style="color:#b45309">Satellite image unavailable — a practice picture is on the canvas instead.</span>';
-  };
+  img.onload = function(){ place(img, 0); };
   img.src = c.toDataURL('image/png');
 }
 // The first card: their own roof first, the practice roof as the fallback,
@@ -48189,7 +48450,7 @@ var BACKTRAY_NAMES = [
 // of a short tray on a 3m run, and pricing both the same was wrong on every
 // job where the two appeared together.
 function _backTrayLmPrice(name){
-  var m = (window.S && S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
+  var m = ((typeof _pbForGrade === 'function') ? _pbForGrade(_pbGradeInUse()).backtray_prices : (window.S && S.settings && S.settings.price_book && S.settings.price_book.backtray_prices)) || {};
   var n = parseFloat(m[name]);
   return (isFinite(n) && n >= 0) ? n : 0;
 }
@@ -48727,7 +48988,7 @@ function _jobFlashingLm(){
 // $/lm for box flashings. Its own price-book field, falling back to the apron
 // rate — a box set is folded from the same coil off the same brake.
 function _boxFlashLmPrice(){
-  var pb = (S.settings && S.settings.price_book) || {};
+  var pb = (typeof _pbForGrade === 'function') ? _pbForGrade(_pbGradeInUse()) : ((S.settings && S.settings.price_book) || {});
   var v = parseFloat(pb.box_pen_lm);
   if (v > 0) return v;
   return parseFloat(pb.apron_lm) || 0;
@@ -49117,20 +49378,67 @@ function busyHide(all){
 // Which roof indices the Materials tab's summary + cut lists cover.
 // Default: every roof. Persisted in localStorage so an unchecked roof
 // stays out across refreshes.
+// Which roofs the Job Pack (and the Materials tab) covers. Saved WITH THE
+// JOB (S.jobPack.roofSel) — it used to sit in localStorage, one value for
+// every job on the computer. Until the office picks roofs by hand the pack
+// follows the quote: the main roof, anything folded into its price, and an
+// optional roof only once the customer has added it (report 54 — a job pack
+// is what gets ordered, so a roof the customer left out has no place on it).
+// A pricing pass that needs one roof's group uses the override, so it never
+// turns "following the quote" into a hand-picked list behind the office's
+// back.
 function _matSelectedRoofIndices() {
   if (!DRAW.roofs || DRAW.roofs.length === 0) return [-1]; // sentinel for no-multi mode
   var all = DRAW.roofs.map(function(_, i){ return i; });
-  var saved = localStorage.getItem('fr_mat_selected_roofs');
-  if (!saved) return all;
-  try {
-    var arr = JSON.parse(saved);
-    if (!Array.isArray(arr) || arr.length === 0) return all;
-    var filtered = arr.filter(function(i){ return i >= 0 && i < DRAW.roofs.length; });
-    return filtered.length ? filtered : all;
-  } catch(e) { return all; }
+  var arr = window.__matSelOverride;
+  if (!Array.isArray(arr)){
+    var jp = (window.S && S.jobPack) || null;
+    arr = (jp && Array.isArray(jp.roofSel)) ? jp.roofSel : null;
+  }
+  if (!Array.isArray(arr)) return _jpQuotedRoofIndices();
+  if (arr.length === 0) return all;
+  var filtered = arr.filter(function(i){ return i >= 0 && i < DRAW.roofs.length; });
+  return filtered.length ? filtered : all;
 }
 function _matSetSelectedRoofs(arr) {
-  localStorage.setItem('fr_mat_selected_roofs', JSON.stringify(arr));
+  if (!window.S) return;
+  if (!S.jobPack) S.jobPack = {};
+  S.jobPack.roofSel = (arr || []).slice();
+}
+// A pricing pass narrows the selection for one calculation; returns what to
+// hand back to _matSelOverride when it is done.
+function _matSelOverride(arr){
+  var prev = window.__matSelOverride;
+  window.__matSelOverride = Array.isArray(arr) ? arr.slice() : null;
+  return prev;
+}
+// Back to following the quote.
+function _jpFollowQuote(){
+  if (window.S && S.jobPack) delete S.jobPack.roofSel;
+}
+function _jpSelFollowsQuote(){
+  var jp = (window.S && S.jobPack) || null;
+  return !(jp && Array.isArray(jp.roofSel));
+}
+// The roofs the quote actually sells: the main roof, roofs folded into its
+// price, and a separate (optional) roof only when the customer has ticked
+// it. Every roof until a quote exists — nothing to follow yet.
+function _jpQuotedRoofIndices(){
+  var n = (DRAW.roofs || []).length, all = [];
+  for (var i = 0; i < n; i++) all.push(i);
+  var q = window.S && S.quote;
+  if (!q || !q.roofMapGeom || !Array.isArray(q.roofMapGeom.roofs) || n < 2) return all;
+  var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+  var pos = {};
+  q.roofMapGeom.roofs.forEach(function(r){ if (r && r.extraPos != null) pos[r.idx] = r.extraPos; });
+  var out = [];
+  for (var k = 0; k < n; k++){
+    var mode = 'main';
+    try { mode = _roofQuoteMode(k); } catch(e){}
+    if (mode === 'main' || mode === 'folded') out.push(k);
+    else if (mode === 'separate' && pos[k] != null && sel[pos[k]] === true) out.push(k);
+  }
+  return out.length ? out : [0];
 }
 // Iterate the user's selected roofs (or just the current roof if
 // there's no multi-roof archive yet). Loads each roof's snapshot into
@@ -50527,6 +50835,12 @@ function _jpCaptureMap(mapKey, opts){
   var kind = parts[0];
   if (parts[1] === 'all') { try { return _jpCaptureCombined(kind, opts); } catch(e){ return null; } }
   var roofIdx = parts.length > 1 ? parseInt(parts[1], 10) : -1;
+  // The whole-job pictures (the header page's maps) show the roofs the pack
+  // covers, not every roof drawn.
+  if (roofIdx === -1 && (kind === 'detailed' || kind === 'basic' || kind === 'flashref')){
+    var _f = _jpMapRoofFilter();
+    if (_f){ try { return _jpWithRoofsNarrowed(_f, function(){ return _jpCaptureMap(mapKey, opts); }); } catch(e){ return null; } }
+  }
   try {
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
     if (kind === 'basic')    return _jpCaptureBasic(roofIdx, opts);
@@ -50555,9 +50869,26 @@ function _jpCaptureCombined(kind, opts){
   if (!vis.length) return null;
   if (kind === 'sheetplan') return _jpCaptureSheetPlanCombined(vis, opts);
   if (kind === 'calccheck') return _jpCaptureCalcCheckCombined(vis, opts);
-  // Canvas / SVG kinds draw from DRAW, so narrow DRAW.roofs to the ticked
-  // roofs and let the existing all-roofs path draw them together. Every
-  // field touched is put back in the finally, live canvas included.
+  return _jpWithRoofsNarrowed(vis, function(){
+    if (kind === 'detailed') return _jpCaptureDetailed(-1, opts);
+    if (kind === 'basic')    return _jpCaptureBasic(-1, opts);
+    if (kind === 'flashref') return _jpCaptureFlashRef(-1, opts);
+    return null;
+  });
+}
+// The roofs the job pack's map should show: the pack's own selection when
+// it is narrower than the job. null = every roof (or already narrowed).
+function _jpMapRoofFilter(){
+  if (window.__jpRoofsNarrowed) return null;
+  if (!DRAW.roofs || DRAW.roofs.length < 2) return null;
+  var sel = _matSelectedRoofIndices();
+  if (!sel || sel.length >= DRAW.roofs.length || (sel.length === 1 && sel[0] === -1)) return null;
+  return sel;
+}
+// Run fn with DRAW.roofs narrowed to `vis` (original indices) so the
+// all-roofs drawing paths draw just those. Every field touched is put back
+// in the finally, live canvas included.
+function _jpWithRoofsNarrowed(vis, fn){
   var savedRoofs   = DRAW.roofs,
       savedActive  = DRAW.activeRoofIdx,
       savedShowAll = DRAW.showAllRoofs,
@@ -50578,11 +50909,10 @@ function _jpCaptureCombined(kind, opts){
       });
     }
     DRAW.showAllRoofs = true;
-    if (kind === 'detailed') return _jpCaptureDetailed(-1, opts);
-    if (kind === 'basic')    return _jpCaptureBasic(-1, opts);
-    if (kind === 'flashref') return _jpCaptureFlashRef(-1, opts);
-    return null;
+    window.__jpRoofsNarrowed = true;
+    return fn();
   } finally {
+    window.__jpRoofsNarrowed = false;
     DRAW.roofs = savedRoofs;
     DRAW.activeRoofIdx = savedActive;
     DRAW.showAllRoofs = savedShowAll;
@@ -51626,9 +51956,13 @@ function _jpRoofPickerHtml(){
     '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Roofs included in this job pack</div>';
   h += pill('All roofs', allOn, '_jpSelectAllRoofs()');
   DRAW.roofs.forEach(function(r, i){ h += pill(r.name || ('Roof ' + (i+1)), !!selSet[i], '_jpToggleRoof('+i+')'); });
+  h += '<div id="jpRoofSelNote" style="font-size:11.5px;color:#475569;margin-top:4px">' + (_jpSelFollowsQuote()
+    ? 'Following the quote: the main roof, roofs priced with it, and an optional roof once the customer adds it. Pick roofs above to change what this pack orders — the quote is not affected.'
+    : 'Picked by hand for this job pack. <button type="button" onclick="_jpFollowQuoteClick()" style="background:none;border:none;padding:0;color:#0099cc;font-weight:700;cursor:pointer;font-family:inherit;font-size:11.5px">Follow the quote instead</button>') + '</div>';
   h += '</div>';
   return h;
 }
+function _jpFollowQuoteClick(){ _jpFollowQuote(); _jpAfterRoofSelChange(); }
 function _jpAfterRoofSelChange(){
   try { renderRoofSheetPlan(); } catch(e){}
   try { populateMaterialsFromLines(); } catch(e){}
@@ -52050,17 +52384,22 @@ function _jpRenderRoofMap(content, page, idx){
   if (oldView !== view) {
     try { localStorage.setItem('fr_mat_map_view', view); } catch(e){}
   }
-  if (realOut) {
-    realOut.id = '__realMatRoofMapOut_swap';
-    out.id = 'matRoofMapOut';
-    try { renderMatRoofMap(); } catch(e){}
-    out.id = 'jpRoofMapOut_' + idx;
-    realOut.id = 'matRoofMapOut';
-  } else {
-    out.id = 'matRoofMapOut';
-    try { renderMatRoofMap(); } catch(e){}
-    out.id = 'jpRoofMapOut_' + idx;
-  }
+  var draw = function(){
+    if (realOut) {
+      realOut.id = '__realMatRoofMapOut_swap';
+      out.id = 'matRoofMapOut';
+      try { renderMatRoofMap(); } catch(e){}
+      out.id = 'jpRoofMapOut_' + idx;
+      realOut.id = 'matRoofMapOut';
+    } else {
+      out.id = 'matRoofMapOut';
+      try { renderMatRoofMap(); } catch(e){}
+      out.id = 'jpRoofMapOut_' + idx;
+    }
+  };
+  // Only the roofs this pack covers.
+  var _f = _jpMapRoofFilter();
+  if (_f){ try { _jpWithRoofsNarrowed(_f, draw); } catch(e){} } else draw();
   if (oldView !== view) { try { localStorage.setItem('fr_mat_map_view', oldView); } catch(e){} }
 }
 function _jpSetRoofMapView(idx, view){
@@ -52102,6 +52441,63 @@ function _jpRenderSheetPlan(content, page, idx){
     out.innerHTML = '<p style="font-size:12px;color:var(--text2);font-style:italic">Draw your roof and generate the sheet plan first.</p>';
   }
 }
+// One "Roof sheets" section: the rows for `sc` (a roof's own counts, or the
+// job's), edited through the job-level slots — inside _jpSheetScope when a
+// roof of its own is being listed, so every onclick is routed back into
+// that roof's scope.
+function _jpSheetSectionHtml(sc, roofIdx, title, meta, total){
+  function call(fnName){
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (roofIdx == null) return fnName + '(' + args.join(',');
+    return '_jpSheetScoped(' + roofIdx + ',\'' + fnName + '\'' + (args.length ? ',' + args.join(',') : '');
+  }
+  var html = '<div class="mat-section">';
+  var sheetRows = _jpBuildSheetRows(sc);
+  if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
+    var rowsHtml = '';
+    sheetRows.forEach(function(r){
+      var qty = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
+        'onchange="'+call('_jpSheetSetQty', r.origLen)+',this.value)">';
+      var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(r.len)+'" onfocus="this.select()" '+
+        'onchange="'+call('_jpSheetSetLen', r.origLen)+',this.value)">';
+      var del = '<button class="mat-list-del" onclick="'+call('_jpSheetHide', r.origLen)+')" title="Hide row">×</button>';
+      rowsHtml += '<div class="mat-list-row">'+
+        '<span class="mat-list-qty">'+qty+'</span>'+
+        '<span class="mat-list-at">@</span>'+
+        '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
+        del +
+      '</div>';
+    });
+    if (Array.isArray(DRAW.matSheetExtras)) {
+      DRAW.matSheetExtras.forEach(function(x, xi){
+        if (!x) return;
+        var qty = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
+          'onchange="'+call('_jpSheetExtraUpdate', xi)+',\'qty\',this.value)">';
+        var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(x.lenMm||3000)+'" onfocus="this.select()" '+
+          'onchange="'+call('_jpSheetExtraUpdate', xi)+',\'lenMm\',this.value)">';
+        var del = '<button class="mat-list-del" onclick="'+call('_jpSheetExtraDelete', xi)+')" title="Delete row">×</button>';
+        rowsHtml += '<div class="mat-list-row is-extra">'+
+          '<span class="mat-list-qty">'+qty+'</span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
+          del +
+        '</div>';
+      });
+    }
+    html += _matSectionHead('#0099cc', title, meta, total)+
+      '<div class="mat-list">'+rowsHtml+'</div>';
+  } else {
+    html += _matSectionHead('#0099cc', title, meta)+
+      '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
+  }
+  html += '<button class="mat-add-btn" onclick="'+call('_jpSheetExtraAdd')+')">+ Add row</button>';
+  if (_jpSheetFrozen()){
+    html += '<button class="mat-add-btn" style="margin-left:8px;color:#64748b" title="Throw away every edit to the sheet rows and count them from the roof again" '+
+      'onclick="if(confirm(\'Rebuild the sheet rows from the roof map? Your edits to these rows will be lost.\'))'+call('_jpSheetUnfreeze')+')">Reset from map</button>';
+  }
+  html += '</div>';
+  return html;
+}
 function _jpRenderCutLists(content, page, idx){
   // Page layout:
   //   1. Profile / grade / thickness / ridge / gutter selectors (mirror
@@ -52135,54 +52531,26 @@ function _jpRenderCutLists(content, page, idx){
   // ── Roof sheets (email-style: "13 @ 6.21m") ──
   // The banner is emitted AFTER the rows are built so the section
   // total can ride on its far right (the old foot line under the rows
-  // made the section read messy).
-  html += '<div class="mat-section">';
-  var sheetRows = _jpBuildSheetRows(sc);
-  if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
-    var rowsHtml = '';
-    sheetRows.forEach(function(r){
-      var qty = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
-        'onchange="_jpSheetSetQty('+r.origLen+',this.value)">';
-      var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(r.len)+'" onfocus="this.select()" '+
-        'onchange="_jpSheetSetLen('+r.origLen+',this.value)">';
-      var del = '<button class="mat-list-del" onclick="_jpSheetHide('+r.origLen+')" title="Hide row">×</button>';
-      rowsHtml += '<div class="mat-list-row">'+
-        '<span class="mat-list-qty">'+qty+'</span>'+
-        '<span class="mat-list-at">@</span>'+
-        '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
-        del +
-      '</div>';
-    });
-    if (Array.isArray(DRAW.matSheetExtras)) {
-      DRAW.matSheetExtras.forEach(function(x, xi){
-        if (!x) return;
-        var qty = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
-          'onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)">';
-        var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(x.lenMm||3000)+'" onfocus="this.select()" '+
-          'onchange="_jpSheetExtraUpdate('+xi+',\'lenMm\',this.value)">';
-        var del = '<button class="mat-list-del" onclick="_jpSheetExtraDelete('+xi+')" title="Delete row">×</button>';
-        rowsHtml += '<div class="mat-list-row is-extra">'+
-          '<span class="mat-list-qty">'+qty+'</span>'+
-          '<span class="mat-list-at">@</span>'+
-          '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
-          del +
-        '</div>';
-      });
-    }
-    html += _matSectionHead('#0099cc', 'Roof sheets',
-        esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+(colour ? ' · '+esc(colour) : ''),
-        d.roofArea.toFixed(1)+' m² roof')+
-      '<div class="mat-list">'+rowsHtml+'</div>';
+  // made the section read messy). A multi-roof pack gets one section
+  // per roof it covers, each roof at its own profile and pitch.
+  var _sheetRoofs = _jpSheetRoofList();
+  if (!_sheetRoofs.length){
+    html += _jpSheetSectionHtml(sc, null, 'Roof sheets',
+      esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+(colour ? ' · '+esc(colour) : ''),
+      d.roofArea.toFixed(1)+' m² roof');
   } else {
-    html += _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness))+
-      '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
+    var _areas = {}; try { _matBasicCollectRoofs().forEach(function(r){ _areas[r.idx] = r.areaM2; }); } catch(e){}
+    var _byRoof = window._lastSheetCountsByRoof || {};
+    _sheetRoofs.forEach(function(ri){
+      var r = DRAW.roofs[ri] || {};
+      var prof = profile; try { prof = _roofSheetType(ri).profile || profile; } catch(e){}
+      var pitch = (ri === DRAW.activeRoofIdx) ? DRAW.calPitch : r.calPitch;
+      var meta = esc(prof)+' · '+esc(grade)+' · '+esc(thickness)+(colour ? ' · '+esc(colour) : '')+((+pitch > 0) ? ' · '+(+pitch).toFixed(0).replace(/\.0$/,'')+'°' : '');
+      html += _jpSheetScope(ri, function(){
+        return _jpSheetSectionHtml(_byRoof[ri] || null, ri, _jpRoofSheetTitle(ri), meta, (_areas[ri] > 0) ? _areas[ri].toFixed(1)+' m² roof' : '');
+      });
+    });
   }
-  html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
-  if (_jpSheetFrozen()){
-    html += '<button class="mat-add-btn" style="margin-left:8px;color:#64748b" title="Throw away every edit to the sheet rows and count them from the roof again" '+
-      'onclick="if(confirm(\'Rebuild the sheet rows from the roof map? Your edits to these rows will be lost.\'))_jpSheetUnfreeze()">Reset from map</button>';
-  }
-  html += '</div>';
 
   // ── Clearlite sheets ──
   // Renders whenever there is a clear on the job — one dropped with the
@@ -53409,8 +53777,9 @@ function _jpSheetFrozen(){
 function _jpSheetFreeze(){
   if (_jpSheetFrozen()) return DRAW.matSheetFrozen;
   var rows = [];
-  try { rows = _jpBuildSheetRows(window._lastSheetCounts || {}); } catch(e){ rows = []; }
-  DRAW.matSheetFrozen = { sig: _jpSheetSig(window._lastSheetCounts || {}),
+  var scS = _jpSheetCountsInScope();
+  try { rows = _jpBuildSheetRows(scS); } catch(e){ rows = []; }
+  DRAW.matSheetFrozen = { sig: _jpSheetSig(scS),
     rows: rows.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty, autoQty: r.qty }; }) };
   return DRAW.matSheetFrozen;
 }
@@ -53422,6 +53791,92 @@ function _jpSheetUnfreeze(){
   try { saveSnapshot(); } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderJobPack(); } catch(e){}
+}
+// ── One cut list per roof ────────────────────────────────────────
+// A multi-roof job pack shows "Main Roof sheets", "Roof 2 sheets" … one
+// section per roof it covers (report 54: a 15° corrugate main roof and a 3°
+// 5-Rib lean-to are two orders, not one list). Each roof keeps its own
+// freeze, overrides, hidden rows and typed extras under
+// DRAW.matSheetByRoof[idx]; _jpSheetScope swaps them into the job-level
+// slots the existing row builder and setters read, runs the work, and
+// swaps them back — so single-roof jobs and every reader of the plain
+// slots are untouched.
+var JP_SHEET_STORES = ['matSheetFrozen', 'matSheetRowHidden', 'sheetGroupQtyOverrides', 'sheetGroupOverrides', 'matSheetExtras'];
+// The counts the list being built comes from: one roof's own inside
+// _jpSheetScope, the job's otherwise.
+function _jpSheetCountsInScope(){
+  var idx = window.__jpSheetRoofIdx;
+  if (idx != null) return (window._lastSheetCountsByRoof || {})[idx] || {};
+  return window._lastSheetCounts || {};
+}
+function _jpSheetRoofStore(idx){
+  if (!DRAW.matSheetByRoof) DRAW.matSheetByRoof = {};
+  var st = DRAW.matSheetByRoof[idx];
+  if (!st) st = DRAW.matSheetByRoof[idx] = { matSheetFrozen: null, matSheetRowHidden: {}, sheetGroupQtyOverrides: {}, sheetGroupOverrides: {}, matSheetExtras: [] };
+  return st;
+}
+function _jpSheetScope(idx, fn){
+  if (idx == null || idx < 0 || !DRAW.roofs || DRAW.roofs.length < 2) return fn();
+  var st = _jpSheetRoofStore(idx), saved = {}, prevIdx = window.__jpSheetRoofIdx;
+  JP_SHEET_STORES.forEach(function(k){ saved[k] = DRAW[k]; DRAW[k] = st[k]; });
+  window.__jpSheetRoofIdx = idx;
+  try { return fn(); }
+  finally {
+    JP_SHEET_STORES.forEach(function(k){ st[k] = DRAW[k]; DRAW[k] = saved[k]; });
+    window.__jpSheetRoofIdx = prevIdx;
+  }
+}
+// onclick glue: _jpSheetScoped(1, '_jpSheetSetQty', 5498, this.value)
+function _jpSheetScoped(idx, fnName){
+  var args = Array.prototype.slice.call(arguments, 2);
+  return _jpSheetScope(idx, function(){ return window[fnName].apply(null, args); });
+}
+// The roofs that get a sheet section of their own: on a multi-roof job,
+// every roof the pack covers that has an outline and is sheeted in steel
+// (a roof in clear lives under Clearlite sheets). Empty on a single-roof job.
+function _jpSheetRoofList(){
+  if (!DRAW.roofs || DRAW.roofs.length < 2) return [];
+  var sel = _matSelectedRoofIndices();
+  if (sel.length === 1 && sel[0] === -1) return [];
+  return sel.filter(function(i){
+    var r = DRAW.roofs[i]; if (!r) return false;
+    var ol = (i === DRAW.activeRoofIdx) ? DRAW.outline : r.outline;
+    if (!ol || ol.length < 3) return false;
+    try { if (_roofIsClearlite(i)) return false; } catch(e){}
+    return true;
+  });
+}
+function _jpRoofSheetTitle(i){
+  var r = (DRAW.roofs || [])[i] || {};
+  return (r.name || _nthName(i + 1)) + ' sheets';
+}
+// A map label / sheet run belongs in the list being built: the scoped
+// roof's own when one roof is being listed, otherwise any roof the pack
+// covers. Runs with no roof on them (old jobs) are let through.
+function _jpHitRoofOk(h){
+  if (!h) return false;
+  if (h.roofIdx == null) return true;
+  var scope = window.__jpSheetRoofIdx;
+  if (scope != null) return h.roofIdx === scope;
+  try { if (DRAW.roofs && DRAW.roofs.length > 1) return _matSelectedRoofIndices().indexOf(h.roofIdx) >= 0; } catch(e){}
+  return true;
+}
+// Every sheet section the pack shows, rows and typed extras together, for
+// the readers that print or email the list: [{ roofIdx, title, rows:[{len, qty}] }].
+function _jpSheetRowsAll(){
+  function rowsOf(sc){
+    var rows = [];
+    if (sc && sc.groups && sc.groups.length) rows = _jpBuildSheetRows(sc).map(function(r){ return { len: r.len, qty: r.qty }; });
+    if (Array.isArray(DRAW.matSheetExtras)) DRAW.matSheetExtras.forEach(function(x){ if (x && +x.qty > 0 && +x.lenMm > 0) rows.push({ len: +x.lenMm, qty: +x.qty }); });
+    rows.sort(function(a, b){ return b.len - a.len; });
+    return rows;
+  }
+  var list = _jpSheetRoofList();
+  if (!list.length) return [{ roofIdx: null, title: 'Roof sheets', rows: rowsOf(window._lastSheetCounts || null) }];
+  var byRoof = window._lastSheetCountsByRoof || {};
+  return list.map(function(ri){
+    return _jpSheetScope(ri, function(){ return { roofIdx: ri, title: _jpRoofSheetTitle(ri), rows: rowsOf(byRoof[ri] || null) }; });
+  });
 }
 function _jpBuildSheetRows(sc){
   var rows = [];
@@ -53484,23 +53939,36 @@ function _jpBuildSheetRowsAuto(sc){
   // the map labels the run at its barge (1970 mm). Same sheets, two rulers.
   (function(){
     if (typeof _clearRoofIdxs !== 'function') return;
-    // Every roof in clear → there is no steel on this job at all.
-    if (typeof _clearAllRoofs === 'function' && _clearAllRoofs()){
-      Object.keys(byLen).forEach(function(k){ delete byLen[k]; });
-      return;
-    }
     var want = {};
     function add(mm, n){ if (mm > 0 && n > 0) want[mm] = (want[mm] || 0) + n; }
-    var wr = (typeof _clearWholeRoofRows === 'function') ? _clearWholeRoofRows() : {};
-    Object.keys(wr).forEach(function(k){ add(Math.round(parseFloat(k) * 1000), wr[k]); });
-    // Individually placed FULL-length clears stand in a sheet's place too. A
-    // short one does not — it is an infill, and the steel above and below it
-    // is still on the order.
-    if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
-      var c = o && o.c; if (!c || c.mode === 'short') return;
-      var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
-      add(Math.round(lm * 1000), 1);
-    });
+    var _scope = window.__jpSheetRoofIdx;
+    if (_scope != null){
+      // One roof's own list: a roof sheeted in clear has no steel at all;
+      // otherwise only the full-length clears placed ON this roof stand in
+      // for its sheets. Other roofs' clears are their own business.
+      if (_roofIsClearlite(_scope)){ Object.keys(byLen).forEach(function(k){ delete byLen[k]; }); return; }
+      if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
+        var c = o && o.c; if (!c || o.roofIdx !== _scope || c.mode === 'short') return;
+        add(Math.round(((typeof _clearLenM === 'function') ? _clearLenM(c) : 0) * 1000), 1);
+      });
+    } else {
+      // Every roof in clear → there is no steel on this job at all.
+      if (typeof _clearAllRoofs === 'function' && _clearAllRoofs()){
+        Object.keys(byLen).forEach(function(k){ delete byLen[k]; });
+        return;
+      }
+      var wr = (typeof _clearWholeRoofRows === 'function') ? _clearWholeRoofRows() : {};
+      Object.keys(wr).forEach(function(k){ add(Math.round(parseFloat(k) * 1000), wr[k]); });
+      // Individually placed FULL-length clears stand in a sheet's place too. A
+      // short one does not — it is an infill, and the steel above and below it
+      // is still on the order.
+      if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
+        var c = o && o.c; if (!c || c.mode === 'short') return;
+        if (!_jpHitRoofOk({ roofIdx: o.roofIdx })) return;
+        var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
+        add(Math.round(lm * 1000), 1);
+      });
+    }
     Object.keys(want).forEach(function(mmKey){
       var mm = parseInt(mmKey, 10), left = want[mmKey];
       Object.keys(byLen).map(Number)
@@ -53582,6 +54050,10 @@ function _jpBuildSheetRowsAuto(sc){
       _bhits.forEach(function(h){
         if (!h || h.label == null || h.runLo == null || h.runHi == null) return;
         if (h.roofIdx != null && _clrIdx.indexOf(h.roofIdx) >= 0) return;
+        // Another roof's run is not a bump-out on this one (report 54: with
+        // only Roof 2 in the pack, the main roof's 4.76 m and 3.69 m runs
+        // were "absorbed" lengths and peeled Roof 2's nine sheets down to one).
+        if (!_jpHitRoofOk(h)) return;
         var _lm = parseFloat(String(h.label));
         if (!isFinite(_lm) || _lm <= 0) return;
         var _spanM = Math.abs(h.runHi - h.runLo) * _mpp;
@@ -53668,6 +54140,7 @@ function _jpBuildSheetRowsAuto(sc){
     var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
     hits.forEach(function(h){
       if (!h || h.label == null) return;
+      if (!_jpHitRoofOk(h)) return;               // another roof's label names another roof's row
       var v = parseFloat(String(h.label));         // "11.48m" -> 11.48
       if (!isFinite(v) || v <= 0) return;
       ms.push({ mm: Math.round(v * 1000),
@@ -55707,6 +56180,7 @@ function _clearWholeRoofRows(){
     return pooled;
   }
   _clearRoofIdxs().forEach(function(i){
+    if (!_jpHitRoofOk({ roofIdx: i })) return;
     var byLen = _roofSheetColsByLen(i);
     Object.keys(byLen).forEach(function(k){ pooled[k] = (pooled[k] || 0) + byLen[k]; });
   });
@@ -55726,8 +56200,8 @@ function _clearOrderRows(){
     if (!buckets[k]) { buckets[k] = { len: +k, qty: 0 }; order.push(k); }
     buckets[k].qty += qty;
   }
-  // Individually placed clears.
-  _clearAllPlaced().forEach(function(o){ add(_clearLenM(o.c), 1); });
+  // Individually placed clears — on the roofs the pack covers.
+  _clearAllPlaced().forEach(function(o){ if (_jpHitRoofOk({ roofIdx: o.roofIdx })) add(_clearLenM(o.c), 1); });
   // A roof that is entirely clear: every sheet the tiler counted for it is a
   // clear sheet. Only meaningful once the sheet plan has run.
   try {
@@ -55735,6 +56209,7 @@ function _clearOrderRows(){
     if (Array.isArray(DRAW.roofs) && DRAW.roofs.length){
       DRAW.roofs.forEach(function(r, i){
         if (!_roofIsClearlite(i)) return;
+        if (!_jpHitRoofOk({ roofIdx: i })) return;   // a clear roof the pack leaves out
         anyWhole = true;
         wholeRoofs.push((r && r.name) || ('Roof ' + (i + 1)));
       });
@@ -57906,20 +58381,15 @@ function _matBuildPrintOrderDetails(mount) {
   if (hasSheetCounts) {
     var sheetRows = [];
     if (sc.groups && sc.groups.length) {
-      // SAME rows as the Job Pack cut list — _jpBuildSheetRows is the one
+      // SAME rows as the Job Pack cut list — _jpSheetRowsAll is the one
       // source of truth (black-arrow measures, typed length/qty overrides,
-      // hidden rows).  This page used to rebuild raw geometric rows from
-      // sc.groups, so the supplier's order PDF disagreed with the Job Pack
-      // the user had corrected ("cut list STILL doesn't match my canvas").
-      sheetRows = _jpBuildSheetRows(sc)
-        .map(function(r){ return { len: r.len, qty: r.qty }; });
-      // User-added extra rows print too — they're part of the order.
-      if (Array.isArray(DRAW.matSheetExtras)) {
-        DRAW.matSheetExtras.forEach(function(x){
-          if (x && +x.qty > 0 && +x.lenMm > 0) sheetRows.push({ len: +x.lenMm, qty: +x.qty });
-        });
-      }
-      sheetRows.sort(function(a, b){ return b.len - a.len; });
+      // hidden rows, typed extras), a section per roof the pack covers.
+      // This page used to rebuild raw geometric rows from sc.groups, so the
+      // supplier's order PDF disagreed with the Job Pack the user had
+      // corrected ("cut list STILL doesn't match my canvas").
+      _jpSheetRowsAll().forEach(function(sec){
+        sec.rows.forEach(function(r){ sheetRows.push({ len: r.len, qty: r.qty, roof: sec.roofIdx, title: sec.title }); });
+      });
     } else {
       var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
       if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
@@ -57929,7 +58399,8 @@ function _matBuildPrintOrderDetails(mount) {
     html += '<h2 class="mp-h" style="margin-top:14px">Roof Sheet Cut List</h2>'+
       '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
     sheetRows.forEach(function(r){
-      var lbl = esc(profile) + ' sheet @ ' + _sheetLenM(r.len) + 'm';
+      var _p = profile; try { if (r.roof != null) _p = _roofSheetType(r.roof).profile || profile; } catch(e){}
+      var lbl = (r.roof != null ? esc(r.title.replace(/ sheets$/, '')) + ' — ' : '') + esc(_p) + ' sheet @ ' + _sheetLenM(r.len) + 'm';
       html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+_sheetLenM(r.len)+' m</td></tr>';
     });
     html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
@@ -59331,24 +59802,25 @@ function _ocCutSummary(){
   // why it showed stale sheet lengths/quantities.)
   var sc = window._lastSheetCounts || null;
   var profile = (document.getElementById('matProfile') || {}).value || 'Corrugate';
-  var sheetRows = [];
-  if (sc && sc.groups && sc.groups.length && typeof _jpBuildSheetRows === 'function'){
-    sheetRows = _jpBuildSheetRows(sc).map(function(r){ return { len: r.len, qty: r.qty }; });
-    if (Array.isArray(DRAW.matSheetExtras)){
-      DRAW.matSheetExtras.forEach(function(x){
-        if (x && +x.qty > 0 && +x.lenMm > 0) sheetRows.push({ len: +x.lenMm, qty: +x.qty });
-      });
-    }
-    sheetRows.sort(function(a,b){ return b.len - a.len; });
+  var sections = [];
+  if (sc && sc.groups && sc.groups.length && typeof _jpSheetRowsAll === 'function'){
+    sections = _jpSheetRowsAll();
   } else if (sc){
+    var sheetRows = [];
     var longTotal = (sc.orangeLong||0) + (sc.blueLong||0) + (sc.purpleLong||0);
     if (longTotal) sheetRows.push({ len: sc.longLen||7650, qty: longTotal });
     if (sc.shortCount) sheetRows.push({ len: sc.shortLen||3900, qty: sc.shortCount });
+    sections = [{ roofIdx: null, title: 'Roof sheets', rows: sheetRows }];
   }
-  var totalSheets = 0, sheetBody = '';
-  sheetRows.forEach(function(r){ totalSheets += r.qty; sheetBody += _ocCutLine(r.qty, _sheetLenM(r.len)+' m'); });
-  if (!sheetBody) sheetBody = '<div class="oc-cl-empty">Generate the Roof Sheet Plan in the Job Pack to populate sheet lengths.</div>';
-  groups.push(_ocCutGroup('Roof sheets', esc(profile)+(totalSheets?' · '+totalSheets+' sheets':''), sheetBody));
+  if (!sections.length) sections = [{ roofIdx: null, title: 'Roof sheets', rows: [] }];
+  // One group per roof the pack covers (the same sections the Job Pack shows).
+  sections.forEach(function(sec){
+    var totalSheets = 0, sheetBody = '';
+    var prof = profile; try { if (sec.roofIdx != null) prof = _roofSheetType(sec.roofIdx).profile || profile; } catch(e){}
+    sec.rows.forEach(function(r){ totalSheets += r.qty; sheetBody += _ocCutLine(r.qty, _sheetLenM(r.len)+' m'); });
+    if (!sheetBody) sheetBody = '<div class="oc-cl-empty">Generate the Roof Sheet Plan in the Job Pack to populate sheet lengths.</div>';
+    groups.push(_ocCutGroup(esc(sec.title), esc(prof)+(totalSheets?' · '+totalSheets+' sheets':''), sheetBody));
+  });
 
   // ── Ridging / gutter / flashings — piece runs from the drawing.
   function pieceBody(cl){

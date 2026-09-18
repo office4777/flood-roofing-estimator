@@ -190,13 +190,13 @@ await pg.evaluate(() => { localStorage.setItem('fr_tour_done', '1'); });
 
 // ── Settings runs it again on purpose ─────────────────────────────
 v = await pg.evaluate(() => {
-  gotoTab('settings'); switchSettingsSub('set-general');
+  gotoTab('settings'); switchSettingsSub('set-guides');
   const btn = document.querySelector('[data-tour="set-tutorial"]');
   if (!btn) return { btn:false };
   btn.click();
   return { btn:true, open:!!document.getElementById('tourWrap'), label: btn.textContent.trim() };
 });
-check('Settings → General has a Run the tutorial button', v.btn, v.label);
+check('Settings → Guides has a Run the tutorial button', v.btn, v.label);
 check('…and it opens even though the tutorial was finished', v.open);
 await pg.evaluate(() => closeTour(false));
 check('no page errors', errs.length === 0, errs.slice(0,2).join(' | '));

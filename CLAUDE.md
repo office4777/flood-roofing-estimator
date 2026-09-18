@@ -147,6 +147,30 @@ Discipline (non-negotiable):
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
   carrying the edits onto the nearest new rows, and "Reset from map" throws
   the freeze away. Never re-derive a row the office has typed on.
+  A MULTI-ROOF job pack lists sheets one roof at a time ("Main Roof
+  sheets", "Roof 2 sheets"; report 54) and each roof keeps its own freeze,
+  overrides, hidden rows and extras under `DRAW.matSheetByRoof[idx]`;
+  `_jpSheetScope(idx, fn)` swaps a roof's set into the job-level slots the
+  row builder and setters read, so every onclick on a roof's section goes
+  through `_jpSheetScoped(idx, 'fnName', …)`. `_jpSheetRowsAll()` is what
+  the order email and the supplier order read. All of these stores (and
+  `S.jobPack`) are saved with the job since 2026-09-18 — before that a
+  reload dropped every typed quantity.
+- Which roofs a job pack covers is saved on the job (`S.jobPack.roofSel`)
+  and, until the office picks by hand, FOLLOWS THE QUOTE: the main roof,
+  roofs folded into its price, and an optional roof once the customer adds
+  it (`_jpQuotedRoofIndices`). The map pictures, the clearlite, the sheets
+  and every quantity follow that pick; a pricing pass that needs one roof's
+  group uses `_matSelOverride()`, never the saved pick. Tests that read the
+  whole job's list call `_jpSelectAllRoofs()` first.
+- Prices by steel grade: the base grade's sheets, flashings and back-trays
+  ARE the price book's top-level fields; any other grade's own set lives
+  under `price_book.by_grade[id]` and is used only when it has a price in
+  it (`_pbGradeHasPrices`) — then `_pbForGrade(_pbGradeInUse())` feeds the
+  material rows, `_gradeFactor` is 1 for it, and the customer's grade delta
+  is the real difference on the graded rows (`_gradeDeltasSnapshot`, frozen
+  onto the quote as `gradeDeltas`). A grade with no prices of its own still
+  runs on the percentage from the Products list. `tests/gradeprices.mjs`.
 
 ## Four things that have been broken twice
 
@@ -195,10 +219,20 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-16
+## Open at last handover — 2026-09-18
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
+
+**Recently shipped 2026-09-18, watch for fallout:** the job pack's roof
+pick now follows the quote by default (a job whose extra roofs are still
+optional packs the main roof only until the customer adds them — the pills
+say so and "Follow the quote instead" is the way back); Settings has a
+Guides tab (with the Loom run-through), "Quote's Product Options" carries
+the price book with per-grade prices, and "Suppliers" is just suppliers and
+flashing types. The practice roof stand-in is the owner's own aerial
+(`brand/practice-aerial.jpg`, 1 px = 63.92 mm); the server's practice job
+picture still wins when it exists.
 
 **Waiting on the owner (Aron):**
 - Price the Measure plan. It exists in `PLANS` (one seat, measuring only;

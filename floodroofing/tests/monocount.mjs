@@ -46,6 +46,8 @@ await pg.evaluate((g) => {
     { lines: (r.lines||[]).map(l => Object.assign({}, l)) }));
   DRAW.activeRoofIdx = g.activeRoofIdx; DRAW.showAllRoofs = true;
   try { redrawAll(); } catch(e){}
+  // Every roof in the pack, picked by hand: the pack follows the quote otherwise.
+  try { _jpSelectAllRoofs(); } catch(e){}
   gotoTab('materials');
 }, GEOM);
 await pg.waitForTimeout(2800);

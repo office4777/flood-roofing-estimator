@@ -129,6 +129,8 @@ await pg.evaluate((g) => {
   DRAW.clearlites = []; DRAW.matClearExtras = [];
   DRAW.sheetType = 'steel-corrugate';
   try { redrawAll(); } catch(e){}
+  // Every roof in the pack, picked by hand: the pack follows the quote otherwise.
+  try { _jpSelectAllRoofs(); } catch(e){}
   gotoTab('materials');
 }, GEOM);
 await pg.waitForTimeout(2600);

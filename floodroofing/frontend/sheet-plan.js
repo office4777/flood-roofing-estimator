@@ -1147,6 +1147,9 @@ function renderRoofSheetPlan() {
     // counts. Without this the sheet section always showed every roof
     // even when the user narrowed the job pack to one roof.
     var _selRoofs = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    // Each roof's own counts as well as the combined ones: the Job Pack
+    // lists a multi-roof job one roof at a time.
+    var byRoof = {};
     DRAW.roofs.forEach(function(r, idx){
       if (_selRoofs && _selRoofs.indexOf(idx) < 0) return;
       _loadRoofToCurrent(idx);
@@ -1166,6 +1169,7 @@ function renderRoofSheetPlan() {
       });
       // Accumulate counts for combined order quantities.
       var c = window._lastSheetCounts;
+      if (c) byRoof[idx] = c;
       if (c) {
         combined.orangeLong += c.orangeLong || 0;
         combined.blueLong   += c.blueLong   || 0;
@@ -1186,10 +1190,12 @@ function renderRoofSheetPlan() {
     });
     combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
+    window._lastSheetCountsByRoof = byRoof;
     window._lastSheetSections = combinedSections;
     _loadRoofToCurrent(savedActive);
     return;
   }
+  window._lastSheetCountsByRoof = null;
   _renderRoofSheetPlanInner();
 }
 

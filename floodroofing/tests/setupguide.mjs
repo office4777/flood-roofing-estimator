@@ -91,11 +91,11 @@ await pg.evaluate(() => _setupGo());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({
   tab: document.body.getAttribute('data-tab'),
-  panel: (document.getElementById('set-pricebook') || {}).className || '',
+  panel: (document.getElementById('set-products') || {}).className || '',
   stillThere: !!document.getElementById('setupGuide'),
   tucked: (document.getElementById('setupGuide') || {}).className || '',
 }));
-check('the button opens Settings → Price book', v.tab === 'settings' && / on|^on/.test(v.panel),
+check('the button opens Settings → Quote\u2019s Product Options (where the price book lives)', v.tab === 'settings' && / on|^on/.test(v.panel),
   v.tab + ' / ' + v.panel);
 check('…and the card stays, tucked aside, so their place is not lost',
   v.stillThere && /sg-tucked/.test(v.tucked));

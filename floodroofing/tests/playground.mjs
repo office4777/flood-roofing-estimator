@@ -74,6 +74,7 @@ check('the homepage has a Try it section straight under the opening, above the v
 check('…with a nav link to it', /<a href="#try">Try it<\/a>/.test(landing));
 check('…that loads the app in a frame as the section comes into view, no button first', /IntersectionObserver/.test(landing) && /f\.src = '\/app\?try=1'/.test(landing) && !/<iframe[^>]*src="\/app/.test(landing) && !/id="tryOpen"/.test(landing));
 check('…behind the traced-roof picture until the frame reports in, with the page as the fallback', /brand\/try-bg\.jpg/.test(landing) && /roofmap-try/.test(landing) && /id="tryOpenPage" href="\/app\?try=1"/.test(landing));
+check('the practice roof stand-in is the owner\u2019s own aerial, shipped with the app at its calibrated scale', existsSync(_j(DIR, 'brand', 'practice-aerial.jpg')) && /PRACTICE_AERIAL = \{ src: 'brand\/practice-aerial\.jpg', scaleMetresPerPx: 0\.0639223 \}/.test(readFileSync(_j(DIR, 'app.html'), 'utf8')));
 check('…and the chooser inside wears the same picture', /url\(\/brand\/try-bg\.jpg\)/.test(readFileSync(_j(DIR, 'app.html'), 'utf8')) && existsSync(_j(DIR, 'brand', 'try-bg.jpg')));
 check('…and on a phone offers the video and an "email me the link" box instead', /max-width: 799px/.test(landing) && /id="tryLinkForm"/.test(landing) && /\/try\/link/.test(landing));
 check('…and says it saves nothing and sends nothing', /saves nothing and sends nothing/.test(landing));

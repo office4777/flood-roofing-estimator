@@ -53,6 +53,8 @@ await pg.evaluate((g) => {
   DRAW.activeRoofIdx = g.activeRoofIdx; DRAW.showAllRoofs = true;
   DRAW.clearlites = [{ cx:960, cy:340, mode:'short', lenM:2.4 }];
   try { redrawAll(); } catch(e){}
+  // Every roof in the pack, picked by hand: the pack follows the quote otherwise.
+  try { _jpSelectAllRoofs(); } catch(e){}
   gotoTab('materials');
 }, GEOM);
 await pg.waitForTimeout(3200);
@@ -88,7 +90,8 @@ const sections = await pg.evaluate(() => {
 });
 const want = ['Roof sheets','Clearlite sheets','Ridging','Gutters','Underlay','Screws & Rivets','Dektites','Flashings','Back-trays'];
 want.forEach(name => {
-  const s = sections.find(x => x.title.startsWith(name));
+  // A multi-roof pack lists its sheets a roof at a time: "Roof 1 sheets", "Roof 2 sheets" …
+  const s = sections.find(x => x.title.startsWith(name) || (name === 'Roof sheets' && / sheets$/.test(x.title) && !/clearlite/i.test(x.title)));
   check('  ' + name + ' — every value can be typed into',
     !!s && s.inputs > 0 && s.live === s.inputs,
     s ? (s.live + ' of ' + s.inputs + ' live') : 'section missing');
