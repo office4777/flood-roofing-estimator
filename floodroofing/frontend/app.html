@@ -40910,22 +40910,29 @@ async function openTestJob(opts){
 // same figure the practice job was calibrated to). Fetched as a blob so the
 // canvas it lands on is never tainted; when it cannot be fetched (a file://
 // test, an offline tab) the drawn picture below stands in for it.
-var PRACTICE_AERIAL = { src: 'brand/practice-aerial.jpg', scaleMetresPerPx: 0.0639223 };
+var PRACTICE_AERIAL = { src: '/brand/practice-aerial.jpg', scaleMetresPerPx: 0.0639223 };
 function _firstRoofFallbackImage(){
   var done = false;
   function place(img, scale){
     if (done) return; done = true;
     DRAW.bgImg = img; DRAW.zoom = 1; IMG_OFFSET = { x: 0, y: 0 }; IMG_ROTATION = 0; IMG_FINE_ROTATION = 0;
-    if (scale > 0){ DRAW.scaleMetresPerPx = scale; DRAW.scaleAuto = false; }
+    // The bundled picture carries its own measured scale. It is the aerial's
+    // scale, not one the roofer set, so it reads as such and calibrating
+    // still overrides it (no geoScale: there is no map zoom to recompute from).
+    if (scale > 0){ DRAW.scaleMetresPerPx = scale; DRAW.scaleAuto = true; DRAW.geoScale = null; }
     else { try { _autoScaleFromAerial(FIRST_ROOF.lat, 19, true); } catch(e){} }
     var cv = document.getElementById('roofCanvas'), wrap = document.getElementById('canvasWrap');
     if (cv && wrap){
-      var dpr2 = window.devicePixelRatio || 1, W = wrap.offsetWidth || 900, H = Math.round(W * (scale > 0 ? 0.62 : 1));
+      var dpr2 = window.devicePixelRatio || 1, W = wrap.offsetWidth || 900;
+      // The canvas takes the picture's own shape, capped, the same way an
+      // aerial does — a square box round a wide picture is empty ground.
+      var ratio = (scale > 0 && img.naturalWidth) ? (img.naturalHeight / img.naturalWidth) : 1;
+      if (ratio < 0.5) ratio = 0.5; if (ratio > 1.5) ratio = 1.5;
+      var H = Math.round(W * ratio);
       cv.style.width = W + 'px'; cv.style.height = H + 'px';
       cv.width = Math.round(W * dpr2); cv.height = Math.round(H * dpr2);
     }
     redrawAll();
-    try { if (scale > 0) fitDrawingToCanvas(); } catch(e){}
     try { _collapseRoofBg(); } catch(e){}
     try { _closeAerialModal(); } catch(e){}
     try { _usageEvent('roof_source', { type: 'fallback', bundled: scale > 0 }); } catch(e){}
