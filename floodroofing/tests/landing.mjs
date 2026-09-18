@@ -188,8 +188,9 @@ check('…and leads with the trial, which is the thing being offered',
 // It grew by the paragraph that offers the setup call. Still has to stay
 // somewhere near a scroll a roofer will finish on a phone.
 // Was 13. The category line, the feature links and the collapsed walkthrough
-// are deliberate content; the proxy moved with them, once.
-check('…on a page that is still not endless', v.screens < 14, v.screens + ' screens');
+// are deliberate content; the proxy moved with them, once. Then the Try it
+// section (the playground, or on a phone the email-me-the-link box): twice.
+check('…on a page that is still not endless', v.screens < 15, v.screens + ' screens');
 await pg.screenshot({ path: S+'/landing_phone.png', fullPage: true });
 await ctx.close();
 
