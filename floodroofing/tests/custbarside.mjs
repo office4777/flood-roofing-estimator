@@ -97,13 +97,28 @@ check('…and the old "~7 days before start" wording is gone', !dep.oldTerms, ''
 check('…and the intro default carries the full sentence, queue and all', dep.intro, '');
 await d.ctx.close();
 
-// ── phone: exactly the bar it always had ──────────────────────────
+// ── phone: the book's own bar spans the bottom ────────────────────
+// A phone gets the quote as a book now (tests/quotebook.mjs), so the price
+// and the way forward are pinned to the bottom by the BOOK's bar and the old
+// #custBar steps aside. The rule this suite exists for is unchanged: on a
+// phone the price is across the bottom, never a side panel.
 const m = await openCustomer({ width: 390, height: 844 });
-g = await geom(m.pg);
+const mb = await m.pg.evaluate(() => {
+  const nav = document.querySelector('.qb-nav');
+  const old = document.getElementById('custBar');
+  if (!nav) return null;
+  const r = nav.getBoundingClientRect();
+  return { book: document.documentElement.classList.contains('qp-book'),
+           w: r.width, left: r.left, bottom: r.bottom,
+           vw: window.innerWidth, vh: window.innerHeight,
+           oldHidden: !old || getComputedStyle(old).display === 'none',
+           arrows: nav.querySelectorAll('.qb-arrow').length };
+});
 check('on a phone the bar still spans the bottom of the screen',
-  g.bar.w > g.vw - 8 && g.bar.bottom > g.vh - 4 && g.bar.left < 4,
-  `bar ${Math.round(g.bar.w)}px wide, bottom=${Math.round(g.bar.bottom)} of ${g.vh}`);
-check('…and its buttons sit in a row, not a stack', !g.stacked, '');
+  !!mb && mb.w > mb.vw - 8 && mb.bottom > mb.vh - 4 && mb.left < 4,
+  mb ? `bar ${Math.round(mb.w)}px wide, bottom=${Math.round(mb.bottom)} of ${mb.vh}` : 'no book bar');
+check('…it is the book\u2019s bar, with the old one out of the way',
+  !!mb && mb.book && mb.oldHidden && mb.arrows === 2, JSON.stringify(mb));
 await m.ctx.close();
 
 // ── tablet (≤1100): also unchanged ────────────────────────────────
