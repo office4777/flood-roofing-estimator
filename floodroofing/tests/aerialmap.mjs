@@ -86,13 +86,13 @@ const req = await pg.evaluate(async () => {
   return url;
 });
 // 800x400 grows by 1.6 to 1280x640, so the zoom goes up by log2(1.6) = 0.68:
-// 19.37 → 20.05, the same ground with more pixels — then DOWN by log2(1.5)
-// = 0.58 to 19.46, so the picture carries half as much ground again all
-// round (the canvas is bigger than the map box), drawn at zoom 1.5 so the
+// 19.37 → 20.05, the same ground with more pixels — then DOWN by log2(2)
+// = 1 to 19.05, so the picture carries twice the ground all
+// round (the canvas is bigger than the map box), drawn at zoom 2 so the
 // roof lands the size the map showed.
 check('the static image is asked for at the map\u2019s own zoom (raised for the bigger box, lowered for the padding) and bearing, in the map box\u2019s shape',
-  !!req && /,19\.46,12\.3\/1280x640@2x/.test(req), req);
-check('…and the padding is drawn back out, so the roof is the size the map showed', await pg.evaluate(() => AERIAL_PAD === 1.5));
+  !!req && /,19\.05,12\.3\/1280x640@2x/.test(req), req);
+check('…and the padding is drawn back out, so the roof is the size the map showed', await pg.evaluate(() => AERIAL_PAD === 2));
 
 await ctx.close();
 await b.close();
