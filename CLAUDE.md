@@ -163,6 +163,20 @@ Discipline (non-negotiable):
   and every quantity follow that pick; a pricing pass that needs one roof's
   group uses `_matSelOverride()`, never the saved pick. Tests that read the
   whole job's list call `_jpSelectAllRoofs()` first.
+- The customer's quote on a PHONE is a book, not the A4 pages reflowed:
+  `_qbRender()` into `#qpRoot` behind `html.qp-book`, one page on screen with
+  arrows to turn it, driven by `_qbPages()` (cover, condition, Re-Roof
+  Proposal, then a page per choice, then the total). It is phone width AND
+  customer mode AND not printing — `_qpBookActive()` — so the office, the
+  tablet, every print and the PDF still get the A4 document, untouched. The
+  book reads the SAME helpers as the paper (`_qpBaseSub`, `_qpCardDeltas`,
+  `_custBarRows`, `_qpInteractiveRoofBlock`), so the two cannot disagree about
+  a figure; never give the book pricing of its own. A page that does not apply
+  is simply not in the list (no gutter → no brackets page; Zincalume → no
+  colour page) and the numbering closes up. The price appears on the Re-Roof
+  Proposal page and not before it. `_fitCustomerView` settles the `qp-book`
+  class BEFORE its printing guard, or a Save-as-PDF prints the A4 document
+  with the phone's layout rules still applied. `tests/quotebook.mjs`.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in
