@@ -242,6 +242,32 @@ check('…in the true 25:19 proportion off the product sheets',
       Math.abs((prof.rib.h / prof.corr.h) - (25 / 19)) < 0.10,
       (prof.rib.h / prof.corr.h).toFixed(3) + ' vs ' + (25 / 19).toFixed(3));
 
+
+// The last page shows WHICH roofs the quote covers — as a picture, not as a
+// control. They chose on page three; re-offering the choice under the Accept
+// button invites a change nobody meant to make.
+const lastPlan = await m.pg.evaluate(async () => {
+  _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 450));
+  const el = document.getElementById('qbPage');
+  const plan = el.querySelector('.qb-sum-plan');
+  return { map: !!(plan && plan.querySelector('.qp-roofmap svg')),
+           btns: plan ? plan.querySelectorAll('button').length : -1,
+           title: plan ? (plan.querySelector('.ed-eyebrow') || {}).textContent || '' : '',
+           tapHint: /tap to add|tap to choose/i.test(el.textContent || ''),
+           name: !!el.querySelector('#qbAcceptName'), terms: !!el.querySelector('#qbAcceptTerms') };
+});
+check('the last page draws the roofs this quote covers', lastPlan.map, lastPlan.title);
+check('…with no buttons to change them', lastPlan.btns === 0, lastPlan.btns + ' buttons');
+check('…and nothing on it inviting a tap', !lastPlan.tapHint);
+check('…while the name and the terms tick sit on the page itself',
+      lastPlan.name && lastPlan.terms, JSON.stringify(lastPlan));
+// Page three keeps its buttons — that is where the choosing happens.
+const propPlan = await m.pg.evaluate(async () => {
+  _qbGo(_qbPages().map(p => p.key).indexOf('proposal')); await new Promise(r => setTimeout(r, 450));
+  return document.querySelectorAll('#qbPage .qp-incl-btns button').length;
+});
+check('…but the Re-Roof Proposal page still lets them choose', propPlan >= 2, propPlan + ' buttons');
+
 check('steel thickness has its own page', /thickness/i.test((byKey.thickness || {}).h || ''), JSON.stringify(byKey.thickness));
 check('colour has its own page of swatches', (byKey.colour || {}).sw > 3, JSON.stringify(byKey.colour));
 check('guttering has its own page', /Guttering/.test((byKey.gutter || {}).h || ''), JSON.stringify(byKey.gutter));
@@ -337,6 +363,21 @@ const dsk = await open({ width: 1400, height: 900 });
 const dv = await read(dsk.pg);
 check('a computer still gets the A4 proposal, not the book', !dv.book && dv.a4 > 0, dv.a4 + ' A4 pages');
 check('…and its bottom/side price bar is still there', !dv.barHidden);
+// The popup was removed on the PHONE only. On a computer the A4 document has
+// no inline name field, so Accept must still open the confirmation window or
+// there is nowhere left to record who accepted.
+const dskAcc = await dsk.pg.evaluate(async () => {
+  acceptQuoteDigitally();
+  await new Promise(r => setTimeout(r, 500));
+  const m = document.getElementById('acceptConfirmModal');
+  const out = { modal: !!m && getComputedStyle(m).display !== 'none',
+                name: !!document.getElementById('acceptConfirmName'),
+                terms: !!document.getElementById('acceptConfirmTerms') };
+  try { _acceptConfirmClose(); } catch(e){}
+  return out;
+});
+check('a computer still gets the confirmation popup — the phone is the exception',
+      dskAcc.modal && dskAcc.name && dskAcc.terms, JSON.stringify(dskAcc));
 check('nothing on the computer threw', dsk.errs.length === 0, dsk.errs.join(' | ') || 'clean');
 await dsk.ctx.close();
 
@@ -397,20 +438,24 @@ check('…and adding it still moves the total', Math.round(lg.after - lg.base) =
 const lgA = await legacy.pg.evaluate(async () => {
   _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 350));
   const shown = _custBarTotalValue();
+  // Accept with the tick left off: nothing is recorded, and no popup appears.
   document.querySelector('.qb-accept').click();
-  await new Promise(r => setTimeout(r, 500));
-  const m = document.getElementById('acceptConfirmModal');
-  const mr = m ? m.getBoundingClientRect() : null;
-  const onTop = !!mr && m.contains(document.elementFromPoint(mr.left + mr.width/2, mr.top + 30));
-  const nm = document.getElementById('acceptConfirmName'); if (nm && !nm.value) nm.value = 'Mr Patel';
-  const tk = document.getElementById('acceptConfirmTerms'); if (tk) tk.checked = true;
-  _acceptConfirmProceed();
+  await new Promise(r => setTimeout(r, 400));
+  const blocked = !(S.quote && S.quote.accepted);
+  const nm = document.getElementById('qbAcceptName'); if (nm && !nm.value) nm.value = 'Mr Patel';
+  const tk = document.getElementById('qbAcceptTerms'); if (tk) tk.checked = true;
+  document.querySelector('.qb-accept').click();
   await new Promise(r => setTimeout(r, 1400));
-  return { shown, onTop, accepted: !!(S.quote && S.quote.accepted),
+  return { shown, blocked, noModal: !document.getElementById('acceptConfirmModal'),
+           accepted: !!(S.quote && S.quote.accepted),
            locked: document.documentElement.classList.contains('quote-locked'),
            stillBook: document.documentElement.classList.contains('qp-book') };
 });
-check('…the accept popup opens ON TOP of the book, not behind it', lgA.onTop);
+// The phone asks for the name and the tick ON the page. A popup that repeats
+// both questions and re-offers every selection, after the customer has just
+// pressed Accept, reads as a trap at the moment of saying yes.
+check('…Accept on a phone records it with no confirmation popup', lgA.noModal, JSON.stringify(lgA));
+check('…but still refuses without the terms ticked', lgA.blocked);
 check('…and the acceptance goes through', lgA.accepted && lgA.locked, JSON.stringify(lgA));
 const lgP = legacy.posted.filter(x => x && x.type === 'accepted');
 check('…recorded with the customer\u2019s name and the total they were looking at',

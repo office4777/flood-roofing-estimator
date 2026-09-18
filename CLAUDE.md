@@ -211,6 +211,16 @@ Discipline (non-negotiable):
   base / 32mm top / 127mm pan with a 45×5mm stiffener / 760 cover), at ONE
   scale across both so a customer comparing them sees that a 5-Rib really is
   the deeper sheet. Change the numbers only against those sheets.
+  The LAST page draws the roofs the quote covers read-only
+  (`_qpInteractiveRoofBlock({readOnly:true})`, which drops the include/exclude
+  buttons and the "tap to add" labels in the map itself) — the choosing was
+  done on page three and re-offering it under the Accept button invites a
+  change nobody meant. Accept on a phone does NOT open the confirmation
+  popup: the name and the terms tick are on the page (`#qbAcceptName`,
+  `#qbAcceptTerms`) and `acceptQuoteDigitally` validates them and goes
+  straight to `_acceptQuoteFinalize`. A computer still gets the popup, because
+  the A4 document has no inline name field and the record needs one. Neither
+  path can record an acceptance without a name and a tick.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in

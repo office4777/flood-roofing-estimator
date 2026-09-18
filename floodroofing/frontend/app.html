@@ -3493,8 +3493,20 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-pick:last-child{ border-bottom:none; }
 .qb-pick span{ color:#6b7a8c; }
 .qb-pick b{ font-weight:650; text-align:right; }
+/* The roofs this quote covers, on the last page — a picture, not a control. */
+.qb-sum-plan{ margin-top:18px; }
+.qb-sum-plan .qp-roofmap{ border-radius:13px; border-color:#e6ebf1 !important; }
+/* Name and terms, on the page rather than behind a popup. */
+.qb-sign{ margin-top:20px; }
+.qb-sign-lbl{ display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#6b7a8c; margin-bottom:6px; }
+.qb-sign-name{
+  width:100%; box-sizing:border-box; font-family:inherit; font-size:16px; color:#0a1628;
+  padding:13px; border:1px solid #d3dce6; border-radius:11px; background:#fff;
+}
+.qb-sign-terms{ display:flex; gap:10px; align-items:flex-start; margin-top:11px; font-size:13px; color:#334155; line-height:1.45; cursor:pointer; }
+.qb-sign-terms input{ margin:1px 0 0; flex:0 0 auto; width:19px; height:19px; }
 .qb-accept{
-  width:100%; margin-top:20px; padding:17px; border:none; border-radius:14px; background:#0e9f5c; color:#fff;
+  width:100%; margin-top:14px; padding:17px; border:none; border-radius:14px; background:#0e9f5c; color:#fff;
   font-size:17px; font-weight:800; font-family:inherit; cursor:pointer;
 }
 .qb-actions{ display:flex; gap:8px; margin-top:10px; }
@@ -24747,6 +24759,28 @@ function acceptQuoteDigitally(){
   // that popup — previously this button silently blocked when the terms box,
   // buried on the signature page and shrunk in the zoomed customer view, was
   // left unticked, so tapping Accept just flashed an alert and read as dead.
+  // On the PHONE the book already asked for the name and the tick, on the
+  // page the customer is reading. Popping a window that asks the same two
+  // things again — and re-offers every selection — reads as a trap at the
+  // moment of saying yes. Same record either way: no name, no tick, no
+  // acceptance.
+  var bookName = document.getElementById('qbAcceptName');
+  if (bookName && _qpBookActive()){
+    var terms = document.getElementById('qbAcceptTerms');
+    if (terms && !terms.checked){
+      alert('Please tick the box to confirm you accept the quote and the terms & conditions.');
+      try { terms.focus(); terms.scrollIntoView({ block: 'center' }); } catch(e){}
+      return;
+    }
+    var bn = bookName.value.trim() || (S.quote.client || '').trim();
+    if (!bn){
+      alert('Please type your full name to accept the quote.');
+      try { bookName.focus(); } catch(e){}
+      return;
+    }
+    _acceptQuoteFinalize(bn);
+    return;
+  }
   var nameEl = document.getElementById('qpAcceptName');
   var name = (nameEl && nameEl.value.trim()) || (S.quote.client||'').trim();
   _openAcceptConfirm(name);
@@ -26844,6 +26878,14 @@ function _qbSummary(){
   var total = _qbTotal();
   var sub = total / (1 + rate);
   var accepted = q.accepted;
+  // The roofs this quote covers, drawn — but with nothing to press. They
+  // chose on page three; this is the receipt, not another decision.
+  var roofPlan = '';
+  try {
+    var rb = _qpInteractiveRoofBlock({ maxH: 132, mapKey: 'booksum', readOnly: true,
+                                       title: 'The roofs in this quote' });
+    if (rb) roofPlan = '<div class="qb-sum-plan">' + rb + '</div>';
+  } catch(e){}
   return ''+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Ready when you are</span>'+
@@ -26856,9 +26898,19 @@ function _qbSummary(){
       '<h3 class="qb-h3">What is in it</h3>'+
       '<div class="qb-sum">'+body+'</div>'+
       (picks ? '<h3 class="qb-h3">What you chose</h3><div class="qb-picks">'+picks+'</div>' : '')+
+      roofPlan+
       (accepted
         ? '<div class="qb-accepted"><b>✓ Accepted</b><span>Thank you — we have your acceptance'+(accepted.at ? ' from '+esc2(new Date(accepted.at).toLocaleDateString('en-NZ')) : '')+'. We will be in touch to book the work in.</span></div>'
-        : '<button type="button" class="qb-accept" onclick="acceptQuoteDigitally()">Accept this quote</button>'+
+        : // The name and the tick live HERE, on the page, not behind a popup
+          // that appears after the customer has already decided. Accept is one
+          // tap on what they are looking at. The record still carries both —
+          // _acceptQuoteFinalize is not reached without them.
+          '<div class="qb-sign">'+
+            '<label class="qb-sign-lbl" for="qbAcceptName">Your full name</label>'+
+            '<input type="text" id="qbAcceptName" class="qb-sign-name" autocomplete="name" placeholder="Type your full name" value="'+esc2((q.client || '').trim())+'">'+
+            '<label class="qb-sign-terms"><input type="checkbox" id="qbAcceptTerms"><span>I accept this quote and the <strong>terms &amp; conditions</strong>.</span></label>'+
+          '</div>'+
+          '<button type="button" class="qb-accept" onclick="acceptQuoteDigitally()">Accept this quote</button>'+
           '<div class="qb-actions">'+
             '<button type="button" onclick="customerQuery()">Ask a question</button>'+
             '<button type="button" onclick="printCustomerQuote()">Download PDF</button>'+
@@ -29635,7 +29687,9 @@ function _qpRoofMapSvg(opts){
     var sub = focus
       ? (r.area>0 ? r.area.toFixed(1)+' m²' : '')
       : (included ? (r.area>0 ? r.area.toFixed(1)+' m²' : '')
-                  : (r.mode==='excluded' ? 'Not included' : 'Optional — tap to add'));
+                  // Read-only (the book's last page): nothing here is
+                  // tappable, so do not invite a tap.
+                  : (r.mode==='excluded' || opts.readOnly ? 'Not included' : 'Optional — tap to add'));
     svg+='<g><text x="'+cx.toFixed(1)+'" y="'+(cy-2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
       '<text x="'+cx.toFixed(1)+'" y="'+(cy+fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(sub)+'</text></g>';
     if (focus){
@@ -29741,17 +29795,23 @@ function _qpInteractiveRoofBlock(opts){
   var hasExtras = extraList.length > 0;
   var anyExcl = g.roofs.some(function(r){ return r.mode === 'excluded'; });
   var _mh = opts.maxH || _qpRoofMapMaxH();
-  var svg = _qpRoofMapSvg({ sel: erSel, showBg: _qpRoofMapShowBg(), maxH: _mh, fill: true });
+  var svg = _qpRoofMapSvg({ sel: erSel, showBg: _qpRoofMapShowBg(), maxH: _mh, fill: true,
+                            readOnly: opts.readOnly === true });
   if (!svg) return '';
   svg = _qpRoofMapFrameHtml(svg, _mh, opts.mapKey);
+  // Read-only: the same picture with nothing to press. The summary page
+  // shows what the quote COVERS; the choosing was done on page three and
+  // offering it again at the point of acceptance only invites a change
+  // nobody meant to make.
+  var ro = opts.readOnly === true;
   var legend = (hasExtras || anyExcl)
     ? '<div style="display:flex;gap:16px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);flex-wrap:wrap">'+
         '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span><span style="color:#16a34a;font-weight:800">✓</span> Included</span>'+
-        '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:2px;display:inline-block"></span><span style="color:#dc2626;font-weight:800">✗</span> Not included'+(hasExtras?' <span style="color:var(--ed-text2)">— tap to add</span>':'')+'</span>'+
+        '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:2px;display:inline-block"></span><span style="color:#dc2626;font-weight:800">✗</span> Not included'+((hasExtras && !ro)?' <span style="color:var(--ed-text2)">— tap to add</span>':'')+'</span>'+
       '</div>'
     : '';
   var btns = '';
-  if (hasExtras){
+  if (hasExtras && !ro){
     var anySel = extraList.some(function(rr, i){ return erSel[i] === true; });
     // Each button is a column so the office's Rename can sit directly under it.
     var mkBtn = function(label, active, onclick, roofIdx){
