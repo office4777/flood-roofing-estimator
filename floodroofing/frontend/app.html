@@ -26052,14 +26052,19 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 function _qbPages(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
-    { key:'cover',     label:'Your quote',    html:_qbCover },
-    { key:'condition', label:'Your roof',     html:_qbCondition },
+    { key:'cover',     label:'Your quote',    html:_qbCover }
+  ];
+  // A quote the office never filled a condition report in on has nothing to
+  // say on that page, and a page that asserts a verdict nobody wrote is worse
+  // than no page — so it only exists when there is something on it.
+  if (_qbHasCondition()) pages.push({ key:'condition', label:'Your roof', html:_qbCondition });
+  pages = pages.concat([
     { key:'proposal',  label:'The proposal',  html:_qbProposal },
     { key:'grade',     label:'Steel grade',   html:_qbGrade },
     { key:'profile',   label:'Roof profile',  html:_qbProfile },
     { key:'thickness', label:'Thickness',     html:_qbThickness },
     { key:'colour',    label:'Colour',        html:_qbColour }
-  ];
+  ]);
   // Zincalume is unpainted — there is no colour to choose, so no page.
   if ((p.steelGrade || 'maxam') === 'zincalume') pages = pages.filter(function(x){ return x.key !== 'colour'; });
   var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
@@ -26241,6 +26246,16 @@ function _qbBestJobPhoto(){
 // re-roof table. On a phone that is a wall of text before the customer
 // has been told anything they asked about, so this is the short answer:
 // how old it is, what state it is in, and the photos.
+// Is there a roof report on this quote at all?
+function _qbHasCondition(){
+  var q = S.quote || {};
+  if (String(q.condAge || '').trim() || String(q.condMaterial || '').trim()) return true;
+  if (String(q.conditionSummary || '').trim()) return true;
+  if ((q.condPhotos || []).filter(function(c){ return c && c.src; }).length) return true;
+  if (q.condRemainingPct != null) return true;
+  try { if (CONDITION_FIXINGS[q.condFixingType]) return true; } catch(e){}
+  return false;
+}
 function _qbCondition(){
   var q = S.quote || {};
   var d = (S.roofData || {});
@@ -26250,14 +26265,16 @@ function _qbCondition(){
   var _cf = (typeof CONDITION_FIXINGS !== 'undefined' && CONDITION_FIXINGS[q.condFixingType]) || {};
   var remPct = (q.condRemainingPct != null) ? q.condRemainingPct : _cf.remainingPct;
   var life = q.condExpectedLife || _cf.expectedLife || '';
-  // One word for the state of it, from the life left.
-  var verdict = 'Needs replacing', vTone = 'bad';
+  // One word for the state of it, from the life left — and only when the
+  // roofer actually recorded one. A verdict nobody wrote is a verdict this
+  // page has no business printing.
+  var verdict = '', vTone = 'bad';
   if (remPct != null){
     if (remPct >= 50){ verdict = 'Sound'; vTone = 'ok'; }
     else if (remPct >= 20){ verdict = 'Near the end of its life'; vTone = 'warn'; }
     else { verdict = 'At the end of its life'; vTone = 'bad'; }
   }
-  if (!summary){
+  if (!summary && (age || mat || remPct != null)){
     summary = 'We inspected the roof on site. ' +
       (age ? 'It is around ' + age + ' old' + (mat ? ' in ' + mat.toLowerCase() : '') + '. ' : '') +
       (remPct != null && remPct < 25
@@ -26271,12 +26288,14 @@ function _qbCondition(){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Your roof today</span>'+
       '<h2 class="qb-h2">Existing Roof Condition</h2>'+
-      '<div class="qb-verdict qb-'+vTone+'">'+
-        '<span class="qb-verdict-dot"></span>'+
-        '<div><b>'+esc2(verdict)+'</b>'+
-          (life ? '<span>Roofs of this type last about '+esc2(life)+'</span>' : '')+
-        '</div>'+
-      '</div>'+
+      (verdict
+        ? '<div class="qb-verdict qb-'+vTone+'">'+
+            '<span class="qb-verdict-dot"></span>'+
+            '<div><b>'+esc2(verdict)+'</b>'+
+              (life ? '<span>Roofs of this type last about '+esc2(life)+'</span>' : '')+
+            '</div>'+
+          '</div>'
+        : '')+
       '<div class="qb-pills">'+
         pill(age, 'Approximate age')+
         pill(mat, 'Material')+
@@ -26284,7 +26303,7 @@ function _qbCondition(){
         pill((q.condPitch || (d.pitch ? d.pitch + '°' : '')), 'Pitch')+
       '</div>'+
       (remPct != null ? _qbLifeBar(remPct) : '')+
-      '<p class="qb-para">'+esc2(summary)+'</p>'+
+      (summary ? '<p class="qb-para">'+esc2(summary)+'</p>' : '')+
     '</div>'+
     gallery;
 }
@@ -26350,6 +26369,11 @@ function _qbProposal(){
   var lines = _qbInclusionLines();
   var roofBlock = '';
   try { roofBlock = _qpInteractiveRoofBlock({ maxH: 150, mapKey: 'book' }); } catch(e){ roofBlock = ''; }
+  // Quotes sent before the book have no roof plan stashed on them, and the
+  // oldest ones carry their optional roofs as option PACKAGES rather than as
+  // roofs on a plan. Either way the customer must still be able to add one,
+  // so when the plan does not already offer them they get their own rows.
+  var extraRows = _qbExtraRoofRows(!!roofBlock);
   return ''+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">What we will do</span>'+
@@ -26363,8 +26387,48 @@ function _qbProposal(){
         }).join('')+
       '</div>'+
       '<p class="qb-note">Every figure includes GST. The options on the next pages move this total up or down, and you will watch it change as you choose.</p>'+
+      extraRows+
     '</div>'+
     (roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '');
+}
+// The optional roofs on this quote, as rows the customer can tick. The roof
+// plan already offers the roofs it draws, so this only renders what the plan
+// cannot: the option PACKAGES of an older quote, and the roofs of a quote
+// that carries no plan at all.
+function _qbExtraRoofRows(planShown){
+  var q = S.quote || {};
+  var rate = _qbRate();
+  var rows = [];
+  try {
+    if (!_qpPricedByLineItems() && (q.options || []).length > 1){
+      // The oldest shape: each optional roof is its own priced package.
+      (q.options || []).slice(1).forEach(function(o){
+        rows.push({ name: o.title || 'Optional roof', on: o.selected === true,
+                    price: _optEffectiveTotal(o) * (1 + rate),
+                    click: "_toggleProposalRoof('" + esc2(o.id) + "'," + (o.selected !== true) + ")" });
+      });
+    } else if (!planShown && (q.extraRoofs || []).length){
+      var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+      (q.extraRoofs || []).forEach(function(rr, i){
+        var on = sel[i] === true;
+        rows.push({ name: rr.name || ('Roof ' + (i + 2)), on: on,
+                    price: (parseFloat(rr.price) || 0) * (1 + rate),
+                    click: '_toggleProposalExtraRoof(' + i + ',' + (!on) + ')' });
+      });
+    }
+  } catch(e){ return ''; }
+  if (!rows.length) return '';
+  return '<h3 class="qb-h3">Also available</h3>'+
+    '<p class="qb-note" style="margin:0 0 9px">Your quote covers the main roof. Tap to add any of these and the total updates.</p>'+
+    '<div class="qb-opts">'+rows.map(function(r){
+      return '<button type="button" class="qb-opt'+(r.on ? ' on' : '')+'" data-qb-roof="'+esc2(r.name)+'"'+
+          (_qbLocked() ? ' disabled' : ' onclick="'+r.click+'"')+'>'+
+          '<span class="qb-tick">'+(r.on ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
+          '<span class="qb-opt-txt"><b>'+esc2(r.name)+'</b>'+
+            '<span class="qb-opt-desc">'+(r.on ? 'Included — tap to take it off' : 'Tap to add it to your quote')+'</span></span>'+
+          '<span class="qb-opt-price"><span class="'+(r.on ? 'qb-inc' : 'qb-up')+'">'+(r.on ? 'Added' : '+' + _qbMoney(r.price))+'</span></span>'+
+        '</button>';
+    }).join('')+'</div>';
 }
 // What the quote covers, as short lines. The office's own scope text
 // wins; the shipped re-roof list stands in when there is none.
@@ -26391,6 +26455,15 @@ function _qbInclusionLines(){
 // chosen, why it matters in a sentence, then the choices as big rows with
 // their own price. The rows are the same data the A4 page uses.
 function _qbOptionPage(o){
+  // A company that has removed every product in a group leaves nothing to
+  // choose; the page says so rather than showing an empty box.
+  if (!(o.items || []).length){
+    return '<div class="qb-body">'+
+        '<span class="qb-eyebrow">'+esc2(o.eyebrow || 'Your options')+'</span>'+
+        '<h2 class="qb-h2">'+esc2(o.title)+'</h2>'+
+        '<p class="qb-para">This is included as quoted. Your roofer will confirm the detail with you.</p>'+
+      '</div>';
+  }
   var rows = (o.items || []).map(function(it){
     var picked = o.current === it.id;
     return '<button type="button" class="qb-opt'+(picked ? ' on' : '')+'" data-qb-opt="'+esc2(o.group)+'" data-qb-val="'+esc2(it.id)+'"'+

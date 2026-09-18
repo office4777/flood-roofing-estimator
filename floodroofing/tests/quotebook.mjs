@@ -262,6 +262,126 @@ check('…and its bottom/side price bar is still there', !dv.barHidden);
 check('nothing on the computer threw', dsk.errs.length === 0, dsk.errs.join(' | ') || 'clean');
 await dsk.ctx.close();
 
+// ── QUOTES THAT WERE ALREADY SENT ────────────────────────────────
+// The book must not strand a customer holding a link sent before it
+// existed. Those quotes carry no roof plan, sometimes no condition report,
+// and the oldest ones price their optional roofs as option PACKAGES rather
+// than as roofs on a plan. All of them still have to be readable, still
+// have to offer whatever the customer was offered, and above all still
+// have to accept.
+async function openRaw(q){
+  const ctx = await b.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+  const pg = await ctx.newPage();
+  const errs = []; pg.on('pageerror', e => errs.push(e.message));
+  const posted = [];
+  await pg.route('**/api.mapbox.com/**', r => r.abort());
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+    const u = r.request().url();
+    if (/\/q\/[^/]+\/event/.test(u)){
+      try { posted.push(JSON.parse(r.request().postData() || '{}')); } catch(e){ posted.push({ bad:true }); }
+      return r.fulfill({ status:200, contentType:'application/json', body:'{"ok":true}' });
+    }
+    if (/\/q\//.test(u)) return r.fulfill({ status:200, contentType:'application/json',
+      body: JSON.stringify({ quote:q, branding:{ company_name:'Flood Roofing Ltd' } }) });
+    return r.fulfill({ status:200, contentType:'application/json', body:'[]' });
+  });
+  await pg.goto('file://' + DIR + '/app.html?q=tok&j=' + (q.ref || 'x'));
+  await pg.waitForTimeout(3000);
+  return { ctx, pg, errs, posted };
+}
+// The oldest shape: option packages, no line items, no roof plan, no
+// condition report, no proposalOptions at all.
+const legacy = await openRaw({
+  ref:'FR-20044', client:'Mr Patel', addr:'9 Vine St', date:'2 Mar 2026', validUntil:'30 days', gstRate:15,
+  options:[
+    { id:'a', selected:true,  title:'Main scope of work', inclusionsText:'Strip existing roof\nNew underlay\nNew Colorsteel roofing',
+      lineItems:[{ desc:'Re-roof', qty:1, unit:18000 }] },
+    { id:'b', selected:false, title:'Garage roof', inclusionsText:'Strip and re-roof the garage',
+      lineItems:[{ desc:'Garage', qty:1, unit:5000 }] }]
+});
+const lg = await legacy.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  const pi = keys.indexOf('proposal');
+  _qbGo(pi); await new Promise(r => setTimeout(r, 350));
+  const row = document.querySelector('#qbPage [data-qb-roof]');
+  const before = _custBarTotalValue();
+  if (row) row.click();
+  await new Promise(r => setTimeout(r, 700));
+  return { keys, base: before, row: !!row, label: row ? row.textContent.replace(/\s+/g,' ').trim() : '',
+           after: _custBarTotalValue() };
+});
+check('a quote sent before the book still opens as a book', lg.keys.length > 5, lg.keys.join(','));
+check('…with no condition report on it, there is no condition page to read',
+  lg.keys.indexOf('condition') < 0, lg.keys.join(','));
+check('…its base price is right', Math.round(lg.base) === 20700, lg.base.toFixed(0));
+check('…the optional roof it was sent with is still offered', lg.row && /Garage roof/.test(lg.label), lg.label.slice(0, 70));
+check('…and adding it still moves the total', Math.round(lg.after - lg.base) === 5750, lg.base.toFixed(0) + ' → ' + lg.after.toFixed(0));
+const lgA = await legacy.pg.evaluate(async () => {
+  _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 350));
+  const shown = _custBarTotalValue();
+  document.querySelector('.qb-accept').click();
+  await new Promise(r => setTimeout(r, 500));
+  const m = document.getElementById('acceptConfirmModal');
+  const mr = m ? m.getBoundingClientRect() : null;
+  const onTop = !!mr && m.contains(document.elementFromPoint(mr.left + mr.width/2, mr.top + 30));
+  const nm = document.getElementById('acceptConfirmName'); if (nm && !nm.value) nm.value = 'Mr Patel';
+  const tk = document.getElementById('acceptConfirmTerms'); if (tk) tk.checked = true;
+  _acceptConfirmProceed();
+  await new Promise(r => setTimeout(r, 1400));
+  return { shown, onTop, accepted: !!(S.quote && S.quote.accepted),
+           locked: document.documentElement.classList.contains('quote-locked'),
+           stillBook: document.documentElement.classList.contains('qp-book') };
+});
+check('…the accept popup opens ON TOP of the book, not behind it', lgA.onTop);
+check('…and the acceptance goes through', lgA.accepted && lgA.locked, JSON.stringify(lgA));
+const lgP = legacy.posted.filter(x => x && x.type === 'accepted');
+check('…recorded with the customer\u2019s name and the total they were looking at',
+  lgP.length === 1 && /Patel/.test(lgP[0].name || '') && Math.abs(lgP[0].total - lgA.shown) < 0.5,
+  lgP.length ? (lgP[0].name + ' · ' + Math.round(lgP[0].total) + ' vs ' + Math.round(lgA.shown)) : 'nothing posted');
+check('…carrying the optional roof they added', lgP.length === 1 &&
+  (lgP[0].acceptedOptions || []).some(o => /Garage/.test(o.title || '')),
+  lgP.length ? (lgP[0].acceptedOptions || []).map(o => o.title).join(', ') : '');
+check('…and the book is still what they are looking at afterwards', lgA.stillBook);
+check('nothing threw on the old quote', legacy.errs.length === 0, legacy.errs.join(' | ') || 'clean');
+await legacy.ctx.close();
+
+// A quote with almost nothing on it at all.
+const bare = await openRaw({ ref:'FR-19001', client:'Ms Lee', gstRate:15,
+                             lineItems:[{ desc:'Re-roof', qty:1, unit:12000 }] });
+const bv = await bare.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  _qbGo(keys.indexOf('proposal')); await new Promise(r => setTimeout(r, 350));
+  const phantom = !!document.querySelector('#qbPage [data-qb-roof]');
+  _qbGo(keys.length - 1); await new Promise(r => setTimeout(r, 350));
+  return { keys, phantom, total: _custBarTotalValue(), accept: !!document.querySelector('.qb-accept') };
+});
+check('a bare quote still reads as a book and can be accepted',
+  bv.keys[0] === 'cover' && bv.keys[bv.keys.length-1] === 'summary' && bv.accept, bv.keys.join(','));
+check('…at the price it was sent at', Math.round(bv.total) === 13800, bv.total.toFixed(0));
+check('…with no optional roofs invented for it', !bv.phantom);
+check('nothing threw on the bare quote', bare.errs.length === 0, bare.errs.join(' | ') || 'clean');
+await bare.ctx.close();
+
+// One the customer already accepted before the book existed.
+const done = await openRaw({ ref:'FR-19002', client:'Ms Lee', gstRate:15,
+  lineItems:[{ desc:'Re-roof', qty:1, unit:12000 }],
+  accepted:{ at:'2026-03-04T02:00:00Z', name:'Ms Lee', total:13800 },
+  proposalOptions:{ steelGrade:'maxam', profile:'corrugate', steelThickness:'40', colour:'Ironsand®', gutterType:'none', disposal:'dispose' } });
+const accv = await done.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  _qbGo(keys.length - 1); await new Promise(r => setTimeout(r, 350));
+  const el = document.getElementById('qbPage');
+  const note = !!el.querySelector('.qb-accepted'), accept = !!el.querySelector('.qb-accept');
+  _qbGo(keys.indexOf('grade')); await new Promise(r => setTimeout(r, 300));
+  const opts = [...document.querySelectorAll('#qbPage [data-qb-opt]')];
+  return { note: note, accept: accept,
+           frozen: opts.length > 0 && opts.every(o => o.disabled) };
+});
+check('an already-accepted quote says so instead of offering Accept again', accv.note && !accv.accept, JSON.stringify(accv));
+check('…and its selections are frozen', accv.frozen);
+check('nothing threw on the accepted quote', done.errs.length === 0, done.errs.join(' | ') || 'clean');
+await done.ctx.close();
+
 await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
