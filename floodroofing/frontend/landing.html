@@ -114,6 +114,7 @@
   <div class="wrap nav">
     <a class="brand" href="/"><img src="brand/roofmap_icon.png" alt=""><span>RoofMap</span></a>
     <nav class="nav-links">
+      <a href="#try">Try it</a>
       <a href="#how">How it works</a>
       <a href="#features">What it does</a>
       <a href="#pricing">Pricing</a>
@@ -200,6 +201,71 @@
       </div>
     </details>
   </div>
+</section>
+
+<!-- The playground: the app's own canvas, framed here, with no account.
+     Loaded only when asked for (the app is 2 MB), and on a phone replaced by
+     the video and a box to email the link to a computer. -->
+<section id="try" class="tint">
+  <div class="wrap">
+    <div class="sec-head" style="max-width:640px">
+      <div class="eyebrow">Try it now — no sign-up</div>
+      <h2>Trace a roof yourself, right here.</h2>
+      <p>Pick the satellite picture, turn it square, click the corners, choose the roof type. RoofMap draws the ridges, hips and valleys and measures every edge. Two minutes, and nothing to sign up for. The numbers themselves are in the app.</p>
+    </div>
+    <div id="tryHost" style="margin-top:26px;position:relative;border-radius:14px;overflow:hidden;background:#0a1628;box-shadow:0 18px 50px rgba(10,22,40,.22)">
+      <div id="tryPoster" style="position:relative;min-height:340px;display:flex;align-items:center;justify-content:center;background:url('brand/roof_aerial_multipitch.jpg') center/cover">
+        <div style="position:absolute;inset:0;background:rgba(10,22,40,.55)"></div>
+        <div style="position:relative;text-align:center;padding:30px 20px">
+          <button type="button" id="tryOpen" class="btn btn-primary" style="font-size:18px;padding:18px 36px">Open the playground</button>
+          <p style="color:#c9d6e3;margin:14px 0 0;font-size:14px">Works best on a computer or a tablet with a mouse.</p>
+        </div>
+      </div>
+      <div id="tryMobile" style="display:none;padding:26px 20px 30px;color:#fff;text-align:center">
+        <p style="margin:0 0 6px;font-size:17px;font-weight:800">Tracing a roof wants a bigger screen.</p>
+        <p style="margin:0 0 16px;color:#c9d6e3;font-size:14px;line-height:1.5">Watch the 40-second run above, and email yourself the link to try it on a computer.</p>
+        <form id="tryLinkForm" style="display:flex;gap:8px;max-width:420px;margin:0 auto;flex-wrap:wrap;justify-content:center">
+          <input type="email" id="tryLinkEmail" required placeholder="you@yourroofing.co.nz" autocomplete="email" style="flex:1 1 220px;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:15px">
+          <button type="submit" class="btn btn-primary" style="padding:13px 20px;font-size:15px">Email me the link</button>
+        </form>
+        <p id="tryLinkMsg" style="margin:10px 0 0;font-size:13px;color:#c9d6e3;min-height:18px"></p>
+      </div>
+    </div>
+    <p class="tier-note" style="margin-top:14px">The playground saves nothing and sends nothing. When you are ready for the numbers, <a href="/signup" style="font-weight:700">start free</a> — 14 days, no card.</p>
+  </div>
+  <script>
+  (function(){
+    var API = 'https://flood-roofing-estimator-production.up.railway.app';
+    var host = document.getElementById('tryHost'), poster = document.getElementById('tryPoster'), mob = document.getElementById('tryMobile');
+    var small = window.matchMedia && window.matchMedia('(max-width: 799px)').matches;
+    if (small){ poster.style.display = 'none'; mob.style.display = 'block'; }
+    document.getElementById('tryOpen').addEventListener('click', function(){
+      if (document.getElementById('tryFrame')) return;
+      var f = document.createElement('iframe');
+      f.id = 'tryFrame'; f.src = '/app?try=1'; f.title = 'RoofMap playground';
+      f.setAttribute('loading', 'eager');
+      f.style.cssText = 'display:block;width:100%;height:min(86vh,820px);border:0;background:#f3f5f8';
+      poster.style.display = 'none';
+      host.appendChild(f);
+      // The frame says when it is up. If it never does (a browser that will
+      // not frame it), open the playground as its own page instead.
+      var ready = false;
+      window.addEventListener('message', function(ev){ if (ev.data && ev.data.type === 'roofmap-try'){ ready = true; } });
+      setTimeout(function(){ if (!ready){ location.href = '/app?try=1'; } }, 9000);
+      try { host.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+    });
+    var form = document.getElementById('tryLinkForm');
+    if (form) form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var msg = document.getElementById('tryLinkMsg'), email = document.getElementById('tryLinkEmail').value.trim();
+      msg.textContent = 'Sending…';
+      fetch(API + '/try/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: email }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+        .then(function(x){ msg.textContent = x.ok ? 'Sent — open it on a computer when you are at one.' : (x.j && x.j.error) || 'Could not send just now.'; })
+        .catch(function(){ msg.textContent = 'Could not send just now.'; });
+    });
+  })();
+  </script>
 </section>
 
 <section id="how">

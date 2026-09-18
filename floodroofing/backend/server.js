@@ -3434,6 +3434,50 @@ app.get('/practice/job', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// The same picture for the homepage playground, with no login: it is an
+// aerial of a public street, and the drawing on it is not sent. Cached like
+// the route above, and rate-limited because it is open.
+app.get('/practice/picture', rateLimit(120, 3600000), async (req, res) => {
+  try {
+    if (!(_practiceCache.body && Date.now() - _practiceCache.at < 10 * 60e3)){
+      const row = await _practiceJobRow();
+      const ds = (row && row.draw_state) || null;
+      const d = (ds && ds.draw) || {};
+      const st = (ds && ds.state) || {};
+      if (!ds || !(d.bg || st.img64)) return res.status(404).json({ error: 'No practice picture', code: 'NO_PRACTICE_JOB' });
+      _practiceCache = { at: Date.now(), body: { job_no: PRACTICE_JOB_NO, draw_state: {
+        state: { img64: st.img64 || null },
+        draw: { bg: d.bg || null, bgW: d.bgW || null, bgH: d.bgH || null, imgView: d.imgView || null,
+                scaleMetresPerPx: d.scaleMetresPerPx || 0, scaleAuto: !!d.scaleAuto, geoScale: d.geoScale || null, rotation: d.rotation || 0 } } } };
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(_practiceCache.body);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// On a phone the playground is a poor first go, so the homepage offers to
+// email the link for a computer instead. One short email from support@;
+// the address is kept on the waitlist as a lead, never anywhere else.
+app.post('/try/link', rateLimit(8, 3600000), async (req, res) => {
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'That does not look like an email address.' });
+  if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not set up on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+  const link = PUBLIC_APP_URL + '/#try';
+  try {
+    await _dispatchMail({
+      to: email, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT,
+      subject: 'Your link to try RoofMap on a computer',
+      text: 'Hi,\n\nHere is the link to trace a roof on RoofMap — open it on a computer, where the corners are easy to click:\n\n' + link +
+        '\n\nPick the satellite view, turn the picture square, click the corners of the roof, and RoofMap draws and measures it. Two minutes.\n\nAron\nRoofMap · reply to this email and it comes straight to me',
+      html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px"><p>Hi,</p>' +
+        '<p>Here is the link to trace a roof on RoofMap — open it on a computer, where the corners are easy to click:</p>' +
+        '<p><a href="' + link + '" style="display:inline-block;padding:13px 22px;border-radius:9px;background:#0099cc;color:#fff;font-weight:800;text-decoration:none">Try RoofMap</a></p>' +
+        '<p>Pick the satellite view, turn the picture square, click the corners of the roof, and RoofMap draws and measures it. Two minutes.</p><p>Aron<br>RoofMap</p></div>',
+    });
+  } catch (e) { return res.status(502).json({ error: 'Could not send just now — try again in a minute.' }); }
+  try { await supabase.from('waitlist').insert({ email, name: '', company: '', phone: '', source: 'try-link', created_at: new Date().toISOString() }); } catch (e) {}
+  res.json({ ok: true });
+});
+
 // The boot popups (setup guide, tutorial) remember their dismissal on the
 // ACCOUNT, not just in one browser's localStorage — a merge-only write so a
 // true can never be lost to a partial update from another device.

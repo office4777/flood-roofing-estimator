@@ -3639,6 +3639,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   // Customer-facing shareable quote: ?q=<token> opens a read-only,
   // interactive proposal with no office login.  bootCustomerView()
   // (defined later) renders it once all scripts have loaded.
+  // The homepage playground: ?try=1 opens the canvas with no account. The
+  // sign-in screen never shows; _tryBoot() (later) dresses the page.
+  try { if (new URLSearchParams(location.search).get('try') === '1') window.__PLAYGROUND = true; } catch(e){}
   var _cq = new URLSearchParams(location.search).get('q');
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
@@ -3794,6 +3797,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     document.querySelector('.app') && (document.querySelector('.app').style.display='none');
     _liShow('login-reset-view');
     try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  } else if(window.__PLAYGROUND){
+    // No sign-in and no session: the playground is the app with nothing
+    // behind it. Any old token in this browser is left alone and unused.
+    document.getElementById('login-screen').style.display='none';
+    document.addEventListener('DOMContentLoaded', function(){
+      var ap=document.querySelector('.app'); if(ap) ap.style.display='';
+      setTimeout(function(){ try { _tryBoot(); } catch(e){ console.warn('playground:', e); } }, 60);
+    });
   } else if(!tok){
     document.getElementById('login-screen').style.display='flex';
     document.querySelector('.app') && (document.querySelector('.app').style.display='none');
@@ -4515,8 +4526,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- DRAW YOUR ROOF TOOL -->
     <div class="card" id="roofPlanCard" style="padding:0;border-radius:var(--radius-lg);overflow:visible;position:relative">
-      <div class="card-hd" id="roofPlanHd" style="margin:.75rem .75rem .5rem;"><span class="card-dot"></span>Roof plan — draw your sections
+      <div class="card-hd" id="roofPlanHd" style="margin:.75rem .75rem .5rem;display:flex;align-items:center;flex-wrap:wrap"><span class="card-dot"></span>Roof plan — draw your sections
         <span id="roofPlanHdHint" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Click corners to draw each section, then label it</span>
+        <!-- The total roof area, always in view while drawing: the one number
+             everybody asks for first. Filled by buildMeasTiles. -->
+        <span id="roofAreaBox" title="Total roof area, every roof on the job, along the pitch" style="display:none;margin-left:auto;align-items:baseline;gap:6px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:9px;padding:5px 12px;font-size:12px;font-weight:600">Roof area <b id="roofAreaVal" style="font-size:16px;font-weight:800;color:#047857">—</b></span>
       </div>
 
       <!-- Step indicator -->
@@ -11419,6 +11433,7 @@ S.currentJobId = null;
 S.settings = null; // cached user settings (branding/quote_defaults/jms_keys)
 
 async function api(method, path, body) {
+  if (window.__PLAYGROUND){ var _pe = new Error('Not in the playground'); _pe.status = 0; _pe.playground = true; throw _pe; }
   var tok = localStorage.getItem('fr_token') || '';
   var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
   if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
@@ -19516,6 +19531,15 @@ function calcRoofMeasurements(d) {
   };
 }
 
+// The little area box in the Roof plan card head: shown once there is a
+// roof, hidden again when the drawing is cleared.
+function _roofAreaBoxSet(m2){
+  var box = document.getElementById('roofAreaBox'), v = document.getElementById('roofAreaVal');
+  if (!box || !v) return;
+  if (!(m2 > 0)){ box.style.display = 'none'; v.textContent = '—'; return; }
+  v.textContent = m2.toFixed(1) + ' m²';
+  box.style.display = 'inline-flex';
+}
 // ── MEASUREMENT TILES ────────────────────────────────────────────
 function buildMeasTiles(d) {
   var totalArea=0,ridgeLm=0,valleyLm=0,gutterLm=0,hipLm=0;
@@ -19548,6 +19572,7 @@ function buildMeasTiles(d) {
   function getM(obj){if(!obj)return 0;var v=obj.value||0;var u=obj.unit||'m';return u==='mm'?v/1000:v;}
   var tw=getM(overall.total_width);var tl=getM(overall.total_length);
 
+  try { _roofAreaBoxSet(totalArea); } catch(e){}
   var tiles=[
     {icon:'🟩',color:'#059669',label:'Total roof area',val:totalArea>0?totalArea.toFixed(1)+' m²':'--'},
     {icon:'🔴',color:'#dc2626',label:'Ridge lines',val:(d.ridges&&d.ridges.length)?d.ridges.length+' line(s)':'--'},
@@ -40888,6 +40913,149 @@ function _firstRoofSteps(path){
   );
   return steps;
 }
+// ── THE PLAYGROUND ─────────────────────────────────────────────────
+// roofmap.co.nz/app?try=1 — the canvas for a stranger, framed on the
+// homepage. No account, nothing saved, nothing sent. Pick a picture (the
+// practice roof's aerial, a photo, or a PDF plan), turn it square with the
+// rotate bar, zoom and move it, trace the building, pick the roof type and
+// pitch — and the roof is drawn with every measurement and the area blurred
+// behind a "Start free" wall. Measure, Add items and Calibrate are greyed
+// out: that is the product, and the product is behind the sign-up.
+var TRY = { on: !!window.__PLAYGROUND, source: '', drawn: false };
+function _tryBoot(){
+  if (!window.__PLAYGROUND) return;
+  TRY.on = true;
+  document.documentElement.classList.add('playground');
+  S.isSampleJob = true; S.demoKind = 'try'; S.currentJobId = null; S._jobLoaded = null;
+  try { gotoTab('roof'); } catch(e){}
+  try { _collapseRoofBg(); } catch(e){}
+  _tryStyle();
+  _tryToolbar();
+  _tryChooser(true);
+  try { _tryStep('Pick a picture to draw on', 'The practice roof, a photo of a roof, or a PDF plan.'); } catch(e){}
+  try { parent.postMessage({ type: 'roofmap-try', state: 'ready' }, '*'); } catch(e){}
+  setInterval(_tryTick, 400);
+}
+function _tryStyle(){
+  if (document.getElementById('tryStyle')) return;
+  var st = document.createElement('style'); st.id = 'tryStyle';
+  st.textContent =
+    'html.playground .sidebar,html.playground #globalTopBar,html.playground [data-sample-strip],html.playground #trialBannerRoof,html.playground #sampleJobBannerRoof,' +
+    'html.playground #aboutYouCard,html.playground #roofBgCard,html.playground #roofMeasCard,html.playground #iaiLaunch,html.playground #ichatLaunch,html.playground #fbFab,html.playground #helpFab,' +
+    'html.playground #tab-roof > *:not(#roofResults),html.playground #roofResults > *:not(#roofPlanCard),html.playground #roofEditRow,html.playground #phoneClearBtn{display:none !important}' +
+    'html.playground .app{grid-template-columns:1fr !important;background:#f3f5f8 !important}html.playground{--pop-reserve:0px !important}' +
+    'html.playground #fergusRoofPanel,html.playground #quotePricingPanel,html.playground #frHelpLauncher,html.playground #frHelpPanel,html.playground #stepIndicator #finishBtn[hidden]{display:none !important}' +
+    'html.playground .content{margin:0;max-width:none;padding:6px 8px 24px !important}' +
+    'html.playground #roofPlanCard{box-shadow:none;border:1px solid #e3e8ef}' +
+    'html.playground .try-off{opacity:.35 !important;pointer-events:none !important;filter:grayscale(1)}' +
+    'html.playground.try-drawn #roofAreaVal,html.playground.try-drawn #roofAreaBox b{filter:blur(6px);user-select:none}' +
+    '#tryStart{position:absolute;inset:0;z-index:40;background:rgba(243,245,248,.96);display:flex;align-items:center;justify-content:center;border-radius:12px}' +
+    '#tryStart .try-box{max-width:640px;width:92%;text-align:center;font-family:inherit}' +
+    '#tryStart h2{margin:0 0 6px;font-size:22px;color:#0a1628}#tryStart p{margin:0 0 18px;color:#52514e;font-size:14px}' +
+    '#tryStart .try-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}' +
+    '#tryStart button{font-family:inherit;background:#fff;border:1.5px solid #cbd5e1;border-radius:12px;padding:18px 12px;cursor:pointer;font-size:14px;font-weight:800;color:#0a1628;line-height:1.3}' +
+    '#tryStart button:hover{border-color:#0099cc;box-shadow:0 6px 18px rgba(0,153,204,.18)}#tryStart button span{display:block;font-size:11.5px;font-weight:500;color:#64748b;margin-top:4px}' +
+    '#tryStart button.try-main{background:#0a1628;color:#fff;border-color:#0a1628}#tryStart button.try-main span{color:#9fb3c8}' +
+    '#tryWall{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:41;background:#0a1628;color:#fff;border-radius:14px;padding:16px 18px;max-width:520px;width:92%;box-shadow:0 16px 48px rgba(10,22,40,.35);font-family:inherit;text-align:center}' +
+    '#tryWall h3{margin:0 0 4px;font-size:18px}#tryWall p{margin:0 0 12px;font-size:13px;color:#c9d6e3;line-height:1.45}' +
+    '#tryWall a{display:inline-block;background:#0099cc;color:#fff;font-weight:800;text-decoration:none;padding:12px 22px;border-radius:9px;font-size:14px}' +
+    '#tryWall button{background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:9px;padding:11px 14px;font-family:inherit;font-size:12.5px;cursor:pointer;margin-left:8px}';
+  document.head.appendChild(st);
+}
+function _tryStep(title, hint){
+  var bar = document.getElementById('stepIndicator'), t = document.getElementById('stepTitle'), h = document.getElementById('stepHint'), f = document.getElementById('finishBtn'), ic = document.getElementById('stepIcon');
+  if (bar) bar.style.display = 'flex';
+  if (t) t.textContent = title; if (h) h.textContent = hint;
+  if (ic) ic.textContent = TRY.drawn ? '✅' : (DRAW.tool === 'outline' ? '🏠' : '🛰');
+  if (f) f.style.display = (DRAW.tool === 'outline' && !DRAW.outlineDone) ? '' : 'none';
+}
+function _tryToolbar(){
+  // Greyed, not hidden: the buttons say what the product has.
+  ['btn-select', 'rlDropBtn', 'btn-calibrate'].forEach(function(id){
+    var el = document.getElementById(id); if (!el) return;
+    el.classList.add('try-off'); el.setAttribute('aria-disabled', 'true'); el.title = 'In the app — start free to use it';
+  });
+}
+function _tryChooser(show){
+  var card = document.getElementById('roofPlanCard'); if (!card) return;
+  var el = document.getElementById('tryStart');
+  if (!show){ if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement('div'); el.id = 'tryStart';
+  el.innerHTML = '<div class="try-box"><h2>Trace a roof. See what RoofMap does with it.</h2>' +
+    '<p>Nothing is saved and nothing is sent. Pick where the picture comes from:</p>' +
+    '<div class="try-opts">' +
+      '<button type="button" class="try-main" id="tryPickSat" onclick="_tryPickSatellite()">🛰 Satellite view<span>The practice roof — 23 Don Buck Road, Massey</span></button>' +
+      '<button type="button" id="tryPickPhoto" onclick="_tryPickUpload()">📷 Upload a picture<span>A drone or site photo of a roof</span></button>' +
+      '<button type="button" id="tryPickPdf" onclick="_tryPickPdf()">📄 PDF plan<span>A roof plan from the architect</span></button>' +
+    '</div></div>';
+  card.appendChild(el);
+}
+async function _tryPickSatellite(){
+  TRY.source = 'satellite';
+  var b = document.getElementById('tryPickSat'); if (b){ b.disabled = true; b.querySelector('span').textContent = 'Loading the aerial…'; }
+  var job = null;
+  try { var r = await fetch(PROXY + '/practice/picture', { cache: 'no-store' }); if (r.ok) job = await r.json(); } catch(e){ job = null; }
+  if (job && job.draw_state && (job.draw_state.draw.bg || job.draw_state.state.img64)){
+    try { restoreFromJob({ draw_state: { state: { img64: job.draw_state.state.img64 || null }, draw: job.draw_state.draw } }); } catch(e){}
+    var t0 = Date.now();
+    while (!DRAW.bgImg && Date.now() - t0 < 6000) await new Promise(function(res){ setTimeout(res, 100); });
+  }
+  if (!DRAW.bgImg){ try { _firstRoofFallbackImage(); } catch(e){} }
+  _tryPictureReady();
+}
+function _tryPickUpload(){ TRY.source = 'upload'; var f = document.getElementById('roofFile'); if (f){ f.value = ''; f.click(); } }
+function _tryPickPdf(){ TRY.source = 'pdf'; var f = document.getElementById('roofPdfFile'); if (f){ f.value = ''; f.click(); } }
+function _tryPictureReady(){
+  if (!DRAW.bgImg) return;
+  _tryChooser(false);
+  try { setTool('select'); } catch(e){}
+  try { var m = document.getElementById('viewMenu'); if (m) m.style.display = 'block'; } catch(e){}
+  _tryStep('1. Square it up', 'Slide the Rotate photo bar until the walls run straight. Zoom + / − and drag the picture with Move / Edit. Then click Building outline.');
+  try { redrawAll(); } catch(e){}
+  try { parent.postMessage({ type: 'roofmap-try', state: 'picture', source: TRY.source }, '*'); } catch(e){}
+}
+function _tryRoofDrawn(){
+  return !!(DRAW.outlineDone && !document.getElementById('_rsModal') &&
+    (DRAW.lines || []).some(function(l){ return /ridge|hip|valley|gutter|barge/.test(l.type || ''); }));
+}
+function _tryTick(){
+  if (!TRY.on) return;
+  var chooser = document.getElementById('tryStart');
+  // An uploaded picture or a PDF page lands in the preview first; put it
+  // straight on the canvas, the way "Add to canvas" would.
+  if (chooser && !DRAW.bgImg && (TRY.source === 'upload' || TRY.source === 'pdf')){
+    var pi = document.getElementById('roofPrevImg');
+    if (pi && pi.src && /^(data:|blob:)/.test(pi.src)){ try { _roofPrevToCanvas(); } catch(e){} }
+  }
+  if (chooser && DRAW.bgImg) _tryPictureReady();
+  if (!chooser && DRAW.bgImg && !DRAW.outlineDone){
+    if (DRAW.tool === 'outline'){
+      var n = (DRAW.currentPts || []).length;
+      _tryStep('2. Trace the building', n >= 3 ? (n + ' corners — press Enter or Finish when you are round.') : 'Click each corner of the roof, going round in order.');
+    } else {
+      _tryStep('1. Square it up', 'Slide the Rotate photo bar until the walls run straight. Zoom + / − and drag the picture with Move / Edit. Then click Building outline.');
+    }
+  }
+  if (!TRY.drawn && _tryRoofDrawn()) _tryDone();
+}
+function _tryDone(){
+  TRY.drawn = true;
+  document.documentElement.classList.add('try-drawn');
+  _tryStep('That is your roof, measured', 'Every edge, the ridges, hips and valleys, and the area — the numbers are in the app.');
+  try { redrawAll(); } catch(e){}
+  var card = document.getElementById('roofPlanCard');
+  if (card && !document.getElementById('tryWall')){
+    var w = document.createElement('div'); w.id = 'tryWall';
+    w.innerHTML = '<h3>That’s your roof, measured.</h3>' +
+      '<p>Every edge is measured, the ridges, hips and valleys are drawn, and the area is worked out. Start free to see the numbers, the sheet count, the cut list and the quote — 14 days, no card.</p>' +
+      '<a href="/signup?from=try" target="_top" id="tryStartFree">Start free — see the numbers</a>' +
+      '<button type="button" onclick="_tryAgain()">Draw another</button>';
+    card.appendChild(w);
+  }
+  try { parent.postMessage({ type: 'roofmap-try', state: 'drawn' }, '*'); } catch(e){}
+}
+function _tryAgain(){ try { location.reload(); } catch(e){} }
 function _firstRoofSkipTo(key){
   var i = -1; TOUR.steps.forEach(function(st, k){ if (st.key === key) i = k; });
   if (i >= 0){ try { _walkthroughEvent(TOUR.steps[TOUR.i].key, 'skipped'); } catch(e){} tourStep(i); }
@@ -44642,6 +44810,17 @@ function _scaleStateShow(){
 function redrawAll() {
   var cv=document.getElementById('roofCanvas'); if(!cv) return;
   var ctx=cv.getContext('2d');
+  // The playground: once the roof is drawn, every number on the canvas —
+  // edge lengths, sheet lengths, the ridge run — is written through a blur.
+  // One patch on the context's fillText, so no label site can forget.
+  if (window.TRY && TRY.on && !ctx.__tryPatched){
+    ctx.__tryPatched = true;
+    var _tryFillText = ctx.fillText;
+    ctx.fillText = function(){
+      if (!(window.TRY && TRY.drawn)) return _tryFillText.apply(ctx, arguments);
+      ctx.save(); try { ctx.filter = 'blur(3px)'; window.__tryBlurred = (window.__tryBlurred || 0) + 1; _tryFillText.apply(ctx, arguments); } finally { ctx.restore(); }
+    };
+  }
   var dpr=window.devicePixelRatio||1;
   // Canvas resolution is dpr * CSS size; scale ctx so 1 unit = 1 CSS pixel
   _autoScaleRecompute();   // the aerial's scale follows the zoom
@@ -46515,6 +46694,7 @@ function calcFromDrawing() {
 
   if(totalArea>0) document.getElementById('scopeArea').value=totalArea.toFixed(1);
 
+  try { _roofAreaBoxSet(totalArea); } catch(e){}
   var tiles=[
     {icon:'🟩',color:'#059669',label:'Total roof area',val:totalArea>0?totalArea.toFixed(1)+' m²':'--'},
     {icon:'🔴',color:'#dc2626',label:'Ridge',val:ridges.length?ridges.length+' line(s)':'--'},
@@ -46964,6 +47144,13 @@ function getBargeMeasurements(bargeIdx) {
 // collapse is gone; its content lives in the Roofing Measurements card.
 
 function updateMeasTotals() {
+  // The area box in the Roof plan card head follows every change to the
+  // drawing: the sum of every roof's area along its pitch, as the Job Pack
+  // counts it (_matBasicCollectRoofs), hidden while there is no roof.
+  try {
+    var _rs = (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : [];
+    _roofAreaBoxSet(_rs.reduce(function(s, r){ return s + (+r.areaM2 || 0); }, 0));
+  } catch(e){}
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
   var unknownCount = DRAW.lines.filter(function(l){return l.type==='unknown';}).length;
   var sheetLengths = {}; // gutter index -> sheet length
