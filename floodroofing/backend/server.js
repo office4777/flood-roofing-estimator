@@ -771,7 +771,40 @@ function _mailFromAddress(){
 // breaks it, and until that is set the counters on /health are the honest
 // answer.
 const MAIL_STATS = { sent: 0, failed: 0, lastError: null, lastErrorAt: null, since: Date.now() };
+// ── A PLATFORM EMAIL NEVER GOES OUT AS SOMEBODY'S COMPANY ───────────
+// A message written AS RoofMap to a trial user names one of our own
+// mailboxes (support@roofmap.co.nz) in From. When the deployment's verified
+// sending domain is not ours, _allowedFromAddress drops that to EMAIL_FROM
+// — which on this deployment is the owner's own roofing company. A stranger
+// three days into a trial then gets RoofMap's onboarding email out of a
+// Whangarei roofer's office inbox. It reads as a mistake and it is the
+// opposite of the confidence the email exists to build.
+//
+// So an UNPROMPTED platform email is HELD rather than sent from the wrong
+// house. It resumes by itself the moment the platform can send as its own
+// address: verify roofmap.co.nz in Resend, or point EMAIL_FROM at an
+// address on it. Nothing piles up behind the hold — the drip marks a step
+// done before it sends, and a step more than TRIAL_DRIP_LATE_DAYS late is
+// marked over rather than sent, so turning the address on does not fire a
+// fortnight of backlog at everyone at once.
+//
+// Only unprompted mail is held. An invoice, a cancellation confirmation or
+// a link somebody just asked for still goes: a person who pressed a button
+// and got nothing is worse off than one who got the right thing from an
+// odd address.
+function _platformMailboxSendable(addr){
+  try { return !!(_resendFromAddress(addr) || _allowedFromAddress(addr)); }
+  catch (e){ return false; }
+}
 async function _dispatchMail(opts) {
+  if (opts && opts.platform && !_platformMailboxSendable(opts.fromAddress)){
+    console.warn('[mail] held — ' + String(opts.subject || '').slice(0, 80) +
+      ': the platform cannot send as ' + (opts.fromAddress || 'its own address') +
+      ' on this deployment, and an unprompted email will not go out as ' +
+      (_mailFromAddress() || 'another company') + '.');
+    MAIL_STATS.held = (MAIL_STATS.held || 0) + 1;
+    return { held: true, reason: 'platform-from-unavailable' };
+  }
   try {
     const r = await _dispatchMailInner(opts);
     MAIL_STATS.sent++;
@@ -2082,11 +2115,14 @@ function _trialEndedMail(p, sub){
     '<p>Aron<br>RoofMap</p></div>';
   // From support@roofmap.co.nz (an address on our own domain, so every
   // pipe will send it), signed Aron, replies to the same place.
-  return { to: p.email, subject: 'Your RoofMap trial has ended', text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT };
+  return { to: p.email, subject: 'Your RoofMap trial has ended', text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
 }
 function _esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
 async function _trialEndedSweep(){
   const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  // Same reason as the drip: trial_ended_mail_at is stamped before the send,
+  // so hold before anything is marked or the email is lost for good.
+  if (!_platformMailboxSendable(MAIL_SUPPORT)){ out.held = true; return out; }
   const now = Date.now();
   const since = new Date(now - TRIAL_END_LOOKBACK_DAYS * 864e5).toISOString();
   const { data: subs, error } = await supabase.from('subscriptions')
@@ -2221,7 +2257,7 @@ function _trialDripMail(step, p){
   const text = _dripText(step, first, PUBLIC_APP_URL + '/app');
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
     text.split('\n\n').map(par => '<p>' + _esc(par).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0099cc">$1</a>') + '</p>').join('') + '</div>';
-  return { to: p.email, subject: step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT };
+  return { to: p.email, subject: step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
 }
 function _trialStartMs(sub){
   const ends = Date.parse(sub.trial_ends_at || '');
@@ -2241,6 +2277,11 @@ async function _companyHasRealRoof(sub){
 }
 async function _trialDripSweep(){
   const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  // Held before anything is marked: the watermark is written BEFORE the
+  // send, so holding inside the loop would burn each step for good. Bail
+  // here and every trial keeps its place — the drip picks up where it left
+  // off the moment the platform can send as its own address.
+  if (!_platformMailboxSendable(MAIL_SUPPORT)){ out.held = true; return out; }
   const now = Date.now();
   const { data: subs, error } = await supabase.from('subscriptions')
     .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, trial_drip, created_at')

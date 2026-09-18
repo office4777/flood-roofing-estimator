@@ -115,6 +115,17 @@ Discipline (non-negotiable):
   standard commit trailer.
 - Error monitoring emails the owner on uncaught exceptions and 5xx — silence
   false alarms at the source rather than muting the reporter.
+- An UNPROMPTED platform email (the trial drip, the trial-ended email) is
+  HELD, never sent from a company address. `_allowedFromAddress` drops a
+  From outside the verified sending domain back to `EMAIL_FROM`, which on
+  this deployment is office@floodroofing.co.nz — so RoofMap's onboarding
+  mail was reaching strangers out of the owner's roofing inbox. Both sweeps
+  bail on `_platformMailboxSendable(MAIL_SUPPORT)` BEFORE they stamp their
+  watermark, so no trial loses its place, and sending resumes by itself once
+  roofmap.co.nz is verified in Resend or `EMAIL_FROM` points at it. Mail
+  somebody asked for (an invoice, a cancellation, a requested link) is never
+  held — a person who pressed a button and got nothing is worse off than one
+  who got the right thing from an odd address. `tests/platformfrom.mjs`.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.
