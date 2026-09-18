@@ -91,6 +91,28 @@ check('the pages run cover, roof condition, proposal, then a page per choice, th
 // ── the price does not appear before the proposal page ────────────
 check('no price on the cover', !v.hasPrice, v.price);
 
+// The condition page carried a red "At the end of its life" banner saying in
+// a headline what the life bar and the roofer's own paragraph say anyway,
+// and a Pitch tile the customer has no use for. Both took space the photos
+// and the words needed.
+const cnd = await m.pg.evaluate(async () => {
+  _qbGo(_qbPages().map(p => p.key).indexOf('condition'));
+  await new Promise(r => setTimeout(r, 400));
+  const el = document.getElementById('qbPage');
+  const out = { verdict: !!el.querySelector('.qb-verdict'),
+                txt: (el.textContent || '').replace(/\s+/g, ' ').trim(),
+                pills: [...el.querySelectorAll('.qb-pill span')].map(x => x.textContent.trim()),
+                bar: !!el.querySelector('.qb-life-track') };
+  // Leave the book back on the cover — the checks below measure that page.
+  _qbGo(0); await new Promise(r => setTimeout(r, 400));
+  return out;
+});
+check('no red verdict banner on the roof condition page', !cnd.verdict && !/end of its life/i.test(cnd.txt),
+      cnd.txt.slice(0, 90));
+check('…and no Pitch tile', !cnd.pills.some(p => /pitch/i.test(p)), cnd.pills.join(' | '));
+check('…the life left still shows, with the expected life on it',
+      cnd.bar && /Life left in the existing roof/.test(cnd.txt) && /last about/.test(cnd.txt), cnd.pills.join(' | '));
+
 // The cover photo is a BANNER, not the whole first screen. It was sized in
 // vh — the browser window — but the page is the window minus the top strip
 // and the nav bar, so the photo ran to most of the screen and pushed the
@@ -182,6 +204,44 @@ const byKey = {}; titles.forEach(t => byKey[t.key] = t);
 check('steel grade has its own page with the grades on it', (byKey.grade || {}).opts >= 2 && /Steel grade/.test((byKey.grade || {}).h || ''), JSON.stringify(byKey.grade));
 check('roof profile has its own page, with the profile drawn', /Roof profile/.test((byKey.profile || {}).h || '') &&
   await m.pg.evaluate(async () => { _qbGo(4); await new Promise(r => setTimeout(r, 250)); return !!document.querySelector('#qbPage .qb-fig svg'); }), JSON.stringify(byKey.profile));
+
+// Both profiles are drawn from the REAL Roofing Industries dimensions, at
+// ONE scale, so a customer comparing them sees that a 5-Rib really is the
+// deeper sheet. The old drawing was a squiggle and a row of boxes with a
+// caption claiming it came off the product sheet.
+const prof = await m.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  const out = {};
+  const readIt = () => {
+    const svg = document.querySelector('#qbPage .qb-fig svg');
+    const path = svg.querySelector('path');
+    const box = path.getBBox();
+    return { txt: (svg.textContent || '').replace(/\s+/g, ' ').trim(),
+             w: +box.width.toFixed(1), h: +box.height.toFixed(1),
+             peaks: (path.getAttribute('d').match(/L/g) || []).length };
+  };
+  _setProposalOption_profile('corrugate'); await new Promise(r => setTimeout(r, 400));
+  _qbGo(keys.indexOf('profile')); await new Promise(r => setTimeout(r, 400));
+  out.corr = readIt();
+  _setProposalOption_profile('5rib'); await new Promise(r => setTimeout(r, 400));
+  _qbGo(_qbPages().map(p => p.key).indexOf('profile')); await new Promise(r => setTimeout(r, 400));
+  out.rib = readIt();
+  _setProposalOption_profile('corrugate'); await new Promise(r => setTimeout(r, 400));
+  return out;
+});
+check('corrugate is drawn with its real pitch, height and cover',
+      /76\.2mm pitch/.test(prof.corr.txt) && /19mm high/.test(prof.corr.txt) && /762mm cover/.test(prof.corr.txt),
+      prof.corr.txt);
+check('5-Rib is drawn with its real rib pitch, height and cover',
+      /190mm rib pitch/.test(prof.rib.txt) && /25mm high/.test(prof.rib.txt) && /760mm cover/.test(prof.rib.txt),
+      prof.rib.txt);
+check('…and the two are drawn to the SAME scale, so the 5-Rib reads as the deeper sheet',
+      prof.rib.h > prof.corr.h && Math.abs(prof.rib.w - prof.corr.w) < 20,
+      'rib ' + prof.rib.h + ' vs corrugate ' + prof.corr.h + ' high, widths ' + prof.rib.w + '/' + prof.corr.w);
+check('…in the true 25:19 proportion off the product sheets',
+      Math.abs((prof.rib.h / prof.corr.h) - (25 / 19)) < 0.10,
+      (prof.rib.h / prof.corr.h).toFixed(3) + ' vs ' + (25 / 19).toFixed(3));
+
 check('steel thickness has its own page', /thickness/i.test((byKey.thickness || {}).h || ''), JSON.stringify(byKey.thickness));
 check('colour has its own page of swatches', (byKey.colour || {}).sw > 3, JSON.stringify(byKey.colour));
 check('guttering has its own page', /Guttering/.test((byKey.gutter || {}).h || ''), JSON.stringify(byKey.gutter));

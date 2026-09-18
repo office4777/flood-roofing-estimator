@@ -198,6 +198,12 @@ Discipline (non-negotiable):
   cover photo resolves through the SAME chain as the paper's (slot
   assignment → the company's `branding.hero_photo` → the built-in fleet
   shot), never a job photo. `tests/quotepreview.mjs`.
+  The two roof profiles are DRAWN from the Roofing Industries profile sheets
+  in real millimetres (`_qbCorrugateGeometry` 76.2mm pitch / 19mm high / 762
+  cover; `_qbRibGeometry` TrimRib S, 190mm rib pitch / 25mm high / 63mm rib
+  base / 32mm top / 127mm pan with a 45×5mm stiffener / 760 cover), at ONE
+  scale across both so a customer comparing them sees that a 5-Rib really is
+  the deeper sheet. Change the numbers only against those sheets.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in

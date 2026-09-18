@@ -3410,6 +3410,7 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-life-hd b{ color:#0a1628; }
 .qb-life-track{ height:8px; border-radius:5px; background:#e6ebf1; overflow:hidden; }
 .qb-life-track i{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#d0442c,#e0a02e 60%,#2e9e57); }
+.qb-life-ft{ margin-top:6px; font-size:11.5px; color:#7c8894; }
 /* the photo gallery — half the screen, at the bottom, swipe sideways */
 .qb-gal-wrap{ position:relative; flex:0 0 auto; background:#0a1628; padding:10px 0 12px; }
 .qb-gal-hd{ display:flex; justify-content:space-between; align-items:baseline; padding:0 16px 8px; color:rgba(255,255,255,.72); font-size:11px; letter-spacing:.04em; }
@@ -26338,15 +26339,10 @@ function _qbCondition(){
   var _cf = (typeof CONDITION_FIXINGS !== 'undefined' && CONDITION_FIXINGS[q.condFixingType]) || {};
   var remPct = (q.condRemainingPct != null) ? q.condRemainingPct : _cf.remainingPct;
   var life = q.condExpectedLife || _cf.expectedLife || '';
-  // One word for the state of it, from the life left — and only when the
-  // roofer actually recorded one. A verdict nobody wrote is a verdict this
-  // page has no business printing.
-  var verdict = '', vTone = 'bad';
-  if (remPct != null){
-    if (remPct >= 50){ verdict = 'Sound'; vTone = 'ok'; }
-    else if (remPct >= 20){ verdict = 'Near the end of its life'; vTone = 'warn'; }
-    else { verdict = 'At the end of its life'; vTone = 'bad'; }
-  }
+  // No verdict banner. A red "At the end of its life" block said in a
+  // headline what the life bar and the roofer's own paragraph below already
+  // say, and it took a third of the page to do it. The expected life it
+  // carried now rides on the life bar, where it costs nothing.
   if (!summary && (age || mat || remPct != null)){
     summary = 'We inspected the roof on site. ' +
       (age ? 'It is around ' + age + ' old' + (mat ? ' in ' + mat.toLowerCase() : '') + '. ' : '') +
@@ -26361,21 +26357,12 @@ function _qbCondition(){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Your roof today</span>'+
       '<h2 class="qb-h2">Existing Roof Condition</h2>'+
-      (verdict
-        ? '<div class="qb-verdict qb-'+vTone+'">'+
-            '<span class="qb-verdict-dot"></span>'+
-            '<div><b>'+esc2(verdict)+'</b>'+
-              (life ? '<span>Roofs of this type last about '+esc2(life)+'</span>' : '')+
-            '</div>'+
-          '</div>'
-        : '')+
       '<div class="qb-pills">'+
         pill(age, 'Approximate age')+
         pill(mat, 'Material')+
         pill(q.condRoofType || (d.roof_type ? String(d.roof_type).replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); }) : ''), 'Roof type')+
-        pill((q.condPitch || (d.pitch ? d.pitch + '°' : '')), 'Pitch')+
       '</div>'+
-      (remPct != null ? _qbLifeBar(remPct) : '')+
+      (remPct != null ? _qbLifeBar(remPct, life) : '')+
       (summary ? '<p class="qb-para">'+esc2(summary)+'</p>' : '')+
     '</div>'+
     gallery;
@@ -26383,11 +26370,12 @@ function _qbCondition(){
 // A page whose bottom half is fixed — the photos, the roof plan — so what
 // matters is on screen without a scroll, which is the whole point of a page.
 function _qbSplit(key){ return key === 'condition' || key === 'proposal'; }
-function _qbLifeBar(pct){
+function _qbLifeBar(pct, life){
   var p = Math.max(0, Math.min(100, pct));
   return '<div class="qb-life">'+
       '<div class="qb-life-hd"><span>Life left in the existing roof</span><b>'+Math.round(p)+'%</b></div>'+
       '<div class="qb-life-track"><i style="width:'+p+'%"></i></div>'+
+      (life ? '<div class="qb-life-ft">Roofs of this type last about '+esc2(life)+'</div>' : '')+
     '</div>';
 }
 // A phone gallery: one photo at a time, swipe sideways, dots underneath.
@@ -26631,33 +26619,69 @@ function _qbProfileFigure(id){
     }
   } catch(e){}
   var isRib = String(id).indexOf('rib') >= 0;
-  var body;
-  if (isRib){
-    // 5-Rib — trapezoidal ribs on a flat pan.
-    var d = 'M2 46 L2 38';
-    for (var i = 0; i < 5; i++){
-      var x = 2 + i * 59.2;
-      d += ' L' + (x + 8) + ' 38 L' + (x + 14) + ' 12 L' + (x + 26) + ' 12 L' + (x + 32) + ' 38';
-    }
-    d += ' L298 38 L298 46';
-    body = '<path d="'+d+'" fill="none" stroke="'+hex+'" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>';
-  } else {
-    // Corrugate — a true sine wave.
-    var pts = [];
-    for (var x2 = 2; x2 <= 298; x2 += 2){
-      var y = 30 - Math.sin(((x2 - 2) / 296) * Math.PI * 2 * 8) * 12;
-      pts.push((pts.length ? 'L' : 'M') + x2.toFixed(1) + ' ' + y.toFixed(1));
-    }
-    body = '<path d="'+pts.join(' ')+'" fill="none" stroke="'+hex+'" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>';
-  }
+  var g = isRib ? _qbRibGeometry() : _qbCorrugateGeometry();
+  // ONE scale for both, so the two profiles are honestly comparable: a
+  // 5-Rib really is deeper than corrugate and the drawing has to show that.
+  // Real millimetres in, so the shape is the manufacturer's and not a guess.
+  var W = 320, PADX = 6, k = (W - PADX * 2) / 850;   // one sheet width across
+  var base = 26, H = 46;                              // no dead space above
+  var d = g.pts.map(function(pt, i){
+    return (i ? 'L' : 'M') + (PADX + pt[0] * k).toFixed(2) + ' ' + (base - pt[1] * k).toFixed(2);
+  }).join(' ');
+  // Height and pitch called out the way the product sheet does.
+  // The pitch bracket sits over a MIDDLE rib, not the first one, or its
+  // label lands on top of the cover figure in the corner.
+  var x0 = PADX + g.dimX[0] * k, x1 = PADX + g.dimX[1] * k;
+  var tick = function(x){ return '<path d="M'+x.toFixed(2)+' 30 L'+x.toFixed(2)+' 36" stroke="#b3bfcb" stroke-width="0.8"/>'; };
   return '<figure class="qb-fig">'+
-      '<svg viewBox="0 0 300 58" width="100%" height="76" role="img" aria-label="'+(isRib ? '5-Rib' : 'Corrugate')+' profile cross-section">'+
-        body+
-        '<path d="M2 53 L298 53" stroke="#c9d2dc" stroke-width="1" stroke-dasharray="3 3" fill="none"/>'+
-        '<text x="150" y="51" text-anchor="middle" font-size="8" fill="#7c8894" font-family="Inter,sans-serif">762mm cover</text>'+
+      '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="'+(isRib ? '5-Rib (TrimRib)' : 'Corrugate')+' profile cross-section, drawn to scale">'+
+        '<path d="'+d+'" fill="none" stroke="'+hex+'" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>'+
+        tick(x0) + tick(x1) +
+        '<path d="M'+x0.toFixed(2)+' 33 L'+x1.toFixed(2)+' 33" stroke="#b3bfcb" stroke-width="0.8"/>'+
+        '<text x="'+((x0 + x1) / 2).toFixed(2)+'" y="44" text-anchor="middle" font-size="7.5" fill="#7c8894" font-family="Inter,sans-serif">'+esc2(g.pitchLbl)+'</text>'+
+        '<text x="'+(W - PADX).toFixed(2)+'" y="44" text-anchor="end" font-size="7.5" fill="#7c8894" font-family="Inter,sans-serif">'+esc2(g.riseLbl)+' high</text>'+
+        '<text x="'+PADX+'" y="44" font-size="7.5" fill="#7c8894" font-family="Inter,sans-serif">'+esc2(g.coverLbl)+' cover</text>'+
       '</svg>'+
-      '<figcaption>'+(isRib ? '5-Rib (TrimRib) profile' : 'Corrugate profile')+' — cross-section, drawn to the Roofing Industries product profile'+'</figcaption>'+
+      '<figcaption>'+esc2(g.name)+' — cross-section at true proportion, to the Roofing Industries profile sheet.</figcaption>'+
     '</figure>';
+}
+// CORRUGATE 762 (standard), from the Roofing Industries profile summary:
+// 76.20mm pitch, 19mm high, 762mm effective cover, 845mm sheet.
+function _qbCorrugateGeometry(){
+  var PITCH = 76.2, RISE = 19, COVER = 762, SHEET = 845;
+  var pts = [], x = 0;
+  while (x <= SHEET){
+    pts.push([x, (RISE / 2) * (1 - Math.cos((x / PITCH) * Math.PI * 2))]);
+    x += PITCH / 12;
+  }
+  return { pts: pts, dimX: [PITCH * 5.5, PITCH * 6.5], name: 'Corrugate',
+           pitchLbl: '76.2mm pitch', riseLbl: '19mm', coverLbl: '762mm' };
+}
+// TRIMRIB S (5-Rib), same sheet: 190mm rib pitch, 25mm rib height, 63mm rib
+// base and a 32mm top (the 120° flank the drawing marks), a 127mm pan with a
+// 45mm × 5mm stiffening rib down the middle of it, 760mm effective cover
+// over four pitches and 820mm of sheet across five ribs.
+function _qbRibGeometry(){
+  var PITCH = 190, RISE = 25, BASE = 63, TOP = 32, PAN = 127;
+  var SW = 45, SH = 5, SC = 6;          // the pan stiffener
+  var flank = (BASE - TOP) / 2;
+  var pts = [[0, 0]], x = 0;
+  var rib = function(){
+    pts.push([x + flank, RISE], [x + flank + TOP, RISE], [x + BASE, 0]);
+    x += BASE;
+  };
+  var pan = function(){
+    var lead = (PAN - SW) / 2;
+    pts.push([x + lead, 0], [x + lead + SC, SH], [x + lead + SW - SC, SH], [x + lead + SW, 0], [x + PAN, 0]);
+    x += PAN;
+  };
+  // Five ribs, four pitches between them: 63 + 4 × 190 = 823mm of sheet,
+  // the 820 the product sheet gives. Starting and ending ON a rib is what
+  // the drawing shows, and it keeps the run inside one sheet width.
+  for (var i = 0; i < 4; i++){ rib(); pan(); }
+  rib();
+  return { pts: pts, dimX: [BASE + PITCH, BASE + PITCH * 2], name: '5-Rib (TrimRib)',
+           pitchLbl: '190mm rib pitch', riseLbl: '25mm', coverLbl: '760mm' };
 }
 function _qbThickness(){
   var p = (S.quote && S.quote.proposalOptions) || {};
