@@ -185,8 +185,9 @@ Discipline (non-negotiable):
   `_qbRender()` into `#qpRoot` behind `html.qp-book`, one page on screen with
   arrows to turn it, driven by `_qbPages()` (cover, condition, Re-Roof
   Proposal, then a page per choice, then the total). It is phone width AND
-  customer mode AND not printing — `_qpBookActive()` — so the office, the
-  tablet, every print and the PDF still get the A4 document, untouched. The
+  customer mode AND not printing — `_qpBookActive()`. A wider customer
+  screen gets the one-page computer layout (next bullet); the office's
+  Document view, every print and the PDF are the A4 document, untouched. The
   book reads the SAME helpers as the paper (`_qpBaseSub`, `_qpCardDeltas`,
   `_custBarRows`, `_qpInteractiveRoofBlock`), so the two cannot disagree about
   a figure; never give the book pricing of its own. A page that does not apply
@@ -196,8 +197,8 @@ Discipline (non-negotiable):
   class BEFORE its printing guard, or a Save-as-PDF prints the A4 document
   with the phone's layout rules still applied. `tests/quotebook.mjs`.
   The office can LOOK at that book without sending anything: the Quote tab's
-  Computer / Phone switch (`_setQuotePreviewMode`, `QP_PREVIEW.phone`) frames
-  the same book as a phone inside the preview card under
+  Document / Computer / Phone switch (`_setQuotePreviewMode`,
+  `QP_PREVIEW.phone`) frames the same book as a phone inside the preview card under
   `html.qp-phone-preview`. That class is deliberately NOT `qp-book` — the
   customer's layer takes the page's scrolling away and the app around the
   frame has to keep working. Both print paths drop the frame and re-render
@@ -218,9 +219,10 @@ Discipline (non-negotiable):
   change nobody meant. Accept on a phone does NOT open the confirmation
   popup: the name and the terms tick are on the page (`#qbAcceptName`,
   `#qbAcceptTerms`) and `acceptQuoteDigitally` validates them and goes
-  straight to `_acceptQuoteFinalize`. A computer still gets the popup, because
-  the A4 document has no inline name field and the record needs one. Neither
-  path can record an acceptance without a name and a tick. On the book the
+  straight to `_acceptQuoteFinalize`. The computer layout asks inline the
+  same way; only the A4 document (the office's Document view) still opens
+  the popup, because it has no inline name field and the record needs one.
+  No path can record an acceptance without a name and a tick. On the book the
   roofer's quoted choice on each option page carries a "Recommended for your
   roof" pill (the `isDefault` item); the arrows read Back / Next; and after
   acceptance the LAST PAGE LEADS with `_qbAcceptedBlock` ("Quote accepted",
@@ -356,10 +358,24 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-18
+## Open at last handover — 2026-09-19
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
+
+**Shipped 2026-09-19 (four promotes, all verified live), watch the first
+customer links through it:** the customer quote on a computer is the
+one-page layout with the summary rail (`tests/quotedesk.mjs`); the
+six-line description with the office's Edit description; the roofer's own
+pick is the customer's Recommended choice (stamped at send as
+`recommended`); the phone book gained Undecided colour, Ask a question?
+up top, the scroll pill and a proposal page that fits. Also: trial emails
+HELD until roofmap.co.nz is verified in Resend (still waiting on the
+owner); drafts never carry an acceptance and Undo acceptance saves; the
+Quote tab bar is one selector + one sentence; the phone's acceptance PDF
+captured the book's page before today. If a customer reports a locked or
+odd quote, ask which device and whether they reloaded — the service worker
+serves the old build until they do.
 
 **Recently shipped 2026-09-18, watch for fallout:** the job pack's roof
 pick now follows the quote by default (a job whose extra roofs are still
