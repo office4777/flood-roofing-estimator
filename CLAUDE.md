@@ -400,14 +400,14 @@ flashing types. The practice roof stand-in is the owner's own aerial
 picture still wins when it exists.
 
 **Waiting on the owner (Aron):**
-- Price the Measure plan. It exists in `PLANS` (one seat, measuring only;
-  the server refuses a customer quote link and `/email/send-order` on it)
-  but is sold nowhere: the billing screen and the trial-ended window show
-  it only when `STRIPE_PRICE_MEASURE` is set (`/subscription.offered`), and
-  the pricing-page card is written at $79 with `hidden` on it. To sell it:
-  create the Stripe prices, set the env vars, remove `hidden`, add its
-  Offer to the pricing JSON-LD, update the "$149, $299 or $549" intro and
-  `tests/sitecopy.mjs`.
+- Measure is SOLD since 2026-09-19 ($79, founding $55.30): the pricing
+  page shows four cards (four across, page-scoped grid rule), the JSON-LD
+  carries its Offer, the intro reads "$79, $149, $299 or $549", and the
+  app's billing screen and plan-gate list it like the others. What is still
+  the owner's: create the Stripe prices and set `STRIPE_PRICE_MEASURE` (and
+  `_ANNUAL`) on Railway — until then a customer who picks Measure gets the
+  server's plain error naming that variable, and `/subscription.offered`
+  says whether it is set.
 - Rotate the Fergus API token and the Railway `ADMIN_TOKEN` — both were
   readable in screenshots shared during a session.
 - Four aerial screenshots for the demo slideshow (Mapbox is unreachable from

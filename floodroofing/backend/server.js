@@ -1259,8 +1259,9 @@ app.get('/subscription', requireAuth, async (req, res) => {
     data_kept_days: CANCEL_DATA_KEPT_DAYS,
     // Which plans have a yearly price configured — the billing screen offers
     // the two-months-free toggle only when there is something to buy.
-    // Measure is offered only once it has a Stripe price — until then the
-    // billing screen shows the three plans it always did.
+    // Whether Measure has a Stripe price behind it. The app shows the tier
+    // regardless since 2026-09-19 (it is on the pricing page); a checkout
+    // without the price gets a plain error naming STRIPE_PRICE_MEASURE.
     offered: { measure: !!STRIPE_PRICES.measure },
     annual: {
       measure:  !!STRIPE_PRICES_ANNUAL.measure,

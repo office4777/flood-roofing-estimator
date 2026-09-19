@@ -50,7 +50,7 @@ barge, apron, change-of-pitch, coastal zones.
 ## Pages
 
 - [Home](https://roofmap.co.nz/): what RoofMap is, the four-step workflow, and who built it.
-- [Pricing](https://roofmap.co.nz/pricing): the three plans, what is in each, and what is not.
+- [Pricing](https://roofmap.co.nz/pricing): the four plans — Measure, Trade, Team, Business — what is in each, and what is not.
 - [Early access](https://roofmap.co.nz/early-access): the form to request access.
 - [Roof measuring](https://roofmap.co.nz/features/roof-measuring): how measurements are taken from an aerial photo and what makes them orderable.
 - [Job pack](https://roofmap.co.nz/features/job-pack): cut lists, the flashing schedule, consumables and the merchant order.

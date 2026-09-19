@@ -18523,7 +18523,7 @@ function _trialBannerHtml(){ return _planGateHtml(); }
 // A banner at the top of the screen is easy to scroll past, and the first
 // thing a roofer whose trial has run out used to meet was a 403 on saving a
 // job: a wall with no door on it. This is the door — what has happened, that
-// their work is safe, the three plans with what each one covers, and that
+// their work is safe, the plans with what each one covers, and that
 // paying is month to month and cancellable.
 //
 // It opens once per session when the account cannot work, and again the
@@ -18640,9 +18640,10 @@ var _billingCycle = 'monthly';
 // both render from this, so the two can never drift apart on price or on
 // what a tier actually includes.
 var PLAN_TIERS = [
-  // Measuring only. Shown when the server says it is for sale (a Stripe
-  // price exists), or when the business is already on it.
-  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · no customer quotes or merchant orders', offered: true },
+  // Measuring only — sold like the rest. Choosing it without a Stripe price
+  // behind it (STRIPE_PRICE_MEASURE) gets the server's plain error naming
+  // the variable, which is the right person's problem to see.
+  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · no customer quotes or merchant orders' },
   { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
   { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
   { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },

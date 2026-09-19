@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pricing — RoofMap roof estimating software</title>
-<meta name="description" content="NZ$149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
+<meta name="description" content="NZ$79, $149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
 <link rel="canonical" href="https://roofmap.co.nz/pricing">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="theme-color" content="#0a1628">
@@ -15,16 +15,22 @@
 <meta property="og:locale" content="en_NZ">
 <meta property="og:url" content="https://roofmap.co.nz/pricing">
 <meta property="og:title" content="Pricing — RoofMap roof estimating software">
-<meta property="og:description" content="NZ$149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
+<meta property="og:description" content="NZ$79, $149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
 <meta property="og:image" content="https://roofmap.co.nz/brand/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="RoofMap — one drawing becomes the job pack, the merchant order and the customer quote">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Pricing — RoofMap roof estimating software">
-<meta name="twitter:description" content="NZ$149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
+<meta name="twitter:description" content="NZ$79, $149, $299 or $549 a month plus GST, priced per business rather than per seat. Measuring included on every plan, with no per-roof fee.">
 <meta name="twitter:image" content="https://roofmap.co.nz/brand/og-card.png">
 <link rel="stylesheet" href="/site.css">
+<style>
+  /* Four plans on this page (the landing page shows three): four across on
+     a wide screen, two by two on a laptop, one column on a phone. */
+  @media (min-width:1101px){ .tiers{ grid-template-columns:repeat(4,1fr); gap:18px } }
+  @media (min-width:901px) and (max-width:1100px){ .tiers{ grid-template-columns:repeat(2,1fr) } }
+</style>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -37,6 +43,14 @@
       "brand": { "@type": "Brand", "name": "RoofMap" },
       "category": "Roof estimating software",
       "offers": [
+        { "@type": "Offer", "name": "Measure", "price": "79.00", "priceCurrency": "NZD",
+          "priceSpecification": [
+            { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "55.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
+            { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "79.00", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
+          ],
+          "availability": "https://schema.org/PreOrder", "url": "https://roofmap.co.nz/pricing",
+          "description": "One person. Measuring only — the aerial, the sheet counts, the flashings and the cut list. No customer quotes or merchant orders.",
+          "eligibleRegion": { "@type": "Country", "name": "New Zealand" } },
         { "@type": "Offer", "name": "Trade", "price": "149.00", "priceCurrency": "NZD",
           "priceSpecification": [
             { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "104.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
@@ -115,25 +129,24 @@
     <p class="stand">Your estimator, your office manager and your foreman all work off the same jobs,
       the same price book and the same job numbers. All prices are NZD per month and exclude GST.</p>
     <p class="answer" style="max-width:66ch">
-      <strong>RoofMap is NZ$149, $299 or $549 a month plus GST</strong>, depending on how many people
-      need a login. It takes the place of an aerial measuring service, a proposal tool and — as you
-      grow — the scheduling and shared-inbox side of a job-management system. Measuring is included on
-      every plan with <strong>no cap and no per-roof fee</strong> — the part that usually costs the most
-      elsewhere.
+      <strong>RoofMap is NZ$79, $149, $299 or $549 a month plus GST</strong>, depending on what you
+      need it to do and how many people need a login. Measure is just the tape measure, for the roofer
+      who quotes in another system. Trade and up take the place of an aerial measuring service, a
+      proposal tool and — as you grow — the scheduling and shared-inbox side of a job-management
+      system. Measuring is included on every plan with <strong>no cap and no per-roof fee</strong> —
+      the part that usually costs the most elsewhere.
     </p>
   </div>
 </section>
 
 <section style="padding-top:6px">
   <div class="wrap">
-    <h2 class="sr-only-head">The three plans</h2>
+    <h2 class="sr-only-head">The four plans</h2>
     <div class="tiers">
 
       <!-- Measure: measuring only, for the roofer who quotes elsewhere. The
-           card stays hidden until the price is confirmed and the Stripe
-           price (STRIPE_PRICE_MEASURE) exists — remove the hidden attribute,
-           add its Offer to the JSON-LD above and update the intro line. -->
-      <div class="tier" hidden data-plan="measure">
+           app sells it through STRIPE_PRICE_MEASURE (and _ANNUAL). -->
+      <div class="tier" data-plan="measure">
         <h3>Measure</h3>
         <div class="who">Just the tape measure.</div>
         <div class="amt">$55.30<span class="was">$79</span></div>

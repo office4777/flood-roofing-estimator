@@ -48,13 +48,16 @@ check('…and its form no longer asks roof volume, software or plan', !/eaVolume
 check('those questions are asked inside the app instead, optionally', /aboutYouCard/.test(read('app.html')) && /app\.post\('\/auth\/about'/.test(server));
 check('the sign-up page says what the trial is and what stays after it', /14 days of Team/.test(signup) && /stay yours/.test(signup));
 check('the trial really is Team', /trial:\s*\{[^}]*seats: 5[^}]*jms: true[^}]*schedule: true/.test(plans));
-// Measure is written on the pricing page and hidden until its price is
-// confirmed; the server sells it nowhere until STRIPE_PRICE_MEASURE exists.
-check('the Measure card is on the pricing page, hidden until priced',
-  /<div class="tier" hidden data-plan="measure">[\s\S]{0,200}<h3>Measure<\/h3>/.test(pricing) && /\$55\.30[\s\S]{0,120}\$79/.test(card(pricing, 'Measure')));
+// Measure is sold: on the pricing page, in the JSON-LD, in the intro and
+// on the app's billing screen. The server only ever refuses the checkout
+// when STRIPE_PRICE_MEASURE is missing, and says so by name.
+check('the Measure card is on the pricing page, at $79 with the founding rate',
+  /<div class="tier" data-plan="measure">[\s\S]{0,200}<h3>Measure<\/h3>/.test(pricing) && !/tier" hidden/.test(pricing) && /\$55\.30[\s\S]{0,120}\$79/.test(card(pricing, 'Measure')));
+check('…and its Offer is in the pricing JSON-LD', /"name": "Measure", "price": "79\.00"/.test(pricing) && /"price": "55\.30"/.test(pricing));
+check('…and the app\'s billing screen lists it like the other plans', /key: 'measure',[^\n]*name: 'Measure'/.test(read('app.html')) && !/key: 'measure',[^\n]*offered: true/.test(read('app.html')));
 check('…and the server\'s Measure sends no quote and no order', /quote: false/.test(row('measure')) && /order: false/.test(row('measure')) && /seats: 1/.test(row('measure')));
 check('…while every plan that is sold does both', ['solo', 'team', 'business', 'trial'].every(k => /quote: true/.test(row(k)) && /order: true/.test(row(k))));
-check('…and the public intro still names three prices, because Measure is not yet sold', /\$149, \$299 or \$549/.test(pricing));
+check('…and the public intro names all four prices', /\$79, \$149, \$299 or \$549/.test(pricing) && /The four plans/.test(pricing) && !/three plans/.test(pricing));
 
 // ── the savings comparison ───────────────────────────────────────
 check('the savings block quotes the range its own table shows', /\$800 to \$1,300/.test(pricing) && !/past a thousand/.test(pricing));
