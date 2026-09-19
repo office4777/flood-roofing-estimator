@@ -3121,6 +3121,19 @@ select.qa-btn{ padding:5px 8px; }
 .qv-menu-list button small, .qa-more-list button small{ font-size:10.5px; font-weight:400; color:#7c8894; }
 .qv-menu-hd, .qa-more-lbl{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a97a6; padding:8px 10px 3px; }
 .qa-more-sel{ width:100%; margin:0 0 4px; }
+.qdesc{ background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; }
+.qdesc-hd{ padding:18px 20px 12px; border-bottom:1px solid var(--border); }
+.qdesc-hd b{ display:block; font-size:16px; color:#0a1628; margin-bottom:4px; }
+.qdesc-hd span{ display:block; font-size:12px; color:#5b6b7d; line-height:1.45; }
+.qdesc-hd code{ background:#f1f4f8; padding:1px 5px; border-radius:4px; font-size:11px; }
+.qdesc-list{ padding:10px 14px; overflow-y:auto; flex:1 1 auto; }
+.qdesc-row{ display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+.qdesc-n{ width:18px; font-size:11px; color:#8a97a6; text-align:right; flex:0 0 auto; }
+.qdesc-row input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; color:#0a1628; }
+.qdesc-row button{ flex:0 0 auto; width:30px; height:32px; border:1px solid var(--border); border-radius:7px; background:#fff; color:#5b6b7d; font-size:11px; cursor:pointer; }
+.qdesc-row button:disabled{ opacity:.3; cursor:default; }
+.qdesc-row button.qdesc-del{ color:#b42318; }
+.qdesc-ft{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
 /* One sentence about the customer, under the selector. */
 .qv-status{ flex:1 1 100%; font-size:12px; color:#5b6b7d; line-height:1.45; padding-top:2px; }
 #qaMsg{ width:100%; }
@@ -3607,6 +3620,133 @@ html.qp-phone-preview .report-preview #qpRoot .qb{ position:absolute; z-index:0;
 html.qp-phone-preview #qpZoomSlider, html.qp-phone-preview #qpZoomOut,
 html.qp-phone-preview .qp-zoom-lbl{ display:none !important; }
 html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(safe-area-inset-bottom)) !important; }
+
+/* ── THE QUOTE ON A COMPUTER (customer link, wider than a phone) ──────
+   The book's parts (.qb-*) laid out for the width: one scrolling page, a
+   sticky summary rail, a section nav. html.qp-desk is the customer's;
+   html.qp-desk-preview is the office looking at it in the Quote tab. */
+html.qp-desk #custBar, html.qp-desk #custAcceptedBanner, html.qp-desk #custBarBreak,
+html.qp-desk .cust-scroll > .no-print{ display:none !important; }
+html.qp-desk #customerView{ background:#eef1f5 !important; }
+html.qp-desk #customerView .cust-scroll{ padding:0 !important; max-width:none !important; margin:0 !important; overflow:visible !important; }
+/* sticky needs a clear line of sight to the scroll container */
+html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ overflow:visible !important; }
+html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ padding:0 !important; margin:0 !important; background:#eef1f5 !important; border-radius:0 !important; }
+html.qp-desk .report-preview #qpRoot, html.qp-desk-preview .report-preview #qpRoot{ width:auto !important; zoom:1 !important; gap:0 !important; margin:0 !important; display:block !important; }
+html.qp-desk-preview #qpZoomSlider, html.qp-desk-preview #qpZoomOut, html.qp-desk-preview .qp-zoom-lbl{ display:none !important; }
+.qd{
+  background:#eef1f5; color:#0a1628; min-height:100%;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; -webkit-font-smoothing:antialiased;
+}
+.qd-top{ position:sticky; top:0; z-index:5; background:#0a1628; color:#fff; box-shadow:0 2px 10px rgba(10,22,40,.25); }
+.qd-top-in{ max-width:1280px; margin:0 auto; padding:0 24px; display:flex; align-items:center; gap:18px; min-height:54px; flex-wrap:wrap; }
+.qd-logo{ height:24px; width:auto; max-width:140px; object-fit:contain; flex:0 0 auto; }
+.qd-co{ font-size:13px; font-weight:700; letter-spacing:.02em; white-space:nowrap; }
+.qd-ref{ font-size:12px; color:rgba(255,255,255,.62); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+.qd-nav{ margin-left:auto; display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; }
+.qd-nav::-webkit-scrollbar{ display:none; }
+.qd-nav button{
+  padding:8px 11px; border:none; border-radius:8px; background:transparent; color:rgba(255,255,255,.72);
+  font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.qd-nav button:hover{ color:#fff; background:rgba(255,255,255,.08); }
+.qd-nav button.on{ color:#fff; background:#0099e0; }
+.qd-wrap{ max-width:1280px; margin:0 auto; padding:22px 24px 60px; display:grid; grid-template-columns:minmax(0,1fr) 318px; gap:24px; align-items:start; }
+.qd-main{ min-width:0; display:flex; flex-direction:column; gap:22px; }
+.qd-sec{ background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 1px 3px rgba(10,22,40,.06), 0 8px 26px rgba(10,22,40,.05); scroll-margin-top:66px; }
+.qd-sec .qb-body{ padding:26px 28px 24px; }
+.qd-hero{ aspect-ratio:21/8; max-height:340px; min-height:200px; }
+.qd-hero .qb-hero-txt{ padding:28px 30px 26px; }
+.qd-hero .qb-hero-txt h1{ font-size:38px; }
+.qd-hero .qb-hero-txt p{ font-size:15px; }
+.qd-cover-body{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:28px; }
+.qd-cover-body .qb-meta{ margin:0; align-self:start; }
+.qd-cover-body .qb-stats{ margin-bottom:0; }
+/* photos: a grid, not a strip */
+.qd-photos{ padding:0 28px 26px; }
+.qd-photos-hd{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:#6b7a8c; margin-bottom:10px; }
+.qd-photo-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.qd-photo{ margin:0; }
+.qd-photo img{ display:block; width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:12px; background:#e6ebf1; }
+.qd-photo figcaption{ margin-top:6px; font-size:12px; line-height:1.4; color:#5b6b7d; }
+/* the proposal: what we do beside the roof plan */
+.qd-sec-proposal{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
+.qd-sec-proposal .qb-plan{ border-top:none; border-left:1px solid #e6ebf1; padding:24px 24px 26px; }
+.qd-sec-proposal .qb-plan .qp-roofmap{ max-height:none; }
+/* related choices side by side */
+.qd-sec-hd{ padding-bottom:0 !important; }
+.qd-sec-hd .qb-para{ margin-bottom:6px; }
+.qd-grid3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.qd-grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.qd-cell + .qd-cell{ border-left:1px solid #e6ebf1; }
+.qd-grid3 .qb-h2, .qd-grid2 .qb-h2{ font-size:20px; }
+.qd-grid3 .qb-para, .qd-grid2 .qb-para{ font-size:13.5px; }
+.qd-grid3 .qb-body, .qd-grid2 .qb-body{ padding:22px 20px 24px; }
+.qd-grid3 .qb-opt{ flex-wrap:wrap; }
+.qd-grid3 .qb-opt-price{ flex:1 1 100%; text-align:left; padding:6px 0 0 32px; }
+.qd-grid3 .qb-up, .qd-grid3 .qb-down{ font-size:15px; }
+/* bigger swatches */
+.qd .qb-swatches{ grid-template-columns:repeat(6,1fr); gap:11px; }
+.qd .qb-sw span{ height:58px; }
+.qd .qb-fig svg{ max-width:640px; margin:0 auto; }
+.qd .qb-opt:not(:disabled):hover{ border-color:#9ccfeb; }
+.qd .qb-sw:not(:disabled):hover{ border-color:#9ccfeb; }
+/* the review */
+.qd-sec-review .qb-body{ max-width:760px; }
+.qd-sec-review .qb-total b{ font-size:44px; }
+/* the rail */
+.qd-rail{ min-width:0; align-self:stretch; }
+.qd-rail-in{ position:sticky; top:70px; background:#fff; border-radius:18px; padding:20px 20px 18px; box-shadow:0 1px 3px rgba(10,22,40,.06), 0 8px 26px rgba(10,22,40,.05); }
+.qd-rail-total{ background:#0a1628; color:#fff; border-radius:14px; padding:16px 16px 14px; text-align:center; }
+.qd-rail-total span{ display:block; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); }
+.qd-rail-total b{ display:block; font-size:34px; font-weight:800; letter-spacing:-.03em; line-height:1.1; margin-top:4px; font-variant-numeric:tabular-nums; }
+.qd-rail-total i{ display:block; font-style:normal; font-size:11.5px; color:rgba(255,255,255,.6); margin-top:5px; }
+.qd-rail-rows{ margin-top:12px; border-top:1px solid #e6ebf1; }
+.qd-rail-row{ display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid #eef2f6; font-size:12.5px; color:#42556b; }
+.qd-rail-row.base{ color:#0a1628; }
+.qd-rail-row b{ font-weight:650; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.qd-rail-h{ margin:16px 0 8px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6b7a8c; }
+.qd-rail-picks .qb-pick{ font-size:12.5px; padding:8px 11px; }
+.qd-rail-btn{
+  display:block; width:100%; margin-top:16px; padding:14px; border:none; border-radius:12px;
+  background:#0099e0; color:#fff; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer;
+}
+.qd-rail-btn:hover{ background:#0088c8; }
+.qd-rail-btn-2{ background:#1d6b3c; }
+.qd-rail-btn-2:hover{ background:#175a32; }
+.qd-rail-links{ display:flex; gap:8px; margin-top:10px; }
+.qd-rail-links button{ flex:1 1 0; padding:10px 6px; border:1px solid #d7dee6; border-radius:10px; background:#fff; color:#33475f; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+.qd-rail-links button:hover{ background:#f4f7fa; }
+.qd-rail-done{ margin-top:16px; background:#eef8f1; border:1px solid #cfe6d6; border-radius:12px; padding:12px 14px; }
+.qd-rail-done b{ display:block; font-size:14px; color:#1d6b3c; }
+.qd-rail-done span{ display:block; font-size:12px; color:#3d6b51; margin-top:2px; }
+/* the narrow computer / tablet: rail below, total on a bar at the bottom */
+.qd-mini{ display:none; }
+@media (max-width:980px){
+  .qd-wrap{ grid-template-columns:minmax(0,1fr); padding:16px 14px 90px; }
+  .qd-rail-in{ position:static; }
+  .qd-mini{
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:100003; align-items:center; gap:14px;
+    background:#0a1628; color:#fff; padding:10px 16px; box-shadow:0 -4px 16px rgba(0,0,0,.25);
+    font-family:Inter,-apple-system,sans-serif;
+  }
+  .qd-mini-total{ flex:1 1 auto; min-width:0; line-height:1.15; }
+  .qd-mini-total span{ display:block; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.55); }
+  .qd-mini-total b{ display:block; font-size:20px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .qd-mini button{ flex:0 0 auto; padding:11px 18px; border:none; border-radius:10px; background:#0099e0; color:#fff; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .qd-mini-done{ flex:0 0 auto; font-size:13px; font-weight:700; color:#6ee7a8; }
+  .qd-sec-proposal, .qd-grid3, .qd-grid2, .qd-cover-body{ grid-template-columns:minmax(0,1fr); }
+  .qd-sec-proposal .qb-plan{ border-left:none; border-top:1px solid #e6ebf1; }
+  .qd-cell + .qd-cell{ border-left:none; border-top:1px solid #e6ebf1; }
+  .qd .qb-swatches{ grid-template-columns:repeat(4,1fr); }
+  .qd-photo-grid{ grid-template-columns:repeat(2,1fr); }
+  .qd-hero .qb-hero-txt h1{ font-size:30px; }
+}
+@media (min-width:981px) and (max-width:1180px){
+  .qd-grid3{ grid-template-columns:minmax(0,1fr); }
+  .qd-grid3 .qd-cell + .qd-cell{ border-left:none; border-top:1px solid #e6ebf1; }
+  .qd .qb-swatches{ grid-template-columns:repeat(4,1fr); }
+}
 
 /* ── Print ─────────────────────────────────────────────────── */
 /* margin:0 on every page kind so the proposal, materials cut list,
@@ -6861,10 +7001,12 @@ html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(sa
         <span class="no-print qp-view-toggle" id="qpViewToggle" style="display:inline-flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text2)">View:</span>
           <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <button type="button" id="qpViewBtn_desktop" onclick="_setQuotePreviewMode('desktop')" title="The proposal as a computer shows it" style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">💻 Computer</button>
-            <button type="button" id="qpViewBtn_phone" onclick="_setQuotePreviewMode('phone')" title="The proposal as the customer's phone shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">📱 Phone</button>
+            <button type="button" id="qpViewBtn_doc" onclick="_setQuotePreviewMode('doc')" title="The A4 document — edit it here; this is what prints and what the PDF carries" style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">📄 Document</button>
+            <button type="button" id="qpViewBtn_computer" onclick="_setQuotePreviewMode('computer')" title="The quote as the customer's computer shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">💻 Computer</button>
+            <button type="button" id="qpViewBtn_phone" onclick="_setQuotePreviewMode('phone')" title="The quote as the customer's phone shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">📱 Phone</button>
           </span>
         </span>
+        <button type="button" class="no-print qa-btn" onclick="_qdescOpen()" title="The six lines the customer reads on the Re-Roof Proposal page — phone and computer. Reword, reorder, remove or add lines.">Edit description</button>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
         <span class="no-print qp-zoom-lbl" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
@@ -24842,7 +24984,7 @@ function acceptQuoteDigitally(){
   // moment of saying yes. Same record either way: no name, no tick, no
   // acceptance.
   var bookName = document.getElementById('qbAcceptName');
-  if (bookName && _qpBookActive()){
+  if (bookName && (_qpBookActive() || _qpDeskActive())){
     var terms = document.getElementById('qbAcceptTerms');
     if (terms && !terms.checked){
       alert('Please tick the box to confirm you accept the quote and the terms & conditions.');
@@ -25053,10 +25195,14 @@ function _acceptQuoteFinalize(name){
       _custBusyBanner(false);
       window._custAccepting = false;   // accepted — leave the buttons disabled
       var onBook = (typeof _qpBookActive === 'function') && _qpBookActive();
+      var onDesk = (typeof _qpDeskActive === 'function') && _qpDeskActive();
       if (onBook){
         // The book's last page now reads "Quote accepted" with what happens
         // next. Land on it, at the top, and do not put a popup over it.
         try { _qbGo(_qbPages().length - 1); var st = document.getElementById('qbStage'); if (st) st.scrollTop = 0; } catch(e){}
+      } else if (onDesk){
+        // The review section now leads with "Quote accepted"; go there.
+        try { _qdGoTo('review', true); } catch(e){}
       } else {
         var bar = document.getElementById('custBar');
         if (bar) bar.innerHTML =
@@ -26249,19 +26395,25 @@ function _qpBookActive(){
 // Which way the Quote tab shows the proposal to the roofer: the A4 document
 // as a computer gets it, or the book as a phone gets it. Never saved with
 // the job — it is how you are looking, not what you quoted.
-var QP_PREVIEW = { phone: false };
+// Three views: 'doc' is the A4 document (the editing surface, what prints);
+// 'computer' is the customer's computer layout (_qdRender); 'phone' is the
+// book. 'desktop' is the old name for 'doc' and still works.
+var QP_PREVIEW = { phone: false, desk: false };
+function _qpPreviewMode(){ return QP_PREVIEW.phone ? 'phone' : (QP_PREVIEW.desk ? 'computer' : 'doc'); }
 function _setQuotePreviewMode(m){
-  var phone = (m === 'phone');
-  if (QP_PREVIEW.phone === phone){ _syncQuotePreviewToggle(); return; }
-  QP_PREVIEW.phone = phone;
+  if (m === 'desktop') m = 'doc';
+  var phone = (m === 'phone'), desk = (m === 'computer');
+  if (QP_PREVIEW.phone === phone && QP_PREVIEW.desk === desk){ _syncQuotePreviewToggle(); return; }
+  QP_PREVIEW.phone = phone; QP_PREVIEW.desk = desk;
   if (phone) QB.i = 0;
   document.documentElement.classList.toggle('qp-phone-preview', phone);
+  document.documentElement.classList.toggle('qp-desk-preview', desk);
   var root = document.getElementById('qpRoot');
   if (root && !phone){ root.style.width = ''; root.style.zoom = ''; }
   _syncQuotePreviewToggle();
   try { refreshQuoteProposal(); } catch(e){}
-  // Back on the computer view the zoom slider is in charge again.
-  if (!phone){
+  // Back on the document the zoom slider is in charge again.
+  if (!phone && !desk){
     try {
       var sl = document.getElementById('qpZoomSlider');
       if (sl && typeof _setDocZoomFactor === 'function') _setDocZoomFactor(sl.value);
@@ -26269,14 +26421,25 @@ function _setQuotePreviewMode(m){
   }
 }
 function _syncQuotePreviewToggle(){
-  ['desktop','phone'].forEach(function(k){
+  var cur = _qpPreviewMode();
+  ['doc','computer','phone'].forEach(function(k){
     var b = document.getElementById('qpViewBtn_' + k);
     if (!b) return;
-    var on = (k === 'phone') === !!QP_PREVIEW.phone;
+    var on = (k === cur);
     b.style.background = on ? '#0a1628' : 'transparent';
     b.style.color = on ? '#fff' : 'var(--text2)';
     b.style.fontWeight = on ? '700' : '500';
   });
+}
+// The customer on a COMPUTER (or a tablet) gets the same quote as the phone
+// book, laid out for the width: every section on one scrolling page, a
+// summary rail that stays put, and a section nav to jump with. It is
+// customer mode, wider than a phone, and never a print — the office sees it
+// only through the Computer switch above the preview.
+function _qpDeskActive(){
+  if (window.__PRINTING_QUOTE) return false;
+  if (!window.__CUSTOMER_MODE) return !!(QP_PREVIEW && QP_PREVIEW.desk);
+  try { return !_qpIsMobileView(); } catch(e){ return false; }
 }
 // Money, as the customer reads it: GST-inclusive, whole dollars.
 function _qbMoney(v){ return fmtMoney(v); }
@@ -26416,13 +26579,7 @@ function _qbCover(){
   // fleet shot for the account that owns it. Never a job photo — the paper
   // deliberately does not fall back to those (it could be the roof sketch),
   // and the phone must not show a different picture from the computer.
-  var hero = '';
-  try {
-    var asn = (typeof _slotAssignments === 'function') ? _slotAssignments().cover_hero : null;
-    hero = (asn && typeof resolveSlotSrc === 'function' && resolveSlotSrc('cover_hero')) ||
-           (br && br.hero_photo) ||
-           ((typeof _stockPhoto === 'function') ? _stockPhoto('fleet_trucks.jpg') : '') || '';
-  } catch(e){ hero = (br && br.hero_photo) || ''; }
+  var hero = _qbHeroSrc();
   var client = String(q.client || '').trim();
   var surname = client.split(/\s+/).slice(-1)[0] || '';
   var title = q.coverTitle || ((surname ? surname + ' Residence' : 'Your home'));
@@ -26459,6 +26616,15 @@ function _qbCover(){
       '<div class="qb-cta-note">Turn the page to see your roof, your proposal and your options. You choose as you go and the price updates with you.</div>'+
       '<button type="button" class="qb-cta" onclick="_qbNext()">Start<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
     '</div>';
+}
+function _qbHeroSrc(){
+  var br = (S.settings && S.settings.branding) || {};
+  try {
+    var asn = (typeof _slotAssignments === 'function') ? _slotAssignments().cover_hero : null;
+    return (asn && typeof resolveSlotSrc === 'function' && resolveSlotSrc('cover_hero')) ||
+           (br && br.hero_photo) ||
+           ((typeof _stockPhoto === 'function') ? _stockPhoto('fleet_trucks.jpg') : '') || '';
+  } catch(e){ return (br && br.hero_photo) || ''; }
 }
 // The area of the roofs this quote covers, to the nearest metre.
 function _qbQuotedArea(){
@@ -26502,7 +26668,8 @@ function _qbHasCondition(){
   try { if (CONDITION_FIXINGS[q.condFixingType]) return true; } catch(e){}
   return false;
 }
-function _qbCondition(){
+function _qbCondition(opts){
+  opts = opts || {};
   var q = S.quote || {};
   var d = (S.roofData || {});
   var age = String(q.condAge || '').trim();
@@ -26523,7 +26690,7 @@ function _qbCondition(){
         : 'Our recommendation and the work it involves are on the next page.');
   }
   var photos = (q.condPhotos || []).filter(function(c){ return c && c.src; });
-  var gallery = photos.length ? _qbGallery(photos) : '';
+  var gallery = photos.length ? (opts.grid ? _qdPhotoGrid(photos) : _qbGallery(photos)) : '';
   var pill = function(v, l){ return v ? '<div class="qb-pill"><b>'+esc2(v)+'</b><span>'+esc2(l)+'</span></div>' : ''; };
   return ''+
     '<div class="qb-body">'+
@@ -26597,11 +26764,12 @@ function _qbGalPaint(n, total){
 // ── page 3 · the re-roof proposal ─────────────────────────────────
 // Top half: what is included. Bottom half: the roof plan, with the roofs
 // the customer can add or drop. This is where the price starts.
-function _qbProposal(){
+function _qbProposal(opts){
+  opts = opts || {};
   var q = S.quote || {};
   var lines = _qbInclusionLines();
   var roofBlock = '';
-  try { roofBlock = _qpInteractiveRoofBlock({ maxH: 150, mapKey: 'book' }); } catch(e){ roofBlock = ''; }
+  try { roofBlock = _qpInteractiveRoofBlock({ maxH: opts.mapH || 150, mapKey: opts.mapKey || 'book' }); } catch(e){ roofBlock = ''; }
   // Quotes sent before the book have no roof plan stashed on them, and the
   // oldest ones carry their optional roofs as option PACKAGES rather than as
   // roofs on a plan. Either way the customer must still be able to add one,
@@ -26619,7 +26787,7 @@ function _qbProposal(){
           return '<div class="qb-incl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+
       '</div>'+
-      '<p class="qb-note">Every figure includes GST. The options on the next pages move this total up or down, and you will watch it change as you choose.</p>'+
+      '<p class="qb-note">Every figure includes GST. The options '+(opts.desk ? 'below' : 'on the next pages')+' move this total up or down, and you will watch it change as you choose.</p>'+
       extraRows+
     '</div>'+
     (roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '');
@@ -26665,23 +26833,102 @@ function _qbExtraRoofRows(planShown){
 }
 // What the quote covers, as short lines. The office's own scope text
 // wins; the shipped re-roof list stands in when there is none.
-function _qbInclusionLines(){
-  var out = [];
+// THE CUSTOMER'S DESCRIPTION of the work — the six plain lines the phone and
+// the computer both show on the Re-Roof Proposal. Deliberately not the A4's
+// long "What's included and our process" list: that is the office's document
+// wording; this is what a homeowner reads on a screen. The steel grade is
+// filled in live from their choice, so the line changes when they change it.
+// The office can rewrite these lines per quote (Edit description); they are
+// saved on the quote as `custDesc` and reach the customer with everything
+// else. `{grade}` in a line is replaced by the chosen grade's name.
+var CUST_DESC_DEFAULT = [
+  'Edge-Protection / Scaffolding',
+  'Remove existing Roofing',
+  'Install New Synthetic Underlay',
+  'Install New {grade} Roofing Sheets',
+  'Install all associated Flashings',
+  'Tidy site and issue Warranty sign-off'
+];
+function _qbGradeName(){
   try {
-    var opt = ((S.quote && S.quote.options) || [])[0];
-    var txt = (opt && opt.inclusionsText) || (S.quote && S.quote.inclusionsText) || '';
-    out = String(txt).split('\n').map(function(s){
-      return s.replace(/^[•\-\u2022\s]+/, '').trim();
-    }).filter(Boolean);
-  } catch(e){}
-  if (!out.length){
-    try {
-      var items = (MAIN_SCOPE_PRESETS[_currentMainScope] || MAIN_SCOPE_PRESETS.reroof || {}).items || [];
-      out = items.slice();
-    } catch(e){}
-  }
-  if (!out.length) out = ['Strip the existing roof', 'New underlay', 'New roofing and flashings', 'Scaffolding, clean-up and disposal'];
-  return out.slice(0, 9);
+    var p = (S.quote && S.quote.proposalOptions) || {};
+    var id = p.steelGrade || _quoteGradeId() || 'maxam';
+    var hit = (_selGrades() || []).filter(function(g){ return g.id === id; })[0];
+    return (hit && (hit.name || hit.label)) || 'Colorsteel® MAXAM';
+  } catch(e){ return 'Colorsteel® MAXAM'; }
+}
+function _custDescLines(){
+  var q = S.quote || {};
+  var lines = (Array.isArray(q.custDesc) && q.custDesc.length) ? q.custDesc : CUST_DESC_DEFAULT;
+  return lines.map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+}
+function _qbInclusionLines(){
+  var g = _qbGradeName();
+  return _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+}
+// ── the office editor for those lines ─────────────────────────────
+function _qdescOpen(){
+  if (!S.quote) return;
+  var old = document.getElementById('qdescModal'); if (old) old.remove();
+  var lines = _custDescLines().slice();
+  var host = document.createElement('div');
+  host.id = 'qdescModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qdesc">'+
+      '<div class="qdesc-hd"><b>Edit description</b><span>What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose.</span></div>'+
+      '<div class="qdesc-list" id="qdescList"></div>'+
+      '<div class="qdesc-ft">'+
+        '<button type="button" class="qa-btn" onclick="_qdescAdd()">+ Add line</button>'+
+        '<button type="button" class="qa-btn" onclick="_qdescReset()">Reset to default</button>'+
+        '<span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="_qdescClose()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" onclick="_qdescSave()">Save</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) _qdescClose(); });
+  host._lines = lines;
+  _qdescPaint();
+}
+function _qdescPaint(){
+  var host = document.getElementById('qdescModal'); if (!host) return;
+  var list = document.getElementById('qdescList'); if (!list) return;
+  var lines = host._lines;
+  list.innerHTML = lines.map(function(l, i){
+    return '<div class="qdesc-row">'+
+        '<span class="qdesc-n">'+(i+1)+'</span>'+
+        '<input type="text" value="'+esc2(l)+'" oninput="_qdescSet('+i+',this.value)" placeholder="Describe one step of the work">'+
+        '<button type="button" title="Move up" onclick="_qdescMove('+i+',-1)"'+(i===0?' disabled':'')+'>&#9650;</button>'+
+        '<button type="button" title="Move down" onclick="_qdescMove('+i+',1)"'+(i===lines.length-1?' disabled':'')+'>&#9660;</button>'+
+        '<button type="button" class="qdesc-del" title="Remove this line" onclick="_qdescDel('+i+')">&#10005;</button>'+
+      '</div>';
+  }).join('') || '<p class="qb-para">No lines yet — add one, or reset to the default six.</p>';
+}
+function _qdescSet(i, v){ var h = document.getElementById('qdescModal'); if (h && h._lines[i] != null) h._lines[i] = v; }
+function _qdescMove(i, d){
+  var h = document.getElementById('qdescModal'); if (!h) return;
+  var L = h._lines, j = i + d; if (j < 0 || j >= L.length) return;
+  var t = L[i]; L[i] = L[j]; L[j] = t; _qdescPaint();
+}
+function _qdescDel(i){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines.splice(i, 1); _qdescPaint(); }
+function _qdescAdd(){
+  var h = document.getElementById('qdescModal'); if (!h) return;
+  h._lines.push(''); _qdescPaint();
+  try { var ins = h.querySelectorAll('#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
+}
+function _qdescReset(){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines = CUST_DESC_DEFAULT.slice(); _qdescPaint(); }
+function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
+function _qdescSave(){
+  var h = document.getElementById('qdescModal'); if (!h || !S.quote) return;
+  var lines = h._lines.map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+  // Saved as the default means "use the default" — so a later change to the
+  // default reaches quotes nobody customised.
+  var isDefault = lines.length === CUST_DESC_DEFAULT.length && lines.every(function(l, i){ return l === CUST_DESC_DEFAULT[i]; });
+  if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
+  _qdescClose();
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  try { _siteToast(isDefault ? 'Description back to the default' : 'Description saved — the customer sees these lines'); } catch(e){}
 }
 // ── the option pages ──────────────────────────────────────────────
 // One decision per page, laid out the same way every time: what is being
@@ -27007,7 +27254,8 @@ function _qbBindExtraSetters(){
 }
 function _qpOptPageWrap(key, o){ return _qbOptionPage(o); }
 // ── the last page · your total ────────────────────────────────────
-function _qbSummary(){
+function _qbSummary(opts){
+  opts = opts || {};
   var q = S.quote || {};
   var rate = _qbRate();
   var rows = [];
@@ -27024,7 +27272,7 @@ function _qbSummary(){
   // chose on page three; this is the receipt, not another decision.
   var roofPlan = '';
   try {
-    var rb = _qpInteractiveRoofBlock({ maxH: 132, mapKey: 'booksum', readOnly: true,
+    var rb = _qpInteractiveRoofBlock({ maxH: opts.mapH || 132, mapKey: opts.mapKey || 'booksum', readOnly: true,
                                        title: 'The roofs in this quote' });
     if (rb) roofPlan = '<div class="qb-sum-plan">' + rb + '</div>';
   } catch(e){}
@@ -27105,7 +27353,10 @@ function _qbPicksList(){
   if ((p.steelGrade || 'maxam') === 'zincalume') out.push(['Colour', 'Plain silver Zincalume']);
   else if (p.colour) out.push(['Colour', p.colour]);
   var gt = p.gutterType || 'none';
-  if (gt === 'none') out.push(['Guttering', 'No new guttering']);
+  // A job priced without guttering offers none, so it lists none.
+  var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
+  if (gutterOff) {}
+  else if (gt === 'none') out.push(['Guttering', 'No new guttering']);
   else {
     try { out.push(['Guttering', name(_selGutters(), gt, gt)]); } catch(e){ out.push(['Guttering', gt]); }
     out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal']);
@@ -27115,6 +27366,233 @@ function _qbPicksList(){
   return out.filter(function(r){ return r[1]; }).map(function(r){
     return '<div class="qb-pick"><span>'+esc2(r[0])+'</span><b>'+esc2(r[1])+'</b></div>';
   }).join('');
+}
+
+// ══ THE QUOTE ON A COMPUTER (customer link, wider than a phone) ═══════
+// The same product as the book — same colours, same option cards, same
+// wording, same helpers for every figure — using the room a screen has:
+// every section on one page in the book's order, related choices side by
+// side (grade, profile and thickness are one Roofing section), bigger
+// photos and swatches, a summary rail on the right that stays put with the
+// live total and a Review button, and a section nav to jump with. A
+// customer who started on their phone finds their choices here, because
+// both read S.quote.proposalOptions and nothing else.
+function _qdSections(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
+  if (_qbHasCondition()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
+  list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
+  list.push({ key:'roofing',  label:'Roofing',  html:_qdRoofing });
+  if ((p.steelGrade || 'maxam') !== 'zincalume') list.push({ key:'colour', label:'Colour', html:_qbColour });
+  var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
+  if (!gutterOff) list.push({ key:'gutter', label:'Guttering', html:_qdGutter });
+  list.push({ key:'disposal', label:'Old roof', html:_qbDisposal });
+  try {
+    _selExtras().forEach(function(g, gi){
+      list.push({ key:'extra' + gi, label:g.title || 'Options', html:function(){ return _qbExtraGroup(g, gi); } });
+    });
+  } catch(e){}
+  list.push({ key:'review', label:'Review', html:_qdReview });
+  return list;
+}
+function _qdRender(){
+  var root = document.getElementById('qpRoot'); if (!root) return;
+  var secs = _qdSections();
+  var br = (S.settings && S.settings.branding) || {};
+  var logo = br.logo_url || br.logo || '';
+  var q = S.quote || {};
+  var main = secs.map(function(sc){
+    var inner = '';
+    try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
+    return '<section class="qd-sec qd-sec-'+esc2(sc.key)+'" id="qd-'+esc2(sc.key)+'" data-qd-sec="'+esc2(sc.key)+'">'+inner+'</section>';
+  }).join('');
+  root.innerHTML =
+    '<div class="qd" id="qdRoot">'+
+      '<header class="qd-top">'+
+        '<div class="qd-top-in">'+
+          (logo ? '<img class="qd-logo" src="'+esc2(logo)+'" alt="">' : '<span class="qd-co">'+esc2(br.company_name || 'Your roofer')+'</span>')+
+          '<span class="qd-ref">Quote '+esc2(q.ref || '')+(q.client ? ' · '+esc2(q.client) : '')+'</span>'+
+          '<nav class="qd-nav" id="qdNav" aria-label="Sections">'+secs.map(function(sc, i){
+            return '<button type="button" data-qd-nav="'+esc2(sc.key)+'"'+(i === 0 ? ' class="on"' : '')+' onclick="_qdGoTo(\''+esc2(sc.key)+'\')">'+esc2(sc.label)+'</button>';
+          }).join('')+'</nav>'+
+        '</div>'+
+      '</header>'+
+      '<div class="qd-wrap">'+
+        '<main class="qd-main">'+main+'</main>'+
+        _qdRail()+
+      '</div>'+
+      _qdMiniBar()+
+    '</div>';
+  try { _qdBindSpy(); } catch(e){}
+}
+// The cover: the same hero as the paper and the phone, as a wide banner,
+// with the facts of the quote beside the introduction instead of under it.
+function _qdCover(){
+  var q = S.quote || {};
+  var br = (S.settings && S.settings.branding) || {};
+  var hero = _qbHeroSrc();
+  var client = String(q.client || '').trim();
+  var surname = client.split(/\s+/).slice(-1)[0] || '';
+  var title = q.coverTitle || ((surname ? surname + ' Residence' : 'Your home'));
+  var d = (S.roofData || {});
+  var area = q.roofArea || d.area_m2 || _qbQuotedArea();
+  var pitch = q.roofPitch || d.pitch || '';
+  var stat = function(v, l){ return '<div class="qb-stat"><b>'+esc2(v)+'</b><span>'+esc2(l)+'</span></div>'; };
+  return ''+
+    '<div class="qb-hero qd-hero"'+(hero ? ' style="background-image:url('+_qbCssUrl(hero)+')"' : '')+'>'+
+      '<div class="qb-hero-veil"></div>'+
+      '<div class="qb-hero-txt">'+
+        '<span class="qb-kicker">Roofing quote &amp; proposal</span>'+
+        '<h1>'+esc2(title)+'</h1>'+
+        (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
+      '</div>'+
+    '</div>'+
+    '<div class="qb-body qd-cover-body">'+
+      '<div>'+
+        '<p class="qb-lead">Prepared for '+esc2(client || 'you')+' by '+esc2(br.company_name || 'us')+'.</p>'+
+        '<div class="qb-cta-note">Your roof, our proposal and your options are all on this page. Choose as you go — the total on the right updates with you — then review and accept at the bottom.</div>'+
+        '<div class="qb-stats">'+
+          (area ? stat(area + ' m²', 'Roof area') : '')+
+          (pitch ? stat(pitch + '°', 'Pitch') : '')+
+          stat(esc2(q.validUntil || '30 days'), 'Valid for')+
+        '</div>'+
+      '</div>'+
+      '<dl class="qb-meta">'+
+        '<div><dt>Quote</dt><dd>'+esc2(q.ref || '—')+'</dd></div>'+
+        '<div><dt>Date</dt><dd>'+esc2(q.date || '—')+'</dd></div>'+
+        (br.phone ? '<div><dt>Phone</dt><dd>'+esc2(br.phone)+'</dd></div>' : '')+
+        (br.email ? '<div><dt>Email</dt><dd>'+esc2(br.email)+'</dd></div>' : '')+
+      '</dl>'+
+    '</div>';
+}
+// Inspection photos as a grid, larger than the phone's one-at-a-time strip.
+function _qdPhotoGrid(photos){
+  return '<div class="qd-photos">'+
+      '<div class="qd-photos-hd">Photos from the inspection</div>'+
+      '<div class="qd-photo-grid">'+photos.map(function(cp, i){
+        return '<figure class="qd-photo">'+
+            '<img src="'+esc2(cp.src)+'" alt="'+esc2(cp.caption || ('Site photo ' + (i+1)))+'" loading="lazy" decoding="async">'+
+            (cp.caption ? '<figcaption>'+esc2(cp.caption)+'</figcaption>' : '')+
+          '</figure>';
+      }).join('')+'</div>'+
+    '</div>';
+}
+function _qdProposal(){ return _qbProposal({ desk:true, mapH: 320, mapKey: 'desk' }); }
+// Steel grade, profile and thickness are one decision about the roofing,
+// so on a screen with the room they sit side by side.
+function _qdRoofing(){
+  return '<div class="qb-body qd-sec-hd">'+
+      '<span class="qb-eyebrow">Your roofing</span>'+
+      '<h2 class="qb-h2">Choose your roofing</h2>'+
+      '<p class="qb-para">Three choices that decide how long the roof lasts, how it looks and how it stands up to the weather. The recommended ones are already picked — change any of them and the total updates.</p>'+
+    '</div>'+
+    '<div class="qd-grid3">'+
+      '<div class="qd-cell">'+_qbGrade()+'</div>'+
+      '<div class="qd-cell">'+_qbProfile()+'</div>'+
+      '<div class="qd-cell">'+_qbThickness()+'</div>'+
+    '</div>';
+}
+function _qdGutter(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var kit = (p.gutterType && p.gutterType !== 'none') ? _qbGutterKit() : '';
+  return '<div class="'+(kit ? 'qd-grid2' : '')+'">'+
+      '<div class="qd-cell">'+_qbGutter()+'</div>'+
+      (kit ? '<div class="qd-cell">'+kit+'</div>' : '')+
+    '</div>';
+}
+function _qdReview(){ return _qbSummary({ mapH: 300, mapKey: 'desksum' }); }
+// The rail: the live total, what moved it, what was chosen, and the way to
+// the review — always on screen while the customer scrolls and picks. The
+// same rows as the phone's price sheet (_custBarRows), so it cannot say a
+// different number.
+function _qdRail(){
+  var q = S.quote || {};
+  var rate = _qbRate();
+  var total = _qbTotal();
+  var sub = total / (1 + rate);
+  var rows = [];
+  try { rows = _custBarRows(); } catch(e){}
+  var lines = rows.filter(function(r){ return r.kind !== 'total'; }).map(function(r){
+    return '<div class="qd-rail-row'+(r.kind === 'base' ? ' base' : '')+'"><span>'+esc2(r.kind === 'base' ? 'Main scope of work' : r.label.replace(/\s*\([^)]*\)\s*$/, ''))+'</span><b>'+esc2(r.value)+'</b></div>';
+  }).join('');
+  var picks = _qbPicksList();
+  var accepted = q.accepted;
+  return '<aside class="qd-rail"><div class="qd-rail-in">'+
+      '<div class="qd-rail-total">'+
+        '<span>Your total incl. GST</span>'+
+        '<b id="qdTotal">'+_qbMoney(total)+'</b>'+
+        '<i>'+_qbMoney(sub)+' + '+_qbMoney(total - sub)+' GST</i>'+
+      '</div>'+
+      (lines ? '<div class="qd-rail-rows">'+lines+'</div>' : '')+
+      (picks ? '<div class="qd-rail-h">Your choices</div><div class="qb-picks qd-rail-picks">'+picks+'</div>' : '')+
+      (accepted
+        ? '<div class="qd-rail-done"><b>Quote accepted</b><span>'+esc2(String(accepted.name || '').trim() || 'Thank you')+'</span></div>'+
+          '<button type="button" class="qd-rail-btn qd-rail-btn-2" onclick="printCustomerQuote()">Save a copy as PDF</button>'
+        : '<button type="button" class="qd-rail-btn" onclick="_qdGoTo(\'review\')">Review quote</button>'+
+          '<div class="qd-rail-links">'+
+            '<button type="button" onclick="customerQuery()">Ask a question</button>'+
+            '<button type="button" onclick="printCustomerQuote()">Download PDF</button>'+
+          '</div>')+
+    '</div></aside>';
+}
+// Under the width where the rail fits beside the page, the total and the
+// Review button ride a bar along the bottom instead.
+function _qdMiniBar(){
+  var q = S.quote || {};
+  return '<div class="qd-mini">'+
+      '<div class="qd-mini-total"><span>Total incl. GST</span><b>'+_qbMoney(_qbTotal())+'</b></div>'+
+      (q.accepted ? '<span class="qd-mini-done">Quote accepted</span>'
+                  : '<button type="button" onclick="_qdGoTo(\'review\')">Review quote</button>')+
+    '</div>';
+}
+function _qdScroller(){
+  var cv = document.getElementById('customerView');
+  if (cv && window.__CUSTOMER_MODE) return cv;
+  return null;   // the window
+}
+function _qdGoTo(key, instant){
+  var el = document.getElementById('qd-' + key); if (!el) return;
+  try { el.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'start' }); } catch(e){ el.scrollIntoView(); }
+  _qdMarkNav(key);
+}
+function _qdMarkNav(key){
+  var nav = document.getElementById('qdNav'); if (!nav) return;
+  Array.prototype.forEach.call(nav.querySelectorAll('[data-qd-nav]'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-qd-nav') === key);
+  });
+}
+// The nav follows the scroll: the section whose top has passed the nav is
+// the one lit.
+function _qdSpyTick(){
+  var nav = document.getElementById('qdNav'); if (!nav) return;
+  // A fixed line under the (sticky) nav, not the nav's own rect: if a
+  // scroll container ever keeps the nav from sticking, the spy still works.
+  var line = 80;
+  var sc = _qdScroller();
+  if (sc){ try { line = sc.getBoundingClientRect().top + 80; } catch(e){} }
+  var cur = null;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-qd-sec]'), function(s){
+    if (s.getBoundingClientRect().top <= line) cur = s.getAttribute('data-qd-sec');
+  });
+  if (cur) _qdMarkNav(cur);
+}
+function _qdBindSpy(){
+  var sc = _qdScroller();
+  var tgt = sc || window;
+  if (!tgt._qdSpy){ tgt._qdSpy = true; tgt.addEventListener('scroll', _qdSpyTick, { passive: true }); }
+  _qdSpyTick();
+}
+// The desk re-renders on every pick; the page must not jump to the top
+// while the customer is halfway down choosing a colour.
+function _qdScrollSave(){
+  if (!_qpDeskActive()) return null;
+  var sc = _qdScroller();
+  return { sc: sc, y: sc ? sc.scrollTop : (window.pageYOffset || document.documentElement.scrollTop || 0) };
+}
+function _qdScrollRestore(st){
+  if (!st) return;
+  try { if (st.sc) st.sc.scrollTop = st.y; else window.scrollTo(0, st.y); } catch(e){}
+  try { _qdSpyTick(); } catch(e){}
 }
 
 // Scale the A4-width proposal (#qpRoot) down so it fits the viewport in the
@@ -27135,6 +27613,9 @@ function _fitCustomerView(){
   var book = _qpBookActive();
   var wasBook = document.documentElement.classList.contains('qp-book');
   document.documentElement.classList.toggle('qp-book', book);
+  var desk = _qpDeskActive();
+  var wasDesk = document.documentElement.classList.contains('qp-desk');
+  document.documentElement.classList.toggle('qp-desk', desk);
   // While a print / save-as-PDF is in flight the proposal is forced to the
   // true A4 layout — don't let the phone-reflow fit re-apply mid-print.
   if (window.__PRINTING_QUOTE) return;
@@ -27142,13 +27623,13 @@ function _fitCustomerView(){
   if (!root) return;
   // Turning the book on or off re-renders once (the class is already set, so
   // that pass returns here without recursing).
-  if (book){
+  if (book || desk){
     document.documentElement.classList.remove('customer-mobile');
     root.style.width = ''; root.style.zoom = '';
-    if (!wasBook){ try { refreshQuoteProposal(); } catch(e){} }
+    if ((book && !wasBook) || (desk && !wasDesk)){ try { refreshQuoteProposal(); } catch(e){} }
     return;
   }
-  if (wasBook){ try { refreshQuoteProposal(); } catch(e){} }
+  if (wasBook || wasDesk){ try { refreshQuoteProposal(); } catch(e){} }
   var mobile = _qpIsMobileView();
   var wasMobile = document.documentElement.classList.contains('customer-mobile');
   document.documentElement.classList.toggle('customer-mobile', mobile);
@@ -33260,6 +33741,7 @@ function refreshQuoteProposal(){
   var lastClose = html.lastIndexOf('</div>');
   if (lastClose !== -1) html = html.slice(0, lastClose) + footerHtml + html.slice(lastClose);
 
+  var _deskScroll = null; try { _deskScroll = _qdScrollSave(); } catch(e){}
   root.innerHTML = html;
   try { _qpNumberPagesAndToc(); } catch(e){}
   if (window.__CUSTOMER_MODE) {
@@ -33281,6 +33763,9 @@ function refreshQuoteProposal(){
   // with the Computer/Phone switch above the preview.
   if (_qpBookActive()){
     try { _qbBindExtraSetters(); _qbRender(); } catch(e){ console.warn('quote book:', e); }
+  } else if (_qpDeskActive()){
+    // A computer gets the same quote on one page with a summary rail.
+    try { _qbBindExtraSetters(); _qdRender(); _qdScrollRestore(_deskScroll); } catch(e){ console.warn('quote desk:', e); }
   }
   try { _syncQuoteKindToggle(); } catch(e){}
   try { _syncQuotePreviewToggle(); } catch(e){}
@@ -34674,9 +35159,11 @@ function printCustomerQuote(){
   var root = document.getElementById('qpRoot');
   var wasMobile = htmlEl.classList.contains('customer-mobile');
   var wasPhonePv = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.phone);
+  var wasDeskPv = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.desk);
   window.__PRINTING_QUOTE = true;
   htmlEl.classList.remove('customer-mobile');
   htmlEl.classList.remove('qp-phone-preview');
+  htmlEl.classList.remove('qp-desk-preview');
   if (root){ root.style.width = ''; root.style.zoom = 1; }
   // Re-render so any free-layout / stacked-mobile boxes return to A4.
   try { refreshQuoteProposal(); } catch(e){}
@@ -34690,6 +35177,8 @@ function printCustomerQuote(){
       if (wasMobile) htmlEl.classList.add('customer-mobile');
       window.__PRINTING_QUOTE = false;
       if (wasPhonePv){ htmlEl.classList.add('qp-phone-preview');
+        try { refreshQuoteProposal(); } catch(e){} }
+      if (wasDeskPv){ htmlEl.classList.add('qp-desk-preview');
         try { refreshQuoteProposal(); } catch(e){} }
       try { _fitCustomerView(); } catch(e){}
     }, 600);
@@ -58553,6 +59042,14 @@ function _inlineCoverImagesForPdf(root){
 async function _buildQuotePdf(opts){
   opts = opts || {};
   var _capScale = opts.scale || 2;   // lower = faster render (used for the accept-email PDF)
+  // The screen may be showing the phone book or the computer layout. The
+  // PDF is the A4 document, so the flag goes up BEFORE this first render:
+  // _qpBookActive / _qpDeskActive read it and the A4 comes back. (The
+  // acceptance PDF from a phone used to capture the book's page.)
+  var _wasPrinting = !!window.__PRINTING_QUOTE;
+  window.__PRINTING_QUOTE = true;
+  var _wasDeskPvPdf = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.desk);
+  if (_wasDeskPvPdf) document.documentElement.classList.remove('qp-desk-preview');
   try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
   // Make sure the proposal webfonts (Inter + Newsreader serif) have loaded
   // before html2canvas paints, otherwise the PDF captures the Georgia
@@ -58562,12 +59059,19 @@ async function _buildQuotePdf(opts){
       await Promise.race([ document.fonts.ready, new Promise(function(r){ setTimeout(r, 1500); }) ]);
     }
   } catch(e){}
-  try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); return null; }
+  var _pdfDone = function(){
+    window.__PRINTING_QUOTE = _wasPrinting;
+    if (_wasDeskPvPdf){ document.documentElement.classList.add('qp-desk-preview');
+      try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
+    // The customer's screen goes back to the book or the computer layout.
+    try { if (window.__CUSTOMER_MODE && typeof _fitCustomerView === 'function') _fitCustomerView(); } catch(e){}
+  };
+  try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); _pdfDone(); return null; }
   var html2canvas = window.html2canvas;
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!html2canvas || !jsPDF) return null;
+  if (!html2canvas || !jsPDF){ _pdfDone(); return null; }
   var root = document.getElementById('qpRoot');
-  if (!root) return null;
+  if (!root){ _pdfDone(); return null; }
   // The customer link may be in the phone-reflow layout (540px virtual width,
   // tall single-column pages). Capturing THAT slices every page across 2–3 A4
   // sheets (a 6-page proposal came out as 17). Force the true A4 layout first
@@ -58647,6 +59151,7 @@ async function _buildQuotePdf(opts){
     window.__PRINTING_QUOTE = false;
     if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
       try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
+    _pdfDone();
     try { window.scrollTo(0, savedScrollY); } catch(e){}
     try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
     return null;
@@ -58660,6 +59165,7 @@ async function _buildQuotePdf(opts){
   window.__PRINTING_QUOTE = false;
   if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
     try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
+  _pdfDone();
   try { window.scrollTo(0, savedScrollY); } catch(e){}
   try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
 

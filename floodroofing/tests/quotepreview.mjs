@@ -70,13 +70,13 @@ const read = () => pg.evaluate(() => {
 // ── the switch is there and starts on the computer ──────────────────
 const t0 = await pg.evaluate(() => ({
   toggle: !!document.getElementById('qpViewToggle'),
-  desk: !!document.getElementById('qpViewBtn_desktop'),
+  desk: !!document.getElementById('qpViewBtn_doc'),
   phone: !!document.getElementById('qpViewBtn_phone'),
-  deskOn: (document.getElementById('qpViewBtn_desktop')||{}).style.fontWeight === '700',
+  deskOn: (document.getElementById('qpViewBtn_doc')||{}).style.fontWeight === '700',
   phoneOn: (document.getElementById('qpViewBtn_phone')||{}).style.fontWeight === '700'
 }));
-check('the Quote tab carries a Computer / Phone switch', t0.toggle && t0.desk && t0.phone);
-check('…and it opens on Computer', t0.deskOn && !t0.phoneOn);
+check('the Quote tab carries a Document / Computer / Phone switch', t0.toggle && t0.desk && t0.phone && !!(await pg.$('#qpViewBtn_computer')));
+check('…and it opens on the Document', t0.deskOn && !t0.phoneOn);
 const v0 = await read();
 check('…showing the A4 proposal, not the book', !v0.book && v0.a4 > 0, v0.a4 + ' A4 pages');
 
@@ -149,7 +149,30 @@ check('a print renders the A4 document, not the phone book', printed.a4 > 0 && !
       printed.a4 + ' A4 pages');
 check('…and the phone comes back afterwards', printed.backToBook);
 
-// ── switching back leaves the computer view exactly as it was ───────
+// ── the Computer view: the customer's one-page layout, in the card ──
+await pg.evaluate(() => _setQuotePreviewMode('computer'));
+await pg.waitForTimeout(900);
+const vc = await pg.evaluate(() => ({
+  qd: !!document.querySelector('#qpRoot #qdRoot'), a4: document.querySelectorAll('#qpRoot .rp-page').length,
+  cls: document.documentElement.classList.contains('qp-desk-preview'),
+  notCustomerLayer: !document.documentElement.classList.contains('qp-desk'),
+  rail: !!document.querySelector('#qpRoot .qd-rail-in'), nav: document.querySelectorAll('#qpRoot #qdNav button').length,
+  bodyScrolls: getComputedStyle(document.body).overflow !== 'hidden',
+  on: (document.getElementById('qpViewBtn_computer')||{}).style.fontWeight === '700'
+}));
+check('picking Computer shows the customer’s one-page layout with its rail and nav', vc.qd && vc.a4 === 0 && vc.rail && vc.nav >= 5, JSON.stringify(vc));
+check('…as a preview inside the Quote tab, not the customer’s own layer', vc.cls && vc.notCustomerLayer && vc.bodyScrolls && vc.on);
+const pc = await pg.evaluate(async () => {
+  window.__PRINTING_QUOTE = true; document.documentElement.classList.remove('qp-desk-preview'); refreshQuoteProposal();
+  await new Promise(r => setTimeout(r, 400));
+  const during = { a4: document.querySelectorAll('#qpRoot .rp-page').length, qd: !!document.getElementById('qdRoot') };
+  window.__PRINTING_QUOTE = false; document.documentElement.classList.add('qp-desk-preview'); refreshQuoteProposal();
+  await new Promise(r => setTimeout(r, 400));
+  return { during, back: !!document.getElementById('qdRoot') };
+});
+check('a print from the Computer view is still the A4 document', pc.during.a4 > 0 && !pc.during.qd && pc.back, JSON.stringify(pc));
+
+// ── switching back leaves the document exactly as it was ────────────
 await pg.evaluate(() => _setQuotePreviewMode('desktop'));
 await pg.waitForTimeout(800);
 const v2 = await read();

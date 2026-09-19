@@ -227,6 +227,31 @@ Discipline (non-negotiable):
   who and when, what happens next, Save a copy as PDF) — no popup on the book,
   because the page is the confirmation. The office gets the acceptance email;
   the customer does not, so the block must never promise them one.
+- The customer on a COMPUTER (or tablet, anything wider than 720px) gets
+  the same quote as ONE PAGE: `_qdRender()` into `#qpRoot` under
+  `html.qp-desk` when `_qpDeskActive()` (customer mode, not phone width,
+  not printing). It is built from the book's own renderers (`_qbGrade`,
+  `_qbColour`, `_qbSummary`…) wrapped in sections — grade, profile and
+  thickness share one Roofing section, the gutter kit sits beside the
+  gutter — with a sticky summary rail (`_qdRail`: `_custBarRows()`, the
+  total incl. GST, `_qbPicksList()`, Review) and a section nav with a
+  scroll-spy (`_qdSpyTick`). The A4 is what a print or PDF captures:
+  `_buildQuotePdf` raises `__PRINTING_QUOTE` BEFORE its first render (the
+  phone's acceptance PDF used to capture the book's page). The old customer
+  `#custBar` and its side panel are hidden under `qp-desk`; the rail is the
+  panel. A pick re-renders through `refreshQuoteProposal`, so the hook
+  saves and restores the scroller's position (`_qdScrollSave`). Accept is
+  inline like the phone (`#qbAcceptName`/`#qbAcceptTerms`, no popup). The
+  office's View switch is three-way — Document (A4, the editing surface),
+  Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
+  `'desktop'` still means Document. `tests/quotedesk.mjs`.
+- The customer's DESCRIPTION of the work is `CUST_DESC_DEFAULT` (six lines,
+  `{grade}` filled from the chosen steel grade by `_qbInclusionLines`),
+  shown on the Re-Roof Proposal of the phone and the computer. The office
+  rewrites it per quote with "Edit description" (`_qdescOpen`), saved as
+  `S.quote.custDesc`; saving the default DELETES the field so a later
+  default change reaches quotes nobody customised. The A4 keeps its own
+  long inclusions list.
 - A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" and "Open saved
   draft" go through `_qvFreshDraft()`, which strips `accepted`/`declined` and
   un-flags an accepted share. The copy used to carry `accepted` with it, and

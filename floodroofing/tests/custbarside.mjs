@@ -45,44 +45,45 @@ async function openCustomer(viewport){
   return { ctx, pg, errs };
 }
 
+// Since the one-page computer layout (tests/quotedesk.mjs) the side panel
+// is the summary RAIL: the same rows as the phone's price sheet, the total
+// incl. GST, the choices and the Review button, sticky on the right.
 const geom = (pg) => pg.evaluate(() => {
-  const bar = document.getElementById('custBar');
-  const page = document.querySelector('#customerView .report-preview');
+  const bar = document.querySelector('.qd-rail-in');
+  const page = document.querySelector('.qd-main');
+  const old = document.getElementById('custBar');
+  if (!bar || !page) return { vw: window.innerWidth, vh: window.innerHeight, bar:{ w:0, h:0, left:0, right:0, top:0, bottom:0 }, pageRight:0, mode: !!window.__CUSTOMER_MODE };
   const br = bar.getBoundingClientRect(), pr = page.getBoundingClientRect();
   const btns = [...bar.querySelectorAll('button')].map(x => x.getBoundingClientRect());
   return { vw: window.innerWidth, vh: window.innerHeight,
     bar: { left: br.left, right: br.right, top: br.top, bottom: br.bottom, w: br.width, h: br.height },
     pageRight: pr.right,
-    stacked: btns.length > 1 && btns.every((r, i) => i === 0 || r.top >= btns[i-1].bottom - 1),
+    stacked: btns.length > 1 && btns[0].top < btns[1].top,
+    oldHidden: !old || getComputedStyle(old).display === 'none',
+    rows: bar.querySelectorAll('.qd-rail-row').length, total: (document.getElementById('qdTotal') || {}).textContent || '',
     mode: !!window.__CUSTOMER_MODE };
 });
 
-// ── computer: the bar is a side panel, clear of the page ──────────
+// ── computer: the summary rail is a side panel, clear of the page ──
 const d = await openCustomer({ width: 1500, height: 950 });
 let g = await geom(d.pg);
 check('customer link opened on a computer', g.mode, '');
-check('the pricing bar sits at the SIDE, not across the bottom',
-  g.bar.w < 420 && g.bar.right > g.vw - 60 && g.bar.bottom < g.vh - 40,
-  `bar ${Math.round(g.bar.w)}×${Math.round(g.bar.h)} at right=${Math.round(g.bar.right)} of ${g.vw}`);
+check('the pricing panel sits at the SIDE, not across the bottom',
+  g.bar.w < 420 && g.bar.right > g.vw - 160 && g.bar.bottom < g.vh - 40,
+  `panel ${Math.round(g.bar.w)}×${Math.round(g.bar.h)} at right=${Math.round(g.bar.right)} of ${g.vw}`);
 check('…the quote page does not run underneath it',
   g.pageRight <= g.bar.left + 1, `page right ${Math.round(g.pageRight)} vs panel left ${Math.round(g.bar.left)}`);
-check('…its buttons stack vertically', g.stacked, '');
-// The tap-for-breakdown sheet opens BESIDE the panel, not across the screen.
-const brk = await d.pg.evaluate(() => {
-  _custBarToggleBreakdown();
-  const br = document.getElementById('custBarBreak').getBoundingClientRect();
-  const bar = document.getElementById('custBar').getBoundingClientRect();
-  return { w: br.width, right: br.right, barLeft: bar.left, shown: br.height > 40 };
-});
-check('the price breakdown opens beside the panel, not full-width',
-  brk.shown && brk.w < 480 && brk.right <= brk.barLeft + 8,
-  `break ${Math.round(brk.w)}px wide, right=${Math.round(brk.right)} vs panel left=${Math.round(brk.barLeft)}`);
+check('…its buttons stack vertically, and the old bottom bar is gone', g.stacked && g.oldHidden, '');
+check('the price breakdown is in the panel itself, with the total incl. GST',
+  g.rows >= 1 && /\$/.test(g.total), `${g.rows} rows, ${g.total}`);
 check('nothing threw on the computer view', d.errs.length === 0, d.errs.join(' | ') || 'clean');
 // The deposit terms the customer reads: payable within 7 days of acceptance,
 // locking their spot in the queue — the old "~7 days before start" scheme is
-// gone from every page.
+// gone from every page. Those pages are the A4 document (the print / PDF).
 const dep = await d.pg.evaluate(() => {
+  window.__PRINTING_QUOTE = true; refreshQuoteProposal();
   const t = (document.getElementById('customerView') || document.body).innerText || '';
+  window.__PRINTING_QUOTE = false; refreshQuoteProposal();
   return { newTerms: /within 7 days of acceptance/i.test(t),
            oldTerms: /~7 days before/i.test(t),
            // The fuller sentence lives in defaults that render per-quote
@@ -121,12 +122,18 @@ check('…it is the book\u2019s bar, with the old one out of the way',
   !!mb && mb.book && mb.oldHidden && mb.arrows === 2, JSON.stringify(mb));
 await m.ctx.close();
 
-// ── tablet (≤1100): also unchanged ────────────────────────────────
-const t = await openCustomer({ width: 1024, height: 768 });
-g = await geom(t.pg);
-check('a tablet keeps the bottom bar too',
-  g.bar.w > g.vw - 8 && g.bar.bottom > g.vh - 4,
-  `bar ${Math.round(g.bar.w)}px wide at ${g.vw}px viewport`);
+// ── a narrow tablet: the rail drops below and the total rides a bottom bar ──
+const t = await openCustomer({ width: 800, height: 1100 });
+const tb = await t.pg.evaluate(() => {
+  const mini = document.querySelector('.qd-mini'); if (!mini) return null;
+  const r = mini.getBoundingClientRect();
+  return { w: r.width, bottom: r.bottom, vw: window.innerWidth, vh: window.innerHeight,
+           shown: getComputedStyle(mini).display !== 'none', total: /\$/.test(mini.textContent || ''),
+           review: !!mini.querySelector('button') };
+});
+check('a narrow tablet keeps the total across the bottom of the screen',
+  !!tb && tb.shown && tb.w > tb.vw - 8 && tb.bottom > tb.vh - 4 && tb.total && tb.review,
+  tb ? `bar ${Math.round(tb.w)}px wide at ${tb.vw}px viewport` : 'no bar');
 await t.ctx.close();
 
 await b.close();

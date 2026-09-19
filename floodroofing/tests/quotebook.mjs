@@ -378,26 +378,25 @@ check('…and the book is back when it is done', pr.after.book && pr.after.page 
 check('nothing on the phone threw', m.errs.length === 0, m.errs.join(' | ') || 'clean');
 await m.ctx.close();
 
-// ── a computer still gets the A4 proposal ────────────────────────
+// ── a computer gets the same quote on one page (tests/quotedesk.mjs) ──
 const dsk = await open({ width: 1400, height: 900 });
 const dv = await read(dsk.pg);
-check('a computer still gets the A4 proposal, not the book', !dv.book && dv.a4 > 0, dv.a4 + ' A4 pages');
-check('…and its bottom/side price bar is still there', !dv.barHidden);
-// The popup was removed on the PHONE only. On a computer the A4 document has
-// no inline name field, so Accept must still open the confirmation window or
-// there is nowhere left to record who accepted.
+const dd = await dsk.pg.evaluate(() => ({ desk: document.documentElement.classList.contains('qp-desk'),
+  root: !!document.getElementById('qdRoot'), rail: !!document.querySelector('.qd-rail-in') }));
+check('a computer gets the one-page layout, not the book and not the A4 stack', !dv.book && dv.a4 === 0 && dd.desk && dd.root, JSON.stringify(dd));
+check('…with the summary rail in place of the old price bar', dd.rail && dv.barHidden);
+// The name and the tick are on the page there too, so Accept never opens
+// the confirmation popup on a computer either — same record, same rule.
 const dskAcc = await dsk.pg.evaluate(async () => {
   acceptQuoteDigitally();
   await new Promise(r => setTimeout(r, 500));
   const m = document.getElementById('acceptConfirmModal');
-  const out = { modal: !!m && getComputedStyle(m).display !== 'none',
-                name: !!document.getElementById('acceptConfirmName'),
-                terms: !!document.getElementById('acceptConfirmTerms') };
-  try { _acceptConfirmClose(); } catch(e){}
-  return out;
+  return { modal: !!m && getComputedStyle(m).display !== 'none',
+           name: !!document.getElementById('qbAcceptName'),
+           terms: !!document.getElementById('qbAcceptTerms'), accepted: !!S.quote.accepted };
 });
-check('a computer still gets the confirmation popup — the phone is the exception',
-      dskAcc.modal && dskAcc.name && dskAcc.terms, JSON.stringify(dskAcc));
+check('a computer accepts from the page like the phone — no popup, nothing without the tick',
+      !dskAcc.modal && dskAcc.name && dskAcc.terms && !dskAcc.accepted, JSON.stringify(dskAcc));
 check('nothing on the computer threw', dsk.errs.length === 0, dsk.errs.join(' | ') || 'clean');
 await dsk.ctx.close();
 

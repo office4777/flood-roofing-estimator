@@ -62,16 +62,14 @@ check('…and nothing reads as a chosen upgrade away from it',
   v.sel === 'colorzen', JSON.stringify(v));
 // The rendered document is what she signs, so assert the page itself: the
 // row carrying "standard" must be the grade the quote was priced on.
+// On a computer the customer now gets the one-page layout, whose grade
+// cards carry "Recommended for your roof" + "Included" on the standard.
 let card = await c.pg.evaluate(() => {
-  const txt = (document.getElementById('customerView') || document.body).innerText || '';
-  const line = txt.split('\n').map(s => s.trim());
-  const iZen = line.findIndex(s => /Armorsteel ColorZen/i.test(s));
-  const iMax = line.findIndex(s => /Colorsteel.{0,3} MAXAM/i.test(s));
-  const near = (i) => i < 0 ? '' : line.slice(i, i + 3).join(' ');
-  return { zen: near(iZen), max: near(iMax) };
+  const t = (id) => { const el = document.querySelector('[data-qb-opt="steelGrade"][data-qb-val="' + id + '"]'); return el ? el.textContent.replace(/\s+/g, ' ') : ''; };
+  return { zen: t('colorzen'), max: t('maxam') };
 });
 check('the Selections page marks ColorZen as the standard, not MAXAM',
-  /STANDARD/i.test(card.zen) && !/STANDARD/i.test(card.max),
+  /Recommended for your roof/i.test(card.zen) && /Included/i.test(card.zen) && !/Recommended for your roof/i.test(card.max),
   JSON.stringify(card));
 check('no page errors on the customer view', c.errs.length === 0, c.errs.join(' | '));
 await c.ctx.close();
