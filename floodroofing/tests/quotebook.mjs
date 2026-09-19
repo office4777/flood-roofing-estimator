@@ -402,6 +402,19 @@ check('"Ask a question?" sits at the top right from the proposal on, not on the 
 check('the proposal has no GST note and fits the screen without scrolling', !extra.gstNote && extra.proposalFits && !extra.hintOnProposal, JSON.stringify(extra));
 check('a page taller than the screen shows a Scroll hint until the bottom is reached', extra.colourTall && extra.hintOnColour && !extra.hintAtBottom, JSON.stringify(extra));
 check('the colour page leads with Undecided, and choosing it is a real choice', extra.undecidedFirst && extra.on && extra.colour === 'Undecided' && /Undecided/.test(extra.pick), JSON.stringify(extra));
+// A tap after scrolling down must not throw the page back to the top.
+const keep = await m.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  _qbGo(keys.indexOf('colour')); await new Promise(r => setTimeout(r, 400));
+  const el = _qbScrollEl(); el.scrollTop = 300; await new Promise(r => setTimeout(r, 100));
+  const y0 = _qbScrollEl().scrollTop;
+  const sw = document.querySelectorAll('#qbPage .qb-sw'); sw[sw.length - 1].click();
+  await new Promise(r => setTimeout(r, 600));
+  return { y0, y1: _qbScrollEl().scrollTop, page: document.getElementById('qbPage').dataset.qbPage, chosen: S.quote.proposalOptions.colour,
+           topOnTurn: (() => { _qbGo(keys.indexOf('gutter')); return _qbScrollEl().scrollTop; })() };
+});
+check('tapping a swatch after scrolling down keeps the page where it was', keep.y0 > 50 && Math.abs(keep.y1 - keep.y0) < 5 && keep.page === 'colour' && keep.chosen, JSON.stringify(keep));
+check('…while turning to a new page still opens it at the top', keep.topOnTurn === 0, String(keep.topOnTurn));
 check('nothing on the phone threw', m.errs.length === 0, m.errs.join(' | ') || 'clean');
 await m.ctx.close();
 

@@ -27671,13 +27671,25 @@ function _qdBindSpy(){
 }
 // The desk re-renders on every pick; the page must not jump to the top
 // while the customer is halfway down choosing a colour.
+// The same for the book: a tap on an option re-renders the page, and the
+// reader had scrolled down to that option. The page comes back where they
+// were. (_qbGo resets to the top itself — a NEW page opens at the top.)
 function _qdScrollSave(){
+  if (_qpBookActive()){
+    var el = null; try { el = _qbScrollEl(); } catch(e){}
+    return { book: true, y: el ? el.scrollTop : 0 };
+  }
   if (!_qpDeskActive()) return null;
   var sc = _qdScroller();
   return { sc: sc, y: sc ? sc.scrollTop : (window.pageYOffset || document.documentElement.scrollTop || 0) };
 }
 function _qdScrollRestore(st){
   if (!st) return;
+  if (st.book){
+    try { var el = _qbScrollEl(); if (el && st.y > 0) el.scrollTop = st.y; } catch(e){}
+    try { _qbScrollHintSync(); } catch(e){}
+    return;
+  }
   try { if (st.sc) st.sc.scrollTop = st.y; else window.scrollTo(0, st.y); } catch(e){}
   try { _qdSpyTick(); } catch(e){}
 }
@@ -33849,7 +33861,7 @@ function refreshQuoteProposal(){
   // never while printing; in the office only when the roofer asks for it
   // with the Computer/Phone switch above the preview.
   if (_qpBookActive()){
-    try { _qbBindExtraSetters(); _qbRender(); } catch(e){ console.warn('quote book:', e); }
+    try { _qbBindExtraSetters(); _qbRender(); _qdScrollRestore(_deskScroll); } catch(e){ console.warn('quote book:', e); }
   } else if (_qpDeskActive()){
     // A computer gets the same quote on one page with a summary rail.
     try { _qbBindExtraSetters(); _qdRender(); _qdScrollRestore(_deskScroll); } catch(e){ console.warn('quote desk:', e); }

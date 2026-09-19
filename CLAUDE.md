@@ -245,7 +245,10 @@ Discipline (non-negotiable):
   for a few seconds" on accept; `_pdfDone` lifts it on every exit. The old customer
   `#custBar` and its side panel are hidden under `qp-desk`; the rail is the
   panel. A pick re-renders through `refreshQuoteProposal`, so the hook
-  saves and restores the scroller's position (`_qdScrollSave`). Accept is
+  saves and restores the scroller's position (`_qdScrollSave`) — for the
+  book too (the page's own scroller, `_qbScrollEl`); the save must happen
+  BEFORE the A4 render wipes the layer, which is why it lives in the hook
+  and not in `_qbRender`. A tap used to throw a phone back to the top. Accept is
   inline like the phone (`#qbAcceptName`/`#qbAcceptTerms`, no popup). The
   office's View switch is three-way — Document (A4, the editing surface),
   Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
