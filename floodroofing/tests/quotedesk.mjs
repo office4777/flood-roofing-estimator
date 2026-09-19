@@ -218,6 +218,33 @@ check('an office-edited description reaches the customer, grade filled in',
 check('…and the phone and the computer read the same lines and the same total',
   ph.lines.join('|') === dk.lines.join('|') && ph.total === dk.total && ph.total > 0, ph.total + ' vs ' + dk.total);
 
+// ── the recommended choice is the roofer's own pick ──────────────
+// "whatever selection is chosen in the app before the user sends it …
+//  becomes the recommended choice in the customer quote"
+const r1 = await open({ width:1366, height:850 }, {
+  recommended:{ steelGrade:'maxam', profile:'corrugate', steelThickness:'55', gutterType:'box125', gutterBracket:'external', downpipes:'yes', disposal:'keep' },
+  proposalOptions:{ extraRoofsSel:{}, steelGrade:'maxam', profile:'corrugate', steelThickness:'55', colour:'', gutterType:'box125', gutterBracket:'external', downpipes:'yes', disposal:'keep' } });
+const rec = await r1.pg.evaluate(() => {
+  const badge = (grp, val) => { const el = document.querySelector('[data-qb-opt="' + grp + '"][data-qb-val="' + val + '"]'); return el ? { rec: !!el.querySelector('.qb-rec'), tag: (el.querySelector('.qb-opt-price') || {}).textContent || '' } : null; };
+  return { g125: badge('gutterType', 'box125'), gNone: badge('gutterType', 'none'), t55: badge('steelThickness', '55'), t40: badge('steelThickness', '40'),
+           brExt: badge('gutterBracket', 'external'), dpYes: badge('downpipes', 'yes'), keep: badge('disposal', 'keep'), noPriceBox: !document.querySelector('#qd-proposal .qb-price-open') };
+});
+await r1.ctx.close();
+check('the gutter the roofer picked is the recommended one, not "no new guttering"', rec.g125 && rec.g125.rec && rec.gNone && !rec.gNone.rec, JSON.stringify({ g125:rec.g125, none:rec.gNone }));
+check('…and it still shows what it adds — Recommended is a badge, not a price', rec.g125 && /\$/.test(rec.g125.tag) && !/Included/.test(rec.g125.tag), rec.g125 && rec.g125.tag);
+check('…thickness, brackets, downpipes and disposal follow the pick too',
+  rec.t55.rec && !rec.t40.rec && rec.brExt.rec && rec.dpYes.rec && rec.keep.rec, JSON.stringify({ t55:rec.t55, br:rec.brExt, dp:rec.dpYes, keep:rec.keep }));
+check('the proposal no longer carries a price box at the top (the bar has it)', rec.noPriceBox);
+// A quote sent before the stamp existed recommends what it was priced on.
+const r0 = await open({ width:390, height:844 }, { proposalOptions:{ extraRoofsSel:{}, steelGrade:'maxam', profile:'corrugate', steelThickness:'40', gutterType:'box125', disposal:'dispose' } });
+const old = await r0.pg.evaluate(async () => {
+  _qbGo(_qbPages().map(p => p.key).indexOf('gutter')); await new Promise(r => setTimeout(r, 400));
+  const el = (v) => document.querySelector('#qbPage [data-qb-opt="gutterType"][data-qb-val="' + v + '"]');
+  return { none: !!el('none').querySelector('.qb-rec'), g125: !!el('box125').querySelector('.qb-rec'), picked: el('box125').classList.contains('on') };
+});
+await r0.ctx.close();
+check('a quote sent before the stamp still recommends the base, with the pick kept', old.none && !old.g125 && old.picked, JSON.stringify(old));
+
 // ── the office: Edit description ─────────────────────────────────
 const o = await (async () => {
   const ctx = await b.newContext({ viewport:{ width:1440, height:950 } });
@@ -277,6 +304,20 @@ check('…which opens on the six default lines, {grade} unfilled', ed.opened.len
 check('…reword, move, delete and add all work', ed.edited.join('|') === 'Full edge protection and scaffold|Remove existing Roofing|Install New {grade} Roofing Sheets|Tidy site and issue Warranty sign-off|Install all associated Flashings|Cart away the old roof', ed.edited.join(' / '));
 check('…Save keeps them on the quote and the proposal reads them', ed.modalGone && ed.saved.length === 6 && ed.shown[0] === 'Full edge protection and scaffold' && ed.shown[5] === 'Cart away the old roof' && /Colorsteel/.test(ed.shown[2]), ed.shown.join(' / '));
 check('…and Reset to default takes the field off the quote', !ed.afterReset && ed.defaultShown.length === 6 && ed.defaultShown[0] === 'Edge-Protection / Scaffolding');
+// In the office the live pick IS the recommendation, so the Phone / Computer
+// previews show what would be sent, and a send stamps it on the quote.
+const orec = await o.pg.evaluate(async () => {
+  try { _setProposalOption_gutter('box125'); } catch(e){}
+  _setQuotePreviewMode('computer');
+  await new Promise(r => setTimeout(r, 700));
+  const el = document.querySelector('#qpRoot [data-qb-opt="gutterType"][data-qb-val="box125"]');
+  const none = document.querySelector('#qpRoot [data-qb-opt="gutterType"][data-qb-val="none"]');
+  const out = { rec: !!(el && el.querySelector('.qb-rec')), noneRec: !!(none && none.querySelector('.qb-rec')), snap: _qbRecSnapshot() };
+  _setQuotePreviewMode('doc');
+  return out;
+});
+check('in the office, picking a gutter makes it the recommended choice in the preview', orec.rec && !orec.noneRec, JSON.stringify({ rec:orec.rec, noneRec:orec.noneRec }));
+check('…and the stamp a send writes carries that pick', orec.snap.gutterType === 'box125', JSON.stringify(orec.snap));
 check('nothing threw in the office', o.errs.length === 0, o.errs.join(' | ') || 'clean');
 await o.ctx.close();
 

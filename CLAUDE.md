@@ -245,6 +245,16 @@ Discipline (non-negotiable):
   office's View switch is three-way — Document (A4, the editing surface),
   Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
   `'desktop'` still means Document. `tests/quotedesk.mjs`.
+- THE RECOMMENDED CHOICE on the customer's quote is whatever the roofer had
+  picked in the app when it was sent: `S.quote.recommended` is stamped from
+  `proposalOptions` at every send (`_qbRecSnapshot`, beside
+  `share.priced`), the customer's renderers mark that row `isDefault`
+  through `_qbRecPick`/`_qbRecMark`, and in the office the LIVE pick is the
+  recommendation so the Phone / Computer previews show what would go out. A
+  quote sent before the stamp falls back to the priced base. Recommended is
+  a badge, not a price — a recommended gutter still shows what it adds;
+  "Included" only ever means it costs nothing more. The Re-Roof Proposal
+  page has no price box of its own; the bar under the book carries it.
 - The customer's DESCRIPTION of the work is `CUST_DESC_DEFAULT` (six lines,
   `{grade}` filled from the chosen steel grade by `_qbInclusionLines`),
   shown on the Re-Roof Proposal of the phone and the computer. The office
