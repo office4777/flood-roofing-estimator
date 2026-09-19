@@ -255,6 +255,17 @@ Discipline (non-negotiable):
   a badge, not a price — a recommended gutter still shows what it adds;
   "Included" only ever means it costs nothing more. The Re-Roof Proposal
   page has no price box of its own; the bar under the book carries it.
+- On the book the colour page LEADS with "Undecided — I'll choose later"
+  (`QB_COLOUR_UNDECIDED`, saved as the colour `'Undecided'`, read back as
+  "Undecided — to be confirmed" in the picks): a customer who cannot pick
+  a colour tonight must still be able to accept tonight. From the proposal
+  page on, a green "Ask a question?" sits top right (`.qb-ask`,
+  `customerQuery`); `_qbPriceFrom(pages)` is the proposal's real index, not
+  2 — it moves when there is no condition page. A page taller than the
+  screen shows a "Scroll" pill at the right until the bottom is reached
+  (`_qbScrollHintSync` on the page's scroller, `_qbScrollEl`). The
+  proposal's lines are tightened (`.qb-split .qb-incl-row`) so page 3 fits
+  a phone without scrolling, and it carries no GST note.
 - The customer's DESCRIPTION of the work is `CUST_DESC_DEFAULT` (six lines,
   `{grade}` filled from the chosen steel grade by `_qbInclusionLines`),
   shown on the Re-Roof Proposal of the phone and the computer. The office

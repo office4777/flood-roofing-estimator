@@ -375,6 +375,33 @@ check('a print swaps the book out for the A4 document', !pr.during.book && pr.du
 check('…so the printed sheet is not laid out as a phone', !pr.during.book);
 check('…and the book is back when it is done', pr.after.book && pr.after.page === 'summary', JSON.stringify(pr.after));
 
+// ── "Undecided" colour, Ask a question up top, the scroll hint ──────
+const extra = await m.pg.evaluate(async () => {
+  const keys = _qbPages().map(p => p.key);
+  const at = async (k) => { _qbGo(keys.indexOf(k)); await new Promise(r => setTimeout(r, 500)); };
+  const out = {};
+  await at('cover');    out.askOnCover = !!document.querySelector('.qb-ask');
+  await at('proposal'); out.askOnProposal = !!document.querySelector('.qb-ask');
+  out.gstNote = /Every figure includes GST/.test(document.getElementById('qbPage').textContent);
+  const el = _qbScrollEl(); out.proposalFits = !!el && el.scrollHeight <= el.clientHeight + 2;
+  out.hintOnProposal = document.getElementById('qbScrollHint').classList.contains('on');
+  await at('colour');
+  const cel = _qbScrollEl(); out.colourTall = !!cel && cel.scrollHeight > cel.clientHeight + 24;
+  out.hintOnColour = document.getElementById('qbScrollHint').classList.contains('on');
+  cel.scrollTop = cel.scrollHeight; await new Promise(r => setTimeout(r, 250));
+  out.hintAtBottom = document.getElementById('qbScrollHint').classList.contains('on');
+  const und = document.querySelector('#qbPage .qb-undecided');
+  out.undecidedFirst = !!und && und.getBoundingClientRect().top < document.querySelector('#qbPage .qb-swatches').getBoundingClientRect().top;
+  und.click(); await new Promise(r => setTimeout(r, 500));
+  out.colour = S.quote.proposalOptions.colour;
+  out.on = document.querySelector('#qbPage .qb-undecided').classList.contains('on');
+  out.pick = (_qbPicksList().match(/Colour<\/span><b>([^<]*)/) || [])[1] || '';
+  return out;
+});
+check('"Ask a question?" sits at the top right from the proposal on, not on the cover', extra.askOnProposal && !extra.askOnCover);
+check('the proposal has no GST note and fits the screen without scrolling', !extra.gstNote && extra.proposalFits && !extra.hintOnProposal, JSON.stringify(extra));
+check('a page taller than the screen shows a Scroll hint until the bottom is reached', extra.colourTall && extra.hintOnColour && !extra.hintAtBottom, JSON.stringify(extra));
+check('the colour page leads with Undecided, and choosing it is a real choice', extra.undecidedFirst && extra.on && extra.colour === 'Undecided' && /Undecided/.test(extra.pick), JSON.stringify(extra));
 check('nothing on the phone threw', m.errs.length === 0, m.errs.join(' | ') || 'clean');
 await m.ctx.close();
 

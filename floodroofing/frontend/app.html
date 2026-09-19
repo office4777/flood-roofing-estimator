@@ -3383,6 +3383,26 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-co{ font-size:12px; font-weight:700; letter-spacing:.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42%; }
 .qb-step{ margin-left:auto; font-size:11.5px; color:rgba(255,255,255,.72); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .qb-count{ font-size:11px; font-variant-numeric:tabular-nums; color:rgba(255,255,255,.55); flex:0 0 auto; }
+.qb-ask{ flex:0 0 auto; padding:6px 10px; border:none; border-radius:999px; background:#1d9a57; color:#fff; font-family:inherit; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.qb-scroll-hint{
+  position:absolute; right:12px; bottom:calc(74px + env(safe-area-inset-bottom)); z-index:3; display:none; align-items:center; gap:4px;
+  padding:6px 9px; border-radius:999px; background:rgba(10,22,40,.82); color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.04em;
+  pointer-events:none; animation:qbHintBob 1.6s ease-in-out infinite;
+}
+.qb-scroll-hint.on{ display:inline-flex; }
+@keyframes qbHintBob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(4px); } }
+/* the proposal's lines, tight enough to fit a phone screen with the plan */
+.qb-split .qb-incl-row{ padding:7px 11px; font-size:13px; line-height:1.3; }
+.qb-split .qb-h2{ margin-bottom:8px; font-size:23px; }
+.qb-split .qb-body{ padding:16px 16px 12px; }
+.qb-undecided{
+  display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left; margin-bottom:14px;
+  padding:13px 14px; border-radius:13px; border:1.5px dashed #9ab2c6; background:#f7fafc;
+  font-family:inherit; color:#0a1628; cursor:pointer;
+}
+.qb-undecided.on{ border-style:solid; border-color:#0099e0; background:#f2fafe; box-shadow:0 0 0 3px rgba(0,153,224,.12); }
+.qb-undecided.on .qb-tick{ border-color:#0099e0; background:#0099e0; }
+.qb-undecided:disabled{ cursor:default; }
 .qb-bar{ height:2px; background:rgba(255,255,255,.16); }
 .qb-bar i{ display:block; height:100%; background:#0099e0; transition:width .28s ease; }
 /* the page itself */
@@ -26489,7 +26509,11 @@ function _qbPages(){
   return pages;
 }
 // The page the price appears on, and every page after it.
-function _qbPriceFrom(){ return 2; }   // 0-based: the Re-Roof Proposal page
+function _qbPriceFrom(pages){
+  // The Re-Roof Proposal's index — which moves when there is no condition page.
+  var i = (pages || _qbPages()).map(function(p){ return p.key; }).indexOf('proposal');
+  return i < 0 ? 2 : i;
+}
 // ── chrome ────────────────────────────────────────────────────────
 function _qbRender(){
   var root = document.getElementById('qpRoot'); if (!root) return;
@@ -26497,7 +26521,7 @@ function _qbRender(){
   if (QB.i >= pages.length) QB.i = pages.length - 1;
   if (QB.i < 0) QB.i = 0;
   var pg = pages[QB.i];
-  var showPrice = QB.i >= _qbPriceFrom();
+  var showPrice = QB.i >= _qbPriceFrom(pages);
   var pct = Math.round(((QB.i + 1) / pages.length) * 100);
   var br = (S.settings && S.settings.branding) || {};
   var logo = br.logo_url || br.logo || '';
@@ -26509,6 +26533,8 @@ function _qbRender(){
                 : '<span class="qb-co">'+esc2(br.company_name || 'Your roofer')+'</span>')+
           '<span class="qb-step">'+esc2(pg.label)+'</span>'+
           '<span class="qb-count">'+(QB.i + 1)+'/'+pages.length+'</span>'+
+          // From the proposal on, help is one tap away on every page.
+          (QB.i >= _qbPriceFrom(pages) ? '<button type="button" class="qb-ask" onclick="customerQuery()">Ask a question?</button>' : '')+
         '</div>'+
         '<div class="qb-bar"><i style="width:'+pct+'%"></i></div>'+
       '</div>'+
@@ -26530,9 +26556,33 @@ function _qbRender(){
           '<span>Next</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
         '</button>'+
       '</div>'+
+      '<div class="qb-scroll-hint" id="qbScrollHint" aria-hidden="true">Scroll<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
     '</div>';
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
+  try { _qbBindScrollHint(); } catch(e){}
+}
+// A page taller than the screen says so: a small "Scroll" pill at the right
+// while there is more below, gone once the reader reaches the bottom. The
+// thing that scrolls is the body on a split page, the stage otherwise.
+function _qbScrollEl(){
+  var pg = document.getElementById('qbPage'); if (!pg) return null;
+  if (pg.classList.contains('qb-split')) return pg.querySelector(':scope > .qb-body');
+  return document.getElementById('qbStage');
+}
+function _qbScrollHintSync(){
+  var h = document.getElementById('qbScrollHint'); if (!h) return;
+  var el = _qbScrollEl();
+  var more = !!el && (el.scrollHeight - el.clientHeight - el.scrollTop) > 24;
+  h.classList.toggle('on', more);
+}
+function _qbBindScrollHint(){
+  var el = _qbScrollEl();
+  if (el && !el._qbHint){ el._qbHint = true; el.addEventListener('scroll', _qbScrollHintSync, { passive: true }); }
+  var st = document.getElementById('qbStage');
+  if (st && !st._qbHint){ st._qbHint = true; st.addEventListener('scroll', _qbScrollHintSync, { passive: true }); }
+  _qbScrollHintSync();
+  setTimeout(_qbScrollHintSync, 350);   // once the photos and the map have sized
 }
 // Turn to a page. The stage goes back to the top — a book opens at the
 // top of the page, and a reader who lands halfway down one thinks the
@@ -26786,7 +26836,6 @@ function _qbProposal(opts){
           return '<div class="qb-incl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+
       '</div>'+
-      '<p class="qb-note">Every figure includes GST. The options '+(opts.desk ? 'below' : 'on the next pages')+' move this total up or down, and you will watch it change as you choose.</p>'+
       extraRows+
     '</div>'+
     (roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '');
@@ -27157,11 +27206,13 @@ function _qbThickness(){
     blurb:'How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail.'
   });
 }
+var QB_COLOUR_UNDECIDED = 'Undecided';
 function _qbColour(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pal = [];
   try { pal = _paletteForGradeId(p.steelGrade || _quoteGradeId()) || []; } catch(e){}
   var cur = p.colour || '';
+  var undecided = (cur === QB_COLOUR_UNDECIDED);
   var swatches = pal.map(function(c){
     var on = (c.name === cur);
     return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-qb-colour="'+esc2(c.name)+'"'+
@@ -27172,11 +27223,19 @@ function _qbColour(){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">The look of it</span>'+
       '<h2 class="qb-h2">Roof colour</h2>'+
-      '<p class="qb-para">Every colour here is a standard stocked colour, so none of them changes your price. Tap one to see it on your profile above the list.</p>'+
+      '<p class="qb-para">Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered.</p>'+
+      // A customer who cannot pick a colour tonight must still be able to
+      // accept the quote tonight. Undecided is a real choice, up top.
+      '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-colour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
+        (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_colour(\''+QB_COLOUR_UNDECIDED+'\')"')+'>'+
+        '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
+        '<span class="qb-opt-txt"><b>Undecided — I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
+      '</button>'+
       _qbProfileFigure(p.profile || 'corrugate')+
-      '<div class="qb-chosen">'+(cur
-        ? 'Chosen: <b>'+esc2(cur)+'</b>'
-        : '<em>No colour chosen yet — tap one below.</em>')+'</div>'+
+      '<div class="qb-chosen">'+(undecided
+        ? 'Chosen: <b>Undecided</b> — we will confirm it with you'
+        : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
+              : '<em>No colour chosen yet — tap one below, or Undecided above.</em>')+'</div>'+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
     '</div>';
 }
@@ -27378,6 +27437,7 @@ function _qbPicksList(){
   try { out.push(['Roof profile', name(_selProfiles(), p.profile || 'corrugate', 'Corrugate')]); } catch(e){}
   out.push(['Steel thickness', (p.profile === '5rib' ? '0.55 gauge' : ((p.steelThickness || '40') === '55' ? '0.55 gauge' : '0.40 gauge'))]);
   if ((p.steelGrade || 'maxam') === 'zincalume') out.push(['Colour', 'Plain silver Zincalume']);
+  else if (p.colour === QB_COLOUR_UNDECIDED) out.push(['Colour', 'Undecided — to be confirmed']);
   else if (p.colour) out.push(['Colour', p.colour]);
   var gt = p.gutterType || 'none';
   // A job priced without guttering offers none, so it lists none.
