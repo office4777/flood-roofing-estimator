@@ -137,9 +137,9 @@ await ctx.close();
   check('an ended trial is met by the plan window, not a banner alone', v.shown);
   check('…it says the trial ended and the work is safe',
     /trial has ended/i.test(v.txt) && /nothing has been deleted/i.test(v.txt), v.txt.slice(0, 120));
-  check('…it offers all three plans with their prices',
-    v.btns.length === 3 && /Trade/.test(v.btns[0]) && /Team/.test(v.btns[1]) && /Business/.test(v.btns[2]) &&
-    /\$149/.test(v.txt) && /\$299/.test(v.txt) && /\$549/.test(v.txt), JSON.stringify(v.btns));
+  check('…it offers all four plans with their prices',
+    v.btns.length === 4 && /Measure/.test(v.btns[0]) && /Trade/.test(v.btns[1]) && /Team/.test(v.btns[2]) && /Business/.test(v.btns[3]) &&
+    /\$79/.test(v.txt) && /\$149/.test(v.txt) && /\$299/.test(v.txt) && /\$549/.test(v.txt), JSON.stringify(v.btns));
   check('…and says paying is month to month and cancellable',
     /cancel any time/i.test(v.txt) && /Settings . Billing/i.test(v.txt), v.txt.slice(-220));
   // There is no way past it. An account that cannot save a job must not be
