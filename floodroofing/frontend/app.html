@@ -26352,7 +26352,7 @@ async function _emailAcceptedQuoteToOffice(){
   try {
     // Lower capture scale — this runs on the customer's phone, so speed beats
     // pixel-perfect resolution for an internal record PDF.
-    var pdf = await _buildQuotePdf({ scale: 1.5 });
+    var pdf = await _buildQuotePdf({ scale: 1.5, veilMsg: 'Recording your acceptance…' });
     if (pdf){
       try { filename = _quotePdfFilename(); } catch(e){}
       var durl = pdf.output('datauristring');
@@ -59137,6 +59137,22 @@ async function _buildQuotePdf(opts){
   window.__PRINTING_QUOTE = true;
   var _wasDeskPvPdf = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.desk);
   if (_wasDeskPvPdf) document.documentElement.classList.remove('qp-desk-preview');
+  // The customer was reading the book or the computer layout. The A4 has to
+  // be on the page for html2canvas to draw it, but they must not SEE it —
+  // "a weird screen showing the old quote style for a few seconds". A veil
+  // covers the page for the build, saying what is happening.
+  var _veil = null;
+  try {
+    if (window.__CUSTOMER_MODE && (document.documentElement.classList.contains('qp-book') || document.documentElement.classList.contains('qp-desk'))){
+      _veil = document.createElement('div'); _veil.id = 'qpPdfVeil';
+      _veil.setAttribute('style', 'position:fixed;inset:0;z-index:100010;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:Inter,-apple-system,sans-serif;text-align:center;padding:24px');
+      _veil.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#0099e0;border-radius:50%;animation:qpVeilSpin .9s linear infinite"></div>'+
+        '<div style="font-size:16px;font-weight:700">'+esc2(opts.veilMsg || 'Saving a copy of your quote…')+'</div>'+
+        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">Just a moment — please keep this page open.</div>'+
+        '<style>@keyframes qpVeilSpin{to{transform:rotate(360deg)}}</style>';
+      document.body.appendChild(_veil);
+    }
+  } catch(e){ _veil = null; }
   try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
   // Make sure the proposal webfonts (Inter + Newsreader serif) have loaded
   // before html2canvas paints, otherwise the PDF captures the Georgia
@@ -59148,6 +59164,7 @@ async function _buildQuotePdf(opts){
   } catch(e){}
   var _pdfDone = function(){
     window.__PRINTING_QUOTE = _wasPrinting;
+    try { if (_veil) _veil.remove(); } catch(e){}
     if (_wasDeskPvPdf){ document.documentElement.classList.add('qp-desk-preview');
       try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
     // The customer's screen goes back to the book or the computer layout.

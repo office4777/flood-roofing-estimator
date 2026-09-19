@@ -239,7 +239,10 @@ Discipline (non-negotiable):
   total incl. GST, `_qbPicksList()`, Review) and a section nav with a
   scroll-spy (`_qdSpyTick`). The A4 is what a print or PDF captures:
   `_buildQuotePdf` raises `__PRINTING_QUOTE` BEFORE its first render (the
-  phone's acceptance PDF used to capture the book's page). The old customer
+  phone's acceptance PDF used to capture the book's page) and, in customer
+  mode, drops an opaque veil (`#qpPdfVeil`, "Recording your acceptance…")
+  over the page while the A4 is on it — the owner saw "the old quote style
+  for a few seconds" on accept; `_pdfDone` lifts it on every exit. The old customer
   `#custBar` and its side panel are hidden under `qp-desk`; the rail is the
   panel. A pick re-renders through `refreshQuoteProposal`, so the hook
   saves and restores the scroller's position (`_qdScrollSave`). Accept is

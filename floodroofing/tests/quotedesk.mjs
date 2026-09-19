@@ -173,6 +173,22 @@ const pr = await d.pg.evaluate(async () => {
 check('a print swaps the page out for the A4 document', !pr.during.desk && !pr.during.qd && pr.during.a4 > 0, JSON.stringify(pr.during));
 check('…and the page is back when it is done', pr.after.desk && pr.after.qd, JSON.stringify(pr.after));
 
+// ── the acceptance PDF renders the A4 behind a veil, never on screen ─
+const veil = await d.pg.evaluate(async () => {
+  const p = _buildQuotePdf({ scale: 1, veilMsg: 'Recording your acceptance…' });
+  // Read at once: with the PDF library blocked in this test the build gives
+  // up within a few ms and the veil lifts with it.
+  const v = document.getElementById('qpPdfVeil');
+  const during = { veil: !!v, msg: v ? v.textContent : '', a4: document.querySelectorAll('#qpRoot .rp-page').length,
+                   covers: !!v && v.getBoundingClientRect().width >= window.innerWidth - 1 };
+  await p;
+  await new Promise(r => setTimeout(r, 400));
+  return { during, after: { veil: !!document.getElementById('qpPdfVeil'), desk: document.documentElement.classList.contains('qp-desk'), qd: !!document.getElementById('qdRoot') } };
+});
+check('while the acceptance PDF renders the A4, a veil covers the screen and says why',
+  veil.during.veil && veil.during.covers && /Recording your acceptance/.test(veil.during.msg) && veil.during.a4 > 0, JSON.stringify(veil.during));
+check('…and it lifts to the same page afterwards', !veil.after.veil && veil.after.desk && veil.after.qd, JSON.stringify(veil.after));
+
 // ── accept: inline, no popup, ends on "Quote accepted" ───────────
 const acc = await d.pg.evaluate(async () => {
   _qdGoTo('review', true);
