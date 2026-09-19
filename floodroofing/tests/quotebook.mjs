@@ -90,6 +90,26 @@ check('the pages run cover, roof condition, proposal, then a page per choice, th
 
 // ── the price does not appear before the proposal page ────────────
 check('no price on the cover', !v.hasPrice, v.price);
+// The arrows say what they do. An arrow alone is less explicit for a less
+// confident phone user; "Next" and "Back" are not.
+const navLbl = await m.pg.evaluate(() => ({ prev: document.getElementById('qbPrev').textContent.trim(),
+                                            next: document.getElementById('qbNext').textContent.trim() }));
+check('the forward button is labelled Next, and the other Back', navLbl.next === 'Next' && navLbl.prev === 'Back', JSON.stringify(navLbl));
+// The roofer's quoted choice is their recommendation, and says so.
+const recs = await m.pg.evaluate(async () => {
+  const out = {};
+  for (const k of ['grade', 'thickness', 'profile']){
+    _qbGo(_qbPages().map(p => p.key).indexOf(k)); await new Promise(r => setTimeout(r, 300));
+    const el = document.getElementById('qbPage');
+    const badges = [...el.querySelectorAll('.qb-rec')];
+    out[k] = { n: badges.length, txt: badges[0] ? badges[0].textContent : '',
+               onIncluded: badges.length === 1 && /Included/.test(badges[0].closest('.qb-opt').textContent) };
+  }
+  _qbGo(0); await new Promise(r => setTimeout(r, 300));
+  return out;
+});
+check('the steel grade page marks one option "Recommended for your roof"', recs.grade.n === 1 && recs.grade.txt === 'Recommended for your roof', JSON.stringify(recs.grade));
+check('…and it is the one the roofer quoted, the Included one', recs.grade.onIncluded && recs.thickness.onIncluded && recs.profile.onIncluded, JSON.stringify(recs));
 
 // The condition page carried a red "At the end of its life" banner saying in
 // a headline what the life bar and the roofer's own paragraph say anyway,
@@ -494,13 +514,31 @@ const accv = await done.pg.evaluate(async () => {
   const keys = _qbPages().map(p => p.key);
   _qbGo(keys.length - 1); await new Promise(r => setTimeout(r, 350));
   const el = document.getElementById('qbPage');
-  const note = !!el.querySelector('.qb-accepted'), accept = !!el.querySelector('.qb-accept');
+  const note = !!el.querySelector('.qb-done'), accept = !!el.querySelector('.qb-accept');
   _qbGo(keys.indexOf('grade')); await new Promise(r => setTimeout(r, 300));
   const opts = [...document.querySelectorAll('#qbPage [data-qb-opt]')];
   return { note: note, accept: accept,
            frozen: opts.length > 0 && opts.every(o => o.disabled) };
 });
 check('an already-accepted quote says so instead of offering Accept again', accv.note && !accv.accept, JSON.stringify(accv));
+// The ending is a page, not a toast. "Quote accepted", who and when, what
+// happens next, and a copy to keep — and it LEADS the page, above the
+// receipt, so it is the first thing on screen rather than the last.
+const ending = await done.pg.evaluate(async () => {
+  _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 350));
+  const el = document.getElementById('qbPage');
+  const blk = el.querySelector('.qb-done');
+  const first = el.querySelector('.qb-body').firstElementChild;
+  return { h: (blk && blk.querySelector('.qb-done-h') || {}).textContent || '',
+           who: /Ms Lee/.test(blk ? blk.textContent : ''),
+           steps: blk ? blk.querySelectorAll('.qb-done-steps li').length : 0,
+           pdf: !!(blk && blk.querySelector('.qb-done-btn')),
+           leads: first === blk,
+           noSign: !el.querySelector('#qbAcceptName') };
+});
+check('…the ending says "Quote accepted", names them, and lists what happens next',
+  ending.h === 'Quote accepted' && ending.who && ending.steps >= 3 && ending.pdf, JSON.stringify(ending));
+check('…and it leads the page, with nothing left to sign', ending.leads && ending.noSign, JSON.stringify(ending));
 check('…and its selections are frozen', accv.frozen);
 check('nothing threw on the accepted quote', done.errs.length === 0, done.errs.join(' | ') || 'clean');
 await done.ctx.close();

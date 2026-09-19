@@ -3395,9 +3395,12 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
   background:#0a1628; box-shadow:0 -2px 14px rgba(10,22,40,.22);
 }
 .qb-arrow{
-  flex:0 0 auto; width:46px; height:46px; border-radius:14px; border:1px solid rgba(255,255,255,.28);
-  background:rgba(255,255,255,.06); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  flex:0 0 auto; min-width:46px; height:46px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,.28);
+  background:rgba(255,255,255,.06); color:#fff; display:flex; align-items:center; justify-content:center; gap:4px; cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:700;
 }
+.qb-arrow-prev{ padding-right:16px; }
+.qb-arrow-next{ padding-left:18px; padding-right:12px; }
 .qb-arrow:disabled{ opacity:.25; cursor:default; }
 .qb-arrow-next:not(:disabled){ background:#0099e0; border-color:#0099e0; }
 .qb-dots{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; gap:5px; }
@@ -3514,6 +3517,11 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-opt-warr{ display:block; font-size:11.5px; line-height:1.4; color:#6b7a8c; margin-top:4px; }
 .qb-opt-price{ flex:0 0 auto; text-align:right; padding-top:1px; }
 .qb-inc{ font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#7b8a9b; font-weight:700; }
+.qb-rec{
+  display:inline-block; margin-bottom:5px; padding:3px 8px; border-radius:6px;
+  background:#e8f4ec; color:#1d6b3c; font-size:10.5px; font-weight:700; letter-spacing:.02em;
+}
+.qb-opt.on .qb-rec{ background:#d6ecdd; }
 .qb-up{ font-size:14.5px; font-weight:800; color:#0a1628; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-down{ font-size:14.5px; font-weight:800; color:#1a7f4e; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-lock{ font-size:9.5px; font-style:normal; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8a5a12; background:#fdf6e8; padding:2px 7px; border-radius:5px; margin-left:6px; vertical-align:middle; }
@@ -3566,6 +3574,17 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
   flex:1 1 0; min-width:0; padding:12px 4px; border:1px solid #d6dee7; border-radius:12px; background:#fff;
   color:#42556b; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap;
 }
+/* The last page after acceptance: a real ending, not a vanishing toast. */
+.qb-done{ margin-top:18px; background:#eef8f1; border:1px solid #cfe6d6; border-radius:14px; padding:20px 18px; }
+.qb-done-tick{ width:46px; height:46px; border-radius:50%; background:#1d6b3c; color:#fff; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+.qb-done-h{ margin:0 0 6px; font-size:22px; font-weight:800; color:#1d6b3c; letter-spacing:-.02em; }
+.qb-done-p{ margin:0; font-size:14px; line-height:1.5; color:#2f5a40; }
+.qb-done-h4{ margin:16px 0 6px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#4c7a5d; }
+.qb-done-steps{ margin:0; padding-left:20px; font-size:13.5px; line-height:1.55; color:#2f5a40; }
+.qb-done-steps li{ margin-bottom:5px; }
+.qb-done-btn{ display:block; width:100%; margin-top:16px; padding:14px; border:none; border-radius:12px; background:#1d6b3c; color:#fff; font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; }
+.qb-done-ph{ margin:12px 0 0; font-size:12.5px; color:#4c7a5d; }
+.qb-done-ph a{ color:#1d6b3c; font-weight:700; }
 .qb-accepted{ margin-top:18px; background:#eef8f1; border-radius:13px; padding:14px 15px; }
 .qb-accepted b{ display:block; font-size:15px; color:#1d6b3c; }
 .qb-accepted span{ display:block; font-size:12.5px; line-height:1.5; color:#3d6b51; margin-top:3px; }
@@ -25033,11 +25052,18 @@ function _acceptQuoteFinalize(name){
       // than making them wait ~20s for the PDF to render on their phone.
       _custBusyBanner(false);
       window._custAccepting = false;   // accepted — leave the buttons disabled
-      var bar = document.getElementById('custBar');
-      if (bar) bar.innerHTML =
-        '<span style="font-size:13px;margin-right:auto">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>'+
-        '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>';
-      alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+      var onBook = (typeof _qpBookActive === 'function') && _qpBookActive();
+      if (onBook){
+        // The book's last page now reads "Quote accepted" with what happens
+        // next. Land on it, at the top, and do not put a popup over it.
+        try { _qbGo(_qbPages().length - 1); var st = document.getElementById('qbStage'); if (st) st.scrollTop = 0; } catch(e){}
+      } else {
+        var bar = document.getElementById('custBar');
+        if (bar) bar.innerHTML =
+          '<span style="font-size:13px;margin-right:auto">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>'+
+          '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>';
+        alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+      }
       // Render + email the confirmation PDF to the office in the BACKGROUND —
       // best-effort, doesn't block the customer. (If they close the page before
       // it finishes the office still has the acceptance in the activity feed.)
@@ -26323,8 +26349,8 @@ function _qbRender(){
       '</div>'+
       '<div class="qb-stage" id="qbStage"><div class="qb-page'+(_qbSplit(pg.key) ? ' qb-split' : '')+'" id="qbPage" data-qb-page="'+esc2(pg.key)+'">'+pg.html()+'</div></div>'+
       '<div class="qb-nav">'+
-        '<button type="button" class="qb-arrow" id="qbPrev" onclick="_qbGo('+(QB.i-1)+')"'+(QB.i === 0 ? ' disabled' : '')+' aria-label="Previous page">'+
-          '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '<button type="button" class="qb-arrow qb-arrow-prev" id="qbPrev" onclick="_qbGo('+(QB.i-1)+')"'+(QB.i === 0 ? ' disabled' : '')+' aria-label="Back">'+
+          '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span>'+
         '</button>'+
         (showPrice
           ? '<button type="button" class="qb-price" id="qbPrice" onclick="_custBarToggleBreakdown()">'+
@@ -26335,8 +26361,8 @@ function _qbRender(){
           : '<div class="qb-dots" aria-hidden="true">'+pages.map(function(_, i){
               return '<i'+(i === QB.i ? ' class="on"' : '')+'></i>';
             }).join('')+'</div>')+
-        '<button type="button" class="qb-arrow qb-arrow-next" id="qbNext" onclick="_qbGo('+(QB.i+1)+')"'+(QB.i >= pages.length-1 ? ' disabled' : '')+' aria-label="Next page">'+
-          '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '<button type="button" class="qb-arrow qb-arrow-next" id="qbNext" onclick="_qbGo('+(QB.i+1)+')"'+(QB.i >= pages.length-1 ? ' disabled' : '')+' aria-label="Next">'+
+          '<span>Next</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
         '</button>'+
       '</div>'+
     '</div>';
@@ -26677,6 +26703,10 @@ function _qbOptionPage(o){
         (_qbLocked() ? ' disabled' : ' onclick="'+o.set+'(\''+esc2(it.id)+'\')"')+'>'+
         '<span class="qb-tick">'+(picked ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
         '<span class="qb-opt-txt">'+
+          // The roofer's quoted choice is their recommendation. A homeowner
+          // does not know which steel grade or thickness to pick; saying so
+          // in words gives them somewhere safe to land.
+          (it.isDefault ? '<span class="qb-rec">Recommended for your roof</span>' : '')+
           '<b>'+esc2(it.label)+'</b>'+
           (it.desc ? '<span class="qb-opt-desc">'+esc2(it.desc)+'</span>' : '')+
           (it.warranty ? '<span class="qb-opt-warr">'+it.warranty+'</span>' : '')+
@@ -27000,8 +27030,10 @@ function _qbSummary(){
   } catch(e){}
   return ''+
     '<div class="qb-body">'+
-      '<span class="qb-eyebrow">Ready when you are</span>'+
-      '<h2 class="qb-h2">Your quote</h2>'+
+      (accepted
+        ? _qbAcceptedBlock(accepted)+'<h3 class="qb-h3" style="margin-top:22px">Your accepted quote</h3>'
+        : '<span class="qb-eyebrow">Ready when you are</span>'+
+          '<h2 class="qb-h2">Your quote</h2>')+
       '<div class="qb-total">'+
         '<span>Total incl. GST</span>'+
         '<b>'+_qbMoney(total)+'</b>'+
@@ -27012,7 +27044,7 @@ function _qbSummary(){
       (picks ? '<h3 class="qb-h3">What you chose</h3><div class="qb-picks">'+picks+'</div>' : '')+
       roofPlan+
       (accepted
-        ? '<div class="qb-accepted"><b>✓ Accepted</b><span>Thank you — we have your acceptance'+(accepted.at ? ' from '+esc2(new Date(accepted.at).toLocaleDateString('en-NZ')) : '')+'. We will be in touch to book the work in.</span></div>'
+        ? ''
         : // The name and the tick live HERE, on the page, not behind a popup
           // that appears after the customer has already decided. Accept is one
           // tap on what they are looking at. The record still carries both —
@@ -27030,6 +27062,30 @@ function _qbSummary(){
           '</div>')+
       '<p class="qb-fine">'+esc2((S.settings && S.settings.branding && S.settings.branding.company_name) || '')+
         (q.validUntil ? ' · This quote is valid for '+esc2(q.validUntil) : '')+'</p>'+
+    '</div>';
+}
+// The end of the book. Not a toast that says "recording…" and vanishes: a
+// page that says the quote is accepted, by whom, when, and what happens now.
+// Nothing here is promised that does not happen — the office gets the
+// acceptance and a copy; the customer keeps their own copy with the button.
+function _qbAcceptedBlock(accepted){
+  var br = (S.settings && S.settings.branding) || {};
+  var co = br.company_name || 'your roofer';
+  var when = '';
+  try { if (accepted.at){ var d = new Date(accepted.at); when = d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }); } } catch(e){}
+  var who = String(accepted.name || '').trim();
+  return '<div class="qb-done">'+
+      '<div class="qb-done-tick"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
+      '<h3 class="qb-done-h">Quote accepted</h3>'+
+      '<p class="qb-done-p">Thank you'+(who ? ', '+esc2(who) : '')+'. Your acceptance'+(when ? ' on '+esc2(when) : '')+' has been recorded and sent to '+esc2(co)+'.</p>'+
+      '<h4 class="qb-done-h4">What happens next</h4>'+
+      '<ol class="qb-done-steps">'+
+        '<li>'+esc2(co)+' has your accepted quote and the choices you made.</li>'+
+        '<li>'+(br.phone ? esc2(co)+' will be in touch on the number you gave to book the work in.' : esc2(co)+' will be in touch to book the work in.')+'</li>'+
+        '<li>If a deposit is needed, the invoice will follow separately.</li>'+
+      '</ol>'+
+      '<button type="button" class="qb-done-btn" onclick="printCustomerQuote()">Save a copy as PDF</button>'+
+      (br.phone ? '<p class="qb-done-ph">Questions? Call '+esc2(co)+' on <a href="tel:'+esc2(String(br.phone).replace(/\s+/g,''))+'">'+esc2(br.phone)+'</a>.</p>' : '')+
     '</div>';
 }
 // Every choice the customer made, named — including the ones that cost

@@ -220,7 +220,13 @@ Discipline (non-negotiable):
   `#qbAcceptTerms`) and `acceptQuoteDigitally` validates them and goes
   straight to `_acceptQuoteFinalize`. A computer still gets the popup, because
   the A4 document has no inline name field and the record needs one. Neither
-  path can record an acceptance without a name and a tick.
+  path can record an acceptance without a name and a tick. On the book the
+  roofer's quoted choice on each option page carries a "Recommended for your
+  roof" pill (the `isDefault` item); the arrows read Back / Next; and after
+  acceptance the LAST PAGE LEADS with `_qbAcceptedBlock` ("Quote accepted",
+  who and when, what happens next, Save a copy as PDF) — no popup on the book,
+  because the page is the confirmation. The office gets the acceptance email;
+  the customer does not, so the block must never promise them one.
 - A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" and "Open saved
   draft" go through `_qvFreshDraft()`, which strips `accepted`/`declined` and
   un-flags an accepted share. The copy used to carry `accepted` with it, and
