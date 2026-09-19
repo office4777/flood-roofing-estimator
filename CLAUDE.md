@@ -221,6 +221,24 @@ Discipline (non-negotiable):
   straight to `_acceptQuoteFinalize`. A computer still gets the popup, because
   the A4 document has no inline name field and the record needs one. Neither
   path can record an acceptance without a name and a tick.
+- A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" and "Open saved
+  draft" go through `_qvFreshDraft()`, which strips `accepted`/`declined` and
+  un-flags an accepted share. The copy used to carry `accepted` with it, and
+  the share TOKEN does not change — so the next send handed the customer a
+  brand-new quote their browser locked on sight (every option frozen, Next
+  dead), while the office saw nothing wrong because the office view does not
+  lock. The frozen "Accepted quote" version keeps the acceptance; the draft
+  starts clean. `unacceptQuote()` must also REACH the saved job: it leaves any
+  frozen version first and saves with `{force:true}`, because plain
+  `saveCurrentJob()` returns early and silently on a locked job and an accepted
+  job is locked — the office unlocked, reloaded, and the acceptance was still
+  there. Both pinned in `tests/quoteversions.mjs`, including a check that a
+  customer's browser would NOT lock the new draft.
+- The Quote tab bar is ONE button style (`.qa-btn`, `.qv-btn`; `.qa-btn-primary`
+  for the single primary action, `.qa-btn-warn` for Undo acceptance). Colour
+  means STATUS, not decoration — it had six accent colours and emoji on one
+  bar. The version row leads with one line saying what the CUSTOMER's link is
+  showing right now, which is the state the bar never used to carry.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in

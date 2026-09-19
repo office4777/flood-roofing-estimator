@@ -54,7 +54,7 @@ const total = () => pg.evaluate(() => Math.round(_quoteMoney().tot * 100) / 100)
 const bar = () => pg.evaluate(() => (document.getElementById('qaVersions') || {}).innerText || '');
 
 // ── before anything is sent ──
-check('the header row says the quote has not been sent yet', /Not sent yet/.test(await bar()) && /Create new draft/.test(await bar()), (await bar()).slice(0, 80));
+check('the header row says the quote has not been sent yet', /Not sent yet/.test(await bar()) && /New draft/.test(await bar()), (await bar()).slice(0, 80));
 check('…and offers no Sent or Accepted button yet', !/Sent Quote|Accepted Quote/.test(await bar()));
 
 // ── email it: the sent quote is frozen ──
@@ -64,7 +64,11 @@ await pg.evaluate(() => _quoteEmailSendNow());
 await pg.waitForTimeout(800);
 let v = await pg.evaluate(() => ({ sent: S.quote.versions && S.quote.versions.sent, bar: document.getElementById('qaVersions').innerText }));
 check('THE FEATURE: emailing the quote freezes it as the Sent Quote', !!v.sent && Math.abs(v.sent.total - sentTotal) < 0.02 && !!v.sent.quote && !v.sent.quote.versions, JSON.stringify(v.sent && { total: v.sent.total, at: v.sent.at }));
-check('…and the header now has a Sent Quote button', /Sent Quote/.test(v.bar), v.bar.slice(0, 80));
+check('…and the header now has a Sent quote button', /Sent quote/.test(v.bar), v.bar.slice(0, 90));
+// The one line that says what the CUSTOMER is looking at. Without it the bar
+// was a row of buttons with no state, which is how a new draft got sent over
+// an accepted one.
+check('…and says their link is showing this draft, live', /link shows/i.test(v.bar) && /live/i.test(v.bar), v.bar.slice(0, 90));
 check('…and the screen switches to the sent quote, locked, straight away', await pg.evaluate(() => !!S._qvViewing && S._qvViewing.kind === 'sent' && S.jobLocked));
 // Reading it: the wheel over the aerial scrolls, it does not ask.
 await pg.evaluate(() => { const f = document.querySelector('#qpRoot .qp-map-frame'); if (f) f.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })); });
@@ -82,7 +86,7 @@ await pg.evaluate(() => _qvView('sent'));
 await pg.waitForTimeout(600);
 v = await pg.evaluate(() => ({ viewing: S._qvViewing, locked: S.jobLocked, tot: Math.round(_quoteMoney().tot * 100) / 100, bar: document.getElementById('qaVersions').innerText, ref: (document.getElementById('qaTotal') || {}).textContent }));
 check('Sent Quote shows exactly the quote that was sent', v.viewing && v.viewing.kind === 'sent' && Math.abs(v.tot - sentTotal) < 0.02, JSON.stringify({ tot: v.tot, sentTotal }));
-check('…locked, and saying so in the header', v.locked && /Viewing the sent quote/.test(v.bar) && /cannot be changed/.test(v.bar), v.bar.slice(-120));
+check('…locked, and saying so in the header', v.locked && /Viewing the sent quote/.test(v.bar) && /read only/i.test(v.bar), v.bar.slice(-120));
 const putsBefore = puts.length;
 const savedWhileViewing = await pg.evaluate(async () => { const r = await saveCurrentJob({ force: true }); _scheduleAutosave(); return r; });
 await pg.waitForTimeout(1500);
@@ -102,7 +106,9 @@ await pg.evaluate(() => { S.quote.proposalOptions = Object.assign({}, S.quote.pr
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({ acc: S.quote.versions.accepted, bar: document.getElementById('qaVersions').innerText }));
 check('an acceptance freezes the Accepted Quote with the customer\'s selections', !!v.acc && v.acc.quote.proposalOptions.gutterType === 'box125' && v.acc.acceptedBy === 'Matawaia Marae', JSON.stringify(v.acc && { by: v.acc.acceptedBy, gutter: v.acc.quote.proposalOptions.gutterType }));
-check('…and the header has an Accepted Quote button', /Accepted Quote/.test(v.bar));
+check('…and the header has an Accepted quote button', /Accepted quote/.test(v.bar), v.bar.slice(0, 110));
+check('…and the header says so, instead of still claiming the link is a live draft',
+  /Accepted by the customer/i.test(v.bar) && !/link shows/i.test(v.bar), v.bar.slice(0, 110));
 await pg.evaluate(() => { S.quote.proposalOptions.gutterType = 'none'; refreshQuoteProposal(); });
 await pg.evaluate(() => _qvView('accepted'));
 await pg.waitForTimeout(500);
@@ -121,7 +127,52 @@ await pg.waitForTimeout(500);
 v = await pg.evaluate(() => ({ drafts: S.quote.versions.drafts.length, draftId: S.quote.draftId, viewing: S._qvViewing, locked: S.jobLocked, bar: document.getElementById('qaVersions').innerText, sentKept: !!S.quote.versions.sent, accKept: !!S.quote.versions.accepted }));
 check('"Save existing draft" keeps it in Saved Drafts and opens a fresh editable draft', v.drafts === 1 && !!v.draftId && !v.viewing && !v.locked, JSON.stringify(v));
 check('…with the sent and accepted quotes untouched', v.sentKept && v.accKept);
-check('…and a Saved Drafts drop-down with the date and price', /Saved Drafts \(1\)/.test(v.bar), v.bar.slice(0, 120));
+
+// THE ONE THAT REACHED A CUSTOMER. A new draft copies whatever is on screen,
+// and that copy used to carry `accepted` with it. The share token does not
+// change, so the next send handed the customer a brand-new quote their browser
+// locked on sight: every option frozen, Next dead, as if they had already
+// accepted it. The office could see nothing wrong, because the office view
+// does not lock.
+const fresh = await pg.evaluate(() => ({
+  accepted: S.quote.accepted || null,
+  shareStatus: (S.quote.share || {}).status || '',
+  // What the customer's browser would do with this quote.
+  wouldLock: (function(){
+    const was = window.__CUSTOMER_MODE; window.__CUSTOMER_MODE = true;
+    const lock = _qpAcceptedLock(); window.__CUSTOMER_MODE = was; return lock;
+  })(),
+  accKept: !!(S.quote.versions.accepted && S.quote.versions.accepted.quote)
+}));
+check('a NEW DRAFT made from an accepted quote is not itself accepted',
+  !fresh.accepted, JSON.stringify(fresh));
+check('…so the customer\u2019s link would not lock it', !fresh.wouldLock, JSON.stringify(fresh));
+check('…and its share is no longer flagged accepted', fresh.shareStatus !== 'accepted', fresh.shareStatus || '(none)');
+check('…while the accepted version keeps the acceptance on record', fresh.accKept);
+
+// Undoing an acceptance has to REACH the saved job — the customer's link reads
+// it. It used to clear the flag in memory and call saveCurrentJob(), which
+// returns early and silently while the job is locked, and an accepted job IS
+// locked. The office saw it unlock, reloaded, and the acceptance was still
+// there because nothing had ever been written.
+await pg.evaluate(() => {
+  S.quote.accepted = { name: 'Matawaia Marae', at: new Date().toISOString(), total: 1000 };
+  S.jobLocked = true; S.currentJobId = 'job1'; S.isSampleJob = false;
+  try { _jobLockRender(); } catch(e){}
+});
+const putsBeforeUndo = puts.length;
+await pg.evaluate(() => unacceptQuote());
+await pg.waitForTimeout(900);
+const undone = await pg.evaluate(() => ({ accepted: S.quote.accepted || null, locked: S.jobLocked }));
+check('Undo acceptance clears it', !undone.accepted, JSON.stringify(undone));
+check('…and actually WRITES it, past the lock that used to swallow the save',
+  puts.length > putsBeforeUndo, (puts.length - putsBeforeUndo) + ' save(s)');
+check('…the write carries the cleared acceptance, so a reload stays unlocked',
+  (function(){ const last = puts[puts.length - 1];
+    const q = (((last && last.body && last.body.draw_state) || {}).state || {}).quote || {};
+    return !q.accepted; })(),
+  JSON.stringify((((puts[puts.length-1]||{}).body||{}).draw_state||{}).state ? 'quote written' : 'no quote in body'));
+check('…and a Saved drafts drop-down with the date and price', /Saved drafts \(1\)/.test(v.bar), v.bar.slice(0, 130));
 await pg.evaluate(() => { S.quote.lineItems.push({ desc: 'Only on the new draft', qty: 1, unit: 500 }); refreshQuoteProposal(); recalcQuoteTotals(); });
 const newDraftTotal = await total();
 const savedId = await pg.evaluate(() => S.quote.versions.drafts[0].id);

@@ -3071,6 +3071,43 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
   box-shadow:0 4px 14px rgba(10,22,40,.06);
 }
 @media print{ #tab-quote > .q-actionbar{ position:static; box-shadow:none; } }
+/* One button style on the Quote tab. Colour means status, not decoration:
+   six accent colours on one bar read as decoration, and when everything is
+   emphasised nothing is. One primary action, the rest neutral outlines. */
+.qa-btn{
+  padding:5px 11px; border:1px solid var(--border); border-radius:7px; background:#fff;
+  color:#33475f; font-size:11.5px; font-weight:600; font-family:inherit; cursor:pointer;
+  line-height:1.5; white-space:nowrap;
+}
+.qa-btn:hover{ border-color:#94a3b8; color:#0a1628; }
+select.qa-btn{ padding:5px 8px; }
+.qa-btn-primary{ background:#0a1628; border-color:#0a1628; color:#fff; }
+.qa-btn-primary:hover{ background:#16243a; border-color:#16243a; color:#fff; }
+.qa-btn-warn{ border-color:#d9b45f; color:#8a6116; }
+.qa-btn-warn:hover{ border-color:#b8902f; color:#6b4a10; }
+/* The version row: same neutral buttons, with the two STATES carrying the
+   only colour on the bar. */
+.qv-btn{
+  padding:5px 11px; border:1px solid var(--border); border-radius:7px; background:#fff;
+  color:#33475f; font-size:11.5px; font-weight:600; font-family:inherit; cursor:pointer;
+  line-height:1.5; white-space:nowrap;
+}
+.qv-btn:hover{ border-color:#94a3b8; color:#0a1628; }
+.qv-btn .qv-when{ font-weight:500; opacity:.75; }
+.qv-btn.on{ background:#0a1628; border-color:#0a1628; color:#fff; }
+.qv-btn.on .qv-when{ opacity:.8; }
+.qv-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.qv-dot-sent{ background:#4b83c4; }
+.qv-dot-acc{ background:#2e9e57; }
+.qv-now{
+  font-size:11.5px; color:#5b6b7d; display:inline-flex; align-items:center; gap:6px;
+  padding:4px 0; margin-right:auto;
+}
+.qv-now b{ color:#0a1628; font-weight:700; }
+.qv-frozen{
+  margin-left:auto; font-size:11.5px; font-weight:600; color:#8a6116;
+  background:#fdf8ec; border:1px solid #e8d5a8; border-radius:7px; padding:4px 10px;
+}
 #qaMsg{ width:100%; }
 #qaMsg:empty{ display:none; }
 #tab-quote > .js-proposal-print{order:2}
@@ -6490,12 +6527,12 @@ html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(sa
          Save next to something that saves itself only makes people wonder
          whether it did. The word stays so nobody has to guess. -->
     <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
-    <button onclick="openQuoteEmail()" class="lock-ok" data-tour="q-link" style="padding:4px 9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📧 Email Quote</button>
-    <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:4px 9px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
-    <button onclick="printQuote()" style="padding:4px 9px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
-    <button onclick="_qtOpen()" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse" style="padding:4px 9px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">🗂 Edit quote template</button>
-    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" title="Swap this quote onto one of your saved templates" style="padding:4px 8px;background:#fff;color:#0a1628;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit"></select>
-    <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:4px 9px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
+    <button onclick="openQuoteEmail()" class="lock-ok qa-btn qa-btn-primary" data-tour="q-link">Email quote</button>
+    <button onclick="printQuote()" class="qa-btn">Print / PDF</button>
+    <button onclick="pushQuotePricingToFergus(this)" class="jms-only qa-btn" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines">Push to Fergus</button>
+    <button onclick="_qtOpen()" class="qa-btn" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse">Edit template</button>
+    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" class="qa-btn" title="Swap this quote onto one of your saved templates"></select>
+    <button onclick="unacceptQuote()" id="qaUnacceptBtn" class="qa-btn qa-btn-warn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none">Undo acceptance</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
     <!-- Sent / Accepted (frozen, exactly as they went) · Create new draft ·
          Saved drafts. Rendered by _qvRenderBar(). -->
@@ -25023,6 +25060,25 @@ function _qvCopyOf(q){
   delete c.versions; delete c.roofMapImgs;
   return c;
 }
+// A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" copies whatever is on
+// screen — which may be the accepted version, or a draft made from it — and
+// the copy used to carry `accepted` with it. The share token does not change,
+// so the next send handed the customer a brand-new quote that their browser
+// locked on sight: every option frozen, Next dead, as if they had already
+// accepted it. The office could see nothing wrong, because the office view
+// does not lock.
+//
+// Acceptance belongs to the quote that was accepted. The frozen "Accepted
+// Quote" version keeps it, and keeps it exactly; a draft starts clean.
+function _qvFreshDraft(q){
+  var c = _qvCopyOf(q);
+  delete c.accepted;
+  delete c.declined;
+  // The link keeps its token — the same customer, the same URL — but it is no
+  // longer an accepted or declined share.
+  if (c.share && (c.share.status === 'accepted' || c.share.status === 'declined')) c.share.status = 'sent';
+  return c;
+}
 function _qvSnapshot(label){
   var q = S.quote || {};
   var M = (typeof _quoteMoney === 'function') ? _quoteMoney() : { tot: 0 };
@@ -25108,7 +25164,7 @@ function _qvSaveDraft(work, label){
 function _qvNewDraft(){
   if (!S.quote) return;
   var go = function(){
-    var base = _qvCopyOf(S.quote);                    // what is on screen — a frozen version, or the draft
+    var base = _qvFreshDraft(S.quote);                // what is on screen, minus any acceptance
     var keep = S.quote.versions;
     S.quote = base;
     S.quote.versions = keep;
@@ -25136,7 +25192,7 @@ function _qvOpenDraft(id){
   var d = v.drafts.find(function(x){ return x && x.id === id; }); if (!d) return;
   var go = function(){
     var keep = S.quote.versions;
-    S.quote = JSON.parse(JSON.stringify(d.quote));
+    S.quote = _qvFreshDraft(d.quote);
     S.quote.versions = keep;
     S.quote.draftId = d.id;
     S._qvViewing = null; S._qvWork = null;
@@ -25180,36 +25236,65 @@ function _qvRenderBar(){
   if (window.__CUSTOMER_MODE || !S.quote){ bar.style.display = 'none'; return; }
   var v = _qvStore();
   var viewing = _qvViewing();
-  var btn = function(label, call, on, color, title){
-    return '<button type="button" class="lock-ok" onclick="' + call + '" title="' + (title || '') + '" style="padding:4px 10px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ' + color + ';background:' + (on ? color : '#fff') + ';color:' + (on ? '#fff' : color) + '">' + label + '</button>';
+  var btn = function(label, call, on, title){
+    return '<button type="button" class="lock-ok qv-btn' + (on ? ' on' : '') + '" onclick="' + call + '" title="' + (title || '') + '">' + label + '</button>';
   };
-  var html = '';
-  html += v.sent ? btn('📨 Sent Quote <span style="font-weight:500;opacity:.85">' + _qvWhen(v.sent.at) + '</span>', '_qvView(\'sent\')', viewing && viewing.kind === 'sent', '#0369a1', 'Exactly the quote that was emailed — locked')
-                 : '<span style="font-size:11px;color:var(--text3)">Not sent yet</span>';
-  html += v.accepted ? btn('✅ Accepted Quote <span style="font-weight:500;opacity:.85">' + _qvWhen(v.accepted.at) + '</span>', '_qvView(\'accepted\')', viewing && viewing.kind === 'accepted', '#15803d', 'Exactly what the customer accepted, with their selections — locked') : '';
-  html += btn('➕ Create new draft', '_qvNewDraft()', false, '#0a1628', 'A fresh, fully editable quote from what is on screen');
-  if (!viewing) html += btn('💾 Save draft', '_qvSaveDraftNow()', false, '#475569', 'Keep this draft in the Saved Drafts list');
+  var when = function(at){ return ' <span class="qv-when">' + _qvWhen(at) + '</span>'; };
+  // THE ONE LINE THAT ANSWERS "what is the customer looking at right now?".
+  // Without it the bar was a row of buttons with no state: the office could
+  // not tell a draft nobody has seen from the live quote a customer is
+  // reading, which is how a new draft got sent over an accepted one.
+  var live = '<span class="qv-now">';
+  if (S.quote.accepted) live += '<span class="qv-dot qv-dot-acc"></span>Accepted by the customer' + when(S.quote.accepted.at || (v.accepted && v.accepted.at));
+  else if (v.sent) live += '<span class="qv-dot qv-dot-sent"></span>Their link shows <b>this draft</b>, live';
+  else live += 'Not sent yet';
+  live += '</span>';
+  var html = live;
+  html += v.sent ? btn('Sent quote' + when(v.sent.at), '_qvView(\'sent\')', viewing && viewing.kind === 'sent', 'Exactly the quote that was emailed — locked') : '';
+  html += v.accepted ? btn('Accepted quote' + when(v.accepted.at), '_qvView(\'accepted\')', viewing && viewing.kind === 'accepted', 'Exactly what the customer accepted, with their selections — locked') : '';
+  html += btn('New draft', '_qvNewDraft()', false, 'A fresh, fully editable quote from what is on screen — never carries an acceptance');
+  if (!viewing) html += btn('Save draft', '_qvSaveDraftNow()', false, 'Keep this draft in the Saved Drafts list');
   if (v.drafts.length){
-    html += '<select class="lock-ok" onchange="if(this.value){_qvOpenDraft(this.value);this.value=\'\';}" style="padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:11.5px;font-weight:700;color:#0a1628;background:#fff;font-family:inherit;cursor:pointer">' +
-      '<option value="">📁 Saved Drafts (' + v.drafts.length + ')</option>' +
+    html += '<select class="lock-ok qv-btn" onchange="if(this.value){_qvOpenDraft(this.value);this.value=\'\';}">' +
+      '<option value="">Saved drafts (' + v.drafts.length + ')</option>' +
       v.drafts.slice().reverse().map(function(d){ return '<option value="' + d.id + '">' + _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · current' : '') + '</option>'; }).join('') +
       '</select>';
   }
   if (viewing){
-    html += '<span style="margin-left:auto;font-size:11.5px;font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:4px 10px">🔒 Viewing the ' + (viewing.kind === 'sent' ? 'sent' : 'accepted') + ' quote, ' + _qvWhen(viewing.at) + ' — cannot be changed</span>' +
-            btn('↩ Back to draft', '_qvBackToDraft()', false, '#475569', '');
+    html += '<span class="qv-frozen">Viewing the ' + (viewing.kind === 'sent' ? 'sent' : 'accepted') + ' quote, ' + _qvWhen(viewing.at) + ' — read only</span>' +
+            btn('Back to draft', '_qvBackToDraft()', false, '');
   } else {
-    html += '<span style="margin-left:auto;font-size:11px;color:var(--text2)">✎ Draft' + (S.quote.draftStartedAt ? ' · started ' + _qvWhen(S.quote.draftStartedAt) : '') + '</span>';
+    html += '<span style="margin-left:auto;font-size:11px;color:var(--text3)">Draft' + (S.quote.draftStartedAt ? ' · started ' + _qvWhen(S.quote.draftStartedAt) : '') + '</span>';
   }
   bar.innerHTML = html;
   bar.style.display = 'flex';
 }
-function unacceptQuote(){
+// Undoing an acceptance has to REACH THE CUSTOMER'S LINK, which reads this
+// job's saved quote. It used to clear the flag in memory and call
+// saveCurrentJob(), which returns early and silently while a frozen version is
+// on screen or the job is locked — and an accepted job is locked, which is
+// exactly when this button is offered. So the office saw it unlock, reloaded,
+// and the acceptance was still there: nothing had ever been written.
+//
+// Now it leaves the frozen view first, forces the write past the lock, and
+// waits for it. If the write fails the office is told, rather than being shown
+// an unlock that did not happen.
+async function unacceptQuote(){
   if (!S.quote) return;
-  if (!confirm('Clear the digital acceptance on this quote?')) return;
+  if (!confirm('Clear the digital acceptance on this quote?\n\nThe customer will be able to change their selections and accept again. The accepted version stays on record.')) return;
+  // A frozen version on screen is not the job, and nothing writes while one is
+  // showing. Step back to the working draft before touching anything.
+  try { if (S._qvViewing) _qvBackToDraft({ stayLocked: true }); } catch(e){}
   S.quote.accepted = null;
-  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
-  refreshQuoteProposal();
+  delete S.quote.accepted;
+  try { if (S.quote.share && S.quote.share.status === 'accepted') S.quote.share.status = 'opened'; } catch(e){}
+  var saved = false;
+  try { saved = (await saveCurrentJob({ force: true })) !== false; } catch(e){ saved = false; }
+  try { S.jobLocked = false; _jobLockRender(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _qvRenderBar(); } catch(e){}
+  if (saved) _siteToast('Acceptance cleared — the customer can change their selections again.');
+  else alert('The acceptance could not be saved, so the customer\u2019s link is still locked.\n\nCheck you are online and try again.');
 }
 
 // ══════════════════════════════════════════════════════════════════
