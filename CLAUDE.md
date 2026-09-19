@@ -274,6 +274,12 @@ Discipline (non-negotiable):
   (`_qbScrollHintSync` on the page's scroller, `_qbScrollEl`). The
   proposal's lines are tightened (`.qb-split .qb-incl-row`) so page 3 fits
   a phone without scrolling, and it carries no GST note.
+- The cover's facts (phone and computer) are ONE list, `_qbCoverMeta()`:
+  Quote, Date, Expires (`_qbExpiryText`: the date plus the validity's days,
+  or the validity verbatim when it is already a date), Prepared by
+  (`branding.prepared_by_name` from Settings → Branding, else the quote's
+  `preparedByName`), Phone, Email. No roof area, no pitch, no "Prepared
+  for … by …" line — the owner took them off.
 - The customer's DESCRIPTION of the work is `CUST_DESC_DEFAULT` (six lines,
   `{grade}` filled from the chosen steel grade by `_qbInclusionLines`),
   shown on the Re-Roof Proposal of the phone and the computer. The office

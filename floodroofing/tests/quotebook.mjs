@@ -24,7 +24,7 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 const PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="60"><rect width="80" height="60" fill="#5d6970"/></svg>');
 const quote = () => ({
   ref:'FR-30124', client:'Sharon Whittaker', addr:'14 Kamo Road, Whangarei',
-  date:'18 Sept 2026', validUntil:'30 days', gstRate:15, coverTitle:'Whittaker Residence',
+  date:'18/09/2026', validUntil:'30 days', gstRate:15, coverTitle:'Whittaker Residence',
   condMaterial:'Corrugate Colorsteel', condAge:'34 years', condRoofType:'Hip roof', condPitch:'22°',
   condExpectedLife:'30–35 years', condRemainingPct:8,
   conditionSummary:'The lead-head nails have lifted right across the north face.',
@@ -55,7 +55,7 @@ async function open(viewport, patch){
     const u = r.request().url();
     if (/\/q\/[^/]+\/event/.test(u)) return r.fulfill({ status:200, contentType:'application/json', body:'{"ok":true}' });
     if (/\/q\//.test(u)) return r.fulfill({ status:200, contentType:'application/json',
-      body: JSON.stringify({ quote:q, branding:{ company_name:'Flood Roofing Ltd', phone:'09 430 1234' } }) });
+      body: JSON.stringify({ quote:q, branding:{ company_name:'Flood Roofing Ltd', phone:'09 430 1234', prepared_by_name:'Aron Flood' } }) });
     return r.fulfill({ status:200, contentType:'application/json', body:'[]' });
   });
   await pg.goto('file://' + DIR + '/app.html?q=tok&j=FR-30124');
@@ -144,7 +144,7 @@ const cov = await m.pg.evaluate(() => {
   const fits = sel => { const e = document.querySelector(sel); if (!e) return false;
     const r = e.getBoundingClientRect(); return r.top >= sr.top - 1 && r.bottom <= sr.bottom + 1; };
   return { pct: Math.round(hr.height / sr.height * 100),
-           title: fits('.qb-hero-txt h1'), stats: fits('.qb-stats'), cta: fits('.qb-cta') };
+           title: fits('.qb-hero-txt h1'), stats: fits('.qb-meta'), cta: fits('.qb-cta') };
 });
 check('the cover photo is a banner, not the whole first screen',
       cov.pct >= 25 && cov.pct <= 45, cov.pct + '% of the page');
@@ -415,6 +415,16 @@ const keep = await m.pg.evaluate(async () => {
 });
 check('tapping a swatch after scrolling down keeps the page where it was', keep.y0 > 50 && Math.abs(keep.y1 - keep.y0) < 5 && keep.page === 'colour' && keep.chosen, JSON.stringify(keep));
 check('…while turning to a new page still opens it at the top', keep.topOnTurn === 0, String(keep.topOnTurn));
+// The cover's facts: no area or pitch, no "Prepared for", an Expires date and Prepared by.
+const cover = await m.pg.evaluate(async () => {
+  _qbGo(0); await new Promise(r => setTimeout(r, 400));
+  const el = document.getElementById('qbPage');
+  const rows = {}; el.querySelectorAll('.qb-meta > div').forEach(d => { rows[d.querySelector('dt').textContent] = d.querySelector('dd').textContent; });
+  return { rows, stats: el.querySelectorAll('.qb-stat').length, lead: /Prepared for/.test(el.textContent), area: /Roof area|Pitch/.test(el.textContent) };
+});
+check('the cover lists Quote, Date, Expires and Prepared by, and nothing about area or pitch',
+  cover.rows.Expires === '18/10/2026' && cover.rows['Prepared by'] === 'Aron Flood' && cover.rows.Quote === 'FR-30124' && cover.stats === 0 && !cover.area, JSON.stringify(cover));
+check('…and no "Prepared for … by …" line', !cover.lead);
 check('nothing on the phone threw', m.errs.length === 0, m.errs.join(' | ') || 'clean');
 await m.ctx.close();
 

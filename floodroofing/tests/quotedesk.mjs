@@ -30,7 +30,7 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 const PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="60"><rect width="80" height="60" fill="#5d6970"/></svg>');
 const quote = () => ({
   ref:'FR-30130', client:'Sharon Whittaker', addr:'14 Kamo Road, Whangarei',
-  date:'19 Sept 2026', validUntil:'30 days', gstRate:15, coverTitle:'Whittaker Residence',
+  date:'19/09/2026', validUntil:'30 days', gstRate:15, coverTitle:'Whittaker Residence',
   condMaterial:'Corrugate Colorsteel', condAge:'34 years', condRemainingPct:8,
   condPhotos:[{ src:PHOTO, caption:'North face' }, { src:PHOTO, caption:'The valley' }],
   baseGrade:'maxam', materialBase:9200, gutterLm:48, gutterLines:4, scaffoldBase:4200,
@@ -60,7 +60,7 @@ async function open(viewport, patch){
     if (/\/q\/[^/]+\/event/.test(u)){ try { posted.push(JSON.parse(r.request().postData() || '{}')); } catch(e){}
       return r.fulfill({ status:200, contentType:'application/json', body:'{"ok":true}' }); }
     if (/\/q\//.test(u)) return r.fulfill({ status:200, contentType:'application/json',
-      body: JSON.stringify({ quote:q, branding:{ company_name:'Flood Roofing Ltd', phone:'09 430 1234', email:'office@floodroofing.co.nz' } }) });
+      body: JSON.stringify({ quote:q, branding:{ company_name:'Flood Roofing Ltd', phone:'09 430 1234', email:'office@floodroofing.co.nz', prepared_by_name:'Aron Flood' } }) });
     return r.fulfill({ status:200, contentType:'application/json', body:'[]' });
   });
   await pg.goto('file://' + DIR + '/app.html?q=tok&j=' + q.ref);
@@ -112,6 +112,8 @@ check('…and the review shows the roofs read-only', v.reviewPlan && v.reviewBtn
 
 // ── the six description lines ────────────────────────────────────
 const lines = await d.pg.evaluate(() => [...document.querySelectorAll('#qd-proposal .qb-incl-row')].map(e => e.textContent.trim()));
+const dcover = await d.pg.evaluate(() => { const el = document.getElementById('qd-cover'); const rows = {}; el.querySelectorAll('.qb-meta > div').forEach(x => { rows[x.querySelector('dt').textContent] = x.querySelector('dd').textContent; }); return { rows, stats: el.querySelectorAll('.qb-stat').length, lead: /Prepared for/.test(el.textContent) }; });
+check('the computer cover carries the same facts: Expires and Prepared by, no area, pitch or "Prepared for"', dcover.rows.Expires === '19/10/2026' && dcover.rows['Prepared by'] === 'Aron Flood' && dcover.stats === 0 && !dcover.lead, JSON.stringify(dcover));
 check('the proposal reads the six plain lines, the chosen grade filled in',
   lines.length === 6 && lines[0] === 'Edge-Protection / Scaffolding' && lines[1] === 'Remove existing Roofing' &&
   lines[2] === 'Install New Synthetic Underlay' && lines[3] === 'Install New Colorsteel® MAXAM Roofing Sheets' &&
@@ -334,6 +336,16 @@ const orec = await o.pg.evaluate(async () => {
 });
 check('in the office, picking a gutter makes it the recommended choice in the preview', orec.rec && !orec.noneRec, JSON.stringify({ rec:orec.rec, noneRec:orec.noneRec }));
 check('…and the stamp a send writes carries that pick', orec.snap.gutterType === 'box125', JSON.stringify(orec.snap));
+// Settings → Branding carries the name the cover reads.
+const prep = await o.pg.evaluate(async () => {
+  const inp = document.getElementById('brPreparedBy'); if (!inp) return { field:false };
+  inp.value = 'Aron Flood'; collectSettingsFromUI();
+  _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 700));
+  const dd = [...document.querySelectorAll('#qpRoot .qb-meta > div')].find(x => x.querySelector('dt').textContent === 'Prepared by');
+  _setQuotePreviewMode('doc');
+  return { field:true, saved: S.settings.branding.prepared_by_name, shown: dd ? dd.querySelector('dd').textContent : '' };
+});
+check('Settings → Branding has a Prepared by field, and the cover reads it', prep.field && prep.saved === 'Aron Flood' && prep.shown === 'Aron Flood', JSON.stringify(prep));
 check('nothing threw in the office', o.errs.length === 0, o.errs.join(' | ') || 'clean');
 await o.ctx.close();
 
