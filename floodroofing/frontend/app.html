@@ -3085,29 +3085,44 @@ select.qa-btn{ padding:5px 8px; }
 .qa-btn-primary:hover{ background:#16243a; border-color:#16243a; color:#fff; }
 .qa-btn-warn{ border-color:#d9b45f; color:#8a6116; }
 .qa-btn-warn:hover{ border-color:#b8902f; color:#6b4a10; }
-/* The version row: same neutral buttons, with the two STATES carrying the
-   only colour on the bar. */
+/* The version SELECTOR: one control, the chosen version filled in. */
+.qv-seg{ display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#fff; flex:0 0 auto; }
+.qv-seg-btn{
+  padding:6px 12px; border:none; border-right:1px solid var(--border); background:#fff; color:#33475f;
+  font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; line-height:1.3; white-space:nowrap;
+  display:flex; flex-direction:column; align-items:flex-start; gap:1px;
+}
+.qv-seg-btn:last-child{ border-right:none; }
+.qv-seg-btn .qv-when{ font-size:10px; font-weight:500; color:#8a97a6; }
+.qv-seg-btn.on{ background:#0a1628; color:#fff; }
+.qv-seg-btn.on .qv-when{ color:rgba(255,255,255,.65); }
 .qv-btn{
-  padding:5px 11px; border:1px solid var(--border); border-radius:7px; background:#fff;
-  color:#33475f; font-size:11.5px; font-weight:600; font-family:inherit; cursor:pointer;
-  line-height:1.5; white-space:nowrap;
+  padding:6px 11px; border:1px solid var(--border); border-radius:8px; background:#fff;
+  color:#33475f; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer;
+  line-height:1.5; white-space:nowrap; list-style:none;
 }
-.qv-btn:hover{ border-color:#94a3b8; color:#0a1628; }
-.qv-btn .qv-when{ font-weight:500; opacity:.75; }
-.qv-btn.on{ background:#0a1628; border-color:#0a1628; color:#fff; }
-.qv-btn.on .qv-when{ opacity:.8; }
-.qv-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-.qv-dot-sent{ background:#4b83c4; }
-.qv-dot-acc{ background:#2e9e57; }
-.qv-now{
-  font-size:11.5px; color:#5b6b7d; display:inline-flex; align-items:center; gap:6px;
-  padding:4px 0; margin-right:auto;
+.qv-btn::-webkit-details-marker{ display:none; }
+.qv-caret{ font-size:9px; opacity:.6; margin-left:2px; }
+/* Menus: a native <details>, styled as a button that drops a list. */
+.qv-menu, .qa-more{ position:relative; flex:0 0 auto; }
+.qv-menu > summary, .qa-more > summary{ display:inline-block; }
+.qv-menu[open] > summary, .qa-more[open] > summary{ border-color:#0a1628; color:#0a1628; }
+.qv-menu-list, .qa-more-list{
+  position:absolute; top:calc(100% + 4px); left:0; z-index:30; min-width:240px; max-width:320px;
+  background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px;
+  box-shadow:0 10px 30px rgba(10,22,40,.14);
 }
-.qv-now b{ color:#0a1628; font-weight:700; }
-.qv-frozen{
-  margin-left:auto; font-size:11.5px; font-weight:600; color:#8a6116;
-  background:#fdf8ec; border:1px solid #e8d5a8; border-radius:7px; padding:4px 10px;
+.qv-menu-list button, .qa-more-list button{
+  display:flex; flex-direction:column; align-items:flex-start; gap:1px; width:100%; text-align:left;
+  padding:8px 10px; border:none; border-radius:7px; background:transparent; color:#0a1628;
+  font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer;
 }
+.qv-menu-list button:hover, .qa-more-list button:hover{ background:#f3f6f9; }
+.qv-menu-list button small, .qa-more-list button small{ font-size:10.5px; font-weight:400; color:#7c8894; }
+.qv-menu-hd, .qa-more-lbl{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a97a6; padding:8px 10px 3px; }
+.qa-more-sel{ width:100%; margin:0 0 4px; }
+/* One sentence about the customer, under the selector. */
+.qv-status{ flex:1 1 100%; font-size:12px; color:#5b6b7d; line-height:1.45; padding-top:2px; }
 #qaMsg{ width:100%; }
 #qaMsg:empty{ display:none; }
 #tab-quote > .js-proposal-print{order:2}
@@ -6530,9 +6545,15 @@ html.qp-book #custBarBreak{ z-index:100003 !important; bottom:calc(66px + env(sa
     <button onclick="openQuoteEmail()" class="lock-ok qa-btn qa-btn-primary" data-tour="q-link">Email quote</button>
     <button onclick="printQuote()" class="qa-btn">Print / PDF</button>
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only qa-btn" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines">Push to Fergus</button>
-    <button onclick="_qtOpen()" class="qa-btn" title="Arrange the pages this quote is made of — take pages out, put them back, reorder and duplicate them — and save it as a template you can reuse">Edit template</button>
-    <select id="qaTplSelect" onchange="_qtApplySaved(this.value)" class="qa-btn" title="Swap this quote onto one of your saved templates"></select>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" class="qa-btn qa-btn-warn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none">Undo acceptance</button>
+    <details class="qa-more">
+      <summary class="qa-btn">More <span class="qv-caret">&#9662;</span></summary>
+      <div class="qa-more-list">
+        <button type="button" onclick="this.closest('details').removeAttribute('open');_qtOpen()">Edit quote template<small>Take pages out, reorder them, save it to reuse</small></button>
+        <label class="qa-more-lbl">Switch to a saved template</label>
+        <select id="qaTplSelect" onchange="_qtApplySaved(this.value);this.closest('details').removeAttribute('open')" class="qa-btn qa-more-sel"></select>
+      </div>
+    </details>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
     <!-- Sent / Accepted (frozen, exactly as they went) · Create new draft ·
          Saved drafts. Rendered by _qvRenderBar(). -->
@@ -25236,36 +25257,42 @@ function _qvRenderBar(){
   if (window.__CUSTOMER_MODE || !S.quote){ bar.style.display = 'none'; return; }
   var v = _qvStore();
   var viewing = _qvViewing();
-  var btn = function(label, call, on, title){
-    return '<button type="button" class="lock-ok qv-btn' + (on ? ' on' : '') + '" onclick="' + call + '" title="' + (title || '') + '">' + label + '</button>';
+  var cur = viewing ? viewing.kind : 'draft';
+  // ONE SELECTOR, not a row of same-weight buttons. Which version is on
+  // screen is a single choice between two or three things, so it is drawn as
+  // one control with the chosen one filled in. Everything else — the
+  // draft actions, the saved list — lives behind one menu.
+  var seg = function(kind, label, at, call){
+    return '<button type="button" class="lock-ok qv-seg-btn' + (cur === kind ? ' on' : '') + '" onclick="' + call + '">' +
+      label + (at ? '<span class="qv-when">' + _qvWhen(at) + '</span>' : '<span class="qv-when">editing</span>') + '</button>';
   };
-  var when = function(at){ return ' <span class="qv-when">' + _qvWhen(at) + '</span>'; };
-  // THE ONE LINE THAT ANSWERS "what is the customer looking at right now?".
-  // Without it the bar was a row of buttons with no state: the office could
-  // not tell a draft nobody has seen from the live quote a customer is
-  // reading, which is how a new draft got sent over an accepted one.
-  var live = '<span class="qv-now">';
-  if (S.quote.accepted) live += '<span class="qv-dot qv-dot-acc"></span>Accepted by the customer' + when(S.quote.accepted.at || (v.accepted && v.accepted.at));
-  else if (v.sent) live += '<span class="qv-dot qv-dot-sent"></span>Their link shows <b>this draft</b>, live';
-  else live += 'Not sent yet';
-  live += '</span>';
-  var html = live;
-  html += v.sent ? btn('Sent quote' + when(v.sent.at), '_qvView(\'sent\')', viewing && viewing.kind === 'sent', 'Exactly the quote that was emailed — locked') : '';
-  html += v.accepted ? btn('Accepted quote' + when(v.accepted.at), '_qvView(\'accepted\')', viewing && viewing.kind === 'accepted', 'Exactly what the customer accepted, with their selections — locked') : '';
-  html += btn('New draft', '_qvNewDraft()', false, 'A fresh, fully editable quote from what is on screen — never carries an acceptance');
-  if (!viewing) html += btn('Save draft', '_qvSaveDraftNow()', false, 'Keep this draft in the Saved Drafts list');
-  if (v.drafts.length){
-    html += '<select class="lock-ok qv-btn" onchange="if(this.value){_qvOpenDraft(this.value);this.value=\'\';}">' +
-      '<option value="">Saved drafts (' + v.drafts.length + ')</option>' +
-      v.drafts.slice().reverse().map(function(d){ return '<option value="' + d.id + '">' + _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · current' : '') + '</option>'; }).join('') +
-      '</select>';
-  }
-  if (viewing){
-    html += '<span class="qv-frozen">Viewing the ' + (viewing.kind === 'sent' ? 'sent' : 'accepted') + ' quote, ' + _qvWhen(viewing.at) + ' — read only</span>' +
-            btn('Back to draft', '_qvBackToDraft()', false, '');
-  } else {
-    html += '<span style="margin-left:auto;font-size:11px;color:var(--text3)">Draft' + (S.quote.draftStartedAt ? ' · started ' + _qvWhen(S.quote.draftStartedAt) : '') + '</span>';
-  }
+  var html = '<div class="qv-seg" role="tablist">';
+  html += seg('draft', 'Draft', null, viewing ? '_qvBackToDraft()' : '');
+  if (v.sent) html += seg('sent', 'Sent', v.sent.at, "_qvView('sent')");
+  if (v.accepted) html += seg('accepted', 'Accepted', v.accepted.at, "_qvView('accepted')");
+  html += '</div>';
+  // The drafts menu: new, save, and the saved list. A native <details> so it
+  // opens and closes without a line of JS and works on a phone.
+  var close = "this.closest('details').removeAttribute('open');";
+  var item = function(call, label, sub){
+    return '<button type="button" class="lock-ok" onclick="' + close + call + '">' + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  };
+  html += '<details class="qv-menu lock-ok"><summary class="qv-btn">Drafts' + (v.drafts.length ? ' (' + v.drafts.length + ')' : '') + ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
+    item('_qvNewDraft()', 'New draft', 'A fresh, editable quote from what is on screen') +
+    (!viewing ? item('_qvSaveDraftNow()', 'Save this draft', 'Keep it in the list to come back to') : '') +
+    (v.drafts.length ? '<div class="qv-menu-hd">Saved drafts</div>' + v.drafts.slice().reverse().map(function(d){
+      return item("_qvOpenDraft('" + d.id + "')", _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0), d.id === S.quote.draftId ? 'This one is open now' : '');
+    }).join('') : '') +
+    '</div></details>';
+  // ONE sentence about the customer. Not a badge and a button that seem to
+  // disagree ("this draft is live" beside "accepted") — the state, in words.
+  var status;
+  if (viewing) status = 'Read only — exactly the quote that was ' + (viewing.kind === 'sent' ? 'emailed' : 'accepted') + ' at ' + _qvWhen(viewing.at) + '. Use Draft to keep editing.';
+  else if (S.quote.accepted) status = 'The customer accepted this quote' + (S.quote.accepted.at ? ' on ' + _qvWhen(S.quote.accepted.at) : '') + '. Their selections are locked.';
+  else if (v.accepted && v.sent) status = 'The customer’s link now shows this draft, which they have not accepted. Their earlier acceptance is kept under Accepted.';
+  else if (v.sent) status = 'The customer’s link shows this draft. Not accepted yet.';
+  else status = 'Not sent to the customer yet.';
+  html += '<div class="qv-status">' + status + '</div>';
   bar.innerHTML = html;
   bar.style.display = 'flex';
 }

@@ -234,11 +234,20 @@ Discipline (non-negotiable):
   job is locked — the office unlocked, reloaded, and the acceptance was still
   there. Both pinned in `tests/quoteversions.mjs`, including a check that a
   customer's browser would NOT lock the new draft.
-- The Quote tab bar is ONE button style (`.qa-btn`, `.qv-btn`; `.qa-btn-primary`
-  for the single primary action, `.qa-btn-warn` for Undo acceptance). Colour
-  means STATUS, not decoration — it had six accent colours and emoji on one
-  bar. The version row leads with one line saying what the CUSTOMER's link is
-  showing right now, which is the state the bar never used to carry.
+- The Quote tab bar is three things, not a row of same-weight buttons: the
+  actions (`.qa-btn`; one `.qa-btn-primary`, `.qa-btn-warn` for Undo
+  acceptance, the rest behind a native `<details class="qa-more">`), ONE
+  version selector (`.qv-seg`, the version on screen filled in: Draft / Sent /
+  Accepted) with the draft actions and saved list behind `<details
+  class="qv-menu">`, and ONE sentence (`.qv-status`) about the customer's link.
+  A flat row of "Sent quote · Accepted quote · New draft · Save draft · Saved
+  drafts" beside a "link shows this draft, live" badge read as a contradiction
+  and the owner called it more confusing than before; the sentence has to say
+  BOTH halves when a new draft follows an acceptance ("the link now shows this
+  draft, which they have not accepted; the earlier acceptance is kept"). Colour
+  means STATUS, not decoration. Menus are `<details>` so they work on a phone
+  with no JS; `innerText` of the bar excludes a closed menu's items, so tests
+  pin the summary text (`Drafts (1)`), not the items.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in
