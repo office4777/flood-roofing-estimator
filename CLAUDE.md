@@ -450,6 +450,22 @@ the photo happens to be drawn makes every measurement move when the roofer
 zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.
 The aerial's own Mapbox zoom does change it, and must.
 
+**Publishing a quote in Fergus.** The quote pushed at send arrives as a
+Draft and `_fergusPublishQuote(key, quoteId, jobId)` then tries the
+publish shapes in `FERGUS_PUBLISH_CANDIDATES` ("METHOD /path"; pin the
+right one in `FERGUS_QUOTE_PUBLISH_PATH` once known). Two rules, both
+learned the hard way: NEVER a `/send` shape (that is Fergus emailing the
+customer its own copy; the owner sends from RoofMap), and a 2xx is NOT a
+publish — the quote is READ BACK (`_fergusReadQuoteStatus`) and only a
+status no longer Draft counts; a 2xx that changed nothing moves on to the
+next shape and the office is told "still a draft in Fergus — publish it
+there by hand". `share.fergus.publishResult` (and `plan.auto.publishResult`
+for the customer-selection versions) keeps every attempt and what Fergus
+reported, so read that off the saved job before guessing.
+`tests/fergusauto.mjs`. The Fergus API docs are unreachable from the build
+sandbox (egress blocked), so the true publish path must come from a real
+job's `publishResult`.
+
 **Believing one API call.** Twice now a working Fergus link has reported
 itself dead because a single request failed: the connection test asks for the
 jobs list sorted and paged, and not every partner account answers that query

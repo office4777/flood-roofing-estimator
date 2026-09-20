@@ -60298,9 +60298,16 @@ async function pushQuotePricingToFergus(btn, opts){
     // Publish it, so Fergus marks the job quoted rather than holding a draft.
     var _published = null;
     if (newId && opts && opts.publish){
-      try { _qaMsg('Publishing the quote in Fergus…'); var _pr = await api('POST', '/fergus-quote/publish', { quoteId: newId }); _published = !!(_pr && _pr.ok); }
+      try { _qaMsg('Publishing the quote in Fergus…'); var _pr = await api('POST', '/fergus-quote/publish', { quoteId: newId, jobId: String(S.linkedJobId) }); _published = !!(_pr && _pr.ok); }
       catch(e){ _published = false; }
     }
+    // What Fergus answered, kept with the quote so a "still a draft" can be
+    // diagnosed from the saved job rather than guessed at.
+    var _pubNote = '';
+    try {
+      if (_published === false && _pr && _pr.attempts) _pubNote = ' (RoofMap tried ' + _pr.attempts.length + ' publish call' + (_pr.attempts.length === 1 ? '' : 's') + (_pr.stillDraft ? '; Fergus answered OK but still reports Draft' : '') + ')';
+      else if (_published === true && _pr && _pr.fergusStatus) _pubNote = ' (Fergus reports ' + _pr.fergusStatus + ')';
+    } catch(e){}
     // The plan the server follows when the customer picks their options: the
     // base sections exactly as pushed, the line shape, and where to push.
     try {
@@ -60313,13 +60320,14 @@ async function pushQuotePricingToFergus(btn, opts){
         baseSections: _basePlan.sections, template: _basePlan.template,
         selKey: _fergusSelKeyOf(S.quote.proposalOptions), publish: !!(opts && opts.publish),
         stampedAt: new Date().toISOString(), published: _published,
+        publishResult: (_pr && typeof _pr === 'object') ? { ok: !!_pr.ok, path: _pr.path || null, verified: _pr.verified, fergusStatus: _pr.fergusStatus || null, stillDraft: !!_pr.stillDraft, attempts: _pr.attempts || [] } : null,
       };
     } catch(e){}
     try { await _savePromise; } catch(e){}   // make sure the backend save landed so the customer link resolves
     try { if (S.currentJobId) await _publishQuoteOnly(); } catch(e){}   // …and carries the plan
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
-    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + (_published === true ? ' · published' : (_published === false ? ' · still a draft — Fergus did not accept the publish call' : '')) + ' · ' + when, true);
+    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + (_published === true ? ' · published' + _pubNote : (_published === false ? ' · still a draft in Fergus — publish it there by hand' + _pubNote : '')) + ' · ' + when, true);
     _tell('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);

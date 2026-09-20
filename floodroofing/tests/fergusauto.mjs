@@ -23,15 +23,25 @@ const KEY = 'fergus-secret-key-0123456789-abcdefghijklmnop';
 const fergus = [];               // every call the server makes to Fergus
 let quoteSeq = 100;
 let publishStatus = 200;         // what the publish endpoint answers
+let publishTakes = true;         // …and whether that answer actually moved the quote off Draft
+const published = new Set();     // quote ids Fergus now holds as Published
 globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
   fergus.push({ path, method, body, auth: (headers || {}).Authorization });
   const j = (status, obj) => ({ status, body: JSON.stringify(obj), headers: {} });
+  // Reading a quote back: what Fergus says its status is.
+  const one = path.match(/^\/jobs\/quotes\/([^/]+)$/);
+  if (method === 'GET' && one) return j(200, { data: { id: one[1], status: published.has(one[1]) ? 'Published' : 'Draft' } });
   if (method === 'POST' && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(201, { id: 'fq' + (++quoteSeq) });
   if (method === 'GET'  && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(200, { data: [
     { id: 'fq1', title: 'old draft' }, { id: 'fq2', title: 'accepted one', isAccepted: true },
     { id: 'fq' + quoteSeq, title: 'the new one' } ] });
   if (method === 'POST' && /\/void$/.test(path)) return j(200, {});
-  if (method === 'POST' && /\/publish$/.test(path)) return j(publishStatus, {});
+  if (method === 'POST' && /\/publish$/.test(path)){
+    const id = (path.match(/\/quotes\/([^/]+)\/publish$/) || [])[1];
+    if (publishStatus < 300 && publishTakes && id) published.add(id);
+    return j(publishStatus, {});
+  }
+  if (method === 'PATCH' && /^\/jobs\/quotes\/[^/]+$/.test(path)) return j(404, { message: 'no' });
   if (method === 'POST' && /\/accept/.test(path)) return j(200, { NEVER: true });
   return j(404, { message: 'no' });
 };
@@ -110,6 +120,9 @@ check('…the base lines untouched', (c1.sections.find(s => s.name === 'Material
 check('…titled as the customer’s selections, a version up', /\(v2 — customer/.test(c1.title || ''), c1.title);
 check('…as a draft that is then published', c1.status === 'Draft' && fergus.some(c => /\/fq10[0-9]\/publish$/.test(c.path) || /publish$/.test(c.path)),
   fergus.filter(c => /publish/.test(c.path)).map(c => c.path).join(', '));
+check('…and READ BACK to prove it, never emailed from Fergus (no /send call)',
+  fergus.some(c => c.method === 'GET' && /^\/jobs\/quotes\/fq10[0-9]$/.test(c.path)) && !fergus.some(c => /\/send\b/.test(c.path)),
+  fergus.map(c => c.method + ' ' + c.path).join(', '));
 check('…with the earlier unaccepted version voided and the accepted one left alone',
   fergus.some(c => c.path === '/jobs/quotes/fq1/void') && !fergus.some(c => c.path === '/jobs/quotes/fq2/void'),
   fergus.filter(c => /void/.test(c.path)).map(c => c.path).join(', '));
@@ -117,6 +130,7 @@ check('…and NEVER accepted — that stays a human decision', !fergus.some(c =>
 check('…using the business’s own Fergus key, never printed', creates()[0].auth === 'Bearer ' + KEY);
 let q = quoteOf('j-3231');
 check('the quote remembers what Fergus now carries', !!(q.share.fergus.auto && q.share.fergus.auto.quoteId) && q.share.fergus.rev === 2, JSON.stringify(q.share.fergus.auto));
+check('…including that Fergus confirmed the publish', q.share.fergus.auto.published === true && q.share.fergus.auto.publishResult && q.share.fergus.auto.publishResult.fergusStatus === 'Published', JSON.stringify(q.share.fergus.auto.publishResult));
 check('…and tells the office in the activity feed', q.share.events.some(e => e.type === 'fergus-version'), JSON.stringify(q.share.events.map(e => e.type)));
 
 // ── the same picks again: Fergus already has them ──
@@ -152,9 +166,15 @@ check('a quote never pushed to Fergus is left alone', creates().length === 0, cr
 // ── the publish route the office uses after its own push ──
 const tok = jwt.sign({ id: 'u-aron', email: 'aron@floodroofing.co.nz', cid: 'c1' }, 'test-secret', { expiresIn: '1h' });
 const pub = (body) => fetch(BASE + '/fergus-quote/publish', { method: 'POST', headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + tok }, body: JSON.stringify(body) }).then(r => r.json());
-fergus.length = 0; publishStatus = 200;
-let p = await pub({ quoteId: 'fq55' });
-check('the office can publish a quote it just pushed', p.ok === true && /fq55/.test(p.path.replace('{id}', 'fq55') + fergus[0].path), JSON.stringify(p));
+fergus.length = 0; publishStatus = 200; publishTakes = true;
+let p = await pub({ quoteId: 'fq55', jobId: 'FJ-77' });
+check('the office can publish a quote it just pushed, and Fergus confirms it', p.ok === true && p.verified === true && p.fergusStatus === 'Published' && /fq55/.test(fergus[0].path), JSON.stringify(p));
+// Fergus answering 200 and leaving the quote a Draft is NOT a publish: the
+// office read "· published" on a quote Fergus still held as a draft.
+fergus.length = 0; publishStatus = 200; publishTakes = false;
+p = await pub({ quoteId: 'fq58', jobId: 'FJ-77' });
+check('a 2xx that leaves the quote a Draft is not believed: every shape is tried and it says still a draft',
+  p.ok === false && p.stillDraft === true && p.attempts.length > 1 && !fergus.some(c => /\/send\b/.test(c.path)), JSON.stringify(p.attempts));
 fergus.length = 0; publishStatus = 404;
 p = await pub({ quoteId: 'fq56' });
 check('when Fergus answers nothing 2xx, it says so rather than pretending', p.ok === false && p.attempts.length > 1, JSON.stringify(p.attempts));

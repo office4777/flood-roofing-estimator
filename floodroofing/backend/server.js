@@ -7571,37 +7571,94 @@ app.all('/fergus/*', requireAuth, requireSubscription,
 // the quote API uses (void is POST /jobs/quotes/{id}/void) and treats ONLY a
 // 2xx as done. FERGUS_QUOTE_PUBLISH_PATH pins the right one once it is known;
 // nothing here ever accepts a quote — that stays a human decision.
+// PUBLISH, NOT SEND: nothing here may email the customer from Fergus (the
+// owner sends the quote from RoofMap; Fergus is to carry it as published,
+// not send its own copy), so no "/send" shape is ever tried. And a 2xx is
+// not proof — Fergus once answered 200 to a status call and left the quote
+// a Draft, and the office read "· published" on a quote Fergus still held
+// as a draft. So after any 2xx the quote is READ BACK and only a status
+// that is no longer Draft counts; a call that answered 2xx but changed
+// nothing moves on to the next shape. FERGUS_QUOTE_PUBLISH_PATH pins the
+// right one once it is known ("METHOD /path" or just "/path" for POST).
 const FERGUS_PUBLISH_CANDIDATES = [
-  '/jobs/quotes/{id}/publish', '/jobs/quotes/{id}/send', '/jobs/quotes/{id}/status',
-  '/quotes/{id}/publish',
+  'POST /jobs/quotes/{id}/publish',
+  'POST /jobs/{job}/quotes/{id}/publish',
+  'PATCH /jobs/quotes/{id}',
+  'PUT /jobs/quotes/{id}/status',
+  'POST /jobs/quotes/{id}/status',
+  'POST /quotes/{id}/publish',
 ];
-async function _fergusPublishQuote(fergusKey, quoteId){
+function _fergusQuoteStatusOf(q){
+  if (!q || typeof q !== 'object') return null;
+  const st = q.status || q.state || q.quoteStatus || (q.attributes && (q.attributes.status || q.attributes.state)) || '';
+  if (q.publishedAt || q.isPublished === true || q.published === true) return { text: String(st || 'Published'), published: true };
+  if (q.isDraft === true) return { text: String(st || 'Draft'), published: false };
+  if (!st) return null;
+  return { text: String(st), published: !/draft/i.test(String(st)) };
+}
+// What Fergus now says the quote's status is: the quote itself, else the
+// job's list (which is what the void loop reads). null when it cannot tell.
+async function _fergusReadQuoteStatus(H, quoteId, jobId){
   const id = encodeURIComponent(String(quoteId));
-  const paths = process.env.FERGUS_QUOTE_PUBLISH_PATH
-    ? [process.env.FERGUS_QUOTE_PUBLISH_PATH] : FERGUS_PUBLISH_CANDIDATES;
-  const attempts = [];
-  for (const tpl of paths) {
-    const path = FERGUS_PREFIX + tpl.replace('{id}', id);
-    const body = /\/status$/.test(tpl) ? { status: 'Published' } : {};
+  try {
+    const r = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/quotes/' + id, 'GET', H);
+    if (r.status >= 200 && r.status < 300){
+      const parsed = JSON.parse(r.body || '{}');
+      const st = _fergusQuoteStatusOf((parsed && parsed.data) || parsed);
+      if (st) return st;
+    }
+  } catch (e) {}
+  if (jobId){
     try {
-      const r = await httpsRequest(FERGUS_HOST, path, 'POST', {
-        'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json',
-      }, body);
-      attempts.push({ path: tpl, status: r.status });
-      if (r.status >= 200 && r.status < 300) return { ok: true, path: tpl, status: r.status, attempts };
-      // A rejected key must not be hammered through every candidate.
-      if (r.status === 401 || r.status === 403) return { ok: false, path: tpl, status: r.status, attempts, auth: true };
-    } catch (e) { attempts.push({ path: tpl, error: String(e && e.message || e).slice(0, 120) }); }
+      const lr = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/' + encodeURIComponent(String(jobId)) + '/quotes', 'GET', H);
+      const list = JSON.parse(lr.body || '{}');
+      const quotes = (list && (list.data || list.value || list.quotes)) || [];
+      const q = quotes.find(x => x && String(x.id) === String(quoteId));
+      const st = _fergusQuoteStatusOf(q);
+      if (st) return st;
+    } catch (e) {}
   }
-  return { ok: false, attempts };
+  return null;
+}
+async function _fergusPublishQuote(fergusKey, quoteId, jobId){
+  const id = encodeURIComponent(String(quoteId));
+  const job = jobId ? encodeURIComponent(String(jobId)) : '';
+  const list = process.env.FERGUS_QUOTE_PUBLISH_PATH
+    ? [process.env.FERGUS_QUOTE_PUBLISH_PATH] : FERGUS_PUBLISH_CANDIDATES;
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const attempts = [];
+  let stillDraft = false;
+  for (const entry of list) {
+    const m = String(entry).match(/^\s*(GET|POST|PUT|PATCH|DELETE)\s+(\S+)/i);
+    const method = m ? m[1].toUpperCase() : 'POST';
+    const tpl = m ? m[2] : String(entry).trim();
+    if (/{job}/.test(tpl) && !job) continue;
+    if (/\/send\b/.test(tpl)) continue;                       // never: that is Fergus emailing the customer
+    const path = FERGUS_PREFIX + tpl.replace('{id}', id).replace('{job}', job);
+    const body = (/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Published' } : {};
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
+      const a = { path: method + ' ' + tpl, status: r.status };
+      attempts.push(a);
+      // A rejected key must not be hammered through every candidate.
+      if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
+      if (!(r.status >= 200 && r.status < 300)) continue;
+      const st = await _fergusReadQuoteStatus(H, quoteId, jobId);
+      a.fergusStatus = st ? st.text : null;
+      if (!st || st.published) return { ok: true, path: a.path, status: r.status, verified: st ? true : null, fergusStatus: a.fergusStatus, attempts };
+      stillDraft = true;                                         // 2xx that changed nothing: try the next shape
+    } catch (e) { attempts.push({ path: method + ' ' + tpl, error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts, stillDraft };
 }
 app.post('/fergus-quote/publish', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
   if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const quoteId = String((req.body || {}).quoteId || '').slice(0, 80);
+  const jobId = String((req.body || {}).jobId || '').slice(0, 80);
   if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
-  try { res.json(await _fergusPublishQuote(fergusKey, quoteId)); }
+  try { res.json(await _fergusPublishQuote(fergusKey, quoteId, jobId || null)); }
   catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
@@ -7751,14 +7808,15 @@ async function _fergusAutoVersionNow(jobId){
     } catch (e) {}
   }
   let published = null;
-  if (newId && plan.publish){ try { published = (await _fergusPublishQuote(fergusKey, newId)).ok; } catch (e) { published = false; } }
+  let publishResult = null;
+  if (newId && plan.publish){ try { publishResult = await _fergusPublishQuote(fergusKey, newId, plan.jobId); published = publishResult.ok; } catch (e) { published = false; } }
   plan.rev = rev;
-  plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published,
+  plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published, publishResult,
                 acceptedAt: quote.accepted ? quote.accepted.at : null, total: +(built.sub + gst).toFixed(2) };
   quote.share.fergus = plan;
   if (!Array.isArray(quote.share.events)) quote.share.events = [];
   quote.share.events.push({ type: 'fergus-version', at: plan.auto.at,
-    message: 'Quote v' + rev + ' created in Fergus for the customer’s selections' + (voided ? ' (' + voided + ' older voided)' : '') + (published ? ', published' : '') });
+    message: 'Quote v' + rev + ' created in Fergus for the customer’s selections' + (voided ? ' (' + voided + ' older voided)' : '') + (published ? ', published' : (published === false ? ', still a draft in Fergus — publish it there by hand' : '')) });
   if (quote.share.events.length > 80) quote.share.events = quote.share.events.slice(-80);
   await _saveQuoteBack(job, quote);
   return plan.auto;
