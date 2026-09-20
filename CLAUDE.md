@@ -197,7 +197,8 @@ Discipline (non-negotiable):
   and every quantity follow that pick; a pricing pass that needs one roof's
   group uses `_matSelOverride()`, never the saved pick. Tests that read the
   whole job's list call `_jpSelectAllRoofs()` first.
-- The customer's quote on a PHONE is a book, not the A4 pages reflowed:
+- The customer's quote on a PHONE (a MODERN quote; see the style bullet)
+  is a book, not the A4 pages reflowed:
   `_qbRender()` into `#qpRoot` behind `html.qp-book`, one page on screen with
   arrows to turn it, driven by `_qbPages()` (cover, condition, Re-Roof
   Proposal, then a page per choice, then the total). It is phone width AND
@@ -246,7 +247,7 @@ Discipline (non-negotiable):
   because the page is the confirmation. The office gets the acceptance email;
   the customer does not, so the block must never promise them one.
 - The customer on a COMPUTER (or tablet, anything wider than 720px) gets
-  the same quote as ONE PAGE: `_qdRender()` into `#qpRoot` under
+  the same quote as ONE PAGE (on a MODERN quote; see the style bullet): `_qdRender()` into `#qpRoot` under
   `html.qp-desk` when `_qpDeskActive()` (customer mode, not phone width,
   not printing). It is built from the book's own renderers (`_qbGrade`,
   `_qbColour`, `_qbSummary`…) wrapped in sections — grade, profile and
@@ -269,6 +270,32 @@ Discipline (non-negotiable):
   office's View switch is three-way — Document (A4, the editing surface),
   Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
   `'desktop'` still means Document. `tests/quotedesk.mjs`.
+- THE QUOTE'S STYLE (report 56): `S.quote.style` is `'classic'` or
+  `'modern'` (the default), saved with the quote and sent to the customer.
+  Classic is the document — the A4 on a computer, the same A4 reflowed on
+  a phone (`customer-mobile`), edited by clicking the page. Modern is the
+  one-page layout and the book. `_qpBookActive`/`_qpDeskActive` return
+  false on a classic quote. The Quote tab's View switch is Computer / Phone
+  ONLY (no Document view; `'doc'`/`'desktop'` still map to Computer) plus a
+  Style switch; the preview's classes are DERIVED from mode + style + the
+  printing flag by `_qpPreviewClassesSync()` (`qp-desk-preview`,
+  `qp-phone-preview`, `qp-classic-phone` = the reflow inside the phone
+  frame) — never toggle them by hand; `printQuote` and both PDF paths raise
+  `__PRINTING_QUOTE` and call it, so paper is always the A4. The EDITOR
+  RAIL down the left of the preview (`#qeRail`, above the preview on a
+  phone) carries "Edit description" (`_qdescOpen`, which edits the modern
+  `custDesc` lines or the classic `scope` bullets by style) and "Edit this
+  quote's selections" (`_qselOpen`); each lights the part of the page it
+  edits (`_qeSpot`: the one-page block, the book turned to that page, or
+  the A4's `[data-qe="desc"]`). Per-quote hides live in `S.quote.selHide
+  [kind][id]` and are honoured by `_selGrades/_selProfiles/_selGutters`
+  (via `_selLive(list, kind)`), `_selFixed` and `_selExtras`
+  (`_selExtrasOffered` is the list before hides); the base grade, the
+  first profile, each fixed group's first row and whatever is picked can
+  never be hidden. "Edit default selections" jumps to Settings → Quote's
+  Product Options. On the modern previews the office can also click the
+  cover title and the condition summary (`_qeBindModernEdits`).
+  `tests/quoteeditor.mjs`; `tests/quotepreview.mjs` for the switches.
 - THE RECOMMENDED CHOICE on the customer's quote is whatever the roofer had
   picked in the app when it was sent: `S.quote.recommended` is stamped from
   `proposalOptions` at every send (`_qbRecSnapshot`, beside

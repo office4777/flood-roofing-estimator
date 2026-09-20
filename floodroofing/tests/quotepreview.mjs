@@ -70,15 +70,18 @@ const read = () => pg.evaluate(() => {
 // ── the switch is there and starts on the computer ──────────────────
 const t0 = await pg.evaluate(() => ({
   toggle: !!document.getElementById('qpViewToggle'),
-  desk: !!document.getElementById('qpViewBtn_doc'),
+  desk: !!document.getElementById('qpViewBtn_computer'),
   phone: !!document.getElementById('qpViewBtn_phone'),
-  deskOn: (document.getElementById('qpViewBtn_doc')||{}).style.fontWeight === '700',
-  phoneOn: (document.getElementById('qpViewBtn_phone')||{}).style.fontWeight === '700'
+  noDoc: !document.getElementById('qpViewBtn_doc'),
+  style: !!document.getElementById('qsBtn_classic') && !!document.getElementById('qsBtn_modern'),
+  deskOn: (document.getElementById('qpViewBtn_computer')||{}).style.fontWeight === '700',
+  phoneOn: (document.getElementById('qpViewBtn_phone')||{}).style.fontWeight === '700',
+  modernOn: (document.getElementById('qsBtn_modern')||{}).style.fontWeight === '700'
 }));
-check('the Quote tab carries a Document / Computer / Phone switch', t0.toggle && t0.desk && t0.phone && !!(await pg.$('#qpViewBtn_computer')));
-check('…and it opens on the Document', t0.deskOn && !t0.phoneOn);
+check('the Quote tab carries a Computer / Phone switch and a Classic / Modern style switch — no Document view', t0.toggle && t0.desk && t0.phone && t0.noDoc && t0.style);
+check('…and it opens on Computer, in the modern style', t0.deskOn && !t0.phoneOn && t0.modernOn);
 const v0 = await read();
-check('…showing the A4 proposal, not the book', !v0.book && v0.a4 > 0, v0.a4 + ' A4 pages');
+check('…showing the customer’s one-page layout, not the A4 stack', !v0.book && v0.a4 === 0 && !!(await pg.$('#qpRoot #qdRoot')), v0.a4 + ' A4 pages');
 
 // ── switching to the phone shows the book, framed as a phone ────────
 await pg.evaluate(() => _setQuotePreviewMode('phone'));
@@ -172,14 +175,22 @@ const pc = await pg.evaluate(async () => {
 });
 check('a print from the Computer view is still the A4 document', pc.during.a4 > 0 && !pc.during.qd && pc.back, JSON.stringify(pc));
 
-// ── switching back leaves the document exactly as it was ────────────
-await pg.evaluate(() => _setQuotePreviewMode('desktop'));
-await pg.waitForTimeout(800);
+// ── the Classic style: the A4 on a computer, the reflowed A4 on a phone ──
+await pg.evaluate(() => _setQuoteStyle('classic'));
+await pg.waitForTimeout(900);
+const vk = await read();
+const vkx = await pg.evaluate(() => ({ style: S.quote.style, editable: document.querySelectorAll('#qpRoot [contenteditable="true"]').length,
+  hint: (document.getElementById('qeCardHint')||{}).textContent || '', classicOn: (document.getElementById('qsBtn_classic')||{}).style.fontWeight === '700' }));
+check('picking Classic shows the A4 document, editable by clicking, and is saved on the quote', !vk.book && vk.a4 > 0 && !vk.cls && vkx.editable > 0 && vkx.style === 'classic' && vkx.classicOn && /click any text/.test(vkx.hint), JSON.stringify(vkx));
+await pg.evaluate(() => _setQuotePreviewMode('phone'));
+await pg.waitForTimeout(900);
+const vkp = await read();
+const vkpx = await pg.evaluate(() => document.documentElement.classList.contains('qp-classic-phone'));
+check('…and Classic on the phone is the same A4 reflowed inside the phone frame, not the book', !vkp.book && vkp.a4 > 0 && vkp.cls && vkpx && vkp.w > 380 && vkp.w < 430, vkp.w + 'px');
+await pg.evaluate(() => { _setQuoteStyle('modern'); _setQuotePreviewMode('desktop'); });
+await pg.waitForTimeout(900);
 const v2 = await read();
-check('picking Computer brings the A4 proposal back', !v2.book && v2.a4 === v0.a4,
-      v2.a4 + ' vs ' + v0.a4 + ' A4 pages');
-check('…and the phone frame is gone, at the width it had before',
-      !v2.cls && Math.abs(v2.w - v0.w) <= 2, v2.w + 'px vs ' + v0.w + 'px');
+check('back on Modern, Computer is the one-page layout again ("desktop" still means Computer)', !v2.book && v2.a4 === 0 && !v2.cls && !!(await pg.$('#qpRoot #qdRoot')));
 
 // ── looking is not editing ──────────────────────────────────────────
 const clean = await pg.evaluate(() => {

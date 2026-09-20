@@ -3121,6 +3121,41 @@ select.qa-btn{ padding:5px 8px; }
 .qv-menu-list button small, .qa-more-list button small{ font-size:10.5px; font-weight:400; color:#7c8894; }
 .qv-menu-hd, .qa-more-lbl{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a97a6; padding:8px 10px 3px; }
 .qa-more-sel{ width:100%; margin:0 0 4px; }
+/* The quote editor rail (report 56). */
+.qe-wrap{ display:flex; gap:12px; align-items:flex-start; }
+.qe-wrap > .card{ flex:1 1 auto; min-width:0; }
+.qe-rail{ flex:0 0 200px; position:sticky; top:8px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px 12px 10px; }
+.qe-rail-h{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text2); margin-bottom:8px; }
+.qe-btn{ display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; margin-bottom:6px; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:#f7f9fb; color:#0a1628; font-family:inherit; font-size:12.5px; font-weight:600; text-align:left; cursor:pointer; }
+.qe-btn:hover{ border-color:#0099cc; background:#f0f8ff; }
+.qe-btn .qe-arrow{ font-style:normal; color:#0099cc; font-size:15px; flex:0 0 auto; transition:transform .18s ease; }
+.qe-btn:hover .qe-arrow{ transform:translateX(4px); }
+.qe-rail-note{ font-size:11px; line-height:1.45; color:var(--text2); margin-top:6px; }
+@media (max-width:900px){
+  .qe-wrap{ flex-direction:column; }
+  .qe-rail{ position:static; flex:none; width:100%; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .qe-rail-h{ flex:0 0 100%; margin-bottom:2px; }
+  .qe-btn{ width:auto; flex:1 1 200px; margin:0; }
+  .qe-rail-note{ flex:0 0 100%; }
+}
+/* The arrow's landing: the block on the page the button edits. */
+.qe-spot{ outline:3px solid #0099cc !important; outline-offset:4px; border-radius:6px; animation:qeSpotPulse 1.2s ease-in-out 2; }
+@keyframes qeSpotPulse{ 0%,100%{ outline-color:#0099cc; } 50%{ outline-color:rgba(0,153,204,.15); } }
+/* The office LOOKING at the classic style on a phone: the same reflow the
+   customer's phone gets (html.customer-mobile), inside the phone frame. */
+html.qp-classic-phone .report-preview #qpRoot{ width:540px !important; height:1124px !important; zoom:.7222 !important; overflow-y:auto !important; }
+.qsel{ background:#fff; border-radius:14px; width:100%; max-width:640px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; }
+.qsel-hd{ padding:18px 20px 12px; border-bottom:1px solid var(--border); }
+.qsel-hd b{ display:block; font-size:16px; color:#0a1628; margin-bottom:4px; }
+.qsel-hd span{ display:block; font-size:12px; color:#5b6b7d; line-height:1.45; }
+.qsel-list{ padding:8px 18px; overflow-y:auto; flex:1 1 auto; }
+.qsel-g{ margin:10px 0 4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#6b7a8c; }
+.qsel-row{ display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:8px; font-size:13px; color:#0a1628; }
+.qsel-row:hover{ background:#f4f7fa; }
+.qsel-row input{ width:17px; height:17px; margin:0; }
+.qsel-row.off{ color:#8a97a6; }
+.qsel-row .qsel-why{ margin-left:auto; font-size:11px; color:#8a97a6; }
+.qsel-ft{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
 .qdesc{ background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; }
 .qdesc-hd{ padding:18px 20px 12px; border-bottom:1px solid var(--border); }
 .qdesc-hd b{ display:block; font-size:16px; color:#0a1628; margin-bottom:4px; }
@@ -3314,31 +3349,31 @@ html.customer-view{ overflow-x:hidden; }
    text is legible), every multi-column grid stacks to one column, and the
    customer only scrolls up/down. Toggled by _fitCustomerView adding
    html.customer-mobile when the viewport is phone-sized. */
-html.customer-mobile .report-preview{ background:#fff !important; padding:0 !important; border-radius:0 !important; }
-html.customer-mobile .cust-scroll{ padding:6px 5px 150px !important; max-width:680px !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .report-preview{ background:#fff !important; padding:0 !important; border-radius:0 !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .cust-scroll{ padding:6px 5px 150px !important; max-width:680px !important; }
 /* #qpRoot width + zoom are set by _fitCustomerView (a ~540px virtual layout
    scaled down to the phone) — a happy medium between the tiny A4 shrink and
    full natural size. */
-html.customer-mobile .report-preview #qpRoot{ gap:12px !important; align-items:stretch !important; margin:0 auto !important; }
-html.customer-mobile .report-preview .rp-page,
-html.customer-mobile .report-preview > #qpRoot > .rp-header{
+:is(html.customer-mobile, html.qp-classic-phone) .report-preview #qpRoot{ gap:12px !important; align-items:stretch !important; margin:0 auto !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .report-preview .rp-page,
+:is(html.customer-mobile, html.qp-classic-phone) .report-preview > #qpRoot > .rp-header{
   width:100% !important; min-width:0 !important; max-width:100% !important;
   min-height:0 !important; box-shadow:0 1px 8px rgba(10,22,40,.14) !important;
 }
-html.customer-mobile .rp-body{ padding:16px 13px !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .rp-body{ padding:16px 13px !important; }
 /* Stack every inline grid (2-col option layouts, TOC, price rows, roof maps)
    into a single column so nothing runs off the side. */
-html.customer-mobile .rp-page [style*="grid-template-columns"]{
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page [style*="grid-template-columns"]{
   grid-template-columns:1fr !important; gap:12px !important;
 }
 /* …but keep the Patch-Repair vs Full-Re-roof comparison two-up on mobile. */
-html.customer-mobile .rp-page .qp-cmp-grid{ grid-template-columns:1fr 1fr !important; gap:0 !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page .qp-cmp-grid{ grid-template-columns:1fr 1fr !important; gap:0 !important; }
 /* Keep media + long words inside the phone width. */
-html.customer-mobile .rp-page{ overflow-wrap:break-word; word-break:break-word; }
-html.customer-mobile .rp-page img,
-html.customer-mobile .rp-page svg,
-html.customer-mobile .rp-page table{ max-width:100% !important; }
-html.customer-mobile .qp-canvas{ min-height:0 !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page{ overflow-wrap:break-word; word-break:break-word; }
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page img,
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page svg,
+:is(html.customer-mobile, html.qp-classic-phone) .rp-page table{ max-width:100% !important; }
+:is(html.customer-mobile, html.qp-classic-phone) .qp-canvas{ min-height:0 !important; }
 
 /* Customer link — Save-as-PDF / print. The customer view is a fixed overlay
    (#customerView) scaled to the phone; a fixed, scaled container can't
@@ -3654,6 +3689,9 @@ html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ overflow:vis
 html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ padding:0 !important; margin:0 !important; background:#eef1f5 !important; border-radius:0 !important; }
 html.qp-desk .report-preview #qpRoot, html.qp-desk-preview .report-preview #qpRoot{ width:auto !important; zoom:1 !important; gap:0 !important; margin:0 !important; display:block !important; }
 html.qp-desk-preview #qpZoomSlider, html.qp-desk-preview #qpZoomOut, html.qp-desk-preview .qp-zoom-lbl{ display:none !important; }
+/* In the office's preview the layout's own fixed bar must not float over the app. */
+html.qp-desk-preview .qd-mini{ display:none !important; }
+html.qp-desk-preview .qd-top{ position:static; }
 .qd{
   background:#eef1f5; color:#0a1628; min-height:100%;
   font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; -webkit-font-smoothing:antialiased;
@@ -7015,18 +7053,33 @@ html.qp-desk-preview #qpZoomSlider, html.qp-desk-preview #qpZoomOut, html.qp-des
   <!-- Full proposal preview — the live editing surface. Click any text
        (client, scope, conditions, notes, terms, price fields) to edit it
        directly; changes save into the quote and print exactly as shown. -->
+  <div class="qe-wrap">
+  <!-- THE QUOTE EDITOR RAIL (report 56): the office's edits to THIS quote,
+       down the left of the preview. Each button points at the part of the
+       page it edits. Defaults live in Settings; nothing here touches them. -->
+  <aside class="qe-rail no-print" id="qeRail">
+    <div class="qe-rail-h">Edit this quote</div>
+    <button type="button" class="qe-btn no-print" id="qeBtnDesc" onclick="_qeEditDescription()" onmouseenter="_qeSpot('desc', true)" title="The description of the work the customer reads. Reword, reorder, remove or add lines — for this quote only."><span>Edit description</span><i class="qe-arrow" aria-hidden="true">&#10140;</i></button>
+    <button type="button" class="qe-btn no-print" id="qeBtnSel" onclick="_qeEditSelections()" onmouseenter="_qeSpot('sel', true)" title="Which products this quote offers — steel grades, profiles, gutters and the rest. For this quote only."><span>Edit this quote&#8217;s selections</span><i class="qe-arrow" aria-hidden="true">&#10140;</i></button>
+    <div class="qe-rail-note">For this quote only. The defaults every new quote starts from are under Settings &#8594; Quote&#8217;s Product Options.</div>
+  </aside>
   <div class="card js-proposal-print">
-    <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
+    <div class="card-hd"><span class="card-dot"></span>Proposal <span id="qeCardHint" style="font-weight:400;color:var(--text2)">&#8212; click any text to edit</span>
       <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
         <span class="no-print qp-view-toggle" id="qpViewToggle" style="display:inline-flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text2)">View:</span>
           <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <button type="button" id="qpViewBtn_doc" onclick="_setQuotePreviewMode('doc')" title="The A4 document — edit it here; this is what prints and what the PDF carries" style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">📄 Document</button>
-            <button type="button" id="qpViewBtn_computer" onclick="_setQuotePreviewMode('computer')" title="The quote as the customer's computer shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">💻 Computer</button>
+            <button type="button" id="qpViewBtn_computer" onclick="_setQuotePreviewMode('computer')" title="The quote as the customer's computer shows it" style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">💻 Computer</button>
             <button type="button" id="qpViewBtn_phone" onclick="_setQuotePreviewMode('phone')" title="The quote as the customer's phone shows it" style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">📱 Phone</button>
           </span>
         </span>
-        <button type="button" class="no-print qa-btn" onclick="_qdescOpen()" title="The six lines the customer reads on the Re-Roof Proposal page — phone and computer. Reword, reorder, remove or add lines.">Edit description</button>
+        <span class="no-print" id="qpStyleToggle" style="display:inline-flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text2)">Style:</span>
+          <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <button type="button" id="qsBtn_classic" onclick="_setQuoteStyle('classic')" title="The document style: the A4 pages, and the same pages reflowed on a phone. Click any text on the page to edit it." style="padding:4px 11px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">Classic</button>
+            <button type="button" id="qsBtn_modern" onclick="_setQuoteStyle('modern')" title="The modern style: one page with a summary rail on a computer, a book on a phone. Edit it with the buttons beside the preview." style="padding:4px 11px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Modern</button>
+          </span>
+        </span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
         <span class="no-print qp-zoom-lbl" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
@@ -7060,6 +7113,7 @@ html.qp-desk-preview #qpZoomSlider, html.qp-desk-preview #qpZoomOut, html.qp-des
       <img id="qpLogo"><div id="qpPhotos"></div><tbody id="qpLineBody"></tbody>
     </div>
   </div>
+  </div><!-- /qe-wrap -->
 </div>
 
 <!-- TAB 6b: ORDER MATERIAL -->
@@ -23613,6 +23667,10 @@ function _selExtras(){
   // gutters. _selWorking() is the settings row — on a customer's page there
   // is no settings row at all, so reading it there would drop every one of
   // these groups off the quote they were sent.
+  return _selExtrasOffered().filter(function(g){ return !_selQuoteHidden('extras', g.id); });
+}
+// Every extra group the company offers, before this quote's own hides.
+function _selExtrasOffered(){
   var list = (_selectables() || {}).extras;
   if (!Array.isArray(list)) return [];
   return list.filter(function(g){
@@ -23662,7 +23720,7 @@ function _selFixed(kind, rows){
     return Object.assign({}, r, {
       label: (o.name != null && String(o.name).trim()) ? String(o.name) : r.label,
       desc:  (o.desc != null && String(o.desc).trim()) ? String(o.desc) : r.desc,
-      _hidden: !!(o.hidden && i > 0),
+      _hidden: !!((o.hidden || _selQuoteHidden(kind, r.id)) && i > 0),
     });
   }).filter(function(r){ return !r._hidden; });
 }
@@ -23740,10 +23798,25 @@ function _selectables(){
 function _selGradesAll(){ return _selectables().grades || []; }
 function _selProfilesAll(){ return _selectables().profiles || []; }
 function _selGuttersAll(){ return _selectables().gutters || []; }
-function _selLive(list){ return list.filter(function(x){ return x && !x.removed; }); }
-function _selGrades(){ return _selLive(_selGradesAll()); }
-function _selProfiles(){ return _selLive(_selProfilesAll()); }
-function _selGutters(){ return _selLive(_selGuttersAll()); }
+function _selLive(list, kind){ return list.filter(function(x){ return x && !x.removed && !(kind && _selQuoteHidden(kind, x.id)); }); }
+function _selGrades(){ return _selLive(_selGradesAll(), 'grades'); }
+function _selProfiles(){ return _selLive(_selProfilesAll(), 'profiles'); }
+function _selGutters(){ return _selLive(_selGuttersAll(), 'gutters'); }
+// ── THIS QUOTE'S SELECTIONS (report 56) ───────────────────────────
+// The office can take a product off ONE quote without touching the
+// company's list: `S.quote.selHide[kind][id] = true`. It rides with the
+// quote to the customer, so the phone, the computer and the document all
+// leave that product out. The base grade, the first profile and whatever
+// is currently picked can never be hidden — a quote must always resolve.
+function _selQuoteHide(){
+  var q = window.S && S.quote; if (!q) return {};
+  if (!q.selHide || typeof q.selHide !== 'object') q.selHide = {};
+  return q.selHide;
+}
+function _selQuoteHidden(kind, id){
+  try { var h = (window.S && S.quote && S.quote.selHide) || {}; return !!(h[kind] && h[kind][id]); }
+  catch(e){ return false; }
+}
 function _selById(list, id){
   for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
   return null;
@@ -26415,10 +26488,32 @@ var QB = { i: 0, g: 0, t: null };
 function _qpBookActive(){
   // A print or a PDF is ALWAYS the A4 document, whoever is looking.
   if (window.__PRINTING_QUOTE) return false;
+  // The classic style is the document, on every screen.
+  if (_quoteStyle() !== 'modern') return false;
   // The office can ask to see what the customer's phone shows — the same
   // book, framed as a phone in the Quote tab (_setQuotePreviewMode).
-  if (!window.__CUSTOMER_MODE) return !!(QP_PREVIEW && QP_PREVIEW.phone);
+  if (!window.__CUSTOMER_MODE) return QP_PREVIEW.mode === 'phone';
   try { return _qpIsMobileView(); } catch(e){ return false; }
+}
+// ── THE QUOTE'S STYLE (report 56) ─────────────────────────────────
+// Classic is the document: the A4 pages on a computer, the same pages
+// reflowed on a phone — everything before the modern layouts, and the
+// pages are edited by clicking on them. Modern is the one-page layout with
+// the summary rail on a computer and the book on a phone. Saved on the
+// quote, so the customer gets the style the office chose.
+function _quoteStyle(){
+  var v = (window.S && S.quote && S.quote.style) || '';
+  return v === 'classic' ? 'classic' : 'modern';
+}
+function _setQuoteStyle(v){
+  if (!S.quote) return;
+  var next = (v === 'classic') ? 'classic' : 'modern';
+  if (_quoteStyle() === next){ _syncQuotePreviewToggle(); return; }
+  S.quote.style = next;
+  try { _scheduleAutosave(); } catch(e){}
+  // The preview follows the style: the same View button now shows the
+  // other layout, so re-settle the preview classes and re-render.
+  _setQuotePreviewMode(_qpPreviewMode(), true);
 }
 // Which way the Quote tab shows the proposal to the roofer: the A4 document
 // as a computer gets it, or the book as a phone gets it. Never saved with
@@ -26426,22 +26521,41 @@ function _qpBookActive(){
 // Three views: 'doc' is the A4 document (the editing surface, what prints);
 // 'computer' is the customer's computer layout (_qdRender); 'phone' is the
 // book. 'desktop' is the old name for 'doc' and still works.
-var QP_PREVIEW = { phone: false, desk: false };
-function _qpPreviewMode(){ return QP_PREVIEW.phone ? 'phone' : (QP_PREVIEW.desk ? 'computer' : 'doc'); }
-function _setQuotePreviewMode(m){
-  if (m === 'desktop') m = 'doc';
-  var phone = (m === 'phone'), desk = (m === 'computer');
-  if (QP_PREVIEW.phone === phone && QP_PREVIEW.desk === desk){ _syncQuotePreviewToggle(); return; }
-  QP_PREVIEW.phone = phone; QP_PREVIEW.desk = desk;
-  if (phone) QB.i = 0;
-  document.documentElement.classList.toggle('qp-phone-preview', phone);
-  document.documentElement.classList.toggle('qp-desk-preview', desk);
+// Two views — the customer's computer and the customer's phone — and the
+// quote's style decides what each shows: Classic gives the A4 document
+// (editable by clicking) and the reflowed phone; Modern gives the one-page
+// layout and the book. 'doc' and 'desktop' are the old names for the A4
+// preview and still land on Computer.
+var QP_PREVIEW = { mode: 'computer', phone: false, desk: false };
+function _qpPreviewMode(){ return QP_PREVIEW.mode === 'phone' ? 'phone' : 'computer'; }
+// The preview's classes follow the mode and the style — and come OFF while
+// a print or a PDF is in flight, because paper is always the A4. Every
+// path that renders calls this, so the classes can never be stale.
+function _qpPreviewClassesSync(){
+  var modern = _quoteStyle() === 'modern';
+  var printing = !!window.__PRINTING_QUOTE;
+  var phoneMode = QP_PREVIEW.mode === 'phone' && !printing;
+  QP_PREVIEW.phone = phoneMode && modern;           // the book, framed
+  QP_PREVIEW.desk  = !phoneMode && modern && !printing;   // the one-page layout
+  var classicPhone = phoneMode && !modern;          // the A4, reflowed and framed
+  var h = document.documentElement.classList;
+  h.toggle('qp-phone-preview', phoneMode);
+  h.toggle('qp-classic-phone', classicPhone);
+  h.toggle('qp-desk-preview', QP_PREVIEW.desk);
+}
+function _setQuotePreviewMode(m, force){
+  if (m === 'desktop' || m === 'doc') m = 'computer';
+  var mode = (m === 'phone') ? 'phone' : 'computer';
+  if (QP_PREVIEW.mode === mode && !force){ _syncQuotePreviewToggle(); return; }
+  QP_PREVIEW.mode = mode;
+  if (mode === 'phone') QB.i = 0;
+  _qpPreviewClassesSync();
   var root = document.getElementById('qpRoot');
-  if (root && !phone){ root.style.width = ''; root.style.zoom = ''; }
+  if (root){ root.style.width = ''; root.style.zoom = ''; }
   _syncQuotePreviewToggle();
   try { refreshQuoteProposal(); } catch(e){}
-  // Back on the document the zoom slider is in charge again.
-  if (!phone && !desk){
+  // On the A4 the zoom slider is in charge again.
+  if (mode === 'computer' && !QP_PREVIEW.desk){
     try {
       var sl = document.getElementById('qpZoomSlider');
       if (sl && typeof _setDocZoomFactor === 'function') _setDocZoomFactor(sl.value);
@@ -26449,15 +26563,22 @@ function _setQuotePreviewMode(m){
   }
 }
 function _syncQuotePreviewToggle(){
+  if (!window.__CUSTOMER_MODE) _qpPreviewClassesSync();
   var cur = _qpPreviewMode();
-  ['doc','computer','phone'].forEach(function(k){
-    var b = document.getElementById('qpViewBtn_' + k);
+  var paint = function(b, on){
     if (!b) return;
-    var on = (k === cur);
     b.style.background = on ? '#0a1628' : 'transparent';
     b.style.color = on ? '#fff' : 'var(--text2)';
     b.style.fontWeight = on ? '700' : '500';
-  });
+  };
+  ['computer','phone'].forEach(function(k){ paint(document.getElementById('qpViewBtn_' + k), k === cur); });
+  var st = _quoteStyle();
+  ['classic','modern'].forEach(function(k){ paint(document.getElementById('qsBtn_' + k), k === st); });
+  // The card's hint says how THIS preview is edited.
+  var hint = document.getElementById('qeCardHint');
+  if (hint) hint.innerHTML = (st === 'classic' && cur === 'computer')
+    ? '&#8212; click any text to edit'
+    : '&#8212; edit with the buttons on the left';
 }
 // The customer on a COMPUTER (or a tablet) gets the same quote as the phone
 // book, laid out for the width: every section on one scrolling page, a
@@ -26466,7 +26587,8 @@ function _syncQuotePreviewToggle(){
 // only through the Computer switch above the preview.
 function _qpDeskActive(){
   if (window.__PRINTING_QUOTE) return false;
-  if (!window.__CUSTOMER_MODE) return !!(QP_PREVIEW && QP_PREVIEW.desk);
+  if (_quoteStyle() !== 'modern') return false;
+  if (!window.__CUSTOMER_MODE) return QP_PREVIEW.mode !== 'phone';
   try { return !_qpIsMobileView(); } catch(e){ return false; }
 }
 // Money, as the customer reads it: GST-inclusive, whole dollars.
@@ -26934,15 +27056,34 @@ function _qbInclusionLines(){
   return _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
 }
 // ── the office editor for those lines ─────────────────────────────
+// The classic document's description is the "What's included and our
+// process" scope: one bullet a line, stored with a leading "• ".
+function _classicScopeLines(){
+  return String((S.quote && S.quote.scope) || '').split('\n')
+    .map(function(l){ return l.replace(/^\s*[•\-\u2022]\s*/, '').trim(); }).filter(Boolean);
+}
+function _classicScopeDefaultLines(){
+  // The Job tab's ticked scope chips are what a new quote's scope is built
+  // from, so "default" means those.
+  try {
+    var chips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on')).map(function(el){ return el.dataset.item; }).filter(Boolean);
+    if (chips.length) return chips;
+  } catch(e){}
+  return [];
+}
 function _qdescOpen(){
   if (!S.quote) return;
   var old = document.getElementById('qdescModal'); if (old) old.remove();
-  var lines = _custDescLines().slice();
+  var classic = _quoteStyle() === 'classic';
+  var lines = classic ? _classicScopeLines() : _custDescLines().slice();
   var host = document.createElement('div');
   host.id = 'qdescModal'; host.className = 'no-print';
+  host._classic = classic;
   host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
   host.innerHTML = '<div class="qdesc">'+
-      '<div class="qdesc-hd"><b>Edit description</b><span>What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose.</span></div>'+
+      '<div class="qdesc-hd"><b>Edit description</b><span>'+(classic
+        ? 'The "What\u2019s included and our process" list on the document, one line a bullet. For this quote only.'
+        : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
       '<div class="qdesc-list" id="qdescList"></div>'+
       '<div class="qdesc-ft">'+
         '<button type="button" class="qa-btn" onclick="_qdescAdd()">+ Add line</button>'+
@@ -26983,11 +27124,19 @@ function _qdescAdd(){
   h._lines.push(''); _qdescPaint();
   try { var ins = h.querySelectorAll('#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
 }
-function _qdescReset(){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines = CUST_DESC_DEFAULT.slice(); _qdescPaint(); }
+function _qdescReset(){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice(); _qdescPaint(); }
 function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
 function _qdescSave(){
   var h = document.getElementById('qdescModal'); if (!h || !S.quote) return;
   var lines = h._lines.map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+  if (h._classic){
+    S.quote.scope = lines.map(function(l){ return '\u2022 ' + l; }).join('\n');
+    _qdescClose();
+    try { refreshQuoteProposal(); } catch(e){}
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+    try { _siteToast('Description saved'); } catch(e){}
+    return;
+  }
   // Saved as the default means "use the default" — so a later change to the
   // default reaches quotes nobody customised.
   var isDefault = lines.length === CUST_DESC_DEFAULT.length && lines.every(function(l, i){ return l === CUST_DESC_DEFAULT[i]; });
@@ -26996,6 +27145,141 @@ function _qdescSave(){
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
   try { _siteToast(isDefault ? 'Description back to the default' : 'Description saved — the customer sees these lines'); } catch(e){}
+}
+function _qeBindModernEdits(){
+  var root = document.getElementById('qpRoot'); if (!root) return;
+  var bind = function(el, title, field, multi){
+    if (!el || el._qeBound) return;
+    el._qeBound = true; el.style.cursor = 'text'; el.title = 'Click to edit';
+    el.addEventListener('click', function(){
+      _styledPrompt({ title: title, value: String(S.quote[field] || ''), inputType: 'text', okLabel: 'Save' }, function(v){
+        if (v == null) return;
+        S.quote[field] = String(v).trim();
+        try { refreshQuoteProposal(); } catch(e){}
+        try { _scheduleAutosave(); } catch(e){}
+      });
+    });
+  };
+  bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', 'coverTitle', false);
+  var cond = root.querySelector('#qd-condition .qb-para') || (root.querySelector('#qbPage[data-qb-page="condition"] .qb-para'));
+  bind(cond, 'Existing roof condition — the summary the customer reads', 'conditionSummary', true);
+  var incl = root.querySelector('.qb-incl');
+  if (incl && !incl._qeBound){ incl._qeBound = true; incl.style.cursor = 'pointer'; incl.title = 'Click to edit the description'; incl.addEventListener('click', function(){ _qdescOpen(); }); }
+}
+// ── THE QUOTE EDITOR RAIL (report 56) ─────────────────────────────
+// Each button edits one part of THIS quote and points at it on the page.
+function _qeEditDescription(){ _qeSpot('desc'); _qdescOpen(); }
+function _qeEditSelections(){ _qeSpot('sel'); _qselOpen(); }
+// Where the thing lives on whatever the preview is showing — the one-page
+// layout, the book (turned to that page) or the document — lit for a
+// moment and scrolled into view.
+function _qeTarget(what){
+  var root = document.getElementById('qpRoot'); if (!root) return null;
+  if (root.querySelector('#qdRoot')){
+    return what === 'desc' ? root.querySelector('#qd-proposal .qb-incl') : root.querySelector('#qd-roofing');
+  }
+  if (root.querySelector('.qb')){
+    var keys = _qbPages().map(function(p){ return p.key; });
+    var want = keys.indexOf(what === 'desc' ? 'proposal' : 'grade');
+    if (want >= 0 && QB.i !== want){ _qbGo(want); }
+    return what === 'desc' ? root.querySelector('#qbPage .qb-incl') : root.querySelector('#qbPage .qb-opts');
+  }
+  return what === 'desc' ? root.querySelector('[data-qe="desc"]') : root.querySelector('#qpSelPageAnchor');
+}
+function _qeSpot(what, hoverOnly){
+  var el = null; try { el = _qeTarget(what); } catch(e){}
+  if (!el) return;
+  if (!hoverOnly){ try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){} }
+  el.classList.add('qe-spot');
+  clearTimeout(el._qeSpotT);
+  el._qeSpotT = setTimeout(function(){ el.classList.remove('qe-spot'); }, hoverOnly ? 1400 : 2600);
+}
+// "Edit this quote's selections": every product the company offers, with
+// a tick for whether THIS quote offers it. The defaults are a click away.
+function _qselOpen(){
+  if (!S.quote) return;
+  var old = document.getElementById('qselModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'qselModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qsel">'+
+      '<div class="qsel-hd"><b>Edit this quote\u2019s selections</b><span>Untick a product and this quote stops offering it \u2014 on the phone, the computer and the document. Nothing here changes what other quotes offer.</span></div>'+
+      '<div class="qsel-list" id="qselList"></div>'+
+      '<div class="qsel-ft">'+
+        '<button type="button" class="qa-btn" onclick="_qselDefaults()" title="The products every new quote starts with \u2014 Settings \u2192 Quote\u2019s Product Options">Edit default selections</button>'+
+        '<span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="_qselClose()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" onclick="_qselSave()">Save</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) _qselClose(); });
+  host._hide = JSON.parse(JSON.stringify(_selQuoteHide()));
+  _qselPaint();
+}
+function _qselGroups(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var base = _selBaseGradeId();
+  var g = [];
+  g.push({ kind:'grades', title:'Steel grades', rows:_selLive(_selGradesAll()).map(function(x, i){
+    return { id:x.id, label:x.name || x.id, locked: x.id === base ? 'the base grade' : (x.id === (p.steelGrade || base) ? 'picked on this quote' : '') }; }) });
+  var prs = _selLive(_selProfilesAll());
+  g.push({ kind:'profiles', title:'Roof profiles', rows:prs.map(function(x, i){
+    return { id:x.id, label:x.name || x.id, locked: i === 0 ? 'the standard profile' : (x.id === p.profile ? 'picked on this quote' : '') }; }) });
+  g.push({ kind:'gutters', title:'Guttering (\u201cNo new guttering\u201d is always offered)', rows:_selLive(_selGuttersAll()).map(function(x){
+    return { id:x.id, label:x.name || x.id, locked: x.id === p.gutterType ? 'picked on this quote' : '' }; }) });
+  var cur = { thickness: p.steelThickness || '40', brackets: p.gutterBracket || 'internal', downpipes: p.downpipes || 'no', disposal: p.disposal || 'dispose' };
+  _selFixedGroups().forEach(function(fg){
+    var copy = _selCopy()[fg.kind] || {};
+    g.push({ kind:fg.kind, title:fg.title, rows:fg.rows.filter(function(r, i){ return !(copy[r.id] && copy[r.id].hidden && i > 0); }).map(function(r, i){
+      var o = copy[r.id] || {};
+      return { id:r.id, label:(o.name != null && String(o.name).trim()) ? String(o.name) : r.label,
+               locked: i === 0 ? 'the standard choice' : (r.id === cur[fg.kind] ? 'picked on this quote' : '') }; }) });
+  });
+  var ex = _selExtrasOffered();
+  if (ex.length) g.push({ kind:'extras', title:'Other options', rows:ex.map(function(x){ return { id:x.id, label:x.title || x.id, locked:'' }; }) });
+  return g;
+}
+function _qselPaint(){
+  var host = document.getElementById('qselModal'); if (!host) return;
+  var list = document.getElementById('qselList'); if (!list) return;
+  var hide = host._hide;
+  list.innerHTML = _qselGroups().map(function(g){
+    return '<div class="qsel-g">'+esc2(g.title)+'</div>'+g.rows.map(function(r){
+      var off = !!(hide[g.kind] && hide[g.kind][r.id]);
+      return '<label class="qsel-row'+(off ? ' off' : '')+'">'+
+          '<input type="checkbox" data-qsel-kind="'+esc2(g.kind)+'" data-qsel-id="'+esc2(r.id)+'"'+(off ? '' : ' checked')+(r.locked ? ' disabled' : '')+' onchange="_qselToggle(\''+esc2(g.kind)+'\',\''+esc2(r.id)+'\',this.checked)">'+
+          '<span>'+esc2(r.label)+'</span>'+
+          (r.locked ? '<span class="qsel-why">always offered \u2014 '+esc2(r.locked)+'</span>' : '')+
+        '</label>';
+    }).join('');
+  }).join('');
+}
+function _qselToggle(kind, id, on){
+  var host = document.getElementById('qselModal'); if (!host) return;
+  var h = host._hide; if (!h[kind]) h[kind] = {};
+  if (on) delete h[kind][id]; else h[kind][id] = true;
+  if (!Object.keys(h[kind]).length) delete h[kind];
+  _qselPaint();
+}
+function _qselClose(){ var h = document.getElementById('qselModal'); if (h) h.remove(); }
+function _qselSave(){
+  var host = document.getElementById('qselModal'); if (!host || !S.quote) return;
+  var h = host._hide;
+  if (Object.keys(h).length) S.quote.selHide = h; else delete S.quote.selHide;
+  _qselClose();
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  try { _siteToast(Object.keys(h).length ? 'Selections saved for this quote' : 'This quote offers every product again'); } catch(e){}
+}
+function _qselDefaults(){
+  _qselClose();
+  try { gotoTab('settings'); } catch(e){}
+  try {
+    var btn = document.querySelector('button[onclick*="set-products"]');
+    switchSettingsSub('set-products', btn);
+    renderSelectablesUI(); _pbGradeTabsRender();
+  } catch(e){}
 }
 // ── the option pages ──────────────────────────────────────────────
 // One decision per page, laid out the same way every time: what is being
@@ -32931,7 +33215,7 @@ function refreshQuoteProposal(){
     var _roofScopeLine = '';
     try { _roofScopeLine = _qpRoofScopeLine(); } catch(e){}
     var _scopeInner =
-      '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included and our process</div>'+
+      '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" data-qe="desc" style="margin-bottom:8px">What\'s included and our process</div>'+
       (_roofScopeLine ? '<div class="ed-body" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);line-height:1.5;margin:-2px 0 10px">'+_roofScopeLine+'</div>' : '')+
       inclList;
     var _notesInner =
@@ -33870,6 +34154,10 @@ function refreshQuoteProposal(){
     // A computer gets the same quote on one page with a summary rail.
     try { _qbBindExtraSetters(); _qdRender(); _qdScrollRestore(_deskScroll); } catch(e){ console.warn('quote desk:', e); }
   }
+  // In the office the modern previews are edited too: the cover title and
+  // the condition summary by clicking on them, the description and the
+  // selections through the rail.
+  if (!window.__CUSTOMER_MODE && (_qpBookActive() || _qpDeskActive())){ try { _qeBindModernEdits(); } catch(e){} }
   try { _syncQuoteKindToggle(); } catch(e){}
   try { _syncQuotePreviewToggle(); } catch(e){}
   try { _qtSyncSavedPicker(); } catch(e){}
@@ -35236,19 +35524,26 @@ function _qpUnfitPrintPages(){
   _qpPrintFit = [];
 }
 function printQuote(){
-  // Print the editorial proposal only (#qpRoot) — exactly what the
-  // Quote-tab preview shows.  The inspection report is the proposal's
-  // own "Existing roof condition" page, so the legacy #tab-report is
-  // never printed (it duplicated content and used a different total).
+  // Print the A4 document, whatever the preview is showing: the roofer may
+  // be looking at the customer's phone or the one-page layout, and paper
+  // is always the document. The inspection report is the proposal's own
+  // "Existing roof condition" page, so the legacy #tab-report is never
+  // printed (it duplicated content and used a different total).
+  var htmlEl = document.documentElement;
+  window.__PRINTING_QUOTE = true;
+  _qpPreviewClassesSync();
+  var root = document.getElementById('qpRoot'); if (root){ root.style.width = ''; root.style.zoom = 1; }   // full A4 on paper
   try { refreshQuoteProposal(); } catch(e){}
-  document.documentElement.classList.add('print-quote');
-  var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1; // full A4 on paper
+  htmlEl.classList.add('print-quote');
   setTimeout(function(){
     try { _qpFitPrintPages(); } catch(e){}
     window.print();
     setTimeout(function(){
       try { _qpUnfitPrintPages(); } catch(e){}
-      document.documentElement.classList.remove('print-quote');
+      htmlEl.classList.remove('print-quote');
+      window.__PRINTING_QUOTE = false;
+      _qpPreviewClassesSync();
+      try { refreshQuoteProposal(); } catch(e){}
       try { _fitProposalPages(); } catch(e){}   // restore screen fit
     }, 500);
   }, 50);
@@ -35266,6 +35561,7 @@ function printCustomerQuote(){
   window.__PRINTING_QUOTE = true;
   htmlEl.classList.remove('customer-mobile');
   htmlEl.classList.remove('qp-phone-preview');
+  htmlEl.classList.remove('qp-classic-phone');
   htmlEl.classList.remove('qp-desk-preview');
   if (root){ root.style.width = ''; root.style.zoom = 1; }
   // Re-render so any free-layout / stacked-mobile boxes return to A4.
@@ -35279,10 +35575,7 @@ function printCustomerQuote(){
       htmlEl.classList.remove('print-quote');
       if (wasMobile) htmlEl.classList.add('customer-mobile');
       window.__PRINTING_QUOTE = false;
-      if (wasPhonePv){ htmlEl.classList.add('qp-phone-preview');
-        try { refreshQuoteProposal(); } catch(e){} }
-      if (wasDeskPv){ htmlEl.classList.add('qp-desk-preview');
-        try { refreshQuoteProposal(); } catch(e){} }
+      if (!window.__CUSTOMER_MODE){ _qpPreviewClassesSync(); try { refreshQuoteProposal(); } catch(e){} }
       try { _fitCustomerView(); } catch(e){}
     }, 600);
   }, 150);
@@ -59171,7 +59464,7 @@ async function _buildQuotePdf(opts){
   var _wasPrinting = !!window.__PRINTING_QUOTE;
   window.__PRINTING_QUOTE = true;
   var _wasDeskPvPdf = !!(typeof QP_PREVIEW !== 'undefined' && QP_PREVIEW.desk);
-  if (_wasDeskPvPdf) document.documentElement.classList.remove('qp-desk-preview');
+  if (!window.__CUSTOMER_MODE){ try { _qpPreviewClassesSync(); } catch(e){} }   // every preview frame off for the capture
   // The customer was reading the book or the computer layout. The A4 has to
   // be on the page for html2canvas to draw it, but they must not SEE it —
   // "a weird screen showing the old quote style for a few seconds". A veil
@@ -59200,8 +59493,7 @@ async function _buildQuotePdf(opts){
   var _pdfDone = function(){
     window.__PRINTING_QUOTE = _wasPrinting;
     try { if (_veil) _veil.remove(); } catch(e){}
-    if (_wasDeskPvPdf){ document.documentElement.classList.add('qp-desk-preview');
-      try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
+    if (!window.__CUSTOMER_MODE){ try { _qpPreviewClassesSync(); } catch(e){} }
     // The customer's screen goes back to the book or the computer layout.
     try { if (window.__CUSTOMER_MODE && typeof _fitCustomerView === 'function') _fitCustomerView(); } catch(e){}
   };
