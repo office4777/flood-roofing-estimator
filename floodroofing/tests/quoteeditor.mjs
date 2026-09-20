@@ -8,7 +8,7 @@
 //  products for this specific quote, with a button Edit default selections
 //  that jumps to the settings products tab."
 //
-// Pinned: the rail and its two buttons; the description editor edits the
+// Pinned: the edit buttons beside what they edit (the rail was replaced); the description editor edits the
 // modern lines or the classic scope depending on the style; the selections
 // window hides a product for THIS quote only (never the base grade, never
 // what is picked, never the company's defaults) and every layout leaves it
@@ -49,22 +49,66 @@ await pg.waitForTimeout(600);
 await pg.evaluate(() => { gotoTab('quote'); try { setMainScope('reroof'); } catch(e){} });
 await pg.waitForTimeout(2400);
 
-const rail = await pg.evaluate(() => {
-  const r = document.getElementById('qeRail'); const card = document.querySelector('.qe-wrap > .card');
-  const rr = r.getBoundingClientRect(), cr = card.getBoundingClientRect();
-  return { rail: !!r, left: rr.right <= cr.left + 1, desc: !!document.getElementById('qeBtnDesc'), sel: !!document.getElementById('qeBtnSel'),
-           selText: (document.getElementById('qeBtnSel')||{}).textContent || '', arrows: r.querySelectorAll('.qe-arrow').length, office: r.classList.contains('no-print') };
+// The buttons sit ON the preview beside what they edit (the owner: "edit
+// the quote description next to the description, edit this quote's
+// selections next to the selections, edit the gutter selections next to
+// the gutter selections") — no rail down the left any more.
+const where = await pg.evaluate(async () => {
+  const at = () => [...document.querySelectorAll('#qpRoot .qe-inline')].map(b => b.dataset.qeBtn + '@' + ((b.closest('section') || {}).id || ''));
+  const out = { rail: !!document.getElementById('qeRail'), desk: at() };
+  _qeEdit('gutter'); await new Promise(r => setTimeout(r, 200));
+  out.gutterTitle = (document.querySelector('#qselModal .qsel-hd b') || {}).textContent || '';
+  out.gutterGroups = [...document.querySelectorAll('#qselList .qsel-g')].map(g => g.textContent.replace(/\s*\(.*$/, ''));
+  _qselClose();
+  _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 600));
+  const keys = _qbPages().map(p => p.key); out.book = {};
+  for (const k of ['proposal', 'grade', 'gutter']){ _qbGo(keys.indexOf(k)); await new Promise(r => setTimeout(r, 150)); out.book[k] = [...document.querySelectorAll('#qbPage .qe-inline')].map(b => b.dataset.qeBtn).join(','); }
+  _setQuoteStyle('classic'); _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 900));
+  out.a4 = [...document.querySelectorAll('#qpRoot .qe-inline')].map(b => b.dataset.qeBtn);
+  _setQuoteStyle('modern'); await new Promise(r => setTimeout(r, 700));
+  return out;
 });
-check('the rail sits down the LEFT of the preview with Edit description and Edit this quote’s selections, arrows and all',
-  rail.rail && rail.left && rail.desc && rail.sel && /quote.s selections/i.test(rail.selText) && rail.arrows === 2 && rail.office, JSON.stringify(rail));
+check('no rail: Edit description sits on the proposal, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
+  !where.rail && where.desk.join(',') === 'desc@qd-proposal,sel@qd-roofing,gutter@qd-gutter', JSON.stringify(where.desk));
+check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
+check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
+check('Edit gutter selections opens the selections window filtered to gutters, brackets and downpipes',
+  where.gutterTitle === 'Edit gutter selections' && where.gutterGroups.join('|') === 'Guttering|Gutter brackets|Downpipes', JSON.stringify([where.gutterTitle, where.gutterGroups]));
+
+// The Existing roof condition card is back on the Quote tab with a tick that
+// puts the section in the quote or takes it out — on the phone and the
+// computer as well as the document.
+const cond = await pg.evaluate(async () => {
+  const card = document.getElementById('qCondCard'); const cb = document.getElementById('qCondInclude');
+  const out = { card: !!card && getComputedStyle(card).display !== 'none', tickedAtStart: cb.checked, inDocAtStart: _qpInDoc('condition') };
+  document.getElementById('qdCondSummary').value = 'Around 35 years old and rusting through.'; onQuoteEdit(); await new Promise(r => setTimeout(r, 500));
+  out.saved = S.quote.conditionSummary;
+  out.onPage = (document.getElementById('qpRoot').textContent || '').includes('rusting through');
+  cb.checked = false; _qCondIncludeToggle(cb); await new Promise(r => setTimeout(r, 500));
+  out.off = { inDoc: _qpInDoc('condition'), desk: !!document.getElementById('qd-condition'), sectionsCard: !!document.querySelector('#qProposalSections [data-section="condition"].on'), text: (document.getElementById('qpRoot').textContent || '').includes('rusting through') };
+  _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 600));
+  out.offBook = _qbPages().map(p => p.key).includes('condition');
+  cb.checked = true; _qCondIncludeToggle(cb); await new Promise(r => setTimeout(r, 500));
+  out.on = { inDoc: _qpInDoc('condition'), book: _qbPages().map(p => p.key).includes('condition') };
+  _qbGo(_qbPages().map(p => p.key).indexOf('condition')); await new Promise(r => setTimeout(r, 200));
+  out.condBtn = [...document.querySelectorAll('#qbPage .qe-inline')].map(b => b.dataset.qeBtn).join(',');
+  _qeEdit('cond'); await new Promise(r => setTimeout(r, 700));
+  out.cardOpened = card.open;
+  _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 600));
+  return out;
+});
+check('the Existing roof condition card is on the Quote tab, ticked, and its summary reaches the customer’s page', cond.card && cond.tickedAtStart && cond.inDocAtStart && cond.saved === 'Around 35 years old and rusting through.' && cond.onPage, JSON.stringify(cond));
+check('unticking it takes the section out of the document, the one-page layout and the book (and the Proposal sections card agrees)',
+  !cond.off.inDoc && !cond.off.desk && !cond.off.sectionsCard && !cond.off.text && !cond.offBook, JSON.stringify(cond.off));
+check('ticking it puts the section back, with Edit roof condition on it, which opens the card', cond.on.inDoc && cond.on.book && cond.condBtn === 'cond' && cond.cardOpened, JSON.stringify([cond.on, cond.condBtn, cond.cardOpened]));
 
 // the arrow's landing on each layout
 const spots = await pg.evaluate(async () => {
   const out = {};
-  _qeSpot('desc'); out.desk = (document.querySelector('.qe-spot') || {}).className || '';
+  _qeSpot('desc'); out.desk = (document.querySelector('#qpRoot .qe-spot') || {}).className || '';
   _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 600));
   _qeSpot('desc'); await new Promise(r => setTimeout(r, 200));
-  out.bookPage = document.getElementById('qbPage').dataset.qbPage; out.book = (document.querySelector('.qe-spot') || {}).className || '';
+  out.bookPage = document.getElementById('qbPage').dataset.qbPage; out.book = (document.querySelector('#qpRoot .qe-spot') || {}).className || '';
   _setQuoteStyle('classic'); _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 800));
   _qeSpot('desc'); out.a4 = !!document.querySelector('[data-qe="desc"].qe-spot');
   return out;
@@ -174,7 +218,8 @@ async function customer(viewport, q){
   const v = await p.evaluate(() => ({ a4: document.querySelectorAll('#qpRoot .rp-page').length, qd: !!document.getElementById('qdRoot'), book: !!document.querySelector('#qpRoot .qb'),
     desk: document.documentElement.classList.contains('qp-desk'), bookCls: document.documentElement.classList.contains('qp-book'),
     reflow: document.documentElement.classList.contains('customer-mobile'), bar: getComputedStyle(document.getElementById('custBar')).display !== 'none',
-    grades: [...document.querySelectorAll('[data-qb-opt="steelGrade"]')].map(x => x.dataset.qbVal), text: document.getElementById('qpRoot').textContent }));
+    grades: [...document.querySelectorAll('[data-qb-opt="steelGrade"]')].map(x => x.dataset.qbVal), text: document.getElementById('qpRoot').textContent,
+    editBtns: document.querySelectorAll('.qe-inline').length }));
   await c.close(); return Object.assign(v, { errs: e });
 }
 const kc = await customer({ width:1366, height:850 }, quote({ style:'classic' }));
@@ -185,6 +230,7 @@ const mc = await customer({ width:1366, height:850 }, quote({ style:'modern', se
 check('a MODERN quote is the one-page layout, without the grade the office took off this quote', mc.qd && mc.desk && !mc.grades.includes('colorzen') && mc.grades.includes('maxam'), mc.grades.join(','));
 const mp = await customer({ width:390, height:844 }, quote({ selHide:{ grades:{ colorzen:true } } }));
 check('…and with no style at all a quote is modern (the book on a phone)', mp.book && mp.bookCls);
+check('the customer never sees an edit button, on any layout', [kc, kp, mc, mp].every(x => x.editBtns === 0), [kc, kp, mc, mp].map(x => x.editBtns).join(','));
 check('nothing threw on the customer’s screens', [kc, kp, mc, mp].every(x => x.errs.length === 0));
 
 await b.close();

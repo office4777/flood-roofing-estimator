@@ -293,7 +293,16 @@ Discipline (non-negotiable):
   `custDesc` lines or the classic `scope` bullets by style) and "Edit this
   quote's selections" (`_qselOpen`); each lights the part of the page it
   edits (`_qeSpot`: the one-page block, the book turned to that page, or
-  the A4's `[data-qe="desc"]`). Per-quote hides live in `S.quote.selHide
+  the A4's `[data-qe="desc"]`). SINCE 2026-09-20 THE RAIL IS GONE: the
+  buttons sit ON the preview beside what they edit (`_qeInlineBtn(what)`,
+  office only — empty in customer mode and while printing): "Edit
+  description" under the Re-Roof Proposal heading, "Edit this quote's
+  selections" on the roofing section / the book's grade page / the A4's
+  selections page, "Edit gutter selections" on the guttering
+  (`_qselOpen('gutter')` = the same window filtered to gutters, brackets
+  and downpipes), "Edit roof condition" on the condition section
+  (`_qeOpenCondition` opens the Quote tab's card). `_qpOptPageWrap` is
+  where the book's pages get theirs. Per-quote hides live in `S.quote.selHide
   [kind][id]` and are honoured by `_selGrades/_selProfiles/_selGutters`
   (via `_selLive(list, kind)`), `_selFixed` and `_selExtras`
   (`_selExtrasOffered` is the list before hides); the base grade, the
@@ -336,6 +345,28 @@ Discipline (non-negotiable):
   `S.quote.custDesc`; saving the default DELETES the field so a later
   default change reaches quotes nobody customised. The A4 keeps its own
   long inclusions list.
+- The EXISTING ROOF CONDITION card is on the Quote tab again (2026-09-20;
+  `#qCondCard`, it was `display:none` for a while) with a tick
+  (`#qCondInclude`, `_qCondIncludeToggle`) that is the same page move as
+  the Proposal sections card and the page editor (`toggleProposalSection
+  ('condition')`), read back from the page list by `_qCondIncludeSync`,
+  never a flag of its own. Its Summary field is `conditionSummary`, the
+  paragraph the phone and the computer show. `_qbHasCondition()` answers
+  false when the page is out of the document, so the tick reaches the
+  modern layouts as well as the A4. `tests/quoteeditor.mjs`.
+- JOB PROFITABILITY (Pricing tab) lists what the job is made of and its
+  tiles add that list up: `_profitFigures(view).items` — 1. Scaffolding,
+  2. Roofing (labour + materials), then the quote's selections from
+  `_profitSelectionItems()` (the same rows as `_qpSelectionChanges`, on
+  the Total and the main roof's view only): a gutter carries its own
+  hours at the labour table's cost rates plus its itemised material with
+  the buffer, the platform uplift is a quarter of the scaffold on both
+  sides, grades and gauges pass through at cost, brackets and downpipes
+  are material less the gutter mark-up. `revenue`, `cost` and `hrsAll`
+  are the totals the tiles show; `hrs` stays the roof's own hours because
+  the GP/hr nudge moves the roof rates and spreads over those. A pick on
+  the quote re-renders the panel (`_setProposalOption`, `_gdChanged`).
+  `tests/profititems.mjs`.
 - A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" and "Open saved
   draft" go through `_qvFreshDraft()`, which strips `accepted`/`declined` and
   un-flags an accepted share. The copy used to carry `accepted` with it, and

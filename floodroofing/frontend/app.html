@@ -3133,11 +3133,15 @@ select.qa-btn{ padding:5px 8px; }
 .qe-rail-note{ font-size:11px; line-height:1.45; color:var(--text2); margin-top:6px; }
 @media (max-width:900px){
   .qe-wrap{ flex-direction:column; }
-  .qe-rail{ position:static; flex:none; width:100%; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-  .qe-rail-h{ flex:0 0 100%; margin-bottom:2px; }
-  .qe-btn{ width:auto; flex:1 1 200px; margin:0; }
-  .qe-rail-note{ flex:0 0 100%; }
 }
+/* The office's edit button ON the preview, beside the thing it edits. Only
+   the office sees it (never rendered in customer mode, never printed). */
+.qe-inline{ display:inline-flex; align-items:center; gap:5px; margin:2px 0 10px; padding:5px 10px; border:1px solid #0099cc; border-radius:999px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1; cursor:pointer; white-space:nowrap; }
+.qe-inline:hover{ background:#f0f8ff; }
+html.qp-phone-preview .qe-inline{ font-size:12px; }
+.qb-h2 + .qe-inline, .qb-h2 + .qe-inline-row{ margin-top:-4px; }
+.qe-inline-row{ display:flex; flex-wrap:wrap; gap:6px; }
+@media print{ .qe-inline, .qe-inline-row{ display:none !important; } }
 /* The arrow's landing: the block on the page the button edits. */
 .qe-spot{ outline:3px solid #0099cc !important; outline-offset:4px; border-radius:6px; animation:qeSpotPulse 1.2s ease-in-out 2; }
 @keyframes qeSpotPulse{ 0%,100%{ outline-color:#0099cc; } 50%{ outline-color:rgba(0,153,204,.15); } }
@@ -6937,12 +6941,18 @@ html.qp-desk-preview .qd-top{ position:static; }
     <textarea id="qtTerms" rows="3" placeholder="Any job-specific terms to add — the full standard Flood Roofing T&Cs print automatically." oninput="onQuoteEdit()"></textarea>
   </div>
 
-  <!-- Existing roof condition — hidden: edited inline on the proposal's
-       condition page. Inputs kept in the DOM for save/load + inline-sync. -->
-  <details class="card" style="display:none">
-    <summary class="card-hd"><span class="card-dot"></span>Existing roof condition<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— shown on the inspection-report page</span></summary>
+  <!-- Existing roof condition. The tick puts the section in the quote or
+       takes it out (the same act as the Proposal sections card and the
+       page editor: it moves the page, it does not set a parallel flag).
+       The summary is what the phone and the computer show; the detail
+       fields feed the document's inspection page. -->
+  <details class="card" id="qCondCard">
+    <summary class="card-hd"><span class="card-dot"></span>Existing roof condition<span id="qCondCardHint" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— in this quote</span></summary>
     <div class="qadv-body">
-      <p style="font-size:11px;color:var(--text2);margin:0 0 10px">Roof type &amp; pitch default to your Map Roof drawing if left blank.</p>
+      <label class="no-print" style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" id="qCondInclude" onchange="_qCondIncludeToggle(this)" style="width:16px;height:16px;margin:0">Include the roof condition section in this quote</label>
+      <label>Summary <span style="color:var(--text3);font-weight:400">(the paragraph the customer reads on their phone and computer)</span></label>
+      <textarea id="qdCondSummary" rows="3" placeholder="We inspected the roof on site. It is around 35 years old in Decromastic tile…" oninput="onQuoteEdit()"></textarea>
+      <p style="font-size:11px;color:var(--text2);margin:10px 0 10px">Roof type &amp; pitch default to your Map Roof drawing if left blank.</p>
       <div class="f2">
         <div><label>Roof type</label><input type="text" id="qdCondRoofType" placeholder="e.g. Hip &amp; gable / Decromastic tile" oninput="onQuoteEdit()"></div>
         <div><label>Roof pitch</label><input type="text" id="qdCondPitch" placeholder="e.g. 20°" oninput="onQuoteEdit()"></div>
@@ -7054,15 +7064,12 @@ html.qp-desk-preview .qd-top{ position:static; }
        (client, scope, conditions, notes, terms, price fields) to edit it
        directly; changes save into the quote and print exactly as shown. -->
   <div class="qe-wrap">
-  <!-- THE QUOTE EDITOR RAIL (report 56): the office's edits to THIS quote,
-       down the left of the preview. Each button points at the part of the
-       page it edits. Defaults live in Settings; nothing here touches them. -->
-  <aside class="qe-rail no-print" id="qeRail">
-    <div class="qe-rail-h">Edit this quote</div>
-    <button type="button" class="qe-btn no-print" id="qeBtnDesc" onclick="_qeEditDescription()" onmouseenter="_qeSpot('desc', true)" title="The description of the work the customer reads. Reword, reorder, remove or add lines — for this quote only."><span>Edit description</span><i class="qe-arrow" aria-hidden="true">&#10140;</i></button>
-    <button type="button" class="qe-btn no-print" id="qeBtnSel" onclick="_qeEditSelections()" onmouseenter="_qeSpot('sel', true)" title="Which products this quote offers — steel grades, profiles, gutters and the rest. For this quote only."><span>Edit this quote&#8217;s selections</span><i class="qe-arrow" aria-hidden="true">&#10140;</i></button>
-    <div class="qe-rail-note">For this quote only. The defaults every new quote starts from are under Settings &#8594; Quote&#8217;s Product Options.</div>
-  </aside>
+  <!-- THE QUOTE'S EDIT BUTTONS (report 56, then moved): the office's edits to
+       THIS quote sit ON the preview beside what they edit — Edit description
+       by the description, Edit this quote's selections by the roofing
+       choices, Edit gutter selections by the guttering, Edit roof condition
+       by the condition section (_qeInlineBtn). Defaults live in Settings;
+       nothing here touches them. -->
   <div class="card js-proposal-print">
     <div class="card-hd"><span class="card-dot"></span>Proposal <span id="qeCardHint" style="font-weight:400;color:var(--text2)">&#8212; click any text to edit</span>
       <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
@@ -21708,6 +21715,7 @@ function renderGutterDownpipePricing(){
 }
 function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
   try { _officePriceBarSync(); } catch(e){}
   try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
@@ -21751,11 +21759,77 @@ function _profitFigures(view){
     return { labourPrice: _labourPriceForRoof(i), labourCost: _labourCostForRoof(i), hrs: f(rl.leadHrs) + f(rl.appHrs),
              mat: _materialsCostForRoofIdx(i), scPrice: sc.price, scCost: sc.cost, area: area };
   };
-  if (!multi || view !== 'total') return one(multi ? view : 0);
-  var out = { labourPrice: 0, labourCost: 0, hrs: 0, mat: 0, scPrice: 0, scCost: 0, area: 0 };
-  _pricingRoofTabIdxs().forEach(function(i){
-    var x = one(i);
-    Object.keys(out).forEach(function(k){ out[k] += x[k]; });
+  var out;
+  if (!multi || view !== 'total') out = one(multi ? view : 0);
+  else {
+    out = { labourPrice: 0, labourCost: 0, hrs: 0, mat: 0, scPrice: 0, scCost: 0, area: 0 };
+    _pricingRoofTabIdxs().forEach(function(i){
+      var x = one(i);
+      Object.keys(out).forEach(function(k){ out[k] += x[k]; });
+    });
+  }
+  // What the job is made of, numbered the way the owner reads it: 1.
+  // Scaffolding, 2. Roofing, then whatever the quote's selections add —
+  // a steel grade, a gauge, the gutters with their own hours, the platform
+  // uplift, brackets, downpipes, the company's extras. The selections are
+  // the QUOTE's (the main roof's price), so they ride on the total and on
+  // the main roof's view, never on an extra roof's own tile.
+  var items = [
+    { key:'scaffold', label:'Scaffolding', revenue: out.scPrice, cost: out.scCost, hrs: 0, sub:'' },
+    { key:'roofing',  label:'Roofing',     revenue: out.labourPrice + out.mat, cost: out.labourCost + out.mat, hrs: out.hrs, sub:'labour + materials' }
+  ];
+  if (view === 'total' || view === 0 || !multi){
+    try { _profitSelectionItems().forEach(function(it){ items.push(it); }); } catch(e){ console.warn('profit selections', e); }
+  }
+  out.items = items;
+  out.revenue = 0; out.cost = 0; out.hrsAll = 0;
+  items.forEach(function(it){ out.revenue += f(it.revenue); out.cost += f(it.cost); out.hrsAll += f(it.hrs); });
+  return out;
+}
+// The quote's selections as profitability rows: the customer's price for
+// each (the same figure _qpSelectionChanges puts on the quote, ex GST), what
+// it costs us and the hours it adds. Materials pass through at price-book
+// cost like the roof's own do, so a grade or gauge upgrade is revenue and
+// cost alike; the gutter's labour is its hours at the labour table's cost
+// rates and its material is the itemised lines plus the waste buffer; the
+// platform uplift lifts the scaffold's cost by the same quarter it lifts the
+// price; brackets, downpipes and extras are marked-up materials.
+function _profitSelectionItems(){
+  var f = function(v){ return parseFloat(v) || 0; };
+  var q = S.quote || {};
+  var p = q.proposalOptions || {};
+  var out = [];
+  var changes = [];
+  try { changes = _qpSelectionChanges() || []; } catch(e){ changes = []; }
+  var gutMark = 0; try { gutMark = f(_gutterMatMarkupPct()); } catch(e){}
+  var passMarked = function(rev){ return rev / (1 + gutMark / 100); };
+  changes.forEach(function(ch){
+    if (ch.roofName || ch.split) return;                 // an optional extra roof: already a roof of its own in the figures
+    var rev = f(ch.delta);
+    var it = { key:'sel', label: ch.label, revenue: rev, cost: rev, hrs: 0, sub:'materials at cost' };
+    var L = String(ch.label || '');
+    if (/^Platform scaffolding upgrade/.test(L)){
+      var sc = _scaffoldEff(_roofScaffold(0));
+      it.key = 'scaffoldUp'; it.label = 'Platform scaffolding upgrade'; it.cost = 0.25 * sc.cost; it.sub = '+25% of the scaffold, cost and price alike';
+    } else if (/^External gutter brackets/.test(L)){
+      it.key = 'brackets'; it.cost = passMarked(rev); it.sub = 'material less the gutter mark-up';
+    } else if (/^New downpipes/.test(L)){
+      it.key = 'downpipes'; it.cost = passMarked(rev); it.sub = 'material less the gutter mark-up';
+    } else if (p.gutterType !== undefined && _selGutterOf(p.gutterType) && L === (_selGutterOf(p.gutterType).name || p.gutterType)){
+      it.key = 'gutter'; it.label = 'Gutters \u2014 ' + L;
+      var lm = 0; try { lm = f(_selGutterLm()); } catch(e){}
+      var gl = _gutterLabourState(lm);
+      var matBase = 0;
+      try { matBase = _gutterMaterialLines(p.gutterType, lm, _selGutterLineCount(), _selGutterCorners()).reduce(function(a, r){ return a + f(r.lineTotal); }, 0) * (1 + f(_gutterMatQtyBufferPct()) / 100); } catch(e){}
+      it.hrs = f(gl.leadHrs) + f(gl.appHrs);
+      it.cost = matBase + f(gl.leadHrs) * f(gl.leadCost) + f(gl.appHrs) * f(gl.appCost);
+      it.sub = lm.toFixed(1) + ' lm \u00b7 ' + it.hrs.toFixed(1) + ' hrs labour + material';
+    } else if (/ steel$/.test(L) || / gauge steel$/.test(L) || /profile \(supplied in/.test(L)){
+      it.sub = 'materials at cost';
+    } else {
+      it.sub = 'at cost';
+    }
+    out.push(it);
   });
   return out;
 }
@@ -21769,13 +21843,15 @@ function renderProfitability(){
   var f = function(v){ return parseFloat(v) || 0; };
   var view = _profitView();
   var g = _profitFigures(view);
-  var labourPrice = g.labourPrice, labourCost = g.labourCost, hrs = g.hrs;
+  var labourPrice = g.labourPrice, labourCost = g.labourCost, hrs = g.hrsAll;
   var mat = g.mat;
   var scPrice = g.scPrice, scCost = g.scCost;
-  // Revenue (ex-GST charge-out) and our cost. Materials pass through at
-  // price-book cost, so GP comes from the labour + scaffold margin.
-  var revenue = labourPrice + mat + scPrice;
-  var cost    = labourCost  + mat + scCost;
+  // Revenue (ex-GST charge-out) and our cost: everything in the numbered
+  // list below — the scaffold, the roofing, and what the quote's selections
+  // add. Materials pass through at price-book cost, so GP comes from the
+  // labour + scaffold margin.
+  var revenue = g.revenue;
+  var cost    = g.cost;
   var gp = revenue - cost;
   var gpPct = revenue > 0 ? (gp / revenue * 100) : 0;
   var gpHr  = hrs > 0 ? (gp / hrs) : 0;
@@ -21817,18 +21893,34 @@ function renderProfitability(){
     '</div>';
   }
   var gpColor = gpPct >= 40 ? '#15803d' : (gpPct >= 25 ? '#b45309' : '#b91c1c');
+  // What is in the job, numbered: the owner reads "1. Scaffolding 2. Roofing
+  // 3. ColorCote 4. Gutters" and knows the figures above are those four.
+  var itemsHtml = '<div id="profitItems" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
+    '<div style="display:grid;grid-template-columns:minmax(0,1fr) 78px 78px 70px;gap:6px;padding:6px 10px;background:#f7f9fb;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);font-weight:700">'+
+      '<span>What\u2019s in this job</span><span style="text-align:right">Revenue</span><span style="text-align:right">Cost</span><span style="text-align:right">GP</span></div>'+
+    (g.items || []).map(function(it, i){
+      var igp = f(it.revenue) - f(it.cost);
+      return '<div class="profit-item" data-profit-item="'+esc(it.key)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 78px 78px 70px;gap:6px;padding:6px 10px;border-top:1px solid var(--border);font-size:12px;align-items:center">'+
+        '<span style="min-width:0"><strong>'+(i + 1)+'. '+esc(it.label)+'</strong>'+(it.sub ? '<span style="display:block;font-size:10px;color:var(--text2)">'+esc(it.sub)+(f(it.hrs) > 0 && it.key !== 'gutter' ? ' \u00b7 '+f(it.hrs).toFixed(1)+' hrs' : '')+'</span>' : '')+'</span>'+
+        '<span style="text-align:right;white-space:nowrap">'+fmtMoney(it.revenue)+'</span>'+
+        '<span style="text-align:right;white-space:nowrap;color:var(--text2)">'+fmtMoney(it.cost)+'</span>'+
+        '<span style="text-align:right;white-space:nowrap;font-weight:600;color:'+(igp >= 0 ? '#15803d' : '#b91c1c')+'">'+fmtMoney(igp)+'</span>'+
+      '</div>';
+    }).join('')+
+    '</div>';
   wrap.innerHTML = switcher +
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">'+
-      stat('Job revenue', fmtMoney(revenue), 'ex GST · labour + materials + scaffold') +
+      stat('Job revenue', fmtMoney(revenue), 'ex GST · everything in the list below') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
       stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
-      stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates', gpColor) +
+      stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', g.hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates', gpColor) +
     '</div>'+
+    itemsHtml+
     // Per square metre sits apart from the job figures, under a rule.
     '<div style="border-top:1px solid var(--border);margin:12px 0 10px"></div>'+
     '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700;margin-bottom:6px">Per square metre' + (area > 0 ? ' · ' + area.toFixed(1) + ' m² of roof' : '') + '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px">'+
-      stat('Job revenue / m²', area > 0 ? fmtMoney(revM2) : '—', area > 0 ? 'ex GST · labour + materials + scaffold' : 'draw a roof first') +
+      stat('Job revenue / m²', area > 0 ? fmtMoney(revM2) : '—', area > 0 ? 'ex GST · the whole job' : 'draw a roof first') +
       stat('Material cost / m²', area > 0 ? fmtMoney(matM2) : '—', area > 0 ? 'from the price book' : 'draw a roof first') +
       stat('Labour price / m²', '<span id="profitLabM2">' + (area > 0 ? whole(labM2) : '—') + '</span>' + nudge('labm2', area > 0 && hrs > 0), area > 0 ? '±$1 moves the charge-out rates' : 'draw a roof first') +
     '</div>'+
@@ -21852,13 +21944,14 @@ function _profitNudge(kind, dir){
   // change per hour moves this view by exactly what was asked and every
   // other roof in proportion.
   var g = _profitFigures(_profitView());
-  var hrs = g.hrs; if (!(hrs > 0)) return;
-  var labourPrice = g.labourPrice, labourCost = g.labourCost, mat = g.mat;
-  var gp = (labourPrice + mat + g.scPrice) - (labourCost + mat + g.scCost);
+  var hrs = g.hrs; if (!(hrs > 0)) return;          // the roof's own hours: the charge-out rates move these
+  var hrsAll = g.hrsAll || hrs;                      // every hour on the job, gutters included: what GP/hr is over
+  var labourPrice = g.labourPrice;
+  var gp = g.revenue - g.cost;
   var deltaPrice = 0;
   if (kind === 'gphr'){
-    var cur = gp / hrs, target = Math.round(cur) + (dir > 0 ? 1 : -1);
-    deltaPrice = (target - cur) * hrs;
+    var cur = gp / hrsAll, target = Math.round(cur) + (dir > 0 ? 1 : -1);
+    deltaPrice = (target - cur) * hrsAll;
   } else {
     var area = g.area;
     if (!(area > 0)) return;
@@ -23215,6 +23308,7 @@ function buildQuote(){
   set('qdCondMajor',    S.quote.condMajor    || '');
   set('qdCondMinor',    S.quote.condMinor    || '');
   set('qdCondReco',     S.quote.condReco     || '');
+  set('qdCondSummary',  S.quote.conditionSummary || '');
   var _gp = S.quote.gutterPrices || {};
   set('qdGutterMarley', _gp.marley ? String(_gp.marley) : '');
   set('qdGutterBox',    _gp.box ? String(_gp.box) : '');
@@ -23268,6 +23362,7 @@ function readQuoteFromInputs(){
   q.condMajor    = val('qdCondMajor');
   q.condMinor    = val('qdCondMinor');
   q.condReco     = val('qdCondReco');
+  q.conditionSummary = val('qdCondSummary');
   if (!q.gutterPrices) q.gutterPrices = { marley: 0, box: 0 };
   q.gutterPrices.marley = parseFloat(val('qdGutterMarley')) || 0;
   q.gutterPrices.box    = parseFloat(val('qdGutterBox'))    || 0;
@@ -24706,6 +24801,9 @@ function _setProposalOption(field, value){
   S.quote.proposalOptions[field] = value;
   try { refreshQuoteProposal(); } catch(e){}
   try { renderGutterDownpipePricing(); } catch(e){}
+  // The job's profitability lists what the quote's selections add, so a
+  // pick here moves its rows and its figures.
+  try { if (!window.__CUSTOMER_MODE) renderProfitability(); } catch(e){}
   // The steel grade drives the office Material Price total — re-render it so the
   // grade adjustment row + "→ Quote" figure follow the selection immediately.
   if (field === 'steelGrade') {
@@ -26859,6 +26957,10 @@ function _qbBestJobPhoto(){
 // Is there a roof report on this quote at all?
 function _qbHasCondition(){
   var q = S.quote || {};
+  // Taken out of the quote (the tick on the condition card, the Proposal
+  // sections card or the page editor): not on the phone or the computer
+  // either, whatever the fields hold.
+  try { if (q.pages && q.pages.length && !_qpInDoc('condition')) return false; } catch(e){}
   if (String(q.condAge || '').trim() || String(q.condMaterial || '').trim()) return true;
   if (String(q.conditionSummary || '').trim()) return true;
   if ((q.condPhotos || []).filter(function(c){ return c && c.src; }).length) return true;
@@ -26894,6 +26996,7 @@ function _qbCondition(opts){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Your roof today</span>'+
       '<h2 class="qb-h2">Existing Roof Condition</h2>'+
+      _qeInlineBtn('cond')+
       '<div class="qb-pills">'+
         pill(age, 'Approximate age')+
         pill(mat, 'Material')+
@@ -26977,6 +27080,7 @@ function _qbProposal(opts){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">What we will do</span>'+
       '<h2 class="qb-h2">Re-Roof Proposal</h2>'+
+      _qeInlineBtn('desc')+
       '<div class="qb-incl">'+
         lines.map(function(t){
           return '<div class="qb-incl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
@@ -27171,10 +27275,39 @@ function _qeBindModernEdits(){
   var incl = root.querySelector('.qb-incl');
   if (incl && !incl._qeBound){ incl._qeBound = true; incl.style.cursor = 'pointer'; incl.title = 'Click to edit the description'; incl.addEventListener('click', function(){ _qdescOpen(); }); }
 }
-// ── THE QUOTE EDITOR RAIL (report 56) ─────────────────────────────
-// Each button edits one part of THIS quote and points at it on the page.
+// ── THE QUOTE'S EDIT BUTTONS (report 56, moved onto the page) ─────
+// Each button edits one part of THIS quote and sits beside it on whatever
+// the preview is showing. The office asked for them where the thing is,
+// not down a rail: "edit the quote description next to the description,
+// edit this quote's selections next to the selections, edit the gutter
+// selections next to the gutter selections".
+var QE_INLINE = {
+  desc:   { label:'Edit description',                 title:'The description of the work the customer reads. Reword, reorder, remove or add lines \u2014 for this quote only.' },
+  sel:    { label:'Edit this quote\u2019s selections', title:'Which roofing products this quote offers \u2014 steel grades, profiles, gauges. For this quote only.' },
+  gutter: { label:'Edit gutter selections',           title:'Which gutters, brackets and downpipes this quote offers. For this quote only.' },
+  cond:   { label:'Edit roof condition',              title:'The summary, the age, the material, the issues and the photos of the existing roof.' }
+};
+function _qeInlineBtn(what){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return '';
+  var o = QE_INLINE[what]; if (!o) return '';
+  return '<button type="button" class="qe-inline no-print" data-qe-btn="'+what+'" onclick="event.stopPropagation();_qeEdit(\''+what+'\')" title="'+esc2(o.title)+'">\u270E '+esc2(o.label)+'</button>';
+}
+function _qeEdit(what){
+  if (what === 'desc') return _qdescOpen();
+  if (what === 'sel') return _qselOpen();
+  if (what === 'gutter') return _qselOpen('gutter');
+  if (what === 'cond') return _qeOpenCondition();
+}
 function _qeEditDescription(){ _qeSpot('desc'); _qdescOpen(); }
 function _qeEditSelections(){ _qeSpot('sel'); _qselOpen(); }
+// Edit roof condition: open the card on the Quote tab and land on it.
+function _qeOpenCondition(){
+  var card = document.getElementById('qCondCard'); if (!card) return;
+  card.open = true;
+  try { card.scrollIntoView({ behavior:'smooth', block:'start' }); } catch(e){}
+  try { card.classList.add('qe-spot'); setTimeout(function(){ card.classList.remove('qe-spot'); }, 2600); } catch(e){}
+  setTimeout(function(){ try { document.getElementById('qdCondSummary').focus(); } catch(e){} }, 500);
+}
 // Where the thing lives on whatever the preview is showing — the one-page
 // layout, the book (turned to that page) or the document — lit for a
 // moment and scrolled into view.
@@ -27201,14 +27334,17 @@ function _qeSpot(what, hoverOnly){
 }
 // "Edit this quote's selections": every product the company offers, with
 // a tick for whether THIS quote offers it. The defaults are a click away.
-function _qselOpen(){
+function _qselOpen(filter){
   if (!S.quote) return;
   var old = document.getElementById('qselModal'); if (old) old.remove();
   var host = document.createElement('div');
   host.id = 'qselModal'; host.className = 'no-print';
+  host._filter = filter || '';
   host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  var ttl = filter === 'gutter' ? 'Edit gutter selections' : 'Edit this quote\u2019s selections';
+  var what = filter === 'gutter' ? 'a gutter, bracket or downpipe option' : 'a product';
   host.innerHTML = '<div class="qsel">'+
-      '<div class="qsel-hd"><b>Edit this quote\u2019s selections</b><span>Untick a product and this quote stops offering it \u2014 on the phone, the computer and the document. Nothing here changes what other quotes offer.</span></div>'+
+      '<div class="qsel-hd"><b>'+esc2(ttl)+'</b><span>Untick '+what+' and this quote stops offering it \u2014 on the phone, the computer and the document. Nothing here changes what other quotes offer.</span></div>'+
       '<div class="qsel-list" id="qselList"></div>'+
       '<div class="qsel-ft">'+
         '<button type="button" class="qa-btn" onclick="_qselDefaults()" title="The products every new quote starts with \u2014 Settings \u2192 Quote\u2019s Product Options">Edit default selections</button>'+
@@ -27222,7 +27358,13 @@ function _qselOpen(){
   host._hide = JSON.parse(JSON.stringify(_selQuoteHide()));
   _qselPaint();
 }
-function _qselGroups(){
+var QSEL_GUTTER_KINDS = ['gutters', 'brackets', 'downpipes'];
+function _qselGroups(filter){
+  var all = _qselGroupsAll();
+  if (filter === 'gutter') return all.filter(function(g){ return QSEL_GUTTER_KINDS.indexOf(g.kind) >= 0; });
+  return all;
+}
+function _qselGroupsAll(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var base = _selBaseGradeId();
   var g = [];
@@ -27249,7 +27391,7 @@ function _qselPaint(){
   var host = document.getElementById('qselModal'); if (!host) return;
   var list = document.getElementById('qselList'); if (!list) return;
   var hide = host._hide;
-  list.innerHTML = _qselGroups().map(function(g){
+  list.innerHTML = _qselGroups(host._filter).map(function(g){
     return '<div class="qsel-g">'+esc2(g.title)+'</div>'+g.rows.map(function(r){
       var off = !!(hide[g.kind] && hide[g.kind][r.id]);
       return '<label class="qsel-row'+(off ? ' off' : '')+'">'+
@@ -27321,6 +27463,7 @@ function _qbOptionPage(o){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">'+esc2(o.eyebrow || 'Your options')+'</span>'+
       '<h2 class="qb-h2">'+esc2(o.title)+'</h2>'+
+      (o.edit ? _qeInlineBtn(o.edit) : '')+
       (o.blurb ? '<p class="qb-para">'+esc2(o.blurb)+'</p>' : '')+
       (o.figure || '')+
       '<div class="qb-opts">'+rows+'</div>'+
@@ -27641,7 +27784,13 @@ function _qbBindExtraSetters(){
     });
   } catch(e){}
 }
-function _qpOptPageWrap(key, o){ return _qbOptionPage(o); }
+// The book's grade page carries the selections button, its gutter page the
+// gutter one; the one-page layout puts them on its own headings instead.
+function _qpOptPageWrap(key, o){
+  if (key === 'grade') o.edit = 'sel';
+  else if (key === 'gutter') o.edit = 'gutter';
+  return _qbOptionPage(o);
+}
 // Mark the recommended row of a fixed group: the office's pick, else the base.
 function _qbRecMark(items, field, fallback){
   var rec = _qbRecPick(field, fallback);
@@ -27864,10 +28013,11 @@ function _qdRoofing(){
   return '<div class="qb-body qd-sec-hd">'+
       '<span class="qb-eyebrow">Your roofing</span>'+
       '<h2 class="qb-h2">Choose your roofing</h2>'+
+      _qeInlineBtn('sel')+
       '<p class="qb-para">Three choices that decide how long the roof lasts, how it looks and how it stands up to the weather. The recommended ones are already picked — change any of them and the total updates.</p>'+
     '</div>'+
     '<div class="qd-grid3">'+
-      '<div class="qd-cell">'+_qbGrade()+'</div>'+
+      '<div class="qd-cell">'+_qbGrade().replace(/<button type="button" class="qe-inline[^>]*data-qe-btn="sel"[^>]*>[^<]*<\/button>/, '')+'</div>'+
       '<div class="qd-cell">'+_qbProfile()+'</div>'+
       '<div class="qd-cell">'+_qbThickness()+'</div>'+
     '</div>';
@@ -29079,6 +29229,7 @@ function _qpSyncSections(){
 }
 
 function renderProposalSectionToggles(){
+  try { _qCondIncludeSync(); } catch(e){}
   var host = document.getElementById('qProposalSections');
   if (!host) return;
   var sec = (S.quote && S.quote.proposalSections) || {};
@@ -29104,6 +29255,22 @@ function renderProposalSectionToggles(){
       '<input type="checkbox" '+(on?'checked':'')+' style="display:none">'+
     '</label>';
   }).join('');
+}
+// The tick on the Existing roof condition card: the same page move as the
+// Proposal sections card, read back from the page list so the two agree.
+function _qCondIncludeSync(){
+  var cb = document.getElementById('qCondInclude'); if (!cb) return;
+  var on = false; try { on = !!(S.quote && _qpInDoc('condition')); } catch(e){}
+  cb.checked = on;
+  var hint = document.getElementById('qCondCardHint');
+  if (hint) hint.textContent = on ? '\u2014 in this quote' : '\u2014 not in this quote';
+}
+function _qCondIncludeToggle(cb){
+  if (!S.quote) return;
+  var on = false; try { on = _qpInDoc('condition'); } catch(e){}
+  if (!!cb.checked !== on) toggleProposalSection('condition');
+  _qCondIncludeSync();
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 // Ticking a section here is the same act as taking a page out in the editor,
 // so it moves the page between the document and the tray rather than setting
@@ -31462,6 +31629,7 @@ function _attachInlineEditors(){
     condRoofType:'qdCondRoofType', condPitch:'qdCondPitch',
     condMaterial:'qdCondMaterial', condAge:'qdCondAge',
     condMajor:'qdCondMajor', condMinor:'qdCondMinor', condReco:'qdCondReco',
+    conditionSummary:'qdCondSummary',
     scope:'qdScope', notes:'qdNotes', terms:'qtTerms',
   };
   root.querySelectorAll('[data-qfield]').forEach(function(el){
@@ -32718,6 +32886,7 @@ function refreshQuoteProposal(){
 
     partCondition =
       edHeading('1','Roof condition report','Inspecting Your Roof',{chapter:PROPOSAL_CHAPTERS[0],chapters:PROPOSAL_CHAPTERS})+
+      _qeInlineBtn('cond')+
       // Roof details strip — compact, inline-editable.
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:7px 0;margin-bottom:8px">'+
         detailItems.map(function(it){
@@ -33221,6 +33390,7 @@ function refreshQuoteProposal(){
     try { _roofScopeLine = _qpRoofScopeLine(); } catch(e){}
     var _scopeInner =
       '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" data-qe="desc" style="margin-bottom:8px">What\'s included and our process</div>'+
+      _qeInlineBtn('desc')+
       (_roofScopeLine ? '<div class="ed-body" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);line-height:1.5;margin:-2px 0 10px">'+_roofScopeLine+'</div>' : '')+
       inclList;
     var _notesInner =
@@ -33518,6 +33688,7 @@ function refreshQuoteProposal(){
         // Invisible marker so the customer view can tell when the reader has
         // scrolled to this page — the bottom-bar price stays hidden until then.
         '<span id="qpSelPageAnchor"></span>'+
+        _qeInlineBtn('sel')+
         edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // How this works, said plainly and said LOUD. Small grey type under a
         // heading reads as boilerplate and gets skipped — and a customer who
@@ -33570,7 +33741,7 @@ function refreshQuoteProposal(){
             // back); the customer link renders nothing at all.
             (_gutterExcluded()
               ? (window.__CUSTOMER_MODE ? '' : selPanel('Guttering', _gutterExcludedPanelBody()))
-              : selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml())+
+              : selPanel('Guttering', _qeInlineBtn('gutter') + selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml())+
                 (pOpts.gutterType && pOpts.gutterType !== 'none'
                   ? ((_selScaffoldBasePrice() > 0
                       ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'
