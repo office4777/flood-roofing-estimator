@@ -51711,6 +51711,7 @@ function _outlineEdgeForSegment(p0, p1){
 // snapshot covers the whole edit.
 function _applySegmentTrueMeasure(edgeIdx, line, typedM){
   if (!(typedM > 0) || !line || !line.pts || !(DRAW.scaleMetresPerPx > 0)) return false;
+  if (_visualEdits()) return false;   // never moves geometry in visual mode
   var mpp = DRAW.scaleMetresPerPx;
   var preSnap = _captureSnapState();
   // Where the tapped piece lives on its wall, as a fraction — how we find it
@@ -51776,6 +51777,7 @@ function _findOutlineEdgeForSegment(p0, p1){
 function _applyTrueEdgeMeasure(edgeIdx, metres, quiet){
   var n = (DRAW.outline || []).length;
   if (edgeIdx < 0 || edgeIdx >= n || !(metres > 0)) return false;
+  if (_visualEdits()) return false;   // never moves geometry in visual mode
   var A = DRAW.outline[edgeIdx], B = DRAW.outline[(edgeIdx + 1) % n];
   var ex = B[0]-A[0], ey = B[1]-A[1];
   var curPx = Math.hypot(ex, ey);
@@ -51862,9 +51864,12 @@ function _roofCanvasHitMeasureLabel(ev){
       return false;
     }
     var curM = parseFloat(l.measM);
+    var _vis = _visualEdits();
     _styledPrompt({
-      title: 'Set true length',
-      message: 'Type the real measurement for this wall. The drawing stretches to match — everything past this wall moves with it (undo restores it).',
+      title: _vis ? 'Set this measurement' : 'Set true length',
+      message: _vis
+        ? 'Visual edits: the number changes on this line only. Nothing on the map moves and no other measurement changes.'
+        : 'Type the real measurement for this wall. The drawing stretches to match — everything past this wall moves with it (undo restores it).',
       value: isFinite(curM) ? curM.toFixed(2) : '',
       placeholder: 'metres, e.g. 12.40',
       inputType: 'number',
@@ -51872,6 +51877,20 @@ function _roofCanvasHitMeasureLabel(ev){
     }, function(v){
       var m = parseFloat(String(v).replace(/m$/i, ''));
       if (!isFinite(m) || m <= 0) return;
+      // VISUAL EDITS: the typed number lands on the line that was tapped
+      // and nowhere else. Report 57: a gutter length typed here went
+      // through the true-measure solver and moved the whole drawing to
+      // scale — the one thing visual mode promises never to do.
+      if (_visualEdits()){
+        try { saveSnapshot(); } catch(e){}
+        var _was = parseFloat(l.measM);
+        l.measM = m; l.label = m.toFixed(2) + 'm';
+        try { markOffScale((l.type === 'barge') ? 'sheet' : 'meas', _lineNiceName(l), _was, m); } catch(e){}
+        try { syncToRoofData(); } catch(e){}
+        try { redrawAll(); updateMeasTotals(); } catch(e){}
+        try { autosaveJob && autosaveJob(); } catch(e){}
+        return;
+      }
       // A piece that covers part of its wall (a barge half, split at the
       // ridge) goes through the segment solver, which stretches until the
       // TAPPED pill reads the typed number — slope-aware, and honest
