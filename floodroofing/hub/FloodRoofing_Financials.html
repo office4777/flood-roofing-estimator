@@ -44,9 +44,10 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#000;c
 .card.per-this{background:linear-gradient(160deg,rgba(56,189,248,.42),rgba(56,189,248,.18));border-color:rgba(56,189,248,.75);box-shadow:0 10px 30px rgba(56,189,248,.20);}
 .card.per-last{background:linear-gradient(160deg,rgba(167,139,250,.42),rgba(167,139,250,.18));border-color:rgba(167,139,250,.75);box-shadow:0 10px 30px rgba(167,139,250,.20);}
 .card.per-3mo{background:linear-gradient(160deg,rgba(251,191,36,.38),rgba(251,191,36,.16));border-color:rgba(251,191,36,.7);box-shadow:0 10px 30px rgba(251,191,36,.18);}
+.card.per-6mo{background:linear-gradient(160deg,rgba(45,212,191,.38),rgba(45,212,191,.16));border-color:rgba(45,212,191,.7);box-shadow:0 10px 30px rgba(45,212,191,.18);}
 .card.per-week{background:linear-gradient(160deg,rgba(52,211,153,.38),rgba(52,211,153,.16));border-color:rgba(52,211,153,.7);box-shadow:0 10px 30px rgba(52,211,153,.18);}
-.card.per-this .ct,.card.per-last .ct,.card.per-3mo .ct,.card.per-week .ct{color:#fff;}
-.card.per-this .period-sub,.card.per-last .period-sub,.card.per-3mo .period-sub,.card.per-week .period-sub{color:#eef2f7;}
+.card.per-this .ct,.card.per-last .ct,.card.per-3mo .ct,.card.per-6mo .ct,.card.per-week .ct{color:#fff;}
+.card.per-this .period-sub,.card.per-last .period-sub,.card.per-3mo .period-sub,.card.per-6mo .period-sub,.card.per-week .period-sub{color:#eef2f7;}
 #page-title{font-size:1.2rem;font-weight:800;color:#fff;letter-spacing:-.3px;margin:0 2px;}
 #sync-bar{display:none;margin:2px 2px 0;}
 #sync-bar.on{display:block;animation:syncIn .2s ease;}
@@ -428,9 +429,10 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 [data-theme="light"] .card.per-this{background:linear-gradient(160deg,rgba(56,189,248,.20),rgba(56,189,248,.07));border-color:rgba(56,189,248,.55);box-shadow:0 6px 20px rgba(56,189,248,.12);}
 [data-theme="light"] .card.per-last{background:linear-gradient(160deg,rgba(167,139,250,.20),rgba(167,139,250,.07));border-color:rgba(167,139,250,.55);box-shadow:0 6px 20px rgba(167,139,250,.12);}
 [data-theme="light"] .card.per-3mo{background:linear-gradient(160deg,rgba(245,158,11,.20),rgba(245,158,11,.07));border-color:rgba(245,158,11,.5);box-shadow:0 6px 20px rgba(245,158,11,.12);}
+[data-theme="light"] .card.per-6mo{background:linear-gradient(160deg,rgba(20,184,166,.20),rgba(20,184,166,.07));border-color:rgba(20,184,166,.5);box-shadow:0 6px 20px rgba(20,184,166,.12);}
 [data-theme="light"] .card.per-week{background:linear-gradient(160deg,rgba(16,185,129,.20),rgba(16,185,129,.07));border-color:rgba(16,185,129,.5);box-shadow:0 6px 20px rgba(16,185,129,.12);}
-[data-theme="light"] .card.per-this .ct,[data-theme="light"] .card.per-last .ct,[data-theme="light"] .card.per-3mo .ct,[data-theme="light"] .card.per-week .ct{color:#0f1722;}
-[data-theme="light"] .card.per-this .period-sub,[data-theme="light"] .card.per-last .period-sub,[data-theme="light"] .card.per-3mo .period-sub,[data-theme="light"] .card.per-week .period-sub{color:#334155;}
+[data-theme="light"] .card.per-this .ct,[data-theme="light"] .card.per-last .ct,[data-theme="light"] .card.per-3mo .ct,[data-theme="light"] .card.per-6mo .ct,[data-theme="light"] .card.per-week .ct{color:#0f1722;}
+[data-theme="light"] .card.per-this .period-sub,[data-theme="light"] .card.per-last .period-sub,[data-theme="light"] .card.per-3mo .period-sub,[data-theme="light"] .card.per-6mo .period-sub,[data-theme="light"] .card.per-week .period-sub{color:#334155;}
 [data-theme="light"] .pl tr.sec td{background:rgba(15,23,34,.05);}
 [data-theme="light"] #toast{color:var(--text);}
 [data-theme="light"] .btn-o{background:#f0f3f8;}
@@ -762,6 +764,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     <div class="card per-3mo pm-hide">
       <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="roll-strip-dash"></div>
+    </div>
+    <div class="card per-6mo pm-hide">
+      <div class="ct">6-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="roll6-strip-dash"></div>
     </div>
     <div class="card per-this pm-hide">
       <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
@@ -3970,6 +3976,7 @@ function renderDash(){
   }
   const endM=[];for(let i=1;i<=12;i++)endM.push(calMonthKey(-i));
   renderRollingStrip('roll-strip-dash',xeroFig,endM);
+  renderRollingStrip('roll6-strip-dash',xeroFig,endM,false,6);
 }
 
 // ════════ COMMAND CENTRE ════════ (top of Dashboard — the whole business on one screen)
@@ -5038,15 +5045,18 @@ function renderMonthStrip(hostId,figFn,months,cogs){
   }).filter(Boolean);
   host.innerHTML=cards.length?cards.join(''):'<div class="empty" style="padding:10px;">No data yet.</div>';
 }
-function renderRollingStrip(hostId,figFn,endingMonths,cogs){
+function renderRollingStrip(hostId,figFn,endingMonths,cogs,n){
   const host=document.getElementById(hostId);if(!host)return;
+  n=n||3;   // months in each card's window: the month itself plus the n−1 before it
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
   const cards=endingMonths.map(M=>{
-    const f=avgFig([M,monthKeyMinus(M,1),monthKeyMinus(M,2)],figFn);
+    const win=[];for(let i=0;i<n;i++)win.push(monthKeyMinus(M,i));
+    const f=avgFig(win,figFn);
     if(!f)return '';
+    const have=win.filter(k=>figFn(k)).length;   // a window that runs off the start of the data says so
     const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
     return '<div class="mcard"><div class="mm">'+esc(M)+'</div>'+
-      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg · '+esc(monthKeyMinus(M,2))+'→'+esc(M)+'</span></div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">'+n+'-mo avg · '+esc(monthKeyMinus(M,n-1))+'→'+esc(M)+(have<n?' · '+have+' of '+n:'')+'</span></div>'+
       row('Rev',fmtK(f.rev),'')+
       (cogs?row('COGS',fmtK(f.rev-f.gp)+' · '+Math.round((f.rev>0?(f.rev-f.gp)/f.rev:0)*100)+'%',''):'')+
       row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+

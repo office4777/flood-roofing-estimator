@@ -221,6 +221,8 @@ stays open at the top:
 - **Dashboard** — order is Command Centre → Profit & Loss: **By Month** (one
   card per month, this month to date first, swipe ↔) → **3-Month Rolling — by
   month** (the same card averaged with the two months before it, swipe ↔) →
+  **6-Month Rolling — by month** (averaged with the five before it; a card
+  whose window runs off the start of the data says "4 of 6") →
   Cash at a glance (all open); Last Month is collapsed and still shows each
   metric's **% change vs the month before** (green/red, ▲/▼). The bar-graph
   panels that used to sit under the Command Centre (Revenue·GP·OPEX·NP, GP
