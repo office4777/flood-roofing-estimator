@@ -218,9 +218,15 @@ value now shows beneath each (e.g. "auto = $74.3k/mo · 6-mo Xero avg", "auto = 
 Every tab uses tap-to-expand accordion cards; the most-used card on each tab
 stays open at the top:
 
-- **Dashboard** — order is Forward Workflow → Cash at a glance → This Month →
-  3-Month Rolling (all open); Last Month is collapsed. Each metric in **This
-  Month** shows its **% change vs last month** (green/red, ▲/▼).
+- **Dashboard** — order is Command Centre → Profit & Loss: **By Month** (one
+  card per month, this month to date first, swipe ↔) → **3-Month Rolling — by
+  month** (the same card averaged with the two months before it, swipe ↔) →
+  Cash at a glance (all open); Last Month is collapsed and still shows each
+  metric's **% change vs the month before** (green/red, ▲/▼). The bar-graph
+  panels that used to sit under the Command Centre (Revenue·GP·OPEX·NP, GP
+  efficiency, sales, enquiries & cashflow) were removed on 2026-09-20 at the
+  owner's request; the 📋 Team meeting button now lives on the Profit & Loss
+  heading.
 - **Back Costing** — Performance by Lead Roofer and All Back Costing open at the
   top; everything else collapsed. This Month also shows % vs last month.
 - **Marketing** — This Month open (now includes a **Conversion** box: accepted ÷

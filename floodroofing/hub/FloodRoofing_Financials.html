@@ -345,8 +345,6 @@ body.pm-role .pm-hide{display:none!important;}
   .kpi .kv{font-size:1.25rem;}
 }
 /* command-centre charts & tables */
-.cmd-panels{display:grid;grid-template-columns:repeat(2,1fr);gap:13px;}
-@media(max-width:720px){.cmd-panels{grid-template-columns:1fr;}}
 .cpanel{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--border);border-radius:14px;padding:14px 15px;min-width:0;}
 .cpanel.wide{grid-column:1/-1;}
 .cpt{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:11px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
@@ -452,6 +450,7 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 /* ── Monthly team meeting deck ── */
 .mtg-btn{display:inline-flex;align-items:center;gap:5px;margin-left:auto;background:linear-gradient(135deg,#4d8dff,#8b5cf6);color:#fff;border:none;border-radius:22px;padding:7px 14px;font-size:.72rem;font-weight:800;letter-spacing:.2px;cursor:pointer;box-shadow:0 2px 10px rgba(77,141,255,.35);}
 .mtg-btn:active{transform:scale(.97);}
+.sect .mtg-btn{padding:5px 10px;font-size:.62rem;white-space:nowrap;}   /* sits between the P&L title and the Xero pill on a phone */
 .mtg-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 14px;}
 .mtg-toolbar .mtg-mstep{display:flex;align-items:center;gap:8px;}
 .mtg-mbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:1.2rem;font-weight:700;cursor:pointer;}
@@ -754,24 +753,19 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="kpigrid" id="cmd-kpis"></div>
       <div class="cmd-alerts" id="cmd-alerts"></div>
     </div>
-    <div class="card">
-      <div class="ct">Performance — charts &amp; tables <button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button></div>
-      <div class="cmd-panels" id="cmd-vis"></div>
-    </div>
-    <div class="card per-this pm-hide">
-      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
-      <div class="mg" id="dash-summary"></div>
-    </div>
-
-    <div class="sect pm-hide"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
+    <div class="sect pm-hide"><span>Profit &amp; Loss</span><button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
 
     <div class="card per-this pm-hide">
-      <div class="ct">This Month <span id="lbl-this" class="period-sub"></span><span id="src-this" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="mg" id="met-this"></div>
+      <div class="ct">By Month <span id="lbl-this" class="period-sub"></span><span class="period-sub" style="margin-left:auto;"><span id="src-this"></span>swipe ↔</span></div>
+      <div class="mstrip" id="month-strip-dash"></div>
     </div>
     <div class="card per-3mo pm-hide">
       <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="roll-strip-dash"></div>
+    </div>
+    <div class="card per-this pm-hide">
+      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
+      <div class="mg" id="dash-summary"></div>
     </div>
     <div class="card per-last acc-card pm-hide">
       <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
@@ -3953,18 +3947,21 @@ function renderDash(){
   const xm=Object.keys(xeroMonthly).filter(k=>k);
   const thisM=calMonthKey(0), lastM=calMonthKey(-1);
   const pill=document.getElementById('pl-live-pill');
+  // By Month strip: this month (to date) first, then each complete month back a year — one card per month,
+  // the month's OWN figures (the 3-month strip below it is the same card averaged with the two before).
+  const perM=[];for(let i=0;i<=12;i++)perM.push(calMonthKey(-i));
   if(xm.length){
     const fThis=xeroFig(thisM);
-    document.getElementById('met-this').innerHTML=metGrid(fThis,false,xeroFig(lastM));
+    renderMonthStrip('month-strip-dash',xeroFig,perM);
     document.getElementById('met-last').innerHTML=metGrid(xeroFig(lastM));
     document.getElementById('lbl-this').textContent=thisM+(fThis?' · partial':'');
     document.getElementById('lbl-last').textContent=lastM;
-    ['src-this','src-last'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='⚡ Xero';});
+    document.getElementById('src-this').textContent='⚡ Xero · ';document.getElementById('src-last').textContent='⚡ Xero';
     if(pill){pill.className='livepill on';pill.textContent='⚡ Live · Xero P&L';}
-    document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. This Month is to-date (partial); the 3-month rolling strip shows each month averaged with the two before it. Forward workflow is from Fergus ('+(last||'not synced')+').';
+    document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. The By Month strip shows each month on its own (this month to date, partial); the 3-month rolling strip shows each month averaged with the two before it. Forward workflow is from Fergus ('+(last||'not synced')+').';
   }else{
-    const msg='<div class="empty" style="grid-column:1/-1;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
-    document.getElementById('met-this').innerHTML=msg;
+    const msg='<div class="empty" style="padding:10px;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
+    document.getElementById('month-strip-dash').innerHTML=msg;
     document.getElementById('met-last').innerHTML='';
     document.getElementById('lbl-this').textContent='';document.getElementById('lbl-last').textContent='';
     ['src-this','src-last'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='';});
@@ -4116,7 +4113,6 @@ function renderCommand(){
   const al=document.getElementById('cmd-alerts');if(al){let alerts=computeAlerts();
     if(isPM())alerts=alerts.filter(x=>!/cash|A\/P|A\/R|deposit|GP|margin|profit|finance/i.test(x.msg));   // PM sees workload flags only, no money
     al.innerHTML=alerts.map(x=>'<div class="alert '+x.sev+'"><span class="ai">'+(x.sev==='crit'?'!':(x.sev==='warn'?'▲':'✓'))+'</span><span>'+x.msg+'</span></div>').join('');}
-  renderCommandVisuals();
 }
 // ── Chart hover tooltips (shared floating card + per-column hit zones on the SVGs) ──
 function ensureChartTip(){
@@ -4543,11 +4539,10 @@ function countInBuckets(items,dateFn,ranges){const res=ranges.map(()=>({n:0,val:
 let cmdPeriod='w',cmdOffset=0;
 function setCmdPeriod(v){cmdPeriod=v;renderCommand();}
 function setCmdOffset(v){cmdOffset=v;renderCommand();}
-// Dashboard Revenue·GP·OPEX·NP card: smooth-scroll bars or a 3-month rolling trend line.
-let gpCardView='bars';
-function setGpView(v){gpCardView=v;renderCommandVisuals();}
-let gpCardSrc=S.get('gpCardSrc','earned');   // 'earned' = %-of-completion from Fergus (falls back to Xero where thin) · 'xero' = straight Xero P&L
-function setGpSrc(v){gpCardSrc=v;S.set('gpCardSrc',v);renderCommandVisuals();}
+// Which P&L feeds the Command-Centre GP detail popup (openCmdDetail 'gp'): 'earned' = %-of-completion from
+// Fergus (falls back to Xero where thin) · 'xero' = straight Xero P&L. The dashboard's bar-graph panels that
+// used to switch this were removed 2026-09-20 at the owner's request.
+let gpCardSrc=S.get('gpCardSrc','earned');
 // Total hours the guys logged in a month — every job, deduped. Fergus doesn't expose dated historical
 // time entries (per-phase endpoints 404; global /timeEntries is only ~1 week), so the reliable figure
 // is each job's FULL hours from its financialSummary, placed in its work-month. We only use the dated
@@ -4696,72 +4691,6 @@ function gpCardSeries(keys,src){const revV=[],gpV=[],opV=[],npV=[],hrsV=[],srcV=
     }
     hrsV.push(monthLoggedHrs(k));});   // ALL guys-on-tools hours that month
   return {revV,gpV,opV,npV,hrsV,srcV};}
-// Dashboard performance section: Marketing enquiries · Sales (quotes + conversion) · GP · Cash 13-wk.
-function renderCommandVisuals(){
-  const host=document.getElementById('cmd-vis');if(!host)return;
-  const per=cmdPeriod==='w'?'week':'month',roll=cmdPeriod==='w'?'3-week rolling avg':'3-month rolling avg';
-  const b=cmdPeriod==='w'?bucketsWeekly(13):bucketsMonthly(12);
-  const noMkt=!(mkt&&mkt.quotes);
-  // min px/bucket for the secondary charts — they fit-width when there's room, smooth-scroll when cramped
-  const halfColW=42;
-  const panels=[];
-  // 1 — Revenue · GP · OPEX · Net profit — smooth-scroll bars (GP/OH/NP% + avg GP/hr) OR 3-mo rolling trend
-  {const now=new Date();const COL=['#4d8dff','#4ade80','#a78bfa','#ff8a52'];
-    const chips='<div class="chips" style="margin:0 0 8px;"><span class="chip'+(gpCardView==='bars'?' on':'')+'" onclick="setGpView(\'bars\')">Monthly bars</span><span class="chip'+(gpCardView==='trend'?' on':'')+'" onclick="setGpView(\'trend\')">3-mo rolling trend</span></div>'+
-      '<div class="chips" style="margin:0 0 8px;"><span class="chip'+(gpCardSrc==='earned'?' on':'')+'" onclick="setGpSrc(\'earned\')" title="Revenue recognised as the work is done (deposits not booked as income up-front); falls back to Xero where the Fergus history is thin">Earned</span><span class="chip'+(gpCardSrc==='xero'?' on':'')+'" onclick="setGpSrc(\'xero\')" title="Straight from your Xero P&amp;L — matches your accountant">Xero actual</span></div>';
-    const xeroMode=(gpCardSrc==='xero');
-    const keys=[],labs=[];for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);labs.push(FG_MONTHS[d.getMonth()]+" '"+String(d.getFullYear()).slice(2));keys.push(calMonthKey(-i));}
-    const s=gpCardSeries(keys,gpCardSrc),any=s.revV.concat(s.gpV).some(v=>v!=null),anyOpex=s.opV.some(v=>v!=null);
-    let inner,pin;
-    if(gpCardView==='trend'){pin='3-mo rolling · 12 mo';
-      const series=[{label:'Revenue',color:COL[0],vals:rollAvg(s.revV,3)},{label:'Gross profit',color:COL[1],vals:rollAvg(s.gpV,3)},{label:'OPEX',color:COL[2],vals:rollAvg(s.opV,3)},{label:'Net profit',color:COL[3],vals:rollAvg(s.npV,3)}];
-      inner=any?cmdChart(labs.map(l=>l.split(" ")[0]),series,'$')+cmdLegend(series)+'<div class="note" style="margin-top:6px;">Each point = trailing 3-month average. '+(xeroMode?'Revenue, GP &amp; net profit straight from your <b>Xero P&amp;L</b> (matches your accountant).':'Revenue &amp; GP earned from Fergus where the labour history is complete, else the month uses your actual Xero P&amp;L.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
-    }else{pin='scroll ↔ · 12 mo';
-      const meta=keys.map((k,i)=>{const rev=s.revV[i],gp=s.gpV[i],op=s.opV[i],hrs=s.hrsV[i],bh=bizHoursOfMonth(k);
-        if(!rev||rev<=0||gp==null)return {has:false,mk:k};
-        const npv=op!=null?gp-op:0;
-        return {has:true,mk:k,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,gpBiz:bh>0?gp/bh:0,opBiz:(op!=null&&bh>0)?op/bh:null,hrs:Math.round(hrs),hasOp:op!=null};});
-      const availW=(host.clientWidth||window.innerWidth||900)-76,colW=Math.max(84,Math.min(280,Math.floor(availW/6)));   // ~6 months visible, then scroll
-      inner=any?gpScrollChart(labs.map(l=>l.replace(" "," ")),[{name:'Revenue',color:COL[0],vals:s.revV},{name:'Gross profit',color:COL[1],vals:s.gpV},{name:'OPEX',color:COL[2],vals:s.opV},{name:'Net profit',color:COL[3],vals:s.npV}],meta,50000,colW)
-        +cmdLegend([{label:'Revenue'+(xeroMode?' (Xero)':' (earned)'),color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
-        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, <b>GP/hr worked</b> (GP ÷ crew hours), <b>GP/bus-hr</b> (GP ÷ business hours in the working day — working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded — the combined profit the whole team throws off per clock-hour), <b>OH/bus-hr</b> (Xero overhead ÷ the same business hours — the overhead you burn per clock-hour; GP/bus-hr − OH/bus-hr = net profit per business hour), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
-    }
-    panels.push('<div class="cpanel wide"><div class="cpt">Revenue · GP · OPEX · Net profit <span class="pin">'+pin+'</span></div>'+chips+inner+'</div>');}
-  // 1b — GP efficiency: avg GP per HOUR WORKED vs combined GP per BUSINESS HOUR (monthly, like the GP card)
-  {const gk=[],gl=[];const now=new Date();for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);gk.push(calMonthKey(-i));gl.push(FG_MONTHS[d.getMonth()]);}
-    const gs=gpCardSeries(gk,gpCardSrc);
-    const avgV=gs.gpV.map((g,i)=>(g!=null&&gs.hrsV[i]>0)?Math.round(g/gs.hrsV[i]):null);
-    const bizV=gs.gpV.map((g,i)=>{const bh=bizHoursOfMonth(gk[i]);return (g!=null&&bh>0)?Math.round(g/bh):null;});
-    const anyG=avgV.some(v=>v!=null)||bizV.some(v=>v!=null);
-    const body=anyG?'<div class="cpsub">'+
-      '<div><div class="cpsubt">Avg GP / hour worked</div>'+barLineChart(gl,avgV,rollAvg(avgV,3),'$','#38bdf8','GP/hr worked','3-mo avg',halfColW)+legendBL('#38bdf8','GP/hr worked','3-mo avg')+'</div>'+
-      '<div><div class="cpsubt">Combined GP / business hour</div>'+barLineChart(gl,bizV,rollAvg(bizV,3),'$','#fbbf24','GP/bus-hr','3-mo avg',halfColW)+legendBL('#fbbf24','GP/bus-hr','3-mo avg')+'</div>'+
-    '</div><div class="note" style="margin-top:6px;"><b>Avg GP/hr worked</b> = GP ÷ the hours the crew logged (per man-hour). <b>Combined GP / business hour</b> = the same GP ÷ the clock hours in the working day (working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded) — the total profit the whole team throws off per hour of business, so it climbs when more crews run in parallel.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
-    panels.push('<div class="cpanel wide"><div class="cpt">GP efficiency <span class="pin">'+(gpCardSrc==='xero'?'Xero':'earned')+' · 12 mo</span></div>'+body+'</div>');}
-  // 2 — Sales: quotes sent + conversion rate (two charts side by side)
-  {let body;
-    if(noMkt)body='<div class="empty">Sync marketing from Fergus.</div>';
-    else{const sent=countInBuckets((mkt.quotes||[]).filter(q=>q.isSent),q=>q.sentAt||q.quoteDate,b.ranges);
-      const acc=countInBuckets((mkt.quotes||[]).filter(q=>q.isAccepted),q=>q.acceptedAt,b.ranges);
-      const sentN=sent.map(o=>o.n),sentRoll=rollAvg(sentN,3);
-      const conv=sent.map((o,i)=>o.n>0?Math.round(acc[i].n/o.n*100):null),convRoll=rollAvg(conv,3);
-      body='<div class="cpsub">'+
-        '<div><div class="cpsubt">Quotes sent / '+per+'</div>'+barLineChart(b.labels,sentN,sentRoll,'','#a78bfa','Sent / '+per,roll,halfColW)+legendBL('#a78bfa','Sent / '+per,roll)+'</div>'+
-        '<div><div class="cpsubt">Conversion rate (won ÷ sent)</div>'+barLineChart(b.labels,conv,convRoll,'%','#4ade80','Conversion / '+per,roll,halfColW)+legendBL('#4ade80','Conversion / '+per,roll)+'</div>'+
-      '</div>';}
-    panels.push('<div class="cpanel wide"><div class="cpt">Sales — quotes sent &amp; conversion</div>'+body+'</div>');}
-  // 3 — Marketing enquiries + Cashflow forecast, side by side (cashflow as bars, zero baseline)
-  {const raw=noMkt?[]:countInBuckets(mkt.leads,l=>l.createdAt,b.ranges).map(o=>o.n);const rl=rollAvg(raw,3);
-    const enqBody=noMkt?'<div class="empty">Sync marketing from Fergus.</div>':barLineChart(b.labels,raw,rl,'','#4d8dff','Enquiries / '+per,roll,halfColW)+legendBL('#4d8dff','Enquiries / '+per,roll);
-    const wk=window.__cfWeekly||[];
-    const cfBody=wk.length?groupBarChart(wk.map(w=>{try{return w.ds.getDate()+' '+FG_MONTHS[w.ds.getMonth()];}catch(e){return '';}}),[{name:'Projected cash',color:'#38bdf8',vals:wk.map(w=>num(w.close))}],null,{colW:halfColW})+cmdLegend([{label:'Projected cash — all accounts',color:'#38bdf8'}]):'<div class="empty">Refresh Fergus + sync Xero.</div>';
-    panels.push('<div class="cpanel wide"><div class="cpt">Marketing enquiries &amp; cashflow</div><div class="cpsub">'+
-      '<div><div class="cpsubt">Enquiries / '+per+'</div>'+enqBody+'</div>'+
-      '<div class="'+(wk.length?'cfx-click':'')+'"'+(wk.length?' onclick="openCmdDetail(\'cf\')" title="Tap for the full cashflow breakdown"':'')+'><div class="cpsubt">Cashflow forecast — next 13 weeks'+(wk.length?' <span class="cfx-more">tap for detail ›</span>':'')+'</div>'+cfBody+'</div>'+
-    '</div></div>');}
-  host.innerHTML=panels.join('');
-  host.querySelectorAll('.gpcard-scroll,.cscroll').forEach(el=>{el.scrollLeft=el.scrollWidth;});   // start at the latest period
-}
 
 // ════════ GROWTH STRUCTURE ════════
 // Average the last 6 COMPLETE months of real P&L (Xero), else fall back to back-costing.
@@ -5088,6 +5017,27 @@ function renderMktWeekRoll(){
 
 // 3-month rolling, by month: each card = that month averaged with the two before it.
 function monthKeyMinus(label,n){const p=String(label).split('-');const mi=FG_MONTHS.indexOf(p[0]);const d=new Date(parseInt(p[1]),mi-n,1);return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
+// One card per calendar month, the month's own figures (no averaging). months[0] is the current
+// (partial) month; the card says so. Same card as the rolling strip so the two read side by side.
+function renderMonthStrip(hostId,figFn,months,cogs){
+  const host=document.getElementById(hostId);if(!host)return;
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  const thisM=calMonthKey(0),lastM=calMonthKey(-1);
+  const cards=months.map(M=>{
+    const f=figFn(M);
+    if(!f)return '';
+    const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
+    const tag=M===thisM?'This month · partial':(M===lastM?'Last month':'Full month');
+    return '<div class="mcard"><div class="mm">'+esc(M)+'</div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">'+tag+'</span></div>'+
+      row('Rev',fmtK(f.rev),'')+
+      (cogs?row('COGS',fmtK(f.rev-f.gp)+' · '+Math.round((f.rev>0?(f.rev-f.gp)/f.rev:0)*100)+'%',''):'')+
+      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
+      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';
+  }).filter(Boolean);
+  host.innerHTML=cards.length?cards.join(''):'<div class="empty" style="padding:10px;">No data yet.</div>';
+}
 function renderRollingStrip(hostId,figFn,endingMonths,cogs){
   const host=document.getElementById(hostId);if(!host)return;
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
