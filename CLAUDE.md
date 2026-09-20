@@ -270,6 +270,33 @@ Discipline (non-negotiable):
   office's View switch is three-way — Document (A4, the editing surface),
   Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
   `'desktop'` still means Document. `tests/quotedesk.mjs`.
+- On the computer layout STEEL GRADE, PROFILE and THICKNESS are each a
+  full-width section of their own (`grade`, `profile`, `thickness` in
+  `_qdSections`, rows like the guttering's) since 2026-09-20 — the owner
+  found the three-column "Roofing" grid confusing. `_qdRoofing` is gone.
+- THE PLATFORM SCAFFOLD UPLIFT (25% of the scaffold when a gutter is
+  added) rides ON THE GUTTER'S CARD (`_qpCardDeltas().gutter[id]` includes
+  it; `.gutterUp[id]` is the amount, `_qbGutterUpNote` says so under the
+  card) as well as being its own summary row, so card and summary agree.
+  It is nothing when the scaffold is already a platform OR the office
+  ticks "Upgrade to platform scaffolding isn't required for the gutter
+  install" (`S.quote.gutterNoPlatform`, one flag; the tick is rendered by
+  `_gutterNoPlatformTickHtml(where)` on the quote's gutter section (office
+  only), the Pricing tab's scaffold tile and its gutter panel;
+  `_setGutterNoPlatform` re-renders all three). Every uplift reads
+  `_selScaffoldBasePrice()`, which answers 0 in both cases.
+  `tests/platformscaff.mjs`.
+- THE OFFICE READS LIVE PRICES. `_qpPriced()` hands back the frozen
+  `share.priced` block only in customer mode or on an ACCEPTED quote; the
+  office editing a draft after a send sees live figures (a scaffold
+  switched to platform used to leave the old uplift on the office's own
+  preview). `tests/pricegold.mjs` plays the customer with
+  `window.__CUSTOMER_MODE = true`; its baseline is regenerated with
+  `REGEN=1` and the diff must be only prices that meant to move.
+- A SENT (or accepted) quote can be INSPECTED in full: opening the Pricing
+  drawer (`_togglePricingPanel` and friends in `_LOCK_OK_CALLS`) asks
+  nothing; the "This is the sent quote" question comes at the first real
+  change. `tests/quoteversions.mjs`.
 - THE QUOTE'S STYLE (report 56): `S.quote.style` is `'classic'` or
   `'modern'`, saved with the quote and sent to the customer; a quote with
   none takes `settings.quote_defaults.style`, then the test seam
