@@ -582,6 +582,13 @@ not why they try it.
 
 ## Working style
 
+TIMES ARE ALWAYS AUCKLAND TIME. The owner is in Whangarei; whenever a time
+is said to him (a promote check, a scheduled reminder, "landed at …",
+what time a check will fire), convert it to Pacific/Auckland (NZST is
+UTC+12, NZDT is UTC+13 — the switch is the last Sunday of September and
+the first Sunday of April) and say it as NZ time, e.g. "10:48 am NZ".
+Never quote a UTC time bare; the machine's clock is UTC.
+
 The owner (Aron, office@floodroofing.co.nz) sends batches of fixes/features,
 often as phone screenshots. Keep replies tight; ship whole batches through
 one gate; report what shipped and what to try, in plain language.
