@@ -2,7 +2,8 @@
 //  but use the extra screen space … a summary panel on the right: selected
 //  options, live total including GST, and a 'Review quote' button that stays
 //  visible. Clickable section navigation … related choices could sit
-//  together — steel grade, profile and thickness in one roofing section.
+//  each their own full-width section — steel grade, profile and thickness
+//  laid out like the guttering (the owner found three narrow columns confusing).
 //  Keep the selections, wording and prices consistent across both."
 //
 // And, from the same message, the customer's DESCRIPTION of the work: six
@@ -86,10 +87,12 @@ const v = await d.pg.evaluate(() => ({
   hero: !!document.querySelector('#qd-cover .qb-hero'),
   photos: document.querySelectorAll('#qd-condition .qd-photo').length,
   swatches: document.querySelectorAll('#qd-colour .qb-sw').length,
-  gradeCards: document.querySelectorAll('#qd-roofing [data-qb-opt="steelGrade"]').length,
-  profileCards: document.querySelectorAll('#qd-roofing [data-qb-opt="profile"]').length,
-  gaugeCards: document.querySelectorAll('#qd-roofing [data-qb-opt="steelThickness"]').length,
-  rec: document.querySelectorAll('#qd-roofing .qb-rec').length,
+  gradeCards: document.querySelectorAll('#qd-grade [data-qb-opt="steelGrade"]').length,
+  profileCards: document.querySelectorAll('#qd-profile [data-qb-opt="profile"]').length,
+  gaugeCards: document.querySelectorAll('#qd-thickness [data-qb-opt="steelThickness"]').length,
+  rec: document.querySelectorAll('#qd-grade .qb-rec, #qd-profile .qb-rec, #qd-thickness .qb-rec').length,
+  noGrid3: !document.querySelector('#qdRoot .qd-grid3'),
+  rowsWide: (function(){ const a = document.querySelector('#qd-grade [data-qb-opt="steelGrade"]').getBoundingClientRect().width, b = document.querySelector('#qd-gutter [data-qb-opt="gutterType"]').getBoundingClientRect().width; return Math.abs(a - b) < 4; })(),
   plan: !!document.querySelector('#qd-proposal .qp-roofmap svg'),
   planBtns: document.querySelectorAll('#qd-proposal .qp-incl-btns button').length,
   reviewPlan: !!document.querySelector('#qd-review .qb-sum-plan .qp-roofmap svg'),
@@ -97,15 +100,15 @@ const v = await d.pg.evaluate(() => ({
 }));
 check('the customer link on a computer opens as one page, not the book and not A4',
   v.desk && !v.book && v.root && v.a4 === 0, JSON.stringify({ desk:v.desk, book:v.book, a4:v.a4 }));
-check('…the sections run cover, roof, proposal, roofing, colour, guttering, old roof, review',
-  v.secs.join(',') === 'cover,condition,proposal,roofing,colour,gutter,disposal,review', v.secs.join(','));
-check('…with a nav button for each', v.nav.length === v.secs.length && v.nav.includes('Roofing') && v.nav.includes('Review'), v.nav.join(' | '));
+check('…the sections run cover, roof, proposal, steel grade, profile, thickness, colour, guttering, old roof, review',
+  v.secs.join(',') === 'cover,condition,proposal,grade,profile,thickness,colour,gutter,disposal,review', v.secs.join(','));
+check('…with a nav button for each', v.nav.length === v.secs.length && v.nav.includes('Steel grade') && v.nav.includes('Review'), v.nav.join(' | '));
 check('…a summary rail with the live total incl. GST and a Review button', v.rail && /\$/.test(v.total) && v.review, v.total);
 check('…the old bottom/side bar is out of the way and the page scrolls', v.barHidden && v.scrolls);
 check('…the name and the terms tick are on the page, like the phone', v.name && v.terms);
 check('…the same hero, a photo grid, and every swatch', v.hero && v.photos === 2 && v.swatches >= 6, JSON.stringify({ photos:v.photos, sw:v.swatches }));
-check('steel grade, profile and thickness sit together in the Roofing section',
-  v.gradeCards >= 3 && v.profileCards >= 2 && v.gaugeCards === 2, JSON.stringify({ g:v.gradeCards, p:v.profileCards, t:v.gaugeCards }));
+check('steel grade, profile and thickness are each a full-width section of their own, rows like the guttering',
+  v.gradeCards >= 3 && v.profileCards >= 2 && v.gaugeCards === 2 && v.noGrid3 && v.rowsWide, JSON.stringify({ g:v.gradeCards, p:v.profileCards, t:v.gaugeCards, grid:v.noGrid3, wide:v.rowsWide }));
 check('…each with a "Recommended for your roof" pick', v.rec >= 3, v.rec + ' badges');
 check('the proposal carries the roof plan with the include/exclude buttons', v.plan && v.planBtns >= 2, v.planBtns + ' buttons');
 check('…and the review shows the roofs read-only', v.reviewPlan && v.reviewBtns === 0, v.reviewBtns + ' buttons');
@@ -121,12 +124,12 @@ check('the proposal reads the six plain lines, the chosen grade filled in',
 
 // ── a pick moves the rail and the page stays where it was ────────
 const pick = await d.pg.evaluate(async () => {
-  _qdGoTo('roofing', true);
+  _qdGoTo('grade', true);
   await new Promise(r => setTimeout(r, 300));
   const sc = document.getElementById('customerView');
   const y0 = sc.scrollTop;
   const t0 = document.getElementById('qdTotal').textContent;
-  document.querySelector('#qd-roofing [data-qb-opt="steelGrade"][data-qb-val="colorzen"]').click();
+  document.querySelector('#qd-grade [data-qb-opt="steelGrade"][data-qb-val="colorzen"]').click();
   await new Promise(r => setTimeout(r, 700));
   return { y0, y1: sc.scrollTop, t0, t1: document.getElementById('qdTotal').textContent,
            line: [...document.querySelectorAll('#qd-proposal .qb-incl-row')][3].textContent.trim(),
@@ -138,7 +141,7 @@ check('choosing another grade moves the rail total', pick.t0 !== pick.t1 && /\$/
 check('…and the rail lists the new choice', pick.pick && pick.saved === 'colorzen');
 check('…and the description line follows the grade', pick.line === 'Install New Armorsteel ColorZen Roofing Sheets', pick.line);
 check('…without throwing the page back to the top', pick.y0 > 100 && Math.abs(pick.y1 - pick.y0) < 40, pick.y0 + ' → ' + pick.y1);
-check('…and the nav still says Roofing', pick.on === 'Roofing', pick.on);
+check('…and the nav still says Steel grade', pick.on === 'Steel grade', pick.on);
 
 // brackets & downpipes appear beside the gutter once a gutter is chosen
 const kit = await d.pg.evaluate(async () => {

@@ -69,7 +69,7 @@ const where = await pg.evaluate(async () => {
   return out;
 });
 check('no rail: Edit description sits on the proposal, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  !where.rail && where.desk.join(',') === 'desc@qd-proposal,sel@qd-roofing,gutter@qd-gutter', JSON.stringify(where.desk));
+  !where.rail && where.desk.join(',') === 'desc@qd-proposal,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
 check('Edit gutter selections opens the selections window filtered to gutters, brackets and downpipes',

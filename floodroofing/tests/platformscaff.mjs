@@ -129,6 +129,40 @@ const notes = await pg.evaluate(() => {
 check('the customer is told about the 25% only on an edge job', notes.e === true, String(notes.e));
 check('…and never on a platform job', notes.p === false, String(notes.p));
 
+// ── the gutter CARD carries the upgrade, and the low-roof tick removes it ──
+// The owner: "it should show in the gutter selection cost the extra 25%",
+// and "some jobs have a low roof … a tick box … Upgrade to Platform
+// Scaffolding isn't required for Gutter install … carried through to all
+// the tick boxes and pricing areas".
+const card = await pg.evaluate(async () => {
+  updateScaffoldType('edge'); S.quote.gutterNoPlatform = false; refreshQuoteProposal();
+  const CD = _qpCardDeltas();
+  const ticks = () => [...document.querySelectorAll('.gnp-tick')].map(l => l.dataset.gnp + ':' + l.querySelector('input').checked);
+  const out = { card: CD.gutter.box125, up: CD.gutterUp.box125, live: _selGutterDelta('box125'),
+                note: /Includes the platform scaffold upgrade/.test(document.getElementById('qpRoot').textContent), ticksQuote: ticks() };
+  // tick it on the Pricing tab's scaffold tile
+  const t = document.querySelector('.gnp-tick[data-gnp="scaffold"] input'); t.checked = true; t.dispatchEvent(new Event('change'));
+  await new Promise(r => setTimeout(r, 600));
+  const CD2 = _qpCardDeltas();
+  out.after = { flag: S.quote.gutterNoPlatform, ticks: ticks(), card: CD2.gutter.box125, up: CD2.gutterUp.box125, base: _selScaffoldBasePrice(),
+                upLines: _qpSelectionChanges().filter(c => /scaffolding upgrade/i.test(c.label)).length, pricedUp: _qpBuildPriced().scaffoldUplift,
+                sum: _qpSelectionDeltaSum(), tile: /no platform upgrade/i.test(document.getElementById('scaffoldWrap').textContent) };
+  // untick from the quote's own gutter section
+  const t2 = document.querySelector('#qpRoot .gnp-tick input'); t2.checked = false; t2.dispatchEvent(new Event('change'));
+  await new Promise(r => setTimeout(r, 600));
+  out.back = { flag: S.quote.gutterNoPlatform, ticks: ticks(), card: _qpCardDeltas().gutter.box125 };
+  return out;
+});
+check('the gutter card wears the gutter PLUS the 625 platform upgrade, and says so',
+  Math.abs(card.card - (card.live + 625)) < 0.01 && card.up === 625 && card.note, JSON.stringify({ card: card.card, live: card.live, up: card.up, note: card.note }));
+check('the low-roof tick is on the quote\'s gutter section, the scaffold tile and the gutter panel, unticked by default',
+  card.ticksQuote.sort().join(',') === 'gutter:false,quote:false,scaffold:false', card.ticksQuote.join(','));
+check('ticking it on the scaffold tile ticks every box and takes the 625 out of the card, the summary, the total and the snapshot',
+  card.after.flag && card.after.ticks.every(t => /:true$/.test(t)) && card.after.ticks.length === 3 && Math.abs(card.after.card - card.live) < 0.01 && card.after.up === 0 &&
+  card.after.base === 0 && card.after.upLines === 0 && card.after.pricedUp === 0 && card.after.tile, JSON.stringify(card.after));
+check('…and unticking it from the quote\'s gutter section puts the 625 back everywhere',
+  !card.back.flag && card.back.ticks.every(t => /:false$/.test(t)) && Math.abs(card.back.card - (card.live + 625)) < 0.01, JSON.stringify(card.back));
+
 // ── the share link can't be handed a stale base ────────────────────
 const stash = await pg.evaluate(() => {
   updateScaffoldType('edge');

@@ -15780,9 +15780,11 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // excluded — those are buttons and mouse drags, which the pointer, typing
 // and change guards never saw. Any click or press on a control inside the
 // job is now a physical attempt, except the things that only LOOK (switching
-// which roof the pricing shows, zoom, print, email, the version buttons).
+// which roof the pricing shows, zoom, print, email, the version buttons, and
+// OPENING the Pricing drawer — the office must be able to inspect a sent
+// quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -21469,7 +21471,10 @@ function calcLabour(){
       (isBaseRoof
         ? (_scPlat
           ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform scaffold — charged as entered. If the customer adds guttering there is <strong>no scaffolding upcharge</strong>: the platform is already there.</div>'
-          : '<div style="margin-top:8px;font-size:11.5px;color:var(--text2);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px">Edge protection — if the customer adds guttering, a platform upgrade of <strong>+'+_scPct+'%</strong> of the price above is added to their quote.</div>')
+          : (_gutterNoPlatform()
+              ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Edge protection, and the gutters go in off it — <strong>no platform upgrade</strong> is charged if the customer adds guttering.</div>'
+              : '<div style="margin-top:8px;font-size:11.5px;color:var(--text2);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px">Edge protection — if the customer adds guttering, a platform upgrade of <strong>+'+_scPct+'%</strong> of the price above is added to their quote.</div>'))+
+          _gutterNoPlatformTickHtml('scaffold')
         : '')+
       // Roofs folded into the main one no longer have a tab of their own, so
       // their scaffolding is edited here. It is deliberately still per
@@ -21711,7 +21716,8 @@ function renderGutterDownpipePricing(){
       '<strong style="font-size:12px">Guttering'+(scUp>0?' + scaffold upgrade':'')+(dOn?' + downpipes':'')+' (ex GST)</strong>'+
       '<span style="font-weight:700;color:#2e7d32">'+money(gVal + scUp + (dOn ? dVal : 0))+'</span>'+
     '</div>'+
-    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '');
+    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '')+
+    _gutterNoPlatformTickHtml('gutter');
 }
 function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
@@ -24327,9 +24333,14 @@ function _selGutterLineCount(){
 // Standard scaffolding price (ex-GST) — the figure a +25% platform upgrade is
 // charged on. Stashed office-side onto the quote so the customer share link
 // (which has no live pricing state) can price the gutter-triggered upgrade.
+function _gutterNoPlatform(){ return !!(window.S && S.quote && S.quote.gutterNoPlatform); }
 function _selScaffoldBasePrice(){
   var q = (window.S && S.quote) || {};
   var sc = q.scaffold || {};
+  // A low roof: the office says the gutters go in off the edge protection,
+  // so there is nothing to upgrade and no 25% anywhere — the card, the
+  // summary, the total, the priced snapshot and the profitability alike.
+  if (q.gutterNoPlatform) return 0;
   // Priced on a platform scaffold already: choosing a gutter has nothing to
   // upgrade the site TO, so there is no base to charge the 25% on. This is
   // the one place the scaffold type changes the arithmetic — every uplift
@@ -24339,6 +24350,32 @@ function _selScaffoldBasePrice(){
   var b = parseFloat(q.scaffoldBase);
   if (isFinite(b) && b > 0) return b;
   return parseFloat(sc.price) || 0;
+}
+// The tick "Upgrade to platform scaffolding isn't required for the gutter
+// install" — on the quote's gutter section (office only), the Pricing tab's
+// scaffold tile and its gutter panel. One flag on the quote, so ticking any
+// of them ticks them all and the 25% leaves every figure at once.
+function _gutterNoPlatformTickHtml(where){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return '';
+  if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return '';
+  var on = _gutterNoPlatform();
+  var q = (window.S && S.quote) || {};
+  var platform = !!(q.scaffold && q.scaffold.type === 'platform');
+  var why = platform ? 'The scaffold is already a platform, so there is no upgrade to charge either way.'
+          : (on ? 'No platform upgrade is added anywhere \u2014 not the gutter card, the summary or the total.'
+                : 'Untick to keep the +25% platform upgrade when the customer adds guttering.');
+  return '<label class="no-print gnp-tick" data-gnp="'+esc2(where)+'" style="display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;font-size:12px;color:#0a1628;cursor:pointer;text-align:left;font-style:normal">'+
+      '<input type="checkbox" '+(on ? 'checked' : '')+' onchange="_setGutterNoPlatform(this.checked)" style="width:16px;height:16px;margin:1px 0 0;flex:0 0 auto">'+
+      '<span><strong>Upgrade to platform scaffolding isn\u2019t required for the gutter install</strong> (a low roof)'+
+      '<span style="display:block;font-size:11px;color:var(--text2);font-weight:400;margin-top:2px">'+why+'</span></span>'+
+    '</label>';
+}
+function _setGutterNoPlatform(on){
+  if (!S.quote) return;
+  S.quote.gutterNoPlatform = !!on;
+  try { calcLabour(); } catch(e){}                     // the scaffold tile carries the tick too
+  try { _gdChanged(); } catch(e){}                     // gutter panel, price bar, totals, proposal, profitability, autosave
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 function _selBracketExtDelta(){
   if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
@@ -24556,7 +24593,13 @@ function _qpBuildPriced(){
 // The priced block a customer page should read, if this quote carries one.
 function _qpPriced(){
   var pr = (window.S && S.quote && S.quote.share && S.quote.share.priced);
-  return (pr && pr.v === 1) ? pr : null;
+  if (!(pr && pr.v === 1)) return null;
+  // The frozen block is what the CUSTOMER holds. The office editing a draft
+  // reads the live figures — otherwise a scaffold switched to platform in
+  // the Pricing tab left the old 25% uplift on the office's own preview
+  // until the next send. An accepted quote is frozen for the office too.
+  if (!window.__CUSTOMER_MODE && !(S.quote && S.quote.accepted)) return null;
+  return pr;
 }
 // The same selection list as the live calculation, built from stored sell
 // prices. Kept beside _qpSelectionChanges deliberately: the two must produce
@@ -24625,7 +24668,7 @@ function _qpCardDeltas(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   var P = _qpPriced();
-  var out = { grade: {}, gauge: 0, profileLock: {}, gutter: {}, bracketExt: 0, downpipes: 0 };
+  var out = { grade: {}, gauge: 0, profileLock: {}, gutter: {}, gutterUp: {}, bracketExt: 0, downpipes: 0 };
   var gutterOn = !!(p.gutterType && p.gutterType !== 'none');
   if (P){
     Object.keys(P.grade || {}).forEach(function(id){ out.grade[id] = P.grade[id] || 0; });
@@ -24636,6 +24679,11 @@ function _qpCardDeltas(){
       // as the live calc and the priced summary both do.
       out.gutter[id] = P.gutterExcluded ? 0
         : ((P.gutterOverride != null && id === p.gutterType) ? P.gutterOverride : (P.gutter[id] || 0));
+      // The platform upgrade a gutter brings rides on the gutter's own card,
+      // so the card and the summary say the same thing (the owner: "it
+      // should show in the gutter selection cost the extra 25%").
+      out.gutterUp[id] = (P.gutterExcluded || (P.gutterUplift || {})[id] === false) ? 0 : (P.scaffoldUplift || 0);
+      out.gutter[id] += out.gutterUp[id];
     });
     out.bracketExt = gutterOn ? ((P.bracketExt || {})[p.gutterType] || 0) : 0;
     out.downpipes = gutterOn ? (P.downpipes || 0) : 0;
@@ -24644,7 +24692,10 @@ function _qpCardDeltas(){
   _selGradesAll().forEach(function(g){ out.grade[g.id] = _selGradeDelta(g.id); });
   out.gauge = _selGauge55Delta();
   _selProfilesAll().forEach(function(pr){ out.profileLock[pr.id] = !!_selProfileLocksGauge(pr.id); });
-  _selGuttersAll().forEach(function(gt){ out.gutter[gt.id] = _selGutterDelta(gt.id); });
+  _selGuttersAll().forEach(function(gt){
+    out.gutterUp[gt.id] = (_gutterExcluded() || gt.scaffoldUplift === false) ? 0 : (0.25 * _selScaffoldBasePrice());
+    out.gutter[gt.id] = _selGutterDelta(gt.id) + out.gutterUp[gt.id];
+  });
   out.bracketExt = _selBracketExtDelta();
   out.downpipes = _selDownpipeDelta();
   return out;
@@ -27314,7 +27365,7 @@ function _qeOpenCondition(){
 function _qeTarget(what){
   var root = document.getElementById('qpRoot'); if (!root) return null;
   if (root.querySelector('#qdRoot')){
-    return what === 'desc' ? root.querySelector('#qd-proposal .qb-incl') : root.querySelector('#qd-roofing');
+    return what === 'desc' ? root.querySelector('#qd-proposal .qb-incl') : root.querySelector('#qd-grade');
   }
   if (root.querySelector('.qb')){
     var keys = _qbPages().map(function(p){ return p.key; });
@@ -27498,7 +27549,12 @@ function _qbTag(it){
 }
 // The same numbers the A4 cards carry: the stored sell prices on a sent
 // quote, the live ones in the office.
-function _qbDeltas(){ try { return _qpCardDeltas(); } catch(e){ return { grade:{}, gutter:{}, profileLock:{}, gauge:0, bracketExt:0, downpipes:0 }; } }
+function _qbDeltas(){ try { return _qpCardDeltas(); } catch(e){ return { grade:{}, gutter:{}, gutterUp:{}, profileLock:{}, gauge:0, bracketExt:0, downpipes:0 }; } }
+// "…includes the platform scaffold upgrade" under a gutter card that carries one.
+function _qbGutterUpNote(CD, id){
+  var up = (CD.gutterUp || {})[id] || 0;
+  return up > 0 ? ' Includes the platform scaffold upgrade (' + _qbMoney(_qbIncl(up)) + ').' : '';
+}
 function _qbIncl(exGst){ return (parseFloat(exGst) || 0) * (1 + _qbRate()); }
 function _qbGrade(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -27696,7 +27752,7 @@ function _qbGutter(){
   var items = [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
   try {
     _selGutters().forEach(function(g){
-      items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:g.desc || '' });
+      items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:(g.desc || '') + _qbGutterUpNote(CD, g.id) });
     });
   } catch(e){}
   items = _qbRecMark(items, 'gutterType', 'none');
@@ -27705,6 +27761,7 @@ function _qbGutter(){
     if (_selScaffoldBasePrice() > 0)
       note = 'New guttering also upgrades the site to a full platform scaffold so the gutter line can be installed safely. That is already in the figures above.';
   } catch(e){}
+  try { note += _gutterNoPlatformTickHtml('quote'); } catch(e){}
   return _qpOptPageWrap('gutter', {
     eyebrow:'While the scaffold is up', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
     current:p.gutterType || 'none', items:items, note:note,
@@ -27926,7 +27983,12 @@ function _qdSections(){
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
   if (_qbHasCondition()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
   list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
-  list.push({ key:'roofing',  label:'Roofing',  html:_qdRoofing });
+  // Steel grade, profile and thickness are each a section of their own, the
+  // rows full width like the guttering's — three narrow columns of tall cards
+  // read as a muddle on the owner's screen.
+  list.push({ key:'grade',     label:'Steel grade', html:_qbGrade });
+  list.push({ key:'profile',   label:'Profile',     html:_qbProfile });
+  list.push({ key:'thickness', label:'Thickness',   html:_qbThickness });
   if ((p.steelGrade || 'maxam') !== 'zincalume') list.push({ key:'colour', label:'Colour', html:_qbColour });
   var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
   if (!gutterOff) list.push({ key:'gutter', label:'Guttering', html:_qdGutter });
@@ -28007,21 +28069,6 @@ function _qdPhotoGrid(photos){
     '</div>';
 }
 function _qdProposal(){ return _qbProposal({ desk:true, mapH: 320, mapKey: 'desk' }); }
-// Steel grade, profile and thickness are one decision about the roofing,
-// so on a screen with the room they sit side by side.
-function _qdRoofing(){
-  return '<div class="qb-body qd-sec-hd">'+
-      '<span class="qb-eyebrow">Your roofing</span>'+
-      '<h2 class="qb-h2">Choose your roofing</h2>'+
-      _qeInlineBtn('sel')+
-      '<p class="qb-para">Three choices that decide how long the roof lasts, how it looks and how it stands up to the weather. The recommended ones are already picked — change any of them and the total updates.</p>'+
-    '</div>'+
-    '<div class="qd-grid3">'+
-      '<div class="qd-cell">'+_qbGrade().replace(/<button type="button" class="qe-inline[^>]*data-qe-btn="sel"[^>]*>[^<]*<\/button>/, '')+'</div>'+
-      '<div class="qd-cell">'+_qbProfile()+'</div>'+
-      '<div class="qd-cell">'+_qbThickness()+'</div>'+
-    '</div>';
-}
 function _qdGutter(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var kit = (p.gutterType && p.gutterType !== 'none') ? _qbGutterKit() : '';
@@ -33517,7 +33564,7 @@ function refreshQuoteProposal(){
                        desc:'Existing gutter stays as-is.' }].concat(
         _selGutters().map(function(gt){
           return { id: gt.id, label: gt.name || gt.id,
-                   delta: _dIncl(_CD.gutter[gt.id] != null ? _CD.gutter[gt.id] : 0), desc: gt.desc || '' };
+                   delta: _dIncl(_CD.gutter[gt.id] != null ? _CD.gutter[gt.id] : 0), desc: (gt.desc || '') + _qbGutterUpNote(_CD, gt.id) };
         }));
       var BRACKETS = _selFixed('brackets', [
         { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'The typical gutter bracket, tucked inside the gutter for a clean look. Standard on your quote.' },
@@ -33741,7 +33788,7 @@ function refreshQuoteProposal(){
             // back); the customer link renders nothing at all.
             (_gutterExcluded()
               ? (window.__CUSTOMER_MODE ? '' : selPanel('Guttering', _gutterExcludedPanelBody()))
-              : selPanel('Guttering', _qeInlineBtn('gutter') + selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml())+
+              : selPanel('Guttering', _qeInlineBtn('gutter') + selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml() + _gutterNoPlatformTickHtml('quote'))+
                 (pOpts.gutterType && pOpts.gutterType !== 'none'
                   ? ((_selScaffoldBasePrice() > 0
                       ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'

@@ -151,6 +151,9 @@ const priced = await pg.evaluate((CARDS) => {
     S.quote.scaffoldBase = 0;
     S.settings.price_book = null;
     S.materials = 0; S.labour = 0;
+    // …and it IS the customer's browser: the priced block is read there (and
+    // on an accepted quote); the office editing a draft reads live figures.
+    window.__CUSTOMER_MODE = true;
     GRADES.forEach(function(g){ PROFS.forEach(function(pr){ THICKS.forEach(function(th){
       GUTTERS.forEach(function(gt){ BRACK.forEach(function(br){ EXTRAS.forEach(function(ex, exi){
         S.quote.proposalOptions = { steelGrade:g, profile:pr, steelThickness:th,
@@ -166,6 +169,7 @@ const priced = await pg.evaluate((CARDS) => {
         });
       }); }); }); }); }); });
   });
+  window.__CUSTOMER_MODE = false;
   return out;
 }, CARDS_SNIPPET);
 

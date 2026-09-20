@@ -70,6 +70,17 @@ check('…and the screen switches to the sent quote, locked, straight away', awa
 await pg.evaluate(() => { const f = document.querySelector('#qpRoot .qp-map-frame'); if (f) f.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })); });
 await pg.waitForTimeout(150);
 check('scrolling over the aerial while viewing it asks nothing and moves nothing', await pg.evaluate(() => !document.getElementById('jobLockModal') && _qpRoofMapView('main').zoom === 1));
+// Inspecting its pricing: the Pricing drawer OPENS without a question (the
+// owner: "I need to be able to fully inspect the sent quote"); the question
+// comes at the first real change inside it.
+await pg.evaluate(() => document.getElementById('quotePricingPanelToggle').click());
+await pg.waitForTimeout(400);
+v = await pg.evaluate(() => ({ asked: !!document.getElementById('jobLockModal'), open: document.getElementById('quotePricingPanel').classList.contains('open') || getComputedStyle(document.getElementById('quotePricingPanel')).display !== 'none' }));
+check('opening the Pricing drawer on the sent quote asks nothing', !v.asked, JSON.stringify(v));
+await pg.evaluate(() => { const i = document.querySelector('#quotePricingPanel input[type="number"]'); if (i) i.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); });
+await pg.waitForTimeout(200);
+check('…but a press on a price field inside it does', await pg.evaluate(() => !!document.getElementById('jobLockModal')));
+await pg.evaluate(() => { const m = document.getElementById('jobLockModal'); if (m) m.querySelector('#jobLockKeep').click(); try { _closePricingPanel(); } catch(e){} });
 await pg.evaluate(() => _qvBackToDraft());
 await pg.waitForTimeout(300);
 
