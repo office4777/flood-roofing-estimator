@@ -381,6 +381,18 @@ Discipline (non-negotiable):
   paragraph the phone and the computer show. `_qbHasCondition()` answers
   false when the page is out of the document, so the tick reaches the
   modern layouts as well as the A4. `tests/quoteeditor.mjs`.
+- THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) is quiet
+  since 2026-09-21: plain white cards, one small uppercase heading each, no
+  emoji, no coloured bands (the owner called them childish). Every heading
+  carries its FIGURE at the right (`_pxHeadTotals`, refreshed by
+  `renderProfitability`, which every recalc reaches: scaffold price, roof
+  labour + material, gutter total or "Excluded"/"not on the quote", GP %)
+  and a chevron: a click on the heading folds the section (`_pxToggle`,
+  remembered per section in `localStorage.fr_pricingFold`, applied by
+  `_openPricingPanel`); a folded section still prints in full
+  (`html.print-scope` rule). The card ids (`scaffoldCard`,
+  `roofPriceTile`, `gutterDownpipeCard`, `profitCard`) are what the
+  walkthrough and the suites point at — keep them.
 - JOB PROFITABILITY (Pricing tab) lists what the job is made of and its
   tiles add that list up: `_profitFigures(view).items` — 1. Scaffolding,
   2. Roofing (labour + materials), then the quote's selections from

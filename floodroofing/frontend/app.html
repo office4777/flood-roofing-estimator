@@ -1117,35 +1117,46 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 #tab-scope .result-box{margin-top:.5rem;padding:12px 14px}
 #tab-scope .sec-btn{margin-top:.5rem}
 
-/* ── Pricing panel: grouped, colour-tinted tiles ────────────────────
-   The panel reads top-to-bottom as distinct tinted tiles:
-   Scaffold → Roof (labour + material) → Gutter (labour + material) →
-   Per-roof breakdown → Profitability. Each tile is tinted its own colour so
-   the sections are instantly easy to tell apart. */
+/* ── Pricing panel: quiet sections ─────────────────────────────────
+   Scaffolding → Roof (labour + material) → Guttering & downpipes →
+   Profitability, each a plain white card with one small heading, its
+   figure at the right of the heading, and a chevron: click the heading to
+   fold the section and the figure still reads. The coloured bands and the
+   emoji went 2026-09-21 — the owner called them childish. */
 #tab-scope .card{
   padding:0 14px 14px;
-  margin-bottom:16px;
-  border:2px solid var(--accent);        /* accent runs right around the tile */
-  border-left-width:8px;                 /* wider on the left */
-  border-radius:12px;
-  box-shadow:0 2px 8px rgba(10,22,40,.06);
+  margin-bottom:12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  box-shadow:0 1px 2px rgba(10,22,40,.04);
   overflow:hidden;
+  background:#fff;
 }
 #tab-scope .card-hd{
-  margin:0 -14px 14px;
-  padding:16px 16px 14px;
-  background:rgba(10,22,40,.04);
-  border-bottom:1px solid rgba(10,22,40,.12);
-  font-size:26px;
-  font-weight:800;
-  letter-spacing:-.025em;
-  line-height:1.05;
-  align-items:baseline;
-  flex-wrap:wrap;
+  margin:0 -14px 12px;
+  padding:11px 14px 10px;
+  background:#fff;
+  border-bottom:1px solid var(--border);
+  font-size:12.5px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#0a1628;
+  line-height:1.2;
+  display:flex; align-items:center; gap:10px; flex-wrap:nowrap;
+  cursor:pointer; user-select:none;
 }
 #tab-scope .card-hd .card-dot{ display:none; }
-#tab-scope .card-hd .tile-ic{ font-size:24px;margin-right:4px; }
-#tab-scope .card-hd .tile-sub-note{ font-size:11.5px;font-weight:500;color:var(--text2);margin-left:0;flex-basis:100%;margin-top:5px;text-transform:none;letter-spacing:0; }
+#tab-scope .card-hd .tile-ic{ display:none; }
+#tab-scope .card-hd .tile-sub-note{ font-size:11px;font-weight:400;color:var(--text2);margin-left:0;text-transform:none;letter-spacing:0;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+#tab-scope .card-hd .px-total{ margin-left:auto;font-size:13px;font-weight:700;letter-spacing:0;text-transform:none;color:#0a1628;font-variant-numeric:tabular-nums;white-space:nowrap; }
+#tab-scope .card-hd .px-total.muted{ color:var(--text2);font-weight:500; }
+#tab-scope .card-hd .px-chev{ flex:0 0 auto;width:18px;height:18px;border:1px solid var(--border);border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text2);font-size:11px;transition:transform .18s ease; }
+#tab-scope .card.px-collapsed .card-hd{ margin-bottom:0;border-bottom:none; }
+#tab-scope .card.px-collapsed{ padding-bottom:0; }
+#tab-scope .card.px-collapsed .card-hd .px-chev{ transform:rotate(-90deg); }
+#tab-scope .card.px-collapsed > :not(.card-hd){ display:none !important; }
+@media (max-width:640px){ #tab-scope .card-hd .tile-sub-note{ display:none; } }
 
 /* Sticky Main Roof / Roof 2 switch in the pricing-panel header. */
 #pricingRoofSwitchBar{
@@ -1154,41 +1165,33 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 }
 .pr-roof-cell{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; }
 .pr-roof-btn{
-  flex:1 1 auto; min-width:0; padding:20px 10px 18px;
-  border:2px solid var(--border); border-radius:12px; background:#fff;
+  flex:1 1 auto; min-width:0; padding:10px 10px 9px;
+  border:1px solid var(--border); border-radius:8px; background:#fff;
   cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
   font-family:inherit; line-height:1.1;
 }
-.pr-roof-btn .pr-roof-nm{ font-size:22px; font-weight:800; color:#0a1628; }
-.pr-roof-btn .pr-roof-sub{ font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--text2); text-transform:uppercase; }
-.pr-roof-btn .pr-roof-area{ display:block; font-size:13px; font-weight:800; color:var(--text1); font-variant-numeric:tabular-nums; margin:1px 0 2px }
+.pr-roof-btn .pr-roof-nm{ font-size:14px; font-weight:700; color:#0a1628; }
+.pr-roof-btn .pr-roof-sub{ font-size:10px; font-weight:600; letter-spacing:.05em; color:var(--text2); text-transform:uppercase; }
+.pr-roof-btn .pr-roof-area{ display:block; font-size:12px; font-weight:600; color:var(--text1); font-variant-numeric:tabular-nums; margin:1px 0 0 }
 .pr-roof-btn.on .pr-roof-area{ color:#fff }
-.pr-roof-btn.on{ border-color:#0099cc; background:#0099cc; box-shadow:0 3px 12px rgba(0,153,204,.32); }
+.pr-roof-btn.on{ border-color:#0a1628; background:#0a1628; box-shadow:none; }
 .pr-roof-btn.on .pr-roof-nm, .pr-roof-btn.on .pr-roof-sub{ color:#fff; }
 /* Sub-blocks inside a tile (e.g. Roof labour + Roof material). */
 #tab-scope .tile-block:first-of-type{ margin-top:2px; }
 #tab-scope .tile-block + .tile-block{ margin-top:16px;padding-top:14px;border-top:1px dashed var(--border); }
-#tab-scope .tile-block-hd{ font-size:11.5px;font-weight:800;color:#0a1628;margin-bottom:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.04em; }
-#tab-scope .tile-mini-btn{ margin-left:auto;padding:4px 9px;font-size:10.5px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:#0a1628; }
-#tab-scope .tile-mini-btn-dark{ background:#0a1628;color:#fff;border-color:#0a1628;margin-left:6px; }
+#tab-scope .tile-block-hd{ font-size:11px;font-weight:600;color:var(--text2);margin-bottom:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.06em; }
+#tab-scope .tile-mini-btn{ margin-left:auto;padding:3px 9px;font-size:10.5px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:#0a1628;text-transform:none;letter-spacing:0; }
+#tab-scope .tile-mini-btn-dark{ background:#fff;color:#0a1628;margin-left:6px; }
 #tab-scope .tile-note{ font-size:11px;color:var(--text2);margin:0 0 10px; }
 /* Each tile's IDENTITY is its coloured header band + left accent stripe. The
    tile BODY stays white so the tables + green totals inside read cleanly —
    the colour lives in the header, not clashing with everything inside. */
-#tab-scope .card{ background:#fff; }
-#tab-scope #scaffoldCard          { border-color:#475569; }
-#tab-scope #scaffoldCard .card-hd { background:#e2e8f0;color:#334155; }
-#tab-scope #roofPriceTile          { border-color:#2563eb; }
-#tab-scope #roofPriceTile .card-hd { background:#dbe8ff;color:#1d4ed8; }
-#tab-scope #gutterDownpipeCard          { border-color:#0891b2; }
-#tab-scope #gutterDownpipeCard .card-hd { background:#cdeef5;color:#0e7490; }
-#tab-scope #profitCard          { border-color:#16a34a; }
-#tab-scope #profitCard .card-hd { background:#d6f0e0;color:#15803d; }
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
 /* Action bar isn't a titled tile — keep it plain. */
-#tab-scope .card.mat-actions{ padding:14px 16px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
+#tab-scope .card.mat-actions{ padding:12px 14px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
+#tab-scope .card.mat-actions .mat-btn{ font-size:12px;padding:7px 12px; }
 /* Density: tighter table cells throughout the pricing tiles. */
 #tab-scope .price-tbl th, #tab-scope .price-tbl td{ padding:5px 7px !important; }
 
@@ -2053,6 +2056,9 @@ html.office-price-bar #tab-quote{ padding-bottom:calc(var(--office-bar-h, 96px) 
    inside the fixed slide-out — neutralise the panel chrome while printing. */
 html.print-scope #quotePricingPanel{ position:static!important; transform:none!important; width:auto!important; box-shadow:none!important; border:none!important; display:block!important; }
 html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .qpx-hd{ display:none!important; }
+/* A folded section still prints in full, and the chevrons stay off paper. */
+html.print-scope #tab-scope .card.px-collapsed > :not(.card-hd){ display:revert !important; }
+html.print-scope #tab-scope .card-hd .px-chev{ display:none !important; }
 /* Fergus job photos slide-out (Map Roof tab) — a resizable side pop-out so
    the site photos sit next to the canvas while drawing. Drag its left edge to
    set how far it comes out; a zoom slider scales the photos.
@@ -5689,22 +5695,22 @@ html.qp-desk-preview .qd-top{ position:static; }
   <!-- 1. SCAFFOLDING — its own tile, first. Rendered per-roof by calcLabour
        into #scaffoldWrap (split out of the labour table). -->
   <div class="card" id="scaffoldCard">
-    <div class="card-hd"><span class="tile-ic">🪜</span>Scaffolding<span class="tile-sub-note">Included in every quote · one price for the main roof and everything part of it</span></div>
+    <div class="card-hd" onclick="_pxToggle('scaffoldCard', event)" title="Click to fold or unfold this section"><span class="px-title">Scaffolding</span><span class="tile-sub-note">Included in every quote &middot; one price for the main roof and everything part of it</span><span class="px-total" id="pxTot_scaffoldCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="scaffoldWrap"></div>
   </div>
 
   <!-- 2. ROOF — labour + material for the roof itself, grouped in one tile.
        #labourTableWrap (calcLabour) + #materialPriceTableWrap (renderMaterialPriceTable). -->
   <div class="card" id="roofPriceTile">
-    <div class="card-hd"><span class="tile-ic">🏠</span>Roof<span class="tile-sub-note">Labour &amp; material for the roof itself</span></div>
+    <div class="card-hd" onclick="_pxToggle('roofPriceTile', event)" title="Click to fold or unfold this section"><span class="px-title">Roof</span><span class="tile-sub-note">Labour &amp; material for the roof itself</span><span class="px-total" id="pxTot_roofPriceTile"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div class="tile-block">
       <div class="tile-block-hd">Roof labour</div>
       <div id="labourTableWrap"></div>
     </div>
     <div class="tile-block">
       <div class="tile-block-hd">Roof material
-        <button onclick="openPriceSettings()" class="tile-mini-btn">⚙ Prices</button>
-        <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">↻ Refresh</button>
+        <button onclick="openPriceSettings()" class="tile-mini-btn">Prices</button>
+        <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">Refresh</button>
       </div>
       <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
       <div id="materialPriceTableWrap">
@@ -5718,7 +5724,7 @@ html.qp-desk-preview .qd-top{ position:static; }
        or not the customer has taken guttering up, unless the office ticks
        "Exclude gutter pricing" on this card or on the Selections page. -->
   <div class="card" id="gutterDownpipeCard">
-    <div class="card-hd"><span class="tile-ic">🌧️</span>Guttering &amp; downpipes<span class="tile-sub-note">Priced on every job — edit a total if this one is complex</span></div>
+    <div class="card-hd" onclick="_pxToggle('gutterDownpipeCard', event)" title="Click to fold or unfold this section"><span class="px-title">Guttering &amp; downpipes</span><span class="tile-sub-note">Priced on every job &mdash; edit a total if this one is complex</span><span class="px-total" id="pxTot_gutterDownpipeCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="gutterDownpipeWrap"></div>
   </div>
 
@@ -5728,7 +5734,7 @@ html.qp-desk-preview .qd-top{ position:static; }
        here). Populated by renderPerRoofBreakdown(). -->
   <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
   <div class="card" id="profitCard">
-    <div class="card-hd"><span class="tile-ic">📈</span>Job profitability<span class="tile-sub-note">Revenue (charge-out) vs cost — refresh material price above to update</span></div>
+    <div class="card-hd" onclick="_pxToggle('profitCard', event)" title="Click to fold or unfold this section"><span class="px-title">Job profitability</span><span class="tile-sub-note">Revenue (charge-out) against cost</span><span class="px-total" id="pxTot_profitCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="profitWrap"></div>
   </div>
 
@@ -5736,10 +5742,10 @@ html.qp-desk-preview .qd-top{ position:static; }
        page as a PDF, push it to the linked Fergus job, or pop the
        quote tab open for the client-facing version. -->
   <div class="card mat-actions">
-    <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">📄 Save pricing as PDF</button>
-    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green jms-only">📤 Push pricing to Fergus</button>
-    <button onclick="openFergusJob()" class="mat-btn mat-btn-light jms-only">📂 Open in Fergus</button>
-    <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">📝 Open quote builder</button>
+    <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">Save pricing as PDF</button>
+    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green jms-only">Push pricing to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light jms-only">Open in Fergus</button>
+    <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">Open quote builder</button>
     <span id="scopeActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
 </div>
@@ -5753,7 +5759,7 @@ html.qp-desk-preview .qd-top{ position:static; }
     <span class="qpx-text">PRICING</span>
   </button>
   <div id="quotePricingPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
-  <div class="qpx-hd"><span>💰 Pricing</span>
+  <div class="qpx-hd"><span>Pricing</span>
     <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
   </div>
@@ -13010,7 +13016,7 @@ function _pbListPriceNoticeHtml(where){
   var goto = where === 'settings' ? '' :
     ' <a href="#" onclick="gotoTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
   return '<div class="pb-listnote">' +
-    '<strong>🚩 Default price book — add your prices in Settings.</strong> These are indicative ' +
+    '<strong>Default price book — add your prices in Settings.</strong> These are indicative ' +
     'figures so you can see a finished quote straight away. They are not your supplier rates — ' +
     'replace them before you send anything to a customer.' + goto +
     '</div>';
@@ -14032,7 +14038,7 @@ function renderMaterialPriceTable(){
     var _zero = (!price || price <= 0) && (qty || 0) > 0;
     html += '<tr'+(_zero ? ' class="pb-zero"' : '')+'>'+
       '<td>'+esc(r.label)+ custom +
-        (_zero ? ' <span class="pb-zero-tag">🚩 No price</span>' : '')+
+        (_zero ? ' <span class="pb-zero-tag">No price</span>' : '')+
         (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
       '</td>'+
       '<td>'+
@@ -14473,7 +14479,7 @@ function _labourCalcPanelHtml(ri){
   var manual = _labourHrsManual(ri);
   var head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:'+(show?'10px':'0')+'">'+
     '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:700;color:#0a1628">'+
-      '<input type="checkbox" '+(show?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> 🧮 Show labour auto-calculations</label>'+
+      '<input type="checkbox" '+(show?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> Show labour auto-calculations</label>'+
     '<span style="font-size:10.5px;color:var(--text2);margin-left:auto">'+
       (manual ? 'calculated: '+calc.hours2+' hrs' : calc.hours2+' hrs auto-applied · roofing only')+'</span>'+
   '</div>'+
@@ -21650,7 +21656,7 @@ function renderGutterDownpipePricing(){
   var _showLC = _showLabourCalc();
   var gutLabHtml =
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
-      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:var(--text)"><input type="checkbox" '+(_showLC?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> 🧮 Show labour auto-calculations</label>'+
+      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:var(--text)"><input type="checkbox" '+(_showLC?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> Show labour auto-calculations</label>'+
       '<span style="font-size:10.5px;color:var(--text3);margin-left:auto">Gutter labour · auto '+gls.band+' hr → '+money(labCharge)+'</span>'+
     '</div>'+
     (_showLC ?
@@ -21839,11 +21845,67 @@ function _profitSelectionItems(){
   });
   return out;
 }
+// ── The pricing sections fold, and each heading carries its figure ──
+// A click on a heading folds that section (remembered per section in
+// localStorage, so the office's own arrangement of the drawer survives a
+// reload); the figure at the right of the heading is refreshed with every
+// profitability render, which every recalc reaches.
+var PX_FOLD_KEY = 'fr_pricingFold';
+function _pxFolds(){ try { return JSON.parse(localStorage.getItem(PX_FOLD_KEY) || '{}') || {}; } catch(e){ return {}; } }
+function _pxToggle(id, ev){
+  if (ev && ev.target && ev.target.closest && ev.target.closest('button, a, input, select')) return;
+  var card = document.getElementById(id); if (!card) return;
+  var folds = _pxFolds();
+  var now = !card.classList.contains('px-collapsed');
+  card.classList.toggle('px-collapsed', now);
+  folds[id] = now;
+  try { localStorage.setItem(PX_FOLD_KEY, JSON.stringify(folds)); } catch(e){}
+}
+function _pxFoldsApply(){
+  var folds = _pxFolds();
+  ['scaffoldCard', 'roofPriceTile', 'gutterDownpipeCard', 'profitCard'].forEach(function(id){
+    var card = document.getElementById(id); if (card) card.classList.toggle('px-collapsed', !!folds[id]);
+  });
+}
+function _pxUnfold(id){ var c = document.getElementById(id); if (c && c.classList.contains('px-collapsed')) _pxToggle(id); }
+function _pxHeadTotals(){
+  var f = function(v){ return parseFloat(v) || 0; };
+  var set = function(id, text, muted){ var el = document.getElementById('pxTot_' + id); if (!el) return; el.textContent = text || ''; el.classList.toggle('muted', !!muted); };
+  try {
+    var ri = _pricingRoofIdx();
+    var sc = _scaffoldEff(_roofScaffold(ri));
+    set('scaffoldCard', fmtMoney(sc.price) + (sc.type === 'platform' || (_roofScaffold(ri) || {}).type === 'platform' ? ' \u00b7 platform' : ''));
+  } catch(e){ set('scaffoldCard', ''); }
+  try {
+    var ri2 = _pricingRoofIdx();
+    var lab = ri2 === 0 ? f(S.labour) : _labourPriceForRoof(ri2);
+    var mat = ri2 === 0 ? f(S.materials) : _materialsCostForRoofIdx(ri2);
+    set('roofPriceTile', fmtMoney(lab + mat), !(lab + mat > 0));
+  } catch(e){ set('roofPriceTile', ''); }
+  try {
+    if (_gutterExcluded()) set('gutterDownpipeCard', 'Excluded', true);
+    else {
+      var p = (S.quote && S.quote.proposalOptions) || {};
+      var on = _gutterOnQuote();
+      var gt = _gutterPricingType();
+      var g = on ? _selGutterDelta(p.gutterType) : _gutterTotalCharge(gt, _selGutterLm());
+      var up = on ? (0.25 * _selScaffoldBasePrice()) : 0;
+      var dp = (on && p.downpipes === 'yes') ? _selDownpipeDelta() : 0;
+      set('gutterDownpipeCard', fmtMoney(g + up + dp) + (on ? '' : ' \u00b7 not on the quote'), !on);
+    }
+  } catch(e){ set('gutterDownpipeCard', ''); }
+  try {
+    var pf = _profitFigures(_profitView());
+    var gp = pf.revenue - pf.cost, pct = pf.revenue > 0 ? gp / pf.revenue * 100 : 0;
+    set('profitCard', 'GP ' + pct.toFixed(1) + '% \u00b7 ' + fmtMoney(gp), !(pf.revenue > 0));
+  } catch(e){ set('profitCard', ''); }
+}
 function renderProfitability(){
   var wrap = document.getElementById('profitWrap');
   // Always nudge the persistent top job bar so the cost row stays
   // in sync even when the profitability dashboard panel isn't open.
   try { updateGlobalJobBarCosts(); } catch(e){}
+  try { _pxHeadTotals(); } catch(e){}
   if (!wrap) return;
   _pricingState();
   var f = function(v){ return parseFloat(v) || 0; };
@@ -52992,6 +53054,7 @@ function _pricingPanelInit(){
   if (host && sc && sc.parentNode !== host) host.appendChild(sc);
 }
 function _openPricingPanel(instant){
+  try { _pxFoldsApply(); } catch(e){}
   // The panel only exists on the Quote tab — switch there first if needed.
   try {
     var ap = document.querySelector('.panel.active');
