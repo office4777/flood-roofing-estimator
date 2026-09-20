@@ -515,10 +515,16 @@ const lgA = await legacy.pg.evaluate(async () => {
   const tk = document.getElementById('qbAcceptTerms'); if (tk) tk.checked = true;
   document.querySelector('.qb-accept').click();
   await new Promise(r => setTimeout(r, 1400));
+  // The acceptance PDF for the office renders the A4 behind a veil. On a
+  // runner where the PDF library actually loads that takes seconds, so wait
+  // for the veil to lift (or the build to give up) before reading the page.
+  for (let i = 0; i < 60 && (document.getElementById('qpPdfVeil') || window.__PRINTING_QUOTE); i++) await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 300));
   return { shown, blocked, noModal: !document.getElementById('acceptConfirmModal'),
            accepted: !!(S.quote && S.quote.accepted),
            locked: document.documentElement.classList.contains('quote-locked'),
-           stillBook: document.documentElement.classList.contains('qp-book') };
+           stillBook: document.documentElement.classList.contains('qp-book'),
+           veilGone: !document.getElementById('qpPdfVeil') };
 });
 // The phone asks for the name and the tick ON the page. A popup that repeats
 // both questions and re-offers every selection, after the customer has just
@@ -533,7 +539,7 @@ check('…recorded with the customer\u2019s name and the total they were looking
 check('…carrying the optional roof they added', lgP.length === 1 &&
   (lgP[0].acceptedOptions || []).some(o => /Garage/.test(o.title || '')),
   lgP.length ? (lgP[0].acceptedOptions || []).map(o => o.title).join(', ') : '');
-check('…and the book is still what they are looking at afterwards', lgA.stillBook);
+check('…and the book is still what they are looking at afterwards', lgA.stillBook && lgA.veilGone, JSON.stringify({ stillBook: lgA.stillBook, veilGone: lgA.veilGone }));
 check('nothing threw on the old quote', legacy.errs.length === 0, legacy.errs.join(' | ') || 'clean');
 await legacy.ctx.close();
 
