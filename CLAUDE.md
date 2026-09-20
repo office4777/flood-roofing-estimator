@@ -142,6 +142,13 @@ Discipline (non-negotiable):
   somebody asked for (an invoice, a cancellation, a requested link) is never
   held — a person who pressed a button and got nothing is worse off than one
   who got the right thing from an odd address. `tests/platformfrom.mjs`.
+  And the platform's mail NEVER takes the Google relay: when Resend refuses
+  a `platform:true` message, `_dispatchMailInner` holds it and pages
+  ("Platform email HELD") instead of falling back — the relay is one Gmail
+  account that sends as the owner's roofing company, which is exactly how
+  the trial email once reached a stranger from office@floodroofing.co.nz.
+  Requested mail still degrades to the relay. `tests/platformrelay.mjs`,
+  with a fake Resend that refuses everything (`RESEND_API_BASE`).
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.

@@ -820,7 +820,7 @@ async function _dispatchMail(opts) {
     throw e;                                  // callers still decide what the user sees
   }
 }
-async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
+async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress, platform }) {
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
@@ -842,6 +842,16 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
       // down while a working relay is configured. Degrade, and page about it —
       // this is a misconfiguration someone needs to fix, not a steady state.
       if (!GAS_ENABLED) throw e;
+      // EXCEPT for the platform's own unprompted mail. The relay is one Gmail
+      // account that sends as the owner's roofing company, and that is how a
+      // trial-drip email once reached a stranger from office@floodroofing.co.nz
+      // — Resend refused the From, the relay obliged. Platform mail is held
+      // and paged about; it is never worth sending from the wrong house.
+      if (platform) {
+        try { recordError('server', new Error('Platform email HELD — Resend refused it and the Google relay would send it as another company: ' + (e && e.message)), { route: '_dispatchMail', subject: subj }); } catch (e2) {}
+        MAIL_STATS.held = (MAIL_STATS.held || 0) + 1;
+        throw new Error('platform email held: Resend failed (' + (e && e.message) + ') and the relay sends as another company');
+      }
       try { recordError('server', new Error('Resend send failed, fell back to the Google relay: ' + (e && e.message)), { route: '_dispatchMail' }); } catch (e2) {}
       return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
     }
