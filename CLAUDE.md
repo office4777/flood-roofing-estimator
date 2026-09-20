@@ -47,6 +47,15 @@ accordingly.
   hand. `tools/sheet-shots.mjs` renders any fixture to PNGs of the layout,
   the calc check and the cut list — send those to the owner BEFORE the gate
   when the counts are in question.
+- `floodroofing/hub/FloodRoofing_Financials.html` — the owner's Finance Hub
+  (the phone app: Command Centre, P&L strips, back costing, cash), a second
+  single-file app with its own README. It is served by GitHub Pages straight
+  from `main` (a "pages build and deployment" run follows every push), NOT
+  through Vercel — and the Tests workflow ignores `floodroofing/hub/**`, so a
+  hub-only push to main never triggers the promote; run the promote by hand
+  (`workflow_dispatch`) if production needs to carry it. Xero figures live in
+  localStorage under `fr3_xeroMonthly`, which is how a headless screenshot
+  gets seeded. The Dashboard's bar-graph panels were removed 2026-09-20.
 - `floodroofing/tools/` — generators, never their output (`.gitignore` keeps
   it that way). `demo-shots.mjs` → `demo-slideshow.mjs` → `demo-record.mjs`
   build the sales demo; `restore-check.mjs` verifies a backup restore;
