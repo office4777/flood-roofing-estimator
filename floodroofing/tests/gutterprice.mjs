@@ -17,7 +17,7 @@ const opg = await octx.newPage();
 opg.on('pageerror', e => console.log('PAGEERROR', e.message));
 await opg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await opg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
+await opg.addInitScript(() => { window.__DEFAULT_QUOTE_STYLE = 'classic'; /* these pins are about the document */ localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await opg.goto('file://'+DIR+'/app.html');
 await opg.waitForTimeout(2600);
 
@@ -133,7 +133,7 @@ ppg.on('pageerror', e => console.log('PAGEERROR', e.message));
 ppg.on('dialog', d => d.accept());
 await ppg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await ppg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await ppg.addInitScript(() => { window.__DEFAULT_QUOTE_STYLE = 'classic'; /* these pins are about the document */ localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
 await ppg.goto('file://'+DIR+'/app.html');
 await ppg.waitForTimeout(2400);
 // Two real drawn roofs, each auto-generated (so each gets its own gutter run).

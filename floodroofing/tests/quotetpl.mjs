@@ -39,7 +39,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     quote_defaults:{ next_job_no:'00001' }, jms_keys:{} });
   return j([]);
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
+await pg.addInitScript(() => { window.__DEFAULT_QUOTE_STYLE = 'classic'; /* these pins are about the document */ localStorage.setItem('fr_token','t');
   localStorage.setItem('fr_setup_done','1'); localStorage.removeItem('fr_settings');
   localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Flood Roofing LTD', role:'owner' })); });
 await pg.goto('file://' + DIR + '/app.html');

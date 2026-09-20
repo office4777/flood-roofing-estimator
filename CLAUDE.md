@@ -271,7 +271,13 @@ Discipline (non-negotiable):
   Computer (`QP_PREVIEW.desk`, `html.qp-desk-preview`), Phone — and
   `'desktop'` still means Document. `tests/quotedesk.mjs`.
 - THE QUOTE'S STYLE (report 56): `S.quote.style` is `'classic'` or
-  `'modern'` (the default), saved with the quote and sent to the customer.
+  `'modern'`, saved with the quote and sent to the customer; a quote with
+  none takes `settings.quote_defaults.style`, then the test seam
+  `window.__DEFAULT_QUOTE_STYLE` (the document-centred office suites set
+  it to `'classic'` in their init script), then modern. The Quote tab is a
+  flex column ordered by CSS (`#tab-quote > …{order}`): the rail wrapper
+  `.qe-wrap` carries the proposal card's order or the action bar lands
+  under the preview.
   Classic is the document — the A4 on a computer, the same A4 reflowed on
   a phone (`customer-mobile`), edited by clicking the page. Modern is the
   one-page layout and the book. `_qpBookActive`/`_qpDeskActive` return

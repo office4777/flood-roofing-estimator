@@ -44,7 +44,7 @@ async function boot(opts){
     if (/\/jobs/.test(u) && m === 'GET') return j(opts.jobs || []);
     return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
   });
-  await pg.addInitScript((o) => {
+  await pg.addInitScript((o) => { window.__DEFAULT_QUOTE_STYLE = 'classic';
     localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_settings', 'null');
     localStorage.setItem('fr_user', JSON.stringify({ email: 'me@acmeroofing.co.nz', name: 'Sam Tui' }));
     localStorage.setItem('fr_company', JSON.stringify({ id: 'c1', name: 'Acme Roofing Ltd', role: 'owner', plan: 'trial' }));

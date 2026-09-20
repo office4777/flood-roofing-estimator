@@ -3173,7 +3173,7 @@ html.qp-classic-phone .report-preview #qpRoot{ width:540px !important; height:11
 .qv-status{ flex:1 1 100%; font-size:12px; color:#5b6b7d; line-height:1.45; padding-top:2px; }
 #qaMsg{ width:100%; }
 #qaMsg:empty{ display:none; }
-#tab-quote > .js-proposal-print{order:2}
+#tab-quote > .js-proposal-print, #tab-quote > .qe-wrap{order:2}   /* the editor rail wraps the proposal card and takes its place */
 .q-extras-head{margin:22px 2px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .q-extras-head span{font-size:11px;font-weight:400;color:var(--text3)}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
@@ -26503,6 +26503,11 @@ function _qpBookActive(){
 // quote, so the customer gets the style the office chose.
 function _quoteStyle(){
   var v = (window.S && S.quote && S.quote.style) || '';
+  if (v !== 'classic' && v !== 'modern'){
+    // No style on the quote: the company's default, else modern. The
+    // window seam lets the document-centred suites open on the A4.
+    try { v = (S.settings && S.settings.quote_defaults && S.settings.quote_defaults.style) || window.__DEFAULT_QUOTE_STYLE || ''; } catch(e){ v = ''; }
+  }
   return v === 'classic' ? 'classic' : 'modern';
 }
 function _setQuoteStyle(v){
