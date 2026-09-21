@@ -14173,7 +14173,7 @@ function renderMaterialPriceTable(){
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMatShown.toFixed(2)+'</span>'+
+      '<span id="matTotalShown" data-base="'+_finalMat.toFixed(2)+'" style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMatShown.toFixed(2)+'</span>'+
     '</div>';
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
@@ -16235,6 +16235,9 @@ function _scheduleAutosave(){
 async function _runAutosave(){
   if (!AUTOSAVE.on) return;
   if (S._jobConflict) return;                     // a question is on screen
+  // A quote is going out: the publish and the email get the line to
+  // themselves; the save runs when the send is over (the send reschedules it).
+  if (AUTOSAVE._hold) return;
   if (typeof saveCurrentJob !== 'function') return;
   if (!S.currentJobId && !S.linkedJobId) return;
   AUTOSAVE._saving = true; updateSidebarJobChip();
@@ -17323,7 +17326,39 @@ function _versionRenderDetails(){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
 
+// ONE WRITE TO THE JOB AT A TIME (2026-09-22). Autosave fires every couple
+// of seconds and a send publishes the quote in the middle of it; each write
+// rewrites the whole multi-MB row and takes its lock, so overlapping writes
+// queued up on the database until they were cancelled on its statement
+// timeout — the owner watched "Publishing the customer quote link…" for ten
+// minutes while 39 saves timed out behind each other. Every write to the
+// row now goes through this queue; a save asked for while one is running
+// waits for it, and a second one asked for while one is already waiting
+// joins that one rather than adding a third.
+var _jobWrite = { chain: Promise.resolve(), waiting: null };
+function _jobWriteQueued(fn){
+  var run = function(){ return Promise.resolve().then(fn); };
+  var p = _jobWrite.chain.then(run, run);
+  _jobWrite.chain = p.catch(function(){});
+  return p;
+}
 async function saveCurrentJob(){
+  var _opts = arguments[0];
+  if (_jobWrite.waiting){
+    // One save is running and one is already waiting behind it: this call
+    // rides on the waiting one (a force joins it).
+    if (_opts && _opts.force) _jobWrite.waiting.force = true;
+    return _jobWrite.waiting.promise;
+  }
+  var w = { force: !!(_opts && _opts.force) };
+  _jobWrite.waiting = w;
+  w.promise = _jobWriteQueued(function(){
+    if (_jobWrite.waiting === w) _jobWrite.waiting = null;
+    return _saveCurrentJobNow(w.force ? Object.assign({}, _opts || {}, { force: true }) : _opts);
+  });
+  return w.promise;
+}
+async function _saveCurrentJobNow(){
   // A frozen version on screen is not the job. Nothing is written while one
   // is showing — the draft it replaced is what would be saved, and it is safe
   // where it is.
@@ -23725,7 +23760,11 @@ function _selWorking(){
 function _selKindList(kind){ var w = _selWorking(); return w[kind] || []; }
 function _selEdit(kind, i, field, val){
   var list = _selKindList(kind), row = list[i]; if (!row) return;
-  if (field === 'pct' || field === 'extBracketLm' || field === 'coverMm') {
+  if (field === 'pct') {
+    // The table shows and takes a PERCENTAGE (100 = double the price); the
+    // row stores the factor. Typing 100 used to store 100 = +10,000%.
+    var np = parseFloat(val); row.pct = isFinite(np) ? np / 100 : 0;
+  } else if (field === 'extBracketLm' || field === 'coverMm') {
     var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
   } else if (field === 'scaffoldUplift' || field === 'base') {
     row[field] = !!val;
@@ -26596,6 +26635,9 @@ function _shrinkQuoteMediaInPlace(cb){
 }
 async function _publishQuoteOnly(){
   if (!S.currentJobId || !S.quote) return false;
+  return _jobWriteQueued(_publishQuoteOnlyNow);
+}
+async function _publishQuoteOnlyNow(){
   // Shrink the oversized proposal photos + aerial first so the payload is small,
   // then publish the FULL quote — one canonical write (no stripped/second
   // version that could clobber a customer's selection).
@@ -30354,6 +30396,16 @@ function _qCustomChanged(area, keepFocus){
       else if (area==='material') renderMaterialPriceTable();
       else if (area==='gutter') renderGutterDownpipePricing();
     } catch(e){}
+  } else if (area==='material'){
+    // Typing an amount: the green "Total materials" line moves with it
+    // without re-rendering the table (which would take the focus away).
+    // It used to sit still until something else redrew the table, so a
+    // custom line looked like it did nothing.
+    try {
+      var _mt = document.getElementById('matTotalShown');
+      if (_mt && _mt.getAttribute('data-base') != null) _mt.textContent = '$' + ((parseFloat(_mt.getAttribute('data-base')) || 0) + _qCustomTotal('material')).toFixed(2);
+    } catch(e){}
+    try { renderProfitability(); } catch(e){}
   }
 }
 // Editable custom-line rows + "add" button for a pricing area.
@@ -30773,12 +30825,24 @@ function _setRoofMapSize(sz){
 // then its own. Before this every key but 'accept' was folded into 'main',
 // so moving the proposal's plan moved the review's with it.
 function _qpRoofMapViewField(key){ return key === 'accept' ? 'roofMapViewAccept' : 'roofMapView'; }
+// THE PHONE'S PLAN FOLLOWS THE COMPUTER'S, AND VICE VERSA (2026-09-22): the
+// computer's proposal plan and the book's are partners, as are the two
+// review plans. A frame that has never been moved shows its partner's
+// placement, so setting one of them sets both; the first move on the other
+// makes it its own and the following stops — from then on each keeps its
+// own. Only a frame's OWN entry is ever written, which is what makes "never
+// moved" knowable.
+var _QP_MAP_PARTNER = { desk: 'book', book: 'desk', desksum: 'booksum', booksum: 'desksum' };
 function _qpRoofMapView(key){
   var q = (window.S && S.quote) || {};
   key = key || 'main';
   var v = null;
-  if (key === 'main' || key === 'accept') v = q[_qpRoofMapViewField(key)] || null;
-  else v = (q.roofMapViews && typeof q.roofMapViews === 'object') ? q.roofMapViews[key] : null;
+  var own = function(k){
+    if (k === 'main' || k === 'accept') return q[_qpRoofMapViewField(k)] || null;
+    return (q.roofMapViews && typeof q.roofMapViews === 'object') ? q.roofMapViews[k] : null;
+  };
+  v = own(key);
+  if ((!v || typeof v !== 'object') && _QP_MAP_PARTNER[key]) v = own(_QP_MAP_PARTNER[key]);
   if (!v || typeof v !== 'object') v = q.roofMapView || null;
   if (!v || typeof v !== 'object') v = {};
   var z = +v.zoom;
@@ -36225,6 +36289,7 @@ async function _quoteEmailSendNow(){
     }
     return;
   }
+  AUTOSAVE._hold = true; clearTimeout(AUTOSAVE._timer);
   try {
     if (btn){ btn.disabled = true; btn.textContent = 'Publishing quote link…'; }
     _quoteEmailStatus('Publishing the customer quote link…');
@@ -36299,6 +36364,8 @@ async function _quoteEmailSendNow(){
     }
   } finally {
     if (btn){ btn.disabled = false; btn.textContent = '📤 Send email now — with quote link'; }
+    AUTOSAVE._hold = false;
+    try { _scheduleAutosave(); } catch(e){}
   }
 }
 

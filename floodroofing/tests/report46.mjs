@@ -145,6 +145,18 @@ check('…without counting twice: the quote’s base material figure is unchange
   Math.abs(matAfter - matBefore) < 0.01, '$' + matBefore + ' vs $' + matAfter);
 const inQuote = await pg.evaluate(() => { _syncQuoteBaseLineItems(); return (S.quote.lineItems||[]).some(x => x._custom && +x.unit === 12000); });
 check('…and it reaches the quote as its own line', inQuote);
+// Typing the amount moves the green total AS IT IS TYPED — the table is not
+// re-rendered under the cursor, so the total used to sit still and the line
+// looked like it did nothing.
+const typed = await pg.evaluate(async () => {
+  const i = _qCustom('material').length - 1;
+  _qUpdCustom('material', i, 'amount', '15000');
+  await new Promise(r => setTimeout(r, 50));
+  const el = document.getElementById('matTotalShown');
+  return el ? parseFloat(el.textContent.replace(/[^0-9.]/g, '')) : -1;
+});
+check('…and typing a different amount moves the total straight away', Math.abs(typed - beforeCustom - 15000) < 1, '$' + beforeCustom + ' → $' + typed);
+await pg.evaluate(() => { const i = _qCustom('material').length - 1; _qUpdCustom('material', i, 'amount', '12000'); });
 
 // ── 4. a plain wheel over another roof scrolls, it does not resize ─
 await pg.evaluate(() => { gotoTab('roof'); DRAW.tool = 'select'; if (!DRAW.bgImg){ const c = document.createElement('canvas'); c.width = 4000; c.height = 3000; DRAW.bgImg = c; } try { redrawAll(); } catch(e){} });

@@ -159,6 +159,20 @@ Discipline (non-negotiable):
   the trial email once reached a stranger from office@floodroofing.co.nz.
   Requested mail still degrades to the relay. `tests/platformrelay.mjs`,
   with a fake Resend that refuses everything (`RESEND_API_BASE`).
+- ONE WRITE TO THE JOB ROW AT A TIME (2026-09-22): `saveCurrentJob` and
+  `_publishQuoteOnly` go through `_jobWriteQueued`; a save asked for while
+  one runs waits, a third joins the waiting one. Autosave is HELD
+  (`AUTOSAVE._hold`) while a quote email is being sent. Before this,
+  autosave every 2 s plus the send's publish queued multi-MB row rewrites
+  on the database's row lock until the statement timeout cancelled them —
+  "Publishing the customer quote link…" for ten minutes, 39 timeouts on
+  `/jobs/:id`, and every other request (Settings, the test email) stuck
+  behind them. The revision trigger `_job_backup_upd` checks the cheap
+  "snapshot in the last 10 minutes" test BEFORE comparing the two drawings.
+  `tests/quoteeditor.mjs` pins the queue.
+- The phone's roof plan FOLLOWS the computer's and vice versa
+  (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
+  moved itself; only a frame's own `roofMapViews[key]` is ever written.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.

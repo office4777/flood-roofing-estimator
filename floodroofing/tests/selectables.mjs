@@ -94,6 +94,17 @@ check('…and is named on the quote by the name they gave it', v.named);
 check('a grade they add prices off its own percentage',
   v.gradePct === -0.2 && v.gradeLabel === 'House brand steel', v.gradeLabel + ' ' + v.gradePct);
 
+// The percentage is typed as a percentage: 100 means the price doubles. It
+// used to be stored as typed, so 100 became +10,000%.
+v = await pg.evaluate(() => {
+  const i = _selWorking().grades.findIndex(g => g.id === 'gr_custom');
+  _selEdit('grades', i, 'pct', '100');
+  const stored = _selGradePctOf('gr_custom');
+  const shown = document.querySelector('#selectablesUI input[onchange*="\'grades\',' + i + ',\'pct\'"]');
+  return { stored, shown: shown ? shown.value : null };
+});
+check('typing 100 in the increase column means +100%, and the column reads 100 back', v.stored === 1 && v.shown === '100.0', JSON.stringify(v));
+
 // ── removing hides from NEW quotes but still resolves ─────────────
 v = await pg.evaluate(() => {
   const i = _selWorking().gutters.findIndex(g => g.id === 'marley_classic');

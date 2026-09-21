@@ -246,10 +246,35 @@ const views = await pg.evaluate(async () => {
   _qpRoofMapZoom(0.5, 'desk'); await new Promise(r => setTimeout(r, 100));
   const t = k => ((document.querySelector('.qp-map-frame[data-map-key="' + k + '"] .qp-map-inner') || {}).style || {}).transform || '';
   const out = { desk: t('desk'), desksum: t('desksum'), saved: (S.quote.roofMapViews || {}).desk, main: S.quote.roofMapView };
+  // The phone's plan has never been moved, so it follows the computer's…
+  out.bookFollows = _qpRoofMapView('book').zoom;
+  // …until it is moved itself; then each keeps its own.
+  _qpRoofMapViewSet({ zoom: 2 }, 'book');
+  out.bookOwn = _qpRoofMapView('book').zoom; out.deskAfter = _qpRoofMapView('desk').zoom;
+  delete S.quote.roofMapViews.book;
   _qpRoofMapZoom(-0.5, 'desk'); await new Promise(r => setTimeout(r, 100));
   return out;
 });
 check('zooming the proposal’s plan does not move the review’s plan', /scale\(1\.5\)/.test(views.desk) && /scale\(1\)/.test(views.desksum) && views.saved && views.saved.zoom === 1.5 && (!views.main || views.main.zoom === 1), JSON.stringify(views));
+check('the phone’s plan follows the computer’s until it is moved itself, and then each keeps its own', views.bookFollows === 1.5 && views.bookOwn === 2 && views.deskAfter === 1.5, JSON.stringify(views));
+
+// ONE WRITE TO THE JOB AT A TIME: saves and the quote publish never overlap
+// on the row, and a burst of saves collapses to the one running and one
+// waiting.
+const writes = await pg.evaluate(async () => {
+  const realApi = window.api, hadId = S.currentJobId;
+  if (!S.currentJobId) S.currentJobId = 'job-serial';
+  const cl = document.getElementById('jobClient'); const hadCl = cl ? cl.value : ''; if (cl && !cl.value) cl.value = 'Serial Test';
+  let inFlight = 0, maxInFlight = 0, calls = 0;
+  window.api = async function(m, path){ const w = (m === 'PUT' && /^\/jobs\//.test(path)); if (w){ calls++; inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); } await new Promise(r => setTimeout(r, 120)); if (w) inFlight--; return { id: S.currentJobId, updated_at: new Date().toISOString(), ok: true }; };
+  try {
+    delete window._lastSent;
+    const p1 = saveCurrentJob(); const p2 = _publishQuoteOnly(); const p3 = saveCurrentJob(); const p4 = saveCurrentJob();
+    await Promise.all([p1, p2, p3, p4]);
+  } finally { window.api = realApi; if (!hadId) S.currentJobId = null; if (cl) cl.value = hadCl; }
+  return { maxInFlight, calls };
+});
+check('a save, a publish and two more saves go to the row one at a time, the last two as one', writes.maxInFlight === 1 && writes.calls <= 3, JSON.stringify(writes));
 
 // THE PRICING DRAWER sits over the quote — it no longer reserves its width
 // and shoves the Quote tab left.

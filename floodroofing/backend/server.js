@@ -10256,14 +10256,19 @@ const _MIGRATION_SQL = [
   // doesn't multiply multi-MB rows. Prune keeps the 8 newest per job.
   "create or replace function public._job_backup_upd() returns trigger" +
   " language plpgsql security definer set search_path = public as $$ begin" +
+  // The cheap test first, on its own: comparing two multi-MB drawings
+  // parses both twice, and autosave used to pay that on every write only
+  // to find a snapshot already taken in the last ten minutes. Nested ifs
+  // because SQL makes no promise about the order it evaluates an AND.
+  "  if not exists (select 1 from public.job_revisions r where r.job_id = old.id" +
+  "                 and r.reason = 'update' and r.saved_at > now() - interval '10 minutes') then" +
   "  if (old.draw_state is distinct from new.draw_state)" +
-  "     and ((old.draw_state->'state') - 'quote' is distinct from (new.draw_state->'state') - 'quote')" +
-  "     and not exists (select 1 from public.job_revisions r where r.job_id = old.id" +
-  "                     and r.reason = 'update' and r.saved_at > now() - interval '10 minutes') then" +
+  "     and ((old.draw_state->'state') - 'quote' is distinct from (new.draw_state->'state') - 'quote') then" +
   "    insert into public.job_revisions (job_id, company_id, user_id, client_name, site_address, status, draw_state, settings, reason)" +
   "    values (old.id, old.company_id, old.user_id, old.client_name, old.site_address, old.status, old.draw_state, old.settings, 'update');" +
   "    delete from public.job_revisions where job_id = old.id and id not in" +
   "      (select id from public.job_revisions where job_id = old.id order by saved_at desc, id desc limit 8);" +
+  "  end if;" +
   "  end if;" +
   "  return new;" +
   " end $$",
