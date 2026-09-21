@@ -17549,7 +17549,9 @@ async function _resolveJobMoved(info, set){
   // Save against THEIR stamp; after two refusals in a row, without one.
   S._jobLoaded = (theirs && S._movedRetries <= 2) ? { id: theirs.id, updatedAt: theirs.updated_at || null } : null;
   window._photoAck = null; window._lastSent = null;
-  try { await saveCurrentJob(); } catch(e){}
+  // This runs INSIDE the queued save, so the retry goes straight to the
+  // inner save — queuing it would wait on the save it is part of, for ever.
+  try { await _saveCurrentJobNow(); } catch(e){}
   S._movedRetries = 0;
   return null;
 }
