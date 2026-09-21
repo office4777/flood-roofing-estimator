@@ -15,10 +15,12 @@ const pg = await ctx.newPage();
 const errs = []; pg.on('pageerror', e => errs.push(e.message));
 pg.on('dialog', d => d.accept());
 const calls = [];
+let fergusFail = false;
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async r => {
   const u = r.request().url(), m = r.request().method();
   const j = (o) => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(o)});
   if (/\/fergus\//.test(u)){
+    if (fergusFail) return r.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: 'upstream request timeout' }) });
     if (m === 'POST' && /\/quotes$/.test(u)) { calls.push({ kind:'create', body: r.request().postDataJSON() }); return j({ id:'fq9', data:{ id:'fq9' } }); }
     if (m === 'GET' && /\/quotes$/.test(u)) return j({ data: [{ id:'fq9' }] });
     return j({});
@@ -80,6 +82,10 @@ check('…and stamps the plan the server follows for the customer’s selections
 const stamped = calls.filter(c => c.kind === 'publishQuote').some(c => c.body && c.body.quote && c.body.quote.share && c.body.quote.share.fergus);
 check('…published to the customer link, so the server can read it', stamped);
 check('the send dialog says so', /Fergus quote published/.test(status), status);
+// The sent record reaches the server BEFORE Fergus is touched, as the light
+// quote publish, and it carries the frozen sent version.
+const sentPub = calls.findIndex(c => c.kind === 'publishQuote' && c.body && c.body.quote && c.body.quote.versions && c.body.quote.versions.sent);
+check('the sent quote is recorded on the job before the Fergus push', sentPub >= 0 && sentPub > kinds.indexOf('email') && sentPub < kinds.indexOf('create'), kinds.join(', ') + ' · sent record at ' + sentPub);
 check('the "working" spinner showed while it ran', pillSeen.during);
 check('…and the popup itself shows a loading ring while sending', await ringP);
 check('…which is gone from the finished message', !/ld-ring/.test(await pg.evaluate(() => (document.getElementById('quoteEmailStatus') || {}).innerHTML || '')) || /Sent/.test(status));
@@ -116,6 +122,15 @@ const slow = await pg.evaluate(async () => {
 check('a fast call never shows the spinner', !slow.fastShown);
 check('a slow one shows it after half a second and clears it when done', slow.shownMid && !slow.after, JSON.stringify(slow));
 
+// A Fergus push that fails after the email went is SAID on the Quote tab —
+// the popup's status line closes with the popup.
+fergusFail = true;
+await pg.evaluate(() => { _qvNewDraft && _qvNewDraft(); openQuoteEmail(); document.getElementById('quoteEmailTo').value = 'marae@example.co.nz'; });
+await pg.evaluate(() => _quoteEmailSendNow());
+await pg.waitForTimeout(400);
+const failMsg = await pg.evaluate(() => (document.getElementById('qaMsg') || {}).textContent || '');
+check('a Fergus push that fails after the email went leaves a message on the Quote tab naming Push to Fergus', /Fergus/.test(failMsg) && /Push to Fergus/.test(failMsg), failMsg);
+fergusFail = false;
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

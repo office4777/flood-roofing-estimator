@@ -170,6 +170,15 @@ Discipline (non-negotiable):
   behind them. The revision trigger `_job_backup_upd` checks the cheap
   "snapshot in the last 10 minutes" test BEFORE comparing the two drawings.
   `tests/quoteeditor.mjs` pins the queue.
+- THE SEND RECORDS ITSELF BEFORE FERGUS (2026-09-22): after the email
+  POST, `_qvMarkSent()` and the light `_publishQuoteOnly()` (tried twice,
+  then a forced full save) come FIRST; a failure is said in `#qaMsg`. Then
+  the Fergus push (`pushQuotePricingToFergus` THROWS to its silent caller
+  now), whose failure leaves a lasting Quote-tab message naming Push to
+  Fergus; then the sent version is re-stamped so it carries the Fergus
+  plan. Job 3245 went out during the stall above and was neither in Quotes
+  sent nor marked sent in Fergus, with nothing on screen to say so.
+  `tests/emailpush.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

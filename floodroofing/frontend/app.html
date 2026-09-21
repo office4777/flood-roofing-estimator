@@ -36339,6 +36339,21 @@ async function _quoteEmailSendNow(){
     // Emailing the quote IS quoting the job: push the pricing to the linked
     // Fergus job and publish it there, so Fergus marks the job quoted without
     // a second button. Its own status line says how that went.
+    // This is the sent quote now — frozen exactly as it went, and what is on
+    // screen IS that quote: locked. Changing it is a deliberate "Create new
+    // draft", never a stray tap on the sent one. RECORDED FIRST, before
+    // Fergus (2026-09-22): the record is the light quote publish, tried
+    // twice, and its failure is SAID. Job 3245 went out during a database
+    // stall, the Fergus push and the one full save after it both timed out,
+    // and the quote was neither in Quotes sent nor marked sent in Fergus —
+    // with nothing on screen to say so.
+    var _recorded = false;
+    try { _qvMarkSent(); } catch(e){}
+    for (var _ri = 0; _ri < 2 && !_recorded; _ri++){
+      try { await _publishQuoteOnly(); _recorded = true; } catch(e){ await new Promise(function(r){ setTimeout(r, 1500); }); }
+    }
+    if (!_recorded){ try { await saveCurrentJob({ force: true }); _recorded = true; } catch(e){} }
+    if (!_recorded) _qaMsg('⚠ The email went, but the sent quote could not be recorded on the job (the server did not answer). Press Save job in a moment.', false);
     var _fergusNote = '';
     if (S.linkedJobId && !window.__CUSTOMER_MODE){
       try {
@@ -36346,13 +36361,18 @@ async function _quoteEmailSendNow(){
         await pushQuotePricingToFergus(null, { silent: true, publish: true });
         var _pl = (S.quote && S.quote.share && S.quote.share.fergus) || {};
         _fergusNote = _pl.published === true ? ' · Fergus quote published' : (_pl.published === false ? ' · Fergus quote created (draft — publish it in Fergus)' : ' · pushed to Fergus');
-      } catch(e){ _fergusNote = ' · Fergus push failed — use Push to Fergus'; }
+        if (_pl.sentResult && _pl.sentResult.stillUnsent) _fergusNote += ' · not yet marked sent in Fergus';
+      } catch(e){
+        _fergusNote = ' · Fergus push failed — use Push to Fergus';
+        // The status line closes with the window; this one stays on the tab.
+        _qaMsg('⚠ Emailed to ' + to + ', but the push to Fergus failed (' + String(e && e.message || e).slice(0, 120) + ') — press Push to Fergus to publish and mark it sent there.', false);
+      }
       _quoteEmailStatus('✓ Sent to ' + to + _fergusNote, 'ok');
+      // The Fergus plan rides on the share, and the frozen sent version
+      // carries it too: re-stamp it, then keep it, quietly.
+      try { _qvMarkSent(); } catch(e){}
+      try { Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
     }
-    // This is the sent quote now — frozen exactly as it went (Fergus plan and
-    // all), and what is on screen IS that quote: locked. Changing it is a
-    // deliberate "Create new draft", never a stray tap on the sent one.
-    try { _qvMarkSent(); await Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
     setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, _fergusNote ? 2600 : 1600);
     try { _qvView('sent'); } catch(e){}
   } catch(err){
@@ -61047,6 +61067,9 @@ async function pushQuotePricingToFergus(btn, opts){
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
     _tell('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
+    // The send flow calls this silently and CAN act on a failure (it says
+    // so on the Quote tab); swallowing it made that catch dead code.
+    if (_silent) throw e;
   } finally {
     _qaBar(false); _fergusBtnBusy(btn, false);
   }
