@@ -13016,7 +13016,7 @@ function _pbListPriceNoticeHtml(where){
   var goto = where === 'settings' ? '' :
     ' <a href="#" onclick="gotoTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
   return '<div class="pb-listnote">' +
-    '<strong>Default price book — add your prices in Settings.</strong> These are indicative ' +
+    '<strong>🚩 Default price book — add your prices in Settings.</strong> These are indicative ' +
     'figures so you can see a finished quote straight away. They are not your supplier rates — ' +
     'replace them before you send anything to a customer.' + goto +
     '</div>';
@@ -14038,7 +14038,7 @@ function renderMaterialPriceTable(){
     var _zero = (!price || price <= 0) && (qty || 0) > 0;
     html += '<tr'+(_zero ? ' class="pb-zero"' : '')+'>'+
       '<td>'+esc(r.label)+ custom +
-        (_zero ? ' <span class="pb-zero-tag">No price</span>' : '')+
+        (_zero ? ' <span class="pb-zero-tag">🚩 No price</span>' : '')+
         (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
       '</td>'+
       '<td>'+
