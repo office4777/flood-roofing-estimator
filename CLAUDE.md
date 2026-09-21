@@ -382,7 +382,8 @@ Discipline (non-negotiable):
   false when the page is out of the document, so the tick reaches the
   modern layouts as well as the A4. `tests/quoteeditor.mjs`.
 - THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) is quiet
-  since 2026-09-21: plain white cards, one small uppercase heading each, no
+  since 2026-09-21: plain white cards, one small uppercase heading each on the
+  quote page's navy band (white text, so a heading never reads as content), no
   emoji, no coloured bands (the owner called them childish). Every heading
   carries its FIGURE at the right (`_pxHeadTotals`, refreshed by
   `renderProfitability`, which every recalc reaches: scaffold price, roof
