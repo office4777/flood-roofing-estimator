@@ -381,6 +381,32 @@ Discipline (non-negotiable):
   paragraph the phone and the computer show. `_qbHasCondition()` answers
   false when the page is out of the document, so the tick reaches the
   modern layouts as well as the A4. `tests/quoteeditor.mjs`.
+- STEP-DOWN GABLE (`stepgable`, 2026-09-21): the owner's L — a main
+  gable and a lower wing, each its own gable at its own height, ridges the
+  same way, no hip or valley. `buildStepGableRoofLines(outline, flip)`
+  cuts the outline into rectangles by lines through its reflex corners
+  ACROSS the ridge direction (an L → two blocks, a T → three), gives each
+  block a ridge down its middle, gutters along the ridge and rake barges
+  across it; where blocks meet, the WIDER block keeps its barge (the gable
+  wall) and the narrower gets an `apron`. Ridge direction is
+  `DRAW.roofBaseHoriz`, flipped by Rotate roof 90°, like the straight
+  gable (it is in the "don't rotate the lines" set in `autoGenerateRoof`
+  and the regen switch). The sheet engine reads it as `gable`
+  (`_rspRoofType`) — one column per ridge. Grabbing a ridge must not
+  re-label it `gable`. `tests/stepgable.mjs`.
+- UNDO CARRIES EVERY ROOF: `_captureSnapState` syncs the active roof and
+  stores `roofs` + `activeRoofIdx`; `_applySnapState` restores them and
+  the active roof's scalars, then re-renders the roof bar. Before this a
+  snapshot held only the active roof's arrays, so undoing past a second
+  outline left the earlier roof's lines drawn twice on site (the owner's
+  "undo makes multiple lines"). Older snapshots without `roofs` still load.
+- SITE MODE always has the roof-shape sheet or its handle: `_applyTabletMode`
+  folds the panel into the handle (`rtp-collapsed`) when the panel is
+  hidden, and `_phoneRoofSheet(true)` SHOWS the panel (type, Rotate, roof
+  switch) — the handle used to only remove the class. The bottom bar's
+  Flashings button is now Markup (`#ttbMarkup`, `_siteNotesToggle`, icon
+  `--ico-markup`, a pencil over a squiggle; lit for the notes tools);
+  flashings stay in the Lines menu (`#btn-siteflash`). `tests/sitebars.mjs`.
 - THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) is quiet
   since 2026-09-21: plain white cards, one small uppercase heading each on the
   quote page's navy band (white text, so a heading never reads as content), no

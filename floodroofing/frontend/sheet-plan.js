@@ -5339,6 +5339,9 @@ function _renderRoofSheetPlanInner() {
     // roofs were missing from the order and the check map. The LINES say
     // what the roof is: no ridge, no hip, a gutter → a mono-pitch.
     if (t === 'gable' && has('gutter') && !has('ridge') && !has('hip') && !has('valley')) return 'mono';
+    // A step-down gable is gables, one per wing: the gable takeoff lays a
+    // column on each ridge it finds, which is exactly the count wanted.
+    if (t === 'stepgable') return 'gable';
     if (t === 'hip' && has('gutter') && !has('hip') && !has('valley')) return has('ridge') ? 'gable' : 'mono';
     if (t) return t;
     if (!has('gutter')) return '';                       // nothing to hang a guess on

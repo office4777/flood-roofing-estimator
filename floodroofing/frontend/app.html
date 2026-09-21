@@ -311,6 +311,8 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
   --ico-redo: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='m14.5 14.5 5-5-5-5'/><path d='M19.5 9.5H9.7a5.7 5.7 0 0 0 0 11.4h5.9'/></svg>");
   --ico-camera: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3.4 8.9h3.2l1.6-2.3h7.6l1.6 2.3h3.2a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V9.9a1 1 0 0 1 1-1Z'/><circle cx='12' cy='13.6' r='3.4'/></svg>");
   /* A folded flashing seen end-on — the same profile the sketch pad draws. */
+  /* A pencil with a squiggle under it — free-draw markup on the roof. */
+  --ico-markup: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 4.5l3 3L9 16H6v-3z'/><path d='M13 6l3 3'/><path d='M3.5 20.5c1.6-1.6 2.6-1.6 4.2 0s2.6 1.6 4.2 0 2.6-1.6 4.2 0 2.6 1.6 4.2 0'/></svg>");
   --ico-flashing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3 18.5V9.2h9.6V5.5H21'/></svg>");
   --ico-save: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M5 3.6h10.4L20.4 8.6V19.4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z'/><path d='M8.2 3.6v5h6.6v-5M8.2 14.4h7.6v6h-7.6z'/></svg>");
 }
@@ -338,6 +340,7 @@ html.site-mode .ttb-btn .ttb-ico[data-ico="ruler"]{-webkit-mask-image:var(--ico-
 html.site-mode .ttb-btn .ttb-ico[data-ico="undo"]{-webkit-mask-image:var(--ico-undo);mask-image:var(--ico-undo)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="redo"]{-webkit-mask-image:var(--ico-redo);mask-image:var(--ico-redo)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="flashing"]{-webkit-mask-image:var(--ico-flashing);mask-image:var(--ico-flashing)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="markup"]{-webkit-mask-image:var(--ico-markup);mask-image:var(--ico-markup)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="camera"]{-webkit-mask-image:var(--ico-camera);mask-image:var(--ico-camera)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="save"]{-webkit-mask-image:var(--ico-save);mask-image:var(--ico-save)}
 /* active tool: a soft pill behind the icon, label picks up the accent */
@@ -4585,7 +4588,7 @@ html.qp-desk-preview .qd-top{ position:static; }
   <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Calibrate</button>
   <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico" data-ico="undo">↺</span>Undo</button>
   <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
-  <button class="ttb-btn" id="ttbFlash" onclick="_siteFlashSheet()"><span class="ttb-ico" data-ico="flashing">🧾</span>Flashings</button>
+  <button class="ttb-btn" id="ttbMarkup" onclick="_siteNotesToggle()"><span class="ttb-ico" data-ico="markup">✎</span>Markup</button>
   <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico" data-ico="camera">📷</span>Photos</button>
   <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico" data-ico="save">💾</span>Save</button>
 </div>
@@ -40977,6 +40980,7 @@ function _detectAutoRoofType(){
   if (DRAW.roofType === 'dutch') return 'dutch';
   if (DRAW.roofType === 'mono')  return 'mono';
   if (DRAW.roofType === 'gable') return 'gable';
+  if (DRAW.roofType === 'stepgable') return 'stepgable';
   if (DRAW.roofType === 'gable-hv') return 'gable-hv';
   if (DRAW.roofType === 'hip')   return 'hip';
   // No stored type — fall back to counting auto-generated lines.
@@ -41035,6 +41039,8 @@ function regenerateAutoRoofLines(roofType){
     // regen without the flip snapped the ridge back to the long axis.
     else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')
       ? buildGableRoofLines(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1) : null;
+    else if (roofType === 'stepgable') lines = (typeof buildStepGableRoofLines === 'function')
+      ? buildStepGableRoofLines(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1) : null;
     else if (roofType === 'gable-hv') lines = (typeof buildGableRoofLines_legacy === 'function')
       ? buildGableRoofLines_legacy(DRAW.outline) : null;
     else if (roofType === 'dutch') lines = (typeof buildDutchGableRoofLines === 'function') ? buildDutchGableRoofLines(DRAW.outline) : null;
@@ -41709,7 +41715,7 @@ function onCanvasMouseDown(e) {
       if (_ridgeDistToSeg(_rxy[0], _rxy[1], _ln.pts[0], _ln.pts[1]) < _rThresh){ _ridge = _ln; break; }
     }
     if (_ridge){
-      if (DRAW.roofType !== 'gable') DRAW.roofType = 'gable';   // register so regen tracks the drag
+      if (DRAW.roofType !== 'gable' && DRAW.roofType !== 'stepgable') DRAW.roofType = 'gable';   // register so regen tracks the drag
       var _rp0 = _ridge.pts[0], _rp1 = _ridge.pts[1];
       var _horiz = Math.abs(_rp1[0]-_rp0[0]) >= Math.abs(_rp1[1]-_rp0[1]);
       var _minX=Infinity,_maxX=-Infinity,_minY=Infinity,_maxY=-Infinity;
@@ -42294,6 +42300,15 @@ function _applyTabletMode(){
   var wasSite = !!window.__siteModeOn;
   window.__siteModeOn = !!site;
   document.documentElement.classList.toggle('site-mode', !!site);
+  // On site the roof-shape sheet is either open or folded into its handle;
+  // never simply absent. Whatever the office's panel state was, fold it so
+  // the handle is on screen.
+  try {
+    if (site){
+      var _rtp0 = document.getElementById('roofTypePanel');
+      if (!_rtp0 || _rtp0.style.display === 'none') document.body.classList.add('rtp-collapsed');
+    }
+  } catch(e){}
   /* The roof-lines menu is re-homed by mode, so on a genuine switch close it
      and re-park it rather than leave it open in a container that is about to
      disappear. ONLY on a switch: this function also runs on every window
@@ -42397,7 +42412,7 @@ function _syncTabletBar(){
   var bar = document.getElementById('tabletToolbar');
   if (!bar) return;
   var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, clearlite:1, sheetmeas:1, info:1, notes:1, noteserase:1 };
-  var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
+  var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal', notes: 'ttbMarkup', noteserase: 'ttbMarkup' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
   bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
   if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
   // Free-draw now lives in the top bar, so it is no longer one of the bottom
@@ -44734,6 +44749,20 @@ function _sfpOpenLibrary(){
 function _phoneRoofSheet(open){
   var b = document.body; if (!b) return;
   b.classList.toggle('rtp-collapsed', !open);
+  // Opening the sheet from its handle shows the panel itself: the panel's
+  // own display is what the office's roof buttons toggle, and a job opened
+  // on site had it hidden with no button to bring it back — so site mode
+  // had no roof type, no rotate, no roof switch (the owner's "no roof
+  // selector in site mode").
+  if (open){
+    var rtp = document.getElementById('roofTypePanel');
+    if (rtp && DRAW.outline && DRAW.outline.length >= 3){
+      rtp.style.display = 'block';
+      try { _syncRoofTypeDropLabel(); } catch(e){}
+      try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
+      try { _renderRoofMenuBar(); } catch(e){}
+    }
+  }
   try { _phoneFitCanvas(); } catch(e){}
 }
 // Keep the phone header's job button showing the current job.
@@ -46597,7 +46626,14 @@ function updateOutline() {
 // action — so undo can put the world back exactly as it was before
 // that action. JSON-stringify gives us a cheap deep clone.
 function _captureSnapState() {
+  // Every roof, not just the one on the canvas. Undo used to restore the
+  // active roof's outline and lines while the roofs[] list kept whatever
+  // came after — so undoing past a roof switch or a second outline left two
+  // sets of lines on one shape (the owner's "undo makes multiple lines").
+  try { _syncCurrentToRoof(); } catch(e){}
   return JSON.stringify({
+    roofs: (window.DRAW && Array.isArray(DRAW.roofs)) ? DRAW.roofs : undefined,
+    activeRoofIdx: (window.DRAW && typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : undefined,
     outline: DRAW.outline,
     sections: DRAW.sections,
     lines: DRAW.lines,
@@ -46649,6 +46685,11 @@ function _applySnapState(snapStr) {
   // state we are leaving, not the one we are landing on.
   try { _inkResetRuns(); } catch(e){}
   var s = JSON.parse(snapStr);
+  if (Array.isArray(s.roofs) && s.roofs.length){
+    DRAW.roofs = s.roofs;
+    if (typeof s.activeRoofIdx === 'number' && s.activeRoofIdx >= 0 && s.activeRoofIdx < s.roofs.length) DRAW.activeRoofIdx = s.activeRoofIdx;
+    if (DRAW.activeRoofIdx >= DRAW.roofs.length) DRAW.activeRoofIdx = DRAW.roofs.length - 1;
+  }
   DRAW.outline = s.outline || [];
   DRAW.sections = s.sections || [];
   DRAW.lines = s.lines || [];
@@ -46696,6 +46737,20 @@ function _applySnapState(snapStr) {
   if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
   if ('calPitchAtCal' in s)   DRAW.calPitchAtCal   = s.calPitchAtCal || 0;
   if ('scaleLabel' in s)      DRAW.scaleLabel      = s.scaleLabel || '';
+  if (Array.isArray(s.roofs) && s.roofs.length){
+    // The scalars the roof carries (type, rotation, pitch…) come off the
+    // roof record; the arrays above are the same objects either way.
+    try {
+      var _ar = DRAW.roofs[DRAW.activeRoofIdx];
+      if (_ar) ROOF_FIELDS.forEach(function(k){
+        if (['outline','lines','sections','penetrations','infoItems','notes','clearlites','outlineDone'].indexOf(k) >= 0) return;
+        if (_ar[k] !== undefined) DRAW[k] = _ar[k];
+      });
+    } catch(e){}
+    try { _syncCurrentToRoof(); } catch(e){}
+  }
+  try { if (typeof _renderRoofMenuBar === 'function') _renderRoofMenuBar(); } catch(e){}
+  try { if (typeof renderRoofSwitcher === 'function') renderRoofSwitcher(); } catch(e){}
 }
 // Push a pre-captured snapshot string onto the undo stack. Used by
 // drag handlers that capture state at drag-start and only commit it
@@ -65678,6 +65733,144 @@ function buildGableRoofLines(outline, flipAxis) {
   // helper) so cut-list grouping picks them up.
   return result.concat(_tagGableBargesStarterFinish(newBarges));
 }
+// ── Step-down gable ───────────────────────────────────────────────
+// The owner's L: a tall main gable and a lower wing hung off it, each with
+// its OWN ridge, both ridges running the same way, no hip and no valley —
+// the wing's roof simply dies into the main roof's gable wall. His sketch:
+// barge / barge along the top, Gutter down each side, "Ridge" up the middle
+// of both blocks, and the wing's top edge tucked under the main block.
+//
+// How it is built: the outline is cut into rectangles by lines through its
+// internal (reflex) corners running ACROSS the ridge direction, so an L
+// becomes two blocks and a T or U three. Each block gets a ridge down its
+// middle, gutters on the two edges parallel to the ridge and rake barges on
+// the two across it. Where two blocks meet across a cut, the WIDER block
+// (the higher ridge at the same pitch) keeps its barge — that is the gable
+// wall above the lower roof — and the narrower block gets an apron along
+// the same stretch, which is the flashing against that wall. The ridge
+// direction is the drawing's decision (DRAW.roofBaseHoriz), flipped by
+// "Rotate roof 90°", exactly like the straight gable.
+function buildStepGableRoofLines(outline, flipAxis){
+  if (!outline || outline.length < 3) return [];
+  var o = (typeof _roofSimplifyOutline === 'function') ? (_roofSimplifyOutline(outline, 18) || outline) : outline;
+  if (!o || o.length < 3) o = outline;
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  o.forEach(function(p){
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+  });
+  var horiz = (window.DRAW && typeof DRAW.roofBaseHoriz === 'boolean') ? DRAW.roofBaseHoriz : ((maxX - minX) >= (maxY - minY));
+  if (flipAxis) horiz = !horiz;
+  // Work in ridge-space: u runs ALONG the ridge, v runs ACROSS it. A
+  // horizontal ridge keeps x as u; a vertical one swaps the axes.
+  var U = function(p){ return horiz ? p[0] : p[1]; };
+  var V = function(p){ return horiz ? p[1] : p[0]; };
+  var XY = function(u, v){ return horiz ? [u, v] : [v, u]; };
+  var n = o.length, area = 0;
+  for (var i = 0; i < n; i++){ var a0 = o[i], b0 = o[(i+1)%n]; area += a0[0]*b0[1] - b0[0]*a0[1]; }
+  var ccw = area > 0;
+  // The cut lines: through every reflex corner, across the ridge (constant u).
+  var cuts = [];
+  for (var j = 0; j < n; j++){
+    var pp = o[(j-1+n)%n], c = o[j], q = o[(j+1)%n];
+    var cross = (c[0]-pp[0])*(q[1]-c[1]) - (c[1]-pp[1])*(q[0]-c[0]);
+    if (ccw ? (cross < 0) : (cross > 0)){
+      var cu = U(c);
+      if (!cuts.some(function(x){ return Math.abs(x - cu) < 1.5; })) cuts.push(cu);
+    }
+  }
+  var uMin = Infinity, uMax = -Infinity;
+  o.forEach(function(p){ var u = U(p); if (u < uMin) uMin = u; if (u > uMax) uMax = u; });
+  var stops = [uMin].concat(cuts.filter(function(u){ return u > uMin + 1.5 && u < uMax - 1.5; }).sort(function(a, b){ return a - b; }), [uMax]);
+  function _ptInPoly(x, y){
+    var inside = false;
+    for (var i2 = 0, j2 = n - 1; i2 < n; j2 = i2++){
+      var xi = o[i2][0], yi = o[i2][1], xj = o[j2][0], yj = o[j2][1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  // The v-intervals the polygon covers at a given u (a sweep across the ridge).
+  function spansAt(u){
+    var xs = [];
+    for (var i3 = 0; i3 < n; i3++){
+      var a = o[i3], b = o[(i3+1)%n];
+      var ua = U(a), ub = U(b);
+      if ((ua - u) * (ub - u) < 0){ var t = (u - ua) / (ub - ua); xs.push(V(a) + t * (V(b) - V(a))); }
+    }
+    xs.sort(function(p1, p2){ return p1 - p2; });
+    var out = [];
+    for (var k = 0; k + 1 < xs.length; k += 2){
+      var mid = XY(u, (xs[k] + xs[k+1]) / 2);
+      if (xs[k+1] - xs[k] > 1 && _ptInPoly(mid[0], mid[1])) out.push([xs[k], xs[k+1]]);
+    }
+    return out;
+  }
+  // The blocks: one per (slab between stops) × (span inside the polygon).
+  var blocks = [];
+  for (var si = 0; si + 1 < stops.length; si++){
+    var u0 = stops[si], u1 = stops[si+1];
+    if (u1 - u0 < 1) continue;
+    spansAt((u0 + u1) / 2).forEach(function(sp){
+      blocks.push({ u0: u0, u1: u1, v0: sp[0], v1: sp[1], width: sp[1] - sp[0] });
+    });
+  }
+  if (!blocks.length) return [];
+  // An outline edge is where the block's boundary lies ON the drawn outline.
+  function onOutline(p1, p2){
+    var mx = (p1[0]+p2[0])/2, my = (p1[1]+p2[1])/2;
+    for (var i4 = 0; i4 < n; i4++){
+      var a = o[i4], b = o[(i4+1)%n];
+      var dx = b[0]-a[0], dy = b[1]-a[1], l2 = dx*dx + dy*dy; if (l2 < 1) continue;
+      var t = ((mx-a[0])*dx + (my-a[1])*dy) / l2; if (t < -0.01 || t > 1.01) continue;
+      if (Math.hypot(mx - (a[0]+t*dx), my - (a[1]+t*dy)) <= 2.5) return true;
+    }
+    return false;
+  }
+  var result = [], barges = [];
+  blocks.forEach(function(bk){
+    var vm = (bk.v0 + bk.v1) / 2;
+    result.push({ type:'ridge', pts:[XY(bk.u0, vm), XY(bk.u1, vm)] });
+    // The two long edges (parallel to the ridge): gutters.
+    result.push({ type:'gutter', pts:[XY(bk.u0, bk.v0), XY(bk.u1, bk.v0)] });
+    result.push({ type:'gutter', pts:[XY(bk.u0, bk.v1), XY(bk.u1, bk.v1)] });
+    // The two ends (across the ridge): each is a rake barge where it is the
+    // outline, and where it meets another block it is a barge on the wider
+    // block (the gable wall) and an apron on the narrower one.
+    [bk.u0, bk.u1].forEach(function(ue, side){
+      var pieces = [[bk.v0, bk.v1]];
+      blocks.forEach(function(ob){
+        if (ob === bk) return;
+        var touches = side === 0 ? Math.abs(ob.u1 - ue) < 1.5 : Math.abs(ob.u0 - ue) < 1.5;
+        if (!touches) return;
+        var lo = Math.max(bk.v0, ob.v0), hi = Math.min(bk.v1, ob.v1);
+        if (hi - lo < 1) return;
+        // Carve the shared stretch out of the outline pieces…
+        pieces = [].concat.apply([], pieces.map(function(pc){
+          var out = [];
+          if (pc[0] < lo - 0.5) out.push([pc[0], Math.min(pc[1], lo)]);
+          if (pc[1] > hi + 0.5) out.push([Math.max(pc[0], hi), pc[1]]);
+          return out;
+        }));
+        // …and stamp it: the wider block's wall is the barge, the narrower
+        // roof runs an apron up to it. Equal widths: the first block (lower u) wins.
+        var mine = bk.width > ob.width + 0.5 || (Math.abs(bk.width - ob.width) <= 0.5 && bk.u0 < ob.u0);
+        if (mine) barges.push({ type:'barge', pts:[XY(ue, lo), XY(ue, vm)] }, { type:'barge', pts:[XY(ue, vm), XY(ue, hi)] });
+        else result.push({ type:'apron', pts:[XY(ue, lo), XY(ue, hi)] });
+      });
+      pieces.forEach(function(pc){
+        if (pc[1] - pc[0] < 1) return;
+        var p1 = XY(ue, pc[0]), p2 = XY(ue, pc[1]);
+        if (!onOutline(p1, p2)) return;
+        // Split at the ridge so each face gets its own rake and sheet length.
+        if (pc[0] < vm && pc[1] > vm) barges.push({ type:'barge', pts:[p1, XY(ue, vm)] }, { type:'barge', pts:[XY(ue, vm), p2] });
+        else barges.push({ type:'barge', pts:[p1, p2] });
+      });
+    });
+  });
+  if (window.DRAW) DRAW.gableHipEndEdges = [];
+  return result.concat(_tagGableBargesStarterFinish(barges));
+}
 function buildGableRoofLines_legacy(outline) {
   var _rectG = buildRectilinearRoofLines(outline, true);
   if (_rectG) return _rectG;   // gable ends on every arm end, from the shape
@@ -66283,6 +66476,7 @@ function _syncRoofTypeDropLabel(){
 var ROOF_TYPE_CHOICES = [
   { type:'hip',      label:'Hip & Valley',  hint:'hips all round; valleys at internal corners' },
   { type:'gable',    label:'Straight Gable', hint:'one ridge, gable ends' },
+  { type:'stepgable', label:'Step-down Gable', hint:'an L or T where each wing is its own gable at its own height — no hips or valleys' },
   { type:'gable-hv', label:'Gable + hip/valley corner', hint:'gable ends, hip + valley at an L corner' },
   { type:'dutch',    label:'Dutch Gable',   hint:'hip with a small gablet at each end' },
   { type:'mono',     label:'Mono-Pitch',    hint:'single slope — lean-to, skillion' },
@@ -66413,7 +66607,7 @@ function suggestRoofType(){
   if (!o || o.length < 3) return null;
   var c = _roofReflexCount(o);
   if (c.reflex >= 2) return { type:'hip', label:'Hip & Valley', reason:'complex footprint ('+c.reflex+' internal corners) — needs valleys' };
-  if (c.reflex === 1) return { type:'hip', label:'Hip & Valley', reason:'L-shaped footprint — a straight gable would leave the wing without a ridge' };
+  if (c.reflex === 1) return { type:'hip', label:'Hip & Valley', reason:'L-shaped footprint — or Step-down Gable if the wing is its own gable at its own height' };
   var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   o.forEach(function(p){ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; });
   var w=maxX-minX, h=maxY-minY, ar = Math.max(w,h) / Math.max(1, Math.min(w,h));
@@ -66487,6 +66681,7 @@ function autoGenerateRoof(type, rotation) {
   var rotSteps = Math.round(rot / 90) % 4;
   if(type==='hip')        lines=buildHipValleyLines(DRAW.outline);
   else if(type==='gable') lines=buildGableRoofLines(DRAW.outline, rotSteps % 2 === 1);
+  else if(type==='stepgable') lines=buildStepGableRoofLines(DRAW.outline, rotSteps % 2 === 1);
   // Hip+valley-corner gable: hip/valley skeleton with the OUTER hip
   // ends converted to rake barges — the L corner keeps its hip +
   // valley junction while the ends are true gables.  (The Straight
@@ -66495,7 +66690,7 @@ function autoGenerateRoof(type, rotation) {
   else if(type==='gable-hv') lines=buildGableRoofLines_legacy(DRAW.outline);
   else if(type==='dutch') lines=buildDutchGableRoofLines(DRAW.outline);
   else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline, rot);
-  if (rotSteps && type !== 'mono' && type !== 'gable') {
+  if (rotSteps && type !== 'mono' && type !== 'gable' && type !== 'stepgable') {
     var cx = 0, cy = 0;
     DRAW.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
     cx /= DRAW.outline.length; cy /= DRAW.outline.length;

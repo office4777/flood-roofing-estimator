@@ -1,7 +1,7 @@
 // Two things a roofer reaches for constantly were both buried in the Lines
 // menu: scribbling a note on the map, and putting a flashing on the order.
 // Free-draw is now a pencil in the top bar — a toggle you flick on and off
-// while looking at the roof — and Flashings is a button in the bottom bar
+// while looking at the roof — and Markup (free draw) is a button in the bottom bar
 // beside Photos and Save.
 //
 // The bottom bar is the fragile part: nine buttons on a 360px phone gives
@@ -81,28 +81,52 @@ v = await pg.evaluate(() => {
 check('free-draw is no longer in the Lines menu on site', v.exists && !v.shown,
   'exists=' + v.exists + ' shown=' + v.shown);
 
-// ── flashings, down the bottom ────────────────────────────────────
+// ── markup, down the bottom (the owner: "remove the flashing button and
+//    replace it with the mark up (free draw) button, symbol it with a small
+//    pencil with a squiggly line") ─────────────────────────────────
 v = await pg.evaluate(() => {
-  const f = document.getElementById('ttbFlash'), bar = document.getElementById('tabletToolbar');
-  return { there: !!f, inBar: !!(f && bar && bar.contains(f)),
+  const f = document.getElementById('ttbMarkup'), bar = document.getElementById('tabletToolbar');
+  return { there: !!f, inBar: !!(f && bar && bar.contains(f)), flashGone: !document.getElementById('ttbFlash'),
            label: f ? f.textContent.trim() : '',
            ico: f ? (f.querySelector('.ttb-ico')||{}).getAttribute?.('data-ico') : null,
-           beforePhotos: !!(f && f.nextElementSibling &&
-                            /Photos/.test(f.nextElementSibling.textContent)) };
+           beforePhotos: !!(f && f.nextElementSibling && /Photos/.test(f.nextElementSibling.textContent)) };
 });
-check('there is a Flashings button in the bottom bar', v.there && v.inBar, v.label);
-check('…sitting with the other job buttons, before Photos', v.beforePhotos);
-check('…with its own icon, not a borrowed one', v.ico === 'flashing', String(v.ico));
-check('…and the icon actually has a mask to draw',
-  await pg.evaluate(() => !!getComputedStyle(document.documentElement)
-    .getPropertyValue('--ico-flashing').trim()));
-
+check('there is a Markup button in the bottom bar, and the Flashings one is gone', v.there && v.inBar && v.flashGone && /Markup/.test(v.label), v.label);
+check('…sitting where Flashings was, before Photos', v.beforePhotos);
+check('…with its own pencil-and-squiggle icon', v.ico === 'markup' && await pg.evaluate(() => /M3.5 20.5c/.test(getComputedStyle(document.documentElement).getPropertyValue('--ico-markup'))), String(v.ico));
 v = await pg.evaluate(() => {
-  document.getElementById('ttbFlash').click();
-  return !!document.getElementById('_flashSheet');
+  setTool('select');
+  document.getElementById('ttbMarkup').click();
+  const on = { tool: DRAW.tool, lit: document.getElementById('ttbMarkup').classList.contains('on') };
+  document.getElementById('ttbMarkup').click();
+  const off = { tool: DRAW.tool, lit: document.getElementById('ttbMarkup').classList.contains('on') };
+  return { on, off };
 });
-check('tapping it opens the flashing sheet', v);
-await pg.evaluate(() => { const s = document.getElementById('_flashSheet'); if (s) s.remove(); });
+check('tapping it turns free-draw markup on and lights the button', v.on.tool === 'notes' && v.on.lit, JSON.stringify(v.on));
+check('…and tapping again turns it off', v.off.tool !== 'notes' && !v.off.lit, JSON.stringify(v.off));
+check('flashings are still reachable from the Lines menu', await pg.evaluate(() => !!document.getElementById('btn-siteflash')));
+
+// ── the roof-shape sheet is always reachable on site ──────────────
+// A job opened on site had the roof panel hidden with no handle to bring it
+// back — no roof type, no Rotate roof 90°, no roof switch.
+await pg.evaluate(() => { gotoTab('roof'); clearAll(true); setTool('outline'); DRAW.currentPts = [[180,560],[635,560],[635,880],[860,880],[860,1215],[180,1215]]; finishCurrent(); DRAW.scaleMetresPerPx = 0.03; });
+await pg.waitForTimeout(300);
+{ const skip = pg.getByRole('button', { name: 'Skip for now' }); if (await skip.count()) await skip.first().click(); }
+await pg.waitForTimeout(200);
+v = await pg.evaluate(async () => {
+  const vis = (id) => { const e = document.getElementById(id); if (!e) return false; const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width > 0 && r.height > 0; };
+  const rtp = document.getElementById('roofTypePanel'); rtp.style.display = 'none'; document.body.classList.remove('rtp-collapsed');
+  _applyTabletMode();
+  const out = { collapsed: document.body.classList.contains('rtp-collapsed'), handle: vis('roofSheetHandle') };
+  document.getElementById('roofSheetHandle').click(); await new Promise(r => setTimeout(r, 250));
+  out.panel = vis('roofTypePanel'); out.rotate = vis('roofRotateRow'); out.type = vis('roofTypeDropBtn');
+  document.getElementById('roofTypeDropBtn').click(); await new Promise(r => setTimeout(r, 150));
+  out.step = /Step-down Gable/.test(document.getElementById('roofTypeDropMenu').textContent || '');
+  closeRoofTypeMenu(); _phoneRoofSheet(false);
+  return out;
+});
+check('with a roof drawn, site mode always shows the "Roof shape" handle', v.collapsed && v.handle, JSON.stringify(v));
+check('…and tapping it opens the roof panel: roof type, Rotate roof 90°, Step-down Gable on offer', v.panel && v.rotate && v.type && v.step, JSON.stringify(v));
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
 
