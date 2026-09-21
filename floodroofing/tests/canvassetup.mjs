@@ -55,7 +55,7 @@ let v = await pg.evaluate(() => {
 });
 check('closing an outline asks what the roof is', v.popup, v.title || 'no popup');
 check('…offering every roof shape the generator can build',
-  v.types && v.types.join() === 'hip,gable,gable-hv,dutch,mono', (v.types||[]).join());
+  v.types && v.types.join() === 'hip,gable,stepgable,gable-hv,dutch,mono', (v.types||[]).join());
 check('…and every sheet material',
   v.sheets && v.sheets.join() === 'steel-corrugate,steel-5rib,clearlite-5rib,clearlite-corrugate',
   (v.sheets||[]).join());
@@ -110,7 +110,7 @@ const menu = await pg.evaluate(() => {
            types:(m.innerHTML.match(/_pickRoofType/g)||[]).length,
            sheets:(m.innerHTML.match(/_pickRoofSheet/g)||[]).length };
 });
-check('…that opens a menu with every shape', menu.open && menu.types === 5,
+check('…that opens a menu with every shape', menu.open && menu.types === 6,
   JSON.stringify(menu));
 check('…and the sheet materials too, so the spec is in one place',
   menu.sheets === 4, String(menu.sheets));
