@@ -74,20 +74,21 @@ v = await pg.evaluate(() => {
   if (!box) return null;
   return Array.from(box.children).map(cell => ({
     label: (cell.querySelector('button:not(.no-print)')||{}).textContent,
-    rename: (cell.querySelector('button.no-print')||{}).textContent || null,
-    below: !!(cell.querySelector('button:not(.no-print)') && cell.querySelector('button.no-print') &&
-      cell.querySelector('button:not(.no-print)').compareDocumentPosition(cell.querySelector('button.no-print')) & Node.DOCUMENT_POSITION_FOLLOWING),
+    rename: (cell.querySelector('button[onclick*="_renameRoof"]')||{}).textContent || null,
+    below: !!(cell.querySelector('button:not(.no-print)') && cell.querySelector('button[onclick*="_renameRoof"]') &&
+      cell.querySelector('button:not(.no-print)').compareDocumentPosition(cell.querySelector('button[onclick*="_renameRoof"]')) & Node.DOCUMENT_POSITION_FOLLOWING),
   }));
 });
+// Under the roof plan it is one quiet "Rename · Delete" line (2026-09-22).
 check('every roof button on page 2 has a Rename under it',
-  v && v.length === 3 && v.every(x => x.rename === '✎ Rename' && x.below), JSON.stringify(v));
+  v && v.length === 3 && v.every(x => x.rename === 'Rename' && x.below), JSON.stringify(v));
 check('…the include buttons still read as before',
   v.map(x=>x.label).join(' | ') === 'Main roof only | + Include Veranda | + Include Garage', v.map(x=>x.label).join(' | '));
 
 // the Include-Garage rename must target the GARAGE, not roof 1
 await pg.evaluate(() => {
   const cells = document.querySelectorAll('#qpRoot .qp-incl-btns > div');
-  cells[cells.length-1].querySelector('button.no-print').click();
+  cells[cells.length-1].querySelector('button[onclick*="_renameRoof"]').click();
 });
 await pg.waitForTimeout(700);
 check('the rename under "Include Garage" renames the Garage, not another roof',
@@ -142,7 +143,7 @@ check('…and deleted there too, so no roof is one you are stuck with',
 // The controls that decide how a roof is charged are sized to be read.
 const sizes = await pg.evaluate(() => {
   const b = [...document.querySelectorAll('#qpRoot button')]
-    .find(x => (x.textContent||'').trim() === 'Separate extra');
+    .find(x => (x.textContent||'').trim() === 'Separate');
   if (!b) return { missing: true };
   const cs = getComputedStyle(b);
   // The proposal preview is zoom-scaled to fit the pane, so a bounding rect

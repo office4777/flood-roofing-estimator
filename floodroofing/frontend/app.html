@@ -3161,9 +3161,30 @@ html.qe-rail-on #qpRoot .qe-inline{ position:absolute; visibility:hidden; pointe
 #qeRail{ position:absolute; left:0; top:0; bottom:0; width:186px; overflow:visible; pointer-events:none; z-index:5; }
 .qe-rail-btn{ position:absolute; left:10px; max-width:150px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
 .qe-rail-btn:hover{ background:#f0f8ff; }
-.qe-rail-line{ position:absolute; height:0; border-top:2px dashed #0099cc; pointer-events:none; opacity:.85; }
-.qe-rail-line::after{ content:''; position:absolute; right:-2px; top:-6px; border:5px solid transparent; border-left:8px solid #0099cc; }
+.qe-rail-line{ position:absolute; height:0; border-top:1.5px solid #9cc9de; pointer-events:none; }
+.qe-rail-line::after{ content:''; position:absolute; right:-14px; top:-14px; width:26px; height:26px; background:#0099cc; -webkit-mask:var(--ico-hand) center/contain no-repeat; mask:var(--ico-hand) center/contain no-repeat; }
+:root{ --ico-hand:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='3.2' d='M2.5 9.5h11'/><path stroke-width='2' d='M8 9.5v7.5a3 3 0 0 0 3 3h6.5a3.5 3.5 0 0 0 3.5-3.5V12a2.5 2.5 0 0 0-2.5-2.5h-5'/><path stroke-width='1.6' d='M14.5 13.5h5M14.5 16.5h4.5'/></svg>"); }
 @media print{ #qeRail{ display:none !important; } }
+/* The office's "How each roof is quoted" block under the roof plan. */
+.rm-block{ margin-top:12px; padding-top:10px; border-top:1px solid var(--ed-line, #e5e9ef); font-family:var(--ed-sans, inherit); }
+.rm-hd{ font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ed-text2, #6b7785); margin-bottom:6px; }
+.rm-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:5px 0; }
+.rm-name{ font-size:12.5px; font-weight:700; color:var(--ed-ink, #0a1628); min-width:70px; }
+.rm-fixed{ font-size:11px; color:var(--ed-text2, #6b7785); }
+.rm-seg{ display:inline-flex; flex-wrap:wrap; border:1px solid var(--ed-line, #d6dde6); border-radius:7px; overflow:hidden; background:#fff; }
+.rm-opt{ flex:1 1 auto; padding:6px 12px; font-size:12px; font-weight:600; border:none; border-left:1px solid var(--ed-line, #d6dde6); background:#fff; color:var(--ed-ink-2, #3b4652); cursor:pointer; font-family:inherit; white-space:nowrap; text-align:center; }
+.rm-opt:first-child{ border-left:none; }
+.rm-opt.on{ background:var(--ed-accent, #0099cc); color:#fff; }
+.rm-opt.rm-ex.on{ background:#dc2626; }
+.rm-sub{ display:flex; align-items:center; gap:5px; padding:0 0 6px; font-size:11px; color:var(--ed-text2, #6b7785); }
+.rm-sub > span{ margin-right:3px; }
+.rm-pill{ padding:3px 9px; font-size:10.5px; font-weight:600; border:1px solid var(--ed-line, #d6dde6); border-radius:999px; background:#fff; color:var(--ed-ink-2, #3b4652); cursor:pointer; font-family:inherit; }
+.rm-pill.on{ background:#7c3aed; border-color:#7c3aed; color:#fff; }
+/* The office's Rename · Delete under a roof's Include button. */
+.rm-links{ display:flex; justify-content:center; gap:10px; margin-top:3px; font-size:10px; font-family:var(--ed-sans, inherit); }
+.rm-links button{ border:none; background:none; padding:2px 2px; font:inherit; font-weight:600; color:var(--ed-text2, #6b7785); cursor:pointer; }
+.rm-links button:hover{ text-decoration:underline; }
+.rm-links button.rm-del{ color:#b4232c; }
 /* The arrow's landing: the block on the page the button edits. */
 .qe-spot{ outline:3px solid #0099cc !important; outline-offset:4px; border-radius:6px; animation:qeSpotPulse 1.2s ease-in-out 2; }
 @keyframes qeSpotPulse{ 0%,100%{ outline-color:#0099cc; } 50%{ outline-color:rgba(0,153,204,.15); } }
@@ -27465,7 +27486,7 @@ function _qeRailSync(){
   var btns = rail.querySelectorAll('.qe-rail-btn'), lines = rail.querySelectorAll('.qe-rail-line');
   items.forEach(function(it, i){
     var bw = btns[i] ? btns[i].offsetWidth : 160;
-    var x0 = 10 + bw + 2, w = it.x - x0 - 4;
+    var x0 = 10 + bw + 2, w = it.x - x0 - 44;   // the hand stops short of the block's card, which paints over the rail
     if (lines[i]){ lines[i].style.left = x0 + 'px'; lines[i].style.width = Math.max(0, Math.round(w)) + 'px'; lines[i].style.display = w < 14 ? 'none' : ''; }
   });
 }
@@ -30532,18 +30553,33 @@ function _setRoofMapSize(sz){
 // they used to share one placement, so nudging the picture on one moved it on
 // the other. Each frame has a key now: 'main' (page 2, the original field) and
 // 'accept' (the last page, seeded from page 2 the first time it is asked for).
+// EVERY MAP FRAME KEEPS ITS OWN VIEW (2026-09-22). The A4's plan is
+// `roofMapView` (the one the customer's copies start from), the
+// acceptance page's is `roofMapViewAccept`, and every other frame — the
+// one-page layout's proposal and review plans, the book's — lives under
+// `roofMapViews[key]`. A frame with no view of its own starts from the
+// A4's, so an old quote looks as it did; the first drag or zoom on it is
+// then its own. Before this every key but 'accept' was folded into 'main',
+// so moving the proposal's plan moved the review's with it.
 function _qpRoofMapViewField(key){ return key === 'accept' ? 'roofMapViewAccept' : 'roofMapView'; }
 function _qpRoofMapView(key){
   var q = (window.S && S.quote) || {};
-  var v = q[_qpRoofMapViewField(key)] || null;
-  if ((!v || typeof v !== 'object') && key === 'accept') v = q.roofMapView || null;
+  key = key || 'main';
+  var v = null;
+  if (key === 'main' || key === 'accept') v = q[_qpRoofMapViewField(key)] || null;
+  else v = (q.roofMapViews && typeof q.roofMapViews === 'object') ? q.roofMapViews[key] : null;
+  if (!v || typeof v !== 'object') v = q.roofMapView || null;
   if (!v || typeof v !== 'object') v = {};
   var z = +v.zoom;
   return { offX: +v.offX || 0, offY: +v.offY || 0, zoom: (isFinite(z) && z > 0) ? z : 1 };
 }
 function _qpRoofMapViewSet(patch, key){
   if (!S.quote) return;
-  S.quote[_qpRoofMapViewField(key)] = Object.assign({}, _qpRoofMapView(key), patch || {});
+  key = key || 'main';
+  var next = Object.assign({}, _qpRoofMapView(key), patch || {});
+  if (key === 'main' || key === 'accept'){ S.quote[_qpRoofMapViewField(key)] = next; return; }
+  if (!S.quote.roofMapViews || typeof S.quote.roofMapViews !== 'object') S.quote.roofMapViews = {};
+  S.quote.roofMapViews[key] = next;
 }
 // The frame an event or a button belongs to.
 function _qpRoofMapKeyOf(el){
@@ -30624,7 +30660,7 @@ function _qpRoofMapDragStart(e){
 // fixed-height background-cover div.
 function _qpRoofMapFrameHtml(svg, maxH, key){
   if (!svg) return '';
-  key = (key === 'accept') ? 'accept' : 'main';
+  key = String(key || 'main').replace(/[^a-z0-9_-]/gi, '') || 'main';
   var v = _qpRoofMapView(key);
   var cust = !!window.__CUSTOMER_MODE;
   var h = Math.max(80, +maxH || _qpRoofMapMaxH());
@@ -31157,6 +31193,11 @@ function _roofRenameLinkHtml(idx, opts){
   if (idx == null || idx < 0) return '';
   if (!(window.DRAW && DRAW.roofs && DRAW.roofs[idx])) return '';
   opts = opts || {};
+  // Under the roof plan's Include buttons: one quiet line of text links,
+  // not two dashed boxes per roof (the owner: "looks very messy").
+  if (opts.inline) return '<div class="rm-links no-print">'+
+    '<button type="button" onclick="event.stopPropagation();_renameRoof('+idx+')" title="Rename this roof">Rename</button>'+
+    '<button type="button" class="rm-del" onclick="event.stopPropagation();deleteRoof('+idx+')" title="Delete this roof — removes its outline, lines and measurements">Delete</button></div>';
   return '<button type="button" class="no-print" onclick="event.stopPropagation();_renameRoof('+idx+')" '+
       'title="Rename this roof" style="display:block;width:100%;margin-top:4px;padding:3px 6px;'+
       'font-family:'+(opts.font || 'inherit')+';font-size:'+(opts.size || '10px')+';font-weight:700;letter-spacing:.03em;'+
@@ -31195,55 +31236,28 @@ function _renameRoof(i){
 // works on those previews now. Never for the customer, never on paper.
 function _roofModeRowsHtml(){
   if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return '';
-  var out = '';
-    if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
-      // No rename here. It only ever appeared for a roof with no button of
-      // its own to sit under, so it turned up on one row and not the next and
-      // pushed that row's controls out of line with the others. Renaming now
-      // lives on the roof switcher above the canvas, where every roof has one
-      // whatever it is quoted as.
-      //
-      // These are the controls that decide how a roof is charged, so they are
-      // sized to be read and hit rather than squeezed into 9px.
-      var _rowCss = 'display:flex;align-items:center;gap:10px;font-size:13px;'+
-        'font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap';
-      var _nameCss = 'min-width:92px;font-weight:700;font-size:13.5px;color:var(--ed-ink)';
-      var _rows = [];
-      _rows.push('<div class="no-print" style="'+_rowCss+'">'+
-        '<span style="'+_nameCss+'">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
-        '<span style="color:var(--ed-text2)">— always included</span></div>');
-      for (var _si = 1; _si < DRAW.roofs.length; _si++) {
-        var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
-        var _cm = _roofQuoteMode(_si);
-        var _seg = [['folded','Part of main'],['separate','Separate extra'],['excluded','Exclude']].map(function(p){
-          var _on = (_cm === p[0]);
-          var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
-          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:7px 15px;font-size:12.5px;font-weight:'+(_on?'700':'600')+';border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
-        }).join('');
-        // Gutter attachment — only meaningful for a separate roof: "with house"
-        // (veranda — always guttered) vs "own gutters" (garage — guttered only
-        // when the roof is added).
-        var _gutSeg = '';
-        if (_cm === 'separate') {
-          var _att = _roofAttached(_si);
-          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px">'+
-            '<span style="font-size:12px;color:var(--ed-text2)">gutter</span>'+
-            '<span style="display:inline-flex;flex-wrap:wrap;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
-            [[true,'With house'],[false,'Own gutters']].map(function(p){
-              var _on2 = (p[0] === _att);
-              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:7px 14px;font-size:12.5px;font-weight:'+(_on2?'700':'600')+';border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
-            }).join('')+'</span></span>';
-        }
-        _rows.push('<div class="no-print" style="'+_rowCss+'">'+
-          '<span style="'+_nameCss+'">'+esc2(_rn)+'</span>'+
-          '<span style="display:inline-flex;flex-wrap:wrap;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
-      }
-      out = '<div class="no-print" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:11px">'+
-        '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted '+
-          '<span style="text-transform:none;letter-spacing:0;font-weight:400">(part of the main price · an optional extra · excluded · guttered with the house or on its own)</span></div>'+
-        _rows.join('')+'</div>';
+  if (!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1)) return '';
+  var rows = [];
+  rows.push('<div class="rm-row"><span class="rm-name">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
+    '<span class="rm-fixed">Always included</span></div>');
+  for (var i = 1; i < DRAW.roofs.length; i++){
+    var nm = (DRAW.roofs[i] && DRAW.roofs[i].name) || ('Roof ' + (i + 1));
+    var cm = _roofQuoteMode(i);
+    var seg = [['folded','Part of main'],['separate','Separate'],['excluded','Exclude']].map(function(p){
+      return '<button type="button" class="rm-opt'+(cm === p[0] ? ' on' : '')+(p[0] === 'excluded' ? ' rm-ex' : '')+'" onclick="_setRoofMode('+i+',\''+p[0]+'\')">'+p[1]+'</button>';
+    }).join('');
+    var gut = '';
+    if (cm === 'separate'){
+      var att = _roofAttached(i);
+      gut = '<div class="rm-sub" title="A veranda shares the house gutter run and is always guttered; a garage is guttered only when the roof is added"><span>Gutters</span>'+
+        [[true,'With house'],[false,'Own gutters']].map(function(p){
+          return '<button type="button" class="rm-pill'+(att === p[0] ? ' on' : '')+'" onclick="_setRoofAttached('+i+','+p[0]+')">'+p[1]+'</button>';
+        }).join('')+'</div>';
     }
-  return out;
+    rows.push('<div class="rm-row"><span class="rm-name">'+esc2(nm)+'</span><span class="rm-seg">'+seg+'</span></div>'+gut);
+  }
+  return '<div class="rm-block no-print" title="Part of main: charged in the main price, no choice for the customer. Separate extra: an option the customer can add. Exclude: drawn crossed out, never offered.">'+
+    '<div class="rm-hd">How each roof is quoted</div>'+rows.join('')+'</div>';
 }
 function _qpInteractiveRoofBlock(opts){
   opts = opts || {};
@@ -31277,7 +31291,7 @@ function _qpInteractiveRoofBlock(opts){
     var mkBtn = function(label, active, onclick, roofIdx){
       return '<div style="flex:1 1 auto;min-width:130px;display:flex;flex-direction:column">'+
         '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>'+
-        _roofRenameLinkHtml(roofIdx, { font:'var(--ed-sans)', size:'9.5px', line:'var(--ed-line)', color:'var(--ed-text2)' })+
+        _roofRenameLinkHtml(roofIdx, { inline:true })+
       '</div>';
     };
     var bw = [ mkBtn('Main roof only', !anySel, '_qpSelectMainOnly()', 0) ];
@@ -31384,7 +31398,7 @@ function _buildRoofPreviewsHtml(opts){
       var _btn = function(label, active, onclick, roofIdx){
         return '<div style="flex:1 1 auto;min-width:130px;display:flex;flex-direction:column">'+
           '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>'+
-          _roofRenameLinkHtml(roofIdx, { font:'var(--ed-sans)', size:'9.5px', line:'var(--ed-line)', color:'var(--ed-text2)' })+
+          _roofRenameLinkHtml(roofIdx, { inline:true })+
         '</div>';
       };
       var _bw = [ _btn('Main roof only', !_anySel, '_qpSelectMainOnly()', 0) ];

@@ -347,7 +347,9 @@ Discipline (non-negotiable):
   in-page buttons are the ANCHORS of an EDIT RAIL on a wide office screen
   (`_qeRailSync`, `html.qe-rail-on` from 1280px): the preview gets a
   186px left gutter, each button is redrawn in `#qeRail` level with its
-  anchor with a dashed pointer to it (`.qe-rail-btn`, `.qe-rail-line`),
+  anchor with a thin line ending in a small pointing hand (`.qe-rail-btn`,
+  `.qe-rail-line`, `--ico-hand`; the hand stops short of the block's card,
+  which paints over the rail),
   the in-page button is made invisible and taken out of the flow, and the
   rail re-lays after every render, resize and scroll inside the preview.
   Narrower screens keep the buttons on the page. Per-quote hides live in `S.quote.selHide
@@ -432,8 +434,15 @@ Discipline (non-negotiable):
   three-way control per roof — Part of main (compulsory), Separate extra
   (the customer's option), Exclude (drawn crossed out, never offered) —
   the A4 always had (`_roofModeRowsHtml`, shared by `_qpInteractiveRoofBlock`
-  and `_buildRoofPreviewsHtml`; `_setRoofMode`). Never for the customer,
-  never on paper. `tests/quoteeditor.mjs`.
+  and `_buildRoofPreviewsHtml`; `_setRoofMode`; classes `.rm-*`, buttons at
+  least 12px with 6/12 padding — `tests/roofrename.mjs` pins the size).
+  Never for the customer, never on paper. Rename · Delete under an Include
+  button is one line of text links (`_roofRenameLinkHtml(idx, {inline:true})`).
+  EVERY MAP FRAME KEEPS ITS OWN VIEW: `roofMapView` (the A4), `roofMapViewAccept`,
+  and `roofMapViews[key]` for the rest (`desk`, `desksum`, `book`, `booksum`);
+  a frame without one starts from the A4's. Before 2026-09-22 every key but
+  `accept` collapsed to `main`, so zooming the proposal's plan zoomed the
+  review's. `tests/quoteeditor.mjs`.
 - THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) OVERLAYS
   the quote since 2026-09-21: `_openPricingPanel` keeps `--pop-reserve` at
   the toggle strip instead of reserving the drawer's width, so opening it

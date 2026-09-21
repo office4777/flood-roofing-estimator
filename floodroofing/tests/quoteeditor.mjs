@@ -217,7 +217,7 @@ const modes = await pg.evaluate(async () => {
   await new Promise(r => setTimeout(r, 400));
   gotoTab('quote'); await new Promise(r => setTimeout(r, 1500));
   const plan = () => document.querySelector('#qd-proposal .qp-roofmap');
-  const seg = () => [...plan().querySelectorAll('button')].filter(b => /^(Part of main|Separate extra|Exclude)$/.test(b.textContent.trim())).map(b => b.textContent.trim());
+  const seg = () => [...plan().querySelectorAll('button')].filter(b => /^(Part of main|Separate|Exclude)$/.test(b.textContent.trim())).map(b => b.textContent.trim());
   const incl = () => [...plan().querySelectorAll('.qp-incl-btns button')].map(b => b.textContent.trim());
   const out = { seg: seg(), inclSeparate: incl() };
   _setRoofMode(1, 'folded'); await new Promise(r => setTimeout(r, 900));
@@ -227,15 +227,26 @@ const modes = await pg.evaluate(async () => {
   _setRoofMode(1, 'separate'); await new Promise(r => setTimeout(r, 900));
   _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 700));
   const keys = _qbPages().map(p => p.key); _qbGo(keys.indexOf('proposal')); await new Promise(r => setTimeout(r, 300));
-  out.bookSeg = [...document.querySelectorAll('#qbPage .qp-roofmap button')].filter(b => /^(Part of main|Separate extra|Exclude)$/.test(b.textContent.trim())).length;
+  out.bookSeg = [...document.querySelectorAll('#qbPage .qp-roofmap button')].filter(b => /^(Part of main|Separate|Exclude)$/.test(b.textContent.trim())).length;
   _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 700));
   return out;
 });
-check('the one-page preview’s roof plan offers Part of main / Separate extra / Exclude for the second roof', modes.seg.join(',') === 'Part of main,Separate extra,Exclude', JSON.stringify(modes.seg));
+check('the one-page preview’s roof plan offers Part of main / Separate extra / Exclude for the second roof', modes.seg.join(',') === 'Part of main,Separate,Exclude', JSON.stringify(modes.seg));
 check('a separate roof has its Include button; folded into the main price it has none; excluded it has none and reads Not included',
   modes.inclSeparate.some(t => /Include Roof 2/.test(t)) && modes.foldedMode === 'folded' && !modes.inclFolded.some(t => /Roof 2/.test(t)) && modes.excluded === 'excluded' && !modes.inclExcluded.some(t => /Roof 2/.test(t)) && modes.legendExcl,
   JSON.stringify(modes));
 check('the phone preview’s roof plan carries the same control', modes.bookSeg === 3, String(modes.bookSeg));
+
+// EACH MAP FRAME KEEPS ITS OWN VIEW: zooming the proposal's plan leaves
+// the review's plan (and the A4's) where they were.
+const views = await pg.evaluate(async () => {
+  _qpRoofMapZoom(0.5, 'desk'); await new Promise(r => setTimeout(r, 100));
+  const t = k => ((document.querySelector('.qp-map-frame[data-map-key="' + k + '"] .qp-map-inner') || {}).style || {}).transform || '';
+  const out = { desk: t('desk'), desksum: t('desksum'), saved: (S.quote.roofMapViews || {}).desk, main: S.quote.roofMapView };
+  _qpRoofMapZoom(-0.5, 'desk'); await new Promise(r => setTimeout(r, 100));
+  return out;
+});
+check('zooming the proposal’s plan does not move the review’s plan', /scale\(1\.5\)/.test(views.desk) && /scale\(1\)/.test(views.desksum) && views.saved && views.saved.zoom === 1.5 && (!views.main || views.main.zoom === 1), JSON.stringify(views));
 
 // THE PRICING DRAWER sits over the quote — it no longer reserves its width
 // and shoves the Quote tab left.
