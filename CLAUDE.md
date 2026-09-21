@@ -68,13 +68,25 @@ main → GitHub Tests CI → promote workflow → `production` branch → Railwa
 
 Discipline (non-negotiable):
 1. Develop and commit on the session's designated `claude/...` branch only.
+   PREVIEW FIRST (owner's rule, 2026-09-22): every push to the branch gets a
+   Vercel preview within a couple of minutes, no tests in the way, and the
+   backend's CORS allowlist admits this account's `*.vercel.app` origins so
+   it runs against the LIVE API. The branch's stable alias is
+   `https://flood-roofing-estimator-git-claude-8454b2-office4777s-projects.vercel.app/app`
+   (read it off the deployment's aliases with the Vercel MCP —
+   `list_deployments` filtered by branch, then `list_deployment_aliases`;
+   a new branch gets a new alias). Push each change to the branch, give
+   the owner that link, take his tweaks there, and run ONE gate and ONE
+   ship for the whole batch. He signs in on the preview origin like any
+   other; the service worker there is the preview's own.
 2. Before fast-forwarding main: run the FULL local suite in the background
    (`node floodroofing/tests/run.mjs`) on a clean committed tree and require
    exit 0. If files changed mid-run, the result is void — re-run clean.
 3. Ship with `git push origin HEAD:main` (fast-forward only). Batch several
    commits into one ship when possible.
-4. After a green gate the pipeline lands in ~6 minutes; don't poll unless
-   something looks wrong.
+4. After a green gate the pipeline lands about 10 minutes after the push
+   to main (Tests CI ~9 min, promote ~1 min). Schedule the promote check
+   for 12 minutes, not 22 — that wait was costing every ship ten minutes.
 5. **A ship is not done until the promote workflow is green.** It verifies
    both halves, and both are the proof:
    - the FRONTEND, by fetching roofmap.co.nz/app and comparing it byte-for-byte
