@@ -3084,13 +3084,18 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
    six accent colours on one bar read as decoration, and when everything is
    emphasised nothing is. One primary action, the rest neutral outlines. */
 .qa-btn{
-  padding:5px 11px; border:1px solid var(--border); border-radius:7px; background:#fff;
-  color:#33475f; font-size:11.5px; font-weight:600; font-family:inherit; cursor:pointer;
+  padding:8px 15px; border:1px solid var(--border); border-radius:8px; background:#fff;
+  color:#33475f; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer;
   line-height:1.5; white-space:nowrap;
 }
+.q-actionbar > .qa-btn, .q-actionbar > .qa-more > summary.qa-btn{ padding:9px 17px; font-size:13.5px; }
 .qa-btn:hover{ border-color:#94a3b8; color:#0a1628; }
 select.qa-btn{ padding:5px 8px; }
 .qa-btn-primary{ background:#0a1628; border-color:#0a1628; color:#fff; }
+.qa-btn-tpl{ border-color:#0099cc; color:#0077a3; background:#f0f8ff; list-style:none; }
+.qa-btn-tpl::-webkit-details-marker{ display:none; }
+#qaTplMenu > summary{ display:inline-block; }
+#qaTplMenu .qv-menu-list{ min-width:280px; }
 .qa-btn-primary:hover{ background:#16243a; border-color:#16243a; color:#fff; }
 .qa-btn-warn{ border-color:#d9b45f; color:#8a6116; }
 .qa-btn-warn:hover{ border-color:#b8902f; color:#6b4a10; }
@@ -3163,11 +3168,10 @@ html.qp-phone-preview .qe-inline{ font-size:12px; }
 html.qe-rail-on #quoteProposal{ position:relative; padding-left:186px !important; }
 html.qe-rail-on #qpRoot .qe-inline{ position:absolute; visibility:hidden; pointer-events:none; margin:0; }
 #qeRail{ position:absolute; left:0; top:0; bottom:0; width:186px; overflow:visible; pointer-events:none; z-index:5; }
-.qe-rail-btn{ position:absolute; left:10px; max-width:150px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
+.qe-rail-btn{ position:absolute; left:10px; max-width:150px; min-width:120px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
 .qe-rail-btn:hover{ background:#f0f8ff; }
-.qe-rail-line{ position:absolute; height:0; border-top:1.5px solid #9cc9de; pointer-events:none; }
-.qe-rail-line::after{ content:''; position:absolute; right:-14px; top:-14px; width:26px; height:26px; background:#0099cc; -webkit-mask:var(--ico-hand) center/contain no-repeat; mask:var(--ico-hand) center/contain no-repeat; }
-:root{ --ico-hand:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='3.2' d='M2.5 9.5h11'/><path stroke-width='2' d='M8 9.5v7.5a3 3 0 0 0 3 3h6.5a3.5 3.5 0 0 0 3.5-3.5V12a2.5 2.5 0 0 0-2.5-2.5h-5'/><path stroke-width='1.6' d='M14.5 13.5h5M14.5 16.5h4.5'/></svg>"); }
+.qe-rail-line{ position:absolute; width:26px; height:26px; line-height:26px; font-size:20px; text-align:center; pointer-events:none; font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; animation:qeHandNudge 1.6s ease-in-out infinite; }
+@keyframes qeHandNudge{ 0%,100%{ transform:translateX(0); } 50%{ transform:translateX(4px); } }
 @media print{ #qeRail{ display:none !important; } }
 /* The office's "How each roof is quoted" block under the roof plan. */
 .rm-block{ margin-top:12px; padding-top:10px; border-top:1px solid var(--ed-line, #e5e9ef); font-family:var(--ed-sans, inherit); }
@@ -3374,6 +3378,11 @@ html.pdf-rendering .qp-photoslot{ display:none !important; }
    which is what "it looks like it's forced to landscape" was. Hold it to its
    own width and centre it; the zoom slider changes the size, not the shape. */
 #qtEditWrap .qt-stage #qpRoot{ margin:0 auto; width:794px; max-width:none; }
+/* A modern quote in the editor: its one-page layout at a working width. */
+#qtEditWrap.qt-modern .qt-stage #qpRoot{ width:1180px; }
+#qtEditWrap.qt-modern .qt-stage > #qpRoot > .qd{ box-shadow:0 2px 14px rgba(10,22,40,.14); }
+.qt-slide.fixed{ cursor:default; }
+.qt-slide.fixed .qt-slide-no{ background:rgba(10,22,40,.45); }
 #qtEditWrap .qt-stage{ display:flex; justify-content:center; align-items:flex-start; }
 #qtEditWrap .qt-stage > #qpRoot > .rp-page{ box-shadow:0 2px 14px rgba(10,22,40,.14); margin-bottom:18px; }
 /* Never any part of what a customer or a printer sees. */
@@ -3566,6 +3575,17 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-h2{ margin:0 0 12px; font-size:26px; line-height:1.15; font-weight:800; letter-spacing:-.025em; }
 .qb-h3{ margin:20px 0 9px; font-size:13px; font-weight:700; letter-spacing:.02em; color:#33475f; }
 .qb-para{ margin:0 0 16px; font-size:14.5px; line-height:1.55; color:#42556b; }
+.qb-para-empty{ color:#8a97a6; font-style:italic; border:1px dashed #c9d3de; border-radius:8px; padding:10px 12px; }
+/* The office's tools on the modern condition section. */
+.qb-cond-tools{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 0 12px; padding:8px 10px; background:#f3f7fb; border:1px solid #d9e4ee; border-radius:10px; }
+.qb-cond-fix{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.qb-cond-lbl{ font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#6b7785; margin-right:4px; }
+.qb-cond-btn{ padding:6px 11px; border:1px solid #c9d3de; border-radius:999px; background:#fff; color:#33475f; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.qb-cond-btn.on{ background:#0099cc; border-color:#0099cc; color:#fff; }
+.qb-cond-link{ border:none; background:none; padding:4px 6px; font-family:inherit; font-size:12px; font-weight:600; color:#0077a3; cursor:pointer; text-decoration:underline; }
+.qb-cond-link.qb-cond-del{ color:#b4232c; }
+.qb-cond-slots{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; padding:0 18px 18px; }
+.qd-sec .qb-cond-slots{ padding:0 28px 26px; }
 .qb-note{ margin:12px 0 0; font-size:12px; line-height:1.5; color:#6b7a8c; font-style:italic; }
 /* condition */
 .qb-verdict{ display:flex; align-items:flex-start; gap:11px; padding:13px 14px; border-radius:13px; margin-bottom:14px; }
@@ -6809,16 +6829,21 @@ html.qp-desk-preview .qd-top{ position:static; }
     <!-- The Save button is gone: the quote autosaves, and a button that says
          Save next to something that saves itself only makes people wonder
          whether it did. The word stays so nobody has to guess. -->
+    <!-- THE TEMPLATE PICKER (2026-09-22): one big menu of the saved quote
+         templates near the top of the tab. Picking one applies it to this
+         quote and names it on the Viewing button. _qaTplMenuRender. -->
+    <details class="qv-menu no-print" id="qaTplMenu"><summary class="qa-btn qa-btn-tpl">Select from saved templates <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qaTplList"></div></details>
     <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
     <button onclick="openQuoteEmail()" class="lock-ok qa-btn qa-btn-primary" data-tour="q-link">Email quote</button>
     <button onclick="printQuote()" class="qa-btn">Print / PDF</button>
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only qa-btn" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines">Push to Fergus</button>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" class="qa-btn qa-btn-warn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none">Undo acceptance</button>
-    <details class="qa-more">
+    <button type="button" onclick="_qtOpen()" class="qa-btn" id="qaEditTplBtn" title="Take pages out, reorder them, save the layout to reuse">Edit quote template</button>
+    <!-- More: the job type (Roofing / Pole Shed) where pole sheds are sold;
+         hidden when there is nothing to put in it. _qkMenuRender. -->
+    <details class="qa-more" id="qaMore" style="display:none">
       <summary class="qa-btn">More <span class="qv-caret">&#9662;</span></summary>
-      <div class="qa-more-list">
-        <button type="button" onclick="this.closest('details').removeAttribute('open');_qtOpen()">Edit quote template<small>Take pages out, reorder them, save it to reuse</small></button>
-      </div>
+      <div class="qa-more-list" id="qaMoreList"></div>
     </details>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
     <!-- Sent / Accepted (frozen, exactly as they went) · Create new draft ·
@@ -7137,10 +7162,6 @@ html.qp-desk-preview .qd-top{ position:static; }
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
         <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">60%</span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
-        <!-- ONE menu for what kind of quote this is and which saved template
-             it uses (2026-09-22): Job type (Roofing / Pole Shed, only where
-             pole sheds are sold) and the saved templates. _qkMenuRender. -->
-        <details class="qv-menu no-print" id="qkMenu"><summary class="qv-btn" id="qkMenuSummary">Job type <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qkMenuList"></div></details>
         <button onclick="refreshQuoteProposal()" style="padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
       </div>
     </div>
@@ -22945,6 +22966,17 @@ var CONDITION_FIXINGS = {
     ]
   }
 };
+// The wording each fixing type drops in is the company's to change
+// (Settings → quote_defaults.condition_presets, edited from the quote's
+// condition section with "Edit wording"); the built-in text is the fallback.
+function _condFixingDesc(type){
+  var f = CONDITION_FIXINGS[type]; if (!f) return '';
+  try {
+    var o = S.settings && S.settings.quote_defaults && S.settings.quote_defaults.condition_presets;
+    if (o && typeof o[type] === 'string' && o[type].trim()) return o[type];
+  } catch(e){}
+  return f.desc;
+}
 function _setCondFixingType(type){
   var f = CONDITION_FIXINGS[type];
   if (!f || !S.quote) return;
@@ -22952,10 +22984,68 @@ function _setCondFixingType(type){
   S.quote.condAge = f.age;                          // approximate age from the fixing method
   S.quote.condExpectedLife = f.expectedLife;        // life gauge
   S.quote.condRemainingPct = f.remainingPct;
-  S.quote.condAssessment = f.desc;                  // load this fixing's condition draft
+  S.quote.condAssessment = _condFixingDesc(type);   // load this fixing's condition draft (the A4's paragraph)
+  S.quote.conditionSummary = _condFixingDesc(type); // …and the brief write-up the phone and the computer show
   S.quote.condMajor = (f.major || []).join('\n');   // and its major / minor issue lists
   S.quote.condMinor = (f.minor || []).join('\n');
+  // The Quote tab's own inputs must agree, or the next readQuoteFromInputs
+  // (a template save, say) writes the stale boxes back over this.
+  _condSyncInputs();
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _condSyncInputs(){
+  if (!S.quote) return;
+  try {
+    [['qdCondAge', S.quote.condAge], ['qdCondMajor', S.quote.condMajor], ['qdCondMinor', S.quote.condMinor],
+     ['qdCondSummary', S.quote.conditionSummary], ['qdCondMaterial', S.quote.condMaterial]].forEach(function(pr){
+      var el = document.getElementById(pr[0]); if (el && el.value !== (pr[1] || '')) el.value = pr[1] || '';
+    });
+  } catch(e){}
+}
+function _condPresetsOpen(){
+  var old = document.getElementById('condPresetsModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'condPresetsModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qsel" style="max-width:720px">'+
+      '<div class="qsel-hd"><b>The wording each fixing type drops in</b><span>Picking a fixing type on a quote writes this paragraph as the roof\u2019s condition. Change it here for every quote from now on; the quote you are on keeps what it has until you pick again.</span></div>'+
+      '<div class="qsel-list" style="display:flex;flex-direction:column;gap:14px;padding:14px 16px">'+
+        Object.keys(CONDITION_FIXINGS).map(function(k){
+          return '<div><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px"><label style="font-weight:700;font-size:13px">'+esc2(CONDITION_FIXINGS[k].label)+' <span style="font-weight:400;color:var(--text2)">('+esc2(CONDITION_FIXINGS[k].age)+')</span></label>'+
+            '<button type="button" class="qa-btn" style="padding:3px 9px;font-size:11px" onclick="document.getElementById(\'condPreset_'+k+'\').value=CONDITION_FIXINGS[\''+k+'\'].desc">Standard wording</button></div>'+
+            '<textarea id="condPreset_'+k+'" rows="4" style="width:100%;font:inherit;font-size:12.5px;line-height:1.45;padding:8px;border:1px solid var(--border);border-radius:8px">'+esc2(_condFixingDesc(k))+'</textarea></div>';
+        }).join('')+
+      '</div>'+
+      '<div class="qsel-ft"><span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="document.getElementById(\'condPresetsModal\').remove()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" onclick="_condPresetsSave()">Save</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) host.remove(); });
+}
+async function _condPresetsSave(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.quote_defaults) S.settings.quote_defaults = {};
+  var o = {};
+  Object.keys(CONDITION_FIXINGS).forEach(function(k){
+    var el = document.getElementById('condPreset_' + k);
+    var v = el ? String(el.value || '').trim() : '';
+    if (v && v !== CONDITION_FIXINGS[k].desc) o[k] = v;
+  });
+  S.settings.quote_defaults.condition_presets = o;
+  var m = document.getElementById('condPresetsModal'); if (m) m.remove();
+  try { if (typeof saveSettings === 'function') await saveSettings(); _siteToast('Wording saved for every quote from now on.'); }
+  catch(e){ alert('The wording could not be saved: ' + (e && e.message || e)); }
+  try { refreshQuoteProposal(); } catch(e){}
+}
+// "Delete this page from this quote" on the modern condition section — the
+// same page move as the tick on the Quote tab's condition card, which is
+// the way to put it back.
+function _qbCondRemovePage(){
+  try { if (_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){}
+  try { _siteToast('Existing roof condition taken out of this quote. Tick it back on the Quote tab\u2019s Existing roof condition card.'); } catch(e){}
 }
 // One inline-editable block that renders each stored line as a coloured
 // bullet — a single source (no separate display + raw-text duplicate).
@@ -25790,7 +25880,7 @@ function _qvRenderBar(){
     return '<button type="button" class="lock-ok' + (on ? ' qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
   };
   var draftNo = function(id){ var i = v.drafts.findIndex(function(d){ return d && d.id === id; }); return i >= 0 ? (i + 1) : 0; };
-  var workingName = (function(){ var n = draftNo(S.quote.draftId); return n ? ('Draft ' + n) : 'Draft'; })();
+  var workingName = (function(){ var n = draftNo(S.quote.draftId); return (n ? ('Draft ' + n) : 'Draft') + (S.quote.templateName ? ' \u00b7 ' + esc2(S.quote.templateName) : ''); })();
   var name = cur === 'sent' ? 'Sent quote' : cur === 'accepted' ? 'Accepted quote' : workingName;
   var html = '<details class="qv-menu lock-ok" id="qvViewingMenu"><summary class="qv-btn qv-viewing">Viewing: <b>' + name + '</b>' +
     (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">editing</span>') +
@@ -26739,8 +26829,8 @@ var QB = { i: 0, g: 0, t: null };
 function _qpBookActive(){
   // A print or a PDF is ALWAYS the A4 document, whoever is looking.
   if (window.__PRINTING_QUOTE) return false;
-  // So is the quote template editor: it arranges PAGES, and the one-page
-  // layout squeezed into its stage was one word per line.
+  // The template editor never shows the book: a classic quote edits its A4
+  // pages there, a modern one its one-page sections (_qpDeskActive).
   if (window._QT && _QT.open) return false;
   // The classic style is the document, on every screen.
   if (_quoteStyle() !== 'modern') return false;
@@ -26792,8 +26882,9 @@ function _qpPreviewMode(){ return QP_PREVIEW.mode === 'phone' ? 'phone' : 'compu
 // path that renders calls this, so the classes can never be stale.
 function _qpPreviewClassesSync(){
   var modern = _quoteStyle() === 'modern';
-  var printing = !!window.__PRINTING_QUOTE || !!(window._QT && _QT.open);   // the template editor is pages too
-  var phoneMode = QP_PREVIEW.mode === 'phone' && !printing;
+  var printing = !!window.__PRINTING_QUOTE;
+  var editing = !!(window._QT && _QT.open);   // the template editor: never the phone frame
+  var phoneMode = QP_PREVIEW.mode === 'phone' && !printing && !editing;
   QP_PREVIEW.phone = phoneMode && modern;           // the book, framed
   QP_PREVIEW.desk  = !phoneMode && modern && !printing;   // the one-page layout
   var classicPhone = phoneMode && !modern;          // the A4, reflowed and framed
@@ -26846,7 +26937,9 @@ function _syncQuotePreviewToggle(){
 // only through the Computer switch above the preview.
 function _qpDeskActive(){
   if (window.__PRINTING_QUOTE) return false;
-  if (window._QT && _QT.open) return false;
+  // In the template editor a modern quote is its one-page layout, at a
+  // working width the stage sets (#qtEditWrap.qt-modern).
+  if (window._QT && _QT.open) return _quoteStyle() === 'modern';
   if (_quoteStyle() !== 'modern') return false;
   if (!window.__CUSTOMER_MODE) return QP_PREVIEW.mode !== 'phone';
   try { return !_qpIsMobileView(); } catch(e){ return false; }
@@ -26864,14 +26957,15 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 function _qbPages(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
-    { key:'cover',     label:'Your quote',    html:_qbCover }
+    { key:'cover',     label:'Your quote',    html:_qbCover },
+    { key:'proposal',  label:'The proposal',  html:_qbProposal }
   ];
-  // A quote the office never filled a condition report in on has nothing to
-  // say on that page, and a page that asserts a verdict nobody wrote is worse
-  // than no page — so it only exists when there is something on it.
-  if (_qbHasCondition()) pages.push({ key:'condition', label:'Your roof', html:_qbCondition });
+  // The roof condition follows the proposal (the owner's order). A quote the
+  // office never filled a condition report in on has nothing to say on that
+  // page, and a page that asserts a verdict nobody wrote is worse than no
+  // page — so the customer only gets it when there is something on it.
+  if (_qbCondSectionOn()) pages.push({ key:'condition', label:'Your roof', html:_qbCondition });
   pages = pages.concat([
-    { key:'proposal',  label:'The proposal',  html:_qbProposal },
     { key:'grade',     label:'Steel grade',   html:_qbGrade },
     { key:'profile',   label:'Roof profile',  html:_qbProfile },
     { key:'thickness', label:'Thickness',     html:_qbThickness },
@@ -26894,6 +26988,13 @@ function _qbPages(){
     });
   } catch(e){}
   pages.push({ key:'summary', label:'Your total', html:_qbSummary });
+  pages = _qModernApply(pages);
+  // Brackets & downpipes are a decision ABOUT the gutter: they sit right
+  // after it wherever it lands, and go when it goes.
+  var gi = pages.findIndex(function(x){ return x.key === 'gutter'; });
+  var ki = pages.findIndex(function(x){ return x.key === 'gutterkit'; });
+  if (ki >= 0 && gi < 0) pages.splice(ki, 1);
+  else if (ki >= 0 && ki !== gi + 1){ var kit = pages.splice(ki, 1)[0]; gi = pages.findIndex(function(x){ return x.key === 'gutter'; }); pages.splice(gi + 1, 0, kit); }
   return pages;
 }
 // The page the price appears on, and every page after it.
@@ -27149,20 +27250,48 @@ function _qbCondition(opts){
         : 'Our recommendation and the work it involves are on the next page.');
   }
   var photos = (q.condPhotos || []).filter(function(c){ return c && c.src; });
-  var gallery = photos.length ? (opts.grid ? _qdPhotoGrid(photos) : _qbGallery(photos)) : '';
+  var office = !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE;
+  // The office gets the photo SLOTS (add, drag, zoom, caption — the A4's
+  // own slot renderer) where the customer gets the pictures.
+  var gallery;
+  if (office){
+    if (!Array.isArray(q.condPhotos)) q.condPhotos = [];
+    gallery = '<div class="qb-cond-slots">'+[0,1,2,3].map(function(i){ return _qpCondPhotoSlotHtml(i, q.condPhotos[i] || null); }).join('')+'</div>';
+  } else {
+    gallery = photos.length ? (opts.grid ? _qdPhotoGrid(photos) : _qbGallery(photos)) : '';
+  }
+  // Office only: the three fixing types drop their write-up in, the wording
+  // itself is editable for every quote, and the page can be taken out of
+  // this quote from right here.
+  var tools = '';
+  if (office){
+    tools = '<div class="qb-cond-tools no-print">'+
+      '<div class="qb-cond-fix"><span class="qb-cond-lbl">Fixing type</span>'+
+        Object.keys(CONDITION_FIXINGS).map(function(k){
+          var on = (q.condFixingType === k);
+          return '<button type="button" class="qb-cond-btn'+(on ? ' on' : '')+'" onclick="_setCondFixingType(\''+k+'\')" title="Sets the age, the life gauge and the write-up below">'+esc2(CONDITION_FIXINGS[k].label)+'</button>';
+        }).join('')+
+        '<button type="button" class="qb-cond-link" onclick="_condPresetsOpen()" title="Change the wording each fixing type drops in, for every quote">Edit wording</button>'+
+      '</div>'+
+      '<button type="button" class="qb-cond-link qb-cond-del" onclick="_qbCondRemovePage()" title="Take this section out of this quote. The tick on the Quote tab\u2019s Existing roof condition card puts it back.">Delete this page from this quote</button>'+
+    '</div>';
+  }
+  var para = summary ? '<p class="qb-para">'+esc2(summary)+'</p>'
+    : (office ? '<p class="qb-para qb-para-empty">Click to write a short description of the roof\u2019s condition, or pick a fixing type above to drop one in.</p>' : '');
   var pill = function(v, l){ return v ? '<div class="qb-pill"><b>'+esc2(v)+'</b><span>'+esc2(l)+'</span></div>' : ''; };
   return ''+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Your roof today</span>'+
       '<h2 class="qb-h2">Existing Roof Condition</h2>'+
       _qeInlineBtn('cond')+
+      tools+
       '<div class="qb-pills">'+
         pill(age, 'Approximate age')+
         pill(mat, 'Material')+
         pill(q.condRoofType || (d.roof_type ? String(d.roof_type).replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); }) : ''), 'Roof type')+
       '</div>'+
       (remPct != null ? _qbLifeBar(remPct, life) : '')+
-      (summary ? '<p class="qb-para">'+esc2(summary)+'</p>' : '')+
+      para+
     '</div>'+
     gallery;
 }
@@ -27423,6 +27552,7 @@ function _qeBindModernEdits(){
       _styledPrompt({ title: title, value: String(S.quote[field] || ''), inputType: 'text', okLabel: 'Save' }, function(v){
         if (v == null) return;
         S.quote[field] = String(v).trim();
+        try { var inp = document.getElementById({ coverTitle:'qdCoverTitle', conditionSummary:'qdCondSummary' }[field] || ''); if (inp) inp.value = S.quote[field]; } catch(e){}
         try { refreshQuoteProposal(); } catch(e){}
         try { _scheduleAutosave(); } catch(e){}
       });
@@ -27484,17 +27614,20 @@ function _qeRailSync(){
   items.forEach(function(it, i){
     html += '<button type="button" class="qe-rail-btn" data-qe-rail="'+esc2(it.what)+'" title="'+esc2(it.title)+'" style="top:'+Math.round(it.top)+'px" '+
       'onclick="event.stopPropagation();_qeEdit(\''+it.what+'\')" onmouseenter="_qeRailHover('+i+',true)" onmouseleave="_qeRailHover('+i+',false)">'+esc2(it.label)+'</button>'+
-      '<span class="qe-rail-line" style="top:'+Math.round(it.top + 14)+'px"></span>';
+      '<span class="qe-rail-line" style="top:'+Math.round(it.top)+'px">\uD83D\uDC49</span>';
   });
   rail.innerHTML = html;
   rail._items = items;
-  // The pointer runs from the button's right edge to the block it edits
-  // (the rail sits over the page's own left margin, never in its way).
+  // The button sits right beside the block it edits with a pointing hand
+  // between them (the owner: "bring the edit button in closer"). The hand
+  // stops short of the block's card, which paints over the rail.
   var btns = rail.querySelectorAll('.qe-rail-btn'), lines = rail.querySelectorAll('.qe-rail-line');
   items.forEach(function(it, i){
     var bw = btns[i] ? btns[i].offsetWidth : 160;
-    var x0 = 10 + bw + 2, w = it.x - x0 - 44;   // the hand stops short of the block's card, which paints over the rail
-    if (lines[i]){ lines[i].style.left = x0 + 'px'; lines[i].style.width = Math.max(0, Math.round(w)) + 'px'; lines[i].style.display = w < 14 ? 'none' : ''; }
+    var handLeft = Math.max(8, it.x - 30 - 26);
+    var btnLeft = Math.max(4, handLeft - 6 - bw);
+    if (btns[i]) btns[i].style.left = btnLeft + 'px';
+    if (lines[i]) lines[i].style.left = handLeft + 'px';
   });
 }
 // Hovering a rail button lights the block its anchor sits in.
@@ -27527,6 +27660,8 @@ function _qeEditSelections(){ _qeSpot('sel'); _qselOpen(); }
 // Edit roof condition: open the card on the Quote tab and land on it.
 function _qeOpenCondition(){
   var card = document.getElementById('qCondCard'); if (!card) return;
+  // The card sits inside "Quote settings & extras", which starts folded.
+  try { var body = document.getElementById('qExtrasBody'); if (body && getComputedStyle(body).display === 'none' && typeof _toggleQuoteExtras === 'function') _toggleQuoteExtras(true); else if (body) body.style.display = ''; } catch(e){}
   card.open = true;
   try { card.scrollIntoView({ behavior:'smooth', block:'start' }); } catch(e){}
   try { card.classList.add('qe-spot'); setTimeout(function(){ card.classList.remove('qe-spot'); }, 2600); } catch(e){}
@@ -28151,11 +28286,47 @@ function _qbPicksList(){
 // live total and a Review button, and a section nav to jump with. A
 // customer who started on their phone finds their choices here, because
 // both read S.quote.proposalOptions and nothing else.
+// THE MODERN QUOTE'S SECTION LIST is one list for the one-page layout and
+// the book, in this order: cover, proposal, roof condition, grade, profile,
+// thickness, colour, guttering, old roof, extras, then the total. The
+// template editor can reorder the middle and take sections out
+// (`S.quote.modernOrder`, `S.quote.modernParked`, applied by
+// _qModernApply); cover, proposal and the total are fixed. The roof
+// condition rides on the A4's page list (_qpInDoc) so the Quote tab's tick,
+// the sections card and the editor all agree.
+var QD_LABELS = { cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total' };
+function _qModernLabel(key){ return QD_LABELS[key] || (/^extra\d+$/.test(key) ? 'Options' : key); }
+function _qModernFixed(key, lastKey){ return key === 'cover' || key === 'proposal' || key === lastKey; }
+function _qModernApply(list){
+  var q = (window.S && S.quote) || {};
+  var parked = Array.isArray(q.modernParked) ? q.modernParked : [];
+  var order = Array.isArray(q.modernOrder) ? q.modernOrder : [];
+  var lastKey = list.length ? list[list.length - 1].key : '';
+  var kept = list.filter(function(sc){ return _qModernFixed(sc.key, lastKey) || parked.indexOf(sc.key) < 0; });
+  if (!order.length) return kept;
+  var byKey = {}; kept.forEach(function(sc){ byKey[sc.key] = sc; });
+  var out = [], used = {};
+  var take = function(k){ if (byKey[k] && !used[k]){ used[k] = true; out.push(byKey[k]); } };
+  take('cover');
+  order.forEach(function(k){ if (k !== lastKey) take(k); });
+  kept.forEach(function(sc){ if (sc.key !== lastKey) take(sc.key); });
+  take(lastKey);
+  return out;
+}
+// The office sees the condition section whenever the page is in the quote
+// — that is where the photos go in and the write-up is picked. The
+// customer (and paper) only get it when there is something on it.
+function _qbCondSectionOn(){
+  var q = S.quote || {};
+  try { if (q.pages && q.pages.length && !_qpInDoc('condition')) return false; } catch(e){}
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return _qbHasCondition();
+  return true;
+}
 function _qdSections(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
-  if (_qbHasCondition()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
   list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
+  if (_qbCondSectionOn()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
   // Steel grade, profile and thickness are each a section of their own, the
   // rows full width like the guttering's — three narrow columns of tall cards
   // read as a muddle on the owner's screen.
@@ -28172,7 +28343,7 @@ function _qdSections(){
     });
   } catch(e){}
   list.push({ key:'review', label:'Review', html:_qdReview });
-  return list;
+  return _qModernApply(list);
 }
 function _qdRender(){
   var root = document.getElementById('qpRoot'); if (!root) return;
@@ -32000,8 +32171,7 @@ function _setPsConsent(v){
 // inside it, kept hidden where the choice does not apply.
 function _syncQuoteKindToggle(){ _qkMenuRender(); }
 function _qkMenuRender(){
-  var menu = document.getElementById('qkMenu'), list = document.getElementById('qkMenuList'), sum = document.getElementById('qkMenuSummary');
-  if (!menu || !list || !sum) return;
+  var list = document.getElementById('qaMoreList'), more = document.getElementById('qaMore');
   var avail = _poleShedsAvailable();
   if (!avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
@@ -32009,20 +32179,32 @@ function _qkMenuRender(){
   var item = function(call, label, sub, on, id){
     return '<button type="button"' + (id ? ' id="' + id + '"' : '') + ' class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
   };
-  var html = '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
-    '<div class="qv-menu-hd">Job type</div>' +
-    item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps, 'qkBtn_roofing') +
-    item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') +
-    '</div>';
+  if (list){
+    list.innerHTML = '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
+      '<div class="qa-more-lbl">Job type</div>' +
+      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps, 'qkBtn_roofing') +
+      item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') +
+      '</div>';
+  }
+  if (more) more.style.display = avail ? '' : 'none';
+  _qaTplMenuRender();
+}
+// The saved templates, as the big picker near the top of the Quote tab.
+function _qaTplMenuRender(){
+  var list = document.getElementById('qaTplList'); if (!list) return;
+  var close = "this.closest('details').removeAttribute('open');";
+  var cur = (S.quote && S.quote.templateId) || '';
+  var item = function(call, label, sub, on){
+    return '<button type="button" class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  };
   var tpls = []; try { tpls = _qtTemplates(); } catch(e){}
   var hasDefault = !!(S.settings && S.settings.branding && S.settings.branding.proposal_template);
-  html += '<div class="qv-menu-hd">Quote template</div>';
-  if (hasDefault) html += item("_qtApplySaved('__default')", 'Default quote', 'The layout every new quote starts with');
-  tpls.forEach(function(t){ html += item("_qtApplySaved('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template'); });
-  if (!hasDefault && !tpls.length) html += '<div style="padding:4px 10px 8px;font-size:11px;color:#7c8894">No saved templates yet.</div>';
-  html += item('_qtOpen()', 'Edit quote template', 'Take pages out, reorder them, save it to reuse');
+  var html = '<div class="qv-menu-hd">Saved templates</div>';
+  if (hasDefault) html += item("_qtApplySaved('__default')", 'Default quote', 'The layout every new quote starts with', cur === '__default');
+  tpls.forEach(function(t){ html += item("_qtApplySaved('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template', cur === t.id); });
+  if (!hasDefault && !tpls.length) html += '<div style="padding:4px 10px 8px;font-size:11.5px;color:#7c8894;line-height:1.4">No saved templates yet. Arrange a quote with Edit quote template, then Save as\u2026</div>';
+  html += item('_qtOpen()', 'Edit quote template', 'Take sections out, reorder them, save the layout to reuse');
   list.innerHTML = html;
-  sum.innerHTML = (avail ? ('Job type: ' + (ps ? 'Pole Shed' : 'Roofing')) : 'Template') + ' <span class="qv-caret">&#9662;</span>';
 }
 // Pole-shed selection add-on prices (ex GST). Editable in one place so
 // the office can adjust as supplier pricing moves.
@@ -34629,7 +34811,7 @@ function _qtSetZoom(v){
 // wording, which is not what the button appears to offer.
 function _qtSnapPages(){
   var q = _qtState();
-  return JSON.stringify({ pages: q.pages, parked: q.parked });
+  return JSON.stringify({ pages: q.pages, parked: q.parked, modernOrder: q.modernOrder || [], modernParked: q.modernParked || [] });
 }
 function _qtPush(){
   try {
@@ -34644,11 +34826,13 @@ function _qtRestore(json){
     var st = JSON.parse(json);
     var q = _qtState();
     q.pages = st.pages; q.parked = st.parked;
+    q.modernOrder = Array.isArray(st.modernOrder) ? st.modernOrder : [];
+    q.modernParked = Array.isArray(st.modernParked) ? st.modernParked : [];
     _qpSyncSections();
     if (_QT.sel >= q.pages.length) _QT.sel = Math.max(0, q.pages.length - 1);
     refreshQuoteProposal();
     setTimeout(function(){ _qtRenderRail(); _qtSetZoom(_QT.zoom); }, 120);
-    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — nothing was being saved
   } catch(e){}
 }
 function _qtUndo(){
@@ -34680,7 +34864,12 @@ function _qtOpen(){
   wrap.classList.add('on');
   document.body.style.overflow = 'hidden';     // the window scrolls, not the page
   _QT.open = true;
-  // The editor works on the A4 pages whatever style the quote is in.
+  // A classic quote edits its A4 pages; a modern one edits the sections of
+  // its one-page layout (the same list the book turns into pages).
+  _QT.modern = (_quoteStyle() === 'modern');
+  wrap.classList.toggle('qt-modern', _QT.modern);
+  var sub0 = document.getElementById('qtEditSub');
+  if (sub0) sub0.textContent = _QT.modern ? 'Drag sections to reorder \u00b7 take sections out and they wait below' : 'Drag pages to reorder \u00b7 take pages out and they wait below';
   try { _qpPreviewClassesSync(); refreshQuoteProposal(); } catch(e){}
   _QT.undo.length = 0; _QT.redo.length = 0; _qtSyncUndo();
   _qtSyncTemplatePicker();
@@ -34704,14 +34893,15 @@ function _qtClose(){
   if (_QT.home && _QT.home.parent)
     _QT.home.parent.insertBefore(root, _QT.home.next || null);
   wrap.classList.remove('on');
+  wrap.classList.remove('qt-modern');
   document.body.style.overflow = '';
-  _QT.open = false;
+  _QT.open = false; _QT.modern = false;
   document.removeEventListener('keydown', _qtKeys, true);
   try { _qpPreviewClassesSync(); refreshQuoteProposal(); } catch(e){}
   // Hand the zoom back to the Quote tab's own fitter.
   try { var r2 = document.getElementById('qpRoot'); if (r2) r2.style.zoom = ''; } catch(e){}
   _qpSyncSections();
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — nothing was being saved
   try { _fitProposalPages(); } catch(e){}
   _qtSyncSavedPicker();
 }
@@ -34726,6 +34916,7 @@ function _qtState(){ return _qpState(); }
 function _qtRenderRail(){
   var rail = document.getElementById('qtRail');
   if (!rail) return;
+  if (_QT.modern) return _qtRenderRailModern(rail);
   var q = _qtState();
   var live = Array.prototype.slice.call(document.querySelectorAll('#qpRoot > .rp-page'));
   var byIdx = {};
@@ -34793,6 +34984,152 @@ function _qtRenderRail(){
     host.appendChild(box);
   });
   _qtWireRail(rail);
+}
+// ── the rail for a MODERN quote: its sections ────────────────────
+// One slide per section of the one-page layout (the same list the book
+// turns into pages), thumbnailed from the section that is actually
+// rendered. Cover, proposal and the total stay put; the rest can be moved
+// (drag, or the arrows) and taken out. The roof condition is the A4's page
+// as well, so taking it out here is the same act as the tick on the Quote
+// tab's condition card.
+function _qtRenderRailModern(rail){
+  var q = _qtState();
+  var secs = _qdSections();
+  var last = secs.length ? secs[secs.length - 1].key : '';
+  var h = '<div class="qt-rail-hd">In this quote</div>';
+  secs.forEach(function(sc, i){
+    var fixed = _qModernFixed(sc.key, last);
+    h += '<div class="qt-slide' + (i === _QT.sel ? ' sel' : '') + (fixed ? ' fixed' : '') + '" draggable="' + (fixed ? 'false' : 'true') + '"' +
+           ' data-qt-i="' + i + '" data-qt-key="' + esc2(sc.key) + '" title="' + esc2(_qModernLabel(sc.key)) + (fixed ? ' \u2014 always in the quote' : '') + '">' +
+         '<span class="qt-slide-no">' + (i + 1) + '</span>' +
+         (fixed ? '' :
+         '<div class="qt-slide-tools">' +
+           (i > 2 ? '<button title="Move up" onclick="event.stopPropagation();_qtModernShift(\'' + sc.key + '\',-1)">\u2191</button>' : '') +
+           (i < secs.length - 2 ? '<button title="Move down" onclick="event.stopPropagation();_qtModernShift(\'' + sc.key + '\',1)">\u2193</button>' : '') +
+           '<button class="rm" title="Take this section out of the quote" onclick="event.stopPropagation();_qtModernPark(\'' + sc.key + '\')">\u2715</button>' +
+         '</div>') +
+         '<div class="qt-thumb" data-qt-thumb="' + i + '"></div>' +
+         '<div class="qt-slide-name">' + esc2(_qModernLabel(sc.key)) + '</div>' +
+       '</div>';
+  });
+  var parked = _qModernParkedKeys();
+  h += '<div class="qt-rail-hd" style="margin-top:8px">Taken out</div>';
+  if (!parked.length){
+    h += '<div class="qt-tray empty-hint">Nothing taken out. Use \u2715 on a section to drop it here \u2014 it can be put back any time.</div>';
+  } else {
+    h += '<div class="qt-tray">';
+    parked.forEach(function(k){
+      h += '<div class="qt-slide parked" data-qt-parked-key="' + esc2(k) + '" title="' + esc2(_qModernLabel(k)) + ' \u2014 not in this quote. Put it back with \u21a9.">' +
+           '<div class="qt-slide-tools" style="display:flex">' +
+             '<button title="Put this section back in the quote" onclick="event.stopPropagation();_qtModernUnpark(\'' + k + '\')">\u21a9</button>' +
+           '</div>' +
+           '<div style="padding:12px 8px;font-size:11px;color:var(--text2);line-height:1.4">Not in this quote</div>' +
+           '<div class="qt-slide-name">' + esc2(_qModernLabel(k)) + '</div>' +
+         '</div>';
+    });
+    h += '</div>';
+  }
+  rail.innerHTML = h;
+  secs.forEach(function(sc, i){
+    var host = rail.querySelector('[data-qt-thumb="' + i + '"]');
+    var src = document.getElementById('qd-' + sc.key);
+    if (!host || !src) return;
+    var w = src.offsetWidth || 1180;
+    var scale = (rail.clientWidth - 28) / w;
+    var clone = src.cloneNode(true);
+    clone.removeAttribute('id');
+    var box = document.createElement('div');
+    box.className = 'qt-scale';
+    box.style.width = w + 'px';
+    box.style.transform = 'scale(' + scale + ')';
+    box.appendChild(clone);
+    host.appendChild(box);
+  });
+  rail.querySelectorAll('.qt-slide[data-qt-i]').forEach(function(el){
+    el.onclick = function(){
+      _QT.sel = +el.getAttribute('data-qt-i');
+      _qtRenderRail();
+      var sec = document.getElementById('qd-' + el.getAttribute('data-qt-key'));
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    if (el.classList.contains('fixed')) return;
+    el.ondragstart = function(ev){
+      _QT.drag = { key: el.getAttribute('data-qt-key') };
+      el.classList.add('drag');
+      try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', 'qt'); } catch(e){}
+    };
+    el.ondragend = function(){ el.classList.remove('drag'); _QT.drag = null; rail.querySelectorAll('.over').forEach(function(x){ x.classList.remove('over'); }); };
+  });
+  rail.querySelectorAll('.qt-slide[data-qt-i]').forEach(function(el){
+    el.ondragover = function(ev){ if (!_QT.drag || !_QT.drag.key) return; ev.preventDefault(); el.classList.add('over'); };
+    el.ondragleave = function(){ el.classList.remove('over'); };
+    el.ondrop = function(ev){
+      if (!_QT.drag || !_QT.drag.key) return;
+      ev.preventDefault(); ev.stopPropagation();
+      el.classList.remove('over');
+      _qtModernMove(_QT.drag.key, +el.getAttribute('data-qt-i'));
+    };
+  });
+  rail.ondragover = function(ev){ if (_QT.drag && _QT.drag.key) ev.preventDefault(); };
+  rail.ondrop = function(ev){ if (!_QT.drag || !_QT.drag.key) return; ev.preventDefault(); _qtModernMove(_QT.drag.key, 1e6); };
+}
+// The sections not in this quote: the parked keys, plus the roof condition
+// when its page is out of the document.
+function _qModernParkedKeys(){
+  var q = _qtState();
+  var out = (Array.isArray(q.modernParked) ? q.modernParked : []).slice();
+  try { if (!_qpInDoc('condition') && out.indexOf('condition') < 0) out.unshift('condition'); } catch(e){}
+  return out;
+}
+function _qtModernKeys(){ return _qdSections().map(function(sc){ return sc.key; }); }
+function _qtModernSetOrder(keys){
+  var q = _qtState();
+  q.modernOrder = keys.filter(function(k){ return k !== 'cover' && k !== 'review' && k !== 'summary'; });
+}
+function _qtModernMove(key, toIdx){
+  var keys = _qtModernKeys();
+  var from = keys.indexOf(key); if (from < 0) return;
+  var last = keys.length - 1;
+  var to = Math.max(2, Math.min(last - 1, toIdx));       // never above the proposal, never past the total
+  if (to === from) return;
+  _qtPush();
+  keys.splice(from, 1);
+  if (from < to) to--;
+  keys.splice(Math.max(2, Math.min(keys.length - 1, to)), 0, key);
+  _qtModernSetOrder(keys);
+  _QT.sel = keys.indexOf(key);
+  _qtAfterChange();
+}
+function _qtModernShift(key, dir){
+  var keys = _qtModernKeys();
+  var i = keys.indexOf(key); if (i < 0) return;
+  var j = i + dir;
+  if (j < 2 || j > keys.length - 2) return;
+  _qtPush();
+  keys.splice(i, 1); keys.splice(j, 0, key);
+  _qtModernSetOrder(keys);
+  _QT.sel = j;
+  _qtAfterChange();
+}
+function _qtModernPark(key){
+  var q = _qtState();
+  var keys = _qtModernKeys();
+  if (_qModernFixed(key, keys[keys.length - 1])) return;
+  _qtPush();
+  if (key === 'condition'){ try { if (_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){} }
+  else {
+    if (!Array.isArray(q.modernParked)) q.modernParked = [];
+    if (q.modernParked.indexOf(key) < 0) q.modernParked.push(key);
+  }
+  if (_QT.sel >= keys.length - 1) _QT.sel = Math.max(0, keys.length - 2);
+  _qtAfterChange();
+}
+function _qtModernUnpark(key){
+  var q = _qtState();
+  _qtPush();
+  if (key === 'condition'){ try { if (!_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){} }
+  if (Array.isArray(q.modernParked)) q.modernParked = q.modernParked.filter(function(k){ return k !== key; });
+  _qtAfterChange();
 }
 function _qtWireRail(rail){
   rail.querySelectorAll('.qt-slide').forEach(function(el){
@@ -34886,7 +35223,7 @@ function _qtAfterChange(){
   // The proposal re-renders asynchronously in places; let it settle before
   // the rail thumbnails are cut from it, or they come out blank.
   setTimeout(function(){ _qtRenderRail(); _qtSetZoom(_QT.zoom); }, 120);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — nothing was being saved
 }
 
 // ── saved templates ───────────────────────────────────────────────
@@ -34915,6 +35252,11 @@ function _qtSnapshot(){
     timeline:   (q.timeline   || []).slice(),
     proposalSections: Object.assign({}, q.proposalSections || {}),
     options: JSON.parse(JSON.stringify(q.options || [])),
+    // The modern layout's arrangement and which style the quote is in — a
+    // template is the whole look, not only the A4's page list.
+    modernOrder: (Array.isArray(q.modernOrder) ? q.modernOrder : []).slice(),
+    modernParked: (Array.isArray(q.modernParked) ? q.modernParked : []).slice(),
+    style: _quoteStyle(),
   };
 }
 function _qtApplySnapshot(t){
@@ -34928,6 +35270,9 @@ function _qtApplySnapshot(t){
   ['inclusions','exclusions','timeline'].forEach(function(k){ if (Array.isArray(t[k])) q[k] = t[k].slice(); });
   if (t.proposalSections) q.proposalSections = Object.assign({}, t.proposalSections);
   if (Array.isArray(t.options)) q.options = JSON.parse(JSON.stringify(t.options));
+  if (Array.isArray(t.modernOrder)) q.modernOrder = t.modernOrder.slice();
+  if (Array.isArray(t.modernParked)) q.modernParked = t.modernParked.slice();
+  if (t.style === 'classic' || t.style === 'modern'){ q.style = t.style; try { _qpPreviewClassesSync(); _syncQuotePreviewToggle(); } catch(e){} }
   _qpSyncSections();
 }
 function _qtSyncTemplatePicker(){
@@ -34942,18 +35287,9 @@ function _qtSyncTemplatePicker(){
 }
 // The Quote tab's own picker — "Select saved quote".
 function _qtSyncSavedPicker(){
-  try { _qkMenuRender(); } catch(e){}      // the templates live in the Job type menu
-  var sel = document.getElementById('qaTplSelect');
-  if (!sel) return;
-  var list = _qtTemplates();
-  sel.innerHTML = '<option value="">Change quote template…</option>' +
-    (S.settings && S.settings.branding && S.settings.branding.proposal_template
-      ? '<option value="__default">Default quote</option>' : '') +
-    list.map(function(t){ return '<option value="' + esc2(t.id) + '">' + esc2(t.name) + '</option>'; }).join('');
-  sel.value = '';
-  // With nothing saved there is nothing to pick, so the control stays out of
-  // the way rather than sitting there empty.
-  sel.style.display = (list.length || (S.settings && S.settings.branding && S.settings.branding.proposal_template)) ? '' : 'none';
+  // The templates live in the "Select from saved templates" menu (and the
+  // More menu carries the job type); the old <select> is gone.
+  try { _qkMenuRender(); } catch(e){}
 }
 function _qtLoadTemplate(id){
   _QT.openTpl = id || '';
@@ -35015,8 +35351,15 @@ function _qtApplySaved(id){
     : (_qtTemplates().filter(function(x){ return x.id === id; })[0] || {}).tpl;
   if (!t){ _qtSyncSavedPicker(); return; }
   _qtApplySnapshot(t);
+  // The draft now carries the template's name, so the Viewing button says
+  // which layout is being worked on.
+  try {
+    S.quote.templateId = id;
+    S.quote.templateName = (id === '__default') ? 'Default quote' : ((_qtTemplates().filter(function(x){ return x.id === id; })[0] || {}).name || '');
+  } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — nothing was being saved
+  try { _qvRenderBar(); } catch(e){}
   var msg = document.getElementById('qaMsg');
   if (msg){ msg.textContent = '✓ Quote layout applied'; msg.style.color = '#15803d';
     setTimeout(function(){ msg.textContent = ''; msg.style.color = ''; }, 3500); }
@@ -60549,15 +60892,19 @@ async function pushQuotePricingToFergus(btn, opts){
     // Publish it, so Fergus marks the job quoted rather than holding a draft.
     var _published = null;
     if (newId && opts && opts.publish){
-      try { _qaMsg('Publishing the quote in Fergus…'); var _pr = await api('POST', '/fergus-quote/publish', { quoteId: newId, jobId: String(S.linkedJobId) }); _published = !!(_pr && _pr.ok); }
+      // …and MARK it sent (the customer gets it from RoofMap, never from
+      // Fergus), so the job stops saying "Quote has not been sent".
+      try { _qaMsg('Publishing the quote in Fergus…'); var _pr = await api('POST', '/fergus-quote/publish', { quoteId: newId, jobId: String(S.linkedJobId), markSent: true }); _published = !!(_pr && _pr.ok); }
       catch(e){ _published = false; }
     }
+    var _sent = (_pr && _pr.sent && typeof _pr.sent === 'object') ? _pr.sent : null;
     // What Fergus answered, kept with the quote so a "still a draft" can be
     // diagnosed from the saved job rather than guessed at.
     var _pubNote = '';
     try {
       if (_published === false && _pr && _pr.attempts) _pubNote = ' (RoofMap tried ' + _pr.attempts.length + ' publish call' + (_pr.attempts.length === 1 ? '' : 's') + (_pr.stillDraft ? '; Fergus answered OK but still reports Draft' : '') + ')';
       else if (_published === true && _pr && _pr.fergusStatus) _pubNote = ' (Fergus reports ' + _pr.fergusStatus + ')';
+      if (_sent) _pubNote += _sent.ok ? (_sent.already ? ' · already marked sent' : ' · marked as sent') : ' · not yet marked sent in Fergus — press Send \u2192 Mark as sent there (RoofMap tried ' + ((_sent.attempts || []).length) + ' call' + ((_sent.attempts || []).length === 1 ? '' : 's') + ')';
     } catch(e){}
     // The plan the server follows when the customer picks their options: the
     // base sections exactly as pushed, the line shape, and where to push.
@@ -60572,6 +60919,7 @@ async function pushQuotePricingToFergus(btn, opts){
         selKey: _fergusSelKeyOf(S.quote.proposalOptions), publish: !!(opts && opts.publish),
         stampedAt: new Date().toISOString(), published: _published,
         publishResult: (_pr && typeof _pr === 'object') ? { ok: !!_pr.ok, path: _pr.path || null, verified: _pr.verified, fergusStatus: _pr.fergusStatus || null, stillDraft: !!_pr.stillDraft, attempts: _pr.attempts || [] } : null,
+        sentResult: _sent ? { ok: !!_sent.ok, already: !!_sent.already, path: _sent.path || null, verified: _sent.verified, fergusStatus: _sent.fergusStatus || null, stillUnsent: !!_sent.stillUnsent, attempts: _sent.attempts || [] } : null,
       };
     } catch(e){}
     try { await _savePromise; } catch(e){}   // make sure the backend save landed so the customer link resolves

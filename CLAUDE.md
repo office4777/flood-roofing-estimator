@@ -320,15 +320,28 @@ Discipline (non-negotiable):
   one-page layout and the book. `_qpBookActive`/`_qpDeskActive` return
   false on a classic quote. The Quote tab's View switch is Computer / Phone
   ONLY (no Document view; `'doc'`/`'desktop'` still map to Computer) plus a
-  Style switch and ONE Job type menu (`#qkMenu`, `_qkMenuRender`: Roofing /
-  Pole Shed where sold, then the saved quote templates, Default quote and
-  Edit quote template — `#qkDraftToggle` is the job-type group inside it,
-  hidden where pole sheds are not sold; `tests/poleshed.mjs`,
-  `tests/quotetpl.mjs`). THE TEMPLATE EDITOR (`_qtOpen`, `_QT.open`)
-  always shows the A4 pages: `_qpBookActive`/`_qpDeskActive` are false and
-  `_qpPreviewClassesSync` treats it like printing while it is open, or the
-  one-page layout squeezed into its stage came out one word per line. The
-  preview's classes are DERIVED from mode + style + the
+  Style switch. THE TEMPLATE PICKER is a big "Select from saved
+  templates" menu at the top of the tab (`#qaTplMenu`, `_qaTplMenuRender`:
+  Default quote, every saved template, Edit quote template); applying one
+  stamps `S.quote.templateId/templateName` and the Viewing button reads
+  "Draft · Short quote". "Edit quote template" is its own header button
+  (the header buttons are 13.5px since 2026-09-22). The Job type choice
+  (Roofing / Pole Shed) lives in the More menu, which is hidden where pole
+  sheds are not sold (`#qaMore`, `#qkDraftToggle`, `_qkMenuRender`;
+  `tests/poleshed.mjs`, `tests/quotetpl.mjs`).
+  THE TEMPLATE EDITOR (`_qtOpen`, `_QT.open`) edits whichever layout the
+  quote is in: a classic quote its A4 pages (`q.pages`/`q.parked`), a
+  modern quote the SECTIONS of its one-page layout (`_qtRenderRailModern`:
+  drag or the arrows to reorder, ✕ to take out, ↩ to put back; cover,
+  proposal and the total are fixed; the roof condition is the A4's page so
+  taking it out is `toggleProposalSection('condition')`). The arrangement
+  is `S.quote.modernOrder` / `S.quote.modernParked`, applied to
+  `_qdSections` AND `_qbPages` by `_qModernApply` so the computer and the
+  phone agree; a template snapshot carries them and the quote's `style`.
+  In the editor `_qpDeskActive` is true for a modern quote and the stage
+  gives `#qpRoot` a 1180px working width (`#qtEditWrap.qt-modern`); the
+  book is never shown there. `tests/quotetpl.mjs`, `tests/quoteeditor.mjs`.
+  The preview's classes are DERIVED from mode + style + the
   printing flag by `_qpPreviewClassesSync()` (`qp-desk-preview`,
   `qp-phone-preview`, `qp-classic-phone` = the reflow inside the phone
   frame) — never toggle them by hand; `printQuote` and both PDF paths raise
@@ -351,9 +364,9 @@ Discipline (non-negotiable):
   in-page buttons are the ANCHORS of an EDIT RAIL on a wide office screen
   (`_qeRailSync`, `html.qe-rail-on` from 1280px): the preview gets a
   186px left gutter, each button is redrawn in `#qeRail` level with its
-  anchor with a thin line ending in a small pointing hand (`.qe-rail-btn`,
-  `.qe-rail-line`, `--ico-hand`; the hand stops short of the block's card,
-  which paints over the rail),
+  anchor and pulled in close beside the block, a 👉 emoji hand between
+  them (`.qe-rail-btn`, `.qe-rail-line`; the hand stops short of the
+  block's card, which paints over the rail),
   the in-page button is made invisible and taken out of the flow, and the
   rail re-lays after every render, resize and scroll inside the preview.
   Narrower screens keep the buttons on the page. Per-quote hides live in `S.quote.selHide
@@ -399,6 +412,20 @@ Discipline (non-negotiable):
   `S.quote.custDesc`; saving the default DELETES the field so a later
   default change reaches quotes nobody customised. The A4 keeps its own
   long inclusions list.
+- THE MODERN QUOTE'S CONDITION SECTION (2026-09-22) sits BETWEEN the
+  Re-Roof Proposal and Steel grade on the computer and the phone
+  (`_qdSections`/`_qbPages`: cover, proposal, condition, grade …). The
+  office sees it whenever the page is in the quote (`_qbCondSectionOn`),
+  with the three fixing buttons (Lead-head Nails / Twist Shank Nails / Tek
+  Screws → `_setCondFixingType`, which now writes `conditionSummary` too
+  and syncs the Quote tab's inputs via `_condSyncInputs` so a later
+  `readQuoteFromInputs` cannot clobber it), "Edit wording" (the presets,
+  `_condPresetsOpen` → `settings.quote_defaults.condition_presets`, read
+  by `_condFixingDesc`), four photo SLOTS (the A4's `_qpCondPhotoSlotHtml`)
+  and "Delete this page from this quote" (`_qbCondRemovePage` =
+  `toggleProposalSection('condition')`; the card's tick puts it back). The
+  customer only gets it when there is something on it (`_qbHasCondition`),
+  as a gallery. The price shows on it because it follows the proposal.
 - The EXISTING ROOF CONDITION card is on the Quote tab again (2026-09-20;
   `#qCondCard`, it was `display:none` for a while) with a tick
   (`#qCondInclude`, `_qCondIncludeToggle`) that is the same page move as
@@ -539,7 +566,14 @@ The aerial's own Mapbox zoom does change it, and must.
 **Publishing a quote in Fergus.** The quote pushed at send arrives as a
 Draft and `_fergusPublishQuote(key, quoteId, jobId)` then tries the
 publish shapes in `FERGUS_PUBLISH_CANDIDATES` ("METHOD /path"; pin the
-right one in `FERGUS_QUOTE_PUBLISH_PATH` once known). Two rules, both
+right one in `FERGUS_QUOTE_PUBLISH_PATH` once known). Then it is MARKED
+SENT (2026-09-22, `_fergusMarkQuoteSent`, `FERGUS_MARK_SENT_CANDIDATES`,
+pin `FERGUS_QUOTE_MARK_SENT_PATH`; `markSent:true` on
+`/fergus-quote/publish`, and always on the customer-selection versions)
+so the job stops saying "Quote has not been sent to customer" — marked,
+never emailed: no `/send` or `/email` shape is tried, the quote is read
+back and only a status reading Sent/Accepted counts (`_fergusQuoteStatusOf
+().sent`), and `share.fergus.sentResult` keeps every attempt. Two rules, both
 learned the hard way: NEVER a `/send` shape (that is Fergus emailing the
 customer its own copy; the owner sends from RoofMap), and a 2xx is NOT a
 publish — the quote is READ BACK (`_fergusReadQuoteStatus`) and only a

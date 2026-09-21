@@ -7597,10 +7597,14 @@ const FERGUS_PUBLISH_CANDIDATES = [
 function _fergusQuoteStatusOf(q){
   if (!q || typeof q !== 'object') return null;
   const st = q.status || q.state || q.quoteStatus || (q.attributes && (q.attributes.status || q.attributes.state)) || '';
-  if (q.publishedAt || q.isPublished === true || q.published === true) return { text: String(st || 'Published'), published: true };
-  if (q.isDraft === true) return { text: String(st || 'Draft'), published: false };
+  // "Sent" in Fergus's eyes: a sent stamp, or a status past Published
+  // (Sent / Accepted / Declined all mean the customer has had it).
+  const sent = !!(q.sentAt || q.isSent === true || q.sent === true || q.markedSentAt || q.acceptedAt || q.isAccepted === true ||
+    /sent|accept|declin/i.test(String(st)));
+  if (q.publishedAt || q.isPublished === true || q.published === true) return { text: String(st || 'Published'), published: true, sent };
+  if (q.isDraft === true) return { text: String(st || 'Draft'), published: false, sent: false };
   if (!st) return null;
-  return { text: String(st), published: !/draft/i.test(String(st)) };
+  return { text: String(st), published: !/draft/i.test(String(st)), sent };
 }
 // What Fergus now says the quote's status is: the quote itself, else the
 // job's list (which is what the void loop reads). null when it cannot tell.
@@ -7657,6 +7661,62 @@ async function _fergusPublishQuote(fergusKey, quoteId, jobId){
   }
   return { ok: false, attempts, stillDraft };
 }
+// ── Marking a Fergus quote SENT ───────────────────────────────────
+// After the publish, Fergus still shows "Quote has not been sent to customer"
+// until somebody presses Send → Mark as sent on the job. The owner emails the
+// quote from RoofMap, so RoofMap marks it sent for him — MARKED, never sent:
+// no shape here may make Fergus email its own copy, so "/send" is never
+// tried (Fergus's UI offers Email / Print / Mark as sent under one Send
+// menu, and the emailing shape is the one that must not be hit). The same
+// discipline as the publish: a 2xx is not proof, the quote is read back and
+// only a status that reads Sent (or Accepted) counts; a 2xx that changed
+// nothing moves on to the next shape. FERGUS_QUOTE_MARK_SENT_PATH pins the
+// right one once a real job's sentResult shows it.
+const FERGUS_MARK_SENT_CANDIDATES = [
+  'POST /jobs/quotes/{id}/mark_sent',
+  'POST /jobs/quotes/{id}/mark-sent',
+  'POST /jobs/quotes/{id}/marksent',
+  'POST /jobs/quotes/{id}/mark_as_sent',
+  'POST /jobs/{job}/quotes/{id}/mark_sent',
+  'PATCH /jobs/quotes/{id}',
+  'PUT /jobs/quotes/{id}/status',
+  'POST /jobs/quotes/{id}/status',
+];
+async function _fergusMarkQuoteSent(fergusKey, quoteId, jobId){
+  const id = encodeURIComponent(String(quoteId));
+  const job = jobId ? encodeURIComponent(String(jobId)) : '';
+  const list = process.env.FERGUS_QUOTE_MARK_SENT_PATH
+    ? [process.env.FERGUS_QUOTE_MARK_SENT_PATH] : FERGUS_MARK_SENT_CANDIDATES;
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const attempts = [];
+  // Already sent (or accepted) in Fergus: nothing to do, and say so.
+  try {
+    const before = await _fergusReadQuoteStatus(H, quoteId, jobId);
+    if (before && before.sent) return { ok: true, path: null, already: true, verified: true, fergusStatus: before.text, attempts };
+  } catch (e) {}
+  let stillUnsent = false;
+  for (const entry of list) {
+    const m = String(entry).match(/^\s*(GET|POST|PUT|PATCH|DELETE)\s+(\S+)/i);
+    const method = m ? m[1].toUpperCase() : 'POST';
+    const tpl = m ? m[2] : String(entry).trim();
+    if (/{job}/.test(tpl) && !job) continue;
+    if (/\/send\b|\/email\b/.test(tpl)) continue;             // never: that is Fergus emailing the customer
+    const path = FERGUS_PREFIX + tpl.replace('{id}', id).replace('{job}', job);
+    const body = (/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Sent' } : {};
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
+      const a = { path: method + ' ' + tpl, status: r.status };
+      attempts.push(a);
+      if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
+      if (!(r.status >= 200 && r.status < 300)) continue;
+      const st = await _fergusReadQuoteStatus(H, quoteId, jobId);
+      a.fergusStatus = st ? st.text : null;
+      if (!st || st.sent) return { ok: true, path: a.path, status: r.status, verified: st ? true : null, fergusStatus: a.fergusStatus, attempts };
+      stillUnsent = true;
+    } catch (e) { attempts.push({ path: method + ' ' + tpl, error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts, stillUnsent };
+}
 app.post('/fergus-quote/publish', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
@@ -7664,7 +7724,17 @@ app.post('/fergus-quote/publish', requireAuth, requireSubscription,
   const quoteId = String((req.body || {}).quoteId || '').slice(0, 80);
   const jobId = String((req.body || {}).jobId || '').slice(0, 80);
   if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
-  try { res.json(await _fergusPublishQuote(fergusKey, quoteId, jobId || null)); }
+  try {
+    const out = await _fergusPublishQuote(fergusKey, quoteId, jobId || null);
+    // markSent: after the publish, mark it sent as well (the office emailed it
+    // from RoofMap). Tried even when the publish did not verify — a quote a
+    // human published by hand still wants marking.
+    if ((req.body || {}).markSent && !out.auth){
+      try { out.sent = await _fergusMarkQuoteSent(fergusKey, quoteId, jobId || null); }
+      catch (e) { out.sent = { ok: false, error: String(e && e.message || e).slice(0, 160), attempts: [] }; }
+    }
+    res.json(out);
+  }
   catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
@@ -7815,14 +7885,20 @@ async function _fergusAutoVersionNow(jobId){
   }
   let published = null;
   let publishResult = null;
-  if (newId && plan.publish){ try { publishResult = await _fergusPublishQuote(fergusKey, newId, plan.jobId); published = publishResult.ok; } catch (e) { published = false; } }
+  let sentResult = null;
+  if (newId && plan.publish){
+    try { publishResult = await _fergusPublishQuote(fergusKey, newId, plan.jobId); published = publishResult.ok; } catch (e) { published = false; }
+    // The customer's version is live on their link, so it is sent too.
+    try { sentResult = await _fergusMarkQuoteSent(fergusKey, newId, plan.jobId); } catch (e) { sentResult = { ok: false, attempts: [] }; }
+  }
   plan.rev = rev;
-  plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published, publishResult,
+  plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published, publishResult, sentResult,
                 acceptedAt: quote.accepted ? quote.accepted.at : null, total: +(built.sub + gst).toFixed(2) };
   quote.share.fergus = plan;
   if (!Array.isArray(quote.share.events)) quote.share.events = [];
   quote.share.events.push({ type: 'fergus-version', at: plan.auto.at,
-    message: 'Quote v' + rev + ' created in Fergus for the customer’s selections' + (voided ? ' (' + voided + ' older voided)' : '') + (published ? ', published' : (published === false ? ', still a draft in Fergus — publish it there by hand' : '')) });
+    message: 'Quote v' + rev + ' created in Fergus for the customer’s selections' + (voided ? ' (' + voided + ' older voided)' : '') + (published ? ', published' : (published === false ? ', still a draft in Fergus — publish it there by hand' : '')) +
+      (sentResult ? (sentResult.ok ? ', marked sent' : ', not yet marked sent in Fergus — press Send → Mark as sent there') : '') });
   if (quote.share.events.length > 80) quote.share.events = quote.share.events.slice(-80);
   await _saveQuoteBack(job, quote);
   return plan.auto;

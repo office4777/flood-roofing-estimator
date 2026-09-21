@@ -68,8 +68,8 @@ const where = await pg.evaluate(async () => {
   _setQuoteStyle('modern'); await new Promise(r => setTimeout(r, 700));
   return out;
 });
-check('Edit description sits on the proposal, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  where.desk.join(',') === 'desc@qd-proposal,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
+check('Edit description sits on the proposal, Edit roof condition on the condition, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
+  where.desk.join(',') === 'desc@qd-proposal,cond@qd-condition,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
 // …and on a wide office screen they are lifted into a rail down the LEFT of
 // the preview, each one level with the thing it edits and pointing at it.
 const rail = await pg.evaluate(async () => {
@@ -78,14 +78,17 @@ const rail = await pg.evaluate(async () => {
   const btns = [...document.querySelectorAll('#qeRail .qe-rail-btn')].map(b => {
     const r = b.getBoundingClientRect();
     const a = document.querySelector('#qpRoot .qe-inline[data-qe-btn="' + b.dataset.qeRail + '"]').getBoundingClientRect();
-    return { what: b.dataset.qeRail, x: r.left - wrap.left, level: Math.abs(r.top - a.top) < 3, leftOf: r.right < a.left };
+    const hand = [...document.querySelectorAll('#qeRail .qe-rail-line')].find(l => Math.abs(parseFloat(l.style.top) - parseFloat(b.style.top)) < 2);
+    const h = hand ? hand.getBoundingClientRect() : null;
+    return { what: b.dataset.qeRail, x: r.left - wrap.left, level: Math.abs(r.top - a.top) < 3, leftOf: r.right < a.left,
+             close: a.left - r.right < 80, hand: !!h && h.left >= r.right - 2 && h.right <= a.left + 2 && /\u{1F449}/u.test(hand.textContent) };
   });
-  const lines = [...document.querySelectorAll('#qeRail .qe-rail-line')].map(l => parseFloat(l.style.width) > 10);
+  const lines = [...document.querySelectorAll('#qeRail .qe-rail-line')].map(l => /\u{1F449}/u.test(l.textContent));
   return { on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
            inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
 });
-check('a wide office screen shows the rail: three buttons down the left, each level with its block and pointing at it',
-  rail.on && rail.gutter >= 150 && rail.btns.length === 3 && rail.btns.every(b => b.level && b.leftOf && b.x < 40) && rail.lines.length === 3 && rail.lines.every(Boolean) && rail.inlineHidden,
+check('a wide office screen shows the rail: four buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 4 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 4 && rail.lines.every(Boolean) && rail.inlineHidden,
   JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));

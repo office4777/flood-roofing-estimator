@@ -25,12 +25,15 @@ let quoteSeq = 100;
 let publishStatus = 200;         // what the publish endpoint answers
 let publishTakes = true;         // …and whether that answer actually moved the quote off Draft
 const published = new Set();     // quote ids Fergus now holds as Published
+const sentIds = new Set();       // …and as Sent (Send → Mark as sent)
+let markSentStatus = 200;        // what the mark-sent endpoint answers
+let markSentTakes = true;        // …and whether it actually moved the quote to Sent
 globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
   fergus.push({ path, method, body, auth: (headers || {}).Authorization });
   const j = (status, obj) => ({ status, body: JSON.stringify(obj), headers: {} });
   // Reading a quote back: what Fergus says its status is.
   const one = path.match(/^\/jobs\/quotes\/([^/]+)$/);
-  if (method === 'GET' && one) return j(200, { data: { id: one[1], status: published.has(one[1]) ? 'Published' : 'Draft' } });
+  if (method === 'GET' && one) return j(200, { data: { id: one[1], status: sentIds.has(one[1]) ? 'Sent' : (published.has(one[1]) ? 'Published' : 'Draft') } });
   if (method === 'POST' && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(201, { id: 'fq' + (++quoteSeq) });
   if (method === 'GET'  && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(200, { data: [
     { id: 'fq1', title: 'old draft' }, { id: 'fq2', title: 'accepted one', isAccepted: true },
@@ -41,6 +44,12 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
     if (publishStatus < 300 && publishTakes && id) published.add(id);
     return j(publishStatus, {});
   }
+  if (method === 'POST' && /\/mark_sent$/.test(path)){
+    const id = (path.match(/\/quotes\/([^/]+)\/mark_sent$/) || [])[1];
+    if (markSentStatus < 300 && markSentTakes && id) sentIds.add(id);
+    return j(markSentStatus, {});
+  }
+  if (method === 'POST' && /\/send\b/.test(path)) return j(200, { EMAILED_THE_CUSTOMER: true });   // the one shape that must never be hit
   if (method === 'PATCH' && /^\/jobs\/quotes\/[^/]+$/.test(path)) return j(404, { message: 'no' });
   if (method === 'POST' && /\/accept/.test(path)) return j(200, { NEVER: true });
   return j(404, { message: 'no' });
@@ -181,6 +190,23 @@ check('when Fergus answers nothing 2xx, it says so rather than pretending', p.ok
 fergus.length = 0; publishStatus = 403;
 p = await pub({ quoteId: 'fq57' });
 check('a rejected key is not hammered through every candidate path', p.ok === false && fergus.length === 1, fergus.length + ' calls');
+
+// ── THE ASK: mark it sent as well — marked, never emailed from Fergus ──
+fergus.length = 0; publishStatus = 200; publishTakes = true; markSentStatus = 200; markSentTakes = true;
+p = await pub({ quoteId: 'fq60', jobId: 'FJ-77', markSent: true });
+check('with markSent the quote is published AND marked sent, and Fergus confirms Sent',
+  p.ok === true && p.sent && p.sent.ok === true && p.sent.verified === true && p.sent.fergusStatus === 'Sent' && /mark_sent/.test(p.sent.path), JSON.stringify(p.sent));
+check('…and no shape that would make Fergus email the customer was ever called', !fergus.some(c => /\/send\b|\/email\b/.test(c.path)), fergus.map(c => c.path).join(', '));
+fergus.length = 0; markSentTakes = false;
+p = await pub({ quoteId: 'fq61', jobId: 'FJ-77', markSent: true });
+check('a 2xx that leaves it unsent is not believed: every shape is tried and it says still unsent',
+  p.ok === true && p.sent && p.sent.ok === false && p.sent.stillUnsent === true && p.sent.attempts.length > 1 && !fergus.some(c => /\/send\b/.test(c.path)), JSON.stringify(p.sent && p.sent.attempts));
+fergus.length = 0; markSentTakes = true; sentIds.add('fq62');
+p = await pub({ quoteId: 'fq62', jobId: 'FJ-77', markSent: true });
+check('a quote Fergus already holds as Sent is left alone and reported as already sent', p.sent && p.sent.ok === true && p.sent.already === true && !fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent));
+fergus.length = 0;
+p = await pub({ quoteId: 'fq63', jobId: 'FJ-77' });
+check('without markSent nothing is marked', !p.sent && !fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent || null));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
