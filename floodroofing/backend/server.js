@@ -2396,10 +2396,16 @@ function _quietMail(p, sub, t, quietDays){
     (t.left_screen ? 'Last screen before they closed it: ' + (_QUIET_SCREEN[t.left_screen] || t.left_screen) + '\n' : '') +
     (t.last_at ? 'Last seen: ' + new Date(t.last_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) + '\n' : '') +
     '\nReply to this email and it goes straight to them.';
-  return { to: MAIL_SUPPORT, fromName: 'RoofMap', replyTo: p.email, subject: 'Gone quiet: ' + who + ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left', text };
+  return { to: MAIL_SUPPORT, fromName: 'RoofMap', fromAddress: MAIL_SUPPORT, platform: true, replyTo: p.email, subject: 'Gone quiet: ' + who + ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left', text };
 }
 async function _quietTrialSweep(){
   const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  // The alert is written as RoofMap and, like the drip, it is HELD until the
+  // platform can send as its own address — it went to support@ wearing
+  // office@floodroofing.co.nz on 2026-09-21, and the owner does not want a
+  // system email from his roofing company either. Hold BEFORE the watermark
+  // so the alert fires when the address is right, not never.
+  if (!_platformMailboxSendable(MAIL_SUPPORT)){ out.held = true; return out; }
   const now = Date.now();
   const { data: subs, error } = await supabase.from('subscriptions')
     .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, quiet_alert_at, created_at')

@@ -135,8 +135,10 @@ Discipline (non-negotiable):
   HELD, never sent from a company address. `_allowedFromAddress` drops a
   From outside the verified sending domain back to `EMAIL_FROM`, which on
   this deployment is office@floodroofing.co.nz — so RoofMap's onboarding
-  mail was reaching strangers out of the owner's roofing inbox. Both sweeps
-  bail on `_platformMailboxSendable(MAIL_SUPPORT)` BEFORE they stamp their
+  mail was reaching strangers out of the owner's roofing inbox. All three
+  sweeps (drip, trial-ended and the gone-quiet alert to support@, which
+  reached the owner from office@ on 2026-09-21) bail on
+  `_platformMailboxSendable(MAIL_SUPPORT)` BEFORE they stamp their
   watermark, so no trial loses its place, and sending resumes by itself once
   roofmap.co.nz is verified in Resend or `EMAIL_FROM` points at it. Mail
   somebody asked for (an invoice, a cancellation, a requested link) is never

@@ -103,6 +103,14 @@ await wait(400);
 check('the trial-ended email is held the same way', sent.length === before,
       sent.slice(before).map(m => m.to).join(' | '));
 
+// ── and the gone-quiet alert to support@ (2026-09-21: it reached the
+// owner's support inbox wearing office@floodroofing.co.nz) ──────────
+const beforeQ = sent.length;
+r = await (await fetch(BASE + '/admin/quiet-trials/run', { method: 'POST', headers: H })).json();
+await wait(400);
+check('the gone-quiet alert is held too, before its watermark', r.held === true && sent.length === beforeQ &&
+      db.subscriptions.every(x => !x.quiet_alert_at), JSON.stringify(r));
+
 // ── but mail somebody asked for still goes ──────────────────────────
 const askRes = await fetch(BASE + '/try/link', { method: 'POST',
   headers: { 'content-type': 'application/json' },
