@@ -3151,6 +3151,19 @@ html.qp-phone-preview .qe-inline{ font-size:12px; }
 .qb-h2 + .qe-inline, .qb-h2 + .qe-inline-row{ margin-top:-4px; }
 .qe-inline-row{ display:flex; flex-wrap:wrap; gap:6px; }
 @media print{ .qe-inline, .qe-inline-row{ display:none !important; } }
+/* THE EDIT RAIL: on a wide office screen the same buttons are lifted off
+   the page into a rail down the LEFT of the preview, each one level with
+   the thing it edits and pointing at it (_qeRailSync). The in-page button
+   stays in the DOM as the anchor the rail measures from, made invisible
+   and taken out of the flow. Narrow screens keep the buttons on the page. */
+html.qe-rail-on #quoteProposal{ position:relative; padding-left:186px !important; }
+html.qe-rail-on #qpRoot .qe-inline{ position:absolute; visibility:hidden; pointer-events:none; margin:0; }
+#qeRail{ position:absolute; left:0; top:0; bottom:0; width:186px; overflow:visible; pointer-events:none; z-index:5; }
+.qe-rail-btn{ position:absolute; left:10px; max-width:150px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
+.qe-rail-btn:hover{ background:#f0f8ff; }
+.qe-rail-line{ position:absolute; height:0; border-top:2px dashed #0099cc; pointer-events:none; opacity:.85; }
+.qe-rail-line::after{ content:''; position:absolute; right:-2px; top:-6px; border:5px solid transparent; border-left:8px solid #0099cc; }
+@media print{ #qeRail{ display:none !important; } }
 /* The arrow's landing: the block on the page the button edits. */
 .qe-spot{ outline:3px solid #0099cc !important; outline-offset:4px; border-radius:6px; animation:qeSpotPulse 1.2s ease-in-out 2; }
 @keyframes qeSpotPulse{ 0%,100%{ outline-color:#0099cc; } 50%{ outline-color:rgba(0,153,204,.15); } }
@@ -26908,6 +26921,7 @@ function _qbRender(){
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
   try { _qbBindScrollHint(); } catch(e){}
+  try { _qeRailQueue(); } catch(e){}
 }
 // A page taller than the screen says so: a small "Scroll" pill at the right
 // while there is more below, gone once the reader reaches the bottom. The
@@ -26947,6 +26961,7 @@ function _qbGo(n){
     if (pgEl){ pgEl.classList.add(dir > 0 ? 'qb-in-next' : 'qb-in-prev'); }
   }
   try { if (window.__CUSTOMER_MODE) _custBarSync(); } catch(e){}
+  try { _qeRailQueue(); } catch(e){}
 }
 function _qbNext(){ _qbGo(QB.i + 1); }
 function _qbPrev(){ _qbGo(QB.i - 1); }
@@ -27408,6 +27423,71 @@ function _qeInlineBtn(what){
   var o = QE_INLINE[what]; if (!o) return '';
   return '<button type="button" class="qe-inline no-print" data-qe-btn="'+what+'" onclick="event.stopPropagation();_qeEdit(\''+what+'\')" title="'+esc2(o.title)+'">\u270E '+esc2(o.label)+'</button>';
 }
+// The rail is on when the office is looking at the preview on a screen wide
+// enough for it. It is laid out from the anchors after every render.
+function _qeRailOn(){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return false;
+  if (window.innerWidth < 1280) return false;
+  return !!document.getElementById('quoteProposal');
+}
+var _qeRailT = null;
+function _qeRailSync(){
+  var wrap = document.getElementById('quoteProposal'); if (!wrap) return;
+  var on = _qeRailOn();
+  document.documentElement.classList.toggle('qe-rail-on', on);
+  var rail = document.getElementById('qeRail');
+  if (!on){ if (rail) rail.remove(); return; }
+  if (!rail){ rail = document.createElement('div'); rail.id = 'qeRail'; rail.className = 'no-print'; wrap.appendChild(rail); }
+  var wr = wrap.getBoundingClientRect();
+  var anchors = [].slice.call(wrap.querySelectorAll('#qpRoot .qe-inline'));
+  var items = [];
+  anchors.forEach(function(a){
+    var r = a.getBoundingClientRect();
+    if (!(r.width || r.height)) return;
+    // An anchor scrolled out of a framed page (the phone's book) points at nothing.
+    var box = a.closest('#qbStage') || a.closest('.report-preview');
+    if (box){ var br = box.getBoundingClientRect(); if (r.top < br.top - 4 || r.top > br.bottom - 4) return; }
+    items.push({ what: a.dataset.qeBtn, label: a.textContent, title: a.title, top: r.top - wr.top, x: r.left - wr.left, anchor: a });
+  });
+  items.sort(function(p, q){ return p.top - q.top; });
+  var last = -1e9;
+  items.forEach(function(it){ if (it.top < last + 44) it.top = last + 44; last = it.top; });
+  var html = '';
+  items.forEach(function(it, i){
+    html += '<button type="button" class="qe-rail-btn" data-qe-rail="'+esc2(it.what)+'" title="'+esc2(it.title)+'" style="top:'+Math.round(it.top)+'px" '+
+      'onclick="event.stopPropagation();_qeEdit(\''+it.what+'\')" onmouseenter="_qeRailHover('+i+',true)" onmouseleave="_qeRailHover('+i+',false)">'+esc2(it.label)+'</button>'+
+      '<span class="qe-rail-line" style="top:'+Math.round(it.top + 14)+'px"></span>';
+  });
+  rail.innerHTML = html;
+  rail._items = items;
+  // The pointer runs from the button's right edge to the block it edits
+  // (the rail sits over the page's own left margin, never in its way).
+  var btns = rail.querySelectorAll('.qe-rail-btn'), lines = rail.querySelectorAll('.qe-rail-line');
+  items.forEach(function(it, i){
+    var bw = btns[i] ? btns[i].offsetWidth : 160;
+    var x0 = 10 + bw + 2, w = it.x - x0 - 4;
+    if (lines[i]){ lines[i].style.left = x0 + 'px'; lines[i].style.width = Math.max(0, Math.round(w)) + 'px'; lines[i].style.display = w < 14 ? 'none' : ''; }
+  });
+}
+// Hovering a rail button lights the block its anchor sits in.
+function _qeRailHover(i, on){
+  var rail = document.getElementById('qeRail'); var it = rail && rail._items && rail._items[i]; if (!it) return;
+  var el = it.anchor.closest('section, .qb-page, .qp-roofmap, [data-qe], .ed-page') || it.anchor.parentElement; if (!el) return;
+  el.classList.toggle('qe-spot', !!on);
+}
+function _qeRailQueue(){
+  clearTimeout(_qeRailT);
+  _qeRailT = setTimeout(function(){ try { _qeRailSync(); } catch(e){} }, 30);
+}
+(function(){
+  if (typeof window === 'undefined') return;
+  window.addEventListener('resize', _qeRailQueue);
+  document.addEventListener('scroll', function(e){ try { var w = document.getElementById('quoteProposal'); if (w && e.target && e.target.nodeType === 1 && w.contains(e.target)) _qeRailQueue(); } catch(e2){} }, true);
+  try {
+    var ro = new ResizeObserver(function(){ _qeRailQueue(); });
+    document.addEventListener('DOMContentLoaded', function(){ var r = document.getElementById('qpRoot'); if (r) ro.observe(r); });
+  } catch(e){}
+})();
 function _qeEdit(what){
   if (what === 'desc') return _qdescOpen();
   if (what === 'sel') return _qselOpen();
@@ -28095,6 +28175,7 @@ function _qdRender(){
       _qdMiniBar()+
     '</div>';
   try { _qdBindSpy(); } catch(e){}
+  try { _qeRailQueue(); } catch(e){}
 }
 // The cover: the same hero as the paper and the phone, as a wide banner,
 // with the facts of the quote beside the introduction instead of under it.
@@ -31105,6 +31186,65 @@ function _renameRoof(i){
 // Customer-facing interactive roof plan: combined map + legend + the big
 // "Main roof only / Include <roof>" buttons (no office controls). Re-used on
 // the Accept page so the customer can still change roofs before accepting.
+// THE OFFICE'S THREE-WAY CONTROL PER ROOF — "How each roof is quoted":
+// part of the main price (compulsory), a separate optional extra the
+// customer can add, or excluded (drawn crossed out, never offered). It
+// used to live only on the A4's roof-plan block; the one-page layout and
+// the book (the office's Computer / Phone previews) render it too, under
+// the same "Your roof plan" (_qpInteractiveRoofBlock), because the office
+// works on those previews now. Never for the customer, never on paper.
+function _roofModeRowsHtml(){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return '';
+  var out = '';
+    if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
+      // No rename here. It only ever appeared for a roof with no button of
+      // its own to sit under, so it turned up on one row and not the next and
+      // pushed that row's controls out of line with the others. Renaming now
+      // lives on the roof switcher above the canvas, where every roof has one
+      // whatever it is quoted as.
+      //
+      // These are the controls that decide how a roof is charged, so they are
+      // sized to be read and hit rather than squeezed into 9px.
+      var _rowCss = 'display:flex;align-items:center;gap:10px;font-size:13px;'+
+        'font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap';
+      var _nameCss = 'min-width:92px;font-weight:700;font-size:13.5px;color:var(--ed-ink)';
+      var _rows = [];
+      _rows.push('<div class="no-print" style="'+_rowCss+'">'+
+        '<span style="'+_nameCss+'">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
+        '<span style="color:var(--ed-text2)">— always included</span></div>');
+      for (var _si = 1; _si < DRAW.roofs.length; _si++) {
+        var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
+        var _cm = _roofQuoteMode(_si);
+        var _seg = [['folded','Part of main'],['separate','Separate extra'],['excluded','Exclude']].map(function(p){
+          var _on = (_cm === p[0]);
+          var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
+          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:7px 15px;font-size:12.5px;font-weight:'+(_on?'700':'600')+';border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+        }).join('');
+        // Gutter attachment — only meaningful for a separate roof: "with house"
+        // (veranda — always guttered) vs "own gutters" (garage — guttered only
+        // when the roof is added).
+        var _gutSeg = '';
+        if (_cm === 'separate') {
+          var _att = _roofAttached(_si);
+          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px">'+
+            '<span style="font-size:12px;color:var(--ed-text2)">gutter</span>'+
+            '<span style="display:inline-flex;flex-wrap:wrap;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
+            [[true,'With house'],[false,'Own gutters']].map(function(p){
+              var _on2 = (p[0] === _att);
+              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:7px 14px;font-size:12.5px;font-weight:'+(_on2?'700':'600')+';border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+            }).join('')+'</span></span>';
+        }
+        _rows.push('<div class="no-print" style="'+_rowCss+'">'+
+          '<span style="'+_nameCss+'">'+esc2(_rn)+'</span>'+
+          '<span style="display:inline-flex;flex-wrap:wrap;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
+      }
+      out = '<div class="no-print" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:11px">'+
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted '+
+          '<span style="text-transform:none;letter-spacing:0;font-weight:400">(part of the main price · an optional extra · excluded · guttered with the house or on its own)</span></div>'+
+        _rows.join('')+'</div>';
+    }
+  return out;
+}
 function _qpInteractiveRoofBlock(opts){
   opts = opts || {};
   var g = S.quote && S.quote.roofMapGeom;
@@ -31149,9 +31289,10 @@ function _qpInteractiveRoofBlock(opts){
     btns = '<div class="qp-incl-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+bw.join('')+'</div>'+
       '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
   }
+  var modes = (!ro && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? _roofModeRowsHtml() : '';
   return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
     '<div class="ed-eyebrow" style="margin-bottom:8px">'+esc2(opts.title || 'Your roof plan')+'</div>'+
-    svg + legend + btns +
+    svg + legend + btns + modes +
   '</div>';
 }
 // Customer taps "Main roof only" — clears every optional-extra-roof selection.
@@ -31229,54 +31370,7 @@ function _buildRoofPreviewsHtml(opts){
     // Office-only: rename each roof + set how it's quoted (part of main /
     // separate optional extra / excluded). Naming flows into the map labels,
     // the customer's Include buttons and the Selections page.
-    var _modeToggles = '';
-    if (_officeCtl && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
-      // No rename here. It only ever appeared for a roof with no button of
-      // its own to sit under, so it turned up on one row and not the next and
-      // pushed that row's controls out of line with the others. Renaming now
-      // lives on the roof switcher above the canvas, where every roof has one
-      // whatever it is quoted as.
-      //
-      // These are the controls that decide how a roof is charged, so they are
-      // sized to be read and hit rather than squeezed into 9px.
-      var _rowCss = 'display:flex;align-items:center;gap:10px;font-size:13px;'+
-        'font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap';
-      var _nameCss = 'min-width:92px;font-weight:700;font-size:13.5px;color:var(--ed-ink)';
-      var _rows = [];
-      _rows.push('<div class="no-print" style="'+_rowCss+'">'+
-        '<span style="'+_nameCss+'">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
-        '<span style="color:var(--ed-text2)">— always included</span></div>');
-      for (var _si = 1; _si < DRAW.roofs.length; _si++) {
-        var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
-        var _cm = _roofQuoteMode(_si);
-        var _seg = [['folded','Part of main'],['separate','Separate extra'],['excluded','Exclude']].map(function(p){
-          var _on = (_cm === p[0]);
-          var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
-          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:7px 15px;font-size:12.5px;font-weight:'+(_on?'700':'600')+';border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
-        }).join('');
-        // Gutter attachment — only meaningful for a separate roof: "with house"
-        // (veranda — always guttered) vs "own gutters" (garage — guttered only
-        // when the roof is added).
-        var _gutSeg = '';
-        if (_cm === 'separate') {
-          var _att = _roofAttached(_si);
-          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px">'+
-            '<span style="font-size:12px;color:var(--ed-text2)">gutter</span>'+
-            '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
-            [[true,'With house'],[false,'Own gutters']].map(function(p){
-              var _on2 = (p[0] === _att);
-              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:7px 14px;font-size:12.5px;font-weight:'+(_on2?'700':'600')+';border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
-            }).join('')+'</span></span>';
-        }
-        _rows.push('<div class="no-print" style="'+_rowCss+'">'+
-          '<span style="'+_nameCss+'">'+esc2(_rn)+'</span>'+
-          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
-      }
-      _modeToggles = '<div class="no-print" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:11px">'+
-        '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted '+
-          '<span style="text-transform:none;letter-spacing:0;font-weight:400">(part of the main price · an optional extra · excluded · guttered with the house or on its own)</span></div>'+
-        _rows.join('')+'</div>';
-    }
+    var _modeToggles = _officeCtl ? _roofModeRowsHtml() : '';
     // Selection state (shared with the Selections page) + the customer's
     // big "Include <roof>" buttons — only when there are optional extra roofs.
     var _pOpts = (S.quote && S.quote.proposalOptions) || {};
@@ -34462,6 +34556,7 @@ function refreshQuoteProposal(){
   // The office's bottom price bar mirrors this proposal — one hook here beats
   // chasing every individual pricing edit.
   if (!window.__CUSTOMER_MODE) { try { _officePriceBarSync(); } catch(e){} }
+  try { _qeRailQueue(); } catch(e){}
 }
 
 // Snapshot the customisable parts of the current proposal as the
@@ -53126,7 +53221,10 @@ function _openPricingPanel(instant){
     // instant = tab-switch restore: no slide animation (see _fergusPanelOpen).
     if (instant === true) p.classList.add('sidepop-instant');
     p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open');
-    _setPopReserve(p.getBoundingClientRect().width);
+    // The Pricing drawer sits OVER the quote (2026-09-21) — it used to reserve
+    // its width and shove the whole Quote tab left, which re-flowed the
+    // preview every time it opened. Only the toggle strip is kept clear.
+    _setPopReserve(0);
     if (instant === true) requestAnimationFrame(function(){ requestAnimationFrame(function(){ p.classList.remove('sidepop-instant'); }); });
   }
   try { localStorage.setItem('fr_qp_pricing_open', '1'); } catch(e){}
@@ -53151,7 +53249,6 @@ function _quotePricingResizeStart(e){
     var w = window.innerWidth - ev.clientX;
     w = Math.max(280, Math.min(Math.round(window.innerWidth * 0.96), w));
     panel.style.width = w + 'px';
-    _setPopReserve(w);
   }
   function up(){
     panel.classList.remove('is-resizing');
@@ -61827,7 +61924,7 @@ function _fitDocZoom(){
 try { window.addEventListener('resize', function(){ try { _fitDocZoom(); } catch(e){} }); } catch(e){}
 function _syncPopReserveForTab(t){
   var id = t==='roof' ? 'fergusRoofPanel' : t==='materials' ? 'jpMapPanel' : t==='quote' ? 'quotePricingPanel' : null;
-  if (!id){ _setPopReserve(0); return; }
+  if (!id || id === 'quotePricingPanel'){ _setPopReserve(0); return; }   // the Pricing drawer overlays the quote
   var p = document.getElementById(id);
   _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 0);
 }

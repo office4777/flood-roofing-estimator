@@ -331,7 +331,14 @@ Discipline (non-negotiable):
   (`_qselOpen('gutter')` = the same window filtered to gutters, brackets
   and downpipes), "Edit roof condition" on the condition section
   (`_qeOpenCondition` opens the Quote tab's card). `_qpOptPageWrap` is
-  where the book's pages get theirs. Per-quote hides live in `S.quote.selHide
+  where the book's pages get theirs. SINCE 2026-09-21 (evening) those
+  in-page buttons are the ANCHORS of an EDIT RAIL on a wide office screen
+  (`_qeRailSync`, `html.qe-rail-on` from 1280px): the preview gets a
+  186px left gutter, each button is redrawn in `#qeRail` level with its
+  anchor with a dashed pointer to it (`.qe-rail-btn`, `.qe-rail-line`),
+  the in-page button is made invisible and taken out of the flow, and the
+  rail re-lays after every render, resize and scroll inside the preview.
+  Narrower screens keep the buttons on the page. Per-quote hides live in `S.quote.selHide
   [kind][id]` and are honoured by `_selGrades/_selProfiles/_selGutters`
   (via `_selLive(list, kind)`), `_selFixed` and `_selExtras`
   (`_selExtrasOffered` is the list before hides); the base grade, the
@@ -409,7 +416,17 @@ Discipline (non-negotiable):
   Flashings button is now Markup (`#ttbMarkup`, `_siteNotesToggle`, icon
   `--ico-markup`, a pencil over a squiggle; lit for the notes tools);
   flashings stay in the Lines menu (`#btn-siteflash`). `tests/sitebars.mjs`.
-- THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) is quiet
+- THE ROOF PLAN on the office's Computer and Phone previews carries the
+  three-way control per roof — Part of main (compulsory), Separate extra
+  (the customer's option), Exclude (drawn crossed out, never offered) —
+  the A4 always had (`_roofModeRowsHtml`, shared by `_qpInteractiveRoofBlock`
+  and `_buildRoofPreviewsHtml`; `_setRoofMode`). Never for the customer,
+  never on paper. `tests/quoteeditor.mjs`.
+- THE PRICING DRAWER (`#tab-scope`, slid out on the Quote tab) OVERLAYS
+  the quote since 2026-09-21: `_openPricingPanel` keeps `--pop-reserve` at
+  the toggle strip instead of reserving the drawer's width, so opening it
+  no longer shoves the Quote tab left and re-flows the preview. The
+  Fergus and Job Pack map pop-outs still reserve. It is quiet
   since 2026-09-21: plain white cards, one small uppercase heading each on the
   quote page's navy band (white text, so a heading never reads as content), no
   emoji, no coloured bands (the owner called them childish). Every heading

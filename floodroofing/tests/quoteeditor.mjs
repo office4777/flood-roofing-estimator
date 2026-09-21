@@ -68,8 +68,25 @@ const where = await pg.evaluate(async () => {
   _setQuoteStyle('modern'); await new Promise(r => setTimeout(r, 700));
   return out;
 });
-check('no rail: Edit description sits on the proposal, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  !where.rail && where.desk.join(',') === 'desc@qd-proposal,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
+check('Edit description sits on the proposal, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
+  where.desk.join(',') === 'desc@qd-proposal,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
+// …and on a wide office screen they are lifted into a rail down the LEFT of
+// the preview, each one level with the thing it edits and pointing at it.
+const rail = await pg.evaluate(async () => {
+  _qeRailSync(); await new Promise(r => setTimeout(r, 100));
+  const wrap = document.getElementById('quoteProposal').getBoundingClientRect();
+  const btns = [...document.querySelectorAll('#qeRail .qe-rail-btn')].map(b => {
+    const r = b.getBoundingClientRect();
+    const a = document.querySelector('#qpRoot .qe-inline[data-qe-btn="' + b.dataset.qeRail + '"]').getBoundingClientRect();
+    return { what: b.dataset.qeRail, x: r.left - wrap.left, level: Math.abs(r.top - a.top) < 3, leftOf: r.right < a.left };
+  });
+  const lines = [...document.querySelectorAll('#qeRail .qe-rail-line')].map(l => parseFloat(l.style.width) > 10);
+  return { on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
+           inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
+});
+check('a wide office screen shows the rail: three buttons down the left, each level with its block and pointing at it',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 3 && rail.btns.every(b => b.level && b.leftOf && b.x < 40) && rail.lines.length === 3 && rail.lines.every(Boolean) && rail.inlineHidden,
+  JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
 check('Edit gutter selections opens the selections window filtered to gutters, brackets and downpipes',
@@ -190,6 +207,47 @@ const defaults = await pg.evaluate(async () => {
 });
 check('"Edit default selections" jumps to Settings → Quote’s Product Options', defaults.modalGone && defaults.settingsTab && defaults.products, JSON.stringify(defaults));
 await pg.evaluate(() => gotoTab('quote')); await pg.waitForTimeout(800);
+
+// THE ROOF PLAN ON THE OFFICE'S PREVIEW carries the three-way control per
+// roof — part of the main price, a separate optional extra, excluded — the
+// A4 always had; the modern layouts render it too, never for the customer.
+const modes = await pg.evaluate(async () => {
+  gotoTab('roof'); _addAndSwitchToNewRoof(); setTool('outline');
+  DRAW.currentPts = [[600,140],[900,140],[900,400],[600,400]]; finishCurrent(); autoGenerateRoof('hip');
+  await new Promise(r => setTimeout(r, 400));
+  gotoTab('quote'); await new Promise(r => setTimeout(r, 1500));
+  const plan = () => document.querySelector('#qd-proposal .qp-roofmap');
+  const seg = () => [...plan().querySelectorAll('button')].filter(b => /^(Part of main|Separate extra|Exclude)$/.test(b.textContent.trim())).map(b => b.textContent.trim());
+  const incl = () => [...plan().querySelectorAll('.qp-incl-btns button')].map(b => b.textContent.trim());
+  const out = { seg: seg(), inclSeparate: incl() };
+  _setRoofMode(1, 'folded'); await new Promise(r => setTimeout(r, 900));
+  out.inclFolded = incl(); out.foldedMode = _roofQuoteMode(1);
+  _setRoofMode(1, 'excluded'); await new Promise(r => setTimeout(r, 900));
+  out.excluded = _roofQuoteMode(1); out.inclExcluded = incl(); out.legendExcl = /Not included/.test(plan().textContent) && !/tap to add/.test(plan().textContent);
+  _setRoofMode(1, 'separate'); await new Promise(r => setTimeout(r, 900));
+  _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 700));
+  const keys = _qbPages().map(p => p.key); _qbGo(keys.indexOf('proposal')); await new Promise(r => setTimeout(r, 300));
+  out.bookSeg = [...document.querySelectorAll('#qbPage .qp-roofmap button')].filter(b => /^(Part of main|Separate extra|Exclude)$/.test(b.textContent.trim())).length;
+  _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 700));
+  return out;
+});
+check('the one-page preview’s roof plan offers Part of main / Separate extra / Exclude for the second roof', modes.seg.join(',') === 'Part of main,Separate extra,Exclude', JSON.stringify(modes.seg));
+check('a separate roof has its Include button; folded into the main price it has none; excluded it has none and reads Not included',
+  modes.inclSeparate.some(t => /Include Roof 2/.test(t)) && modes.foldedMode === 'folded' && !modes.inclFolded.some(t => /Roof 2/.test(t)) && modes.excluded === 'excluded' && !modes.inclExcluded.some(t => /Roof 2/.test(t)) && modes.legendExcl,
+  JSON.stringify(modes));
+check('the phone preview’s roof plan carries the same control', modes.bookSeg === 3, String(modes.bookSeg));
+
+// THE PRICING DRAWER sits over the quote — it no longer reserves its width
+// and shoves the Quote tab left.
+const drawer = await pg.evaluate(async () => {
+  const before = getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve').trim();
+  _openPricingPanel(); await new Promise(r => setTimeout(r, 500));
+  const open = document.getElementById('quotePricingPanel').classList.contains('is-open');
+  const during = getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve').trim();
+  _closePricingPanel(); await new Promise(r => setTimeout(r, 400));
+  return { before, during, open };
+});
+check('opening the Pricing drawer leaves the quote where it is (no width reserved)', drawer.open && parseFloat(drawer.during) < 100 && drawer.during === drawer.before, JSON.stringify(drawer));
 
 // a print from the one-page preview is still the A4
 const pr = await pg.evaluate(async () => {
