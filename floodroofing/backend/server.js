@@ -7599,8 +7599,12 @@ function _fergusQuoteStatusOf(q){
   const st = q.status || q.state || q.quoteStatus || (q.attributes && (q.attributes.status || q.attributes.state)) || '';
   // "Sent" in Fergus's eyes: a sent stamp, or a status past Published
   // (Sent / Accepted / Declined all mean the customer has had it).
+  // A status that NAMES sending is not enough: "Unsent", "Not sent",
+  // "Published - not sent" and "Not accepted" all contain the word.
+  const s = String(st || '');
+  const negated = /\bun[\s_-]?(sent|accepted)|\bnot[\s_-]?(yet[\s_-]?)?(sent|accepted)/i.test(s);
   const sent = !!(q.sentAt || q.isSent === true || q.sent === true || q.markedSentAt || q.acceptedAt || q.isAccepted === true ||
-    /sent|accept|declin/i.test(String(st)));
+    (!negated && /sent|accept|declin/i.test(s)));
   if (q.publishedAt || q.isPublished === true || q.published === true) return { text: String(st || 'Published'), published: true, sent };
   if (q.isDraft === true) return { text: String(st || 'Draft'), published: false, sent: false };
   if (!st) return null;
@@ -7643,7 +7647,7 @@ async function _fergusPublishQuote(fergusKey, quoteId, jobId){
     const method = m ? m[1].toUpperCase() : 'POST';
     const tpl = m ? m[2] : String(entry).trim();
     if (/{job}/.test(tpl) && !job) continue;
-    if (/\/send\b/.test(tpl)) continue;                       // never: that is Fergus emailing the customer
+    if (/\/(send|email|mail)/i.test(tpl)) continue;             // never: that is Fergus emailing the customer ("/sent" is fine, "/send…" is not)
     const path = FERGUS_PREFIX + tpl.replace('{id}', id).replace('{job}', job);
     const body = (/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Published' } : {};
     try {
@@ -7700,7 +7704,7 @@ async function _fergusMarkQuoteSent(fergusKey, quoteId, jobId){
     const method = m ? m[1].toUpperCase() : 'POST';
     const tpl = m ? m[2] : String(entry).trim();
     if (/{job}/.test(tpl) && !job) continue;
-    if (/\/send\b|\/email\b/.test(tpl)) continue;             // never: that is Fergus emailing the customer
+    if (/\/(send|email|mail)/i.test(tpl)) continue;             // never: that is Fergus emailing the customer ("/mark_sent" is fine, "/send…" is not)
     const path = FERGUS_PREFIX + tpl.replace('{id}', id).replace('{job}', job);
     const body = (/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Sent' } : {};
     try {

@@ -2012,7 +2012,10 @@ html.site-mode body[data-tab="roof"] .global-top-bar{ display:none; }
    the whole Scope & Pricing surface fits. Hidden by default; gotoTab shows
    it (display:flex) only on the Quote tab, and it slides in on .is-open. */
 #quotePricingPanel{
-  position:fixed; top:70px; right:0; bottom:16px;
+  /* Below the Quote tab's sticky action bar (its height is tracked as
+     --qbar-h): the drawer overlays the quote, never the buttons. A fixed
+     70px put the drawer's own header over the taller Email quote button. */
+  position:fixed; top:calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 60px) + 14px); right:0; bottom:16px;
   width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:70;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
@@ -22685,7 +22688,17 @@ function _qpCondMarkDragStart(e, idx, mi){
 function _qpCondPhotoPick(idx){
   _qpCondPhotoTargetIdx = idx;
   var inp = document.getElementById('qpCondPhotoFileInput');
-  if (inp) { inp.value = ''; inp.click(); }
+  // The A4 renders the hidden file input inside its own page; the modern
+  // condition section (the computer, the phone, the editor) does not, so
+  // the picker makes one of its own when none is on the page.
+  if (!inp){
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'qpCondPhotoFileInput';
+    inp.style.display = 'none';
+    inp.addEventListener('change', function(e){ _qpCondPhotoUpload(e); });
+    document.body.appendChild(inp);
+  }
+  inp.value = ''; inp.click();
 }
 // Open the Fergus job-photo picker targeting this existing-roof slot.
 function _qpCondPhotoFromFergus(idx){
@@ -23045,6 +23058,7 @@ async function _condPresetsSave(){
 // the way to put it back.
 function _qbCondRemovePage(){
   try { if (_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   try { _siteToast('Existing roof condition taken out of this quote. Tick it back on the Quote tab\u2019s Existing roof condition card.'); } catch(e){}
 }
 // One inline-editable block that renders each stored line as a coloured
@@ -23267,6 +23281,10 @@ function defaultQuote(){
     // starts shorter. Deep-cloned for the same reason the options are.
     pages:  Array.isArray(tpl.pages)  ? JSON.parse(JSON.stringify(tpl.pages))  : null,
     parked: Array.isArray(tpl.parked) ? JSON.parse(JSON.stringify(tpl.parked)) : null,
+    // …and the modern layout's arrangement and the style, since 2026-09-22.
+    modernOrder:  Array.isArray(tpl.modernOrder)  ? tpl.modernOrder.slice()  : [],
+    modernParked: Array.isArray(tpl.modernParked) ? tpl.modernParked.slice() : [],
+    style: (tpl.style === 'classic' || tpl.style === 'modern') ? tpl.style : undefined,
     selectedOptionIds: [],     // ids of options + upgrades the client ticked
     // Long-form proposal sections — one toggle per physical page.
     proposalSections: tpl.proposalSections
@@ -27137,7 +27155,7 @@ function _qbCover(){
     '</div>'+
     '<div class="qb-body">'+
       _qbCoverMeta()+
-      '<div class="qb-cta-note">Turn the page to see your roof, your proposal and your options. You choose as you go and the price updates with you.</div>'+
+      '<div class="qb-cta-note">Turn the page to see our proposal, your roof and your options. You choose as you go and the price updates with you.</div>'+
       '<button type="button" class="qb-cta" onclick="_qbNext()">Start<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
     '</div>';
 }
@@ -27247,7 +27265,7 @@ function _qbCondition(opts){
       (age ? 'It is around ' + age + ' old' + (mat ? ' in ' + mat.toLowerCase() : '') + '. ' : '') +
       (remPct != null && remPct < 25
         ? 'The steel, the fixings and the underlay have all reached the end of their working life together, which is why a repair would not hold.'
-        : 'Our recommendation and the work it involves are on the next page.');
+        : 'Our recommendation and the work it involves are on the proposal page.');
   }
   var photos = (q.condPhotos || []).filter(function(c){ return c && c.src; });
   var office = !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE;
@@ -27256,7 +27274,10 @@ function _qbCondition(opts){
   var gallery;
   if (office){
     if (!Array.isArray(q.condPhotos)) q.condPhotos = [];
-    gallery = '<div class="qb-cond-slots">'+[0,1,2,3].map(function(i){ return _qpCondPhotoSlotHtml(i, q.condPhotos[i] || null); }).join('')+'</div>';
+    var lastFilled = -1; q.condPhotos.forEach(function(cp, i){ if (cp && cp.src) lastFilled = i; });
+    var nSlots = Math.min(6, Math.max(4, lastFilled + 2));   // every filled slot, one empty one after, never fewer than four
+    var slots = []; for (var si = 0; si < nSlots; si++) slots.push(_qpCondPhotoSlotHtml(si, q.condPhotos[si] || null));
+    gallery = '<div class="qb-cond-slots">'+slots.join('')+'</div>';
   } else {
     gallery = photos.length ? (opts.grid ? _qdPhotoGrid(photos) : _qbGallery(photos)) : '';
   }
@@ -28309,7 +28330,19 @@ function _qModernApply(list){
   var take = function(k){ if (byKey[k] && !used[k]){ used[k] = true; out.push(byKey[k]); } };
   take('cover');
   order.forEach(function(k){ if (k !== lastKey) take(k); });
-  kept.forEach(function(sc){ if (sc.key !== lastKey) take(sc.key); });
+  // A section the order never saw — a condition page ticked back on, a new
+  // extras group — goes where the default list puts it: right after the
+  // nearest default predecessor already placed, not at the end.
+  kept.forEach(function(sc, i){
+    if (used[sc.key] || sc.key === lastKey) return;
+    var at = out.length;
+    for (var j = i - 1; j >= 0; j--){
+      var pk = kept[j].key, pi = -1;
+      for (var x = 0; x < out.length; x++) if (out[x].key === pk){ pi = x; break; }
+      if (pi >= 0){ at = pi + 1; break; }
+    }
+    used[sc.key] = true; out.splice(at, 0, sc);
+  });
   take(lastKey);
   return out;
 }
@@ -34829,6 +34862,7 @@ function _qtRestore(json){
     q.modernOrder = Array.isArray(st.modernOrder) ? st.modernOrder : [];
     q.modernParked = Array.isArray(st.modernParked) ? st.modernParked : [];
     _qpSyncSections();
+    try { renderProposalSectionToggles(); } catch(e){}
     if (_QT.sel >= q.pages.length) _QT.sel = Math.max(0, q.pages.length - 1);
     refreshQuoteProposal();
     setTimeout(function(){ _qtRenderRail(); _qtSetZoom(_QT.zoom); }, 120);
@@ -35089,15 +35123,17 @@ function _qtModernSetOrder(keys){
 function _qtModernMove(key, toIdx){
   var keys = _qtModernKeys();
   var from = keys.indexOf(key); if (from < 0) return;
-  var last = keys.length - 1;
-  var to = Math.max(2, Math.min(last - 1, toIdx));       // never above the proposal, never past the total
-  if (to === from) return;
+  var next = keys.slice(); next.splice(from, 1);
+  // Dropped on a slide: it goes in BEFORE that slide. Dropped on the rail's
+  // empty space: it goes last, just before the total. Never above the
+  // proposal.
+  var ins = (toIdx >= 1e5) ? (next.length - 1) : (from < toIdx ? toIdx - 1 : toIdx);
+  ins = Math.max(2, Math.min(next.length - 1, ins));
+  next.splice(ins, 0, key);
+  if (next.join('\u0001') === keys.join('\u0001')) return;
   _qtPush();
-  keys.splice(from, 1);
-  if (from < to) to--;
-  keys.splice(Math.max(2, Math.min(keys.length - 1, to)), 0, key);
-  _qtModernSetOrder(keys);
-  _QT.sel = keys.indexOf(key);
+  _qtModernSetOrder(next);
+  _QT.sel = ins;
   _qtAfterChange();
 }
 function _qtModernShift(key, dir){
@@ -35115,6 +35151,7 @@ function _qtModernPark(key){
   var q = _qtState();
   var keys = _qtModernKeys();
   if (_qModernFixed(key, keys[keys.length - 1])) return;
+  if (key === 'condition'){ try { if (_qpInDoc('condition') && _qpState().pages.length <= 1){ alert('Keep at least one page in the quote.'); return; } } catch(e){} }
   _qtPush();
   if (key === 'condition'){ try { if (_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){} }
   else {
@@ -35273,6 +35310,16 @@ function _qtApplySnapshot(t){
   if (Array.isArray(t.modernOrder)) q.modernOrder = t.modernOrder.slice();
   if (Array.isArray(t.modernParked)) q.modernParked = t.modernParked.slice();
   if (t.style === 'classic' || t.style === 'modern'){ q.style = t.style; try { _qpPreviewClassesSync(); _syncQuotePreviewToggle(); } catch(e){} }
+  // Inside the editor, a template of the other style switches the editor
+  // to that layout as well, or the rail and the stage disagree.
+  try {
+    if (window._QT && _QT.open){
+      _QT.modern = (_quoteStyle() === 'modern');
+      var w = document.getElementById('qtEditWrap'); if (w) w.classList.toggle('qt-modern', _QT.modern);
+      _QT.sel = 0;
+      _qpPreviewClassesSync();
+    }
+  } catch(e){}
   _qpSyncSections();
 }
 function _qtSyncTemplatePicker(){

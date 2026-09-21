@@ -26,6 +26,7 @@ let publishStatus = 200;         // what the publish endpoint answers
 let publishTakes = true;         // …and whether that answer actually moved the quote off Draft
 const published = new Set();     // quote ids Fergus now holds as Published
 const sentIds = new Set();       // …and as Sent (Send → Mark as sent)
+const unsentIds = new Set();     // …and ones Fergus describes as "Published - not sent"
 let markSentStatus = 200;        // what the mark-sent endpoint answers
 let markSentTakes = true;        // …and whether it actually moved the quote to Sent
 globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
@@ -33,7 +34,7 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
   const j = (status, obj) => ({ status, body: JSON.stringify(obj), headers: {} });
   // Reading a quote back: what Fergus says its status is.
   const one = path.match(/^\/jobs\/quotes\/([^/]+)$/);
-  if (method === 'GET' && one) return j(200, { data: { id: one[1], status: sentIds.has(one[1]) ? 'Sent' : (published.has(one[1]) ? 'Published' : 'Draft') } });
+  if (method === 'GET' && one) return j(200, { data: { id: one[1], status: sentIds.has(one[1]) ? 'Sent' : unsentIds.has(one[1]) ? 'Published - not sent' : (published.has(one[1]) ? 'Published' : 'Draft') } });
   if (method === 'POST' && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(201, { id: 'fq' + (++quoteSeq) });
   if (method === 'GET'  && /^\/jobs\/[^/]+\/quotes$/.test(path)) return j(200, { data: [
     { id: 'fq1', title: 'old draft' }, { id: 'fq2', title: 'accepted one', isAccepted: true },
@@ -207,6 +208,16 @@ check('a quote Fergus already holds as Sent is left alone and reported as alread
 fergus.length = 0;
 p = await pub({ quoteId: 'fq63', jobId: 'FJ-77' });
 check('without markSent nothing is marked', !p.sent && !fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent || null));
+// "Published - not sent" names sending and is NOT sent: the pre-check must
+// not take it as already done, and the mark must go ahead.
+fergus.length = 0; unsentIds.add('fq64');
+p = await pub({ quoteId: 'fq64', jobId: 'FJ-77', markSent: true });
+check('a status reading "not sent" is not mistaken for sent — the mark still goes ahead and verifies', p.sent && p.sent.ok === true && p.sent.already !== true && p.sent.fergusStatus === 'Sent' && fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent));
+// A pinned path that would email is refused whatever its spelling.
+fergus.length = 0; process.env.FERGUS_QUOTE_MARK_SENT_PATH = 'POST /jobs/quotes/{id}/send_to_customer';
+p = await pub({ quoteId: 'fq65', jobId: 'FJ-77', markSent: true });
+delete process.env.FERGUS_QUOTE_MARK_SENT_PATH;
+check('a pinned mark-sent path that would email the customer is never called', p.sent && p.sent.ok === false && !fergus.some(c => /send/.test(c.path)), JSON.stringify(p.sent && p.sent.attempts));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
