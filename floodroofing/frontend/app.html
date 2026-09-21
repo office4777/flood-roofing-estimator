@@ -3112,6 +3112,10 @@ select.qa-btn{ padding:5px 8px; }
 }
 .qv-btn::-webkit-details-marker{ display:none; }
 .qv-caret{ font-size:9px; opacity:.6; margin-left:2px; }
+.qv-viewing{ display:inline-flex !important; align-items:center; gap:6px; }
+.qv-viewing b{ font-weight:700; color:#0a1628; }
+.qv-viewing .qv-when{ font-size:10px; font-weight:500; color:#8a97a6; }
+.qv-menu-list button.qk-on{ background:#eef6fb; }
 /* Menus: a native <details>, styled as a button that drops a list. */
 .qv-menu, .qa-more{ position:relative; flex:0 0 auto; }
 .qv-menu > summary, .qa-more > summary{ display:inline-block; }
@@ -6814,8 +6818,6 @@ html.qp-desk-preview .qd-top{ position:static; }
       <summary class="qa-btn">More <span class="qv-caret">&#9662;</span></summary>
       <div class="qa-more-list">
         <button type="button" onclick="this.closest('details').removeAttribute('open');_qtOpen()">Edit quote template<small>Take pages out, reorder them, save it to reuse</small></button>
-        <label class="qa-more-lbl">Switch to a saved template</label>
-        <select id="qaTplSelect" onchange="_qtApplySaved(this.value);this.closest('details').removeAttribute('open')" class="qa-btn qa-more-sel"></select>
       </div>
     </details>
     <span id="qaMsg" style="font-size:12px;color:var(--text2)"></span>
@@ -7135,13 +7137,10 @@ html.qp-desk-preview .qd-top{ position:static; }
         <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
         <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">60%</span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
-        <span id="qkDraftToggle" style="display:inline-flex;align-items:center;gap:6px">
-          <span style="font-size:11px;color:var(--text2)">Draft:</span>
-          <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <button type="button" id="qkBtn_roofing"  onclick="_setQuoteKind('roofing')"  style="padding:4px 12px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Roofing</button>
-            <button type="button" id="qkBtn_poleshed" onclick="_setQuoteKind('poleshed')" style="padding:4px 12px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">Pole Shed</button>
-          </span>
-        </span>
+        <!-- ONE menu for what kind of quote this is and which saved template
+             it uses (2026-09-22): Job type (Roofing / Pole Shed, only where
+             pole sheds are sold) and the saved templates. _qkMenuRender. -->
+        <details class="qv-menu no-print" id="qkMenu"><summary class="qv-btn" id="qkMenuSummary">Job type <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qkMenuList"></div></details>
         <button onclick="refreshQuoteProposal()" style="padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
       </div>
     </div>
@@ -25781,27 +25780,31 @@ function _qvRenderBar(){
   // screen is a single choice between two or three things, so it is drawn as
   // one control with the chosen one filled in. Everything else — the
   // draft actions, the saved list — lives behind one menu.
-  var seg = function(kind, label, at, call){
-    return '<button type="button" class="lock-ok qv-seg-btn' + (cur === kind ? ' on' : '') + '" onclick="' + call + '">' +
-      label + (at ? '<span class="qv-when">' + _qvWhen(at) + '</span>' : '<span class="qv-when">editing</span>') + '</button>';
-  };
-  var html = '<div class="qv-seg" role="tablist">';
-  html += seg('draft', 'Draft', null, viewing ? '_qvBackToDraft()' : '');
-  if (v.sent) html += seg('sent', 'Sent', v.sent.at, "_qvView('sent')");
-  if (v.accepted) html += seg('accepted', 'Accepted', v.accepted.at, "_qvView('accepted')");
-  html += '</div>';
-  // The drafts menu: new, save, and the saved list. A native <details> so it
-  // opens and closes without a line of JS and works on a phone.
+  // ONE BUTTON, "Viewing: …", that names what is on screen and drops a
+  // menu to switch: the working draft, the sent quote, the accepted quote,
+  // every saved draft (Draft 1, Draft 2 …), New draft and Save this draft.
+  // The three-way selector plus a separate Drafts menu read as two controls
+  // for one thing (the owner: "confusing").
   var close = "this.closest('details').removeAttribute('open');";
-  var item = function(call, label, sub){
-    return '<button type="button" class="lock-ok" onclick="' + close + call + '">' + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  var item = function(call, label, sub, on){
+    return '<button type="button" class="lock-ok' + (on ? ' qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
   };
-  html += '<details class="qv-menu lock-ok"><summary class="qv-btn">Drafts' + (v.drafts.length ? ' (' + v.drafts.length + ')' : '') + ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
+  var draftNo = function(id){ var i = v.drafts.findIndex(function(d){ return d && d.id === id; }); return i >= 0 ? (i + 1) : 0; };
+  var workingName = (function(){ var n = draftNo(S.quote.draftId); return n ? ('Draft ' + n) : 'Draft'; })();
+  var name = cur === 'sent' ? 'Sent quote' : cur === 'accepted' ? 'Accepted quote' : workingName;
+  var html = '<details class="qv-menu lock-ok" id="qvViewingMenu"><summary class="qv-btn qv-viewing">Viewing: <b>' + name + '</b>' +
+    (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">editing</span>') +
+    ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
+    '<div class="qv-menu-hd">Versions</div>' +
+    item(viewing ? '_qvBackToDraft()' : '', workingName, 'The editable quote', cur === 'draft') +
+    (v.sent ? item("_qvView('sent')", 'Sent quote', 'Exactly as emailed ' + _qvWhen(v.sent.at), cur === 'sent') : '') +
+    (v.accepted ? item("_qvView('accepted')", 'Accepted quote', 'Exactly as accepted ' + _qvWhen(v.accepted.at), cur === 'accepted') : '') +
+    '<div class="qv-menu-hd">Drafts' + (v.drafts.length ? ' (' + v.drafts.length + ' saved)' : '') + '</div>' +
     item('_qvNewDraft()', 'New draft', 'A fresh, editable quote from what is on screen') +
     (!viewing ? item('_qvSaveDraftNow()', 'Save this draft', 'Keep it in the list to come back to') : '') +
-    (v.drafts.length ? '<div class="qv-menu-hd">Saved drafts</div>' + v.drafts.slice().reverse().map(function(d){
-      return item("_qvOpenDraft('" + d.id + "')", _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0), d.id === S.quote.draftId ? 'This one is open now' : '');
-    }).join('') : '') +
+    v.drafts.map(function(d, i){
+      return item("_qvOpenDraft('" + d.id + "')", 'Draft ' + (i + 1), _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · open now' : ''), false);
+    }).join('') +
     '</div></details>';
   // ONE sentence about the customer. Not a badge and a button that seem to
   // disagree ("this draft is live" beside "accepted") — the state, in words.
@@ -26736,6 +26739,9 @@ var QB = { i: 0, g: 0, t: null };
 function _qpBookActive(){
   // A print or a PDF is ALWAYS the A4 document, whoever is looking.
   if (window.__PRINTING_QUOTE) return false;
+  // So is the quote template editor: it arranges PAGES, and the one-page
+  // layout squeezed into its stage was one word per line.
+  if (window._QT && _QT.open) return false;
   // The classic style is the document, on every screen.
   if (_quoteStyle() !== 'modern') return false;
   // The office can ask to see what the customer's phone shows — the same
@@ -26786,7 +26792,7 @@ function _qpPreviewMode(){ return QP_PREVIEW.mode === 'phone' ? 'phone' : 'compu
 // path that renders calls this, so the classes can never be stale.
 function _qpPreviewClassesSync(){
   var modern = _quoteStyle() === 'modern';
-  var printing = !!window.__PRINTING_QUOTE;
+  var printing = !!window.__PRINTING_QUOTE || !!(window._QT && _QT.open);   // the template editor is pages too
   var phoneMode = QP_PREVIEW.mode === 'phone' && !printing;
   QP_PREVIEW.phone = phoneMode && modern;           // the book, framed
   QP_PREVIEW.desk  = !phoneMode && modern && !printing;   // the one-page layout
@@ -26840,6 +26846,7 @@ function _syncQuotePreviewToggle(){
 // only through the Computer switch above the preview.
 function _qpDeskActive(){
   if (window.__PRINTING_QUOTE) return false;
+  if (window._QT && _QT.open) return false;
   if (_quoteStyle() !== 'modern') return false;
   if (!window.__CUSTOMER_MODE) return QP_PREVIEW.mode !== 'phone';
   try { return !_qpIsMobileView(); } catch(e){ return false; }
@@ -31986,25 +31993,36 @@ function _setPsConsent(v){
   S.quote.psConsent = (v === 'consented') ? 'consented' : 'exemption';
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
-// Reflect the current draft type on the Quote-tab toggle buttons.
-function _syncQuoteKindToggle(){
-  // Off the shed accounts the choice is not offered — and any job that
-  // somehow carries a shed draft is put back to roofing rather than leaving
-  // the company looking at a Pole Shed proposal with no way back to a
-  // roofing one.
+// The Job type menu: Roofing / Pole Shed (only where pole sheds are sold —
+// off the shed accounts the choice is not offered, and a job that somehow
+// carries a shed draft goes back to roofing) and, under it, the saved quote
+// templates and the way to edit them. #qkDraftToggle is the job-type group
+// inside it, kept hidden where the choice does not apply.
+function _syncQuoteKindToggle(){ _qkMenuRender(); }
+function _qkMenuRender(){
+  var menu = document.getElementById('qkMenu'), list = document.getElementById('qkMenuList'), sum = document.getElementById('qkMenuSummary');
+  if (!menu || !list || !sum) return;
   var avail = _poleShedsAvailable();
-  var wrap = document.getElementById('qkDraftToggle');
-  if (wrap) wrap.style.display = avail ? 'inline-flex' : 'none';
   if (!avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
-  ['roofing','poleshed'].forEach(function(k){
-    var b = document.getElementById('qkBtn_' + k);
-    if (!b) return;
-    var on = (k === 'poleshed') === ps;
-    b.style.background = on ? '#0a1628' : 'transparent';
-    b.style.color = on ? '#fff' : 'var(--text2)';
-    b.style.fontWeight = on ? '700' : '500';
-  });
+  var close = "this.closest('details').removeAttribute('open');";
+  var item = function(call, label, sub, on, id){
+    return '<button type="button"' + (id ? ' id="' + id + '"' : '') + ' class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  };
+  var html = '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
+    '<div class="qv-menu-hd">Job type</div>' +
+    item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps, 'qkBtn_roofing') +
+    item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') +
+    '</div>';
+  var tpls = []; try { tpls = _qtTemplates(); } catch(e){}
+  var hasDefault = !!(S.settings && S.settings.branding && S.settings.branding.proposal_template);
+  html += '<div class="qv-menu-hd">Quote template</div>';
+  if (hasDefault) html += item("_qtApplySaved('__default')", 'Default quote', 'The layout every new quote starts with');
+  tpls.forEach(function(t){ html += item("_qtApplySaved('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template'); });
+  if (!hasDefault && !tpls.length) html += '<div style="padding:4px 10px 8px;font-size:11px;color:#7c8894">No saved templates yet.</div>';
+  html += item('_qtOpen()', 'Edit quote template', 'Take pages out, reorder them, save it to reuse');
+  list.innerHTML = html;
+  sum.innerHTML = (avail ? ('Job type: ' + (ps ? 'Pole Shed' : 'Roofing')) : 'Template') + ' <span class="qv-caret">&#9662;</span>';
 }
 // Pole-shed selection add-on prices (ex GST). Editable in one place so
 // the office can adjust as supplier pricing moves.
@@ -34662,6 +34680,8 @@ function _qtOpen(){
   wrap.classList.add('on');
   document.body.style.overflow = 'hidden';     // the window scrolls, not the page
   _QT.open = true;
+  // The editor works on the A4 pages whatever style the quote is in.
+  try { _qpPreviewClassesSync(); refreshQuoteProposal(); } catch(e){}
   _QT.undo.length = 0; _QT.redo.length = 0; _qtSyncUndo();
   _qtSyncTemplatePicker();
   _qtRenderRail();
@@ -34687,6 +34707,7 @@ function _qtClose(){
   document.body.style.overflow = '';
   _QT.open = false;
   document.removeEventListener('keydown', _qtKeys, true);
+  try { _qpPreviewClassesSync(); refreshQuoteProposal(); } catch(e){}
   // Hand the zoom back to the Quote tab's own fitter.
   try { var r2 = document.getElementById('qpRoot'); if (r2) r2.style.zoom = ''; } catch(e){}
   _qpSyncSections();
@@ -34921,6 +34942,7 @@ function _qtSyncTemplatePicker(){
 }
 // The Quote tab's own picker — "Select saved quote".
 function _qtSyncSavedPicker(){
+  try { _qkMenuRender(); } catch(e){}      // the templates live in the Job type menu
   var sel = document.getElementById('qaTplSelect');
   if (!sel) return;
   var list = _qtTemplates();

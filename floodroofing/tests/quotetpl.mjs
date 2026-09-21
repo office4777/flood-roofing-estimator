@@ -164,9 +164,10 @@ v = await st();
 check('closing the window puts the proposal back on the Quote tab',
   v.open === false && v.inStage === false && v.docPages > 0, JSON.stringify(v).slice(0, 90));
 check('THE ASK: the Quote tab then offers the saved quotes to pick from',
-  (await pg.evaluate(() => [...document.querySelectorAll('#qaTplSelect option')].map(o => o.textContent).join('|')))
+  // The saved templates live in the Job type menu since 2026-09-22.
+  (await pg.evaluate(() => [...document.querySelectorAll('#qkMenuList button')].map(o => o.textContent).join('|')))
     .indexOf('Short quote') >= 0,
-  await pg.evaluate(() => [...document.querySelectorAll('#qaTplSelect option')].map(o => o.textContent).join('|')));
+  await pg.evaluate(() => [...document.querySelectorAll('#qkMenuList button')].map(o => o.textContent).join('|')));
 
 // ── picking one applies it to this job ────────────────────────────
 await pg.evaluate(() => { const q = _qpState();
@@ -307,14 +308,14 @@ await pg.waitForTimeout(600);
                 .some(b => /customer link/i.test(b.textContent || '')),
     email: [...document.querySelectorAll('#tab-quote .q-actionbar button')]
                 .some(b => /email quote/i.test(b.textContent || '')),
-    picker: (document.querySelector('#qaTplSelect option') || {}).textContent || '',
+    picker: [...document.querySelectorAll('#qkMenuList .qv-menu-hd')].map(h => h.textContent).join(' / '),
   }));
   check('THE ASK: the Save button is gone — the quote saves itself',
     bar.save === false && /autosave/i.test(bar.autosave), JSON.stringify(bar.autosave));
   check('THE ASK: the Customer link button is gone, Email Quote does that job',
     bar.custLink === false && bar.email === true, JSON.stringify({ custLink: bar.custLink, email: bar.email }));
   check('THE ASK: and there is a Change quote template picker',
-    /change quote template/i.test(bar.picker), bar.picker);
+    /quote template/i.test(bar.picker), bar.picker);
 }
 
 // ── never any part of what the customer gets ──────────────────────

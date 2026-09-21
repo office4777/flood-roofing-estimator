@@ -54,7 +54,7 @@ const total = () => pg.evaluate(() => Math.round(_quoteMoney().tot * 100) / 100)
 const bar = () => pg.evaluate(() => (document.getElementById('qaVersions') || {}).innerText || '');
 
 // ── before anything is sent ──
-check('the header row says the quote has not been sent yet', /Not sent to the customer yet/.test(await bar()) && /Drafts/.test(await bar()), (await bar()).replace(/\n/g,' · ').slice(0, 90));
+check('the header row says the quote has not been sent yet', /Not sent to the customer yet/.test(await bar()) && /Viewing:[\s\S]*Draft/.test(await bar()), (await bar()).replace(/\n/g,' · ').slice(0, 90));
 check('…and offers no Sent or Accepted button yet', !/Sent Quote|Accepted Quote/.test(await bar()));
 
 // ── email it: the sent quote is frozen ──
@@ -119,7 +119,7 @@ await pg.evaluate(() => { S.quote.proposalOptions = Object.assign({}, S.quote.pr
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({ acc: S.quote.versions.accepted, bar: document.getElementById('qaVersions').innerText }));
 check('an acceptance freezes the Accepted Quote with the customer\'s selections', !!v.acc && v.acc.quote.proposalOptions.gutterType === 'box125' && v.acc.acceptedBy === 'Matawaia Marae', JSON.stringify(v.acc && { by: v.acc.acceptedBy, gutter: v.acc.quote.proposalOptions.gutterType }));
-check('…and the selector now offers the Accepted version', /\bAccepted\b/.test(v.bar), v.bar.replace(/\n/g,' · ').slice(0, 110));
+check('…and the selector now offers the Accepted version', await pg.evaluate(() => /Accepted quote/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '')), v.bar.replace(/\n/g,' · ').slice(0, 110));
 check('…and the sentence says the customer accepted it, not that the link shows a live draft',
   /The customer accepted this quote/.test(v.bar) && !/link shows/i.test(v.bar), v.bar.replace(/\n/g,' · ').slice(-120));
 await pg.evaluate(() => { S.quote.proposalOptions.gutterType = 'none'; refreshQuoteProposal(); });
@@ -185,7 +185,7 @@ check('…the write carries the cleared acceptance, so a reload stays unlocked',
     const q = (((last && last.body && last.body.draw_state) || {}).state || {}).quote || {};
     return !q.accepted; })(),
   JSON.stringify((((puts[puts.length-1]||{}).body||{}).draw_state||{}).state ? 'quote written' : 'no quote in body'));
-check('…and the Drafts menu counts it', /Drafts \(1\)/.test(v.bar), v.bar.replace(/\n/g,' · ').slice(0, 130));
+check('…and the Viewing menu counts it', await pg.evaluate(() => /Drafts \(1 saved\)/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '') && /Draft 1/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '')), v.bar.replace(/\n/g,' · ').slice(0, 130));
 // After a new draft is made from an accepted quote, the sentence has to say
 // BOTH things without contradicting itself: the link shows this draft, and
 // the earlier acceptance is kept.

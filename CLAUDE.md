@@ -68,17 +68,13 @@ main → GitHub Tests CI → promote workflow → `production` branch → Railwa
 
 Discipline (non-negotiable):
 1. Develop and commit on the session's designated `claude/...` branch only.
-   PREVIEW FIRST (owner's rule, 2026-09-22): every push to the branch gets a
-   Vercel preview within a couple of minutes, no tests in the way, and the
-   backend's CORS allowlist admits this account's `*.vercel.app` origins so
-   it runs against the LIVE API. The branch's stable alias is
-   `https://flood-roofing-estimator-git-claude-8454b2-office4777s-projects.vercel.app/app`
-   (read it off the deployment's aliases with the Vercel MCP —
-   `list_deployments` filtered by branch, then `list_deployment_aliases`;
-   a new branch gets a new alias). Push each change to the branch, give
-   the owner that link, take his tweaks there, and run ONE gate and ONE
-   ship for the whole batch. He signs in on the preview origin like any
-   other; the service worker there is the preview's own.
+   NO PREVIEW STEP (owner's rule, 2026-09-22, replacing the preview-first
+   rule of the same morning — "I don't have time to check previews"):
+   build the batch, run the gate, ship to main as soon as it is green, and
+   report what shipped. The branch's Vercel preview still exists
+   (`https://flood-roofing-estimator-git-claude-8454b2-office4777s-projects.vercel.app/app`,
+   from `list_deployments` + `list_deployment_aliases` on the Vercel MCP)
+   for a screenshot when words are not enough, never as a gate.
 2. Before fast-forwarding main: run the FULL local suite in the background
    (`node floodroofing/tests/run.mjs`) on a clean committed tree and require
    exit 0. If files changed mid-run, the result is void — re-run clean.
@@ -324,7 +320,15 @@ Discipline (non-negotiable):
   one-page layout and the book. `_qpBookActive`/`_qpDeskActive` return
   false on a classic quote. The Quote tab's View switch is Computer / Phone
   ONLY (no Document view; `'doc'`/`'desktop'` still map to Computer) plus a
-  Style switch; the preview's classes are DERIVED from mode + style + the
+  Style switch and ONE Job type menu (`#qkMenu`, `_qkMenuRender`: Roofing /
+  Pole Shed where sold, then the saved quote templates, Default quote and
+  Edit quote template — `#qkDraftToggle` is the job-type group inside it,
+  hidden where pole sheds are not sold; `tests/poleshed.mjs`,
+  `tests/quotetpl.mjs`). THE TEMPLATE EDITOR (`_qtOpen`, `_QT.open`)
+  always shows the A4 pages: `_qpBookActive`/`_qpDeskActive` are false and
+  `_qpPreviewClassesSync` treats it like printing while it is open, or the
+  one-page layout squeezed into its stage came out one word per line. The
+  preview's classes are DERIVED from mode + style + the
   printing flag by `_qpPreviewClassesSync()` (`qp-desk-preview`,
   `qp-phone-preview`, `qp-classic-phone` = the reflow inside the phone
   frame) — never toggle them by hand; `printQuote` and both PDF paths raise
@@ -489,9 +493,12 @@ Discipline (non-negotiable):
 - The Quote tab bar is three things, not a row of same-weight buttons: the
   actions (`.qa-btn`; one `.qa-btn-primary`, `.qa-btn-warn` for Undo
   acceptance, the rest behind a native `<details class="qa-more">`), ONE
-  version selector (`.qv-seg`, the version on screen filled in: Draft / Sent /
-  Accepted) with the draft actions and saved list behind `<details
-  class="qv-menu">`, and ONE sentence (`.qv-status`) about the customer's link.
+  "Viewing: …" menu (`#qvViewingMenu`, since 2026-09-22: it names what is
+  on screen — Draft / Draft N / Sent quote / Accepted quote — and drops the
+  versions, New draft, Save this draft and every saved draft as Draft 1,
+  Draft 2 …; the three-way selector beside a separate Drafts menu read as
+  two controls for one thing), and ONE sentence (`.qv-status`) about the
+  customer's link.
   A flat row of "Sent quote · Accepted quote · New draft · Save draft · Saved
   drafts" beside a "link shows this draft, live" badge read as a contradiction
   and the owner called it more confusing than before; the sentence has to say
