@@ -76,10 +76,29 @@
       "problemMatcher": []
     },
     {
+      // Two steps run in order rather than one "a && b" command: Windows
+      // PowerShell 5.1, which is still the default shell on a stock Windows
+      // box, rejects && outright ("not a valid statement separator in this
+      // version"). dependsOn is shell-agnostic and stops if the first fails.
       "label": "First-time setup (npm ci + Playwright browsers)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["setup: npm ci", "setup: Playwright browser"],
+      "problemMatcher": []
+    },
+    {
+      "label": "setup: npm ci",
       "type": "shell",
-      "command": "npm ci && npx playwright install chromium",
+      "command": "npm",
+      "args": ["ci"],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "setup: Playwright browser",
+      "type": "shell",
+      "command": "npx",
+      "args": ["playwright", "install", "chromium"],
+      "presentation": { "reveal": "always", "panel": "dedicated" },
       "problemMatcher": []
     }
   ],

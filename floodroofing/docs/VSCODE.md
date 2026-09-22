@@ -38,9 +38,13 @@ VS Code will offer the recommended extensions. Accept them.
 
 ### 3. Install dependencies
 
-Press `Ctrl+Shift+P` → **Tasks: Run Task** → **First-time setup**. That runs
+Menu bar → **Terminal** → **Run Task...** → **First-time setup**. That runs
 `npm ci` and downloads the Playwright browser the UI suites drive. Takes a few
 minutes, once.
+
+Use the Terminal menu rather than `Ctrl+Shift+P`. Typing "run task" into the
+command palette also matches "Tasks: Show Running Tasks", which answers "no
+running task" and looks like a failure.
 
 ### 4. Prove it works before changing anything
 
