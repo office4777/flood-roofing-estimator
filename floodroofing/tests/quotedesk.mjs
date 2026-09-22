@@ -239,6 +239,21 @@ check('an office-edited description reaches the customer, grade filled in',
 check('…and the phone and the computer read the same lines and the same total',
   ph.lines.join('|') === dk.lines.join('|') && ph.total === dk.total && ph.total > 0, ph.total + ' vs ' + dk.total);
 
+// EXCLUSIONS (2026-09-22): listed by the office, they get their own heading
+// and a red cross; the inclusions gain a heading only then.
+const ex = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house'], custExcl:['Gutter replacement', 'Painting of {grade} flashings'] });
+const xd = await ex.pg.evaluate(() => ({
+  heads: [...document.querySelectorAll('#qd-proposal .qb-incl-hd')].map(e => e.textContent.trim()),
+  incl: [...document.querySelectorAll('#qd-proposal .qb-incl:not(.qb-excl) .qb-incl-row')].map(e => e.textContent.trim()),
+  excl: [...document.querySelectorAll('#qd-proposal .qb-excl .qb-excl-row')].map(e => e.textContent.trim()),
+  cross: [...document.querySelectorAll('#qd-proposal .qb-excl-row svg')].every(sv => getComputedStyle(sv).color === 'rgb(192, 57, 43)'),
+}));
+await ex.ctx.close();
+check('exclusions show under their own heading, crossed in red, and the inclusions get a heading too',
+  xd.heads.join('|') === 'What’s included|What’s excluded' && xd.incl.join('|') === 'Scaffold the house' && xd.excl.join('|') === 'Gutter replacement|Painting of Colorsteel® MAXAM flashings' && xd.cross,
+  JSON.stringify(xd));
+check('…and a quote with none carries no headings at all', dk.lines.length === 3 && !(await (async () => { const o = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house'] }); const h = await o.pg.evaluate(() => document.querySelectorAll('#qd-proposal .qb-incl-hd').length); await o.ctx.close(); return h; })()));
+
 // ── the recommended choice is the roofer's own pick ──────────────
 // "whatever selection is chosen in the app before the user sends it …
 //  becomes the recommended choice in the customer quote"
@@ -318,8 +333,22 @@ const ed = await o.pg.evaluate(async () => {
   await new Promise(r => setTimeout(r, 400));
   out.afterReset = 'custDesc' in S.quote;
   out.defaultShown = _qbInclusionLines();
+  // exclusions from the same editor
+  _qdescOpen(); await new Promise(r => setTimeout(r, 200));
+  _qdescAdd('x'); _qdescSet(0, 'Downpipes', 'x');
+  _qdescAdd('x'); _qdescSet(1, '', 'x');   // a blank one is dropped
+  out.exclRows = document.querySelectorAll('#qdescExclList .qdesc-row').length;
+  _qdescSave(); await new Promise(r => setTimeout(r, 400));
+  out.exclSaved = (S.quote.custExcl || []).slice();
+  out.exclShown = _qbExclusionLines();
+  out.exclOnPage = document.querySelectorAll('#qpRoot .qb-excl-row').length;
+  _qdescOpen(); await new Promise(r => setTimeout(r, 200));
+  _qdescDel(0, 'x'); _qdescSave(); await new Promise(r => setTimeout(r, 300));
+  out.exclGone = !('custExcl' in S.quote);
   return out;
 });
+check('the editor takes exclusions too: a blank one is dropped, the rest land on the quote and the page, and removing the last takes the field off',
+  ed.exclRows === 2 && ed.exclSaved.join('|') === 'Downpipes' && ed.exclShown.join('|') === 'Downpipes' && ed.exclOnPage >= 1 && ed.exclGone, JSON.stringify({ rows: ed.exclRows, saved: ed.exclSaved, onPage: ed.exclOnPage, gone: ed.exclGone }));
 check('the Quote tab has an office-only Edit description button', ed.btn && ed.office);
 check('…which opens on the six default lines, {grade} unfilled', ed.opened.length === 6 && ed.opened[3] === 'Install New {grade} Roofing Sheets', ed.opened.join(' / '));
 check('…reword, move, delete and add all work', ed.edited.join('|') === 'Full edge protection and scaffold|Remove existing Roofing|Install New {grade} Roofing Sheets|Tidy site and issue Warranty sign-off|Install all associated Flashings|Cart away the old roof', ed.edited.join(' / '));

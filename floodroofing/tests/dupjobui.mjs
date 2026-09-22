@@ -16,6 +16,7 @@ const ctx = await b.newContext({ viewport:{width:1400,height:950} });
 const pg = await ctx.newPage();
 pg.on('pageerror', e => console.log('PAGEERROR', e.message));
 pg.on('dialog', d => d.accept());
+const puts = [];
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
   const q = r.request(), u = q.url(), m = q.method();
   const j = (code, x) => r.fulfill({status:code,contentType:'application/json',body:JSON.stringify(x)});
@@ -26,6 +27,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
         existing:{ id:'0f695ede', client_name:'Nikki Barrett', site_address:'11 Morcom Lane, Kerikeri', updated_at:'2026-08-18T19:50:26Z' } });
     return j(200, { id:'new-job-1', client_name: body.client_name, site_address: body.site_address });
   }
+  if (/\/jobs\/0f695ede/.test(u) && m === 'PUT'){ puts.push(q.postDataJSON()); return j(200, { id:'0f695ede', updated_at:new Date().toISOString() }); }
   if (/\/jobs\/0f695ede/.test(u) && m === 'GET')
     return j(200, { id:'0f695ede', client_name:'Nikki Barrett', site_address:'11 Morcom Lane, Kerikeri', draw_state:{ state:{ quote:{ ref:'3099' } } } });
   if (/__failtest/.test(u)) return j(500, { error:'The price book could not be reached.' });
@@ -37,16 +39,29 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorag
 await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2500);
 
-async function attemptSave(){
-  await pg.evaluate(() => {
+async function attemptSave(client, addr){
+  await pg.evaluate(([client, addr]) => {
     S.currentJobId = null;
-    document.getElementById('jobClient').value = 'Nikki Barrett';
-    document.getElementById('jobAddr').value = '11 Morcom Lane, Kerikeri';
+    document.getElementById('jobClient').value = client;
+    document.getElementById('jobAddr').value = addr;
     S.quote = S.quote || {}; S.quote.ref = '3099';
     return saveCurrentJob();
-  });
+  }, [client || 'Another Customer', addr || '5 Other Road']);
   await pg.waitForTimeout(700);
 }
+// THE SAME JOB (2026-09-22): the record with this number has the same
+// client — the app lost the id, not the office — so with nothing drawn yet
+// it is simply opened, and with work on screen the save goes onto it.
+await attemptSave('Nikki Barrett', '11 Morcom Lane, Kerikeri');
+let same = await pg.evaluate(() => ({ modal: !!document.getElementById('dupJobModal'), jobId: S.currentJobId }));
+check('the same client\'s record with this number is opened by itself, no question', !same.modal && same.jobId === '0f695ede', JSON.stringify(same));
+await pg.evaluate(() => { S.currentJobId = null; DRAW.outline = [[0,0],[100,0],[100,80],[0,80]]; });
+await attemptSave('nikki barrett', '11 Morcom Lane, Kerikeri');
+same = await pg.evaluate(() => ({ modal: !!document.getElementById('dupJobModal'), jobId: S.currentJobId, msg: (document.getElementById('globalJobBarSaveMsg')||{}).textContent || '' }));
+check('…and with a drawing on screen the save goes ONTO that record', !same.modal && same.jobId === '0f695ede' && puts.length === 1 && puts[0].draw_state && /Saved/.test(same.msg), JSON.stringify({ same, puts: puts.length }));
+await pg.evaluate(() => { DRAW.outline = []; S.currentJobId = null; });
+posts.length = 0;
+// A different client's record still gets the question.
 await attemptSave();
 
 let v = await pg.evaluate(() => {

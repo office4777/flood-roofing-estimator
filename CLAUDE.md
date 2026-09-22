@@ -179,6 +179,17 @@ Discipline (non-negotiable):
   plan. Job 3245 went out during the stall above and was neither in Quotes
   sent nor marked sent in Fergus, with nothing on screen to say so.
   `tests/emailpush.mjs`.
+- A SAVE REFUSED FOR A DUPLICATE JOB NUMBER (2026-09-22) attaches by
+  itself when the existing record is plainly the same job (same client or
+  same address, `_dupJobIsSame`): with work on screen (`_screenHasWork`)
+  the save goes ONTO that record, with nothing drawn yet that record is
+  opened; only a different client's record still gets the "already
+  exists" question. `tests/dupjobui.mjs`.
+- EXCLUSIONS on the modern proposal: `S.quote.custExcl` (edited beside
+  the inclusions in `_qdescOpen`, kind `'x'`; `_qbExclusionLines`). When
+  any exist the two lists get "What's included" / "What's excluded"
+  headings and the exclusions a red cross (`.qb-excl-row`); a quote with
+  none reads as before. `tests/quotedesk.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

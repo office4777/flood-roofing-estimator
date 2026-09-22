@@ -3633,6 +3633,13 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-incl-row{ display:flex; gap:10px; align-items:flex-start; padding:10px 13px; border-bottom:1px solid #eef2f6; font-size:13.5px; line-height:1.4; color:#26374b; }
 .qb-incl-row:last-child{ border-bottom:none; }
 .qb-incl-row svg{ color:#2e9e57; flex:0 0 auto; margin-top:2px; }
+.qb-incl-hd{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; color:#2e9e57; margin:0 0 6px 2px; }
+.qb-excl-hd{ color:#c0392b; margin-top:4px; }
+.qb-excl-row svg{ color:#c0392b; }
+.qb-excl-row span{ color:#5b6b7c; }
+.qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:12px 0 4px; }
+.qdesc-sub span{ font-weight:400; color:var(--text2); }
+.qdesc-row-x .qdesc-n{ color:#c0392b; font-weight:700; }
 .qb-price-open{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
   background:#0a1628; color:#fff; border-radius:13px; padding:11px 15px; margin-bottom:14px; }
 .qb-price-open span{ font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); }
@@ -17453,8 +17460,26 @@ async function _saveCurrentJobNow(){
         // This save carries a job number another record already has — almost
         // always the app having lost track of which job it was editing. Ask,
         // rather than quietly creating a second record for the same job.
-        if (e0 && e0.code === 'DUPLICATE_JOB_NO'){ set('', ''); return _askDuplicateJob(e0.data, body, set); }
-        throw e0;
+        if (e0 && e0.code === 'DUPLICATE_JOB_NO'){
+          // THE SAME JOB (2026-09-22): the record with this number is plainly
+          // this job — same client or same address — so the app lost track
+          // of its id, not the office. With work on screen the save goes
+          // ONTO that record; with nothing drawn yet that record is opened.
+          // A different client's record still gets the question.
+          var _ex = e0.data && e0.data.existing;
+          if (_ex && _ex.id && _dupJobIsSame(_ex, client, addr)){
+            if (_screenHasWork()){
+              S.currentJobId = _ex.id; S._jobLoaded = null; window._photoAck = null; window._lastSent = null;
+              saved = await api('PUT', '/jobs/' + _ex.id, body);
+              try { _siteToast('Job ' + (e0.data.jobNo || '') + ' already existed — saved onto it'); } catch(e){}
+            } else {
+              set('', '');
+              try { _siteToast('Job ' + (e0.data.jobNo || '') + ' already exists — opening it'); } catch(e){}
+              await _dupJobOpen(_ex.id);
+              return;
+            }
+          } else { set('', ''); return _askDuplicateJob(e0.data, body, set); }
+        } else throw e0;
       }
     }
     S.currentJobId = saved.id;
@@ -17615,6 +17640,22 @@ async function _jobMovedOverwrite(){
    though the real one is sitting right there. Rather than guess which the
    office meant, show both ways out — and write a local draft first, so
    whichever they pick, nothing in the app right now is lost. */
+// The record with this number is this job when the client or the address
+// is the same (case and spacing aside).
+function _dupJobIsSame(ex, client, addr){
+  var n = function(x){ return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+  var c = n(client), a = n(addr);
+  return (!!c && n(ex.client_name) === c) || (!!a && n(ex.site_address) === a);
+}
+// Something drawn or priced on screen, as opposed to a job just opened.
+function _screenHasWork(){
+  try {
+    if (window.DRAW && ((DRAW.outline && DRAW.outline.length >= 3) || (DRAW.roofs || []).some(function(r){ return r && r.outline && r.outline.length >= 3; }))) return true;
+    if (S.quote && ((S.quote.lineItems || []).length || (S.quote.condPhotos || []).some(Boolean) || S.quote.custDesc || S.quote.custExcl)) return true;
+    if ((S.photos || []).length) return true;
+  } catch(e){}
+  return false;
+}
 function _askDuplicateJob(info, body, set){
   info = info || {};
   var ex = info.existing || {};
@@ -27419,6 +27460,7 @@ function _qbGalPaint(n, total){
 // Top half: what is included. Bottom half: the roof plan, with the roofs
 // the customer can add or drop. This is where the price starts.
 function _qbProposal(opts){
+  var excl = _qbExclusionLines();
   opts = opts || {};
   var q = S.quote || {};
   var lines = _qbInclusionLines();
@@ -27434,11 +27476,18 @@ function _qbProposal(opts){
       '<span class="qb-eyebrow">What we will do</span>'+
       '<h2 class="qb-h2">Re-Roof Proposal</h2>'+
       _qeInlineBtn('desc')+
+      // Exclusions (2026-09-22): when the office lists any, the two lists
+      // get headings and the exclusions carry a red cross.
+      (excl.length ? '<div class="qb-incl-hd">What\u2019s included</div>' : '')+
       '<div class="qb-incl">'+
         lines.map(function(t){
           return '<div class="qb-incl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+
       '</div>'+
+      (excl.length ? '<div class="qb-incl-hd qb-excl-hd">What\u2019s excluded</div><div class="qb-incl qb-excl">'+
+        excl.map(function(t){
+          return '<div class="qb-incl-row qb-excl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>'+esc2(t)+'</span></div>';
+        }).join('')+'</div>' : '')+
       extraRows+
     '</div>'+
     (roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '');
@@ -27517,6 +27566,16 @@ function _qbInclusionLines(){
   var g = _qbGradeName();
   return _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
 }
+// What the price does NOT cover, per quote (`S.quote.custExcl`); none by
+// default, so a quote with none reads exactly as before.
+function _custExclLines(){
+  var q = S.quote || {};
+  return (Array.isArray(q.custExcl) ? q.custExcl : []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+}
+function _qbExclusionLines(){
+  var g = _qbGradeName();
+  return _custExclLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+}
 // ── the office editor for those lines ─────────────────────────────
 // The classic document's description is the "What's included and our
 // process" scope: one bullet a line, stored with a leading "• ".
@@ -27547,8 +27606,11 @@ function _qdescOpen(){
         ? 'The "What\u2019s included and our process" list on the document, one line a bullet. For this quote only.'
         : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
       '<div class="qdesc-list" id="qdescList"></div>'+
+      (classic ? '' : '<div class="qdesc-sub">Exclusions <span>— what the price does not cover; shown with a cross under their own heading, only when there are any</span></div>'+
+        '<div class="qdesc-list" id="qdescExclList"></div>')+
       '<div class="qdesc-ft">'+
         '<button type="button" class="qa-btn" onclick="_qdescAdd()">+ Add line</button>'+
+        (classic ? '' : '<button type="button" class="qa-btn" onclick="_qdescAdd(\'x\')">+ Add exclusion</button>')+
         '<button type="button" class="qa-btn" onclick="_qdescReset()">Reset to default</button>'+
         '<span style="flex:1"></span>'+
         '<button type="button" class="qa-btn" onclick="_qdescClose()">Cancel</button>'+
@@ -27558,33 +27620,42 @@ function _qdescOpen(){
   document.body.appendChild(host);
   host.addEventListener('click', function(e){ if (e.target === host) _qdescClose(); });
   host._lines = lines;
+  host._excl = classic ? [] : _custExclLines().slice();
   _qdescPaint();
 }
+// Two lists in one editor: the inclusions (kind '' / 'i') and the
+// exclusions (kind 'x'). Every row helper takes the kind last.
+function _qdescListOf(h, k){ return k === 'x' ? (h._excl || (h._excl = [])) : h._lines; }
 function _qdescPaint(){
   var host = document.getElementById('qdescModal'); if (!host) return;
-  var list = document.getElementById('qdescList'); if (!list) return;
-  var lines = host._lines;
-  list.innerHTML = lines.map(function(l, i){
-    return '<div class="qdesc-row">'+
-        '<span class="qdesc-n">'+(i+1)+'</span>'+
-        '<input type="text" value="'+esc2(l)+'" oninput="_qdescSet('+i+',this.value)" placeholder="Describe one step of the work">'+
-        '<button type="button" title="Move up" onclick="_qdescMove('+i+',-1)"'+(i===0?' disabled':'')+'>&#9650;</button>'+
-        '<button type="button" title="Move down" onclick="_qdescMove('+i+',1)"'+(i===lines.length-1?' disabled':'')+'>&#9660;</button>'+
-        '<button type="button" class="qdesc-del" title="Remove this line" onclick="_qdescDel('+i+')">&#10005;</button>'+
-      '</div>';
-  }).join('') || '<p class="qb-para">No lines yet — add one, or reset to the default six.</p>';
+  var paint = function(id, k, ph, empty){
+    var list = document.getElementById(id); if (!list) return;
+    var lines = _qdescListOf(host, k);
+    var kq = k === 'x' ? "'x'" : "''";
+    list.innerHTML = lines.map(function(l, i){
+      return '<div class="qdesc-row'+(k === 'x' ? ' qdesc-row-x' : '')+'">'+
+          '<span class="qdesc-n">'+(k === 'x' ? '\u2715' : (i+1))+'</span>'+
+          '<input type="text" value="'+esc2(l)+'" oninput="_qdescSet('+i+',this.value,'+kq+')" placeholder="'+ph+'">'+
+          '<button type="button" title="Move up" onclick="_qdescMove('+i+',-1,'+kq+')"'+(i===0?' disabled':'')+'>&#9650;</button>'+
+          '<button type="button" title="Move down" onclick="_qdescMove('+i+',1,'+kq+')"'+(i===lines.length-1?' disabled':'')+'>&#9660;</button>'+
+          '<button type="button" class="qdesc-del" title="Remove this line" onclick="_qdescDel('+i+','+kq+')">&#10005;</button>'+
+        '</div>';
+    }).join('') || '<p class="qb-para">'+empty+'</p>';
+  };
+  paint('qdescList', '', 'Describe one step of the work', 'No lines yet — add one, or reset to the default six.');
+  paint('qdescExclList', 'x', 'Something the price does not cover', 'No exclusions — the customer sees the inclusions only.');
 }
-function _qdescSet(i, v){ var h = document.getElementById('qdescModal'); if (h && h._lines[i] != null) h._lines[i] = v; }
-function _qdescMove(i, d){
+function _qdescSet(i, v, k){ var h = document.getElementById('qdescModal'); if (!h) return; var L = _qdescListOf(h, k); if (L[i] != null) L[i] = v; }
+function _qdescMove(i, d, k){
   var h = document.getElementById('qdescModal'); if (!h) return;
-  var L = h._lines, j = i + d; if (j < 0 || j >= L.length) return;
+  var L = _qdescListOf(h, k), j = i + d; if (j < 0 || j >= L.length) return;
   var t = L[i]; L[i] = L[j]; L[j] = t; _qdescPaint();
 }
-function _qdescDel(i){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines.splice(i, 1); _qdescPaint(); }
-function _qdescAdd(){
+function _qdescDel(i, k){ var h = document.getElementById('qdescModal'); if (!h) return; _qdescListOf(h, k).splice(i, 1); _qdescPaint(); }
+function _qdescAdd(k){
   var h = document.getElementById('qdescModal'); if (!h) return;
-  h._lines.push(''); _qdescPaint();
-  try { var ins = h.querySelectorAll('#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
+  _qdescListOf(h, k).push(''); _qdescPaint();
+  try { var ins = h.querySelectorAll(k === 'x' ? '#qdescExclList input' : '#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
 }
 function _qdescReset(){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice(); _qdescPaint(); }
 function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
@@ -27603,6 +27674,8 @@ function _qdescSave(){
   // default reaches quotes nobody customised.
   var isDefault = lines.length === CUST_DESC_DEFAULT.length && lines.every(function(l, i){ return l === CUST_DESC_DEFAULT[i]; });
   if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
+  var excl = (h._excl || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+  if (excl.length) S.quote.custExcl = excl; else delete S.quote.custExcl;
   _qdescClose();
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
