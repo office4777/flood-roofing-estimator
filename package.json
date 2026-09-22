@@ -7,7 +7,8 @@
     "test": "node floodroofing/tests/run.mjs",
     "test:api": "node floodroofing/tests/run.mjs api",
     "test:ui": "node floodroofing/tests/run.mjs ui",
-    "test:sheets": "node floodroofing/docs/ci_sheet_tests.js"
+    "test:sheets": "node floodroofing/docs/ci_sheet_tests.js",
+    "setup": "npm ci && npm --prefix floodroofing/backend ci --no-audit --no-fund && npx playwright install chromium"
   },
   "devDependencies": {
     "playwright": "1.56.1"

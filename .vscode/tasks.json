@@ -82,7 +82,11 @@
       // version"). dependsOn is shell-agnostic and stops if the first fails.
       "label": "First-time setup (npm ci + Playwright browsers)",
       "dependsOrder": "sequence",
-      "dependsOn": ["setup: npm ci", "setup: Playwright browser"],
+      "dependsOn": [
+        "setup: npm ci",
+        "setup: backend packages",
+        "setup: Playwright browser"
+      ],
       "problemMatcher": []
     },
     {
@@ -91,6 +95,18 @@
       "command": "npm",
       "args": ["ci"],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // The backend keeps its own package.json, and the root `npm ci` does
+      // not reach it. Miss this and 61 suites die in 0.1s on "Cannot find
+      // module 'jsonwebtoken'" — a whole 19-minute gate spent proving the
+      // laptop had never installed express and friends.
+      "label": "setup: backend packages",
+      "type": "shell",
+      "command": "npm",
+      "args": ["--prefix", "floodroofing/backend", "ci", "--no-audit", "--no-fund"],
+      "presentation": { "reveal": "always", "panel": "dedicated" },
       "problemMatcher": []
     },
     {

@@ -38,9 +38,18 @@ VS Code will offer the recommended extensions. Accept them.
 
 ### 3. Install dependencies
 
-Menu bar → **Terminal** → **Run Task...** → **First-time setup**. That runs
-`npm ci` and downloads the Playwright browser the UI suites drive. Takes a few
-minutes, once.
+Menu bar → **Terminal** → **Run Task...** → **First-time setup**. Takes a few
+minutes, once. It installs three things, and all three are needed:
+
+1. the root packages (`npm ci`) — Playwright itself;
+2. the BACKEND's packages (`npm --prefix floodroofing/backend ci`) — the
+   backend keeps its own `package.json` and the root install does not reach
+   it;
+3. the Playwright browser the UI suites drive.
+
+Skip the second and 61 suites die in 0.1 s on "Cannot find module
+'jsonwebtoken'", which reads like 61 broken tests and is really one missing
+install. From a terminal the whole lot is `npm run setup`.
 
 Use the Terminal menu rather than `Ctrl+Shift+P`. Typing "run task" into the
 command palette also matches "Tasks: Show Running Tasks", which answers "no
