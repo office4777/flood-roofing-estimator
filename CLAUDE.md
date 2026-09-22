@@ -200,6 +200,23 @@ Discipline (non-negotiable):
   $16.50 until the owner sets his). The customer's gutter delta reads the
   same lines, so the pricegold baseline moved on every box-gutter
   combination. `tests/gutterprice.mjs`, `tests/chainwalk.mjs`.
+- DELETE THIS PAGE / INSERT … PAGE on the modern sections (2026-09-22):
+  the grade, profile and thickness sections carry "Delete this page from
+  this quote" (`_qbSectionRemove` → `S.quote.modernParked`, the same store
+  the template editor uses; the condition page is still the A4 page
+  toggle) and each carries its own edit button (`profile`, `thickness` in
+  `QE_INLINE` → `_qselOpen('profile'|'thickness')`). A section taken out
+  leaves an "+ Insert … page" placeholder where the default order puts it
+  on the computer preview (`_qdWithPlaceholders`, `.qd-parked`) and a strip
+  under the phone book (`.qb-parked`) — office only, never the customer or
+  paper (`_qbParkedForOffice`). `tests/quoteeditor.mjs`.
+- THE GRADE AND GAUGE PERCENTAGES ARE WORKED ON THE RAW MATERIAL COST
+  (2026-09-22): `S.quote.materialRaw` is stamped beside `materialBase`
+  (the figure before the quantity buffer and the mark-up);
+  `_selMaterialBaseRaw()` reads it, or divides the buffer and mark-up back
+  out of `materialBase` on an older quote. `_selGradeDelta` (percentage
+  path) and `_selGauge55Delta` use it, so the pricegold baseline moved on
+  every grade-swap and 0.55 combination.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

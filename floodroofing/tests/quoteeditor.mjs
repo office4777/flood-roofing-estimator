@@ -69,7 +69,7 @@ const where = await pg.evaluate(async () => {
   return out;
 });
 check('Edit description sits on the proposal, Edit roof condition on the condition, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  where.desk.join(',') === 'desc@qd-proposal,cond@qd-condition,sel@qd-grade,gutter@qd-gutter', JSON.stringify(where.desk));
+  where.desk.join(',') === 'desc@qd-proposal,cond@qd-condition,sel@qd-grade,profile@qd-profile,thickness@qd-thickness,gutter@qd-gutter', JSON.stringify(where.desk));
 // …and on a wide office screen they are lifted into a rail down the LEFT of
 // the preview, each one level with the thing it edits and pointing at it.
 const rail = await pg.evaluate(async () => {
@@ -87,8 +87,8 @@ const rail = await pg.evaluate(async () => {
   return { on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
            inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
 });
-check('a wide office screen shows the rail: four buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
-  rail.on && rail.gutter >= 150 && rail.btns.length === 4 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 4 && rail.lines.every(Boolean) && rail.inlineHidden,
+check('a wide office screen shows the rail: six buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 6 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 6 && rail.lines.every(Boolean) && rail.inlineHidden,
   JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
@@ -257,6 +257,47 @@ const views = await pg.evaluate(async () => {
 });
 check('zooming the proposal’s plan does not move the review’s plan', /scale\(1\.5\)/.test(views.desk) && /scale\(1\)/.test(views.desksum) && views.saved && views.saved.zoom === 1.5 && (!views.main || views.main.zoom === 1), JSON.stringify(views));
 check('the phone’s plan follows the computer’s until it is moved itself, and then each keeps its own', views.bookFollows === 1.5 && views.bookOwn === 2 && views.deskAfter === 1.5, JSON.stringify(views));
+
+// DELETE THIS PAGE / INSERT … PAGE (2026-09-22): the grade, profile and
+// thickness sections carry the delete link; a deleted section leaves an
+// Insert button where it was, on the computer preview and under the book.
+const park = await pg.evaluate(async () => {
+  const out = {};
+  out.delBtns = [...document.querySelectorAll('#qpRoot .qb-sec-del')].map(b => b.closest('.qd-sec').getAttribute('data-qd-sec'));
+  _qbSectionRemove('profile'); await new Promise(r => setTimeout(r, 500));
+  out.parked = (S.quote.modernParked || []).slice();
+  out.profileGone = !document.querySelector('#qd-profile');
+  const ph = document.querySelector('#qpRoot .qd-parked[data-qd-parked="profile"]');
+  out.placeholder = ph ? ph.textContent.trim() : null;
+  out.afterGrade = ph && ph.previousElementSibling && ph.previousElementSibling.getAttribute('data-qd-sec');
+  out.beforeThickness = ph && ph.nextElementSibling && ph.nextElementSibling.getAttribute('data-qd-sec');
+  // the customer never sees a placeholder
+  window.__CUSTOMER_MODE = true; out.custParked = _qbParkedForOffice().length; window.__CUSTOMER_MODE = false;
+  _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 700));
+  out.bookStrip = [...document.querySelectorAll('#qpRoot .qb-parked .qe-insert')].map(b => b.textContent.trim());
+  out.bookHasProfile = _qbPages().some(p => p.key === 'profile');
+  _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 700));
+  _qbSectionInsert('profile'); await new Promise(r => setTimeout(r, 500));
+  out.back = !!document.querySelector('#qd-profile') && !document.querySelector('#qpRoot .qd-parked');
+  return out;
+});
+check('the grade, profile and thickness sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness', JSON.stringify(park.delBtns));
+check('deleting the profile section leaves an Insert Profile page button between the grade and the thickness', park.parked.join(',') === 'profile' && park.profileGone && /Insert Profile page/.test(park.placeholder || '') && park.afterGrade === 'grade' && park.beforeThickness === 'thickness', JSON.stringify(park));
+check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
+check('…and Insert puts it back', park.back);
+
+// GRADE AND GAUGE DELTAS ARE WORKED ON THE RAW MATERIAL COST — before the
+// quantity buffer and the mark-up (2026-09-22).
+const raw = await pg.evaluate(() => {
+  S.quote.materialBase = 11550; S.quote.materialRaw = 10000;
+  const g = _selGauge55Delta(), z = _selGradeDelta('zincalume');
+  const q0 = S.quote; delete q0.materialRaw; q0.roofMatQtyBuffer = 5; q0.roofMaterialMarkup = 10;
+  const derived = _selMaterialBaseRaw();
+  return { g, z, pct: _selGradePctOf('zincalume'), derived };
+});
+check('the 0.55 upgrade is 22% of the raw material, not of the marked-up figure', Math.abs(raw.g - 2200) < 0.01, String(raw.g));
+check('…and a grade swap likewise', Math.abs(raw.z - raw.pct * 10000) < 0.01, raw.z + ' vs ' + raw.pct * 10000);
+check('…a quote stamped before the raw figure existed divides the buffer and the mark-up back out', Math.abs(raw.derived - 10000) < 0.5, String(raw.derived));
 
 // ONE WRITE TO THE JOB AT A TIME: saves and the quote publish never overlap
 // on the row, and a burst of saves collapses to the one running and one

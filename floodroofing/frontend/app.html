@@ -3587,6 +3587,11 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-cond-btn.on{ background:#0099cc; border-color:#0099cc; color:#fff; }
 .qb-cond-link{ border:none; background:none; padding:4px 6px; font-family:inherit; font-size:12px; font-weight:600; color:#0077a3; cursor:pointer; text-decoration:underline; }
 .qb-cond-link.qb-cond-del{ color:#b4232c; }
+.qb-sec-del{ display:block; margin:-4px 0 10px; padding-left:0; font-size:11.5px; }
+.qd-parked{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
+.qe-insert{ border-style:dashed; }
+.qb-parked{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; background:#f4f6f9; border-top:1px dashed #b7c3d0; }
+.qb-parked .qe-inline{ margin:0; }
 .qb-cond-slots{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; padding:0 18px 18px; }
 .qd-sec .qb-cond-slots{ padding:0 28px 26px; }
 .qb-note{ margin:12px 0 0; font-size:12px; line-height:1.5; color:#6b7a8c; font-style:italic; }
@@ -24556,6 +24561,21 @@ function _selMaterialBase(){
   if (isFinite(b) && b > 0) return b;
   return (window.S && parseFloat(S.materials)) || 0;
 }
+// The material cost BEFORE the quantity buffer and the mark-up. A grade
+// swap or the 0.55 upgrade is a percentage of the steel, so it is worked on
+// this, never on the marked-up figure (the owner's rule, 2026-09-22). A
+// quote stamped before the raw figure existed divides the buffer and the
+// mark-up back out.
+function _selMaterialBaseRaw(){
+  var q = (window.S && S.quote) || {};
+  var r = parseFloat(q.materialRaw);
+  if (isFinite(r) && r > 0) return r;
+  var base = _selMaterialBase();
+  try {
+    var b = _roofMatQtyBufferPct(0), m = _roofMatMarkupPct(0);
+    return base / ((1 + (parseFloat(b) || 0) / 100) * (1 + (parseFloat(m) || 0) / 100));
+  } catch(e){ return base; }
+}
 // Is a roof physically attached to the house (so its gutter is part of the
 // continuous house gutter run)? Default true; the office marks detached
 // structures (e.g. a standalone garage) as "own gutters".
@@ -24625,9 +24645,9 @@ function _selGradeDelta(gradeId){
   // grade as "Included" and the others as +/− from it — no double-counting.
   var q = (window.S && S.quote) || {};
   var basePct = _selGradePctOf(q.baseGrade || _selBaseGradeId());
-  return (pct - basePct) * _selMaterialBase();
+  return (pct - basePct) * _selMaterialBaseRaw();
 }
-function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
+function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBaseRaw(); }
 var SEL_DOWNPIPE_PER_LINE = 150; // $/gutter line ex-GST
 // Number of gutter lines (runs) drawn on the roof — one downpipe per line.
 // Stashed on the quote office-side so the customer share prices identically.
@@ -27171,6 +27191,8 @@ function _qbRender(){
         '</button>'+
       '</div>'+
       '<div class="qb-scroll-hint" id="qbScrollHint" aria-hidden="true">Scroll<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
+      // The office's phone preview: the pages taken out, each with its Insert.
+      (function(){ var pk = _qbParkedForOffice(); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
     '</div>';
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
@@ -27734,6 +27756,8 @@ var QE_INLINE = {
   desc:   { label:'Edit description',                 title:'The description of the work the customer reads. Reword, reorder, remove or add lines \u2014 for this quote only.' },
   sel:    { label:'Edit this quote\u2019s selections', title:'Which roofing products this quote offers \u2014 steel grades, profiles, gauges. For this quote only.' },
   gutter: { label:'Edit gutter selections',           title:'Which gutters, brackets and downpipes this quote offers. For this quote only.' },
+  profile:   { label:'Edit roof profiles',            title:'Which roof profiles this quote offers. For this quote only.' },
+  thickness: { label:'Edit steel thicknesses',        title:'Which steel gauges this quote offers. For this quote only.' },
   cond:   { label:'Edit roof condition',              title:'The summary, the age, the material, the issues and the photos of the existing roof.' }
 };
 function _qeInlineBtn(what){
@@ -27813,6 +27837,8 @@ function _qeEdit(what){
   if (what === 'desc') return _qdescOpen();
   if (what === 'sel') return _qselOpen();
   if (what === 'gutter') return _qselOpen('gutter');
+  if (what === 'profile') return _qselOpen('profile');
+  if (what === 'thickness') return _qselOpen('thickness');
   if (what === 'cond') return _qeOpenCondition();
 }
 function _qeEditDescription(){ _qeSpot('desc'); _qdescOpen(); }
@@ -27860,8 +27886,8 @@ function _qselOpen(filter){
   host.id = 'qselModal'; host.className = 'no-print';
   host._filter = filter || '';
   host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
-  var ttl = filter === 'gutter' ? 'Edit gutter selections' : 'Edit this quote\u2019s selections';
-  var what = filter === 'gutter' ? 'a gutter, bracket or downpipe option' : 'a product';
+  var ttl = { gutter:'Edit gutter selections', profile:'Edit roof profiles', thickness:'Edit steel thicknesses' }[filter] || 'Edit this quote\u2019s selections';
+  var what = { gutter:'a gutter, bracket or downpipe option', profile:'a profile', thickness:'a gauge' }[filter] || 'a product';
   host.innerHTML = '<div class="qsel">'+
       '<div class="qsel-hd"><b>'+esc2(ttl)+'</b><span>Untick '+what+' and this quote stops offering it \u2014 on the phone, the computer and the document. Nothing here changes what other quotes offer.</span></div>'+
       '<div class="qsel-list" id="qselList"></div>'+
@@ -27881,6 +27907,8 @@ var QSEL_GUTTER_KINDS = ['gutters', 'brackets', 'downpipes'];
 function _qselGroups(filter){
   var all = _qselGroupsAll();
   if (filter === 'gutter') return all.filter(function(g){ return QSEL_GUTTER_KINDS.indexOf(g.kind) >= 0; });
+  if (filter === 'profile') return all.filter(function(g){ return g.kind === 'profiles'; });
+  if (filter === 'thickness') return all.filter(function(g){ return g.kind === 'thickness'; });
   return all;
 }
 function _qselGroupsAll(){
@@ -27983,6 +28011,7 @@ function _qbOptionPage(o){
       '<span class="qb-eyebrow">'+esc2(o.eyebrow || 'Your options')+'</span>'+
       '<h2 class="qb-h2">'+esc2(o.title)+'</h2>'+
       (o.edit ? _qeInlineBtn(o.edit) : '')+
+      ((o.del && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\''+esc2(o.del)+'\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>' : '')+
       (o.blurb ? '<p class="qb-para">'+esc2(o.blurb)+'</p>' : '')+
       (o.figure || '')+
       '<div class="qb-opts">'+rows+'</div>'+
@@ -28314,7 +28343,44 @@ function _qbBindExtraSetters(){
 function _qpOptPageWrap(key, o){
   if (key === 'grade') o.edit = 'sel';
   else if (key === 'gutter') o.edit = 'gutter';
+  else if (key === 'profile') o.edit = 'profile';
+  else if (key === 'thickness') o.edit = 'thickness';
+  // The office can take the grade, profile or thickness section out of this
+  // quote from the section itself (2026-09-22); an "Insert … page" button
+  // stands where it was.
+  if (key === 'grade' || key === 'profile' || key === 'thickness') o.del = key;
   return _qbOptionPage(o);
+}
+// ── taking a section out of this quote, and putting it back ─────────
+// The same store the template editor uses (`S.quote.modernParked`; the
+// condition page is the A4's page, so it is toggled in the document), from
+// the section itself, no editor open.
+function _qbSectionRemove(key){
+  if (!S.quote) return;
+  if (key === 'condition') return _qbCondRemovePage();
+  if (!Array.isArray(S.quote.modernParked)) S.quote.modernParked = [];
+  if (S.quote.modernParked.indexOf(key) < 0) S.quote.modernParked.push(key);
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast(_qModernLabel(key) + ' taken out of this quote \u2014 an Insert button stands where it was'); } catch(e){}
+}
+function _qbSectionInsert(key){
+  if (!S.quote) return;
+  if (key === 'condition'){ try { if (!_qpInDoc('condition')) toggleProposalSection('condition'); } catch(e){} }
+  if (Array.isArray(S.quote.modernParked)) S.quote.modernParked = S.quote.modernParked.filter(function(k){ return k !== key; });
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+// The sections the office has taken out and could put back, for the
+// previews' placeholders. Never for the customer, never on paper.
+function _qbParkedForOffice(){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || !S.quote) return [];
+  var out = (Array.isArray(S.quote.modernParked) ? S.quote.modernParked : []).slice();
+  try { if (S.quote.pages && S.quote.pages.length && !_qpInDoc('condition') && out.indexOf('condition') < 0) out.unshift('condition'); } catch(e){}
+  return out;
+}
+function _qbInsertBtnHtml(key){
+  return '<button type="button" class="qe-inline qe-insert no-print" onclick="_qbSectionInsert(\''+esc2(key)+'\')" title="Put this section back into this quote">+ Insert '+esc2(_qModernLabel(key))+' page</button>';
 }
 // Mark the recommended row of a fixed group: the office's pick, else the base.
 function _qbRecMark(items, field, fallback){
@@ -28494,7 +28560,8 @@ function _qbCondSectionOn(){
   if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return _qbHasCondition();
   return true;
 }
-function _qdSections(){
+function _qdSections(){ return _qModernApply(_qdSectionsRaw()); }
+function _qdSectionsRaw(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
   list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
@@ -28515,7 +28582,26 @@ function _qdSections(){
     });
   } catch(e){}
   list.push({ key:'review', label:'Review', html:_qdReview });
-  return _qModernApply(list);
+  return list;
+}
+// The office's preview shows an "Insert … page" placeholder where a
+// section was taken out, at the place the default order puts it.
+function _qdWithPlaceholders(secs){
+  var parked = _qbParkedForOffice(); if (!parked.length) return secs;
+  var raw = _qdSectionsRaw().map(function(x){ return x.key; });
+  if (raw.indexOf('condition') < 0) raw.splice(raw.indexOf('proposal') + 1, 0, 'condition');
+  var out = secs.slice();
+  parked.forEach(function(k){
+    if (out.some(function(x){ return x.key === k; })) return;
+    var ri = raw.indexOf(k); if (ri < 0) return;
+    var at = 1;
+    for (var j = ri - 1; j >= 0; j--){
+      var pi = -1; for (var x = 0; x < out.length; x++) if (out[x].key === raw[j]){ pi = x; break; }
+      if (pi >= 0){ at = pi + 1; break; }
+    }
+    out.splice(at, 0, { key:k, parked:true, label:_qModernLabel(k) });
+  });
+  return out;
 }
 function _qdRender(){
   var root = document.getElementById('qpRoot'); if (!root) return;
@@ -28523,7 +28609,8 @@ function _qdRender(){
   var br = (S.settings && S.settings.branding) || {};
   var logo = br.logo_url || br.logo || '';
   var q = S.quote || {};
-  var main = secs.map(function(sc){
+  var main = _qdWithPlaceholders(secs).map(function(sc){
+    if (sc.parked) return '<section class="qd-sec qd-parked no-print" data-qd-parked="'+esc2(sc.key)+'">'+_qbInsertBtnHtml(sc.key)+'</section>';
     var inner = '';
     try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
     return '<section class="qd-sec qd-sec-'+esc2(sc.key)+'" id="qd-'+esc2(sc.key)+'" data-qd-sec="'+esc2(sc.key)+'">'+inner+'</section>';
@@ -33060,6 +33147,10 @@ function refreshQuoteProposal(){
     var _multi0 = (DRAW.roofs && DRAW.roofs.length > 1);
     var _mat0Maxam = _multi0 ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials) || 0);
     if (_mat0Maxam > 0) S.quote.materialBase = _mat0Maxam;
+    // The same figure BEFORE the quantity buffer and the mark-up: the grade
+    // and gauge percentages are worked on this (2026-09-22), not on the
+    // marked-up total.
+    try { var _b0 = _roofMatQtyBufferPct(0), _m0 = _roofMatMarkupPct(0); S.quote.materialRaw = _mat0Maxam / ((1 + _b0 / 100) * (1 + _m0 / 100)); } catch(e){}
     // The grade the base quote was built at — so the customer Selections grade
     // deltas read relative to it (a non-Maxam base shows as "Included").
     S.quote.baseGrade = _selGrade0;
