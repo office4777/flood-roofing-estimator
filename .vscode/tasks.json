@@ -1,0 +1,106 @@
+{
+  "version": "2.0.0",
+  // Run any of these with Ctrl+Shift+B (the gate is the default build task)
+  // or Ctrl+Shift+P → "Tasks: Run Task".
+  "tasks": [
+    {
+      "label": "Gate — full suite (~19 min)",
+      "detail": "Every suite, four at a time. Must exit 0 on a clean committed tree before shipping.",
+      "type": "shell",
+      "command": "node floodroofing/tests/run.mjs",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate — sheet layout only (~40 s)",
+      "detail": "37 shapes; Big-L expects 66 strips. Run this FIRST after any sheet-engine change.",
+      "type": "shell",
+      "command": "node floodroofing/docs/ci_sheet_tests.js",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate — one suite by name",
+      "detail": "e.g. quoteeditor, gutterprice, pricegold. One name per run.",
+      "type": "shell",
+      "command": "node floodroofing/tests/run.mjs ${input:suiteName}",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate — backend suites only",
+      "type": "shell",
+      "command": "node floodroofing/tests/run.mjs api",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Check app.html syntax",
+      "detail": "Parses every inline <script>. Expect: blocks 6 bad 0. Run after ANY scripted edit.",
+      "type": "shell",
+      "command": "node floodroofing/tools/check-app-syntax.mjs",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": {
+        "owner": "app-html",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^FAIL\\s+(\\S+):(\\d+)\\s+(.*)$",
+          "file": 1, "line": 2, "message": 3
+        }
+      }
+    },
+    {
+      "label": "Sitemap dates (after any public-page change)",
+      "detail": "Regenerates sitemap dates from git. Commit the sitemap BEFORE the gate or tests/seo.mjs fails.",
+      "type": "shell",
+      "command": "node floodroofing/tools/sitemap-dates.mjs",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Sheet shots from a fixture",
+      "detail": "Renders a fixture to PNGs of the layout, calc check and cut list. Send these to Aron BEFORE the gate when counts are in question.",
+      "type": "shell",
+      "command": "node floodroofing/tools/sheet-shots.mjs ${input:fixture}",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Serve the frontend locally (http://localhost:5050/app)",
+      "detail": "Static server over floodroofing/frontend. The app still talks to the live API.",
+      "type": "shell",
+      "command": "npx --yes serve floodroofing/frontend -l 5050",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "First-time setup (npm ci + Playwright browsers)",
+      "type": "shell",
+      "command": "npm ci && npx playwright install chromium",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "suiteName",
+      "type": "promptString",
+      "description": "Suite name (one only), e.g. quoteeditor",
+      "default": "quoteeditor"
+    },
+    {
+      "id": "fixture",
+      "type": "pickString",
+      "description": "Which fixture to render",
+      "options": [
+        "floodroofing/tests/fixtures-report41.json",
+        "floodroofing/tests/fixtures-report50.json",
+        "floodroofing/tests/fixtures-doublel.json",
+        "floodroofing/tests/fixtures-tee.json"
+      ],
+      "default": "floodroofing/tests/fixtures-report41.json"
+    }
+  ]
+}

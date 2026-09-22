@@ -60,6 +60,16 @@ accordingly.
   it that way). `demo-shots.mjs` → `demo-slideshow.mjs` → `demo-record.mjs`
   build the sales demo; `restore-check.mjs` verifies a backup restore;
   `build-og-card.mjs` renders the link-preview card.
+  `check-app-syntax.mjs` is the app.html syntax gate described above — it
+  parses every inline `<script>` with `new Function()` and prints
+  `blocks 6 bad 0`; run it after ANY scripted edit to that file.
+- `.vscode/` + `.claude/settings.json` — the editor setup, committed so every
+  machine inherits it: tasks for the gate, the sheet gate, one suite, the
+  syntax check and the sitemap; debug configs that put a breakpoint in a suite
+  or run one with the browser visible; formatting off everywhere and LF pinned
+  (`.gitattributes`), because the promote check compares app.html with the live
+  site byte for byte. `floodroofing/docs/VSCODE.md` is the step-by-step and the
+  handover for working on a laptop rather than from the phone.
 
 ## Pipeline — how changes reach users
 

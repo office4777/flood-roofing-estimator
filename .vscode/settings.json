@@ -1,0 +1,66 @@
+{
+  // ── The one that protects a ship ────────────────────────────────────────
+  // The promote check compares the live roofmap.co.nz/app with app.html byte
+  // for byte. CRLF, a stripped trailing newline or a re-indent all break that.
+  "files.eol": "\n",
+  "files.insertFinalNewline": false,
+  "files.trimTrailingWhitespace": false,
+  "files.trimFinalNewlines": false,
+
+  // Nothing in this repo is auto-formatted. app.html is one 69,000-line file;
+  // a formatter turns a three-line fix into an unreviewable diff and a ship
+  // nobody can verify.
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "html.format.enable": false,
+  "javascript.format.enable": false,
+
+  // ── Living with a 69,000-line file ──────────────────────────────────────
+  "editor.largeFileOptimizations": true,
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "off",
+  "editor.stickyScroll.enabled": true,
+  "editor.stickyScroll.maxLineCount": 6,
+  "editor.foldingMaximumRegions": 20000,
+  "editor.occurrencesHighlight": "off",
+  "workbench.editor.enablePreview": false,
+  "search.followSymlinks": false,
+
+  // ── Search and the file tree stay on real source ────────────────────────
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.test-artifacts": true,
+    "**/.preview": true,
+    "**/floodroofing/tools/demo": true,
+    "**/floodroofing/tools/out-onboarding": true,
+    "**/package-lock.json": true,
+    "**/*.png": true,
+    "**/*.jpg": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.test-artifacts/**": true,
+    "**/.git/objects/**": true
+  },
+
+  // ── Language wiring ─────────────────────────────────────────────────────
+  "files.associations": { "*.mjs": "javascript" },
+  "javascript.preferences.quoteStyle": "single",
+  "[html]": { "editor.defaultFormatter": null },
+  "[javascript]": { "editor.defaultFormatter": null },
+
+  // ── Terminal ────────────────────────────────────────────────────────────
+  // The test runner prints one line per suite; a short scrollback loses the
+  // failures above the tail.
+  "terminal.integrated.scrollback": 20000,
+
+  // ── Git ─────────────────────────────────────────────────────────────────
+  // production is deployed from, never pushed to by hand.
+  "git.branchProtection": ["main", "production"],
+  "git.branchProtectionPrompt": "alwaysPrompt",
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.pruneOnFetch": true,
+  "githubPullRequests.pushBranch": "never"
+}

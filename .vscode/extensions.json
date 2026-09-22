@@ -1,0 +1,15 @@
+{
+  // VS Code offers these the first time the folder is opened.
+  "recommendations": [
+    "anthropic.claude-code",
+    "github.vscode-github-actions",
+    "eamodio.gitlens",
+    "ritwickdey.liveserver",
+    "editorconfig.editorconfig"
+  ],
+  "unwantedRecommendations": [
+    // Formatters would reflow app.html and turn a three-line change into a
+    // 60,000-line diff. Nothing in this repo is auto-formatted.
+    "esbenp.prettier-vscode"
+  ]
+}

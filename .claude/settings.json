@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node floodroofing/tests/run.mjs:*)",
+      "Bash(node floodroofing/docs/ci_sheet_tests.js)",
+      "Bash(node floodroofing/tools/check-app-syntax.mjs:*)",
+      "Bash(node floodroofing/tools/sitemap-dates.mjs)",
+      "Bash(node floodroofing/tools/sheet-shots.mjs:*)",
+      "Bash(npm test:*)",
+      "Bash(npm ci)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git stash:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sed -n:*)",
+      "Read(//home/**)",
+      "Read(//Users/**)",
+      "Read(//c/**)"
+    ],
+    "deny": [
+      "Bash(git push origin production:*)",
+      "Bash(git push:* production)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)"
+    ]
+  }
+}

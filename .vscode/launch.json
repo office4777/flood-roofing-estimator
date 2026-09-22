@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  // Breakpoints are the one thing a terminal agent cannot do for you. Put one
+  // in a suite or in server.js, press F5, and step through the real code.
+  "configurations": [
+    {
+      "name": "Debug the test suite I'm looking at",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "env": { "TEST_PORT": "4310" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Debug a suite with the browser visible",
+      // Watch Playwright drive the real app.html instead of guessing why a
+      // UI suite fails. Slowed down so you can see what it clicks.
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "env": { "TEST_PORT": "4311", "HEADED": "1", "PWDEBUG": "console" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Debug the backend against the fake database",
+      // fakepgrst is the in-process stand-in — no Supabase, no secrets.
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/floodroofing/tests/fakepgrst.mjs",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Debug the sheet-layout gate",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/floodroofing/docs/ci_sheet_tests.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

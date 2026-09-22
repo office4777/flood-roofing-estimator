@@ -1,4 +1,8 @@
-.claude/
+# Claude Code's local state stays out of git, except the shared permission
+# allowlist, which is the same on every machine. Personal overrides belong in
+# .claude/settings.local.json and are ignored.
+.claude/*
+!.claude/settings.json
 
 # ── Generated artifacts (regenerate from the scripts in floodroofing/docs) ──
 # Test-render outputs and sample PDFs are products of the _test_*.js /

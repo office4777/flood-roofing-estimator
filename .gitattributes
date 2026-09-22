@@ -1,0 +1,19 @@
+# Line endings are LF in this repository, on every machine.
+#
+# This matters more here than in most repos. The promote workflow proves the
+# frontend went live by fetching roofmap.co.nz/app and comparing it
+# BYTE FOR BYTE with app.html at the promoted commit. A Windows clone with
+# core.autocrlf=true rewrites every line of that file to CRLF on checkout, so
+# the bytes differ, and a ship that is genuinely live reports as failed.
+* text=auto eol=lf
+
+# Binary: never touched, never diffed as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.webm binary
+*.woff  binary
+*.woff2 binary
