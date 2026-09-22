@@ -46,6 +46,13 @@ Use the Terminal menu rather than `Ctrl+Shift+P`. Typing "run task" into the
 command palette also matches "Tasks: Show Running Tasks", which answers "no
 running task" and looks like a failure.
 
+On Windows the terminal opens as Command Prompt, not PowerShell, because a
+stock Windows box blocks script execution and npm ships there as a `.ps1`
+shim: the first `npm ci` otherwise dies with "npm.ps1 cannot be loaded
+because running scripts is disabled on this system". If you land in a
+PowerShell prompt anyway, click the `v` beside the `+` in the terminal panel
+and choose Command Prompt.
+
 ### 4. Prove it works before changing anything
 
 Run the task **Gate — sheet layout only**. It takes about 40 seconds and must
@@ -55,7 +62,7 @@ end green. If that passes, the machine is set up correctly.
 
 ## Part 2 — What the editor now does for you
 
-### Tasks — `Ctrl+Shift+P` → Tasks: Run Task
+### Tasks — menu bar → Terminal → Run Task...
 
 | Task | When |
 |---|---|

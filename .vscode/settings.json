@@ -55,6 +55,13 @@
   // failures above the tail.
   "terminal.integrated.scrollback": 20000,
 
+  // Command Prompt, not PowerShell, on Windows. A stock Windows box blocks
+  // script execution, so the very first `npm ci` dies with "npm.ps1 cannot be
+  // loaded because running scripts is disabled on this system" — npm ships as
+  // a .ps1 shim there. cmd.exe runs the .cmd shim and is unaffected, which
+  // beats telling every new machine to loosen its execution policy.
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+
   // ── Git ─────────────────────────────────────────────────────────────────
   // production is deployed from, never pushed to by hand.
   "git.branchProtection": ["main", "production"],
