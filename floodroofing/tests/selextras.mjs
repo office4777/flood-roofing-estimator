@@ -100,7 +100,9 @@ await pg.evaluate(() => {
   S.settings.selectables.extras[0].rows[1].price = 9999;
   S.settings.selectables.extras[0].rows[1].name = 'Renamed after sending';
 });
-v = await pg.evaluate(() => _qpSelectionChanges().map(c => ({ l:c.label, d:c.delta })));
+// The CUSTOMER'S view (the office editing the draft reads the live
+// products since 2026-09-22 — a product added in Settings is offered).
+v = await pg.evaluate(() => { window.__CUSTOMER_MODE = true; try { return _qpSelectionChanges().map(c => ({ l:c.label, d:c.delta })); } finally { window.__CUSTOMER_MODE = false; } });
 check('a sent quote keeps the price it was sent at',
   v.some(c => c.d === 1450) && !v.some(c => c.d === 9999), JSON.stringify(v));
 check('…and the name it was sent with',
