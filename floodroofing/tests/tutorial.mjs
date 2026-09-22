@@ -70,17 +70,33 @@ const walk = await pg.evaluate(async () => {
     const st = TOUR.steps[TOUR.i];
     // Ask the engine what it actually ended up pointing at, so a step with a
     // fallback target is judged on the element it really rang.
-    const el = st.centre ? null : _tourEl(st);
+    let el = st.centre ? null : _tourEl(st);
     const sel = st.centre ? '' : (st._alt ? st.alt.sel : (st.gate || st.sel || ''));
+    // Let the ring ARRIVE before measuring it. The click that brought us here
+    // waited a fixed 360ms, which is enough on an idle machine and is not when
+    // the step switches tab and the panel behind it is still re-rendering — so
+    // this failed on tab-jp only under the runner's four-at-a-time load, which
+    // is the worst kind of red: real-looking, unreproducible alone. Polling for
+    // it is strictly stronger than the fixed wait, because a ring that never
+    // arrives still fails the check below. That check is the whole point.
+    const _onTarget = (ring, r) => !!(r && Math.abs(ring.left - (r.left - 7)) < 3
+                                        && Math.abs(ring.top - (r.top - 7)) < 3);
+    const _ring = () => document.getElementById('tourRing').getBoundingClientRect();
+    let ring = _ring();
+    if (!st.centre){
+      for (let s = 0; s < 40 && !_onTarget(ring, el && el.getBoundingClientRect()); s++){
+        await sleep(50);
+        el = _tourEl(st);
+        ring = _ring();
+      }
+    }
     const r = el ? el.getBoundingClientRect() : null;
-    const ring = document.getElementById('tourRing').getBoundingClientRect();
     seen.push({
       key: st.key, tab: st.tab || '', sel: sel, alt: !!st._alt,
       found: st.centre ? true : !!(r && r.width > 2 && r.height > 2),
       gated: !!st.gate,
       // The ring has to be round the target, not parked at the origin.
-      ringOnTarget: st.centre ? true : !!(r && Math.abs(ring.left - (r.left - 7)) < 3
-                                            && Math.abs(ring.top - (r.top - 7)) < 3),
+      ringOnTarget: st.centre ? true : _onTarget(ring, r),
       body: (document.getElementById('tourBody')||{}).textContent || '',
       next: (document.getElementById('tourNext')||{}).textContent || '',
       hand: (document.getElementById('tourHand')||{}).textContent || '',
