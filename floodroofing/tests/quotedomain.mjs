@@ -26,6 +26,10 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     savedSettings = JSON.parse(r.request().postData() || '{}');
     return r.fulfill({status:200,contentType:'application/json',body: r.request().postData() || '{}'});
   }
+  // The settings come from the server (the app only writes settings back
+  // that it read from there).
+  if (/\/settings/.test(r.request().url()) && r.request().method() === 'GET')
+    return r.fulfill({status:200,contentType:'application/json',body: JSON.stringify({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} })});
   r.fulfill({status:200,contentType:'application/json',body:'[]'});
 });
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); });

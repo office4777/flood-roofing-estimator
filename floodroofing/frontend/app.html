@@ -12105,7 +12105,23 @@ async function api(method, path, body) {
   var tok = localStorage.getItem('fr_token') || '';
   var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
   if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  var r = await fetch(PROXY + path, opts);
+  // A job read or write that never answers used to hang for ever — and
+  // since every write queues behind the one before it, one hung save
+  // blocked every save and every job open after it (2026-09-22). Two
+  // minutes is longer than any honest save; after that it fails like any
+  // other failed save, with the local draft kept.
+  var _ctl = null, _tmr = null;
+  if (/^\/jobs(\/|$)/.test(path) && typeof AbortController === 'function'){
+    var _ms = (window.__API_TIMEOUT_MS > 0) ? window.__API_TIMEOUT_MS : 120000;
+    _ctl = new AbortController(); opts.signal = _ctl.signal;
+    _tmr = setTimeout(function(){ try { _ctl.abort(); } catch(e){} }, _ms);
+  }
+  var r;
+  try { r = await fetch(PROXY + path, opts); }
+  catch(e0){
+    if (_ctl && _ctl.signal.aborted){ var _te = new Error('The server did not answer in time — the save was not made. Your work is kept on this device.'); _te.status = 0; _te.timeout = true; throw _te; }
+    throw e0;
+  } finally { if (_tmr) clearTimeout(_tmr); }
   if (r.status === 401 && tok) {
     // Expired/invalid session — bounce to the sign-in screen with a message
     // instead of leaving the app half-working with saves silently failing.
@@ -12637,6 +12653,17 @@ async function saveSettings(auto){
   // Always save to localStorage immediately — this never fails
   try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
 
+  // Settings that never came from the server this session (the read failed
+  // and a local copy or the defaults stood in) are NOT written back to it:
+  // that is how a blank copy overwrote the Fergus key and the email
+  // addresses during a database stall (2026-09-22). Kept on this device;
+  // a reload that reads the server syncs it.
+  if (!window.__settingsLive && !window.__PLAYGROUND){
+    if (msg) { msg.textContent = '\u26A0 Saved on this device only \u2014 the server\u2019s settings could not be read this session. Reload the app to sync.'; msg.style.color = '#b45309'; }
+    if (btn && !auto) btn.disabled = false;
+    return false;
+  }
+
   // Then attempt cloud sync
   try {
     var saved = await api('PUT', '/settings', S.settings);
@@ -12762,6 +12789,14 @@ function collectSettingsFromUI(){
   // retired with the Integrations tab, and reading them as '' would have
   // silently disconnected every business's JMS on the next settings save.
   var _keep = function(id, prev){ var el = document.getElementById(id); return el ? (el.value || '') : (prev || ''); };
+  // Emptying the Fergus field on a live settings screen is a DELIBERATE
+  // disconnect, and says so: the server keeps a stored key over a blank
+  // one otherwise (2026-09-22).
+  try {
+    var _fEl = document.getElementById('intFergus');
+    if (_fEl && window.__settingsLive && String(k.fergus || '').trim() && !String(_fEl.value || '').trim()) k.__cleared = true;
+    else delete k.__cleared;
+  } catch(e){}
   k.fergus     = _keep('intFergus', k.fergus);
   k.servicem8  = _keep('intServiceM8', k.servicem8);
   k.jobber     = _keep('intJobber', k.jobber);
@@ -16574,7 +16609,12 @@ async function _saveBeforeSwitch(){
     }
     if (!_isJobDirty()) return;
     if ((S.currentJobId || S.linkedJobId) && typeof saveCurrentJob === 'function') {
-      try { await saveCurrentJob(); } catch(e){}
+      // Wait for the save, but not for ever: a save stuck behind a hung
+      // request kept "Opening job… Saving what is on screen" up until the
+      // page was reloaded (2026-09-22). Past the cap the draft goes to this
+      // device and the open goes ahead.
+      var _cap = (window.__SAVE_SWITCH_WAIT_MS > 0) ? window.__SAVE_SWITCH_WAIT_MS : 20000;
+      try { await Promise.race([saveCurrentJob(), new Promise(function(res){ setTimeout(res, _cap); })]); } catch(e){}
       if (!_isJobDirty()) return;              // backend save landed
     }
     await _writeLocalDraftNow();               // couldn't save — keep a draft
@@ -17361,7 +17401,10 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 var _jobWrite = { chain: Promise.resolve(), waiting: null };
 function _jobWriteQueued(fn){
   var run = function(){ return Promise.resolve().then(fn); };
-  var p = _jobWrite.chain.then(run, run);
+  // A predecessor that hangs (a request that never answers) must not hold
+  // the queue: after the request timeout has had its chance, move on.
+  var cap = new Promise(function(res){ setTimeout(res, ((window.__API_TIMEOUT_MS > 0) ? window.__API_TIMEOUT_MS : 120000) + 5000); });
+  var p = Promise.race([_jobWrite.chain, cap]).then(run, run);
   _jobWrite.chain = p.catch(function(){});
   return p;
 }

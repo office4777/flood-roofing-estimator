@@ -317,6 +317,31 @@ const writes = await pg.evaluate(async () => {
 });
 check('a save, a publish and two more saves go to the row one at a time, the last two as one', writes.maxInFlight === 1 && writes.calls <= 3, JSON.stringify(writes));
 
+// A HUNG REQUEST NEVER BLOCKS THE QUEUE OR A JOB OPEN (2026-09-22): a job
+// write gives up after the request timeout, the queue moves on, and the
+// save before a switch waits a bounded time before drafting locally.
+let hang = true;
+await pg.route('**/flood-roofing-estimator-production.up.railway.app/jobs/hung-job', async r => { if (hang) await new Promise(res => setTimeout(res, 15000)); r.fulfill({ status:200, contentType:'application/json', body: JSON.stringify({ id:'hung-job', updated_at: new Date().toISOString() }) }); });
+const hung = await pg.evaluate(async () => {
+  window.__API_TIMEOUT_MS = 700; window.__SAVE_SWITCH_WAIT_MS = 400;
+  const hadId = S.currentJobId; S.currentJobId = 'hung-job';
+  const cl = document.getElementById('jobClient'); const hadCl = cl ? cl.value : ''; if (cl && !cl.value) cl.value = 'Hung Test';
+  delete window._lastSent;
+  const t0 = Date.now();
+  let err = null;
+  try { await api('PUT', '/jobs/hung-job', { client_name:'x' }); } catch(e){ err = e; }
+  const apiMs = Date.now() - t0;
+  const t1 = Date.now();
+  await _saveBeforeSwitch();
+  const switchMs = Date.now() - t1;
+  window.__API_TIMEOUT_MS = 0; window.__SAVE_SWITCH_WAIT_MS = 0;
+  S.currentJobId = hadId; if (cl) cl.value = hadCl;
+  return { timeout: !!(err && err.timeout), msg: err && err.message, apiMs, switchMs };
+});
+hang = false;
+check('a job write that never answers fails after the timeout with a message that says the work is kept', hung.timeout && /kept on this device/.test(hung.msg || '') && hung.apiMs < 3000, JSON.stringify(hung));
+check('…and the save before a job open waits a bounded time, not for ever', hung.switchMs < 3000, hung.switchMs + 'ms');
+
 // THE PRICING DRAWER sits over the quote — it no longer reserves its width
 // and shoves the Quote tab left.
 const drawer = await pg.evaluate(async () => {

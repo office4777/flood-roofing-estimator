@@ -93,6 +93,25 @@ r = await as(A, '/fergus/jobs?pageSize=5'); body = await j(r);
 check("B's key does not bleed to company A", r.status === 400 && body.error === 'not_connected',
   'status ' + r.status);
 
+// ── a blank never wipes a stored key or the email addresses (2026-09-22) ──
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb' },
+  quote_defaults: { email: { quote_cc: 'office@jd.co.nz', accept_to: 'aron@jd.co.nz', order_cc: '' } },
+}) });
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: '' }, quote_defaults: { email: { quote_cc: '', accept_to: '', order_cc: '' } },
+}) });
+body = await j(r);
+check('a save carrying a BLANK key keeps the stored Fergus key', r.status === 200 && body.jms_keys && body.jms_keys.fergus === 'fergPAT_bbbb', JSON.stringify(body.jms_keys));
+check('…and blank email addresses keep the stored ones', body.quote_defaults && body.quote_defaults.email && body.quote_defaults.email.quote_cc === 'office@jd.co.nz' && body.quote_defaults.email.accept_to === 'aron@jd.co.nz', JSON.stringify(body.quote_defaults && body.quote_defaults.email));
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: '', __cleared: true }, quote_defaults: { email: { quote_cc: '', accept_to: '', order_cc: '', __cleared: true } },
+}) });
+body = await j(r);
+check('a deliberate clear (__cleared) does clear both, and the flag itself is not stored',
+  r.status === 200 && !(body.jms_keys && body.jms_keys.fergus) && !('__cleared' in (body.jms_keys || {})) && !(body.quote_defaults.email && body.quote_defaults.email.quote_cc) && !('__cleared' in ((body.quote_defaults || {}).email || {})), JSON.stringify({ k: body.jms_keys, e: body.quote_defaults && body.quote_defaults.email }));
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({ branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb' } }) });
+
 // ── the env key is dead: it serves NOBODY, named or not ───────────
 // It used to serve the company named by FERGUS_COMPANY_ID. A trial account
 // still came up "Fergus: connected" with an empty key field and Flood
@@ -152,9 +171,11 @@ check('…while the exact allowed host still passes the guard (502 — nothing l
   r.status === 502, 'status ' + r.status);
 
 // ── clearing the field is how you disconnect — that must still work ──
+// (the app marks a deliberate clear with __cleared since 2026-09-22; a bare
+// blank keeps the stored key, see below)
 r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
   branding: { company_name: 'John Doe Roofing' },
-  jms_keys: { fergus: '' },
+  jms_keys: { fergus: '', __cleared: true },
 }) });
 check('an explicit empty key is honoured', r.status === 200, 'status ' + r.status);
 r = await as(B, '/fergus/jobs?pageSize=5'); body = await j(r);

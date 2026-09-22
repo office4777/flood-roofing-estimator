@@ -3632,15 +3632,37 @@ app.put('/settings', requireAuth, async (req, res) => {
         delete payload.price_book.__materials_catalog.__cleared;
       }
     } catch (e) { /* the guard must never break an ordinary save */ }
-    // A writer that doesn't send jms_keys at all (an older build, a partial
-    // save) must not wipe the stored Fergus key — losing it silently
-    // disconnects the company's JMS. A writer that DOES send the object is
-    // trusted verbatim, empty values included: clearing the field in
-    // Settings → Integrations is how you disconnect.
-    if (req.body.jms_keys == null && existing && existing.jms_keys &&
-        Object.values(existing.jms_keys).some(v => String(v || '').trim())) {
-      payload.jms_keys = existing.jms_keys;
-    }
+    // A writer that carries NO key — none at all, or only blanks — must not
+    // wipe the stored Fergus key: losing it silently disconnects the
+    // company's JMS. Since 2026-09-22 a blank counts as "does not know",
+    // not as a disconnect: the app's settings read failed during a
+    // database stall, it fell back to a blank copy, autosaved it, and the
+    // key and the email addresses were gone (the owner's "disconnected
+    // again"). A deliberate disconnect says so with `jms_keys.__cleared`.
+    try {
+      const inK = (req.body.jms_keys && typeof req.body.jms_keys === 'object') ? req.body.jms_keys : {};
+      const hasIn = Object.keys(inK).some(k => k !== '__cleared' && String(inK[k] || '').trim());
+      const hasEx = !!(existing && existing.jms_keys && Object.values(existing.jms_keys).some(v => String(v || '').trim()));
+      if (!hasIn && hasEx && !inK.__cleared) payload.jms_keys = existing.jms_keys;
+      if (payload.jms_keys && payload.jms_keys.__cleared){ payload.jms_keys = Object.assign({}, payload.jms_keys); delete payload.jms_keys.__cleared; }
+    } catch (e) {}
+    // The same for the email addresses under quote_defaults.email (the CC on
+    // quotes, where acceptances go, the CC on orders): a save carrying only
+    // blanks keeps the stored ones unless it says `email.__cleared`.
+    try {
+      const exE = (existing && existing.quote_defaults && existing.quote_defaults.email) || {};
+      const inE = (payload.quote_defaults && payload.quote_defaults.email) || {};
+      const F = ['quote_cc', 'accept_to', 'order_cc'];
+      const hasExE = F.some(k => String(exE[k] || '').trim());
+      const hasInE = F.some(k => String(inE[k] || '').trim());
+      if (hasExE && !hasInE && !inE.__cleared){
+        payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, inE, { quote_cc: exE.quote_cc || '', accept_to: exE.accept_to || '', order_cc: exE.order_cc || '' }) });
+      }
+      if (payload.quote_defaults && payload.quote_defaults.email && payload.quote_defaults.email.__cleared){
+        payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, payload.quote_defaults.email) });
+        delete payload.quote_defaults.email.__cleared;
+      }
+    } catch (e) {}
     let data, error;
     if (existing && existing.user_id){
       // Update the company's row IN PLACE, keyed on the row's own owner —

@@ -170,6 +170,24 @@ Discipline (non-negotiable):
   behind them. The revision trigger `_job_backup_upd` checks the cheap
   "snapshot in the last 10 minutes" test BEFORE comparing the two drawings.
   `tests/quoteeditor.mjs` pins the queue.
+- A HUNG REQUEST NEVER BLOCKS THE QUEUE OR A JOB OPEN (2026-09-22): every
+  `/jobs…` request in `api()` aborts after 2 minutes (`__API_TIMEOUT_MS`
+  seam) with "The server did not answer in time … kept on this device";
+  `_jobWriteQueued` waits on its predecessor at most that long plus 5 s;
+  `_saveBeforeSwitch` waits 20 s (`__SAVE_SWITCH_WAIT_MS`) then drafts
+  locally and lets the open go ahead. Job 3245 "would not open" because
+  the open waited on a save stuck behind a request that never answered.
+- SETTINGS THAT NEVER CAME FROM THE SERVER ARE NEVER WRITTEN BACK TO IT
+  (2026-09-22): `saveSettings` keeps them on the device and says so when
+  `window.__settingsLive` is false (the read failed and a local copy or the
+  defaults stood in). The server, too, keeps a stored Fergus key and the
+  `quote_defaults.email` addresses over BLANKS in an incoming save unless
+  the save says `__cleared` (the app sets `jms_keys.__cleared` when the
+  office empties the field on a live screen). A blank copy autosaved
+  during the database stall is how the owner's key and email addresses
+  vanished — "Fergus disconnected again". UI suites that call
+  `saveSettings` must stub GET /settings with an object, not `[]`.
+  `tests/ferguskey.mjs`, `tests/quotedomain.mjs`.
 - THE SEND RECORDS ITSELF BEFORE FERGUS (2026-09-22): after the email
   POST, `_qvMarkSent()` and the light `_publishQuoteOnly()` (tried twice,
   then a forced full save) come FIRST; a failure is said in `#qaMsg`. Then
