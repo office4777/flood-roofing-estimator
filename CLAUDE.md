@@ -674,10 +674,36 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-19
+## Open at last handover — 2026-09-22
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
+
+**Shipped 2026-09-22 (promotes 178–182, all verified live), watch the
+first day through it:** the database stall of 10:18–10:38 am NZ (autosave
+and the send's publish queued multi-MB row rewrites until the statement
+timeout cancelled them) is answered by ONE WRITE TO THE JOB AT A TIME and
+autosave held during a send (Conventions); the send records the sent
+quote BEFORE Fergus and says so when either step fails; a duplicate job
+number that is the same job attaches or opens by itself; exclusions on
+the proposal; the gutter is gutter material only, with brackets every
+800 mm and droppers every 8 m on steel gutters; the grade / profile /
+thickness sections carry edit and delete buttons with "Insert … page"
+placeholders; the grade and gauge percentages are worked on the raw
+material cost. If a send is still slow, the green status line under the
+Send button now says where the time went (link vs email) — ask for a
+screenshot of that. If a 5xx names `/jobs/:id` with "statement timeout"
+again, look for a SECOND writer on the row (another device on the same
+job), not the queue.
+
+**Waiting on the owner (Aron), added 2026-09-22:**
+- Settings → Price book: set the real Gutter bracket ($/each) and Dropper
+  ($/each) — they start at $4.20 and $16.50 as placeholders and every box
+  gutter quote carries them.
+- Quote's Product Options: retype the increase on the grade added on
+  2026-09-22 (it was stored as 100 = +10,000% before the fix).
+- Job 3245: press Push to Fergus, then Save job; if Viewing has no "Sent
+  quote", pick Save this draft.
 
 **Shipped 2026-09-19 (four promotes, all verified live), watch the first
 customer links through it:** the customer quote on a computer is the
