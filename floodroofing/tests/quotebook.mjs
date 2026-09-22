@@ -86,8 +86,8 @@ check('…the A4 stack of pages is not what the phone is showing', v.a4 === 0, v
 check('…and the old fixed bottom bar is out of the way', v.barHidden);
 check('the first page is the cover, with nowhere to go back to', v.page === 'cover' && v.prevOff, v.page);
 // The roof condition follows the proposal since 2026-09-22 (the owner's order).
-check('the pages run cover, proposal, roof condition, then a page per choice, then the total',
-  v.keys.join(',') === 'cover,proposal,condition,grade,profile,thickness,colour,gutter,disposal,summary', v.keys.join(','));
+check('the pages run cover, roof condition, proposal, then a page per choice, then the total',
+  v.keys.join(',') === 'cover,condition,proposal,grade,profile,thickness,colour,gutter,disposal,summary', v.keys.join(','));
 
 // ── the price does not appear before the proposal page ────────────
 check('no price on the cover', !v.hasPrice, v.price);
@@ -151,11 +151,11 @@ check('the cover photo is a banner, not the whole first screen',
       cov.pct >= 25 && cov.pct <= 45, cov.pct + '% of the page');
 check('…so the title, the details and Start are all there without scrolling',
       cov.title && cov.stats && cov.cta, JSON.stringify(cov));
-await m.pg.evaluate(() => _qbGo(2));
+await m.pg.evaluate(() => _qbGo(1));
 await m.pg.waitForTimeout(400);
 v = await read(m.pg);
-check('the condition page is "Existing Roof Condition"', v.page === 'condition' && /Existing Roof Condition/.test(v.heading), v.heading);
-check('…and the price is on it, because it comes after the proposal now', v.hasPrice);
+check('the second page is "Existing Roof Condition" — ahead of the proposal since 2026-09-23', v.page === 'condition' && /Existing Roof Condition/.test(v.heading), v.heading);
+check('…and the price is not on it yet, because it comes before the proposal', !v.hasPrice);
 const gal = await m.pg.evaluate(() => {
   const w = document.querySelector('#qbPage .qb-gal-wrap');
   const g = document.getElementById('qbGal');
@@ -179,10 +179,10 @@ const galMove = await m.pg.evaluate(async () => {
 check('…and swiping to the third photo says so', galMove.i === 2 && /3 \/ 3/.test(galMove.lbl || ''), JSON.stringify(galMove));
 
 // ── the proposal page: inclusions on top, the roof plan below ─────
-await m.pg.evaluate(() => _qbGo(1));
+await m.pg.evaluate(() => _qbGo(2));
 await m.pg.waitForTimeout(500);
 v = await read(m.pg);
-check('the second page is the Re-Roof Proposal', v.page === 'proposal' && /Re-Roof Proposal/.test(v.heading), v.heading);
+check('the third page is the Re-Roof Proposal', v.page === 'proposal' && /Re-Roof Proposal/.test(v.heading), v.heading);
 check('…and THIS is where the price starts showing', v.hasPrice && /\$/.test(v.price), v.price);
 const split = await m.pg.evaluate(() => {
   const body = document.querySelector('#qbPage > .qb-body');
@@ -207,7 +207,7 @@ const added = await m.pg.evaluate(async () => {
   return { before, after: _custBarTotalValue(), shown: (document.getElementById('qbPriceVal') || {}).textContent, stayed: QB.i };
 });
 check('adding the garage moves the total, on the page the customer is on',
-  added.after > added.before + 1 && added.stayed === 1, added.before.toFixed(0) + ' → ' + added.after.toFixed(0) + ' (' + added.shown + ')');
+  added.after > added.before + 1 && added.stayed === 2, added.before.toFixed(0) + ' → ' + added.after.toFixed(0) + ' (' + added.shown + ')');
 
 // ── a page per choice ─────────────────────────────────────────────
 const titles = await m.pg.evaluate(async () => {

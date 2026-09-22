@@ -96,6 +96,21 @@ const nud = await pg.evaluate(async () => {
 });
 check('a $1 nudge on GP/hr lands on a whole dollar over all the hours', near(nud.gphr, Math.round(nud.gphr), 0.01) && nud.shown === '$' + Math.round(nud.gphr).toLocaleString('en-NZ'), JSON.stringify(nud));
 
+// 2026-09-23: the Total IS the quote, the headings say excl. GST, and the
+// gutter heading is the gutter card's own bottom line.
+const agree = await pg.evaluate(async () => {
+  _setProposalOption_gutter('box125'); await new Promise(r => setTimeout(r, 900)); renderProfitability();
+  const g = _profitFigures('total'), q = _quoteMoney();
+  const out = { rev: g.revenue, sub: q.sub, roofHead: document.getElementById('pxTot_roofPriceTile').textContent,
+    gutHead: document.getElementById('pxTot_gutterDownpipeCard').textContent, card: fmtMoney(window._gdCardTotal),
+    note: !!document.querySelector('.px-gst-note') };
+  _setProposalOption_gutter('none'); await new Promise(r => setTimeout(r, 400));
+  return out;
+});
+check('the profitability total is the quote’s subtotal, to the cent', near(agree.rev, agree.sub, 0.01), JSON.stringify(agree));
+check('…each heading figure says excl. GST, and the panel says every price is', /excl\. GST/.test(agree.roofHead) && agree.note, agree.roofHead);
+check('…and the gutter heading is the gutter card’s own bottom line', agree.gutHead.indexOf(agree.card) === 0, agree.gutHead + ' vs ' + agree.card);
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

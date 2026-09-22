@@ -3961,6 +3961,10 @@ const CUSTOMER_HIDDEN_FIELDS = [
 ];
 function _customerQuoteView(quote){
   if (!quote || typeof quote !== 'object') return quote;
+  // The office's saved drafts and the frozen sent/accepted copies are never
+  // the customer's business, and each carried every photo again: job 3245's
+  // link took minutes to open on a phone downloading them all (2026-09-23).
+  if (quote.versions) { quote = Object.assign({}, quote); delete quote.versions; }
   // Only strip once the quote actually carries sell prices. A quote sent
   // before this shipped has no priced block, so its page still recomputes —
   // stripping those would leave a customer looking at a broken proposal.

@@ -49,14 +49,14 @@ const views = await pg.evaluate(() => {
   const bar = document.getElementById('profitViewBar');
   const btns = bar ? Array.from(bar.querySelectorAll('button')).map(b => b.textContent) : [];
   const total = _profitFigures('total'), main = _profitFigures(0);
-  const sum = _pricingRoofTabIdxs().reduce((a, i) => a + _profitFigures(i).labourPrice + _profitFigures(i).mat + _profitFigures(i).scPrice, 0);
+  const sum = _quoteMoney().sub;   // the Total is the quote (2026-09-23), not every priced roof
   const text = document.getElementById('profitWrap').innerText.replace(/\s+/g, ' ');
   return { view: _profitView(), btns, tabs: _pricingRoofTabIdxs().length, totalRev: total.labourPrice + total.mat + total.scPrice, sum, mainMat: main.mat, totalMat: total.mat,
            hasRule: !!document.querySelector('#profitWrap [style*="border-top"]'), text };
 });
 check('the panel opens on the Total by default', views.view === 'total');
-check('…with a button for the total and one per priced roof', views.btns.length === views.tabs + 1 && /Total/.test(views.btns[0]), views.btns.join(' | '));
-check('…and the total is every priced roof added up', Math.abs(views.totalRev - views.sum) < 0.02 && views.totalMat > views.mainMat, '$' + views.totalRev.toFixed(2));
+check('…with a button for the quote total and one per priced roof', views.btns.length === views.tabs + 1 && /Quote total/.test(views.btns[0]), views.btns.join(' | '));
+check('…and the total is the quote’s own subtotal — the optional roofs nobody has taken are not in it', Math.abs(views.totalRev - views.sum) < 0.02 && Math.abs(views.totalMat - views.mainMat) < 0.02, '$' + views.totalRev.toFixed(2) + ' vs ' + views.sum.toFixed(2));
 check('the per-m² figures sit under their own rule, with revenue per m² first', views.hasRule && /Per square metre/.test(views.text) && /Job revenue \/ m²/.test(views.text), views.text.slice(0, 120));
 check('the breakdown card is gone', await pg.evaluate(() => !document.getElementById('perRoofBreakdownCard')));
 await pg.evaluate(() => _setProfitView(0));

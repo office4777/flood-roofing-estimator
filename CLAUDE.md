@@ -169,6 +169,22 @@ Discipline (non-negotiable):
   the trial email once reached a stranger from office@floodroofing.co.nz.
   Requested mail still degrades to the relay. `tests/platformrelay.mjs`,
   with a fake Resend that refuses everything (`RESEND_API_BASE`).
+- ONE COPY OF EACH PICTURE (2026-09-23): the quote's versions (sent,
+  accepted, drafts) hold `@media:<key>` in place of every embedded picture
+  and the picture lives once in `S.quote.versions.media` (`_qvPackAll` on
+  load and at every snapshot; read a version ONLY through `_qvQuoteOf`).
+  `/q/:token` never sends `versions` to the customer. Job 3245's six
+  condition photos times every version was the slow open, save and send.
+  `tests/quoteversions.mjs`.
+- THE PROFITABILITY TOTAL IS THE QUOTE (2026-09-23): `_profitFigures
+  ('total')` is the main roof (with folded roofs) + `_profitSelectionItems`
+  (an optional roof only once the customer takes it) + other quote lines =
+  `_quoteMoney().sub`. `calcLabour` applies the auto hours to EVERY priced
+  roof, not just the tab on screen, and `_setRoofMode` recalculates labour
+  before re-baking the lines. The Pricing panel is all excl. GST and says
+  so on every heading; the gutter heading is the card's bottom line
+  (`_gdCardTotal`). The steel choices (grade, profile, thickness) show
+  prices relative to the current pick. `tests/profititems.mjs`, `gphr.mjs`.
 - ONE WRITE TO THE JOB ROW AT A TIME (2026-09-22): `saveCurrentJob` and
   `_publishQuoteOnly` go through `_jobWriteQueued`; a save asked for while
   one runs waits, a third joins the waiting one. Autosave is HELD
@@ -514,9 +530,10 @@ Discipline (non-negotiable):
   `S.quote.custDesc`; saving the default DELETES the field so a later
   default change reaches quotes nobody customised. The A4 keeps its own
   long inclusions list.
-- THE MODERN QUOTE'S CONDITION SECTION (2026-09-22) sits BETWEEN the
-  Re-Roof Proposal and Steel grade on the computer and the phone
-  (`_qdSections`/`_qbPages`: cover, proposal, condition, grade …). The
+- THE MODERN QUOTE'S CONDITION SECTION sits straight after the cover,
+  AHEAD of the Re-Roof Proposal since 2026-09-23 (`_qdSections`/`_qbPages`:
+  cover, condition, proposal, grade …; `_qModernApply` moves it there
+  whatever order a quote or template saved), so no price shows on it. The
   office sees it whenever the page is in the quote (`_qbCondSectionOn`),
   with the three fixing buttons (Lead-head Nails / Twist Shank Nails / Tek
   Screws → `_setCondFixingType`, which now writes `conditionSummary` too

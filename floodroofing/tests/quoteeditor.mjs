@@ -69,7 +69,7 @@ const where = await pg.evaluate(async () => {
   return out;
 });
 check('Edit description sits on the proposal, Edit roof condition on the condition, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  where.desk.join(',') === 'desc@qd-proposal,cond@qd-condition,sel@qd-grade,profile@qd-profile,thickness@qd-thickness,gutter@qd-gutter', JSON.stringify(where.desk));
+  where.desk.join(',') === 'cond@qd-condition,desc@qd-proposal,sel@qd-grade,profile@qd-profile,thickness@qd-thickness,gutter@qd-gutter', JSON.stringify(where.desk));
 // …and on a wide office screen they are lifted into a rail down the LEFT of
 // the preview, each one level with the thing it edits and pointing at it.
 const rail = await pg.evaluate(async () => {

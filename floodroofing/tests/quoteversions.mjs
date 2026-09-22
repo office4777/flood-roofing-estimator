@@ -230,6 +230,24 @@ check('…but nudging GP/hr is, and asks', await pg.evaluate(() => !!document.ge
 await pg.evaluate(() => { const m = document.getElementById('jobLockModal'); if (m) m.querySelector('#jobLockUnlock').click(); });
 check('"Unlock" on the question unlocks', await pg.evaluate(() => !S.jobLocked));
 
+// ONE COPY OF EACH PICTURE (2026-09-23): six condition photos times every
+// saved version was what made job 3245 slow to open, save and send.
+const pool = await pg.evaluate(() => {
+  const big = 'data:image/jpeg;base64,' + 'A'.repeat(40000);
+  S.quote.condPhotos = [{ src: big, offX: 0, offY: 0, zoom: 1 }];
+  const ids = [];
+  for (let i = 0; i < 3; i++){ S.quote.draftId = 'dp' + i; ids.push(_qvSaveDraft(null, 'Draft').id); }
+  _qvMarkSent();
+  const json = JSON.stringify(S.quote);
+  const copies = json.split(big).length - 1;
+  _qvView('sent');
+  const back = (S.quote.condPhotos[0] || {}).src === big;
+  _qvBackToDraft();
+  return { copies, back };
+});
+check('a photo is stored once however many drafts and sent copies carry it', pool.copies === 2, JSON.stringify(pool));
+check('…and opening the sent quote puts the picture back', pool.back, JSON.stringify(pool));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

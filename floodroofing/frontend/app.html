@@ -3593,6 +3593,9 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-cond-link{ border:none; background:none; padding:4px 6px; font-family:inherit; font-size:12px; font-weight:600; color:#0077a3; cursor:pointer; text-decoration:underline; }
 .qb-cond-link.qb-cond-del{ color:#b4232c; }
 .qb-sec-del{ display:block; margin:-4px 0 10px; padding-left:0; font-size:11.5px; }
+.qb-gst-split{ display:flex !important; flex-direction:column; gap:2px; font-style:normal !important; }
+.qb-gst-split span{ display:flex; justify-content:space-between; gap:10px; }
+.px-gst-note{ margin-left:10px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0a1628; background:#fde68a; border-radius:999px; padding:2px 8px; }
 .qd-parked{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
 .qe-insert{ border-style:dashed; }
 .qb-parked{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; background:#f4f6f9; border-top:1px dashed #b7c3d0; }
@@ -5840,7 +5843,7 @@ html.qp-desk-preview .qd-top{ position:static; }
     <span class="qpx-text">PRICING</span>
   </button>
   <div id="quotePricingPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
-  <div class="qpx-hd"><span>Pricing</span>
+  <div class="qpx-hd"><span>Pricing</span><span class="px-gst-note" title="Every figure in the Pricing panel is before GST">All prices excl. GST</span>
     <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
   </div>
@@ -15692,6 +15695,7 @@ function restoreFromJob(j){
     S.jobPack = null;   // and the job pack: a job without one starts from the default pages, not the last job's
     Object.assign(S, snap.state);
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
+    try { _qvPackAll(); } catch(e){}         // a job saved before the picture pool: one copy of each picture from here on
     if (!Array.isArray(S.photos)) S.photos = [];
     if (!Array.isArray(S.files)) S.files = [];   // Object.assign above carried them if the job has any
     try { renderJobFiles(); } catch(e){}
@@ -17459,8 +17463,12 @@ async function _saveCurrentJobNow(){
   // A frozen version on screen is not the job. Nothing is written while one
   // is showing — the draft it replaced is what would be saved, and it is safe
   // where it is.
-  if (window.S && S._qvViewing) return false;
-  if (_jobLockActive() && !(arguments[0] && arguments[0].force)) return;   // locked jobs are not written to
+  if (window.S && S._qvViewing){ window._lastSaveRefusal = 'a sent or accepted version is on screen - go back to the draft first'; return false; }
+  if (_jobLockActive() && !(arguments[0] && arguments[0].force)){   // locked jobs are not written to
+    window._lastSaveRefusal = 'this job is locked (it holds a sent or accepted quote) - unlock it or start a new draft';
+    return;
+  }
+  window._lastSaveRefusal = '';
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
   // Deliberately saving the sample makes it an ordinary job of theirs — it
@@ -17526,6 +17534,7 @@ async function _saveCurrentJobNow(){
   try { _json = JSON.stringify(body); } catch(e){}
   var _size = _json.length;
   if (_size > 20 * 1024 * 1024) {
+    window._lastSaveRefusal = 'the job is ' + Math.round(_size / 1024 / 1024) + ' MB, over the 20 MB limit - remove some photos';
     set('⚠ Save too large (' + Math.round(_size / 1024 / 1024) + ' MB) — remove some photos. A local draft is kept.', '#b91c1c');
     try { _writeLocalDraftNow(); } catch(e2){}
     return;
@@ -21596,7 +21605,14 @@ function calcLabour(){
   // hours are read below, so the Lead + Apprentice rows show the computed
   // values and everything downstream (quote total) follows.
   var _lcRi = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) ? _pricingRoofIdx() : 0;
-  if (_labourCalcEnabled()) { try { _applyLabourCalcToHours(_lcRi); } catch(e){} }
+  // EVERY priced roof, not only the one on screen: an extra roof's hours used
+  // to stay at nothing until its tab was opened, so the profitability total
+  // and the optional roof's price on the quote grew as the office clicked
+  // through the tabs (2026-09-23).
+  if (_labourCalcEnabled()) {
+    var _lcAll = [_lcRi]; try { if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) _lcAll = _pricingRoofTabIdxs(); } catch(e){}
+    _lcAll.forEach(function(i){ try { _applyLabourCalcToHours(i); } catch(e){} });
+  }
   function row(label, hrsKey, costKey, priceKey){
     var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
     return '<tr>'+
@@ -21860,6 +21876,8 @@ function renderGutterDownpipePricing(){
   // the guttering cost shown here so the office sees the true all-in figure.
   var scaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
   var scUp = 0.25 * (parseFloat(scaffBase) || 0);
+  // The heading's figure is this card's bottom line, whatever it adds up.
+  window._gdCardTotal = gVal + scUp + (dOn ? dVal : 0);
   // Material list rows — itemised like the re-roof material table.
   var matRows = matLines.map(function(r){
     var qtyTxt = String(_matOrderQty(r.qty, r.unit));
@@ -21999,15 +22017,13 @@ function _profitFigures(view){
     return { labourPrice: _labourPriceForRoof(i), labourCost: _labourCostForRoof(i), hrs: f(rl.leadHrs) + f(rl.appHrs),
              mat: _materialsCostForRoofIdx(i), scPrice: sc.price, scCost: sc.cost, area: area };
   };
-  var out;
-  if (!multi || view !== 'total') out = one(multi ? view : 0);
-  else {
-    out = { labourPrice: 0, labourCost: 0, hrs: 0, mat: 0, scPrice: 0, scCost: 0, area: 0 };
-    _pricingRoofTabIdxs().forEach(function(i){
-      var x = one(i);
-      Object.keys(out).forEach(function(k){ out[k] += x[k]; });
-    });
-  }
+  // THE TOTAL IS THE QUOTE (2026-09-23). It used to add up every priced
+  // roof — an optional roof the customer never took, each with its own
+  // scaffold — so "Job revenue" matched nothing on the quote. Now it is the
+  // main roof (with whatever is folded into it), plus what the quote's
+  // selections add — an optional roof only once the customer has taken it —
+  // plus any other line typed on the quote: exactly _quoteMoney().sub.
+  var out = one((multi && view !== 'total') ? view : 0);
   // What the job is made of, numbered the way the owner reads it: 1.
   // Scaffolding, 2. Roofing, then whatever the quote's selections add —
   // a steel grade, a gauge, the gutters with their own hours, the platform
@@ -22019,7 +22035,24 @@ function _profitFigures(view){
     { key:'roofing',  label:'Roofing',     revenue: out.labourPrice + out.mat, cost: out.labourCost + out.mat, hrs: out.hrs, sub:'labour + materials' }
   ];
   if (view === 'total' || view === 0 || !multi){
-    try { _profitSelectionItems().forEach(function(it){ items.push(it); }); } catch(e){ console.warn('profit selections', e); }
+    try { _profitSelectionItems().forEach(function(it){
+      // An optional roof the customer has taken: its own hours, take-off and
+      // scaffold are what it costs; the quote's price for it is the revenue.
+      if (it.key === 'roof' && it.roofIdx >= 1){
+        try { var x = one(it.roofIdx); it.cost = x.labourCost + x.mat + x.scCost; it.hrs = x.hrs; } catch(e){}
+      }
+      items.push(it);
+    }); } catch(e){ console.warn('profit selections', e); }
+    // Anything else typed on the quote's lines is in the customer's total, so
+    // it is in the job's revenue too (at cost: nobody told us its margin).
+    try {
+      var other = 0;
+      (S.quote.lineItems || []).forEach(function(li){
+        if (li && (li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding')) return;
+        other += (parseFloat(li && li.qty) || 0) * (parseFloat(li && li.unit) || 0);
+      });
+      if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: other, hrs: 0, sub:'typed on the quote · at cost' });
+    } catch(e){}
   }
   out.items = items;
   out.revenue = 0; out.cost = 0; out.hrsAll = 0;
@@ -22044,7 +22077,11 @@ function _profitSelectionItems(){
   var gutMark = 0; try { gutMark = f(_gutterMatMarkupPct()); } catch(e){}
   var passMarked = function(rev){ return rev / (1 + gutMark / 100); };
   changes.forEach(function(ch){
-    if (ch.roofName || ch.split) return;                 // an optional extra roof: already a roof of its own in the figures
+    if (ch.roofName || ch.split){                        // an optional extra roof the customer has taken
+      out.push({ key:'roof', roofIdx: ch.roofIdx, label: ch.roofName ? ('Optional roof — ' + ch.roofName) : ch.label, revenue: f(ch.delta),
+                 cost: ch.split ? f(ch.split.materials) + f(ch.split.labour) + f(ch.split.scaffold) : f(ch.delta), hrs: 0, sub:'the customer added it' });
+      return;
+    }
     var rev = f(ch.delta);
     var it = { key:'sel', label: ch.label, revenue: rev, cost: rev, hrs: 0, sub:'materials at cost' };
     var L = String(ch.label || '');
@@ -22098,7 +22135,8 @@ function _pxFoldsApply(){
 function _pxUnfold(id){ var c = document.getElementById(id); if (c && c.classList.contains('px-collapsed')) _pxToggle(id); }
 function _pxHeadTotals(){
   var f = function(v){ return parseFloat(v) || 0; };
-  var set = function(id, text, muted){ var el = document.getElementById('pxTot_' + id); if (!el) return; el.textContent = text || ''; el.classList.toggle('muted', !!muted); };
+  // Every figure here is before GST, and each heading says so (2026-09-23).
+  var set = function(id, text, muted){ var el = document.getElementById('pxTot_' + id); if (!el) return; el.textContent = text ? (text + (id === 'profitCard' || /Excluded/.test(text) ? '' : ' excl. GST')) : ''; el.classList.toggle('muted', !!muted); };
   try {
     var ri = _pricingRoofIdx();
     var sc = _scaffoldEff(_roofScaffold(ri));
@@ -22116,10 +22154,15 @@ function _pxHeadTotals(){
       var p = (S.quote && S.quote.proposalOptions) || {};
       var on = _gutterOnQuote();
       var gt = _gutterPricingType();
-      var g = on ? _selGutterDelta(p.gutterType) : _gutterTotalCharge(gt, _selGutterLm());
-      var up = on ? (0.25 * _selScaffoldBasePrice()) : 0;
-      var dp = (on && p.downpipes === 'yes') ? _selDownpipeDelta() : 0;
-      set('gutterDownpipeCard', fmtMoney(g + up + dp) + (on ? '' : ' \u00b7 not on the quote'), !on);
+      // The heading says what the card's own bottom line says (set by
+      // renderGutterDownpipePricing). Off the quote it used to leave out the
+      // platform uplift the card adds in, so the two disagreed by $625.
+      var g2 = window._gdCardTotal;
+      if (!(g2 >= 0)){
+        var g = on ? _selGutterDelta(p.gutterType) : _gutterTotalCharge(gt, _selGutterLm());
+        g2 = g + 0.25 * _selScaffoldBasePrice() + (p.downpipes === 'yes' ? _selDownpipeDelta() : 0);
+      }
+      set('gutterDownpipeCard', fmtMoney(g2) + (on ? '' : ' \u00b7 not on the quote'), !on);
     }
   } catch(e){ set('gutterDownpipeCard', ''); }
   try {
@@ -22166,7 +22209,7 @@ function renderProfitability(){
         'background:' + (on ? '#0a1628' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">' + label + '</button>';
     };
     switcher = '<div id="profitViewBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">' +
-      pill('total', 'Total · all roofs') +
+      pill('total', 'Quote total') +
       _tabs.map(function(i){ return pill(i, esc(_pricingRoofName(i)) + (i === 0 && _pricingRoofGroupExtras(0).length ? ' + ' + esc(_pricingRoofGroupExtras(0).join(', ')) : '')); }).join('') +
       '</div>';
   }
@@ -24854,7 +24897,7 @@ function _qpSelectionChanges(){
                  delta: parseFloat(rr.price),
                  // What the price is made of, for anything downstream that has
                  // to itemise it rather than quote one number.
-                 roofName: (rr.name || ('Roof ' + (i + 2))),
+                 roofName: (rr.name || ('Roof ' + (i + 2))), roofIdx: rr.idx,
                  split: { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 } });
   });
   if (p.steelGrade && p.steelGrade !== _selBaseGradeId())
@@ -25911,6 +25954,69 @@ function _qvCopyOf(q){
   delete c.versions; delete c.roofMapImgs;
   return c;
 }
+// ONE COPY OF EACH PICTURE (2026-09-23). The sent, accepted and every saved
+// draft used to carry their own copy of every condition photo and the roof
+// aerial — six photos on job 3245 became six photos times every version, all
+// of it in the job row that a save, an open and a send each moved whole. The
+// versions now hold "@media:<key>" in place of each picture and the picture
+// lives ONCE in versions.media. Anything that reads a version's quote goes
+// through _qvQuoteOf, which puts the pictures back.
+var _QV_MEDIA_MIN = 8 * 1024;
+var _qvHashCache = new Map();
+function _qvMediaKey(s){
+  var k = _qvHashCache.get(s); if (k) return k;
+  var h1 = 5381, h2 = 52711;
+  for (var i = 0; i < s.length; i++){ var c = s.charCodeAt(i); h1 = ((h1 * 33) ^ c) | 0; h2 = ((h2 * 31) + c) | 0; }
+  k = 'm' + s.length.toString(36) + '_' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+  if (_qvHashCache.size > 300) _qvHashCache.clear();
+  _qvHashCache.set(s, k);
+  return k;
+}
+// Swap every embedded picture in q (in place) for a reference into pool;
+// `used` collects every key q refers to, old references included.
+function _qvPackQuote(q, pool, used){
+  (function walk(o){
+    if (!o || typeof o !== 'object') return;
+    var keys = Array.isArray(o) ? o.map(function(_, i){ return i; }) : Object.keys(o);
+    keys.forEach(function(k){
+      var val = o[k];
+      if (typeof val === 'string'){
+        if (val.length >= _QV_MEDIA_MIN && val.slice(0, 5) === 'data:'){
+          var key = _qvMediaKey(val); pool[key] = val; o[k] = '@media:' + key; if (used) used[key] = 1;
+        } else if (used && val.slice(0, 7) === '@media:') used[val.slice(7)] = 1;
+      } else if (val && typeof val === 'object') walk(val);
+    });
+  })(q);
+  return q;
+}
+// A fresh, whole copy of a version's quote, pictures put back.
+function _qvQuoteOf(V){
+  var c = JSON.parse(JSON.stringify((V && V.quote) || {}));
+  var pool = (S.quote && S.quote.versions && S.quote.versions.media) || {};
+  (function walk(o){
+    if (!o || typeof o !== 'object') return;
+    var keys = Array.isArray(o) ? o.map(function(_, i){ return i; }) : Object.keys(o);
+    keys.forEach(function(k){
+      var val = o[k];
+      if (typeof val === 'string'){ if (val.slice(0, 7) === '@media:') o[k] = pool[val.slice(7)] || ''; }
+      else if (val && typeof val === 'object') walk(val);
+    });
+  })(c);
+  return c;
+}
+// Pack every version and drop pictures nothing refers to any more.
+function _qvPackAll(){
+  var v = S.quote && S.quote.versions;
+  if (!v || typeof v !== 'object') return;
+  var pool = (v.media && typeof v.media === 'object') ? v.media : {};
+  var used = {};
+  if (v.sent && v.sent.quote) _qvPackQuote(v.sent.quote, pool, used);
+  if (v.accepted && v.accepted.quote) _qvPackQuote(v.accepted.quote, pool, used);
+  (Array.isArray(v.drafts) ? v.drafts : []).forEach(function(d){ if (d && d.quote) _qvPackQuote(d.quote, pool, used); });
+  var keep = {};
+  Object.keys(used).forEach(function(k){ if (pool[k]) keep[k] = pool[k]; });
+  if (Object.keys(keep).length) v.media = keep; else delete v.media;
+}
 // A DRAFT IS NEVER AN ACCEPTED QUOTE. "Create new draft" copies whatever is on
 // screen — which may be the accepted version, or a draft made from it — and
 // the copy used to carry `accepted` with it. The share token does not change,
@@ -25946,6 +26052,7 @@ function _qvMarkSent(){
   var snap = _qvSnapshot('Sent quote');
   snap.sentTo = (S.quote.share && S.quote.share.sentTo) || '';
   v.sent = snap;
+  try { _qvPackAll(); } catch(e){}
   _qvRenderBar();
 }
 // The accepted quote: the server freezes it the moment the customer accepts
@@ -25958,6 +26065,7 @@ function _qvEnsureAccepted(){
   var snap = _qvSnapshot('Accepted quote');
   snap.acceptedAt = S.quote.accepted.at; snap.acceptedBy = S.quote.accepted.name || '';
   v.accepted = snap;
+  try { _qvPackAll(); } catch(e){}
 }
 function _qvViewing(){ return (window.S && S._qvViewing) || null; }
 // Put a frozen version on screen. The working draft is set aside first.
@@ -25967,7 +26075,7 @@ function _qvView(kind){
   if (!V || !V.quote){ _siteToast('There is no ' + kind + ' quote on this job yet'); return; }
   if (!S._qvViewing) S._qvWork = _qvCopyOf(S.quote);          // the draft, kept whole (versions ride separately)
   var keep = S.quote.versions;
-  S.quote = JSON.parse(JSON.stringify(V.quote));
+  S.quote = _qvQuoteOf(V);
   S.quote.versions = keep;
   S._qvViewing = { kind: kind, at: V.at, total: V.total };
   S.jobLocked = true;
@@ -25996,18 +26104,19 @@ function _qvDraftDirty(){
   if (!work) return false;
   var saved = v.drafts.find(function(d){ return d && d.id === work.draftId; });
   if (!saved) return !!(work.lineItems && work.lineItems.length);   // never saved as a draft, and it has a price
-  var a = JSON.stringify(work), b = JSON.stringify(saved.quote);
+  var a = JSON.stringify(_qvPackQuote(JSON.parse(JSON.stringify(work)), {}, null)), b = JSON.stringify(saved.quote);
   return a !== b;
 }
 function _qvSaveDraft(work, label){
   var v = _qvStore(); if (!v) return null;
   work = work || _qvCopyOf(S.quote);
   var snap = _qvSnapshot(label || 'Draft');
-  snap.quote = work;
+  snap.quote = JSON.parse(JSON.stringify(work));   // a copy: packing it must never touch the draft on screen
   snap.id = work.draftId || snap.id;
   var i = v.drafts.findIndex(function(d){ return d && d.id === snap.id; });
   if (i >= 0) v.drafts[i] = snap; else v.drafts.push(snap);
   if (v.drafts.length > 20) v.drafts = v.drafts.slice(-20);
+  try { _qvPackAll(); } catch(e){}
   return snap;
 }
 // Start a fresh, editable draft from whatever is on screen. If the current
@@ -26043,7 +26152,7 @@ function _qvOpenDraft(id){
   var d = v.drafts.find(function(x){ return x && x.id === id; }); if (!d) return;
   var go = function(){
     var keep = S.quote.versions;
-    S.quote = _qvFreshDraft(d.quote);
+    S.quote = _qvFreshDraft(_qvQuoteOf(d));
     S.quote.versions = keep;
     S.quote.draftId = d.id;
     S._qvViewing = null; S._qvWork = null;
@@ -26794,6 +26903,14 @@ function _shrinkQuoteMediaInPlace(cb){
       jobs.push(function(done){ _shrinkImg(im.url, 720, 0.5, function(s){ if (s && s.length < im.url.length) im.url = s; done(); }); });
     }
   });
+  // The versions' one copy of each picture, shrunk the same way.
+  var vm = q.versions && q.versions.media;
+  if (vm && typeof vm === 'object') Object.keys(vm).forEach(function(k){
+    var src = vm[k];
+    if (typeof src === 'string' && src.length > 70 * 1024 && /^data:image\//.test(src)){
+      jobs.push(function(done){ _shrinkImg(src, 520, 0.44, function(s){ if (s && s.length < src.length) vm[k] = s; done(); }); });
+    }
+  });
   if (!jobs.length) return cb && cb();
   var n = jobs.length, d = 0;
   jobs.forEach(function(j){ j(function(){ if (++d === n && cb) cb(); }); });
@@ -26870,7 +26987,10 @@ async function _ensureCustomerLink(msg, opts){
   try { pub = await _publishQuoteForLink({ deferHeavySave: !!opts.deferHeavySave }); } catch(e){ saveErr = e; }
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
-    alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
+    // Say WHY. "Check your connection" was the only answer whatever stopped
+    // the save — a locked job, an oversized one, a refused one (2026-09-23).
+    var _why = window._lastSaveRefusal || ((document.getElementById('saveJobMsg') || {}).textContent || '').trim() || (saveErr && saveErr.message) || '';
+    alert('Couldn\'t save the job, so the customer link won\'t resolve.' + (_why ? '\n\nReason: ' + _why : ' Check your connection and try again.'));
     return null;
   }
   link = _customerLinkString() || link;   // rebuild in case the job number settled after save
@@ -27182,14 +27302,15 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 function _qbPages(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
-    { key:'cover',     label:'Your quote',    html:_qbCover },
-    { key:'proposal',  label:'The proposal',  html:_qbProposal }
+    { key:'cover',     label:'Your quote',    html:_qbCover }
   ];
-  // The roof condition follows the proposal (the owner's order). A quote the
+  // The roof condition comes BEFORE the proposal (the owner's order since
+  // 2026-09-23: what is wrong with the roof, then what we will do). A quote the
   // office never filled a condition report in on has nothing to say on that
   // page, and a page that asserts a verdict nobody wrote is worse than no
   // page — so the customer only gets it when there is something on it.
   if (_qbCondSectionOn()) pages.push({ key:'condition', label:'Your roof', html:_qbCondition });
+  pages.push({ key:'proposal',  label:'The proposal',  html:_qbProposal });
   pages = pages.concat([
     { key:'grade',     label:'Steel grade',   html:_qbGrade },
     { key:'profile',   label:'Roof profile',  html:_qbProfile },
@@ -27261,7 +27382,7 @@ function _qbRender(){
           ? '<button type="button" class="qb-price" id="qbPrice" onclick="_custBarToggleBreakdown()">'+
               '<span class="qb-price-lbl">Your total</span>'+
               '<span class="qb-price-val" id="qbPriceVal">'+_qbMoney(_qbTotal())+'</span>'+
-              '<span class="qb-price-gst">incl. GST · tap for the breakdown</span>'+
+              '<span class="qb-price-gst">incl. GST · '+_qbMoney(_qbTotal() / (1 + _qbRate()))+' excl. GST</span>'+
             '</button>'
           : '<div class="qb-dots" aria-hidden="true">'+pages.map(function(_, i){
               return '<i'+(i === QB.i ? ' class="on"' : '')+'></i>';
@@ -27853,6 +27974,16 @@ function _qeRailOn(){
   return !!document.getElementById('quoteProposal');
 }
 var _qeRailT = null;
+// A rail button presses the button on the page it stands for. It used to call
+// _qeEdit by name, and the "+ Insert … page" buttons have no name, so pressing
+// one on the rail did nothing (2026-09-23).
+function _qeRailClick(i){
+  var rail = document.getElementById('qeRail');
+  var it = rail && rail._items && rail._items[i];
+  if (!it) return;
+  if (it.what) return _qeEdit(it.what);
+  if (it.anchor && it.anchor.isConnected) it.anchor.click();
+}
 function _qeRailSync(){
   var wrap = document.getElementById('quoteProposal'); if (!wrap) return;
   var on = _qeRailOn();
@@ -27877,7 +28008,7 @@ function _qeRailSync(){
   var html = '';
   items.forEach(function(it, i){
     html += '<button type="button" class="qe-rail-btn" data-qe-rail="'+esc2(it.what)+'" title="'+esc2(it.title)+'" style="top:'+Math.round(it.top)+'px" '+
-      'onclick="event.stopPropagation();_qeEdit(\''+it.what+'\')" onmouseenter="_qeRailHover('+i+',true)" onmouseleave="_qeRailHover('+i+',false)">'+esc2(it.label)+'</button>'+
+      'onclick="event.stopPropagation();_qeRailClick('+i+')" onmouseenter="_qeRailHover('+i+',true)" onmouseleave="_qeRailHover('+i+',false)">'+esc2(it.label)+'</button>'+
       '<span class="qe-rail-line" style="top:'+Math.round(it.top)+'px">\uD83D\uDC49</span>';
   });
   rail.innerHTML = html;
@@ -28069,8 +28200,15 @@ function _qbOptionPage(o){
         '<p class="qb-para">This is included as quoted. Your roofer will confirm the detail with you.</p>'+
       '</div>';
   }
+  // THE STEEL CHOICES READ FROM WHAT IS PICKED (2026-09-23): with 0.55 picked,
+  // 0.40 shows what going back saves ("−$2,732.54"), not "Included", and the
+  // pick itself is "Included" because the total already carries it.
+  var _rel = (o.group === 'steelGrade' || o.group === 'profile' || o.group === 'steelThickness');
+  var _pk = (o.items || []).find(function(x){ return x.id === o.current; });
+  var _off = (_rel && _pk && isFinite(_pk.delta)) ? +_pk.delta : 0;
   var rows = (o.items || []).map(function(it){
     var picked = o.current === it.id;
+    if (_off && isFinite(it.delta)) it = Object.assign({}, it, { delta: it.delta - _off });
     return '<button type="button" class="qb-opt'+(picked ? ' on' : '')+'" data-qb-opt="'+esc2(o.group)+'" data-qb-val="'+esc2(it.id)+'"'+
         (_qbLocked() ? ' disabled' : ' onclick="'+o.set+'(\''+esc2(it.id)+'\')"')+'>'+
         '<span class="qb-tick">'+(picked ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
@@ -28499,7 +28637,7 @@ function _qbSummary(opts){
       '<div class="qb-total">'+
         '<span>Total incl. GST</span>'+
         '<b>'+_qbMoney(total)+'</b>'+
-        '<i>'+_qbMoney(sub)+' + '+_qbMoney(total - sub)+' GST</i>'+
+        '<i class="qb-gst-split"><span>Price excl. GST <b>'+_qbMoney(sub)+'</b></span><span>+ GST <b>'+_qbMoney(total - sub)+'</b></span></i>'+
       '</div>'+
       '<h3 class="qb-h3">What is in it</h3>'+
       '<div class="qb-sum">'+body+'</div>'+
@@ -28593,7 +28731,7 @@ function _qbPicksList(){
 // customer who started on their phone finds their choices here, because
 // both read S.quote.proposalOptions and nothing else.
 // THE MODERN QUOTE'S SECTION LIST is one list for the one-page layout and
-// the book, in this order: cover, proposal, roof condition, grade, profile,
+// the book, in this order: cover, roof condition, proposal, grade, profile,
 // thickness, colour, guttering, old roof, extras, then the total. The
 // template editor can reorder the middle and take sections out
 // (`S.quote.modernOrder`, `S.quote.modernParked`, applied by
@@ -28629,6 +28767,10 @@ function _qModernApply(list){
     used[sc.key] = true; out.splice(at, 0, sc);
   });
   take(lastKey);
+  // The roof condition always sits straight after the cover, ahead of the
+  // proposal, whatever order a quote or template saved before 2026-09-23.
+  var ci = -1; for (var z = 0; z < out.length; z++) if (out[z].key === 'condition'){ ci = z; break; }
+  if (ci > 1){ var cs = out.splice(ci, 1)[0]; out.splice(out[0] && out[0].key === 'cover' ? 1 : 0, 0, cs); }
   return out;
 }
 // The office sees the condition section whenever the page is in the quote
@@ -28644,8 +28786,8 @@ function _qdSections(){ return _qModernApply(_qdSectionsRaw()); }
 function _qdSectionsRaw(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
-  list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
   if (_qbCondSectionOn()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
+  list.push({ key:'proposal', label:'Proposal', html:_qdProposal });
   // Steel grade, profile and thickness are each a section of their own, the
   // rows full width like the guttering's — three narrow columns of tall cards
   // read as a muddle on the owner's screen.
@@ -28669,7 +28811,7 @@ function _qdSectionsRaw(){
 function _qdWithPlaceholders(secs){
   var parked = _qbParkedForOffice(); if (!parked.length) return secs;
   var raw = _qdSectionsRaw().map(function(x){ return x.key; });
-  if (raw.indexOf('condition') < 0) raw.splice(raw.indexOf('proposal') + 1, 0, 'condition');
+  if (raw.indexOf('condition') < 0) raw.splice(raw.indexOf('proposal'), 0, 'condition');
   var out = secs.slice();
   parked.forEach(function(k){
     if (out.some(function(x){ return x.key === k; })) return;
@@ -28782,7 +28924,7 @@ function _qdRail(){
       '<div class="qd-rail-total">'+
         '<span>Your total incl. GST</span>'+
         '<b id="qdTotal">'+_qbMoney(total)+'</b>'+
-        '<i>'+_qbMoney(sub)+' + '+_qbMoney(total - sub)+' GST</i>'+
+        '<i class="qb-gst-split"><span>Price excl. GST <b>'+_qbMoney(sub)+'</b></span><span>+ GST <b>'+_qbMoney(total - sub)+'</b></span></i>'+
       '</div>'+
       (lines ? '<div class="qd-rail-rows">'+lines+'</div>' : '')+
       (picks ? '<div class="qd-rail-h">Your choices</div><div class="qb-picks qd-rail-picks">'+picks+'</div>' : '')+
@@ -28801,7 +28943,7 @@ function _qdRail(){
 function _qdMiniBar(){
   var q = S.quote || {};
   return '<div class="qd-mini">'+
-      '<div class="qd-mini-total"><span>Total incl. GST</span><b>'+_qbMoney(_qbTotal())+'</b></div>'+
+      '<div class="qd-mini-total"><span>Total incl. GST</span><b>'+_qbMoney(_qbTotal())+'</b><small style="display:block;font-size:11px;opacity:.75">'+_qbMoney(_qbTotal() / (1 + _qbRate()))+' excl. GST</small></div>'+
       (q.accepted ? '<span class="qd-mini-done">Quote accepted</span>'
                   : '<button type="button" onclick="_qdGoTo(\'review\')">Review quote</button>')+
     '</div>';
@@ -31040,7 +31182,13 @@ function _setRoofMode(i, mode){
   var ex  = (S.quote.roofExcluded && typeof S.quote.roofExcluded === 'object') ? S.quote.roofExcluded : (S.quote.roofExcluded = {});
   sep[i] = (mode === 'separate');
   ex[i]  = (mode === 'excluded');
-  try { _autoSyncLabourMaterials(); } catch(e){}   // re-bakes folded roofs into the base line items
+  // The main roof's hours cover whatever is folded into it: work them out
+  // again BEFORE the quote's lines are re-baked, or the materials carried the
+  // folded roof while the labour did not (2026-09-23).
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _autoSyncLabourMaterials(); } catch(e){}
+  try { renderProfitability(); } catch(e){}   // re-bakes folded roofs into the base line items
   try { refreshQuoteProposal(); } catch(e){}
   // Folding a roof in takes away its own pricing tab, and unfolding gives it
   // back — so the bar that lists those tabs has to redraw here. It used to
@@ -33322,7 +33470,7 @@ function refreshQuoteProposal(){
           var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
           var _scaffI = _scaffoldPriceForRoof(_ri);             // this roof's own scaffold
           var _priceI = _matI + _labI + _scaffI;
-          _extra.push({ name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
+          _extra.push({ idx: _ri, name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
                         area: +(_areaOf(_ri)).toFixed(1),
                         materials: +_matI.toFixed(2), labour: +_labI.toFixed(2), scaffold: +_scaffI.toFixed(2),
                         price: +_priceI.toFixed(2) });
@@ -63058,10 +63206,12 @@ async function _fergusPickPhoto(f){
   } else if (target && typeof target === 'string'){
     // Quote photo slot — store as an upload-style assignment so the
     // existing resolveSlotSrc dataUrl path renders it.
-    _slotAssignments()[target] = { source:'upload', dataUrl: dataUrl, caption: f.name || '' };
     closeFergusPhotoPicker();
-    if (typeof renderSlotGrid === 'function') renderSlotGrid();
-    if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+    _downscalePhoto(dataUrl, function(src){
+      _slotAssignments()[target] = { source:'upload', dataUrl: src, caption: f.name || '' };
+      if (typeof renderSlotGrid === 'function') renderSlotGrid();
+      if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+    });
   } else {
     closeFergusPhotoPicker();
   }

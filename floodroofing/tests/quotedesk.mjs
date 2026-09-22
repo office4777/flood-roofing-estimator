@@ -100,8 +100,8 @@ const v = await d.pg.evaluate(() => ({
 }));
 check('the customer link on a computer opens as one page, not the book and not A4',
   v.desk && !v.book && v.root && v.a4 === 0, JSON.stringify({ desk:v.desk, book:v.book, a4:v.a4 }));
-check('…the sections run cover, proposal, roof, steel grade, profile, thickness, colour, guttering, old roof, review',
-  v.secs.join(',') === 'cover,proposal,condition,grade,profile,thickness,colour,gutter,disposal,review', v.secs.join(','));
+check('…the sections run cover, roof, proposal, steel grade, profile, thickness, colour, guttering, old roof, review',
+  v.secs.join(',') === 'cover,condition,proposal,grade,profile,thickness,colour,gutter,disposal,review', v.secs.join(','));
 check('…with a nav button for each', v.nav.length === v.secs.length && v.nav.includes('Steel grade') && v.nav.includes('Review'), v.nav.join(' | '));
 check('…a summary rail with the live total incl. GST and a Review button', v.rail && /\$/.test(v.total) && v.review, v.total);
 check('…the old bottom/side bar is out of the way and the page scrolls', v.barHidden && v.scrolls);
