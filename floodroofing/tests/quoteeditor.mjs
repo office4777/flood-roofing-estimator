@@ -299,6 +299,41 @@ check('the 0.55 upgrade is 22% of the raw material, not of the marked-up figure'
 check('…and a grade swap likewise', Math.abs(raw.z - raw.pct * 10000) < 0.01, raw.z + ' vs ' + raw.pct * 10000);
 check('…a quote stamped before the raw figure existed divides the buffer and the mark-up back out', Math.abs(raw.derived - 10000) < 0.5, String(raw.derived));
 
+// THE QUOTE TAB'S TOP (2026-09-22): no Job type card; the scope lives in
+// More (always shown now); the template picker is a solid light-blue button.
+const top = await pg.evaluate(() => {
+  const sb = document.querySelector('#tab-quote .q-scopebar');
+  const more = document.getElementById('qaMore');
+  const list = (document.getElementById('qaMoreList') || {}).textContent || '';
+  const tpl = document.querySelector('#qaTplMenu > summary');
+  return { scopeHidden: !sb || getComputedStyle(sb).display === 'none', moreShown: !!more && getComputedStyle(more).display !== 'none',
+           scopeInMore: /Job scope/.test(list) && /Re-Roof/.test(list), tplBg: tpl ? getComputedStyle(tpl).backgroundColor : '', tplFg: tpl ? getComputedStyle(tpl).color : '' };
+});
+check('the Job type card is gone from the top of the Quote tab and the job scope is in More', top.scopeHidden && top.moreShown && top.scopeInMore, JSON.stringify(top));
+check('the template picker is a solid light-blue button with white text', top.tplBg === 'rgb(0, 153, 204)' && top.tplFg === 'rgb(255, 255, 255)', top.tplBg + ' / ' + top.tplFg);
+
+// SETTINGS: dark-blue group headers and a nav that stays put while scrolling;
+// a Save button that shows a spinner, then a tick and the time.
+const setv = await pg.evaluate(async () => {
+  gotoTab('settings'); await new Promise(r => setTimeout(r, 400));
+  const nav = document.querySelector('#tab-settings .set-nav'), grp = document.querySelector('#tab-settings .set-grp');
+  const out = { sticky: nav ? getComputedStyle(nav).position : '', grpBg: grp ? getComputedStyle(grp).backgroundColor : '', grpFg: grp ? getComputedStyle(grp).color : '' };
+  const real = window.saveSettings; window.saveSettings = async function(){ await new Promise(r => setTimeout(r, 150)); return true; };
+  const btn = document.getElementById('saveSettingsBtn');
+  btn.click();
+  await new Promise(r => setTimeout(r, 300));
+  out.during = btn.innerHTML; out.ring = !!btn.querySelector('.sv-ring'); out.disabled = btn.disabled;
+  await new Promise(r => setTimeout(r, 1100));
+  out.after = btn.textContent; out.ok = btn.classList.contains('sv-ok');
+  window.saveSettings = real;
+  await new Promise(r => setTimeout(r, 4200));
+  out.restored = /Save now/.test(btn.textContent);
+  gotoTab('quote');
+  return out;
+});
+check('the Settings menu stays put while scrolling, with dark-blue group headers', setv.sticky === 'sticky' && setv.grpBg === 'rgb(10, 22, 40)' && setv.grpFg === 'rgb(255, 255, 255)', JSON.stringify(setv));
+check('Save now shows a spinner for at least a second, then a green tick with the time, then goes back to itself', setv.ring && /Saving/.test(setv.during) && setv.disabled && setv.ok && /Saved \d/.test(setv.after) && setv.restored, JSON.stringify({ during: setv.during, after: setv.after, restored: setv.restored }));
+
 // ONE WRITE TO THE JOB AT A TIME: saves and the quote publish never overlap
 // on the row, and a burst of saves collapses to the one running and one
 // waiting.

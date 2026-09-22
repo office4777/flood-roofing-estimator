@@ -1349,8 +1349,8 @@ html.no-jms .jms-only{display:none!important}
    list down the left with the section's content beside it. Same buttons and
    ids as the chips had — only the geometry changed. */
 #tab-settings .set-shell{display:flex;gap:0;align-items:stretch}
-#tab-settings .set-nav{flex-direction:column;flex-wrap:nowrap;gap:2px;width:212px;flex-shrink:0;margin-bottom:0;padding-right:22px}
-#tab-settings .set-nav .set-grp{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin:16px 0 4px;padding:0 12px}
+#tab-settings .set-nav{flex-direction:column;flex-wrap:nowrap;gap:2px;width:212px;flex-shrink:0;margin-bottom:0;padding-right:22px;position:sticky;top:12px;align-self:flex-start;max-height:calc(100vh - 24px);overflow:auto}
+#tab-settings .set-nav .set-grp{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:#0a1628;border-radius:7px;margin:16px 0 6px;padding:6px 12px}
 #tab-settings .set-nav .set-grp:first-child{margin-top:2px}
 #tab-settings .set-nav .tab-sm{display:block;width:100%;text-align:left;border:none;background:transparent;padding:8px 12px;border-radius:8px;font-size:13px;color:var(--text2)}
 #tab-settings .set-nav .tab-sm:hover{background:var(--surface-2);color:var(--text)}
@@ -1417,6 +1417,10 @@ html.no-jms .jms-only{display:none!important}
   -webkit-mask:radial-gradient(circle 7px, transparent 6.5px, #000 7px);mask:radial-gradient(circle 7px, transparent 6.5px, #000 7px);
   animation:ld-fill 12s linear forwards, spin 1.2s linear infinite}
 @property --ld-p{syntax:'<percentage>';inherits:false;initial-value:0%}
+.sv-ring{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+.sec-btn .sv-ring,.gjb-btn .sv-ring{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+button.sv-ok{background:#15803d !important;border-color:#15803d !important;color:#fff !important}
+button.sv-bad{background:#b91c1c !important;border-color:#b91c1c !important;color:#fff !important}
 @keyframes ld-fill{from{--ld-p:0%}to{--ld-p:100%}}
 #workingPill .spin{width:16px;height:16px;flex:0 0 auto}
 
@@ -3095,7 +3099,8 @@ html.site-mode{ --qbar-top:calc(52px + env(safe-area-inset-top, 0px)); }
 .qa-btn:hover{ border-color:#94a3b8; color:#0a1628; }
 select.qa-btn{ padding:5px 8px; }
 .qa-btn-primary{ background:#0a1628; border-color:#0a1628; color:#fff; }
-.qa-btn-tpl{ border-color:#0099cc; color:#0077a3; background:#f0f8ff; list-style:none; }
+.qa-btn-tpl{ border-color:#0099cc; color:#fff; background:#0099cc; list-style:none; }
+.qa-btn-tpl:hover{ background:#0088b8; }
 .qa-btn-tpl::-webkit-details-marker{ display:none; }
 #qaTplMenu > summary{ display:inline-block; }
 #qaTplMenu .qv-menu-list{ min-width:280px; }
@@ -4663,7 +4668,7 @@ html.qp-desk-preview .qd-top{ position:static; }
   <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
   <button class="ttb-btn" id="ttbMarkup" onclick="_siteNotesToggle()"><span class="ttb-ico" data-ico="markup">✎</span>Markup</button>
   <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico" data-ico="camera">📷</span>Photos</button>
-  <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico" data-ico="save">💾</span>Save</button>
+  <button class="ttb-btn" onclick="_saveClick(this,'job')"><span class="ttb-ico" data-ico="save">💾</span>Save</button>
 </div>
 <aside class="sidebar">
 <div class="hdr">
@@ -4836,7 +4841,7 @@ html.qp-desk-preview .qd-top{ position:static; }
       <span class="gjb-by" id="globalJobBarBy" style="display:none"></span>
     </div>
     <div class="gjb-actions">
-      <button type="button" id="globalJobBarSaveBtn" onclick="saveCurrentJob()" class="gjb-btn gjb-btn-primary" title="Save the job draft">
+      <button type="button" id="globalJobBarSaveBtn" onclick="_saveClick(this,'job')" class="gjb-btn gjb-btn-primary" title="Save the job draft">
         <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l3 3v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M5 3v3h5V3M5 11h6"/></svg>
         Save
       </button>
@@ -6889,7 +6894,7 @@ html.qp-desk-preview .qd-top{ position:static; }
   <!-- Main scope picker — sits under the action bar. Drives the scope of
        work (page 3 of the proposal) and the detailed checklist in the
        Pricing slide-out. Re-Roof is the default. -->
-  <div class="card q-scopebar no-print">
+  <div class="card q-scopebar no-print" style="display:none">
     <div class="card-hd"><span class="card-dot"></span>Job type
       <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Pick the scope — page 3 of the proposal fills in from this</span>
     </div>
@@ -7545,7 +7550,7 @@ html.qp-desk-preview .qd-top{ position:static; }
 <div class="panel" id="tab-jobs">
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Save current job
-      <button onclick="saveCurrentJob()" id="saveJobBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save</button>
+      <button onclick="_saveClick(this,'job')" id="saveJobBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save</button>
     </div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Current job: <strong id="currentJobLabel">— new (not yet saved)</strong></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -7622,7 +7627,7 @@ html.qp-desk-preview .qd-top{ position:static; }
     </div>
   </div>
   <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;background:#fafbfc">
-    <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
+    <button onclick="_saveClick(this,'job')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
     <button id="jobDetailsPrimaryBtn" onclick="jobDetailsPrimary()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;background:#0099cc">Start → Map Roof</button>
   </div>
 </div>
@@ -7803,7 +7808,7 @@ html.qp-desk-preview .qd-top{ position:static; }
     <div class="set-head">
       <div class="set-title" id="setPaneTitle">Branding</div>
       <span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400">Auto-saves as you type</span>
-      <button onclick="saveSettings()" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
+      <button onclick="_saveClick(this,'settings')" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
 
     <!-- Guides: the setup guide, the tutorial and the practice job. -->
@@ -7867,7 +7872,7 @@ html.qp-desk-preview .qd-top{ position:static; }
           <b>Save now</b>
           <span>Writes the open job immediately, without waiting for the timer.</span>
         </div>
-        <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;flex-shrink:0">💾 Save now</button>
+        <button onclick="_saveClick(this,'job')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;flex-shrink:0">💾 Save now</button>
       </div>
     </div>
 
@@ -12634,6 +12639,32 @@ var _settingsAutosaveTimer = null;
 function _scheduleSettingsAutosave(){
   clearTimeout(_settingsAutosaveTimer);
   _settingsAutosaveTimer = setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 900);
+}
+// A Save button that SHOWS it saved (2026-09-22): a spinner for at least a
+// second, then a green tick with the time, or a red "Not saved" — the
+// owner could not tell whether a click had done anything.
+function _saveClick(btn, what){
+  if (!btn || btn._saving) return;
+  btn._saving = true;
+  var orig = btn.innerHTML, w = btn.offsetWidth;
+  if (w) btn.style.minWidth = w + 'px';
+  btn.innerHTML = '<span class="sv-ring"></span>Saving\u2026';
+  btn.disabled = true;
+  var t0 = Date.now(), ok = false;
+  var run = (what === 'settings') ? Promise.resolve().then(function(){ return saveSettings(); })
+                                  : Promise.resolve().then(function(){ return saveCurrentJob(); });
+  run.then(function(r){
+    ok = (what === 'settings') ? (r === true) : ((typeof _isJobDirty === 'function') ? !_isJobDirty() : true);
+  }, function(){ ok = false; }).then(function(){
+    var wait = Math.max(0, 1000 - (Date.now() - t0));
+    setTimeout(function(){
+      var when = new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' });
+      btn.disabled = false;
+      btn.classList.add(ok ? 'sv-ok' : 'sv-bad');
+      btn.innerHTML = ok ? '\u2713 Saved ' + when : '\u26A0 Not saved';
+      setTimeout(function(){ btn.classList.remove('sv-ok', 'sv-bad'); btn.innerHTML = orig; btn.style.minWidth = ''; btn._saving = false; }, ok ? 4000 : 6000);
+    }, wait);
+  });
 }
 async function saveSettings(auto){
   collectSettingsFromUI();
@@ -24236,7 +24267,13 @@ function _defaultSelectables(){
 function _selectables(){
   var ok = function(o){ return o && Array.isArray(o.grades) && Array.isArray(o.profiles) && Array.isArray(o.gutters); };
   var snap = (window.S && S.quote && S.quote.selectablesSnapshot);
-  if (ok(snap)) return snap;
+  // The snapshot is what the CUSTOMER was sent and what a frozen (sent /
+  // accepted / locked) version shows. The office editing a draft reads the
+  // live products (2026-09-22): a grade added in Settings could not be
+  // offered on any quote that had ever been sent, because the send-time
+  // snapshot answered first.
+  var frozen = !!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || (window.S && (S._qvViewing || (typeof _jobLockActive === 'function' && _jobLockActive()))));
+  if (ok(snap) && (frozen || !(window.S && S.settings && ok(S.settings.selectables)))) return snap;
   var cfg = (window.S && S.settings && S.settings.selectables);
   if (ok(cfg)) return cfg;
   return _defaultSelectables();
@@ -32504,13 +32541,23 @@ function _qkMenuRender(){
     return '<button type="button"' + (id ? ' id="' + id + '"' : '') + ' class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
   };
   if (list){
-    list.innerHTML = '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
+    // The job SCOPE (Re-Roof / New roof / Tile to Colorsteel) lives here too
+    // since 2026-09-22 — its card at the top of the Quote tab is gone.
+    var scope = '';
+    try {
+      var curScope = _currentMainScope || 'reroof';
+      scope = '<div class="qa-more-lbl">Job scope</div>' + Object.keys(MAIN_SCOPE_PRESETS).map(function(k){
+        var pr = MAIN_SCOPE_PRESETS[k] || {};
+        return item("setMainScope('" + k + "');_qkMenuRender()", esc2(pr.label || k), esc2(pr.subtitle || ''), curScope === k, 'qkScope_' + k);
+      }).join('');
+    } catch(e){}
+    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
       '<div class="qa-more-lbl">Job type</div>' +
       item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps, 'qkBtn_roofing') +
       item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') +
       '</div>';
   }
-  if (more) more.style.display = avail ? '' : 'none';
+  if (more) more.style.display = '';
   _qaTplMenuRender();
 }
 // The saved templates, as the big picker near the top of the Quote tab.

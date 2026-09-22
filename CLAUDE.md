@@ -188,6 +188,19 @@ Discipline (non-negotiable):
   vanished — "Fergus disconnected again". UI suites that call
   `saveSettings` must stub GET /settings with an object, not `[]`.
   `tests/ferguskey.mjs`, `tests/quotedomain.mjs`.
+- THE OFFICE READS THE LIVE PRODUCTS on a draft (2026-09-22):
+  `_selectables()` answers the quote's send-time `selectablesSnapshot`
+  only for the customer, while printing, on a frozen version
+  (`S._qvViewing`) or a locked job; otherwise Settings' products. A grade
+  added in Settings could never be offered on a quote that had ever been
+  sent before this. `tests/selectables.mjs` plays both sides.
+- SAVE BUTTONS SHOW THEY SAVED: every Save / Save now button goes through
+  `_saveClick(btn, 'settings'|'job')` — a spinner for at least a second,
+  then a green "✓ Saved 3:41 pm" or a red "Not saved", then back. The
+  Settings nav is sticky with dark-blue group headers; the Quote tab's Job
+  type (scope) card is hidden and the scope lives in the More menu, which
+  is always shown now; the template picker is a solid light-blue button.
+  `tests/quoteeditor.mjs`.
 - THE SEND RECORDS ITSELF BEFORE FERGUS (2026-09-22): after the email
   POST, `_qvMarkSent()` and the light `_publishQuoteOnly()` (tried twice,
   then a forced full save) come FIRST; a failure is said in `#qaMsg`. Then

@@ -124,19 +124,27 @@ v = await pg.evaluate(() => {
 });
 check('the base grade cannot be removed out from under the others', v);
 
-// ── a SENT quote keeps the products it was sent with ──────────────
+// ── a SENT quote keeps the products it was sent with — for the CUSTOMER ──
+// The office editing the draft after a send reads the live products
+// (2026-09-22: a grade added in Settings could never be offered on a quote
+// that had been sent, because the send-time snapshot answered first).
 v = await pg.evaluate(() => {
   // stamp a snapshot the way sending does, then change the settings underneath
   S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(S.settings.selectables));
   const sentPct = _selGradePctOf('zincalume');
   S.settings.selectables.grades.find(g => g.id === 'zincalume').pct = -0.9;
   S.settings.selectables.gutters.find(g => g.id === 'box125').removed = true;
-  return { sentPct, afterRepricing: _selGradePctOf('zincalume'),
-           boxStillOffered: _selGutters().map(g => g.id).includes('box125') };
+  S.settings.selectables.grades.push({ id:'altimate', name:'Colorsteel\u00ae ALTIMATE', pct:1 });
+  const office = { pct: _selGradePctOf('zincalume'), box: _selGutters().map(g => g.id).includes('box125'), altimate: _selGrades().map(g => g.id).includes('altimate') };
+  window.__CUSTOMER_MODE = true;
+  const cust = { pct: _selGradePctOf('zincalume'), box: _selGutters().map(g => g.id).includes('box125'), altimate: _selGrades().map(g => g.id).includes('altimate') };
+  window.__CUSTOMER_MODE = false;
+  S.settings.selectables.grades.pop();
+  return { sentPct, office, cust };
 });
-check('repricing a grade does not move a quote already sent',
-  v.sentPct === -0.327 && v.afterRepricing === -0.327, 'sent ' + v.sentPct + ', now reads ' + v.afterRepricing);
-check('…and removing a gutter does not pull it out of that quote', v.boxStillOffered);
+check('the CUSTOMER of a sent quote keeps the products and prices they were sent',
+  v.sentPct === -0.327 && v.cust.pct === -0.327 && v.cust.box && !v.cust.altimate, JSON.stringify(v.cust));
+check('…while the office editing that draft reads the live products — a grade added in Settings is offered', v.office.altimate && v.office.pct === -0.9 && !v.office.box, JSON.stringify(v.office));
 
 v = await pg.evaluate(() => {
   delete S.quote.selectablesSnapshot;      // a fresh quote sees the new settings
