@@ -148,15 +148,17 @@ check('…while everything else on the roof still is',
   v.bargeOff ? String(v.bargeOff.q) : 'barge missing too');
 check('two 5m barges price at 11m, not 12m',
   Math.abs(v.barge.q - 11) < 1e-9, v.barge.q + ' — ' + v.barge.n);
-check('a 12m gutter prices at 12.6m, not 14.4m',
-  Math.abs(v.gutter.q - 12.6) < 1e-9, v.gutter.q.toFixed(2) + ' — ' + v.gutter.n);
+// Since 2026-09-22 the gutter is GUTTER material (the Guttering card
+// itemises it) and never a roofing-material row, bought or not.
+check('a gutter being bought is still not a roofing-material row — it is on the gutter card',
+  v.gutter === null, v.gutter ? ('roofing table charged ' + v.gutter.q) : 'not in the roofing table');
 // 9m ridge (2 sticks, 1 join) + 4m hip (1 stick, none) = 13 + 0.5 + 0.5 + 0.1
 check('ridge and hip share a row but stay two runs',
   Math.abs(v.ridge.q - 14.1) < 1e-9 && /× 2 runs/.test(v.ridge.n),
   v.ridge.q.toFixed(2) + ' — ' + v.ridge.n);
 check('no row still claims a 1.2× factor',
-  ![v.barge.n, v.gutter.n, v.ridge.n].some(n => /1\.2/.test(n)),
-  [v.barge.n, v.gutter.n, v.ridge.n].join(' | '));
+  ![v.barge.n, v.ridge.n].some(n => /1\.2/.test(n)),
+  [v.barge.n, v.ridge.n].join(' | '));
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
