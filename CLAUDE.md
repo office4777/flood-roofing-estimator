@@ -190,6 +190,16 @@ Discipline (non-negotiable):
   any exist the two lists get "What's included" / "What's excluded"
   headings and the exclusions a red cross (`.qb-excl-row`); a quote with
   none reads as before. `tests/quotedesk.mjs`.
+- THE GUTTER IS GUTTER MATERIAL, NOT ROOFING MATERIAL (2026-09-22): the
+  roofing material table no longer carries a Gutter row. A steel or
+  Classic gutter is itemised on the Guttering & Downpipes card like the
+  Typhoon kit: the spouting $/lm, a bracket every 800 mm
+  (`GUTTER_STEEL_BRACKET_SPACING_M`) and a dropper every 8 m, never fewer
+  than one per run (`GUTTER_DROPPER_SPACING_M`), priced from Settings →
+  Price book `gutter.bracket_ea` / `gutter.dropper_ea` (defaults $4.20 and
+  $16.50 until the owner sets his). The customer's gutter delta reads the
+  same lines, so the pricegold baseline moved on every box-gutter
+  combination. `tests/gutterprice.mjs`, `tests/chainwalk.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

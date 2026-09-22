@@ -72,6 +72,22 @@ const v3 = await opg.evaluate(() => {
 check('once guttering is on the quote the card prices exactly that product',
   v3.picked === 'box125' && v3.on, JSON.stringify(v3));
 
+// STEEL GUTTER MATERIAL IS ITEMISED (2026-09-22): the spouting, a bracket
+// every 800 mm and a dropper every 8 m (never fewer than one per run) —
+// and the gutter is NOT counted in the roofing material table as well.
+const kit = await opg.evaluate(() => {
+  const rows = _gutterMaterialLines('box125', 54, 3, 4);
+  const shown = [...document.querySelectorAll('#gutterDownpipeWrap table')].map(t => t.textContent).join(' ');
+  let roofRows = [];
+  try { roofRows = _buildMaterialPriceRows().map(r => r.label); } catch(e){ roofRows = ['ERR ' + e.message]; }
+  return { rows: rows.map(r => r.desc + ':' + r.qty + r.unit), bracketEa: _gutterBracketEa(), dropperEa: _gutterDropperEa(), shown: /brackets \(1 \/ 800mm\)/.test(shown) && /Droppers \(1 \/ 8m\)/.test(shown), roofRows };
+});
+check('a 54 m box gutter on three runs lists the spouting, 68 brackets and 7 droppers',
+  kit.rows.join('|') === 'Gutter (supply):54lm|Gutter brackets (1 / 800mm):68ea|Droppers (1 / 8m):7ea' && kit.bracketEa > 0 && kit.dropperEa > 0, JSON.stringify(kit.rows));
+check('…and the card shows them', kit.shown);
+check('a short run still gets one dropper per run', await opg.evaluate(() => _gutterMaterialLines('box125', 6, 2, 0).filter(r => /Droppers/.test(r.desc))[0].qty) === 2);
+check('the gutter is no longer counted in the ROOFING material table', !kit.roofRows.some(l => /^Gutter$/.test(l)), kit.roofRows.join(', '));
+
 // ── EXCLUDE ───────────────────────────────────────────────────────
 await opg.evaluate(() => _toggleGutterExcluded(true));
 await opg.waitForTimeout(600);

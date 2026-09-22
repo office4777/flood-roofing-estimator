@@ -8247,7 +8247,9 @@ html.qp-desk-preview .qd-top{ position:static; }
         </div>
         <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
         <div class="f3">
-          <div><label>125mm box gutter ($/lm, all-in)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>125mm box gutter ($/lm)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Gutter bracket ($/each, one every 800mm)</label><input type="number" id="pbGutBracketEach" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Dropper ($/each, one every 8m)</label><input type="number" id="pbGutDropperEach" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Marley Classic ($/lm, all-in)</label><input type="number" id="pbGutMarleyClassicLm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Marley Typhoon simple ($/lm)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
@@ -12429,7 +12431,9 @@ function defaultSettings(){
         typhoon_stopend_ea:   5.16,  // Typhoon stop-ends (LH/RH) $/ea
         typhoon_expjoiner_ea:21.92,  // Typhoon expansion joiners $/ea
         typhoon_weldsolvent_ea:20.87,// Typhoon weld solvent $/180g tube
-        box125_lm:           19.89,  // 125mm box gutter $/lm all-in (gutter + internal brackets)
+        box125_lm:           19.89,  // 125mm box gutter $/lm (the spouting; brackets and droppers are their own lines)
+        bracket_ea:           4.20,  // steel/Classic gutter bracket $/ea (one every 800 mm)
+        dropper_ea:          16.50,  // dropper $/ea (one every 8 m)
         marley_classic_lm:   29.53,  // Marley Classic PVC $/lm all-in (spouting + fittings)
         marley_typhoon_lm:      40,  // Marley Typhoon simple $/lm (fallback if not itemised)
         // External brackets on 125 square are dear: plain external against
@@ -13010,6 +13014,8 @@ function collectPriceBookFromUI(){
     typhoon_expjoiner_ea:  _num('pbGutTyphoonExpJoiner'),
     typhoon_weldsolvent_ea:_num('pbGutTyphoonWeldSolvent'),
     box125_lm:             _num('pbGutBox125Lm'),
+    bracket_ea:            _num('pbGutBracketEach'),
+    dropper_ea:            _num('pbGutDropperEach'),
     marley_classic_lm:     _num('pbGutMarleyClassicLm'),
     marley_typhoon_lm:     _num('pbGutMarleyTyphoonLm'),
     ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
@@ -13116,6 +13122,8 @@ function renderPriceBookUI(){
   setN('pbGutTyphoonExpJoiner',   g.typhoon_expjoiner_ea);
   setN('pbGutTyphoonWeldSolvent', g.typhoon_weldsolvent_ea);
   setN('pbGutBox125Lm',        g.box125_lm);
+  setN('pbGutBracketEach',     g.bracket_ea);
+  setN('pbGutDropperEach',     g.dropper_ea);
   setN('pbGutMarleyClassicLm', g.marley_classic_lm);
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
   setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
@@ -13277,6 +13285,8 @@ var PB_CSV_TARGETS = [
   { path: 'gutter.typhoon_joiner_ea',    label: 'Typhoon joiner',     unit: 'ea', re: /(?=.*typhoon)(?=.*joiner)/i },
   { path: 'gutter.typhoon_spouting_lm',  label: 'Typhoon spouting',   unit: 'lm', re: /(?=.*typhoon)(?=.*spout)/i },
   { path: 'gutter.box125_lm',            label: '125mm box gutter',   unit: 'lm', re: /(?=.*\bbox\b)(?=.*125)/i },
+  { path: 'gutter.bracket_ea',           label: 'Gutter bracket',     unit: 'ea', re: /^(?!.*typhoon)(?=.*(gutter|spout))(?=.*bracket)/i },
+  { path: 'gutter.dropper_ea',           label: 'Dropper',            unit: 'ea', re: /dropper/i },
   { path: 'gutter.marley_classic_lm',    label: 'Marley Classic',     unit: 'lm', re: /(?=.*marley)(?=.*classic)/i },
   { path: 'gutter.marley_typhoon_lm',    label: 'Marley Typhoon ($/lm)', unit: 'lm', re: /(?=.*marley)(?=.*typhoon)/i },
   // Underlay is billed per roll and the roll size is in the description.
@@ -13860,8 +13870,9 @@ function _buildMaterialPriceRows(){
   // are still separate runs on the roof and each gets its own offcut.
   flashRow('ridge',  'Ridge / Hip cap',  (_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, pb.ridge_lm);
   flashRow('valley', 'Valley iron',      _ll.valley,      totals.valley,   pb.valley_lm);
-  // Only when the job actually orders one — see _gutterOnJob.
-  if (_gutterOnJob()) flashRow('gutter', 'Gutter', _ll.gutter, totals.gutter, pb.gutter_lm);
+  // The gutter is NOT a roofing material (2026-09-22): it is itemised on
+  // the Guttering & Downpipes card (spouting, brackets, droppers) and was
+  // being counted here as well.
   flashRow('barge',  'Barge flashing',   _ll.barge,       totals.barge,    pb.barge_lm);
   flashRow('apron',  'Apron flashing',   _ll.apron,       totals.apron,    pb.apron_lm);
   flashRow('changepitch', 'Change-of-pitch flashing', _ll.changepitch, totals.changepitch, pb.changepitch_lm);
@@ -21836,7 +21847,7 @@ function renderGutterDownpipePricing(){
       '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
     '</table>'+
     // Material — itemised list like the re-roof material table (invoice per-unit pricing)
-    '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· Typhoon invoice pricing</span></div>'+
+    '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· '+(gtype === 'marley_typhoon' ? 'Typhoon invoice pricing' : 'itemised \u00b7 brackets every 800mm, a dropper every 8m')+'</span></div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
       '<thead><tr><th style="width:40%">Item</th><th style="width:20%;text-align:right">Qty</th><th style="width:20%;text-align:right">$/unit</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
       '<tbody>'+matRows+_qCustomTableRows('gutter',{totalCols:4,descColspan:2})+'</tbody>'+
@@ -24313,7 +24324,14 @@ var GUTTER_MATERIAL_PRICES = {
     weldsolvent:20.87, weldsolventDesc:'Typhoon weld solvent (180g tube)'
   }
 };
-var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm
+var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm (Typhoon)
+// Steel and Classic gutters (2026-09-22): one bracket every 800 mm and one
+// dropper every 8 m (never fewer than one per run), priced from Settings →
+// Price book (gutter bracket / dropper $/each).
+var GUTTER_STEEL_BRACKET_SPACING_M = 0.8;
+var GUTTER_DROPPER_SPACING_M       = 8;
+function _gutterBracketEa(){ return _gutterPrice('bracket', 'bracket_ea', 4.20); }
+function _gutterDropperEa(){ return _gutterPrice('dropper', 'dropper_ea', 16.50); }
 var GUTTER_OUTLET_SPACING_M   = 15;    // one outlet every 15 m
 var GUTTER_SPOUTING_LENGTH_M  = 5;     // spouting sold in 5 m lengths → one joiner per join
 var GUTTER_EXPJOINER_SPACING_M = 12;   // one expansion joiner every 12 m of run
@@ -24376,6 +24394,10 @@ function _gutterMaterialLines(id, lm, lines, corners){
     }
   } else if (lm > 0){
     out.push({ desc:'Gutter (supply)', qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
+    var nSBr  = Math.ceil(lm / GUTTER_STEEL_BRACKET_SPACING_M);
+    var nDrop = Math.max(Math.max(1, lines), Math.ceil(lm / GUTTER_DROPPER_SPACING_M));
+    out.push({ desc:'Gutter brackets (1 / '+Math.round(GUTTER_STEEL_BRACKET_SPACING_M*1000)+'mm)', qty: nSBr,  unit:'ea', price: _gutterBracketEa() });
+    out.push({ desc:'Droppers (1 / '+GUTTER_DROPPER_SPACING_M+'m)',                                 qty: nDrop, unit:'ea', price: _gutterDropperEa() });
   }
   out.forEach(function(r){ r.lineTotal = (parseFloat(r.qty)||0) * (parseFloat(r.price)||0); });
   return out;
@@ -33085,6 +33107,8 @@ function refreshQuoteProposal(){
         typhoon_joiner:       _g.typhoon_joiner_ea,
         typhoon_corner:       _g.typhoon_corner_ea,
         perlm_box125:         _g.box125_lm,
+        bracket:              _g.bracket_ea,
+        dropper:              _g.dropper_ea,
         perlm_marley_classic: _g.marley_classic_lm,
         perlm_marley_typhoon: _g.marley_typhoon_lm,
         ext_box125:           _g.ext_bracket_box125_lm,
