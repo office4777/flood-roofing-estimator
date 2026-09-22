@@ -93,6 +93,15 @@ Discipline (non-negotiable):
 4. After a green gate the pipeline lands about 10 minutes after the push
    to main (Tests CI ~9 min, promote ~1 min). Schedule the promote check
    for 12 minutes, not 22 — that wait was costing every ship ten minutes.
+   A push that touches NOTHING under `floodroofing/frontend|backend|tests`,
+   `package.json` or `.github/workflows/tests.yml` does not start Tests CI
+   (`tests.yml`'s `paths:` filter), so no promote follows and `production`
+   stays where it was. That is correct, not a failed ship: editor config
+   (`.vscode/**`, `.claude/settings.json`) and docs are not what Vercel and
+   Railway serve. Expect `origin/main` ahead of `origin/production` after
+   such a push and do not go hunting; the next real ship fast-forwards
+   production past it. `workflow_dispatch` the promote by hand only if
+   production genuinely has to carry it, as with a hub-only push.
 5. **A ship is not done until the promote workflow is green.** It verifies
    both halves, and both are the proof:
    - the FRONTEND, by fetching roofmap.co.nz/app and comparing it byte-for-byte
