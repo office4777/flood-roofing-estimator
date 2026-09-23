@@ -2087,6 +2087,11 @@ html.print-scope #tab-scope .card-hd .px-chev{ display:none !important; }
   display:none; flex-direction:column;
 }
 #fergusRoofPanel.is-open{ transform:translateX(0); }
+/* On the Quote tab the photos drawer starts where the Pricing drawer does
+   (below the quote's action bar), so its tab lands under PRICING's instead of
+   on top of it (2026-09-24), and stops above the office price bar the same. */
+body[data-tab="quote"] #fergusRoofPanel{ top:calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 60px) + 14px); }
+html.office-price-bar body[data-tab="quote"] #fergusRoofPanel{ bottom:calc(var(--office-bar-h, 96px) + 10px); }
 #fergusRoofPanel.is-resizing{ transition:none; user-select:none; }
 #fergusRoofPanelToggle{
   position:absolute; left:-46px; top:16px; width:46px; height:150px;
@@ -5011,7 +5016,7 @@ html.qp-desk-preview .qd-top{ position:static; }
              oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
       <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
-    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
+    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts();try{_hbToPriceLoad(true)}catch(e){}" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
   <!-- Filled by _planGateSync(): the "pick a plan" bar, or a legacy trial
        countdown for accounts that were given one. See loadSubscription(). -->
@@ -5022,15 +5027,6 @@ html.qp-desk-preview .qd-top{ position:static; }
   <!-- The three questions the setup-call form used to ask now live on the
        Map Roof tab, which is where signing in lands. Moved rather than
        copied: it is a form, and two of it would mean duplicate ids. -->
-  <!-- JOBS TO PRICE (2026-09-23): the Fergus "To Price" column, straight
-       from Fergus, for a business that is connected to it. -->
-  <div id="hbToPrice" class="card jms-only no-print" style="margin:0 0 16px;display:none">
-    <div class="card-hd"><span class="card-dot" style="background:#dc2626"></span><span>Jobs to price</span>
-      <span id="hbToPriceCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
-      <button type="button" onclick="_hbToPriceLoad(true)" title="Refresh from Fergus" style="margin-left:auto;background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer">↻</button>
-    </div>
-    <div id="hbToPriceList" style="max-height:44vh;overflow-y:auto"></div>
-  </div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
@@ -18805,7 +18801,12 @@ function _renderHomeBoard(){
   var qaErr = window._quoteActivityError
     ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity. <button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
     : null;
-  var cols = [
+  var cols = [];
+  // Jobs to Price leads the board for a business on Fergus: it is where a job
+  // starts. Its rows are Fergus's own "To Price" jobs.
+  if (_hbToPriceOn()) cols.push({ key: 'toprice', title: 'Jobs to Price', accent: '#dc2626', rows: _HB_TP.rows || [], html: _hbToPriceHtml(),
+    num: _HB_TP.rows ? String(_HB_TP.rows.length) : (_HB_TP.err ? '!' : '…') });
+  cols = cols.concat([
     { key: 'drafts',    title: 'Recent Drafts',   accent: '#f59e0b', rows: draftRows, empty: 'No recent work yet — create a job to get started.' },
     { key: 'sent',      title: 'Quotes Sent',     accent: '#0099cc', rows: sent,      empty: 'No quotes awaiting a reply.', err: qaErr },
     { key: 'questions', title: 'Questions',       accent: '#ea580c', rows: questions, empty: 'No customer questions.', err: qaErr },
@@ -18813,10 +18814,10 @@ function _renderHomeBoard(){
     { key: 'accepted',  title: 'Quotes Accepted', accent: '#16a34a', rows: accepted,  empty: 'Nothing accepted yet.', err: qaErr },
     { key: 'orders',    title: 'Orders Sent',     accent: '#0a1628', rows: orderRows, empty: 'No orders emailed yet — sent orders will show up here.' },
     { key: 'deleted',   title: 'Deleted',         accent: '#b91c1c', rows: deletedRows, empty: 'Nothing deleted. A job you delete shows up here and can be put back.' },
-  ];
+  ]);
   tiles.innerHTML = cols.map(function(c){
     return '<div class="hb-tile' + (c.key === _hbSelected ? ' on' : '') + '" onclick="_hbSelect(\'' + c.key + '\')">' +
-      '<div class="hb-tile-num">' + c.rows.length + '</div>' +
+      '<div class="hb-tile-num">' + (c.num != null ? c.num : c.rows.length) + '</div>' +
       '<div class="hb-tile-lbl">' + c.title + '</div>' +
       '<div class="hb-tile-bar" style="background:' + c.accent + '"></div>' +
     '</div>';
@@ -18828,7 +18829,7 @@ function _renderHomeBoard(){
   var cEl = document.getElementById('homeBoardListCount');
   if (tEl) tEl.textContent = sel.title;
   if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
-  host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
+  host.innerHTML = (sel.html != null) ? sel.html : (sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>'));
   try { _sampleJobBannerSync(); } catch(e){}
   try { _aboutYouSync(); } catch(e){}
   try { _planGateSync(); } catch(e){}
@@ -19549,14 +19550,16 @@ function _hbPickSaved(id){
 // the Fergus search does. Kept for a minute, so moving about the app does not
 // ask Fergus again each time; ↻ asks now.
 var _HB_TP = { at: 0, rows: null, err: '', busy: false };
+// A Status board tile since 2026-09-24 ("put the jobs to price in a status
+// board box like the others"): _hbToPriceOn() adds the tile, and its table
+// fills the board's own list box when the tile is picked.
+function _hbToPriceOn(){ return !document.documentElement.classList.contains('no-jms'); }
 async function _hbToPriceLoad(force){
-  var card = document.getElementById('hbToPrice'); if (!card) return;
-  if (document.documentElement.classList.contains('no-jms')){ card.style.display = 'none'; return; }
-  card.style.display = '';
+  if (!_hbToPriceOn()) return;
   if (!force && _HB_TP.rows && (Date.now() - _HB_TP.at) < 60000){ _hbToPriceRender(); return; }
   if (_HB_TP.busy) return;
   _HB_TP.busy = true;
-  if (!_HB_TP.rows){ var l0 = document.getElementById('hbToPriceList'); if (l0) l0.innerHTML = '<div class="hb-tp-msg">Loading the jobs to price from Fergus…</div>'; }
+  _hbToPriceRender();
   try {
     var rows = [], cursor = '', pages = 0, sorted = true;
     do {
@@ -19583,19 +19586,16 @@ function _hbToPriceArea(j){
   var sa = j.siteAddress || j.site_address || {};
   return [sa.addressSuburb || sa.suburb || sa.addressCity || sa.city || '', sa.addressPostcode || sa.postcode || ''].filter(Boolean).join(' ');
 }
-function _hbToPriceRender(){
-  var list = document.getElementById('hbToPriceList'), cnt = document.getElementById('hbToPriceCount');
-  if (!list) return;
+function _hbToPriceRender(){ try { _renderHomeBoard(); } catch(e){} }
+// The board's list box when the Jobs to Price tile is picked.
+function _hbToPriceHtml(){
   var rows = _HB_TP.rows;
   if (!rows){
-    list.innerHTML = '<div class="hb-tp-msg">' + (_HB_TP.err ? 'Could not load the jobs to price from Fergus (' + esc(_HB_TP.err) + '). <button type="button" onclick="_hbToPriceLoad(true)" class="hb-tp-retry">↻ Try again</button>' : 'Loading…') + '</div>';
-    if (cnt) cnt.textContent = '';
-    return;
+    return '<div class="hb-tp-msg">' + (_HB_TP.err ? 'Could not load the jobs to price from Fergus (' + esc(_HB_TP.err) + '). <button type="button" onclick="_hbToPriceLoad(true)" class="hb-tp-retry">↻ Try again</button>' : 'Loading the jobs to price from Fergus…') + '</div>';
   }
-  if (cnt) cnt.textContent = rows.length ? String(rows.length) : '';
-  if (!rows.length){ list.innerHTML = '<div class="hb-tp-msg">Nothing waiting to be priced in Fergus.</div>'; return; }
+  if (!rows.length) return '<div class="hb-empty">Nothing waiting to be priced in Fergus.</div>';
   var d2 = function(iso){ var t = new Date(iso); return isNaN(t.getTime()) ? '' : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
-  list.innerHTML = '<table class="hb-tp"><thead><tr><th>Job</th><th>Customer</th><th>Area</th><th>Description</th><th>Last modified</th><th>Quote</th></tr></thead><tbody>' +
+  return '<table class="hb-tp"><thead><tr><th>Job</th><th>Customer</th><th>Area</th><th>Description</th><th>Last modified</th><th>Quote</th></tr></thead><tbody>' +
     rows.map(function(j){
       var v = _fergJobView(j);
       var aq = j.activeQuote;

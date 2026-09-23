@@ -195,9 +195,14 @@ Discipline (non-negotiable):
   pointer; a zoomed photo drags inside its slot. `_grabPan` no longer runs on
   these two boxes. The pop-out is on the Quote tab too (`jp-second`, under
   PRICING, one out at a time). `tests/photoviewer.mjs`.
-- JOBS TO PRICE on Home (`#hbToPrice`, `_hbToPriceLoad`): Fergus's own "To
-  Price" jobs (`GET /jobs?filterJobStatus=To Price`, the partner API's enum),
-  jms-only, kept a minute; a row opens the job through `useFergusJobInModal`.
+- JOBS TO PRICE is the FIRST STATUS BOARD TILE (key `toprice`, since
+  2026-09-24; `_hbToPriceOn()` = Fergus linked): Fergus's own "To Price" jobs
+  (`GET /jobs?filterJobStatus=To Price`, the partner API's enum), kept a
+  minute (`_hbToPriceLoad`, the Home ↻ refreshes it); `_hbToPriceHtml()` is the
+  table in the board's list box; a row opens the job through
+  `useFergusJobInModal`. On the Quote tab the PHOTOS drawer starts where the
+  Pricing drawer does (`body[data-tab="quote"] #fergusRoofPanel`), so its tab
+  sits under PRICING's instead of on it.
 - A NEW JOB NEVER SHOWS THE LAST JOB'S ROOF PICTURE: `clearAll` and a
   stateless `restoreFromJob` call `_roofPrevReset()`.
 - THE CUSTOMER'S OPEN READS SLIM when `DATABASE_URL` is set

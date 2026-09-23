@@ -79,6 +79,12 @@ const qt = await pg.evaluate(async () => {
 });
 check('the Quote tab carries the PHOTOS tab, as a second tab under PRICING, closed until pressed', qt.shown && qt.second && !qt.open, JSON.stringify(qt));
 check('…and opening it puts the Pricing drawer away — one out at a time', qt.photosOpen && qt.pricingClosed, JSON.stringify(qt));
+const tabs = await pg.evaluate(async () => {
+  gotoTab('quote'); await new Promise(r => setTimeout(r, 500));
+  const a = document.getElementById('quotePricingPanelToggle').getBoundingClientRect(), b = document.getElementById('fergusRoofPanelToggle').getBoundingClientRect();
+  return { pricing: [Math.round(a.top), Math.round(a.bottom)], photos: [Math.round(b.top), Math.round(b.bottom)], gap: Math.round(b.top - a.bottom) };
+});
+check('on the Quote tab PHOTOS sits under PRICING, the two tabs apart like MAPS and PHOTOS on the Job Pack', tabs.gap >= 8 && tabs.gap <= 20, JSON.stringify(tabs));
 
 // ── the photo list is a viewer ──
 const shade = (c) => 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="' + c + '"/></svg>');
@@ -139,15 +145,20 @@ const tp = await pg.evaluate(async () => {
   try { _refreshJmsLinkUI(); } catch(e){}
   document.documentElement.classList.remove('no-jms');
   gotoTab('select'); await new Promise(r => setTimeout(r, 900));
-  const card = document.getElementById('hbToPrice');
-  const rows = [...document.querySelectorAll('#hbToPriceList tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
+  const tiles = [...document.querySelectorAll('#homeBoardTiles .hb-tile')].map(t => t.textContent.replace(/\s+/g, ' ').trim());
+  _hbSelect('toprice'); await new Promise(r => setTimeout(r, 100));
+  const title = document.getElementById('homeBoardListTitle').textContent;
+  const rows = [...document.querySelectorAll('#homeBoard tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
   let opened = null;
   const real = window.useFergusJobInModal; window.useFergusJobInModal = function(id){ opened = { id: String(id), cached: (S.fergJobsCache || []).some(x => String(x.id) === String(id)) }; };
-  document.querySelector('#hbToPriceList tbody tr').click();
+  document.querySelector('#homeBoard tbody tr').click();
   window.useFergusJobInModal = real;
-  return { shown: card && getComputedStyle(card).display !== 'none', count: document.getElementById('hbToPriceCount').textContent, rows, opened };
+  const t0 = document.querySelector('#homeBoardTiles .hb-tile');
+  const lbl = t0 ? t0.querySelector('.hb-tile-lbl').textContent : '', num = t0 ? t0.querySelector('.hb-tile-num').textContent : '';
+  return { shown: lbl === 'Jobs to Price' && num === '2', tiles, title, count: num, rows, opened, oldCard: !!document.getElementById('hbToPrice') };
 });
-check('Home shows Jobs to price, asked of Fergus as its "To Price" jobs', tp.shown && fergusAsks.some(a => /filterJobStatus=To Price/.test(a)), JSON.stringify(fergusAsks.slice(0, 2)));
+check('Jobs to Price is the first Status board tile, with its count, asked of Fergus as its "To Price" jobs (2026-09-24: a tile like the others, not a card of its own)',
+  tp.shown && !tp.oldCard && tp.title === 'Jobs to Price' && fergusAsks.some(a => /filterJobStatus=To Price/.test(a)), JSON.stringify({ tiles: tp.tiles.slice(0, 3), title: tp.title }));
 check('…one row a job: number, customer, area, description, last modified and the quote’s state',
   tp.rows.length === 2 && /#3251/.test(tp.rows[0][0]) && tp.rows[0][1] === 'Matt Cooper' && tp.rows[0][2] === 'Russell 0272' && /Huaroa/.test(tp.rows[0][3]) && tp.rows[0][4] === '23/9/2026' && tp.rows[0][5] === '—' && tp.rows[1][5] === 'Sent' && tp.count === '2',
   JSON.stringify(tp.rows));
