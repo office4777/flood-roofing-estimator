@@ -100,6 +100,13 @@ const v = await d.pg.evaluate(() => ({
 }));
 check('the customer link on a computer opens as one page, not the book and not A4',
   v.desk && !v.book && v.root && v.a4 === 0, JSON.stringify({ desk:v.desk, book:v.book, a4:v.a4 }));
+// The rail's total in three lines (2026-09-23): Sub-total, + GST, then the
+// big bold Total incl. GST — and they add up.
+const tl = await d.pg.evaluate(() => [...document.querySelectorAll('.qd-rail-total .qb-tl')].map(r => ({ lbl: r.querySelector('span').textContent,
+  val: parseFloat((r.querySelector('em, b').textContent || '').replace(/[^0-9.]/g, '')), big: r.classList.contains('qb-tl-big') })));
+check('the rail reads Sub-total, + GST, then a big Total incl. GST, and they add up',
+  tl.length === 3 && tl[0].lbl === 'Sub-total' && tl[1].lbl === '+ GST' && tl[2].lbl === 'Total incl. GST' && tl[2].big && !tl[0].big &&
+  Math.abs(tl[0].val + tl[1].val - tl[2].val) < 0.02, JSON.stringify(tl));
 check('…the sections run cover, roof, proposal, steel grade, profile, thickness, colour, guttering, old roof, review',
   v.secs.join(',') === 'cover,condition,proposal,grade,profile,thickness,colour,gutter,disposal,review', v.secs.join(','));
 check('…with a nav button for each', v.nav.length === v.secs.length && v.nav.includes('Steel grade') && v.nav.includes('Review'), v.nav.join(' | '));

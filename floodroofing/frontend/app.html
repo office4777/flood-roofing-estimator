@@ -1354,7 +1354,7 @@ html.no-jms .jms-only{display:none!important}
 #tab-settings .set-nav .set-grp:first-child{margin-top:2px}
 #tab-settings .set-nav .tab-sm{display:block;width:100%;text-align:left;border:none;background:transparent;padding:8px 12px;border-radius:8px;font-size:13px;color:var(--text2)}
 #tab-settings .set-nav .tab-sm:hover{background:var(--surface-2);color:var(--text)}
-#tab-settings .set-nav .tab-sm.on{background:var(--ink);color:#fff}
+#tab-settings .set-nav .tab-sm.on{background:#0099cc;color:#fff;font-weight:700}
 #tab-settings .set-body{flex:1;min-width:0;border-left:1px solid var(--border);padding-left:26px}
 #tab-settings .set-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:12px}
 #tab-settings .set-title{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-.01em}
@@ -3593,8 +3593,14 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-cond-link{ border:none; background:none; padding:4px 6px; font-family:inherit; font-size:12px; font-weight:600; color:#0077a3; cursor:pointer; text-decoration:underline; }
 .qb-cond-link.qb-cond-del{ color:#b4232c; }
 .qb-sec-del{ display:block; margin:-4px 0 10px; padding-left:0; font-size:11.5px; }
-.qb-gst-split{ display:flex !important; flex-direction:column; gap:2px; font-style:normal !important; }
-.qb-gst-split span{ display:flex; justify-content:space-between; gap:10px; }
+.qb-tot3{ text-align:left; }
+.qb-tot3 .qb-tl{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.qb-tot3 .qb-tl span{ display:inline; font-size:13px; letter-spacing:0; text-transform:none; color:rgba(255,255,255,.72); }
+.qb-tot3 .qb-tl em{ font-style:normal; font-size:13px; font-weight:600; color:rgba(255,255,255,.85); font-variant-numeric:tabular-nums; }
+.qb-tot3 .qb-tl + .qb-tl{ margin-top:3px; }
+.qb-tot3 .qb-tl-big{ flex-direction:column; align-items:flex-start; gap:0; margin-top:10px !important; padding-top:10px; border-top:1px solid rgba(255,255,255,.18); }
+.qb-tot3 .qb-tl-big span{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fff; }
+.qb-tot3 .qb-tl-big b{ margin-top:2px; }
 .px-gst-note{ margin-left:10px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0a1628; background:#fde68a; border-radius:999px; padding:2px 8px; }
 .qd-parked{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
 .qe-insert{ border-style:dashed; }
@@ -28270,6 +28276,14 @@ function _qbGutterUpNote(CD, id){
   var up = (CD.gutterUp || {})[id] || 0;
   return up > 0 ? ' Includes the platform scaffold upgrade (' + _qbMoney(_qbIncl(up)) + ').' : '';
 }
+// The customer's total in three lines (the owner, 2026-09-23): Sub-total and
+// + GST small, then Total incl. GST big and bold. One helper for the rail
+// and the review so the two read the same.
+function _qbTotalLines(sub, total, id){
+  return '<div class="qb-tl"><span>Sub-total</span><em>'+_qbMoney(sub)+'</em></div>'+
+    '<div class="qb-tl"><span>+ GST</span><em>'+_qbMoney(total - sub)+'</em></div>'+
+    '<div class="qb-tl qb-tl-big"><span>Total incl. GST</span><b'+(id ? ' id="'+id+'"' : '')+'>'+_qbMoney(total)+'</b></div>';
+}
 function _qbIncl(exGst){ return (parseFloat(exGst) || 0) * (1 + _qbRate()); }
 function _qbGrade(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -28634,11 +28648,7 @@ function _qbSummary(opts){
         ? _qbAcceptedBlock(accepted)+'<h3 class="qb-h3" style="margin-top:22px">Your accepted quote</h3>'
         : '<span class="qb-eyebrow">Ready when you are</span>'+
           '<h2 class="qb-h2">Your quote</h2>')+
-      '<div class="qb-total">'+
-        '<span>Total incl. GST</span>'+
-        '<b>'+_qbMoney(total)+'</b>'+
-        '<i class="qb-gst-split"><span>Price excl. GST <b>'+_qbMoney(sub)+'</b></span><span>+ GST <b>'+_qbMoney(total - sub)+'</b></span></i>'+
-      '</div>'+
+      '<div class="qb-total qb-tot3">'+_qbTotalLines(sub, total)+'</div>'+
       '<h3 class="qb-h3">What is in it</h3>'+
       '<div class="qb-sum">'+body+'</div>'+
       (picks ? '<h3 class="qb-h3">What you chose</h3><div class="qb-picks">'+picks+'</div>' : '')+
@@ -28921,11 +28931,7 @@ function _qdRail(){
   var picks = _qbPicksList();
   var accepted = q.accepted;
   return '<aside class="qd-rail"><div class="qd-rail-in">'+
-      '<div class="qd-rail-total">'+
-        '<span>Your total incl. GST</span>'+
-        '<b id="qdTotal">'+_qbMoney(total)+'</b>'+
-        '<i class="qb-gst-split"><span>Price excl. GST <b>'+_qbMoney(sub)+'</b></span><span>+ GST <b>'+_qbMoney(total - sub)+'</b></span></i>'+
-      '</div>'+
+      '<div class="qd-rail-total qb-tot3">'+_qbTotalLines(sub, total, 'qdTotal')+'</div>'+
       (lines ? '<div class="qd-rail-rows">'+lines+'</div>' : '')+
       (picks ? '<div class="qd-rail-h">Your choices</div><div class="qb-picks qd-rail-picks">'+picks+'</div>' : '')+
       (accepted

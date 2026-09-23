@@ -317,7 +317,8 @@ check('the template picker is a solid light-blue button with white text', top.tp
 const setv = await pg.evaluate(async () => {
   gotoTab('settings'); await new Promise(r => setTimeout(r, 400));
   const nav = document.querySelector('#tab-settings .set-nav'), grp = document.querySelector('#tab-settings .set-grp');
-  const out = { sticky: nav ? getComputedStyle(nav).position : '', grpBg: grp ? getComputedStyle(grp).backgroundColor : '', grpFg: grp ? getComputedStyle(grp).color : '' };
+  const on = document.querySelector('#tab-settings .set-nav .tab-sm.on');
+  const out = { onBg: on ? getComputedStyle(on).backgroundColor : '', sticky: nav ? getComputedStyle(nav).position : '', grpBg: grp ? getComputedStyle(grp).backgroundColor : '', grpFg: grp ? getComputedStyle(grp).color : '' };
   const real = window.saveSettings; window.saveSettings = async function(){ await new Promise(r => setTimeout(r, 150)); return true; };
   const btn = document.getElementById('saveSettingsBtn');
   btn.click();
@@ -331,6 +332,7 @@ const setv = await pg.evaluate(async () => {
   gotoTab('quote');
   return out;
 });
+check('the selected Settings tab is the app’s light blue (#0099cc), like Change job', setv.onBg === 'rgb(0, 153, 204)', setv.onBg);
 check('the Settings menu stays put while scrolling, with dark-blue group headers', setv.sticky === 'sticky' && setv.grpBg === 'rgb(10, 22, 40)' && setv.grpFg === 'rgb(255, 255, 255)', JSON.stringify(setv));
 check('Save now shows a spinner for at least a second, then a green tick with the time, then goes back to itself', setv.ring && /Saving/.test(setv.during) && setv.disabled && setv.ok && /Saved \d/.test(setv.after) && setv.restored, JSON.stringify({ during: setv.during, after: setv.after, restored: setv.restored }));
 
