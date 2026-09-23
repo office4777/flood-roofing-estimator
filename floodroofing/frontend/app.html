@@ -5149,7 +5149,10 @@ html.qp-desk-preview .qd-top{ position:static; }
           <div id="linzKeyWrap" style="display:none;flex:1;display:none;gap:6px;align-items:center">
             <input id="linzApiKeyInput" type="text" placeholder="LINZ API key" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:monospace">
             <button onclick="saveLinzKey()" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save</button>
-            <a href="https://www.linz.govt.nz/products-services/data/linz-data-service/linz-basemaps" target="_blank" style="font-size:11px;color:#0066cc">Get free key ↗</a>
+            <!-- basemaps.linz.govt.nz shows a free key straight away (Individual
+                 API keys, top right). The old linz.govt.nz page this pointed at
+                 was taken down (2026-09-24: "doesn't take me to the correct page"). -->
+            <a href="https://basemaps.linz.govt.nz/" target="_blank" rel="noopener" title="Opens LINZ Basemaps — your free key is under 'Individual API keys' on the right" style="font-size:11px;color:#0066cc">Get free key ↗</a>
           </div>
         </div>
         <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>

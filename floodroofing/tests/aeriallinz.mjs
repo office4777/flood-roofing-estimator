@@ -147,6 +147,11 @@ check('…and so it does when LINZ’s tiles fail', !!fail.mapboxAsked, String(f
 const pick = await pg.evaluate(() => { switchImagerySource('mapbox'); document.getElementById('imagerySource').value = 'linz'; _imageryDefaultApply(); return document.getElementById('imagerySource').value; });
 check('a source picked by hand is kept over the LINZ default', pick === 'mapbox', pick);
 
+// "the apps 'get free key' link doesn't take me to the correct page" — the
+// old linz.govt.nz address was taken down; Basemaps itself hands out a key.
+const keyLink = await pg.evaluate(() => (document.querySelector('#linzKeyWrap a') || {}).href || '');
+check('the "Get free key" link goes to LINZ Basemaps, where the key is', /^https:\/\/basemaps\.linz\.govt\.nz\/?$/.test(keyLink), keyLink);
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;
