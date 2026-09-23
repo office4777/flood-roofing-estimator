@@ -21,6 +21,7 @@ const PORT = process.env.TEST_PORT || '34568';
 process.env.PORT = PORT;
 delete process.env.DATABASE_URL;
 delete process.env.FRONTEND_URL;
+process.env.LINZ_BASEMAPS_KEY = 'test-linz-key';   // the aerial finder's platform key (2026-09-24)
 const log = console.log; console.log = () => {};
 await import(pathToFileURL(_j(_ROOT, 'backend', 'server.js')).href);
 console.log = log;
@@ -39,6 +40,17 @@ for (const o of [
 ]) check('the backend accepts ' + o, await allowed(o));
 
 check('the existing Flood Roofing domain still works', await allowed('https://quote.floodroofing.co.nz'));
+
+// The aerial finder's imagery key: public by design (it rides in LINZ tile
+// URLs), readable from the app's origin with no sign-in, and /health says
+// whether it is set.
+{
+  const r = await fetch('http://127.0.0.1:' + PORT + '/imagery-config', { headers: { Origin: 'https://roofmap.co.nz' } });
+  const j = await r.json().catch(() => ({}));
+  check('/imagery-config hands the app the LINZ key, no sign-in, from the app’s origin', r.status === 200 && j.linzKey === 'test-linz-key' && r.headers.get('access-control-allow-origin') === 'https://roofmap.co.nz', JSON.stringify(j));
+  const h = await (await fetch('http://127.0.0.1:' + PORT + '/health')).json();
+  check('…and /health says LINZ imagery is set up', h.features && h.features.linz === true, JSON.stringify(h.features));
+}
 check('…and so does the Vercel production alias', await allowed('https://flood-roofing-estimator.vercel.app'));
 
 check('…and this project\'s own branch previews',

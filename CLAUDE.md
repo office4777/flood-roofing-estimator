@@ -719,7 +719,16 @@ pins four outlines taken from real feedback reports, structurally: nothing
 outside the building, nothing stopping in mid-air, no open apex, no kink,
 every ridge level or plumb.
 
-**The drawing scale.** `DRAW.scaleMetresPerPx` is metres per IMAGE pixel. The
+**The drawing scale.** (LINZ, 2026-09-24: the aerial finder defaults to LINZ
+Basemaps "aerial" — NZ's own photography, CC BY 4.0 — when the server has
+`LINZ_BASEMAPS_KEY` (served by `GET /imagery-config` when the finder opens,
+never on page load, never in the playground; `/health.features.linz`).
+Google's tile terms forbid tracing buildings off its imagery, so it is not an
+option. "Use this view" STITCHES LINZ tiles (`_linzStitch`) into exactly the
+Mapbox static picture's geometry — same centre, zoom, bearing, W×H — so the
+scale stays `_autoScaleFromAerial(lat, z, true)`; empty or failing tiles
+fall back to Mapbox; the "© LINZ CC BY 4.0" credit is stamped into the
+picture. `tests/aeriallinz.mjs`.) `DRAW.scaleMetresPerPx` is metres per IMAGE pixel. The
 canvas size and `DRAW.zoom` have nothing to do with it. Dividing by how large
 the photo happens to be drawn makes every measurement move when the roofer
 zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.

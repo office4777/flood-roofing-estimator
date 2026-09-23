@@ -918,7 +918,7 @@ async function _resolveMailTransport(forceRefresh) {
 // `directDb` says only WHETHER a direct database connection is configured
 // (never the address): it decides whether a customer's open reads the slim
 // quote and writes its "opened" stamp in place (2026-09-23).
-const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED, directDb: !!process.env.DATABASE_URL };
+const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED, directDb: !!process.env.DATABASE_URL, linz: !!String(process.env.LINZ_BASEMAPS_KEY || '').trim() };
 // Railway auto-injects these (non-secret) identifiers into every
 // service's environment. Surfacing them lets anyone confirm — from a
 // plain browser hit on the public URL, no auth, no dashboard digging —
@@ -965,6 +965,14 @@ function _supabaseKeyInfo(){
   } catch (e) { return { role: 'unparseable-jwt', from, bypassesRls: false }; }
 }
 
+// The aerial finder's imagery keys (2026-09-24). LINZ Basemaps keys are meant
+// to sit in public tile URLs (like the Mapbox pk. token in the app), so this
+// needs no sign-in: LINZ_BASEMAPS_KEY is the platform's free Developer key,
+// and without it the finder stays on Mapbox.
+app.get('/imagery-config', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ linzKey: String(process.env.LINZ_BASEMAPS_KEY || '').trim() });
+});
 app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo(),
   // pg=true means DATABASE_URL is set: the share-token index migration ran and
   // quote writes use the targeted jsonb update instead of round-tripping the

@@ -5142,9 +5142,9 @@ html.qp-desk-preview .qd-top{ position:static; }
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
           <span style="font-size:12px;color:#666;white-space:nowrap">Select satellite map:</span>
           <select id="imagerySource" onchange="switchImagerySource(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:inherit">
-            <option value="mapbox" selected>Mapbox Satellite (default, high res)</option>
-            <option value="linz">LINZ NZ Aerial (free, highest res — needs API key)</option>
-            <option value="esri">Esri World Imagery (fallback, lower res)</option>
+            <option value="linz">LINZ NZ Aerial (sharpest for NZ)</option>
+            <option value="mapbox" selected>Mapbox Satellite</option>
+            <option value="esri">Esri World Imagery</option>
           </select>
           <div id="linzKeyWrap" style="display:none;flex:1;display:none;gap:6px;align-items:center">
             <input id="linzApiKeyInput" type="text" placeholder="LINZ API key" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:monospace">
@@ -19888,6 +19888,9 @@ function _expandRoofBg(){ _setRoofBg(true); }
 function _openAerialModal(){
   var ov = document.getElementById('aerialModalOverlay');
   var md = document.getElementById('aerialModal');
+  // The imagery the finder opens on (LINZ when the platform has a key) —
+  // asked for here, the first time it matters, never on page load.
+  try { _imageryConfigLoad(); } catch(e){}
   // The finder is written inside the Map Roof panel. Once an aerial is on the
   // canvas, the roof card sits above it and the popup opened BEHIND the
   // drawing (report 43). Hoisted onto <body> the first time it opens, so no
@@ -68903,27 +68906,34 @@ function captureFromMapbox(lat, lon, zoom) {
   var srcSel = document.getElementById('imagerySource');
   var src = srcSel ? srcSel.value : 'mapbox';
 
-  var imageUrl;
-  if (src === 'linz') {
-    var linzK = window._linzKey || (typeof localStorage !== 'undefined' && localStorage.getItem('linzApiKey'));
-    if (!linzK) {
-      if (hint) hint.innerHTML = '<span style="color:#e65100">⚠ LINZ selected but no API key set — using Mapbox instead.</span>';
-      src = 'mapbox';
-    } else {
-      // LINZ via proxy-image
-      imageUrl = 'https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/' + z + '/0/0.webp?api=' + linzK;
-    }
-  }
-
-  if (src === 'mapbox' || src === 'esri') {
-    // Always use Mapbox for the canvas snap — it gives the best quality
-    imageUrl = 'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/'
+  var imageUrl = 'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/'
       + mc.lng.toFixed(6) + ',' + mc.lat.toFixed(6) + ',' + z + ',' + bearing + '/' + boxW + 'x' + boxH + '@2x?access_token=' + T;
-  }
+  var _placedFrom = 'mapbox';
 
   if (hint) hint.innerHTML = '⏳ Loading satellite image...';
 
   var proxyUrl = imageUrl;
+
+  // LINZ (2026-09-24): NZ's own aerial photography, the sharpest there is for
+  // NZ roofs (Google Earth shows much the same photos, but Google's terms
+  // forbid tracing buildings off its tiles). The picture is stitched from
+  // LINZ's tiles to EXACTLY the Mapbox picture's geometry — same centre,
+  // zoom, bearing and pixel size — so the scale below is unchanged. No key,
+  // a failed tile set, or no LINZ cover here: the Mapbox picture, as before.
+  var _linzK = (src === 'linz') ? _linzKeyNow() : '';
+  if (_linzK){
+    if (hint) hint.innerHTML = '⏳ Loading the LINZ aerial...';
+    _linzStitch(_linzK, mc.lat, mc.lng, z, bearing, boxW * 2, boxH * 2).then(function(blob){
+      _placedFrom = 'linz';
+      placeBlob(blob);
+    }).catch(function(e){
+      console.warn('LINZ capture fell back to Mapbox:', e && e.message);
+      if (hint) hint.innerHTML = '⏳ LINZ imagery not available here \u2014 using Mapbox\u2026';
+      doFetch(1);
+    });
+  } else {
+    setTimeout(function(){ doFetch(1); }, 0);
+  }
 
   function doFetch(attempt) {
     fetch(proxyUrl,{mode:'cors'})
@@ -68933,6 +68943,26 @@ function captureFromMapbox(lat, lon, zoom) {
       })
       .then(function(blob) {
         if (!blob || blob.size < 5000) throw new Error('Image too small');
+        placeBlob(blob);
+      })
+    .catch(function(e) {
+      console.error('captureFromMapbox attempt '+(attempt||1)+' failed:', e.message);
+      if (!attempt || attempt < 2) {
+        // Retry once after a short delay
+        if (hint) hint.innerHTML = '⏳ Retrying satellite image...';
+        setTimeout(function() { doFetch((attempt||1)+1); }, 1500);
+      } else {
+        try { _usageEvent('roof_source', { type: 'aerial', failed: true }); } catch(e){}
+        // The practice job must not stop here: a roofer on a slow site
+        // connection still gets a picture to trace, and it says what it is.
+        if (typeof _isTestJob === 'function' && _isTestJob() && typeof _firstRoofFallbackImage === 'function'){
+          _firstRoofFallbackImage(); return;
+        }
+        if (hint) hint.innerHTML = '<span style="color:red">❌ Could not load satellite image. Try clicking "Use this view" again.</span>';
+      }
+    });
+  }
+  function placeBlob(blob) {
         var blobUrl = URL.createObjectURL(blob);
       var img = new Image();
       img.onload = function() {
@@ -68965,7 +68995,7 @@ function captureFromMapbox(lat, lon, zoom) {
         try { _collapseRoofBg(); } catch(e){}
         try { _closeAerialModal(); } catch(e){}
         try { _afterAerialPlaced(); } catch(e){}
-        try { _usageEvent('roof_source', { type: 'aerial' }); } catch(e){}
+        try { _usageEvent('roof_source', { type: 'aerial', source: _placedFrom }); } catch(e){}
         if (hint) hint.innerHTML = '<span style="color:#059669">✅ Aerial image loaded (' + metersPerPx.toFixed(3) + 'm/px). Draw your building outline on top.</span>';
       };
       img.onerror = function() {
@@ -68973,25 +69003,99 @@ function captureFromMapbox(lat, lon, zoom) {
         if (hint) hint.innerHTML = '<span style="color:red">❌ Could not display image. Try again.</span>';
       };
       img.src = blobUrl;
-    })
-    .catch(function(e) {
-      console.error('captureFromMapbox attempt '+(attempt||1)+' failed:', e.message);
-      if (!attempt || attempt < 2) {
-        // Retry once after a short delay
-        if (hint) hint.innerHTML = '⏳ Retrying satellite image...';
-        setTimeout(function() { doFetch((attempt||1)+1); }, 1500);
-      } else {
-        try { _usageEvent('roof_source', { type: 'aerial', failed: true }); } catch(e){}
-        // The practice job must not stop here: a roofer on a slow site
-        // connection still gets a picture to trace, and it says what it is.
-        if (typeof _isTestJob === 'function' && _isTestJob() && typeof _firstRoofFallbackImage === 'function'){
-          _firstRoofFallbackImage(); return;
-        }
-        if (hint) hint.innerHTML = '<span style="color:red">❌ Could not load satellite image. Try clicking "Use this view" again.</span>';
-      }
-    });
   }
-  doFetch(1);
+}
+// ── LINZ AERIAL CAPTURE ────────────────────────────────────────────────
+// The key: the platform's (GET /imagery-config, LINZ_BASEMAPS_KEY on the
+// server) unless this browser has one of its own typed in.
+function _linzKeyNow(){
+  try { var own = localStorage.getItem('linzApiKey'); if (own) return own; } catch(e){}
+  return window._linzPlatformKey || '';
+}
+var LINZ_TILE_URL = 'https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=';
+var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributors';
+// Build a W×H picture of the ground a Mapbox static image at (lat, lng, z,
+// bearing, @2x) would show — z on Mapbox's 512px scale, so its metres per
+// picture pixel are 78271.51696·cos(lat)/2^z/2 — from LINZ's 256px tiles at
+// the nearest whole zoom (capped at 21, finer than any NZ aerial), drawn
+// scaled and turned into place. Resolves a JPEG blob; rejects when tiles fail
+// or LINZ has no cover here, so the caller falls back to Mapbox.
+function _linzStitch(key, lat, lng, z, bearing, W, H){
+  return new Promise(function(resolve, reject){
+    try {
+      var Zf = z + 1;                                   // the same metres per pixel on 256px tiles
+      var Z = Math.max(12, Math.min(21, Math.round(Zf)));
+      var k = Math.pow(2, Zf - Z);                      // picture pixels per tile pixel
+      var n = 256 * Math.pow(2, Z);
+      var rad = Math.PI / 180;
+      var cx = (lng + 180) / 360 * n;
+      var cy = (1 - Math.log(Math.tan(lat * rad) + 1 / Math.cos(lat * rad)) / Math.PI) / 2 * n;
+      var th = (bearing || 0) * rad;
+      // The world pixels under the (turned) picture: its four corners, back
+      // through the rotation and the scale.
+      var xs = [], ys = [];
+      [[-W/2,-H/2],[W/2,-H/2],[W/2,H/2],[-W/2,H/2]].forEach(function(c){
+        var wx = (c[0] * Math.cos(th) - c[1] * Math.sin(th)) / k, wy = (c[0] * Math.sin(th) + c[1] * Math.cos(th)) / k;
+        xs.push(cx + wx); ys.push(cy + wy);
+      });
+      var tx0 = Math.floor(Math.min.apply(null, xs) / 256), tx1 = Math.floor(Math.max.apply(null, xs) / 256);
+      var ty0 = Math.floor(Math.min.apply(null, ys) / 256), ty1 = Math.floor(Math.max.apply(null, ys) / 256);
+      var tiles = [];
+      for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) tiles.push({ x: tx, y: ty });
+      if (tiles.length > 400) return reject(new Error('too many tiles'));
+      var base = LINZ_TILE_URL.replace('{z}', Z) + encodeURIComponent(key);
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var ctx = cv.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.translate(W / 2, H / 2); ctx.rotate(-th); ctx.scale(k, k); ctx.translate(-cx, -cy);
+      var failed = 0, i = 0, running = 0, done = 0;
+      var next = function(){
+        while (running < 12 && i < tiles.length){
+          (function(t){
+            running++;
+            fetch(base.replace('{x}', t.x).replace('{y}', t.y), { mode: 'cors' }).then(function(r){
+              if (r.status === 204) return null;
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              return r.blob();
+            }).then(function(b){
+              if (!b) return;
+              return createImageBitmap(b).then(function(bm){ ctx.drawImage(bm, t.x * 256, t.y * 256, 256.6, 256.6); try { bm.close(); } catch(e){} });
+            }).catch(function(){ failed++; }).then(function(){
+              running--; done++;
+              if (done === tiles.length) finish(); else next();
+            });
+          })(tiles[i++]);
+        }
+      };
+      var finish = function(){
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        if (failed > tiles.length * 0.25) return reject(new Error(failed + ' of ' + tiles.length + ' LINZ tiles failed'));
+        // No cover here: LINZ answers with empty (transparent) tiles.
+        try {
+          var sw = 64, sh = Math.max(8, Math.round(64 * H / W));
+          var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+          var sx = sc.getContext('2d'); sx.drawImage(cv, 0, 0, sw, sh);
+          var d = sx.getImageData(0, 0, sw, sh).data, empty = 0;
+          for (var p = 3; p < d.length; p += 4) if (d[p] < 16) empty++;
+          if (empty / (sw * sh) > 0.4) return reject(new Error('no LINZ cover here'));
+        } catch(e){}
+        // JPEG has no transparency: a dark ground under any gap, then the
+        // CC BY credit the licence asks for, in the corner, so it travels
+        // with the picture into the job pack and the quote.
+        var out = document.createElement('canvas'); out.width = W; out.height = H;
+        var o = out.getContext('2d');
+        o.fillStyle = '#2b3036'; o.fillRect(0, 0, W, H); o.drawImage(cv, 0, 0);
+        var fs = Math.max(11, Math.round(W / 150));
+        o.font = fs + 'px Inter, Arial, sans-serif';
+        var txt = '\u00a9 LINZ CC BY 4.0', tw = o.measureText(txt).width;
+        o.fillStyle = 'rgba(0,0,0,.45)'; o.fillRect(W - tw - fs * 1.2, H - fs * 1.7, tw + fs * 1.2, fs * 1.7);
+        o.fillStyle = 'rgba(255,255,255,.9)'; o.fillText(txt, W - tw - fs * 0.6, H - fs * 0.5);
+        out.toBlob(function(b){ if (b) resolve(b); else reject(new Error('could not encode')); }, 'image/jpeg', 0.9);
+      };
+      if (!tiles.length) return reject(new Error('no tiles'));
+      next();
+    } catch(e){ reject(e); }
+  });
 }
 
 // Keep captureAerialCanvas as alias for backward compat
@@ -69065,13 +69169,16 @@ function saveMapsKey() {
 
 // ── Imagery Source ───────────────────────────────────────────────
 
-function switchImagerySource(val) {
+function switchImagerySource(val, auto) {
   var linzWrap = document.getElementById('linzKeyWrap');
+  // A pick made by hand is remembered; the default follows the key.
+  if (!auto){ try { localStorage.setItem('fr_imagery_src', val); } catch(e){} }
   if(val === 'linz') {
-    linzWrap.style.display = 'flex';
-    var key = localStorage.getItem('linzApiKey');
+    var key = _linzKeyNow();
+    // The platform's key needs no box; a browser without one can type its own.
+    linzWrap.style.display = window._linzPlatformKey ? 'none' : 'flex';
     if(key) { applyLinzTiles(key); }
-    else { alert('Enter your LINZ API key to use high-res NZ imagery.\n\nGet a free key at basemaps.linz.govt.nz'); }
+    else { alert('LINZ imagery needs an API key.\n\nGet a free key at basemaps.linz.govt.nz'); }
   } else if(val === 'esri') {
     linzWrap.style.display = 'none';
     applyEsriTiles();
@@ -69101,7 +69208,9 @@ function _aerialOverlayTiles(url, attribution) {
       if (m.getLayer('rm-imagery'))  m.removeLayer('rm-imagery');
       if (m.getSource('rm-imagery')) m.removeSource('rm-imagery');
       if (url) {
-        m.addSource('rm-imagery', { type:'raster', tiles:[url], tileSize:256, attribution:attribution });
+        // maxzoom: past the last real tile the map enlarges it instead of
+        // asking for tiles that do not exist (LINZ 21, Esri 19).
+        m.addSource('rm-imagery', { type:'raster', tiles:[url], tileSize:256, attribution:attribution, maxzoom: /arcgisonline/.test(url) ? 19 : 21 });
         m.addLayer({ id:'rm-imagery', type:'raster', source:'rm-imagery' });
       }
     } catch(e){ console.warn('imagery switch failed:', e.message); }
@@ -69110,8 +69219,8 @@ function _aerialOverlayTiles(url, attribution) {
 }
 
 function applyLinzTiles(key) {
-  _aerialOverlayTiles('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api='+encodeURIComponent(key),
-    '\u00a9 LINZ CC BY 4.0');
+  _aerialOverlayTiles(LINZ_TILE_URL + encodeURIComponent(key),
+    '\u00a9 <a href="https://www.linz.govt.nz/linz-copyright" target="_blank">LINZ CC BY 4.0</a> \u00a9 <a href="https://www.linz.govt.nz/data/linz-data/linz-basemaps/data-attribution" target="_blank">Imagery Basemap contributors</a>');
   window._linzKey = key;
 }
 
@@ -69126,15 +69235,31 @@ function applyMapboxTiles() {
   window._linzKey = null;
 }
 
-// Load saved LINZ key on startup
+// Which imagery the finder opens on: LINZ whenever there is a key (the
+// platform's or this browser's own), unless somebody picked another by hand.
+// The platform key comes from the server once per load.
+function _imageryDefaultApply(){
+  var sel = document.getElementById('imagerySource'); if (!sel) return;
+  var pick = ''; try { pick = localStorage.getItem('fr_imagery_src') || ''; } catch(e){}
+  var want = pick || (_linzKeyNow() ? 'linz' : 'mapbox');
+  if (want === 'linz' && !_linzKeyNow()) want = 'mapbox';
+  sel.value = want;
+  if (window._aerialMap) switchImagerySource(want, true);
+}
+function _imageryConfigLoad(){
+  // The public playground talks to no server at all.
+  if (window.__PLAYGROUND) return Promise.resolve();
+  if (window._imageryCfgP) return window._imageryCfgP;
+  window._imageryCfgP = fetch(PROXY + '/imagery-config').then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(c){ window._linzPlatformKey = (c && c.linzKey) || ''; })
+    .catch(function(){ window._linzPlatformKey = ''; })
+    .then(_imageryDefaultApply);
+  return window._imageryCfgP;
+}
 setTimeout(function(){
-  var saved = localStorage.getItem('linzApiKey');
+  var saved = ''; try { saved = localStorage.getItem('linzApiKey') || ''; } catch(e){}
   var inp = document.getElementById('linzApiKeyInput');
-  if(saved && inp) {
-    inp.value = saved;
-    document.getElementById('imagerySource').value = 'linz';
-    document.getElementById('linzKeyWrap').style.display = 'flex';
-  }
+  if(saved && inp) inp.value = saved;
 }, 1200);
 
 // ── Address Autocomplete ─────────────────────────────────────────
@@ -69246,6 +69371,8 @@ document.addEventListener('mousedown',function(e){
     var map = new mapboxgl['Map']({container:md, style:'mapbox://styles/mapbox/satellite-streets-v12', center:[174.3166,-35.7275], zoom:13, maxZoom:22});
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
     window._aerialMap = map;
+    // The imagery the finder opens on (LINZ when there is a key).
+    try { map.once('load', function(){ _imageryConfigLoad().then(_imageryDefaultApply); }); } catch(e){}
     window.MAPBOX_TOKEN = T;
     map.once('render', function(){ map.resize(); });
     setTimeout(function(){ map.resize(); }, 800);
