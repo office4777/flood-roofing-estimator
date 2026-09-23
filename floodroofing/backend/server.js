@@ -915,7 +915,10 @@ async function _resolveMailTransport(forceRefresh) {
 
 // Feature flags so you can confirm from a browser which build is live.
 // `customerQuote` ships with the public /q/:token + /quote-activity routes.
-const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED };
+// `directDb` says only WHETHER a direct database connection is configured
+// (never the address): it decides whether a customer's open reads the slim
+// quote and writes its "opened" stamp in place (2026-09-23).
+const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED, directDb: !!process.env.DATABASE_URL };
 // Railway auto-injects these (non-secret) identifiers into every
 // service's environment. Surfacing them lets anyone confirm — from a
 // plain browser hit on the public URL, no auth, no dashboard digging —
@@ -3409,9 +3412,13 @@ async function _companySettingsRowById(companyId){
     return _mergeCompanySettings(_pickCompanySettingsRow(data, await _companyOwnerUserId(companyId)), data);
   } catch (e) { return null; }
 }
-async function _companySettingsRow(req){
+// `cols` narrows the read (2026-09-23): the Fergus proxy needs the key and
+// nothing else, and a company's rows carry pictures (the cover hero, profile
+// photos) that every single Fergus request used to haul out of the database.
+async function _companySettingsRow(req, cols){
+  const sel = cols || '*';
   if (req.companyId){
-    const data = _mustRead(await supabase.from('user_settings').select('*')
+    const data = _mustRead(await supabase.from('user_settings').select(sel)
       .eq('company_id', req.companyId), 'settings');
     if (data && data.length)
       return _mergeCompanySettings(_pickCompanySettingsRow(data, await _companyOwnerUserId(req.companyId)), data);
@@ -3419,7 +3426,7 @@ async function _companySettingsRow(req){
   // The caller's own legacy row (written before rows carried a company).
   // If it is stamped with a DIFFERENT company than the caller is in now,
   // it is not theirs to read — better no settings than another business's.
-  const data = _mustRead(await supabase.from('user_settings').select('*')
+  const data = _mustRead(await supabase.from('user_settings').select(sel)
     .eq('user_id', req.user.id).maybeSingle(), 'settings');
   if (data && req.companyId && data.company_id && String(data.company_id) !== String(req.companyId)) return null;
   return data || null;
@@ -3820,6 +3827,45 @@ async function _findJobByToken(token, jobIdHint){
   if (data && data[0]) _tokenCachePut(token, data[0].id);
   return (data && data[0]) || null;
 }
+// ── THE CUSTOMER'S OPEN, SLIM (2026-09-23) ─────────────────────────
+// A customer opening a link needs the quote, not the office's saved drafts
+// and frozen copies (`versions`), which the view strips anyway — and which,
+// with every photo in each of them, were most of the bytes. With a direct
+// database connection the row is read with `versions` taken out in the query,
+// and the "opened" stamp is written into the quote's `share` alone, so neither
+// direction moves the drafts. Without one (or on any error) the older path
+// below runs unchanged.
+async function _findQuoteForCustomer(token, jobIdHint){
+  const pool = _pgPool();
+  if (pool && token){
+    try {
+      let id = jobIdHint;
+      if (!id && _tokenIdCache.has(token)) id = _tokenIdCache.get(token);
+      if (!id) id = await _tokenMapGet(token);
+      if (id && /^[0-9a-fA-F-]{10,}$/.test(String(id))){
+        const r = await pool.query(
+          "SELECT id, user_id, company_id, client_name, site_address, " +
+          "(draw_state->'state'->'quote') - 'versions' AS quote FROM public.jobs WHERE id = $1 LIMIT 1", [id]);
+        const row = r && r.rows && r.rows[0];
+        if (row && row.quote && row.quote.share && row.quote.share.token === token){
+          _tokenCachePut(token, row.id);
+          row._slim = true;
+          return row;
+        }
+      }
+    } catch (e) { console.warn('slim quote read failed, using the full read:', e.message); }
+  }
+  return _findJobByToken(token, jobIdHint);
+}
+// The "opened" stamp: the share block only, in place. Only for a row read
+// slim — the full-quote write below would drop the drafts it never read.
+async function _saveShareBack(job, share){
+  const pool = _pgPool();
+  if (!pool) return;
+  await pool.query(
+    "UPDATE public.jobs SET draw_state = jsonb_set(draw_state, '{state,quote,share}', $1::jsonb, true), " +
+    "updated_at = now() WHERE id = $2 AND draw_state->'state'->'quote' IS NOT NULL", [JSON.stringify(share), job.id]);
+}
 async function _saveQuoteBack(job, quote){
   // Fast path: targeted jsonb merge so the multi-MB draw_state (photos + aerial)
   // is never round-tripped just to update the quote — this is what made customer
@@ -3979,9 +4025,14 @@ function _customerQuoteView(quote){
 
 app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
   try {
-    const job = await _findJobByToken(req.params.token, req.query.job);
+    const _t0 = Date.now();
+    const job = await _findQuoteForCustomer(req.params.token, req.query.job);
+    const _tDb = Date.now() - _t0;
     const quote = _quoteOf(job);
-    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    if (!job || !quote){
+      res.set('Server-Timing', 'db;dur=' + _tDb);
+      return res.status(404).json({ error: 'Quote not found' });
+    }
     // The COMPANY's settings row, not the job owner's. A job made by a
     // teammate carries the teammate's user_id, and the company settings row
     // lives under whoever set the business up — looking up by owner sent a
@@ -4016,10 +4067,17 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     // customer's page load must never wait on the write (without a pg pool
     // the fallback save round-trips the whole multi-MB draw_state, which is
     // exactly what made the quote link feel slow to open).
-    if (changed) { quote.share = share; _saveQuoteBack(job, quote).catch(e => console.error('open-analytics save failed:', e.message)); }
+    if (changed) {
+      quote.share = share;
+      const _w = job._slim ? _saveShareBack(job, share) : _saveQuoteBack(job, quote);
+      _w.catch(e => console.error('open-analytics save failed:', e.message));
+    }
     // Still served past 90 days — the customer may be re-reading what they
     // accepted. The flag lets the page say so and hide the Accept button.
     const _exp = _shareExpiresAt(job, quote);
+    // Where a slow open spent its time, readable in the browser's network
+    // panel or with curl -I: the row read (slim or full), and the whole request.
+    res.set('Server-Timing', 'db;desc="' + (job._slim ? 'slim' : 'full') + '";dur=' + _tDb + ', total;dur=' + (Date.now() - _t0));
     res.json({
       quote: _customerQuoteView(quote),
       branding: (settings && settings.branding) || {},
@@ -5811,6 +5869,10 @@ function httpsRequest(host, path, method, headers, body) {
       res.on('end', () => resolve({ status: res.statusCode, body: b, headers: res.headers }));
     });
     req.on('error', reject);
+    // A request out to Fergus (or anyone) that never answers used to hold
+    // whatever was waiting on it for ever — a push, a publish, a photo list.
+    // A minute is far past any real answer.
+    req.setTimeout(60000, () => req.destroy(new Error('No answer from ' + host + ' within 60 seconds')));
     if (hasBody) req.write(data);
     req.end();
   });
@@ -7542,7 +7604,7 @@ const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
 // another business's customers, so it is asserted at the point of use.
 async function _fergusKeyFor(req){
   try {
-    const row = await _companySettingsRow(req);
+    const row = await _companySettingsRow(req, 'user_id, company_id, jms_keys, updated_at');
     if (!row) return null;
     if (req.companyId && row.company_id && String(row.company_id) !== String(req.companyId)) return null;
     const k = row.jms_keys && row.jms_keys.fergus;

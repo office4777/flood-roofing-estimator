@@ -2124,6 +2124,25 @@ html.print-scope #tab-scope .card-hd .px-chev{ display:none !important; }
 #jobPhotosScroll img{ -webkit-user-drag:none; user-drag:none; user-select:none; -webkit-touch-callout:none; }
 #jobPhotosGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
+.hb-tp{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.hb-tp th{ position:sticky; top:0; background:#fff; text-align:left; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#64748b; padding:7px 10px; border-bottom:1px solid var(--border); }
+.hb-tp td{ padding:9px 10px; border-bottom:1px solid #eef2f6; vertical-align:top; color:#0a1628; }
+.hb-tp tbody tr{ cursor:pointer; }
+.hb-tp tbody tr:hover td{ background:#f0f8ff; }
+.hb-tp-no{ font-weight:700; color:#0077a3!important; white-space:nowrap; }
+.hb-tp-desc{ max-width:320px; }
+.hb-tp-in{ display:inline-block; margin-left:4px; padding:1px 6px; border-radius:999px; background:#e0f2fe; color:#0369a1; font-size:10px; font-weight:700; }
+.hb-tp-msg{ padding:12px 4px; font-size:12.5px; color:var(--text2); }
+.hb-tp-retry{ margin-left:6px; padding:3px 9px; background:#0099cc; color:#fff; border:none; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; }
+.pv-box{ position:relative; overflow:hidden!important; cursor:default!important; overscroll-behavior:contain; }
+.pv-box .pv-slot{ position:relative!important; height:var(--pv-h,360px)!important; overflow:hidden!important; background:#08111f!important; opacity:.62; transition:opacity .25s, box-shadow .25s; }
+.pv-box .pv-slot.pv-cur{ opacity:1; box-shadow:0 0 0 2px #0099cc; }
+.pv-box .pv-slot > img{ position:absolute!important; inset:0; width:100%!important; height:100%!important; object-fit:contain; transform:scale(var(--pv-z,1)); transform-origin:var(--pv-ox,50%) var(--pv-oy,50%); transition:transform .15s ease-out; }
+.pv-box .pv-slot.pv-panning > img{ transition:none; }
+.pv-nav{ display:inline-flex; align-items:center; gap:4px; margin-left:2px; }
+.pv-nav button{ width:26px; height:24px; border:1px solid #cfd8e3; border-radius:6px; background:#fff; color:#0a1628; font-size:10px; line-height:1; cursor:pointer; padding:0; }
+.pv-nav button:hover{ background:#f0f8ff; }
+.pv-nav span{ font-size:11px; color:var(--text2); min-width:36px; text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
 #jpMapPanel{
   position:fixed; top:70px; right:0; bottom:16px;
   width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:60;
@@ -5003,6 +5022,15 @@ html.qp-desk-preview .qd-top{ position:static; }
   <!-- The three questions the setup-call form used to ask now live on the
        Map Roof tab, which is where signing in lands. Moved rather than
        copied: it is a form, and two of it would mean duplicate ids. -->
+  <!-- JOBS TO PRICE (2026-09-23): the Fergus "To Price" column, straight
+       from Fergus, for a business that is connected to it. -->
+  <div id="hbToPrice" class="card jms-only no-print" style="margin:0 0 16px;display:none">
+    <div class="card-hd"><span class="card-dot" style="background:#dc2626"></span><span>Jobs to price</span>
+      <span id="hbToPriceCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
+      <button type="button" onclick="_hbToPriceLoad(true)" title="Refresh from Fergus" style="margin-left:auto;background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer">↻</button>
+    </div>
+    <div id="hbToPriceList" style="max-height:44vh;overflow-y:auto"></div>
+  </div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
@@ -5922,6 +5950,7 @@ html.qp-desk-preview .qd-top{ position:static; }
         <span style="font-size:11px;color:var(--text2);white-space:nowrap">🔍 Zoom</span>
         <input id="jobPhotosZoom" type="range" min="100" max="400" step="10" value="100" oninput="_jobPhotosZoom(this.value)" style="flex:1;accent-color:#0099cc">
         <span id="jobPhotosZoomOut" style="font-size:11px;color:#0a1628;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
+        <span class="pv-nav"><button type="button" onclick="_pvStep('job',-1)" title="Previous photo (↑)">▲</button><span id="pvPos_job"></span><button type="button" onclick="_pvStep('job',1)" title="Next photo (↓)">▼</button></span>
       </div>
       <div id="jobPhotosScroll"><div id="jobPhotosGrid"></div></div>
       <!-- FILES ON THE JOB — for the businesses without a Fergus to hold
@@ -5944,6 +5973,7 @@ html.qp-desk-preview .qd-top{ position:static; }
       <span style="font-size:11px;color:var(--text2);white-space:nowrap">🔍 Zoom</span>
       <input id="fergusRoofPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_fergusPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
       <span id="fergusRoofPanelZoomOut" style="font-size:11px;color:#0a1628;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
+      <span class="pv-nav"><button type="button" onclick="_pvStep('ferg',-1)" title="Previous photo (↑)">▲</button><span id="pvPos_ferg"></span><button type="button" onclick="_pvStep('ferg',1)" title="Next photo (↓)">▼</button></span>
     </div>
   </div>
   <div id="fergusRoofPhotoScroll" class="jms-only"><div id="fergusRoofPhotoGrid"></div></div>
@@ -8757,7 +8787,7 @@ function gotoTab(t) {
   // tabs means the reader is done with it, so it goes.
   try { var _qnp = document.getElementById('qnPanel'); if (_qnp) _qnp.style.display = 'none'; } catch(e){}
   try { _frBubblesSync(); } catch(e){}
-  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
+  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} try{ _hbToPriceLoad(false); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   try { _sampleJobStripSync(); } catch(e){}
@@ -8795,8 +8825,10 @@ function gotoTab(t) {
   (function(){
     var _fp=document.getElementById('fergusRoofPanel');
     if(!_fp) return;
-    _fp.classList.toggle('jp-second', t==='materials');
-    if(t==='materials'){
+    // On the Job Pack it sits under MAPS; on the Quote tab (2026-09-23)
+    // under PRICING — a second tab, closed until pressed, one out at a time.
+    _fp.classList.toggle('jp-second', t==='materials' || t==='quote');
+    if(t==='materials' || t==='quote'){
       // The same photos window, as a second pop-out tab under MAPS. Maps
       // is the default; the photos slide out when their tab is pressed, and
       // the two never sit on top of each other.
@@ -15691,6 +15723,17 @@ snapshotCurrentJob = function(){
   } catch(e){}
   return snap;
 };
+// The "Upload roof picture" card back to empty: the preview picture, its
+// badge and Add to canvas away, the upload zone back. Every new-job path
+// comes through clearAll, which only nulled S.img64, so the previous job's
+// PDF plan stayed in the card of an untouched new job (2026-09-23) — and its
+// Add to canvas would have put it under this job's drawing.
+function _roofPrevReset(){
+  var img = document.getElementById('roofPrevImg'); if (img) img.removeAttribute('src');
+  var pv = document.getElementById('roofPrev');     if (pv) pv.style.display = 'none';
+  var uz = document.getElementById('roofUZ');       if (uz) uz.style.display = 'block';
+  var rf = document.getElementById('roofFile');     if (rf) rf.value = '';
+}
 function restoreFromJob(j){
   if (!j) return;
   // Whatever we're loading, it is not the sample until somebody says so
@@ -15704,6 +15747,7 @@ function restoreFromJob(j){
   // only one that is not already somewhere in the quote.
   try { S.jobCreatedAt = j.created_at || null; } catch(e){}
   var snap = j.draw_state || {};
+  if (!snap.state){ try { S.img64 = null; _roofPrevReset(); } catch(e){} }   // a job saved with no state has no picture either
   if (snap.form) {
     Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
   }
@@ -19499,6 +19543,78 @@ function _hbPickSaved(id){
   var inp = document.getElementById('homeJobSearch'); if (inp) inp.value = '';
   pickJobFromModal(id);
 }
+// ── JOBS TO PRICE ───────────────────────────────────────────────────
+// Fergus's own "To Price" list (`filterJobStatus=To Price` on GET /jobs),
+// newest change first, up to three pages. A row opens the job the same way
+// the Fergus search does. Kept for a minute, so moving about the app does not
+// ask Fergus again each time; ↻ asks now.
+var _HB_TP = { at: 0, rows: null, err: '', busy: false };
+async function _hbToPriceLoad(force){
+  var card = document.getElementById('hbToPrice'); if (!card) return;
+  if (document.documentElement.classList.contains('no-jms')){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  if (!force && _HB_TP.rows && (Date.now() - _HB_TP.at) < 60000){ _hbToPriceRender(); return; }
+  if (_HB_TP.busy) return;
+  _HB_TP.busy = true;
+  if (!_HB_TP.rows){ var l0 = document.getElementById('hbToPriceList'); if (l0) l0.innerHTML = '<div class="hb-tp-msg">Loading the jobs to price from Fergus…</div>'; }
+  try {
+    var rows = [], cursor = '', pages = 0, sorted = true;
+    do {
+      var q = '/jobs?filterJobStatus=' + encodeURIComponent('To Price') + '&pageSize=100' + (sorted ? '&sortField=lastModified&sortOrder=desc' : '') + (cursor ? '&pageCursor=' + encodeURIComponent(cursor) : '');
+      var r = await fergusCall('GET', q);
+      if (!r.ok && sorted && !pages && r.status === 400){ sorted = false; continue; }   // an account that will not sort: ask plainly
+      if (!r.ok) throw new Error('Fergus answered ' + r.status);
+      var d = await r.json();
+      var js = Array.isArray(d) ? d : ((d && (d.data || d.value || d.jobs)) || []);
+      rows = rows.concat(js);
+      var pg = (d && (d.paging || d.pagination || d.meta)) || {};
+      var next = pg.nextPageCursor || pg.nextCursor || pg.next_cursor || (d && d.nextCursor) || '';
+      cursor = (js.length >= 100 && next && String(next) !== cursor) ? String(next) : '';
+      pages++;
+    } while (cursor && pages < 3);
+    if (!sorted) rows.sort(function(a, b){ return String(b.lastModified || b.createdAt || '').localeCompare(String(a.lastModified || a.createdAt || '')); });
+    _HB_TP.rows = rows.filter(function(x){ return x && !x.archived; });
+    _HB_TP.at = Date.now(); _HB_TP.err = '';
+  } catch(e){ _HB_TP.err = (e && e.message) || String(e); }
+  _HB_TP.busy = false;
+  _hbToPriceRender();
+}
+function _hbToPriceArea(j){
+  var sa = j.siteAddress || j.site_address || {};
+  return [sa.addressSuburb || sa.suburb || sa.addressCity || sa.city || '', sa.addressPostcode || sa.postcode || ''].filter(Boolean).join(' ');
+}
+function _hbToPriceRender(){
+  var list = document.getElementById('hbToPriceList'), cnt = document.getElementById('hbToPriceCount');
+  if (!list) return;
+  var rows = _HB_TP.rows;
+  if (!rows){
+    list.innerHTML = '<div class="hb-tp-msg">' + (_HB_TP.err ? 'Could not load the jobs to price from Fergus (' + esc(_HB_TP.err) + '). <button type="button" onclick="_hbToPriceLoad(true)" class="hb-tp-retry">↻ Try again</button>' : 'Loading…') + '</div>';
+    if (cnt) cnt.textContent = '';
+    return;
+  }
+  if (cnt) cnt.textContent = rows.length ? String(rows.length) : '';
+  if (!rows.length){ list.innerHTML = '<div class="hb-tp-msg">Nothing waiting to be priced in Fergus.</div>'; return; }
+  var d2 = function(iso){ var t = new Date(iso); return isNaN(t.getTime()) ? '' : t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear(); };
+  list.innerHTML = '<table class="hb-tp"><thead><tr><th>Job</th><th>Customer</th><th>Area</th><th>Description</th><th>Last modified</th><th>Quote</th></tr></thead><tbody>' +
+    rows.map(function(j){
+      var v = _fergJobView(j);
+      var aq = j.activeQuote;
+      var qs = aq ? (aq.isAccepted ? 'Accepted' : (aq.isSent ? 'Sent' : 'Draft')) : '—';
+      var inRm = false; try { inRm = !!_fergJobMapGet(v.id); } catch(e){}
+      return '<tr onclick="_hbToPriceOpen(\'' + esc(String(v.id)) + '\')" title="Open this job in RoofMap">' +
+        '<td class="hb-tp-no">#' + esc(v.displayNo) + (inRm ? ' <span class="hb-tp-in" title="Already started in RoofMap">RoofMap</span>' : '') + '</td>' +
+        '<td>' + esc(v.customer || '') + '</td><td>' + esc(_hbToPriceArea(j)) + '</td>' +
+        '<td class="hb-tp-desc">' + esc(v.title || '') + '</td><td>' + esc(d2(j.lastModified || j.createdAt)) + '</td><td>' + esc(qs) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function _hbToPriceOpen(id){
+  var raw = (_HB_TP.rows || []).filter(function(x){ return String(x.id) === String(id); })[0];
+  if (!raw) return;
+  var v = _fergJobView(raw);
+  if (!Array.isArray(S.fergJobsCache)) S.fergJobsCache = [];
+  if (!S.fergJobsCache.some(function(x){ return String(x.id) === String(v.id); })) S.fergJobsCache.push(v);
+  useFergusJobInModal(v.id);
+}
 function _hbPickFergus(fid){
   _hbHideSearchDrop();
   var inp = document.getElementById('homeJobSearch'); if (inp) inp.value = '';
@@ -22477,7 +22593,7 @@ function _renderJobPhotosGrid(){
   // the bottom the same way the Fergus photos' filenames do.
   g.innerHTML = ph.length ? ph.map(function(p, i){
     var cap = String(p.caption || '').replace(/[<>&"]/g, '');
-    return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#fff">' +
+    return '<div class="pv-slot" style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#fff">' +
       '<img src="' + p.src + '" loading="lazy" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:auto;display:block;cursor:zoom-in">' +
       (cap ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:5px 9px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none">' + cap + '</div>' : '') +
       '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(10,22,40,.62);color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>' +
@@ -22489,17 +22605,158 @@ function _renderJobPhotosGrid(){
 // The zoom slider widens the photo column past the panel; the scroll box
 // pans. Same mechanism as the Fergus column, deliberately — it is the
 // behaviour the owner already knows, so it needs no learning.
-function _jobPhotosZoom(v){
-  var g = document.getElementById('jobPhotosGrid');
-  var out = document.getElementById('jobPhotosZoomOut');
-  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
-  if (g) g.style.width = z + '%';
-  if (out) out.textContent = z + '%';
+function _jobPhotosZoom(v){ _pvZoomSet('job', v); }
+function _jobPhotosApplyZoom(){ _pvLayout('job'); }
+// ── THE PHOTO LISTS ARE A VIEWER (2026-09-23) ─────────────────────────
+// The owner: the zoom bar "zooms up towards the photos at the top of the list
+// which jumps me off the photo I was trying to zoom on … lock the photo size
+// … when I zoom it zooms in without effecting the photo slot size … I can see
+// some of the photo above and below … up & down button … keyboard up and
+// down … a smooth slide transition … hold control and scroll to zoom".
+// So every photo sits in a slot of ONE fixed height (three-quarters of the
+// list, the neighbours peeking above and below); the zoom scales the picture
+// INSIDE its slot, so nothing reflows and the photo being looked at stays
+// put; ▲ ▼, the arrow keys (while the pointer is over the panel) and a swipe
+// slide to the next one; the wheel no longer scrolls the list, and Ctrl +
+// wheel zooms towards the point under the pointer; a zoomed photo is dragged
+// around inside its slot.
+var PV_KEYS = {
+  ferg: { box:'fergusRoofPhotoScroll', grid:'fergusRoofPhotoGrid', zoom:'fergusRoofPanelZoom', out:'fergusRoofPanelZoomOut' },
+  job:  { box:'jobPhotosScroll', grid:'jobPhotosGrid', zoom:'jobPhotosZoom', out:'jobPhotosZoomOut' }
+};
+var _PV = { ferg:{ i:0, z:1 }, job:{ i:0, z:1 }, active:null, over:false };
+function _pvEls(k){ var c = PV_KEYS[k] || {}; return { box:document.getElementById(c.box), grid:document.getElementById(c.grid), zoom:document.getElementById(c.zoom), out:document.getElementById(c.out) }; }
+function _pvSlots(k){ var g = _pvEls(k).grid; return g ? [].slice.call(g.children).filter(function(x){ return x.classList && x.classList.contains('pv-slot'); }) : []; }
+function _pvClamp(v){ return Math.max(0, Math.min(100, v)); }
+function _pvLayout(k){
+  var e = _pvEls(k); if (!e.box || !e.grid) return;
+  _pvInit(k);
+  var slots = _pvSlots(k);
+  if (k === 'job') e.box.style.height = slots.length ? Math.round(window.innerHeight * 0.46) + 'px' : '';
+  var boxH = e.box.clientHeight || (k === 'job' ? Math.round(window.innerHeight * 0.46) : 560);
+  var slotH = Math.max(140, Math.round(boxH * 0.74));
+  var pad = Math.max(0, Math.round((boxH - slotH) / 2) - 8);
+  e.grid.style.width = '100%';
+  e.grid.style.setProperty('--pv-h', slotH + 'px');
+  e.grid.style.paddingTop = slots.length ? pad + 'px' : '';
+  e.grid.style.paddingBottom = slots.length ? pad + 'px' : '';
+  var st = _PV[k];
+  if (st.i >= slots.length) st.i = Math.max(0, slots.length - 1);
+  slots.forEach(function(sl, j){ sl.dataset.pvI = j; _pvApply(k, sl); });
+  if (e.zoom){ var zv = parseInt(e.zoom.value, 10); if (isFinite(zv)) st.z = Math.max(1, Math.min(4, zv / 100)); }
+  slots.forEach(function(sl){ _pvApply(k, sl); });
+  _pvGo(k, st.i, false);
 }
-function _jobPhotosApplyZoom(){
-  var sl = document.getElementById('jobPhotosZoom');
-  _jobPhotosZoom(sl ? sl.value : 100);
+function _pvApply(k, sl){
+  var o = sl._pvO || { x:50, y:50 };
+  sl.style.setProperty('--pv-z', _PV[k].z);
+  sl.style.setProperty('--pv-ox', o.x + '%');
+  sl.style.setProperty('--pv-oy', o.y + '%');
 }
+function _pvGo(k, i, smooth){
+  var e = _pvEls(k), slots = _pvSlots(k);
+  if (!e.box || !slots.length){ _pvPos(k); return; }
+  i = Math.max(0, Math.min(slots.length - 1, i));
+  _PV[k].i = i;
+  var sl = slots[i];
+  var top = sl.offsetTop - (e.box.clientHeight - sl.offsetHeight) / 2;
+  try { e.box.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' }); } catch(err){ e.box.scrollTop = Math.max(0, top); }
+  slots.forEach(function(x, j){ x.classList.toggle('pv-cur', j === i); });
+  _pvPos(k);
+}
+function _pvPos(k){
+  var el = document.getElementById('pvPos_' + k); if (!el) return;
+  var n = _pvSlots(k).length;
+  el.textContent = n ? (_PV[k].i + 1) + ' / ' + n : '';
+}
+function _pvStep(k, d){ _PV.active = k; _pvGo(k, _PV[k].i + d, true); }
+function _pvZoomSet(k, v){
+  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100; if (z > 400) z = 400;
+  _PV[k].z = z / 100;
+  var e = _pvEls(k);
+  if (e.zoom && parseInt(e.zoom.value, 10) !== z) e.zoom.value = z;
+  if (e.out) e.out.textContent = z + '%';
+  _pvSlots(k).forEach(function(sl){ _pvApply(k, sl); });
+}
+function _pvInit(k){
+  var box = _pvEls(k).box; if (!box || box.__pv) return;
+  box.__pv = true;
+  box.classList.add('pv-box');
+  box.addEventListener('pointerenter', function(){ _PV.active = k; });
+  box.addEventListener('wheel', function(ev){
+    if (!_pvSlots(k).length) return;
+    ev.preventDefault();                                   // the list itself does not scroll
+    if (!(ev.ctrlKey || ev.metaKey)) return;
+    var sl = ev.target.closest && ev.target.closest('.pv-slot');
+    if (sl){
+      var r = sl.getBoundingClientRect();
+      if (_PV[k].z <= 1.001) sl._pvO = { x: _pvClamp((ev.clientX - r.left) / r.width * 100), y: _pvClamp((ev.clientY - r.top) / r.height * 100) };
+      var idx = parseInt(sl.dataset.pvI, 10);
+      if (isFinite(idx) && idx !== _PV[k].i) _pvGo(k, idx, true);
+    }
+    _pvZoomSet(k, Math.round(_PV[k].z * 100) + (ev.deltaY < 0 ? 20 : -20));
+  }, { passive:false });
+  var drag = null;
+  box.addEventListener('pointerdown', function(ev){
+    if (ev.button !== 0) return;
+    if (ev.target.closest('button, input, select, textarea, a')) return;
+    var sl = ev.target.closest('.pv-slot');
+    drag = { x: ev.clientX, y: ev.clientY, sl: sl, o: (sl && sl._pvO) ? { x: sl._pvO.x, y: sl._pvO.y } : { x:50, y:50 }, moved: false, id: ev.pointerId };
+    _PV.active = k;
+    try { box.setPointerCapture(ev.pointerId); } catch(err){}
+    if (ev.target.tagName === 'IMG') ev.preventDefault();
+  });
+  box.addEventListener('dragstart', function(ev){ ev.preventDefault(); });
+  box.addEventListener('pointermove', function(ev){
+    if (!drag || ev.pointerId !== drag.id) return;
+    var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    drag.moved = true;
+    var z = _PV[k].z;
+    if (z > 1.001 && drag.sl){
+      var r = drag.sl.getBoundingClientRect();
+      drag.sl._pvO = { x: _pvClamp(drag.o.x - dx / (r.width * (z - 1)) * 100), y: _pvClamp(drag.o.y - dy / (r.height * (z - 1)) * 100) };
+      drag.sl.classList.add('pv-panning');
+      _pvApply(k, drag.sl);
+    }
+    ev.preventDefault();
+  });
+  var end = function(ev){
+    if (!drag) return;
+    var d = drag; drag = null;
+    if (d.sl) d.sl.classList.remove('pv-panning');
+    if (!d.moved) return;
+    // Not zoomed: a swipe up or down is the next or the previous photo.
+    if (_PV[k].z <= 1.001){ var dy = (ev.clientY || d.y) - d.y; if (Math.abs(dy) > 40) _pvGo(k, _PV[k].i + (dy < 0 ? 1 : -1), true); }
+    var swallow = function(e2){ e2.stopPropagation(); e2.preventDefault(); box.removeEventListener('click', swallow, true); };
+    box.addEventListener('click', swallow, true);
+    setTimeout(function(){ box.removeEventListener('click', swallow, true); }, 0);
+  };
+  box.addEventListener('pointerup', end);
+  box.addEventListener('pointercancel', end);
+}
+// The arrow keys move the photos while the pointer is over the panel — and
+// only then, so they never steal the drawing's own arrow-key nudges.
+document.addEventListener('keydown', function(ev){
+  if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+  if (!_PV.over) return;
+  var t = ev.target; if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+  var panel = document.getElementById('fergusRoofPanel');
+  if (!panel || !panel.classList.contains('is-open')) return;
+  var k = (_PV.active && _pvSlots(_PV.active).length) ? _PV.active : (_pvSlots('ferg').length ? 'ferg' : 'job');
+  if (!_pvSlots(k).length) return;
+  ev.preventDefault(); ev.stopPropagation();
+  _pvStep(k, ev.key === 'ArrowDown' ? 1 : -1);
+}, true);
+document.addEventListener('DOMContentLoaded', function(){
+  var panel = document.getElementById('fergusRoofPanel');
+  if (panel){
+    panel.addEventListener('pointerenter', function(){ _PV.over = true; });
+    panel.addEventListener('pointerleave', function(){ _PV.over = false; });
+  }
+  _pvInit('ferg'); _pvInit('job');
+});
+window.addEventListener('resize', function(){ try { _pvLayout('ferg'); _pvLayout('job'); } catch(e){} });
 // ── FILES ON THE JOB ────────────────────────────────────────────────
 // A business with no JMS still gets council plans, the old quote, a PDF
 // from the homeowner. They ride inside the job file next to the photos —
@@ -40452,7 +40709,8 @@ async function useFergusJobInModal(jobId){
     //    (otherwise the Quote tab keeps the previous job's proposal).
     S.currentJobId = null;
     try { clearAll && clearAll(true); } catch(e){}
-    S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.orderSent = null;
+    S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.files = []; S.orderSent = null;
+    try { _roofPrevReset(); renderPhotos(); renderJobFiles(); } catch(e){}
     var _client = j.customer || j.client || '', _addr = j.address || j.siteAddress || '';
     var c = document.getElementById('jobClient'); if (c) c.value = _client;
     var a = document.getElementById('jobAddr');   if (a) a.value = _addr;
@@ -48195,6 +48453,7 @@ function clearAll(silent) {
   try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; }
   catch(e){ IMG_FINE_ROTATION = 0; }
   try { if (window.S) S.img64 = null; } catch(e){}
+  try { _roofPrevReset(); } catch(e){}
   try { window._aerialLoadedAddr = null; } catch(e){}
   hidePropPanel(); setTool('outline'); redrawAll(); syncToRoofData();
   try { renderMatRoofMap(); } catch(e){}
@@ -61759,8 +62018,17 @@ async function pushQuotePricingToFergus(btn, opts){
         sentResult: _sent ? { ok: !!_sent.ok, already: !!_sent.already, path: _sent.path || null, verified: _sent.verified, fergusStatus: _sent.fergusStatus || null, stillUnsent: !!_sent.stillUnsent, attempts: _sent.attempts || [] } : null,
       };
     } catch(e){}
-    try { await _savePromise; } catch(e){}   // make sure the backend save landed so the customer link resolves
-    try { if (S.currentJobId) await _publishQuoteOnly(); } catch(e){}   // …and carries the plan
+    // The two quote saves after the push (the link's publish, then the plan
+    // stamped above) queue behind any job save already running, and the
+    // office pressing Push waited for both (2026-09-23: "taking a very long
+    // time"). Pressed by hand, the ✓ comes as soon as Fergus has the quote and
+    // the saves finish behind it, saying so if they fail. The send's silent
+    // push still waits: the send records itself in order.
+    var _persist = function(){
+      return Promise.resolve(_savePromise).catch(function(){}).then(function(){ return S.currentJobId ? _publishQuoteOnly() : null; });
+    };
+    if (_silent){ try { await _persist(); } catch(e){} }
+    else { _persist().catch(function(e){ _qaMsg('Pushed to Fergus, but saving the quote in RoofMap failed (' + ((e && e.message) || e) + ') \u2014 press Save job.', false); }); }
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
     _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + (_published === true ? ' · published' + _pubNote : (_published === false ? ' · still a draft in Fergus — publish it there by hand' + _pubNote : '')) + ' · ' + when, true);
@@ -63189,7 +63457,10 @@ function _fergusPanelOpen(instant){
   if (p.classList.contains('jp-second')){
     var mp = document.getElementById('jpMapPanel');
     if (mp && mp.classList.contains('is-open')){ mp.classList.remove('is-open'); try { localStorage.setItem('fr_jp_map_panel_open', '0'); } catch(e){} }
+    var qp = document.getElementById('quotePricingPanel');
+    if (qp && qp.classList.contains('is-open')){ try { _closePricingPanel(); } catch(e){} }
   }
+  setTimeout(function(){ try { _pvLayout('ferg'); _pvLayout('job'); } catch(e){} }, 380);
   // instant = tab-switch restore: appear in place with no slide animation
   // (the slide is for the user's own toggle only — re-sliding on every tab
   // change made switching look jumpy).
@@ -63276,25 +63547,14 @@ function _grabPan(el){
   el.addEventListener('pointerup', end);
   el.addEventListener('pointercancel', end);
 }
-document.addEventListener('DOMContentLoaded', function(){
-  _grabPan(document.getElementById('fergusRoofPhotoScroll'));
-  _grabPan(document.getElementById('jobPhotosScroll'));
-});
+// (The two photo lists no longer pan as a map — they are a viewer now, see
+// _pvInit. _grabPan stays for anything else that wants it.)
 // Zoom slider (100–400%) scales the photo column width; the scroll box pans.
 // Sets the width INLINE so it always wins (the load flow also writes an inline
 // width, which would otherwise override a CSS-var approach).
-function _fergusPanelZoom(v){
-  var g = document.getElementById('fergusRoofPhotoGrid');
-  var out = document.getElementById('fergusRoofPanelZoomOut');
-  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
-  if (g) g.style.width = z + '%';
-  if (out) out.textContent = z + '%';
-}
+function _fergusPanelZoom(v){ _pvZoomSet('ferg', v); }
 // Re-apply the current zoom to the grid (after photos (re)load).
-function _fergusApplyZoom(){
-  var sl = document.getElementById('fergusRoofPanelZoom');
-  _fergusPanelZoom(sl ? sl.value : 100);
-}
+function _fergusApplyZoom(){ _pvLayout('ferg'); }
 async function _loadFergusRoofPhotos(force){
   var grid = document.getElementById('fergusRoofPhotoGrid');
   var cnt  = document.getElementById('fergusRoofPanelCount');
@@ -63326,6 +63586,7 @@ async function _loadFergusRoofPhotos(force){
   _fergusPanelFiles = res.files;
   res.files.forEach(function(f, fi){
     var cell = document.createElement('div');
+    cell.className = 'pv-slot';
     cell.style.cssText = 'cursor:zoom-in;border-radius:8px;overflow:hidden;background:#08111f;position:relative;width:100%';
     cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:10px">loading…</div>';
     cell.onclick = function(){ _fergusRoofPhotoLightbox(f); };

@@ -185,6 +185,29 @@ Discipline (non-negotiable):
   so on every heading; the gutter heading is the card's bottom line
   (`_gdCardTotal`). The steel choices (grade, profile, thickness) show
   prices relative to the current pick. `tests/profititems.mjs`, `gphr.mjs`.
+- THE PHOTO LISTS ARE A VIEWER (2026-09-23): the PHOTOS pop-out's two lists
+  (`PV_KEYS`: `ferg`, `job`) hold every photo in a `.pv-slot` of ONE fixed
+  height (74% of the list, neighbours peeking); zoom scales the picture
+  inside its slot (`--pv-z`, origin `--pv-ox/oy`), so nothing reflows. ▲ ▼
+  (`_pvStep`), the arrow keys only while the pointer is over the panel
+  (`_PV.over`), and a swipe slide to the next one (smooth `scrollTo`). The
+  plain wheel does not scroll the list; Ctrl + wheel zooms towards the
+  pointer; a zoomed photo drags inside its slot. `_grabPan` no longer runs on
+  these two boxes. The pop-out is on the Quote tab too (`jp-second`, under
+  PRICING, one out at a time). `tests/photoviewer.mjs`.
+- JOBS TO PRICE on Home (`#hbToPrice`, `_hbToPriceLoad`): Fergus's own "To
+  Price" jobs (`GET /jobs?filterJobStatus=To Price`, the partner API's enum),
+  jms-only, kept a minute; a row opens the job through `useFergusJobInModal`.
+- A NEW JOB NEVER SHOWS THE LAST JOB'S ROOF PICTURE: `clearAll` and a
+  stateless `restoreFromJob` call `_roofPrevReset()`.
+- THE CUSTOMER'S OPEN READS SLIM when `DATABASE_URL` is set
+  (`_findQuoteForCustomer`: the quote minus `versions` in the SQL; the
+  "opened" stamp is `jsonb_set` on `share` only, `_saveShareBack`). `/q/`
+  answers carry `Server-Timing` (db slim|full, total); `/health.features.
+  directDb` says whether the slim path is available. The Fergus proxy reads
+  only `user_id, company_id, jms_keys, updated_at` for the key, and
+  `httpsRequest` gives up after 60 s. A hand-pressed Push to Fergus reports
+  as soon as Fergus has the quote; its two quote saves finish behind it.
 - A QUOTE MAY TAKE OFF ANY CHOICE (2026-09-23): the selections window
   (`_qselOpen`) locks nothing; it keeps at least one per group
   (`canEmpty` for gutters/extras) and `_selRepickHidden` moves a pick that
