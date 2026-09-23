@@ -112,6 +112,17 @@ check('a deliberate clear (__cleared) does clear both, and the flag itself is no
   r.status === 200 && !(body.jms_keys && body.jms_keys.fergus) && !('__cleared' in (body.jms_keys || {})) && !(body.quote_defaults.email && body.quote_defaults.email.quote_cc) && !('__cleared' in ((body.quote_defaults || {}).email || {})), JSON.stringify({ k: body.jms_keys, e: body.quote_defaults && body.quote_defaults.email }));
 r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({ branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb' } }) });
 
+// ── a key the save does not mention is kept (2026-09-24) ──────────
+// The company's Nearmap key sits beside the Fergus one. A browser on a
+// build from before Nearmap sends { fergus } alone — that must not drop it.
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({ branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb', nearmap: 'nm_key_123' } }) });
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({ branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb' } }) });
+body = await j(r);
+check('a save that does not mention the Nearmap key keeps it', r.status === 200 && body.jms_keys && body.jms_keys.nearmap === 'nm_key_123' && body.jms_keys.fergus === 'fergPAT_bbbb', JSON.stringify(body.jms_keys));
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({ branding: { company_name: 'John Doe Roofing' }, jms_keys: { fergus: 'fergPAT_bbbb', nearmap: '' } }) });
+body = await j(r);
+check('…while emptying the Nearmap field clears it, and leaves Fergus connected', r.status === 200 && !(body.jms_keys && body.jms_keys.nearmap) && body.jms_keys.fergus === 'fergPAT_bbbb', JSON.stringify(body.jms_keys));
+
 // ── the env key is dead: it serves NOBODY, named or not ───────────
 // It used to serve the company named by FERGUS_COMPANY_ID. A trial account
 // still came up "Fergus: connected" with an empty key field and Flood

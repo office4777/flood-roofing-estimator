@@ -728,7 +728,17 @@ option. "Use this view" STITCHES LINZ tiles (`_linzStitch`) into exactly the
 Mapbox static picture's geometry — same centre, zoom, bearing, W×H — so the
 scale stays `_autoScaleFromAerial(lat, z, true)`; empty or failing tiles
 fall back to Mapbox; the "© LINZ CC BY 4.0" credit is stamped into the
-picture. `tests/aeriallinz.mjs`.) `DRAW.scaleMetresPerPx` is metres per IMAGE pixel. The
+picture. `tests/aeriallinz.mjs`.
+NEARMAP, built 2026-09-24 and SWITCHED OFF (`NEARMAP_ON = false` in app.html):
+a company's own key (`jms_keys.nearmap`, Settings → General row
+`#setNearmapRow`, hidden while off) makes "Use this view" ask Nearmap's
+coverage API first (`_nearmapCoverage`), stitch that survey's tiles
+(`_nearmapTileUrl`, `_tileStitch`) where it has flown, else LINZ, else
+Mapbox. Switch on ONLY together with privacy.html v1.2 naming Nearmap in
+section 5 — the policy promises 30 days' notice by email for a new
+provider — and add Nearmap to `tests/legal.mjs` PROCESSORS then. The server
+keeps a jms_keys key a save does not mention (`ferguskey.mjs`).
+`tests/aerialnearmap.mjs` runs with `window.__NEARMAP_ON`.) `DRAW.scaleMetresPerPx` is metres per IMAGE pixel. The
 canvas size and `DRAW.zoom` have nothing to do with it. Dividing by how large
 the photo happens to be drawn makes every measurement move when the roofer
 zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.

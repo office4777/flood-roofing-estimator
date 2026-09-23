@@ -5142,6 +5142,7 @@ html.qp-desk-preview .qd-top{ position:static; }
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
           <span style="font-size:12px;color:#666;white-space:nowrap">Select satellite map:</span>
           <select id="imagerySource" onchange="switchImagerySource(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:inherit">
+            <option value="nearmap" id="imgSrcNearmap" hidden disabled>Nearmap (your subscription)</option>
             <option value="linz">LINZ NZ Aerial (sharpest for NZ)</option>
             <option value="mapbox" selected>Mapbox Satellite</option>
             <option value="esri">Esri World Imagery</option>
@@ -7915,6 +7916,16 @@ html.qp-desk-preview .qd-top{ position:static; }
     <!-- General: autosave — one toggle and one number don't earn a card of
          their own at the top of the page. -->
     <div class="sub-panel settings-sub" id="set-general" style="margin-top:14px">
+      <!-- NEARMAP (2026-09-24): a company's own Nearmap subscription. With a
+           key here, "Find your property" uses Nearmap's photos wherever
+           Nearmap has flown, and LINZ everywhere else. -->
+      <div class="set-row" id="setNearmapRow" style="display:none">
+        <div class="set-row-txt">
+          <b>Nearmap aerial imagery <span style="font-weight:500;color:var(--text2)">(optional, paid)</span></b>
+          <span>Your company's Nearmap API key. With it, Find your property uses Nearmap's photos wherever Nearmap has flown (the main cities), and the free LINZ aerials everywhere else. <a href="https://www.nearmap.com/nz" target="_blank" rel="noopener">About Nearmap ↗</a></span>
+        </div>
+        <input type="text" id="intNearmap" placeholder="Nearmap API key" autocomplete="off" spellcheck="false" style="width:260px;flex-shrink:0;font-family:monospace;font-size:12px">
+      </div>
       <div class="set-row">
         <div class="set-row-txt">
           <b>Autosave the open job</b>
@@ -12900,6 +12911,7 @@ function collectSettingsFromUI(){
   k.fergusLabourAccountId    = _keep('intFergusLabAcct', k.fergusLabourAccountId);
   k.fergusMaterialCode       = _keep('intFergusMatCode', k.fergusMaterialCode);
   k.fergusLabourCode         = _keep('intFergusLabCode', k.fergusLabourCode);
+  k.nearmap                  = String(_keep('intNearmap', k.nearmap)).trim();
   collectPriceBookFromUI();
   collectLabourPricingFromUI();
 }
@@ -14964,6 +14976,8 @@ function refreshSettingsUI(){
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
   set('intFergusLabAcct', k.fergusLabourAccountId); set('intFergusMatCode', k.fergusMaterialCode); set('intFergusLabCode', k.fergusLabourCode);
+  set('intNearmap', k.nearmap);
+  try { var _nmRow = document.getElementById('setNearmapRow'); if (_nmRow) _nmRow.style.display = NEARMAP_ON ? '' : 'none'; } catch(e){}
   try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
   try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
   try { _refreshJmsLinkUI(); } catch(e){}
@@ -68923,8 +68937,13 @@ function captureFromMapbox(lat, lon, zoom) {
   // LINZ's tiles to EXACTLY the Mapbox picture's geometry — same centre,
   // zoom, bearing and pixel size — so the scale below is unchanged. No key,
   // a failed tile set, or no LINZ cover here: the Mapbox picture, as before.
-  var _linzK = (src === 'linz') ? _linzKeyNow() : '';
-  if (_linzK){
+  // NEARMAP (2026-09-24): a company's own Nearmap subscription comes first —
+  // but only where Nearmap has flown (its coverage check says so, and when).
+  // Anywhere else, or if its tiles fail, LINZ; then Mapbox.
+  var _nmK = (src === 'nearmap') ? _nearmapKeyNow() : '';
+  var _linzK = (src === 'linz' || src === 'nearmap') ? _linzKeyNow() : '';
+  var tryLinz = function(){
+    if (!_linzK){ doFetch(1); return; }
     if (hint) hint.innerHTML = '⏳ Loading the LINZ aerial...';
     _linzStitch(_linzK, mc.lat, mc.lng, z, bearing, boxW * 2, boxH * 2).then(function(blob){
       _placedFrom = 'linz';
@@ -68934,6 +68953,24 @@ function captureFromMapbox(lat, lon, zoom) {
       if (hint) hint.innerHTML = '⏳ LINZ imagery not available here \u2014 using Mapbox\u2026';
       doFetch(1);
     });
+  };
+  if (_nmK){
+    if (hint) hint.innerHTML = '⏳ Checking Nearmap for this address...';
+    _nearmapCoverage(_nmK, mc.lat, mc.lng).then(function(cov){
+      if (!cov) throw new Error('Nearmap has not flown here');
+      if (hint) hint.innerHTML = '⏳ Loading the Nearmap aerial (' + _nearmapDateText(cov.captureDate) + ')...';
+      return _tileStitch(_nearmapTileUrl(_nmK, cov), '\u00a9 Nearmap ' + _nearmapDateText(cov.captureDate), mc.lat, mc.lng, z, bearing, boxW * 2, boxH * 2, 21).then(function(blob){
+        _placedFrom = 'nearmap';
+        window._lastAerialSource = { source: 'nearmap', captureDate: cov.captureDate || '' };
+        placeBlob(blob);
+      });
+    }).catch(function(e){
+      console.warn('Nearmap capture fell back:', e && e.message);
+      if (hint) hint.innerHTML = '⏳ Nearmap has nothing here \u2014 trying LINZ\u2026';
+      tryLinz();
+    });
+  } else if (_linzK){
+    tryLinz();
   } else {
     setTimeout(function(){ doFetch(1); }, 0);
   }
@@ -69015,6 +69052,49 @@ function _linzKeyNow(){
   try { var own = localStorage.getItem('linzApiKey'); if (own) return own; } catch(e){}
   return window._linzPlatformKey || '';
 }
+// ── NEARMAP ─────────────────────────────────────────────────────────────
+// A company's own Nearmap key (Settings → General), kept with its other
+// keys in jms_keys. Nearmap only has what it has flown — the coverage check
+// answers before any tile is fetched, and gives the capture date.
+// SWITCHED OFF until the privacy policy names Nearmap: adding a provider to
+// its section 5 needs 30 days' notice by email to subscribers and a new
+// version (privacy.html, "Changes to this policy"). Built and tested; flip
+// this to true in the same change as privacy v1.2. (Tests set __NEARMAP_ON.)
+var NEARMAP_ON = !!window.__NEARMAP_ON;
+function _nearmapKeyNow(){
+  if (!NEARMAP_ON) return '';
+  try { return String(((window.S && S.settings && S.settings.jms_keys) || {}).nearmap || '').trim(); } catch(e){ return ''; }
+}
+function _nearmapDateText(d){
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ''));
+  if (!m) return '';
+  return +m[3] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2] - 1] + ' ' + m[1];
+}
+function _nearmapCoverage(key, lat, lng){
+  var u = 'https://api.nearmap.com/coverage/v2/point/' + lng.toFixed(6) + ',' + lat.toFixed(6) + '?apikey=' + encodeURIComponent(key) + '&limit=1';
+  return fetch(u, { mode: 'cors' }).then(function(r){
+    if (!r.ok) throw new Error('Nearmap coverage ' + r.status);
+    return r.json();
+  }).then(function(d){
+    var sv = (d && (d.surveys || d.data || [])) || [];
+    return sv.length ? sv[0] : null;
+  });
+}
+// The newest survey here, pinned by id so every tile is the same day's photo.
+function _nearmapTileUrl(key, cov){
+  var base = (cov && cov.id) ? 'https://api.nearmap.com/tiles/v3/surveys/' + encodeURIComponent(cov.id) + '/Vert/{z}/{x}/{y}.jpg'
+                             : 'https://api.nearmap.com/tiles/v3/Vert/{z}/{x}/{y}.jpg';
+  return base + '?apikey=' + encodeURIComponent(key);
+}
+function applyNearmapTiles(key){
+  var lz = _linzKeyNow();
+  // Nearmap over LINZ: where Nearmap has not flown its tiles are missing and
+  // the LINZ photo underneath shows instead of a blank.
+  _aerialOverlayTiles([
+    lz ? { url: LINZ_TILE_URL + encodeURIComponent(lz), attribution: '\u00a9 LINZ CC BY 4.0', maxzoom: 21 } : null,
+    { url: 'https://api.nearmap.com/tiles/v3/Vert/{z}/{x}/{y}.jpg?apikey=' + encodeURIComponent(key), attribution: '\u00a9 Nearmap', maxzoom: 21 }
+  ].filter(Boolean));
+}
 var LINZ_TILE_URL = 'https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=';
 var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributors';
 // Build a W×H picture of the ground a Mapbox static image at (lat, lng, z,
@@ -69024,10 +69104,15 @@ var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributor
 // scaled and turned into place. Resolves a JPEG blob; rejects when tiles fail
 // or LINZ has no cover here, so the caller falls back to Mapbox.
 function _linzStitch(key, lat, lng, z, bearing, W, H){
+  return _tileStitch(LINZ_TILE_URL + encodeURIComponent(key), '\u00a9 LINZ CC BY 4.0', lat, lng, z, bearing, W, H, 21);
+}
+// Any XYZ source on 256px Web Mercator tiles ({z}/{x}/{y} in the URL), into
+// the Mapbox picture's exact geometry, with `credit` stamped in the corner.
+function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
   return new Promise(function(resolve, reject){
     try {
       var Zf = z + 1;                                   // the same metres per pixel on 256px tiles
-      var Z = Math.max(12, Math.min(21, Math.round(Zf)));
+      var Z = Math.max(12, Math.min(maxZ || 21, Math.round(Zf)));
       var k = Math.pow(2, Zf - Z);                      // picture pixels per tile pixel
       var n = 256 * Math.pow(2, Z);
       var rad = Math.PI / 180;
@@ -69046,7 +69131,7 @@ function _linzStitch(key, lat, lng, z, bearing, W, H){
       var tiles = [];
       for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) tiles.push({ x: tx, y: ty });
       if (tiles.length > 400) return reject(new Error('too many tiles'));
-      var base = LINZ_TILE_URL.replace('{z}', Z) + encodeURIComponent(key);
+      var base = urlTpl.replace('{z}', Z);
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var ctx = cv.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
@@ -69090,7 +69175,7 @@ function _linzStitch(key, lat, lng, z, bearing, W, H){
         o.fillStyle = '#2b3036'; o.fillRect(0, 0, W, H); o.drawImage(cv, 0, 0);
         var fs = Math.max(11, Math.round(W / 150));
         o.font = fs + 'px Inter, Arial, sans-serif';
-        var txt = '\u00a9 LINZ CC BY 4.0', tw = o.measureText(txt).width;
+        var txt = credit || '', tw = o.measureText(txt).width;
         o.fillStyle = 'rgba(0,0,0,.45)'; o.fillRect(W - tw - fs * 1.2, H - fs * 1.7, tw + fs * 1.2, fs * 1.7);
         o.fillStyle = 'rgba(255,255,255,.9)'; o.fillText(txt, W - tw - fs * 0.6, H - fs * 0.5);
         out.toBlob(function(b){ if (b) resolve(b); else reject(new Error('could not encode')); }, 'image/jpeg', 0.9);
@@ -69176,7 +69261,12 @@ function switchImagerySource(val, auto) {
   var linzWrap = document.getElementById('linzKeyWrap');
   // A pick made by hand is remembered; the default follows the key.
   if (!auto){ try { localStorage.setItem('fr_imagery_src', val); } catch(e){} }
-  if(val === 'linz') {
+  if(val === 'nearmap') {
+    linzWrap.style.display = 'none';
+    var nk = _nearmapKeyNow();
+    if (nk) applyNearmapTiles(nk);
+    else { alert('Nearmap needs your company\u2019s Nearmap API key \u2014 Settings \u2192 General \u2192 Nearmap aerial imagery.'); }
+  } else if(val === 'linz') {
     var key = _linzKeyNow();
     // The platform's key needs no box; a browser without one can type its own.
     linzWrap.style.display = window._linzPlatformKey ? 'none' : 'flex';
@@ -69206,11 +69296,21 @@ function saveLinzKey() {
 function _aerialOverlayTiles(url, attribution) {
   var m = window._aerialMap;
   if(!m) return;
+  // A list of layers (Nearmap over LINZ) as well as the single URL.
+  var layers = Array.isArray(url) ? url : null;
   var apply = function(){
     try {
       if (m.getLayer('rm-imagery'))  m.removeLayer('rm-imagery');
       if (m.getSource('rm-imagery')) m.removeSource('rm-imagery');
-      if (url) {
+      if (m.getLayer('rm-imagery2'))  m.removeLayer('rm-imagery2');
+      if (m.getSource('rm-imagery2')) m.removeSource('rm-imagery2');
+      if (layers) {
+        layers.slice(0, 2).forEach(function(L, i){
+          var id = i ? 'rm-imagery2' : 'rm-imagery';
+          m.addSource(id, { type:'raster', tiles:[L.url], tileSize:256, attribution:L.attribution || '', maxzoom:L.maxzoom || 21 });
+          m.addLayer({ id:id, type:'raster', source:id });
+        });
+      } else if (url) {
         // maxzoom: past the last real tile the map enlarges it instead of
         // asking for tiles that do not exist (LINZ 21, Esri 19).
         m.addSource('rm-imagery', { type:'raster', tiles:[url], tileSize:256, attribution:attribution, maxzoom: /arcgisonline/.test(url) ? 19 : 21 });
@@ -69243,8 +69343,13 @@ function applyMapboxTiles() {
 // The platform key comes from the server once per load.
 function _imageryDefaultApply(){
   var sel = document.getElementById('imagerySource'); if (!sel) return;
+  // Nearmap is offered only to a company with its own key.
+  var nm = !!_nearmapKeyNow();
+  var opt = document.getElementById('imgSrcNearmap');
+  if (opt){ opt.hidden = !nm; opt.disabled = !nm; }
   var pick = ''; try { pick = localStorage.getItem('fr_imagery_src') || ''; } catch(e){}
-  var want = pick || (_linzKeyNow() ? 'linz' : 'mapbox');
+  var want = pick || (nm ? 'nearmap' : (_linzKeyNow() ? 'linz' : 'mapbox'));
+  if (want === 'nearmap' && !nm) want = _linzKeyNow() ? 'linz' : 'mapbox';
   if (want === 'linz' && !_linzKeyNow()) want = 'mapbox';
   sel.value = want;
   if (window._aerialMap) switchImagerySource(want, true);

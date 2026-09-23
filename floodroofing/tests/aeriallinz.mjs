@@ -59,7 +59,7 @@ check('the imagery key is not fetched on page load', early);
 await pg.evaluate(() => { gotoTab('roof'); _openAerialModal(); });
 await pg.waitForTimeout(600);
 const def = await pg.evaluate(() => ({ key: window._linzPlatformKey, sel: document.getElementById('imagerySource').value,
-  first: document.getElementById('imagerySource').options[0].textContent, now: _linzKeyNow() }));
+  first: [...document.getElementById('imagerySource').options].filter(o => !o.hidden)[0].textContent, now: _linzKeyNow() }));
 check('with the platform’s LINZ key the finder opens on LINZ, listed first', def.key === 'platform-key' && def.sel === 'linz' && /LINZ/.test(def.first) && def.now === 'platform-key', JSON.stringify(def));
 
 // "Use this view" over Hamilton (12A Empire Street), the map box 800×400, the
@@ -151,6 +151,25 @@ check('a source picked by hand is kept over the LINZ default', pick === 'mapbox'
 // old linz.govt.nz address was taken down; Basemaps itself hands out a key.
 const keyLink = await pg.evaluate(() => (document.querySelector('#linzKeyWrap a') || {}).href || '');
 check('the "Get free key" link goes to LINZ Basemaps, where the key is', /^https:\/\/basemaps\.linz\.govt\.nz\/?$/.test(keyLink), keyLink);
+
+// Nearmap is built but SWITCHED OFF until the privacy policy names it (30
+// days' notice for a new provider): even with a key saved, nothing offers it
+// and nothing reaches Nearmap.
+const nmOff = await pg.evaluate(async () => {
+  S.settings = S.settings || {}; S.settings.jms_keys = Object.assign({}, S.settings.jms_keys || {}, { nearmap: 'someones-key' });
+  let hit = false; const realFetch = window.fetch;
+  window.fetch = (u, o) => { if (/nearmap\.com/.test(String(u))) hit = true; return realFetch(u, o); };
+  gotoTab('roof'); _openAerialModal(); await new Promise(r => setTimeout(r, 300)); _imageryDefaultApply();
+  const opt = document.getElementById('imgSrcNearmap');
+  const out = { on: NEARMAP_ON, key: _nearmapKeyNow(), offered: !(opt.hidden && opt.disabled), sel: document.getElementById('imagerySource').value };
+  _closeAerialModal(); try { refreshSettingsUI(); } catch(e){}
+  out.row = getComputedStyle(document.getElementById('setNearmapRow')).display;
+  window.fetch = realFetch; out.hit = hit;
+  S.settings.jms_keys.nearmap = '';
+  return out;
+});
+check('Nearmap stays switched off until the policy names it: not offered, no Settings row, nothing sent to Nearmap',
+  nmOff.on === false && nmOff.key === '' && !nmOff.offered && nmOff.sel !== 'nearmap' && nmOff.row === 'none' && !nmOff.hit, JSON.stringify(nmOff));
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

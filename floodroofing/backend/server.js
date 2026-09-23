@@ -3659,6 +3659,15 @@ app.put('/settings', requireAuth, async (req, res) => {
       const hasIn = Object.keys(inK).some(k => k !== '__cleared' && String(inK[k] || '').trim());
       const hasEx = !!(existing && existing.jms_keys && Object.values(existing.jms_keys).some(v => String(v || '').trim()));
       if (!hasIn && hasEx && !inK.__cleared) payload.jms_keys = existing.jms_keys;
+      // A key the save does not MENTION is kept (2026-09-24): a browser still
+      // on a build that predates a key (the Nearmap key, added beside the
+      // Fergus one) sends Fergus alone and would otherwise drop the other.
+      // A key sent blank is a deliberate clear, and __cleared clears all.
+      else if (hasIn && hasEx && !inK.__cleared && payload.jms_keys && typeof payload.jms_keys === 'object'){
+        const merged = Object.assign({}, payload.jms_keys);
+        for (const k of Object.keys(existing.jms_keys)) if (!(k in merged)) merged[k] = existing.jms_keys[k];
+        payload.jms_keys = merged;
+      }
       if (payload.jms_keys && payload.jms_keys.__cleared){ payload.jms_keys = Object.assign({}, payload.jms_keys); delete payload.jms_keys.__cleared; }
     } catch (e) {}
     // The same for the email addresses under quote_defaults.email (the CC on
