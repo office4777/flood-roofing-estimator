@@ -185,6 +185,21 @@ Discipline (non-negotiable):
   so on every heading; the gutter heading is the card's bottom line
   (`_gdCardTotal`). The steel choices (grade, profile, thickness) show
   prices relative to the current pick. `tests/profititems.mjs`, `gphr.mjs`.
+- A QUOTE MAY TAKE OFF ANY CHOICE (2026-09-23): the selections window
+  (`_qselOpen`) locks nothing; it keeps at least one per group
+  (`canEmpty` for gutters/extras) and `_selRepickHidden` moves a pick that
+  was taken off onto the first choice left. `_selFixed` honours a quote
+  hide on the first row. "+ Add profile option" (`_qpfOpen`) adds a profile
+  for THIS job (`S.quote.customProfiles`, merged by `_selProfilesAll`) or,
+  ticked "Add to saved profiles", to Settings. A profile may carry `img`
+  (`_qpfPicSet`); `_qbProfileFigure` shows it on the profile AND colour
+  sections, draws only `corrugate`/`5rib`, and shows NOTHING for any other
+  profile without a picture. A second click on the picked colour clears it.
+  Guttering and Old roof carry "Delete this page" too; deleting Guttering
+  resets the gutter pick to none. The cover's "Swap photo" is
+  `S.quote.coverPhoto` {src, offX, offY (percent of the frame), zoom}, moved
+  and zoomed like the condition slots, first in `_qbHeroSrc` and the A4.
+  `tests/profilecustom.mjs`.
 - ONE WRITE TO THE JOB ROW AT A TIME (2026-09-22): `saveCurrentJob` and
   `_publishQuoteOnly` go through `_jobWriteQueued`; a save asked for while
   one runs waits, a third joins the waiting one. Autosave is HELD

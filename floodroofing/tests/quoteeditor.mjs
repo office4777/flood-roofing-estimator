@@ -166,8 +166,8 @@ const sel = await pg.evaluate(async () => {
            selHide: S.quote.selHide, deskGrades: [...document.querySelectorAll('#qpRoot [data-qb-opt="steelGrade"]')].map(e => e.dataset.qbVal),
            settingsClean: !JSON.stringify((S.settings || {}).selectables || {}).includes('"hidden":true') };
 });
-check('the selections window lists every group, with the base grade, the standard profile and the standard choices locked on',
-  sel.rows >= 12 && sel.groups.length >= 7 && sel.baseLocked && sel.corrLocked && sel.stdThickLocked, JSON.stringify({ rows: sel.rows, groups: sel.groups }));
+check('the selections window lists every group, and NOTHING is locked — the base grade, the standard profile and the standard choices can all come off (2026-09-23)',
+  sel.rows >= 12 && sel.groups.length >= 7 && !sel.baseLocked && !sel.corrLocked && !sel.stdThickLocked, JSON.stringify({ rows: sel.rows, groups: sel.groups }));
 check('unticking a grade and a bracket hides them on THIS quote only', JSON.stringify(sel.selHide) === '{"grades":{"colorzen":true},"brackets":{"external":true}}' && sel.settingsClean, JSON.stringify(sel.selHide));
 check('…and the one-page layout no longer offers that grade', !sel.deskGrades.includes('colorzen') && sel.deskGrades.includes('maxam'), sel.deskGrades.join(','));
 const bookHide = await pg.evaluate(async () => {
@@ -199,7 +199,7 @@ const noPick = await pg.evaluate(async () => {
   _qselClose(); _setProposalOption_grade('maxam'); await new Promise(r => setTimeout(r, 400));
   return out;
 });
-check('the grade picked on this quote cannot be hidden', noPick.locked && /picked/.test(noPick.why), JSON.stringify(noPick));
+check('the grade picked on this quote can be unticked too, and is labelled as the pick', !noPick.locked && /picked/.test(noPick.why), JSON.stringify(noPick));
 const defaults = await pg.evaluate(async () => {
   _qeEditSelections(); await new Promise(r => setTimeout(r, 200));
   const btn = [...document.querySelectorAll('#qselModal button')].find(x => /Edit default selections/.test(x.textContent));
@@ -281,7 +281,7 @@ const park = await pg.evaluate(async () => {
   out.back = !!document.querySelector('#qd-profile') && !document.querySelector('#qpRoot .qd-parked');
   return out;
 });
-check('the grade, profile and thickness sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness', JSON.stringify(park.delBtns));
+check('the grade, profile, thickness, guttering and old roof sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness,gutter,disposal', JSON.stringify(park.delBtns));
 check('deleting the profile section leaves an Insert Profile page button between the grade and the thickness', park.parked.join(',') === 'profile' && park.profileGone && /Insert Profile page/.test(park.placeholder || '') && park.afterGrade === 'grade' && park.beforeThickness === 'thickness', JSON.stringify(park));
 check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
 check('…and Insert puts it back', park.back);

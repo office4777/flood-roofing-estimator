@@ -3594,6 +3594,30 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-cond-link.qb-cond-del{ color:#b4232c; }
 .qb-sec-del{ display:block; margin:-4px 0 10px; padding-left:0; font-size:11.5px; }
 .qb-tot3{ text-align:left; }
+.qb-hero-own{ overflow:hidden; cursor:grab; }
+.qb-hero-own.qb-hero-grab{ cursor:grabbing; }
+.qb-hero-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform-origin:center center; pointer-events:none; user-select:none; }
+.qb-hero-tools{ position:absolute; top:10px; right:10px; z-index:3; display:flex; gap:5px; }
+.qb-hero-tools button{ height:28px; min-width:28px; padding:0 10px; border:none; border-radius:7px; background:rgba(10,22,40,.78); color:#fff; font:700 12px/1 inherit; font-family:inherit; cursor:pointer; }
+.qb-hero-tools button:first-child{ background:#0099cc; }
+.qb-hero-hint{ position:absolute; top:44px; right:12px; z-index:3; font-size:10.5px; color:rgba(255,255,255,.85); text-shadow:0 1px 2px rgba(0,0,0,.6); pointer-events:none; }
+.qb-hero-own .qb-hero-veil, .qb-hero-own .qb-hero-txt{ z-index:1; }
+.qb-hero-own .qb-hero-veil{ pointer-events:none; }
+.qb-fig-photo{ margin:0 0 14px; padding:0; background:none; }
+.qb-fig-photo img{ display:block; width:100%; max-height:260px; object-fit:contain; border-radius:12px; background:#f4f6f9; }
+.qb-fig-photo figcaption{ margin-top:6px; font-size:11.5px; color:#7c8894; text-align:center; }
+.qsel-pic{ width:40px; height:28px; object-fit:cover; border-radius:5px; border:1px solid #e3e6ea; }
+.qsel-picbtn{ margin-left:auto; background:none; border:1px solid #cfd8e3; border-radius:6px; color:#0077a3; font-size:11px; font-weight:700; padding:3px 8px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+.qsel-add{ display:block; margin:8px 0 4px; padding:8px 12px; background:#fff; border:1.5px dashed #0099cc; border-radius:8px; color:#0077a3; font-weight:700; font-size:12.5px; cursor:pointer; font-family:inherit; }
+.qsel-msg{ margin:8px 0 0; padding:8px 10px; background:#fff7ed; border-left:3px solid #f59e0b; border-radius:6px; font-size:12px; color:#92400e; }
+.qpf-body{ padding:14px 18px; display:flex; flex-direction:column; gap:11px; }
+.qpf-body label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; color:#0a1628; }
+.qpf-body input[type=text], .qpf-body input[type=number]{ font:inherit; font-weight:400; font-size:13px; padding:7px 9px; border:1px solid #cfd8e3; border-radius:7px; }
+.qpf-body small{ font-weight:400; color:#7c8894; font-size:11px; }
+.qpf-body .qpf-tick{ flex-direction:row; align-items:center; gap:8px; font-weight:600; }
+.qpf-pic{ display:flex; align-items:center; gap:12px; }
+.qpf-prev{ width:120px; height:72px; border:1px dashed #cfd8e3; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#7c8894; overflow:hidden; background:#f7f9fb; }
+.qpf-prev img{ width:100%; height:100%; object-fit:cover; }
 .qb-tot3 .qb-tl{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
 .qb-tot3 .qb-tl span{ display:inline; font-size:13px; letter-spacing:0; text-transform:none; color:rgba(255,255,255,.72); }
 .qb-tot3 .qb-tl em{ font-style:normal; font-size:13px; font-weight:600; color:rgba(255,255,255,.85); font-variant-numeric:tabular-nums; }
@@ -3850,7 +3874,7 @@ html.qp-desk-preview .qd-top{ position:static; }
 .qd .qb-opt:not(:disabled):hover{ border-color:#9ccfeb; }
 .qd .qb-sw:not(:disabled):hover{ border-color:#9ccfeb; }
 /* the review */
-.qd-sec-review .qb-body{ max-width:760px; }
+.qd-sec-review .qb-body{ max-width:none; }
 .qd-sec-review .qb-total b{ font-size:44px; }
 /* the rail */
 .qd-rail{ min-width:0; align-self:stretch; }
@@ -24248,7 +24272,9 @@ function _selFixed(kind, rows){
     return Object.assign({}, r, {
       label: (o.name != null && String(o.name).trim()) ? String(o.name) : r.label,
       desc:  (o.desc != null && String(o.desc).trim()) ? String(o.desc) : r.desc,
-      _hidden: !!((o.hidden || _selQuoteHidden(kind, r.id)) && i > 0),
+      // The company's own hide never takes the first row; this QUOTE's may
+      // take any row (2026-09-23) — the window keeps at least one.
+      _hidden: !!((o.hidden && i > 0) || _selQuoteHidden(kind, r.id)),
     });
   }).filter(function(r){ return !r._hidden; });
 }
@@ -24330,7 +24356,16 @@ function _selectables(){
 // *All() includes removed products, so a quote that already names one can
 // still resolve it. The plain list is what a NEW quote may choose from.
 function _selGradesAll(){ return _selectables().grades || []; }
-function _selProfilesAll(){ return _selectables().profiles || []; }
+// A profile added for ONE job (2026-09-23) lives on the quote
+// (`S.quote.customProfiles`), so it reaches the customer with the quote and
+// never appears on another job. Saved profiles are the company's list.
+function _selProfilesAll(){
+  var base = _selectables().profiles || [];
+  var cp = (window.S && S.quote && Array.isArray(S.quote.customProfiles)) ? S.quote.customProfiles : [];
+  if (!cp.length) return base;
+  var seen = {}; base.forEach(function(x){ if (x) seen[x.id] = 1; });
+  return base.concat(cp.filter(function(x){ return x && x.id && !seen[x.id]; }));
+}
 function _selGuttersAll(){ return _selectables().gutters || []; }
 function _selLive(list, kind){ return list.filter(function(x){ return x && !x.removed && !(kind && _selQuoteHidden(kind, x.id)); }); }
 function _selGrades(){ return _selLive(_selGradesAll(), 'grades'); }
@@ -25403,7 +25438,14 @@ function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
 function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
 function _setProposalOption_disposal(v){  _setProposalOption('disposal', v); }
-function _setProposalOption_colour(v){    _setProposalOption('colour', v); }
+function _setProposalOption_colour(v){
+  // A second click on the colour already picked takes it off again
+  // (2026-09-23): a slip of the mouse used to leave a colour on the quote
+  // that nobody chose.
+  var cur = ((window.S && S.quote && S.quote.proposalOptions) || {}).colour || '';
+  if (v && cur === v) v = '';
+  _setProposalOption('colour', v);
+}
 // The customer-facing roof colour for the Selections page + acceptance popup.
 // Zincalume is unpainted, so its "colour" is always plain silver.
 function _proposalColourLabel(){
@@ -27481,13 +27523,14 @@ function _qbCover(){
   var surname = client.split(/\s+/).slice(-1)[0] || '';
   var title = q.coverTitle || ((surname ? surname + ' Residence' : 'Your home'));
   return ''+
-    '<div class="qb-hero"'+(hero ? ' style="background-image:url('+_qbCssUrl(hero)+')"' : '')+'>'+
+    '<div class="qb-hero'+_qbHeroOpen(hero)+
       '<div class="qb-hero-veil"></div>'+
       '<div class="qb-hero-txt">'+
         '<span class="qb-kicker">Roofing quote &amp; proposal</span>'+
         '<h1>'+esc2(title)+'</h1>'+
         (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
       '</div>'+
+      _qbHeroTools()+
     '</div>'+
     '<div class="qb-body">'+
       _qbCoverMeta()+
@@ -27527,8 +27570,92 @@ function _qbCoverMeta(){
       (br.email ? '<div><dt>Email</dt><dd>'+esc2(br.email)+'</dd></div>' : '')+
     '</dl>';
 }
+// ── THIS QUOTE'S COVER PHOTO (2026-09-23) ─────────────────────────
+// "Swap photo" on the cover takes a picture from the computer for THIS quote
+// (`S.quote.coverPhoto` = {src, offX, offY, zoom}) and it is moved and zoomed
+// inside the frame the way the condition photos are: drag, the wheel, − / +,
+// Reset. Offsets are a percentage of the frame, so the phone's cover and
+// the computer's show the same part of the picture.
+function _qbCoverPhoto(){ var c = window.S && S.quote && S.quote.coverPhoto; return (c && c.src) ? c : null; }
+function _qbCoverOffice(){ return !(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE); }
+function _qbHeroImgStyle(c){
+  return 'transform:translate(' + (+c.offX || 0).toFixed(2) + '%,' + (+c.offY || 0).toFixed(2) + '%) scale(' + (+c.zoom || 1).toFixed(3) + ')';
+}
+// The opening of the hero: the rest of its class list, its background (or
+// the quote's own photo as a movable picture) and, in the office, the drag.
+function _qbHeroOpen(hero){
+  var own = _qbCoverPhoto();
+  var off = _qbCoverOffice();
+  if (own){
+    return ' qb-hero-own"' + (off ? ' onmousedown="_qbCoverDragStart(event)" onwheel="_qbCoverWheel(event)"' : '') + '>' +
+      '<img class="qb-hero-img" data-cover-img="1" src="' + esc2(own.src) + '" alt="" draggable="false" style="' + _qbHeroImgStyle(own) + '">';
+  }
+  return '"' + (hero ? ' style="background-image:url(' + _qbCssUrl(hero) + ')"' : '') + '>';
+}
+function _qbHeroTools(){
+  if (!_qbCoverOffice()) return '';
+  var own = _qbCoverPhoto();
+  var b = function(fn, label, title){ return '<button type="button" onclick="event.stopPropagation();' + fn + '" title="' + title + '">' + label + '</button>'; };
+  return '<div class="qb-hero-tools no-print">' +
+      b('_qbCoverSwap()', '\uD83D\uDCF7 Swap photo', 'Upload a cover photo for this quote from your computer') +
+      (own ? b('_qbCoverZoom(-0.1)', '−', 'Zoom out') + b('_qbCoverZoom(0.1)', '+', 'Zoom in') +
+             b('_qbCoverReset()', '↺', 'Reset position') + b('_qbCoverRemove()', '×', 'Back to the standard cover photo') : '') +
+    '</div>' + (own ? '<div class="qb-hero-hint no-print">Drag to move · scroll to zoom</div>' : '');
+}
+function _qbCoverSwap(){
+  if (!_qbCoverOffice() || !S.quote) return;
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+    var r = new FileReader();
+    // A cover is shown wide, so it keeps more pixels than a slot photo.
+    r.onload = function(ev){ _shrinkImg(ev.target.result, 1600, 0.72, function(src){ _qbCoverSet(src || ev.target.result); }); };
+    r.readAsDataURL(f);
+  });
+  document.body.appendChild(inp); inp.click();
+}
+function _qbCoverSet(src){
+  if (!S.quote || !src) return;
+  S.quote.coverPhoto = { src: src, offX: 0, offY: 0, zoom: 1 };
+  _qbCoverChanged(true);
+}
+function _qbCoverChanged(full){
+  if (full){ try { refreshQuoteProposal(); } catch(e){} }
+  else {
+    var c = _qbCoverPhoto(); if (!c) return;
+    document.querySelectorAll('img[data-cover-img]').forEach(function(im){ im.style.transform = _qbHeroImgStyle(c).replace('transform:', ''); });
+  }
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _qbCoverZoom(d){
+  var c = _qbCoverPhoto(); if (!c || !_qbCoverOffice()) return;
+  c.zoom = Math.max(1, Math.min(4, (+c.zoom || 1) + d));
+  _qbCoverChanged(false);
+}
+function _qbCoverReset(){ var c = _qbCoverPhoto(); if (!c) return; c.offX = 0; c.offY = 0; c.zoom = 1; _qbCoverChanged(false); }
+function _qbCoverRemove(){ if (!S.quote) return; delete S.quote.coverPhoto; _qbCoverChanged(true); }
+function _qbCoverWheel(e){
+  if (!_qbCoverPhoto() || !_qbCoverOffice()) return;
+  if (typeof _jobLockActive === 'function' && _jobLockActive()) return;   // locked: the wheel scrolls the page
+  e.preventDefault();
+  _qbCoverZoom(e.deltaY > 0 ? -0.08 : 0.08);
+}
+function _qbCoverDragStart(e){
+  var c = _qbCoverPhoto(); if (!c || !_qbCoverOffice()) return;
+  if (e.button !== 0 || (e.target.closest && e.target.closest('button, .qb-hero-txt'))) return;
+  if (typeof _jobLockActive === 'function' && _jobLockActive()) return;
+  e.preventDefault();
+  var frame = e.currentTarget, w = frame.clientWidth || 1, h = frame.clientHeight || 1;
+  var sx = e.clientX, sy = e.clientY, ox = +c.offX || 0, oy = +c.offY || 0;
+  frame.classList.add('qb-hero-grab');
+  var move = function(ev){ c.offX = ox + (ev.clientX - sx) / w * 100; c.offY = oy + (ev.clientY - sy) / h * 100; _qbCoverChanged(false); };
+  var up = function(){ window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); frame.classList.remove('qb-hero-grab'); _qbCoverChanged(false); };
+  window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+}
 function _qbHeroSrc(){
   var br = (S.settings && S.settings.branding) || {};
+  var own = _qbCoverPhoto(); if (own) return own.src;
   try {
     var asn = (typeof _slotAssignments === 'function') ? _slotAssignments().cover_hero : null;
     return (asn && typeof resolveSlotSrc === 'function' && resolveSlotSrc('cover_hero')) ||
@@ -28132,23 +28259,28 @@ function _qselGroupsAll(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var base = _selBaseGradeId();
   var g = [];
+  // NOTHING IS LOCKED (2026-09-23): any choice can come off this quote,
+  // the standard one and the picked one included. The window keeps at least
+  // one in each group, and Save moves a pick that was taken off onto the
+  // first choice left. The notes only say what a row is.
   g.push({ kind:'grades', title:'Steel grades', rows:_selLive(_selGradesAll()).map(function(x, i){
-    return { id:x.id, label:x.name || x.id, locked: x.id === base ? 'the base grade' : (x.id === (p.steelGrade || base) ? 'picked on this quote' : '') }; }) });
+    return { id:x.id, label:x.name || x.id, note: x.id === (p.steelGrade || base) ? 'picked on this quote' : (x.id === base ? 'the base grade' : '') }; }) });
   var prs = _selLive(_selProfilesAll());
   g.push({ kind:'profiles', title:'Roof profiles', rows:prs.map(function(x, i){
-    return { id:x.id, label:x.name || x.id, locked: i === 0 ? 'the standard profile' : (x.id === p.profile ? 'picked on this quote' : '') }; }) });
+    return { id:x.id, label:x.name || x.id, img: x.img || '', custom: !!x.custom,
+             note: x.id === (p.profile || (prs[0] || {}).id) ? 'picked on this quote' : (x.custom ? 'this job only' : '') }; }) });
   g.push({ kind:'gutters', title:'Guttering (\u201cNo new guttering\u201d is always offered)', rows:_selLive(_selGuttersAll()).map(function(x){
-    return { id:x.id, label:x.name || x.id, locked: x.id === p.gutterType ? 'picked on this quote' : '' }; }) });
+    return { id:x.id, label:x.name || x.id, note: x.id === p.gutterType ? 'picked on this quote' : '', canEmpty: true }; }) });
   var cur = { thickness: p.steelThickness || '40', brackets: p.gutterBracket || 'internal', downpipes: p.downpipes || 'no', disposal: p.disposal || 'dispose' };
   _selFixedGroups().forEach(function(fg){
     var copy = _selCopy()[fg.kind] || {};
     g.push({ kind:fg.kind, title:fg.title, rows:fg.rows.filter(function(r, i){ return !(copy[r.id] && copy[r.id].hidden && i > 0); }).map(function(r, i){
       var o = copy[r.id] || {};
       return { id:r.id, label:(o.name != null && String(o.name).trim()) ? String(o.name) : r.label,
-               locked: i === 0 ? 'the standard choice' : (r.id === cur[fg.kind] ? 'picked on this quote' : '') }; }) });
+               note: r.id === cur[fg.kind] ? 'picked on this quote' : (i === 0 ? 'the standard choice' : '') }; }) });
   });
   var ex = _selExtrasOffered();
-  if (ex.length) g.push({ kind:'extras', title:'Other options', rows:ex.map(function(x){ return { id:x.id, label:x.title || x.id, locked:'' }; }) });
+  if (ex.length) g.push({ kind:'extras', title:'Other options', rows:ex.map(function(x){ return { id:x.id, label:x.title || x.id, note:'', canEmpty: true }; }) });
   return g;
 }
 function _qselPaint(){
@@ -28159,16 +28291,28 @@ function _qselPaint(){
     return '<div class="qsel-g">'+esc2(g.title)+'</div>'+g.rows.map(function(r){
       var off = !!(hide[g.kind] && hide[g.kind][r.id]);
       return '<label class="qsel-row'+(off ? ' off' : '')+'">'+
-          '<input type="checkbox" data-qsel-kind="'+esc2(g.kind)+'" data-qsel-id="'+esc2(r.id)+'"'+(off ? '' : ' checked')+(r.locked ? ' disabled' : '')+' onchange="_qselToggle(\''+esc2(g.kind)+'\',\''+esc2(r.id)+'\',this.checked)">'+
+          '<input type="checkbox" data-qsel-kind="'+esc2(g.kind)+'" data-qsel-id="'+esc2(r.id)+'"'+(off ? '' : ' checked')+' onchange="_qselToggle(\''+esc2(g.kind)+'\',\''+esc2(r.id)+'\',this.checked)">'+
+          (g.kind === 'profiles' && r.img ? '<img class="qsel-pic" src="'+esc2(r.img)+'" alt="">' : '')+
           '<span>'+esc2(r.label)+'</span>'+
-          (r.locked ? '<span class="qsel-why">always offered \u2014 '+esc2(r.locked)+'</span>' : '')+
+          (r.note ? '<span class="qsel-why">'+esc2(r.note)+'</span>' : '')+
+          (g.kind === 'profiles' ? '<button type="button" class="qsel-picbtn" onclick="event.preventDefault();event.stopPropagation();_qpfPicPick(\''+esc2(r.id)+'\')">'+(r.img ? 'Change picture' : '\uD83D\uDCF7 Add picture')+'</button>' : '')+
         '</label>';
-    }).join('');
-  }).join('');
+    }).join('') + (g.kind === 'profiles' ? '<button type="button" class="qsel-add" onclick="_qpfOpen()">+ Add profile option</button>' : '');
+  }).join('') + (host._msg ? '<div class="qsel-msg">'+esc2(host._msg)+'</div>' : '');
+  host._msg = '';
 }
 function _qselToggle(kind, id, on){
   var host = document.getElementById('qselModal'); if (!host) return;
   var h = host._hide; if (!h[kind]) h[kind] = {};
+  // Keep at least one choice in a group a quote cannot do without (a
+  // gutter group has "No new guttering"; extras can all go).
+  if (!on){
+    var grp = _qselGroupsAll().filter(function(x){ return x.kind === kind; })[0];
+    if (grp && grp.rows.length && !grp.rows[0].canEmpty){
+      var left = grp.rows.filter(function(r){ return r.id !== id && !h[kind][r.id]; }).length;
+      if (!left){ host._msg = 'Keep at least one ' + grp.title.toLowerCase().replace(/s$/, '') + ' on the quote.'; _qselPaint(); return; }
+    }
+  }
   if (on) delete h[kind][id]; else h[kind][id] = true;
   if (!Object.keys(h[kind]).length) delete h[kind];
   _qselPaint();
@@ -28179,9 +28323,119 @@ function _qselSave(){
   var h = host._hide;
   if (Object.keys(h).length) S.quote.selHide = h; else delete S.quote.selHide;
   _qselClose();
+  try { _selRepickHidden(); } catch(e){ console.warn('repick', e); }
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
   try { _siteToast(Object.keys(h).length ? 'Selections saved for this quote' : 'This quote offers every product again'); } catch(e){}
+}
+// A pick the office has just taken off the quote moves to the first choice
+// still offered, so the quote never prices something it no longer shows.
+function _selRepickHidden(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var first = function(list){ return (list[0] || {}).id; };
+  var has = function(list, id){ return list.some(function(x){ return x.id === id; }); };
+  var gr = _selGrades(), cg = p.steelGrade || _selBaseGradeId();
+  if (gr.length && !has(gr, cg)) _setProposalOption_grade(first(gr));
+  var pr = _selProfiles(), cp = p.profile || first(_selProfilesAll());
+  if (pr.length && !has(pr, cp)) _setProposalOption_profile(first(pr));
+  if (p.gutterType && p.gutterType !== 'none' && !has(_selGutters(), p.gutterType)) _setProposalOption_gutter('none');
+  var fixedCur = { thickness: ['steelThickness', '40'], brackets: ['gutterBracket', 'internal'], downpipes: ['downpipes', 'no'], disposal: ['disposal', 'dispose'] };
+  _selFixedGroups().forEach(function(fg){
+    var f = fixedCur[fg.kind]; if (!f) return;
+    var rows = _selFixed(fg.kind, fg.rows);
+    if (rows.length && !has(rows, p[f[0]] || f[1])) _setProposalOption(f[0], rows[0].id);
+  });
+}
+// ── + Add profile option (2026-09-23) ───────────────────────────
+// A profile for THIS job — name, cover, a line about it and a picture —
+// offered on this quote only; "Add to saved profiles" puts it on the
+// company's list for every quote instead.
+function _qpfOpen(){
+  if (window.__CUSTOMER_MODE || !S.quote) return;
+  var old = document.getElementById('qpfModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'qpfModal'; host.className = 'no-print'; host._img = '';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100006;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qsel qpf">'+
+      '<div class="qsel-hd"><b>Add profile option</b><span>Offered on this quote only, unless you tick Add to saved profiles.</span></div>'+
+      '<div class="qpf-body">'+
+        '<label>Profile name<input id="qpfName" type="text" maxlength="60" placeholder="e.g. Dimond DP955"></label>'+
+        '<label>Effective cover (mm)<input id="qpfCover" type="number" min="100" max="2000" step="1" value="762"><small>The width one sheet covers once lapped \u2014 the sheet count is worked out from it.</small></label>'+
+        '<label>Description <small>(optional \u2014 the customer reads it)</small><input id="qpfDesc" type="text" maxlength="200"></label>'+
+        '<div class="qpf-pic"><div id="qpfPrev" class="qpf-prev">No picture</div>'+
+          '<button type="button" class="qa-btn" onclick="_qpfPicPick(null)">\uD83D\uDCF7 Upload picture</button></div>'+
+        '<label class="qpf-tick"><input id="qpfPickIt" type="checkbox" checked> Select it on this quote</label>'+
+        '<label class="qpf-tick"><input id="qpfSave" type="checkbox"> Add to saved profiles <small>(offered on every new quote)</small></label>'+
+        '<div id="qpfMsg" class="qsel-msg" style="display:none"></div>'+
+      '</div>'+
+      '<div class="qsel-ft"><span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="document.getElementById(\'qpfModal\').remove()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" onclick="_qpfAdd()">Add profile</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) host.remove(); });
+  setTimeout(function(){ var n = document.getElementById('qpfName'); if (n) n.focus(); }, 30);
+}
+function _qpfAdd(){
+  var host = document.getElementById('qpfModal'); if (!host || !S.quote) return;
+  var val = function(id){ return String((document.getElementById(id) || {}).value || '').trim(); };
+  var say = function(t){ var m = document.getElementById('qpfMsg'); if (m){ m.textContent = t; m.style.display = ''; } };
+  var name = val('qpfName'), mm = parseFloat(val('qpfCover'));
+  if (!name){ say('Give the profile a name.'); return; }
+  if (!isFinite(mm) || mm < 100 || mm > 2000){ say('The cover width should be between 100mm and 2000mm.'); return; }
+  var saveIt = !!(document.getElementById('qpfSave') || {}).checked;
+  var pickIt = !!(document.getElementById('qpfPickIt') || {}).checked;
+  var prof = { id: (saveIt ? 'p_' : 'cp_') + Date.now().toString(36), name: name.slice(0, 60), locksGauge: '', coverMm: Math.round(mm), desc: val('qpfDesc').slice(0, 200) };
+  if (host._img) prof.img = host._img;
+  if (saveIt){
+    _selKindList('profiles').push(prof);
+    try { renderSelectablesUI(); } catch(e){}
+    try { if (typeof saveSettings === 'function') saveSettings(); } catch(e){}
+  } else {
+    prof.custom = true;
+    if (!Array.isArray(S.quote.customProfiles)) S.quote.customProfiles = [];
+    S.quote.customProfiles.push(prof);
+  }
+  host.remove();
+  if (pickIt){ try { _setProposalOption_profile(prof.id); } catch(e){} }
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _qselPaint(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  try { _siteToast(name + (saveIt ? ' added to your saved profiles' : ' added to this quote')); } catch(e){}
+}
+// A picture for a profile: the new one in the Add window (id null), a job's
+// own profile (kept on the quote), or a saved one (kept in Settings, so every
+// quote that offers it shows it).
+function _qpfPicPick(id){
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+    var r = new FileReader();
+    r.onload = function(ev){ _downscalePhoto(ev.target.result, function(src){ _qpfPicSet(id, src); }); };
+    r.readAsDataURL(f);
+  });
+  document.body.appendChild(inp); inp.click();
+}
+function _qpfPicSet(id, src){
+  if (id == null){
+    var host = document.getElementById('qpfModal'); if (!host) return;
+    host._img = src;
+    var pv = document.getElementById('qpfPrev'); if (pv) pv.innerHTML = '<img src="'+esc2(src)+'" alt="">';
+    return;
+  }
+  var cp = (S.quote && Array.isArray(S.quote.customProfiles)) ? S.quote.customProfiles.filter(function(x){ return x && x.id === id; })[0] : null;
+  if (cp){ cp.img = src; try { _scheduleAutosave(); } catch(e){} }
+  else {
+    var sv = _selKindList('profiles').filter(function(x){ return x && x.id === id; })[0];
+    if (!sv) return;
+    sv.img = src;
+    try { renderSelectablesUI(); } catch(e){}
+    try { if (typeof saveSettings === 'function') saveSettings(); } catch(e){}
+  }
+  try { _qselPaint(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
 }
 function _qselDefaults(){
   _qselClose();
@@ -28326,7 +28580,7 @@ function _qbProfile(){
   var cur = p.profile || 'corrugate';
   return _qpOptPageWrap('profile', {
     eyebrow:'The shape of the sheet', title:'Roof profile', group:'profile', set:'_setProposalOption_profile',
-    current:cur, items:items, figure:_qbProfileFigure(cur),
+    current:cur, items:items, figure:_qbProfileFigure(p.profile || ((_selProfiles()[0] || {}).id) || cur),
     blurb:'The profile is the shape rolled into the steel. It changes how the roof looks from the street and how the sheet carries a load.'
   });
 }
@@ -28338,6 +28592,13 @@ var _QB_PROFILE_COPY = {
 // Roofing Industries product sheet shows, in the colour the customer has
 // picked, so it is their roof on the page rather than a stock photo.
 function _qbProfileFigure(id){
+  // A profile with a picture shows the picture, on the profile section and
+  // the colour section alike. One without a picture that is not one of the
+  // two drawn profiles shows NOTHING — a corrugate drawing under "Dimond
+  // DP955" told the customer they were getting corrugate (2026-09-23).
+  var _pr = null; try { _pr = _selProfileOf(id); } catch(e){}
+  if (_pr && _pr.img) return '<figure class="qb-fig qb-fig-photo"><img src="'+esc2(_pr.img)+'" alt="'+esc2(_pr.name || '')+' profile" loading="lazy"><figcaption>'+esc2(_pr.name || '')+'</figcaption></figure>';
+  if (id !== 'corrugate' && id !== '5rib') return '';
   var hex = '#8a9098';
   try {
     var p = (S.quote && S.quote.proposalOptions) || {};
@@ -28467,7 +28728,7 @@ function _qbColour(){
         '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
         '<span class="qb-opt-txt"><b>Undecided — I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
       '</button>'+
-      _qbProfileFigure(p.profile || 'corrugate')+
+      _qbProfileFigure(p.profile || ((_selProfiles()[0] || {}).id) || 'corrugate')+
       '<div class="qb-chosen">'+(undecided
         ? 'Chosen: <b>Undecided</b> — we will confirm it with you'
         : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
@@ -28580,7 +28841,8 @@ function _qpOptPageWrap(key, o){
   // The office can take the grade, profile or thickness section out of this
   // quote from the section itself (2026-09-22); an "Insert … page" button
   // stands where it was.
-  if (key === 'grade' || key === 'profile' || key === 'thickness') o.del = key;
+  // …and the guttering and the old roofing (2026-09-23).
+  if (key === 'grade' || key === 'profile' || key === 'thickness' || key === 'gutter' || key === 'disposal') o.del = key;
   return _qbOptionPage(o);
 }
 // ── taking a section out of this quote, and putting it back ─────────
@@ -28592,6 +28854,9 @@ function _qbSectionRemove(key){
   if (key === 'condition') return _qbCondRemovePage();
   if (!Array.isArray(S.quote.modernParked)) S.quote.modernParked = [];
   if (S.quote.modernParked.indexOf(key) < 0) S.quote.modernParked.push(key);
+  // No guttering page, no gutter in the price: a gutter the customer can no
+  // longer see must not stay in their total.
+  if (key === 'gutter'){ try { var _po = S.quote.proposalOptions || {}; if (_po.gutterType && _po.gutterType !== 'none') _setProposalOption_gutter('none'); } catch(e){} }
   try { refreshQuoteProposal(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast(_qModernLabel(key) + ' taken out of this quote \u2014 an Insert button stands where it was'); } catch(e){}
@@ -28716,8 +28981,10 @@ function _qbPicksList(){
   else if (p.colour === QB_COLOUR_UNDECIDED) out.push(['Colour', 'Undecided — to be confirmed']);
   else if (p.colour) out.push(['Colour', p.colour]);
   var gt = p.gutterType || 'none';
-  // A job priced without guttering offers none, so it lists none.
-  var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
+  // A job priced without guttering offers none, so it lists none; nor does a
+  // quote the office took the Guttering page out of.
+  var _parked = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : [];
+  var gutterOff = _parked.indexOf('gutter') >= 0; try { gutterOff = gutterOff || _gutterExcluded(); } catch(e){}
   if (gutterOff) {}
   else if (gt === 'none') out.push(['Guttering', 'No new guttering']);
   else {
@@ -28725,7 +28992,7 @@ function _qbPicksList(){
     out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal']);
     out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes']);
   }
-  out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away']);
+  if (_parked.indexOf('disposal') < 0) out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away']);
   return out.filter(function(r){ return r[1]; }).map(function(r){
     return '<div class="qb-pick"><span>'+esc2(r[0])+'</span><b>'+esc2(r[1])+'</b></div>';
   }).join('');
@@ -28877,13 +29144,14 @@ function _qdCover(){
   var surname = client.split(/\s+/).slice(-1)[0] || '';
   var title = q.coverTitle || ((surname ? surname + ' Residence' : 'Your home'));
   return ''+
-    '<div class="qb-hero qd-hero"'+(hero ? ' style="background-image:url('+_qbCssUrl(hero)+')"' : '')+'>'+
+    '<div class="qb-hero qd-hero'+_qbHeroOpen(hero)+
       '<div class="qb-hero-veil"></div>'+
       '<div class="qb-hero-txt">'+
         '<span class="qb-kicker">Roofing quote &amp; proposal</span>'+
         '<h1>'+esc2(title)+'</h1>'+
         (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
       '</div>'+
+      _qbHeroTools()+
     '</div>'+
     '<div class="qb-body qd-cover-body">'+
       '<div>'+
@@ -33619,7 +33887,8 @@ function refreshQuoteProposal(){
     // Then the company's own hero, set once in the empty frame below or in
     // Settings, so every quote carries it without being told again. The
     // built-in fleet shot is last and only for the account it belongs to.
-    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) ||
+    var hero = ((S.quote && S.quote.coverPhoto && S.quote.coverPhoto.src) || '') ||
+               (_heroAsn && resolveSlotSrc('cover_hero')) ||
                ((br && br.hero_photo) || '') || _stockPhoto('fleet_trucks.jpg');
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
