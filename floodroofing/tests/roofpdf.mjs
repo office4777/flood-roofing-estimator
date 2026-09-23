@@ -193,10 +193,15 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     width: (document.getElementById('jobPhotosGrid') || {}).style?.width,
     out: (document.getElementById('jobPhotosZoomOut') || {}).textContent,
     grab: getComputedStyle(document.getElementById('jobPhotosScroll')).cursor,
+    viewer: document.getElementById('jobPhotosScroll').classList.contains('pv-box'),
+    scale: (function(){ const im = document.querySelector('#jobPhotosGrid > .pv-slot img'); return im ? getComputedStyle(im).transform : ''; })(),
   }));
-  check('…and the zoom really widens them past the panel',
-    panel.width === '250%' && panel.out === '250%', JSON.stringify(panel));
-  check('…with the box set up to be dragged around', panel.grab === 'grab', panel.grab);
+  // Since 2026-09-23 the list is a viewer: the zoom scales each page INSIDE
+  // its fixed slot (the list no longer widens and jumps), and the pages are
+  // stepped with ▲ ▼ / the arrow keys rather than dragged about.
+  check('…and the zoom really zooms them — inside their slots, the list staying the panel’s width',
+    panel.width === '100%' && panel.out === '250%' && /matrix\(2\.5/.test(panel.scale), JSON.stringify(panel));
+  check('…with the box set up as the photo viewer', panel.viewer, JSON.stringify(panel));
 
   // Looking through them is the point: the viewer pages.
   await pg.evaluate(() => _jobPhotoView(0));

@@ -77,13 +77,13 @@ await pg.evaluate(() => _jpToggleMapPanel());
 await pg.waitForTimeout(400);
 ui.afterMaps = await pg.evaluate(() => ({ open: document.getElementById('fergusRoofPanel').classList.contains('is-open'),
   mapsOpen: document.getElementById('jpMapPanel').classList.contains('is-open') }));
-ui.grab = await pg.evaluate(() => getComputedStyle(document.getElementById('fergusRoofPhotoScroll')).cursor);
+ui.grab = await pg.evaluate(() => document.getElementById('fergusRoofPhotoScroll').classList.contains('pv-box') ? 'viewer' : getComputedStyle(document.getElementById('fergusRoofPhotoScroll')).cursor);
 check('on the Job Pack the photos pop-out is there, as a second tab under MAPS',
   ui.before.shown && ui.before.second && ui.before.tabTop === '180px', JSON.stringify(ui.before));
 check('…closed by default, with Maps the default choice', !ui.before.open && ui.before.mapsOpen, JSON.stringify(ui.before));
 check('pressing PHOTOS slides the photos out and puts the maps away', ui.afterOpen.open && !ui.afterOpen.mapsOpen, JSON.stringify(ui.afterOpen));
 check('pressing MAPS brings the maps back and puts the photos away', ui.afterMaps.mapsOpen && !ui.afterMaps.open, JSON.stringify(ui.afterMaps));
-check('the photo window pans by grabbing it', ui.grab === 'grab', ui.grab);
+check('the photo window is the photo viewer (fixed slots, ▲ ▼, zoom in place — 2026-09-23; it used to pan by grabbing)', ui.grab === 'viewer', ui.grab);
 
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await b.close();
