@@ -3649,6 +3649,33 @@ app.put('/settings', requireAuth, async (req, res) => {
         delete payload.price_book.__materials_catalog.__cleared;
       }
     } catch (e) { /* the guard must never break an ordinary save */ }
+    // ── THE CUSTOM PRICE BOOK SURVIVES EVERY WRITER (2026-09-24) ──
+    // The owner: "make sure any edit or save is properly saved, I can't be
+    // having users spend a lot of time setting up their settings for it to
+    // all be lost on an update/fix". It rides inside price_book, and settings
+    // saves are whole-document, so the guard is here where every writer has
+    // to pass. The book carries `editedAt`, stamped by the app at every edit:
+    // a save carrying an OLDER book (another tab, another device, a build
+    // cached from before), or none at all, keeps the stored one; an empty
+    // book replaces a full one only when it says `__cleared`. And before a
+    // stored book is replaced, it is kept as a revision (_customBookSnapshot).
+    let _cbBefore = null, _cbAfter = null;
+    try {
+      const exCB = existing && existing.price_book && existing.price_book.custom_book;
+      const inCB = payload.price_book.custom_book;
+      const tOf = cb => { const t = Date.parse((cb && cb.editedAt) || 0); return isFinite(t) ? t : 0; };
+      const nOf = cb => (cb && Array.isArray(cb.items)) ? cb.items.length : 0;
+      const cleared = !!(inCB && inCB.__cleared);
+      if (exCB && typeof exCB === 'object' && !cleared &&
+          (!inCB || typeof inCB !== 'object' || tOf(inCB) < tOf(exCB) || (!nOf(inCB) && nOf(exCB)))){
+        payload.price_book = Object.assign({}, payload.price_book, { custom_book: exCB });
+      }
+      if (payload.price_book.custom_book && payload.price_book.custom_book.__cleared){
+        payload.price_book = Object.assign({}, payload.price_book, { custom_book: Object.assign({}, payload.price_book.custom_book) });
+        delete payload.price_book.custom_book.__cleared;
+      }
+      _cbBefore = exCB || null; _cbAfter = payload.price_book.custom_book || null;
+    } catch (e) { /* the guard must never break an ordinary save */ }
     // A writer that carries NO key — none at all, or only blanks — must not
     // wipe the stored Fergus key: losing it silently disconnects the
     // company's JMS. Since 2026-09-22 a blank counts as "does not know",
@@ -3711,6 +3738,11 @@ app.put('/settings', requireAuth, async (req, res) => {
     }
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
+    try {
+      if (_cbBefore && Array.isArray(_cbBefore.items) && _cbBefore.items.length &&
+          JSON.stringify(_cbBefore) !== JSON.stringify(_cbAfter))
+        await _customBookSnapshot(req, _cbBefore, _cbAfter);
+    } catch (e) { console.error('custom price book snapshot failed:', e && e.message); }
     // Two milestones ride on this one save. "setup_done" is the business
     // putting its own name and a way to be contacted on its quotes — the
     // point at which anything it sends is its own. "price_book_saved" is the
@@ -3718,6 +3750,63 @@ app.put('/settings', requireAuth, async (req, res) => {
     const _b = payload.branding || {};
     if (_b.company_name && (_b.phone || _b.email)) recordUsage('setup_done', req);
     if (payload.price_book && payload.price_book.list_prices === false) recordUsage('price_book_saved', req);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Earlier versions of the Custom Price Book ──
+// Taken when a save REPLACES a stored book: at most one every ten minutes
+// while someone is typing, but always when the new book has fewer items than
+// the old (a deletion, or a writer that lost rows) — so a lost afternoon is
+// one click back. Thirty kept per company.
+const CB_REV_KEEP = 30;
+async function _customBookSnapshot(req, before, after){
+  const nB = (before.items || []).length, nA = (after && Array.isArray(after.items)) ? after.items.length : 0;
+  const { data: last } = await _scopeCompany(
+    supabase.from('price_book_revisions').select('id, at, items'), req).order('at', { ascending: false }).limit(1);
+  const lastAt = last && last[0] ? Date.parse(last[0].at) : 0;
+  if (nA >= nB && lastAt && Date.now() - lastAt < 10 * 60 * 1000) return;
+  const { error } = await supabase.from('price_book_revisions').insert({
+    company_id: req.companyId || null, user_id: req.user.id, at: new Date().toISOString(),
+    custom_book: before, items: nB,
+  });
+  if (error) { console.error('price_book_revisions insert:', error.message); return; }
+  const { data: all } = await _scopeCompany(
+    supabase.from('price_book_revisions').select('id, at'), req).order('at', { ascending: false }).limit(200);
+  if (all && all.length > CB_REV_KEEP){
+    const cutoff = all[CB_REV_KEEP - 1].at;
+    await _scopeCompany(supabase.from('price_book_revisions').delete().lt('at', cutoff), req);
+  }
+}
+app.get('/settings/custom-book/revisions', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await _scopeCompany(
+      supabase.from('price_book_revisions').select('id, at, items, user_id'), req).order('at', { ascending: false }).limit(CB_REV_KEEP);
+    if (error) return res.status(503).json({ error: error.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.json(data || []);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/settings/custom-book/restore', requireAuth, async (req, res) => {
+  try {
+    const id = req.body && req.body.id;
+    const { data: rev, error } = await _scopeCompany(
+      supabase.from('price_book_revisions').select('*').eq('id', id), req).maybeSingle();
+    if (error) return res.status(503).json({ error: error.message, code: 'UPSTREAM_UNAVAILABLE' });
+    if (!rev) return res.status(404).json({ error: 'That earlier version was not found' });
+    const existing = await _companySettingsRow(req);
+    if (!existing || !existing.user_id) return res.status(404).json({ error: 'No settings to restore into' });
+    const pb = Object.assign({}, existing.price_book || {});
+    const cur = pb.custom_book;
+    pb.custom_book = Object.assign({}, rev.custom_book || {}, { editedAt: new Date().toISOString(), restoredFrom: rev.at });
+    const { error: uerr } = await supabase.from('user_settings')
+      .update({ price_book: pb, updated_at: new Date().toISOString() }).eq('user_id', existing.user_id);
+    if (uerr) return res.status(500).json({ error: uerr.message });
+    // What was there a moment ago is itself kept, so a restore can be undone.
+    try {
+      if (cur && Array.isArray(cur.items) && cur.items.length)
+        await supabase.from('price_book_revisions').insert({ company_id: req.companyId || null, user_id: req.user.id,
+          at: new Date().toISOString(), custom_book: cur, items: cur.items.length });
+    } catch (e) {}
+    res.json({ ok: true, custom_book: pb.custom_book });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -10672,6 +10761,18 @@ const _MIGRATION_SQL = [
   // pays is often not the person who signed up — the office, the accountant,
   // a shared bills@ address — so it is asked for rather than assumed.
   "alter table public.user_settings add column if not exists billing_email text",
+  // Earlier versions of each company's Custom Price Book (2026-09-24),
+  // written by the backend only: RLS on, no policy.
+  "create table if not exists public.price_book_revisions (" +
+  "  id bigserial primary key," +
+  "  company_id uuid," +
+  "  user_id uuid not null," +
+  "  at timestamptz not null default now()," +
+  "  items int not null default 0," +
+  "  custom_book jsonb not null default '{}'::jsonb)",
+  "create index if not exists idx_pbrev_company on public.price_book_revisions (company_id, at desc)",
+  "create index if not exists idx_pbrev_user on public.price_book_revisions (user_id, at desc)",
+  "alter table public.price_book_revisions enable row level security",
 
   // 10. platform_state — one row per thing the platform needs to remember
   //     ACROSS RESTARTS. Right now that is exactly one thing: the date the

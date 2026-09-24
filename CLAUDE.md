@@ -356,6 +356,34 @@ Discipline (non-negotiable):
   follow it; `_toggleRoofMapBg` saves through `_scheduleAutosave` (it called
   a non-existent `autosaveJob`, so the choice was never saved).
   `tests/bgclear.mjs`.
+- THE CUSTOM PRICE BOOK (Settings → Pricing → Custom Price Book,
+  2026-09-24, `set-custompb`, `_cpb*`): `price_book.custom_book` =
+  `{items:[{id, code, desc, unit, supplier, cost, markup, replaces}],
+  defaultMarkup, editedAt, acct}`. Upload a CSV (columns found by name, or
+  by content) or a PDF (pdf.js text lines, `_cpbRowsFromLines`; under five
+  lines found → the AI reader `_cpbAiRows` over `/claude`, text only); the
+  supplier is read from the file/filename (`_cpbGuessSupplier`); a preview
+  says new / re-priced / unchanged, and the same supplier + code (or
+  description) RE-PRICES an existing item keeping its mark-up and link.
+  `replaces` is a PB_CSV_TARGETS path or `sheet:<product>`; `_cpbApply`
+  writes cost × (1 + markup%) there — at the end of `collectPriceBookFromUI`
+  (so the form cannot put the old number back) and in `mergeSettings` — and
+  the job's own material mark-up still goes on top; nothing in the pricing
+  engine changed. One item per default (`_cpbLink` unlinks the previous).
+  Linked defaults are read-only on Quote's Product Options
+  (`_cpbMarkLinkedInputs`, base grade only) and the job's material rows show
+  the supplier's product (`_cpbBrandRows`, label only — values unchanged).
+  NEVER LOST: every edit stamps `editedAt`; the SERVER keeps the stored book
+  over an older or missing one and an empty one needs `__cleared` (set by
+  deleting the last item); `price_book_revisions` keeps the replaced book
+  (at most one per 10 min unless items dropped; 30 kept) — GET
+  `/settings/custom-book/revisions`, POST `/settings/custom-book/restore`
+  (keeps what it replaced too); the save's echo never replaces a newer book
+  typed mid-save (`_cpbKeepNewer`); a book only this device's copy holds
+  (same `acct`) is kept and sent on load (`_cpbReconcileOnLoad`, reading the
+  copy BEFORE the server's answer overwrites it). Settings autosave skips
+  `[data-noautosave]` and file inputs. `tests/custompb.mjs`,
+  `tests/custompbsrv.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

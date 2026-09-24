@@ -3742,6 +3742,53 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qp-bg-sw.on{ border-color:#0099cc; color:#0a1628; }
 .qp-bg-sw.on .qp-bg-sw-knob{ background:#0099cc; }
 .qp-bg-sw.on .qp-bg-sw-knob::after{ left:13px; }
+/* Custom Price Book (Settings → Pricing) */
+.cpb-intro{ font-size:13px; line-height:1.55; color:#334155; margin:0 0 12px; max-width:880px; }
+.cpb-bar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+.cpb-upload{ cursor:pointer; }
+.cpb-dm{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#475569; }
+.cpb-dm input{ width:64px; padding:6px 8px; border:1px solid var(--border); border-radius:7px; font-size:12px; }
+.cpb-filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0 8px; }
+.cpb-filters input[type=search]{ flex:1 1 260px; width:auto!important; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; margin:0; }
+.cpb-filters select{ flex:0 0 auto; width:auto!important; max-width:220px; padding:7px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; margin:0; }
+.cpb-lo{ display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; }
+.cpb-status{ margin-left:auto; font-size:12px; color:#64748b; }
+.cpb-tablewrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:#fff; }
+.cpb-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; table-layout:fixed; }
+.cpb-table th:nth-child(1){ width:92px; } .cpb-table th:nth-child(3){ width:58px; } .cpb-table th:nth-child(4){ width:118px; }
+.cpb-table th:nth-child(5), .cpb-table th:nth-child(6), .cpb-table th:nth-child(7){ width:78px; } .cpb-table th:nth-child(8){ width:34px; }
+.cpb-th-sub{ font-weight:500; opacity:.75; text-transform:none; letter-spacing:0; }
+.cpb-desc-td .cpb-desc{ font-weight:600; }
+.cpb-desc-td .cpb-link{ margin-top:2px; font-size:11.5px; color:#64748b; }
+.cpb-table th{ text-align:left; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#fff; background:#0a1628; padding:8px 6px; position:sticky; top:0; }
+.cpb-table th.r, .cpb-table td.r{ text-align:right; }
+.cpb-table td{ padding:4px 5px; border-top:1px solid #edf1f5; vertical-align:middle; }
+.cpb-table tr.cpb-on td{ background:#f0f8fb; }
+.cpb-table input, .cpb-table select{ width:100%; box-sizing:border-box; padding:6px 7px; border:1px solid transparent; border-radius:6px; font:inherit; color:#0a1628; background:transparent; }
+.cpb-table input:hover, .cpb-table select:hover{ border-color:#d6dde6; }
+.cpb-table input:focus, .cpb-table select:focus{ border-color:#0099cc; background:#fff; outline:none; }
+.cpb-num{ text-align:right; }
+.cpb-sell{ font-weight:700; white-space:nowrap; color:#0a1628; }
+.cpb-table tr.cpb-on .cpb-link{ color:#006f99; font-weight:600; }
+.cpb-del{ border:none; background:none; color:#b42318; cursor:pointer; font-size:13px; padding:4px 6px; }
+.cpb-pager{ display:flex; gap:10px; align-items:center; justify-content:center; margin:10px 0; font-size:12.5px; color:#475569; }
+.cpb-empty{ padding:22px; text-align:center; color:#64748b; border:1px dashed #cbd5e1; border-radius:10px; font-size:13px; }
+.cpb-imp{ border:1px solid #bfe3f2; background:#f5fbfe; border-radius:10px; padding:12px 14px; margin:8px 0; font-size:13px; color:#0a1628; }
+.cpb-imp.cpb-err{ border-color:#f5c2c0; background:#fff5f5; color:#b42318; }
+.cpb-imp.cpb-ok{ border-color:#b7e4c7; background:#f2fbf5; color:#166534; }
+.cpb-imp-hd{ margin-bottom:8px; }
+.cpb-imp-sup{ display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:6px; }
+.cpb-imp-sup input{ flex:0 1 320px; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; }
+.cpb-imp-counts{ font-size:12.5px; color:#334155; margin-bottom:6px; }
+.cpb-imp-auto{ display:flex; gap:7px; align-items:flex-start; font-size:12.5px; color:#334155; margin-bottom:8px; }
+.cpb-imp-prev{ font-size:12px; color:#334155; border-top:1px solid #d9eef7; padding-top:6px; }
+.cpb-imp-prev span{ color:#64748b; margin-left:6px; }
+.cpb-more{ color:#64748b; font-size:12px; }
+.cpb-imp-ft{ display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.cpb-rev{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px solid #d9eef7; }
+.cpb-danger{ margin-top:8px; }
+.cpb-link-btn{ border:none; background:none; color:#b42318; font-size:12px; cursor:pointer; text-decoration:underline; padding:0; }
+input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; border-color:#9ccfeb!important; cursor:not-allowed; }
 .qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
 .qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
@@ -7927,6 +7974,7 @@ html.qp-desk-preview .qd-top{ position:static; }
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
@@ -8600,6 +8648,9 @@ html.qp-desk-preview .qd-top{ position:static; }
     </div>
 
     <!-- SUPPLIERS & MATERIALS -->
+    <div class="sub-panel settings-sub" id="set-custompb" style="margin-top:14px">
+      <div id="cpbRoot"></div>
+    </div>
     <div class="sub-panel settings-sub" id="set-supl" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The companies you buy material from, and the flashing types the <strong>Order Material</strong> tab offers. The roof products, underlays and screws it offers come from <strong>Quote's Product Options</strong>. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
 
@@ -12236,6 +12287,7 @@ function switchSettingsSub(id,btn){
   if (id === 'set-flashings') {
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
+  if (id === 'set-custompb') { try { _cpbRender(); } catch(e) { console.warn('custom price book render:', e); } }
 }
 // The Loom frame is only loaded when somebody presses play — nothing from a
 // third party until then.
@@ -12725,6 +12777,7 @@ function mergeSettings(s){
       // everybody who already has one. A saved book is somebody's own work
       // unless it explicitly says otherwise, so only a stored true keeps it.
       pb.list_prices = s.price_book ? (s.price_book.list_prices === true) : true;
+      try { if (typeof _cpbApply === 'function') _cpbApply(pb); } catch(e){}
       return pb;
     })(),
     labour_pricing: (function(){
@@ -12736,6 +12789,9 @@ function mergeSettings(s){
 }
 
 async function loadSettings(){
+  // This device's copy, read BEFORE the server's answer overwrites it — a
+  // Custom Price Book edited here whose save never landed lives only there.
+  var _cpbPrevLocal = null; try { _cpbPrevLocal = localStorage.getItem('fr_settings'); } catch(e0){}
   // 1. Try cloud first
   try {
     var s = await api('GET', '/settings');
@@ -12754,7 +12810,7 @@ async function loadSettings(){
     // Only prompt when the server genuinely answered with this account's
     // settings. A failed or odd response means we don't know whether they're
     // set up, and guessing wrong means nagging someone who already is.
-    if (s && typeof s === 'object' && !Array.isArray(s)) { window.__settingsLive = true; try { maybeOpenSetup(); } catch(e2){} }
+    if (s && typeof s === 'object' && !Array.isArray(s)) { window.__settingsLive = true; try { _cpbReconcileOnLoad(_cpbPrevLocal); } catch(e2){} try { maybeOpenSetup(); } catch(e2){} }
     // Where the business stands — drives the trial countdown on Home. Not
     // awaited: nothing on screen should wait on it.
     try { loadSubscription(); } catch(e2){}
@@ -12855,7 +12911,9 @@ async function saveSettings(auto){
     if (saved.billing_email !== undefined) S.settings.billing_email = saved.billing_email;
     // …and put the menu back in step with whatever that merge settled on.
     try { _emailTabSync(); } catch(e){}
+    var _cpbLocal = S.settings.price_book && S.settings.price_book.custom_book;
     if (saved.price_book) S.settings.price_book = saved.price_book;
+    try { _cpbKeepNewer(_cpbLocal); } catch(e){}
     if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
     // Unfold the catalog back out of the returned price_book so the live
     // materials_catalog is restored and price_book stays clean in memory.
@@ -12901,6 +12959,8 @@ async function saveSettings(auto){
       var t = ev.target; if (!t) return;
       if (t.id === 'autosaveToggle' || t.id === 'autosaveInterval' || t.id === 'jmsSelect') return;
       if (t.closest && t.closest('#jmsBigLinkCard')) return;
+      // Search boxes, filters and file pickers change nothing that is saved.
+      if (t.hasAttribute && (t.hasAttribute('data-noautosave') || t.type === 'file')) return;
       _scheduleSettingsAutosave();
     }
     root.addEventListener('input', handler, true);
@@ -13253,6 +13313,8 @@ function collectPriceBookFromUI(){
       price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
     };
   }).filter(function(r){ return r.desc; });
+  // The Custom Price Book's linked items price their defaults — over the form.
+  try { _cpbApply(pb); } catch(e){}
   // Saving the price book is the moment it stops being ours and starts being
   // theirs — whether they changed one number or all of them. Drop the
   // placeholder warning from here on.
@@ -13350,6 +13412,7 @@ function renderPriceBookUI(){
   // Sheets, flashings and back-trays: the grade the buttons have picked.
   _pbGradeFill();
   _pbGradeTabsRender();
+  try { _cpbMarkLinkedInputs(); } catch(e){}
 }
 // Render the pipe-flashing $/each inputs — one per stock Aquaseal size,
 // labelled with the pipe diameters it covers so the office can read the
@@ -13739,6 +13802,553 @@ function _parseCsv(text){
   }
   if (cur || row.length) { row.push(cur); rows.push(row); }
   return rows.filter(function(r){ return r.length && r.some(function(c){ return String(c).trim(); }); });
+}
+
+// ── THE CUSTOM PRICE BOOK (2026-09-24) ─────────────────────────────────
+// The owner: "a button/tab under pricing in the settings, call it 'Custom
+// Price Book', where the user can upload their full price book, then have all
+// the line items editable and have a link to RoofMap's auto/default line items
+// (like RoofMap's 80mm Dektite — the user might want to code it to a specific
+// branded Dektite and which supplier; it should know which supplier because
+// the uploaded CSV or PDF will say) … the price book items, the price, the
+// item's price mark-up and which RoofMap default it replaces. Make sure any
+// edit or save is properly saved."
+//
+// The book is S.settings.price_book.custom_book:
+//   { items: [{ id, code, desc, unit, supplier, cost, markup, replaces }],
+//     defaultMarkup, editedAt, acct }
+// `replaces` is a path in the price book the item PRICES (the same paths the
+// CSV import writes — PB_CSV_TARGETS — or 'sheet:<product>'). The price it
+// writes is cost × (1 + markup %); the job's own material mark-up still goes
+// on top, exactly as it does for every other price-book rate, so nothing in
+// the pricing engine changes and nothing already quoted moves.
+//
+// SAVING: every edit stamps `editedAt` and autosaves with the rest of
+// Settings; the server keeps a stored book over any OLDER copy a save
+// carries (another tab, an old build, the setup wizard) and keeps earlier
+// versions (Earlier versions → Restore). The save's echo never replaces a
+// newer book typed while the save was in flight (_cpbKeepNewer), and a book
+// that only reached this device's copy is sent up on the next load.
+var CPB_PAGE = 100;
+var _CPB = { q: '', sup: '', linked: false, page: 0, pending: null };
+var CPB_SUPPLIERS_NZ = ['Roofing Industries', 'Dimond', 'Metalcraft', 'Steel & Tube', 'Calder Stewart',
+  'Roofing Store', 'Franklin Long Roofing', 'Metal Roofing Systems', 'Marley', 'Plumbing World',
+  'Mastertrade', 'PlaceMakers', 'Carters', 'ITM', 'Mitre 10', 'Bunnings', 'Nu-Wall', 'Hynds',
+  'Aquaseal', 'Deks', 'Dektite', 'Stratco', 'Colorsteel'];
+function _cpbBook(create){
+  var pb = S.settings && S.settings.price_book; if (!pb) return null;
+  var cb = pb.custom_book;
+  if ((!cb || typeof cb !== 'object') && create){ cb = pb.custom_book = { items: [], defaultMarkup: 0 }; }
+  if (cb && !Array.isArray(cb.items)) cb.items = [];
+  return cb || null;
+}
+function _cpbId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function _cpbNum(v){ var n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; }
+function _cpbSell(it){ var c = _cpbNum(it && it.cost), m = _cpbNum(it && it.markup); return Math.round(c * (1 + m / 100) * 100) / 100; }
+// Every edit: stamp the book, re-price, save.
+function _cpbTouch(noSave){
+  var cb = _cpbBook(true); if (!cb) return;
+  cb.editedAt = new Date().toISOString();
+  try { var me = _myEmail(); if (me) cb.acct = me.toLowerCase(); } catch(e){}
+  try { _cpbApply(S.settings.price_book); } catch(e){}
+  try { _cpbMarkLinkedInputs(); } catch(e){}
+  if (!noSave) try { _scheduleSettingsAutosave(); } catch(e){}
+  _cpbStatus();
+}
+// The RoofMap items a book item can price.
+function _cpbTargets(){
+  var seen = {}, out = [];
+  (typeof PB_CSV_TARGETS !== 'undefined' ? PB_CSV_TARGETS : []).forEach(function(t){
+    if (seen[t.path]) return; seen[t.path] = 1;
+    out.push({ path: t.path, label: t.label, unit: t.unit });
+  });
+  var pb = (S.settings && S.settings.price_book) || {};
+  (pb.sheets || []).forEach(function(s){
+    if (!s || !s.product) return;
+    var p = 'sheet:' + s.product; if (seen[p]) return; seen[p] = 1;
+    out.push({ path: p, label: 'Roofing sheet — ' + s.product, unit: s.unit || 'lm' });
+  });
+  out.sort(function(a, b){ return a.label.localeCompare(b.label); });
+  return out;
+}
+function _cpbTargetLabel(path){
+  var t = _cpbTargets().filter(function(x){ return x.path === path; })[0];
+  return t ? t.label : path;
+}
+// Write every linked item's price into the default it replaces.
+function _cpbApply(pb){
+  var cb = pb && pb.custom_book; if (!cb || !Array.isArray(cb.items)) return 0;
+  var n = 0;
+  cb.items.forEach(function(it){
+    if (!it || !it.replaces) return;
+    var p = _cpbSell(it); if (!(p > 0)) return;
+    if (String(it.replaces).indexOf('sheet:') === 0){
+      var prod = String(it.replaces).slice(6);
+      (pb.sheets || []).forEach(function(s){ if (s && s.product === prod){ s.price = p; n++; } });
+    } else { _pbWritePath(pb, it.replaces, p); n++; }
+  });
+  return n;
+}
+function _cpbLinkedBy(path){
+  var cb = _cpbBook(); if (!cb) return null;
+  return cb.items.filter(function(it){ return it.replaces === path; })[0] || null;
+}
+// On Quote's Product Options, a default a book item prices is read-only and says so.
+var CPB_INPUT_IDS = { 'underlay.50':'pbUnderlay50', 'underlay.75':'pbUnderlay75', 'underlay.100':'pbUnderlay100',
+  gutter_lm:'pbGutterLm', screws_each:'pbScrewsEach', rivets_each:'pbRivetsEach', downpipe_ea:'pbDownpipeEach',
+  'gutter.typhoon_spouting_lm':'pbGutTyphoonSpouting', 'gutter.typhoon_bracket_ea':'pbGutTyphoonBracket',
+  'gutter.typhoon_outlet_ea':'pbGutTyphoonOutlet', 'gutter.typhoon_joiner_ea':'pbGutTyphoonJoiner',
+  'gutter.typhoon_corner_ea':'pbGutTyphoonCorner', 'gutter.typhoon_stopend_ea':'pbGutTyphoonStopend',
+  'gutter.typhoon_expjoiner_ea':'pbGutTyphoonExpJoiner', 'gutter.typhoon_weldsolvent_ea':'pbGutTyphoonWeldSolvent',
+  'gutter.box125_lm':'pbGutBox125Lm', 'gutter.bracket_ea':'pbGutBracketEach', 'gutter.dropper_ea':'pbGutDropperEach',
+  'gutter.marley_classic_lm':'pbGutMarleyClassicLm', 'gutter.marley_typhoon_lm':'pbGutMarleyTyphoonLm',
+  ridge_lm:'pbRidgeLm', valley_lm:'pbValleyLm', barge_lm:'pbBargeLm', apron_lm:'pbApronLm',
+  changepitch_lm:'pbChangepitchLm', box_pen_lm:'pbBoxPenLm' };
+function _cpbInputFor(path){
+  if (CPB_INPUT_IDS[path]){
+    if (PB_GRADE_KEYS.indexOf(path) >= 0 && _pbActiveGrade() !== _pbBaseId()) return null;   // another grade's set is on screen
+    return document.getElementById(CPB_INPUT_IDS[path]);
+  }
+  var m;
+  if ((m = /^aquaseal\.(.+)$/.exec(path))) return document.querySelector('#pbAquasealList [data-aq-id="' + m[1] + '"]');
+  if ((m = /^backtray_prices\.(.+)$/.exec(path)) && _pbActiveGrade() === _pbBaseId())
+    return document.querySelector('#pbBackTrayList [data-bt-name="' + m[1].replace(/"/g, '') + '"]');
+  return null;
+}
+function _cpbMarkLinkedInputs(){
+  document.querySelectorAll('.cpb-linked-in').forEach(function(el){
+    el.classList.remove('cpb-linked-in'); el.readOnly = false; el.title = el.getAttribute('data-cpb-title0') || '';
+  });
+  var cb = _cpbBook(); if (!cb) return;
+  var pb = S.settings.price_book;
+  cb.items.forEach(function(it){
+    if (!it.replaces || !(_cpbSell(it) > 0)) return;
+    var el = _cpbInputFor(it.replaces); if (!el) return;
+    if (!el.hasAttribute('data-cpb-title0')) el.setAttribute('data-cpb-title0', el.title || '');
+    el.value = _pbReadPath(pb, it.replaces);
+    el.readOnly = true; el.classList.add('cpb-linked-in');
+    el.title = 'Priced by your Custom Price Book: ' + (it.code ? it.code + ' ' : '') + (it.desc || '') + (it.supplier ? ' (' + it.supplier + ')' : '') + ' — change it there';
+  });
+}
+// ── the tab ──
+function _cpbStatus(){
+  var el = document.getElementById('cpbStatus'); if (!el) return;
+  var cb = _cpbBook(), n = cb ? cb.items.length : 0, l = cb ? cb.items.filter(function(i){ return i.replaces; }).length : 0;
+  var when = '';
+  try { if (cb && cb.editedAt){ var d = new Date(cb.editedAt); when = ' · last change ' + d.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('en-NZ', { hour:'numeric', minute:'2-digit' }).toLowerCase(); } } catch(e){}
+  el.textContent = n + ' item' + (n === 1 ? '' : 's') + ' · ' + l + ' linked to RoofMap items' + when;
+}
+function _cpbSuppliers(){
+  var seen = {}, out = [];
+  var add = function(n){ n = String(n || '').trim(); if (!n || seen[n.toLowerCase()]) return; seen[n.toLowerCase()] = 1; out.push(n); };
+  try { ((S.settings.materials_catalog || {}).suppliers || []).forEach(function(s){ add(s && s.name); }); } catch(e){}
+  var cb = _cpbBook(); if (cb) cb.items.forEach(function(i){ add(i.supplier); });
+  return out;
+}
+function _cpbFiltered(){
+  var cb = _cpbBook(); if (!cb) return [];
+  var q = _CPB.q.trim().toLowerCase(), sup = _CPB.sup.toLowerCase();
+  return cb.items.filter(function(it){
+    if (_CPB.linked && !it.replaces) return false;
+    if (sup && String(it.supplier || '').toLowerCase() !== sup) return false;
+    if (q && (String(it.code || '') + ' ' + String(it.desc || '') + ' ' + String(it.supplier || '') + ' ' + (it.replaces ? _cpbTargetLabel(it.replaces) : '')).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+function _cpbRender(){
+  var host = document.getElementById('cpbRoot'); if (!host) return;
+  var cb = _cpbBook(true) || { items: [] };
+  var sups = _cpbSuppliers();
+  var rows = _cpbFiltered();
+  var pages = Math.max(1, Math.ceil(rows.length / CPB_PAGE));
+  if (_CPB.page >= pages) _CPB.page = pages - 1;
+  var slice = rows.slice(_CPB.page * CPB_PAGE, (_CPB.page + 1) * CPB_PAGE);
+  var targets = _cpbTargets();
+  var opt = function(sel){
+    return '<option value="">— not linked —</option>' + targets.map(function(t){
+      return '<option value="' + esc2(t.path) + '"' + (t.path === sel ? ' selected' : '') + '>' + esc2(t.label) + ' (' + esc2(t.unit) + ')</option>';
+    }).join('');
+  };
+  host.innerHTML =
+    '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade. Every change saves by itself, and earlier versions are kept.</p>' +
+    '<div class="cpb-bar">' +
+      '<label class="qa-btn qa-btn-primary cpb-upload">⬆ Upload price list (CSV or PDF)<input type="file" id="cpbFile" accept=".csv,.txt,.pdf,text/csv,application/pdf" onchange="_cpbFile(this)" hidden></label>' +
+      '<button type="button" class="qa-btn" onclick="_cpbAdd()">+ Add item</button>' +
+      '<button type="button" class="qa-btn" onclick="_cpbExportCsv()">Download as CSV</button>' +
+      '<button type="button" class="qa-btn" onclick="_cpbRevisions()">Earlier versions</button>' +
+      '<label class="cpb-dm">Mark-up for new items <input type="number" id="cpbDefMarkup" step="1" value="' + esc2(cb.defaultMarkup || 0) + '" oninput="_cpbSetDefaultMarkup(this.value)">%</label>' +
+    '</div>' +
+    '<div id="cpbImport"></div>' +
+    '<div id="cpbRevs"></div>' +
+    '<div class="cpb-filters">' +
+      '<input type="search" id="cpbSearch" placeholder="Search code, description, supplier or linked item" value="' + esc2(_CPB.q) + '" oninput="_CPB.q=this.value;_CPB.page=0;_cpbRenderTable()" data-noautosave="1">' +
+      '<select id="cpbSupFilter" onchange="_CPB.sup=this.value;_CPB.page=0;_cpbRenderTable()" data-noautosave="1"><option value="">All suppliers</option>' +
+        sups.map(function(s){ return '<option' + (s === _CPB.sup ? ' selected' : '') + '>' + esc2(s) + '</option>'; }).join('') + '</select>' +
+      '<label class="cpb-lo"><input type="checkbox" data-noautosave="1" ' + (_CPB.linked ? 'checked ' : '') + 'onchange="_CPB.linked=this.checked;_CPB.page=0;_cpbRenderTable()"> Linked only</label>' +
+      '<span id="cpbStatus" class="cpb-status"></span>' +
+    '</div>' +
+    '<datalist id="cpbSupList">' + sups.map(function(s){ return '<option value="' + esc2(s) + '">'; }).join('') + '</datalist>' +
+    '<div id="cpbTableWrap"></div>';
+  _cpbRenderTable(opt);
+  _cpbStatus();
+}
+function _cpbRenderTable(){
+  var wrap = document.getElementById('cpbTableWrap'); if (!wrap) return;
+  var cb = _cpbBook(true) || { items: [] };
+  var rows = _cpbFiltered();
+  var pages = Math.max(1, Math.ceil(rows.length / CPB_PAGE));
+  if (_CPB.page >= pages) _CPB.page = pages - 1;
+  var slice = rows.slice(_CPB.page * CPB_PAGE, (_CPB.page + 1) * CPB_PAGE);
+  var targets = _cpbTargets();
+  var opts = function(sel){
+    return '<option value="">— not linked —</option>' + targets.map(function(t){
+      return '<option value="' + esc2(t.path) + '"' + (t.path === sel ? ' selected' : '') + '>' + esc2(t.label) + ' (' + esc2(t.unit) + ')</option>';
+    }).join('');
+  };
+  if (!cb.items.length){
+    wrap.innerHTML = '<div class="cpb-empty">No items yet. Upload your supplier’s price list, or add items one at a time.</div>';
+    return;
+  }
+  wrap.innerHTML =
+    '<div class="cpb-tablewrap"><table class="cpb-table"><thead><tr>' +
+      '<th>Code</th><th>Description <span class="cpb-th-sub">\u00B7 replaces RoofMap item</span></th><th>Unit</th><th>Supplier</th><th class="r">Cost $</th><th class="r">Mark-up %</th><th class="r">Price used</th><th></th>' +
+    '</tr></thead><tbody>' +
+    slice.map(function(it){
+      var id = esc2(it.id);
+      var f = function(k, cls, type, extra){ return '<input class="' + cls + '" data-cpb="' + id + '" data-f="' + k + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + esc2(it[k] == null ? '' : it[k]) + '" oninput="_cpbSet(\'' + id + '\',\'' + k + '\',this.value)"' + (extra || '') + '>'; };
+      return '<tr data-cpb-row="' + id + '"' + (it.replaces ? ' class="cpb-on"' : '') + '>' +
+        '<td>' + f('code', 'cpb-code') + '</td>' +
+        '<td class="cpb-desc-td">' + f('desc', 'cpb-desc') + '<select class="cpb-link" data-cpb="' + id + '" data-f="replaces" onchange="_cpbLink(\'' + id + '\',this.value)" title="The RoofMap item this line prices">' + opts(it.replaces || '') + '</select></td>' +
+        '<td>' + f('unit', 'cpb-unit') + '</td>' +
+        '<td>' + f('supplier', 'cpb-sup', '', ' list="cpbSupList"') + '</td>' +
+        '<td class="r">' + f('cost', 'cpb-num', 'number', ' step="0.01"') + '</td>' +
+        '<td class="r">' + f('markup', 'cpb-num', 'number', ' step="1"') + '</td>' +
+        '<td class="r cpb-sell" data-cpb-sell="' + id + '">' + (_cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—') + '</td>' +
+        '<td><button type="button" class="cpb-del" title="Remove this item" onclick="_cpbDel(\'' + id + '\')">✕</button></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    (pages > 1 ? '<div class="cpb-pager"><button type="button" class="qa-btn" onclick="_CPB.page=Math.max(0,_CPB.page-1);_cpbRenderTable()"' + (_CPB.page ? '' : ' disabled') + '>‹ Previous</button>' +
+      '<span>' + (_CPB.page * CPB_PAGE + 1) + '–' + Math.min(rows.length, (_CPB.page + 1) * CPB_PAGE) + ' of ' + rows.length + '</span>' +
+      '<button type="button" class="qa-btn" onclick="_CPB.page=Math.min(' + (pages - 1) + ',_CPB.page+1);_cpbRenderTable()"' + (_CPB.page < pages - 1 ? '' : ' disabled') + '>Next ›</button></div>' : '') +
+    (_CPB.sup ? '<div class="cpb-danger"><button type="button" class="cpb-link-btn" onclick="_cpbRemoveSupplier()">Remove every item from ' + esc2(_CPB.sup) + '</button></div>' : '');
+}
+function _cpbItem(id){ var cb = _cpbBook(); return cb ? cb.items.filter(function(i){ return i.id === id; })[0] : null; }
+function _cpbSet(id, f, v){
+  var it = _cpbItem(id); if (!it) return;
+  it[f] = (f === 'cost' || f === 'markup') ? (String(v).trim() === '' ? '' : _cpbNum(v)) : String(v);
+  var s = document.querySelector('[data-cpb-sell="' + id + '"]');
+  if (s) s.textContent = _cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—';
+  _cpbTouch();
+}
+// One item per RoofMap default: linking a second takes the first off.
+function _cpbLink(id, path){
+  var it = _cpbItem(id); if (!it) return;
+  var was = null;
+  if (path){ var other = _cpbLinkedBy(path); if (other && other.id !== id){ other.replaces = ''; was = other; } }
+  it.replaces = path || '';
+  _cpbTouch();
+  if (was){ try { _siteToast('“' + (was.desc || was.code) + '” was priced there before — it is unlinked now'); } catch(e){} _cpbRenderTable(); }
+  var row = document.querySelector('[data-cpb-row="' + id + '"]'); if (row) row.classList.toggle('cpb-on', !!path);
+}
+function _cpbAdd(){
+  var cb = _cpbBook(true); if (!cb) return;
+  var it = { id: _cpbId(), code: '', desc: '', unit: 'ea', supplier: _CPB.sup || '', cost: '', markup: cb.defaultMarkup || 0, replaces: '' };
+  cb.items.unshift(it);
+  _CPB.q = ''; _CPB.linked = false; _CPB.page = 0;
+  _cpbTouch(); _cpbRender();
+  try { document.querySelector('[data-cpb="' + it.id + '"][data-f="desc"]').focus(); } catch(e){}
+}
+function _cpbDel(id){
+  var cb = _cpbBook(); if (!cb) return;
+  cb.items = cb.items.filter(function(i){ return i.id !== id; });
+  if (!cb.items.length) cb.__cleared = true;
+  _cpbTouch(); _cpbRenderTable();
+}
+function _cpbRemoveSupplier(){
+  var cb = _cpbBook(); if (!cb || !_CPB.sup) return;
+  var n = cb.items.filter(function(i){ return String(i.supplier || '').toLowerCase() === _CPB.sup.toLowerCase(); }).length;
+  if (!confirm('Remove all ' + n + ' items from ' + _CPB.sup + '?\n\nAn earlier version is kept — Earlier versions puts them back.')) return;
+  cb.items = cb.items.filter(function(i){ return String(i.supplier || '').toLowerCase() !== _CPB.sup.toLowerCase(); });
+  if (!cb.items.length) cb.__cleared = true;
+  _CPB.sup = '';
+  _cpbTouch(); _cpbRender();
+}
+function _cpbSetDefaultMarkup(v){ var cb = _cpbBook(true); if (!cb) return; cb.defaultMarkup = _cpbNum(v); _cpbTouch(); }
+function _cpbExportCsv(){
+  var cb = _cpbBook(); if (!cb || !cb.items.length){ try { _siteToast('Nothing to download yet'); } catch(e){} return; }
+  var q = function(v){ v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var lines = ['Code,Description,Unit,Supplier,Cost,Markup %,Price used,Replaces RoofMap item'];
+  cb.items.forEach(function(it){ lines.push([it.code, it.desc, it.unit, it.supplier, it.cost, it.markup, _cpbSell(it) || '', it.replaces ? _cpbTargetLabel(it.replaces) : ''].map(q).join(',')); });
+  var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Custom price book.csv';
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+// ── reading a price list ──
+function _cpbGuessSupplier(text, filename){
+  var hay = (String(filename || '') + '\n' + String(text || '').slice(0, 6000)).toLowerCase();
+  var mine = _cpbSuppliers();
+  for (var i = 0; i < mine.length; i++) if (hay.indexOf(mine[i].toLowerCase()) >= 0) return mine[i];
+  for (var j = 0; j < CPB_SUPPLIERS_NZ.length; j++) if (hay.indexOf(CPB_SUPPLIERS_NZ[j].toLowerCase()) >= 0) return CPB_SUPPLIERS_NZ[j];
+  return '';
+}
+function _cpbIsUnit(s){ return !!_pbUnitKind(s) && /^(lm|m|metre|meter|lineal|ea|each|pc|pcs|unit|no|item|m2|sqm|roll|rl|box|bx|pkt|pack|bag|tube|len|length|sht|sheet|lgth)$/i.test(String(s).replace(/[^a-z0-9]/gi, '')); }
+// CSV with or without a header; the columns are found by their names, or,
+// without names, by what is in them (the last money column is the price).
+function _cpbRowsFromCsv(text){
+  var rows = _parseCsv(text); if (!rows.length) return { rows: [], supplier: '' };
+  var head = rows[0].map(function(c){ return String(c).trim().toLowerCase(); });
+  var col = function(re){ for (var i = 0; i < head.length; i++) if (re.test(head[i])) return i; return -1; };
+  var ci = { code: col(/^(code|sku|item ?(no|code|#)|product ?code|part ?(no|number)|stock ?code)/),
+             desc: col(/desc|name|product|item/), unit: col(/^(unit|uom|u\/m|per)/),
+             price: col(/net|price|cost|rate|sell|amount/), sup: col(/supplier|merchant|vendor|brand/) };
+  var hasHead = ci.desc >= 0 && ci.price >= 0;
+  if (ci.code === ci.desc) ci.code = -1;
+  var out = [], supCol = '';
+  (hasHead ? rows.slice(1) : rows).forEach(function(r){
+    var cells = r.map(function(c){ return String(c == null ? '' : c).trim(); });
+    var code = '', desc = '', unit = '', price = 0, sup = '';
+    if (hasHead){
+      code = ci.code >= 0 ? cells[ci.code] : ''; desc = cells[ci.desc] || ''; unit = ci.unit >= 0 ? cells[ci.unit] : '';
+      price = _cpbNum(cells[ci.price]); sup = ci.sup >= 0 ? cells[ci.sup] : '';
+    } else {
+      var pi = -1; for (var i = cells.length - 1; i >= 0; i--) if (/^\$?\s*\d[\d,]*(\.\d+)?$/.test(cells[i])) { pi = i; break; }
+      if (pi < 0) return;
+      price = _cpbNum(cells[pi]);
+      var rest = cells.filter(function(c, i){ return i !== pi && c; });
+      rest.forEach(function(c){
+        if (!unit && _cpbIsUnit(c)) { unit = c; return; }
+        if (!code && /^[A-Z0-9][A-Z0-9\-\/\.]{2,}$/i.test(c) && /\d/.test(c) && c.length <= 20 && !/\s/.test(c) && rest.length > 1) { code = c; return; }
+        if (c.length > desc.length) { if (desc && !code) code = desc; desc = c; }
+      });
+    }
+    if (!desc || !(price > 0)) return;
+    if (sup && !supCol) supCol = sup;
+    out.push({ code: code, desc: desc, unit: unit || 'ea', price: price, supplier: sup });
+  });
+  return { rows: out, supplier: supCol };
+}
+// A PDF's text, line by line (items grouped by their height on the page).
+async function _cpbPdfLines(file){
+  var lib = await _loadPdfJs();
+  var buf = await file.arrayBuffer();
+  var pdf = await lib.getDocument({ data: buf }).promise;
+  var lines = [];
+  for (var p = 1; p <= Math.min(pdf.numPages, 60); p++){
+    var pg = await pdf.getPage(p), tc = await pg.getTextContent(), by = {};
+    tc.items.forEach(function(it){ if (!it.str || !it.str.trim()) return; var y = Math.round(it.transform[5] / 3); (by[y] = by[y] || []).push(it); });
+    Object.keys(by).map(Number).sort(function(a, b){ return b - a; }).forEach(function(y){
+      lines.push(by[y].sort(function(a, b){ return a.transform[4] - b.transform[4]; }).map(function(i){ return i.str.trim(); }).join('  '));
+    });
+  }
+  return lines;
+}
+function _cpbRowsFromLines(lines){
+  var out = [];
+  lines.forEach(function(l){
+    var m = /(\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2,3}))\s*(?:\+?\s*GST|ex(?:cl)?\.?\s*GST)?\s*$/i.exec(l);
+    if (!m) return;
+    var price = _cpbNum(m[1]); if (!(price > 0)) return;
+    var head = l.slice(0, m.index).trim().split(/\s{2,}|\t/).map(function(s){ return s.trim(); }).filter(Boolean);
+    var code = '', unit = '';
+    if (head.length > 1 && _cpbIsUnit(head[head.length - 1])) unit = head.pop();
+    if (head.length > 1 && /^[A-Z0-9][A-Z0-9\-\/\.]{2,}$/i.test(head[0]) && /\d/.test(head[0])) code = head.shift();
+    var desc = head.join(' ').replace(/\s+/g, ' ').trim();
+    if (desc.length < 3 || /^(total|sub-?total|gst|page)\b/i.test(desc)) return;
+    out.push({ code: code, desc: desc, unit: unit || 'ea', price: price });
+  });
+  return out;
+}
+// The price list read by the AI, for PDFs whose layout the line reader
+// cannot follow. The text only — never the file — in chunks.
+async function _cpbAiRows(text){
+  var chunks = [], cur = '';
+  String(text).split('\n').forEach(function(l){ if (cur.length + l.length > 28000){ chunks.push(cur); cur = ''; } cur += l + '\n'; });
+  if (cur.trim()) chunks.push(cur);
+  var items = [], supplier = '';
+  for (var i = 0; i < Math.min(chunks.length, 8); i++){
+    var prompt = 'This is text taken from a New Zealand building supplier’s price list. Return ONLY JSON, no prose: ' +
+      '{"supplier":"<the company that issued this price list, or empty>","items":[{"code":"<their product code or empty>","desc":"<product description>","unit":"<ea|lm|m2|roll|box …>","price":<the buyer’s price excluding GST, a number>}]}. ' +
+      'One entry per priced product line; skip headings, totals and terms.\n\n' + chunks[i];
+    var resp = await claudeCall({ model: 'claude-haiku-4-5-20251001', max_tokens: 16000, messages: [{ role: 'user', content: prompt }] });
+    if (!resp.ok) throw new Error('The AI reader answered ' + resp.status);
+    var j = await resp.json();
+    var txt = ((j.content || [])[0] || {}).text || '';
+    var obj = _cpbJson(txt);
+    if (obj && obj.supplier && !supplier) supplier = String(obj.supplier);
+    ((obj && obj.items) || []).forEach(function(r){ if (r && r.desc && _cpbNum(r.price) > 0) items.push({ code: String(r.code || ''), desc: String(r.desc), unit: String(r.unit || 'ea'), price: _cpbNum(r.price) }); });
+  }
+  return { rows: items, supplier: supplier };
+}
+// Parse JSON out of a reply, salvaging a list the reply was cut off in.
+function _cpbJson(txt){
+  var s = String(txt || ''); var a = s.indexOf('{'); if (a < 0) return null; s = s.slice(a);
+  try { return JSON.parse(s.slice(0, s.lastIndexOf('}') + 1)); } catch(e){}
+  var k = s.lastIndexOf('},');
+  if (k > 0){ try { return JSON.parse(s.slice(0, k + 1) + ']}'); } catch(e2){} }
+  return null;
+}
+async function _cpbFile(input){
+  var f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  var box = document.getElementById('cpbImport'); if (!box) return;
+  box.innerHTML = '<div class="cpb-imp"><span class="ld-ring"></span> Reading ' + esc2(f.name) + '…</div>';
+  try {
+    var got, isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf', text = '';
+    if (isPdf){
+      var lines = await _cpbPdfLines(f); text = lines.join('\n');
+      got = { rows: _cpbRowsFromLines(lines), supplier: '' };
+      if (got.rows.length < 5){
+        box.innerHTML = '<div class="cpb-imp"><span class="ld-ring"></span> Reading ' + esc2(f.name) + ' with the AI reader…</div>';
+        try { var ai = await _cpbAiRows(text); if (ai.rows.length > got.rows.length) got = ai; } catch(e){ console.warn('AI price list read:', e); }
+      }
+    } else {
+      text = await f.text();
+      got = _cpbRowsFromCsv(text);
+    }
+    if (!got.rows.length){ box.innerHTML = '<div class="cpb-imp cpb-err">No priced lines found in ' + esc2(f.name) + '. A CSV with a description and a price column always works.</div>'; return; }
+    var sup = got.supplier || _cpbGuessSupplier(text, f.name);
+    _CPB.pending = { file: f.name, rows: got.rows, supplier: sup, pdf: isPdf, text: isPdf ? text : '' };
+    _cpbRenderPending();
+  } catch(e){
+    box.innerHTML = '<div class="cpb-imp cpb-err">Could not read ' + esc2(f.name) + ': ' + esc2(String(e && e.message || e)) + '</div>';
+  }
+}
+function _cpbKeyOf(sup, r){ return String(sup || '').trim().toLowerCase() + '|' + (r.code ? 'c:' + String(r.code).trim().toLowerCase() : 'd:' + String(r.desc || '').trim().toLowerCase()); }
+function _cpbRenderPending(){
+  var box = document.getElementById('cpbImport'), P = _CPB.pending; if (!box || !P) return;
+  var cb = _cpbBook(true), have = {};
+  cb.items.forEach(function(it){ have[_cpbKeyOf(it.supplier, it)] = it; });
+  var sup = (document.getElementById('cpbImpSup') || {}).value; if (sup == null) sup = P.supplier;
+  var nNew = 0, nUpd = 0, nSame = 0;
+  P.rows.forEach(function(r){ var h = have[_cpbKeyOf(sup, r)]; if (!h) nNew++; else if (_cpbNum(h.cost) !== r.price) nUpd++; else nSame++; });
+  var sug = P.rows.filter(function(r){ return _pbMatchCsvRow(r.desc); }).length;
+  box.innerHTML = '<div class="cpb-imp">' +
+    '<div class="cpb-imp-hd"><b>' + esc2(P.file) + '</b> — ' + P.rows.length + ' priced line' + (P.rows.length === 1 ? '' : 's') + ' found</div>' +
+    '<label class="cpb-imp-sup">Supplier <input id="cpbImpSup" list="cpbSupList" value="' + esc2(sup) + '" placeholder="Who issued this price list?" oninput="_cpbRenderPendingCounts()" data-noautosave="1"></label>' +
+    '<div class="cpb-imp-counts" id="cpbImpCounts">' + nNew + ' new · ' + nUpd + ' price change' + (nUpd === 1 ? '' : 's') + ' to items you already have · ' + nSame + ' unchanged</div>' +
+    '<label class="cpb-imp-auto"><input type="checkbox" id="cpbImpAuto" checked data-noautosave="1"> Link lines to the RoofMap items they match by name (' + sug + ' found) — you can change any link afterwards. A link you already set is never changed.</label>' +
+    '<div class="cpb-imp-prev">' + P.rows.slice(0, 8).map(function(r){ return '<div>' + esc2(r.code ? r.code + ' · ' : '') + esc2(r.desc) + ' <span>' + esc2(r.unit) + ' $' + r.price.toFixed(2) + '</span></div>'; }).join('') + (P.rows.length > 8 ? '<div class="cpb-more">… and ' + (P.rows.length - 8) + ' more</div>' : '') + '</div>' +
+    '<div class="cpb-imp-ft">' +
+      (P.pdf ? '<button type="button" class="qa-btn" onclick="_cpbReadWithAi()">Read it with AI instead</button>' : '') +
+      '<span style="flex:1"></span>' +
+      '<button type="button" class="qa-btn" onclick="_CPB.pending=null;document.getElementById(\'cpbImport\').innerHTML=\'\'">Discard</button>' +
+      '<button type="button" class="qa-btn qa-btn-primary" id="cpbImpApply" onclick="_cpbApplyImport()">Add to my price book</button>' +
+    '</div></div>';
+}
+function _cpbRenderPendingCounts(){
+  var P = _CPB.pending, el = document.getElementById('cpbImpCounts'); if (!P || !el) return;
+  var sup = (document.getElementById('cpbImpSup') || {}).value || '';
+  var cb = _cpbBook(true), have = {};
+  cb.items.forEach(function(it){ have[_cpbKeyOf(it.supplier, it)] = it; });
+  var nNew = 0, nUpd = 0, nSame = 0;
+  P.rows.forEach(function(r){ var h = have[_cpbKeyOf(sup, r)]; if (!h) nNew++; else if (_cpbNum(h.cost) !== r.price) nUpd++; else nSame++; });
+  el.textContent = nNew + ' new · ' + nUpd + ' price change' + (nUpd === 1 ? '' : 's') + ' to items you already have · ' + nSame + ' unchanged';
+}
+async function _cpbReadWithAi(){
+  var P = _CPB.pending; if (!P || !P.text) return;
+  var box = document.getElementById('cpbImport');
+  box.innerHTML = '<div class="cpb-imp"><span class="ld-ring"></span> Reading ' + esc2(P.file) + ' with the AI reader…</div>';
+  try {
+    var ai = await _cpbAiRows(P.text);
+    if (ai.rows.length){ P.rows = ai.rows; if (ai.supplier) P.supplier = ai.supplier; }
+  } catch(e){ try { _siteToast('The AI reader could not read it: ' + (e.message || e)); } catch(_){} }
+  _cpbRenderPending();
+}
+// Merge: the same supplier + code (or description) UPDATES the item's cost
+// and keeps its mark-up and its link — a new year's price list re-priced in
+// one go, nothing re-linked by hand.
+function _cpbApplyImport(){
+  var P = _CPB.pending; if (!P) return;
+  var cb = _cpbBook(true);
+  var sup = String((document.getElementById('cpbImpSup') || {}).value || P.supplier || '').trim();
+  var auto = !!(document.getElementById('cpbImpAuto') || {}).checked;
+  var have = {}; cb.items.forEach(function(it){ have[_cpbKeyOf(it.supplier, it)] = it; });
+  var added = 0, updated = 0, linked = 0;
+  var fresh = [];
+  P.rows.forEach(function(r){
+    var k = _cpbKeyOf(sup, r), h = have[k];
+    if (h){ if (_cpbNum(h.cost) !== r.price){ h.cost = r.price; updated++; } if (!h.unit && r.unit) h.unit = r.unit; return; }
+    var it = { id: _cpbId(), code: r.code || '', desc: r.desc, unit: r.unit || 'ea', supplier: sup, cost: r.price, markup: cb.defaultMarkup || 0, replaces: '' };
+    have[k] = it; fresh.push(it); added++;
+  });
+  if (auto){
+    fresh.forEach(function(it){
+      var t = _pbMatchCsvRow(it.desc);
+      if (t && !_cpbLinkedBy(t.path) && !fresh.some(function(o){ return o !== it && o.replaces === t.path; })){ it.replaces = t.path; linked++; }
+    });
+  }
+  cb.items = fresh.concat(cb.items);
+  delete cb.__cleared;
+  _CPB.pending = null; _CPB.q = ''; _CPB.sup = sup || ''; _CPB.linked = false; _CPB.page = 0;
+  _cpbTouch();
+  _cpbRender();
+  var box = document.getElementById('cpbImport');
+  if (box) box.innerHTML = '<div class="cpb-imp cpb-ok">✓ ' + added + ' added, ' + updated + ' price' + (updated === 1 ? '' : 's') + ' updated' + (linked ? ', ' + linked + ' linked to RoofMap items' : '') + (sup ? ' — ' + esc2(sup) : '') + '. Saved.</div>';
+  try { saveSettings(true); } catch(e){}
+}
+// ── earlier versions ──
+async function _cpbRevisions(){
+  var box = document.getElementById('cpbRevs'); if (!box) return;
+  box.innerHTML = '<div class="cpb-imp"><span class="ld-ring"></span> Loading earlier versions…</div>';
+  try {
+    var list = await api('GET', '/settings/custom-book/revisions');
+    list = Array.isArray(list) ? list : [];
+    box.innerHTML = '<div class="cpb-imp"><div class="cpb-imp-hd"><b>Earlier versions</b> — kept each time the book changed (the last ' + list.length + ')</div>' +
+      (list.length ? list.map(function(r){
+        var d = new Date(r.at);
+        return '<div class="cpb-rev"><span>' + esc2(d.toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('en-NZ', { hour:'numeric', minute:'2-digit' }).toLowerCase()) + ' · ' + (r.items || 0) + ' items</span>' +
+          '<button type="button" class="qa-btn" onclick="_cpbRestore(' + JSON.stringify(r.id).replace(/"/g, '&quot;') + ')">Restore</button></div>';
+      }).join('') : '<div class="cpb-more">None yet — a version is kept the first time the book changes.</div>') +
+      '<div class="cpb-imp-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="document.getElementById(\'cpbRevs\').innerHTML=\'\'">Close</button></div></div>';
+  } catch(e){
+    box.innerHTML = '<div class="cpb-imp cpb-err">Earlier versions could not be loaded: ' + esc2(String(e && e.message || e)) + '</div>';
+  }
+}
+async function _cpbRestore(id){
+  if (!confirm('Put this earlier version back?\n\nThe book as it is now is kept too, so this can be undone the same way.')) return;
+  try {
+    var r = await api('POST', '/settings/custom-book/restore', { id: id });
+    if (!r || !r.custom_book) throw new Error('No book came back');
+    S.settings.price_book.custom_book = r.custom_book;
+    try { _cpbApply(S.settings.price_book); } catch(e){}
+    try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+    try { renderPriceBookUI(); } catch(e){}
+    _CPB.q = ''; _CPB.sup = ''; _CPB.page = 0;
+    _cpbRender();
+    var box = document.getElementById('cpbRevs'); if (box) box.innerHTML = '<div class="cpb-imp cpb-ok">✓ Restored — ' + (r.custom_book.items || []).length + ' items.</div>';
+  } catch(e){ alert('Could not restore that version: ' + (e && e.message || e)); }
+}
+// The save's echo must never put back an OLDER book than the one on screen
+// (an edit typed while the save was on its way).
+function _cpbKeepNewer(local){
+  if (!local || !S.settings || !S.settings.price_book) return;
+  var echo = S.settings.price_book.custom_book;
+  var t = function(cb){ var x = Date.parse((cb && cb.editedAt) || 0); return isFinite(x) ? x : 0; };
+  if (!echo || t(local) > t(echo)) S.settings.price_book.custom_book = local;
+  else if (echo !== local){
+    // A newer book from another device or tab won — show it.
+    try { if (document.getElementById('set-custompb') && document.getElementById('set-custompb').classList.contains('on')) _cpbRender(); } catch(e){}
+  }
+}
+// On load: a book edited on this device whose save never reached the server
+// (offline, a failed save) is newer than the server's — keep it and send it.
+function _cpbReconcileOnLoad(prevRaw){
+  try {
+    var local = JSON.parse(prevRaw || 'null');
+    var lcb = local && local.price_book && local.price_book.custom_book;
+    if (!lcb || !Array.isArray(lcb.items)) return;
+    var me = String(_myEmail() || '').toLowerCase();
+    if (!me || String(lcb.acct || '') !== me) return;   // never another account's book
+    var scb = S.settings.price_book && S.settings.price_book.custom_book;
+    var t = function(cb){ var x = Date.parse((cb && cb.editedAt) || 0); return isFinite(x) ? x : 0; };
+    if (t(lcb) > t(scb)){
+      S.settings.price_book.custom_book = lcb;
+      _cpbApply(S.settings.price_book);
+      window.__cpbReconciled = true;
+      try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+      setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 1500);
+    }
+  } catch(e){}
 }
 
 // ── MATERIALS COST FROM PRICE BOOK ──────────────────────────────
@@ -14192,7 +14802,35 @@ function _buildMaterialPriceRows(){
                 defaultVariant:x.desc, isCustom:true, singleVariant:true });
   });
 
+  // The supplier's own product where the Custom Price Book links one: the
+  // row reads "DFE80 Dektite EPDM 80mm — Steel & Tube", not RoofMap's name.
+  try { _cpbBrandRows(rows); } catch(e){}
   return rows;
+}
+function _cpbPathForVariant(row, v){
+  var k = String(row.key || '');
+  if (k === 'sheets') return 'sheet:' + v.value;
+  if (k === 'underlay') return 'underlay.' + v.value;
+  if (/^(ridge|valley|barge|apron|changepitch)$/.test(k)) return k + '_lm';
+  if (k === 'screws') return 'screws_each';
+  if (k === 'rivets') return 'rivets_each';
+  if (/^aquaseal:/.test(k)) return 'aquaseal.' + v.value;
+  var m = /^backtray:([^|]+)\|/.exec(k); if (m) return 'backtray_prices.' + m[1];
+  return '';
+}
+function _cpbBrandName(it){ return (it.code ? it.code + ' ' : '') + (it.desc || '') + (it.supplier ? ' — ' + it.supplier : ''); }
+function _cpbBrandRows(rows){
+  var cb = _cpbBook(); if (!cb || !cb.items.length) return;
+  // Only where the grade in use is the base grade: links price that one.
+  try { if (_pbGradeInUse() !== _pbBaseId() && _pbGradeHasPrices(_pbGradeInUse())) return; } catch(e){}
+  rows.forEach(function(row){
+    (row.variants || []).forEach(function(v){
+      var path = _cpbPathForVariant(row, v); if (!path) return;
+      var it = _cpbLinkedBy(path); if (!it || !(_cpbSell(it) > 0)) return;
+      v.label = _cpbBrandName(it); v.brand = { code: it.code || '', desc: it.desc || '', supplier: it.supplier || '' };
+      if (row.singleVariant || (row.variants || []).length === 1 || v.value === row.defaultVariant){ row.brand = v.brand; if (row.singleVariant || (row.variants || []).length === 1) row.label = v.label; }
+    });
+  });
 }
 
 // Order quantities are whole units: lineal metres round UP to the next full
