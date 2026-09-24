@@ -347,6 +347,15 @@ Discipline (non-negotiable):
   the REST read after it; the 60 s per-office cache is cleared by every job
   or quote write and every customer event. The Home board retries a failed
   feed by itself twice (5 s, 15 s) and shows the error text.
+- THE BACKGROUND GOES TO NOTHING (2026-09-24): the View menu's Background
+  slider (`#bgOpacity`) at 0 skips the PICTURE only — it used to `return`
+  out of `redrawAll`, so the lines went with it. The quote's roof plans
+  (`_qpInteractiveRoofBlock`, both modern maps) carry an office-only
+  "Background picture shown/hidden" switch (`_qpRoofBgSwitchHtml`), the same
+  `S.quote.roofMapShowBg` as the A4's button, so every map and the customer
+  follow it; `_toggleRoofMapBg` saves through `_scheduleAutosave` (it called
+  a non-existent `autosaveJob`, so the choice was never saved).
+  `tests/bgclear.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

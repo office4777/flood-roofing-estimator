@@ -3736,6 +3736,12 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-excl-row svg{ color:#c0392b; }
 .qb-excl-row span{ color:#5b6b7c; }
 .qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:12px 0 4px; }
+.qp-bg-sw{ margin-left:auto; display:inline-flex; align-items:center; gap:7px; padding:4px 10px 4px 5px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#475569; font:600 11px/1.2 Inter,-apple-system,sans-serif; cursor:pointer; }
+.qp-bg-sw-knob{ width:26px; height:15px; border-radius:999px; background:#cbd5e1; position:relative; flex:0 0 auto; transition:background .15s; }
+.qp-bg-sw-knob::after{ content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:#fff; transition:left .15s; }
+.qp-bg-sw.on{ border-color:#0099cc; color:#0a1628; }
+.qp-bg-sw.on .qp-bg-sw-knob{ background:#0099cc; }
+.qp-bg-sw.on .qp-bg-sw-knob::after{ left:13px; }
 .qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
 .qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
@@ -5477,7 +5483,7 @@ html.qp-desk-preview .qd-top{ position:static; }
               <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> Show AI dimensions
             </label>
             <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
-              Transparency <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="flex:1;margin:0" oninput="redrawAll()">
+              <span title="Left = the background picture is gone completely; right = at full strength">Background</span> <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="flex:1;margin:0" oninput="redrawAll()">
             </label>
             <label style="display:flex;align-items:center;gap:6px;margin:0" title="Multiplier applied ONLY to the on-canvas sheet-length labels (e.g. 4.35m) — does not affect line measurements or letter tags.">
               Sheet text
@@ -31815,11 +31821,17 @@ function _qpRoofMapShowBg(){
   var q = (window.S && S.quote) || {};
   return (q.roofMapShowBg == null) ? true : !!q.roofMapShowBg;
 }
+function _qpRoofBgSwitchHtml(){
+  var on = _qpRoofMapShowBg();
+  return '<button type="button" class="qp-bg-sw no-print'+(on ? ' on' : '')+'" onclick="_toggleRoofMapBg()" title="Show or hide the background picture (aerial or sketch) behind the roof plan the customer sees">'+
+    '<span class="qp-bg-sw-knob"></span>'+(on ? 'Background picture shown' : 'Background picture hidden')+'</button>';
+}
 function _toggleRoofMapBg(){
   if (!S.quote) return;
   S.quote.roofMapShowBg = !_qpRoofMapShowBg();   // flip the effective state
   try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+  // (It called autosaveJob, which does not exist — the choice was never saved.)
+  try { _scheduleAutosave(); } catch(e){}
 }
 // Office ticks a roof (2nd, 3rd…) as a SEPARATE optional extra. Un-ticked
 // roofs are folded into the single main price; ticked roofs become their own
@@ -32658,8 +32670,12 @@ function _qpInteractiveRoofBlock(opts){
       '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
   }
   var modes = (!ro && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? _roofModeRowsHtml() : '';
+  // THE BACKGROUND PICTURE ON/OFF (2026-09-24): the owner could not take a
+  // rough hand-drawn sketch off the plan the customer sees. Office only; the
+  // same switch as the A4's (S.quote.roofMapShowBg), so every map follows.
+  var bgSw = (g.bg && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? _qpRoofBgSwitchHtml() : '';
   return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
-    '<div class="ed-eyebrow" style="margin-bottom:8px">'+esc2(opts.title || 'Your roof plan')+'</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><div class="ed-eyebrow" style="margin:0">'+esc2(opts.title || 'Your roof plan')+'</div>'+bgSw+'</div>'+
     svg + legend + btns + modes +
   '</div>';
 }
@@ -32723,7 +32739,7 @@ function _buildRoofPreviewsHtml(opts){
     // which shows whatever the office chose.
     var _officeCtl = (opts.basic && !window.__CUSTOMER_MODE);
     var _bgToggle = _officeCtl
-      ? '<button type="button" class="no-print" onclick="_toggleRoofMapBg()" title="Show/hide the aerial photo behind the roof outline" style="padding:2px 8px;font-size:9.5px;border:1px solid '+(_qpRoofMapShowBg()?'var(--ed-accent)':'var(--ed-line)')+';border-radius:4px;background:'+(_qpRoofMapShowBg()?'var(--ed-accent)':'#fff')+';color:'+(_qpRoofMapShowBg()?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.04em">'+(_qpRoofMapShowBg()?'✓ Aerial background':'Aerial background')+'</button>'
+      ? '<button type="button" class="no-print" onclick="_toggleRoofMapBg()" title="Show/hide the aerial photo behind the roof outline" style="padding:2px 8px;font-size:9.5px;border:1px solid '+(_qpRoofMapShowBg()?'var(--ed-accent)':'var(--ed-line)')+';border-radius:4px;background:'+(_qpRoofMapShowBg()?'var(--ed-accent)':'#fff')+';color:'+(_qpRoofMapShowBg()?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.04em">'+(_qpRoofMapShowBg()?'✓ Background picture':'Background picture hidden')+'</button>'
       : '';
     // Size picker S / M / L.
     var _sizeCtl = '';
@@ -49523,7 +49539,10 @@ function redrawAll() {
     var _opRaw = document.getElementById('bgOpacity').value;
     var op = (_opRaw === '' || _opRaw == null) ? 0.35 : parseFloat(_opRaw);
     if (!isFinite(op)) op = 0.35;
-    if (op <= 0.001) return;  // fully invisible — skip the draw entirely
+    // Fully transparent skips the PICTURE — it used to `return` out of the
+    // whole redraw, so at 0 the lines vanished with it and the slider could
+    // never reach "no background" (2026-09-24).
+    if (op > 0.001){
     var iw=DRAW.bgImg.naturalWidth, ih=DRAW.bgImg.naturalHeight;
     // fitScale: at zoom=1.0 image fits inside 900x600 with correct ratio
     var fitScale=Math.min(W/iw, H/ih);
@@ -49546,6 +49565,7 @@ function redrawAll() {
     }
     ctx.restore();
     ctx.globalAlpha=1;
+    }
   }
 
   // ── ALIGNMENT GRID — shown while dragging the rotation slider ──────
