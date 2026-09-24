@@ -1002,10 +1002,75 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-22
+## Open at last handover — 2026-09-25 (8:40 am NZ)
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
+
+**Where things stand.** Everything is shipped and verified live: main =
+`093fc6d`, promoted 8:31 am NZ 2026-09-25 (site byte-identical, `/health`
+build matches). Nothing is uncommitted. The working branch was
+`claude/pricing-totals-photos`; each batch went branch → PR (the Tests
+workflow runs on `pull_request` — that is the Linux gate) → green →
+`git push origin <sha>:main` → watch the promote. The Conventions bullets
+dated 2026-09-24/25 describe every feature below in detail; read those
+before touching them.
+
+**Shipped 2026-09-24/25, watch the first days through it:**
+- Quote drafts & templates: Viewing button beside "Change quote
+  template"; switching never asks — a worked-on draft is saved first
+  (`_qvKeepWorking`, `_qContentFp`); the template editor edits a COPY and
+  never the open quote; `_qChangeTemplate` makes a fresh draft.
+- Background saving: switching jobs no longer waits (`_jobSaveDetach` +
+  `_jobSaveSendDetached`); the working pill ends "✓ Saved h:mm". If an
+  office reports a job "lost its last changes" after switching, look here
+  first (the device copy is kept on failure; 3 retries).
+- Send: the link upload is skipped when the server already holds the quote
+  (`__qWritten`), a first send sends the share alone (`PUT
+  /jobs/:id/quote-share`); the Sent view waits for the last save.
+- Push to Fergus has Cancel on the pill (voids a just-created version).
+  Fergus mark-as-sent is `POST /jobs/quotes/{id}/markAsSent {isSent:true}`.
+- `/quote-activity` reads through the pg pool (`_quoteShareRowsPg`).
+- Custom Price Book (Settings → Pricing): upload CSV/PDF, links to RoofMap
+  defaults, server guard + `price_book_revisions`; the price book window
+  (`_pbPickOpen`) with folders and a Defaults tab; any material row takes a
+  price typed per job; the materials table's edits are now SAVED with the
+  job (`state.matOv/matDel`) — they used to leak between jobs.
+- Map Roof: Break up ridge (straight gables), report 58 sheet-engine fixes
+  (step split in `_sgmSplit`, `_sgmUncoveredGutters`, head-barge edge),
+  measuring tape (`DRAW.tapes`), canvas never pinned to a pixel width,
+  Fergus photos cached per job, roof image boxes always open, history moved
+  into the History popup, outline tool never selects a line.
+
+**Open with the owner (Aron), 2026-09-25:**
+- A missing green "1 × 2.78 m" sheet measure on a job pack roof map —
+  his screenshots never arrived (twice). Ask for the feedback report from
+  that job (it now carries roofType, ridgeBreaks and line flags) and
+  reproduce from its geometry. Head barges now carry a measure, which may
+  already be the fix.
+- Break up ridge was built from his description and one photo: he is to
+  check the flashings (head apron + barge + side apron at each end) on the
+  real zig-zag roof.
+- UNANSWERED: a Custom Price Book line's mark-up is applied to the supplier
+  cost and the job's material mark-up still goes ON TOP. Ask whether he
+  meant the line's mark-up to REPLACE the job's for that item.
+- His price book CSVs are in `C:\Users\OEM\Downloads`:
+  `floodroofingpricebook.csv` and `floodroofinggutterpricebook.csv` (24
+  Aug, description/unit/price — upload as they are); `Bills_Flood Roofing
+  LTD_2026-Aug-24.06.16.42.csv` holds real purchase prices.
+- Still his (older, below): LINZ Developer key on Railway as
+  `LINZ_BASEMAPS_KEY` (`/health.features.linz` is false until then);
+  Nearmap stays off until privacy.html v1.2 + 30 days' notice.
+
+**How the last session worked (keep doing it):** the laptop gate cannot
+exit 0 on Windows (dupjobui, signup, restoredrill fail on the timezone), so
+run the affected suites locally, then PR → Linux gate. `gh` is at
+`/c/Program Files/GitHub CLI/gh.exe` (run from `C:\Users\OEM\roofmap`).
+Scripted edits to app.html: write the Python to a FILE (heredocs mangle
+`\u`/`\n`/quotes), assert every replacement's count, then
+`node floodroofing/tools/check-app-syntax.mjs`. Explore agents are good for
+mapping a subsystem before a change. The owner's messages sometimes say
+"see attached" with nothing attached — say so rather than guess.
 
 **Shipped 2026-09-22 (promotes 178–182, all verified live), watch the
 first day through it:** the database stall of 10:18–10:38 am NZ (autosave
