@@ -27,8 +27,9 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   }
   if (/\/fergus-quote\/publish/.test(u)){ calls.push({ kind:'publish', body: r.request().postDataJSON() }); return j({ ok:true, path:'/jobs/quotes/{id}/publish' }); }
   if (/\/email\/send-order/.test(u)){ calls.push({ kind:'email', body: r.request().postDataJSON() }); await new Promise(res => setTimeout(res, 900)); return j({ ok:true, queued:true }); }
+  if (m === 'PUT' && /\/jobs\/[^/]+\/quote-share$/.test(u)){ calls.push({ kind:'share', body: r.request().postDataJSON() }); return j({ ok:true, updated_at:new Date().toISOString() }); }
   if (m === 'PUT' && /\/jobs\/[^/]+\/quote$/.test(u)){ calls.push({ kind:'publishQuote', body: r.request().postDataJSON() }); return j({ ok:true, updated_at:new Date().toISOString() }); }
-  if (m === 'PUT' && /\/jobs\//.test(u)) return j({ id:'job1', updated_at:new Date().toISOString() });
+  if (m === 'PUT' && /\/jobs\//.test(u)){ calls.push({ kind:'save', body: r.request().postDataJSON() }); return j({ id:'job1', updated_at:new Date().toISOString() }); }
   if (m === 'POST' && /\/jobs$/.test(u)) return j({ id:'job1', updated_at:new Date().toISOString() });
   return j([]);
 });
@@ -61,6 +62,22 @@ check('the full push lays the job out for a gutter job (roof sections apart from
 check('the BASE plan carries no selection or gutter lines — those are the server’s to add', !base.baseSel && base.base.indexOf('Gutter Material') < 0, JSON.stringify(base.base));
 check('…and the exact line shape Fergus accepted', /isLabour/.test(base.matShape) && /itemName/.test(base.matShape) && /sortOrder/.test(base.matShape), base.matShape);
 
+// ── the customer's copy is kept ready while the office works ──
+// (2026-09-24: "if every change I make in the quote starts to auto produce
+// the customer versions … when I finally send the quote it doesn't have to
+// start from scratch creating the customer link")
+const prep = await pg.evaluate(async () => {
+  document.body.setAttribute('data-tab', 'quote');
+  AUTOSAVE.on = true; AUTOSAVE._hold = false;
+  await _runAutosave();
+  return { priced: !!(S.quote.share && S.quote.share.priced), sentAt: !!(S.quote.share && S.quote.share.sentAt),
+           rec: !!S.quote.recommended, has: _qServerHasThis() };
+});
+const prepSave = calls.filter(c => c.kind === 'save').pop();
+check('an autosave on the Quote tab carries the customer’s copy up — every option priced, the recommendation — but no sent date',
+  prep.priced && prep.rec && !prep.sentAt && prep.has && !!(prepSave && prepSave.body.draw_state.state.quote.share.priced), JSON.stringify(prep));
+calls.length = 0;
+
 // ── emailing the quote pushes + publishes ──
 await pg.evaluate(() => { openQuoteEmail(); document.getElementById('quoteEmailTo').value = 'marae@example.co.nz'; });
 const pillSeen = { during: false };
@@ -92,6 +109,11 @@ check('the sent quote is recorded on the job before the Fergus push', sentPub >=
 // ONCE for the record before the dialog is done; the Fergus push no longer
 // re-uploads it twice, and the saves after it run behind the closed window.
 const ups = atDone.filter(k => k === 'publishQuote').length;
+const beforeEmail = atDone.slice(0, atDone.indexOf('email')).filter(k => k === 'publishQuote' || k === 'save').length;
+const recBody = (calls.find(c => c.kind === 'publishQuote' && c.body.quote.versions && c.body.quote.versions.sent) || {}).body;
+const shareCall = calls.find(c => c.kind === 'share');
+check('…so the send uploads no quote before the email — only the link’s new token, a few KB', beforeEmail === 0 && !!shareCall && !!shareCall.body.share.token && !('lineItems' in shareCall.body) && JSON.stringify(shareCall.body).length < 60000 && (await pg.evaluate(() => window.__qLinkSkipped || 0)) >= 1, atDone.join(', ') + ' · share ' + (shareCall ? JSON.stringify(shareCall.body).length + ' bytes' : 'none'));
+check('…and the quote is dated sent once the email is away, in the record', !!(recBody && recBody.quote.share.sentAt), recBody ? String(recBody.quote.share.sentAt) : 'no record');
 check('the send waits on two quote uploads at most (link + record), not four', ups <= 2 && atDone.indexOf('create') >= 0, atDone.join(', '));
 check('the "working" spinner showed while it ran', pillSeen.during);
 check('…and the popup itself shows a loading ring while sending', await ringP);

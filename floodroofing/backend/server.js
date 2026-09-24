@@ -3235,6 +3235,46 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, job.id); }
 });
 
+// THE SHARE ALONE (2026-09-24). When the server already holds the quote the
+// office is sending — the autosave carried it up while they worked — the send
+// has only the link's own stamps to add (the token, its status, the prices).
+// Those go here: a few KB merged into the stored share, instead of the whole
+// multi-MB quote again. Keys the office's copy does not carry (the customer's
+// opens and events) are kept.
+app.put('/jobs/:id/quote-share', requireAuth, async (req, res) => {
+  try { _quoteFeedCache.clear(); } catch (e) {}
+  const share = req.body && req.body.share;
+  if (!share || typeof share !== 'object' || Array.isArray(share)) return res.status(400).json({ error: 'share object required' });
+  if (share.token){
+    try { if (!_limitsFor(await _planOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
+  }
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const sql = "UPDATE public.jobs SET draw_state = jsonb_set(draw_state, '{state,quote,share}', " +
+        "coalesce(draw_state->'state'->'quote'->'share', '{}'::jsonb) || $1::jsonb, true), updated_at = now() " +
+        "WHERE id = $2 AND draw_state->'state'->'quote' IS NOT NULL AND (user_id = $3 OR ($4::uuid IS NOT NULL AND company_id = $4::uuid)) RETURNING updated_at";
+      const r = await pool.query(sql, [JSON.stringify(share), req.params.id, req.user.id, req.companyId || null]);
+      if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
+      const _ua = r.rows && r.rows[0] && r.rows[0].updated_at;
+      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined });
+      if (share.token) { recordUsage('quote_sent', req); _tokenCachePut(share.token, req.params.id); }
+      return;
+    } catch (e) { console.error('quote-share fast update failed, falling back:', e.message); }
+  }
+  const { data: job, error } = await _scopeCompany(supabase.from('jobs')
+    .select('id, draw_state').eq('id', req.params.id), req).single();
+  if (error || !job) return res.status(404).json({ error: 'Job not found' });
+  const ds = job.draw_state || {};
+  if (!ds.state || !ds.state.quote) return res.status(404).json({ error: 'Job has no quote' });
+  ds.state.quote.share = Object.assign({}, ds.state.quote.share || {}, share);
+  const patch = { draw_state: ds, updated_at: new Date().toISOString() };
+  const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
+  if (uerr) return res.status(500).json({ error: uerr.message });
+  res.json({ ok: true, id: job.id, updated_at: patch.updated_at });
+  if (share.token) { recordUsage('quote_sent', req); _tokenCachePut(share.token, job.id); }
+});
+
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
   // .select() so the deleted rows come back and we can tell "deleted it" from
   // "matched nothing". The scope means another company's job matches nothing —
@@ -8557,6 +8597,10 @@ const FERGUS_LIST_CANDIDATES = [
 // instead of another 25-call walk.  All best-effort: a miss just re-fetches.
 let _fergusListPath = process.env.FERGUS_FILES_PATH || null;
 const _fergusListCache = new Map();          // jobId -> { payload, ts }
+// Keyed by the COMPANY and the job (2026-09-24): Fergus job ids are only unique
+// within one Fergus account, and two businesses on this server must never be
+// handed each other's file list from the cache.
+function _flKey(req, jobId){ return String((req && (req.companyId || (req.user && req.user.id))) || '') + ':' + String(jobId); }
 const FERGUS_LIST_TTL  = 90 * 1000;
 function _fergusListCacheGet(jobId) {
   const hit = _fergusListCache.get(String(jobId));
@@ -8652,7 +8696,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
 
   // Fast path: recently-fetched list for this job (unless ?fresh=1).
   if (!req.query.fresh) {
-    const cached = _fergusListCacheGet(jobId);
+    const cached = _fergusListCacheGet(_flKey(req, jobId));
     if (cached) return res.json(Object.assign({}, cached, { cached: true }));
   }
 
@@ -8713,7 +8757,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       // the list for this job.
       _fergusListPath = tpl;
       const payload = { ok: true, used: tpl, count: files.length, files, attempts, sample: arr[0] };
-      _fergusListCacheSet(jobId, payload);
+      _fergusListCacheSet(_flKey(req, jobId), payload);
       // Include the raw first item so the client can show the exact
       // attachment shape when a download field is missing/indirect.
       return res.json(payload);
@@ -8820,7 +8864,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
               const files = arr2.map(_normaliseFergusFile).filter(Boolean);
               if (!files.length) continue;
               const payload = { ok: true, used: tpl + ' (altId ' + altId + ')', count: files.length, files, attempts };
-              _fergusListCacheSet(jobId, payload);
+              _fergusListCacheSet(_flKey(req, jobId), payload);
               return res.json(payload);
             } catch (e) {
               attempts.push({ path: tpl + ' [altId=' + altId + ']', error: e.message });
@@ -8950,7 +8994,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
               const files = subFound[0].items.map(_normaliseFergusFile).filter(Boolean);
               if (files.length){
                 const payload = { ok: true, used: tpl + ' (' + sub.kind + ' ' + sub.id + ')', count: files.length, files, attempts };
-                _fergusListCacheSet(jobId, payload);
+                _fergusListCacheSet(_flKey(req, jobId), payload);
                 return res.json(payload);
               }
             }

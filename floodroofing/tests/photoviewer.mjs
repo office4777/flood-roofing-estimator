@@ -31,11 +31,15 @@ const TO_PRICE = [
   { id: 9102, jobNo: '3256', jobNumber: '3256', description: '4 Ngawha School Road - Ngaire', lastModified: '2026-09-22T22:00:00Z', jobType: 'Quote', status: 'To Price',
     customer: { customerFullName: 'Ngaire' }, siteAddress: { address1: '4 Ngawha School Road', addressCity: 'Kaikohe', addressPostcode: '0472' }, activeQuote: { id: 5, isSent: true, isAccepted: false }, archived: false },
 ];
+const fpc = { list: 0, dl: 0 };
+const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAEklEQVR42mNk+M/AwMDAxAAFAB0GAQZ0cH7uAAAAAElFTkSuQmCC', 'base64');
 await pg.route('**/api.mapbox.com/**', r => r.abort());
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
   const u = r.request().url();
   const j = (x) => r.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(x) });
   if (/\/fergus\/jobs\?/.test(u)){ fergusAsks.push(decodeURIComponent(u.split('/fergus')[1])); return j({ result: 'success', data: /filterJobStatus=To(\+|%20| )Price/.test(u) ? TO_PRICE : [], paging: {} }); }
+  if (/\/fergus-files\/list/.test(u)){ fpc.list++; return j({ ok: true, files: [1, 2, 3].map(i => ({ id: 'f' + i, name: 'p' + i + '.png', url: 'https://files.fergus/p' + i + '.png', contentType: 'image/png' })) }); }
+  if (/\/fergus-files\/download/.test(u)){ fpc.dl++; return r.fulfill({ status: 200, contentType: 'image/png', body: PNG1 }); }
   if (/\/settings/.test(u)) return j({ user_id:'u1', branding:{ company_name:'Flood Roofing Ltd' }, quote_defaults:{ next_job_no:'06121' }, jms_keys:{} });
   return j([]);
 });
@@ -178,6 +182,35 @@ check('…one row a job: number, customer, area, description, last modified and 
   tp.rows.length === 2 && /#3251/.test(tp.rows[0][0]) && tp.rows[0][1] === 'Matt Cooper' && tp.rows[0][2] === 'Russell 0272' && /Huaroa/.test(tp.rows[0][3]) && tp.rows[0][4] === '23/9/2026' && tp.rows[0][5] === '—' && tp.rows[1][5] === 'Sent' && tp.count === '2',
   JSON.stringify(tp.rows));
 check('…and a click opens that job, the same way the Fergus search does', tp.opened && tp.opened.id === '9101' && tp.opened.cached, JSON.stringify(tp.opened));
+
+// ── the Fergus photos are loaded once (2026-09-24: "about 7 sec per photo slot") ──
+const fp = await pg.evaluate(async () => {
+  S.linkedJobId = '9101'; S.quote = S.quote || defaultQuote();
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  await _loadFergusRoofPhotos(true); await wait(700);
+  return true;
+});
+const afterPanel = { ...fpc };
+const fp2 = await pg.evaluate(async () => {
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  const t0 = performance.now();
+  openFergusPhotoPicker('cond:0'); await wait(400);
+  const tiles = document.querySelectorAll('#fergusPhotoBody img').length;
+  const res = await _fergusListPhotos();
+  _fergusPickTarget = 'cond:0';
+  await _fergusPickPhoto(res.files[1]); await wait(500);
+  const cond = (S.quote.condPhotos || [])[0];
+  return { tiles, ms: Math.round(performance.now() - t0), cond: !!(cond && /^data:image/.test(cond.src)) };
+});
+const afterPick = { ...fpc };
+check('the Photos panel loads the job’s Fergus photos once — one list, one download a photo', afterPanel.list === 1 && afterPanel.dl === 3, JSON.stringify(afterPanel));
+check('…and a quote photo slot opens on them and takes one without fetching anything again', fp2.tiles === 3 && fp2.cond && afterPick.list === 1 && afterPick.dl === 3, JSON.stringify({ fp2, afterPick }));
+const fp3 = await pg.evaluate(async () => {
+  await _fergusListPhotos(true);
+  S.linkedJobId = '9102'; await _fergusListPhotos();
+  return true;
+});
+check('…↻ reads the list fresh, and another job has its own photos', fpc.list === 3, JSON.stringify(fpc));
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

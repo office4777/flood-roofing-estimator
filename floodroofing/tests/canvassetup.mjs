@@ -180,10 +180,11 @@ v = await pg.evaluate(() => {
   const w0 = c.width;
   // A point in the middle of the canvas, in world (image) space
   const t0 = getImgTransform(), cx0 = (c.width / dpr / 2 - t0.ix) / t0.s;
-  c.style.width = Math.round(c.getBoundingClientRect().width * 0.6) + 'px';
+  // The WRAP narrows (a panel opening) — the canvas is never pinned itself.
+  wrap.style.maxWidth = Math.round(wrap.getBoundingClientRect().width * 0.6) + 'px';
   fitCanvasToWrap();
   const t1 = getImgTransform(), cx1 = (c.width / dpr / 2 - t1.ix) / t1.s, w1 = c.width;
-  c.style.width = '';
+  wrap.style.maxWidth = '';
   fitCanvasToWrap();
   return { w0, w1, cx0: Math.round(cx0), cx1: Math.round(cx1) };
 });

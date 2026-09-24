@@ -386,6 +386,31 @@ Discipline (non-negotiable):
   copy BEFORE the server's answer overwrites it). Settings autosave skips
   `[data-noautosave]` and file inputs. `tests/custompb.mjs`,
   `tests/custompbsrv.mjs`.
+- THE CUSTOMER'S COPY IS KEPT READY (2026-09-24): `_qStampCustomerCopy`
+  (products, `share.priced`, `recommended`, `sentTotal` — never `sentAt`)
+  runs at the send AND before every autosave on the Quote tab, so the job
+  save carries it. `__qWritten` = `{id, fp, fpNoShare}` (`_qWrote`) records
+  the quote as last written by a job save or a light publish; the send's
+  link step skips the upload when `_qServerHasThis()`, or sends the share
+  alone (`PUT /jobs/:id/quote-share`, merged into the stored share, customer
+  events kept) when only the share differs (a first send's new token).
+  `sentAt` is stamped once the email is away (`deferSentAt`); the sentTo
+  job save is gone (the record carries it). `tests/emailpush.mjs`.
+  The Quote tab's switch reads "Customer preview: Computer | Phone".
+- THE ROOF CANVAS IS NEVER PINNED TO A PIXEL WIDTH (2026-09-24):
+  `_canvasFreeSize` — the stylesheet gives the width, the height keeps the
+  picture's shape (`cv._aspect`, report 26), `fitCanvasToWrap` re-derives
+  the height from the width it has, `#canvasWrap` is watched and
+  `_setPopReserve` re-fits after the Photos panel slides. A picture placed
+  with the panel open used to leave a dead strip once it closed.
+  `tests/bgclear.mjs`, `tests/canvassetup.mjs`.
+- THE FERGUS PHOTOS ARE LOADED ONCE (2026-09-24): `_FPC` per linked job —
+  `_fergusListPhotos(force)` memoised five minutes (↻ = fresh, uploads
+  forget it), `_fergusDownloadBlob` memoised per file URL (160 kept); the
+  Photos panel warms every quote slot and a pick is instant (Fergus's
+  "thumbnail" is the photo). The proposal slot picker downscales like the
+  others. Server list cache keyed by company + job (`_flKey`).
+  `tests/photoviewer.mjs`. Rotate background image runs −100°…100°.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

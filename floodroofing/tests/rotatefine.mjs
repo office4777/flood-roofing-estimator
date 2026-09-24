@@ -35,8 +35,8 @@ await pg.waitForTimeout(2600);
 // of the test: a control nobody can reach is not fixed.
 await pg.evaluate(() => { try { gotoTab('roof'); } catch(e){} });
 await pg.waitForTimeout(300);
-check('the "Rotate image" slider is on the toolbar, and the fine controls start put away',
-  (await pg.isVisible('#fineRotateSlider')) && !(await pg.isVisible('#fineRotate')) && /Rotate image/.test(await pg.textContent('#rotImgWrap')), '');
+check('the "Rotate background image" slider is on the toolbar, and the fine controls start put away',
+  (await pg.isVisible('#fineRotateSlider')) && !(await pg.isVisible('#fineRotate')) && /Rotate background image/.test(await pg.textContent('#rotImgWrap')), '');
 await pg.evaluate(() => { const sl = document.getElementById('fineRotateSlider'); sl.value = 0; sl.dispatchEvent(new Event('input', { bubbles: true })); });
 await pg.waitForTimeout(150);
 check('moving the slider brings the fine controls up under it', await pg.isVisible('#fineRotate'), 'fine controls not shown');
@@ -104,13 +104,13 @@ check('twenty nudges add exactly two degrees', s.angle === 14.4, String(s.angle)
 await pg.evaluate(() => { _setFineRotate(99.9); for (var i = 0; i < 5; i++) _nudgeFineRotate(0.1); });
 s = await state();
 check('nudging past the end clamps at +100', s.angle === 100 && s.slider === 100, JSON.stringify(s));
-await pg.evaluate(() => { for (var i = 0; i < 1500; i++) _nudgeFineRotate(-0.1); });
+await pg.evaluate(() => { for (var i = 0; i < 2500; i++) _nudgeFineRotate(-0.1); });
 s = await state();
-check('…and at -45 the other way', s.angle === -45 && s.slider === -45, JSON.stringify(s));
-// `slider` above is the number box. The drag bar runs −45 to 100 now, so it
+check('…and at -100 the other way — as far as it goes positive (2026-09-24)', s.angle === -100 && s.slider === -100, JSON.stringify(s));
+// `slider` above is the number box. The drag bar runs −100 to 100 now, so it
 // shows the same angle rather than a stale one.
 check('…with the drag bar showing the same angle, not left on the old one',
-  (await pg.evaluate(() => parseFloat(document.getElementById('fineRotateSlider').value))) === -45);
+  (await pg.evaluate(() => parseFloat(document.getElementById('fineRotateSlider').value))) === -100);
 
 // A tenth of a degree is invisible without something square to judge it
 // against. The grid used to show only while the slider was held, so the

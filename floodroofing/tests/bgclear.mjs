@@ -67,6 +67,31 @@ check('at 0 the picture is gone completely…', px.zero.red === 0, JSON.stringif
 check('…and the drawing is all still there (it used to vanish with it)', px.zero.dark > 50 && Math.abs(px.zero.dark - px.off.dark) <= Math.max(3, px.off.dark * 0.05), JSON.stringify({ zero: px.zero.dark, noBg: px.off.dark }));
 check('the slider says what it is', /^Background/.test(px.label), px.label);
 
+// ── the canvas fills the space the Photos panel leaves (2026-09-24) ──
+// A picture placed while the panel was open pinned the canvas to that width;
+// closing the panel left a grey strip that took no clicks.
+const cvs = await pg.evaluate(async () => {
+  gotoTab('roof'); await new Promise(r => setTimeout(r, 400));
+  try { _fergusPanelOpen(); } catch(e){}
+  await new Promise(r => setTimeout(r, 500));
+  const img = await new Promise(res => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#88aa88'; x.fillRect(0, 0, 600, 400); const im = new Image(); im.onload = () => res(im); im.src = c.toDataURL(); });
+  _applyCanvasBg(img, { zoom: 1, offX: 0, offY: 0, rot: 0 });
+  await new Promise(r => setTimeout(r, 400));
+  const cv = document.getElementById('roofCanvas'), wrap = document.getElementById('canvasWrap');
+  const openW = cv.getBoundingClientRect().width;
+  try { _fergusPanelClose(); } catch(e){}
+  await new Promise(r => setTimeout(r, 900));
+  wrap.scrollIntoView({ block: 'start' }); await new Promise(r => setTimeout(r, 200));
+  const cr = cv.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  const hit = document.elementFromPoint(wr.right - 20, Math.min(wr.top + 120, window.innerHeight - 40));
+  const dpr = window.devicePixelRatio || 1;
+  const hitName = hit ? (hit.id || hit.className || hit.tagName) : 'none';
+  return { hitName, openW: Math.round(openW), closedW: Math.round(cr.width), wrapW: Math.round(wr.width), inline: cv.style.width,
+           hitCanvas: hit === cv, buf: Math.abs(cv.width - Math.round(cr.width * dpr)) <= 2 };
+});
+check('closing the Photos panel gives the canvas the whole space — no dead strip where the panel was', cvs.closedW > cvs.openW + 100 && Math.abs(cvs.closedW - cvs.wrapW) <= 2 && !cvs.inline, JSON.stringify(cvs));
+check('…a click at the far right lands on the canvas, drawn at full resolution', cvs.hitCanvas && cvs.buf, JSON.stringify(cvs));
+
 // ── the quote's roof plans: a Background picture switch ──
 const q = await pg.evaluate(async () => {
   let saves = 0; const real = window._scheduleAutosave; window._scheduleAutosave = function(){ saves++; };

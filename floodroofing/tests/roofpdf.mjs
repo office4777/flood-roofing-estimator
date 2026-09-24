@@ -284,8 +284,8 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
   check('…the bug-report copy is gone from it', !/Copy roof geometry/.test(v.menu));
   check('…and so is Switch to Site mode', !/Switch to Site mode/.test(v.menu));
   const rot = await pg.evaluate(() => ({ lbl: (document.querySelector('#rotImgWrap .rotimg-lbl') || {}).textContent || '', slider: !!document.querySelector('#rotImgWrap #fineRotateSlider'), inMenu: !!document.querySelector('#viewMenu #fineRotateSlider') }));
-  check('…while the font sizes stay, and rotating the image has its own "Rotate image" slider',
-    /Sheet text/.test(v.menu) && /Outline text/.test(v.menu) && /Rotate image/.test(rot.lbl) && rot.slider && !rot.inMenu, JSON.stringify(rot));
+  check('…while the font sizes stay, and rotating the image has its own "Rotate background image" slider',
+    /Sheet text/.test(v.menu) && /Outline text/.test(v.menu) && /Rotate background image/.test(rot.lbl) && rot.slider && !rot.inMenu, JSON.stringify(rot));
   await ctx.close();
 }
 
