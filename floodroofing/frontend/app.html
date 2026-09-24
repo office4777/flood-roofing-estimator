@@ -17516,7 +17516,7 @@ function _jobSaveSendDetached(d){
       _workingDepth = Math.max(0, _workingDepth - 1);
       window.__saveOkAt = Date.now();
       try { if (S.currentJobId === d.id && saved && saved.updated_at) S._jobLoaded = { id: d.id, updatedAt: saved.updated_at }; } catch(e){}
-      _workingFlash(d.name + ' \u2014 ' + _savedAtText().toLowerCase());
+      _workingFlash(_savedAtText() + ' \u2014 ' + d.name);
       try { if (typeof _draftMarkSyncedFor === 'function') _draftMarkSyncedFor(d.id); } catch(e){}
     }, function(err){
       if (++tries < 3 && !(err && /conflict|409|moved/i.test(String(err.message || err)))){ return new Promise(function(res){ setTimeout(res, 2500 * tries); }).then(run); }

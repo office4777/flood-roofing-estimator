@@ -182,7 +182,7 @@ check('opening another job goes ahead at once — the last one saves in the back
 await pg.waitForTimeout(3200);
 const bg = puts.filter(p => /\/jobs\/job1/.test(p.u)).pop();
 const pillAfter = await pg.evaluate(() => (document.getElementById('workingPill') || {}).textContent || '');
-check('…the save lands with THAT job’s work, and the pill says it was saved', !!bg && JSON.stringify(bg.body.draw_state.state.quote.custDesc) === '["Typed just before switching"]' && /Saved/.test(pillAfter), pillAfter);
+check('…the save lands with THAT job’s work, and the pill says it was saved', !!bg && JSON.stringify(bg.body.draw_state.state.quote.custDesc) === '["Typed just before switching"]' && /Saved \d/.test(pillAfter), pillAfter);
 putDelay = 0;
 
 // ── push to Fergus: Cancel ──
