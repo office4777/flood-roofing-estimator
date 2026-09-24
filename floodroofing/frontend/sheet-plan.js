@@ -5516,15 +5516,20 @@ function _renderRoofSheetPlanInner() {
     return best;
   }
   function _sgmSplit(uLo, uHi, runAt){
-    var N = 160, regions = [], regStart = uLo, regRuns = [], have = false;
+    var N = 160, regions = [], regStart = uLo, regRuns = [], have = false, prev = null;
     for (var i = 0; i <= N; i++){
       var u = uLo + (uHi-uLo)*(i/N);
       var run = runAt(u);
       var ok = (run > coverPx*0.25 && isFinite(run));
-      if (!ok){ if (have && regRuns.length) regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); have=false; regRuns=[]; continue; }
+      if (!ok){ if (have && regRuns.length) regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); have=false; regRuns=[]; prev=null; continue; }
       if (!have){ have=true; regStart=u; regRuns=[run]; }
-      else if (Math.abs(run - _sgmAvg(regRuns)) > coverPx*0.9){ regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); regStart=u; regRuns=[run]; }
+      // A STEP in the eave (report 58: a 0.45 m jog in the gutter) is its own
+      // length — the sheets over the deeper part must reach it. A sudden jump
+      // between neighbouring samples is a step; a gradual drift (a raked
+      // eave) keeps the old, coarser rule.
+      else if ((prev != null && Math.abs(run - prev) > coverPx*0.05) || Math.abs(run - _sgmAvg(regRuns)) > coverPx*0.9){ regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); regStart=u; regRuns=[run]; }
       else regRuns.push(run);
+      prev = run;
     }
     if (have && regRuns.length) regions.push({u0:regStart,u1:uHi,run:_sgmAvg(regRuns)});
     return regions;
@@ -5579,6 +5584,72 @@ function _renderRoofSheetPlanInner() {
     // longer region.
     return { per: per, colOf: colOf, u0: u0 };
   }
+  // A GUTTER THE RIDGE NEVER REACHES (report 58): a block off the end of the
+  // ridge — the owner's top-left corner, sheeted from its gutter up to a head
+  // barge — had no sheets at all, because every gable face is measured from
+  // the ridge outwards. Each gutter parallel to the ridge is walked; along the
+  // stretches no ridge (or broken-ridge piece) spans, its sheets run from the
+  // gutter into the roof to the far edge, counted as one face like a mono.
+  // A band already counted from another gutter is not counted twice.
+  function _sgmUncoveredGutters(mkSec, addGroup){
+    var rl = DRAW.lines.filter(function(l){ return l && l.pts && l.pts.length===2 && (l.type==='ridge' || (l.ridgeChain && l.breakRole==='mid')); });
+    if (!rl.length) return;
+    var a0 = rl[0].pts[0], b0 = rl[0].pts[1], L0 = Math.hypot(b0[0]-a0[0], b0[1]-a0[1]); if (!(L0 > 0)) return;
+    var R = [(b0[0]-a0[0])/L0, (b0[1]-a0[1])/L0], perp = [-R[1], R[0]];
+    var spans = rl.map(function(l){ var ua = l.pts[0][0]*R[0]+l.pts[0][1]*R[1], ub = l.pts[1][0]*R[0]+l.pts[1][1]*R[1]; return [Math.min(ua,ub), Math.max(ua,ub)]; });
+    var covered = function(u){ return spans.some(function(sp){ return u >= sp[0] - 1 && u <= sp[1] + 1; }); };
+    function inPoly(x, y){
+      var n = outline.length, inside = false;
+      for (var i = 0, j = n - 1; i < n; j = i++){
+        var xi = outline[i][0], yi = outline[i][1], xj = outline[j][0], yj = outline[j][1];
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi)) inside = !inside;
+      }
+      return inside;
+    }
+    var done = [];
+    DRAW.lines.filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; }).forEach(function(g){
+      var a = g.pts[0], b = g.pts[1], gL = Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if (gL < coverPx*0.3) return;
+      if (Math.abs(((b[0]-a[0])/gL)*R[0] + ((b[1]-a[1])/gL)*R[1]) < 0.95) return;   // not along the ridge
+      var gP = a[0]*perp[0]+a[1]*perp[1];
+      var gm = [(a[0]+b[0])/2, (a[1]+b[1])/2];
+      var side = inPoly(gm[0] + perp[0]*2, gm[1] + perp[1]*2) ? 1 : -1;
+      var ua = a[0]*R[0]+a[1]*R[1], ub = b[0]*R[0]+b[1]*R[1], uLo = Math.min(ua,ub), uHi = Math.max(ua,ub);
+      // the stretches of this gutter no ridge spans
+      var N = 120, runs = [], st = null;
+      for (var i = 0; i <= N; i++){
+        var u = uLo + (uHi-uLo)*(i/N), c = covered(u);
+        if (!c && st == null) st = u;
+        if ((c || i === N) && st != null){ var e = c ? u : uHi; if (e - st > coverPx*0.3) runs.push([st, e]); st = null; }
+      }
+      runs.forEach(function(rg){
+        function ray(u){ var x = u*R[0]+gP*perp[0], y = u*R[1]+gP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        var regs = _sgmSplit(rg[0], rg[1], ray);
+        if (!regs.length) return;
+        var v0 = gP, v1 = gP + side * regs[0].run, lo = Math.min(v0, v1), hi = Math.max(v0, v1);
+        if (done.some(function(d){ return Math.abs(d.u0 - rg[0]) < coverPx*0.3 && Math.abs(d.u1 - rg[1]) < coverPx*0.3 && Math.abs(d.lo - lo) < coverPx*0.3 && Math.abs(d.hi - hi) < coverPx*0.3; })) return;
+        done.push({ u0: rg[0], u1: rg[1], lo: lo, hi: hi });
+        var fc = _sgmFaceCols(regs);
+        if (!fc) return;
+        regs.forEach(function(reg, k){
+          var n = fc.per[k]; if (!n) return;
+          var i0 = fc.colOf.indexOf(k);
+          var cu0 = fc.u0 + i0 * coverPx, cu1 = cu0 + n * coverPx;
+          var sec = mkSec(R, cu0, cu1, gP, side*reg.run, n, n, true);
+          sec.vHigh = gP + side*reg.run;   // the far edge is the high one
+          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), n, sec);
+        });
+      });
+    });
+  }
+  var _sgmRoofLinesCache = null;
+  function _sgmRoofLines(){
+    if (_sgmRoofLinesCache) return _sgmRoofLinesCache;
+    var keep = { ridge:1, hip:1, valley:1, apron:1, barge:1, changepitch:1 };
+    _sgmRoofLinesCache = (DRAW.lines || []).filter(function(l){ return l && keep[l.type] && l.pts && l.pts.length === 2; })
+      .map(function(l){ return { type: l.type, pts: [l.pts[0].slice(), l.pts[1].slice()] }; });
+    return _sgmRoofLinesCache;
+  }
   function _enumSimpleGableMono(){
     var checkSecs = [], isMono = (_rspType === 'mono'), isDutch = (_rspType === 'dutch');
     function addGroup(mm, cnt, sec){
@@ -5601,7 +5672,11 @@ function _renderRoofSheetPlanInner() {
         // the cookie-cutter knows which way is down-slope. The mono-gutter
         // branch overrides vHigh (there `base` is the LOW gutter edge).
         gcol: COL_ORANGE, vHigh: base,
-        outline: (outline||[]).map(function(p){ return p.slice(); }), scaleM: effectiveScale };
+        outline: (outline||[]).map(function(p){ return p.slice(); }), scaleM: effectiveScale,
+        // The roof's own lines, drawn OVER the columns on the Sheet calc check
+        // (report 58: "make the roof lines show over the sheet lines so the
+        // user can visually check" — a gable's ridge was not shown at all).
+        roofLines: _sgmRoofLines() };
     }
     // Dutch gable on a NON-RECTANGULAR outline (L / T): the ridge walk
     // below mis-reads the far bar as one sideways run (sheets parallel to
@@ -5668,6 +5743,7 @@ function _renderRoofSheetPlanInner() {
         });
       });
       var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && !l.ridgeChain && l.pts && l.pts.length===2; });
+      try { _sgmUncoveredGutters(mkSec, addGroup); } catch(e){ try { console.warn('uncovered gutters:', e); } catch(_){} }
       ridges.forEach(function(rl){
         var a=rl.pts[0], b=rl.pts[1], rL=Math.hypot(b[0]-a[0], b[1]-a[1]);
         if (rL < coverPx*0.3) return;

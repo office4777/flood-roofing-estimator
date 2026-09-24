@@ -724,6 +724,19 @@ Discipline (non-negotiable):
   light `regenerateAutoRoofLines('gable')`. Picking the shape, rotating or
   changing type clears the breaks; a ridge slide or corner drag keeps them.
   `tests/ridgebreak.mjs`.
+- REPORT 58 (2026-09-25, `tests/report58.mjs`, `fixtures-report58.json`):
+  `_sgmSplit` splits a face at a STEP (a jump over 0.05 cover between
+  neighbouring samples) as well as on the old 0.9-cover drift, so sheets
+  over a jog in the gutter reach it; `_sgmUncoveredGutters` sheets the
+  stretches of a ridge-direction gutter no ridge spans (a block beside the
+  ridge's end) from the gutter to the far edge, never twice; the gable
+  builder makes a ridge-direction edge with the ridge OUTSIDE it a HEAD
+  BARGE (measured level, `_lineSlopeType`); `_bargeLenForRun` only borrows a
+  barge that starts at the ridge; gable sections carry `roofLines`, drawn
+  over the columns on the Sheet calc check in the map's colours; the map's
+  sheet measures have ONE arrow, pointing downhill at the gutter
+  (`hit.downhill`); a broken ridge's section and ends show resize cursors;
+  `_roofGeometryPayload` carries roofType/rotation/ridgeBreaks and line flags.
 - UNDO CARRIES EVERY ROOF: `_captureSnapState` syncs the active roof and
   stores `roofs` + `activeRoofIdx`; `_applySnapState` restores them and
   the active roof's scalars, then re-renders the roof bar. Before this a
