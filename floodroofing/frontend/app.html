@@ -14197,9 +14197,15 @@ async function _cpbFile(input){
     if (isPdf){
       var lines = await _cpbPdfLines(f); text = lines.join('\n');
       got = { rows: _cpbRowsFromLines(lines), supplier: '' };
-      if (got.rows.length < 5){
-        box.innerHTML = '<div class="cpb-imp"><span class="ld-ring"></span> Reading ' + esc2(f.name) + ' with the AI reader…</div>';
-        try { var ai = await _cpbAiRows(text); if (ai.rows.length > got.rows.length) got = ai; } catch(e){ console.warn('AI price list read:', e); }
+      // The AI reader only ever runs when the office presses "Read it with
+      // AI" — the privacy policy says a price list goes to an AI service only
+      // "when you press the button that does that".
+      if (!got.rows.length){
+        _CPB.pending = { file: f.name, rows: [], supplier: _cpbGuessSupplier(text, f.name), pdf: true, text: text };
+        box.innerHTML = '<div class="cpb-imp">No priced lines could be read from ' + esc2(f.name) + ' as it is laid out. ' +
+          '<button type="button" class="qa-btn qa-btn-primary" onclick="_cpbReadWithAi()">Read it with AI</button> ' +
+          '<span class="cpb-more">(the list’s text goes to an AI service to be read; nothing else does)</span></div>';
+        return;
       }
     } else {
       text = await f.text();
@@ -14229,7 +14235,7 @@ function _cpbRenderPending(){
     '<label class="cpb-imp-auto"><input type="checkbox" id="cpbImpAuto" checked data-noautosave="1"> Link lines to the RoofMap items they match by name (' + sug + ' found) — you can change any link afterwards. A link you already set is never changed.</label>' +
     '<div class="cpb-imp-prev">' + P.rows.slice(0, 8).map(function(r){ return '<div>' + esc2(r.code ? r.code + ' · ' : '') + esc2(r.desc) + ' <span>' + esc2(r.unit) + ' $' + r.price.toFixed(2) + '</span></div>'; }).join('') + (P.rows.length > 8 ? '<div class="cpb-more">… and ' + (P.rows.length - 8) + ' more</div>' : '') + '</div>' +
     '<div class="cpb-imp-ft">' +
-      (P.pdf ? '<button type="button" class="qa-btn" onclick="_cpbReadWithAi()">Read it with AI instead</button>' : '') +
+      (P.pdf ? '<button type="button" class="qa-btn" onclick="_cpbReadWithAi()" title="The list’s text goes to an AI service to be read">' + (P.rows.length < 5 ? 'Few lines read — read it with AI' : 'Read it with AI instead') + '</button>' : '') +
       '<span style="flex:1"></span>' +
       '<button type="button" class="qa-btn" onclick="_CPB.pending=null;document.getElementById(\'cpbImport\').innerHTML=\'\'">Discard</button>' +
       '<button type="button" class="qa-btn qa-btn-primary" id="cpbImpApply" onclick="_cpbApplyImport()">Add to my price book</button>' +

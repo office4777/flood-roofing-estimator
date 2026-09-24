@@ -360,8 +360,10 @@ Discipline (non-negotiable):
   2026-09-24, `set-custompb`, `_cpb*`): `price_book.custom_book` =
   `{items:[{id, code, desc, unit, supplier, cost, markup, replaces}],
   defaultMarkup, editedAt, acct}`. Upload a CSV (columns found by name, or
-  by content) or a PDF (pdf.js text lines, `_cpbRowsFromLines`; under five
-  lines found → the AI reader `_cpbAiRows` over `/claude`, text only); the
+  by content) or a PDF (pdf.js text lines, `_cpbRowsFromLines`; the AI
+  reader `_cpbAiRows` over `/claude`, text only, runs ONLY on the "Read it
+  with AI" button — the privacy policy's words; `tests/legal.mjs` counts the
+  call sites); the
   supplier is read from the file/filename (`_cpbGuessSupplier`); a preview
   says new / re-priced / unchanged, and the same supplier + code (or
   description) RE-PRICES an existing item keeping its mark-up and link.

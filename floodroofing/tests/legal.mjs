@@ -70,8 +70,11 @@ check('the AI is only ever called from a route the user triggers',
   /app\.post\('\/claude\/\*', requireAuth/.test(server),
   'the /claude proxy requires auth');
 const aiCalls = (app.match(/claudeCall\(/g) || []).length;
+// Roof images and supplier price lists — the two things the policy names.
+// The price lists are read in two places: the old price-file reader and the
+// Custom Price Book's "Read it with AI" (2026-09-24, button-only).
 check('…and only from the two places the policy names',
-  aiCalls === 3, aiCalls - 1 + ' call sites (roof trace, price list)');
+  aiCalls === 4, aiCalls - 1 + ' call sites (roof trace, price list, Custom Price Book price list)');
 check('…which the policy says out loud',
   /only when you press the button/.test(privacy) && /not used to train/i.test(privacy));
 
