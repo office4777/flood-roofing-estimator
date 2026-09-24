@@ -58,11 +58,14 @@ await pg.waitForTimeout(2600);
 // ── it is there, and it is out of the way until wanted ────────────
 let v = await pg.evaluate(() => {
   const c = document.getElementById('roofHistoryCard');
-  return { exists: !!c, open: c ? c.open : null, tab: c ? !!c.closest('#tab-roof') : false };
+  return { exists: !!c, open: c ? c.open : null, inHistory: c ? !!c.closest('#jobHistModal') : false, onMapRoof: !!document.querySelector('#tab-roof #roofHistoryCard') };
 });
 check('the job carries a roof map history panel', v.exists);
 check('…collapsed until it is wanted', v.open === false, String(v.open));
-check('…on the Map Roof tab, where you notice a map has gone', v.tab, String(v.tab));
+// Moved off the Map Roof tab into the History popup (2026-09-25: the owner
+// wanted the box gone from Map Roof — it is kept, folded, beside job history).
+check('…in the History popup, off the Map Roof tab', v.inHistory && !v.onMapRoof, JSON.stringify(v));
+await pg.evaluate(() => _jobHistoryOpen());
 
 // Open the card, the way anyone reading their history has to. Until this
 // ship the Map Roof panel was hidden at boot, so a collapsed <details> still

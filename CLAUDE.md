@@ -440,6 +440,35 @@ Discipline (non-negotiable):
   push checks between steps; after Fergus created the new version it is
   voided again and the rev restored; the create request is never aborted.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
+- MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
+  always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
+  hidden); Roof map history moved into the History popup (`#jobHistModal`,
+  folded) — it is the door onto the job's backups, so it is kept. The
+  BUILDING OUTLINE tool never selects a line on its first click (only the
+  section tool does). THE MEASURING TAPE (`#btn-tape`, tool `tape`):
+  `DRAW.tapes = [{a, b}]` in image px (saved in the draw block, in undo,
+  cleared by clearAll), click-click placement snapped level/plumb (Shift =
+  free), drawn by `_tapeRender` (grey, end ticks, outward arrows, the length);
+  selected (`DRAW.selTape`) it has end handles, a rotate handle (turns about
+  its middle, keeps its length, catches square angles) and a red ✕; drag the
+  line to move; Delete/Esc. `_tapeMouseDown/Move/Up/Click` come first in the
+  canvas handlers; it is a drawing aid, nothing counts it.
+- PRICING, 2026-09-25 (`tests/pricebookpick.mjs`): any material row's
+  $/unit is an input — a price typed for THIS job (`MATERIAL_OVERRIDES[k]
+  .price`, read by `_matOvPrice` at every site: the table, the materials
+  total, the job bar, the Fergus lines). MATERIAL_OVERRIDES /
+  MATERIAL_DELETED are now SAVED with the job (`state.matOv` / `matDel`),
+  reset on restore and clearAll (they used to leak into the next job and die
+  on reload). Custom lines are qty × unit (`amount` stays the total every
+  reader uses; old lines read as 1 × amount; `_qCustomNorm`), and their
+  autosave works (it called a missing `autosaveJob`). "📖 Add from price
+  book" beside every "+ Add custom line" opens THE PRICE BOOK WINDOW
+  (`_pbPickOpen(area)`, `#pbkModal`): Custom Price Book items with search,
+  folders on the left (`custom_book.folders`, item `.folder`), edit mode with
+  Add folder / ✎ / ✕, Ctrl/Shift selection and drag onto a folder (or move
+  to…), and a Defaults tab whose "Change default item" links an item to a
+  RoofMap default (`_cpbLink`). Also on Settings → Custom Price Book as
+  "Folders & defaults".
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

@@ -3795,6 +3795,61 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .cpb-danger{ margin-top:8px; }
 .cpb-link-btn{ border:none; background:none; color:#b42318; font-size:12px; cursor:pointer; text-decoration:underline; padding:0; }
 input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; border-color:#9ccfeb!important; cursor:not-allowed; }
+.mat-price-in{ display:flex; align-items:center; gap:2px; }
+.mat-price-in input{ width:100%; min-width:62px; font-size:12px; padding:4px 5px; text-align:right; }
+.mat-price-in input.mat-price-ov{ border-color:#7c3aed; color:#6d28d9; font-weight:700; }
+/* The price book window (Add from price book / Folders & defaults) */
+#pbkModal{ position:fixed; inset:0; background:rgba(10,22,40,.5); z-index:100005; display:flex; align-items:center; justify-content:center; padding:16px; }
+.pbk-box{ background:#fff; border-radius:14px; width:100%; max-width:960px; height:min(84vh,760px); display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; overflow:hidden; }
+.pbk-hd{ display:flex; align-items:center; gap:10px; padding:14px 16px 8px; }
+.pbk-hd b{ font-size:16px; color:#0a1628; }
+.pbk-tabs{ display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.pbk-tabs button{ padding:6px 14px; border:none; background:#fff; color:#475569; font:600 12.5px inherit; cursor:pointer; }
+.pbk-tabs button.on{ background:#0a1628; color:#fff; }
+#pbkSearch{ flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; margin:0; }
+.pbk-edit{ padding:7px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; color:#0a1628; font:600 12.5px inherit; cursor:pointer; white-space:nowrap; }
+.pbk-edit.on{ background:#15803d; color:#fff; border-color:#15803d; }
+.pbk-x{ border:none; background:#f1f5f9; border-radius:8px; width:30px; height:30px; cursor:pointer; color:#475569; }
+.pbk-sub{ padding:0 16px 8px; font-size:12px; color:#64748b; }
+.pbk-main{ flex:1; display:flex; min-height:0; border-top:1px solid var(--border); }
+.pbk-left{ width:220px; flex:0 0 auto; border-right:1px solid var(--border); overflow-y:auto; padding:8px; background:#f8fafc; }
+.pbk-folder{ display:flex; align-items:center; gap:7px; padding:7px 8px; border-radius:7px; cursor:pointer; font-size:13px; color:#0a1628; }
+.pbk-folder:hover{ background:#eef2f7; }
+.pbk-folder.on{ background:#dbeafe; font-weight:700; }
+.pbk-folder.drop{ background:#bbf7d0; outline:2px dashed #15803d; }
+.pbk-fname{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pbk-fcount{ font-size:11px; color:#64748b; }
+.pbk-fbtn{ border:none; background:none; cursor:pointer; color:#475569; font-size:12px; padding:0 3px; }
+.pbk-fdel{ color:#b91c1c; }
+.pbk-addf{ margin-top:8px; width:100%; padding:7px; border:1px dashed #94a3b8; border-radius:7px; background:#fff; font:600 12.5px inherit; color:#0a1628; cursor:pointer; }
+.pbk-right{ flex:1; min-width:0; overflow-y:auto; position:relative; }
+.pbk-list{ padding:6px 8px; }
+.pbk-item{ display:grid; grid-template-columns:96px minmax(0,1fr) 56px 84px; gap:8px; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; border-bottom:1px solid #f1f5f9; user-select:none; }
+.pbk-item:hover{ background:#f0f8fb; }
+.pbk-item.sel{ background:#dbeafe; }
+.pbk-code{ color:#64748b; font-size:11.5px; overflow:hidden; text-overflow:ellipsis; }
+.pbk-desc{ font-weight:600; color:#0a1628; min-width:0; }
+.pbk-desc small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
+.pbk-unit{ color:#64748b; font-size:11.5px; }
+.pbk-price{ text-align:right; font-weight:700; color:#0a1628; }
+.pbk-selbar{ position:sticky; bottom:0; background:#0a1628; color:#fff; padding:8px 12px; font-size:12.5px; display:flex; gap:8px; align-items:center; }
+.pbk-selbar select{ padding:4px 6px; border-radius:6px; font-size:12px; margin:0; width:auto; }
+.pbk-empty{ padding:24px; text-align:center; color:#64748b; font-size:13px; }
+.pbk-defs{ padding:8px 12px; }
+.pbk-def{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 6px; border-bottom:1px solid #f1f5f9; }
+.pbk-def.linked{ background:#f0f8fb; }
+.pbk-def-main{ flex:1; min-width:220px; font-size:13px; color:#0a1628; }
+.pbk-def-main small{ margin-left:6px; color:#64748b; font-size:11px; }
+.pbk-def-now{ font-size:12px; color:#006f99; margin-top:2px; }
+.pbk-def-own{ color:#64748b; }
+.pbk-def-price{ width:80px; text-align:right; font-weight:700; font-size:13px; }
+.pbk-def-undo{ border:1px solid var(--border); background:#fff; border-radius:7px; padding:5px 9px; cursor:pointer; }
+.pbk-defpick{ flex-basis:100%; background:#fff; border:1px solid #bfe3f2; border-radius:9px; padding:8px; }
+#pbkDefSearch{ width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; margin:0 0 6px; }
+.pbk-defpick-list{ max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:3px; }
+.pbk-defpick-list button{ text-align:left; border:1px solid #edf1f5; background:#fff; border-radius:7px; padding:7px 9px; cursor:pointer; font:600 12.5px inherit; color:#0a1628; }
+.pbk-defpick-list button:hover{ background:#f0f8fb; border-color:#9ccfeb; }
+.pbk-defpick-list small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
 .qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
 .qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
@@ -5003,6 +5058,16 @@ html.qp-desk-preview .qd-top{ position:static; }
     <button onclick="_jobHistoryClose()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
   </div>
   <div id="jobHistBody" style="padding:14px 18px;overflow-y:auto;font-size:12.5px"></div>
+  <!-- ROOF MAP HISTORY (2026-09-25: moved here from the Map Roof tab — the
+       owner: "remove the whole roof map history box as I don't want it and it
+       takes up space"). It is the one door onto the job's automatic backups
+       (a map gone blank once came back from them), so it is kept, folded,
+       where job history already lives. -->
+  <details class="no-print" id="roofHistoryCard" style="margin:0 18px 14px;border-top:1px solid var(--border);padding-top:10px;max-height:45vh;overflow-y:auto" ontoggle="if(this.open) _roofHistoryLoad()">
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:#0a1628">🕓 Earlier saved versions of the drawing
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— look at one before you put it back</span></summary>
+    <div id="roofHistoryBody" style="padding:6px 2px 2px"></div>
+  </details>
 </div>
 <div class="global-job-bar no-print" id="globalJobBar" style="display:none">
   <div class="gjb-row">
@@ -5167,16 +5232,19 @@ html.qp-desk-preview .qd-top{ position:static; }
   <!-- The three questions the setup-call form used to ask, asked once here
        instead — optional, one tap to skip. See _aboutYouSync(). -->
   <div id="aboutYouCard"></div>
-  <div class="card" id="roofBgCard">
+  <!-- ALWAYS OPEN, NO FRAME (2026-09-25: "can the roof image section always
+       stay open, never collapse, also remove the big outer border … just have
+       the two boxes there"). _setRoofBg keeps it open whatever asks. -->
+  <div id="roofBgCard" style="margin-bottom:10px">
     <!-- Collapsible "set roof image" step — auto-collapses once an image
          is chosen so the drawing canvas isn't buried two screens down.
          _toggleRoofBg / _collapseRoofBg / _expandRoofBg drive it. -->
-    <div id="roofBgBar" onclick="_toggleRoofBg()" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:2px;user-select:none">
+    <div id="roofBgBar" style="display:none">
       <span style="font-weight:700;font-size:13px;color:#0a1628">📍 Roof image <span style="font-weight:400;color:var(--text2);font-size:11px">— aerial photo, drone photo or PDF plan</span></span>
       <span id="roofBgDone" style="display:none;font-size:11px;font-weight:600;color:#059669">✓ image set · click to change</span>
       <span id="roofBgChevron" style="margin-left:auto;font-size:12px;color:#94a3b8">▾</span>
     </div>
-    <div id="roofBgBody" style="margin-top:10px">
+    <div id="roofBgBody">
     <!-- Aerial finder + Upload sit SIDE BY SIDE and stay compact so the
          drawing canvas is visible the moment you open the Map Roof tab.
          The aerial card shows a static preview; clicking it opens the
@@ -5291,20 +5359,7 @@ html.qp-desk-preview .qd-top{ position:static; }
     <!-- AI extracted info — shown in canvas overlay -->
     <div id="aiInfoCard" style="display:none"></div>
 
-    <!-- ROOF MAP HISTORY -->
-    <!-- The database has kept the eight newest snapshots of every job since
-         the multi-tenant migration, and until now nothing in the app could
-         reach them: a roofer whose map went blank had a good copy sitting in
-         the database and no way to get at it. Collapsed by default — it is a
-         thing you go looking for on a bad day, not clutter on a good one. -->
-    <details class="card no-print" id="roofHistoryCard" style="margin-bottom:10px" ontoggle="if(this.open) _roofHistoryLoad()">
-      <summary class="card-hd" style="cursor:pointer;list-style:none">
-        <span class="card-dot"></span>🕓 Roof map history
-        <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">
-          — earlier saved versions of this job's drawing. Look at one before you put it back.</span>
-      </summary>
-      <div id="roofHistoryBody" style="padding:4px 2px 2px"></div>
-    </details>
+    <!-- (Roof map history moved into the History popup, 2026-09-25.) -->
 
     <!-- DRAW YOUR ROOF TOOL -->
     <div class="card" id="roofPlanCard" style="padding:0;border-radius:var(--radius-lg);overflow:visible;position:relative">
@@ -5455,6 +5510,7 @@ html.qp-desk-preview .qd-top{ position:static; }
              measurement and type its real length — the scale follows and no
              line moves. Before any scale exists (a photo or a plan with no
              aerial) there are no measurements to click, so this shows then. -->
+        <button onclick="setTool('tape')" id="btn-tape" class="tool-btn" title="Measure anything on the roof: click where it starts, click where it ends. Drag it, turn it, drag its ends; click it for the delete button.">📐 Measuring tape</button>
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Set scale</button>
         <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap;margin-left:auto"></span>
         <div style="display:flex;gap:6px">
@@ -13984,6 +14040,7 @@ function _cpbRender(){
       '<button type="button" class="qa-btn" onclick="_cpbAdd()">+ Add item</button>' +
       '<button type="button" class="qa-btn" onclick="_cpbExportCsv()">Download as CSV</button>' +
       '<button type="button" class="qa-btn" onclick="_cpbRevisions()">Earlier versions</button>' +
+      '<button type="button" class="qa-btn" onclick="_pbPickOpen(null)" title="Folders, and which of your items RoofMap prices its default lines with">\uD83D\uDCD6 Folders &amp; defaults</button>' +
       '<label class="cpb-dm">Mark-up for new items <input type="number" id="cpbDefMarkup" step="1" value="' + esc2(cb.defaultMarkup || 0) + '" oninput="_cpbSetDefaultMarkup(this.value)">%</label>' +
     '</div>' +
     '<div id="cpbImport"></div>' +
@@ -14365,6 +14422,210 @@ function _cpbReconcileOnLoad(prevRaw){
   } catch(e){}
 }
 
+// ── THE PRICE BOOK WINDOW (2026-09-25) ───────────────────────────────────
+// The owner: an "Add from price book" button beside "+ Add custom line" that
+// pops up the full price book "to select an item or search an item"; an edit
+// mode that works "like Microsoft File Explorer, where the left menu is the
+// folders, every item can be selected and dragged into a folder, multiple can
+// be selected and dragged into a folder too; the left menu has an Add folder
+// button, each folder in edit mode a little edit pencil and an x to delete";
+// and "a Defaults tab to show the default items and the ability to swap the
+// system's default item to something in the user's price book, by a Change
+// default item button which has a search".
+// The items are the Custom Price Book's (S.settings.price_book.custom_book);
+// folders are custom_book.folders = [{id, name}] and an item's `folder`. Every
+// change goes through _cpbTouch, so it is stamped, saved and kept in the
+// book's earlier versions like any other edit.
+var _PBK = { area: null, tab: 'items', folder: '__all', q: '', edit: false, sel: {}, last: null, defQ: '', defFor: null };
+function _pbkFolders(){ var cb = _cpbBook(true); if (!cb) return []; if (!Array.isArray(cb.folders)) cb.folders = []; return cb.folders; }
+function _pbPickOpen(area){
+  _PBK.area = area || null; _PBK.tab = 'items'; _PBK.q = ''; _PBK.edit = false; _PBK.sel = {}; _PBK.defFor = null;
+  var old = document.getElementById('pbkModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'pbkModal'; host.className = 'no-print';
+  host.addEventListener('click', function(e){ if (e.target === host) _pbPickClose(); });
+  document.body.appendChild(host);
+  _pbkRender();
+  setTimeout(function(){ var q = document.getElementById('pbkSearch'); if (q) q.focus(); }, 30);
+}
+function _pbPickClose(){ var m = document.getElementById('pbkModal'); if (m) m.remove(); }
+function _pbkItems(){
+  var cb = _cpbBook(); if (!cb) return [];
+  var q = _PBK.q.trim().toLowerCase(), f = _PBK.folder;
+  return cb.items.filter(function(it){
+    if (f === '__unfiled' && it.folder) return false;
+    if (f !== '__all' && f !== '__unfiled' && it.folder !== f) return false;
+    if (q && ((it.code || '') + ' ' + (it.desc || '') + ' ' + (it.supplier || '')).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+function _pbkRender(){
+  var host = document.getElementById('pbkModal'); if (!host) return;
+  var cb = _cpbBook(true) || { items: [] };
+  var folders = _pbkFolders();
+  var cnt = function(id){ return cb.items.filter(function(it){ return id === '__all' ? true : (id === '__unfiled' ? !it.folder : it.folder === id); }).length; };
+  var fRow = function(id, name, fixed){
+    var on = _PBK.folder === id;
+    return '<div class="pbk-folder' + (on ? ' on' : '') + '" data-folder="' + esc2(id) + '" onclick="_pbkFolder(\'' + esc2(id) + '\')">' +
+      '<span class="pbk-fic">' + (id === '__all' ? '📚' : (id === '__unfiled' ? '📄' : '📁')) + '</span>' +
+      '<span class="pbk-fname">' + esc2(name) + '</span><span class="pbk-fcount">' + cnt(id) + '</span>' +
+      ((_PBK.edit && !fixed) ? '<button type="button" class="pbk-fbtn" title="Rename this folder" onclick="event.stopPropagation();_pbkRenameFolder(\'' + esc2(id) + '\')">✎</button>' +
+        '<button type="button" class="pbk-fbtn pbk-fdel" title="Delete this folder (its items go back to Unfiled)" onclick="event.stopPropagation();_pbkDeleteFolder(\'' + esc2(id) + '\')">✕</button>' : '') +
+    '</div>';
+  };
+  var left = '<div class="pbk-left">' + fRow('__all', 'All items', true) + fRow('__unfiled', 'Unfiled', true) +
+    folders.map(function(f){ return fRow(f.id, f.name, false); }).join('') +
+    (_PBK.edit ? '<button type="button" class="pbk-addf" onclick="_pbkAddFolder()">+ Add folder</button>' : '') + '</div>';
+  var body;
+  if (_PBK.tab === 'defaults') body = _pbkDefaultsHtml();
+  else {
+    var items = _pbkItems();
+    var nSel = Object.keys(_PBK.sel).length;
+    body = (!cb.items.length
+      ? '<div class="pbk-empty">Your price book is empty. Upload your supplier’s price list in Settings → Pricing → Custom Price Book and every line lands here.</div>'
+      : '<div class="pbk-list">' + items.map(function(it){
+          var on = !!_PBK.sel[it.id];
+          return '<div class="pbk-item' + (on ? ' sel' : '') + '" data-item="' + esc2(it.id) + '"' + (_PBK.edit ? ' draggable="true" ondragstart="_pbkDragStart(event,\'' + esc2(it.id) + '\')"' : '') +
+            ' onclick="_pbkItemClick(event,\'' + esc2(it.id) + '\')">' +
+            '<span class="pbk-code">' + esc2(it.code || '') + '</span>' +
+            '<span class="pbk-desc">' + esc2(it.desc || '') + (it.supplier ? '<small>' + esc2(it.supplier) + '</small>' : '') + '</span>' +
+            '<span class="pbk-unit">' + esc2(it.unit || '') + '</span>' +
+            '<span class="pbk-price">' + (_cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—') + '</span>' +
+          '</div>';
+        }).join('') + (items.length ? '' : '<div class="pbk-empty">Nothing here' + (_PBK.q ? ' matches “' + esc2(_PBK.q) + '”' : '') + '.</div>') + '</div>') +
+      (_PBK.edit && nSel ? '<div class="pbk-selbar">' + nSel + ' selected — drag onto a folder, or <select onchange="_pbkMoveSel(this.value)"><option value="">move to…</option><option value="__unfiled">Unfiled</option>' +
+        folders.map(function(f){ return '<option value="' + esc2(f.id) + '">' + esc2(f.name) + '</option>'; }).join('') + '</select></div>' : '');
+  }
+  host.innerHTML = '<div class="pbk-box">' +
+    '<div class="pbk-hd"><b>Price book</b>' +
+      '<div class="pbk-tabs"><button type="button" class="' + (_PBK.tab === 'items' ? 'on' : '') + '" onclick="_pbkTab(\'items\')">Items</button><button type="button" class="' + (_PBK.tab === 'defaults' ? 'on' : '') + '" onclick="_pbkTab(\'defaults\')">Defaults</button></div>' +
+      (_PBK.tab === 'items' ? '<input type="search" id="pbkSearch" placeholder="Search code, description or supplier" value="' + esc2(_PBK.q) + '" oninput="_PBK.q=this.value;_pbkRenderKeep()">' : '<span style="flex:1"></span>') +
+      (_PBK.tab === 'items' ? '<button type="button" class="pbk-edit' + (_PBK.edit ? ' on' : '') + '" onclick="_pbkToggleEdit()">' + (_PBK.edit ? '✓ Done editing' : '✎ Edit folders') + '</button>' : '') +
+      '<button type="button" class="pbk-x" onclick="_pbPickClose()" title="Close">✕</button>' +
+    '</div>' +
+    '<div class="pbk-sub">' + (_PBK.tab === 'defaults' ? 'The items RoofMap prices every job with. Change one to an item from your price book and it is priced from that item from now on.'
+      : (_PBK.edit ? 'Click to select (Ctrl-click for more, Shift-click for a run), then drag onto a folder on the left.' : (_PBK.area ? 'Click an item to add it to this job as a line, at its price.' : 'Your price book.'))) + '</div>' +
+    '<div class="pbk-main">' + (_PBK.tab === 'items' ? left : '') + '<div class="pbk-right">' + body + '</div></div>' +
+  '</div>';
+  // folders take drops
+  host.querySelectorAll('.pbk-folder').forEach(function(el){
+    el.addEventListener('dragover', function(e){ if (_PBK.edit){ e.preventDefault(); el.classList.add('drop'); } });
+    el.addEventListener('dragleave', function(){ el.classList.remove('drop'); });
+    el.addEventListener('drop', function(e){ e.preventDefault(); el.classList.remove('drop'); _pbkMoveSel(el.getAttribute('data-folder')); });
+  });
+}
+// Re-render while typing in the search box without losing it.
+function _pbkRenderKeep(){
+  var q = document.getElementById('pbkSearch'), pos = q ? q.selectionStart : 0;
+  _pbkRender();
+  var q2 = document.getElementById('pbkSearch'); if (q2){ q2.focus(); try { q2.setSelectionRange(pos, pos); } catch(e){} }
+}
+function _pbkTab(t){ _PBK.tab = t; _PBK.defFor = null; _pbkRender(); }
+function _pbkFolder(id){ _PBK.folder = id; _PBK.sel = {}; _pbkRender(); }
+function _pbkToggleEdit(){ _PBK.edit = !_PBK.edit; _PBK.sel = {}; _pbkRender(); }
+function _pbkItemClick(e, id){
+  if (!_PBK.edit){ _pbkAddToJob(id); return; }
+  var ids = _pbkItems().map(function(it){ return it.id; });
+  if (e.shiftKey && _PBK.last){
+    var a = ids.indexOf(_PBK.last), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0){ var lo = Math.min(a, b), hi = Math.max(a, b); for (var i = lo; i <= hi; i++) _PBK.sel[ids[i]] = true; }
+  } else if (e.ctrlKey || e.metaKey){ if (_PBK.sel[id]) delete _PBK.sel[id]; else _PBK.sel[id] = true; }
+  else { _PBK.sel = {}; _PBK.sel[id] = true; }
+  _PBK.last = id;
+  _pbkRender();
+}
+function _pbkDragStart(e, id){
+  if (!_PBK.sel[id]){ _PBK.sel = {}; _PBK.sel[id] = true; }
+  try { e.dataTransfer.setData('text/plain', Object.keys(_PBK.sel).join(',')); e.dataTransfer.effectAllowed = 'move'; } catch(_){}
+}
+function _pbkMoveSel(folder){
+  if (!folder) return;
+  var cb = _cpbBook(true); if (!cb) return;
+  var n = 0;
+  cb.items.forEach(function(it){ if (_PBK.sel[it.id]){ if (folder === '__unfiled' || folder === '__all') delete it.folder; else it.folder = folder; n++; } });
+  if (!n) return;
+  _PBK.sel = {};
+  _cpbTouch();
+  _pbkRender();
+}
+function _pbkAddFolder(){
+  var name = prompt('Name the new folder', 'New folder');
+  if (!name || !String(name).trim()) return;
+  var f = { id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: String(name).trim().slice(0, 60) };
+  _pbkFolders().push(f);
+  _cpbTouch(); _pbkRender();
+}
+function _pbkRenameFolder(id){
+  var f = _pbkFolders().filter(function(x){ return x.id === id; })[0]; if (!f) return;
+  var name = prompt('Rename the folder', f.name);
+  if (!name || !String(name).trim()) return;
+  f.name = String(name).trim().slice(0, 60);
+  _cpbTouch(); _pbkRender();
+}
+function _pbkDeleteFolder(id){
+  var cb = _cpbBook(true); var f = _pbkFolders().filter(function(x){ return x.id === id; })[0]; if (!f) return;
+  var n = cb.items.filter(function(it){ return it.folder === id; }).length;
+  if (!confirm('Delete the folder “' + f.name + '”?' + (n ? '\n\nIts ' + n + ' item' + (n === 1 ? '' : 's') + ' go back to Unfiled — nothing is deleted from your price book.' : ''))) return;
+  cb.items.forEach(function(it){ if (it.folder === id) delete it.folder; });
+  cb.folders = _pbkFolders().filter(function(x){ return x.id !== id; });
+  if (_PBK.folder === id) _PBK.folder = '__all';
+  _cpbTouch(); _pbkRender();
+}
+// A price book item onto the job, as a custom line in the area it was asked from.
+function _pbkAddToJob(id){
+  var it = _cpbItem(id); if (!it) return;
+  var area = _PBK.area || 'material';
+  var unit = _cpbSell(it);
+  _qAddCustom(area, { desc: ((it.code ? it.code + ' ' : '') + (it.desc || '')).trim(), qty: 1, unit: unit, uom: it.unit || '', amount: Math.round(unit * 100) / 100, cpbId: it.id });
+  _pbPickClose();
+}
+// ── the Defaults tab ──
+function _pbkDefaultsHtml(){
+  var pb = (S.settings && S.settings.price_book) || {};
+  var rows = _cpbTargets().map(function(t){
+    var linked = _cpbLinkedBy(t.path);
+    var price = String(t.path).indexOf('sheet:') === 0
+      ? ((pb.sheets || []).filter(function(s){ return s && s.product === t.path.slice(6); })[0] || {}).price
+      : _pbReadPath(pb, t.path);
+    var picking = _PBK.defFor === t.path;
+    return '<div class="pbk-def' + (linked ? ' linked' : '') + '">' +
+      '<div class="pbk-def-main"><b>' + esc2(t.label) + '</b><small>' + esc2(t.unit) + '</small>' +
+        (linked ? '<div class="pbk-def-now">→ ' + esc2((linked.code ? linked.code + ' ' : '') + (linked.desc || '')) + (linked.supplier ? ' · ' + esc2(linked.supplier) : '') + '</div>' : '<div class="pbk-def-now pbk-def-own">RoofMap’s own item</div>') + '</div>' +
+      '<span class="pbk-def-price">' + ((parseFloat(price) || 0) > 0 ? '$' + (+price).toFixed(2) : '<span style="color:#b91c1c">no price</span>') + '</span>' +
+      '<button type="button" class="qa-btn" onclick="_pbkDefPick(\'' + esc2(t.path) + '\')">' + (picking ? 'Close' : 'Change default item') + '</button>' +
+      (linked ? '<button type="button" class="pbk-def-undo" title="Price it from RoofMap’s own item again" onclick="_pbkDefSet(\'' + esc2(t.path) + '\',\'\')">↺</button>' : '') +
+      (picking ? _pbkDefSearchHtml(t.path) : '') +
+    '</div>';
+  }).join('');
+  return '<div class="pbk-defs">' + rows + '</div>';
+}
+function _pbkDefSearchHtml(path){
+  var cb = _cpbBook(); var q = _PBK.defQ.trim().toLowerCase();
+  var list = (cb ? cb.items : []).filter(function(it){ return !q || ((it.code || '') + ' ' + (it.desc || '') + ' ' + (it.supplier || '')).toLowerCase().indexOf(q) >= 0; }).slice(0, 40);
+  return '<div class="pbk-defpick">' +
+    '<input type="search" id="pbkDefSearch" placeholder="Search your price book" value="' + esc2(_PBK.defQ) + '" oninput="_PBK.defQ=this.value;_pbkDefRefresh()">' +
+    '<div class="pbk-defpick-list">' + (list.length ? list.map(function(it){
+      return '<button type="button" onclick="_pbkDefSet(\'' + esc2(path) + '\',\'' + esc2(it.id) + '\')">' + esc2((it.code ? it.code + ' ' : '') + (it.desc || '')) + '<small>' + esc2(it.supplier || '') + ' · ' + (_cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—') + '</small></button>';
+    }).join('') : '<div class="pbk-empty">Nothing matches.</div>') + '</div></div>';
+}
+function _pbkDefPick(path){ _PBK.defFor = (_PBK.defFor === path) ? null : path; _PBK.defQ = ''; _pbkRender(); setTimeout(function(){ var q = document.getElementById('pbkDefSearch'); if (q) q.focus(); }, 30); }
+function _pbkDefRefresh(){
+  var box = document.querySelector('.pbk-defpick-list'), q = document.getElementById('pbkDefSearch');
+  if (!box || !_PBK.defFor) return;
+  var tmp = document.createElement('div'); tmp.innerHTML = _pbkDefSearchHtml(_PBK.defFor);
+  box.innerHTML = tmp.querySelector('.pbk-defpick-list').innerHTML;
+  if (q) q.focus();
+}
+function _pbkDefSet(path, id){
+  var cb = _cpbBook(true); if (!cb) return;
+  if (id) _cpbLink(id, path);
+  else { var cur = _cpbLinkedBy(path); if (cur){ cur.replaces = ''; _cpbTouch(); } }
+  _PBK.defFor = null;
+  try { renderPriceBookUI(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  _pbkRender();
+}
+
 // ── MATERIALS COST FROM PRICE BOOK ──────────────────────────────
 // Reads the live drawn quantities + the user's price book and returns
 // { total, breakdown:[{desc, qty, unit, price, lineTotal, note}] }.
@@ -14516,26 +14777,46 @@ function _matOvKey(key, idx){
   if (idx == null) { try { idx = _pricingRoofIdx(); } catch(e){ idx = 0; } }
   return idx + ':' + key;
 }
+// A PRICE TYPED FOR THIS JOB (2026-09-25: "allow the price to be adjusted
+// manually for a specific job in case there's no price set and I'm in a
+// rush"). It beats the price book for this row on this job only; every
+// reader of a row's price goes through here (the table, the materials total,
+// the job bar, the Fergus lines).
+function _matOvPrice(ov, bookPrice){
+  var v = ov && ov.price;
+  if (v == null || v === '') return bookPrice;
+  var n = parseFloat(v);
+  return (isFinite(n) && n >= 0) ? n : bookPrice;
+}
+// The table's edits (quantities, variants, typed prices, deleted rows) belong
+// to the JOB: saved with it (snapshotCurrentJob state.matOv / matDel) and put
+// back when it opens. They used to live only in memory, lost on a reload and
+// carried into the next job opened.
 function _resetMatOverride(key){
   delete MATERIAL_OVERRIDES[key];
   delete MATERIAL_DELETED[key];
   renderMaterialPriceTable(); try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function _onMatOverride(key, field, value){
   if (!MATERIAL_OVERRIDES[key]) MATERIAL_OVERRIDES[key] = {};
-  MATERIAL_OVERRIDES[key][field] = value;
+  if (field === 'price' && (value === '' || value == null)) delete MATERIAL_OVERRIDES[key].price;
+  else MATERIAL_OVERRIDES[key][field] = value;
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function _deleteMatRow(key){
   MATERIAL_DELETED[key] = true;
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function restoreDeletedMatRows(){
   MATERIAL_DELETED = {};
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function openPriceSettings(){
   gotoTab('settings');
@@ -14960,7 +15241,7 @@ function renderMaterialPriceTable(){
     var ov = MATERIAL_OVERRIDES[_ovk] || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
-    var price = picked ? picked.price : 0;
+    var price = _matOvPrice(ov, picked ? picked.price : 0);
     var unit  = picked ? picked.unit : r.autoUnit;
     var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
     var qty   = _matOrderQty(qtyRaw, unit);
@@ -14974,7 +15255,8 @@ function renderMaterialPriceTable(){
     optsHtml += '<option disabled style="color:#999;font-style:italic">— Add Options In Price Settings —</option>';
 
     var ovBadge = (ov.qty != null && ov.qty !== '') ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '';
-    var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null) ? '<button onclick="_resetMatOverride(\''+_ovk+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
+    var _pOv = (ov.price != null && ov.price !== '');
+    var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null || _pOv) ? '<button onclick="_resetMatOverride(\''+_ovk+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
     var custom   = r.isCustom ? ' <span style="font-size:9px;color:#0891b2;text-transform:uppercase;letter-spacing:.05em;font-weight:700">custom</span>' : '';
 
     // A material with no price against it. The line prices at nothing and
@@ -14998,7 +15280,10 @@ function renderMaterialPriceTable(){
         '</div>'+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
       '</td>'+
-      '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>$'+(price||0).toFixed(2)+'</td>'+
+      '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>'+
+        '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" data-price-key="'+esc(r.key)+'" value="'+(price||0).toFixed(2)+'" title="The price for THIS job \u2014 type over it if the price book has none; \u21BB puts the price book\u2019s back" onchange="_onMatOverride(\''+_ovk+'\',\'price\',this.value)"'+(_pOv ? ' class="mat-price-ov"' : '')+'></div>'+
+        (_pOv ? '<div style="font-size:9px;color:#7c3aed;font-weight:700;margin-top:2px">THIS JOB</div>' : '')+
+      '</td>'+
       '<td style="text-align:right;font-weight:600'+(_zero ? ';color:#b91c1c' : '')+'">$'+lineTotal.toFixed(2)+'</td>'+
       '<td><button onclick="_deleteMatRow(\''+_ovk+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
@@ -15178,7 +15463,7 @@ function _materialsTotalFromRows(rows, idx){
     var unit = picked ? picked.unit : r.autoUnit;
     var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
     var qty = _matOrderQty(qtyRaw, unit);
-    var price = picked ? picked.price : 0;
+    var price = _matOvPrice(ov, picked ? picked.price : 0);
     total += (qty || 0) * (price || 0);
   });
   return total * (1 + _roofMatQtyBufferPct(idx) / 100) * (1 + _roofMatMarkupPct(idx) / 100);
@@ -16397,6 +16682,7 @@ function snapshotCurrentJob(){
              condition:S.condition, photos:S.photos, files:S.files, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
              clearliteMaterial:S.clearliteMaterial||'fibreglass', jpFlashTypeOff:S.jpFlashTypeOff||{},
+             matOv: (typeof MATERIAL_OVERRIDES === 'object' ? MATERIAL_OVERRIDES : {}), matDel: (typeof MATERIAL_DELETED === 'object' ? MATERIAL_DELETED : {}),
              // The job pack's own state: its pages and which roofs it covers.
              jobPack:S.jobPack||null,
              orderSent:S.orderSent||null },
@@ -16421,7 +16707,7 @@ function snapshotCurrentJob(){
             sheetGroupQtyOverrides:DRAW.sheetGroupQtyOverrides||{},
             sheetLabelOffsets:DRAW.sheetLabelOffsets||{},
             sheetTextScale:DRAW.sheetTextScale||{},
-            manualSheetMeasures:DRAW.manualSheetMeasures||[],
+            manualSheetMeasures:DRAW.manualSheetMeasures||[], tapes:DRAW.tapes||[],
             sheetOverrides:DRAW.sheetOverrides||{},
             matSheetExtras:DRAW.matSheetExtras||[],
             matSheetFrozen:DRAW.matSheetFrozen||null,
@@ -16495,6 +16781,11 @@ function restoreFromJob(j){
     // decision gets the default, not the last job's.
     S.jpFlashTypeOff = {};
     S.clearliteMaterial = 'fibreglass';
+    // The pricing table's edits: this job's, or none — never the last job's.
+    try {
+      MATERIAL_OVERRIDES = (snap.state.matOv && typeof snap.state.matOv === 'object') ? JSON.parse(JSON.stringify(snap.state.matOv)) : {};
+      MATERIAL_DELETED = (snap.state.matDel && typeof snap.state.matDel === 'object') ? JSON.parse(JSON.stringify(snap.state.matDel)) : {};
+    } catch(e){ MATERIAL_OVERRIDES = {}; MATERIAL_DELETED = {}; }
     // And the picture itself (report 53: "opened this job and the previous
     // job's uploaded picture was there"). Object.assign only overwrites keys
     // the incoming job HAS — a job with no picture left the last job's img64
@@ -16551,6 +16842,7 @@ function restoreFromJob(j){
     DRAW.sheetLabelOffsets = snap.draw.sheetLabelOffsets || {};
     DRAW.sheetTextScale = snap.draw.sheetTextScale || {};
     DRAW.manualSheetMeasures = snap.draw.manualSheetMeasures || [];
+    DRAW.tapes = Array.isArray(snap.draw.tapes) ? snap.draw.tapes : []; DRAW.selTape = -1;
     DRAW.sheetOverrides = snap.draw.sheetOverrides || {};
     DRAW.matSheetExtras = snap.draw.matSheetExtras || [];
     DRAW.matSheetFrozen = snap.draw.matSheetFrozen || null;
@@ -16918,7 +17210,7 @@ function updateGlobalJobBarCosts(){
         var variant = (ov.variant != null) ? ov.variant : r.defaultVariant;
         var picked = r.variants && r.variants.find(function(v){ return v.value === variant; });
         var qty = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
-        var price = picked ? picked.price : 0;
+        var price = _matOvPrice(ov, picked ? picked.price : 0);
         gutterTotal += (qty||0) * (price||0);
       }
     });
@@ -20668,6 +20960,7 @@ function _roofPrevToCanvas(){
 // canvas, then they just push the drawing surface down. Collapse them
 // once an image is set (leaving a thin "change" bar), expand on demand.
 function _setRoofBg(open){
+  open = true;   // never folds any more (2026-09-25)
   var body = document.getElementById('roofBgBody');
   var chev = document.getElementById('roofBgChevron');
   var done = document.getElementById('roofBgDone');
@@ -32271,11 +32564,30 @@ function _qCustom(area){
   return S.quote.customLines[area];
 }
 function _qCustomTotal(area){ return _qCustom(area).reduce(function(s,r){ return s + (parseFloat(r&&r.amount)||0); }, 0); }
-function _qAddCustom(area){ _qCustom(area).push({ desc:'', amount:0 }); _qCustomChanged(area, false); }
+// QUANTITY × UNIT PRICE (2026-09-25: a custom line "needs to have a quantity
+// and unit price just like the other set prices"). `amount` stays the line's
+// total — every reader (the materials total, the quote, profit, Fergus) reads
+// it — and is qty × unit whenever those are typed. A line from before this is
+// read as 1 × its amount.
+function _qCustomNorm(r){
+  if (!r) return r;
+  if (r.qty == null || r.unit == null){ r.qty = 1; r.unit = parseFloat(r.amount) || 0; }
+  return r;
+}
+function _qAddCustom(area, line){
+  _qCustom(area).push(line || { desc:'', qty:1, unit:0, uom:'', amount:0 });
+  _qCustomChanged(area, false);
+}
 function _qDelCustom(area, i){ var a=_qCustom(area); if(i>=0&&i<a.length) a.splice(i,1); _qCustomChanged(area, false); }
 function _qUpdCustom(area, i, field, val){
   var a=_qCustom(area); if(!a[i]) return;
-  if (field==='amount') a[i].amount = parseFloat(val)||0; else a[i].desc = val;
+  var r = _qCustomNorm(a[i]);
+  if (field==='amount'){ r.amount = parseFloat(val)||0; r.qty = 1; r.unit = r.amount; }
+  else if (field==='qty' || field==='unit'){ r[field] = parseFloat(val)||0; r.amount = Math.round((parseFloat(r.qty)||0) * (parseFloat(r.unit)||0) * 100) / 100; }
+  else if (field==='uom') r.uom = String(val||'');
+  else r.desc = val;
+  // the line's own total, live, without re-rendering (focus stays put)
+  try { document.querySelectorAll('[data-cl-total="'+area+':'+i+'"]').forEach(function(el){ el.textContent = '$' + (parseFloat(r.amount)||0).toFixed(2); }); } catch(e){}
   _qCustomChanged(area, true);   // typing — keep focus, don't re-render the section
 }
 function _qCustomChanged(area, keepFocus){
@@ -32283,7 +32595,9 @@ function _qCustomChanged(area, keepFocus){
   try { renderQuoteLines(); } catch(e){}
   try { recalcQuoteTotals(); } catch(e){}
   try { _reflectPricingInQuote(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  // (It called autosaveJob, which does not exist — custom lines only reached
+  // the server when something else saved the job.)
+  try { _scheduleAutosave(); } catch(e){}
   if (!keepFocus){
     try {
       if (area==='labour' || area==='scaffold') calcLabour();
@@ -32305,16 +32619,23 @@ function _qCustomChanged(area, keepFocus){
 // Editable custom-line rows + "add" button for a pricing area.
 function _qCustomRowsHtml(area){
   var rows = _qCustom(area).map(function(r,i){
-    return '<div style="display:flex;gap:6px;align-items:center;margin-top:5px">'+
-      '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line description" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px">'+
-      '<span style="color:var(--text2);font-size:12px;font-weight:600">$</span>'+
-      '<input type="number" step="0.01" value="'+(r.amount||'')+'" placeholder="0.00" oninput="_qUpdCustom(\''+area+'\','+i+',\'amount\',this.value)" style="width:96px;margin:0;font-size:12px;padding:6px 8px;text-align:right">'+
+    _qCustomNorm(r);
+    return '<div class="cl-row" style="display:flex;gap:6px;align-items:center;margin-top:5px">'+
+      '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line description" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px;min-width:0">'+
+      '<input type="number" step="any" min="0" value="'+(r.qty != null ? r.qty : 1)+'" title="Quantity" data-cl-qty="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'qty\',this.value)" style="width:58px;margin:0;font-size:12px;padding:6px 6px;text-align:right">'+
+      (r.uom ? '<span style="color:var(--text2);font-size:11px">'+esc(r.uom)+'</span>' : '')+
+      '<span style="color:var(--text2);font-size:12px">\u00D7 $</span>'+
+      '<input type="number" step="0.01" min="0" value="'+(r.unit != null ? r.unit : '')+'" placeholder="0.00" title="Unit price" data-cl-unit="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'unit\',this.value)" style="width:84px;margin:0;font-size:12px;padding:6px 8px;text-align:right">'+
+      '<span data-cl-total="'+area+':'+i+'" style="width:78px;text-align:right;font-size:12px;font-weight:700;color:#0a1628">$'+(parseFloat(r.amount)||0).toFixed(2)+'</span>'+
       '<button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:16px;cursor:pointer;padding:0 4px;line-height:1">×</button>'+
     '</div>';
   }).join('');
   return '<div class="pricing-custom-lines" style="margin-top:8px">'+
     rows+
-    '<button onclick="_qAddCustom(\''+area+'\')" style="margin-top:6px;padding:6px 12px;font-size:12px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
+    '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
+      '<button onclick="_qAddCustom(\''+area+'\')" style="padding:6px 12px;font-size:12px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
+      '<button onclick="_pbPickOpen(\''+area+'\')" class="cl-from-pb" style="padding:6px 12px;font-size:12px;background:#f0f8fb;color:#006f99;border:1px solid #9ccfeb;border-radius:6px;cursor:pointer;font-weight:600">\uD83D\uDCD6 Add from price book</button>'+
+    '</div>'+
   '</div>';
 }
 // Table-row variant of the custom-line UI, for pricing areas rendered as a
@@ -32325,16 +32646,21 @@ function _qCustomTableRows(area, opts){
   opts = opts || {};
   var tc = opts.totalCols || 4, dc = opts.descColspan || (tc - 2);
   var tail = Math.max(1, tc - dc - 1);
+  var wide = tc >= 6;   // the material table: Item | Variant | Qty | $/unit | Total | ✕
+  var qIn = function(r, i){ return '<input type="number" step="any" min="0" value="'+(r.qty != null ? r.qty : 1)+'" title="Quantity" data-cl-qty="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'qty\',this.value)" style="width:100%;min-width:48px;margin:0;font-size:12px;padding:4px 6px">'; };
+  var uIn = function(r, i){ return '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" value="'+(r.unit != null ? r.unit : '')+'" placeholder="0.00" title="Unit price" data-cl-unit="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'unit\',this.value)"></div>'; };
   var rows = _qCustom(area).map(function(r,i){
-    return '<tr>'+
-      '<td colspan="'+dc+'"><input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="width:100%;margin:0;font-size:12px;padding:4px 6px"></td>'+
-      '<td style="text-align:right"><div style="display:flex;align-items:center;gap:2px;justify-content:flex-end"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.01" value="'+(r.amount||'')+'" placeholder="0.00" oninput="_qUpdCustom(\''+area+'\','+i+',\'amount\',this.value)" style="width:74px;margin:0;font-size:12px;padding:4px 6px;text-align:right"></div></td>'+
-      '<td'+(tail>1?' colspan="'+tail+'"':'')+' style="text-align:center"><button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:15px;cursor:pointer;padding:0 2px;line-height:1">×</button></td>'+
-    '</tr>';
+    _qCustomNorm(r);
+    var tot = '<td style="text-align:right;font-weight:600" data-cl-total="'+area+':'+i+'">$'+(parseFloat(r.amount)||0).toFixed(2)+'</td>';
+    var del = '<td style="text-align:center"><button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:15px;cursor:pointer;padding:0 2px;line-height:1">×</button></td>';
+    var desc = '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="width:100%;margin:0;font-size:12px;padding:4px 6px">';
+    if (wide) return '<tr class="cl-row"><td colspan="'+(tc - 4)+'">'+desc+'</td><td>'+qIn(r, i)+(r.uom ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.uom)+'</div>' : '')+'</td><td>'+uIn(r, i)+'</td>'+tot+del+'</tr>';
+    return '<tr class="cl-row"><td colspan="'+Math.max(1, tc - 3)+'">'+desc+'</td><td><div style="display:flex;gap:4px;align-items:center">'+qIn(r, i)+'<span style="color:var(--text2);font-size:11px">\u00D7</span>'+uIn(r, i)+'</div></td>'+tot+del+'</tr>';
   }).join('');
-  var addRow = '<tr><td colspan="'+tc+'" style="padding-top:3px;border:none">'+
+  var addRow = '<tr><td colspan="'+tc+'" style="padding-top:3px;border:none"><div style="display:flex;gap:6px;flex-wrap:wrap">'+
     '<button onclick="_qAddCustom(\''+area+'\')" style="padding:5px 10px;font-size:11.5px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
-  '</td></tr>';
+    '<button onclick="_pbPickOpen(\''+area+'\')" class="cl-from-pb" style="padding:5px 10px;font-size:11.5px;background:#f0f8fb;color:#006f99;border:1px solid #9ccfeb;border-radius:6px;cursor:pointer;font-weight:600">\uD83D\uDCD6 Add from price book</button>'+
+  '</div></td></tr>';
   return rows + addRow;
 }
 // Silently update Labour/Materials line items from current computed
@@ -32416,7 +32742,9 @@ function _syncQuoteBaseLineItems(){
         var amt = parseFloat(row && row.amount) || 0;
         var desc = ((row && row.desc) || '').trim();
         if (!amt && !desc) return;
-        S.quote.lineItems.push({ desc: desc || ('Custom ' + area + ' item'), qty: 1, unit: amt, _custom: true, _area: area, section: 'reroof' });
+        var _cq = parseFloat(row && row.qty), _cu = parseFloat(row && row.unit);
+        var _useQ = (isFinite(_cq) && _cq > 0 && isFinite(_cu) && Math.abs(_cq * _cu - amt) < 0.01);
+        S.quote.lineItems.push({ desc: desc || ('Custom ' + area + ' item'), qty: _useQ ? _cq : 1, unit: _useQ ? _cu : amt, _custom: true, _area: area, section: 'reroof' });
       });
     });
   } catch(e){}
@@ -43141,6 +43469,7 @@ function setTool(t) {
   }
   DRAW.tool = t;
   DRAW.currentPts = [];
+  try { TAPE.start = null; TAPE.hover = null; if (t !== 'tape' && t !== 'select') DRAW.selTape = -1; } catch(e){}
   try { _inkResetRuns(); } catch(e){}
   try { _notesWireCanvas(); _notesSyncBar(); } catch(e){}
   document.querySelectorAll('.tool-btn').forEach(function(b){b.classList.remove('active-tool');});
@@ -43497,6 +43826,7 @@ document.addEventListener('keydown', function(e){
   var ae = document.activeElement;
   var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
   if(e.key==='Enter' && !inField){ e.preventDefault(); finishCurrent(); return; }
+  if(e.key==='Escape' && window.TAPE && (TAPE.start || (DRAW.selTape != null && DRAW.selTape >= 0))){ TAPE.start = null; TAPE.hover = null; DRAW.selTape = -1; redrawAll(); return; }
   if(e.key==='Escape'){
     // If the sheet-measure editor is open, Escape closes it first.
     var _smp=document.getElementById('sheetMeasPopup'); if(_smp && _smp.style.display!=='none'){ e.preventDefault(); _closeSheetMeasPopup(); return; }
@@ -43537,6 +43867,7 @@ document.addEventListener('keydown', function(e){
       }
     }
     // 2) Canvas: a selected line, penetration or roof section.
+    if(DRAW.selTape != null && DRAW.selTape >= 0 && _tab === 'roof'){ e.preventDefault(); _tapeDelete(DRAW.selTape); return; }
     if(DRAW.selectedLine>=0){ e.preventDefault(); deleteSelectedLine(); return; }
     if(DRAW.selectedPen>=0){ e.preventDefault(); deletePen(); return; }
     if(DRAW.selectedSection>=0){ e.preventDefault(); ctxDelete(); return; }
@@ -44271,6 +44602,8 @@ function onCanvasMouseDown(e) {
     e.preventDefault();
     return;
   }
+  // A measuring tape (its handles, or its line) comes first.
+  if (_tapeMouseDown(e)) return;
   // Info star drag — let the user nudge the amber star in Move
   // (select) and Info tools. Skipped in Delete (so a tap still
   // deletes the star) and in the line-drawing tools (so the click
@@ -44599,6 +44932,7 @@ function onCanvasMouseDown(e) {
 }
 
 function onCanvasMouseUp(e) {
+  if (_tapeMouseUp()) return;
   // Star-drag end — commit the pre-drag snapshot so undo restores
   // the star to its original position.
   if (DRAG_INFO_STAR) {
@@ -44854,7 +45188,7 @@ document.addEventListener('mouseup', function(e) {
     function dragActive(){
       return !!(window.DRAG_INFO_STAR || window.DRAG_EP || window.DRAG_ROOF_VIEW ||
                 window.DRAG_SHEET || window.DRAG_OUTLINE_VERT || window.DRAG_RIDGE ||
-                window.DRAG_GABLET || window.DRAG_RBREAK || (window.PAN && PAN.active));
+                window.DRAG_GABLET || window.DRAG_RBREAK || window.DRAG_TAPE || (window.PAN && PAN.active));
     }
     function maybeDblTap(e){
       var now = Date.now();
@@ -47966,6 +48300,7 @@ function _outlineSquareSnap(rawX, rawY){
 
 function onCanvasMove(e) {
   if(PAN.active) return;
+  if (_tapeMouseMove(e)) return;
   var xy = getXY(e);
   DRAW.mouseX=xy[0]; DRAW.mouseY=xy[1];
   // Drag info star — move the amber marker; leader line re-routes
@@ -48223,6 +48558,8 @@ function onCanvasClick(e) {
   PAN.totalMoved = 0;
 
   var xy = getXY(e);
+  if (DRAW.tool === 'tape'){ _tapeClick(e); return; }
+  if (DRAW.selTape != null && DRAW.selTape >= 0){ DRAW.selTape = -1; redrawAll(); }
 
   // Select tool — click to select anything
   if(DRAW.tool==='addmeas') {
@@ -48358,7 +48695,11 @@ function onCanvasClick(e) {
   }
 
   // If no current points, check selection first
-  if(DRAW.currentPts.length===0 && (DRAW.tool==='outline'||DRAW.tool==='section')) {
+  // The BUILDING OUTLINE tool never selects (2026-09-25: starting a second
+  // building on top of the first one's line selected that line instead —
+  // "it should always just start the next building outline, even if it's
+  // directly over the top of an existing line"). The section tool still does.
+  if(DRAW.currentPts.length===0 && DRAW.tool==='section') {
     var hitS = hitSection(xy[0],xy[1]);
     if(hitS>=0 && DRAW.tool==='section') { selectSection(hitS); return; }
     var hitL = hitLine(xy[0],xy[1]);
@@ -49489,6 +49830,7 @@ function _captureSnapState() {
     sheetLabelOffsets: DRAW.sheetLabelOffsets || {},
     sheetTextScale: DRAW.sheetTextScale || {},
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
+    tapes: JSON.parse(JSON.stringify(DRAW.tapes || [])),
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
     matSheetFrozen: DRAW.matSheetFrozen || null,
@@ -49548,6 +49890,7 @@ function _applySnapState(snapStr) {
   DRAW.sheetLabelOffsets = s.sheetLabelOffsets || {};
   DRAW.sheetTextScale = s.sheetTextScale || {};
   DRAW.manualSheetMeasures = s.manualSheetMeasures || [];
+  DRAW.tapes = Array.isArray(s.tapes) ? JSON.parse(JSON.stringify(s.tapes)) : (DRAW.tapes || []); DRAW.selTape = -1;
   DRAW.sheetOverrides = s.sheetOverrides || {};
   DRAW.matSheetExtras = s.matSheetExtras || [];
   DRAW.matSheetFrozen = (s.matSheetFrozen && Array.isArray(s.matSheetFrozen.rows)) ? s.matSheetFrozen : null;
@@ -49680,7 +50023,8 @@ function redoLast() {
 function clearAll(silent) {
   if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   try { _lkgForget(); } catch(e){}   // asked for — an empty save is now correct
-  DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[];
+  DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[]; DRAW.tapes=[]; DRAW.selTape=-1;
+  try { MATERIAL_OVERRIDES = {}; MATERIAL_DELETED = {}; } catch(e){}
   DRAW.currentPts=[]; DRAW.outlineDone=false;
   try { _inkResetRuns(); } catch(e){}
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
@@ -52220,12 +52564,193 @@ function redrawAll() {
     ctx.restore();
   }
 
+  // Measuring tapes, over the drawing (notes still go on last).
+  try { _tapeRender(ctx); } catch(e){}
   // Notes go on LAST, over everything, and are read from their own list —
   // nothing below this line knows they exist.
   try { _notesRender(ctx, dp); } catch(e){}
 
   ctx.restore(); // restore dpr scale transform
   try { syncInfoOverlays(); } catch(e){}
+}
+
+// ── MEASURING TAPE (2026-09-25) ──────────────────────────────────────────
+// The owner: "a measuring tape button on the canvas … click in one spot to
+// start the measure then click in another spot to stop it; it appears as a
+// grey line with arrows at each end pointing outwards … snaps to horizontal or
+// vertical but can be rotated like an image in Microsoft Word … moved around
+// keeping whatever rotation it was set to … when clicked it has a delete
+// button … two end points that are adjustable".
+// DRAW.tapes = [{a:[x,y], b:[x,y]}] in IMAGE coordinates (so a tape stays on
+// the part of the roof it measures through any pan or zoom), saved with the
+// job and kept through undo. It is a drawing aid only: nothing counts it.
+var TAPE = { start: null, hover: null };
+var DRAG_TAPE = null;
+function _tapeList(){ if (!Array.isArray(DRAW.tapes)) DRAW.tapes = []; return DRAW.tapes; }
+function _tapeLenText(t){
+  var px = Math.hypot(t.b[0] - t.a[0], t.b[1] - t.a[1]);
+  if (DRAW.scaleMetresPerPx > 0) return (px * DRAW.scaleMetresPerPx).toFixed(2) + 'm';
+  return 'set the scale';
+}
+// Level or plumb unless Shift: within 8° of either, it goes square.
+function _tapeSnap(a, b, free){
+  if (free) return b;
+  var dx = b[0] - a[0], dy = b[1] - a[1], ang = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
+  if (ang < 8 || ang > 172) return [b[0], a[1]];
+  if (Math.abs(ang - 90) < 8) return [a[0], b[1]];
+  return b;
+}
+function _tapeScreen(p, tr){ return tr ? [p[0] * tr.s + tr.ix, p[1] * tr.s + tr.iy] : p; }
+// Where the handles of the selected tape sit on screen (for hits).
+function _tapeHandles(t, tr){
+  var A = _tapeScreen(t.a, tr), B = _tapeScreen(t.b, tr);
+  var dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  var nx = uy, ny = -ux; if (ny > 0 || (ny === 0 && nx < 0)){ nx = -nx; ny = -ny; }   // "up" off the line
+  var M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+  return { A: A, B: B, M: M, ux: ux, uy: uy, nx: nx, ny: ny, L: L,
+           rot: [M[0] + nx * 40, M[1] + ny * 40], del: [M[0] - nx * 26 + ux * 0, M[1] - ny * 26] };
+}
+function _tapeRender(ctx){
+  var list = _tapeList(); if (!list.length && !TAPE.start) return;
+  var tr = getImgTransform();
+  var capture = !!(window._matRoofMapHideBg || window.__PRINTING_QUOTE);
+  var draw = function(t, sel, ghost){
+    var h = _tapeHandles(t, tr), A = h.A, B = h.B;
+    ctx.save();
+    ctx.strokeStyle = ghost ? 'rgba(75,85,99,.7)' : '#6b7280'; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    // end ticks, square to the line
+    [A, B].forEach(function(P){ ctx.beginPath(); ctx.moveTo(P[0] + h.nx * 9, P[1] + h.ny * 9); ctx.lineTo(P[0] - h.nx * 9, P[1] - h.ny * 9); ctx.stroke(); });
+    // arrows at each end, pointing outwards
+    var ah = function(P, dir){
+      ctx.beginPath(); ctx.moveTo(P[0], P[1]);
+      ctx.lineTo(P[0] - dir * h.ux * 9 + h.nx * 4, P[1] - dir * h.uy * 9 + h.ny * 4);
+      ctx.lineTo(P[0] - dir * h.ux * 9 - h.nx * 4, P[1] - dir * h.uy * 9 - h.ny * 4);
+      ctx.closePath(); ctx.fill();
+    };
+    if (h.L > 22){ ah(A, -1); ah(B, 1); }
+    // the length, above the middle, reading the right way up
+    var txt = _tapeLenText(t);
+    var ang = Math.atan2(h.uy, h.ux); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+    ctx.translate(h.M[0] + h.nx * 11, h.M[1] + h.ny * 11); ctx.rotate(ang);
+    ctx.font = '600 13px Inter, -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.strokeText(txt, 0, 0);
+    ctx.fillStyle = '#4b5563'; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+    if (sel && !capture){
+      ctx.save();
+      // end handles
+      [A, B].forEach(function(P){ ctx.beginPath(); ctx.arc(P[0], P[1], 6, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.5; ctx.stroke(); });
+      // rotate handle, on a stalk
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = '#94a3b8'; ctx.beginPath(); ctx.moveTo(h.M[0] + h.nx * 20, h.M[1] + h.ny * 20); ctx.lineTo(h.rot[0], h.rot[1]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(h.rot[0], h.rot[1], 9, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(h.rot[0], h.rot[1], 4.5, -Math.PI * 0.9, Math.PI * 0.55); ctx.stroke();
+      // delete button
+      ctx.beginPath(); ctx.arc(h.del[0], h.del[1], 9, 0, Math.PI * 2); ctx.fillStyle = '#dc2626'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(h.del[0] - 3.5, h.del[1] - 3.5); ctx.lineTo(h.del[0] + 3.5, h.del[1] + 3.5); ctx.moveTo(h.del[0] + 3.5, h.del[1] - 3.5); ctx.lineTo(h.del[0] - 3.5, h.del[1] + 3.5); ctx.stroke();
+      ctx.restore();
+    }
+  };
+  list.forEach(function(t, i){ if (t && t.a && t.b) draw(t, i === DRAW.selTape, false); });
+  if (DRAW.tool === 'tape' && TAPE.start && TAPE.hover){
+    draw({ a: TAPE.start, b: _tapeSnap(TAPE.start, TAPE.hover, TAPE.free) }, false, true);
+  }
+}
+function _tapeDistToSeg(P, A, B){
+  var dx = B[0] - A[0], dy = B[1] - A[1], L2 = dx * dx + dy * dy || 1;
+  var t = Math.max(0, Math.min(1, ((P[0] - A[0]) * dx + (P[1] - A[1]) * dy) / L2));
+  return Math.hypot(P[0] - (A[0] + t * dx), P[1] - (A[1] + t * dy));
+}
+// Screen point of a mouse event, in the same space _tapeScreen works in.
+function _tapeEvtScreen(e){
+  var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  return [(e.clientX - r.left) * (cv.width / r.width) / dpr, (e.clientY - r.top) * (cv.height / r.height) / dpr];
+}
+function _tapeImgPt(S2, tr){ return tr ? [(S2[0] - tr.ix) / tr.s, (S2[1] - tr.iy) / tr.s] : S2; }
+// mousedown: a handle of the selected tape, or any tape's line. Returns true when taken.
+function _tapeMouseDown(e){
+  if (DRAW.tool !== 'select' && DRAW.tool !== 'tape') return false;
+  var list = _tapeList(); if (!list.length) return false;
+  var tr = getImgTransform(), P = _tapeEvtScreen(e);
+  var start = function(i, mode){
+    DRAG_TAPE = { i: i, mode: mode, sP: P, orig: { a: list[i].a.slice(), b: list[i].b.slice() }, moved: false, preSnap: _captureSnapState() };
+    DRAW.selTape = i; SUPPRESS_NEXT_CLICK = true;
+    try { e.preventDefault(); } catch(_){}
+    redrawAll();
+    return true;
+  };
+  var sel = DRAW.selTape;
+  if (sel != null && sel >= 0 && list[sel]){
+    var h = _tapeHandles(list[sel], tr);
+    if (Math.hypot(P[0] - h.del[0], P[1] - h.del[1]) < 11){ _tapeDelete(sel); SUPPRESS_NEXT_CLICK = true; try { e.preventDefault(); } catch(_){} return true; }
+    if (Math.hypot(P[0] - h.rot[0], P[1] - h.rot[1]) < 11) return start(sel, 'rot');
+    if (Math.hypot(P[0] - h.A[0], P[1] - h.A[1]) < 10) return start(sel, 'a');
+    if (Math.hypot(P[0] - h.B[0], P[1] - h.B[1]) < 10) return start(sel, 'b');
+  }
+  for (var i = list.length - 1; i >= 0; i--){
+    var t = list[i]; if (!t || !t.a) continue;
+    var hh = _tapeHandles(t, tr);
+    if (_tapeDistToSeg(P, hh.A, hh.B) < 7 || Math.hypot(P[0] - (hh.M[0] + hh.nx * 11), P[1] - (hh.M[1] + hh.ny * 11)) < 22) return start(i, 'move');
+  }
+  return false;
+}
+function _tapeMouseMove(e){
+  if (DRAW.tool === 'tape' && TAPE.start && !DRAG_TAPE){
+    TAPE.hover = _tapeImgPt(_tapeEvtScreen(e), getImgTransform()); TAPE.free = !!e.shiftKey; redrawAll();
+  }
+  if (!DRAG_TAPE) return false;
+  var d = DRAG_TAPE, t = _tapeList()[d.i]; if (!t){ DRAG_TAPE = null; return true; }
+  var tr = getImgTransform(), P = _tapeEvtScreen(e);
+  if (!d.moved && Math.hypot(P[0] - d.sP[0], P[1] - d.sP[1]) < 3) return true;
+  d.moved = true;
+  var I = _tapeImgPt(P, tr), I0 = _tapeImgPt(d.sP, tr);
+  if (d.mode === 'move'){
+    var dx = I[0] - I0[0], dy = I[1] - I0[1];
+    t.a = [d.orig.a[0] + dx, d.orig.a[1] + dy]; t.b = [d.orig.b[0] + dx, d.orig.b[1] + dy];
+  } else if (d.mode === 'a'){ t.a = _tapeSnap(d.orig.b, I, e.shiftKey); }
+  else if (d.mode === 'b'){ t.b = _tapeSnap(d.orig.a, I, e.shiftKey); }
+  else if (d.mode === 'rot'){
+    // Turned about its middle, keeping its length; square angles catch it.
+    var M = [(d.orig.a[0] + d.orig.b[0]) / 2, (d.orig.a[1] + d.orig.b[1]) / 2];
+    var half = Math.hypot(d.orig.b[0] - d.orig.a[0], d.orig.b[1] - d.orig.a[1]) / 2;
+    var ang = Math.atan2(I[1] - M[1], I[0] - M[0]) + Math.PI / 2;   // the handle sits square off the line
+    var deg = ang * 180 / Math.PI, near = Math.round(deg / 90) * 90;
+    if (!e.shiftKey && Math.abs(deg - near) < 4) ang = near * Math.PI / 180;
+    var ux = Math.cos(ang), uy = Math.sin(ang);
+    t.a = [M[0] - ux * half, M[1] - uy * half]; t.b = [M[0] + ux * half, M[1] + uy * half];
+  }
+  redrawAll();
+  return true;
+}
+function _tapeMouseUp(){
+  if (!DRAG_TAPE) return false;
+  var d = DRAG_TAPE; DRAG_TAPE = null;
+  if (d.moved){ _pushSnap(d.preSnap); try { _scheduleAutosave(); } catch(e){} }
+  redrawAll();
+  return true;
+}
+// click-click, in the Measuring tape tool
+function _tapeClick(e){
+  var P = _tapeImgPt(_tapeEvtScreen(e), getImgTransform());
+  if (!TAPE.start){ TAPE.start = P; TAPE.hover = P; DRAW.selTape = -1; redrawAll(); return; }
+  var b = _tapeSnap(TAPE.start, P, !!e.shiftKey);
+  var tr = getImgTransform(), px = Math.hypot(b[0] - TAPE.start[0], b[1] - TAPE.start[1]) * (tr ? tr.s : 1);
+  if (px < 6){ return; }   // a double tap, not a measure
+  saveSnapshot();
+  _tapeList().push({ a: TAPE.start.slice(), b: b.slice() });
+  DRAW.selTape = _tapeList().length - 1;
+  TAPE.start = null; TAPE.hover = null;
+  redrawAll();
+  try { _scheduleAutosave(); } catch(e2){}
+}
+function _tapeDelete(i){
+  var list = _tapeList(); if (!list[i]) return;
+  saveSnapshot();
+  list.splice(i, 1);
+  DRAW.selTape = -1;
+  redrawAll();
+  try { _scheduleAutosave(); } catch(e){}
 }
 
 // ── NOTES OVERLAY ────────────────────────────────────────────────────
@@ -62917,7 +63442,7 @@ function _readFergusMaterialItems(){
       // out $1,116 above the quote the customer accepted.
       var unit  = picked ? picked.unit : r.autoUnit;
       var qty   = (typeof _matOrderQty === 'function') ? _matOrderQty(qtyRaw, unit) : qtyRaw;
-      var price = picked ? picked.price : 0;
+      var price = _matOvPrice(ov, picked ? picked.price : 0);
       qty = parseFloat(qty) || 0;
       if (qty > 0 && price > 0){
         var name = r.label + (picked && picked.label ? ' — ' + picked.label : '');
