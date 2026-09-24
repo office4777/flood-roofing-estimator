@@ -5858,6 +5858,7 @@ html.qp-desk-preview .qd-top{ position:static; }
           <div style="display:flex;gap:6px;margin-top:.5rem">
             <button onclick="deleteSelectedLine()" style="padding:6px 12px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:6px;cursor:pointer;font-size:12px">🗑 Delete line</button>
           </div>
+          <div id="ridgeBreakBox" style="display:none;margin-top:.6rem;padding-top:.6rem;border-top:1px solid #e2e8f0"></div>
         </div>
 
         <!-- Penetration editor -->
@@ -16425,7 +16426,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[],
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -16564,6 +16565,7 @@ function restoreFromJob(j){
     DRAW.roofType = snap.draw.roofType || DRAW.roofType || '';
     DRAW.rotation = snap.draw.rotation || 0;
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
+    DRAW.ridgeBreaks = Array.isArray(snap.draw.ridgeBreaks) ? snap.draw.ridgeBreaks : [];
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -43406,6 +43408,7 @@ var DRAG_RIDGE = null;
 // the ridge axis, rewriting DRAW.dutchGabletFrac via setDutchGabletFrac
 // (regenerates both gablet ends symmetrically; the outline never moves).
 var DRAG_GABLET = null;
+var DRAG_RBREAK = null;   // a broken ridge section (off) or one of its ends (a / b)
 // Smaller of: hit-test radius for grabbing a corner (~14 canvas px).
 var OUTLINE_VERT_GRAB = 14;
 // Set true on corner-drag mouseup so the subsequent click event
@@ -43480,6 +43483,102 @@ function _squareDrawnOutline(){
     return moved;
   } catch(e){ return false; }
 }
+// ── BREAK UP RIDGE: the office's side ──────────────────────────────────
+// "Break up ridge" in the ridge's popup puts two break points on it (a third
+// of the way in from each end of the piece clicked) and moves that middle
+// section a little, so it shows. The section is then dragged up or down the
+// roof on the canvas (or typed, in metres), its ends dragged along the ridge,
+// and "Remove break" puts the ridge back. All of it is DRAW.ridgeBreaks; the
+// gable builder draws the lines from it (see _gblPushRidge).
+function _rbFrame(){
+  var o = DRAW.outline; if (!o || o.length < 3) return null;
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  o.forEach(function(p){ if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; });
+  var bbW = maxX - minX, bbH = maxY - minY;
+  var horiz = (typeof DRAW.roofBaseHoriz === 'boolean') ? DRAW.roofBaseHoriz : (bbW >= bbH);
+  if ((Math.round((DRAW.rotation || 0) / 90) % 2) === 1) horiz = !horiz;
+  var ro = Math.max(-0.9, Math.min(0.9, +DRAW.gableRidgeOffset || 0));
+  return { horiz: horiz, lo: horiz ? minX : minY, span: horiz ? bbW : bbH, across: horiz ? bbH : bbW,
+           mid: horiz ? (minY + maxY) / 2 + ro * bbH * 0.5 : (minX + maxX) / 2 + ro * bbW * 0.5 };
+}
+// The lines are rebuilt from the breaks (the light regeneration: no undo
+// snapshots of its own — each change takes ONE, before it changes anything).
+function _rbRegen(i){
+  DRAW.roofType = 'gable';
+  try { regenerateAutoRoofLines('gable'); } catch(e){}
+  try { autoCalcLineMeasurements(); } catch(e){}
+  var j = -1;
+  if (i != null) DRAW.lines.forEach(function(l, k){ if (j < 0 && l.ridgeBreak === i && l.breakRole === 'mid') j = k; });
+  if (j >= 0){ DRAW.selectedLine = j; try { showLineEditor(j); } catch(e){} }
+  redrawAll();
+  try { syncToRoofData(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _ridgeBreakAdd(){
+  var l = DRAW.lines[DRAW.selectedLine]; var F = _rbFrame();
+  if (!l || l.type !== 'ridge' || !F || !(F.span > 0)) return;
+  var ua = F.horiz ? l.pts[0][0] : l.pts[0][1], ub = F.horiz ? l.pts[1][0] : l.pts[1][1];
+  if (ub < ua){ var t = ua; ua = ub; ub = t; }
+  var a = (ua + (ub - ua) / 3 - F.lo) / F.span, b = (ua + (ub - ua) * 2 / 3 - F.lo) / F.span;
+  if (!Array.isArray(DRAW.ridgeBreaks)) DRAW.ridgeBreaks = [];
+  saveSnapshot();
+  DRAW.ridgeBreaks.push({ a: a, b: b, off: 0.25 });
+  _rbRegen(DRAW.ridgeBreaks.length - 1);
+  try { _siteToast('Ridge broken up \u2014 drag the section up or down, or its ends along the ridge'); } catch(e){}
+}
+function _ridgeBreakSet(i, patch){
+  var br = (DRAW.ridgeBreaks || [])[i]; if (!br) return;
+  saveSnapshot();
+  Object.keys(patch).forEach(function(k){ br[k] = patch[k]; });
+  br.off = Math.max(-0.9, Math.min(0.9, +br.off || 0));
+  br.a = Math.max(0, Math.min(1, +br.a)); br.b = Math.max(0, Math.min(1, +br.b));
+  _rbRegen(i);
+}
+function _ridgeBreakRemove(i){
+  if (!(DRAW.ridgeBreaks || [])[i]) return;
+  saveSnapshot();
+  DRAW.ridgeBreaks.splice(i, 1);
+  DRAW.selectedLine = -1; try { hidePropPanel(); } catch(e){}
+  _rbRegen(null);
+}
+// Metres on the plan, from the builder's fractions.
+function _rbMetres(frac, of){ var F = _rbFrame(); return (F && DRAW.scaleMetresPerPx > 0) ? frac * F[of] * DRAW.scaleMetresPerPx : null; }
+function _ridgeBreakSetMetres(i, what, v){
+  var br = (DRAW.ridgeBreaks || [])[i], F = _rbFrame(); if (!br || !F || !(DRAW.scaleMetresPerPx > 0)) return;
+  var m = parseFloat(v); if (!isFinite(m)) return;
+  if (what === 'move') _ridgeBreakSet(i, { off: (m / DRAW.scaleMetresPerPx) / (F.across * 0.5) });
+  else if (what === 'len'){ var len = Math.max(0.2, m) / DRAW.scaleMetresPerPx / F.span; _ridgeBreakSet(i, { b: Math.min(1, Math.min(br.a, br.b) + len), a: Math.min(br.a, br.b) }); }
+}
+function _ridgeBreakBoxRender(l){
+  var box = document.getElementById('ridgeBreakBox'); if (!box) return;
+  var gable = DRAW.roofType === 'gable' && !!(l && l.autoGenerated);   // a generated gable: the break is rebuilt with it
+  if (l && l.ridgeBreak != null && DRAW.ridgeBreaks && DRAW.ridgeBreaks[l.ridgeBreak]){
+    var i = l.ridgeBreak, br = DRAW.ridgeBreaks[i];
+    var mv = _rbMetres(br.off * 0.5, 'across'), ln = _rbMetres(Math.abs(br.b - br.a), 'span');
+    var scaled = mv != null;
+    box.innerHTML = '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:4px">Broken ridge section</div>' +
+      '<div style="font-size:11px;color:#64748b;line-height:1.4;margin-bottom:6px">Drag the rose line up or down the roof to lengthen one side\u2019s sheets and shorten the other\u2019s; drag either end along the ridge. The section is a head apron, and each end gets a barge and a side apron.</div>' +
+      '<div class="f2" style="gap:6px">' +
+        '<div><label>Moved (m)</label><input type="number" id="rbMove" step="0.05" value="' + (scaled ? mv.toFixed(2) : '') + '"' + (scaled ? '' : ' disabled placeholder="set the scale"') + ' onchange="_ridgeBreakSetMetres(' + i + ',\'move\',this.value)" style="margin:0"></div>' +
+        '<div><label>Length (m)</label><input type="number" id="rbLen" step="0.1" min="0.2" value="' + (scaled ? ln.toFixed(2) : '') + '"' + (scaled ? '' : ' disabled placeholder="set the scale"') + ' onchange="_ridgeBreakSetMetres(' + i + ',\'len\',this.value)" style="margin:0"></div>' +
+      '</div>' +
+      '<button type="button" onclick="_ridgeBreakRemove(' + i + ')" style="margin-top:6px;padding:6px 12px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;font-size:12px">\u21BA Remove break \u2014 ridge back to straight</button>';
+    box.style.display = 'block';
+    return;
+  }
+  if (l && l.type === 'ridge' && gable){
+    box.innerHTML = '<button type="button" id="rbAddBtn" onclick="_ridgeBreakAdd()" style="padding:7px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">\u2702 Break up ridge</button>' +
+      '<div style="font-size:11px;color:#64748b;line-height:1.4;margin-top:5px">For a roof where one side runs on past the ridge and the other stops short, in part of its length.</div>';
+    box.style.display = 'block';
+    return;
+  }
+  box.innerHTML = ''; box.style.display = 'none';
+}
+
+// What a built line carries beyond its type: a broken ridge's pieces (see
+// _gblPushRidge in buildGableRoofLines).
+var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun'];
+function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
 function regenerateAutoRoofLines(roofType){
   if (!roofType || !DRAW.outline || DRAW.outline.length < 3) return;
   _squareDrawnOutline();
@@ -43508,6 +43607,7 @@ function regenerateAutoRoofLines(roofType){
       };
       // Carry the subtype through (e.g. gable starter / finish barges)
       if (l.subtype) copy.subtype = l.subtype;
+      _carryLineFlags(l, copy);
       DRAW.lines.push(copy);
     });
   } catch(e){ console.warn('roof regen failed:', e); }
@@ -44157,6 +44257,23 @@ function onCanvasMouseDown(e) {
   // has a ridge and no hips/valleys (a plain gable the generator didn't
   // tag). Grabbing the ridge on such a roof also registers it as a gable
   // so setGableRidgeOffset's regen keeps the barges + faces in sync.
+  // A broken ridge's section or an end of it: before the ridge slide below,
+  // which would take the press for the whole ridge.
+  if (DRAW.tool === 'select' && Array.isArray(DRAW.ridgeBreaks) && DRAW.ridgeBreaks.length){
+    var _bxy = getXY(e), _btr = getImgTransform(), _bTh = _btr ? 10/_btr.s : 10, _bHit = null;
+    DRAW.lines.forEach(function(l){
+      if (_bHit || !l || l.ridgeBreak == null || !l.pts || l.pts.length !== 2 || (l.breakRole === 'conn' && l.type !== 'barge')) return;
+      if (_ridgeDistToSeg(_bxy[0], _bxy[1], l.pts[0], l.pts[1]) < _bTh) _bHit = l;
+    });
+    var _bF = _bHit ? _rbFrame() : null, _bBr = _bHit ? DRAW.ridgeBreaks[_bHit.ridgeBreak] : null;
+    if (_bHit && _bF && _bBr){
+      DRAG_RBREAK = { i: _bHit.ridgeBreak, mode: _bHit.breakRole === 'mid' ? 'off' : (_bHit.breakEnd === 0 ? (_bBr.a <= _bBr.b ? 'a' : 'b') : (_bBr.a <= _bBr.b ? 'b' : 'a')),
+                      F: _bF, moved: false, preSnap: _captureSnapState(), sx: _bxy[0], sy: _bxy[1] };
+      var _bcv = document.getElementById('roofCanvas'); if (_bcv) _bcv.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+  }
   var _hasRidgeLn = DRAW.lines.some(function(l){ return l && l.type === 'ridge'; });
   var _hasHipVal  = DRAW.lines.some(function(l){ return l && (l.type === 'hip' || l.type === 'valley'); });
   var _gableLike  = _hasRidgeLn && (DRAW.roofType === 'gable' || !_hasHipVal);
@@ -44376,6 +44493,18 @@ function onCanvasMouseUp(e) {
     redrawAll();
     return;
   }
+  if (DRAG_RBREAK){
+    var _rbDone = DRAG_RBREAK; DRAG_RBREAK = null;
+    if (_rbDone.moved){
+      _pushSnap(_rbDone.preSnap);
+      SUPPRESS_NEXT_CLICK = true;
+      _rbRegen(_rbDone.i);
+    }
+    var _rbcv = document.getElementById('roofCanvas');
+    if (_rbcv) _rbcv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    if (_rbDone.moved) return;
+  }
   if(DRAG_GABLET) {
     if (DRAG_GABLET.moved){
       _pushSnap(DRAG_GABLET.preSnap);
@@ -44532,7 +44661,7 @@ document.addEventListener('mouseup', function(e) {
     function dragActive(){
       return !!(window.DRAG_INFO_STAR || window.DRAG_EP || window.DRAG_ROOF_VIEW ||
                 window.DRAG_SHEET || window.DRAG_OUTLINE_VERT || window.DRAG_RIDGE ||
-                window.DRAG_GABLET || (window.PAN && PAN.active));
+                window.DRAG_GABLET || window.DRAG_RBREAK || (window.PAN && PAN.active));
     }
     function maybeDblTap(e){
       var now = Date.now();
@@ -47779,6 +47908,20 @@ function onCanvasMove(e) {
     _drawRidgeSnapDots();
     return;
   }
+  // Drag a broken ridge's section across the roof, or an end along the ridge.
+  if (DRAG_RBREAK){
+    var _rbxy = getXY(e), _rbF = DRAG_RBREAK.F, _rbB = (DRAW.ridgeBreaks || [])[DRAG_RBREAK.i];
+    if (!_rbB){ DRAG_RBREAK = null; return; }
+    if (!DRAG_RBREAK.moved && Math.hypot(_rbxy[0] - DRAG_RBREAK.sx, _rbxy[1] - DRAG_RBREAK.sy) < 3) return;
+    DRAG_RBREAK.moved = true;
+    var _rbU = _rbF.horiz ? _rbxy[0] : _rbxy[1], _rbV = _rbF.horiz ? _rbxy[1] : _rbxy[0];
+    if (DRAG_RBREAK.mode === 'off') _rbB.off = Math.max(-0.9, Math.min(0.9, (_rbV - _rbF.mid) / (_rbF.across * 0.5)));
+    else _rbB[DRAG_RBREAK.mode] = Math.max(0, Math.min(1, (_rbU - _rbF.lo) / _rbF.span));
+    try { regenerateAutoRoofLines('gable'); } catch(err){}
+    try { autoCalcLineMeasurements(); } catch(err){}
+    redrawAll();
+    return;
+  }
   // Slide the Dutch-gable gablet — project the cursor onto the ridge axis
   // (outward) and convert the travel to a gablet fraction, then regen.
   if (DRAG_GABLET){
@@ -48768,6 +48911,7 @@ function showLineEditor(i) {
   // Set measurement
   var ml=document.getElementById('editLineMeasM');
   if(ml) ml.value=l.measM||'';
+  try { _ridgeBreakBoxRender(l); } catch(e){}
 }
 
 function showPenEditor(i) {
@@ -48890,7 +49034,7 @@ function _rescaleFromMeasure(l, typedM){
   var a = l.pts[0], b = l.pts[1];
   var px = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
   if (!(px > 2)) return false;
-  var f = 1; try { f = slopeFactorForLineType(l.type, _lineRoofPitch(l)) || 1; } catch(e){}
+  var f = 1; try { f = slopeFactorForLineType(_lineSlopeType(l), _lineRoofPitch(l)) || 1; } catch(e){}
   // The number it already reads (the popup comes pre-filled with it, and is
   // also how a line's TYPE is changed): no change, so the scale is left
   // alone rather than nudged by the rounding of its own label.
@@ -49067,7 +49211,7 @@ function updateLine() {
   // Otherwise read the measurement from the input as the user's value.
   if(ts && l.type !== oldType && l.planM != null) {
     var _p = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
-    l.measM = Math.round(l.planM * slopeFactorForLineType(l.type, _p) * 100)/100;
+    l.measM = Math.round(l.planM * slopeFactorForLineType(_lineSlopeType(l), _p) * 100)/100;
     if(ml) ml.value = l.measM;
   } else if(ml) {
     var mv=parseFloat(ml.value); l.measM=mv>0?mv:null;
@@ -50020,7 +50164,7 @@ function _trueMeasureForLine(l, pitch){
   var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
   var planM = Math.sqrt(dx*dx + dy*dy) * DRAW.scaleMetresPerPx;
   var p = (pitch != null) ? pitch : _activePitch();
-  return Math.round(planM * slopeFactorForLineType(l.type, p) * 100) / 100;
+  return Math.round(planM * slopeFactorForLineType(_lineSlopeType(l), p) * 100) / 100;
 }
 // Record a typed value the drawing does not support. Returns true if this
 // actually counted as drift (i.e. it was bigger than the tolerance).
@@ -50906,7 +51050,8 @@ function redrawAll() {
         // is the main roof (already covered by the ridge faces), and seeding
         // it produces a phantom full-length run. Restrict head aprons to the
         // outward side (away from the roof centroid).
-        var _headApron = (t === 'apron' && rl.subtype === 'head');
+        // (A broken ridge's moved section is a ridge to both faces: both sides.)
+        var _headApron = (t === 'apron' && rl.subtype === 'head' && rl.breakRole !== 'mid');
         var _ocx = 0, _ocy = 0;
         if (_headApron){ outline.forEach(function(p){ _ocx += p[0]; _ocy += p[1]; }); _ocx /= outline.length; _ocy /= outline.length; }
         [1, -1].forEach(function(sgn){
@@ -51030,7 +51175,9 @@ function redrawAll() {
             // So when this run has a barge, the barge's own measured length
             // wins outright. Geometry is the fallback for a run with no rake
             // on it (a mid-face run between two gutters).
-            var _bargeM = _bargeLenForRun(lines, {
+            // (Not for a broken ridge's moved section: no rake runs its
+            // length — the end barges belong to the unbroken ridge.)
+            var _bargeM = (rl.breakRole === 'mid') ? 0 : _bargeLenForRun(lines, {
               faceDx: dx, faceDy: dy, ridgeMx: rmx, ridgeMy: rmy,
               ridgeUx: rux, ridgeUy: ruy, runLo: c.lo, runHi: c.hi,
               runPx: bestPerp
@@ -52962,6 +53109,9 @@ function outlineRoofAreaM2() {
 //   • barge (gable rake, runs straight up the slope)     → sec θ
 //   • hip / valley (assumed at 45° to ridge, standard NZ hip)
 //                                                        → √(1 + ½·tan²θ)
+// A line's slope as the measurer sees it: a side apron that runs up the slope
+// (a broken ridge's connector, slopeRun) is measured like a barge.
+function _lineSlopeType(l){ return (l && l.slopeRun) ? 'barge' : (l && l.type); }
 function slopeFactorForLineType(type, pitchDeg) {
   if (!pitchDeg || pitchDeg <= 0) return 1;
   var theta = pitchDeg * Math.PI / 180;
@@ -53108,7 +53258,7 @@ function autoCalcLineMeasurements() {
       Math.pow(l.pts[1][1]-l.pts[0][1], 2)
     );
     var planM = pixLen * DRAW.scaleMetresPerPx;
-    var factor = slopeFactorForLineType(l.type, pitch);
+    var factor = slopeFactorForLineType(_lineSlopeType(l), pitch);
     var measM = Math.round(planM * factor * 100) / 100;
     if(measM > 0) {
       l.measM = measM;
@@ -53147,7 +53297,7 @@ function _recalcAllRoofsMeas(){
       if (!l || !l.pts || l.pts.length < 2) return;
       var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
       var planM = Math.sqrt(dx*dx + dy*dy) * DRAW.scaleMetresPerPx;
-      var measM = Math.round(planM * slopeFactorForLineType(l.type, pitch) * 100) / 100;
+      var measM = Math.round(planM * slopeFactorForLineType(_lineSlopeType(l), pitch) * 100) / 100;
       if (measM > 0){ l.measM = measM; l.planM = Math.round(planM*100)/100; l.label = measM.toFixed(2)+'m'; }
     });
   });
@@ -53163,7 +53313,7 @@ function calcLineMeasIfCalibrated(lineIdx) {
   );
   var pitch = _activePitch();
   var planM = pixLen * DRAW.scaleMetresPerPx;
-  var factor = slopeFactorForLineType(l.type, pitch);
+  var factor = slopeFactorForLineType(_lineSlopeType(l), pitch);
   var measM = Math.round(planM * factor * 100) / 100;
   if(measM > 0) { l.measM = measM; l.planM = Math.round(planM*100)/100; l.label = measM.toFixed(2)+'m'; }
 }
@@ -68222,6 +68372,53 @@ function buildGableRoofLines(outline, flipAxis) {
     bumps++;
   }
   var result = [];
+  // ── BREAK UP RIDGE (2026-09-24) ──
+  // The owner's zig-zag roof: along part of the ridge one face runs on past
+  // it and the other stops short. DRAW.ridgeBreaks = [{a, b, off}] — where
+  // the broken section starts and ends along the ridge (fractions of the
+  // roof's length that way) and how far it has been moved (a signed fraction
+  // of the half-bay, like gableRidgeOffset, measured from the ridge so it
+  // moves with it). The broken section is a HEAD APRON; each end is joined
+  // back to the ridge by a BARGE and a SIDE APRON, both running up the slope
+  // (slopeRun). Ridge pieces and the section share a ridgeChain id, which is
+  // how the sheet engine counts each face as ONE run with the section's own
+  // lengths in it.
+  function _gblPushRidge(out, seg, s0, s1, segNo){
+    var brks = (window.DRAW && Array.isArray(DRAW.ridgeBreaks)) ? DRAW.ridgeBreaks : [];
+    var lo = horiz ? minX : minY, span = horiz ? bbW : bbH, across = horiz ? bbH : bbW;
+    var mid = horiz ? midY : midX, crossLo = horiz ? minY : minX;
+    var P = function(u, v){ return horiz ? [u, v] : [v, u]; };
+    var chain = 'rc' + segNo;
+    var parts = [];
+    brks.forEach(function(br, i){
+      if (!br) return;
+      var u0 = lo + Math.max(0, Math.min(1, +br.a || 0)) * span, u1 = lo + Math.max(0, Math.min(1, +br.b || 0)) * span;
+      if (u1 < u0){ var t = u0; u0 = u1; u1 = t; }
+      u0 = Math.max(u0, s0 + 2); u1 = Math.min(u1, s1 - 2);
+      if (u1 - u0 < 4) return;
+      var v = mid + Math.max(-0.9, Math.min(0.9, +br.off || 0)) * across * 0.5;
+      v = Math.max(crossLo + across * 0.05, Math.min(crossLo + across * 0.95, v));
+      // The moved section must stay on the roof.
+      var mp = P((u0 + u1) / 2, v);
+      if (!_ptInPoly(mp[0], mp[1])) return;
+      parts.push({ i: i, u0: u0, u1: u1, v: v });
+    });
+    if (!parts.length){ out.push({ type: 'ridge', pts: seg }); return; }
+    parts.sort(function(x, y){ return x.u0 - y.u0; });
+    var cur = s0;
+    parts.forEach(function(pt){
+      if (pt.u0 <= cur + 2) return;                        // overlaps the one before
+      out.push({ type: 'ridge', pts: [P(cur, mid), P(pt.u0, mid)], ridgeChain: chain });
+      [pt.u0, pt.u1].forEach(function(u, e){
+        if (Math.abs(pt.v - mid) < 0.5) return;
+        out.push({ type: 'barge', subtype: 'side', pts: [P(u, mid), P(u, pt.v)], ridgeBreak: pt.i, breakRole: 'conn', breakEnd: e, slopeRun: true });
+        out.push({ type: 'apron', subtype: 'side', pts: [P(u, mid), P(u, pt.v)], ridgeBreak: pt.i, breakRole: 'conn', breakEnd: e, slopeRun: true });
+      });
+      out.push({ type: 'apron', subtype: 'head', pts: [P(pt.u0, pt.v), P(pt.u1, pt.v)], ridgeChain: chain, ridgeBreak: pt.i, breakRole: 'mid' });
+      cur = pt.u1;
+    });
+    if (s1 - cur > 1) out.push({ type: 'ridge', pts: [P(cur, mid), P(s1, mid)], ridgeChain: chain });
+  }
 
   // Clip the midline ridge to the polygon interior.  For an axis-
   // aligned ridge we sweep the ridge as a line; intersect it with
@@ -68268,7 +68465,7 @@ function buildGableRoofLines(outline, flipAxis) {
     var seg = horiz
       ? [[s0, midY], [s1, midY]]
       : [[midX, s0], [midX, s1]];
-    result.push({ type: 'ridge', pts: seg });
+    _gblPushRidge(result, seg, s0, s1, k / 2);
   }
 
   // Classify each outline edge by orientation.
@@ -69235,6 +69432,10 @@ function _updateRoofTypeHint(chosenType){
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();
+  // A broken ridge belongs to THIS gable as it lies: picking a shape, turning
+  // it or changing its type starts the ridge whole again. Sliding the ridge
+  // (same type, same rotation) keeps the breaks.
+  try { if (!(type === 'gable' && rotation != null && (+rotation || 0) === (+DRAW.rotation || 0))) DRAW.ridgeBreaks = []; } catch(e){}
   // A roof with lines on it is the first milestone that says the product
   // works for them. It's the one number worth knowing about a trial — and
   // only counts when the drawing is to scale, since a shape with no
@@ -69302,6 +69503,7 @@ function autoGenerateRoof(type, rotation) {
   lines.forEach(function(l){
     var _copy = {type:l.type,pts:[l.pts[0].slice(),l.pts[1].slice()],label:'',lengthM:'',measM:null,sheetLengthM:null,autoGenerated:true};
     if (l.subtype) _copy.subtype = l.subtype;
+    _carryLineFlags(l, _copy);
     DRAW.lines.push(_copy);
   });
   autoPopulateGutters();
@@ -69333,7 +69535,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -69346,7 +69548,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5,
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[],
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -69358,7 +69560,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [],
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }

@@ -5632,7 +5632,42 @@ function _renderRoofSheetPlanInner() {
       } catch(e){}
     }
     if (!isMono){
-      var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && l.pts && l.pts.length===2; });
+      // A BROKEN RIDGE (2026-09-24): its ridge pieces and the moved section
+      // (a head apron) share a ridgeChain id. Each piece measures its own runs
+      // to the outline on both sides — the moved section's are longer on one
+      // side and shorter on the other — and each SIDE is then counted as ONE
+      // face with the break points as fixed region boundaries (never one
+      // round-up per piece, never merged across a break).
+      var _chains = {};
+      DRAW.lines.forEach(function(l){ if (l && l.ridgeChain && l.pts && l.pts.length===2 && (l.type==='ridge' || l.breakRole==='mid')) (_chains[l.ridgeChain] = _chains[l.ridgeChain] || []).push(l); });
+      Object.keys(_chains).forEach(function(ck){
+        var pcs = _chains[ck]; if (!pcs.length) return;
+        var p0 = pcs[0].pts, L0 = Math.hypot(p0[1][0]-p0[0][0], p0[1][1]-p0[0][1]); if (!(L0 > 0)) return;
+        var R = [(p0[1][0]-p0[0][0])/L0, (p0[1][1]-p0[0][1])/L0], perp = [-R[1], R[0]];
+        var up = [], dn = [];
+        pcs.forEach(function(pc){
+          var a = pc.pts[0], b = pc.pts[1];
+          var rp = a[0]*perp[0]+a[1]*perp[1];
+          var uA = a[0]*R[0]+a[1]*R[1], uB = b[0]*R[0]+b[1]*R[1], uLo = Math.min(uA,uB), uHi = Math.max(uA,uB);
+          if (uHi - uLo < 1) return;
+          function ray(u, side){ var x=u*R[0]+rp*perp[0], y=u*R[1]+rp*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+          _sgmSplit(uLo, uHi, function(u){ return ray(u, 1); }).forEach(function(r){ r.rp = rp; up.push(r); });
+          _sgmSplit(uLo, uHi, function(u){ return ray(u, -1); }).forEach(function(r){ r.rp = rp; dn.push(r); });
+        });
+        up.sort(function(x, y){ return x.u0 - y.u0; }); dn.sort(function(x, y){ return x.u0 - y.u0; });
+        [[up,1],[dn,-1]].forEach(function(pr){
+          var fc = _sgmFaceCols(pr[0]);
+          if (!fc) return;
+          pr[0].forEach(function(reg, k){
+            var n = fc.per[k]; if (!n) return;
+            var i0 = fc.colOf.indexOf(k);
+            var cu0 = fc.u0 + i0 * coverPx, cu1 = cu0 + n * coverPx;
+            addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), n,
+                     mkSec(R, cu0, cu1, reg.rp, pr[1]*reg.run, n, n, true));
+          });
+        });
+      });
+      var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && !l.ridgeChain && l.pts && l.pts.length===2; });
       ridges.forEach(function(rl){
         var a=rl.pts[0], b=rl.pts[1], rL=Math.hypot(b[0]-a[0], b[1]-a[1]);
         if (rL < coverPx*0.3) return;

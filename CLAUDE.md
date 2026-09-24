@@ -704,6 +704,26 @@ Discipline (non-negotiable):
   and the regen switch). The sheet engine reads it as `gable`
   (`_rspRoofType`) — one column per ridge. Grabbing a ridge must not
   re-label it `gable`. `tests/stepgable.mjs`.
+- BREAK UP RIDGE (2026-09-24, generated straight gables only): the
+  ridge's popup offers "✂ Break up ridge" (`_ridgeBreakBoxRender`,
+  `_ridgeBreakAdd`); `DRAW.ridgeBreaks = [{a, b, off}]` per roof
+  (ROOF_FIELDS, saved in the draw block) — where the section starts/ends
+  along the ridge (fractions of the roof's length that way) and how far it
+  moved (signed fraction of the half-bay from the ridge, so it follows a
+  ridge slide). `buildGableRoofLines` → `_gblPushRidge` draws: ridge pieces,
+  the moved section as a HEAD APRON (`breakRole:'mid'`), and at each end a
+  barge AND a side apron (`breakRole:'conn'`, `slopeRun` → measured up the
+  slope via `_lineSlopeType`); pieces share `ridgeChain`, and
+  `_carryLineFlags` keeps these flags through every regen copy. The sheet
+  engine (`_enumSimpleGableMono`) counts a chain's pieces with break points
+  as fixed region boundaries and each SIDE as one face (one round-up); the
+  canvas labels the section both sides (no rake-barge substitution for it).
+  Drag the section across the roof or its ends along the ridge
+  (`DRAG_RBREAK`, claimed before the ridge slide); Moved/Length in metres;
+  Remove break. Each change takes ONE snapshot before it changes, then the
+  light `regenerateAutoRoofLines('gable')`. Picking the shape, rotating or
+  changing type clears the breaks; a ridge slide or corner drag keeps them.
+  `tests/ridgebreak.mjs`.
 - UNDO CARRIES EVERY ROOF: `_captureSnapState` syncs the active roof and
   stores `roofs` + `activeRoofIdx`; `_applySnapState` restores them and
   the active roof's scalars, then re-renders the roof bar. Before this a
