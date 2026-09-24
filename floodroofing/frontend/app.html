@@ -1454,6 +1454,12 @@ button.sv-ok{background:#15803d !important;border-color:#15803d !important;color
 button.sv-bad{background:#b91c1c !important;border-color:#b91c1c !important;color:#fff !important}
 @keyframes ld-fill{from{--ld-p:0%}to{--ld-p:100%}}
 #workingPill .spin{width:16px;height:16px;flex:0 0 auto}
+#workingPill.can{pointer-events:auto}
+#workingPill .wp-cancel{margin-left:6px;padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff;font:700 12px/1 inherit;cursor:pointer}
+#workingPill .wp-cancel:hover{background:rgba(255,255,255,.14)}
+#workingPill.ok{background:rgba(21,128,61,.96)}
+#workingPill.bad{background:rgba(185,28,28,.96)}
+#workingPill .wp-tick{font-weight:800}
 
 /* ── Upload zone ────────────────────────────────────────────── */
 .upload-zone{
@@ -7033,7 +7039,8 @@ html.qp-desk-preview .qd-top{ position:static; }
     <!-- THE TEMPLATE PICKER (2026-09-22): one big menu of the saved quote
          templates near the top of the tab. Picking one applies it to this
          quote and names it on the Viewing button. _qaTplMenuRender. -->
-    <details class="qv-menu no-print" id="qaTplMenu"><summary class="qa-btn qa-btn-tpl">Select from saved templates <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qaTplList"></div></details>
+    <span id="qaViewingHost" class="no-print" style="display:contents"></span>
+    <details class="qv-menu no-print lock-ok" id="qaTplMenu"><summary class="qa-btn qa-btn-tpl">Change quote template <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qaTplList"></div></details>
     <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
     <button onclick="openQuoteEmail()" class="lock-ok qa-btn qa-btn-primary" data-tour="q-link">Email quote</button>
     <button onclick="printQuote()" class="qa-btn">Print / PDF</button>
@@ -16746,7 +16753,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -17114,6 +17121,7 @@ function _retiredUpdateSidebarJobChip(){
 // local job id or a Fergus link). Skips the chrome (sidebar, modals)
 // so opening the Select Job modal doesn't trigger a phantom save.
 function _scheduleAutosave(){
+  if (window._QT && _QT.open) return;   // the template editor works on a copy, never the job
   // Locked: nothing is written. Quietly — this fires from renders and from
   // typing anywhere in the app (report 44: the question popped up while
   // writing a feedback report). The question is asked only where a person
@@ -17421,6 +17429,9 @@ function _draftMarkSynced(){
   if (S.linkedJobId) _deleteLocalDraft('ferg_' + S.linkedJobId);
   try { localStorage.removeItem('fr_unload_draft'); } catch(e){}
 }
+// A job saved in the background (another job is on screen now): its own
+// device copy goes, nothing else.
+function _draftMarkSyncedFor(id){ if (id) _deleteLocalDraft(String(id)); }
 function _isJobDirty(){
   try {
     // The sample job is ours, not theirs. It must never turn itself into a
@@ -17449,6 +17460,19 @@ async function _saveBeforeSwitch(){
       return;
     }
     if (!_isJobDirty()) return;
+    // IN THE BACKGROUND (2026-09-25: "can it save in the background so I can
+    // carry on?"). A job that already has a record is snapshotted NOW — the
+    // exact job on screen — and sent in the write queue while the next one
+    // opens; the pill says Saved when it lands. A copy goes to this device
+    // first, so nothing is lost if the send fails.
+    if (S.currentJobId && _isOnline() && !S._qvViewing){
+      var _det = null; try { _det = _jobSaveDetach(); } catch(e){ _det = null; }
+      if (_det){
+        try { await _writeLocalDraftNow(); } catch(e){}
+        _jobSaveSendDetached(_det);
+        return;
+      }
+    }
     if ((S.currentJobId || S.linkedJobId) && typeof saveCurrentJob === 'function') {
       // Wait for the save, but not for ever: a save stuck behind a hung
       // request kept "Opening job… Saving what is on screen" up until the
@@ -17460,6 +17484,48 @@ async function _saveBeforeSwitch(){
     }
     await _writeLocalDraftNow();               // couldn't save — keep a draft
   } catch(e){}
+}
+// The job on screen, as a save body, taken NOW (see _saveBeforeSwitch).
+function _jobSaveDetach(){
+  if (!S.currentJobId || S._qvViewing || _jobLockActive()) return null;
+  var client = (document.getElementById('jobClient')||{}).value || '';
+  var addr   = (document.getElementById('jobAddr')||{}).value || '';
+  if (!client && !addr) return null;
+  var snap = snapshotCurrentJob();
+  var body = { client_name: client, site_address: addr, draw_state: snap, settings: {} };
+  var keep = [];
+  if (snap && snap.state && window._photoAck && _photoAck.id === S.currentJobId){
+    var ds = Object.assign({}, snap); ds.state = Object.assign({}, snap.state);
+    if (ds.state.img64 && _fnv(ds.state.img64) === _photoAck.img64){ delete ds.state.img64; keep.push('img64'); }
+    if (ds.state.photos && _fnv(JSON.stringify(ds.state.photos)) === _photoAck.photos){ delete ds.state.photos; keep.push('photos'); }
+    if (keep.length){ body.draw_state = ds; body.draw_state_keep = keep; }
+  }
+  if (S._jobLoaded && S._jobLoaded.id === S.currentJobId && S._jobLoaded.updatedAt) body.base_updated_at = S._jobLoaded.updatedAt;
+  var json = JSON.stringify(body);
+  if (window._lastSent && _lastSent.id === S.currentJobId && _lastSent.json === json) return null;   // the server has exactly this
+  if (json.length > 20 * 1024 * 1024) return null;                                                 // the ordinary save says why
+  var no = ((document.getElementById('jobNo')||{}).value || '').trim();
+  return { id: S.currentJobId, body: body, name: no ? ('Job ' + no) : (client || addr) };
+}
+function _jobSaveSendDetached(d){
+  _workingShow('Saving ' + d.name + '\u2026');
+  _workingDepth++;
+  var tries = 0;
+  var run = function(){
+    return api('PUT', '/jobs/' + d.id, d.body).then(function(saved){
+      _workingDepth = Math.max(0, _workingDepth - 1);
+      window.__saveOkAt = Date.now();
+      try { if (S.currentJobId === d.id && saved && saved.updated_at) S._jobLoaded = { id: d.id, updatedAt: saved.updated_at }; } catch(e){}
+      _workingFlash(d.name + ' \u2014 ' + _savedAtText().toLowerCase());
+      try { if (typeof _draftMarkSyncedFor === 'function') _draftMarkSyncedFor(d.id); } catch(e){}
+    }, function(err){
+      if (++tries < 3 && !(err && /conflict|409|moved/i.test(String(err.message || err)))){ return new Promise(function(res){ setTimeout(res, 2500 * tries); }).then(run); }
+      _workingDepth = Math.max(0, _workingDepth - 1);
+      window.__saveFailAt = Date.now();
+      _workingFlash(d.name + ' not saved to the server \u2014 a copy is kept on this device (' + String((err && err.message) || err).slice(0, 80) + ')', true);
+    });
+  };
+  return _jobWriteQueued(run);
 }
 // Compact unload fallback (no image/photos — those live in the IDB
 // draft written on the edit debounce; this one just has to survive a
@@ -18397,6 +18463,7 @@ async function _saveCurrentJobNow(){
         photos: _snap.state && _snap.state.photos ? _fnv(JSON.stringify(_snap.state.photos)) : null };
       window._lastSent = { id: saved.id, json: _json };
       _qWrote(saved.id, _snap.state && _snap.state.quote);
+      window.__saveOkAt = Date.now();
     } catch(e2){}
     // Link this saved job to its Fergus job so re-selecting the Fergus job
     // resumes it.
@@ -24489,6 +24556,11 @@ function fmtMoney(n){var v=parseFloat(n)||0;return '$'+v.toLocaleString('en-NZ',
 function esc2(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
 
 function defaultQuote(){
+  var _dq = _defaultQuoteInner();
+  _dq.tplFresh = true;   // untouched until worked on (see _qvWorkedOn)
+  return _dq;
+}
+function _defaultQuoteInner(){
   var d = S.roofData || {};
   var qd = (S.settings && S.settings.quote_defaults) || {};
   // proposal_template is the user's saved default copy (cover title,
@@ -27166,6 +27238,44 @@ function _qvBackToDraft(opts){
   _qvRenderBar();
 }
 // Is the working draft different from the draft it was last saved as?
+// ── HAS THIS DRAFT BEEN WORKED ON? (2026-09-25) ────────────────────────
+// The owner: when switching to another quote, or changing the template,
+// "don't ask me if I want to save existing draft or overwrite, just
+// automatically save it as a draft before I switch over, but only if that
+// draft has been worked on (if it's an untouched template or default draft
+// then don't save it)". What the office writes on a quote — the text, the
+// layout, the photos, the picks — is fingerprinted when a draft starts from
+// a template or a new job's default (tplFresh → tplFp); prices that follow
+// the roof are not counted. A draft with no baseline (an older one) counts as
+// worked on: an extra saved draft is better than lost work.
+var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
+  'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
+  'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems'];
+function _qContentFp(q){
+  if (!q) return null;
+  var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
+  try { return _fnv(JSON.stringify(o)); } catch(e){ return null; }
+}
+function _qvWorkedOn(q){
+  if (!q) return false;
+  if (q.tplFresh && q.tplFp != null && q.tplFp === _qContentFp(q)) return false;
+  return true;
+}
+// Keep the working draft in the saved list if it has been worked on and is
+// not already saved exactly as it is. Returns the saved snapshot, or null.
+function _qvKeepWorking(){
+  var v = _qvStore(); if (!v) return null;
+  var work = S._qvViewing ? S._qvWork : S.quote;
+  if (!work || !_qvWorkedOn(work)) return null;
+  if (!work.draftId) work.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  var saved = v.drafts.find(function(d){ return d && d.id === work.draftId; });
+  if (saved){
+    var a = JSON.stringify(_qvPackQuote(JSON.parse(JSON.stringify(_qvCopyOf(work))), {}, null)), b = JSON.stringify(saved.quote);
+    if (a === b) return null;
+  }
+  return _qvSaveDraft(_qvCopyOf(work));
+}
 function _qvDraftDirty(){
   var v = _qvStore(); if (!v) return false;
   var work = S._qvViewing ? S._qvWork : _qvCopyOf(S.quote);
@@ -27208,13 +27318,11 @@ function _qvNewDraft(){
     try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
     _siteToast('New draft — editable. The sent and accepted quotes are unchanged.');
   };
-  if (!_qvDraftDirty()){ go(); return; }
-  _qvAsk('Your current draft has changes that are not saved as a draft.',
-    [{ label: 'Save existing draft', primary: true, run: function(){ _qvSaveDraft(S._qvViewing ? S._qvWork : null); go(); } },
-     { label: 'Overwrite existing draft', run: go },
-     { label: 'Cancel' }]);
+  // No question (2026-09-25): a worked-on draft is kept, then the new one starts.
+  try { _qvKeepWorking(); } catch(e){}
+  go();
 }
-// Open a saved draft as the working draft (same question first).
+// Open a saved draft as the working draft — a worked-on one on screen is kept first.
 function _qvOpenDraft(id){
   var v = _qvStore(); if (!v) return;
   var d = v.drafts.find(function(x){ return x && x.id === id; }); if (!d) return;
@@ -27223,6 +27331,8 @@ function _qvOpenDraft(id){
     S.quote = _qvFreshDraft(_qvQuoteOf(d));
     S.quote.versions = keep;
     S.quote.draftId = d.id;
+    // Opened as it was saved: nothing done to it yet.
+    S.quote.tplFresh = true; S.quote.tplFp = null;
     S._qvViewing = null; S._qvWork = null;
     S.jobLocked = false;
     try { _jobLockRender(); } catch(e){}
@@ -27232,11 +27342,8 @@ function _qvOpenDraft(id){
     _qvRenderBar();
     try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
   };
-  if (!_qvDraftDirty()){ go(); return; }
-  _qvAsk('Your current draft has changes that are not saved as a draft.',
-    [{ label: 'Save existing draft', primary: true, run: function(){ _qvSaveDraft(S._qvViewing ? S._qvWork : null); go(); } },
-     { label: 'Overwrite existing draft', run: go },
-     { label: 'Cancel' }]);
+  if (d.id !== ((S._qvViewing ? S._qvWork : S.quote) || {}).draftId){ try { _qvKeepWorking(); } catch(e){} }
+  go();
 }
 function _qvSaveDraftNow(){
   if (S._qvViewing){ _siteToast('This is a frozen version — create a new draft to save changes'); return; }
@@ -27261,7 +27368,11 @@ function _qvAsk(text, choices){
 // The row of buttons in the frozen header.
 function _qvRenderBar(){
   var bar = document.getElementById('qaVersions'); if (!bar) return;
-  if (window.__CUSTOMER_MODE || !S.quote){ bar.style.display = 'none'; return; }
+  var host = document.getElementById('qaViewingHost');
+  if (window.__CUSTOMER_MODE || !S.quote){ bar.style.display = 'none'; if (host) host.innerHTML = ''; return; }
+  // A draft started from a template (or a new job's default quote) takes its
+  // baseline on first sight, so "has it been worked on?" can be answered.
+  try { if (!S._qvViewing && S.quote.tplFresh && S.quote.tplFp == null) S.quote.tplFp = _qContentFp(S.quote); } catch(e){}
   var v = _qvStore();
   var viewing = _qvViewing();
   var cur = viewing ? viewing.kind : 'draft';
@@ -27288,9 +27399,7 @@ function _qvRenderBar(){
     item(viewing ? '_qvBackToDraft()' : '', workingName, 'The editable quote', cur === 'draft') +
     (v.sent ? item("_qvView('sent')", 'Sent quote', 'Exactly as emailed ' + _qvWhen(v.sent.at), cur === 'sent') : '') +
     (v.accepted ? item("_qvView('accepted')", 'Accepted quote', 'Exactly as accepted ' + _qvWhen(v.accepted.at), cur === 'accepted') : '') +
-    '<div class="qv-menu-hd">Drafts' + (v.drafts.length ? ' (' + v.drafts.length + ' saved)' : '') + '</div>' +
-    item('_qvNewDraft()', 'New draft', 'A fresh, editable quote from what is on screen') +
-    (!viewing ? item('_qvSaveDraftNow()', 'Save this draft', 'Keep it in the list to come back to') : '') +
+    (v.drafts.length ? '<div class="qv-menu-hd">Saved drafts (' + v.drafts.length + ')</div>' : '') +
     v.drafts.map(function(d, i){
       return item("_qvOpenDraft('" + d.id + "')", 'Draft ' + (i + 1), _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · open now' : ''), false);
     }).join('') +
@@ -27303,8 +27412,11 @@ function _qvRenderBar(){
   else if (v.accepted && v.sent) status = 'The customer’s link now shows this draft, which they have not accepted. Their earlier acceptance is kept under Accepted.';
   else if (v.sent) status = 'The customer’s link shows this draft. Not accepted yet.';
   else status = 'Not sent to the customer yet.';
-  html += '<div class="qv-status">' + status + '</div>';
-  bar.innerHTML = html;
+  // The Viewing button sits in the header beside Change quote template; the
+  // sentence about the customer's link stays on the line under it.
+  var cut = html.indexOf('</details>') + '</details>'.length;
+  if (host){ host.innerHTML = html.slice(0, cut); bar.innerHTML = '<div class="qv-status">' + status + '</div>'; }
+  else bar.innerHTML = html + '<div class="qv-status">' + status + '</div>';
   bar.style.display = 'flex';
 }
 // Undoing an acceptance has to REACH THE CUSTOMER'S LINK, which reads this
@@ -34100,15 +34212,14 @@ function _qaTplMenuRender(){
   var close = "this.closest('details').removeAttribute('open');";
   var cur = (S.quote && S.quote.templateId) || '';
   var item = function(call, label, sub, on){
-    return '<button type="button" class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+    return '<button type="button" class="lock-ok' + (on ? ' qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
   };
   var tpls = []; try { tpls = _qtTemplates(); } catch(e){}
-  var hasDefault = !!(S.settings && S.settings.branding && S.settings.branding.proposal_template);
-  var html = '<div class="qv-menu-hd">Saved templates</div>';
-  if (hasDefault) html += item("_qtApplySaved('__default')", 'Default quote', 'The layout every new quote starts with', cur === '__default');
-  tpls.forEach(function(t){ html += item("_qtApplySaved('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template', cur === t.id); });
-  if (!hasDefault && !tpls.length) html += '<div style="padding:4px 10px 8px;font-size:11.5px;color:#7c8894;line-height:1.4">No saved templates yet. Arrange a quote with Edit quote template, then Save as\u2026</div>';
-  html += item('_qtOpen()', 'Edit quote template', 'Take sections out, reorder them, save the layout to reuse');
+  var html = '<div class="qv-menu-hd">Start a new draft from</div>';
+  html += item("_qChangeTemplate('__default')", 'Default quote', 'The layout every new quote starts with', cur === '__default');
+  tpls.forEach(function(t){ html += item("_qChangeTemplate('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template', cur === t.id); });
+  if (!tpls.length) html += '<div style="padding:4px 10px 8px;font-size:11.5px;color:#7c8894;line-height:1.4">No saved templates yet. Arrange a quote with Edit quote template, then Save as\u2026</div>';
+  html += item('_qtOpen()', 'Edit quote templates', 'Change a saved template \u2014 never the quote on screen');
   list.innerHTML = html;
 }
 // Pole-shed selection add-on prices (ex GST). Editable in one place so
@@ -36771,6 +36882,24 @@ function _qtOpen(){
   var root = document.getElementById('qpRoot');
   if (!wrap || !root) return;
   _qtState();                                  // make sure the page list exists
+  // TEMPLATES ONLY (2026-09-25): the owner — "the edit quote template
+  // shouldn't edit the open quote, it should edit only saved quotes" (it
+  // asked "This is the sent quote…" on a sent job, and Save as changed the
+  // quote on screen). The job's quote is put aside; the editor works on a
+  // copy of it (for the preview) with the template laid over, autosave and
+  // the job lock stand aside while it is open, and Done puts the job's quote
+  // back exactly as it was.
+  _QT.job = { quote: S.quote, viewing: S._qvViewing, locked: S.jobLocked, hold: AUTOSAVE._hold };
+  var _tcopy = _qvCopyOf(S.quote);
+  S.quote = _tcopy;
+  S._qvViewing = null; S.jobLocked = false; AUTOSAVE._hold = true;
+  try {
+    var _tid = _QT.job.quote.templateId || '__default';
+    var _tt = (_tid === '__default') ? ((S.settings && S.settings.branding && S.settings.branding.proposal_template) || null)
+      : ((_qtTemplates().filter(function(x){ return x.id === _tid; })[0] || {}).tpl || null);
+    if (_tt) _qtApplySnapshot(_tt);
+    _QT.openTpl = _tid;
+  } catch(e){}
   // Remember exactly where the proposal lives so it goes back there.
   _QT.home = { parent: root.parentNode, next: root.nextSibling };
   document.getElementById('qtStage').appendChild(root);
@@ -36810,11 +36939,13 @@ function _qtClose(){
   document.body.style.overflow = '';
   _QT.open = false; _QT.modern = false;
   document.removeEventListener('keydown', _qtKeys, true);
+  // The job's own quote back, untouched.
+  if (_QT.job){ S.quote = _QT.job.quote; S._qvViewing = _QT.job.viewing; S.jobLocked = _QT.job.locked; AUTOSAVE._hold = _QT.job.hold; _QT.job = null; try { _jobLockRender(); } catch(e){} }
   try { _qpPreviewClassesSync(); refreshQuoteProposal(); } catch(e){}
   // Hand the zoom back to the Quote tab's own fitter.
   try { var r2 = document.getElementById('qpRoot'); if (r2) r2.style.zoom = ''; } catch(e){}
   _qpSyncSections();
-  try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — nothing was being saved
+  try { _qvRenderBar(); } catch(e){}
   try { _fitProposalPages(); } catch(e){}
   _qtSyncSavedPicker();
 }
@@ -37292,6 +37423,53 @@ function _qtApplySaved(id){
   _qtSyncSavedPicker();
 }
 
+// CHANGE QUOTE TEMPLATE (2026-09-25): a NEW draft from the chosen template —
+// the job's pricing, client, customer link and saved versions carried over,
+// the office's own photos and wording not (the owner: New draft "created a
+// new saved draft for the current quote I had open with all my photos etc —
+// I want it to open a new draft" from a saved template). A worked-on draft on
+// screen is kept in the Viewing list first; an untouched one is not.
+var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle',
+  'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
+function _qChangeTemplate(id){
+  if (!S.quote) return;
+  var t = (id === '__default')
+    ? ((S.settings && S.settings.branding && S.settings.branding.proposal_template) || {})
+    : (_qtTemplates().filter(function(x){ return x.id === id; })[0] || {}).tpl;
+  if (!t) return;
+  var kept = null; try { kept = _qvKeepWorking(); } catch(e){}
+  var from = S._qvViewing ? S._qvWork : S.quote;
+  var keepVersions = S.quote.versions;
+  var q = _qvFreshDraft(from);
+  Q_FRESH_DROP.forEach(function(k){ delete q[k]; });
+  if (q.share) delete q.share.priced;
+  q.versions = keepVersions;
+  q.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  q.draftStartedAt = new Date().toISOString();
+  S.quote = q;
+  S._qvViewing = null; S._qvWork = null;
+  S.jobLocked = false;
+  try { _jobLockRender(); } catch(e){}
+  if (id === '__default' && !(S.settings && S.settings.branding && S.settings.branding.proposal_template)){
+    // No default saved: the built-in layout.
+    var d0 = defaultQuote();
+    ['pages','parked','modernOrder','modernParked','style','coverTitle','aboutText','terms','options','proposalSections'].forEach(function(k){ q[k] = d0[k]; });
+  } else _qtApplySnapshot(t);
+  S.quote.templateId = id;
+  S.quote.templateName = (id === '__default') ? 'Default quote' : ((_qtTemplates().filter(function(x){ return x.id === id; })[0] || {}).name || '');
+  S.quote.tplFresh = true; S.quote.tplFp = null;
+  try { buildQuote(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  try { S.quote.tplFp = _qContentFp(S.quote); } catch(e){}
+  try { _qvRenderBar(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  var n = kept ? (_qvStore().drafts.findIndex(function(x){ return x && x.id === kept.id; }) + 1) : 0;
+  var msg = document.getElementById('qaMsg');
+  if (msg){ msg.textContent = '\u2713 New draft from \u201C' + S.quote.templateName + '\u201D' + (n ? ' \u2014 your previous draft is kept as Draft ' + n + ' under Viewing' : ''); msg.style.color = '#15803d';
+    setTimeout(function(){ if (msg.textContent.indexOf('New draft from') >= 0) { msg.textContent = ''; msg.style.color = ''; } }, 6000); }
+  _qtSyncSavedPicker();
+}
 async function saveAsDefaultTemplate(){
   readQuoteFromInputs();
   var q = S.quote || {};
@@ -38189,12 +38367,16 @@ async function _quoteEmailSendNow(){
       // closing window, not in front of it.
       try { _qvMarkSent(); } catch(e){}
       try {
-        Promise.resolve(_publishQuoteOnly()).catch(function(){})
+        window.__qSendTail = Promise.resolve(_publishQuoteOnly()).catch(function(){})
           .then(function(){ return saveCurrentJob({ force: true }); }).catch(function(){});
       } catch(e){}
     }
     setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, _fergusNote ? 2600 : 1600);
-    try { _qvView('sent'); } catch(e){}
+    // Only once the saves above have landed: a save is refused while a frozen
+    // version is on screen, so switching first threw the last one away.
+    (function(){ var tail = window.__qSendTail; window.__qSendTail = null;
+      var show = function(){ try { if (!S._qvViewing) _qvView('sent'); } catch(e){} };
+      if (tail && tail.then) Promise.race([tail, new Promise(function(r){ setTimeout(r, 30000); })]).then(show, show); else show(); })();
   } catch(err){
     var msg = String(err && err.message || err);
     if (msg.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || msg.indexOf('503') !== -1) {
@@ -42343,7 +42525,14 @@ async function diagnoseFergus(){
     box.textContent = 'Diagnose failed: ' + e.message + '\n\nIf this says "Not Found", the new backend code hasn\'t deployed yet — wait for Railway to finish, then try again.';
   }
 }
-async function fergusCall(method,path,body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/fergus'+path,{method:method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:body?JSON.stringify(body):undefined});}
+async function fergusCall(method,path,body,signal){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/fergus'+path,{method:method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:body?JSON.stringify(body):undefined,signal:signal||undefined});}
+// CANCEL A PUSH TO FERGUS (2026-09-25: "I just accidentally clicked push
+// pricing to Fergus — put a cancel button"). The Cancel on the working pill
+// sets this; the push checks it between its steps and aborts its request in
+// flight. Past the point Fergus has created the new quote version, cancelling
+// voids that version again, so Fergus is left as it was.
+var _FPUSH = null;
+function _fergusPushCancel(){ if (_FPUSH){ _FPUSH.cancelled = true; try { _FPUSH.ctrl.abort(); } catch(e){} } }
 async function testFergus(){
   document.getElementById('fergErr').style.display='none';
   document.getElementById('fergOk').style.display='none';
@@ -51045,7 +51234,11 @@ function redrawAll() {
             return Math.abs(_d) < 0.20;                      // parallel to a gutter (~11°)
           });
         }
-        if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch' && !_monoHigh) return;
+        // A HEAD barge (2026-09-25, report 58: the corner block beside the
+        // ridge's end) is the high edge of the sheets below it, like a head
+        // apron — its block's sheets were counted but never measured on the map.
+        var _headBarge = (t === 'barge' && rl.subtype === 'head');
+        if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch' && !_monoHigh && !_headBarge) return;
         // Skip Dutch-gable gablet flashings (apron sharing a line with its
         // barge) — EXCEPT the head apron the Dutch builder lays across each
         // gablet base: that IS the high edge the hip-end sheets run up to, so
@@ -51071,6 +51264,7 @@ function redrawAll() {
         [1, -1].forEach(function(sgn){
           var dx = ppx*sgn, dy = ppy*sgn;
           if (_headApron && ((rmx - _ocx) * dx + (rmy - _ocy) * dy) <= 0) return;   // inward → skip
+          if (_headBarge && !_spPointInPoly(rmx + dx*3, rmy + dy*3, outline)) return; // only the roof's side of it
           // Gather EVERY gutter on this side that runs parallel to the
           // ridge and overlaps its span. A stepped eave (an L / T, or a
           // gable with a bump-out) drops to gutters at several depths —
@@ -63054,6 +63248,18 @@ async function pushQuotePricingToFergus(btn, opts){
   var built = _buildFergusItemisedSections();
   if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); _tell('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
   _fergusBtnBusy(btn, true); _qaBar(true);
+  var _pc = _FPUSH = { cancelled: false, ctrl: (typeof AbortController === 'function') ? new AbortController() : { abort: function(){}, signal: undefined }, newId: null };
+  var _revBefore = S.quote.fergusQuoteRev || 0;
+  var _cancelled = function(){ return _pc.cancelled; };
+  var _stopNow = async function(){
+    _pc.handled = true;
+    // Undo what Fergus has been given: the new version is voided again.
+    var voidedNew = false;
+    if (_pc.newId){ try { var vr = await fergusCall('POST', '/jobs/quotes/' + _pc.newId + '/void'); voidedNew = !!(vr && vr.ok); } catch(e){} }
+    S.quote.fergusQuoteRev = _revBefore;
+    _qaMsg(_pc.newId ? (voidedNew ? 'Push to Fergus cancelled \u2014 the new quote version was voided again; Fergus is as it was.' : 'Push to Fergus cancelled \u2014 but the new quote version could not be voided; void it in Fergus.') : 'Push to Fergus cancelled \u2014 nothing was sent.', !_pc.newId || voidedNew);
+    if (_silent) throw new Error('Push to Fergus cancelled');
+  };
   try {
     // Generate the interactive online-quote link and ride it in the Fergus
     // quote notes so the customer can choose their options and accept
@@ -63084,20 +63290,24 @@ async function pushQuotePricingToFergus(btn, opts){
     S.quote.fergusQuoteRev = (S.quote.fergusQuoteRev || 0) + 1;
     var title = 'Quote ' + (S.quote.ref || '') + ' — ' + (S.quote.client || 'Client') + ' (v' + S.quote.fergusQuoteRev + ')';
     var dueDays = (function(){ var m = String(S.quote.validUntil || S.quote.validDays || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 30; })();
+    if (_cancelled()){ await _stopNow(); return; }
     var resp = await fergusCall('POST', '/jobs/' + S.linkedJobId + '/quotes', {
       title: title, sections: built.sections, dueDays: dueDays, total: sub + gst,
       notes: _onlineLine + (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
       status: 'Draft'
-    });
+    });   // never aborted mid-way: Fergus may create it anyway — it is voided after, if cancelled
     var raw = ''; try { raw = await resp.clone().text(); } catch(e){}
     if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + raw.slice(0, 300));
     var newId = null;
     try { var parsed = JSON.parse(raw); window._lastFergusQuote = parsed; newId = (parsed && ((parsed.data && parsed.data.id) || parsed.id)) || null; } catch(e){}
+    _pc.newId = newId;
+    if (_cancelled()){ await _stopNow(); return; }
     // Void every earlier (non-accepted) quote version so only this newest
     // draft remains live on the Fergus job.
     var voided = 0;
     if (newId){ try { _qaMsg('Voiding previous quote versions…'); voided = await _fergusVoidOtherQuotes(S.linkedJobId, newId); } catch(e){} }
     // Publish it, so Fergus marks the job quoted rather than holding a draft.
+    if (_cancelled()){ await _stopNow(); return; }
     var _published = null;
     if (newId && opts && opts.publish){
       // …and MARK it sent (the customer gets it from RoofMap, never from
@@ -63147,6 +63357,12 @@ async function pushQuotePricingToFergus(btn, opts){
     _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + (_published === true ? ' · published' + _pubNote : (_published === false ? ' · still a draft in Fergus — publish it there by hand' + _pubNote : '')) + ' · ' + when, true);
     _tell('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
+    // Cancelled (the request aborted, or a step stopped): say so, not "failed".
+    if (_pc && _pc.cancelled){
+      if (!_pc.handled){ try { await _stopNow(); } catch(e2){} }
+      if (_silent) throw e;
+      return;
+    }
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
     _tell('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
     // The send flow calls this silently and CAN act on a failure (it says
@@ -63154,6 +63370,7 @@ async function pushQuotePricingToFergus(btn, opts){
     if (_silent) throw e;
   } finally {
     _qaBar(false); _fergusBtnBusy(btn, false);
+    if (_FPUSH === _pc) _FPUSH = null;
   }
 }
 async function pushQuotePdfToFergus(btn){
@@ -70002,22 +70219,50 @@ renderRoofSwitcher();
 // pill with a spinner appears at the bottom of the screen and stays until it
 // settles. Wrapped by NAME, so the buttons' own onclick handlers pick it up.
 var _workingDepth = 0;
-function _workingShow(label){
+function _workingEl(){
   var el = document.getElementById('workingPill');
   if (!el){ el = document.createElement('div'); el.id = 'workingPill'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
-  el.innerHTML = '<span class="spin"></span><span>' + String(label || 'Working…').replace(/</g, '&lt;') + '</span>';
+  return el;
+}
+// A Cancel on the pill when the job can be stopped (2026-09-25: the owner
+// pressed Push to Fergus by accident and had no way to stop it).
+function _workingShow(label, cancel){
+  var el = _workingEl();
+  clearTimeout(el._flashT);
+  el.classList.remove('ok', 'bad', 'can');
+  el.innerHTML = '<span class="spin"></span><span>' + String(label || 'Working…').replace(/</g, '&lt;') + '</span>' +
+    (cancel ? '<button type="button" class="wp-cancel lock-ok" id="workingCancel">Cancel</button>' : '');
+  if (cancel){ el.classList.add('can'); var b = document.getElementById('workingCancel'); if (b) b.onclick = function(){ b.disabled = true; b.textContent = 'Cancelling\u2026'; try { cancel(); } catch(e){} }; }
   el.classList.add('on');
 }
-function _workingHide(){ var el = document.getElementById('workingPill'); if (el) el.classList.remove('on'); }
-function _workingWrap(name, label){
+function _workingHide(){ var el = document.getElementById('workingPill'); if (el){ el.classList.remove('on', 'can'); } }
+// "✓ Saved 6:41 am" (or a warning) for a moment, where "Saving…" was.
+function _workingFlash(text, bad){
+  var el = _workingEl();
+  clearTimeout(el._flashT);
+  el.classList.remove('can');
+  el.innerHTML = '<span class="wp-tick">' + (bad ? '\u26A0' : '\u2713') + '</span><span>' + String(text).replace(/</g, '&lt;') + '</span>';
+  el.classList.toggle('bad', !!bad); el.classList.toggle('ok', !bad);
+  el.classList.add('on');
+  el._flashT = setTimeout(function(){ if (_workingDepth === 0){ el.classList.remove('on', 'ok', 'bad'); } }, bad ? 4200 : 1800);
+}
+function _savedAtText(){ try { return 'Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase(); } catch(e){ return 'Saved'; } }
+function _workingWrap(name, label, cancel){
   var orig = window[name];
   if (typeof orig !== 'function' || orig._workingWrapped) return;
   var w = function(){
-    var shown = false, finished = false;
-    var showT = setTimeout(function(){ if (finished) return; shown = true; _workingDepth++; _workingShow(label); }, 450);
+    var shown = false, finished = false, t0 = Date.now();
+    var showT = setTimeout(function(){ if (finished) return; shown = true; _workingDepth++; _workingShow(label, cancel); }, 450);
     var done = function(){
       finished = true; clearTimeout(showT);
+      var wasShown = shown;
       if (shown){ shown = false; _workingDepth = Math.max(0, _workingDepth - 1); }
+      // A save that showed "Saving…" ends on a tick (2026-09-25: "make sure it
+      // gives a tick and says saved"), or says it did not.
+      if (wasShown && name === 'saveCurrentJob' && _workingDepth === 0){
+        if ((window.__saveOkAt || 0) >= t0) { _workingFlash(_savedAtText()); return; }
+        if (window._lastSaveRefusal || (window.__saveFailAt || 0) >= t0) { _workingFlash('Not saved \u2014 ' + (window._lastSaveRefusal || 'the server did not take it; a copy is kept on this device'), true); return; }
+      }
       if (_workingDepth === 0) _workingHide();
     };
     var r;
@@ -70039,7 +70284,7 @@ try {
    ['_jobPhotosAdd', 'Uploading photos…'], ['addPhotos', 'Adding photos…'], ['addGalleryPhotos', 'Adding photos…'],
    ['uploadSlotFile', 'Uploading…'], ['_qpCondPhotoUpload', 'Uploading photo…'], ['onRoofImg', 'Loading the picture…'],
    ['_jmsDiagPdf', 'Building the diagnostic PDF…'], ['saveCurrentJob', 'Saving…']
-  ].forEach(function(pair){ _workingWrap(pair[0], pair[1]); });
+  ].forEach(function(pair){ _workingWrap(pair[0], pair[1], pair[0] === 'pushQuotePricingToFergus' ? function(){ _fergusPushCancel(); } : null); });
 } catch(e){}
 (function _appTime(){
   // Minutes are kept per screen (Home, Map Roof, Job Pack, Quote, an order

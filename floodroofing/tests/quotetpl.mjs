@@ -315,7 +315,7 @@ await pg.waitForTimeout(600);
   check('THE ASK: the Customer link button is gone, Email Quote does that job',
     bar.custLink === false && bar.email === true, JSON.stringify({ custLink: bar.custLink, email: bar.email }));
   check('THE ASK: and there is a Change quote template picker',
-    /saved templates/i.test(bar.picker), bar.picker);
+    /change quote template/i.test(bar.picker), bar.picker);   // renamed from "Select from saved templates" 2026-09-25
 }
 
 // ── never any part of what the customer gets ──────────────────────

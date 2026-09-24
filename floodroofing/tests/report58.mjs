@@ -70,6 +70,8 @@ check('every sheet measure has ONE arrow, pointing downhill at its gutter — up
 const upL = ar.filter(a => a.y < 447).map(a => a.label).sort();
 check('the map’s runs are this roof’s: 6.24 m ridge-to-gutter over the left ridge (it borrowed the corner block’s 5.34 m barge), 7.07 and 6.65 over the section, 6.02 on the right', ['6.02m', '6.24m', '6.65m', '7.07m'].every(x => upL.includes(x)) && !upL.includes('5.34m'), JSON.stringify(upL));
 
+check('the corner block’s sheets are measured on the map too — 5.33 m (its 3 sheets’ length), from its head barge down to its gutter', ar.filter(a => a.label === '5.33m' && a.dy < 0).length === 1 && ar.some(a => a.label === '6.24m'), JSON.stringify(ar.map(a => a.label)));
+
 // ── hover arrows on the broken ridge ──
 const pos = await pg.evaluate(() => {
   setTool('select');

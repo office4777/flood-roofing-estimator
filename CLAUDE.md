@@ -411,6 +411,35 @@ Discipline (non-negotiable):
   "thumbnail" is the photo). The proposal slot picker downscales like the
   others. Server list cache keyed by company + job (`_flKey`).
   `tests/photoviewer.mjs`. Rotate background image runs −100°…100°.
+- QUOTE DRAFTS AND TEMPLATES (2026-09-25, `tests/quotedrafts.mjs`):
+  the Viewing menu is rendered into `#qaViewingHost` in the header, left of
+  "Change quote template" (was "Select from saved templates"); it lists the
+  working draft, Sent, Accepted and saved drafts only (no New draft / Save
+  this draft). Switching (`_qvOpenDraft`, `_qvNewDraft`, `_qChangeTemplate`)
+  asks NOTHING: `_qvKeepWorking()` saves the working draft first when
+  `_qvWorkedOn` — a draft started from a template or a new job's default
+  (`tplFresh`) is untouched while `_qContentFp` (the office's content keys
+  `Q_CONTENT_KEYS`, incl. lineItems) equals its baseline `tplFp`; no
+  baseline counts as worked on. `_qChangeTemplate(id)` makes a NEW draft:
+  the job's pricing, client, share and versions kept, `Q_FRESH_DROP` (photos,
+  custom wording, hides) dropped, the template applied. THE TEMPLATE EDITOR
+  (`_qtOpen`) works on a COPY (`_QT.job` holds the job's quote, viewing,
+  lock and autosave hold; `_scheduleAutosave` is a no-op while it is open)
+  and `_qtClose` puts the job's quote back untouched — its saves write
+  templates only; `_qt*` and `_qChangeTemplate` are in `_LOCK_OK_CALLS`.
+- SAVING IN THE BACKGROUND (2026-09-25): switching jobs no longer waits —
+  `_saveBeforeSwitch` snapshots the job NOW (`_jobSaveDetach`), writes a
+  device copy, and `_jobSaveSendDetached` PUTs it through the write queue
+  (3 tries; the device copy is deleted on success, `_draftMarkSyncedFor`).
+  The working pill ends a save it showed on "✓ Saved h:mm" (green,
+  `_workingFlash`, `__saveOkAt`) or a red "Not saved — …". The send shows
+  the Sent version only after its last save lands (`__qSendTail`) — it used
+  to switch first, and the save was refused.
+- PUSH TO FERGUS CANCEL (2026-09-25): the pill carries Cancel
+  (`_workingWrap(name, label, cancel)`, `_fergusPushCancel`, `_FPUSH`); the
+  push checks between steps; after Fergus created the new version it is
+  voided again and the rev restored; the create request is never aborted.
+- A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

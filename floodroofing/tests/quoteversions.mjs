@@ -51,7 +51,8 @@ await pg.evaluate((g) => {
 }, GEOM);
 await pg.waitForTimeout(2200);
 const total = () => pg.evaluate(() => Math.round(_quoteMoney().tot * 100) / 100);
-const bar = () => pg.evaluate(() => (document.getElementById('qaVersions') || {}).innerText || '');
+// The Viewing button sits in the header since 2026-09-25; the sentence stays under it.
+const bar = () => pg.evaluate(() => ((document.getElementById('qaViewingHost') || {}).innerText || '') + '\n' + ((document.getElementById('qaVersions') || {}).innerText || ''));
 
 // ── before anything is sent ──
 check('the header row says the quote has not been sent yet', /Not sent to the customer yet/.test(await bar()) && /Viewing:[\s\S]*Draft/.test(await bar()), (await bar()).replace(/\n/g,' · ').slice(0, 90));
@@ -62,7 +63,7 @@ const sentTotal = await total();
 await pg.evaluate(() => { openQuoteEmail(); document.getElementById('quoteEmailTo').value = 'marae@example.co.nz'; });
 await pg.evaluate(() => _quoteEmailSendNow());
 await pg.waitForTimeout(800);
-let v = await pg.evaluate(() => ({ sent: S.quote.versions && S.quote.versions.sent, bar: document.getElementById('qaVersions').innerText }));
+let v = await pg.evaluate(() => ({ sent: S.quote.versions && S.quote.versions.sent, bar: document.getElementById('qaViewingHost').innerText + '\n' + document.getElementById('qaVersions').innerText }));
 check('THE FEATURE: emailing the quote freezes it as the Sent Quote', !!v.sent && Math.abs(v.sent.total - sentTotal) < 0.02 && !!v.sent.quote && !v.sent.quote.versions, JSON.stringify(v.sent && { total: v.sent.total, at: v.sent.at }));
 check('…and the selector now offers the Sent version', /\bSent\b/.test(v.bar), v.bar.replace(/\n/g,' · ').slice(0, 90));
 check('…and the screen switches to the sent quote, locked, straight away', await pg.evaluate(() => !!S._qvViewing && S._qvViewing.kind === 'sent' && S.jobLocked));
@@ -129,16 +130,14 @@ check('Accepted Quote shows the selections as accepted, not as since changed', a
 await pg.evaluate(() => _qvBackToDraft());
 await pg.waitForTimeout(300);
 
-// ── create a new draft: the unsaved draft is asked about ──
-await pg.evaluate(() => _qvNewDraft());
-await pg.waitForTimeout(200);
-v = await pg.evaluate(() => { const m = document.getElementById('qvAskModal'); return { asked: !!m, btns: m ? Array.from(m.querySelectorAll('button')).map(b => b.textContent) : [] }; });
-check('Create new draft with unsaved changes asks: save it, overwrite it, or cancel', v.asked && /Save existing draft/.test(v.btns[0]) && /Overwrite existing draft/.test(v.btns[1]) && /Cancel/.test(v.btns[2]), v.btns.join(' | '));
+// ── a new draft: the worked-on draft is KEPT, with no question (2026-09-25:
+// "don't ask me if I want to save existing draft or overwrite, just
+// automatically save it as a draft before I switch over") ──
 const oldDraftTotal = await total();
-await pg.evaluate(() => document.querySelector('#qvAskModal button[data-i="0"]').click());
+await pg.evaluate(() => _qvNewDraft());
 await pg.waitForTimeout(500);
-v = await pg.evaluate(() => ({ drafts: S.quote.versions.drafts.length, draftId: S.quote.draftId, viewing: S._qvViewing, locked: S.jobLocked, bar: document.getElementById('qaVersions').innerText, sentKept: !!S.quote.versions.sent, accKept: !!S.quote.versions.accepted }));
-check('"Save existing draft" keeps it in Saved Drafts and opens a fresh editable draft', v.drafts === 1 && !!v.draftId && !v.viewing && !v.locked, JSON.stringify(v));
+v = await pg.evaluate(() => ({ asked: !!document.getElementById('qvAskModal'), drafts: S.quote.versions.drafts.length, draftId: S.quote.draftId, viewing: S._qvViewing, locked: S.jobLocked, bar: document.getElementById('qaViewingHost').innerText + '\n' + document.getElementById('qaVersions').innerText, sentKept: !!S.quote.versions.sent, accKept: !!S.quote.versions.accepted }));
+check('a new draft asks nothing, keeps the worked-on one in Saved drafts and opens a fresh editable draft', !v.asked && v.drafts === 1 && !!v.draftId && !v.viewing && !v.locked, JSON.stringify(v));
 check('…with the sent and accepted quotes untouched', v.sentKept && v.accKept);
 
 // THE ONE THAT REACHED A CUSTOMER. A new draft copies whatever is on screen,
@@ -185,7 +184,7 @@ check('…the write carries the cleared acceptance, so a reload stays unlocked',
     const q = (((last && last.body && last.body.draw_state) || {}).state || {}).quote || {};
     return !q.accepted; })(),
   JSON.stringify((((puts[puts.length-1]||{}).body||{}).draw_state||{}).state ? 'quote written' : 'no quote in body'));
-check('…and the Viewing menu counts it', await pg.evaluate(() => /Drafts \(1 saved\)/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '') && /Draft 1/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '')), v.bar.replace(/\n/g,' · ').slice(0, 130));
+check('…and the Viewing menu counts it', await pg.evaluate(() => /Saved drafts \(1\)/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '') && /Draft 1/.test((document.querySelector('#qvViewingMenu .qv-menu-list') || {}).textContent || '')), v.bar.replace(/\n/g,' · ').slice(0, 130));
 // After a new draft is made from an accepted quote, the sentence has to say
 // BOTH things without contradicting itself: the link shows this draft, and
 // the earlier acceptance is kept.
