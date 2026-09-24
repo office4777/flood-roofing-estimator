@@ -63,7 +63,9 @@ const bar = await pg.evaluate(() => {
 check('once the scale comes off an aerial, the bar is there', bar.there, bar.text.slice(0, 60));
 check('…and it warns that the scale came off the satellite',
   /roughly to satellite scale/i.test(bar.text), bar.text);
-check('…and says what to do about it', /calibrate scale/i.test(bar.text) && /override/i.test(bar.text), bar.text);
+// 2026-09-24: no Calibrate tool any more — a click on any measurement,
+// with the real length typed in, corrects the scale and moves no line.
+check('…and says what to do about it: click any measurement and type its real length', /click any measurement/i.test(bar.text) && /real length/i.test(bar.text) && /override/i.test(bar.text) && /no line moves/i.test(bar.text), bar.text);
 check('…and the drawing-order lecture is gone',
   !/best workflow/i.test(bar.text) && !/clockwise/i.test(bar.text), bar.text);
 
@@ -80,24 +82,10 @@ check('…and it goes away again once the scale is set by hand', !byHand,
 await pg.evaluate(() => { _autoScaleFromAerial(-35.72, 19, true); });
 await pg.waitForTimeout(150);
 
-// The words are the button. Calibrate needs an outline to measure against —
-// without one the app says so, which is the behaviour the toolbar button has
-// always had, so the bar must not be a second, weaker way in.
-await pg.click('#workflowTipBar button');
-await pg.waitForTimeout(300);
-check('pressing it with nothing drawn asks for the outline first, same as the toolbar',
-  alerts.some(a => /outline first/i.test(a)), alerts.join(' | ') || '(no message)');
-
-// With an outline down it arms the calibrate tool for real.
-await pg.evaluate(() => {
-  DRAW.outline = [[100,100],[400,100],[400,300],[100,300]];
-  DRAW.outlineDone = true;
-  setTool('select');
-});
-await pg.click('#workflowTipBar button');
-await pg.waitForTimeout(300);
-check('…and with an outline drawn it arms the calibrate tool',
-  (await pg.evaluate(() => DRAW.tool)) === 'calibrate', await pg.evaluate(() => DRAW.tool));
+// The bar is advice, not a way into a Calibrate tool: there is no button in
+// it to press, and nothing on the drawing moves when the scale is corrected.
+const barBtn = await pg.evaluate(() => document.querySelectorAll('#workflowTipBar button').length);
+check('the bar has no Calibrate button to press', barBtn === 0, barBtn + ' buttons');
 
 check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close();

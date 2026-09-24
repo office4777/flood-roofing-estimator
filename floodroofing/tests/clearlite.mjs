@@ -56,13 +56,16 @@ await pg.evaluate(() => {
 await pg.waitForTimeout(600);
 
 // ── the canvas sheet-type picker ──────────────────────────────────
+// Since 2026-09-24 the picker lives in the roof's own settings (the panel a
+// roof button opens), beside its shape and pitch.
 const picker = await pg.evaluate(() => {
+  document.getElementById('roofTypePanel').style.display = 'block';
   const sel = document.getElementById('roofSheetType');
   return { present: !!sel, visible: !!(sel && sel.offsetParent),
            opts: sel ? [...sel.options].map(o => o.textContent.trim()) : [],
            value: sel ? sel.value : '' };
 });
-check('the canvas carries a sheet-type picker', picker.present && picker.visible,
+check('the roof panel carries the sheet-type picker', picker.present && picker.visible,
   JSON.stringify(picker).slice(0, 160));
 check('…offering exactly the four the roofer asked for',
   ['Steel Corrugate','Steel 5-Rib','Clearlite 5-Rib','Clearlite Corrugate']

@@ -72,10 +72,18 @@ check('…and no other line changes', v.before.lines.slice(1).every((m, i) => m 
   JSON.stringify(v.after.lines));
 check('…and the map is marked no longer to scale, still in visual mode', v.offScale && v.mode === 'visual');
 
-// ── scaled edits: the wall still stretches, as designed ──────────
+// ── scaled edits: the SCALE follows the typed length (2026-09-24) ──
+// The owner: "click on any measure to calibrate the scale … without moving
+// any lines, because they have likely traced a satellite image perfectly".
 const s = await typeOnGutter('scaled', 9.5);
-check('in Scaled edits the same tap stretches the wall to the typed length',
-  s.handled && s.after.outline !== s.before.outline, s.after.outline === s.before.outline ? 'outline did not move' : 'outline moved');
+check('in Scaled edits the same tap corrects the SCALE: no corner moves, the scale changes, and that gutter now reads 9.50',
+  s.handled && s.after.outline === s.before.outline && s.after.scale !== s.before.scale && Math.abs(s.after.lines[0] - 9.5) < 0.011,
+  JSON.stringify({ moved: s.after.outline !== s.before.outline, scale: [s.before.scale, s.after.scale], gutter: s.after.lines[0] }));
+const follow = await pg.evaluate(() => DRAW.lines.filter(l => l.pts && l.pts.length === 2).map(l => {
+  const px = Math.hypot(l.pts[1][0] - l.pts[0][0], l.pts[1][1] - l.pts[0][1]);
+  return { m: l.measM, want: Math.round(px * DRAW.scaleMetresPerPx * slopeFactorForLineType(l.type, _activePitch()) * 100) / 100 };
+}));
+check('…and every other measurement is worked out afresh from the drawing at the new scale', follow.every(x => Math.abs(x.m - x.want) < 0.011), JSON.stringify(follow.slice(0, 6)));
 
 // The solvers refuse outright in visual mode, whoever calls them.
 const solver = await pg.evaluate(() => {

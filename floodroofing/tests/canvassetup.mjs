@@ -100,8 +100,10 @@ v = await pg.evaluate(() => {
 check('the five coloured roof-type buttons are gone from the toolbar',
   v.loose === 0, v.loose + ' still loose');
 check('…replaced by one "Change roof type" button', v.dropBtn);
+// 2026-09-24: one row — shape, Rotate 90°, Snap square, Make main roof,
+// Delete roof — plus the phone's collapse and the gable Centre button.
 check('…so the roof panel is down to a handful of controls',
-  v.buttons > 0 && v.buttons <= 6, v.buttons + ' buttons');
+  v.buttons > 0 && v.buttons <= 7, v.buttons + ' buttons');
 
 const menu = await pg.evaluate(() => {
   toggleRoofTypeMenu();

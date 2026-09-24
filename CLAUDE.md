@@ -719,7 +719,27 @@ pins four outlines taken from real feedback reports, structurally: nothing
 outside the building, nothing stopping in mid-air, no open apex, no kink,
 every ridge level or plumb.
 
-**The drawing scale.** (LINZ, 2026-09-24: the aerial finder defaults to LINZ
+**The drawing scale.** (CLICK A MEASUREMENT TO CORRECT THE SCALE,
+2026-09-24: in Scaled edits, typing a line's real length — a wall pill, an
+interior line's popup, the line editor, a sheet length via its barge — goes
+through `_rescaleFromMeasure(line, m)`: metres per IMAGE pixel = typed ÷
+(pixel length × the line's slope factor). NO POINT OF THE DRAWING MOVES; every
+roof's measures are recomputed. A value within 6 mm of what it already reads
+changes nothing. The wall-stretching solvers (`_applyTrueEdgeMeasure`,
+`_applySegmentTrueMeasure`) remain but no click reaches them. The Measure and
+Calibrate buttons are gone; "📏 Set scale" (`#btn-calibrate`, `#ttbCal`) shows
+only while there is NO scale. `tests/report57.mjs`, `tests/roofpanel.mjs`.)
+THE ROOF PANEL (`#roofTypePanel`, 2026-09-24) is one row — shape, Rotate 90°,
+Snap square, pitch, sheet (`#roofSheetType`, per roof), ★ Make main roof,
+Delete roof — no "Suggested" line. Roof numbers: `_roofRemap(mapFn)` moves
+EVERYTHING kept by roof index (modes, labour, labour calc, manual flags,
+scaffold, buffer/mark-up by roof, job-pack pick, cut-list freezes,
+back-tray/box-flashing keys, pricing tab) and the main roof's job-wide slots
+(S.quote.labour hours, S.quote.scaffold, legacy buffer/mark-up); `deleteRoof`
+and `makeMainRoof` use it, with `_roofExtraSelByRoof/_roofExtraSelRestore` for
+the customer's optional-roof picks. ROTATE IMAGE is its own slider
+(`#rotImgWrap`), fine controls in `#rotImgFine` (Done / click-away).
+(LINZ, 2026-09-24: the aerial finder defaults to LINZ
 Basemaps "aerial" — NZ's own photography, CC BY 4.0 — when the server has
 `LINZ_BASEMAPS_KEY` (served by `GET /imagery-config` when the finder opens,
 never on page load, never in the playground; `/health.features.linz`).

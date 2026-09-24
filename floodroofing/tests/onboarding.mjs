@@ -121,18 +121,20 @@ check('picking a type moves on to the pitch', await waitStep(pg, 'pitch'), await
 await pg.evaluate(() => { document.getElementById('_rsPitch').value = '15'; document.getElementById('_rsOk').click(); });
 check('Draw the roof → the scale explanation', await waitStep(pg, 'scale'), await stepKey(pg));
 v = await pg.evaluate(() => document.getElementById('tourBody').textContent);
-check('…which calls the satellite scale approximate and says to calibrate using a known measurement', /approximate/.test(v) && /calibrate using a known measurement/.test(v) && !/exact/.test(v), v.slice(0, 80));
+check('…which calls the satellite scale approximate and says to correct it with a known measurement', /approximate/.test(v) && /correct it with a known measurement/.test(v) && /click the measurement on a wall/.test(v) && /Nothing moves/.test(v) && !/exact/.test(v), v.slice(0, 120));
 check('…and the skip button says so too', /Use approximate scale for this practice/.test(await pg.evaluate(() => document.getElementById('tourNext').textContent)));
-await pg.click('#btn-calibrate');
-check('clicking Calibrate scale → "click a line to calibrate"', await waitStep(pg, 'calibrate-line'), await stepKey(pg));
-// Picking the line opens the Set scale popup; the step must WAIT for the
-// Calibrate button, not jump on before the length is typed.
-await pg.evaluate(() => { DRAW.calibratePixels = 200; document.getElementById('calPopup').style.display = 'block'; });
-await sleep(900);
-v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, body: document.getElementById('tourBody').textContent }));
-check('picking the line does not move on — the card now says to type the length and click Calibrate', v.key === 'calibrate-line' && /click Calibrate/.test(v.body), JSON.stringify(v));
-await pg.evaluate(() => { document.getElementById('calPopup').style.display = 'none'; DRAW.scaleLabel = '1px=20.00mm | ref:10m flat'; });
-check('Calibrate (scale set, popup gone) → the Job Pack gate', await waitStep(pg, 'jobpack'), await stepKey(pg));
+// 2026-09-24: no Calibrate button — the step waits for a measurement to be
+// corrected, and the drawing does not move when it is.
+await sleep(700);
+v = await pg.evaluate(() => ({ key: TOUR.steps[TOUR.i].key, calBtn: !!document.getElementById('btn-calibrate') && getComputedStyle(document.getElementById('btn-calibrate')).display !== 'none' }));
+check('the scale step waits for a measurement to be corrected, with no Calibrate button on the toolbar', v.key === 'scale' && !v.calBtn, JSON.stringify(v));
+v = await pg.evaluate(() => {
+  const l = DRAW.lines.find(x => x && x.pts && x.pts.length === 2 && x.type === 'gutter') || DRAW.lines.find(x => x && x.pts && x.pts.length === 2);
+  const before = JSON.stringify(DRAW.outline);
+  _rescaleFromMeasure(l, 10);
+  return { moved: JSON.stringify(DRAW.outline) !== before, reads: l.measM };
+});
+check('correcting a measurement (nothing moves) → the Job Pack gate', !v.moved && Math.abs(v.reads - 10) < 0.011 && await waitStep(pg, 'jobpack'), JSON.stringify(v) + ' ' + await stepKey(pg));
 await pg.click('#navJobPackBtn');
 check('clicking Job Pack lands on "always check the calculations"', await waitStep(pg, 'lineitems'), await stepKey(pg));
 v = await pg.evaluate(() => ({ tab: document.body.getAttribute('data-tab'), body: document.getElementById('tourBody').textContent, buttons: Array.from(document.querySelectorAll('#tourExtra button')).map(b => b.textContent) }));
@@ -225,7 +227,7 @@ check('…remembers it as done, on this device and on the account, and clears th
 check('…without marking the 29-step tutorial as seen', !(await pg.evaluate(() => localStorage.getItem('fr_tour_done'))) && !puts.some(p => p.tour_done));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step was reported as it was shown, and the end as finished',
-  shown.join() === 'find,useview,adjust,outline,corners,rooftype,pitch,scale,calibrate-line,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,p-scaffold,p-labour,p-material,p-gutters,p-profit,q-close,q-cover,q-page1,q-page2,q-page3,q-page4,q-page5,q-page6,qsend,qsend-go,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
+  shown.join() === 'find,useview,adjust,outline,corners,rooftype,pitch,scale,jobpack,lineitems,order,checklist,confirm,supplier,send,quote,pricing,p-scaffold,p-labour,p-material,p-gutters,p-profit,q-close,q-cover,q-page1,q-page2,q-page3,q-page4,q-page5,q-page6,qsend,qsend-go,done' && usage.some(u => u.name === 'walkthrough' && u.props.action === 'finished'),
   shown.join());
 check('…and the order milestone carries the example flag', usage.some(u => u.name === 'output_created' && u.props.example === true && u.props.kind === 'order'));
 check('…and every event from the demo job says so', usage.filter(u => /roof_source|output_created/.test(u.name)).every(u => u.props.example === true));

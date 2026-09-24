@@ -279,11 +279,13 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     label: (document.getElementById('viewMenuBtn') || {}).textContent || '',
     menu: (document.getElementById('viewMenu') || {}).textContent || '',
   }));
-  check('the menu is named for what it does', /Edit font size \/ rotate image/.test(v.label), v.label.trim());
+  // 2026-09-24: rotation has its own slider now, so the menu is font sizes.
+  check('the menu is named for what it does', /Edit font size/.test(v.label) && !/rotate/i.test(v.label), v.label.trim());
   check('…the bug-report copy is gone from it', !/Copy roof geometry/.test(v.menu));
   check('…and so is Switch to Site mode', !/Switch to Site mode/.test(v.menu));
-  check('…while the font sizes and the rotation stay',
-    /Sheet text/.test(v.menu) && /Outline text/.test(v.menu) && /Rotate photo/i.test(v.menu));
+  const rot = await pg.evaluate(() => ({ lbl: (document.querySelector('#rotImgWrap .rotimg-lbl') || {}).textContent || '', slider: !!document.querySelector('#rotImgWrap #fineRotateSlider'), inMenu: !!document.querySelector('#viewMenu #fineRotateSlider') }));
+  check('…while the font sizes stay, and rotating the image has its own "Rotate image" slider',
+    /Sheet text/.test(v.menu) && /Outline text/.test(v.menu) && /Rotate image/.test(rot.lbl) && rot.slider && !rot.inMenu, JSON.stringify(rot));
   await ctx.close();
 }
 

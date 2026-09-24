@@ -370,6 +370,37 @@ html.site-mode #roofViewRow button{
 html.site-mode #phoneClearBtn{color:#fca5a5!important}
 
 /* roof-shape sheet: one calm dark surface instead of a blue gradient card */
+/* THE ROOF PANEL (2026-09-24): one tidy row in the app's own colours. */
+#roofTypePanel.rtp{ position:relative; margin:0 .75rem .55rem; padding:10px 12px 9px; background:#fff; border:1px solid var(--border,#e3e6ea); border-radius:12px; box-shadow:0 8px 22px rgba(10,22,40,.10); }
+#roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; margin:0 0 8px; }
+#roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+#roofTypePanel .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
+#roofTypePanel .rtp-sep{ width:1px; height:22px; background:#e2e8f0; margin:0 2px; }
+#roofTypePanel .rtp-grow{ flex:1 1 auto; }
+#roofTypePanel .rtp-type{ background:#0099cc; color:#fff; border:1px solid #0099cc; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:7px; line-height:1.2; font-family:inherit; }
+#roofTypePanel .rtp-type:hover{ background:#0088b8; }
+#roofTypePanel .tool-btn.rtp-btn{ background:#fff; color:#0a1628; border:1px solid #cbd5e1; border-radius:8px; padding:6px 11px; font-size:12px; font-weight:600; line-height:1.2; }
+#roofTypePanel .tool-btn.rtp-btn:hover{ background:#f1f5f9; }
+#roofTypePanel .tool-btn.rtp-btn-blue{ color:#0077a3; border-color:#0099cc; }
+#roofTypePanel .tool-btn.rtp-btn-red{ color:#dc2626; border-color:#fca5a5; }
+#roofTypePanel .tool-btn.rtp-btn-red:hover{ background:#fef2f2; }
+#roofTypePanel .rtp-field{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#334155; margin:0; }
+#roofTypePanel .rtp-num{ width:58px; margin:0; padding:5px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; }
+#roofTypePanel .rtp-unit{ font-size:12px; color:#64748b; margin-left:-3px; }
+#roofTypePanel .rtp-select{ margin:0; padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; color:#0a1628; width:auto; }
+#roofTypePanel .rtp-check{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#475569; cursor:pointer; margin:0; }
+#roofTypePanel .rtp-check input{ margin:0; }
+#roofTypePanel .rtp-tag{ font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0369a1; background:#e0f2fe; border-radius:999px; padding:4px 9px; }
+#roofTypePanel .rtp-tip{ font-size:10.5px; color:#94a3b8; margin-top:8px; }
+/* Rotate image: its own slider; the fine controls drop under it on demand. */
+.rotimg{ position:relative; display:inline-flex; align-items:center; gap:8px; }
+.rotimg-lbl{ font-size:12px; color:var(--text2); margin:0; white-space:nowrap; }
+.rotimg-range{ width:150px; margin:0; accent-color:#0099cc; cursor:pointer; }
+.rotimg-fine{ position:absolute; top:calc(100% + 6px); left:0; z-index:320; align-items:center; gap:6px; background:#fff; border:1px solid #d6dbe2; border-radius:10px; box-shadow:0 12px 28px rgba(10,22,40,.18); padding:8px 10px; white-space:nowrap; line-height:1.2; }
+.rotimg-fine button{ padding:4px 9px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; color:#0a1628; font-size:11.5px; font-weight:600; cursor:pointer; font-family:inherit; }
+.rotimg-fine input[type=number]{ width:64px; margin:0; padding:4px 6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:right; font-variant-numeric:tabular-nums; }
+.rotimg-val{ min-width:44px; font-size:11.5px; color:#475569; font-variant-numeric:tabular-nums; }
+.rotimg-fine .rotimg-done{ background:#0a1628; color:#fff; border-color:#0a1628; }
 html.site-mode body[data-tab="roof"] #roofTypePanel{
   background:#0f1c30!important;border:1px solid rgba(255,255,255,.10)!important;
   border-radius:16px!important;box-shadow:0 -12px 32px rgba(3,8,18,.5)!important;
@@ -4720,7 +4751,7 @@ html.qp-desk-preview .qd-top{ position:static; }
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
   <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico" data-ico="outline">🏠</span>Outline</button>
   <button class="ttb-btn" id="ttbLines"   onclick="toggleRoofLinesMenu(event)"><span class="ttb-ico" data-ico="lines">＋</span>Lines</button>
-  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Calibrate</button>
+  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Set scale</button>
   <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico" data-ico="undo">↺</span>Undo</button>
   <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
   <button class="ttb-btn" id="ttbMarkup" onclick="_siteNotesToggle()"><span class="ttb-ico" data-ico="markup">✎</span>Markup</button>
@@ -5218,49 +5249,55 @@ html.qp-desk-preview .qd-top{ position:static; }
       <div id="roofMenuBar" class="no-print" style="display:none;margin:0 .75rem .5rem;gap:6px;flex-wrap:wrap;align-items:center"></div>
 
       <!-- Auto-generate roof panel — the menu a roof button opens -->
-      <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0;box-shadow:0 10px 26px rgba(10,22,40,.13)">
-        <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
+      <!-- THE ROOF'S OWN SETTINGS (2026-09-24, the owner: "all very messy,
+           tidy it up … one row of buttons … simple and professional"). One
+           row: shape, turn it, square it, its pitch, its sheet, then make it
+           the main roof or delete it. Below it only what applies: a shape
+           that does not suit the footprint, and the gable ridge slide. -->
+      <div id="roofTypePanel" class="rtp" style="display:none">
         <button type="button" id="roofSheetClose" class="no-print" onclick="_phoneRoofSheet(false)" title="Collapse">▼</button>
-        <!-- Five coloured roof-type buttons collapsed into one menu. They were
-             the loudest thing on a very busy toolbar, and after the outline
-             popup has run the type is already set — this is the "change my
-             mind" control, not the primary one. -->
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+        <div id="roofTypeHeading" class="rtp-hd">Roof settings</div>
+        <div class="rtp-row">
           <div id="roofTypeDropWrap" style="position:relative;display:inline-block">
             <button type="button" id="roofTypeDropBtn" onclick="toggleRoofTypeMenu(event)"
-              style="background:#0099cc;color:#fff;border:1px solid #0099cc;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
+              class="rtp-type">
               <span aria-hidden="true">🏠</span><span id="roofTypeDropLabel">Change roof type</span><span style="font-size:10px;opacity:.85">▾</span>
             </button>
             <div id="roofTypeDropMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:7px;min-width:250px"></div>
           </div>
-          <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626"><span class="rt-emo">🗑 </span>Clear lines</button>
-          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed."><span class="rt-emo">📐 </span>Snap Square</button>
+          <span id="roofRotateRow" class="rtp-group"><button onclick="rotateActiveRoof()" class="tool-btn rtp-btn" title="Turn this roof's lines 90° around the outline — the ridge direction on a gable or dutch gable, the fall on a mono-pitch."><span class="rt-emo">⟳ </span>Rotate 90°</button></span>
+          <button onclick="snapOutlineToSquare()" class="tool-btn rtp-btn" title="Square up every corner of this outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed."><span class="rt-emo">📐 </span>Snap square</button>
+          <span class="rtp-sep" aria-hidden="true"></span>
+          <span id="roofPitchRow" class="rtp-group">
+            <label for="roofPitchInput" class="rtp-field">Pitch
+              <input type="number" id="roofPitchInput" min="0" max="60" step="0.5" placeholder="0"
+                     oninput="setRoofPitch(this.value,'roofPitchInput')"
+                     title="Only this roof. Sets the slope every measurement on it is worked out from."
+                     class="rtp-num"><span class="rtp-unit">°</span></label>
+            <label class="rtp-check" title="Put the pitch on the roof itself. Drag it anywhere; right-click it to take it off again.">
+              <input type="checkbox" id="roofPitchShowBtn" onchange="togglePitchLabel()"> Show on roof
+            </label>
+          </span>
+          <span class="rtp-sep" aria-hidden="true"></span>
+        <label id="roofSheetTypeWrap" class="rtp-field">
+          <span>Sheet</span>
+          <select id="roofSheetType" onchange="setRoofSheetType(this.value)" class="rtp-select">
+            <option value="steel-corrugate">Steel Corrugate</option>
+            <option value="steel-5rib">Steel 5-Rib</option>
+            <option value="clearlite-5rib">Clearlite 5-Rib</option>
+            <option value="clearlite-corrugate">Clearlite Corrugate</option>
+          </select>
+        </label>
+          <span class="rtp-grow" aria-hidden="true"></span>
+          <button type="button" id="roofMakeMainBtn" class="tool-btn rtp-btn rtp-btn-blue" onclick="makeMainRoof(DRAW.activeRoofIdx)" title="Make this the main roof — the one the quote always includes. The current main roof becomes an extra.">★ Make main roof</button>
+          <span id="roofIsMainTag" class="rtp-tag" title="The main roof is always part of the quote">Main roof</span>
+          <button type="button" id="roofDeleteBtn" class="tool-btn rtp-btn rtp-btn-red" onclick="deleteRoof(DRAW.activeRoofIdx)" title="Delete this roof — its outline, lines and measurements (Undo brings it back)">Delete roof</button>
         </div>
-        <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
-        <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-bottom:8px"></div>
-        <!-- This roof's pitch. Every roof carries its own — a lean-to off a
-             20° main roof is the ordinary case — and this box, the calibration
-             box and the one on the Measurements tab are three views of the
-             same number, kept in step by setRoofPitch. -->
-        <div id="roofPitchRow" style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label for="roofPitchInput" style="font-size:11px;font-weight:700;color:#334155">Pitch of this roof</label>
-          <input type="number" id="roofPitchInput" min="0" max="60" step="0.5" placeholder="0"
-                 oninput="setRoofPitch(this.value,'roofPitchInput')"
-                 title="Only this roof. Sets the slope every measurement on it is worked out from."
-                 style="width:66px;padding:3px 6px;font-size:12px">
-          <span style="font-size:11px;color:#64748b">°</span>
-          <label style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#475569;cursor:pointer"
-                 title="Put the pitch on the roof itself. Drag it anywhere; right-click it to take it off again.">
-            <input type="checkbox" id="roofPitchShowBtn" onchange="togglePitchLabel()" style="margin:0"> Show on roof
-          </label>
-        </div>
-        <div id="roofRotateRow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch."><span class="rt-emo">⟳ </span>Rotate roof 90°</button>
-          <span class="rt-explain" style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
-        </div>
+        <!-- Only when the chosen shape does not suit the footprint -->
+        <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-top:8px"></div>
         <!-- Straight-gable ridge slide: drag toward one gutter when the
              sheets on one side of the roof run longer than the other. -->
-        <div id="gableRidgeSlideRow" style="display:none;margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap">
+        <div id="gableRidgeSlideRow" style="display:none;margin-top:10px;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:11px;font-weight:600;color:#334155">Slide ridge:</span>
           <input type="range" id="gableRidgeSlider" min="-0.9" max="0.9" step="0.05" value="0"
                  oninput="setGableRidgeOffset(this.value, false)" onchange="setGableRidgeOffset(this.value, true)"
@@ -5273,15 +5310,17 @@ html.qp-desk-preview .qd-top{ position:static; }
           <span id="gableRidgeSlideVal" style="font-size:11px;color:#64748b;min-width:130px">centred</span>
           <button onclick="var s=document.getElementById('gableRidgeSlider'); if(s)s.value=0; setGableRidgeOffset(0, true)" class="tool-btn" style="font-size:10px;padding:2px 8px">Centre</button>
         </div>
-        <!-- Roof switcher (shown when >= 1 roof exists) -->
-        <div id="roofSwitcher" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #b3d4f0;gap:4px;flex-wrap:wrap;align-items:center"></div>
-        <div id="roofShiftHint" style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
+        <!-- Roof switcher (retired; kept for older code paths) -->
+        <div id="roofSwitcher" style="display:none"></div>
+        <div id="roofShiftHint" class="rtp-tip">Shift-drag a corner for a non-square roof · right-click a line to delete it</div>
       </div>
 
       <!-- Toolbar -->
       <div id="roofToolRow" style="display:flex;gap:4px;flex-wrap:wrap;margin:0 .75rem .4rem;align-items:center">
         <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move / Edit</button>
-        <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">📐 Measure</button>
+        <!-- Measure retired (2026-09-24): click a measurement on the roof to
+             change it. The element stays hidden for the older code paths. -->
+        <button onclick="setTool('addmeas')" id="btn-select" class="tool-btn tool-dark" style="display:none">📐 Measure</button>
         <!-- 'Delete line' tool removed — right-click a line, or use the
              line editor's Delete button. The setTool('delete') path is
              kept in JS but no longer clutters the toolbar. -->
@@ -5324,17 +5363,12 @@ html.qp-desk-preview .qd-top{ position:static; }
              Clearlite changes what gets ordered; the profile half keeps the
              flashing library and back-tray lookup pointed at the right
              drawings, which is why picking here writes matProfile too. -->
-        <label id="roofSheetTypeWrap" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#475569">
-          <span>Sheet</span>
-          <select id="roofSheetType" onchange="setRoofSheetType(this.value)" style="margin:0;padding:5px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0a1628;width:auto">
-            <option value="steel-corrugate">Steel Corrugate</option>
-            <option value="steel-5rib">Steel 5-Rib</option>
-            <option value="clearlite-5rib">Clearlite 5-Rib</option>
-            <option value="clearlite-corrugate">Clearlite Corrugate</option>
-          </select>
-        </label>
-        <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;margin-left:auto">📏 Calibrate scale</button>
-        <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap"></span>
+        <!-- Calibrate retired (2026-09-24): once there is a scale, click any
+             measurement and type its real length — the scale follows and no
+             line moves. Before any scale exists (a photo or a plan with no
+             aerial) there are no measurements to click, so this shows then. -->
+        <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Set scale</button>
+        <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap;margin-left:auto"></span>
         <div style="display:flex;gap:6px">
           <button onclick="undoLast()" class="tool-btn">↩ Undo</button>
           <button onclick="redoLast()" class="tool-btn">↪ Redo</button>
@@ -5371,9 +5405,33 @@ html.qp-desk-preview .qd-top{ position:static; }
           <button onclick="adjustZoom(0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">+</button>
           <button onclick="resetZoom()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">Fit</button>
         </div>
+        <!-- ROTATE IMAGE (2026-09-24): its own slider. Moving it brings the
+             fine controls up underneath; Done, or a click anywhere else, puts
+             them away. -->
+        <div id="rotImgWrap" class="rotimg">
+          <label for="fineRotateSlider" class="rotimg-lbl">Rotate image</label>
+          <input type="range" id="fineRotateSlider" min="-45" max="100" step="0.1" value="0" class="rotimg-range"
+            title="Turn the photo under the drawing (−45° to 100°)"
+            oninput="_setFineRotate(this.value);_rotImgOpen()"
+            onpointerdown="DRAW.showAlignGrid=true;redrawAll();_rotImgOpen()"
+            onpointerup="DRAW.showAlignGrid=false;redrawAll()"
+            onblur="DRAW.showAlignGrid=false;redrawAll()">
+          <div id="rotImgFine" class="rotimg-fine" style="display:none">
+            <button type="button" id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" title="Turn 0.1° anticlockwise">−.1</button>
+            <input type="number" id="fineRotate" min="-45" max="100" step="0.1" value="0"
+              title="Photo rotation in degrees (−45 to 100)"
+              oninput="_setFineRotate(this.value)"
+              onfocus="this.select();DRAW.showAlignGrid=true;redrawAll()"
+              onblur="DRAW.showAlignGrid=false;redrawAll()">
+            <button type="button" id="fineRotateUp" onclick="_nudgeFineRotate(0.1)" title="Turn 0.1° clockwise">+.1</button>
+            <span id="fineRotateVal" class="rotimg-val">0.0°</span>
+            <button type="button" class="rotimg-reset" onclick="_setFineRotate(0)">Reset</button>
+            <button type="button" class="rotimg-done" onclick="_rotImgClose()">Done</button>
+          </div>
+        </div>
         <div id="viewMenuWrap" style="position:relative;display:inline-block">
           <button type="button" id="viewMenuBtn" onclick="toggleViewMenu(event)" style="border:1px solid #cbd5e1;background:#fff;color:#0a1628;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span aria-hidden="true" class="rt-emo">⚙</span><span>Edit font size / rotate image</span><span style="font-size:10px;opacity:.7">▾</span>
+            <span aria-hidden="true" class="rt-emo">⚙</span><span>Edit font size</span><span style="font-size:10px;opacity:.7">▾</span>
           </button>
           <div id="viewMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:12px 14px;min-width:250px;font-size:12px;color:#334155;font-weight:400">
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Canvas view</div>
@@ -5402,27 +5460,6 @@ html.qp-desk-preview .qd-top{ position:static; }
               <input type="range" id="outlineTextScale" min="0.5" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setOutlineTextScale(this.value)">
               <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
-            <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
-            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
-            <input type="range" id="fineRotateSlider" min="0" max="100" step="0.1" value="0"
-              style="width:100%;margin:0 0 8px;accent-color:#0099cc;cursor:pointer"
-              title="Turn the photo, 0 to 100°"
-              oninput="_setFineRotate(this.value)"
-              onpointerdown="DRAW.showAlignGrid=true;redrawAll()"
-              onpointerup="DRAW.showAlignGrid=false;redrawAll()"
-              onblur="DRAW.showAlignGrid=false;redrawAll()">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <button id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° anticlockwise">−.1</button>
-              <button id="fineRotateUp" onclick="_nudgeFineRotate(0.1)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:12px;font-variant-numeric:tabular-nums" title="Turn the photo 0.1° clockwise">+.1</button>
-              <input type="number" id="fineRotate" min="-45" max="100" step="0.1" value="0"
-                style="flex:1;min-width:64px;max-width:84px;margin:0;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;font-variant-numeric:tabular-nums;text-align:right"
-                title="Photo rotation in degrees (−45 to 100)"
-                oninput="_setFineRotate(this.value)"
-                onfocus="this.select();DRAW.showAlignGrid=true;redrawAll()"
-                onblur="DRAW.showAlignGrid=false;redrawAll()">
-              <span id="fineRotateVal" style="min-width:36px;font-size:11px;color:#666;font-variant-numeric:tabular-nums">0.0°</span>
-              <button onclick="_setFineRotate(0)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:11px">Reset</button>
-            </div>
           </div>
         </div>
       </div>
@@ -5436,9 +5473,7 @@ html.qp-desk-preview .qd-top{ position:static; }
            real one. -->
       <div id="workflowTipBar" style="background:#fdf3e3;border:1px solid #e8c99a;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#7a4c07;display:none;align-items:center;gap:8px">
   <span style="font-size:16px">⚠️</span>
-  <span>Measurements are roughly to satellite scale, please click
-    <button type="button" onclick="setTool('calibrate')" style="font:inherit;font-weight:800;color:#7a4c07;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Calibrate Scale</button>
-    to override.</span>
+  <span>Measurements are roughly to satellite scale — <strong>click any measurement on the roof and type its real length</strong> to override. No line moves.</span>
   <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-09-09</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
@@ -44419,8 +44454,8 @@ var TOUR_STEPS = [
           body:'Once an outline is closed, a **Change roof type** button appears on the roof toolbar just here.\n\nIt holds every shape — hip & valley, straight gable, gable with a hip/valley corner, dutch gable, mono-pitch — and the sheet material, including a **Clearlite** roof for a veranda. Picking a shape redraws that roof’s lines from the outline.' } },
   { key:'roof-items', sel:'#rlDropBtn', tab:'roof', title:'Everything else goes on here',
     body:'**Add items/details** covers the bits that are specific to the building: individual ridge, hip, valley, barge and apron lines, pipe penetrations, **boxed** penetrations like a chimney, clearlite sheets, gutters and notes.\n\nA boxed penetration brings its whole flashing set with it — side aprons both sides, bottom and top aprons, the back-tray up to the ridge and the chase flashing around the upstand.' },
-  { key:'roof-cal', sel:'#btn-calibrate', tab:'roof', title:'Tell it how big the roof is',
-    body:'Click one wall you know the length of and type that length in. Everything else on the drawing scales off it.\n\nGet this right and every measurement after it is right.' },
+  { key:'roof-cal', sel:'#scaleState', tab:'roof', title:'Tell it how big the roof is',
+    body:'Click the measurement on one wall you know the length of and type its real length. The scale corrects itself and every other measurement follows — nothing on the drawing moves.\n\nGet this right and every measurement after it is right.' },
   { key:'roof-canvas', sel:'#roofCanvas', tab:'roof', title:'All the roofs, all the time',
     body:'Every roof on the property is drawn once and stays on screen. Each edge carries its own measurement, each face shows the sheet run that will be ordered, and where two roofs share an edge it is counted once.' },
   { key:'roof-photos', sel:'#fergusRoofPanelToggle', tab:'roof', title:'Photos and files ride with the job',
@@ -45203,25 +45238,13 @@ function _firstRoofSteps(path){
     { key: 'pitch', sel: '#_rsPitch', wait: true, title: 'Enter the roof pitch',
       body: own ? 'Type the **pitch** in degrees, then click **Draw the roof**.' : 'Type the **pitch** in degrees — 15° is a fair guess for this house — then click **Draw the roof**.',
       until: function(){ return hasRoof() && !document.getElementById('_rsModal'); }, noNext: true, settle: 700 },
-    { key: 'scale', sel: '#btn-calibrate', tab: 'roof', title: 'How big is it?',
-      body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\n' + (own ? 'For a quote you will stand behind, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length.' : 'On a real job, **calibrate using a known measurement**: click Calibrate scale, click both ends of a wall you have measured, and type its length. Every number then comes from your measurement, not the satellite.'),
-      until: function(){ return DRAW.tool === 'calibrate'; }, next: own ? 'Use approximate scale for now' : 'Use approximate scale for this practice' },
-    // Done when the scale is SET — the Calibrate button pressed and the popup
-    // gone — not when the line is picked: that used to jump on before the
-    // length was typed.
-    { key: 'calibrate-line', sel: '#roofCanvas', tab: 'roof', light: true, title: 'Click a line to calibrate',
-      body: function(){
-        if (vis('calPopup')) return 'Type the **real length** of that wall, then click **Calibrate**.';
-        return 'Click both ends of a wall you know the length of, then type that length in. Every measurement after that comes from your known measurement.';
-      },
+    // Since 2026-09-24 there is no Calibrate button: a click on any
+    // measurement, with its real length typed in, corrects the scale.
+    { key: 'scale', sel: '#roofCanvas', tab: 'roof', light: true, title: 'How big is it?',
+      body: 'The satellite picture carries an **approximate** scale — close, not verified.\n\n' + (own ? 'For a quote you will stand behind, **correct it with a known measurement**: click the measurement on a wall you have measured and type its real length. Nothing on the drawing moves — every number follows.' : 'On a real job, **correct it with a known measurement**: click the measurement on a wall you have measured and type its real length. Nothing moves; every number then comes from your measurement, not the satellite.'),
       onEnter: function(){ base.cal = DRAW.scaleLabel || ''; },
-      until: function(){
-        if (vis('calPopup')) return false;
-        // Never started calibrating (the scale step was skipped, or the tool
-        // put down without a line): nothing to wait for.
-        if (DRAW.tool !== 'calibrate' && !DRAW.calibratePixels) return true;
-        return !!DRAW.scaleLabel && DRAW.scaleLabel !== base.cal;
-      }, next: 'Skip', settle: 600 },
+      until: function(){ return !DRAW.scaleAuto && !!DRAW.scaleLabel && DRAW.scaleLabel !== base.cal; },
+      next: own ? 'Use approximate scale for now' : 'Use approximate scale for this practice', settle: 600 },
     { key: 'jobpack', gate: '#navJobPackBtn', tab: 'roof', title: 'Now the numbers',
       body: 'The roof is measured. Click **Job Pack** to see what it turned into.' },
     { key: 'lineitems', sel: '#jpPages', tab: 'materials', title: 'Always check the calculations',
@@ -45384,7 +45407,7 @@ function _tryStep(title, hint){
 }
 function _tryToolbar(){
   // Greyed, not hidden: the buttons say what the product has.
-  ['btn-select', 'rlDropBtn', 'btn-calibrate'].forEach(function(id){
+  ['btn-select', 'rlDropBtn', 'btn-calibrate', 'roofDeleteBtn', 'roofMakeMainBtn'].forEach(function(id){
     var el = document.getElementById(id); if (!el) return;
     el.classList.add('try-off'); el.setAttribute('aria-disabled', 'true'); el.title = 'In the app — start free to use it';
   });
@@ -48017,6 +48040,47 @@ function _recalibrateFromLine(line, realM){
   try { updateMeasTotals(); } catch(e){}
   try { populateMaterialsFromLines(); } catch(e){}
 }
+// ── CORRECT THE SCALE FROM ONE MEASUREMENT (2026-09-24) ────────────────
+// The owner: "the user should just click on a measure to calibrate the
+// scale … without moving any lines, because they have likely traced a
+// satellite image perfectly and just want to change the scale". The typed
+// length of this line sets metres per IMAGE pixel directly: its pixel length
+// times its slope factor (a rake reads along the slope, a gutter flat) times
+// the scale must equal what was typed. Every measurement on every roof then
+// follows; not one point of the drawing moves.
+function _lineRoofPitch(l){
+  if ((DRAW.lines || []).indexOf(l) >= 0) return _activePitch();
+  var r = (DRAW.roofs || []).filter(function(x){ return x && x.lines && x.lines.indexOf(l) >= 0; })[0];
+  return _pitchOr(r ? r.calPitch : undefined);
+}
+function _rescaleFromMeasure(l, typedM){
+  if (!l || !l.pts || l.pts.length < 2 || !(typedM > 0)) return false;
+  var a = l.pts[0], b = l.pts[1];
+  var px = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
+  if (!(px > 2)) return false;
+  var f = 1; try { f = slopeFactorForLineType(l.type, _lineRoofPitch(l)) || 1; } catch(e){}
+  // The number it already reads (the popup comes pre-filled with it, and is
+  // also how a line's TYPE is changed): no change, so the scale is left
+  // alone rather than nudged by the rounding of its own label.
+  if (DRAW.scaleMetresPerPx > 0 && Math.abs(px * f * DRAW.scaleMetresPerPx - typedM) < 0.006) return true;
+  try { saveSnapshot(); } catch(e){}
+  DRAW.scaleMetresPerPx = typedM / (px * f);
+  _scaleSetByHand();
+  DRAW.calibratePts = [a.slice(), b.slice()];
+  DRAW.calibratePixels = px;
+  DRAW.calRealM = +typedM.toFixed(3);
+  DRAW.calMeasType = (f !== 1) ? 'pitched' : 'flat';
+  DRAW.scaleLabel = '1px=' + (DRAW.scaleMetresPerPx * 1000).toFixed(2) + 'mm | ref:' + DRAW.calRealM + 'm';
+  try { _recalcAllRoofsMeas(); } catch(e){}
+  try { updateMeasTotals(); } catch(e){}
+  try { populateMaterialsFromLines(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { _scaleStateShow(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  return true;
+}
 function _syncMeasureGroup(edited, newM){
   if (!edited || !(newM > 0)) return;
   // Visual edits: the number changes on the line the user typed on, and
@@ -48026,6 +48090,8 @@ function _syncMeasureGroup(edited, newM){
   if (_visualEdits()) return;
   var lbl = newM.toFixed(2)+'m';
   var t = edited.type;
+  // Scaled edits: the typed length corrects the scale (see _rescaleFromMeasure).
+  if (_rescaleFromMeasure(edited, newM)) return;
   if (t === 'ridge' || t === 'gutter'){
     _recalibrateFromLine(edited, newM);
     DRAW.lines.forEach(function(x){ if (x && (x.type==='ridge'||x.type==='gutter')){ x.measM=newM; x.label=lbl; } });
@@ -49264,12 +49330,15 @@ function _scaleStateShow(){
   var el = document.getElementById('scaleState');
   if (!el) return;
   var m = DRAW.scaleMetresPerPx;
-  if (!(m > 0)){ el.textContent = 'No scale set'; el.style.color = '#b45309'; return; }
+  // Set scale shows only while there is no scale — with one, a click on any
+  // measurement corrects it (2026-09-24).
+  try { ['btn-calibrate', 'ttbCal'].forEach(function(id){ var _cb = document.getElementById(id); if (_cb) _cb.style.display = (m > 0) ? 'none' : ''; }); } catch(e){}
+  if (!(m > 0)){ el.textContent = 'No scale set \u2014 click Set scale, then a wall you know the length of'; el.style.color = '#b45309'; return; }
   if (DRAW.scaleAuto){
-    el.textContent = 'Scale from the aerial: ' + m.toFixed(3) + ' m/px — calibrate to override';
+    el.textContent = 'Scale from the aerial: ' + m.toFixed(3) + ' m/px \u2014 click any measurement to correct it';
     el.style.color = 'var(--text2)';
   } else {
-    el.textContent = 'Scale set by you: ' + m.toFixed(3) + ' m/px';
+    el.textContent = 'Scale set by you: ' + m.toFixed(3) + ' m/px \u2014 click any measurement to adjust';
     el.style.color = '#15803d';
   }
 }
@@ -53397,6 +53466,16 @@ var IMG_FINE_ROTATION = 0; // -45 to +45 degrees fine adjustment
 // Everything that moves the angle comes through here, so the slider, the
 // readout and the canvas cannot drift apart — which is what happened when the
 // slider, the Reset button and _resetView each carried their own copy.
+function _rotImgOpen(){ var f = document.getElementById('rotImgFine'); if (f) f.style.display = 'flex'; }
+function _rotImgClose(){ var f = document.getElementById('rotImgFine'); if (f) f.style.display = 'none'; }
+// A click anywhere outside the rotate control puts the fine buttons away.
+document.addEventListener('pointerdown', function(e){
+  var f = document.getElementById('rotImgFine');
+  if (!f || f.style.display === 'none') return;
+  var w = document.getElementById('rotImgWrap');
+  if (w && e.target && w.contains(e.target)) return;
+  _rotImgClose();
+}, true);
 function _setFineRotate(v){
   var n = Math.round((parseFloat(v) || 0) * 10) / 10;
   if (!isFinite(n)) n = 0;
@@ -53408,7 +53487,7 @@ function _setFineRotate(v){
   // half-typed "-" parses to 0 and the echo would stomp the minus sign.
   if (el && document.activeElement !== el) el.value = n;
   var sl = document.getElementById('fineRotateSlider');
-  if (sl && document.activeElement !== sl) sl.value = Math.max(0, n);
+  if (sl && document.activeElement !== sl) sl.value = n;
   var out = document.getElementById('fineRotateVal');
   if (out) out.textContent = (n > 0 ? '+' : '') + n.toFixed(1) + '°';
   redrawAll();
@@ -54089,10 +54168,10 @@ function _roofCanvasHitMeasureLabel(ev){
     var curM = parseFloat(l.measM);
     var _vis = _visualEdits();
     _styledPrompt({
-      title: _vis ? 'Set this measurement' : 'Set true length',
+      title: _vis ? 'Set this measurement' : 'Set the real length',
       message: _vis
         ? 'Visual edits: the number changes on this line only. Nothing on the map moves and no other measurement changes.'
-        : 'Type the real measurement for this wall. The drawing stretches to match — everything past this wall moves with it (undo restores it).',
+        : 'Type the real length of this line. The scale is corrected so it reads that — every other measurement follows, and nothing on the drawing moves (Undo restores it).',
       value: isFinite(curM) ? curM.toFixed(2) : '',
       placeholder: 'metres, e.g. 12.40',
       inputType: 'number',
@@ -54119,11 +54198,10 @@ function _roofCanvasHitMeasureLabel(ev){
       // TAPPED pill reads the typed number — slope-aware, and honest
       // whether or not the ridge re-centres. A full-wall line (a gutter)
       // is the wall: stretch it directly.
-      if (em.frac < 0.98){
-        _applySegmentTrueMeasure(edgeIdx, l, m);
-      } else {
-        _applyTrueEdgeMeasure(edgeIdx, m);
-      }
+      // Scaled edits correct the scale from this line — the drawing does not
+      // move (2026-09-24). The wall-stretching solvers stay for callers that
+      // still ask for them by name.
+      _rescaleFromMeasure(l, m);
     });
     return true;
   }
@@ -58952,18 +59030,18 @@ function _applySheetMeasureChange(hit, raw){
       // every recomputed measure now reads the typed value.
       var _stretched = false;
       try {
-        if (!_visualEdits() && DRAW.scaleMetresPerPx > 0 && (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx)) {
-          var _tb = _bargesForSheetRun(hit, DRAW.lines || []);
+        // Scaled edits (2026-09-24): the typed sheet length IS the barge's
+        // slope length, so it corrects the SCALE from that barge — nothing
+        // on the drawing moves. A run with no barge (a hip face) falls back
+        // to the label below.
+        if (!_visualEdits()) {
+          var _own = (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx) ? (DRAW.lines || [])
+                   : ((DRAW.roofs && DRAW.roofs[hit.roofIdx] && DRAW.roofs[hit.roofIdx].lines) || []);
+          var _tb = _bargesForSheetRun(hit, _own);
           for (var _tbi = 0; _tbi < _tb.length && !_stretched; _tbi++){
             var _bl = _tb[_tbi];
             if (!_bl || !_bl.pts || _bl.pts.length < 2) continue;
-            var _tem = _outlineEdgeForSegment(_bl.pts[0], _bl.pts[1]);
-            if (!_tem) continue;
-            // The typed sheet length IS the barge's slope length (they are
-            // one measure) — solve until that barge's pill reads it.
-            _stretched = (_tem.frac < 0.98)
-              ? _applySegmentTrueMeasure(_tem.idx, _bl, n)
-              : _applyTrueEdgeMeasure(_tem.idx, n);
+            _stretched = _rescaleFromMeasure(_bl, n);
           }
         }
       } catch(e){}
@@ -68234,11 +68312,9 @@ function _updateRoofTypeHint(chosenType){
       'Consider <strong>Hip &amp; Valley</strong> or <strong>Gable — hip+valley corner</strong>.';
     return;
   }
-  var s = suggestRoofType();
-  if (!s){ el.style.display = 'none'; return; }
-  el.style.display = 'block';
-  el.style.background = '#eff6ff'; el.style.color = '#1e40af'; el.style.border = '1px solid #bfdbfe';
-  el.innerHTML = '💡 Suggested: <strong>' + esc(s.label) + '</strong> — ' + esc(s.reason) + '.';
+  // No "Suggested" line any more (2026-09-24): the outline popup already
+  // offered the suggestion; the panel speaks only when a shape will not fit.
+  el.style.display = 'none';
 }
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
@@ -68458,6 +68534,7 @@ function _renderRoofMenuBar(){
       esc(nm) + '<span style="font-size:9px;opacity:.85">' + (opn ? '\u25B4' : '\u25BE') + '</span>' +
       '</button>';
   }).join('');
+  try { _roofPanelSync(); } catch(e){}
 }
 function _toggleRoofMenu(idx){
   var rtp = document.getElementById('roofTypePanel');
@@ -68499,7 +68576,13 @@ function deleteRoof(idx){
   saveSnapshot();
   _syncCurrentToRoof();
   var wasActive = (idx === DRAW.activeRoofIdx);
+  var _dex = _roofExtraSelByRoof();
+  var _dmap = function(i){ return i < idx ? i : (i > idx ? i - 1 : -1); };
+  // Its settings go with it, and every roof after it keeps its own (2026-09-24).
   DRAW.roofs.splice(idx, 1);
+  _roofRemap(_dmap);
+  if (idx === 0 && DRAW.roofs[0] && /^Roof \d+$/.test(DRAW.roofs[0].name || '')) DRAW.roofs[0].name = 'Main Roof';
+  _roofExtraSelRestore(_dex, _dmap);
   if (DRAW.roofs.length === 0) {
     try { _lkgForget(); } catch(e){}   // the last roof was deleted on purpose
     DRAW.activeRoofIdx = -1;
@@ -68517,6 +68600,7 @@ function deleteRoof(idx){
     try { _renderRoofMenuBar(); } catch(e){}
   }
   syncToRoofData(); renderRoofSwitcher(); redrawAll(); updateMeasTotals();
+  try { _roofAfterRenumber(); } catch(e){}
   // Delete is driven from the Pricing tab's roof bar now, so that bar (and the
   // map under it) has to redraw or it keeps offering a roof that is gone.
   try { if (typeof _renderPricingRoofSwitchBar === 'function') _renderPricingRoofSwitchBar(); } catch(e){}
@@ -68524,6 +68608,136 @@ function deleteRoof(idx){
 }
 function _nthName(n){
   return 'Roof ' + n;
+}
+// ── ROOF NUMBERS (2026-09-24) ──────────────────────────────────────────
+// Much of a roof's pricing is stored by its NUMBER (its place in DRAW.roofs):
+// its quote mode, labour hours, labour-calc quantities, scaffold, material
+// buffer and mark-up, the job pack's roof pick, cut-list freezes, back-tray
+// and box-flashing edits, and the customer's picks of optional roofs (by
+// their place among the optional ones). Deleting a roof or making another
+// the main one renumbers roofs, and before this every one of those stayed
+// on the old number — a deleted Roof 2 left its settings on Roof 3.
+// `mapFn(old) → new` (−1 = gone). The main roof keeps some of its own in
+// job-wide slots (S.quote.labour hours, S.quote.scaffold, the legacy buffer
+// and mark-up); those are put in the numbered maps for the move and taken
+// back out after, so they travel like the rest.
+function _roofSepIdxs(){
+  var out = [];
+  for (var i = 1; i < ((window.DRAW && DRAW.roofs) || []).length; i++){ try { if (_roofQuoteMode(i) === 'separate') out.push(i); } catch(e){} }
+  return out;
+}
+function _roofExtraSelByRoof(){
+  var p = (S.quote && S.quote.proposalOptions) || {}, sel = p.extraRoofsSel || {}, by = {};
+  _roofSepIdxs().forEach(function(ri, pos){ if (sel[pos]) by[ri] = sel[pos]; });
+  return by;
+}
+function _roofExtraSelRestore(by, mapFn){
+  if (!S.quote) return;
+  var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  var sep = _roofSepIdxs(), out = {};
+  Object.keys(by || {}).forEach(function(k){ var m = mapFn(+k); var pos = sep.indexOf(m); if (pos >= 0) out[pos] = by[k]; });
+  p.extraRoofsSel = out;
+}
+function _roofRemap(mapFn){
+  var q = (window.S && S.quote) || null;
+  var numObj = function(o){
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
+    var out = {};
+    Object.keys(o).forEach(function(k){
+      var n = parseInt(k, 10);
+      if (!isFinite(n) || String(n) !== k){ out[k] = o[k]; return; }
+      var m = mapFn(n); if (m >= 0) out[m] = o[k];
+    });
+    return out;
+  };
+  var PCT = [['roofMatQtyBufferByRoof', 'roofMatQtyBuffer'], ['roofMaterialMarkupByRoof', 'roofMaterialMarkup']];
+  if (q){
+    // The main roof's own slots → numbered, for the move.
+    if (!q.roofLabour || typeof q.roofLabour !== 'object') q.roofLabour = {};
+    if (q.labour) q.roofLabour[0] = { leadHrs: q.labour.leadHrs, appHrs: q.labour.appHrs };
+    if (!q.roofScaffold || typeof q.roofScaffold !== 'object') q.roofScaffold = {};
+    if (q.scaffold) q.roofScaffold[0] = q.scaffold;
+    PCT.forEach(function(pk){
+      if (q[pk[1]] != null){ if (!q[pk[0]] || typeof q[pk[0]] !== 'object') q[pk[0]] = {}; if (q[pk[0]][0] == null) q[pk[0]][0] = q[pk[1]]; }
+    });
+    ['roofSeparate', 'roofExcluded', 'roofAttached', 'roofLabour', 'roofLabourCalc', 'labourHrsManual', 'roofScaffold',
+     'roofMatQtyBufferByRoof', 'roofMaterialMarkupByRoof'].forEach(function(k){ if (q[k]) q[k] = numObj(q[k]); });
+    // …and back into the main roof's own slots.
+    if (q.roofLabour[0]){ if (!q.labour) q.labour = {}; q.labour.leadHrs = q.roofLabour[0].leadHrs; q.labour.appHrs = q.roofLabour[0].appHrs; }
+    delete q.roofLabour[0];
+    if (q.roofScaffold[0]) q.scaffold = q.roofScaffold[0];
+    delete q.roofScaffold[0];
+    PCT.forEach(function(pk){ if (q[pk[0]] && q[pk[0]][0] != null) q[pk[1]] = q[pk[0]][0]; });
+    // The main roof has no mode of its own — it is always in.
+    if (q.roofSeparate) delete q.roofSeparate[0];
+    if (q.roofExcluded) delete q.roofExcluded[0];
+  }
+  try { if (S.jobPack && Array.isArray(S.jobPack.roofSel)) S.jobPack.roofSel = S.jobPack.roofSel.map(mapFn).filter(function(i){ return i >= 0; }); } catch(e){}
+  DRAW.basicLabelOverrides = numObj(DRAW.basicLabelOverrides);
+  DRAW.matSheetByRoof = numObj(DRAW.matSheetByRoof);
+  ['matBackTrayLen', 'matBackTrayQty', 'matBackTrayOff', 'matBoxFlashLen', 'matBoxFlashQty', 'matBoxFlashOff'].forEach(function(k){
+    var o = DRAW[k]; if (!o || typeof o !== 'object') return;
+    var out = {};
+    Object.keys(o).forEach(function(key){
+      var parts = key.split(':'); var n = parseInt(parts[0], 10);
+      if (!isFinite(n)){ out[key] = o[key]; return; }
+      var m = mapFn(n); if (m < 0) return;
+      parts[0] = String(m); out[parts.join(':')] = o[key];
+    });
+    DRAW[k] = out;
+  });
+  try { if (typeof _PRICING_ROOF_IDX === 'number'){ var pm = mapFn(_PRICING_ROOF_IDX); _PRICING_ROOF_IDX = pm >= 0 ? pm : 0; } } catch(e){}
+}
+function _roofAfterRenumber(){
+  try { syncToRoofData(); } catch(e){}
+  try { _renderRoofMenuBar(); } catch(e){}
+  try { if (typeof _renderPricingRoofSwitchBar === 'function') _renderPricingRoofSwitchBar(); } catch(e){}
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _autoSyncLabourMaterials(); } catch(e){}
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+  try { redrawAll(); updateMeasTotals(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+// ★ Make main roof (2026-09-24): the main roof is the one the quote always
+// includes. This one takes first place; the old main roof takes this one's
+// place and its quote mode (an excluded roof's place becomes an optional
+// extra, not excluded — the old main roof was on the quote). Default names
+// follow the place ("Main Roof", "Roof 2"); a roof the office named keeps it.
+function makeMainRoof(idx){
+  if (!window.DRAW || !Array.isArray(DRAW.roofs) || !(idx > 0) || idx >= DRAW.roofs.length) return;
+  try { saveSnapshot(); } catch(e){}
+  try { _syncCurrentToRoof(); } catch(e){}
+  var wasMode = 'separate'; try { wasMode = _roofQuoteMode(idx); } catch(e){}
+  var ex = _roofExtraSelByRoof();
+  var map = function(i){ return i === 0 ? idx : (i === idx ? 0 : i); };
+  var t = DRAW.roofs[0]; DRAW.roofs[0] = DRAW.roofs[idx]; DRAW.roofs[idx] = t;
+  var isDef = function(n){ return !n || n === 'Main Roof' || /^Roof \d+$/.test(n); };
+  if (isDef(DRAW.roofs[0].name) && isDef(DRAW.roofs[idx].name)){ DRAW.roofs[0].name = 'Main Roof'; DRAW.roofs[idx].name = _nthName(idx + 1); }
+  _roofRemap(map);
+  if (S.quote){
+    if (!S.quote.roofSeparate || typeof S.quote.roofSeparate !== 'object') S.quote.roofSeparate = {};
+    if (!S.quote.roofExcluded || typeof S.quote.roofExcluded !== 'object') S.quote.roofExcluded = {};
+    var m = (wasMode === 'excluded') ? 'separate' : wasMode;
+    S.quote.roofSeparate[idx] = (m === 'separate');
+    S.quote.roofExcluded[idx] = false;
+  }
+  _roofExtraSelRestore(ex, map);
+  var act = map(DRAW.activeRoofIdx);
+  DRAW.activeRoofIdx = -1;
+  _loadRoofToCurrent(act >= 0 ? act : 0);
+  _roofAfterRenumber();
+  try { _siteToast((DRAW.roofs[0].name || 'This roof') + ' is now the main roof'); } catch(e){}
+}
+// The roof panel's own line: whose settings these are, and Make main roof
+// only where it means something.
+function _roofPanelSync(){
+  var n = (DRAW.roofs || []).length, i = DRAW.activeRoofIdx;
+  var hd = document.getElementById('roofTypeHeading');
+  if (hd){ var r = (DRAW.roofs || [])[i]; hd.textContent = ((r && r.name) || (i === 0 ? 'Main Roof' : _nthName((i || 0) + 1))) + ' \u2014 roof settings'; }
+  var mk = document.getElementById('roofMakeMainBtn'); if (mk) mk.style.display = (n > 1 && i > 0) ? '' : 'none';
+  var tg = document.getElementById('roofIsMainTag');  if (tg) tg.style.display = (n > 1 && i === 0) ? '' : 'none';
 }
 // ── NO ROOF PICKER ON THE CANVAS ─────────────────────────────────
 // A six-roof job put six chips, each with a rename and a delete, in the

@@ -115,11 +115,13 @@ r = await pg.evaluate(() => {
     wallPx: Math.abs(DRAW.outline[2][1] - DRAW.outline[1][1]),
   };
 });
-check('typing a sheet length stretches the roof so the run really is 5.50',
-  !r.noHit && r.wallPx > 995 + 50, r.wallPx + 'px');
+// 2026-09-24: in Scaled edits a typed sheet length corrects the SCALE from
+// its barge (they are one measure) — the drawing does not move.
+check('typing a sheet length corrects the scale — the roof does not move',
+  !r.noHit && Math.abs(r.wallPx - 995) < 0.5, r.wallPx + 'px');
 check('…the linked barge pill reads 5.50', r.barges && r.barges.some(m => Math.abs(m - 5.5) < 0.011),
   (r.barges || []).join(', '));
-check('…as true geometry, not a label-only override', r.overrides === 0, r.overrides + ' overrides');
+check('…as the drawing’s true scale, not a label-only override', r.overrides === 0, r.overrides + ' overrides');
 
 check('no page errors', errs.length === 0, errs.join(' | '));
 const fails = results.filter(x => !x).length;

@@ -29,14 +29,25 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
   localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2600);
-// The rotate row lives inside the ⚙ View popover, which starts shut. Opening
-// it for real is part of the test: a control nobody can reach is not fixed.
+// Since 2026-09-24 rotating the image has its own "Rotate image" slider on
+// the toolbar; moving it brings the fine controls up underneath it, and Done
+// (or a click anywhere else) puts them away. Reaching them for real is part
+// of the test: a control nobody can reach is not fixed.
 await pg.evaluate(() => { try { gotoTab('roof'); } catch(e){} });
 await pg.waitForTimeout(300);
-await pg.click('#viewMenuBtn');
-await pg.waitForTimeout(250);
-check('the rotate row is reachable from the View menu',
-  await pg.isVisible('#fineRotate'), 'slider not visible after opening ⚙ View');
+check('the "Rotate image" slider is on the toolbar, and the fine controls start put away',
+  (await pg.isVisible('#fineRotateSlider')) && !(await pg.isVisible('#fineRotate')) && /Rotate image/.test(await pg.textContent('#rotImgWrap')), '');
+await pg.evaluate(() => { const sl = document.getElementById('fineRotateSlider'); sl.value = 0; sl.dispatchEvent(new Event('input', { bubbles: true })); });
+await pg.waitForTimeout(150);
+check('moving the slider brings the fine controls up under it', await pg.isVisible('#fineRotate'), 'fine controls not shown');
+await pg.click('#rotImgFine .rotimg-done');
+await pg.waitForTimeout(100);
+check('…Done puts them away', !(await pg.isVisible('#fineRotate')));
+await pg.evaluate(() => _rotImgOpen());
+await pg.mouse.click(5, 5);
+await pg.waitForTimeout(100);
+check('…and so does a click anywhere else', !(await pg.isVisible('#fineRotate')));
+await pg.evaluate(() => _rotImgOpen());
 
 const state = () => pg.evaluate(() => ({
   angle: window.IMG_FINE_ROTATION,
@@ -96,10 +107,10 @@ check('nudging past the end clamps at +100', s.angle === 100 && s.slider === 100
 await pg.evaluate(() => { for (var i = 0; i < 1500; i++) _nudgeFineRotate(-0.1); });
 s = await state();
 check('…and at -45 the other way', s.angle === -45 && s.slider === -45, JSON.stringify(s));
-// `slider` above is the number box. The drag bar itself runs 0–100, so a
-// negative angle parks it at its own floor rather than showing a stale value.
-check('…with the drag bar parked at its floor, not left showing the old angle',
-  (await pg.evaluate(() => parseFloat(document.getElementById('fineRotateSlider').value))) === 0);
+// `slider` above is the number box. The drag bar runs −45 to 100 now, so it
+// shows the same angle rather than a stale one.
+check('…with the drag bar showing the same angle, not left on the old one',
+  (await pg.evaluate(() => parseFloat(document.getElementById('fineRotateSlider').value))) === -45);
 
 // A tenth of a degree is invisible without something square to judge it
 // against. The grid used to show only while the slider was held, so the
@@ -123,7 +134,8 @@ await pg.evaluate(() => _setFineRotate(12.3));
 s = await state();
 check('setting a value updates all three at once',
   s.angle === 12.3 && s.slider === 12.3 && s.readout === '+12.3°', JSON.stringify(s));
-await pg.click('#viewMenu button:has-text("Reset")');
+await pg.evaluate(() => _rotImgOpen());
+await pg.click('#rotImgFine button:has-text("Reset")');
 s = await state();
 check('Reset zeroes the angle, the slider and the readout together',
   s.angle === 0 && s.slider === 0 && s.readout === '0.0°', JSON.stringify(s));
