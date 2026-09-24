@@ -2951,6 +2951,7 @@ function _jobLight(row){
 }
 
 app.put('/jobs/:id', requireAuth, async (req, res) => {
+  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
   // Build the patch from the WHITELIST, not from the body. Filtering a copy
   // and then sending the original is how a stray key reaches SQL.
   // A whole-job save carries the quote inside draw_state — keep the durable
@@ -3185,6 +3186,7 @@ function _pgPool(){
 // ages" regression). Falls back to the supabase read-modify-write if there's no
 // direct DB connection.
 app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
+  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
   const quote = req.body && req.body.quote;
   if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
   // A share token is a customer link going out: not on a measuring-only plan.
@@ -4109,6 +4111,7 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
 // this): whitelist the event type, clamp every string, force numeric
 // fields to numbers, and cap array sizes before it touches the job.
 app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
+  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
   try {
     let { type, selections, name, message, total, acceptedOptions } = req.body || {};
     const ALLOWED_TYPES = ['accepted', 'declined', 'queried', 'opened', 'update'];
@@ -5516,12 +5519,64 @@ async function _autoDepositInvoice(job, quote){
 // each — and the office would rather see the feed as of a minute ago than a
 // 500. On a timeout the read is retried smaller, then served from here.
 const _quoteFeedCache = new Map();
+// THE FEED OVER THE DIRECT CONNECTION (2026-09-24). "Couldn't load quote
+// activity" after a deploy: a fresh server has no cached feed, and the read
+// — which has to open up to 120 jobs' multi-MB saved drawings to pull the
+// share out of each — ran past the 8-second PostgREST limit. With a direct
+// database connection the read gets its own 30 seconds (SET LOCAL, inside a
+// transaction, so nothing else inherits it), and leaves each share's stored
+// Fergus plan and price block behind, which the feed never shows.
+async function _quoteShareRowsPg(req, limit){
+  const pool = _pgPool(); if (!pool) return null;
+  const cols = "id, client_name, updated_at, " +
+    "((draw_state->'state'->'quote'->'share') - 'fergus' - 'priced') AS q_share, " +
+    "draw_state->'state'->'quote'->'ref' AS q_ref, draw_state->'state'->'quote'->'client' AS q_client, " +
+    "draw_state->'state'->'quote'->'accepted' AS q_accepted, draw_state->'state'->'quote'->'fergusAutoPushedFor' AS q_pushed, " +
+    "draw_state->'state'->'linkedJobId' AS q_linked";
+  const shared = "draw_state->'state'->'quote'->'share'->>'token' IS NOT NULL";
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SET LOCAL statement_timeout = '30s'");
+    let rows = [];
+    if (req.companyId){
+      const a = await client.query('SELECT ' + cols + ' FROM public.jobs WHERE company_id = $1 AND ' + shared + ' ORDER BY updated_at DESC LIMIT $2', [req.companyId, limit]);
+      const b = await client.query('SELECT ' + cols + ' FROM public.jobs WHERE company_id IS NULL AND user_id = $1 AND ' + shared + ' ORDER BY updated_at DESC LIMIT $2', [req.user.id, limit]);
+      rows = a.rows.concat(b.rows);
+    } else {
+      rows = (await client.query('SELECT ' + cols + ' FROM public.jobs WHERE user_id = $1 AND ' + shared + ' ORDER BY updated_at DESC LIMIT $2', [req.user.id, limit])).rows;
+    }
+    await client.query('COMMIT');
+    const seen = {}, merged = [];
+    for (const j of rows){ if (seen[j.id]) continue; seen[j.id] = 1; merged.push(j); }
+    // pg hands timestamps back as Dates — compare the times, not their text.
+    const t = v => { const n = new Date(v || 0).getTime(); return isFinite(n) ? n : 0; };
+    merged.sort(function(a, b){ return t(b.updated_at) - t(a.updated_at); });
+    return merged.slice(0, limit).map(function(j){
+      return { id: j.id, client_name: j.client_name, share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
+    }).filter(function(r){ return r.share && r.share.token; });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    throw e;
+  } finally { client.release(); }
+}
 async function _quoteShareRows(req, limit){
   const key = (req.companyId || '') + '|' + (req.user && req.user.id);
   const isTimeout = e => /statement timeout|canceling statement|57014/i.test(String(e && (e.message || e)));
+  // The same office asking again within a minute (Home, the bell, the tiles)
+  // gets the answer it just had rather than another heavy read.
+  const hot = _quoteFeedCache.get(key);
+  if (hot && hot.limit >= limit && Date.now() - hot.at < 60 * 1000) return hot.rows.slice(0, limit);
+  if (_pgPool()){
+    try {
+      const rows = await _quoteShareRowsPg(req, limit);
+      if (rows){ _quoteFeedCache.set(key, { at: Date.now(), rows, limit }); return rows; }
+    } catch (e) { console.error('quote share rows (direct) failed, using the REST read:', e && e.message); }
+  }
   try {
     const rows = await _quoteShareRowsRead(req, limit);
-    _quoteFeedCache.set(key, { at: Date.now(), rows });
+    _quoteFeedCache.set(key, { at: Date.now(), rows, limit });
     return rows;
   } catch (e) {
     if (!isTimeout(e)) throw e;
@@ -7781,7 +7836,13 @@ async function _fergusPublishQuote(fergusKey, quoteId, jobId){
 // only a status that reads Sent (or Accepted) counts; a 2xx that changed
 // nothing moves on to the next shape. FERGUS_QUOTE_MARK_SENT_PATH pins the
 // right one once a real job's sentResult shows it.
+// Fergus's partner API spec (2026-09-24, read from its published OpenAPI
+// document) names it: POST /jobs/quotes/{quoteId}/markAsSent with
+// { isSent: true } → 204. Every shape below it was a guess from before the
+// spec was reachable; none of them matched, which is why quotes were
+// published in Fergus but never marked sent.
 const FERGUS_MARK_SENT_CANDIDATES = [
+  'POST /jobs/quotes/{id}/markAsSent',
   'POST /jobs/quotes/{id}/mark_sent',
   'POST /jobs/quotes/{id}/mark-sent',
   'POST /jobs/quotes/{id}/marksent',
@@ -7811,7 +7872,8 @@ async function _fergusMarkQuoteSent(fergusKey, quoteId, jobId){
     if (/{job}/.test(tpl) && !job) continue;
     if (/\/(send|email|mail)/i.test(tpl)) continue;             // never: that is Fergus emailing the customer ("/mark_sent" is fine, "/send…" is not)
     const path = FERGUS_PREFIX + tpl.replace('{id}', id).replace('{job}', job);
-    const body = (/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Sent' } : {};
+    const body = /\/markAsSent$/.test(tpl) ? { isSent: true }
+      : ((/\/status$/.test(tpl) || method === 'PATCH' || method === 'PUT') ? { status: 'Sent' } : {});
     try {
       const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
       const a = { path: method + ' ' + tpl, status: r.status };

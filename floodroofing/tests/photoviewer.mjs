@@ -5,6 +5,8 @@
 //  · the photo lists: the zoom bar "zooms up towards the photos at the top of
 //    the list which jumps me off the photo I was trying to zoom on … hold
 //    control … scroll the mouse wheel to zoom … remove the scrolling up/down
+//    (2026-09-24: "bring back the scrolling … make so the scroll down/up
+//    jumps to the next photo" — the plain wheel turns one photo per notch)
 //    … an up & down button to cycle the photos, also allow keyboard up and
 //    down … a smooth slide transition … lock the photo size … so the photo
 //    slots stay the same size … I can see some of the photo above and below"
@@ -113,11 +115,19 @@ const view = await pg.evaluate(async (pics) => {
   out.zoomSlots = [...new Set(slots.map(s => Math.round(s.getBoundingClientRect().height)))];
   out.zoomScroll = box.scrollTop - st0;
   out.imgScale = getComputedStyle(cur.querySelector('img')).transform;
-  // a plain wheel does not scroll the list; Ctrl + wheel zooms in
-  const st1 = box.scrollTop;
-  cur.dispatchEvent(new WheelEvent('wheel', { deltaY: 300, bubbles: true, cancelable: true }));
-  await new Promise(r => setTimeout(r, 200));
-  out.wheelMoved = box.scrollTop !== st1;
+  // a plain wheel turns one photo per notch — a second notch straight after
+  // is swallowed so a flick never skips photos — and back up again
+  const wd = (dy) => { const e = new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true }); cur.dispatchEvent(e); return e.defaultPrevented; };
+  wd(100); wd(100);
+  await new Promise(r => setTimeout(r, 450));
+  out.wheelDown = _PV.job.i; out.wheelPos = posText();
+  wd(-100);
+  await new Promise(r => setTimeout(r, 900));
+  out.wheelUp = _PV.job.i;
+  out.wheelCentred = (() => { const c = document.querySelector('#jobPhotosGrid > .pv-slot.pv-cur').getBoundingClientRect(); return Math.abs((c.top + c.bottom) / 2 - (br.top + br.bottom) / 2) < 12; })();
+  // at the first photo the wheel up is left for the page
+  _pvGo('job', 0, false); out.edgeLetThrough = !wd(-100); _pvGo('job', 2, false);
+  await new Promise(r => setTimeout(r, 450));
   const z0 = +z.value;
   cur.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true, clientX: cr.left + 20, clientY: cr.top + 20 }));
   await new Promise(r => setTimeout(r, 200));
@@ -136,7 +146,8 @@ const view = await pg.evaluate(async (pics) => {
 check('every photo sits in a slot of one fixed size, three-quarters of the list', view.n === 5 && view.heights.length === 1 && Math.abs(view.heights[0] - view.boxH * 0.74) < 4, JSON.stringify(view.heights) + ' of ' + view.boxH);
 check('▼ slides to the next photo, centred, with the ones above and below peeking in', view.cur === 2 && view.centred && view.peek && view.pos0 === '1 / 5' && view.pos2 === '3 / 5', JSON.stringify(view));
 check('the zoom bar zooms INSIDE the slots: no slot changes size and the list does not move off the photo', view.zoomSlots.length === 1 && view.zoomSlots[0] === view.heights[0] && Math.abs(view.zoomScroll) < 2 && /matrix\(2\.5/.test(view.imgScale), JSON.stringify({ s: view.zoomSlots, d: view.zoomScroll, t: view.imgScale }));
-check('the plain mouse wheel no longer scrolls through the photos', !view.wheelMoved);
+check('the mouse wheel turns one photo per notch, down then up, and lands it centred', view.wheelDown === 3 && view.wheelPos === '4 / 5' && view.wheelUp === 2 && view.wheelCentred, JSON.stringify({ d: view.wheelDown, p: view.wheelPos, u: view.wheelUp, c: view.wheelCentred }));
+check('…and above the first photo the wheel is left to scroll the page', view.edgeLetThrough);
 check('Ctrl + wheel over a photo zooms in', view.ctrlZoom > 0, String(view.ctrlZoom));
 check('↑ moves to the previous photo while the pointer is over the panel — and the arrows are left alone once it leaves', view.afterUp === 1 && view.awayDown === 1, JSON.stringify({ up: view.afterUp, away: view.awayDown }));
 
@@ -155,8 +166,12 @@ const tp = await pg.evaluate(async () => {
   window.useFergusJobInModal = real;
   const t0 = document.querySelector('#homeBoardTiles .hb-tile');
   const lbl = t0 ? t0.querySelector('.hb-tile-lbl').textContent : '', num = t0 ? t0.querySelector('.hb-tile-num').textContent : '';
-  return { shown: lbl === 'Jobs to Price' && num === '2', tiles, title, count: num, rows, opened, oldCard: !!document.getElementById('hbToPrice') };
+  const tops = [...document.querySelectorAll('#homeBoardTiles .hb-tile')].map(t => Math.round(t.getBoundingClientRect().top));
+  const hts = [...document.querySelectorAll('#homeBoardTiles .hb-tile')].map(t => Math.round(t.getBoundingClientRect().height));
+  return { shown: lbl === 'Jobs to Price' && num === '2', tiles, title, count: num, rows, opened, oldCard: !!document.getElementById('hbToPrice'),
+           rowsOfTiles: new Set(tops).size, nTiles: tops.length, maxH: Math.max(...hts) };
 });
+check('every Status board tile sits on ONE row, and they are thin (2026-09-24)', tp.nTiles >= 8 && tp.rowsOfTiles === 1 && tp.maxH <= 110, JSON.stringify({ n: tp.nTiles, rows: tp.rowsOfTiles, h: tp.maxH }));
 check('Jobs to Price is the first Status board tile, with its count, asked of Fergus as its "To Price" jobs (2026-09-24: a tile like the others, not a card of its own)',
   tp.shown && !tp.oldCard && tp.title === 'Jobs to Price' && fergusAsks.some(a => /filterJobStatus=To Price/.test(a)), JSON.stringify({ tiles: tp.tiles.slice(0, 3), title: tp.title }));
 check('…one row a job: number, customer, area, description, last modified and the quote’s state',

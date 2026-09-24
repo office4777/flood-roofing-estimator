@@ -185,6 +185,35 @@ const pr = await d.pg.evaluate(async () => {
 check('a print swaps the page out for the A4 document', !pr.during.desk && !pr.during.qd && pr.during.a4 > 0, JSON.stringify(pr.during));
 check('…and the page is back when it is done', pr.after.desk && pr.after.qd, JSON.stringify(pr.after));
 
+// ── the customer's Download PDF is the quote they are looking at ──
+// (2026-09-24: it used to print the modern quote's A4, which is a cover.)
+const dl = await d.pg.evaluate(async () => {
+  let at = null;
+  const realPrint = window.print;
+  window.print = () => {
+    const h = document.documentElement.classList;
+    at = { modern: h.contains('print-modern'), desk: h.contains('qp-desk'), a4: document.querySelectorAll('#qpRoot .rp-page').length,
+           secs: document.querySelectorAll('#qpRoot .qd-sec').length, picked: document.querySelectorAll('#qpRoot .qb-opt.on').length };
+  };
+  printCustomerQuote();
+  await new Promise(r => setTimeout(r, 1300));
+  window.print = realPrint;
+  return { at, after: { modern: document.documentElement.classList.contains('print-modern'), desk: document.documentElement.classList.contains('qp-desk'),
+                        flag: !!window.__PRINTING_MODERN, qd: !!document.getElementById('qdRoot') } };
+});
+check('Download PDF on a modern quote prints the one-page layout with the customer’s picks, not the A4', !!dl.at && dl.at.modern && dl.at.desk && dl.at.a4 === 0 && dl.at.secs >= 4 && dl.at.picked >= 1, JSON.stringify(dl.at));
+check('…and the page is back as it was afterwards', !dl.after.modern && dl.after.desk && !dl.after.flag && dl.after.qd, JSON.stringify(dl.after));
+await d.pg.emulateMedia({ media: 'print' });
+await d.pg.evaluate(() => { window.__PRINTING_MODERN = true; document.documentElement.classList.add('print-quote', 'print-modern'); refreshQuoteProposal(); });
+await new Promise(r => setTimeout(r, 400));
+const pm = await d.pg.evaluate(() => {
+  const vis = sel => { const e = document.querySelector(sel); return !!e && e.getBoundingClientRect().height > 0 && getComputedStyle(e).display !== 'none'; };
+  return { rail: vis('.qd-rail'), nav: vis('.qd-nav'), top: vis('.qd-top'), sec: vis('#qpRoot .qd-sec'), opt: vis('#qpRoot .qb-opt') };
+});
+await d.pg.evaluate(() => { window.__PRINTING_MODERN = false; document.documentElement.classList.remove('print-quote', 'print-modern'); refreshQuoteProposal(); _fitCustomerView(); });
+await d.pg.emulateMedia({ media: 'screen' });
+check('…printed without the bar, the nav and the rail, but with every section and its options', !pm.rail && !pm.nav && !pm.top && pm.sec && pm.opt, JSON.stringify(pm));
+
 // ── the acceptance PDF renders the A4 behind a veil, never on screen ─
 const veil = await d.pg.evaluate(async () => {
   const p = _buildQuotePdf({ scale: 1, veilMsg: 'Recording your acceptance…' });
@@ -352,8 +381,25 @@ const ed = await o.pg.evaluate(async () => {
   _qdescOpen(); await new Promise(r => setTimeout(r, 200));
   _qdescDel(0, 'x'); _qdescSave(); await new Promise(r => setTimeout(r, 300));
   out.exclGone = !('custExcl' in S.quote);
+  // the title (2026-09-24): renamed in the same editor, shown on the page,
+  // and saving the default takes the field off the quote again
+  _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 500));
+  out.titleBefore = (document.querySelector('#qpRoot #qbPropTitle') || {}).textContent;
+  _qdescOpen(); await new Promise(r => setTimeout(r, 200));
+  out.titleBox = (document.getElementById('qdescTitle') || {}).value;
+  document.getElementById('qdescTitle').value = '  Roof Repair Proposal ';
+  _qdescSave(); await new Promise(r => setTimeout(r, 500));
+  out.titleSaved = S.quote.proposalTitle;
+  out.titleShown = (document.querySelector('#qpRoot #qbPropTitle') || {}).textContent;
+  _qdescOpen(); await new Promise(r => setTimeout(r, 200));
+  _qdescReset(); _qdescSave(); await new Promise(r => setTimeout(r, 500));
+  out.titleGone = !('proposalTitle' in S.quote);
+  out.titleBack = (document.querySelector('#qpRoot #qbPropTitle') || {}).textContent;
   return out;
 });
+check('Edit description renames the proposal: the title box opens on Re-Roof Proposal, the new title lands on the quote and the page, and Reset takes it off',
+  ed.titleBefore === 'Re-Roof Proposal' && ed.titleBox === 'Re-Roof Proposal' && ed.titleSaved === 'Roof Repair Proposal' && ed.titleShown === 'Roof Repair Proposal' && ed.titleGone && ed.titleBack === 'Re-Roof Proposal',
+  JSON.stringify({ b: ed.titleBefore, box: ed.titleBox, s: ed.titleSaved, sh: ed.titleShown, g: ed.titleGone, bk: ed.titleBack }));
 check('the editor takes exclusions too: a blank one is dropped, the rest land on the quote and the page, and removing the last takes the field off',
   ed.exclRows === 2 && ed.exclSaved.join('|') === 'Downpipes' && ed.exclShown.join('|') === 'Downpipes' && ed.exclOnPage >= 1 && ed.exclGone, JSON.stringify({ rows: ed.exclRows, saved: ed.exclSaved, onPage: ed.exclOnPage, gone: ed.exclGone }));
 check('the Quote tab has an office-only Edit description button', ed.btn && ed.office);

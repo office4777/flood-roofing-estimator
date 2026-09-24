@@ -376,6 +376,24 @@ check('a print swaps the book out for the A4 document', !pr.during.book && pr.du
 check('…so the printed sheet is not laid out as a phone', !pr.during.book);
 check('…and the book is back when it is done', pr.after.book && pr.after.page === 'summary', JSON.stringify(pr.after));
 
+// The customer's own Download PDF (2026-09-24) prints the quote they are
+// looking at: on a phone, the whole one-page layout with their picks — not
+// one page of the book and not the modern quote's A4 cover.
+const dlb = await m.pg.evaluate(async () => {
+  _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 400));
+  let at = null; const realPrint = window.print;
+  window.print = () => { const h = document.documentElement.classList;
+    at = { book: h.contains('qp-book'), desk: h.contains('qp-desk'), a4: document.querySelectorAll('#qpRoot .rp-page').length,
+           secs: document.querySelectorAll('#qpRoot .qd-sec').length }; };
+  printCustomerQuote();
+  await new Promise(r => setTimeout(r, 1300));
+  window.print = realPrint;
+  return { at, after: { book: document.documentElement.classList.contains('qp-book'),
+                        page: document.getElementById('qbPage') ? document.getElementById('qbPage').dataset.qbPage : '' } };
+});
+check('Download PDF on a phone prints the whole one-page quote, not a book page or the A4', !!dlb.at && !dlb.at.book && dlb.at.desk && dlb.at.a4 === 0 && dlb.at.secs >= 4, JSON.stringify(dlb.at));
+check('…and the book is back on the same page afterwards', dlb.after.book && dlb.after.page === 'summary', JSON.stringify(dlb.after));
+
 // ── "Undecided" colour, Ask a question up top, the scroll hint ──────
 const extra = await m.pg.evaluate(async () => {
   const keys = _qbPages().map(p => p.key);

@@ -45,10 +45,14 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
     if (publishStatus < 300 && publishTakes && id) published.add(id);
     return j(publishStatus, {});
   }
-  if (method === 'POST' && /\/mark_sent$/.test(path)){
-    const id = (path.match(/\/quotes\/([^/]+)\/mark_sent$/) || [])[1];
-    if (markSentStatus < 300 && markSentTakes && id) sentIds.add(id);
-    return j(markSentStatus, {});
+  // The real endpoint, from Fergus's partner API spec (2026-09-24):
+  // POST /jobs/quotes/{quoteId}/markAsSent { isSent: true } → 204. The old
+  // guesses (mark_sent, mark-sent …) now fall through to a 404.
+  if (method === 'POST' && /\/markAsSent$/.test(path)){
+    const id = (path.match(/\/quotes\/([^/]+)\/markAsSent$/) || [])[1];
+    const isSent = !!(body && (typeof body === 'string' ? JSON.parse(body || '{}') : body).isSent === true);
+    if (markSentStatus < 300 && markSentTakes && id && isSent) sentIds.add(id);
+    return j(markSentStatus === 200 ? 204 : markSentStatus, {});
   }
   if (method === 'POST' && /\/send\b/.test(path)) return j(200, { EMAILED_THE_CUSTOMER: true });   // the one shape that must never be hit
   if (method === 'PATCH' && /^\/jobs\/quotes\/[^/]+$/.test(path)) return j(404, { message: 'no' });
@@ -196,7 +200,7 @@ check('a rejected key is not hammered through every candidate path', p.ok === fa
 fergus.length = 0; publishStatus = 200; publishTakes = true; markSentStatus = 200; markSentTakes = true;
 p = await pub({ quoteId: 'fq60', jobId: 'FJ-77', markSent: true });
 check('with markSent the quote is published AND marked sent, and Fergus confirms Sent',
-  p.ok === true && p.sent && p.sent.ok === true && p.sent.verified === true && p.sent.fergusStatus === 'Sent' && /mark_sent/.test(p.sent.path), JSON.stringify(p.sent));
+  p.ok === true && p.sent && p.sent.ok === true && p.sent.verified === true && p.sent.fergusStatus === 'Sent' && /markAsSent/.test(p.sent.path), JSON.stringify(p.sent));
 check('…and no shape that would make Fergus email the customer was ever called', !fergus.some(c => /\/send\b|\/email\b/.test(c.path)), fergus.map(c => c.path).join(', '));
 fergus.length = 0; markSentTakes = false;
 p = await pub({ quoteId: 'fq61', jobId: 'FJ-77', markSent: true });
@@ -204,15 +208,15 @@ check('a 2xx that leaves it unsent is not believed: every shape is tried and it 
   p.ok === true && p.sent && p.sent.ok === false && p.sent.stillUnsent === true && p.sent.attempts.length > 1 && !fergus.some(c => /\/send\b/.test(c.path)), JSON.stringify(p.sent && p.sent.attempts));
 fergus.length = 0; markSentTakes = true; sentIds.add('fq62');
 p = await pub({ quoteId: 'fq62', jobId: 'FJ-77', markSent: true });
-check('a quote Fergus already holds as Sent is left alone and reported as already sent', p.sent && p.sent.ok === true && p.sent.already === true && !fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent));
+check('a quote Fergus already holds as Sent is left alone and reported as already sent', p.sent && p.sent.ok === true && p.sent.already === true && !fergus.some(c => /markAsSent|mark_sent/.test(c.path)), JSON.stringify(p.sent));
 fergus.length = 0;
 p = await pub({ quoteId: 'fq63', jobId: 'FJ-77' });
-check('without markSent nothing is marked', !p.sent && !fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent || null));
+check('without markSent nothing is marked', !p.sent && !fergus.some(c => /markAsSent|mark_sent/.test(c.path)), JSON.stringify(p.sent || null));
 // "Published - not sent" names sending and is NOT sent: the pre-check must
 // not take it as already done, and the mark must go ahead.
 fergus.length = 0; unsentIds.add('fq64');
 p = await pub({ quoteId: 'fq64', jobId: 'FJ-77', markSent: true });
-check('a status reading "not sent" is not mistaken for sent — the mark still goes ahead and verifies', p.sent && p.sent.ok === true && p.sent.already !== true && p.sent.fergusStatus === 'Sent' && fergus.some(c => /mark_sent/.test(c.path)), JSON.stringify(p.sent));
+check('a status reading "not sent" is not mistaken for sent — the mark still goes ahead and verifies', p.sent && p.sent.ok === true && p.sent.already !== true && p.sent.fergusStatus === 'Sent' && fergus.some(c => /markAsSent/.test(c.path)), JSON.stringify(p.sent));
 // A pinned path that would email is refused whatever its spelling.
 fergus.length = 0; process.env.FERGUS_QUOTE_MARK_SENT_PATH = 'POST /jobs/quotes/{id}/send_to_customer';
 p = await pub({ quoteId: 'fq65', jobId: 'FJ-77', markSent: true });

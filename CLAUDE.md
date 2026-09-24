@@ -317,6 +317,36 @@ Discipline (non-negotiable):
   out of `materialBase` on an older quote. `_selGradeDelta` (percentage
   path) and `_selGauge55Delta` use it, so the pricegold baseline moved on
   every grade-swap and 0.55 combination.
+- THE CUSTOMER'S DOWNLOAD PDF OF A MODERN QUOTE (2026-09-24) is the
+  one-page layout they are looking at, with their picks, not the A4 (which
+  on a modern quote is little more than the cover): `printCustomerQuote` →
+  `_printModernQuote`, `window.__PRINTING_MODERN` (makes `_qpDeskActive`
+  true and `_qpBookActive` false even on a phone), `html.print-modern`
+  print rules hide the bar, nav, rail, accept block and every button but
+  the option cards (`.qb-opt`, `.qb-sw`, `.qb-undecided`). Classic quotes
+  and the acceptance record (`_buildQuotePdf`) still print the A4.
+  `tests/quotedesk.mjs`, `tests/quotebook.mjs`.
+- THE PROPOSAL'S TITLE is `S.quote.proposalTitle` (default
+  `QB_PROPOSAL_TITLE` "Re-Roof Proposal", `_qbProposalTitle()`), edited in
+  Edit description's Title box on a modern quote; saving the default
+  deletes the field. `tests/quotedesk.mjs`.
+- THE PHOTO LISTS' WHEEL (2026-09-24): a plain wheel turns ONE photo per
+  notch (deltas added up to a notch, then locked 380 ms so a flick never
+  skips); past the first or last photo it is left to scroll the page;
+  Ctrl + wheel still zooms. `tests/photoviewer.mjs`.
+- THE STATUS BOARD is ONE ROW however many tiles (`grid-auto-flow:column`),
+  four across under 900px, two in site mode. `tests/photoviewer.mjs`.
+- A SEND UPLOADS THE QUOTE TWICE, NOT FOUR TIMES (2026-09-24): with roof
+  photos the quote is megabytes. The send publishes it for the link and
+  once more for the sent record; its Fergus push is called with
+  `linkReady` so it does not publish it again before or after the push;
+  the light publish that carries the Fergus plan and the one full save run
+  behind the closing window. `tests/emailpush.mjs` counts the uploads.
+- `/quote-activity` reads through the direct pg pool when there is one
+  (`_quoteShareRowsPg`, 30 s budget, the share without `fergus`/`priced`),
+  the REST read after it; the 60 s per-office cache is cleared by every job
+  or quote write and every customer event. The Home board retries a failed
+  feed by itself twice (5 s, 15 s) and shows the error text.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.
@@ -769,7 +799,10 @@ Draft and `_fergusPublishQuote(key, quoteId, jobId)` then tries the
 publish shapes in `FERGUS_PUBLISH_CANDIDATES` ("METHOD /path"; pin the
 right one in `FERGUS_QUOTE_PUBLISH_PATH` once known). Then it is MARKED
 SENT (2026-09-22, `_fergusMarkQuoteSent`, `FERGUS_MARK_SENT_CANDIDATES`,
-pin `FERGUS_QUOTE_MARK_SENT_PATH`; `markSent:true` on
+pin `FERGUS_QUOTE_MARK_SENT_PATH`; the real call, from Fergus's partner API
+spec on 2026-09-24, is `POST /jobs/quotes/{id}/markAsSent` with
+`{isSent:true}` → 204, first in the list — none of the eight guesses before
+it was right, which is why published quotes never showed as sent; `markSent:true` on
 `/fergus-quote/publish`, and always on the customer-selection versions)
 so the job stops saying "Quote has not been sent to customer" — marked,
 never emailed: no `/send` or `/email` shape is tried, the quote is read

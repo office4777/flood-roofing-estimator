@@ -929,7 +929,7 @@ html.site-mode .hb-topbar .hb-search{height:48px;font-size:14px;padding-left:44p
 html.site-mode .hb-search-wrap{order:1;flex:1 1 100%}
 html.site-mode .hb-newjob{order:2;flex:1 1 auto;width:auto;height:48px;font-size:14px;padding:0 16px}
 html.site-mode .hb-topbar > button:last-child{order:3;height:48px;flex:0 0 auto}
-html.site-mode .hb-tiles{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+html.site-mode .hb-tiles{grid-auto-flow:row;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
 html.site-mode .hb-tile{padding:12px 6px 10px;border-radius:11px}
 html.site-mode .hb-tile-num{font-size:26px}
 html.site-mode .hb-tile-lbl{font-size:9px}
@@ -3736,6 +3736,9 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-excl-row svg{ color:#c0392b; }
 .qb-excl-row span{ color:#5b6b7c; }
 .qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:12px 0 4px; }
+.qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
+.qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
+.qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
 .qdesc-sub span{ font-weight:400; color:var(--text2); }
 .qdesc-row-x .qdesc-n{ color:#c0392b; font-weight:700; }
 .qb-price-open{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
@@ -4057,6 +4060,29 @@ html.qp-desk-preview .qd-top{ position:static; }
   /* Print colour adjustment — coloured swatches + dark backgrounds must
      print at full saturation, not the browser's draft-toned defaults. */
   html.print-quote *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  /* A modern quote's PDF: the one-page layout, as a document. */
+  html.print-modern .qd-top, html.print-modern .qd-nav, html.print-modern .qd-rail,
+  html.print-modern .qd-mini, html.print-modern .qb-cta, html.print-modern .qb-hero-tools,
+  html.print-modern .qb-hero-hint, html.print-modern .qb-ask, html.print-modern .qe-inline,
+  html.print-modern .qd-parked, html.print-modern #qbAcceptName, html.print-modern #qbAcceptTerms,
+  html.print-modern .qd-accept, html.print-modern .qb-accept, html.print-modern .qb-sign, html.print-modern .qb-actions,
+  html.print-modern button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
+  html.print-modern .qd-wrap{display:block!important; max-width:none!important; padding:10mm 10mm 12mm!important}
+  html.print-modern, html.print-modern body{height:auto!important; min-height:0!important; overflow:visible!important}
+  html.print-modern .qd-main{display:block!important}
+  html.print-modern .qd-main > .qd-sec{margin:0 0 6mm!important}
+  /* Sections flow across sheets (kept whole they left half of every sheet
+     blank); what must not split is a card, a photo, a swatch row, a heading
+     from what follows it. */
+  html.print-modern .qd-sec{box-shadow:none!important; border:1px solid #e3e6ea!important; overflow:visible!important; border-radius:10px!important}
+  html.print-modern .qd-sec .qb-opt, html.print-modern .qd-sec figure, html.print-modern .qd-sec .qb-sw,
+  html.print-modern .qd-sec .qb-total, html.print-modern .qd-sec .qb-fig, html.print-modern .qd-sec .qb-plan,
+  html.print-modern .qd-sec .qb-picks, html.print-modern .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
+  html.print-modern .qd-sec h2, html.print-modern .qd-sec h3, html.print-modern .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
+  html.print-modern .qd-hero{aspect-ratio:auto!important; width:100%!important; height:62mm!important; min-height:0!important; max-height:none!important}
+  html.print-modern .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
+  html.print-modern body, html.print-modern #customerView, html.print-modern .report-preview,
+  html.print-modern #qpRoot, html.print-modern .qd{background:#fff!important}
 
   /* Order Material — print only the Order panel, suppress the
      in-page sketch toolbar buttons and the supplier select that don't
@@ -4968,14 +4994,17 @@ html.qp-desk-preview .qd-top{ position:static; }
     .hb-drop-badge{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:20px;white-space:nowrap}
     .hb-newjob{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:58px;box-sizing:border-box;padding:0 34px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:14px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 5px 16px rgba(0,153,204,.32);white-space:nowrap}
     .hb-newjob:hover{filter:brightness(1.06)}
-    .hb-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
-    @media (max-width:900px){ .hb-tiles{grid-template-columns:repeat(3,1fr)} }
-    .hb-tile{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:22px 10px 18px;cursor:pointer;text-align:center;transition:border-color .12s, box-shadow .12s, background .12s}
+    /* ONE ROW, however many tiles (2026-09-24, the owner: "thin up the status
+       board boxes so they all fit on one row") — a column per tile, not a
+       fixed six that wraps the seventh and eighth onto a second line. */
+    .hb-tiles{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:10px;margin-bottom:16px}
+    @media (max-width:900px){ .hb-tiles{grid-auto-flow:row;grid-template-columns:repeat(4,1fr)} }
+    .hb-tile{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:13px 6px 11px;cursor:pointer;text-align:center;min-width:0;transition:border-color .12s, box-shadow .12s, background .12s}
     .hb-tile:hover{border-color:#0099cc}
     .hb-tile.on{border-color:#0099cc;background:#f0f8fb;box-shadow:0 4px 14px rgba(0,153,204,.14)}
-    .hb-tile-num{font-size:38px;font-weight:800;color:#0a1628;line-height:1.05}
-    .hb-tile-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .hb-tile-bar{height:5px;border-radius:3px;margin:13px auto 0;width:70%;opacity:.28;transition:opacity .12s}
+    .hb-tile-num{font-size:30px;font-weight:800;color:#0a1628;line-height:1.05}
+    .hb-tile-lbl{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text2);margin-top:5px;line-height:1.25;overflow-wrap:anywhere}
+    .hb-tile-bar{height:4px;border-radius:3px;margin:9px auto 0;width:70%;opacity:.28;transition:opacity .12s}
     .hb-tile.on .hb-tile-bar{opacity:1}
     .hb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:9px;margin-bottom:7px;cursor:pointer;background:#fff}
     .hb-row:hover{background:var(--surface-2);border-color:#0099cc}
@@ -18851,7 +18880,7 @@ function _renderHomeBoard(){
   }
 
   var qaErr = window._quoteActivityError
-    ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity. <button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
+    ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity' + ((window._quoteActivityRetries || 0) <= 2 ? ' — trying again…' : '') + '. <span style="color:#8a97a6;font-size:11px">(' + esc(String(window._quoteActivityError).slice(0, 90)) + ')</span> <button onclick="window._quoteActivityRetries=0;fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
     : null;
   var cols = [];
   // Jobs to Price leads the board for a business on Fergus: it is where a job
@@ -22672,8 +22701,8 @@ function _jobPhotosApplyZoom(){ _pvLayout('job'); }
 // list, the neighbours peeking above and below); the zoom scales the picture
 // INSIDE its slot, so nothing reflows and the photo being looked at stays
 // put; ▲ ▼, the arrow keys (while the pointer is over the panel) and a swipe
-// slide to the next one; the wheel no longer scrolls the list, and Ctrl +
-// wheel zooms towards the point under the pointer; a zoomed photo is dragged
+// slide to the next one; the wheel turns one photo per notch (2026-09-24),
+// and Ctrl + wheel zooms towards the point under the pointer; a zoomed photo is dragged
 // around inside its slot.
 var PV_KEYS = {
   ferg: { box:'fergusRoofPhotoScroll', grid:'fergusRoofPhotoGrid', zoom:'fergusRoofPanelZoom', out:'fergusRoofPanelZoomOut' },
@@ -22738,10 +22767,32 @@ function _pvInit(k){
   box.__pv = true;
   box.classList.add('pv-box');
   box.addEventListener('pointerenter', function(){ _PV.active = k; });
+  // A plain wheel turns ONE photo per notch (2026-09-24, the owner: "make so
+  // the scroll down/up jumps to the next photo"). A trackpad's stream of small
+  // deltas is added up to a notch, and one step then locks the wheel until
+  // the slide has landed, so a single flick never skips three photos. Past
+  // the first or the last photo the wheel is let through to the page.
+  var wAcc = 0, wLock = 0;
   box.addEventListener('wheel', function(ev){
-    if (!_pvSlots(k).length) return;
-    ev.preventDefault();                                   // the list itself does not scroll
-    if (!(ev.ctrlKey || ev.metaKey)) return;
+    var n = _pvSlots(k).length;
+    if (!n) return;
+    if (!(ev.ctrlKey || ev.metaKey)){
+      var dir = ev.deltaY > 0 ? 1 : (ev.deltaY < 0 ? -1 : 0);
+      if (!dir) return;
+      var i = _PV[k].i;
+      if ((dir > 0 && i >= n - 1) || (dir < 0 && i <= 0)){ wAcc = 0; return; }
+      ev.preventDefault();
+      var now = Date.now();
+      if (now < wLock) return;
+      var px = ev.deltaMode === 1 ? ev.deltaY * 40 : (ev.deltaMode === 2 ? ev.deltaY * 400 : ev.deltaY);
+      if (wAcc && (wAcc > 0) !== (px > 0)) wAcc = 0;
+      wAcc += px;
+      if (Math.abs(wAcc) < 30) return;
+      wAcc = 0; wLock = now + 380;
+      _pvStep(k, dir);
+      return;
+    }
+    ev.preventDefault();
     var sl = ev.target.closest && ev.target.closest('.pv-slot');
     if (sl){
       var r = sl.getBoundingClientRect();
@@ -27532,6 +27583,7 @@ function customerQuery(){
 // still get the A4 document, untouched.
 var QB = { i: 0, g: 0, t: null };
 function _qpBookActive(){
+  if (window.__PRINTING_MODERN) return false;
   // A print or a PDF is ALWAYS the A4 document, whoever is looking.
   if (window.__PRINTING_QUOTE) return false;
   // The template editor never shows the book: a classic quote edits its A4
@@ -27641,6 +27693,7 @@ function _syncQuotePreviewToggle(){
 // customer mode, wider than a phone, and never a print — the office sees it
 // only through the Computer switch above the preview.
 function _qpDeskActive(){
+  if (window.__PRINTING_MODERN) return true;   // the customer's Download PDF of a modern quote (2026-09-24)
   if (window.__PRINTING_QUOTE) return false;
   // In the template editor a modern quote is its one-page layout, at a
   // working width the stage sets (#qtEditWrap.qt-modern).
@@ -28164,7 +28217,7 @@ function _qbProposal(opts){
   return ''+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">What we will do</span>'+
-      '<h2 class="qb-h2">Re-Roof Proposal</h2>'+
+      '<h2 class="qb-h2" id="qbPropTitle">'+esc2(_qbProposalTitle())+'</h2>'+
       _qeInlineBtn('desc')+
       // Exclusions (2026-09-22): when the office lists any, the two lists
       // get headings and the exclusions carry a red cross.
@@ -28282,6 +28335,14 @@ function _classicScopeDefaultLines(){
   } catch(e){}
   return [];
 }
+// THE PROPOSAL'S TITLE (2026-09-24): "Re-Roof Proposal" unless the office
+// renames it in Edit description — a repair or a new-build is not a re-roof.
+// Saved as S.quote.proposalTitle; saving the default deletes it.
+var QB_PROPOSAL_TITLE = 'Re-Roof Proposal';
+function _qbProposalTitle(){
+  var t = String((S.quote && S.quote.proposalTitle) || '').trim();
+  return t || QB_PROPOSAL_TITLE;
+}
 function _qdescOpen(){
   if (!S.quote) return;
   var old = document.getElementById('qdescModal'); if (old) old.remove();
@@ -28295,6 +28356,8 @@ function _qdescOpen(){
       '<div class="qdesc-hd"><b>Edit description</b><span>'+(classic
         ? 'The "What\u2019s included and our process" list on the document, one line a bullet. For this quote only.'
         : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
+      (classic ? '' : '<div class="qdesc-title"><label for="qdescTitle">Title</label>'+
+        '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(QB_PROPOSAL_TITLE)+'"></div>')+
       '<div class="qdesc-list" id="qdescList"></div>'+
       (classic ? '' : '<div class="qdesc-sub">Exclusions <span>— what the price does not cover; shown with a cross under their own heading, only when there are any</span></div>'+
         '<div class="qdesc-list" id="qdescExclList"></div>')+
@@ -28347,7 +28410,12 @@ function _qdescAdd(k){
   _qdescListOf(h, k).push(''); _qdescPaint();
   try { var ins = h.querySelectorAll(k === 'x' ? '#qdescExclList input' : '#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
 }
-function _qdescReset(){ var h = document.getElementById('qdescModal'); if (!h) return; h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice(); _qdescPaint(); }
+function _qdescReset(){
+  var h = document.getElementById('qdescModal'); if (!h) return;
+  h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice();
+  var ti = document.getElementById('qdescTitle'); if (ti) ti.value = QB_PROPOSAL_TITLE;
+  _qdescPaint();
+}
 function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
 function _qdescSave(){
   var h = document.getElementById('qdescModal'); if (!h || !S.quote) return;
@@ -28366,6 +28434,11 @@ function _qdescSave(){
   if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
   var excl = (h._excl || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
   if (excl.length) S.quote.custExcl = excl; else delete S.quote.custExcl;
+  var ti = document.getElementById('qdescTitle');
+  if (ti){
+    var tv = String(ti.value || '').trim().slice(0, 60);
+    if (!tv || tv === QB_PROPOSAL_TITLE) delete S.quote.proposalTitle; else S.quote.proposalTitle = tv;
+  }
   _qdescClose();
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
@@ -30543,6 +30616,7 @@ async function fetchQuoteActivity(){
     feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
     window._quoteActivityFeed = feed;
     window._quoteActivityError = null;
+    window._quoteActivityRetries = 0;
   } catch(e){
     // Keep any previously-loaded activity on the board; flag the error only
     // when there's nothing cached to show.
@@ -30550,6 +30624,13 @@ async function fetchQuoteActivity(){
     if (!(window._quoteActivityFeed && window._quoteActivityFeed.length)) {
       window._quoteActivityError = (e && (e.message || String(e))) || 'unknown error';
     }
+    // The first read after a deploy is the slow one (a cold server, the
+    // biggest query it runs), and the second usually lands (2026-09-24: the
+    // owner opened the app after an update to "Couldn't load quote activity"
+    // and four tiles at 0). Try again by itself, twice, before leaving it
+    // to the Retry button.
+    var n = window._quoteActivityRetries = (window._quoteActivityRetries || 0) + 1;
+    if (n <= 2) setTimeout(function(){ try { fetchQuoteActivity(); } catch(_){} }, n === 1 ? 5000 : 15000);
   }
   _renderHomeBoard();
 }
@@ -37331,8 +37412,9 @@ async function _quoteEmailSendNow(){
     });
     _tSend = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0 - _tPub; } catch(e){ return 0; } })();
     // Email is out — NOW persist the job's photos/aerial in the background so
-    // the uplink was clear for the send.
-    try { if (got.heavySave) got.heavySave(); } catch(e){}
+    // the uplink was clear for the send. A job linked to Fergus saves in full
+    // once, after the push (it carries the Fergus plan), so not twice.
+    try { if (got.heavySave && !(S.linkedJobId && !window.__CUSTOMER_MODE)) got.heavySave(); } catch(e){}
     // Remember WHO the quote was emailed to, on the share itself. The
     // automated follow-up reminder (Team plan) sends to this address first —
     // it is the one the original email verifiably went to.
@@ -37371,7 +37453,7 @@ async function _quoteEmailSendNow(){
     if (S.linkedJobId && !window.__CUSTOMER_MODE){
       try {
         _quoteEmailStatus('✓ Sent · pushing the pricing to Fergus…');
-        await pushQuotePricingToFergus(null, { silent: true, publish: true });
+        await pushQuotePricingToFergus(null, { silent: true, publish: true, linkReady: _recorded });
         var _pl = (S.quote && S.quote.share && S.quote.share.fergus) || {};
         _fergusNote = _pl.published === true ? ' · Fergus quote published' : (_pl.published === false ? ' · Fergus quote created (draft — publish it in Fergus)' : ' · pushed to Fergus');
         if (_pl.sentResult && _pl.sentResult.stillUnsent) _fergusNote += ' · not yet marked sent in Fergus';
@@ -37383,8 +37465,14 @@ async function _quoteEmailSendNow(){
       _quoteEmailStatus('✓ Sent to ' + to + _fergusNote, 'ok');
       // The Fergus plan rides on the share, and the frozen sent version
       // carries it too: re-stamp it, then keep it, quietly.
+      // The quote first (light — it is what the server reads the plan from
+      // when the customer picks), then the job in full; both behind the
+      // closing window, not in front of it.
       try { _qvMarkSent(); } catch(e){}
-      try { Promise.resolve(saveCurrentJob({ force: true })).catch(function(){}); } catch(e){}
+      try {
+        Promise.resolve(_publishQuoteOnly()).catch(function(){})
+          .then(function(){ return saveCurrentJob({ force: true }); }).catch(function(){});
+      } catch(e){}
     }
     setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, _fergusNote ? 2600 : 1600);
     try { _qvView('sent'); } catch(e){}
@@ -37463,7 +37551,35 @@ function printQuote(){
 // proposal to a ~540px phone-reflow layout; printing THAT spills each page
 // across many A4 sheets. So force the true A4 layout first (drop the mobile
 // reflow, reset the width, re-render), print, then restore the on-screen fit.
+// DOWNLOAD PDF OF A MODERN QUOTE (2026-09-24). The owner: it "tries to
+// download a single cover page of the classic style quote rather than the
+// quote they are looking at with their selections". A modern quote's A4
+// document is little more than its cover, so its PDF is now the one-page
+// layout the customer is looking at — every section, their picks marked,
+// the total at the end — printed without the sticky bar, the rail and the
+// buttons, a section never split across two sheets. On a phone it is the
+// same one-page layout, not one page of the book. A classic quote still
+// prints its A4 document; the acceptance record (_buildQuotePdf) is unchanged.
+function _printModernQuote(){
+  var htmlEl = document.documentElement;
+  var wasBook = htmlEl.classList.contains('qp-book');
+  window.__PRINTING_MODERN = true;
+  htmlEl.classList.remove('qp-book');
+  htmlEl.classList.add('qp-desk', 'print-quote', 'print-modern');
+  try { refreshQuoteProposal(); } catch(e){}
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){
+      window.__PRINTING_MODERN = false;
+      htmlEl.classList.remove('print-quote', 'print-modern');
+      if (wasBook) htmlEl.classList.add('qp-book');
+      try { refreshQuoteProposal(); } catch(e){}
+      try { _fitCustomerView(); } catch(e){}
+    }, 600);
+  }, 250);
+}
 function printCustomerQuote(){
+  if (window.__CUSTOMER_MODE && _quoteStyle() === 'modern') return _printModernQuote();
   var htmlEl = document.documentElement;
   var root = document.getElementById('qpRoot');
   var wasMobile = htmlEl.classList.contains('customer-mobile');
@@ -62058,7 +62174,11 @@ async function pushQuotePricingToFergus(btn, opts){
     var _linkStr = null, _savePromise = Promise.resolve();
     try {
       _linkStr = _customerLinkString();
-      if (_linkStr) _savePromise = Promise.resolve(_publishQuoteForLink()).catch(function(){});   // publish just the quote (KB) — resolves the link fast; photos save in background
+      // The send has JUST published the quote and recorded it (linkReady), so
+      // it is not uploaded again here — on a job with roof photos every
+      // upload of the quote is megabytes, and a send used to make four
+      // (2026-09-24: "it takes so long to send a quote that has photos").
+      if (_linkStr && !(opts && opts.linkReady)) _savePromise = Promise.resolve(_publishQuoteForLink()).catch(function(){});   // publish just the quote (KB) — resolves the link fast; photos save in background
 
     } catch(e){}
     var _onlineLine = _linkStr
@@ -62125,7 +62245,8 @@ async function pushQuotePricingToFergus(btn, opts){
     var _persist = function(){
       return Promise.resolve(_savePromise).catch(function(){}).then(function(){ return S.currentJobId ? _publishQuoteOnly() : null; });
     };
-    if (_silent){ try { await _persist(); } catch(e){} }
+    if (opts && opts.linkReady){ /* the send saves once, after this, with the plan on it */ }
+    else if (_silent){ try { await _persist(); } catch(e){} }
     else { _persist().catch(function(e){ _qaMsg('Pushed to Fergus, but saving the quote in RoofMap failed (' + ((e && e.message) || e) + ') \u2014 press Save job.', false); }); }
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);

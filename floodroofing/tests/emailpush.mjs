@@ -68,6 +68,7 @@ const watcher = (async () => { for (let i = 0; i < 40; i++){ await pg.waitForTim
 const sendP = pg.evaluate(() => _quoteEmailSendNow());
 const ringP = (async () => { for (let i = 0; i < 30; i++){ await pg.waitForTimeout(100); if (await pg.evaluate(() => !!document.querySelector('#quoteEmailStatus .ld-ring'))) return true; } return false; })();
 await sendP;
+const atDone = calls.map(c => c.kind);
 const status = await pg.evaluate(() => (document.getElementById('quoteEmailStatus') || {}).textContent || '');
 await watcher;
 await pg.waitForTimeout(300);
@@ -86,6 +87,12 @@ check('the send dialog says so', /Fergus quote published/.test(status), status);
 // quote publish, and it carries the frozen sent version.
 const sentPub = calls.findIndex(c => c.kind === 'publishQuote' && c.body && c.body.quote && c.body.quote.versions && c.body.quote.versions.sent);
 check('the sent quote is recorded on the job before the Fergus push', sentPub >= 0 && sentPub > kinds.indexOf('email') && sentPub < kinds.indexOf('create'), kinds.join(', ') + ' · sent record at ' + sentPub);
+// 2026-09-24 ("it takes so long to send a quote that has photos"): the
+// quote — megabytes with roof photos — is uploaded ONCE for the link and
+// ONCE for the record before the dialog is done; the Fergus push no longer
+// re-uploads it twice, and the saves after it run behind the closed window.
+const ups = atDone.filter(k => k === 'publishQuote').length;
+check('the send waits on two quote uploads at most (link + record), not four', ups <= 2 && atDone.indexOf('create') >= 0, atDone.join(', '));
 check('the "working" spinner showed while it ran', pillSeen.during);
 check('…and the popup itself shows a loading ring while sending', await ringP);
 check('…which is gone from the finished message', !/ld-ring/.test(await pg.evaluate(() => (document.getElementById('quoteEmailStatus') || {}).innerHTML || '')) || /Sent/.test(status));
