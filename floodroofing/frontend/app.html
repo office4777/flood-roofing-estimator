@@ -239,7 +239,7 @@ html.tablet-mode.tnav-open .sidebar{transform:none}
 html.tablet-mode .content{padding:64px 10px 116px!important;max-width:none;margin:0}
 html.tablet-mode .tool-btn{padding:11px 15px;font-size:14px;border-radius:9px}
 html.tablet-mode #workflowTipBar{display:none!important}
-html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px)!important;min-height:340px}
+html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px - var(--roofstats-h, 0px))!important;min-height:340px}
 html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
 #tabletToolbar{
   position:fixed;left:0;right:0;bottom:0;z-index:300;background:#0a1628;
@@ -2809,8 +2809,29 @@ html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-section-hd
    (matching what tablet/site mode already do) and the canvas fills it;
    fitCanvasToWrap sizes the backing store off the rendered box, so nothing
    distorts. Tablet and site mode keep their own !important geometry. */
-body[data-tab="roof"] #canvasWrap{ height:calc(100vh - 190px); min-height:480px }
+body[data-tab="roof"] #canvasWrap{ height:calc(100vh - 190px - var(--roofstats-h, 0px)); min-height:480px }
 body[data-tab="roof"] #canvasWrap #roofCanvas{ height:100% }
+
+/* ── THE ROOF'S FIGURES, UNDER THE CANVAS (2026-09-28) ──────────────
+   One row, no scrolling: the area along the pitch, every flashing line
+   added up, and the gutter on its own — a gutter is its own trade and
+   its own price, so it never hides inside a flashing total. With more
+   than one roof the row gains a picker that starts on All roofs.
+   The canvas gives back exactly the row's height through
+   --roofstats-h (set by _roofStatsRender), and #canvasWrap is watched,
+   so the picture re-fits itself rather than being pushed off screen. */
+#roofStatsBar{ display:none; flex:0 0 100%; gap:8px; align-items:stretch; flex-wrap:wrap; padding:8px .75rem 0; box-sizing:border-box; line-height:1.25 }
+.rs-box{ flex:1 1 0; min-width:118px; background:#fff; border:1px solid #e3e8ef; border-radius:10px; padding:7px 12px }
+.rs-lbl{ display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text2); white-space:nowrap }
+.rs-dot{ width:8px; height:8px; border-radius:50%; flex:none }
+.rs-val{ font-size:17px; font-weight:800; color:#0a1628; font-variant-numeric:tabular-nums }
+.rs-val small{ font-size:11px; font-weight:600; color:var(--text2); margin-left:2px }
+.rs-roofs{ display:flex; align-items:center; gap:6px; flex:0 0 auto; flex-wrap:wrap }
+.rs-chip{ font-family:inherit; font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#0a1628; cursor:pointer }
+.rs-chip.on{ background:#0a1628; border-color:#0a1628; color:#fff }
+/* Site mode's canvas is fixed to the whole screen between the two bars,
+   so a row under it would have nowhere to land. */
+html.site-mode #roofStatsBar{ display:none!important }
 
 /* ── Sheet legend ───────────────────────────────────────────── */
 .sheet-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:.75rem}
@@ -5365,9 +5386,8 @@ html.qp-desk-preview .qd-top{ position:static; }
     <div class="card" id="roofPlanCard" style="padding:0;border-radius:var(--radius-lg);overflow:visible;position:relative">
       <div class="card-hd" id="roofPlanHd" style="margin:.75rem .75rem .5rem;display:flex;align-items:center;flex-wrap:wrap"><span class="card-dot"></span>Roof plan — draw your sections
         <span id="roofPlanHdHint" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Click corners to draw each section, then label it</span>
-        <!-- The total roof area, always in view while drawing: the one number
-             everybody asks for first. Filled by buildMeasTiles. -->
-        <span id="roofAreaBox" title="Total roof area, every roof on the job, along the pitch" style="display:none;margin-left:auto;align-items:baseline;gap:6px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:9px;padding:5px 12px;font-size:12px;font-weight:600">Roof area <b id="roofAreaVal" style="font-size:16px;font-weight:800;color:#047857">—</b></span>
+        <!-- The roof area used to sit here in the card head. It is one of
+             the three boxes under the canvas now (#roofStatsBar). -->
       </div>
 
       <!-- Step indicator -->
@@ -5620,7 +5640,7 @@ html.qp-desk-preview .qd-top{ position:static; }
   <span>Measurements are roughly to satellite scale — <strong>click any measurement on the roof and type its real length</strong> to override. No line moves.</span>
   <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-09-09</span>
 </div>
-<div style="display:flex;gap:0;width:100%;position:relative">
+<div style="display:flex;flex-wrap:wrap;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
         <canvas id="roofCanvas" width="900" height="620"
           style="cursor:crosshair;display:block"
@@ -5632,6 +5652,11 @@ html.qp-desk-preview .qd-top{ position:static; }
           oncontextmenu="onCanvasRightClick(event)">
         </canvas>
       </div>
+      <!-- The roof's figures: area, flashings, gutter, and (with more than
+           one roof) the picker. Rendered by _roofStatsRender, which every
+           recalculation reaches through _roofAreaBoxSet. It is a full-width
+           flex line, so it lands UNDER the canvas rather than beside it. -->
+      <div id="roofStatsBar" class="no-print"></div>
       <!-- Corner reposition popup — click an outline corner in Move mode to
            open; arrows (buttons or keyboard) nudge the corner 0.01m. Draggable
            by its header; ✕ or clicking elsewhere on the canvas closes it. -->
@@ -21797,15 +21822,124 @@ function calcRoofMeasurements(d) {
   };
 }
 
-// The little area box in the Roof plan card head: shown once there is a
-// roof, hidden again when the drawing is cleared.
-function _roofAreaBoxSet(m2){
-  var box = document.getElementById('roofAreaBox'), v = document.getElementById('roofAreaVal');
-  if (!box || !v) return;
-  if (!(m2 > 0)){ box.style.display = 'none'; v.textContent = '—'; return; }
-  v.textContent = m2.toFixed(1) + ' m²';
-  box.style.display = 'inline-flex';
+// ── THE ROOF'S FIGURES, UNDER THE CANVAS (2026-09-28) ─────────────
+// The three numbers a roofer reads off a drawing, in one row under the
+// picture instead of scattered: the area ALONG THE PITCH (the same figure
+// the Job Pack counts, _matBasicCollectRoofs), every flashing line added
+// up, and the gutter on its own — guttering is its own trade and its own
+// price, so it must never hide inside a flashing total.
+//
+// A flashing here is EVERY measured line except the gutter: ridge, hip,
+// valley, barge, apron, change of pitch, drip edge, anything custom, and a
+// line not labelled yet. Each is counted at the length drawn on the map
+// (measM), so a box can never disagree with the label beside the line.
+//
+// With more than one roof the row gains a picker that starts on All roofs.
+// It filters THESE FIGURES ONLY — it does not change which roof is being
+// drawn, and every roof stays on the canvas.
+var RS_FLASH_LABELS = { ridge:'Ridge', hip:'Hip', valley:'Valley', barge:'Barge',
+  apron:'Apron', changepitch:'Change of pitch', drip:'Drip edge',
+  custom:'Other flashing', unknown:'Not labelled yet' };
+var _ROOF_STATS = { sel:'all', fallbackM2:0, barH:'' };
+
+function _roofStatsRoofs(){
+  try { return (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : []; }
+  catch(e){ return []; }
 }
+function _roofStatsPick(v){
+  _ROOF_STATS.sel = (v === 'all') ? 'all' : (+v);
+  _roofStatsRender();
+}
+function _roofStatsSum(roofs){
+  var out = { area:0, flash:0, gutter:0, by:{} };
+  roofs.forEach(function(r){
+    out.area += (+r.areaM2 || 0);
+    (r.lines || []).forEach(function(l){
+      var m = parseFloat(l && l.measM) || 0;
+      if (!(m > 0)) return;
+      if (l.type === 'gutter'){ out.gutter += m; return; }
+      out.flash += m;
+      var k = l.type || 'unknown';
+      out.by[k] = (out.by[k] || 0) + m;
+    });
+  });
+  return out;
+}
+function _rsBox(colour, label, value, unit, title){
+  return '<div class="rs-box" title="' + esc(title || '') + '">' +
+    '<div class="rs-lbl"><span class="rs-dot" style="background:' + colour + '"></span>' + esc(label) + '</div>' +
+    '<div class="rs-val">' + value + ' <small>' + unit + '</small></div></div>';
+}
+// m2 is the caller's own area total, used only when there is no outline to
+// measure (sections typed by hand) — otherwise the roofs themselves are read.
+function _roofStatsRender(m2){
+  var bar = document.getElementById('roofStatsBar');
+  if (!bar) return;
+  if (typeof m2 === 'number') _ROOF_STATS.fallbackM2 = m2;
+  var roofs = _roofStatsRoofs();
+  var fb = _ROOF_STATS.fallbackM2;
+  if (!roofs.length && fb > 0) roofs = [{ idx:0, name:'Roof 1', areaM2:fb, lines:(DRAW && DRAW.lines) || [] }];
+  if (!roofs.length){
+    bar.style.display = 'none'; bar.innerHTML = '';
+    _rsSetHeight('0px');
+    return;
+  }
+  // A roof that has gone (deleted, or a new job opened) falls back to all.
+  var sel = _ROOF_STATS.sel;
+  if (sel !== 'all' && !roofs.some(function(r){ return r.idx === sel; })) sel = _ROOF_STATS.sel = 'all';
+  var shown = (sel === 'all') ? roofs : roofs.filter(function(r){ return r.idx === sel; });
+  var t = _roofStatsSum(shown);
+  var which = (sel === 'all' && roofs.length > 1) ? 'every roof on the job' : (shown[0] ? shown[0].name : 'this roof');
+
+  var brk = Object.keys(t.by).sort(function(a, b){ return t.by[b] - t.by[a]; })
+    .map(function(k){ return (RS_FLASH_LABELS[k] || k) + ' ' + t.by[k].toFixed(1) + ' m'; }).join(' · ');
+
+  var html =
+    _rsBox('#059669', 'Roof area', t.area.toFixed(1), 'm²',
+           'The roof area of ' + which + ', along the pitch — the same figure the Job Pack counts.') +
+    _rsBox('#0891b2', 'Flashings', t.flash.toFixed(1), 'm',
+           brk ? ('Every line except the gutter, on ' + which + ': ' + brk)
+               : ('Every line except the gutter, on ' + which + '. Nothing measured yet.')) +
+    _rsBox('#7c3aed', 'Gutter', t.gutter.toFixed(1), 'm',
+           'The gutter runs on ' + which + ', kept out of the flashing total.');
+
+  if (roofs.length > 1){
+    html += '<div class="rs-roofs">' +
+      '<button type="button" class="rs-chip' + (sel === 'all' ? ' on' : '') + '" onclick="_roofStatsPick(\'all\')">All roofs</button>' +
+      roofs.map(function(r){
+        return '<button type="button" class="rs-chip' + (sel === r.idx ? ' on' : '') + '" ' +
+               'onclick="_roofStatsPick(' + r.idx + ')">' + esc(r.name) + '</button>';
+      }).join('') + '</div>';
+  }
+  bar.innerHTML = html;
+  bar.style.display = 'flex';
+  // Hand the canvas back exactly what this row takes, so the page is no
+  // taller for having it: the row ends where the canvas used to.
+  _rsSetHeight(bar.offsetHeight + 'px');
+}
+// How much room the row is taking, in pixels — 0 when it is not shown.
+function _roofStatsH(){
+  var bar = document.getElementById('roofStatsBar');
+  if (!bar || getComputedStyle(bar).display === 'none') return 0;
+  return bar.offsetHeight || 0;
+}
+// Setting it only when it CHANGES: the canvas is watched, and a height
+// written on every recalculation would re-fit the picture for nothing.
+// A window that has been resized carries an INLINE height on the wrap, which
+// beats the stylesheet — so that one is re-done as well, but only where it
+// already exists (writing one here would take the CSS rule out of play).
+function _rsSetHeight(h){
+  if (_ROOF_STATS.barH === h) return;
+  _ROOF_STATS.barH = h;
+  try { document.documentElement.style.setProperty('--roofstats-h', h); } catch(e){}
+  try {
+    var wrap = document.getElementById('canvasWrap');
+    if (wrap && wrap.style.height) _sizeCanvasWrapToWindow();
+  } catch(e){}
+}
+// The name every recalculation already calls. The area box it used to fill
+// in the card head is now the first of the three boxes under the canvas.
+function _roofAreaBoxSet(m2){ _roofStatsRender(+m2 || 0); }
 // ── MEASUREMENT TILES ────────────────────────────────────────────
 function buildMeasTiles(d) {
   var totalArea=0,ridgeLm=0,valleyLm=0,gutterLm=0,hipLm=0;
@@ -46871,7 +47005,7 @@ function _tryStyle(){
     'html.playground .content{margin:0;max-width:none;padding:6px 8px 24px !important}' +
     'html.playground #roofPlanCard{box-shadow:none;border:1px solid #e3e8ef}' +
     'html.playground .try-off{opacity:.35 !important;pointer-events:none !important;filter:grayscale(1)}' +
-    'html.playground.try-drawn #roofAreaVal,html.playground.try-drawn #roofAreaBox b{filter:blur(6px);user-select:none}' +
+    'html.playground.try-drawn #roofAreaVal,html.playground.try-drawn #roofAreaBox b,html.playground.try-drawn .rs-val{filter:blur(6px);user-select:none}' +
     '#tryStart{position:absolute;inset:0;z-index:40;background:rgba(243,245,248,.55) url(/brand/try-bg.jpg) center/cover;background-blend-mode:lighten;display:flex;align-items:center;justify-content:center;border-radius:12px}' +
     '#tryStart .try-box{background:rgba(255,255,255,.92);border-radius:16px;padding:26px 28px;box-shadow:0 16px 48px rgba(10,22,40,.18)}' +
     '#tryStart .try-box{max-width:640px;width:92%;text-align:center;font-family:inherit}' +
@@ -67047,11 +67181,21 @@ window.addEventListener('resize', function(){
     try { fitCanvasToWrap(); } catch(e){}
     return;
   }
-  var h=(window.innerHeight-220)+'px';
-  wrap.style.height=h;
-  var flex=wrap.parentElement;
-  if(flex) flex.style.height=h;
+  _sizeCanvasWrapToWindow();
 });
+// The inline height a resize writes beats the stylesheet, so the figures row
+// under the canvas (--roofstats-h) has to be taken off HERE too, or a resized
+// window hands the canvas the row's space and the row lands on whatever is
+// below it. The canvas gives up the row's height; the pair together still
+// take exactly what the canvas alone used to.
+function _sizeCanvasWrapToWindow(){
+  var wrap = document.getElementById('canvasWrap');
+  if (!wrap || document.documentElement.classList.contains('site-mode')) return;
+  var total = window.innerHeight - 220;
+  wrap.style.height = (total - _roofStatsH()) + 'px';
+  var flex = wrap.parentElement;
+  if (flex) flex.style.height = total + 'px';
+}
 
 // Init — size canvas to fill wrap, start with select
 // Set canvas resolution to match wrap once, freeze it there

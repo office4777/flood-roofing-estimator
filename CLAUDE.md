@@ -439,6 +439,20 @@ Discipline (non-negotiable):
   (`_workingWrap(name, label, cancel)`, `_fergusPushCancel`, `_FPUSH`); the
   push checks between steps; after Fergus created the new version it is
   voided again and the rev restored; the create request is never aborted.
+- THE ROOF'S FIGURES SIT UNDER THE CANVAS (2026-09-28, `#roofStatsBar`,
+  `_roofStatsRender`): one row of three boxes — Roof area (m², along the
+  pitch, `_matBasicCollectRoofs`), Flashings (every measured line EXCEPT the
+  gutter, at the length drawn on the map, `measM`; the box's tooltip breaks it
+  down by type) and Gutter (the gutter runs on their own, because guttering is
+  its own trade and its own price). More than one roof adds chips — All roofs
+  first — which filter THESE FIGURES ONLY: the canvas keeps every roof and the
+  active roof never changes. The area box that used to sit in the Roof plan
+  card head is gone; `_roofAreaBoxSet` is now the hook that redraws the row,
+  so every recalculation still reaches it. The canvas gives back exactly the
+  row's height (`--roofstats-h`, and `_sizeCanvasWrapToWindow` for the inline
+  height a window resize writes — that one beats the stylesheet), so the page
+  is no taller for having it. Hidden in site mode, where the canvas is fixed
+  to the whole screen. `tests/roofstats.mjs`.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
