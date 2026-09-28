@@ -135,8 +135,9 @@ await sleep(1500);
 v = await pg.evaluate(() => ({
   lines: DRAW.lines.length, types: Array.from(new Set(DRAW.lines.map(l => l.type))).sort().join(','), drawn: !!(window.TRY && TRY.drawn), cls: document.documentElement.className,
   wall: !!document.getElementById('tryWall'), link: (document.getElementById('tryStartFree') || {}).href || '', target: (document.getElementById('tryStartFree') || {}).target || '',
-  area: document.getElementById('roofAreaVal').textContent, areaShown: getComputedStyle(document.getElementById('roofAreaBox')).display !== 'none',
-  areaBlur: getComputedStyle(document.getElementById('roofAreaVal')).filter, blurred: window.__tryBlurred || 0, step: document.getElementById('stepTitle').textContent,
+  area: document.querySelector('#roofStatsBar .rs-val').textContent.replace(/\s+/g, ' ').trim(),
+  areaShown: getComputedStyle(document.getElementById('roofStatsBar')).display !== 'none',
+  areaBlur: getComputedStyle(document.querySelector('#roofStatsBar .rs-val')).filter, blurred: window.__tryBlurred || 0, step: document.getElementById('stepTitle').textContent,
 }));
 check('the roof is drawn — ridges, hips, gutters — from the outline and the pitch', v.lines >= 6 && /hip/.test(v.types) && /ridge/.test(v.types) && /gutter/.test(v.types), JSON.stringify({ lines: v.lines, types: v.types }));
 check('…and the playground calls it measured', v.drawn && /try-drawn/.test(v.cls) && /measured/.test(v.step), v.step);
@@ -153,16 +154,16 @@ await pg2.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStor
 await pg2.goto('file://' + DIR + '/app.html');
 await sleep(1200);
 await pg2.evaluate(() => { gotoTab('roof'); });
-v = await pg2.evaluate(() => ({ cls: document.documentElement.className, before: getComputedStyle(document.getElementById('roofAreaBox')).display }));
+v = await pg2.evaluate(() => ({ cls: document.documentElement.className, before: getComputedStyle(document.getElementById('roofStatsBar')).display }));
 await pg2.evaluate(() => { DRAW.scaleMetresPerPx = 0.03; setTool('outline'); DRAW.currentPts = [[200, 120], [700, 120], [700, 480], [200, 480]]; finishCurrent(); });
 await sleep(500);
 await pg2.evaluate(() => { document.querySelector('#_rsTypes [data-rstype="hip"]').click(); document.getElementById('_rsPitch').value = '20'; document.getElementById('_rsOk').click(); });
 await sleep(1200);
-v.after = await pg2.evaluate(() => ({ shown: getComputedStyle(document.getElementById('roofAreaBox')).display !== 'none', val: document.getElementById('roofAreaVal').textContent, blur: getComputedStyle(document.getElementById('roofAreaVal')).filter }));
+v.after = await pg2.evaluate(() => ({ shown: getComputedStyle(document.getElementById('roofStatsBar')).display !== 'none', val: document.querySelector('#roofStatsBar .rs-val').textContent, blur: getComputedStyle(document.querySelector('#roofStatsBar .rs-val')).filter }));
 check('in the app the area box is hidden until there is a roof, then shows the total unblurred', !/playground/.test(v.cls) && v.before === 'none' && v.after.shown && /m²/.test(v.after.val) && !/blur/.test(v.after.blur), JSON.stringify(v));
 await pg2.evaluate(() => clearAll(true));
 await sleep(300);
-check('…and goes away again when the drawing is cleared', await pg2.evaluate(() => getComputedStyle(document.getElementById('roofAreaBox')).display === 'none'));
+check('…and goes away again when the drawing is cleared', await pg2.evaluate(() => getComputedStyle(document.getElementById('roofStatsBar')).display === 'none'));
 
 await ctx.close(); await b.close(); relay.close();
 const bad = results.filter(x => !x).length;

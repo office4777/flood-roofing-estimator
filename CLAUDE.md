@@ -927,7 +927,16 @@ roof's measures are recomputed. A value within 6 mm of what it already reads
 changes nothing. The wall-stretching solvers (`_applyTrueEdgeMeasure`,
 `_applySegmentTrueMeasure`) remain but no click reaches them. The Measure and
 Calibrate buttons are gone; "📏 Set scale" (`#btn-calibrate`, `#ttbCal`) shows
-only while there is NO scale. `tests/report57.mjs`, `tests/roofpanel.mjs`.)
+only while there is NO scale. `tests/report57.mjs`, `tests/roofpanel.mjs`. WIDENED 2026-09-28: EVERY
+measurement corrects the scale, not just a gutter — `_scaleFromDrawn(px, f,
+typed, refA, refB)` is the one place it happens and `_rescaleFromMeasure`
+(any line) and `_rescaleFromSheetRun` (a sheet measure) both go through it.
+A sheet run used to correct the scale only by borrowing a BARGE off that
+run, so a gable face worked and a HIP face — which has no rake — fell
+through to a label-only override that marked the map off scale; the run's
+own plan length does the same job, and the canvas hit now carries it
+(`runPx`, which `_bargesForSheetRun`'s short-return guard was also reading
+as undefined).)
 THE ROOF PANEL (`#roofTypePanel`, 2026-09-24) is one row — shape, Rotate 90°,
 Snap square, pitch, sheet (`#roofSheetType`, per roof), ★ Make main roof,
 Delete roof — no "Suggested" line. Roof numbers: `_roofRemap(mapFn)` moves

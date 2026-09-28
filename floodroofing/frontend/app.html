@@ -49701,12 +49701,19 @@ function _lineRoofPitch(l){
   var r = (DRAW.roofs || []).filter(function(x){ return x && x.lines && x.lines.indexOf(l) >= 0; })[0];
   return _pitchOr(r ? r.calPitch : undefined);
 }
-function _rescaleFromMeasure(l, typedM){
-  if (!l || !l.pts || l.pts.length < 2 || !(typedM > 0)) return false;
-  var a = l.pts[0], b = l.pts[1];
-  var px = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
-  if (!(px > 2)) return false;
-  var f = 1; try { f = slopeFactorForLineType(_lineSlopeType(l), _lineRoofPitch(l)) || 1; } catch(e){}
+// THE ONE PLACE A TYPED LENGTH CORRECTS THE SCALE (2026-09-24, widened
+// 2026-09-28). Metres per IMAGE pixel = what was typed / (what is drawn, in
+// pixels, x the slope factor for the thing measured). NO POINT OF THE
+// DRAWING MOVES: the lines were traced off an aerial and stay where they
+// were traced — a corner that is wrong is dragged, not solved for.
+//
+// px      the drawn length in image pixels
+// f       1 for a level measure, 1/cos(pitch) up a slope, the hip factor
+//         for a hip or valley
+// refA/B  the two points recorded as the scale's reference
+function _scaleFromDrawn(px, f, typedM, refA, refB){
+  if (!(px > 2) || !(typedM > 0)) return false;
+  f = f || 1;
   // The number it already reads (the popup comes pre-filled with it, and is
   // also how a line's TYPE is changed): no change, so the scale is left
   // alone rather than nudged by the rounding of its own label.
@@ -49714,7 +49721,7 @@ function _rescaleFromMeasure(l, typedM){
   try { saveSnapshot(); } catch(e){}
   DRAW.scaleMetresPerPx = typedM / (px * f);
   _scaleSetByHand();
-  DRAW.calibratePts = [a.slice(), b.slice()];
+  DRAW.calibratePts = [refA.slice(), refB.slice()];
   DRAW.calibratePixels = px;
   DRAW.calRealM = +typedM.toFixed(3);
   DRAW.calMeasType = (f !== 1) ? 'pitched' : 'flat';
@@ -49728,6 +49735,39 @@ function _rescaleFromMeasure(l, typedM){
   try { renderRoofSheetPlan(); } catch(e){}
   try { autosaveJob && autosaveJob(); } catch(e){}
   return true;
+}
+// A SHEET MEASURE WITH NO BARGE UNDER IT (2026-09-28). The owner: "it only
+// really works when a gutter line is clicked and scaled, and it doesn't work
+// with a barge." A sheet run's typed length used to correct the scale only by
+// borrowing a BARGE off that run — so a gable face worked and a hip face,
+// which has no rake at all, silently fell through to a label-only override
+// that marked the map off scale. The run's own plan length is right there in
+// the hit (runPx, measured into the face), and a sheet runs up the slope, so
+// the same arithmetic works without a barge.
+function _rescaleFromSheetRun(hit, typedM){
+  if (!hit || !(hit.runPx > 2) || !(typedM > 0) || hit.faceDx == null) return false;
+  var pitch;
+  try {
+    pitch = (typeof hit.roofIdx === 'number' && hit.roofIdx !== DRAW.activeRoofIdx
+             && DRAW.roofs && DRAW.roofs[hit.roofIdx])
+      ? _pitchOr(DRAW.roofs[hit.roofIdx].calPitch)
+      : _activePitch();
+  } catch(e){ pitch = 0; }
+  var f = 1;
+  try { f = slopeFactorForLineType('barge', pitch) || 1; } catch(e){}   // up the slope
+  var ax = (hit.ridgeMx != null) ? hit.ridgeMx : hit.x;
+  var ay = (hit.ridgeMy != null) ? hit.ridgeMy : hit.y;
+  return _scaleFromDrawn(hit.runPx, f,  typedM,
+                         [ax, ay],
+                         [ax + (hit.faceDx || 0) * hit.runPx, ay + (hit.faceDy || 0) * hit.runPx]);
+}
+function _rescaleFromMeasure(l, typedM){
+  if (!l || !l.pts || l.pts.length < 2 || !(typedM > 0)) return false;
+  var a = l.pts[0], b = l.pts[1];
+  var px = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
+  if (!(px > 2)) return false;
+  var f = 1; try { f = slopeFactorForLineType(_lineSlopeType(l), _lineRoofPitch(l)) || 1; } catch(e){}
+  return _scaleFromDrawn(px, f, typedM, a, b);
 }
 function _syncMeasureGroup(edited, newM){
   if (!edited || !(newM > 0)) return;
@@ -52140,6 +52180,12 @@ function redrawAll() {
         _hit.runLo=d.runLo; _hit.runHi=d.runHi;
         _hit.ridgeMx=d.ridgeMx; _hit.ridgeMy=d.ridgeMy;
         _hit.ridgeUx=d.ridgeUx; _hit.ridgeUy=d.ridgeUy;
+        // The run's own plan length, into the face. The collector always
+        // had it; the hit did not carry it, so _bargesForSheetRun's
+        // "a step's little return is not this run's rake" guard was reading
+        // undefined, and _rescaleFromSheetRun had nothing to scale from
+        // (2026-09-28).
+        _hit.runPx=d.runPx;
       }
       // Only attach manualIdx when this dim is a manual sheet measure
       // — auto labels keep `manualIdx in hit` false so the Delete tool
@@ -60905,6 +60951,12 @@ function _applySheetMeasureChange(hit, raw){
             if (!_bl || !_bl.pts || _bl.pts.length < 2) continue;
             _stretched = _rescaleFromMeasure(_bl, n);
           }
+          // No rake to borrow — a hip face has none at all, and a run can
+          // lose its barge to an edit. The run's own plan length (runPx,
+          // straight into the face) with the roof's pitch says the same
+          // thing, so the scale is corrected from the sheet measure itself
+          // rather than the map being marked off scale (2026-09-28).
+          if (!_stretched) _stretched = _rescaleFromSheetRun(hit, n);
         }
       } catch(e){}
       if (!_stretched) {

@@ -85,6 +85,102 @@ const follow = await pg.evaluate(() => DRAW.lines.filter(l => l.pts && l.pts.len
 }));
 check('…and every other measurement is worked out afresh from the drawing at the new scale', follow.every(x => Math.abs(x.m - x.want) < 0.011), JSON.stringify(follow.slice(0, 6)));
 
+// ── EVERY measurement corrects the scale, not just the gutter ──────
+// The owner, 2026-09-28: "I clicked the barge measure and scaled it, but it
+// never scaled the whole picture … at the moment it only really works when a
+// gutter line is clicked. Any line should scale the whole drawing in scaled
+// mode, without moving any lines."
+//
+// A fresh roof per line type, typed at 1.25x what it reads: the scale must
+// move by exactly that, every point must stay where it was traced, and the
+// line must end up reading what was typed.
+const drawRoof = (kind) => pg.evaluate((kind) => {
+  clearAll(true);
+  setTool('outline');
+  DRAW.currentPts = [[200,250],[700,250],[700,540],[200,540]];
+  finishCurrent();
+  DRAW.scaleMetresPerPx = 0.02; DRAW.calPitch = 25; DRAW.editMode = 'scaled';
+  autoGenerateRoof(kind);
+  document.querySelectorAll('[id$="Modal"],[id$="Overlay"]').forEach(m => {
+    const cs = getComputedStyle(m); if (cs.display !== 'none' && cs.position === 'fixed') m.style.display = 'none';
+  });
+  setTool('select'); updateMeasTotals(); redrawAll();
+}, kind);
+
+// The measure label for a line of this type, tapped and answered.
+const typeOnLine = (type, factor) => pg.evaluate(([type, factor]) => {
+  const i = DRAW.lines.findIndex(l => l.type === type && parseFloat(l.measM) > 0);
+  if (i < 0) return { noLine: true, types: DRAW.lines.map(l => l.type).join(',') };
+  const l = DRAW.lines[i];
+  const typed = +(parseFloat(l.measM) * factor).toFixed(2);
+  const before = { scale: DRAW.scaleMetresPerPx, geom: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]) };
+  const hit = ((window._roofCanvasHits && window._roofCanvasHits.measures) || []).find(h => h.line === l);
+  if (!hit) return { noHit: true };
+  window._styledPrompt = (opts, cb) => cb(String(typed));
+  const cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const handled = _roofCanvasHitMeasureLabel({ clientX: r.left + hit.x * dpr * r.width / cv.width,
+                                               clientY: r.top + hit.y * dpr * r.height / cv.height });
+  // An interior line (ridge, hip, valley) opens the line editor instead of
+  // the prompt — the office types into it and confirms, same as by hand.
+  if (getComputedStyle(document.getElementById('lineMeasPopup')).display !== 'none'){
+    document.getElementById('lineMeasInput').value = String(typed);
+    confirmLineMeas();
+  }
+  return { typed, handled, ratio: DRAW.scaleMetresPerPx / before.scale,
+           moved: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]) !== before.geom,
+           reads: parseFloat(DRAW.lines[i].measM),
+           offScale: !!(DRAW.offScale && DRAW.offScale.reasons && DRAW.offScale.reasons.length) };
+}, [type, factor]);
+
+for (const [kind, type] of [['gable','gutter'], ['gable','barge'], ['gable','ridge'], ['hip','hip'], ['hip','ridge']]){
+  await drawRoof(kind);
+  await pg.waitForTimeout(250);
+  const r = await typeOnLine(type, 1.25);
+  check('a ' + type + ' measure typed on a ' + kind + ' roof scales the whole drawing, and nothing moves',
+    !r.noLine && !r.noHit && Math.abs(r.ratio - 1.25) < 0.005 && !r.moved && Math.abs(r.reads - r.typed) < 0.011 && !r.offScale,
+    JSON.stringify(r));
+}
+
+// The SHEET measure (the arrowed number on a face). A gable run borrows its
+// barge; a HIP face has no rake at all, and used to fall through to a
+// label-only override that marked the map off scale — the owner's report.
+for (const kind of ['gable', 'hip']){
+  await drawRoof(kind);
+  await pg.waitForTimeout(250);
+  const r = await pg.evaluate(() => {
+    const h = ((window._roofCanvasHits && window._roofCanvasHits.sheets) || [])[0];
+    if (!h) return { noHit: true };
+    const typed = +(parseFloat(h.label) * 1.25).toFixed(2);
+    const before = { scale: DRAW.scaleMetresPerPx, geom: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]),
+                     ov: JSON.stringify(DRAW.sheetOverrides || {}) };
+    _applySheetMeasureChange(h, String(typed));
+    return { typed, runPx: h.runPx, ratio: DRAW.scaleMetresPerPx / before.scale,
+             moved: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]) !== before.geom,
+             override: JSON.stringify(DRAW.sheetOverrides || {}) !== before.ov,
+             offScale: !!(DRAW.offScale && DRAW.offScale.reasons && DRAW.offScale.reasons.length) };
+  });
+  check('a sheet measure on a ' + kind + ' roof scales the drawing itself — no override, no off-scale mark',
+    !r.noHit && Math.abs(r.ratio - 1.25) < 0.005 && !r.moved && !r.override && !r.offScale, JSON.stringify(r));
+}
+check('…and the run carries its own plan length, which is what makes that possible',
+  await pg.evaluate(() => (((window._roofCanvasHits || {}).sheets || [])[0] || {}).runPx > 0));
+
+// Visual edits still change the number alone, whatever was tapped.
+await drawRoof('hip');
+await pg.waitForTimeout(250);
+const vis = await pg.evaluate(() => {
+  DRAW.editMode = 'visual';
+  const h = ((window._roofCanvasHits && window._roofCanvasHits.sheets) || [])[0];
+  const before = { scale: DRAW.scaleMetresPerPx, geom: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]) };
+  _applySheetMeasureChange(h, String(+(parseFloat(h.label) * 1.25).toFixed(2)));
+  return { scaleSame: DRAW.scaleMetresPerPx === before.scale,
+           moved: JSON.stringify([DRAW.outline, DRAW.lines.map(x => x.pts)]) !== before.geom,
+           override: !!Object.keys(DRAW.sheetOverrides || {}).length };
+});
+check('in Visual edits a sheet measure still changes nothing but its own number',
+  vis.scaleSame && !vis.moved && vis.override, JSON.stringify(vis));
+await pg.evaluate(() => { DRAW.editMode = 'scaled'; });
+
 // The solvers refuse outright in visual mode, whoever calls them.
 const solver = await pg.evaluate(() => {
   DRAW.editMode = 'visual';
