@@ -34,6 +34,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // no browser, and the place a multi-tenancy bug shows up first.
 const API = [
   'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobversions', 'jobsave', 'practicejob', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'billingoff', 'security', 'register', 'trialend', 'trialdrip', 'platformfrom', 'platformrelay', 'sharetoken', 'acceptflow', 'crosstenant', 'joblist', 'sbretry', 'blipsafe', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'waitlist', 'metrics', 'flashguard', 'custompbsrv', 'quoteremind', 'quotestats', 'quotefeedcache', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'teamsettings', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke',
+  // Static: reads app.html rather than booting anything.
+  'inlinehandlers',
 ];
 // The real app.html, driven by Playwright.
 const UI = [
