@@ -456,6 +456,23 @@ Discipline (non-negotiable):
   `#roofStatsBar` under the canvas is kept for the PLAYGROUND alone, which
   hides the sidebar and whose whole teaser is the blurred area.
   `tests/roofstats.mjs`, `tests/playground.mjs`.
+- NO PRICE, NO SEND (2026-09-29): `openQuoteEmail` runs `_pricesBeforeSend`
+  after the branding gate, same shape (`true` = it took over and will re-call
+  the send itself). `_unpricedItems()` walks every roof the quote prices
+  (`_pricingRoofTabIdxs`, folded roofs scoped in with `_matSelOverride
+  (_pricingRoofGroup(i))`, an excluded roof skipped, a `MATERIAL_DELETED` row
+  skipped) and flags each material row whose rate is 0 or missing while the job
+  uses some of it — the same test the table's red `🚩 No price` row makes. The
+  window (`#unpModal`, `_UNP`, `.unp-*`) gives each one a red ✕, a $ box and
+  "📖 From price book"; a price goes on as a price typed for THIS job
+  (`_onMatOverride`, `MATERIAL_OVERRIDES`), turns the row green and, where
+  `_cpbPathForVariant` knows a price-book field for it, offers "Save $X as my
+  default price" — which links (or makes) a Custom Price Book item, never a
+  direct price-book write, so Settings shows it and `_cpbApply` keeps it. The
+  footer's "Email quote" is `disabled` until every row is green, and `_unpSend`
+  refuses anyway. The PRACTICE job is never held up. Custom quote lines typed
+  at $0 are not checked — only the price-book-driven material rows.
+  `tests/unpriced.mjs`.
 - A PLAIN WHEEL OVER THE CANVAS NEVER ZOOMS (2026-09-29): it scrolls the page,
   pointer over the drawing or not. Ctrl + wheel is the zoom (`onCanvasWheel`,
   routed from the document wheel handler). The old exception — a sketch with no

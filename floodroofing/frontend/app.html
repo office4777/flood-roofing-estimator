@@ -3892,6 +3892,61 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-defpick-list button{ text-align:left; border:1px solid #edf1f5; background:#fff; border-radius:7px; padding:7px 9px; cursor:pointer; font:600 12.5px inherit; color:#0a1628; }
 .pbk-defpick-list button:hover{ background:#f0f8fb; border-color:#9ccfeb; }
 .pbk-defpick-list small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
+/* NO PRICE, NO SEND (2026-09-29): the window that stands between a quote with
+   a $0 material row and the customer. A red cross per item, a green tick as
+   each is priced, and the Email quote button disabled until every one is. */
+#unpModal{ position:fixed; inset:0; z-index:100020; display:flex; align-items:center; justify-content:center; padding:16px; }
+.unp-veil{ position:absolute; inset:0; background:rgba(10,22,40,.55); }
+.unp-win{ position:relative; background:#fff; border-radius:14px; width:100%; max-width:720px; max-height:min(88vh,820px); display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); overflow:hidden; font-family:inherit; }
+.unp-hd{ display:flex; align-items:center; gap:10px; padding:14px 16px 6px; }
+.unp-hd strong{ flex:1; min-width:0; font-size:16px; color:#0a1628; }
+.unp-x{ border:none; background:#f1f5f9; border-radius:8px; width:30px; height:30px; cursor:pointer; color:#475569; flex:0 0 auto; }
+.unp-sub{ padding:0 16px 10px; font-size:12.5px; color:#64748b; line-height:1.45; }
+.unp-body{ flex:1; min-height:0; overflow-y:auto; border-top:1px solid var(--border); padding:8px 12px 12px; background:#f8fafc; }
+.unp-row{ display:flex; gap:10px; background:#fff; border:1px solid #e2e8f0; border-left:4px solid #c0392b; border-radius:10px; padding:10px 12px; margin:8px 0; }
+.unp-row.unp-ok{ border-left-color:#15803d; }
+.unp-mark{ flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#c0392b; color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+.unp-row.unp-ok .unp-mark{ background:#15803d; }
+.unp-main{ flex:1; min-width:0; }
+.unp-name{ font-size:13.5px; font-weight:700; color:#0a1628; }
+.unp-var, .unp-roof{ font-weight:400; font-size:11.5px; color:#64748b; }
+.unp-roof{ background:#eef2f7; border-radius:5px; padding:1px 6px; }
+.unp-qty{ font-size:11.5px; color:#64748b; margin-top:2px; }
+.unp-set{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+.unp-in{ display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); border-radius:8px; padding:4px 8px; background:#fff; font-size:13px; color:#0a1628; }
+.unp-in span{ color:#64748b; font-weight:700; }
+.unp-in input{ width:92px; border:none; padding:2px 0; margin:0; font:700 13.5px inherit; color:#0a1628; background:transparent; }
+.unp-in input:focus{ outline:none; }
+.unp-in em{ font-style:normal; font-size:11px; color:#64748b; }
+.unp-book{ border:1px solid #bfe3f2; background:#f0f8fb; color:#0a1628; border-radius:8px; padding:6px 11px; font:600 12.5px inherit; cursor:pointer; }
+.unp-book:hover{ background:#e0f1f9; }
+.unp-chosen{ margin-top:8px; background:#f0f8fb; border:1px solid #bfe3f2; border-radius:9px; padding:8px 10px; }
+.unp-chosen-hd{ font-size:12px; font-weight:700; color:#006f99; }
+.unp-rename{ display:flex; align-items:center; gap:7px; margin-top:6px; font-size:12px; color:#475569; }
+.unp-rename input{ flex:1; min-width:0; padding:6px 8px; border:1px solid var(--border); border-radius:7px; font-size:12.5px; margin:0; font-family:inherit; }
+.unp-def{ display:flex; align-items:flex-start; gap:7px; margin-top:8px; font-size:12px; color:#0a1628; cursor:pointer; line-height:1.35; }
+.unp-def input{ margin:1px 0 0; flex:0 0 auto; }
+.unp-pick{ margin-top:8px; background:#fff; border:1px solid #bfe3f2; border-radius:9px; padding:8px; }
+.unp-search{ width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; margin:0 0 6px; font-family:inherit; }
+.unp-list{ max-height:210px; overflow-y:auto; display:flex; flex-direction:column; gap:3px; }
+.unp-item{ display:flex; align-items:center; gap:8px; text-align:left; border:1px solid #edf1f5; background:#fff; border-radius:7px; padding:7px 9px; cursor:pointer; font:600 12.5px inherit; color:#0a1628; }
+.unp-item:hover{ background:#f0f8fb; border-color:#9ccfeb; }
+.unp-item-d{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.unp-item-d em{ font-style:normal; font-weight:400; color:#64748b; font-size:11px; }
+.unp-item-p{ flex:0 0 auto; font-weight:700; }
+.unp-item-p i{ font-style:normal; font-weight:400; color:#64748b; font-size:11px; }
+.unp-empty{ padding:14px; text-align:center; color:#64748b; font-size:12.5px; line-height:1.45; }
+.unp-ft{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--border); background:#fff; }
+.unp-left{ flex:1; min-width:0; font-size:12.5px; color:#64748b; }
+.unp-cancel{ border:1px solid var(--border); background:#fff; color:#475569; border-radius:8px; padding:8px 14px; font:600 13px inherit; cursor:pointer; }
+.unp-send{ border:none; background:#15803d; color:#fff; border-radius:8px; padding:9px 18px; font:700 13px inherit; cursor:pointer; }
+.unp-send:disabled{ background:#cbd5e1; color:#f8fafc; cursor:not-allowed; }
+@media(max-width:560px){
+  .unp-win{ max-height:94vh; }
+  .unp-in input{ width:76px; }
+  .unp-ft{ flex-wrap:wrap; }
+  .unp-left{ flex-basis:100%; }
+}
 .qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
 .qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
@@ -14875,6 +14930,281 @@ function _onMatOverride(key, field, value){
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
 }
+// ── NO PRICE, NO SEND (2026-09-29) ─────────────────────────────────────
+// The owner: "the app let me send a quote out that had items with no price
+// set. If there's any items with no price, don't let the quote send — pop up
+// a window with the items without a price … either let the user set a custom
+// price, or select an item from their price book … then ask if they would
+// like to save this as the default item … only allow Email quote once all of
+// those previously un-priced items have a green tick."
+//
+// The materials table has flagged these with 🚩 No price for a while; that
+// flag is a note on a screen nobody has to open. A line priced at nothing
+// drops out of the total in silence, so the quote goes out short and the
+// roofer finds out when the invoice does not add up.
+//
+// The one rule: an item is unpriced when its rate is 0 or missing AND the job
+// actually uses some of it. Every roof the quote prices is checked, not just
+// the tab on screen.
+var _UNP = { items: [], state: {}, then: null, pick: null, q: '' };
+
+function _unpKey(it){ return it.ovk; }
+function _unpState(k){
+  if (!_UNP.state[k]) _UNP.state[k] = { price: null, bookId: null, name: '', asDefault: false };
+  return _UNP.state[k];
+}
+function _unpDone(k){ var st = _UNP.state[k]; return !!(st && st.price > 0); }
+
+// Every material row the quote prices, on every roof it prices, whose rate is
+// nothing. Scoped the way renderMaterialPriceTable scopes itself, so a folded
+// roof is counted with the main one and an excluded roof is not counted at all.
+function _unpricedItems(){
+  var out = [];
+  if (!window.DRAW || !window.S || !S.settings || !S.settings.price_book) return out;
+  var multi = !!(DRAW.roofs && DRAW.roofs.length > 1);
+  var idxs = [0];
+  try { if (multi) idxs = _pricingRoofTabIdxs(); } catch(e){ idxs = [0]; }
+  idxs.forEach(function(i){
+    try { if (multi && i !== 0 && _roofQuoteMode(i) === 'excluded') return; } catch(e){}
+    var rows = [], saved = null, scoped = false;
+    try {
+      if (multi){
+        try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+        saved = _matSelOverride(_pricingRoofGroup(i)); scoped = true;
+      }
+      rows = _buildMaterialPriceRows() || [];
+    } catch(e){ rows = []; }
+    finally { if (scoped){ try { _matSelOverride(saved); } catch(e){} } }
+    rows.forEach(function(r){
+      var ovk = _matOvKey(r.key, i);
+      if (MATERIAL_DELETED[ovk]) return;
+      var ov = MATERIAL_OVERRIDES[ovk] || {};
+      var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
+      var picked = (r.variants || []).filter(function(v){ return v.value === variantValue; })[0] || (r.variants || [])[0];
+      var price = _matOvPrice(ov, picked ? picked.price : 0);
+      var unit = (picked && picked.unit) || r.autoUnit || '';
+      var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      var qty = 0;
+      try { qty = _matOrderQty(qtyRaw, unit); } catch(e){ qty = parseFloat(qtyRaw) || 0; }
+      if (price > 0 || !(qty > 0)) return;
+      // _cpbPathForVariant is the app's one map from a material row to the
+      // price book field behind it, so "save as my default" writes where
+      // Settings reads. A row it does not know (a custom extra) gets no tick.
+      var path = '';
+      try { path = picked ? (_cpbPathForVariant(r, picked) || '') : ''; } catch(e){ path = ''; }
+      out.push({ ovk: ovk, key: r.key, label: r.label, unit: unit, qty: qty, path: path,
+                 roof: multi ? _pricingRoofName(i) : '',
+                 variant: (picked && picked.label && picked.label !== r.label) ? picked.label : '' });
+    });
+  });
+  return out;
+}
+
+// The gate. Same shape as _brandingBeforeSend: true means it has taken over
+// and will call `then` itself once every item has a price.
+function _pricesBeforeSend(then){
+  // The practice job is priced with whatever the account has (usually
+  // nothing) and goes to the roofer's own address. Blocking it would stop a
+  // new subscriber finishing the walkthrough on their first day.
+  try { if ((typeof _isDemoJob === 'function') && _isDemoJob()) return false; } catch(e){}
+  var items = [];
+  try { items = _unpricedItems(); } catch(e){ items = []; }
+  if (!items.length) return false;
+  _unpOpen(items, then);
+  return true;
+}
+
+function _unpOpen(items, then){
+  _UNP.items = items; _UNP.state = {}; _UNP.then = then || null; _UNP.pick = null; _UNP.q = '';
+  var old = document.getElementById('unpModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'unpModal'; host.className = 'no-print';
+  document.body.appendChild(host);
+  _unpRender();
+}
+function _unpClose(){ var m = document.getElementById('unpModal'); if (m) m.remove(); _UNP.pick = null; }
+
+function _unpRender(){
+  var host = document.getElementById('unpModal'); if (!host) return;
+  var items = _UNP.items || [];
+  var left = items.filter(function(it){ return !_unpDone(_unpKey(it)); }).length;
+  var rows = items.map(function(it){ return _unpRowHtml(it); }).join('');
+  host.innerHTML =
+    '<div class="unp-veil" onclick="_unpClose()"></div>' +
+    '<div class="unp-win" role="dialog" aria-label="Items with no price">' +
+      '<div class="unp-hd">' +
+        '<strong>' + items.length + ' item' + (items.length === 1 ? '' : 's') + ' on this quote ' +
+        (items.length === 1 ? 'has' : 'have') + ' no price</strong>' +
+        '<button type="button" class="unp-x" onclick="_unpClose()" title="Close">✕</button>' +
+      '</div>' +
+      '<div class="unp-sub">A line priced at nothing is quoted at nothing. Give each one a price for ' +
+        'this job — type it, or take it from your price book — and the quote can go.</div>' +
+      '<div class="unp-body">' + rows + '</div>' +
+      '<div class="unp-ft">' +
+        '<span class="unp-left">' + (left ? (left + ' still to price') : 'All priced — ready to send') + '</span>' +
+        '<button type="button" class="unp-cancel" onclick="_unpClose()">Not now</button>' +
+        '<button type="button" id="unpSendBtn" class="unp-send" onclick="_unpSend()"' +
+          (left ? ' disabled title="Price every item first"' : '') + '>Email quote</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function _unpRowHtml(it){
+  var k = _unpKey(it), st = _unpState(k), done = _unpDone(k);
+  var book = null;
+  try { if (st.bookId) book = _cpbItem(st.bookId); } catch(e){}
+  var qty = (Math.round((it.qty || 0) * 100) / 100);
+  var h = '<div class="unp-row' + (done ? ' unp-ok' : '') + '" data-unp="' + esc(k) + '">' +
+    '<div class="unp-mark">' + (done ? '✓' : '✕') + '</div>' +
+    '<div class="unp-main">' +
+      '<div class="unp-name">' + esc(it.label) +
+        (it.variant ? ' <span class="unp-var">' + esc(it.variant) + '</span>' : '') +
+        (it.roof ? ' <span class="unp-roof">' + esc(it.roof) + '</span>' : '') + '</div>' +
+      '<div class="unp-qty">' + qty + ' ' + esc(it.unit || '') + ' on this job</div>' +
+      '<div class="unp-set">' +
+        '<label class="unp-in"><span>$</span>' +
+          '<input type="number" step="0.01" min="0" inputmode="decimal" ' +
+            'value="' + (st.price > 0 ? st.price : '') + '" placeholder="0.00" ' +
+            'onchange="_unpTypePrice(\'' + esc(k) + '\', this.value)" ' +
+            'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_unpTypePrice(\'' + esc(k) + '\', this.value);}">' +
+          '<em>per ' + esc(it.unit || 'each') + '</em>' +
+        '</label>' +
+        '<button type="button" class="unp-book" onclick="_unpPickOpen(\'' + esc(k) + '\')">📖 From price book</button>' +
+      '</div>';
+  if (book){
+    h += '<div class="unp-chosen">' +
+      '<div class="unp-chosen-hd">From your price book — $' + _cpbSell(book).toFixed(2) + ' per ' + esc(book.unit || it.unit || 'each') +
+        (book.supplier ? (' · ' + esc(book.supplier)) : '') + '</div>' +
+      '<label class="unp-rename">Name<input type="text" value="' + esc(st.name || book.desc || book.code || '') + '" ' +
+        'onchange="_unpRename(\'' + esc(k) + '\', this.value)"></label>' +
+    '</div>';
+  }
+  if (it.path && st.price > 0){
+    h += '<label class="unp-def"><input type="checkbox"' + (st.asDefault ? ' checked' : '') +
+      ' onchange="_unpDefaultToggle(\'' + esc(k) + '\', this.checked)">' +
+      'Save $' + (+st.price).toFixed(2) + ' as my default price for ' + esc(it.label) +
+      '</label>';
+  }
+  if (_UNP.pick === k) h += _unpPickHtml(k);
+  h += '</div></div>';
+  return h;
+}
+
+// The price book list, opened under the item it is pricing. The list is its
+// own function so a keystroke in the search box retypes the list alone and
+// the box keeps the cursor.
+function _unpPickListHtml(k){
+  var cb = null; try { cb = _cpbBook(); } catch(e){}
+  var items = (cb && cb.items) || [];
+  var q = (_UNP.q || '').trim().toLowerCase();
+  var list = items.filter(function(x){
+    if (!q) return true;
+    return ((x.code || '') + ' ' + (x.desc || '') + ' ' + (x.supplier || '')).toLowerCase().indexOf(q) >= 0;
+  }).slice(0, 40);
+  if (!items.length){
+    return '<div class="unp-empty">Your price book is empty. Type a price above, or add your supplier’s ' +
+           'list in Settings → Pricing → Custom Price Book.</div>';
+  }
+  if (!list.length) return '<div class="unp-empty">Nothing matches “' + esc(_UNP.q) + '”.</div>';
+  return list.map(function(x){
+    return '<button type="button" class="unp-item" onclick="_unpPickTake(\'' + esc(k) + '\', \'' + esc(x.id) + '\')">' +
+      '<span class="unp-item-d">' + esc(x.desc || x.code || 'Item') +
+        (x.supplier ? ' <em>' + esc(x.supplier) + '</em>' : '') + '</span>' +
+      '<span class="unp-item-p">$' + _cpbSell(x).toFixed(2) + '<i>/' + esc(x.unit || 'ea') + '</i></span>' +
+    '</button>';
+  }).join('');
+}
+function _unpPickHtml(k){
+  return '<div class="unp-pick">' +
+    '<input type="text" class="unp-search" placeholder="Search your price book…" value="' + esc(_UNP.q) + '" ' +
+      'oninput="_unpPickSearch(this.value)">' +
+    '<div class="unp-list">' + _unpPickListHtml(k) + '</div>' +
+  '</div>';
+}
+function _unpPickOpen(k){ _UNP.pick = (_UNP.pick === k) ? null : k; _UNP.q = ''; _unpRender();
+  setTimeout(function(){ try { document.querySelector('#unpModal .unp-search').focus(); } catch(e){} }, 20); }
+function _unpPickSearch(v){
+  _UNP.q = v || '';
+  var host = document.getElementById('unpModal'); if (!host || !_UNP.pick) return;
+  var box = host.querySelector('.unp-list');
+  if (box) box.innerHTML = _unpPickListHtml(_UNP.pick);
+}
+function _unpPickTake(k, id){
+  var it = (_UNP.items || []).filter(function(x){ return _unpKey(x) === k; })[0];
+  var bk = null; try { bk = _cpbItem(id); } catch(e){}
+  if (!it || !bk) return;
+  var st = _unpState(k);
+  st.bookId = id;
+  st.name = bk.desc || bk.code || '';
+  _UNP.pick = null;
+  _unpApplyPrice(it, _cpbSell(bk));
+  _unpRender();
+}
+function _unpTypePrice(k, v){
+  var it = (_UNP.items || []).filter(function(x){ return _unpKey(x) === k; })[0];
+  if (!it) return;
+  var n = parseFloat(v);
+  if (!isFinite(n) || n <= 0){ _unpState(k).price = null; _unpRender(); return; }
+  _unpApplyPrice(it, n);
+  _unpRender();
+}
+// A price set here is a price typed for THIS JOB (the 2026-09-25 mechanism),
+// so it takes effect at once everywhere the row is read — the table, the
+// materials total, the job bar and the Fergus lines.
+function _unpApplyPrice(it, price){
+  var st = _unpState(_unpKey(it));
+  st.price = Math.round(price * 100) / 100;
+  try { _onMatOverride(it.ovk, 'price', String(st.price)); } catch(e){}
+  if (st.asDefault) _unpWriteDefault(it, st);
+}
+function _unpRename(k, name){
+  var st = _unpState(k);
+  st.name = name || '';
+  try { var bk = _cpbItem(st.bookId); if (bk){ bk.desc = st.name; _cpbTouch(); } } catch(e){}
+}
+function _unpDefaultToggle(k, on){
+  var it = (_UNP.items || []).filter(function(x){ return _unpKey(x) === k; })[0];
+  if (!it) return;
+  var st = _unpState(k);
+  st.asDefault = !!on;
+  if (st.asDefault) _unpWriteDefault(it, st);
+  else _unpUndoDefault(it, st);
+  _unpRender();
+}
+// SAVING A DEFAULT goes through the Custom Price Book, not straight into the
+// price book: _cpbApply re-writes a linked default at the END of
+// collectPriceBookFromUI, so the Settings form cannot put the old number
+// back, and the item is visible and editable in Settings afterwards. A price
+// taken from a book item just links that item; a typed one makes an item to
+// hold it.
+function _unpWriteDefault(it, st){
+  if (!it.path || !(st.price > 0)) return;
+  try {
+    var cb = _cpbBook(true); if (!cb) return;
+    var bk = st.bookId ? _cpbItem(st.bookId) : null;
+    if (!bk){
+      bk = { id: _cpbId(), code: '', desc: st.name || it.label, unit: it.unit || 'ea',
+             supplier: '', cost: st.price, markup: 0, replaces: '' };
+      cb.items.unshift(bk);
+      st.bookId = bk.id;
+      st.name = bk.desc;
+    }
+    _cpbLink(bk.id, it.path);
+    try { renderMaterialPriceTable(); } catch(e){}
+    try { resyncQuoteLines(); } catch(e){}
+    _siteToast('Saved as your default price for ' + it.label);
+  } catch(e){}
+}
+function _unpUndoDefault(it, st){
+  try { if (st.bookId && it.path) _cpbLink(st.bookId, ''); } catch(e){}
+}
+function _unpSend(){
+  if ((_UNP.items || []).some(function(it){ return !_unpDone(_unpKey(it)); })) return;
+  var then = _UNP.then;
+  _unpClose();
+  try { _scheduleAutosave(); } catch(e){}
+  if (typeof then === 'function') then();
+}
 function _deleteMatRow(key){
   MATERIAL_DELETED[key] = true;
   renderMaterialPriceTable();
@@ -15073,7 +15403,8 @@ function _buildMaterialPriceRows(){
     var screws = Math.ceil(roofArea * 8 / 100) * 100;
     rows.push({ key:'screws', label:'65mm Unitites / screws', autoQty:screws, autoUnit:'each',
                 variants:[{ value:'65mm Unitites', label:'65mm Unitites', price:pb.screws_each||0, unit:'each' }],
-                defaultVariant:'65mm Unitites', note:'roofArea × 8, rounded up to 100', singleVariant:true });
+                defaultVariant:'65mm Unitites',
+                note:'roofArea × 8, rounded up to 100', singleVariant:true });
   }
 
   // Rivets
@@ -15083,7 +15414,8 @@ function _buildMaterialPriceRows(){
     var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
     rows.push({ key:'rivets', label:'Rivets', autoQty:rivets, autoUnit:'each',
                 variants:[{ value:'Rivet', label:'Rivet', price:pb.rivets_each||0, unit:'each' }],
-                defaultVariant:'Rivet', note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets', singleVariant:true });
+                defaultVariant:'Rivet',
+                note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets', singleVariant:true });
   }
 
   // Pipe flashings — one row per pipe SIZE on the drawing, because a job
@@ -38754,6 +39086,9 @@ function _closeQuoteEmail(){
 }
 async function openQuoteEmail(){
   if (_brandingBeforeSend(function(){ openQuoteEmail(); })) return;
+  // NO PRICE, NO SEND. A material row the job uses whose rate is nothing would
+  // be quoted at nothing, and the owner sent one out that way on 2026-09-29.
+  if (_pricesBeforeSend(function(){ openQuoteEmail(); })) return;
   try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
   var q = (window.S && S.quote) || {};
   var br = (window.S && S.settings && S.settings.branding) || {};
