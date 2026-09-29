@@ -257,6 +257,30 @@ check('History opens in front of the job details window that launches it',
   z.open && z.hist > z.det, JSON.stringify(z));
 await pg.evaluate(() => { _jobHistoryClose(); closeJobDetailsModal(); });
 
+// EVERY window the job details window opens lands in FRONT of it — not just
+// History. Change job opened behind it too (2026-09-30).
+const zall = await pg.evaluate(() => {
+  const z = id => parseInt(getComputedStyle(document.getElementById(id)).zIndex, 10);
+  return { det: z('jobDetailsModal'), detOv: z('jobDetailsOverlay'),
+           sel: z('selectJobModal'), selOv: z('selectJobOverlay'),
+           hist: z('jobHistModal') };
+});
+check('Change job opens in front of the job details window as well',
+  zall.sel > zall.det && zall.selOv > zall.detOv, JSON.stringify(zall));
+check('…and the details window still covers the page behind it', zall.det > 1000, JSON.stringify(zall));
+
+// Change job belongs in the left menu, where a job is swapped from anywhere.
+const chg = await pg.evaluate(() => {
+  const b = document.getElementById('navJobChangeBtn');
+  const inBox = !!(b && document.getElementById('navJobBox').contains(b));
+  return { there: !!b, inBox, shown: b && getComputedStyle(b).display !== 'none',
+           opens: (b && b.getAttribute('onclick')) || '',
+           notInModal: !document.querySelector('#jobDetailsQuick button[onclick*="openSelectJobModal"]') };
+});
+check('Change job is back in the left menu under the selected job',
+  chg.there && chg.inBox && chg.shown && /openSelectJobModal/.test(chg.opens), JSON.stringify(chg));
+check('…and is not left duplicated inside the job details window', chg.notInModal, JSON.stringify(chg));
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

@@ -5107,6 +5107,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          details window stays; both are drawn by _jobLockRender. -->
     <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
             style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
+    <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
+         into the job details window on 2026-09-29 and swapping jobs is a thing
+         you do from anywhere, not something to open a window to reach. -->
+    <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -7958,8 +7963,12 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <!-- JOB DETAILS MODAL — opened by "New Job" (blank) and "Edit details" (prefilled).
      Holds the same #jobClient/#jobAddr/#jobEmail/#jobPhone/#jobDate inputs the rest
      of the app reads, just relocated off the Home tab into this popup. -->
-<div id="jobDetailsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeJobDetailsModal()"></div>
-<div id="jobDetailsModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+<!-- Edit job details is the window the others are opened FROM — Change job,
+     History, the versions, the lock, the satellite finder — so it sits BELOW
+     the 9998/9999 tier they live in rather than on top of it. At 9999 it
+     covered every one of them (2026-09-30). -->
+<div id="jobDetailsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9990" onclick="closeJobDetailsModal()"></div>
+<div id="jobDetailsModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9991;overflow:hidden;flex-direction:column">
   <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
     <strong id="jobDetailsTitle" style="flex:1;font-size:14px">New job — details</strong>
     <button onclick="closeJobDetailsModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
@@ -7974,7 +7983,6 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
             style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
     <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
-      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
       <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
     </div>
     <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
@@ -17523,6 +17531,8 @@ function _jobLockRender(){
   // The left menu's strip. Locked and sent is the state worth naming, because
   // it is the one where a change would be a change to a quote the customer is
   // already looking at.
+  var cb = document.getElementById('navJobChangeBtn');
+  if (cb) cb.style.display = show ? 'block' : 'none';
   var sb = document.getElementById('navJobLockSide');
   if (sb){
     sb.style.display = show ? 'block' : 'none';
