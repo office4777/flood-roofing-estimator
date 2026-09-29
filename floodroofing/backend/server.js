@@ -724,6 +724,33 @@ async function _resendSendMail({ to, cc, subject, text, html, attachment, fromNa
   throw new Error('Resend send failed (' + r.status + '): ' + (r.body || '').slice(0, 300));
 }
 // Format a number as NZ money without depending on ICU locale data.
+// WHAT THE CUSTOMER CHOSE, IN WORDS. One list, read by the acceptance email
+// and by the summary written into the Fergus job's description — they cannot
+// disagree about which steel was picked, which is the one question where
+// getting it wrong means ordering the wrong roof.
+const QUOTE_SELECTION_LABELS = {
+  profile:        { _t:'Roof profile',   corrugate:'Corrugate', '5rib':'5-Rib' },
+  steelGrade:     { _t:'Steel grade',    maxam:'Colorsteel MAXAM', colorzen:'Armorsteel ColorZen',
+                    colourcote:'ColorCote', zincalume:'Zincalume (unpainted)' },
+  steelThickness: { _t:'Steel gauge',    '40':'0.40 gauge', '55':'0.55 gauge' },
+  gutterType:     { _t:'Guttering',      none:'Not included', box125:'125mm Colorsteel box gutter',
+                    marley_classic:'Marley Classic (PVC)', marley_typhoon:'Marley Typhoon (PVC)' },
+  gutterBracket:  { _t:'Gutter brackets', internal:'Internal', external:'External' },
+  downpipes:      { _t:'Downpipes',      yes:'Included', no:'Not included' },
+  disposal:       { _t:'Existing material', dispose:'We dispose of it', keep:'Kept on site' },
+};
+function _quoteSelectionLines(quote){
+  const po = (quote && quote.proposalOptions) || {};
+  const out = [];
+  for (const k of Object.keys(QUOTE_SELECTION_LABELS)) {
+    const v = po[k];
+    if (v == null || v === '') continue;
+    const L = QUOTE_SELECTION_LABELS[k];
+    out.push(L._t + ': ' + (L[String(v)] || String(v)));
+  }
+  if (po.colour) out.push('Colour: ' + String(po.colour).slice(0, 60));
+  return out;
+}
 function _money(n) {
   n = Number(n) || 0;
   const parts = n.toFixed(2).split('.');
@@ -4575,25 +4602,7 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     // inside the attached PDF, so settling "did she take MAXAM or ColorZen?"
     // meant opening an attachment and reading a radio button — on the one
     // question where getting it wrong means ordering the wrong steel.
-    const _po = quote.proposalOptions || {};
-    const _LBL = {
-      profile:        { _t:'Roof profile',   corrugate:'Corrugate', '5rib':'5-Rib' },
-      steelGrade:     { _t:'Steel grade',    maxam:'Colorsteel MAXAM', colorzen:'Armorsteel ColorZen',
-                        colourcote:'ColorCote', zincalume:'Zincalume (unpainted)' },
-      steelThickness: { _t:'Steel gauge',    '40':'0.40 gauge', '55':'0.55 gauge' },
-      gutterType:     { _t:'Guttering',      none:'Not included', box125:'125mm Colorsteel box gutter',
-                        marley_classic:'Marley Classic (PVC)', marley_typhoon:'Marley Typhoon (PVC)' },
-      gutterBracket:  { _t:'Gutter brackets', internal:'Internal', external:'External' },
-      downpipes:      { _t:'Downpipes',      yes:'Included', no:'Not included' },
-      disposal:       { _t:'Existing material', dispose:'We dispose of it', keep:'Kept on site' },
-    };
-    const _chosen = [];
-    for (const k of Object.keys(_LBL)) {
-      const v = _po[k];
-      if (v == null || v === '') continue;
-      _chosen.push('  • ' + _LBL[k]._t + ': ' + (_LBL[k][String(v)] || String(v)));
-    }
-    if (_po.colour) _chosen.push('  • Colour: ' + String(_po.colour).slice(0, 60));
+    const _chosen = _quoteSelectionLines(quote).map(x => '  • ' + x);
     if (_chosen.length) lines.push('', "The customer's selections:", ..._chosen);
     if (Array.isArray(acc.options) && acc.options.length) {
       lines.push('', 'Selected options:');
@@ -8084,6 +8093,125 @@ async function _fergusMarkQuoteSent(fergusKey, quoteId, jobId){
   }
   return { ok: false, attempts, stillUnsent };
 }
+// ── THE QUOTE'S SUMMARY, ON THE FERGUS JOB (2026-09-30, the owner's) ──
+// The crew and the office read the Fergus job, not RoofMap. The job's own
+// Job Description is where they look first, so the quote's headline goes
+// there: reference, total, and what the customer chose.
+//
+// The customer's own words are in that field \u2014 "Hi, we live at 46 Scotts Road
+// and would like a quote for our farmhouse roof" \u2014 and they are NOT thrown
+// away for this. The summary is a marked block appended below whatever is
+// there, and a later push replaces that block rather than stacking another
+// copy under it.
+const FERGUS_DESC_OPEN  = '--- RoofMap quote summary ---';
+const FERGUS_DESC_CLOSE = '--- end RoofMap quote summary ---';
+function _fergusDescStrip(text){
+  const t = String(text == null ? '' : text);
+  const i = t.indexOf(FERGUS_DESC_OPEN);
+  if (i < 0) return t.replace(/\s+$/, '');
+  const j = t.indexOf(FERGUS_DESC_CLOSE, i);
+  const tail = j < 0 ? '' : t.slice(j + FERGUS_DESC_CLOSE.length);
+  return (t.slice(0, i) + tail).replace(/\s+$/, '');
+}
+function _fergusDescCompose(existing, summary){
+  const keep = _fergusDescStrip(existing);
+  const block = FERGUS_DESC_OPEN + '\n' + String(summary || '').trim() + '\n' + FERGUS_DESC_CLOSE;
+  return keep ? (keep + '\n\n' + block) : block;
+}
+// The block itself. `quote` is the job's quote; `extra` carries anything the
+// caller knows that the quote does not (the accepted stamp, say).
+function _fergusJobSummaryText(quote, extra){
+  quote = quote || {}; extra = extra || {};
+  const lines = [];
+  if (quote.ref) lines.push('Quote ' + quote.ref);
+  if (extra.total != null) lines.push('Total (incl. GST): ' + _money(extra.total));
+  if (extra.acceptedBy) lines.push('Accepted by ' + extra.acceptedBy + (extra.acceptedAt ? ' \u2014 ' + extra.acceptedAt : ''));
+  const sel = _quoteSelectionLines(quote);
+  if (sel.length){ lines.push(''); sel.forEach(x => lines.push('  \u2022 ' + x)); }
+  if (extra.note) { lines.push('', String(extra.note).slice(0, 400)); }
+  lines.push('', 'Updated from RoofMap ' + new Date().toISOString().slice(0, 10));
+  return lines.join('\n');
+}
+// Fergus's own shape for updating a job is not in any document we can reach
+// from here, so the same discipline as the quote publish: try the plausible
+// shapes, and after any 2xx READ THE JOB BACK and only count it when the
+// description actually changed. Every attempt is returned so the first real
+// push tells us which one is right \u2014 pin it with FERGUS_JOB_UPDATE_PATH then.
+const FERGUS_JOB_UPDATE_CANDIDATES = [
+  'PATCH /jobs/{job}',
+  'PUT /jobs/{job}',
+  'POST /jobs/{job}',
+];
+function _fergusJobDescOf(j){
+  if (!j || typeof j !== 'object') return null;
+  const d = (j.description != null) ? j.description
+          : (j.longDescription != null) ? j.longDescription
+          : (j.brief_description != null) ? j.brief_description
+          : (j.briefDescription != null) ? j.briefDescription : null;
+  return d == null ? null : String(d);
+}
+async function _fergusReadJob(H, jobId){
+  try {
+    const r = await httpsRequest(FERGUS_HOST, FERGUS_PREFIX + '/jobs/' + encodeURIComponent(String(jobId)), 'GET', H);
+    if (r.status >= 200 && r.status < 300){
+      const p = JSON.parse(r.body || '{}');
+      return (p && p.data) || p;
+    }
+  } catch (e) {}
+  return null;
+}
+async function _fergusUpdateJobDescription(fergusKey, jobId, summary){
+  const job = encodeURIComponent(String(jobId));
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const before = await _fergusReadJob(H, jobId);
+  const existing = _fergusJobDescOf(before);
+  // Reading the job is not optional: without it the customer's own words
+  // would be overwritten rather than kept above the block.
+  if (before == null) return { ok: false, reason: 'JOB_UNREADABLE', attempts: [] };
+  const want = _fergusDescCompose(existing, summary);
+  if (_fergusDescStrip(existing) === _fergusDescStrip(want) && String(existing || '').indexOf(FERGUS_DESC_OPEN) >= 0 && existing === want)
+    return { ok: true, unchanged: true, attempts: [] };
+  const list = process.env.FERGUS_JOB_UPDATE_PATH
+    ? [process.env.FERGUS_JOB_UPDATE_PATH] : FERGUS_JOB_UPDATE_CANDIDATES;
+  const attempts = [];
+  for (const entry of list) {
+    const m = String(entry).match(/^\s*(GET|POST|PUT|PATCH)\s+(\S+)/i);
+    const method = m ? m[1].toUpperCase() : 'PATCH';
+    const tpl = m ? m[2] : String(entry).trim();
+    const path = FERGUS_PREFIX + tpl.replace('{job}', job);
+    // Both spellings: Fergus reads one and ignores the other.
+    const body = { description: want, longDescription: want };
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
+      const a = { path: method + ' ' + tpl, status: r.status };
+      attempts.push(a);
+      if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
+      if (!(r.status >= 200 && r.status < 300)) continue;
+      const after = await _fergusReadJob(H, jobId);
+      const now = _fergusJobDescOf(after);
+      a.verified = (now != null) ? (now.indexOf(FERGUS_DESC_OPEN) >= 0) : null;
+      // Cannot tell (the job would not read back) counts as done, the same
+      // forgiveness the promote check gives a backend it cannot reach.
+      if (a.verified !== false) return { ok: true, path: a.path, status: r.status, verified: a.verified, attempts };
+    } catch (e) { attempts.push({ path: method + ' ' + tpl, error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts };
+}
+// The office's push, and the acceptance, both land here.
+app.post('/fergus-job/description', requireAuth, requireSubscription,
+  requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
+  const fergusKey = await _fergusKeyFor(req);
+  if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
+  const b = req.body || {};
+  const jobId = String(b.jobId || '').slice(0, 80);
+  if (!jobId) return res.status(400).json({ error: 'jobId required' });
+  const summary = (typeof b.summary === 'string' && b.summary.trim())
+    ? b.summary.slice(0, 4000)
+    : _fergusJobSummaryText(b.quote || {}, b.extra || {});
+  try { res.json(await _fergusUpdateJobDescription(fergusKey, jobId, summary)); }
+  catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+
 app.post('/fergus-quote/publish', requireAuth, requireSubscription,
   requirePlan('jms', 'The Fergus job-system link', 'Team'), async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);

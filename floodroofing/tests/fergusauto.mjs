@@ -27,6 +27,9 @@ let publishTakes = true;         // …and whether that answer actually moved th
 const published = new Set();     // quote ids Fergus now holds as Published
 const sentIds = new Set();       // …and as Sent (Send → Mark as sent)
 const unsentIds = new Set();     // …and ones Fergus describes as "Published - not sent"
+const jobDesc = {};              // Fergus jobs by id → their Job Description
+let jobUpdateStatus = 200;       // what a job update answers
+let jobUpdateTakes = true;       // …and whether it actually changes the job
 let markSentStatus = 200;        // what the mark-sent endpoint answers
 let markSentTakes = true;        // …and whether it actually moved the quote to Sent
 globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
@@ -53,6 +56,16 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
     const isSent = !!(body && (typeof body === 'string' ? JSON.parse(body || '{}') : body).isSent === true);
     if (markSentStatus < 300 && markSentTakes && id && isSent) sentIds.add(id);
     return j(markSentStatus === 200 ? 204 : markSentStatus, {});
+  }
+  // Jobs: reading one, and updating its description.
+  const jone = path.match(/^\/jobs\/([^/]+)$/);
+  if (method === 'GET' && jone) return jobDesc[jone[1]] === undefined
+    ? j(404, { message: 'no such job' })
+    : j(200, { data: { id: jone[1], description: jobDesc[jone[1]] } });
+  if ((method === 'PATCH' || method === 'PUT') && jone){
+    if (jobUpdateStatus < 300 && jobUpdateTakes)
+      jobDesc[jone[1]] = (typeof body === 'string' ? JSON.parse(body || '{}') : body).description;
+    return j(jobUpdateStatus, {});
   }
   if (method === 'POST' && /\/send\b/.test(path)) return j(200, { EMAILED_THE_CUSTOMER: true });   // the one shape that must never be hit
   if (method === 'PATCH' && /^\/jobs\/quotes\/[^/]+$/.test(path)) return j(404, { message: 'no' });
@@ -222,6 +235,52 @@ fergus.length = 0; process.env.FERGUS_QUOTE_MARK_SENT_PATH = 'POST /jobs/quotes/
 p = await pub({ quoteId: 'fq65', jobId: 'FJ-77', markSent: true });
 delete process.env.FERGUS_QUOTE_MARK_SENT_PATH;
 check('a pinned mark-sent path that would email the customer is never called', p.sent && p.sent.ok === false && !fergus.some(c => /send/.test(c.path)), JSON.stringify(p.sent && p.sent.attempts));
+
+
+// ── the quote's summary on the Fergus job (2026-09-30, the owner's) ──
+const desc = (body) => fetch(BASE + '/fergus-job/description', { method: 'POST', headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + tok }, body: JSON.stringify(body) }).then(r => r.json());
+const ENQUIRY = 'Hi,\nWe live at 46 Scotts Road and would like a quote for our farmhouse roof.\nChris';
+jobDesc['FJ-90'] = ENQUIRY;
+fergus.length = 0; jobUpdateStatus = 200; jobUpdateTakes = true;
+let dd = await desc({ jobId: 'FJ-90', summary: 'Quote 3270\nTotal (incl. GST): $22,506.39\n  • Steel grade: Colorsteel MAXAM' });
+check('the quote summary is written onto the Fergus job', dd.ok === true && /Quote 3270/.test(jobDesc['FJ-90']), JSON.stringify(dd));
+check('…and the customer’s own enquiry is still above it, untouched',
+  jobDesc['FJ-90'].startsWith(ENQUIRY) && /RoofMap quote summary/.test(jobDesc['FJ-90']), JSON.stringify(jobDesc['FJ-90']));
+check('…verified by reading the job back, not by the 2xx alone', dd.verified === true && fergus.filter(c => c.method === 'GET' && /^\/jobs\/FJ-90$/.test(c.path)).length >= 2, JSON.stringify(dd.attempts));
+
+// A second push replaces the block instead of stacking another copy under it.
+dd = await desc({ jobId: 'FJ-90', summary: 'Quote 3270 (v2)\nTotal (incl. GST): $23,223.94' });
+const copies = (jobDesc['FJ-90'].match(/RoofMap quote summary ---/g) || []).length;
+check('a second push replaces the summary rather than stacking another copy',
+  dd.ok === true && copies === 2 && /v2/.test(jobDesc['FJ-90']) && !/22,506/.test(jobDesc['FJ-90']) && jobDesc['FJ-90'].startsWith(ENQUIRY),
+  copies + ' markers');
+
+// A job with no description at all is fine; a job that will not read is not
+// touched, because overwriting would lose whatever it holds.
+jobDesc['FJ-91'] = '';
+dd = await desc({ jobId: 'FJ-91', summary: 'Quote 3271' });
+check('a job with an empty description just gets the summary', dd.ok === true && /Quote 3271/.test(jobDesc['FJ-91']), JSON.stringify(dd));
+fergus.length = 0;
+dd = await desc({ jobId: 'FJ-NOPE', summary: 'Quote 3272' });
+check('a job that cannot be read is never written over', dd.ok === false && dd.reason === 'JOB_UNREADABLE' && !fergus.some(c => c.method === 'PATCH' || c.method === 'PUT'), JSON.stringify(dd));
+
+// A 2xx that changes nothing is not believed — the same rule as the publish.
+jobDesc['FJ-92'] = 'something'; fergus.length = 0; jobUpdateTakes = false;
+dd = await desc({ jobId: 'FJ-92', summary: 'Quote 3273' });
+check('a 2xx that leaves the description alone is not believed: every shape is tried',
+  dd.ok === false && dd.attempts.length > 1, JSON.stringify(dd.attempts));
+jobUpdateTakes = true;
+// A rejected key fails on the first call rather than being hammered.
+jobDesc['FJ-93'] = 'x'; fergus.length = 0; jobUpdateStatus = 403;
+dd = await desc({ jobId: 'FJ-93', summary: 'Quote 3274' });
+jobUpdateStatus = 200;
+check('a rejected key stops at the first call', dd.ok === false && dd.auth === true && dd.attempts.length === 1, JSON.stringify(dd.attempts));
+// The pin wins when the real shape is known.
+jobDesc['FJ-94'] = 'x'; fergus.length = 0; process.env.FERGUS_JOB_UPDATE_PATH = 'PUT /jobs/{job}';
+dd = await desc({ jobId: 'FJ-94', summary: 'Quote 3275' });
+delete process.env.FERGUS_JOB_UPDATE_PATH;
+check('FERGUS_JOB_UPDATE_PATH pins the shape once it is known',
+  dd.ok === true && dd.path === 'PUT /jobs/{job}' && fergus.filter(c => c.method === 'PUT').length === 1, JSON.stringify(dd));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

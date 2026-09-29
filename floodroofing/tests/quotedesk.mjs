@@ -214,20 +214,30 @@ await d.pg.evaluate(() => { window.__PRINTING_MODERN = false; document.documentE
 await d.pg.emulateMedia({ media: 'screen' });
 check('…printed without the bar, the nav and the rail, but with every section and its options', !pm.rail && !pm.nav && !pm.top && pm.sec && pm.opt, JSON.stringify(pm));
 
-// ── the acceptance PDF renders the A4 behind a veil, never on screen ─
+// ── the acceptance PDF is the quote the customer was sent ────────
 const veil = await d.pg.evaluate(async () => {
   const p = _buildQuotePdf({ scale: 1, veilMsg: 'Recording your acceptance…' });
   // Read at once: with the PDF library blocked in this test the build gives
   // up within a few ms and the veil lifts with it.
   const v = document.getElementById('qpPdfVeil');
   const during = { veil: !!v, msg: v ? v.textContent : '', a4: document.querySelectorAll('#qpRoot .rp-page').length,
-                   covers: !!v && v.getBoundingClientRect().width >= window.innerWidth - 1 };
+                   covers: !!v && v.getBoundingClientRect().width >= window.innerWidth - 1,
+                   secs: document.querySelectorAll('#qpRoot .qd-sec').length,
+                   pdfModern: document.documentElement.classList.contains('pdf-modern'),
+                   railGone: (() => { const e = document.querySelector('.qd-rail');
+                     return !e || getComputedStyle(e).display === 'none'; })() };
   await p;
   await new Promise(r => setTimeout(r, 400));
   return { during, after: { veil: !!document.getElementById('qpPdfVeil'), desk: document.documentElement.classList.contains('qp-desk'), qd: !!document.getElementById('qdRoot') } };
 });
-check('while the acceptance PDF renders the A4, a veil covers the screen and says why',
-  veil.during.veil && veil.during.covers && /Recording your acceptance/.test(veil.during.msg) && veil.during.a4 > 0, JSON.stringify(veil.during));
+check('while the acceptance PDF renders, a veil covers the screen and says why',
+  veil.during.veil && veil.during.covers && /Recording your acceptance/.test(veil.during.msg), JSON.stringify(veil.during));
+// THE ASK (2026-09-30): quote 3270 went out modern and the acceptance email
+// came back as the classic A4. The record must be the quote they were sent.
+check('the acceptance PDF of a MODERN quote is the one-page layout, not the A4',
+  veil.during.a4 === 0 && veil.during.secs >= 4 && veil.during.pdfModern, JSON.stringify(veil.during));
+check('…with the rail stripped off it, the same as the customer’s own Download PDF',
+  veil.during.railGone, JSON.stringify(veil.during));
 check('…and it lifts to the same page afterwards', !veil.after.veil && veil.after.desk && veil.after.qd, JSON.stringify(veil.after));
 
 // ── accept: inline, no popup, ends on "Quote accepted" ───────────

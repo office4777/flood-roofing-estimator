@@ -4217,6 +4217,34 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 @page :first{margin:0!important}
 @page :left{margin:0!important}
 @page :right{margin:0!important}
+/* A MODERN QUOTE AS A DOCUMENT — the layout the customer was sent,
+   stripped of everything you cannot press on paper. OUT of @media print
+   on purpose: html.print-modern is the browser printing it, html.pdf-modern
+   is html2canvas capturing it for the acceptance / emailed PDF. One set of
+   rules, so the two can never drift apart. */
+  html:is(.print-modern,.pdf-modern) .qd-top, html:is(.print-modern,.pdf-modern) .qd-nav, html:is(.print-modern,.pdf-modern) .qd-rail,
+  html:is(.print-modern,.pdf-modern) .qd-mini, html:is(.print-modern,.pdf-modern) .qb-cta, html:is(.print-modern,.pdf-modern) .qb-hero-tools,
+  html:is(.print-modern,.pdf-modern) .qb-hero-hint, html:is(.print-modern,.pdf-modern) .qb-ask, html:is(.print-modern,.pdf-modern) .qe-inline,
+  html:is(.print-modern,.pdf-modern) .qd-parked, html:is(.print-modern,.pdf-modern) #qbAcceptName, html:is(.print-modern,.pdf-modern) #qbAcceptTerms,
+  html:is(.print-modern,.pdf-modern) .qd-accept, html:is(.print-modern,.pdf-modern) .qb-accept, html:is(.print-modern,.pdf-modern) .qb-sign, html:is(.print-modern,.pdf-modern) .qb-actions,
+  html:is(.print-modern,.pdf-modern) button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
+  html:is(.print-modern,.pdf-modern) .qd-wrap{display:block!important; max-width:none!important; padding:10mm 10mm 12mm!important}
+  html:is(.print-modern,.pdf-modern), html:is(.print-modern,.pdf-modern) body{height:auto!important; min-height:0!important; overflow:visible!important}
+  html:is(.print-modern,.pdf-modern) .qd-main{display:block!important}
+  html:is(.print-modern,.pdf-modern) .qd-main > .qd-sec{margin:0 0 6mm!important}
+  /* Sections flow across sheets (kept whole they left half of every sheet
+     blank); what must not split is a card, a photo, a swatch row, a heading
+     from what follows it. */
+  html:is(.print-modern,.pdf-modern) .qd-sec{box-shadow:none!important; border:1px solid #e3e6ea!important; overflow:visible!important; border-radius:10px!important}
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-opt, html:is(.print-modern,.pdf-modern) .qd-sec figure, html:is(.print-modern,.pdf-modern) .qd-sec .qb-sw,
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-total, html:is(.print-modern,.pdf-modern) .qd-sec .qb-fig, html:is(.print-modern,.pdf-modern) .qd-sec .qb-plan,
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-picks, html:is(.print-modern,.pdf-modern) .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
+  html:is(.print-modern,.pdf-modern) .qd-sec h2, html:is(.print-modern,.pdf-modern) .qd-sec h3, html:is(.print-modern,.pdf-modern) .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
+  html:is(.print-modern,.pdf-modern) .qd-hero{aspect-ratio:auto!important; width:100%!important; height:62mm!important; min-height:0!important; max-height:none!important}
+  html:is(.print-modern,.pdf-modern) .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
+  html:is(.print-modern,.pdf-modern) body, html:is(.print-modern,.pdf-modern) #customerView, html:is(.print-modern,.pdf-modern) .report-preview,
+  html:is(.print-modern,.pdf-modern) #qpRoot, html:is(.print-modern,.pdf-modern) .qd{background:#fff!important}
+
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
@@ -4280,29 +4308,6 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   /* Print colour adjustment — coloured swatches + dark backgrounds must
      print at full saturation, not the browser's draft-toned defaults. */
   html.print-quote *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  /* A modern quote's PDF: the one-page layout, as a document. */
-  html.print-modern .qd-top, html.print-modern .qd-nav, html.print-modern .qd-rail,
-  html.print-modern .qd-mini, html.print-modern .qb-cta, html.print-modern .qb-hero-tools,
-  html.print-modern .qb-hero-hint, html.print-modern .qb-ask, html.print-modern .qe-inline,
-  html.print-modern .qd-parked, html.print-modern #qbAcceptName, html.print-modern #qbAcceptTerms,
-  html.print-modern .qd-accept, html.print-modern .qb-accept, html.print-modern .qb-sign, html.print-modern .qb-actions,
-  html.print-modern button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
-  html.print-modern .qd-wrap{display:block!important; max-width:none!important; padding:10mm 10mm 12mm!important}
-  html.print-modern, html.print-modern body{height:auto!important; min-height:0!important; overflow:visible!important}
-  html.print-modern .qd-main{display:block!important}
-  html.print-modern .qd-main > .qd-sec{margin:0 0 6mm!important}
-  /* Sections flow across sheets (kept whole they left half of every sheet
-     blank); what must not split is a card, a photo, a swatch row, a heading
-     from what follows it. */
-  html.print-modern .qd-sec{box-shadow:none!important; border:1px solid #e3e6ea!important; overflow:visible!important; border-radius:10px!important}
-  html.print-modern .qd-sec .qb-opt, html.print-modern .qd-sec figure, html.print-modern .qd-sec .qb-sw,
-  html.print-modern .qd-sec .qb-total, html.print-modern .qd-sec .qb-fig, html.print-modern .qd-sec .qb-plan,
-  html.print-modern .qd-sec .qb-picks, html.print-modern .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
-  html.print-modern .qd-sec h2, html.print-modern .qd-sec h3, html.print-modern .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
-  html.print-modern .qd-hero{aspect-ratio:auto!important; width:100%!important; height:62mm!important; min-height:0!important; max-height:none!important}
-  html.print-modern .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
-  html.print-modern body, html.print-modern #customerView, html.print-modern .report-preview,
-  html.print-modern #qpRoot, html.print-modern .qd{background:#fff!important}
 
   /* Order Material — print only the Order panel, suppress the
      in-page sketch toolbar buttons and the supplier select that don't
@@ -31171,7 +31176,12 @@ function _qbAcceptedBlock(accepted){
 }
 // Every choice the customer made, named — including the ones that cost
 // nothing, because "what did I pick?" is the question this page answers.
-function _qbPicksList(){
+function _qbPicksList(){ return _qbPicks().map(function(r){
+    return '<div class="qb-pick"><span>'+esc2(r[0])+'</span><b>'+esc2(r[1])+'</b></div>';
+  }).join(''); }
+// [label, value] for every choice on the quote — the customer's own words for
+// them. _qbPicksList draws these; the Fergus job summary writes them out.
+function _qbPicks(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var out = [];
   var name = function(list, id, fallback){
@@ -31199,9 +31209,36 @@ function _qbPicksList(){
     out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes']);
   }
   if (_parked.indexOf('disposal') < 0) out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away']);
-  return out.filter(function(r){ return r[1]; }).map(function(r){
-    return '<div class="qb-pick"><span>'+esc2(r[0])+'</span><b>'+esc2(r[1])+'</b></div>';
-  }).join('');
+  return out.filter(function(r){ return r[1]; });
+}
+// THE SUMMARY WRITTEN ONTO THE FERGUS JOB (2026-09-30, the owner's): the
+// quote's reference and total, then the customer's choices in the same words
+// their own quote uses. The server appends it under whatever is already in
+// the job's description, in a block a later push replaces.
+function _fergusJobSummary(){
+  var q = (S && S.quote) || {}, lines = [];
+  try { if (q.ref) lines.push('Quote ' + q.ref); } catch(e){}
+  try { if (q.client) lines.push(q.client + (q.addr ? ' — ' + q.addr : '')); } catch(e){}
+  try {
+    var t = _qbTotal();
+    if (t) lines.push('Total (incl. GST): ' + fmtMoney(t));
+  } catch(e){}
+  try {
+    var acc = q.accepted;
+    if (acc && acc.name) lines.push('ACCEPTED by ' + acc.name + (acc.at ? ' on ' + new Date(acc.at).toLocaleDateString('en-NZ') : ''));
+  } catch(e){}
+  try {
+    var picks = _qbPicks();
+    if (picks.length){ lines.push(''); picks.forEach(function(r){ lines.push('  • ' + r[0] + ': ' + r[1]); }); }
+  } catch(e){}
+  try {
+    var roofs = [];
+    (DRAW.roofs || []).forEach(function(r, i){ if (r && r.area) roofs.push((r.name || ('Roof ' + (i+1))) + ' ' + Math.round(r.area) + ' m²'); });
+    if (roofs.length) lines.push('', 'Roof: ' + roofs.join(', '));
+  } catch(e){}
+  try { if (q.notes) lines.push('', String(q.notes).slice(0, 400)); } catch(e){}
+  lines.push('', 'Updated from RoofMap ' + new Date().toLocaleDateString('en-NZ'));
+  return lines.join('\n');
 }
 
 // ══ THE QUOTE ON A COMPUTER (customer link, wider than a phone) ═══════
@@ -64017,9 +64054,116 @@ function _inlineCoverImagesForPdf(root){
   return function(){ restores.forEach(function(x){ img_restore(x); }); };
   function img_restore(x){ try { x.img.src = x.src; x.img.style.objectFit = x.fit || ''; } catch(e){} }
 }
+// A MODERN QUOTE, CAPTURED AS A DOCUMENT. The screen may be showing the phone
+// book, the computer layout or an office preview frame; all of them come off
+// and the computer layout is rendered at a fixed 1100px so the capture does
+// not depend on the window. `__PRINTING_MODERN` makes _qpDeskActive() true and
+// _qpBookActive() false, `pdf-modern` strips the nav, the rail, the accept box
+// and every button the paper cannot carry. One tall capture, sliced across A4
+// sheets at the whitest rows by _pdfAddSlicedCanvas \u2014 the same slicer the A4
+// document uses.
+var QP_PDF_MODERN_W = 1100;
+async function _buildModernQuotePdf(opts, capScale){
+  var htmlEl = document.documentElement, root = document.getElementById('qpRoot');
+  var wasPrinting = !!window.__PRINTING_QUOTE, wasModern = !!window.__PRINTING_MODERN;
+  var wasBook = htmlEl.classList.contains('qp-book'), wasDesk = htmlEl.classList.contains('qp-desk');
+  var wasCustMobile = htmlEl.classList.contains('customer-mobile');
+  var wasPhonePv = htmlEl.classList.contains('qp-phone-preview');
+  var wasDeskPv = htmlEl.classList.contains('qp-desk-preview');
+  var wasClassicPh = htmlEl.classList.contains('qp-classic-phone');
+  var prevW = root ? root.style.width : '', prevZoom = root ? root.style.zoom : '';
+  var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+  var veil = null, restoreImgs = function(){};
+  var done = function(){
+    try { restoreImgs(); } catch(e){}
+    htmlEl.classList.remove('pdf-modern', 'pdf-rendering');
+    window.__PRINTING_MODERN = wasModern; window.__PRINTING_QUOTE = wasPrinting;
+    htmlEl.classList.toggle('qp-book', wasBook); htmlEl.classList.toggle('qp-desk', wasDesk);
+    htmlEl.classList.toggle('customer-mobile', wasCustMobile);
+    htmlEl.classList.toggle('qp-phone-preview', wasPhonePv);
+    htmlEl.classList.toggle('qp-desk-preview', wasDeskPv);
+    htmlEl.classList.toggle('qp-classic-phone', wasClassicPh);
+    if (root){ root.style.width = prevW || ''; root.style.zoom = prevZoom || ''; }
+    try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+    if (!window.__CUSTOMER_MODE){ try { _qpPreviewClassesSync(); } catch(e){} }
+    try { if (window.__CUSTOMER_MODE && typeof _fitCustomerView === 'function') _fitCustomerView(); } catch(e){}
+    try { if (veil) veil.remove(); } catch(e){}
+    try { window.scrollTo(0, savedScrollY); } catch(e){}
+  };
+  if (!root) return null;
+  // The customer is reading their quote; they must not watch it being taken
+  // apart. The same veil the A4 path puts up.
+  try {
+    if (window.__CUSTOMER_MODE && (wasBook || wasDesk)){
+      veil = document.createElement('div'); veil.id = 'qpPdfVeil';
+      veil.setAttribute('style', 'position:fixed;inset:0;z-index:100010;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:Inter,-apple-system,sans-serif;text-align:center;padding:24px');
+      veil.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#0099e0;border-radius:50%;animation:qpVeilSpin .9s linear infinite"></div>'+
+        '<div style="font-size:16px;font-weight:700">'+esc2(opts.veilMsg || 'Saving a copy of your quote\u2026')+'</div>'+
+        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">Just a moment \u2014 please keep this page open.</div>'+
+        '<style>@keyframes qpVeilSpin{to{transform:rotate(360deg)}}</style>';
+      document.body.appendChild(veil);
+    }
+  } catch(e){ veil = null; }
+  window.__PRINTING_MODERN = true; window.__PRINTING_QUOTE = false;
+  htmlEl.classList.remove('qp-book', 'customer-mobile', 'qp-phone-preview', 'qp-desk-preview', 'qp-classic-phone');
+  htmlEl.classList.add('qp-desk', 'pdf-modern', 'pdf-rendering');
+  root.style.width = QP_PDF_MODERN_W + 'px'; root.style.zoom = 1;
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+  try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); done(); return null; }
+  var html2canvas = window.html2canvas;
+  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!html2canvas || !jsPDF){ done(); return null; }
+
+  try {
+    if (document.fonts && document.fonts.ready)
+      await Promise.race([ document.fonts.ready, new Promise(function(r){ setTimeout(r, 1500); }) ]);
+  } catch(e){}
+  window.scrollTo(0, 0);
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  try { restoreImgs = _inlineCoverImagesForPdf(root); } catch(e){}
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+
+  var target = root.querySelector('.qd-wrap') || root;
+  var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+  try {
+    _qaMsg('Rendering the quote\u2026');
+    var canvas = await html2canvas(target, {
+      scale: capScale, backgroundColor: '#ffffff', useCORS: true, logging: false,
+      scrollX: 0, scrollY: 0, windowWidth: QP_PDF_MODERN_W,
+      windowHeight: Math.max(document.documentElement.scrollHeight, target.scrollHeight),
+    });
+    _pdfAddSlicedCanvas(pdf, canvas, 210, 297);
+  } catch(err){
+    console.error('Modern quote PDF render failed:', err);
+    done(); return null;
+  }
+  done();
+  try {
+    var n = (typeof pdf.getNumberOfPages === 'function') ? pdf.getNumberOfPages() : pdf.internal.getNumberOfPages();
+    pdf.setFont('helvetica', 'bold'); pdf.setTextColor(90,90,90);
+    for (var i = 1; i <= n; i++){ pdf.setPage(i);
+      var big = String(i), sm = '  of ' + n;
+      pdf.setFontSize(12); var bw = pdf.getTextWidth(big);
+      pdf.text(big, 105 - bw/2, 292, { align:'left' });
+      pdf.setFontSize(8.5); pdf.text(sm, 105 - bw/2 + bw, 292, { align:'left' });
+    }
+    pdf.setFont('helvetica','normal'); pdf.setTextColor(0,0,0);
+  } catch(e){ console.warn('Quote page-number stamp failed:', e); }
+  return pdf;
+}
+// THE PDF IS WHATEVER THE CUSTOMER WAS SENT (2026-09-30, the owner's: quote
+// 3270 went out as a modern quote and the acceptance email came back as the
+// classic A4). A modern quote's record — the acceptance email's attachment,
+// the emailed quote's attachment, the copy pushed to Fergus — is the one-page
+// layout with their picks on it, captured through the same rules the
+// customer's own Download PDF prints through. A classic quote is the A4
+// document, as it always was. `opts.a4:true` forces the A4 whatever the style.
 async function _buildQuotePdf(opts){
   opts = opts || {};
   var _capScale = opts.scale || 2;   // lower = faster render (used for the accept-email PDF)
+  var _modernDoc = false;
+  try { _modernDoc = (opts.a4 !== true) && _quoteStyle() === 'modern'; } catch(e){ _modernDoc = false; }
+  if (_modernDoc) return await _buildModernQuotePdf(opts, _capScale);
   // The screen may be showing the phone book or the computer layout. The
   // PDF is the A4 document, so the flag goes up BEFORE this first render:
   // _qpBookActive / _qpDeskActive read it and the A4 comes back. (The
@@ -64664,6 +64808,21 @@ async function pushQuotePricingToFergus(btn, opts){
       catch(e){ _published = false; }
     }
     var _sent = (_pr && _pr.sent && typeof _pr.sent === 'object') ? _pr.sent : null;
+    // THE QUOTE'S SUMMARY GOES ON THE FERGUS JOB (2026-09-30, the owner's):
+    // the crew reads the job, not RoofMap. It is appended below whatever the
+    // customer wrote in the description, in a marked block a later push
+    // replaces. A failure here never fails the push — the quote is in Fergus,
+    // which is the point of pressing the button.
+    var _descOut = null;
+    if (!_cancelled()){
+      try {
+        _qaMsg('Writing the quote summary onto the Fergus job…');
+        _descOut = await api('POST', '/fergus-job/description', {
+          jobId: String(S.linkedJobId),
+          summary: _fergusJobSummary()
+        });
+      } catch(e){ _descOut = { ok: false, error: String(e && e.message || e) }; }
+    }
     // What Fergus answered, kept with the quote so a "still a draft" can be
     // diagnosed from the saved job rather than guessed at.
     var _pubNote = '';
