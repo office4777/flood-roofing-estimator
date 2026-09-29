@@ -128,6 +128,69 @@ check('the job list carries the version name and its group',
   row && row.version_name === 'Ethan — steel option' && row.version_of === 'job-3045',
   JSON.stringify(row && { n: row.version_name, of: row.version_of }));
 
+// ── A SAVE WITH NO SENT QUOTE NEVER WIPES ONE (2026-09-29) ────────
+// Job 3261: a quote sent on 21 September came back a week later reading an
+// older total with the Viewing menu offering "Draft" alone — its Sent copy,
+// its Accepted copy and its saved drafts gone. A stale copy of the job had
+// been saved over the row. Nobody deletes their own sent quote by saving, so
+// the server keeps what it holds unless the save says it means to clear it.
+{
+  const sentQuote = {
+    ref: '3261',
+    share: { token: 'tok-3261', sentAt: '2026-09-21T22:02:00.000Z' },
+    versions: { sent: { label: 'Sent quote', total: 29696.37 }, accepted: null,
+                drafts: [{ label: 'Draft 1' }], media: { 'm1': 'data:image/png;base64,AAA' } },
+  };
+  db.jobs.push({
+    id: 'job-3261', user_id: ARON.user, company_id: CO,
+    client_name: 'Linda Wessling', site_address: '88 Access Road, Kerikeri',
+    status: 'quoted', created_at: '2026-08-28T01:00:00.000Z', updated_at: '2026-09-21T22:02:00.000Z',
+    version_of: null, version_name: null, order_sent: null, settings: {},
+    draw_state: { draw: { lines: [{ type: 'ridge' }] }, state: { quote: sentQuote } },
+  });
+
+  // The stale save: an older copy of the same job, no versions on its quote.
+  const stale = { draw: { lines: [] },
+                  state: { quote: { ref: '3261', total: 11258.50, share: { token: 'tok-3261' } } } };
+  let r = await as(ARON, '/jobs/job-3261', { method: 'PUT', body: JSON.stringify({ draw_state: stale }) });
+  let row = db.jobs.find(j => j.id === 'job-3261');
+  let q = row.draw_state.state.quote;
+  check('a save whose quote has no versions keeps the sent quote that is stored',
+    r.status === 200 && !!q.versions && !!q.versions.sent && q.versions.sent.total === 29696.37,
+    JSON.stringify({ status: r.status, versions: q.versions }));
+  check('…the accepted copy, the saved drafts and the one copy of each picture with it',
+    (q.versions.drafts || []).length === 1 && !!q.versions.media && 'accepted' in q.versions,
+    JSON.stringify(q.versions && Object.keys(q.versions)));
+  check('…and the customer\u2019s share with its sent stamp',
+    q.share && q.share.token === 'tok-3261' && !!q.share.sentAt, JSON.stringify(q.share));
+  check('…while the rest of the save goes through as asked', q.total === 11258.50, String(q.total));
+
+  // A save that MEANS to replace them carries its own, and wins.
+  const fresh = { draw: { lines: [] }, state: { quote: { ref: '3261',
+    share: { token: 'tok-3261' },
+    versions: { sent: { label: 'Sent quote', total: 31000 }, accepted: null, drafts: [] } } } };
+  r = await as(ARON, '/jobs/job-3261', { method: 'PUT', body: JSON.stringify({ draw_state: fresh }) });
+  row = db.jobs.find(j => j.id === 'job-3261');
+  check('a save that carries versions of its own replaces them, as it always did',
+    r.status === 200 && row.draw_state.state.quote.versions.sent.total === 31000,
+    JSON.stringify(row.draw_state.state.quote.versions.sent));
+
+  // And the office CAN clear them, by saying so.
+  const cleared = { draw: { lines: [] }, state: { quote: { ref: '3261',
+    versions: { sent: null, accepted: null, drafts: [], __cleared: true } } } };
+  r = await as(ARON, '/jobs/job-3261', { method: 'PUT', body: JSON.stringify({ draw_state: cleared }) });
+  row = db.jobs.find(j => j.id === 'job-3261');
+  check('…and a save that says __cleared clears them, so nothing is trapped',
+    r.status === 200 && !row.draw_state.state.quote.versions.sent,
+    JSON.stringify(row.draw_state.state.quote.versions));
+
+  // A job with no stored versions is untouched by any of this.
+  r = await as(ARON, '/jobs/job-3045', { method: 'PUT', body: JSON.stringify({
+    draw_state: { draw: { lines: [] }, state: { quote: { ref: '3045' } } } }) });
+  check('a job that never had versions saves exactly as before',
+    r.status === 200, 'status ' + r.status);
+}
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);

@@ -3034,6 +3034,73 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
     });
   }
 
+  // ── THE SENT QUOTE IS NEVER OVERWRITTEN BY A SAVE THAT HAS NONE ──
+  // (2026-09-29, job 3261.) A quote's frozen versions — the Sent copy, the
+  // Accepted copy, the office's saved drafts and the one copy of each
+  // picture they share — live inside draw_state.state.quote.versions. A save
+  // carrying a quote with NO versions, over a row whose quote HAS them, is
+  // never a person deleting their own sent quote: it is a stale copy of the
+  // job going up. That is how 3261's sent quote vanished and the total fell
+  // back to an older figure, and the office's only sign was the Viewing menu
+  // reading "Draft" alone.
+  //
+  // The same rule the Fergus key and the custom price book already live by:
+  // the server keeps what it holds unless the save says, in as many words,
+  // that it means to clear it (quote.versions.__cleared). Read failure
+  // refuses the save rather than letting it through blind — losing a sent
+  // quote is worse than a save that has to be tried again.
+  try {
+    const _inQ = patch.draw_state && patch.draw_state.state && patch.draw_state.state.quote;
+    if (_inQ && typeof _inQ === 'object'){
+      const _inV = _inQ.versions;
+      const _inHas = !!(_inV && typeof _inV === 'object' &&
+                        (_inV.sent || _inV.accepted || (Array.isArray(_inV.drafts) && _inV.drafts.length)));
+      const _cleared = !!(_inV && _inV.__cleared);
+      if (!_inHas && !_cleared){
+        let heldQ = null, readOk = false;
+        const pool1 = _pgPool();
+        try {
+          if (pool1){
+            const q1 = await pool1.query(
+              "select draw_state->'state'->'quote'->'versions' as versions," +
+              "       draw_state->'state'->'quote'->'share' as share" +
+              ' from public.jobs where id = $1 and (company_id = $2 or (company_id is null and user_id = $3))',
+              [req.params.id, req.companyId || null, req.user.id]);
+            if (q1.rows.length){ heldQ = q1.rows[0]; readOk = true; }
+          } else {
+            const { data: rows1, error: e1 } = await _scopeCompany(
+              supabase.from('jobs').select('draw_state').eq('id', req.params.id), req);
+            if (!e1){
+              readOk = true;
+              const st1 = rows1 && rows1[0] && rows1[0].draw_state && rows1[0].draw_state.state;
+              const q0 = st1 && st1.quote;
+              heldQ = q0 ? { versions: q0.versions, share: q0.share } : null;
+            }
+          }
+        } catch (e) { readOk = false; }
+        if (!readOk) return res.status(503).json({ error: 'Could not read the job to keep its sent quote — try again.' });
+        const heldV = heldQ && heldQ.versions;
+        const heldHas = !!(heldV && typeof heldV === 'object' &&
+                           (heldV.sent || heldV.accepted || (Array.isArray(heldV.drafts) && heldV.drafts.length)));
+        if (heldHas){
+          _inQ.versions = heldV;
+          // The share carries the customer's token, their opens and their
+          // acceptance. A save with no versions is a stale copy, so its share
+          // is stale too — the stored one wins unless this save has one of
+          // its own with the SAME token (a first send's new token is the one
+          // case where the app's is newer, and that save carries versions).
+          const heldS = heldQ.share;
+          if (heldS && heldS.token && (!_inQ.share || !_inQ.share.token || _inQ.share.token === heldS.token)){
+            _inQ.share = heldS;
+          }
+          try {
+            console.warn('[job ' + req.params.id + '] kept the stored sent quote: the save carried none');
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+
   patch.updated_at = new Date().toISOString();
   cols.push('updated_at');
 

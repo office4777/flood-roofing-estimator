@@ -18903,10 +18903,37 @@ async function _resolveJobMoved(info, set){
       if (tq.share && (!S.quote.share || !S.quote.share.token || tq.share.token === S.quote.share.token)) S.quote.share = tq.share;
       if (tq.accepted) S.quote.accepted = tq.accepted;
       if (tq.fergusAutoPushedFor) S.quote.fergusAutoPushedFor = tq.fergusAutoPushedFor;
+      // AND THE VERSIONS (2026-09-29, job 3261): the Sent copy, the Accepted
+      // copy, the saved drafts and the one copy of each picture they share.
+      // They were NOT carried, so a screen that had none — an older copy of
+      // the job, a device that opened it before the send — wrote its empty
+      // version store over the other side's and the office was left with a
+      // Viewing menu reading "Draft" alone and an older total. Only ever
+      // taken when this screen has nothing of its own to lose.
+      var _mv = S.quote.versions, _tv = tq.versions;
+      var _mineHas = !!(_mv && (_mv.sent || _mv.accepted || (_mv.drafts || []).length));
+      var _theirsHas = !!(_tv && (_tv.sent || _tv.accepted || (_tv.drafts || []).length));
+      if (_theirsHas && !_mineHas) S.quote.versions = _tv;
     }
   } catch(e){}
-  // Save against THEIR stamp; after two refusals in a row, without one.
-  S._jobLoaded = (theirs && S._movedRetries <= 2) ? { id: theirs.id, updatedAt: theirs.updated_at || null } : null;
+  // Save against THEIR stamp. It used to give up after two refusals and save
+  // WITHOUT one, which turns the conflict guard off and lets this screen
+  // overwrite the row whole — the very thing the guard exists to stop. It
+  // keeps their stamp now; a save that cannot win is left for the next one,
+  // with the work kept on this device in the meantime.
+  S._jobLoaded = theirs ? { id: theirs.id, updatedAt: theirs.updated_at || null } : S._jobLoaded;
+  if (!theirs || S._movedRetries > 3){
+    // Either the row cannot be read, or the other device is writing faster
+    // than this one can merge. Keep the work HERE and say so; it goes up on
+    // the next save that wins. Never blind — a save with no stamp is how one
+    // screen silently replaces another's job.
+    try { _writeLocalDraftNow(); } catch(e){}
+    if (set) set(theirs
+      ? 'This job is being changed on another device \u2014 your work is kept here and will save when it settles.'
+      : 'Could not read the saved job to merge with \u2014 your work is kept on this device. Try again in a moment.', '#b91c1c');
+    S._movedRetries = 0;
+    return null;
+  }
   window._photoAck = null; window._lastSent = null;
   // This runs INSIDE the queued save, so the retry goes straight to the
   // inner save — queuing it would wait on the save it is part of, for ever.

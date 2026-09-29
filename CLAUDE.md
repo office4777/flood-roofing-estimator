@@ -460,6 +460,24 @@ Discipline (non-negotiable):
   pointer over the drawing or not. Ctrl + wheel is the zoom (`onCanvasWheel`,
   routed from the document wheel handler). The old exception — a sketch with no
   aerial behind it zoomed on a plain wheel — is gone. `tests/roofstats.mjs`.
+- A SENT QUOTE IS NEVER LOST TO A SAVE THAT HAS NONE (2026-09-29, job 3261:
+  a quote sent 21 Sept came back a week later reading an older total with the
+  Viewing menu offering "Draft" alone). Three holes, all closed:
+  the SERVER keeps the stored `quote.versions` (sent, accepted, drafts, media)
+  and the stored `share` when an incoming `PUT /jobs/:id` carries a quote with
+  NO versions — the price book's rule, `versions.__cleared` to mean it — and
+  a row it cannot read refuses the save (503) rather than letting it through
+  blind; `_resolveJobMoved` CARRIES the other side's versions the way it
+  already carried `share`, `accepted` and `fergusAutoPushedFor` (it did not,
+  so a stale screen wrote its empty store over theirs); and that same function
+  no longer blanks `S._jobLoaded` after two refusals to force a save with NO
+  `base_updated_at` — which switched the server's two-people-one-job guard off
+  and let one screen overwrite the row whole. It keeps their stamp, gives up
+  after four, and the work stays in a device draft. `tests/jobversions.mjs`
+  (server), `tests/savemoved.mjs` (app). The office's own recovery is
+  History → Roof map history: `job_revisions` keeps the EIGHT newest snapshots
+  per job, one per 10 minutes, and a restore is itself snapshotted — so tell
+  the owner to stop saving a damaged job before anything else.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`

@@ -27,6 +27,7 @@ const JOB = { id: 'job-77', client_name: 'Nikki Barrett', site_address: '11 Morc
     state: { img64: AERIAL, photos: [{ src: PHOTO, caption: 'front' }] },
     draw: { outline: [[100,100],[400,100],[400,300],[100,300]], outlineDone: true, lines: [], scaleMetresPerPx: 0.03 } } };
 
+let refuseN = 0;
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport: { width: 1400, height: 950 } });
 const pg = await ctx.newPage();
@@ -47,8 +48,14 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   if (/\/jobs\/job-77$/.test(u) && m === 'PUT'){
     const body = r.request().postDataJSON();
     puts.push(body);
-    if (refuse){ refuse = false; return j(409, { error: 'This job was changed on another device since you opened it.',
-      code: 'JOB_MOVED', current: { id: 'job-77', updated_at: '2026-09-02T08:05:00.000+00:00', client_name: 'Nikki Barrett' } }); }
+    // refuse says no to the next save; refuseN says no to that many in a row
+    // (a second device saving faster than this one can merge).
+    if (refuse || refuseN > 0){
+      refuse = false;
+      if (refuseN > 0) refuseN--;
+      return j(409, { error: 'This job was changed on another device since you opened it.',
+        code: 'JOB_MOVED', current: { id: 'job-77', updated_at: '2026-09-02T08:05:00.000+00:00', client_name: 'Nikki Barrett' } });
+    }
     serverStamp = new Date(Date.parse(serverStamp) + 60000).toISOString();
     return j(200, { id: 'job-77', client_name: body.client_name, site_address: body.site_address, updated_at: serverStamp });
   }
@@ -162,6 +169,49 @@ check('…the drawn one is loaded in its place', (await pg.evaluate(() => DRAW.o
   'outline now ' + (await pg.evaluate(() => DRAW.outline.length)) + ' corners');
 check('…and the next save is against that version',
   (await pg.evaluate(() => S._jobLoaded && S._jobLoaded.updatedAt)) === serverStamp);
+
+// Rule 3 (2026-09-29, job 3261): the SENT QUOTE and everything frozen with it
+// is carried too. The share and the acceptance were carried; the versions —
+// the Sent copy, the Accepted copy, the office's saved drafts — were not. So
+// a screen holding an older copy of the job wrote its empty version store
+// over the other side's, and the office was left with a Viewing menu reading
+// "Draft" alone and a total from before the send.
+JOB.draw_state.state.quote = { ref: '3261', share: { token: 'tok-3261' },
+  versions: { sent: { label: 'Sent quote', total: 29696.37 }, accepted: null, drafts: [{ label: 'Draft 1' }] } };
+refuse = true;
+await pg.evaluate(() => {
+  S.quote = S.quote || {}; S.quote.ref = '3261'; S.quote.versions = null;   // this screen has none
+  DRAW.lines.push({ type:'barge', pts:[[100,300],[400,300]] });
+});
+await pg.evaluate(() => saveCurrentJob());
+await pg.waitForTimeout(900);
+const vq = puts[puts.length - 1];
+const vqv = vq && vq.draw_state.state.quote && vq.draw_state.state.quote.versions;
+check('the sent quote on the other side is carried into the save, not wiped',
+  !!vqv && !!vqv.sent && vqv.sent.total === 29696.37 && (vqv.drafts || []).length === 1,
+  JSON.stringify(vqv));
+check('\u2026and this screen keeps its own drawing all the same',
+  !!vq && (vq.draw_state.draw.lines || []).some(l => l && l.type === 'barge'),
+  vq && JSON.stringify((vq.draw_state.draw.lines || []).map(l => l.type)));
+delete JOB.draw_state.state.quote;
+await pg.evaluate(() => { S.quote.versions = null; });
+
+// A SAVE IS NEVER SENT WITHOUT THE STAMP IT LOADED WITH. It used to give up
+// after two refusals and save without one, which turns the server's guard off
+// and lets this screen overwrite the row whole — the very thing the guard is
+// for. Now it keeps trying against their stamp and, when it cannot win, keeps
+// the work on this device.
+refuseN = 6;
+const nB = puts.length;
+await pg.evaluate(() => { DRAW.lines.push({ type:'apron', pts:[[100,120],[400,120]] }); });
+await pg.evaluate(() => saveCurrentJob());
+await pg.waitForTimeout(2500);
+const blind = puts.slice(nB).filter(p => !p.base_updated_at);
+check('however many times a save is refused, not one goes up without a stamp',
+  blind.length === 0, blind.length + ' of ' + (puts.length - nB) + ' saves had no base_updated_at');
+check('\u2026and it stops rather than hammering the row',
+  puts.length - nB <= 6, (puts.length - nB) + ' attempts');
+refuseN = 0;
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 // ── the quote's own save must not turn the next job save into a "conflict" ──
