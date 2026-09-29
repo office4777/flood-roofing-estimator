@@ -545,6 +545,32 @@ Discipline (non-negotiable):
   to…), and a Defaults tab whose "Change default item" links an item to a
   RoofMap default (`_cpbLink`). Also on Settings → Custom Price Book as
   "Folders & defaults".
+- THE THREE PRICING TABS EACH SAY WHAT THEY ARE (2026-09-30): Quote's
+  Product Options is the CHOICES (grades, profiles, gutters a customer picks
+  between), Default item pricing (`set-defaultpricing`) is the PRICES of
+  everything RoofMap measures off the roof, Custom Price Book is the
+  supplier's own list that can take over any of those prices. Each opens
+  with one line naming the other two — keep those three lines in step when
+  anything moves between the tabs. Default item pricing runs in one order:
+  supplier upload, roofing by grade, underlay (products + $/roll together),
+  fixings (screws + rivets + the screw products), guttering and downpipes,
+  pipe penetrations, one-off items, backup last. `#pbExtrasList` is "One-off
+  items you add yourself" — it is NOT the Custom Price Book and must never
+  be named as if it were. The two uploads are different on purpose: this
+  tab's CSV (`#pbUploadFile`, `handlePriceBookUpload`, `tests/pbcsv.mjs`)
+  writes straight onto RoofMap's own items; the Custom Price Book's keeps
+  the supplier's list as its own and links a line to an item.
+- THE JOB'S LOCK IS IN THE LEFT MENU AGAIN (2026-09-30), under the selected
+  job: `#navJobLockSide`, a plain status strip, not a coloured button. Locked
+  with the quote sent it reads "Locked — Quote sent" with a small green tick
+  (`_quoteWasSent()` = `share.sentAt`), and `#navJobMore` then reads "Click
+  for new version or info" instead of "Click for more info". The button
+  inside the job details window (`#navJobLockBtn`, moved there 2026-09-29)
+  stays; ONE renderer, `_jobLockRender`, draws both and the chip's wording,
+  and `_qvMarkSent` calls it. `tests/joblock.mjs`.
+- THE HISTORY WINDOW SITS ABOVE THE JOB DETAILS WINDOW (10048/10049 against
+  9998/9999): History is opened from a button inside that window, and at
+  8999 it opened behind the thing that launched it.
 - A TYPED PRICE MAY BECOME THE DEFAULT (2026-09-30, `tests/pricebookpick
   .mjs`): the material row's $/unit goes through `_matPriceTyped(ovk, path,
   bookPrice, value)` — it sets the job override as before, then asks "Would
