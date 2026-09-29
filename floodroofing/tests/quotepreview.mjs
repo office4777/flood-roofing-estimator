@@ -203,6 +203,39 @@ const clean = await pg.evaluate(() => {
 check('switching how you LOOK does not change the quote', clean.same);
 check('…and is not saved onto the job', clean.notSaved);
 
+// ── the customer's own bars PIN inside the office's preview ──────
+// The owner, 2026-09-29: "when I scroll down, the Flood Roofing / Your quote
+// / Your roof … header disappears as well as the price overview on the right
+// side of the quote partly disappears." The layout's nav was pinned static in
+// the preview so it would not float over the app, and the rail pinned at 70px
+// — under the app's own two pinned bars, where its total was cut off. Both
+// now start where those bars END.
+await pg.evaluate(() => { _setQuoteStyle('modern'); _setQuotePreviewMode('desktop'); });
+await pg.waitForTimeout(900);
+const stick = [];
+for (const y of [0, 700, 1600, 2600]){
+  await pg.evaluate((y) => window.scrollTo(0, y), y);
+  await pg.waitForTimeout(220);
+  stick.push(await pg.evaluate(() => {
+    const r = (s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect() : null; };
+    const nav = r('.qd-top'), rail = r('.qd-rail-in'), total = r('.qd-rail-total');
+    const hd = r('#tab-quote .js-proposal-print > .card-hd');
+    const under = hd ? hd.bottom : 0;
+    return {
+      y: Math.round(window.scrollY),
+      navPinned: !!nav && nav.top >= under - 2 && nav.bottom <= window.innerHeight,
+      railPinned: !!rail && rail.top >= under - 2,
+      totalWhole: !!total && total.top >= under - 2 && total.height > 40,
+      navUnderApp: !!nav && !!hd && nav.top >= hd.bottom - 2,
+    };
+  }));
+}
+check('the customer nav stays on screen all the way down the preview, under the app\u2019s own bars',
+  stick.every(s => s.navPinned && s.navUnderApp), JSON.stringify(stick));
+check('\u2026and the price rail with it, its total never cut off',
+  stick.every(s => s.railPinned && s.totalWhole), JSON.stringify(stick));
+await pg.evaluate(() => window.scrollTo(0, 0));
+
 check('nothing threw anywhere in the Quote tab', errs.length === 0, errs.join(' | ') || 'clean');
 
 await b.close();

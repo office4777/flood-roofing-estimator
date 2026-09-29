@@ -2828,6 +2828,16 @@ html.playground #roofStatsBar{ display:flex; flex:0 0 100%; gap:8px; flex-wrap:w
 /* The left menu's version: three plain rows under the job's buttons, and —
    only with more than one roof — a small "Viewing …" button that drops a
    tick box per roof. */
+/* The job's controls, moved into the job-details window (2026-09-29). They
+   were full-width buttons stacked in a 240px menu; here they are one row. */
+#jobDetailsQuick{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 18px 0 }
+#jobDetailsQuick > *{ width:auto!important; margin-top:0!important; flex:0 0 auto }
+#jobDetailsQuick #navJobBtns{ gap:8px }
+#jobDetailsQuick button{ white-space:nowrap }
+/* The chip opens that window, so it says so. */
+.nav-job-more{ margin-top:4px; font-size:10px; font-weight:600; color:#0099cc; letter-spacing:.01em }
+#navJobInfo:hover .nav-job-more{ text-decoration:underline }
+
 #navRoofStats{ margin-top:8px; padding-top:8px; border-top:1px solid var(--border) }
 .nrs-row{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:2px 1px; font-size:11.5px }
 .nrs-row span{ color:var(--text2) }
@@ -4017,9 +4027,18 @@ html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ overflow:vis
 html.qp-desk .report-preview, html.qp-desk-preview .report-preview{ padding:0 !important; margin:0 !important; background:#eef1f5 !important; border-radius:0 !important; }
 html.qp-desk .report-preview #qpRoot, html.qp-desk-preview .report-preview #qpRoot{ width:auto !important; zoom:1 !important; gap:0 !important; margin:0 !important; display:block !important; }
 html.qp-desk-preview #qpZoomSlider, html.qp-desk-preview #qpZoomOut, html.qp-desk-preview .qp-zoom-lbl{ display:none !important; }
-/* In the office's preview the layout's own fixed bar must not float over the app. */
+/* In the office's preview the layout's own bars must not float over the app —
+   but they must still PIN, or the customer's nav and the price rail scroll
+   away and the roofer loses both halfway down a long quote (owner, 2026-09-29;
+   `.qd-top{position:static}` here is what took the nav with it). They start
+   where the app's own two pinned bars end: the global top bar, the Quote
+   action bar (--qbar-h, measured) and the Proposal card's header (--qphd-h,
+   measured the same way). Their z-index stays below the app's 40/50, so if a
+   wrap ever makes them overlap, the app's bars win. */
+html.qp-desk-preview{ --qp-stick: calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 64px) + var(--qphd-h, 0px)); }
 html.qp-desk-preview .qd-mini{ display:none !important; }
-html.qp-desk-preview .qd-top{ position:static; }
+html.qp-desk-preview .qd-top{ position:sticky; top:var(--qp-stick); }
+html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 .qd{
   background:#eef1f5; color:#0a1628; min-height:100%;
   font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; -webkit-font-smoothing:antialiased;
@@ -5012,23 +5031,14 @@ html.qp-desk-preview .qd-top{ position:static; }
       <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
       <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <!-- The chip is a button, and nothing said so: the version, job swap,
+           history and lock all live behind it now. -->
+      <div class="nav-job-more">Click for more info</div>
       <!-- Which version of this job is on screen. Hidden until the job has
            more than one, so a job nobody has branched reads exactly as it
            always did. -->
       <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
-    <!-- Versions. Two people on one job used to mean two people on one
-         record; this is how Aron's copy and Ethan's copy live side by side. -->
-    <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
-    <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
-      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
-      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
-    </div>
-    <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
-         changed until it is unlocked here, and once unlocked every change
-         saves itself. Locking again saves first. -->
-    <button type="button" id="navJobLockBtn" onclick="_jobLockToggle()" style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#475569;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">🔒 Locked — tap to unlock</button>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -7883,6 +7893,24 @@ html.qp-desk-preview .qd-top{ position:static; }
   <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
     <strong id="jobDetailsTitle" style="flex:1;font-size:14px">New job — details</strong>
     <button onclick="closeJobDetailsModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <!-- The job's own controls (2026-09-29). They lived in the left menu under
+       the Selected job chip, four buttons deep; the owner moved them in here,
+       which is the window that chip opens. Same ids, so every show/hide and
+       every handler is unchanged — only where they sit. -->
+  <div id="jobDetailsQuick">
+    <!-- Versions. Two people on one job used to mean two people on one
+         record; this is how Aron's copy and Ethan's copy live side by side. -->
+    <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
+    <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
+      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
+    </div>
+    <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
+         changed until it is unlocked here, and once unlocked every change
+         saves itself. Locking again saves first. -->
+    <button type="button" id="navJobLockBtn" onclick="_jobLockToggle()" style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#475569;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">🔒 Locked — tap to unlock</button>
   </div>
   <div style="padding:16px 18px;overflow-y:auto;flex:1">
     <div class="f2"><div><label>Client name</label><input type="text" id="jobClient" placeholder="Rob Henry"></div><div><label>Site address</label><div style="display:flex;gap:8px;align-items:center">
@@ -17086,7 +17114,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -71079,6 +71107,22 @@ try {
   else window.addEventListener('resize', apply);
   // The bar is hidden until the Quote tab is opened, so its first real
   // measurement only exists once it has been shown.
+  document.addEventListener('click', function(){ setTimeout(apply, 0); }, true);
+})();
+
+// The Proposal card's own pinned header, measured like the action bar above
+// it: the customer layout's nav and price rail pin under BOTH inside the
+// office's preview (--qp-stick), and this one wraps on a narrow window too.
+(function _trackProposalHeadHeight(){
+  var hd = document.querySelector('#tab-quote .js-proposal-print > .card-hd');
+  if (!hd) return;
+  var apply = function(){
+    var h = Math.round(hd.getBoundingClientRect().height);
+    if (h > 0) document.documentElement.style.setProperty('--qphd-h', h + 'px');
+  };
+  apply();
+  if (window.ResizeObserver) new ResizeObserver(apply).observe(hd);
+  else window.addEventListener('resize', apply);
   document.addEventListener('click', function(){ setTimeout(apply, 0); }, true);
 })();
 

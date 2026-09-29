@@ -77,6 +77,29 @@ v = await pg.evaluate(() => ({
 }));
 check('tapping the selected job in the sidebar opens its details, not the chooser',
   v.details === 'flex' && v.chooser !== 'flex' && /Edit job/.test(v.title), JSON.stringify(v));
+// The job's own controls moved OFF the left menu into this window on
+// 2026-09-29 — "move the Version, Change job, History and Locked buttons
+// under the selected job into the window that appears when I click the
+// selected job window, and add a small 'click for more info' so the users
+// know" — so the menu keeps the chip, the New Job button and the roof's
+// figures, and nothing else.
+const moved = await pg.evaluate(() => {
+  const win = document.getElementById('jobDetailsModal');
+  const menu = document.getElementById('navJobBox');
+  const ids = ['navVersionBtn', 'navJobBtns', 'navJobLockBtn'];
+  return {
+    inWindow: ids.filter(id => win.contains(document.getElementById(id))),
+    stillInMenu: ids.filter(id => menu.contains(document.getElementById(id))),
+    row: !!document.getElementById('jobDetailsQuick'),
+    hint: (document.querySelector('#navJobInfo .nav-job-more') || {}).textContent || '',
+    menuKeeps: ['navJobInfo', 'navJobSelectBtn', 'navRoofStats'].every(id => menu.contains(document.getElementById(id))),
+  };
+});
+check('the Version, Change job / History and Lock buttons are in the job window now, not the left menu',
+  moved.inWindow.length === 3 && moved.stillInMenu.length === 0 && moved.row, JSON.stringify(moved));
+check('…and the chip says it opens something', /click for more info/i.test(moved.hint), moved.hint);
+check('…while the menu keeps the job chip, New Job and the roof figures', moved.menuKeeps);
+
 check('…which says it is not a Fergus job yet, with a button to link one',
   /Not linked/.test(v.ferg) && v.linkBtn, v.ferg);
 

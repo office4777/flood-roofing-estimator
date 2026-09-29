@@ -76,11 +76,15 @@ let v = await pg.evaluate(() => ({
 }));
 check('opening a version names it on the selected-job card',
   v.lineShown && /Aron's version/.test(v.line), JSON.stringify(v));
-check('…and the left menu carries a Version button saying which one',
+check('…and the job window carries a Version button saying which one',
   v.btnShown && /Version: Aron's version/.test(v.btn), v.btn);
 check('…and the app knows about both versions', v.n === 2, String(v.n));
 
 // ── the dropdown ─────────────────────────────────────────────────
+// The version switch moved into the JOB-DETAILS WINDOW on 2026-09-29 (the
+// one the Selected job chip opens), so that is opened first.
+await pg.evaluate(() => { try { openJobDetailsModal('edit'); } catch(e){} });
+await pg.waitForTimeout(250);
 await pg.click('#navVersionBtn');
 await pg.waitForTimeout(250);
 let menu = await pg.evaluate(() => {

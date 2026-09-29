@@ -44,6 +44,18 @@ await pg.evaluate(() => {
         document.getElementById('selectJobModal').style.display = 'none'; } catch(e){}
 });
 
+// The lock, the version switch, Change job and History moved out of the left
+// menu into the JOB-DETAILS WINDOW on 2026-09-29 — the one the Selected job
+// chip opens. So the suite opens it the way a roofer does before pressing.
+const openJobWindow = async () => {
+  await pg.evaluate(() => { try { openJobDetailsModal('edit'); } catch(e){} });
+  await pg.waitForTimeout(250);
+};
+const closeJobWindow = async () => {
+  await pg.evaluate(() => { try { closeJobDetailsModal(); } catch(e){} });
+  await pg.waitForTimeout(150);
+};
+
 // ── a new job is not locked ──────────────────────────────────────
 let v = await pg.evaluate(() => ({ locked: !!S.jobLocked, btn: document.getElementById('navJobLockBtn').style.display }));
 check('a job that is not saved yet is not locked, and shows no lock', !v.locked && v.btn === 'none', JSON.stringify(v));
@@ -53,7 +65,7 @@ await pg.evaluate(() => openJob('job-88'));
 await pg.waitForTimeout(1200);
 v = await pg.evaluate(() => ({ locked: !!S.jobLocked, btn: document.getElementById('navJobLockBtn').style.display,
   text: document.getElementById('navJobLockBtn').textContent, asked: !!document.getElementById('jobLockModal') }));
-check('a saved job opens locked, and the sidebar says so', v.locked && v.btn !== 'none' && /Locked/.test(v.text), JSON.stringify(v));
+check('a saved job opens locked, and the job window says so', v.locked && v.btn !== 'none' && /Locked/.test(v.text), JSON.stringify(v));
 check('…without asking anything just for opening', !v.asked);
 
 // ── drawing on it asks first, and changes nothing ────────────────
@@ -107,13 +119,15 @@ v = await pg.evaluate(() => ({ asked: !!document.getElementById('jobLockModal') 
 check('a pick in a quote drop-down is a physical attempt, and asks', picked === null || v.asked, JSON.stringify({ picked, v }));
 await pg.evaluate(() => { const m = document.getElementById('jobLockModal'); if (m) m.remove(); });
 
-// ── unlock from the sidebar, then changes save themselves ────────
+// ── unlock from the job window, then changes save themselves ────
 await pg.evaluate(() => gotoTab('roof'));
 await pg.waitForTimeout(400);
+await openJobWindow();
 await pg.click('#navJobLockBtn');
 await pg.waitForTimeout(300);
+await closeJobWindow();
 v = await pg.evaluate(() => ({ locked: !!S.jobLocked, text: document.getElementById('navJobLockBtn').textContent }));
-check('the sidebar button unlocks it', !v.locked && /Unlocked/.test(v.text), JSON.stringify(v));
+check('the job window’s button unlocks it', !v.locked && /Unlocked/.test(v.text), JSON.stringify(v));
 await pg.evaluate(() => { saveSnapshot(); DRAW.lines.push({ type:'ridge', pts:[[120,200],[380,200]] }); _scheduleAutosave(); });
 await pg.waitForTimeout(3200);
 check('…and a change now saves itself', puts.length >= 1 && puts[puts.length - 1].draw_state.draw.lines.length === 1,
@@ -123,8 +137,10 @@ check('…with no question asked', !(await pg.evaluate(() => !!document.getEleme
 // ── locking again saves first ────────────────────────────────────
 const n1 = puts.length;
 await pg.evaluate(() => { DRAW.lines.push({ type:'hip', pts:[[100,100],[120,200]] }); });
+await openJobWindow();
 await pg.click('#navJobLockBtn');
 await pg.waitForTimeout(900);
+await closeJobWindow();
 v = await pg.evaluate(() => ({ locked: !!S.jobLocked }));
 check('locking again saves what changed first', puts.length === n1 + 1 && puts[puts.length - 1].draw_state.draw.lines.length === 2 && v.locked,
   (puts.length - n1) + ' saves, locked=' + v.locked);
