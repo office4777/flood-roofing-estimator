@@ -5631,6 +5631,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
              measurement and type its real length — the scale follows and no
              line moves. Before any scale exists (a photo or a plan with no
              aerial) there are no measurements to click, so this shows then. -->
+        <button id="btn-squarecorner" onclick="setTool('squarecorner')" class="tool-btn" title="Square one corner at a time — the map shows just the outline and its corners; click a corner to make it a true right angle. The rest of the building does not move."><span class="rt-emo">◻ </span>Square corner</button>
         <button onclick="setTool('tape')" id="btn-tape" class="tool-btn" title="Measure anything on the roof: click where it starts, click where it ends. Drag it, turn it, drag its ends; click it for the delete button.">📐 Measuring tape</button>
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Set scale</button>
         <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap;margin-left:auto"></span>
@@ -44288,6 +44289,7 @@ function setTool(t) {
   DRAW.tool = t;
   DRAW.currentPts = [];
   try { TAPE.start = null; TAPE.hover = null; if (t !== 'tape' && t !== 'select') DRAW.selTape = -1; } catch(e){}
+  try { SQC.hover = -1; } catch(e){}
   try { _inkResetRuns(); } catch(e){}
   try { _notesWireCanvas(); _notesSyncBar(); } catch(e){}
   document.querySelectorAll('.tool-btn').forEach(function(b){b.classList.remove('active-tool');});
@@ -45183,9 +45185,22 @@ function _outlineIsRectilinear(pts, tolDeg){
 /* Finishing an outline squares it up automatically — the same pass as the
    Snap Square button, so a shape that is nearly right comes out exactly
    right without anyone having to remember the button. */
+// ONLY A ROOF DRAWN NEARLY SQUARE IS SQUARED FOR YOU (2026-09-30, the
+// owner's: "if the roof was drawn well out of square don't snap it to square,
+// only snap it if it was drawn slightly out of square"). The gate was 20°,
+// which is not "slightly" — a genuine raking wall is usually inside that, so
+// a splayed building was flattened into a rectangle every time it was drawn.
+// 6° covers the wobble of tracing by hand and leaves a real rake alone; the
+// Snap square button and Square corner are still there to force the issue.
+var AUTO_SQUARE_TOL_DEG = 6;
+// The little right-angle mark on a corner is a CLAIM that the corner is
+// square, so it may only appear when it is. 0.12 was the cosine of 83° — a
+// corner almost 7° out wore the mark and the roofer had no way to see it was
+// not true. sin(1.5°): a corner has to be square to within a degree and a half.
+var CORNER_SQUARE_DOT = 0.026;
 function _autoSquareOutline(){
   if (!DRAW.outline || DRAW.outline.length < 4) return false;
-  if (!_outlineIsRectilinear(DRAW.outline, 20)) return false;
+  if (!_outlineIsRectilinear(DRAW.outline, AUTO_SQUARE_TOL_DEG)) return false;
   snapOutlineToSquare(true);
   return true;
 }
@@ -49118,6 +49133,7 @@ function _outlineSquareSnap(rawX, rawY){
 
 function onCanvasMove(e) {
   if(PAN.active) return;
+  if (_sqcMove(e)) return;
   if (_tapeMouseMove(e)) return;
   var xy = getXY(e);
   DRAW.mouseX=xy[0]; DRAW.mouseY=xy[1];
@@ -49376,6 +49392,7 @@ function onCanvasClick(e) {
   PAN.totalMoved = 0;
 
   var xy = getXY(e);
+  if (DRAW.tool === 'squarecorner'){ _sqcClick(e); return; }
   if (DRAW.tool === 'tape'){ _tapeClick(e); return; }
   if (DRAW.selTape != null && DRAW.selTape >= 0){ DRAW.selTape = -1; redrawAll(); }
 
@@ -52010,7 +52027,7 @@ function redrawAll() {
   // Building outline (active roof)
   if(DRAW.outline.length>=3){
     ctx.beginPath();DRAW.outline.forEach(function(pt,i){var p=dp(pt);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);});ctx.closePath();ctx.fillStyle='rgba(200,230,201,0.25)';ctx.fill();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.5;ctx.stroke();
-    var _n=DRAW.outline.length;for(var _oi=0;_oi<_n;_oi++){var _pA=DRAW.outline[(_oi+_n-1)%_n],_pB=DRAW.outline[_oi],_pC=DRAW.outline[(_oi+1)%_n];var _v1x=_pA[0]-_pB[0],_v1y=_pA[1]-_pB[1],_m1=Math.sqrt(_v1x*_v1x+_v1y*_v1y)||1,_v2x=_pC[0]-_pB[0],_v2y=_pC[1]-_pB[1],_m2=Math.sqrt(_v2x*_v2x+_v2y*_v2y)||1;if(Math.abs((_v1x/_m1)*(_v2x/_m2)+(_v1y/_m1)*(_v2y/_m2))<0.12){var _cp=dp(_pB),_sz=7;ctx.save();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.2;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(_cp[0]+(_v1x/_m1)*_sz,_cp[1]+(_v1y/_m1)*_sz);ctx.lineTo(_cp[0]+(_v1x/_m1)*_sz+(_v2x/_m2)*_sz,_cp[1]+(_v1y/_m1)*_sz+(_v2y/_m2)*_sz);ctx.lineTo(_cp[0]+(_v2x/_m2)*_sz,_cp[1]+(_v2y/_m2)*_sz);ctx.stroke();ctx.restore();}}
+    var _n=DRAW.outline.length;for(var _oi=0;_oi<_n;_oi++){var _pA=DRAW.outline[(_oi+_n-1)%_n],_pB=DRAW.outline[_oi],_pC=DRAW.outline[(_oi+1)%_n];var _v1x=_pA[0]-_pB[0],_v1y=_pA[1]-_pB[1],_m1=Math.sqrt(_v1x*_v1x+_v1y*_v1y)||1,_v2x=_pC[0]-_pB[0],_v2y=_pC[1]-_pB[1],_m2=Math.sqrt(_v2x*_v2x+_v2y*_v2y)||1;if(Math.abs((_v1x/_m1)*(_v2x/_m2)+(_v1y/_m1)*(_v2y/_m2))<CORNER_SQUARE_DOT){var _cp=dp(_pB),_sz=7;ctx.save();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.2;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(_cp[0]+(_v1x/_m1)*_sz,_cp[1]+(_v1y/_m1)*_sz);ctx.lineTo(_cp[0]+(_v1x/_m1)*_sz+(_v2x/_m2)*_sz,_cp[1]+(_v1y/_m1)*_sz+(_v2y/_m2)*_sz);ctx.lineTo(_cp[0]+(_v2x/_m2)*_sz,_cp[1]+(_v2y/_m2)*_sz);ctx.stroke();ctx.restore();}}
     // Drag handles — show a small grab dot at each corner when the
     // Move tool is active so the user can see what's draggable. The
     // active corner highlights cyan; the rest stay green-on-white.
@@ -53430,6 +53447,7 @@ function redrawAll() {
 
   // Measuring tapes, over the drawing (notes still go on last).
   try { _tapeRender(ctx); } catch(e){}
+  try { _sqcRender(ctx); } catch(e){}      // the veil goes over everything else
   // Notes go on LAST, over everything, and are read from their own list —
   // nothing below this line knows they exist.
   try { _notesRender(ctx, dp); } catch(e){}
@@ -53527,6 +53545,132 @@ function _tapeDistToSeg(P, A, B){
   return Math.hypot(P[0] - (A[0] + t * dx), P[1] - (A[1] + t * dy));
 }
 // Screen point of a mouse event, in the same space _tapeScreen works in.
+
+// ══ SQUARE CORNER (2026-09-30, the owner's) ═══════════════════════════
+// "Add a button called Square Corner which squares up a corner. When
+//  clicked it should show the roof map with no information except the
+//  outline with corner circles at each corner; clicking one snaps that
+//  corner to square and gives it a little square showing it is true square."
+//
+// The tool does NOT touch the rest of the drawing: it veils everything else
+// so the only thing on screen is the shape and its corners, which is the
+// whole point — a roofer squaring one corner of a raking building should not
+// have to read past ridges, gutters and measurements to find it.
+//
+// Squaring ONE corner moves ONLY that corner. Its two neighbours stay where
+// they are, and the corner slides to the nearest point that sees them at a
+// right angle — the circle on the neighbours as diameter (Thales). That is
+// the smallest move that makes the angle exactly 90°, so the building keeps
+// its shape everywhere else. Squaring the whole outline is still Snap square.
+var SQC = { hover: -1 };
+function _sqcActive(){ return DRAW.tool === 'squarecorner'; }
+function _sqcPts(){ return (DRAW.outline && DRAW.outline.length >= 3) ? DRAW.outline : null; }
+// The cosine of the corner's angle — 0 is a true right angle.
+function _sqcCornerDot(pts, i){
+  var n = pts.length, A = pts[(i + n - 1) % n], B = pts[i], C = pts[(i + 1) % n];
+  var v1x = A[0]-B[0], v1y = A[1]-B[1], m1 = Math.hypot(v1x, v1y) || 1;
+  var v2x = C[0]-B[0], v2y = C[1]-B[1], m2 = Math.hypot(v2x, v2y) || 1;
+  return (v1x/m1)*(v2x/m2) + (v1y/m1)*(v2y/m2);
+}
+function _sqcIsSquare(pts, i){ return Math.abs(_sqcCornerDot(pts, i)) < CORNER_SQUARE_DOT; }
+// Move corner i onto the circle with its neighbours as diameter.
+function _sqcSquareCorner(i){
+  var pts = _sqcPts(); if (!pts || i < 0 || i >= pts.length) return false;
+  var n = pts.length, A = pts[(i + n - 1) % n], B = pts[i], C = pts[(i + 1) % n];
+  var mx = (A[0] + C[0]) / 2, my = (A[1] + C[1]) / 2;
+  var r = Math.hypot(C[0] - A[0], C[1] - A[1]) / 2;
+  if (!(r > 0.5)) return false;
+  var dx = B[0] - mx, dy = B[1] - my, d = Math.hypot(dx, dy);
+  // Dead centre: no direction to push it, and every point on the circle is
+  // as good as another. Leave it rather than pick one at random.
+  if (d < 0.001) return false;
+  saveSnapshot();
+  pts[i] = [mx + dx / d * r, my + dy / d * r];
+  try { if (typeof regenerateAutoRoofLines === 'function') regenerateAutoRoofLines(_detectAutoRoofType()); } catch(e){}
+  try { autoPopulateGutters(); } catch(e){}
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof(); syncToRoofData(); } catch(e){}
+  redrawAll();
+  try { _scheduleAutosave(); } catch(e){}
+  return true;
+}
+// Which corner is under the pointer, in image px, or -1.
+function _sqcHit(e){
+  var pts = _sqcPts(); if (!pts) return -1;
+  var tr = null; try { tr = getImgTransform(); } catch(err){}
+  var S2 = _tapeEvtScreen(e);
+  var best = -1, bestD = 1e9;
+  for (var i = 0; i < pts.length; i++){
+    var p = tr ? [pts[i][0] * tr.s + tr.ix, pts[i][1] * tr.s + tr.iy] : pts[i];
+    var d = Math.hypot(p[0] - S2[0], p[1] - S2[1]);
+    if (d < bestD){ bestD = d; best = i; }
+  }
+  return bestD <= 22 ? best : -1;
+}
+function _sqcMove(e){
+  if (!_sqcActive()) return false;
+  var was = SQC.hover; SQC.hover = _sqcHit(e);
+  if (SQC.hover !== was) redrawAll();
+  return true;
+}
+function _sqcClick(e){
+  if (!_sqcActive()) return false;
+  var i = _sqcHit(e);
+  if (i < 0) return true;
+  var pts = _sqcPts();
+  if (pts && _sqcIsSquare(pts, i)){
+    try { _siteToast('That corner is already square'); } catch(err){}
+    return true;
+  }
+  _sqcSquareCorner(i);
+  return true;
+}
+// The veil, the outline, and a circle on every corner. Nothing else.
+function _sqcRender(ctx){
+  if (!_sqcActive()) return;
+  var cv = document.getElementById('roofCanvas'); if (!cv) return;
+  var dpr = window.devicePixelRatio || 1;
+  var W = cv.width / dpr, H = cv.height / dpr;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.955)';
+  ctx.fillRect(0, 0, W, H);
+  var pts = _sqcPts();
+  if (!pts){
+    ctx.restore();
+    return;
+  }
+  var tr = null; try { tr = getImgTransform(); } catch(e){}
+  var dp = function(p){ return tr ? [p[0] * tr.s + tr.ix, p[1] * tr.s + tr.iy] : p; };
+  ctx.beginPath();
+  pts.forEach(function(pt, i){ var p = dp(pt); if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]); });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(200,230,201,0.35)';
+  ctx.fill();
+  ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 2; ctx.stroke();
+  var n = pts.length;
+  for (var i = 0; i < n; i++){
+    var sq = _sqcIsSquare(pts, i), p = dp(pts[i]), hot = (SQC.hover === i);
+    // A corner already square wears its mark and needs no pressing.
+    if (sq){
+      var A = dp(pts[(i + n - 1) % n]), C = dp(pts[(i + 1) % n]), sz = 9;
+      var u1 = Math.hypot(A[0]-p[0], A[1]-p[1]) || 1, u2 = Math.hypot(C[0]-p[0], C[1]-p[1]) || 1;
+      var a1 = [(A[0]-p[0])/u1*sz, (A[1]-p[1])/u1*sz], a2 = [(C[0]-p[0])/u2*sz, (C[1]-p[1])/u2*sz];
+      ctx.beginPath();
+      ctx.moveTo(p[0]+a1[0], p[1]+a1[1]);
+      ctx.lineTo(p[0]+a1[0]+a2[0], p[1]+a1[1]+a2[1]);
+      ctx.lineTo(p[0]+a2[0], p[1]+a2[1]);
+      ctx.strokeStyle = '#15803d'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], hot ? 11 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = sq ? '#dcfce7' : (hot ? '#0099cc' : '#fff');
+    ctx.fill();
+    ctx.strokeStyle = sq ? '#15803d' : '#0a1628';
+    ctx.lineWidth = hot ? 3 : 2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function _tapeEvtScreen(e){
   var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   return [(e.clientX - r.left) * (cv.width / r.width) / dpr, (e.clientY - r.top) * (cv.height / r.height) / dpr];
