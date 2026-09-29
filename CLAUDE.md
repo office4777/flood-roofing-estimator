@@ -456,6 +456,26 @@ Discipline (non-negotiable):
   `#roofStatsBar` under the canvas is kept for the PLAYGROUND alone, which
   hides the sidebar and whose whole teaser is the blurred area.
   `tests/roofstats.mjs`, `tests/playground.mjs`.
+- THE SCAFFOLD IS ITS OWN LINE ON EVERY SUMMARY (2026-09-29): scaffolding is
+  priced into every job, so it sat inside "main scope of work" and the customer
+  never saw a figure for it — until one added guttering, watched the small
+  "Platform scaffolding upgrade" appear and read it as the price of the whole
+  scaffold. `_custBarRows()` now splits the base in two: a `base` row
+  ("Re-roof — main scope of work", short "Re-roof") and a `scaffold` row
+  ("Scaffolding — edge protection" / "— full working platform", short
+  "Scaffolding"), and `buildAcceptSummaryRows` (the A4) does the same instead
+  of its old grey "of which scaffolding … already in the figure above".
+  NO TOTAL MOVES — the two rows add to exactly what the one row read, and
+  `pricegold` is unchanged because `_quoteMoney` and `_qpSelectionChanges` are
+  untouched; the platform uplift stays its own change row, which now reads as
+  an increase on a scaffold price the customer can already see. The figure
+  comes from `_qpBaseScaffold()` → the LINES THE BASE IS MADE OF (the
+  "Scaffolding" line `_syncQuoteBaseLineItems` keeps, plus any custom line with
+  `_area:'scaffold'`), never from `_selScaffoldBasePrice()`, which answers 0 on
+  a platform job and under the low-roof tick because it exists to price the
+  +25%. No split on an option-priced quote, or when no line says scaffolding.
+  Rows carry `short` for the narrow summaries (the phone bar, the rail).
+  `tests/scaffoldline.mjs`.
 - NO PRICE, NO SEND (2026-09-29): `openQuoteEmail` runs `_pricesBeforeSend`
   after the branding gate, same shape (`true` = it took over and will re-call
   the send itself). `_unpricedItems()` walks every roof the quote prices

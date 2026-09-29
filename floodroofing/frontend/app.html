@@ -27632,21 +27632,27 @@ function buildAcceptSummaryRows(){
   // "Main scope of work" row — the two figures were identical and the
   // duplication read like a mistake).
   var baseTot = _qpBaseSub() * (1+rate);
+  // THE SCAFFOLD IS ITS OWN LINE (2026-09-29) — see _qpBaseScaffold. It used
+  // to read "of which scaffolding … already in the figure above, not extra" in
+  // grey, which answered report 47's "counted twice" but left the customer
+  // with no plain price for the scaffold; when guttering added the +25% the
+  // upgrade was the only scaffold figure with a real number beside it. The
+  // re-roof line now excludes it and the scaffold carries its own price. Same
+  // two numbers, same total.
+  var _acScaff = 0;
+  try { if (!opts.length) _acScaff = _qpBaseScaffold(); } catch(e){ _acScaff = 0; }
+  var _acSplit = (_acScaff > 0 && _acScaff * (1+rate) < baseTot);
   rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
-    '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">Original quote'+(opts.length?'':' — main scope of work')+' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
-    '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot)+'</div>'+
+    '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">'+
+      (_acSplit ? 'Re-roof — main scope of work' : ('Original quote'+(opts.length?'':' — main scope of work')))+
+      ' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
+    '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot - (_acSplit ? _acScaff*(1+rate) : 0))+'</div>'+
   '</div>';
-  // Scaffolding always shown just below the main scope — the base
-  // (edge-protection) price is already inside the main-scope total, so it's
-  // informational (included), not an add-on line.
-  var _acScaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
-  if (_acScaffBase > 0){
+  if (_acSplit){
     rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
-      // Report 47: "scaffolding was counted twice". It was not — but a bold
-      // figure on its own line under the quote total reads as an addition.
-      // Say plainly that it is part of the figure above, and keep it muted.
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2)">&#8627; of which scaffolding (edge protection) <span style="color:var(--ed-text2)">— already in the figure above, not extra</span></div>'+
-      '<div class="ed-serif" style="font-size:12px;font-weight:400;white-space:nowrap;color:var(--ed-text2)">incl. '+fmtMoney(_acScaffBase*(1+rate))+'</div>'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">'+esc2(_qpScaffoldLabel())+
+        ' <span style="font-weight:400;color:var(--ed-text2)">(included — incl. GST)</span></div>'+
+      '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(_acScaff*(1+rate))+'</div>'+
     '</div>';
   }
   // Selections-page changes (steel / gutter / brackets) — the same
@@ -30950,7 +30956,7 @@ function _qbSummary(opts){
   try { rows = _custBarRows(); } catch(e){}
   var body = rows.map(function(r){
     if (r.kind === 'total') return '';
-    return '<div class="qb-sum-row'+(r.kind === 'base' ? ' base' : '')+'"><span>'+esc2(r.label)+'</span><b>'+esc2(r.value)+'</b></div>';
+    return '<div class="qb-sum-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(r.label)+'</span><b>'+esc2(r.value)+'</b></div>';
   }).join('');
   var picks = _qbPicksList();
   var total = _qbTotal();
@@ -31251,7 +31257,8 @@ function _qdRail(){
   var rows = [];
   try { rows = _custBarRows(); } catch(e){}
   var lines = rows.filter(function(r){ return r.kind !== 'total'; }).map(function(r){
-    return '<div class="qd-rail-row'+(r.kind === 'base' ? ' base' : '')+'"><span>'+esc2(r.kind === 'base' ? 'Main scope of work' : r.label.replace(/\s*\([^)]*\)\s*$/, ''))+'</span><b>'+esc2(r.value)+'</b></div>';
+    var lab = r.short || r.label.replace(/\s*\([^)]*\)\s*$/, '');
+    return '<div class="qd-rail-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(lab)+'</span><b>'+esc2(r.value)+'</b></div>';
   }).join('');
   var picks = _qbPicksList();
   var accepted = q.accepted;
@@ -31596,13 +31603,66 @@ function _custBarTotalValue(){
   var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
   return (_qpBaseSub() + _qpSelectionDeltaSum()) * (1 + rate);
 }
+// ── THE SCAFFOLD IS ITS OWN LINE ON EVERY SUMMARY (2026-09-29) ─────────
+// The owner: "always separate the scaffolding price on top of the re-roof
+// price so the customer can clearly see that scaffold is included and what the
+// price is for that scaffold."
+//
+// Scaffolding is priced into every job, so it sat inside "main scope of work"
+// and the customer could not see it. Then one who added guttering watched a
+// small "Platform scaffolding upgrade" appear and read it as the price of the
+// whole scaffold — "confused at how cheap our scaffold was". The base price is
+// the same figure as before; it is only shown in two parts now, the re-roof
+// and the scaffold, so the scaffold's real price is on the page from the start
+// and the gutter's upgrade reads as what it is: an increase on it.
+//
+// What the base holds for scaffolding is read out of THE LINES THE BASE IS
+// MADE OF (`_syncQuoteBaseLineItems` keeps a "Scaffolding" line beside Labour
+// and Materials, and a custom scaffold line carries `_area:'scaffold'`), never
+// from S.quote.scaffold.price — so the split can only ever move money that is
+// genuinely in there, and no total can change. _selScaffoldBasePrice() is the
+// wrong figure for this: it answers 0 on a platform job and under the office's
+// "no platform upgrade needed" tick, because it exists to price the +25%.
+function _qpScaffoldInLines(list){
+  return (list || []).reduce(function(s, li){
+    if (!li) return s;
+    if (!(/scaffold/i.test(String(li.desc || '')) || li._area === 'scaffold')) return s;
+    return s + (parseFloat(li.qty) || 0) * (parseFloat(li.unit) || 0);
+  }, 0);
+}
+// The scaffolding inside the BASE price, ex GST. 0 on an option-priced quote
+// (the authored packages are listed one by one already) and 0 when no line
+// says scaffolding, in which case the summary reads exactly as it always did.
+function _qpBaseScaffold(){
+  if (!_qpPricedByLineItems()) return 0;
+  var q = (window.S && S.quote) || {};
+  return _qpScaffoldInLines(q.lineItems);
+}
+function _qpScaffoldLabel(){
+  var q = (window.S && S.quote) || {};
+  return (q.scaffold && q.scaffold.type === 'platform')
+    ? 'Scaffolding \u2014 full working platform'
+    : 'Scaffolding \u2014 edge protection';
+}
 function _custBarRows(){
   var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
   var rows = [];
   var optsAll = _qpPricedByLineItems() ? [] : ((S.quote && S.quote.options) || []);
   var mainOpt = optsAll[0] || null;
-  var baseTot = (mainOpt ? _optEffectiveTotal(mainOpt) : _qpBaseSub()) * (1 + rate);
-  rows.push({ kind: 'base', label: 'Original quote — main scope of work', value: fmtMoney(baseTot) });
+  var baseSub = (mainOpt ? _optEffectiveTotal(mainOpt) : _qpBaseSub());
+  // The scaffold comes OUT of the re-roof figure and goes on its own line
+  // straight under it. Same two numbers added up; the customer can see both.
+  var scaffSub = 0;
+  try { if (!mainOpt) scaffSub = _qpBaseScaffold(); } catch(e){ scaffSub = 0; }
+  if (!(scaffSub > 0) || scaffSub >= baseSub){
+    rows.push({ kind: 'base', label: 'Original quote — main scope of work', short: 'Main scope of work',
+                value: fmtMoney(baseSub * (1 + rate)) });
+  } else {
+    rows.push({ kind: 'base', label: 'Re-roof — main scope of work', short: 'Re-roof',
+                value: fmtMoney((baseSub - scaffSub) * (1 + rate)) });
+    rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding',
+                value: fmtMoney(scaffSub * (1 + rate)) });
+  }
   var extra = optsAll.slice(1).filter(function(o){ return o.selected === true; }).map(function(o){
     var ri = optsAll.indexOf(o);
     var nm = (window.DRAW && DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
@@ -31633,9 +31693,12 @@ function _custBarSumHtml(breakId){
         '<span style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.8">Your total <span style="text-transform:none;letter-spacing:0;font-weight:400">(incl. GST)</span> <span id="custBarChev" style="opacity:.85">'+(open ? '▾' : '▴')+'</span></span>'+
         '<span id="custBarTotal" class="ed-serif" style="font-size:19px;font-weight:800;color:#4fc3ff;white-space:nowrap">'+r.value+'</span>'+
       '</div>';
-    } else if (r.kind === 'base'){
+    } else if (r.kind === 'base' || r.kind === 'scaffold'){
+      // The scaffold is part of the price quoted, not a pick the customer made,
+      // so it reads at the weight of the main scope and never with a "↳".
+      var bl = r.short || r.label;
       h += '<div style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;line-height:1.5">'+
-        '<span style="opacity:.78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">Main scope of work <span style="opacity:.65">(incl. GST)</span></span>'+
+        '<span style="opacity:.78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc2(bl)+' <span style="opacity:.65">(incl. GST)</span></span>'+
         '<span class="ed-serif" style="font-weight:600;white-space:nowrap">'+r.value+'</span>'+
       '</div>';
     } else {
@@ -31654,7 +31717,8 @@ function _custBarRenderBreak(br){
   var html = '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:#7dd3fc;padding:11px 16px 6px">Your selection &amp; price</div>';
   _custBarRows().forEach(function(r){
     var strong = r.kind === 'total';
-    var label = r.kind === 'base'  ? '<strong>Original quote — main scope of work</strong> <span style="opacity:.6">(incl. GST)</span>'
+    var label = r.kind === 'base'  ? '<strong>' + esc2(r.label) + '</strong> <span style="opacity:.6">(incl. GST)</span>'
+              : r.kind === 'scaffold' ? '<strong>' + esc2(r.label) + '</strong> <span style="opacity:.6">(included — incl. GST)</span>'
               : r.kind === 'total' ? 'New total <span style="opacity:.6;font-weight:400">(incl. GST)</span>'
               : '&#8627; ' + esc2(r.label);
     html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 16px;border-top:1px solid rgba(255,255,255,.12);'+
