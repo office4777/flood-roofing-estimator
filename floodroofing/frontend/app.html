@@ -239,7 +239,7 @@ html.tablet-mode.tnav-open .sidebar{transform:none}
 html.tablet-mode .content{padding:64px 10px 116px!important;max-width:none;margin:0}
 html.tablet-mode .tool-btn{padding:11px 15px;font-size:14px;border-radius:9px}
 html.tablet-mode #workflowTipBar{display:none!important}
-html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px - var(--roofstats-h, 0px))!important;min-height:340px}
+html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px)!important;min-height:340px}
 html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
 #tabletToolbar{
   position:fixed;left:0;right:0;bottom:0;z-index:300;background:#0a1628;
@@ -2809,29 +2809,40 @@ html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-section-hd
    (matching what tablet/site mode already do) and the canvas fills it;
    fitCanvasToWrap sizes the backing store off the rendered box, so nothing
    distorts. Tablet and site mode keep their own !important geometry. */
-body[data-tab="roof"] #canvasWrap{ height:calc(100vh - 190px - var(--roofstats-h, 0px)); min-height:480px }
+body[data-tab="roof"] #canvasWrap{ height:calc(100vh - 190px); min-height:480px }
 body[data-tab="roof"] #canvasWrap #roofCanvas{ height:100% }
 
-/* ── THE ROOF'S FIGURES, UNDER THE CANVAS (2026-09-28) ──────────────
-   One row, no scrolling: the area along the pitch, every flashing line
-   added up, and the gutter on its own — a gutter is its own trade and
-   its own price, so it never hides inside a flashing total. With more
-   than one roof the row gains a picker that starts on All roofs.
-   The canvas gives back exactly the row's height through
-   --roofstats-h (set by _roofStatsRender), and #canvasWrap is watched,
-   so the picture re-fits itself rather than being pushed off screen. */
-#roofStatsBar{ display:none; flex:0 0 100%; gap:8px; align-items:stretch; flex-wrap:wrap; padding:8px .75rem 0; box-sizing:border-box; line-height:1.25 }
+/* ── THE ROOF'S FIGURES (2026-09-28; moved into the left menu 2026-09-29)
+   Area, flashings and gutter live in the job's own grey box under the tab
+   buttons (#navRoofStats). #roofStatsBar under the canvas is kept for the
+   PLAYGROUND alone, which hides the sidebar — the blurred area is the whole
+   point of "that is your roof, measured". */
+#roofStatsBar{ display:none }
+html.playground #roofStatsBar{ display:flex; flex:0 0 100%; gap:8px; flex-wrap:wrap; padding:8px .75rem 0; box-sizing:border-box; line-height:1.25 }
 .rs-box{ flex:1 1 0; min-width:118px; background:#fff; border:1px solid #e3e8ef; border-radius:10px; padding:7px 12px }
 .rs-lbl{ display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text2); white-space:nowrap }
 .rs-dot{ width:8px; height:8px; border-radius:50%; flex:none }
 .rs-val{ font-size:17px; font-weight:800; color:#0a1628; font-variant-numeric:tabular-nums }
 .rs-val small{ font-size:11px; font-weight:600; color:var(--text2); margin-left:2px }
-.rs-roofs{ display:flex; align-items:center; gap:6px; flex:0 0 auto; flex-wrap:wrap }
-.rs-chip{ font-family:inherit; font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#0a1628; cursor:pointer }
-.rs-chip.on{ background:#0a1628; border-color:#0a1628; color:#fff }
-/* Site mode's canvas is fixed to the whole screen between the two bars,
-   so a row under it would have nowhere to land. */
-html.site-mode #roofStatsBar{ display:none!important }
+
+/* The left menu's version: three plain rows under the job's buttons, and —
+   only with more than one roof — a small "Viewing …" button that drops a
+   tick box per roof. */
+#navRoofStats{ margin-top:8px; padding-top:8px; border-top:1px solid var(--border) }
+.nrs-row{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:2px 1px; font-size:11.5px }
+.nrs-row span{ color:var(--text2) }
+.nrs-row b{ font-size:12.5px; font-weight:800; color:#0a1628; font-variant-numeric:tabular-nums; white-space:nowrap }
+.nrs-row b i{ font-style:normal; font-size:10.5px; font-weight:600; color:var(--text2); margin-left:2px }
+.nrs-view{ position:relative; margin-bottom:6px }
+.nrs-btn{ width:100%; box-sizing:border-box; display:flex; align-items:center; gap:6px; font-family:inherit; font-size:11px; font-weight:700;
+          padding:5px 8px; border:1px solid var(--border); border-radius:7px; background:#fff; color:#0a1628; cursor:pointer; text-align:left }
+.nrs-btn span{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.nrs-btn:hover{ border-color:#0099cc }
+.nrs-menu{ position:absolute; z-index:60; left:0; right:0; top:100%; margin-top:3px; background:#fff; border:1px solid var(--border);
+           border-radius:8px; box-shadow:0 8px 20px rgba(10,22,40,.14); padding:3px; max-height:210px; overflow:auto }
+.nrs-menu label{ display:flex; align-items:center; gap:7px; padding:5px 7px; font-size:11.5px; color:#0a1628; border-radius:6px; cursor:pointer }
+.nrs-menu label:hover{ background:#f1f5f9 }
+.nrs-menu input{ width:auto; margin:0; accent-color:#0099cc }
 
 /* ── Sheet legend ───────────────────────────────────────────── */
 .sheet-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:.75rem}
@@ -4940,42 +4951,6 @@ html.qp-desk-preview .qd-top{ position:static; }
 </div>
 
 <div class="nav">
-  <!-- Selected-job indicator + quick "Select job" chooser at the very top of
-       the left menu, so the current job is always visible from any tab. -->
-  <div id="navJobBox" style="margin:0 6px 10px">
-    <!-- Clickable: tapping the selected-job chip opens the same New Job /
-         Select Job chooser as the button below, so the user can swap or
-         edit the job from any tab without hunting for the Home tile. -->
-    <div id="navJobInfo" role="button" tabindex="0" onclick="_navJobTap()"
-         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navJobTap();}"
-         title="Tap for this job's details — and to link it to a Fergus job"
-         style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
-         onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
-      <!-- Job number, then who it is for, then where it is. Three lines
-           because that is how a roofer says it out loud. -->
-      <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-      <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
-      <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-      <!-- Which version of this job is on screen. Hidden until the job has
-           more than one, so a job nobody has branched reads exactly as it
-           always did. -->
-      <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-    </div>
-    <!-- Versions. Two people on one job used to mean two people on one
-         record; this is how Aron's copy and Ethan's copy live side by side. -->
-    <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
-    <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
-      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
-      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
-    </div>
-    <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
-         changed until it is unlocked here, and once unlocked every change
-         saves itself. Locking again saves first. -->
-    <button type="button" id="navJobLockBtn" onclick="_jobLockToggle()" style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#475569;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">🔒 Locked — tap to unlock</button>
-    <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
-  </div>
   <button class="nav-btn" id="navSiteModeBtn" onclick="_toggleSiteMode()" style="display:none"></button>
   <button class="nav-btn" id="navInstallBtn" onclick="_frInstallApp()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2.5V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11.5V12.5C3 13.05 3.45 13.5 4 13.5H12C12.55 13.5 13 13.05 13 12.5V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Install app</button>
   <button class="nav-btn" id="navRoofImgBtn" onclick="_phoneSetRoofImage()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.8" r="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M3 11.5L6.5 8.5L9 10.5L11 9L13 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Set roof image</button>
@@ -5019,6 +4994,47 @@ html.qp-desk-preview .qd-top{ position:static; }
   <button class="nav-btn" onclick="gotoTab('jobs')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" id="navSettingsBtn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
   <button class="nav-btn" id="navFeedbackBtn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
+  <!-- Selected job, its buttons, and the roof's figures. It sat at the TOP of
+       the left menu until 2026-09-29; the owner moved it under the tab
+       buttons, which is where the eye ends up after picking a tab. -->
+  <div id="navJobBox" style="margin:10px 6px 0">
+    <!-- Clickable: tapping the selected-job chip opens the same New Job /
+         Select Job chooser as the button below, so the user can swap or
+         edit the job from any tab without hunting for the Home tile. -->
+    <div id="navJobInfo" role="button" tabindex="0" onclick="_navJobTap()"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navJobTap();}"
+         title="Tap for this job's details — and to link it to a Fergus job"
+         style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
+         onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
+      <!-- Job number, then who it is for, then where it is. Three lines
+           because that is how a roofer says it out loud. -->
+      <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
+      <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <!-- Which version of this job is on screen. Hidden until the job has
+           more than one, so a job nobody has branched reads exactly as it
+           always did. -->
+      <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <!-- Versions. Two people on one job used to mean two people on one
+         record; this is how Aron's copy and Ethan's copy live side by side. -->
+    <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
+    <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
+      <button type="button" onclick="openSelectJobModal('fergus')" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
+    </div>
+    <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
+         changed until it is unlocked here, and once unlocked every change
+         saves itself. Locking again saves first. -->
+    <button type="button" id="navJobLockBtn" onclick="_jobLockToggle()" style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#475569;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">🔒 Locked — tap to unlock</button>
+    <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
+    <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
+         roof on screen, in the job's own box rather than under the canvas.
+         Rendered by _roofStatsRender. -->
+    <div id="navRoofStats" style="display:none"></div>
+  </div>
   <!-- Who you are signed in as, and the way out. There was no way out at all:
        doLogout() existed but nothing on any screen called it, so the only way
        to leave an account was to clear the browser's storage. That matters
@@ -21840,16 +21856,36 @@ function calcRoofMeasurements(d) {
 var RS_FLASH_LABELS = { ridge:'Ridge', hip:'Hip', valley:'Valley', barge:'Barge',
   apron:'Apron', changepitch:'Change of pitch', drip:'Drip edge',
   custom:'Other flashing', unknown:'Not labelled yet' };
-var _ROOF_STATS = { sel:'all', fallbackM2:0, barH:'' };
+// `off` holds the roofs TICKED OFF, so a roof that has just been drawn is in
+// the figures without being asked for, and "Viewing all" is where a job
+// starts. `open` is the tick-box menu.
+var _ROOF_STATS = { off:{}, open:false, fallbackM2:0 };
 
 function _roofStatsRoofs(){
   try { return (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : []; }
   catch(e){ return []; }
 }
-function _roofStatsPick(v){
-  _ROOF_STATS.sel = (v === 'all') ? 'all' : (+v);
+// Tick a roof in or out of the figures. It changes the NUMBERS only: every
+// roof stays on the canvas and the roof being drawn does not change. The last
+// one left cannot be taken off — three dashes help nobody.
+function _roofStatsToggle(idx){
+  var shown = _roofStatsRoofs().filter(function(r){ return !_ROOF_STATS.off[r.idx]; });
+  if (!_ROOF_STATS.off[idx] && shown.length <= 1) return;
+  if (_ROOF_STATS.off[idx]) delete _ROOF_STATS.off[idx]; else _ROOF_STATS.off[idx] = true;
   _roofStatsRender();
 }
+function _roofStatsMenu(ev){
+  if (ev) ev.stopPropagation();
+  _ROOF_STATS.open = !_ROOF_STATS.open;
+  _roofStatsRender();
+}
+// Anywhere else closes it, like every other little menu in the app.
+document.addEventListener('mousedown', function(e){
+  if (!_ROOF_STATS.open) return;
+  if (e.target && e.target.closest && e.target.closest('.nrs-view')) return;
+  _ROOF_STATS.open = false;
+  try { _roofStatsRender(); } catch(err){}
+});
 function _roofStatsSum(roofs){
   var out = { area:0, flash:0, gutter:0, by:{} };
   roofs.forEach(function(r){
@@ -21865,80 +21901,84 @@ function _roofStatsSum(roofs){
   });
   return out;
 }
+// What the Viewing button says. All of them, or the ones ticked by name —
+// past two that is a count, because the button is a sidebar wide.
+function _roofStatsViewLabel(roofs, shown){
+  if (shown.length === roofs.length) return 'Viewing all';
+  if (shown.length <= 2) return 'Viewing ' + shown.map(function(r){ return r.name; }).join(' & ');
+  return 'Viewing ' + shown.length + ' roofs';
+}
 function _rsBox(colour, label, value, unit, title){
   return '<div class="rs-box" title="' + esc(title || '') + '">' +
     '<div class="rs-lbl"><span class="rs-dot" style="background:' + colour + '"></span>' + esc(label) + '</div>' +
     '<div class="rs-val">' + value + ' <small>' + unit + '</small></div></div>';
 }
+function _nrsRow(label, value, unit, title){
+  return '<div class="nrs-row" title="' + esc(title || '') + '"><span>' + esc(label) + '</span>' +
+         '<b>' + value + '<i>' + unit + '</i></b></div>';
+}
 // m2 is the caller's own area total, used only when there is no outline to
 // measure (sections typed by hand) — otherwise the roofs themselves are read.
 function _roofStatsRender(m2){
-  var bar = document.getElementById('roofStatsBar');
-  if (!bar) return;
+  var host = document.getElementById('navRoofStats');
+  var bar  = document.getElementById('roofStatsBar');
+  if (!host && !bar) return;
   if (typeof m2 === 'number') _ROOF_STATS.fallbackM2 = m2;
   var roofs = _roofStatsRoofs();
   var fb = _ROOF_STATS.fallbackM2;
   if (!roofs.length && fb > 0) roofs = [{ idx:0, name:'Roof 1', areaM2:fb, lines:(DRAW && DRAW.lines) || [] }];
   if (!roofs.length){
-    bar.style.display = 'none'; bar.innerHTML = '';
-    _rsSetHeight('0px');
+    _ROOF_STATS.open = false;
+    if (host){ host.style.display = 'none'; host.innerHTML = ''; }
+    if (bar){ bar.innerHTML = ''; }
     return;
   }
-  // A roof that has gone (deleted, or a new job opened) falls back to all.
-  var sel = _ROOF_STATS.sel;
-  if (sel !== 'all' && !roofs.some(function(r){ return r.idx === sel; })) sel = _ROOF_STATS.sel = 'all';
-  var shown = (sel === 'all') ? roofs : roofs.filter(function(r){ return r.idx === sel; });
+  // A roof that has gone takes its tick with it.
+  Object.keys(_ROOF_STATS.off).forEach(function(k){
+    if (!roofs.some(function(r){ return String(r.idx) === String(k); })) delete _ROOF_STATS.off[k];
+  });
+  var shown = roofs.filter(function(r){ return !_ROOF_STATS.off[r.idx]; });
+  if (!shown.length){ _ROOF_STATS.off = {}; shown = roofs; }
   var t = _roofStatsSum(shown);
-  var which = (sel === 'all' && roofs.length > 1) ? 'every roof on the job' : (shown[0] ? shown[0].name : 'this roof');
-
+  var which = (shown.length === roofs.length && roofs.length > 1) ? 'every roof on the job'
+            : (shown.length === 1 ? shown[0].name : shown.length + ' roofs');
   var brk = Object.keys(t.by).sort(function(a, b){ return t.by[b] - t.by[a]; })
-    .map(function(k){ return (RS_FLASH_LABELS[k] || k) + ' ' + t.by[k].toFixed(1) + ' m'; }).join(' · ');
+    .map(function(k){ return (RS_FLASH_LABELS[k] || k) + ' ' + t.by[k].toFixed(1) + ' m'; }).join(' \u00b7 ');
+  var areaTip  = 'The roof area of ' + which + ', along the pitch \u2014 the same figure the Job Pack counts.';
+  var flashTip = brk ? ('Every line except the gutter, on ' + which + ': ' + brk)
+                     : ('Every line except the gutter, on ' + which + '. Nothing measured yet.');
+  var gutTip   = 'The gutter runs on ' + which + ', kept out of the flashing total.';
 
-  var html =
-    _rsBox('#059669', 'Roof area', t.area.toFixed(1), 'm²',
-           'The roof area of ' + which + ', along the pitch — the same figure the Job Pack counts.') +
-    _rsBox('#0891b2', 'Flashings', t.flash.toFixed(1), 'm',
-           brk ? ('Every line except the gutter, on ' + which + ': ' + brk)
-               : ('Every line except the gutter, on ' + which + '. Nothing measured yet.')) +
-    _rsBox('#7c3aed', 'Gutter', t.gutter.toFixed(1), 'm',
-           'The gutter runs on ' + which + ', kept out of the flashing total.');
-
-  if (roofs.length > 1){
-    html += '<div class="rs-roofs">' +
-      '<button type="button" class="rs-chip' + (sel === 'all' ? ' on' : '') + '" onclick="_roofStatsPick(\'all\')">All roofs</button>' +
-      roofs.map(function(r){
-        return '<button type="button" class="rs-chip' + (sel === r.idx ? ' on' : '') + '" ' +
-               'onclick="_roofStatsPick(' + r.idx + ')">' + esc(r.name) + '</button>';
-      }).join('') + '</div>';
+  if (host){
+    var html = '';
+    if (roofs.length > 1){
+      html += '<div class="nrs-view">' +
+        '<button type="button" class="nrs-btn" onclick="_roofStatsMenu(event)" ' +
+        'title="Which roofs these figures add up. Every roof stays on the canvas.">' +
+        '<span>' + esc(_roofStatsViewLabel(roofs, shown)) + '</span>' + (_ROOF_STATS.open ? '\u25b4' : '\u25be') + '</button>';
+      if (_ROOF_STATS.open){
+        html += '<div class="nrs-menu">' + roofs.map(function(r){
+          return '<label><input type="checkbox" ' + (_ROOF_STATS.off[r.idx] ? '' : 'checked ') +
+                 'onchange="_roofStatsToggle(' + r.idx + ')">' + esc(r.name) + '</label>';
+        }).join('') + '</div>';
+      }
+      html += '</div>';
+    }
+    html += _nrsRow('Roof area', t.area.toFixed(1), 'm\u00b2', areaTip) +
+            _nrsRow('Flashings', t.flash.toFixed(1), 'm', flashTip) +
+            _nrsRow('Gutter',    t.gutter.toFixed(1), 'm', gutTip);
+    host.innerHTML = html;
+    host.style.display = '';
   }
-  bar.innerHTML = html;
-  bar.style.display = 'flex';
-  // Hand the canvas back exactly what this row takes, so the page is no
-  // taller for having it: the row ends where the canvas used to.
-  _rsSetHeight(bar.offsetHeight + 'px');
+  // The playground hides the sidebar, so it keeps the row under the canvas.
+  if (bar){
+    bar.innerHTML =
+      _rsBox('#059669', 'Roof area', t.area.toFixed(1), 'm\u00b2', areaTip) +
+      _rsBox('#0891b2', 'Flashings', t.flash.toFixed(1), 'm', flashTip) +
+      _rsBox('#7c3aed', 'Gutter',    t.gutter.toFixed(1), 'm', gutTip);
+  }
 }
-// How much room the row is taking, in pixels — 0 when it is not shown.
-function _roofStatsH(){
-  var bar = document.getElementById('roofStatsBar');
-  if (!bar || getComputedStyle(bar).display === 'none') return 0;
-  return bar.offsetHeight || 0;
-}
-// Setting it only when it CHANGES: the canvas is watched, and a height
-// written on every recalculation would re-fit the picture for nothing.
-// A window that has been resized carries an INLINE height on the wrap, which
-// beats the stylesheet — so that one is re-done as well, but only where it
-// already exists (writing one here would take the CSS rule out of play).
-function _rsSetHeight(h){
-  if (_ROOF_STATS.barH === h) return;
-  _ROOF_STATS.barH = h;
-  try { document.documentElement.style.setProperty('--roofstats-h', h); } catch(e){}
-  try {
-    var wrap = document.getElementById('canvasWrap');
-    if (wrap && wrap.style.height) _sizeCanvasWrapToWindow();
-  } catch(e){}
-}
-// The name every recalculation already calls. The area box it used to fill
-// in the card head is now the first of the three boxes under the canvas.
+// The name every recalculation already calls.
 function _roofAreaBoxSet(m2){ _roofStatsRender(+m2 || 0); }
 // ── MEASUREMENT TILES ────────────────────────────────────────────
 function buildMeasTiles(d) {
@@ -67082,61 +67122,17 @@ function onCanvasWheel(e) {
     try { redrawAll(); } catch(err){}
     return;
   }
-  // Default behaviour: scroll wheel does NOT zoom the canvas — the
-  // page keeps scrolling and the user uses the + / - buttons.
+  // A PLAIN WHEEL NEVER ZOOMS THE CANVAS (2026-09-29). It scrolls the page,
+  // exactly as it does anywhere else on it, even with the pointer over the
+  // drawing. Ctrl + wheel is the zoom (above), and the + / - buttons are
+  // still there.
   //
-  // Exceptions (in priority order):
-  //   1. Cursor over a non-active roof's displayed polygon → scales
-  //      THAT roof's view (viewZoom). Pure visual reposition for the
-  //      customer-facing roof map; underlying geometry stays put.
-  //   2. No background image — the wheel becomes a global zoom so the
-  //      user can size their drawing while sketching a roof from
-  //      scratch (e.g. a garage offset from the main outline).
-  if (DRAW.tool !== 'select') {
-    // Allow global wheel-zoom without bg image even outside select
-    // tool — the user is most often in a drawing tool when there's no
-    // bg, and needing to switch to Move just to zoom is annoying.
-    if (!DRAW.bgImg) {
-      e.preventDefault();
-      DRAW._viewTouched = true;
-      var stepG = e.deltaY > 0 ? -0.1 : 0.1;
-      DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepG));
-      try {
-        var zl = document.getElementById('zoomLabel');
-        if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
-      } catch(err){}
-      try { redrawAll(); } catch(err){}
-    }
-    return;
-  }
-  // Same point-in-poly helper as the mousedown branch.
-  function _pip(px, py, poly){
-    var inside = false, n = poly.length;
-    for (var k = 0, j = n - 1; k < n; j = k++) {
-      var xi = poly[k][0], yi = poly[k][1];
-      var xj = poly[j][0], yj = poly[j][1];
-      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-10) + xi)) inside = !inside;
-    }
-    return inside;
-  }
-  // A plain wheel over another roof used to scale THAT roof's view — so a
-  // roofer scrolling down the page shrank Roof 2 inside its own outline
-  // without meaning to (report 46). The wheel now scrolls the page like
-  // anywhere else; Ctrl + wheel zooms the whole drawing. The one exception
-  // stays: with no photo behind the sketch, the wheel is the zoom.
-  void _pip;
-  // If there's no bg image, fall through to
-  // global wheel zoom so empty-canvas users can still zoom.
-  if (!DRAW.bgImg) {
-    e.preventDefault();
-    var stepN = e.deltaY > 0 ? -0.1 : 0.1;
-    DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepN));
-    try {
-      var zlN = document.getElementById('zoomLabel');
-      if (zlN) zlN.textContent = Math.round(DRAW.zoom * 100) + '%';
-    } catch(err){}
-    try { redrawAll(); } catch(err){}
-  }
+  // Two exceptions used to survive here: a roof sketched with no aerial
+  // behind it zoomed on a plain wheel, in the select tool and out of it. The
+  // owner: "I want the normal scroll to only scroll up and down the page even
+  // when I scroll when the mouse is hovering over the canvas." So they are
+  // gone — a wheel that sometimes scrolls and sometimes zooms is worse than
+  // either, and the page moving under the pointer is what a wheel means.
 }
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────
@@ -67235,18 +67231,13 @@ window.addEventListener('resize', function(){
   }
   _sizeCanvasWrapToWindow();
 });
-// The inline height a resize writes beats the stylesheet, so the figures row
-// under the canvas (--roofstats-h) has to be taken off HERE too, or a resized
-// window hands the canvas the row's space and the row lands on whatever is
-// below it. The canvas gives up the row's height; the pair together still
-// take exactly what the canvas alone used to.
 function _sizeCanvasWrapToWindow(){
   var wrap = document.getElementById('canvasWrap');
   if (!wrap || document.documentElement.classList.contains('site-mode')) return;
-  var total = window.innerHeight - 220;
-  wrap.style.height = (total - _roofStatsH()) + 'px';
+  var h = (window.innerHeight - 220) + 'px';
+  wrap.style.height = h;
   var flex = wrap.parentElement;
-  if (flex) flex.style.height = total + 'px';
+  if (flex) flex.style.height = h;
 }
 
 // Init — size canvas to fill wrap, start with select

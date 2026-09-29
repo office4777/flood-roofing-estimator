@@ -439,20 +439,27 @@ Discipline (non-negotiable):
   (`_workingWrap(name, label, cancel)`, `_fergusPushCancel`, `_FPUSH`); the
   push checks between steps; after Fergus created the new version it is
   voided again and the rev restored; the create request is never aborted.
-- THE ROOF'S FIGURES SIT UNDER THE CANVAS (2026-09-28, `#roofStatsBar`,
-  `_roofStatsRender`): one row of three boxes — Roof area (m², along the
-  pitch, `_matBasicCollectRoofs`), Flashings (every measured line EXCEPT the
-  gutter, at the length drawn on the map, `measM`; the box's tooltip breaks it
-  down by type) and Gutter (the gutter runs on their own, because guttering is
-  its own trade and its own price). More than one roof adds chips — All roofs
-  first — which filter THESE FIGURES ONLY: the canvas keeps every roof and the
-  active roof never changes. The area box that used to sit in the Roof plan
-  card head is gone; `_roofAreaBoxSet` is now the hook that redraws the row,
-  so every recalculation still reaches it. The canvas gives back exactly the
-  row's height (`--roofstats-h`, and `_sizeCanvasWrapToWindow` for the inline
-  height a window resize writes — that one beats the stylesheet), so the page
-  is no taller for having it. Hidden in site mode, where the canvas is fixed
-  to the whole screen. `tests/roofstats.mjs`.
+- THE ROOF'S FIGURES ARE IN THE LEFT MENU (2026-09-28, moved 2026-09-29;
+  `#navRoofStats` inside `#navJobBox`, `_roofStatsRender`): three plain rows
+  in the job's grey box — Roof area (m², along the pitch,
+  `_matBasicCollectRoofs`), Flashings (every measured line EXCEPT the gutter,
+  at the length drawn on the map, `measM`; the row's tooltip breaks it down by
+  type) and Gutter (its own trade, its own price, never inside a flashing
+  total). THE JOB BOX ITSELF sits UNDER the tab buttons now (it was at the top
+  of the nav), above "Signed in as". More than one roof puts a small
+  "Viewing all" button above the rows (`_roofStatsMenu`) that drops a TICK BOX
+  per roof (`_roofStatsToggle`, `_ROOF_STATS.off` holds the ones ticked off, so
+  a new roof is counted without being asked for); the button then names them —
+  "Viewing Main Roof & Garage", or "Viewing 3 roofs" past two. The last roof
+  left cannot be unticked. It filters THE FIGURES ONLY: every roof stays on the
+  canvas and the active roof never changes. One roof shows no button at all.
+  `#roofStatsBar` under the canvas is kept for the PLAYGROUND alone, which
+  hides the sidebar and whose whole teaser is the blurred area.
+  `tests/roofstats.mjs`, `tests/playground.mjs`.
+- A PLAIN WHEEL OVER THE CANVAS NEVER ZOOMS (2026-09-29): it scrolls the page,
+  pointer over the drawing or not. Ctrl + wheel is the zoom (`onCanvasWheel`,
+  routed from the document wheel handler). The old exception — a sketch with no
+  aerial behind it zoomed on a plain wheel — is gone. `tests/roofstats.mjs`.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`

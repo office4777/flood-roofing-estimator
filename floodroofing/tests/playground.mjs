@@ -147,23 +147,25 @@ check('the wall offers Start free, opening the sign-up in the top window', v.wal
 check('nothing was saved or sent: no API call but the picture', !calls.some(c => !/practice\/picture/.test(c)) && !(await pg.evaluate(() => S.currentJobId)), calls.join(' | '));
 check('no page errors', errs.length === 0, errs.join(' | ').slice(0, 300));
 
-// The area box in the real app: shown for a signed-in roofer too, not blurred.
+// The area in the real app: it lives in the left menu's job box now
+// (2026-09-29), shown for a signed-in roofer and not blurred. The row under
+// the canvas is the PLAYGROUND's, which hides the sidebar.
 const pg2 = await ctx.newPage();
 await pg2.route('**/flood-roofing-estimator-production.up.railway.app/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: /\/settings/.test(r.request().url()) ? '{"branding":{},"ui_flags":{"first_roof":"has-work"}}' : '[]' }));
 await pg2.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_user', JSON.stringify({ email: 'me@acme.co.nz' })); localStorage.setItem('fr_company', JSON.stringify({ id: 'c1', name: 'Acme', role: 'owner', plan: 'trial' })); localStorage.setItem('fr_first_roof', 'done'); });
 await pg2.goto('file://' + DIR + '/app.html');
 await sleep(1200);
 await pg2.evaluate(() => { gotoTab('roof'); });
-v = await pg2.evaluate(() => ({ cls: document.documentElement.className, before: getComputedStyle(document.getElementById('roofStatsBar')).display }));
+v = await pg2.evaluate(() => ({ cls: document.documentElement.className, before: getComputedStyle(document.getElementById('navRoofStats')).display }));
 await pg2.evaluate(() => { DRAW.scaleMetresPerPx = 0.03; setTool('outline'); DRAW.currentPts = [[200, 120], [700, 120], [700, 480], [200, 480]]; finishCurrent(); });
 await sleep(500);
 await pg2.evaluate(() => { document.querySelector('#_rsTypes [data-rstype="hip"]').click(); document.getElementById('_rsPitch').value = '20'; document.getElementById('_rsOk').click(); });
 await sleep(1200);
-v.after = await pg2.evaluate(() => ({ shown: getComputedStyle(document.getElementById('roofStatsBar')).display !== 'none', val: document.querySelector('#roofStatsBar .rs-val').textContent, blur: getComputedStyle(document.querySelector('#roofStatsBar .rs-val')).filter }));
+v.after = await pg2.evaluate(() => ({ shown: getComputedStyle(document.getElementById('navRoofStats')).display !== 'none', val: document.querySelector('#navRoofStats .nrs-row b').textContent, blur: getComputedStyle(document.querySelector('#navRoofStats .nrs-row b')).filter }));
 check('in the app the area box is hidden until there is a roof, then shows the total unblurred', !/playground/.test(v.cls) && v.before === 'none' && v.after.shown && /m²/.test(v.after.val) && !/blur/.test(v.after.blur), JSON.stringify(v));
 await pg2.evaluate(() => clearAll(true));
 await sleep(300);
-check('…and goes away again when the drawing is cleared', await pg2.evaluate(() => getComputedStyle(document.getElementById('roofStatsBar')).display === 'none'));
+check('…and goes away again when the drawing is cleared', await pg2.evaluate(() => getComputedStyle(document.getElementById('navRoofStats')).display === 'none'));
 
 await ctx.close(); await b.close(); relay.close();
 const bad = results.filter(x => !x).length;
