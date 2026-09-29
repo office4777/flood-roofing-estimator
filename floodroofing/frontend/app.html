@@ -5088,12 +5088,20 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div id="navJobAddr" style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       <!-- The chip is a button, and nothing said so: the version, job swap,
            history and lock all live behind it now. -->
-      <div class="nav-job-more">Click for more info</div>
+      <div class="nav-job-more" id="navJobMore">Click for more info</div>
       <!-- Which version of this job is on screen. Hidden until the job has
            more than one, so a job nobody has branched reads exactly as it
            always did. -->
       <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
+    <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
+         into the job details window on 2026-09-29 and the one thing a roofer
+         wants to see at a glance went with it: whether this job is shut. It is
+         a plain status strip, not a coloured button — the only colour on it is
+         the green tick that says the quote has gone. The button in the job
+         details window stays; both are drawn by _jobLockRender. -->
+    <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -5152,8 +5160,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 </div>
 <!-- Job history: what has happened on this job and when. Assembled from
      what the job already carries — nothing new is recorded for it. -->
-<div id="jobHistOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_jobHistoryClose()"></div>
-<div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+<!-- Above the job details window (9998/9999): History is opened from a button
+     inside it, and at 8998/8999 it opened behind the window that launched it. -->
+<div id="jobHistOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:10048" onclick="_jobHistoryClose()"></div>
+<div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:10049;overflow:hidden;flex-direction:column">
   <div style="background:#ea580c;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
     <strong style="flex:1;font-size:14px">Job history</strong>
     <span id="jobHistWho" style="font-size:12px;opacity:.9"></span>
@@ -8494,11 +8504,13 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          no card number ever touches this page. -->
     <div class="sub-panel settings-sub" id="set-products" style="margin-top:14px">
       <div class="card-hd"><span class="card-dot"></span>Products you sell</div>
-      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">
+      <p style="font-size:12px;color:var(--text2);margin:0 0 6px">
         The steel grades, roof profiles and gutters your customers choose from on a quote.
         Remove what you don't sell, add what you do. <strong>Quotes you have already sent keep the
         products they were sent with</strong> — removing something here only affects new quotes.
       </p>
+      <p style="font-size:11.5px;color:var(--text2);margin:0 0 12px">This tab is the CHOICES. What each one costs is under
+        <strong>Default item pricing</strong>; your supplier's own list is <strong>Custom Price Book</strong>.</p>
       <div id="selectablesUI"></div>
       <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
 
@@ -8510,7 +8522,27 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          (2026-09-30). It is its own Pricing sub-tab now.  -->
     <div class="sub-panel settings-sub" id="set-defaultpricing" style="margin-top:14px">
       <div class="card-hd"><span class="card-dot"></span>Default item pricing</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The unit price RoofMap puts on every item it works out off the roof — sheets, flashings, underlay, gutter, screws. It costs the <strong>Job Pack</strong> and becomes the <strong>Materials</strong> line on every quote. A price typed on a job’s material row can be saved back here on the spot.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:6px">Every item RoofMap works out off the roof by itself — sheets, flashings, underlay, fixings, gutter, downpipes — and what you pay for it. These prices cost the <strong>Job Pack</strong> and become the <strong>Materials</strong> line on every quote.</p>
+      <p style="font-size:11.5px;color:var(--text2);margin-bottom:14px">This tab is the PRICES. <strong>Quote’s Product Options</strong> is the list of things a customer may choose between; <strong>Custom Price Book</strong> is your supplier’s own list, which can take over the price of any item here.</p>
+
+      <!-- The whole tab in one go: a supplier CSV read straight onto these
+           items. The Custom Price Book tab is the other way round — it keeps
+           the supplier’s list as its own and links a line to an item here. -->
+      <!-- Upload supplier price book -->
+      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
+        <div data-pb-listnote="settings"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong style="font-size:13px">📤 Upload supplier price book</strong>
+          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
+          <span id="pbUploadMsg" style="font-size:11px;color:var(--text2)"></span>
+        </div>
+        <p style="font-size:11px;color:var(--text2);margin-top:6px">CSV columns: <code>description, unit, price</code> (header row optional). Rows we recognise — ridge, valley, barge, screws, gutter profiles — update the matching rate; the rest go to <strong>Custom price-book items</strong> below. You see a preview before anything changes.</p>
+        <div id="pbCsvPreview" style="display:none;margin-top:10px"></div>
+      </div>
+
       <!-- Roofing sheets, flashings and back-trays are priced PER STEEL GRADE:
            one button per grade from Quote's Product Options, one set of inputs.
            The base grade's set is the price book itself; every other grade
@@ -8561,61 +8593,18 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
       </div>
 
-      <!-- Gutter $/lm and the fixings — the same whatever the steel -->
+      <!-- Underlay: the products offered, then what a roll costs -->
       <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Gutter &amp; fixings</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— the same whichever grade is chosen</span></div>
-        <div class="f3">
-          <div><label>Gutter ($/lm)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
-          <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
-        </div>
-      </div>
-
-      <!-- The underlay and screw products the Order Material dropdowns offer
-           (the roof products themselves are the steel grades above). -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+      <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay</strong>
+        <span style="font-size:11px;color:var(--text2);margin-left:6px">— the papers you offer, and what a roll costs</span></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Underlays</strong>
+          <strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Underlay products offered on a material order</strong>
           <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper — offered on the Order Material tab</span>
           <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
         </div>
         <div id="catalogUnderlays"></div>
-      </div>
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Screws</strong>
-          <span style="font-size:11px;color:var(--text2)">— e.g. 12g × 65mm Tek hex, 14g × 100mm timber screw — offered on the Order Material tab</span>
-          <button type="button" onclick="addCatalogItem('screws')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add screw</button>
-        </div>
-        <div id="catalogScrews"></div>
-      </div>
-      <!-- Hands the whole book out as JSON: a backup, and the way to pass a
-           finished book to somebody who is setting the app up. -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
-        <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
-      </div>
-
-      <!-- Upload supplier price book -->
-      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
-        <div data-pb-listnote="settings"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <strong style="font-size:13px">📤 Upload supplier price book</strong>
-          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
-          <span id="pbUploadMsg" style="font-size:11px;color:var(--text2)"></span>
-        </div>
-        <p style="font-size:11px;color:var(--text2);margin-top:6px">CSV columns: <code>description, unit, price</code> (header row optional). Rows we recognise — ridge, valley, barge, screws, gutter profiles — update the matching rate; the rest go to <strong>Custom price-book items</strong> below. You see a preview before anything changes.</p>
-        <div id="pbCsvPreview" style="display:none;margin-top:10px"></div>
-      </div>
-
-      <!-- Underlay per roll size -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay / paper</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— $ per roll, by size</span></div>
+        <div style="margin:14px 0 6px"><strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">What a roll costs</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— by roll size</span></div>
         <div class="f3">
           <div><label>50 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay50" step="0.01" min="0" placeholder="0.00"></div></div>
           <div><label>75 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay75" step="0.01" min="0" placeholder="0.00"></div></div>
@@ -8623,10 +8612,31 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
       </div>
 
+      <!-- Fixings: the screw and rivet rates, whatever the steel -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+      <div style="margin-bottom:8px"><strong style="font-size:13px">Fixings</strong>
+        <span style="font-size:11px;color:var(--text2);margin-left:6px">— the same whichever grade is chosen</span></div>
+        <div class="f3">
+          <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
+          <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
+          <strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Screw products offered on a material order</strong>
+          <button type="button" onclick="addCatalogItem('screws')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add screw</button>
+        </div>
+        <div id="catalogScrews"></div>
+      </div>
+
+      <!-- Guttering, spouting and downpipes, all in one place -->
       <!-- Guttering & spouting (long-run) — customer Selections page -->
       <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
         <div style="margin-bottom:8px"><strong style="font-size:13px">Guttering &amp; spouting</strong>
           <span style="font-size:11px;color:var(--text2);margin-left:6px">— long-run spouting the customer can add on the Selections page</span></div>
+        <div class="f3" style="margin-bottom:10px">
+          <div><label>Gutter ($/lm, generic)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div><div></div>
+        </div>
         <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon is itemised off the supplier invoice (spouting + fittings). The box &amp; Classic profiles use a single all-in $/lm. Leave a field blank if you don't supply that item.</div>
         <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Typhoon — itemised</div>
         <div class="f3">
@@ -8657,6 +8667,12 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
           <div></div>
         </div>
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
+        <div class="f3">
+          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div><div></div>
+        </div>
       </div>
 
       <!-- Pipe penetrations -->
@@ -8667,25 +8683,22 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div id="pbAquasealList" class="f3"></div>
       </div>
 
-      <!-- Downpipes -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
-        <div class="f3">
-          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div><div></div>
-        </div>
-      </div>
-
       <!-- Custom extras -->
       <div style="margin-bottom:6px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Custom price-book items</strong>
-          <span style="font-size:11px;color:var(--text2)">— special items beyond the auto-quantified list (skylights, dektites, vents, etc.)</span>
+          <strong style="font-size:13px">One-off items you add yourself</strong>
+          <span style="font-size:11px;color:var(--text2)">— things RoofMap does not measure off the roof (skylights, vents, hire). Your supplier’s whole list belongs in <strong>Custom Price Book</strong>.</span>
           <button type="button" onclick="clearPriceBookExtraQtys()" class="tool-btn" style="margin-left:auto;font-size:11px" title="Set every custom item's quantity to 0 so none of them are charged on a job">Clear all quantities</button>
           <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="font-size:11px">+ Add item</button>
         </div>
         <div id="pbExtrasList"></div>
+      </div>
+
+      <!-- Hands the whole book out as JSON: a backup, and the way to pass a
+           finished book to somebody who is setting the app up. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
+        <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
       </div>
     </div>
 
@@ -14177,6 +14190,7 @@ function _cpbRender(){
     }).join('');
   };
   host.innerHTML =
+    '<p class="cpb-intro"><b>This tab is your supplier’s own list</b>, kept as they wrote it — codes, descriptions and your real cost. <b>Default item pricing</b> is RoofMap’s own list of the things it measures off the roof; link a line here to one of those and it is priced from your supplier from then on.</p>' +
     '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade. Every change saves by itself, and earlier versions are kept.</p>' +
     '<div class="cpb-bar">' +
       '<label class="qa-btn qa-btn-primary cpb-upload">⬆ Upload price list (CSV or PDF)<input type="file" id="cpbFile" accept=".csv,.txt,.pdf,text/csv,application/pdf" onchange="_cpbFile(this)" hidden></label>' +
@@ -17485,13 +17499,40 @@ function restoreFromJob(j){
 // finished quote cannot be nudged by a stray tap on the phone. Unlocked, it
 // autosaves as before. A brand-new job (drawn before it was saved) is never
 // locked: nobody locks an empty page.
+// Has this quote gone to the customer? The share carries the stamp the
+// moment the email is away, which is also what the history reads.
+function _quoteWasSent(){
+  try { return !!(S.quote && S.quote.share && S.quote.share.sentAt); } catch(e){ return false; }
+}
 function _jobLockRender(){
-  var b = document.getElementById('navJobLockBtn'); if (!b) return;
   var show = !!(S.currentJobId && !S.isSampleJob);
-  b.style.display = show ? 'block' : 'none';
-  if (!show) return;
-  if (S.jobLocked){ b.textContent = '🔒 Locked — tap to unlock'; b.style.background = '#475569'; }
-  else { b.textContent = '🔓 Unlocked — changes save automatically'; b.style.background = '#15803d'; }
+  var sent = _quoteWasSent();
+  var b = document.getElementById('navJobLockBtn');
+  if (b){
+    b.style.display = show ? 'block' : 'none';
+    if (show){
+      if (S.jobLocked){ b.textContent = '🔒 Locked — tap to unlock'; b.style.background = '#475569'; }
+      else { b.textContent = '🔓 Unlocked — changes save automatically'; b.style.background = '#15803d'; }
+    }
+  }
+  // The left menu's strip. Locked and sent is the state worth naming, because
+  // it is the one where a change would be a change to a quote the customer is
+  // already looking at.
+  var sb = document.getElementById('navJobLockSide');
+  if (sb){
+    sb.style.display = show ? 'block' : 'none';
+    if (show){
+      if (S.jobLocked && sent) sb.innerHTML = '🔒 Locked — Quote sent <span style="color:#15803d;font-weight:800">✓</span>';
+      else if (S.jobLocked)    sb.innerHTML = '🔒 Locked — tap to unlock';
+      else                     sb.innerHTML = '🔓 Unlocked — changes save automatically';
+      sb.title = S.jobLocked ? 'This job is locked. Tap to unlock it.'
+                             : 'This job is unlocked — every change saves itself. Tap to lock it.';
+    }
+  }
+  // A job whose quote has gone is one you take a NEW VERSION of rather than
+  // edit, so the chip says that instead of "more info".
+  var more = document.getElementById('navJobMore');
+  if (more) more.textContent = (show && sent) ? 'Click for new version or info' : 'Click for more info';
 }
 async function _jobLockToggle(){
   if (!S.currentJobId) return;
@@ -28155,6 +28196,7 @@ function _qvMarkSent(){
   v.sent = snap;
   try { _qvPackAll(); } catch(e){}
   _qvRenderBar();
+  try { _jobLockRender(); } catch(e){}   // the left menu's strip says "Quote sent"
 }
 // The accepted quote: the server freezes it the moment the customer accepts
 // (with their selections as accepted). The office does the same when it sees

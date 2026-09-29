@@ -205,6 +205,58 @@ check('but a click, which would draw, still asks', dragged.clickAsked === true);
 check('…and nothing was drawn while it asked', dragged.clickDrew === 0);
 await pg.evaluate(() => { document.getElementById('jobLockModal')?.remove(); S.jobLocked = false; });
 
+
+// ── the lock is back in the left menu (2026-09-30) ──
+const side = await pg.evaluate(() => {
+  S.jobLocked = true;
+  if (S.quote && S.quote.share) delete S.quote.share.sentAt;
+  _jobLockRender();
+  const el = document.getElementById('navJobLockSide');
+  return { shown: el && getComputedStyle(el).display !== 'none', txt: el && el.textContent.trim(),
+           more: (document.getElementById('navJobMore') || {}).textContent,
+           plain: el && !/rgb\(21, 128, 61\)|#15803d/.test(el.style.background || '') };
+});
+check('the job\u2019s lock is back in the left menu, under the selected job',
+  side.shown && /Locked/.test(side.txt), JSON.stringify(side));
+check('\u2026in a plain colour, not a coloured button', side.plain, side.txt);
+check('\u2026and until the quote has gone it just says how to unlock',
+  /tap to unlock/.test(side.txt) && side.more === 'Click for more info', JSON.stringify(side));
+
+const sent = await pg.evaluate(() => {
+  if (!S.quote.share) S.quote.share = {};
+  S.quote.share.sentAt = new Date().toISOString();
+  _jobLockRender();
+  const el = document.getElementById('navJobLockSide');
+  return { txt: el.textContent.replace(/\s+/g, ' ').trim(), html: el.innerHTML,
+           more: document.getElementById('navJobMore').textContent };
+});
+check('once the quote has been sent it reads "Locked \u2014 Quote sent" with a green tick',
+  /^\uD83D\uDD12 Locked \u2014 Quote sent \u2713$/.test(sent.txt) && /color:#15803d/.test(sent.html), JSON.stringify(sent));
+check('\u2026and the chip offers a new version instead of "more info"',
+  sent.more === 'Click for new version or info', sent.more);
+
+const unlocked = await pg.evaluate(() => {
+  S.jobLocked = false; _jobLockRender();
+  return { txt: document.getElementById('navJobLockSide').textContent.trim(),
+           more: document.getElementById('navJobMore').textContent };
+});
+check('unlocked, it says every change saves itself \u2014 and the tick is gone',
+  /Unlocked/.test(unlocked.txt) && !/\u2713/.test(unlocked.txt), JSON.stringify(unlocked));
+check('\u2026but a sent quote still offers the new version', unlocked.more === 'Click for new version or info');
+
+// ── History opens IN FRONT of the job details window it is launched from ──
+const z = await pg.evaluate(() => {
+  S.jobLocked = true; _jobLockRender();
+  openJobDetailsModal('edit');
+  _jobHistoryOpen();
+  const h = document.getElementById('jobHistModal'), d = document.getElementById('jobDetailsModal');
+  return { hist: parseInt(getComputedStyle(h).zIndex, 10), det: parseInt(getComputedStyle(d).zIndex, 10),
+           open: getComputedStyle(h).display !== 'none' };
+});
+check('History opens in front of the job details window that launches it',
+  z.open && z.hist > z.det, JSON.stringify(z));
+await pg.evaluate(() => { _jobHistoryClose(); closeJobDetailsModal(); });
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;
