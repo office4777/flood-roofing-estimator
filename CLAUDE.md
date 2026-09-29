@@ -545,6 +545,32 @@ Discipline (non-negotiable):
   to…), and a Defaults tab whose "Change default item" links an item to a
   RoofMap default (`_cpbLink`). Also on Settings → Custom Price Book as
   "Folders & defaults".
+- A TYPED PRICE MAY BECOME THE DEFAULT (2026-09-30, `tests/pricebookpick
+  .mjs`): the material row's $/unit goes through `_matPriceTyped(ovk, path,
+  bookPrice, value)` — it sets the job override as before, then asks "Would
+  you like to save this as the new default price?" whenever the typed figure
+  differs from the book's by more than half a cent, both on a row with no
+  price and on one whose price changed. Yes runs `_matSaveAsDefault`: the
+  figure is written into the set the job is priced from (a steel grade with
+  its own prices keeps its own, else the book), `renderPriceBookUI()` puts it
+  on the Settings inputs so the save reads it back, then `saveSettings(true)`.
+  A row priced from a Custom Price Book item is NEVER asked — `_cpbApply`
+  would write the item's price back over the answer at the next save. The
+  render passes the path (`_cpbPathForVariant`) and the book price down, so
+  the question knows its row without rebuilding the table.
+- RIDGING HAS TWO WIDTHS (2026-09-30): the Ridge / Hip cap row is a real
+  two-option row — `standard` at `price_book.ridge_lm`, `wide` at
+  `ridge_wide_lm` (a graded key, its own Settings input `#pbRidgeWideLm`, its
+  own PB_CSV_TARGETS pattern ahead of the plain ridge one, and 0 until the
+  owner prices it). The pick starts from the job's `#orderRidging` choice and
+  `_onMatOverride` writes it back there, so the cut list and the price never
+  disagree.
+- DEFAULT ITEM PRICING is its own Settings → Pricing sub-tab
+  (`set-defaultpricing`, 2026-09-30): the price book block moved out of the
+  bottom of Quote's Product Options, where nobody looking for a price found
+  it. `set-pricebook` (the wizard, old links, the suites) is an alias for it
+  now, and it is what `openPriceSettings()` opens; Quote's Product Options
+  keeps the products list alone.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

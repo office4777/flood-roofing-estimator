@@ -47,7 +47,8 @@ const nav = await pg.evaluate(() => {
 });
 check('Guides is a Settings tab of its own', nav.guides && nav.btns.includes('Guides'), nav.btns.join(' | '));
 check('the Products tab is called Quote’s Product Options', nav.btns.includes("Quote's Product Options"));
-check('…and there is no separate Price book tab any more', !nav.btns.includes('Price book') && !nav.pricebookPanel);
+check('…and the price book is its own tab, called Default item pricing',
+  nav.btns.includes('Default item pricing') && !nav.btns.includes('Price book') && !nav.pricebookPanel, nav.btns.join(' | '));
 check('Suppliers & materials is just Suppliers', nav.btns.includes('Suppliers') && !nav.btns.some(t => /materials/i.test(t)));
 
 const guides = await pg.evaluate(() => {
@@ -67,15 +68,17 @@ check('…pressing play puts the Loom frame in', await pg.evaluate(() => !!docum
 // ── the old id still lands on the price book ──────────────────────
 const alias = await pg.evaluate(() => {
   switchSettingsSub('set-pricebook');
-  const p = document.getElementById('set-products');
+  const p = document.getElementById('set-defaultpricing');
   return { on: p.classList.contains('on'), title: document.getElementById('setPaneTitle').textContent.trim(),
            pb: !!p.querySelector('#pbSheetsList') && !!p.querySelector('#pbGradeTabs') && !!p.querySelector('#pbBackTrayList'),
            lists: !!p.querySelector('#catalogUnderlays') && !!p.querySelector('#catalogScrews'),
+           notInProducts: !document.querySelector('#set-products #pbSheetsList'),
            supl: !!document.querySelector('#set-supl #supplierList') && !!document.querySelector('#set-supl #catalogFlashings') && !document.querySelector('#set-supl #catalogUnderlays') && !document.getElementById('catalogProducts') };
 });
-check('opening "set-pricebook" lands on Quote’s Product Options', alias.on && alias.title === "Quote's Product Options", alias.title);
+check('opening "set-pricebook" lands on Default item pricing', alias.on && alias.title === 'Default item pricing', alias.title);
 check('…which carries the price book: sheets, the grade buttons and the back-trays', alias.pb);
 check('…and the underlay and screw lists that came over from Suppliers', alias.lists);
+check('…and it is gone from Quote’s Product Options', alias.notInProducts);
 check('Suppliers keeps the suppliers and the flashing types, nothing else', alias.supl);
 
 // ── prices by steel grade ─────────────────────────────────────────

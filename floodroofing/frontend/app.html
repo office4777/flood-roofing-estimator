@@ -8162,6 +8162,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default item pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
@@ -8501,11 +8502,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div id="selectablesUI"></div>
       <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
 
-      <!-- PRICE BOOK -->
-      <div class="card-hd" style="margin-top:22px"><span class="card-dot"></span>Price book</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Job Pack</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
+    </div>
+
+    <!-- DEFAULT ITEM PRICING — the price book: the unit price RoofMap puts
+         on every item it quantifies off the roof. It lived at the bottom of
+         Quote’s Product Options, where nobody looking for a price found it
+         (2026-09-30). It is its own Pricing sub-tab now.  -->
+    <div class="sub-panel settings-sub" id="set-defaultpricing" style="margin-top:14px">
+      <div class="card-hd"><span class="card-dot"></span>Default item pricing</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The unit price RoofMap puts on every item it works out off the roof — sheets, flashings, underlay, gutter, screws. It costs the <strong>Job Pack</strong> and becomes the <strong>Materials</strong> line on every quote. A price typed on a job’s material row can be saved back here on the spot.</p>
       <!-- Roofing sheets, flashings and back-trays are priced PER STEEL GRADE:
-           one button per grade on the Products list above, one set of inputs.
+           one button per grade from Quote's Product Options, one set of inputs.
            The base grade's set is the price book itself; every other grade
            keeps its own under price_book.by_grade and falls back to the
            percentage on the list until it has prices of its own. -->
@@ -8542,6 +8549,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
             <div><label>Change-of-pitch flashing ($/lm)</label><input type="number" id="pbChangepitchLm" step="0.01" min="0" placeholder="0.00"></div>
             <div><label>Boxed penetration flashing ($/lm)</label><input type="number" id="pbBoxPenLm" step="0.01" min="0" placeholder="same as apron"></div>
+          </div>
+          <div class="f3" style="margin-top:6px">
+            <div><label>Wide-cover ridging ($/lm)</label><input type="number" id="pbRidgeWideLm" step="0.01" min="0" placeholder="0.00"></div>
           </div>
         </div>
         <div>
@@ -12456,10 +12466,15 @@ function switchSettingsSub(id,btn){
   // Opening the price book is the moment the disclaimer matters, so it is
   // tied to that rather than to finishing the setup guide — which anyone
   // can skip.
-  // The price book lives on the Quote's Product Options panel now; the old
-  // id is still what the wizard, the tests and old links call it.
-  if (id === 'set-pricebook'){ id = 'set-products'; try { renderSelectablesUI(); } catch(e){} }
-  if (id === 'set-products'){ try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){} try { _pbGradeTabsRender(); } catch(e){} }
+  // The price book is its own panel again (2026-09-30, "Default item
+  // pricing"); 'set-pricebook' is still what the wizard, the tests and old
+  // links call it.
+  if (id === 'set-pricebook') id = 'set-defaultpricing';
+  if (id === 'set-defaultpricing'){
+    try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){}
+    try { renderPriceBookUI(); } catch(e){}
+    try { _pbGradeTabsRender(); } catch(e){}
+  }
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
   var panel = document.getElementById(id);
   if (panel) panel.classList.add('on');
@@ -12819,6 +12834,9 @@ function defaultSettings(){
       // $/m² carried up, so a bigger roll is never cheaper than a smaller one.
       underlay: { '50': 256.75, '75': 385.13, '100': 513.50 },   // $ per roll, keyed by m²/roll
       ridge_lm:    21.97,   // $/lm — Roundtop standard ridging, used for ridge + hip
+      // Wide-cover ridging is a second product at a second price, not a
+      // factor on the first, so it starts empty rather than guessed.
+      ridge_wide_lm: 0,     // $/lm — wide-cover ridging
       valley_lm:   19.70,   // $/lm — 400/3 fold
       gutter_lm:   16.37,   // $/lm — 125 square
       barge_lm:    17.87,   // $/lm — folded 300/4
@@ -13308,7 +13326,7 @@ function _num(id){ var v = parseFloat((document.getElementById(id)||{}).value); 
 // its own is priced from them — the material table, the order and the
 // customer's grade deltas — instead of the percentage on the Products list;
 // a grade without falls back to that percentage as before.
-var PB_GRADE_KEYS = ['ridge_lm', 'valley_lm', 'barge_lm', 'apron_lm', 'changepitch_lm', 'box_pen_lm'];
+var PB_GRADE_KEYS = ['ridge_lm', 'ridge_wide_lm', 'valley_lm', 'barge_lm', 'apron_lm', 'changepitch_lm', 'box_pen_lm'];
 window.__pbGrade = null;            // the grade the Settings inputs are showing
 window.__pbGradeOverride = null;    // a grade to price with, for one calculation
 function _pbBaseId(){ try { return _selBaseGradeId(); } catch(e){ return 'maxam'; } }
@@ -13418,7 +13436,7 @@ function _pbGradeCollect(){
     return { product: (row.querySelector('input[data-f="product"]')||{}).value || '', unit: (row.querySelector('input[data-f="unit"]')||{}).value || 'lm', price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0 };
   }).filter(function(r){ return r.product; });
   set.defaultSheetProduct = (document.getElementById('pbDefaultSheet')||{}).value || '';
-  var ids = { ridge_lm: 'pbRidgeLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
+  var ids = { ridge_lm: 'pbRidgeLm', ridge_wide_lm: 'pbRidgeWideLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
   PB_GRADE_KEYS.forEach(function(k){ var v = parseFloat((document.getElementById(ids[k])||{}).value); set[k] = isFinite(v) ? v : 0; });
   Array.from(document.querySelectorAll('#pbBackTrayList [data-bt-name]')).forEach(function(inp){
     var nm = inp.getAttribute('data-bt-name'), v = parseFloat(inp.value);
@@ -13444,7 +13462,7 @@ function _pbGradeFill(){
   var isBase = active === _pbBaseId();
   renderPriceBookSheets(set.sheets || []);
   refreshDefaultSheetPicker(set.sheets || [], set.defaultSheetProduct || '');
-  var ids = { ridge_lm: 'pbRidgeLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
+  var ids = { ridge_lm: 'pbRidgeLm', ridge_wide_lm: 'pbRidgeWideLm', valley_lm: 'pbValleyLm', barge_lm: 'pbBargeLm', apron_lm: 'pbApronLm', changepitch_lm: 'pbChangepitchLm', box_pen_lm: 'pbBoxPenLm' };
   PB_GRADE_KEYS.forEach(function(k){
     var el = document.getElementById(ids[k]); if (!el) return;
     var v = set[k]; el.value = (v == null || v === 0) ? '' : v;
@@ -13764,6 +13782,7 @@ var PB_CSV_TARGETS = [
   { path: 'changepitch_lm',  label: 'Change-of-pitch flashing', unit: 'lm', re: /change\s*(of\s*)?pitch|\bcop\b/i },
   // Merchants here write "Ridging", not "Ridge" — Roofing Industries bills
   // "Roundtop Standard Ridging Maxam 63mm". \bridge\b does not match that word.
+  { path: 'ridge_wide_lm',   label: 'Wide-cover ridge / hip flashing', unit: 'lm', re: /(?=.*\b(ridge|ridging)\b)(?=.*\bwide\b)/i },
   { path: 'ridge_lm',        label: 'Ridge / hip flashing', unit: 'lm', re: /\b(ridge|ridging|hip)\b/i },
   { path: 'valley_lm',       label: 'Valley flashing',      unit: 'lm', re: /\bvalley\b/i },
   { path: 'barge_lm',        label: 'Barge flashing',       unit: 'lm', re: /\bbarge\b/i },
@@ -14090,7 +14109,7 @@ var CPB_INPUT_IDS = { 'underlay.50':'pbUnderlay50', 'underlay.75':'pbUnderlay75'
   'gutter.typhoon_expjoiner_ea':'pbGutTyphoonExpJoiner', 'gutter.typhoon_weldsolvent_ea':'pbGutTyphoonWeldSolvent',
   'gutter.box125_lm':'pbGutBox125Lm', 'gutter.bracket_ea':'pbGutBracketEach', 'gutter.dropper_ea':'pbGutDropperEach',
   'gutter.marley_classic_lm':'pbGutMarleyClassicLm', 'gutter.marley_typhoon_lm':'pbGutMarleyTyphoonLm',
-  ridge_lm:'pbRidgeLm', valley_lm:'pbValleyLm', barge_lm:'pbBargeLm', apron_lm:'pbApronLm',
+  ridge_lm:'pbRidgeLm', ridge_wide_lm:'pbRidgeWideLm', valley_lm:'pbValleyLm', barge_lm:'pbBargeLm', apron_lm:'pbApronLm',
   changepitch_lm:'pbChangepitchLm', box_pen_lm:'pbBoxPenLm' };
 function _cpbInputFor(path){
   if (CPB_INPUT_IDS[path]){
@@ -14926,6 +14945,11 @@ function _onMatOverride(key, field, value){
   if (!MATERIAL_OVERRIDES[key]) MATERIAL_OVERRIDES[key] = {};
   if (field === 'price' && (value === '' || value == null)) delete MATERIAL_OVERRIDES[key].price;
   else MATERIAL_OVERRIDES[key][field] = value;
+  // Standard or wide-cover ridging is one choice, priced here and cut on the
+  // material order. Picking it on either side moves the other.
+  if (field === 'variant' && /(^|:)ridge$/.test(String(key)) && (value === 'standard' || value === 'wide')){
+    try { var _rs = document.getElementById('orderRidging'); if (_rs && _rs.value !== value) _rs.value = value; } catch(e){}
+  }
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
@@ -15205,6 +15229,62 @@ function _unpSend(){
   try { _scheduleAutosave(); } catch(e){}
   if (typeof then === 'function') then();
 }
+// WOULD YOU LIKE TO SAVE THIS AS THE NEW DEFAULT PRICE? (2026-09-30, the
+// owner's) A price typed on a material row is for THIS job. Nine times in ten
+// it is the price that was missing from the book, or the one that has just
+// gone up — so the office is asked on the spot, both when the row had no price
+// and when an existing one changes. Answering no leaves it exactly as before:
+// a job override and nothing else. A row priced from a Custom Price Book item
+// is never asked, because _cpbApply would write the item's price back over
+// the answer at the next settings save.
+function _matPriceTyped(ovk, path, bookPrice, value){
+  _onMatOverride(ovk, 'price', value);
+  var n = parseFloat(value);
+  if (!isFinite(n) || n < 0) return;
+  if (!path) return;
+  if (Math.abs(n - (parseFloat(bookPrice) || 0)) < 0.005) return;      // nothing moved
+  try { if (_cpbLinkedBy(path)) return; } catch(e){}
+  var label = '';
+  try { label = _cpbTargetLabel(path); } catch(e){ label = path; }
+  var was = parseFloat(bookPrice) || 0;
+  var msg = 'Would you like to save this as the new default price?\n\n' +
+            label + '  —  $' + n.toFixed(2) + '\n\n' +
+            (was > 0 ? 'Your price book has $' + was.toFixed(2) + ' against it at the moment.'
+                     : 'Your price book has no price against it at the moment.') +
+            '\n\nSay no and the price stays on this job only.';
+  if (!window.confirm(msg)) return;
+  _matSaveAsDefault(path, n, label);
+}
+// The typed price becomes the default: written into the set the job is being
+// priced from (a steel grade with its own prices keeps its own), put on the
+// Settings inputs so the save reads it back, then saved.
+async function _matSaveAsDefault(path, n, label){
+  try {
+    if (!S.settings) return;
+    if (!S.settings.price_book) S.settings.price_book = {};
+    var pb = S.settings.price_book, g = _pbGradeInUse(), base = _pbBaseId(), target = pb;
+    if (g !== base && _pbGradeHasPrices(g)){
+      if (!pb.by_grade) pb.by_grade = {};
+      target = pb.by_grade[g] || (pb.by_grade[g] = {});
+    }
+    var m = /^sheet:(.+)$/.exec(path);
+    if (m){
+      var list = target.sheets || (target.sheets = []);
+      var hit = list.filter(function(x){ return x.product === m[1]; })[0];
+      if (hit) hit.price = n; else list.push({ product:m[1], unit:'lm', price:n });
+    } else {
+      _pbWritePath(target, path, n);
+    }
+    try { renderPriceBookUI(); } catch(e){}
+    var ok = await saveSettings(true);
+    renderMaterialPriceTable();
+    try { _siteToast(ok === false
+      ? ('Saved on this device — ' + label + ' is now $' + n.toFixed(2) + '. Reload to sync it.')
+      : ('Saved as the default price — ' + label + ' is now $' + n.toFixed(2))); } catch(e){}
+  } catch(e){
+    try { _siteToast('That could not be saved as the default price — it is still set for this job.'); } catch(e2){}
+  }
+}
 function _deleteMatRow(key){
   MATERIAL_DELETED[key] = true;
   renderMaterialPriceTable();
@@ -15219,9 +15299,9 @@ function restoreDeletedMatRows(){
 }
 function openPriceSettings(){
   gotoTab('settings');
-  // Click the Price book sub-tab so the user lands directly in it
+  // Click the Default item pricing sub-tab so the user lands directly in it
   setTimeout(function(){
-    var btn = document.querySelector('button[onclick*="set-products"]');
+    var btn = document.querySelector('button[onclick*="set-defaultpricing"]');
     if (btn) btn.click();
   }, 0);
 }
@@ -15389,7 +15469,22 @@ function _buildMaterialPriceRows(){
   var _ll = lineLens || {};
   // Ridge and hip share a row, so they share a wastage calculation — but they
   // are still separate runs on the roof and each gets its own offcut.
-  flashRow('ridge',  'Ridge / Hip cap',  (_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, pb.ridge_lm);
+  // RIDGING HAS TWO WIDTHS (2026-09-30, the owner's): standard and wide
+  // cover. They are different products at different prices, so the row is a
+  // real two-option row and each option has its own price in the book. The
+  // pick follows the job's Ridging choice on the material order and writing
+  // it here moves that one too, so the cut list and the price never disagree.
+  (function(){
+    if (!ridgeHip) return;
+    var w = _flashWaste((_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip);
+    if (!(w.total > 0)) return;
+    var pick = 'standard';
+    try { pick = ((document.getElementById('orderRidging')||{}).value === 'wide') ? 'wide' : 'standard'; } catch(e){}
+    rows.push({ key:'ridge', label:'Ridge / Hip cap', autoQty:w.total, autoUnit:'lm',
+                variants:[ { value:'standard', label:'Standard ridging',   price:pb.ridge_lm||0,      unit:'lm' },
+                           { value:'wide',     label:'Wide-cover ridging', price:pb.ridge_wide_lm||0, unit:'lm' } ],
+                defaultVariant:pick, note:_flashWasteNote(w) });
+  })();
   flashRow('valley', 'Valley iron',      _ll.valley,      totals.valley,   pb.valley_lm);
   // The gutter is NOT a roofing material (2026-09-22): it is itemised on
   // the Guttering & Downpipes card (spouting, brackets, droppers) and was
@@ -15507,7 +15602,8 @@ function _cpbPathForVariant(row, v){
   var k = String(row.key || '');
   if (k === 'sheets') return 'sheet:' + v.value;
   if (k === 'underlay') return 'underlay.' + v.value;
-  if (/^(ridge|valley|barge|apron|changepitch)$/.test(k)) return k + '_lm';
+  if (k === 'ridge') return (v && v.value === 'wide') ? 'ridge_wide_lm' : 'ridge_lm';
+  if (/^(valley|barge|apron|changepitch)$/.test(k)) return k + '_lm';
   if (k === 'screws') return 'screws_each';
   if (k === 'rivets') return 'rivets_each';
   if (/^aquaseal:/.test(k)) return 'aquaseal.' + v.value;
@@ -15657,6 +15753,11 @@ function renderMaterialPriceTable(){
 
     var ovBadge = (ov.qty != null && ov.qty !== '') ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '';
     var _pOv = (ov.price != null && ov.price !== '');
+    // What the price book says for the variant on screen, and where it lives
+    // — both read at render time so the "save this as the default?" question
+    // knows the row it came from without rebuilding the table.
+    var _bookP = picked ? (picked.price || 0) : 0;
+    var _defPath = ''; try { _defPath = _cpbPathForVariant(r, picked || {}) || ''; } catch(e){}
     var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null || _pOv) ? '<button onclick="_resetMatOverride(\''+_ovk+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
     var custom   = r.isCustom ? ' <span style="font-size:9px;color:#0891b2;text-transform:uppercase;letter-spacing:.05em;font-weight:700">custom</span>' : '';
 
@@ -15682,7 +15783,7 @@ function renderMaterialPriceTable(){
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
       '</td>'+
       '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>'+
-        '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" data-price-key="'+esc(r.key)+'" value="'+(price||0).toFixed(2)+'" title="The price for THIS job \u2014 type over it if the price book has none; \u21BB puts the price book\u2019s back" onchange="_onMatOverride(\''+_ovk+'\',\'price\',this.value)"'+(_pOv ? ' class="mat-price-ov"' : '')+'></div>'+
+        '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" data-price-key="'+esc(r.key)+'" value="'+(price||0).toFixed(2)+'" title="The price for THIS job \u2014 type over it if the price book has none; \u21BB puts the price book\u2019s back" onchange="_matPriceTyped(\''+_ovk+'\',\''+esc(_defPath)+'\','+(_bookP||0)+',this.value)"'+(_pOv ? ' class="mat-price-ov"' : '')+'></div>'+
         (_pOv ? '<div style="font-size:9px;color:#7c3aed;font-weight:700;margin-top:2px">THIS JOB</div>' : '')+
       '</td>'+
       '<td style="text-align:right;font-weight:600'+(_zero ? ';color:#b91c1c' : '')+'">$'+lineTotal.toFixed(2)+'</td>'+
@@ -46233,7 +46334,7 @@ var SETUP_STEPS = [
 
   { key:'pricebook', title:'Your price book — read this one',
     body:'__PB_DISCLAIMER__',
-    go:{ tab:'settings', sub:'set-products' }, cta:'Open the price book', where:'Quote\'s Product Options' },
+    go:{ tab:'settings', sub:'set-defaultpricing' }, cta:'Open the price book', where:'Default item pricing' },
 
   { key:'brand', title:'Make the quotes yours',
     // The branding wizard collects the same fields on first run. If it has
