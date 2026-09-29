@@ -127,15 +127,18 @@ v = await pg.evaluate(() => {
            name: document.getElementById('navJobName').textContent,
            addr: document.getElementById('navJobAddr').textContent,
            btns: getComputedStyle(btns).display !== 'none',
-           html: btns.innerHTML };
+           html: btns.innerHTML,
+           chg: (document.getElementById('navJobChangeBtn') || {}).outerHTML || '',
+           chgBg: (function(){ const b = document.getElementById('navJobChangeBtn');
+             return b ? getComputedStyle(b).backgroundColor : ''; })() };
 });
 check('the selected job leads with its number', /3206/.test(v.no), v.no);
 check('…then the customer', v.name === 'Sharon Thomson', v.name);
 check('…then the address', /23 Don Buck Road/.test(v.addr), v.addr);
-check('there is a Change job button and a History button', v.btns &&
-  /Change job/.test(v.html) && /History/.test(v.html), v.html.slice(0, 90));
+check('there is a Change job button in the left menu and a History button', !!v.chg &&
+  /Change job/.test(v.chg) && v.btns && /History/.test(v.html), v.chg.slice(0, 90) + ' | ' + v.html.slice(0, 60));
 check('…Change job in blue, History in orange',
-  /#0099cc[^>]*>\s*Change job/.test(v.html) && /#ea580c[^>]*>\s*History/.test(v.html), v.html.slice(0, 200));
+  /rgb\(0, *153, *204\)/.test(v.chgBg) && /#ea580c[^>]*>\s*History/.test(v.html), v.chgBg + ' | ' + v.html.slice(0, 80));
 
 // ── the history window ──
 await pg.evaluate(() => _jobHistoryOpen());
