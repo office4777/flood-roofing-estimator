@@ -1018,6 +1018,41 @@ Discipline (non-negotiable):
   onto the quote as `gradeDeltas`). A grade with no prices of its own still
   runs on the percentage from the Products list. `tests/gradeprices.mjs`.
 
+## OPEN AND URGENT — an accepted quote's figures still move
+
+The owner, 2026-09-30: "an accepted quote must never ever change, no matter
+what updates or fixes are made — the quote $ numbers and selections must
+never change after the customer has accepted it." Job 3270 was accepted at
+$22,506.39 and the office opened it reading $23,223.94.
+
+THE MECHANISM IS KNOWN. On an accepted quote `_qpPriced()` correctly hands
+back the frozen `share.priced` block, so the selection DELTAS are frozen —
+but `_qpBaseSub()` (27323) reads `quoteSubtotal()`, the LIVE line items. So
+re-pricing the job moves the base under the acceptance: 3270's re-roof line
+alone went from $16,081.61 to $19,115.56.
+
+DO NOT simply return the frozen base from `_qpBaseSub()`. That was tried and
+reverted: these are not display-only functions. `_qpBuildPriced()` (27123)
+reads `_qpBaseSub()` into `share.priced.base`, and `_qStampCustomerCopy` runs
+it before EVERY autosave on the Quote tab; `_custBarTotalValue` (31795) feeds
+`share.sentTotal` (29022). Overriding either wrote the acceptance's own
+figures into the job's line items — `tests/quoteversions.mjs` "opening a saved
+draft brings it back as the working draft" caught a $1,000 acceptance total
+appearing in the lines. Whatever the fix is, it has to separate what is SHOWN
+from what is STAMPED, and that suite is the tripwire.
+
+The likeliest right shape: when a job whose quote has been accepted is
+opened, put the ACCEPTED VERSION on screen (`_qvView('accepted')`, 28231 —
+existing, tested machinery that locks the job and swaps in the frozen quote)
+rather than the working draft, and leave the pricing functions alone.
+
+Also open from the same evening: switching jobs can leave the PREVIOUS job's
+quote in place. The office moved from 3270 to 3228 and every autosave then
+tried to CREATE a record whose client was Deb Allen but whose `quote.ref` was
+still 3270 — the server derives a job's number from `draw_state.state.quote
+.ref` (server.js 2932), so it refused with DUPLICATE_JOB_NO over and over.
+The refusal is correct and nothing was corrupted; the carry-over is the bug.
+
 ## Four things that have been broken twice
 
 **The roof engine.** `buildHipValleyLines` runs a real straight skeleton, then
