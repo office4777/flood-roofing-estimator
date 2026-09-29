@@ -47,10 +47,22 @@ await pg.evaluate(() => { autoGenerateRoof('gable'); autoCalcLineMeasurements();
 await pg.waitForTimeout(600);
 
 // Every confirm the page raises is answered here rather than by the dialog
-// handler, so the "save this as the default price?" question can be answered
-// both ways. Yes by default, which is what the dialog handler did.
+// handler. The "save this as the default price?" question is NOT one of them
+// any more — it is a real window (2026-09-30) — so it is answered by pressing
+// its button, through _ask() below.
 await pg.evaluate(() => { window.__ask = []; window.__answer = true;
   window.confirm = (m) => { window.__ask.push(m); return window.__answer; }; });
+// Press a button on the price window and read what it said. Answers null when
+// no window appeared.
+const priceWin = async (yes) => pg.evaluate(async (y) => {
+  await new Promise(r => setTimeout(r, 120));
+  const m = document.getElementById('matDefPriceModal');
+  if (!m) return null;
+  const txt = m.textContent.replace(/\s+/g, ' ').trim();
+  m.querySelector(y ? '#matDefSave' : '#matDefKeep').click();
+  await new Promise(r => setTimeout(r, 260));
+  return { txt, gone: !document.getElementById('matDefPriceModal') };
+}, yes);
 
 // ── a price typed for this job ──
 const pr = await pg.evaluate(() => {
@@ -173,40 +185,41 @@ await pg.evaluate(() => { _pbPickClose(); window.__ask = []; window.__answer = f
   S.settings.price_book.screws_each = 0; S.settings.price_book.rivets_each = 0.08;
   gotoTab('quote'); _openPricingPanel && _openPricingPanel(); renderMaterialPriceTable(); });
 await pg.waitForTimeout(300);
-const askNo = await pg.evaluate(async () => {
-  const inp = document.querySelector('input[data-price-key="screws"]');
-  if (!inp) return { none: true };
-  inp.value = '0.31'; inp.dispatchEvent(new Event('change'));
-  await new Promise(r => setTimeout(r, 200));
-  return { ask: window.__ask.slice(), book: S.settings.price_book.screws_each,
-           job: (MATERIAL_OVERRIDES.screws || {}).price };
-});
+await pg.evaluate(() => { const i = document.querySelector('input[data-price-key="screws"]');
+  i.value = '0.31'; i.dispatchEvent(new Event('change')); });
+const winNo = await priceWin(false);
+const askNo = await pg.evaluate(() => ({ ask: window.__ask.slice(), book: S.settings.price_book.screws_each,
+  job: (MATERIAL_OVERRIDES.screws || {}).price, none: false }));
 check('a price typed on a row with no price asks to save it as the default',
-  !askNo.none && askNo.ask.length === 1 && /Would you like to save this as the new default price\?/.test(askNo.ask[0]) &&
-  /no price against it/.test(askNo.ask[0]), JSON.stringify(askNo.ask));
-check('…and "no" leaves it a job price, the book untouched', askNo.book === 0 && askNo.job === '0.31', JSON.stringify(askNo));
+  !!winNo && /Save this as your default price\?/.test(winNo.txt), JSON.stringify(winNo && winNo.txt.slice(0, 120)));
+// THE ASK: not the browser's grey box with the site's name on it.
+check('…in a window of the app’s own, not a browser alert',
+  askNo.ask.length === 0 && !!winNo && winNo.gone, JSON.stringify(askNo.ask));
+check('…which says there is no price against it yet, and what the new one is',
+  !!winNo && /No price/.test(winNo.txt) && /\$0\.31/.test(winNo.txt), winNo && winNo.txt.slice(0, 160));
+check('…and is explicit that saving changes every future job',
+  !!winNo && /every future job/i.test(winNo.txt), winNo && winNo.txt.slice(0, 200));
+check('…and "Just this job" leaves it a job price, the book untouched', askNo.book === 0 && askNo.job === '0.31', JSON.stringify(askNo));
 
-const askYes = await pg.evaluate(async () => {
-  window.__ask = []; window.__answer = true;
-  const inp = document.querySelector('input[data-price-key="rivets"]');
-  inp.value = '0.11'; inp.dispatchEvent(new Event('change'));
-  await new Promise(r => setTimeout(r, 400));
-  return { ask: window.__ask.slice(), book: S.settings.price_book.rivets_each,
-           input: (document.getElementById('pbRivetsEach') || {}).value };
-});
-check('a price CHANGED on a row that had one is asked about too, naming the old price',
-  askYes.ask.length === 1 && /\$0\.08 against it/.test(askYes.ask[0]), JSON.stringify(askYes.ask));
-check('…and "yes" writes it into the price book and the Settings input', askYes.book === 0.11 && askYes.input === '0.11', JSON.stringify(askYes));
+await pg.evaluate(() => { window.__ask = [];
+  const i = document.querySelector('input[data-price-key="rivets"]');
+  i.value = '0.11'; i.dispatchEvent(new Event('change')); });
+const winYes = await priceWin(true);
+await pg.waitForTimeout(500);
+const askYes = await pg.evaluate(() => ({ ask: window.__ask.slice(), book: S.settings.price_book.rivets_each,
+  input: (document.getElementById('pbRivetsEach') || {}).value }));
+check('a price CHANGED on a row that had one is asked about too, showing the old beside the new',
+  !!winYes && /\$0\.08/.test(winYes.txt) && /\$0\.11/.test(winYes.txt), winYes && winYes.txt.slice(0, 170));
+check('…and "Save as default" writes it into the price book and the Settings input', askYes.book === 0.11 && askYes.input === '0.11', JSON.stringify(askYes));
 check('…and the save reached the server', settingsPuts.some(b => b && b.price_book && b.price_book.rivets_each === 0.11));
 
 const same = await pg.evaluate(async () => {
-  window.__ask = [];
   const inp = document.querySelector('input[data-price-key="rivets"]');
   inp.value = '0.11'; inp.dispatchEvent(new Event('change'));
-  await new Promise(r => setTimeout(r, 200));
-  return window.__ask.length;
+  await new Promise(r => setTimeout(r, 250));
+  return !!document.getElementById('matDefPriceModal');
 });
-check('a price typed back the same as the book asks nothing', same === 0, String(same));
+check('a price typed back the same as the book asks nothing', same === false, String(same));
 
 // ── ridging: standard and wide cover ──
 const ridg = await pg.evaluate(async () => {

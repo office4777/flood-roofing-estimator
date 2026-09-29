@@ -3249,6 +3249,25 @@ select.qa-btn{ padding:5px 8px; }
 .qv-menu-list button:hover, .qa-more-list button:hover{ background:#f3f6f9; }
 .qv-menu-list button small, .qa-more-list button small{ font-size:10.5px; font-weight:400; color:#7c8894; }
 .qv-menu-hd, .qa-more-lbl{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a97a6; padding:8px 10px 3px; }
+/* Create new draft: a menu inside the menu. It opens in place rather than
+   flying out, so a phone can reach it with a thumb. */
+.qv-sub{ margin:2px 0; }
+.qv-sub > summary{
+  display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%;
+  padding:8px 10px; border-radius:7px; background:#eef6fb; color:#0a1628;
+  font-size:12.5px; font-weight:700; cursor:pointer; list-style:none;
+}
+.qv-sub > summary::-webkit-details-marker{ display:none; }
+.qv-sub > summary:hover{ background:#e3eef7; }
+.qv-sub[open] > summary{ background:#0a1628; color:#fff; }
+.qv-sub-list{ padding:2px 0 4px 8px; border-left:2px solid #e3e8ee; margin:4px 0 2px 6px; }
+.qv-sub-list button{
+  display:flex; flex-direction:column; align-items:flex-start; gap:1px; width:100%; text-align:left;
+  padding:7px 9px; border:none; border-radius:7px; background:transparent; color:#0a1628;
+  font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer;
+}
+.qv-sub-list button:hover{ background:#f3f6f9; }
+.qv-sub-list button small{ font-size:10.5px; font-weight:400; color:#7c8894; }
 .qa-more-sel{ width:100%; margin:0 0 4px; }
 /* The quote editor rail (report 56). */
 .qe-wrap{ display:flex; gap:12px; align-items:flex-start; }
@@ -15265,7 +15284,68 @@ function _unpSend(){
 // a job override and nothing else. A row priced from a Custom Price Book item
 // is never asked, because _cpbApply would write the item's price back over
 // the answer at the next settings save.
-function _matPriceTyped(ovk, path, bookPrice, value){
+// THE QUESTION IS A PROPER WINDOW, NOT A BROWSER ALERT (2026-09-30, the
+// owner's: "I want a more professional pop-up window to appear when I enter a
+// custom price … even if there's a price already in there and I edit it").
+// window.confirm() is the browser's grey box with the site's name on it — it
+// looks like a warning about the page rather than a question about money, and
+// it cannot say what the old price was beside the new one. This says both,
+// names the item, and is explicit that Yes changes EVERY FUTURE JOB.
+// Answering is `then(true|false)`; Esc, the backdrop and Keep for this job all
+// mean no, which is the safe answer.
+function _matDefaultAsk(label, was, now, unit){
+  return new Promise(function(resolve){
+    var old = document.getElementById('matDefPriceModal');
+    if (old) old.remove();
+    var money = function(v){ try { return fmtMoney(v); } catch(e){ return '$' + (Number(v)||0).toFixed(2); } };
+    var per = unit ? ('/' + unit) : '';
+    var host = document.createElement('div');
+    host.id = 'matDefPriceModal'; host.className = 'no-print';
+    host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit');
+    host.innerHTML =
+      '<div role="dialog" aria-modal="true" aria-labelledby="matDefPriceTitle" style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)">'+
+        '<div id="matDefPriceTitle" style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">Save this as your default price?</div>'+
+        '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px">'+
+          esc2(label) + ' is priced at ' + esc2(money(now)) + esc2(per) + ' on this job.</div>'+
+        '<div style="display:flex;align-items:stretch;gap:10px;margin-bottom:14px">'+
+          '<div style="flex:1;background:#f6f8fa;border:1px solid var(--border);border-radius:10px;padding:10px 12px">'+
+            '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a97a6">Price book now</div>'+
+            '<div style="font-size:15px;font-weight:700;color:' + (was > 0 ? '#0a1628' : '#b91c1c') + ';margin-top:2px">' +
+              (was > 0 ? esc2(money(was) + per) : 'No price') + '</div>'+
+          '</div>'+
+          '<div style="align-self:center;font-size:16px;color:#8a97a6">→</div>'+
+          '<div style="flex:1;background:#eef7f0;border:1px solid #bfe3c8;border-radius:10px;padding:10px 12px">'+
+            '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#3f8153">New default</div>'+
+            '<div style="font-size:15px;font-weight:800;color:#15803d;margin-top:2px">' + esc2(money(now) + per) + '</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:16px">'+
+          'Saving it changes your price book, so <strong>every future job</strong> is priced at ' + esc2(money(now)) + esc2(per) + '. '+
+          'Quotes you have already sent keep the price they were sent with.</div>'+
+        '<div style="display:flex;gap:8px">'+
+          '<button type="button" id="matDefSave" style="flex:1;padding:11px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save as default</button>'+
+          '<button type="button" id="matDefKeep" style="flex:1;padding:11px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Just this job</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(host);
+    var done = function(yes){
+      if (!host.parentNode) return;
+      document.removeEventListener('keydown', onKey, true);
+      host.remove();
+      resolve(!!yes);
+    };
+    var onKey = function(ev){
+      if (ev.key === 'Escape'){ ev.preventDefault(); done(false); }
+      else if (ev.key === 'Enter'){ ev.preventDefault(); done(true); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    host.addEventListener('click', function(ev){ if (ev.target === host) done(false); });
+    host.querySelector('#matDefSave').onclick = function(){ done(true); };
+    host.querySelector('#matDefKeep').onclick = function(){ done(false); };
+    try { host.querySelector('#matDefSave').focus(); } catch(e){}
+  });
+}
+async function _matPriceTyped(ovk, path, bookPrice, value, unit){
   _onMatOverride(ovk, 'price', value);
   var n = parseFloat(value);
   if (!isFinite(n) || n < 0) return;
@@ -15275,12 +15355,7 @@ function _matPriceTyped(ovk, path, bookPrice, value){
   var label = '';
   try { label = _cpbTargetLabel(path); } catch(e){ label = path; }
   var was = parseFloat(bookPrice) || 0;
-  var msg = 'Would you like to save this as the new default price?\n\n' +
-            label + '  —  $' + n.toFixed(2) + '\n\n' +
-            (was > 0 ? 'Your price book has $' + was.toFixed(2) + ' against it at the moment.'
-                     : 'Your price book has no price against it at the moment.') +
-            '\n\nSay no and the price stays on this job only.';
-  if (!window.confirm(msg)) return;
+  if (!(await _matDefaultAsk(label, was, n, unit))) return;
   _matSaveAsDefault(path, n, label);
 }
 // The typed price becomes the default: written into the set the job is being
@@ -15811,7 +15886,7 @@ function renderMaterialPriceTable(){
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
       '</td>'+
       '<td'+(_zero ? ' style="color:#b91c1c;font-weight:700"' : '')+'>'+
-        '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" data-price-key="'+esc(r.key)+'" value="'+(price||0).toFixed(2)+'" title="The price for THIS job \u2014 type over it if the price book has none; \u21BB puts the price book\u2019s back" onchange="_matPriceTyped(\''+_ovk+'\',\''+esc(_defPath)+'\','+(_bookP||0)+',this.value)"'+(_pOv ? ' class="mat-price-ov"' : '')+'></div>'+
+        '<div class="mat-price-in"><span>$</span><input type="number" step="0.01" min="0" data-price-key="'+esc(r.key)+'" value="'+(price||0).toFixed(2)+'" title="The price for THIS job \u2014 type over it if the price book has none; \u21BB puts the price book\u2019s back" onchange="_matPriceTyped(\''+_ovk+'\',\''+esc(_defPath)+'\','+(_bookP||0)+',this.value,\''+esc(unit||'')+'\')"'+(_pOv ? ' class="mat-price-ov"' : '')+'></div>'+
         (_pOv ? '<div style="font-size:9px;color:#7c3aed;font-weight:700;margin-top:2px">THIS JOB</div>' : '')+
       '</td>'+
       '<td style="text-align:right;font-weight:600'+(_zero ? ';color:#b91c1c' : '')+'">$'+lineTotal.toFixed(2)+'</td>'+
@@ -28385,6 +28460,38 @@ function _qvAsk(text, choices){
   host.querySelectorAll('button').forEach(function(b){ b.onclick = function(){ var c = choices[+b.getAttribute('data-i')]; host.remove(); if (c && c.run) c.run(); }; });
 }
 // The row of buttons in the frozen header.
+// CREATE NEW DRAFT (2026-09-30, the owner's). Starting a fresh draft came off
+// this menu on 2026-09-25 because the menu read as two controls for one thing;
+// what was lost with it was the only way to start one at all. It is back as a
+// menu inside the menu, with the two things a roofer actually wants:
+//
+//   • from a saved template — the layout, none of this quote's content;
+//   • duplicate this quote — everything as it stands, editable. Usually on a
+//     quote already sent, which is why it strips the acceptance and takes a
+//     new draft id rather than editing the record the customer holds.
+//
+// A <details> inside the <details>, so it works on a phone with no JS, like
+// every other menu here.
+function _qvNewDraftMenu(){
+  var close = "this.closest('details.qv-menu').removeAttribute('open');";
+  var tpls = []; try { tpls = _qtTemplates(); } catch(e){}
+  var row = function(call, label, sub){
+    return '<button type="button" class="lock-ok" onclick="' + close + call + '">' + label +
+           (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  };
+  var sent = false;
+  try { sent = !!(S.quote && ((S.quote.versions && S.quote.versions.sent) || (S.quote.share && S.quote.share.sentAt))); } catch(e){}
+  var inner = '<div class="qv-menu-hd">Start it from</div>' +
+    row("_qChangeTemplate('__default')", 'The default quote', 'The layout every new quote starts with') +
+    tpls.map(function(t){ return row("_qChangeTemplate('" + esc2(t.id) + "')", esc2(t.name || 'Template'), 'Saved template'); }).join('') +
+    '<div class="qv-menu-hd">Or</div>' +
+    row('_qvNewDraft()', 'Duplicate this quote',
+        sent ? 'Everything as it stands, editable — the sent one is kept'
+             : 'Everything as it stands, editable');
+  return '<div class="qv-menu-hd">New draft</div>' +
+    '<details class="qv-sub lock-ok"><summary class="lock-ok">＋ Create new draft<span class="qv-caret">&#9662;</span></summary>' +
+    '<div class="qv-sub-list">' + inner + '</div></details>';
+}
 function _qvRenderBar(){
   var bar = document.getElementById('qaVersions'); if (!bar) return;
   var host = document.getElementById('qaViewingHost');
@@ -28422,6 +28529,7 @@ function _qvRenderBar(){
     v.drafts.map(function(d, i){
       return item("_qvOpenDraft('" + d.id + "')", 'Draft ' + (i + 1), _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · open now' : ''), false);
     }).join('') +
+    _qvNewDraftMenu() +
     '</div></details>';
   // ONE sentence about the customer. Not a badge and a button that seem to
   // disagree ("this draft is live" beside "accepted") — the state, in words.

@@ -201,6 +201,38 @@ const fc = await pg.evaluate(async () => {
 check('pushing to Fergus shows a Cancel on the pill', fc.had, JSON.stringify(fc));
 check('…Cancel stops it: the version Fergus had just made is voided again, and it says so', voids.includes('fq77') && /cancelled/i.test(fc.msg) && /voided again/.test(fc.msg) && fc.rev === fc.rev0 && !fc.sentMark, JSON.stringify({ fc, voids }));
 
+
+// ── Create new draft, back in the Viewing menu (2026-09-30, the owner's) ──
+const nd = await pg.evaluate(() => {
+  _qvRenderBar();
+  const menu = document.getElementById('qvViewingMenu');
+  const sub = menu && menu.querySelector('details.qv-sub');
+  const sum = sub && sub.querySelector('summary');
+  const btns = sub ? [...sub.querySelectorAll('.qv-sub-list button')].map(b => ({
+    label: (b.childNodes[0] && b.childNodes[0].textContent || '').trim(),
+    sub: (b.querySelector('small') || {}).textContent || '',
+    call: b.getAttribute('onclick') || '' })) : [];
+  return { there: !!sub, summary: sum ? sum.textContent.trim() : '', btns };
+});
+check('the Viewing menu offers Create new draft', nd.there && /Create new draft/i.test(nd.summary), JSON.stringify(nd.summary));
+check('…as a menu inside the menu, not a flat row', nd.there && nd.btns.length >= 2, nd.btns.length + ' options');
+check('…offering a start from the default quote and any saved template',
+  nd.btns.some(b => /default quote/i.test(b.label) && /_qChangeTemplate/.test(b.call)), JSON.stringify(nd.btns.map(b => b.label)));
+check('…and "Duplicate this quote", which is the sent one kept and a copy to edit',
+  nd.btns.some(b => /Duplicate this quote/i.test(b.label) && /_qvNewDraft/.test(b.call)), JSON.stringify(nd.btns.map(b => b.label)));
+
+// Duplicating really does make a new, editable, un-accepted draft.
+const dup = await pg.evaluate(() => {
+  S.quote.accepted = { name: 'Megan Smith', at: new Date().toISOString(), total: 1234 };
+  S.jobLocked = true;
+  const wasId = S.quote.draftId;
+  _qvNewDraft();
+  return { wasId, nowId: S.quote.draftId, accepted: S.quote.accepted || null, locked: S.jobLocked };
+});
+check('duplicating an accepted quote gives an editable draft that is not itself accepted',
+  dup.nowId && dup.nowId !== dup.wasId && !dup.accepted && !dup.locked, JSON.stringify(dup));
+
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

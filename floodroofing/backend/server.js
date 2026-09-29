@@ -1033,6 +1033,18 @@ app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features
 // account into it, leaving the real jobs, settings and subscription behind
 // under the old company. Every read that decides who someone is, or what
 // they are entitled to, goes through this.
+// PostgREST answers .single() with an ERROR when there are no rows (PGRST116),
+// which is the one error that really does mean "not found". Everything else —
+// a timeout, a dropped connection, the schema cache — means the database did
+// not answer, and saying "not found" to that is a lie the office acts on.
+// The owner, 2026-09-30, pressing Create version while the database was
+// struggling: "Could not create a version: not found" — on a job that was
+// open on his screen.
+function _isNoRows(err){
+  const c = String((err && err.code) || '');
+  const m = String((err && err.message) || '');
+  return c === 'PGRST116' || /0 rows|no rows|not a single|Results contain 0/i.test(m);
+}
 function _mustRead(res, what){
   if (res && res.error) {
     const e = new Error('Could not read your ' + what + ' — the database did not answer. Try again in a moment.');
@@ -2762,6 +2774,8 @@ app.get('/jobs/:id/versions', requireAuth, async (req, res) => {
   try {
     const one = await _scopeCompany(
       supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', req.params.id), req).single();
+    if (one.error && !_isNoRows(one.error))
+      return res.status(503).json({ error: 'Could not read that job — the database did not answer. Try again in a moment.', code: 'UPSTREAM_UNAVAILABLE' });
     const job = (!one.error && one.data) ? one.data : null;
     if (!job) return res.status(404).json({ error: 'not found' });
     const rows = await _versionGroup(req, job);
@@ -2789,6 +2803,8 @@ app.post('/jobs/:id/versions', requireAuth, requireSubscription, async (req, res
   try {
     const src = await _scopeCompany(
       supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
+    if (src.error && !_isNoRows(src.error))
+      return res.status(503).json({ error: 'Could not read that job — the database did not answer. Try again in a moment.', code: 'UPSTREAM_UNAVAILABLE' });
     if (src.error || !src.data) return res.status(404).json({ error: 'not found' });
     const job = src.data;
     const root = _versionRootOf(job);
@@ -2829,6 +2845,8 @@ app.put('/jobs/:id/version-name', requireAuth, async (req, res) => {
   try {
     const one = await _scopeCompany(
       supabase.from('jobs').select(JOB_VERSION_COLS).eq('id', req.params.id), req).single();
+    if (one.error && !_isNoRows(one.error))
+      return res.status(503).json({ error: 'Could not read that job — the database did not answer. Try again in a moment.', code: 'UPSTREAM_UNAVAILABLE' });
     const job = (!one.error && one.data) ? one.data : null;
     if (!job) return res.status(404).json({ error: 'not found' });
     const { error } = await supabase.from('jobs').update({ version_name: name }).eq('id', job.id);
