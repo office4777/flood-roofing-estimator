@@ -16685,6 +16685,13 @@ function _needsSetup(){
   try {
     if (window.__CUSTOMER_MODE) return false;
     if (!localStorage.getItem('fr_token')) return false;
+    // NEVER ASK FOR DETAILS WE MERELY FAILED TO READ (2026-09-30). When
+    // /settings times out, S.settings falls back to the defaults — blank
+    // branding — and this read that as "this business has not set itself up".
+    // The owner, an account with a logo on every quote for months, was shown
+    // "Set your business up" in front of a quote he was trying to send.
+    // Empty branding only means "not set up" when the server actually said so.
+    if (!window.__settingsLive && !window.__PLAYGROUND) return false;
     var b = (S.settings && S.settings.branding) || {};
     return !String(b.company_name || '').trim();
   } catch(e){ return false; }

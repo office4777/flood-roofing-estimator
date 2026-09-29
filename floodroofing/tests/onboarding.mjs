@@ -341,6 +341,25 @@ v = await pg.evaluate(() => ({ wiz: !!document.getElementById('setupWizard'), gu
 check('"later" closes it and nothing follows it onto the screen', !v.wiz && !v.guide && !v.tour && !v.active && v.ran === 0, JSON.stringify(v));
 v = await pg.evaluate(() => { S.isSampleJob = true; S.demoKind = 'sample'; const t = _brandingBeforeSend(function(){}); const w = !!document.getElementById('setupWizard'); S.isSampleJob = false; return { t, w }; });
 check('…and the sample job never asks — nothing it sends is real', !v.t && !v.w);
+// A DATABASE THAT WOULD NOT ANSWER IS NOT AN ACCOUNT THAT NEVER SET ITSELF UP
+// (2026-09-30). /settings timed out, S.settings fell back to the defaults with
+// blank branding, and the owner — whose logo has been on every quote for
+// months — was shown "Set your business up" in front of a quote he was
+// sending. The wizard may only judge branding it actually read.
+v = await pg.evaluate(() => {
+  const live = window.__settingsLive, co = S.settings.branding.company_name;
+  S.settings.branding.company_name = '';
+  window.__settingsLive = false;
+  const askedAfterFailedRead = _needsSetup();
+  window.__settingsLive = true;
+  const askedAfterGoodRead = _needsSetup();
+  window.__settingsLive = live; S.settings.branding.company_name = co;
+  return { askedAfterFailedRead, askedAfterGoodRead };
+});
+check('settings that never came from the server never trigger the branding wizard',
+  v.askedAfterFailedRead === false, JSON.stringify(v));
+check('…but a server that really says the branding is blank still does',
+  v.askedAfterGoodRead === true, JSON.stringify(v));
 v = await pg.evaluate(() => { localStorage.setItem('fr_first_roof', 'done'); _aboutYouSync(); return (document.getElementById('aboutYouCard') || {}).textContent || ''; });
 check('the setup questions card, once the practice job is behind them, says "Three things" and counts three', /Three things/.test(v) && !/Two things/.test(v) && (await pg.evaluate(() => document.querySelectorAll('#aboutYouCard select').length)) === 3, v.slice(0, 60));
 // Help with this step: the feedback form, with the step named.
