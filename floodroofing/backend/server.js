@@ -382,6 +382,7 @@ function _errNormaliseMessage(msg){
   return m;
 }
 function recordError(kind, err, ctx){
+  try { if (globalThis.__TEST_RECORD_ERROR) globalThis.__TEST_RECORD_ERROR(kind, err, ctx || {}); } catch(e){}
   try {
     ctx = ctx || {};
     const message = _errRedact(_errNormaliseMessage((err && err.message) || err || 'unknown error'));
@@ -11055,31 +11056,94 @@ const _MIGRATION_SQL = [
   "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
 ];
 
+// A DATABASE BLIP AT BOOT IS NOT WORTH THE PROCESS (2026-09-30). On the
+// evening of the 30th one dropped connection during this migration took
+// roofmap.co.nz down for twenty-seven minutes, and every part of that was
+// this function's doing:
+//   • the migration Client had no 'error' listener, so when the connection
+//     went away node-pg raised it as an UNCAUGHT EXCEPTION — and this process
+//     exits on those, by design, for the platform to restart it;
+//   • the restart ran the migration again against a database that was still
+//     unreachable, and exited again: a crash loop, serving 502 throughout;
+//   • and because one client ran all 150 statements with no reconnect, every
+//     statement after the first failure reported "not queryable", so the
+//     alarm said "150 schema statements failing" when the truth was "the
+//     database went away once".
+// So: the connection is retried with a backoff, a dead connection is noticed
+// and reconnected rather than blamed on 149 innocent statements, the client
+// can never raise an uncaught exception, and the alarm names the real event.
+function _pgConnDead(e){
+  return /connection terminated|not queryable|connection ended|econnreset|epipe|server closed the connection|terminating connection/i
+    .test(String((e && e.message) || e));
+}
+const _MIGRATE_CONNECT_TRIES = Number(process.env.MIGRATE_CONNECT_TRIES || 5);
+const _MIGRATE_RECONNECTS = Number(process.env.MIGRATE_RECONNECTS || 3);
+async function _migrateConnect(Client, tries){
+  let last = null;
+  for (let i = 0; i < tries; i++){
+    const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
+    // THE LISTENER THAT KEEPS THE PROCESS ALIVE. Without it a dropped
+    // connection is an uncaught exception and the boot dies with it.
+    c.on('error', function(e){ console.warn('[migrate] connection error: ' + ((e && e.message) || e)); });
+    try { await c.connect(); return c; }
+    catch(e){
+      last = e; try { await c.end(); } catch(e2){}
+      if (i < tries - 1) await new Promise(r => setTimeout(r, Math.min(8000, 1000 * Math.pow(2, i))));
+    }
+  }
+  throw last || new Error('could not connect');
+}
 async function _ensureSchema(){
   if (!process.env.DATABASE_URL) { console.warn('[migrate] DATABASE_URL not set — multi-tenant schema NOT ensured'); return { skipped: 'DATABASE_URL not set' }; }
   let Client;
-  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping (run the SQL manually)'); return { skipped: 'pg not installed' }; }
-  const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
-  let ok = 0, failed = 0; const errors = [];
+  try { Client = globalThis.__TEST_PG_CLIENT || require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping (run the SQL manually)'); return { skipped: 'pg not installed' }; }
+  let c = null;
+  let ok = 0, failed = 0, reconnects = 0, wentAway = null; const errors = [];
   try {
-    await c.connect();
-    for (const sql of _MIGRATION_SQL) {
+    c = await _migrateConnect(Client, _MIGRATE_CONNECT_TRIES);
+    for (let i = 0; i < _MIGRATION_SQL.length; i++) {
+      const sql = _MIGRATION_SQL[i];
       try { await c.query(sql); ok++; }
-      catch(e){ failed++; errors.push({ sql: sql.slice(0, 90), error: e.message }); console.warn('[migrate] statement failed (continuing): ' + e.message + ' — SQL: ' + sql.slice(0, 90)); }
+      catch(e){
+        // The CONNECTION died, not the statement. Marching on would fail
+        // every remaining statement for the same one reason and bury it.
+        if (_pgConnDead(e)){
+          if (reconnects < _MIGRATE_RECONNECTS){
+            reconnects++;
+            console.warn('[migrate] the connection went away — reconnecting (' + reconnects + ') and retrying that statement');
+            try { await c.end(); } catch(e2){}
+            c = null;
+            try { c = await _migrateConnect(Client, _MIGRATE_CONNECT_TRIES); i--; continue; }
+            catch(ce){ wentAway = ce.message; break; }
+          }
+          wentAway = e.message; break;
+        }
+        failed++; errors.push({ sql: sql.slice(0, 90), error: e.message });
+        console.warn('[migrate] statement failed (continuing): ' + e.message + ' — SQL: ' + sql.slice(0, 90));
+      }
     }
-    console.log('[migrate] schema ensured: ' + ok + ' ok, ' + failed + ' failed');
+    console.log('[migrate] schema ensured: ' + ok + ' ok, ' + failed + ' failed' +
+      (reconnects ? ', ' + reconnects + ' reconnect(s)' : '') + (wentAway ? ', STOPPED: ' + wentAway : ''));
+    // ONE alarm, naming what actually happened.
+    if (wentAway) {
+      try { recordError('config', new Error('[migrate] the database went away during the boot migration after ' + ok +
+        ' statement(s): ' + String(wentAway).slice(0, 200) + ' — the schema is only part-applied; it completes on the next boot that can reach the database'),
+        { route: 'boot' }); } catch(e){}
+    }
     // A statement that fails at every boot is a hole someone is standing in
     // — the share-token index missing was felt as customers waiting a minute
     // for a quote. Say it where it will be read.
-    if (failed) { try { recordError('config', new Error('[migrate] ' + failed + ' schema statement(s) failing at boot: ' + errors.map(e => e.error).join(' | ').slice(0, 300)), { route: 'boot' }); } catch(e){} }
-    return { ok, failed, errors };
+    else if (failed) { try { recordError('config', new Error('[migrate] ' + failed + ' schema statement(s) failing at boot: ' + errors.map(e => e.error).join(' | ').slice(0, 300)), { route: 'boot' }); } catch(e){} }
+    return { ok, failed, errors, reconnects, wentAway };
   } catch(e){
     console.warn('[migrate] schema ensure skipped:', e.message);
-    try { recordError('config', new Error('[migrate] could not connect with DATABASE_URL: ' + e.message + ' — the share-token index and fast saves depend on it'), { route: 'boot' }); } catch(e2){}
+    try { recordError('config', new Error('[migrate] could not connect with DATABASE_URL after ' + _MIGRATE_CONNECT_TRIES +
+      ' tries: ' + e.message + ' — the share-token index and fast saves depend on it'), { route: 'boot' }); } catch(e2){}
     return { connectError: e.message };
   }
-  finally { try { await c.end(); } catch(e){} }
+  finally { if (c) { try { await c.end(); } catch(e){} } }
 }
+globalThis.__ensureSchema = _ensureSchema;   // test seam — tests/bootmigrate.mjs
 
 // The truth about the database, on demand — because /health's pg flag only
 // says the VARIABLE exists. This answers what actually matters: does the
