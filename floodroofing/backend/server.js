@@ -10388,10 +10388,12 @@ app.post('/support/messages', requireAuth, rateLimit(10, 60000), async (req, res
       if (EMAIL_ENABLED){
         const who = [company, email].filter(Boolean).join(' · ') || 'a RoofMap user';
         const ctx = String(b.context || '').slice(0, 300);
+        const chat = String(b.transcript || '').slice(0, 3000).trim();
         const info = await _dispatchMail({
           to: MAIL_SUPPORT,
           subject: 'RoofMap support: ' + body.replace(/\s+/g, ' ').slice(0, 70),
           text: who + ' asked, from the Help bubble:\n\n' + body + '\n\n' + (ctx ? ('(They were on: ' + ctx + ')\n\n') : '') +
+                (chat ? ('The chat with the assistant before this:\n' + chat + '\n\n') : '') +
                 'Reply on the support desk so it reaches their Help bubble:\n' + PUBLIC_API_URL + '/admin/support/page\n' +
                 '(Replying to this email reaches their inbox only.)',
           fromName: 'RoofMap Support — ' + who, fromAddress: MAIL_SUPPORT,
@@ -11824,26 +11826,42 @@ app.post('/admin/support/reply', async (req, res) => {
     };
     const { error } = await supabase.from('support_messages').insert(row);
     if (error) throw new Error(error.message);
-    // Their inbox hears about it too — from the platform's own address only.
-    // An answer they asked for, but it goes out as RoofMap: never through the
-    // roofing company's relay (_dispatchMail holds a platform message it
-    // cannot send as MAIL_SUPPORT). Held or not, the bubble has it.
-    let emailed = false, held = false;
+    // THEIR INBOX HEARS ABOUT IT, with the conversation in it (2026-10-01,
+    // the owner's: "make sure any replies ... actually get through to them,
+    // send an email of the chat summary"). An answer to a question they asked
+    // is REQUESTED mail, so it is never held for the sending domain: from
+    // support@ where the platform can send as it, else from the deployment's
+    // own address with the RoofMap Support name and Reply-To support@.
+    let emailed = false, held = false, emailError = '';
     try {
-      if (EMAIL_ENABLED && /.@./.test(lastUser.email || '')){
-        const q = String(lastUser.body || '').replace(/\s+/g, ' ').slice(0, 300);
+      if (!EMAIL_ENABLED) emailError = 'email is not configured on the server';
+      else if (!/.@./.test(lastUser.email || '')) emailError = 'no email address on their account';
+      else {
+        const first = lastUser.author ? String(lastUser.author).split(' ')[0] : '';
+        const convo = mine.concat([row]).slice(-12);
+        const line = function(m){ return (m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + ': ' + String(m.body || '').trim(); };
+        const escH = function(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        const text = 'Hi' + (first ? ' ' + first : '') + ',\n\n' + 'We have replied to your message in RoofMap.\n\n' +
+          'Our reply:\n' + body + '\n\n— ' + row.author + '\n\n' +
+          'Your conversation so far:\n' + convo.map(line).join('\n\n') + '\n\n' +
+          'To reply, open RoofMap (' + PUBLIC_APP_URL + '/app) and click the Help bubble at the bottom right — or just reply to this email.';
+        const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0a1628;line-height:1.5;max-width:560px">' +
+          '<p>Hi' + (first ? ' ' + escH(first) : '') + ',</p><p>We have replied to your message in RoofMap.</p>' +
+          '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;margin:12px 0;white-space:pre-wrap">' + escH(body) +
+          '<div style="font-size:12px;color:#065f46;margin-top:6px">— ' + escH(row.author) + '</div></div>' +
+          '<p style="font-size:12px;color:#64748b;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.06em">Your conversation</p>' +
+          convo.map(function(m){ return '<div style="margin:6px 0;padding:8px 11px;border-radius:10px;white-space:pre-wrap;' +
+            (m.sender === 'support' ? 'background:#f0f9ff;border:1px solid #cfe8f5' : 'background:#f1f5f9') + '"><b style="font-size:12px">' +
+            escH(m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + '</b><br>' + escH(String(m.body || '').trim()) + '</div>'; }).join('') +
+          '<p style="margin-top:16px">To reply, open <a href="' + PUBLIC_APP_URL + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
         const info = await _dispatchMail({
-          to: lastUser.email, platform: true,
-          subject: 'RoofMap support replied to your question',
-          text: 'Hi' + (lastUser.author ? ' ' + String(lastUser.author).split(' ')[0] : '') + ',\n\n' + body +
-                '\n\n— ' + row.author + '\n\n' + 'You asked: "' + q + '"\n\n' +
-                'To reply, open RoofMap (' + PUBLIC_APP_URL + '/app) and click the Help bubble at the bottom right, or just reply to this email.',
+          to: lastUser.email, subject: 'RoofMap support replied to your message', text, html,
           fromName: 'RoofMap Support', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT,
         });
         held = !!(info && info.held); emailed = !held;
       }
-    } catch (e) { console.error('support reply email failed:', e.message); }
-    res.json({ ok: true, message: _supportRowOut(row), emailed: emailed, held: held });
+    } catch (e) { emailError = e.message; console.error('support reply email failed:', e.message); }
+    res.json({ ok: true, message: _supportRowOut(row), emailed: emailed, held: held, emailError: emailError || undefined });
   } catch (e) {
     if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     res.status(500).json({ error: e.message });
@@ -11930,7 +11948,7 @@ document.addEventListener('click', async function(ev){
     DRAFTS[u] = ''; ta.value = '';
     await load();
     var n2 = document.querySelector('[data-note="' + u + '"]');
-    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble and emailed to them.' : (j.held ? 'Sent to their Help bubble. Not emailed: RoofMap cannot send from its own address yet.' : 'Sent to their Help bubble.');
+    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble, and the conversation emailed to them.' : ('Sent to their Help bubble (it pops up when they next open RoofMap). Not emailed' + (j.emailError ? ': ' + j.emailError : '') + '.');
   } catch (e){ note.textContent = e.message; ev.target.disabled = false; }
 });
 $('liForm').addEventListener('submit', async function(ev){

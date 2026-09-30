@@ -69,7 +69,7 @@ let r = await call('POST', '/support/messages', { body: '   ' }, bearer(TOK));
 check('an empty message is refused', r.status === 400, String(r.status));
 check('…and a message needs a login', (await call('POST', '/support/messages', { body: 'hi' })).status === 401);
 sent.length = 0;
-r = await call('POST', '/support/messages', { body: 'How do I add a skylight to the quote?', context: 'Quote tab', email: 'spoof@evil.test' }, bearer(TOK));
+r = await call('POST', '/support/messages', { body: 'How do I add a skylight to the quote?', context: 'Quote tab', email: 'spoof@evil.test', transcript: 'They asked: skylight?\nAssistant: Try the Pricing tab.' }, bearer(TOK));
 let j = await r.json();
 check('a question is accepted', r.status === 200 && j.ok && j.message && j.message.sender === 'user', JSON.stringify(j));
 const row = (db.support_messages || [])[0] || {};
@@ -80,6 +80,7 @@ const m1 = sent.find(x => /skylight/.test(JSON.stringify(x)));
 check('…and support@ is emailed, Reply-To them, with the question and the desk link',
   !!m1 && /support@roofmap\.co\.nz/.test(JSON.stringify(m1.to || m1)) && /sales@hemi\.co\.nz/.test(JSON.stringify(m1.replyTo || m1.reply_to || m1)) &&
   /skylight/.test(m1.body || m1.text || '') && /admin\/support\/page/.test(m1.body || m1.text || '') && !/spoof@evil/.test(JSON.stringify(m1)), JSON.stringify(m1).slice(0, 300));
+check('…with their chat with the assistant before it, for context', /Assistant: Try the Pricing tab/.test(m1.body || m1.text || ''), (m1 && (m1.text || '')).slice(0, 300));
 
 r = await call('GET', '/support/messages', null, bearer(TOK)); j = await r.json();
 check('they read their own conversation back', r.status === 200 && j.messages.length === 1 && j.unread === 0, JSON.stringify(j));
@@ -106,8 +107,10 @@ const rep = (db.support_messages || []).find(x => x.sender === 'support') || {};
 check('…stored in THEIR conversation, under their company, unread', rep.user_id === U && rep.company_id === CO && !rep.read_at, JSON.stringify(rep));
 await settle();
 const m2 = sent.find(x => /custom line/.test(JSON.stringify(x)));
-check('…and emailed to them from the platform’s support address, quoting what they asked',
-  !!m2 && /sales@hemi\.co\.nz/.test(JSON.stringify(m2.to || m2)) && /skylight/.test(m2.body || m2.text || '') && /Help bubble/.test(m2.body || m2.text || '') && j.emailed === true,
+check('…and emailed to them — a reply they asked for always goes out — with the whole conversation in it',
+  !!m2 && /sales@hemi\.co\.nz/.test(JSON.stringify(m2.to || m2)) && /Your conversation so far/.test(m2.body || m2.text || '') &&
+  /You: How do I add a skylight/.test(m2.body || m2.text || '') && /RoofMap support: Add it as a custom line/.test(m2.body || m2.text || '') &&
+  /Help bubble/.test(m2.body || m2.text || '') && /Your conversation/.test(m2.html || '') && j.emailed === true,
   JSON.stringify(m2 || {}).slice(0, 300));
 r = await call('GET', '/admin/support', null, ADMIN); j = await r.json();
 check('the conversation is no longer waiting', j.waiting === 0 && j.conversations[0].messages.length === 2, JSON.stringify(j).slice(0, 200));

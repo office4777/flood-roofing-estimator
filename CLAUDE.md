@@ -605,7 +605,19 @@ Discipline (non-negotiable):
   never covers it. The open Photos panel therefore covers the right of Map
   Roof (the sample-job banner's button, the canvas's right third): UI
   suites that click there fold it first (`_fergusPanelClose()`).
-  `tests/photoviewer.mjs`, `tests/bgclear.mjs`.
+  EXCEPT THE JOB PACK (2026-10-01): there an open Maps or Photos panel
+  reserves its width again (`_setPopReserve` on `data-tab=materials`, and
+  `_jpRoom` while dragging), so the pages move left clear of it — and
+  `_fitDocZoom` always sizes them from the width WITHOUT a panel (reserve 72),
+  so their zoom never changes; `.jp-pages` is `align-items:safe center` so a
+  page wider than the room lines up left instead of under the menu. PHOTOS
+  STARTS CLOSED on Map Roof (2026-10-01): it opens only once opened in this
+  session (`fr_fergus_panel_open === '1'`). `tests/photoviewer.mjs`,
+  `tests/bgclear.mjs`.
+- THE OUTLINE SNAPS SQUARE BY ITSELF within `AUTO_SQUARE_TOL_DEG` = 12°
+  (2026-10-01; it was 20° — which flattened real raking walls — then 6°,
+  which the owner found too weak). Snap square and Square corner still force
+  it. `tests/squarecorner.mjs`.
 - GUTTER PRICES (2026-09-30): 125mm Colorsteel box gutter is ONE row at
   `gutter.box125_lm` ($21/lm, BRACKETS INCLUDED) plus an 80mm dropper every
   8 m (`dropper_ea`); Marley Classic is itemised like Typhoon
@@ -627,7 +639,14 @@ Discipline (non-negotiable):
   (`COACH.idleMs`) → "press Enter"; silent over the roof-type window; the
   real-measurement tip; Job Pack; Quote; a last card (guides,
   support@roofmap.co.nz, the Help bubble). Photos folded, sample banner held
-  back. Finish = `done`, skip = `stopped`. The practice job is Settings →
+  back. EVERY SIGN-IN until "Don't show this again" (2026-10-01, the
+  owner's): any account whose `ui_flags.first_roof` is not `'never'` gets it
+  once per sign-in (`sessionStorage.fr_coach_seen`); Finish = `done` and
+  Not now = `stopped` close it for this sign-in only; the button on the first
+  and last cards (`__coachNever`) or the footer tick (`#tourDontShow`, read
+  BEFORE the card is removed) write `'never'`. No flag from the server = no
+  guess, nothing starts. Settings → Guides → "RoofMap tutorial in 60sec"
+  (`data-tour="set-coach"`) runs it on demand. The practice job is Settings →
   Guides only (a practice walkthrough left part-way still resumes). The
   walkthrough answers (`fr_first_roof`, `fr_first_roof_at`, `fr_tour_done`,
   `fr_about_done`) are wiped by `_frWipeBusinessLocal` at every sign-in/out
@@ -639,10 +658,17 @@ Discipline (non-negotiable):
   conversation per user_id) and emails support@ with Reply-To them. The
   owner answers on `/admin/support/page` (the API's origin; admin token or
   an ANALYTICS_OWNERS login, like analytics) → `POST /admin/support/reply`
-  stores it and emails them as `platform:true` from support@ — HELD while
-  the platform cannot send as roofmap.co.nz, and the page says so; the
-  bubble has it either way (`GET /support/messages` polled every 90 s, a
-  red count on Help, `POST /support/messages/read` when shown).
+  stores it and emails them the CONVERSATION (their messages and the
+  replies, text + HTML) — REQUESTED mail, never `platform:true`, so it is
+  never held for the sending domain (from support@ where the platform can,
+  else the deployment's address named RoofMap Support, Reply-To support@);
+  the page says when it could not email and why. The bubble polls `GET
+  /support/messages` every 90 s and POPS OPEN on an unread reply (once per
+  page, `SUP.popped`), marking it read. After every answer it asks "Did this
+  help?" — "No — connect me with a real person" sends their question with
+  the chat so far (`transcript`, in the email to support@ only); the header
+  carries "Message a real person" (`#frHelpPerson`); the suggestions fold
+  away once the chat starts.
   `tests/supportdesk.mjs`, `tests/helpsupport.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been

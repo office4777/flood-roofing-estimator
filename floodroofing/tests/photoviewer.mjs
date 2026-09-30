@@ -128,6 +128,39 @@ check('…and the quote underneath does not move or narrow', ov.afterDrag.reserv
 check('opening PHOTOS on the Quote tab does not squeeze the quote either', ov.photosOpen.reserve === ov.before.reserve && Math.abs(ov.photosOpen.w - ov.before.w) <= 1, JSON.stringify(ov.photosOpen));
 check('the open Pricing drawer ends left of the PHOTOS tab — the tab covers nothing in it', ov.clear.drawerRight <= ov.clear.photosTabLeft + 1, JSON.stringify(ov.clear));
 
+// ── Photos starts CLOSED; the Job Pack makes room (2026-10-01, the owner's) ──
+// "Have the photos tab closed on default ... make it already closed" and "on
+// the job pack tab only, the maps or photos side tab does push the job pack
+// across to the left ... always keep the existing job pack's zoom".
+const jp = await pg.evaluate(async () => {
+  sessionStorage.removeItem('fr_fergus_panel_open');
+  // back to the usual panel width (the drag test above widened it a lot)
+  localStorage.setItem('fr_sidepop_w', '360px'); document.documentElement.style.setProperty('--sidepop-w', '360px');
+  gotoTab('materials'); await new Promise(r => setTimeout(r, 300));
+  gotoTab('roof'); await new Promise(r => setTimeout(r, 500));
+  const roofClosed = !document.getElementById('fergusRoofPanel').classList.contains('is-open');
+  gotoTab('materials'); await new Promise(r => setTimeout(r, 900));
+  const mp = document.getElementById('jpMapPanel');
+  if (!mp.classList.contains('is-open')) _jpToggleMapPanel();
+  await new Promise(r => setTimeout(r, 500));
+  const page = () => { const el = document.querySelector('#jpPages .jp-page'); return el ? el.getBoundingClientRect() : null; };
+  const zoom = () => getComputedStyle(document.documentElement).getPropertyValue('--doc-zoom').trim();
+  const open = { zoom: zoom(), right: Math.round(page().right), w: Math.round(page().width), panelLeft: Math.round(mp.getBoundingClientRect().left) };
+  _jpToggleMapPanel(); await new Promise(r => setTimeout(r, 500));
+  const closed = { zoom: zoom(), right: Math.round(page().right), w: Math.round(page().width) };
+  _fergusPanelOpen(); await new Promise(r => setTimeout(r, 500));
+  const fp = document.getElementById('fergusRoofPanel');
+  const photos = { zoom: zoom(), right: Math.round(page().right), panelLeft: Math.round(fp.getBoundingClientRect().left) };
+  _fergusPanelClose(); await new Promise(r => setTimeout(r, 300));
+  if (!mp.classList.contains('is-open')) _jpToggleMapPanel();
+  gotoTab('roof'); await new Promise(r => setTimeout(r, 300));
+  return { roofClosed, open, closed, photos };
+});
+check('Map Roof opens with the Photos panel closed', jp.roofClosed, JSON.stringify(jp));
+check('on the Job Pack an open Maps panel pushes the pages left, clear of it', jp.open.right <= jp.open.panelLeft && jp.closed.right > jp.open.right + 100, JSON.stringify(jp));
+check('…without changing their zoom', jp.open.zoom === jp.closed.zoom && jp.open.w === jp.closed.w, JSON.stringify(jp));
+check('…and the Photos panel on the Job Pack does the same', jp.photos.right <= jp.photos.panelLeft && jp.photos.zoom === jp.closed.zoom, JSON.stringify(jp.photos));
+
 // ── the photo list is a viewer ──
 const shade = (c) => 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="' + c + '"/></svg>');
 const view = await pg.evaluate(async (pics) => {

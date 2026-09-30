@@ -69,7 +69,7 @@ const overlays = pg => pg.evaluate(() => ({
 }));
 
 // ── the practice job: straight onto Map Roof, at the satellite box ───
-let { ctx, pg, errs, usage, puts, sends } = await boot({ flags: { first_roof: 'has-work' }, practice: true });
+let { ctx, pg, errs, usage, puts, sends } = await boot({ flags: { first_roof: 'never' }, practice: true });
 await waitStep(pg, 'find', 9000);
 let v = await overlays(pg);
 check('the practice job lands on Map Roof with ONE thing open: the walkthrough, at "find the property"', v.tab === 'roof' && v.tour && v.kind === 'firstroof' && !v.wizard && !v.guide,
@@ -244,7 +244,7 @@ check('nothing threw along the way', errs.length === 0, errs.join(' | ').slice(0
 await ctx.close();
 
 // ── left mid-way: carry on from there ─────────────────────────────
-({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'has-work' }, practice: true }));
+({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'never' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.click('#aerialFindBtn');
 await waitStep(pg, 'useview');
@@ -272,11 +272,14 @@ check('a deliberate Stop is "stopped" — not offered again', (await pg.evaluate
 await ctx.close();
 ({ ctx, pg, errs } = await boot({ flags: { first_roof: 'stopped' } }));
 await sleep(4500);
-check('…so a stopped walkthrough stays stopped next login', !(await overlays(pg)).tour);
+// Since 2026-10-01 every sign-in gets the getting-started coach until
+// "Don't show this again" — but never the stopped PRACTICE job again.
+v = await overlays(pg);
+check('…so a stopped practice job is not offered again (the sign-in gets the coach instead)', !v.tour || v.kind === 'coach', JSON.stringify(v));
 await ctx.close();
 
 // ── no practice picture on the server: the drawn stand-in ─────────
-({ ctx, pg, errs, usage } = await boot({ noPractice: true, flags: { first_roof: 'has-work' }, practice: true }));
+({ ctx, pg, errs, usage } = await boot({ noPractice: true, flags: { first_roof: 'never' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.click('#aerialFindBtn');
 await waitStep(pg, 'useview');
@@ -288,7 +291,7 @@ check('…and it says so in the events', usage.some(u => u.name === 'roof_source
 await ctx.close();
 
 // ── "Stop the walkthrough" on the first card ──────────────────────
-({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'has-work' }, practice: true }));
+({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'never' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.evaluate(() => document.getElementById('tourCancel').click());
 await sleep(400);
@@ -298,18 +301,20 @@ check('stopping it closes it, remembers it as stopped, and opens nothing else', 
 await ctx.close();
 
 // ── it is offered once, by the server ─────────────────────────────
-({ ctx, pg, errs } = await boot({ flags: { first_roof: 'has-work' } }));
+// Since 2026-10-01 the getting-started coach shows at every sign-in until
+// "Don't show this again" (tests/coach.mjs); "never" is the account's answer.
+({ ctx, pg, errs } = await boot({ flags: { first_roof: 'never' } }));
 await sleep(4500);
 v = await overlays(pg);
-check('an account the server says has work sees no walkthrough', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));
-check('…and its state is mirrored to this device', (await pg.evaluate(() => localStorage.getItem('fr_first_roof'))) === 'has-work');
+check('an account that said "never" sees no walkthrough', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));
+check('…and its state is mirrored to this device', (await pg.evaluate(() => localStorage.getItem('fr_first_roof'))) === 'never');
 await ctx.close();
 ({ ctx, pg, errs } = await boot({ flags: {} }));
 await sleep(4500);
 v = await overlays(pg);
 check('with no offer from the server, nothing starts on the device’s own guess', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));
 await ctx.close();
-({ ctx, pg, errs } = await boot({ done: 'done' }));
+({ ctx, pg, errs } = await boot({ done: 'never' }));
 await sleep(4500);
 v = await overlays(pg);
 check('a device that already did it sees nothing either', !v.tour && !v.wizard && !v.guide, JSON.stringify(v));

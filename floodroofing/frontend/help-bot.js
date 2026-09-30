@@ -624,8 +624,9 @@
     panel.innerHTML =
       '<div style="padding:14px 16px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">' +
         '<span style="font-size:20px">💬</span>' +
-        '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;line-height:1.2">RoofMap Help</div>' +
-          '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Ask me anything about the app</div></div>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;line-height:1.2;white-space:nowrap">RoofMap Help</div>' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap">Ask me anything</div></div>' +
+        '<button id="frHelpPerson" title="Send a message to a real person on the RoofMap team" style="background:#10b981;border:none;color:#fff;border-radius:8px;height:30px;padding:0 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;white-space:nowrap">\u2709 Message a real person</button>' +
         '<button id="frHelpClose" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px">✕</button>' +
       '</div>' +
       '<div id="frHelpMsgs" style="flex:1;overflow-y:auto;padding:14px;background:#f7fafc;-webkit-overflow-scrolling:touch"></div>' +
@@ -642,6 +643,7 @@
 
     document.getElementById('frHelpClose').onclick = function () { toggle(false); };
     document.getElementById('frHelpSupBack').onclick = function () { supportMode(false); };
+    document.getElementById('frHelpPerson').onclick = function () { supportStart(); };
     var input = document.getElementById('frHelpInput');
     document.getElementById('frHelpSend').onclick = submit;
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
@@ -663,8 +665,26 @@
     });
   }
 
+  function chipsFold(folded) {
+    var host = document.getElementById('frHelpChips'); if (!host) return;
+    host.setAttribute('data-folded', folded ? '1' : '0');
+    Array.prototype.forEach.call(host.querySelectorAll('.fr-help-chip'), function (b) { b.style.display = folded ? 'none' : ''; });
+    var t = document.getElementById('frHelpChipsToggle');
+    if (!t) {
+      t = document.createElement('button'); t.id = 'frHelpChipsToggle';
+      t.style.cssText = 'background:none;border:none;color:#0099cc;font:inherit;font-size:11.5px;cursor:pointer;padding:2px 0 4px';
+      t.onclick = function () { chipsFold(host.getAttribute('data-folded') !== '1'); };
+      host.insertBefore(t, host.firstChild);
+    }
+    t.textContent = folded ? 'Show suggestions \u25be' : 'Hide suggestions \u25b4';
+  }
+  var LOG = [];
+  function transcript() {
+    return LOG.slice(-10).map(function (x) { return (x.who === 'user' ? 'They asked: ' : 'Assistant: ') + x.text; }).join('\n');
+  }
   function addMsg(who, html, isRaw) {
     var host = document.getElementById('frHelpMsgs'); if (!host) return;
+    if (who === 'user' && !chipsFold.done) { chipsFold.done = true; try { chipsFold(true); } catch (e) {} }
     var wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;margin-bottom:10px;' + (who === 'user' ? 'justify-content:flex-end' : 'justify-content:flex-start');
     var bub = document.createElement('div');
@@ -673,6 +693,7 @@
         ? 'background:#0099cc;color:#fff;border-bottom-right-radius:4px'
         : 'background:#fff;color:#0a1628;border:1px solid #e6ebf1;border-bottom-left-radius:4px');
     bub.innerHTML = isRaw ? html : (who === 'user' ? esc(html) : fmt(html));
+    try { if (!isRaw) LOG.push({ who: who, text: String(html).replace(/\*\*/g, '').replace(/\s+/g, ' ').slice(0, 400) }); } catch (e) {}
     wrap.appendChild(bub); host.appendChild(wrap);
     host.scrollTop = host.scrollHeight;
     return bub;
@@ -700,6 +721,16 @@
           var rel = addMsg('bot', '<div style="font-size:11px;color:#64748b;margin-bottom:5px">Related:</div>' +
             res.alts.map(function (e) { return '<button class="fr-help-rel" data-q="' + esc(e.q[0]) + '" style="display:block;text-align:left;width:100%;background:#f1f6fb;border:1px solid #dce8f2;color:#036;border-radius:9px;padding:6px 9px;font-size:12px;cursor:pointer;margin:3px 0;font-family:inherit">' + esc(e.q[0].charAt(0).toUpperCase() + e.q[0].slice(1)) + '</button>'; }).join(''), true);
           Array.prototype.forEach.call(rel.querySelectorAll('.fr-help-rel'), function (b) { b.onclick = function () { ask(b.getAttribute('data-q')); }; });
+        }
+        // THE OWNER'S (2026-10-01): after an answer, ask whether it helped
+        // or whether they would like a real person.
+        if (supportAvailable()) {
+          var fu = addMsg('bot', '<div style="font-size:12.5px;margin-bottom:7px">Did this help?</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<button class="fr-help-ok" style="background:#fff;color:#0a1628;border:1px solid #d3dce6;border-radius:9px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer">Yes, thanks</button>' +
+            '<button class="fr-help-person" style="background:#10b981;color:#fff;border:none;border-radius:9px;padding:6px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer">No \u2014 connect me with a real person</button></div>', true);
+          fu.querySelector('.fr-help-ok').onclick = function () { fu.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); addMsg('bot', 'Great. Ask me anything else, any time.'); };
+          fu.querySelector('.fr-help-person').onclick = function () { fu.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); supportMode(true); supportSend(text); };
         }
       } else {
         // THE OWNER'S RULE (2026-09-30): a question the assistant cannot
@@ -750,7 +781,7 @@
   function supportSend(text) {
     var ctx = '';
     try { ctx = String(document.body.getAttribute('data-tab') || ''); } catch (e) {}
-    Promise.resolve(window.api('POST', '/support/messages', { body: text, context: ctx })).then(function (r) {
+    Promise.resolve(window.api('POST', '/support/messages', { body: text, context: ctx, transcript: transcript() })).then(function (r) {
       if (r && r.message && r.message.id) SUP.shown[r.message.id] = 1;
       addMsg('bot', "Sent to our support team \u2713 \u2014 a real person will reply here in the Help bubble. You'll see a red dot on **Help** when they have.");
     }).catch(function () {
@@ -784,6 +815,9 @@
       SUP.data = r || { messages: [], unread: 0 };
       supportBadge(SUP.data.unread || 0);
       if (openState && SUP.data.unread) supportShowNew();
+      // A reply from the team POPS UP (2026-10-01, the owner's: "when they log
+      // back in my message pops up for them") — the bubble opens on it.
+      else if (SUP.data.unread && !SUP.popped) { SUP.popped = true; toggle(true); }
       return SUP.data;
     }).catch(function () { return null; });
   }

@@ -145,24 +145,54 @@ await pg.evaluate(() => document.getElementById('tourNext').click());
 check('→ the last card', await waitKey(pg, 'c-done'), await key(pg));
 v = await card(pg);
 check('…the guides in Settings, support@roofmap.co.nz, and the Help bubble',
-  /Settings → Guides/.test(v.body) && /support@roofmap\.co\.nz/.test(v.body) && /Help/.test(v.body) && v.buttons.length === 2, JSON.stringify(v));
+  /Settings → Guides/.test(v.body) && /support@roofmap\.co\.nz/.test(v.body) && /Help/.test(v.body) && v.buttons.length === 3 && /Don’t show this again/.test(v.buttons[2]), JSON.stringify(v));
 await pg.evaluate(() => document.querySelector('#tourExtra button').click());
 await sleep(300);
 p = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), st: localStorage.getItem('fr_first_roof') }));
-check('Finish closes it and the account remembers it as done', !p.tour && p.st === 'done' && puts.some(x => x.first_roof === 'done'), JSON.stringify(p));
+check('Finish closes it (done — which does not stop it next sign-in)', !p.tour && p.st === 'done' && puts.some(x => x.first_roof === 'done'), JSON.stringify(p));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step is reported as it shows',
   ['c-welcome','c-picture','c-outline','c-enter','c-measure','c-jobpack','c-quote','c-done'].every(k => shown.includes(k)), shown.join());
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 200));
 await ctx.close();
 
-// ── "I’ll find my own way" ────────────────────────────────────────
+// ── EVERY SIGN-IN until "Don't show this again" (2026-10-01) ─────
+// sales@ had answered it once and never saw it again. Now: "Not now" and
+// Finish close it for this sign-in only; a reload in the same tab does not
+// bring it back; a new sign-in does; "Don't show this again" is for good.
 ({ ctx, pg, errs, puts } = await boot({}));
 await waitKey(pg, 'c-welcome', 9000);
+v = await card(pg);
+check('the welcome offers Show me how, Not now, and Don’t show this again (and a tick on every card)',
+  v.buttons.join('|') === 'Show me how|Not now|Don’t show this again' && await pg.evaluate(() => !!document.getElementById('tourDontShow') && !document.getElementById('tourDontShow').checked), v.buttons.join('|'));
 await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[1].click());
 await sleep(300);
 p = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), st: localStorage.getItem('fr_first_roof') }));
-check('skipping the welcome closes it for good (stopped, on the account)', !p.tour && p.st === 'stopped' && puts.some(x => x.first_roof === 'stopped'), JSON.stringify(p));
+check('"Not now" closes it, without "never"', !p.tour && p.st !== 'never' && !puts.some(x => x.first_roof === 'never'), JSON.stringify(p));
+await pg.reload(); await sleep(4500);
+check('…a reload in the same sign-in does not bring it back', !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
+await pg.evaluate(() => sessionStorage.clear()); await pg.reload();
+check('…the next sign-in does, whatever the account answered before', await waitKey(pg, 'c-welcome', 9000), await key(pg));
+await pg.evaluate(() => document.querySelectorAll('#tourExtra button')[2].click());
+await sleep(300);
+p = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), st: localStorage.getItem('fr_first_roof') }));
+check('"Don’t show this again" closes it for good, on the account', !p.tour && p.st === 'never' && puts.some(x => x.first_roof === 'never'), JSON.stringify(p));
+await ctx.close();
+({ ctx, pg, errs } = await boot({ flags: { first_roof: 'never' } }));
+await sleep(4500);
+check('…so an account that said never sees nothing at sign-in', !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
+v = await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-guides'); const b = document.querySelector('[data-tour="set-coach"]'); return b ? b.textContent : ''; });
+check('Settings → Guides has "RoofMap tutorial in 60sec"', /RoofMap tutorial in 60sec/.test(v), v);
+await pg.evaluate(() => document.querySelector('[data-tour="set-coach"]').click());
+check('…which runs it on demand', await waitKey(pg, 'c-welcome', 5000), await key(pg));
+await ctx.close();
+({ ctx, pg, errs, puts } = await boot({ flags: { first_roof: 'has-work' } }));
+check('an account with work of its own and no "never" is welcomed too', await waitKey(pg, 'c-welcome', 9000), await key(pg));
+await pg.evaluate(() => { document.getElementById('tourDontShow').checked = true; document.querySelector('#tourExtra button').click(); });
+await waitKey(pg, 'c-picture', 3000);
+await pg.evaluate(() => document.getElementById('tourCancel').click());
+await sleep(300);
+check('…and the tick on any card is "never" too', puts.some(x => x.first_roof === 'never'), JSON.stringify(puts));
 await ctx.close();
 
 // ── a picture already there: the picture step passes by itself ────
@@ -182,7 +212,6 @@ p = await pg.evaluate(() => {
   return ['fr_first_roof', 'fr_first_roof_at', 'fr_tour_done'].map(k => localStorage.getItem(k));
 });
 check('signing in or out clears the last account’s walkthrough answers from this browser', p.every(x => x === null), JSON.stringify(p));
-check('an account with work of its own is not welcomed', !(await pg.evaluate(() => !!document.getElementById('tourWrap'))));
 await ctx.close();
 
 await b.close();

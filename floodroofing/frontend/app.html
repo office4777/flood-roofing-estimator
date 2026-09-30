@@ -2383,7 +2383,9 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
   color:var(--text2); margin:0; font-weight:500;
 }
 .jp-pages{
-  display:flex; flex-direction:column; align-items:center;
+  /* safe: a page wider than the room an open side panel leaves lines up with
+     the left edge instead of centring half of its overflow under the menu. */
+  display:flex; flex-direction:column; align-items:safe center;
   gap:22px; padding:18px 0; background:#e2e8f0; border-radius:10px;
 }
 .jp-page{
@@ -8236,7 +8238,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
     <!-- Guides: the setup guide, the tutorial and the practice job. -->
     <div class="sub-panel settings-sub" id="set-guides" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Four ways to learn the app. Each one can be run as often as you like.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Five ways to learn the app. Each one can be run as often as you like.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">RoofMap tutorial in 60sec</div>
+          <div style="font-size:11.5px;color:var(--text2)">The pointers new accounts get at sign-in: the picture, the outline, the Job Pack and the quote, one at a time on your own roof.</div>
+        </div>
+        <button type="button" data-tour="set-coach" onclick="startCoach()" class="tool-btn" style="font-size:11.5px">RoofMap tutorial in 60sec</button>
+      </div>
       <!-- The owner's six-minute run-through (Loom). Loaded only when the
            Guides tab is opened, so the frame costs nothing until then. -->
       <div style="background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
@@ -9238,7 +9247,10 @@ function gotoTab(t) {
       // Open-by-default state lives in sessionStorage (not localStorage) so a
       // page refresh ALWAYS re-opens the panel — a one-time close no longer
       // hides the photos forever. Closing it only lasts the current session.
-      var _wantOpen=true; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
+      // CLOSED BY DEFAULT since 2026-10-01 (the owner's: "have the photos tab
+      // closed on default ... make it already closed") — it sits over the
+      // canvas now, so it opens only once they have opened it this session.
+      var _wantOpen=false; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') === '1'; }catch(e){}
       // On a phone the panel is full-width, so opening it by default would
       // bury the drawing — it opens only when Photos is tapped.
       if (document.documentElement.classList.contains('site-mode')) _wantOpen = false;
@@ -45441,7 +45453,9 @@ function _outlineIsRectilinear(pts, tolDeg){
 // a splayed building was flattened into a rectangle every time it was drawn.
 // 6° covers the wobble of tracing by hand and leaves a real rake alone; the
 // Snap square button and Square corner are still there to force the issue.
-var AUTO_SQUARE_TOL_DEG = 6;
+// 12° since 2026-10-01 (the owner's: "too weak at the moment, it worked
+// better before") — halfway back to the old 20°, still short of a real rake.
+var AUTO_SQUARE_TOL_DEG = 12;
 // The little right-angle mark on a corner is a CLAIM that the corner is
 // square, so it may only appear when it is. 0.12 was the cosine of 83° — a
 // corner almost 7° out wore the mark and the roofer had no way to see it was
@@ -47131,6 +47145,8 @@ function closeTour(cancelled){
   // Nothing open: nothing to close, and nothing to mark as seen.
   if (!TOUR.open && !document.getElementById('tourWrap')) return;
   _tourClearGate();
+  var _tickNever = false;
+  try { var _tk = document.getElementById('tourDontShow'); _tickNever = !!(_tk && _tk.checked); } catch(e){}
   // The Inbox guide is launched by hand from its 📖 button — closing it must
   // never mark the MAIN first-login tutorial as seen.
   var keep = TOUR.kind !== 'inbox';
@@ -47147,8 +47163,13 @@ function closeTour(cancelled){
   // (done or stopped), and never marks the 29-step tutorial as seen.
   if (TOUR.kind === 'coach'){
     var _cst = TOUR.steps[TOUR.i] || {};
-    try { _walkthroughEvent(_cst.key || '', cancelled ? 'stopped' : 'finished'); } catch(e){}
-    try { _firstRoofMark(cancelled ? 'stopped' : 'done'); } catch(e){}
+    // Closing it only closes it for this sign-in; "Don't show this again"
+    // (the tick, or the button on the first and last cards) is for good.
+    var _never = !!window.__coachNever;
+    if (_tickNever) _never = true;   // read before the card was taken down
+    window.__coachNever = false;
+    try { _walkthroughEvent(_cst.key || '', _never ? 'never' : (cancelled ? 'stopped' : 'finished')); } catch(e){}
+    try { _firstRoofMark(_never ? 'never' : (cancelled ? 'stopped' : 'done')); } catch(e){}
     try { _firstRoofAtSave(null); } catch(e){}
     TOUR.kind = 'main';
     try { _aboutYouSync(); _sampleJobBannerSync(); } catch(e){}
@@ -47352,7 +47373,8 @@ function openTour(force, steps, kind){
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px">' +
           '<button type="button" id="tourCancel" style="background:#fff;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:8px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:5px 10px;white-space:nowrap">' + _cancelLbl + '</button>' +
           '<button type="button" id="tourHelp" onclick="_tourHelp()" style="background:none;border:none;color:#0099cc;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0;white-space:nowrap">Help with this step</button>' +
-          (TOUR.kind !== 'main' ? '' :
+          (TOUR.kind === 'coach' ? '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#64748b;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow"> Don\u2019t show this again</label>' :
+           TOUR.kind !== 'main' ? '' :
             '<label style="display:flex;gap:5px;align-items:center;font-size:10.5px;color:#94a3b8;cursor:pointer;white-space:nowrap"><input type="checkbox" id="tourDontShow" checked> Don\u2019t show again</label>') +
         '</div>' +
         '<div style="display:flex;align-items:center;justify-content:flex-end;gap:9px">' +
@@ -47504,18 +47526,23 @@ function _firstRoofMaybeStart(){
   try {
     if (window.__CUSTOMER_MODE) return;
     if (!localStorage.getItem('fr_token')) return;
+    // EVERY LOGIN until "Don't show this again" (2026-10-01, the owner's —
+    // sales@ had answered once and never saw it again). Once per sign-in:
+    // a reload in the same tab does not bring it back.
     var local = _firstRoofState();
-    if (local && local !== 'left' && local !== 'offer') return;
+    if (local === 'never') return;
+    try { if (sessionStorage.getItem('fr_coach_seen') === '1') return; } catch(e){}
     if (document.documentElement.classList.contains('site-mode')) return;
     var tries = 0;
     (function wait(){
       var uf = window.__uiFlags || null;
       if (!uf || !window.__settingsLive){ if (++tries < 40) return setTimeout(wait, 250); return; }
       var st = uf.first_roof || '';
-      if (st && st !== 'offer' && st !== 'left'){ try { localStorage.setItem('fr_first_roof', String(st)); } catch(e){} return; }
-      if (st !== 'offer' && st !== 'left') return;
+      // Nothing from the server is nothing to go on (a stubbed read): no guess.
+      if (!st) return;
+      try { localStorage.setItem('fr_first_roof', String(st)); } catch(e){}
+      if (st === 'never') return;
       if (_onbActive() || document.getElementById('setupWizard') || document.getElementById('setupGuide') || document.getElementById('tourWrap')) return;
-      if (S.currentJobId || S.linkedJobId) return;
       // Since 2026-09-30 a new account meets the GETTING STARTED coach on its
       // own first roof (the owner's spec); the practice job stays in
       // Settings → Guides. A practice job left part-way still offers to carry on.
@@ -47954,6 +47981,7 @@ function _firstRoofSteps(path){
 var COACH = { idleMs: 2500 };
 function startCoach(){
   try { closeTour(true); } catch(e){}
+  try { sessionStorage.setItem('fr_coach_seen', '1'); } catch(e){}
   try { _fergusPanelClose(); } catch(e){}
   try { if (document.body.getAttribute('data-tab') !== 'roof') gotoTab('roof'); } catch(e){}
   try { _usageEvent('onboarding_path', { path: 'coach', example: false }); } catch(e){}
@@ -47972,8 +48000,9 @@ function _coachSteps(){
   var guides = 'closeTour(false); gotoTab(\'settings\'); try { switchSettingsSub(\'set-guides\'); } catch(e){}';
   return [
     { key: 'c-welcome', centre: true, title: 'Welcome to RoofMap',
-      body: 'Good to have you here. A few quick pointers will walk you through your first roof — they only speak up when there is something to do.\n\n**Guides and tutorials** are in **Settings → Guides** whenever you want them.',
-      extra: btn('Show me how', 'tourStep(TOUR.i + 1)', true) + btn('I’ll find my own way', 'closeTour(true)'),
+      body: 'Good to have you here. A few quick pointers will walk you through a roof — they only speak up when there is something to do.\n\n**Guides and tutorials** are in **Settings → Guides** whenever you want them.',
+      extra: btn('Show me how', 'tourStep(TOUR.i + 1)', true) + btn('Not now', 'closeTour(true)') +
+             btn('Don’t show this again', 'window.__coachNever = true; closeTour(true)'),
       noNext: true },
     { key: 'c-picture', sel: '#roofBgCard', tab: 'roof', title: 'Start with a picture of the roof',
       body: 'Use **Find your property** to find the roof on the **satellite image**.\n\nOr upload your own — an **aerial or drone shot**, or a **PDF plan** — with **Upload from PC** or **PDF Plans**.',
@@ -48010,7 +48039,8 @@ function _coachSteps(){
       next: 'Next' },
     { key: 'c-done', centre: true, title: 'You’re all set',
       body: '**Guides and tutorials** are in **Settings → Guides**.\n\nWe’re here whenever you need us: email **support@roofmap.co.nz**, or click the **💬 Help** bubble at the bottom right and type your question.',
-      extra: btn('Finish', 'closeTour(false)', true) + btn('Open the guides', guides),
+      extra: btn('Finish', 'closeTour(false)', true) + btn('Open the guides', guides) +
+             btn('Don’t show this again', 'window.__coachNever = true; closeTour(false)'),
       noNext: true }
   ];
 }
@@ -66723,6 +66753,15 @@ function _fergusRoofPhotosOnTabOpen(){
 function _setPopReserve(px){
   var TOGGLE = 46, GAP = 26;
   var reserve = TOGGLE + GAP;
+  // EXCEPT ON THE JOB PACK (2026-10-01, the owner's): there the Maps or
+  // Photos panel pushes the pages left so none of a page is under it. The
+  // pages keep their zoom — _fitDocZoom sizes them from the width WITHOUT
+  // the panel (JP_BASE_RESERVE), so opening a panel moves them, never
+  // shrinks them.
+  try {
+    if (document.body.getAttribute('data-tab') === 'materials' && px && px > 60
+        && !document.documentElement.classList.contains('site-mode')) reserve = Math.round(px) + TOGGLE + GAP;
+  } catch(e){}
   try { document.documentElement.style.setProperty('--pop-reserve', reserve + 'px'); } catch(e){}
   try { _fitDocZoom(); } catch(e){}          // Job Pack pages (CSS --doc-zoom)
   try { _fitProposalPages(); } catch(e){}    // Quote proposal (inline zoom, fill-to-width)
@@ -66785,7 +66824,9 @@ function _fitDocZoom(){
   var content = document.querySelector('.content'); if (!content) return;
   var cs = getComputedStyle(content);
   var padL = parseFloat(cs.paddingLeft) || 0;
-  var reserve = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve')) || 72;
+  // The zoom is worked from the width with the panels CLOSED: on the Job Pack
+  // an open panel moves the pages over and must not also shrink them.
+  var reserve = 72;
   var contentLeft = content.getBoundingClientRect().left;   // = sidebar width (content itself isn't zoomed)
   var avail = window.innerWidth - contentLeft - padL - reserve - 20;   // -20 = doc frame breathing room
   var A4 = 793.7;                                            // 210mm @ 96dpi
@@ -66803,6 +66844,11 @@ function _syncPopReserveForTab(t){
   var id = t==='roof' ? 'fergusRoofPanel' : t==='materials' ? 'jpMapPanel' : t==='quote' ? 'quotePricingPanel' : null;
   if (!id || id === 'quotePricingPanel'){ _setPopReserve(0); return; }   // the Pricing drawer overlays the quote
   var p = document.getElementById(id);
+  // On the Job Pack either panel may be the open one (Photos sits under MAPS).
+  if (t === 'materials' && !(p && p.classList.contains('is-open'))){
+    var fp = document.getElementById('fergusRoofPanel');
+    if (fp && fp.classList.contains('is-open')) p = fp;
+  }
   _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 0);
 }
 // The three side pop-outs (photos / maps / pricing) SHARE one width so they
@@ -66823,11 +66869,13 @@ function _sidepopResizeStart(e, panel){
   // drawer on the Quote tab stands 46px in from the edge (clear of the PHOTOS
   // tab), and a width taken from the window edge would jump 46px on grab.
   var rightEdge = panel.getBoundingClientRect().right;
+  var _jpRoom = function(w){ try { if (document.body.getAttribute('data-tab') === 'materials') _setPopReserve(w); } catch(e){} };
   function mv(ev){
     var w = rightEdge - ev.clientX;
     w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
     lastW = w;
     document.documentElement.style.setProperty('--sidepop-w', w + 'px');   // drives ALL three panels
+    _jpRoom(w);
   }
   function up(){
     panel.classList.remove('is-resizing');
