@@ -92,6 +92,42 @@ const tabs = await pg.evaluate(async () => {
 });
 check('on the Quote tab PHOTOS sits under PRICING, the two tabs apart like MAPS and PHOTOS on the Job Pack', tabs.gap >= 8 && tabs.gap <= 20, JSON.stringify(tabs));
 
+// ── side panels sit OVER the page (2026-09-30, the owner's) ──
+// "Have the pricing tab pop up over top of the quote tab, and let me slide it
+// left/right to make it bigger or smaller without it squeezing the quote tab —
+// the same for all the other side pop-outs. Move the pricing tab's right border
+// so the collapsed photos tab isn't covering anything."
+const ov = await pg.evaluate(async () => {
+  gotoTab('quote'); await new Promise(r => setTimeout(r, 500));
+  const reserve = () => getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve').trim();
+  const quoteW = () => Math.round(document.getElementById('tab-quote').getBoundingClientRect().width);
+  const before = { reserve: reserve(), w: quoteW() };
+  _openPricingPanel(); await new Promise(r => setTimeout(r, 400));
+  const pp = document.getElementById('quotePricingPanel');
+  // Drag the drawer's edge 250px to the left — wider.
+  const h = document.getElementById('quotePricingPanelResize');
+  const r0 = pp.getBoundingClientRect();
+  const x0 = r0.left + 4, y = r0.top + 100;
+  h.dispatchEvent(new PointerEvent('pointerdown', { clientX: x0, clientY: y, bubbles: true }));
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: x0 - 250, clientY: y, bubbles: true }));
+  window.dispatchEvent(new PointerEvent('pointerup', { clientX: x0 - 250, clientY: y, bubbles: true }));
+  await new Promise(r => setTimeout(r, 300));
+  const r1 = pp.getBoundingClientRect();
+  const afterDrag = { reserve: reserve(), w: quoteW(), panelW: Math.round(r1.width), grew: Math.round(r1.width - r0.width) };
+  // The PHOTOS tab hangs on the screen edge; the open drawer must end left of it.
+  const tab = document.getElementById('fergusRoofPanelToggle').getBoundingClientRect();
+  const clear = { drawerRight: Math.round(r1.right), photosTabLeft: Math.round(tab.left) };
+  _closePricingPanel(); await new Promise(r => setTimeout(r, 300));
+  _fergusPanelOpen(); await new Promise(r => setTimeout(r, 500));
+  const photosOpen = { reserve: reserve(), w: quoteW() };
+  _fergusPanelClose();
+  return { before, afterDrag, clear, photosOpen };
+});
+check('dragging the Pricing drawer wider makes the drawer wider…', ov.afterDrag.grew > 200, JSON.stringify(ov.afterDrag));
+check('…and the quote underneath does not move or narrow', ov.afterDrag.reserve === ov.before.reserve && Math.abs(ov.afterDrag.w - ov.before.w) <= 1, JSON.stringify({ before: ov.before, after: ov.afterDrag }));
+check('opening PHOTOS on the Quote tab does not squeeze the quote either', ov.photosOpen.reserve === ov.before.reserve && Math.abs(ov.photosOpen.w - ov.before.w) <= 1, JSON.stringify(ov.photosOpen));
+check('the open Pricing drawer ends left of the PHOTOS tab — the tab covers nothing in it', ov.clear.drawerRight <= ov.clear.photosTabLeft + 1, JSON.stringify(ov.clear));
+
 // ── the photo list is a viewer ──
 const shade = (c) => 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="' + c + '"/></svg>');
 const view = await pg.evaluate(async (pics) => {

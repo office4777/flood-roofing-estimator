@@ -2064,6 +2064,13 @@ html.site-mode body[data-tab="roof"] .global-top-bar{ display:none; }
   display:none; flex-direction:column;
 }
 #quotePricingPanel.is-open{ transform:translateX(0); }
+/* On the Quote tab the collapsed PHOTOS tab hangs on the right edge of the
+   screen, and it is drawn above this drawer — it sat over the drawer's TOTAL
+   column (2026-09-30). The drawer stands 46px in from the edge instead, with
+   its own right border back, so the tab covers nothing. Closed, it slides
+   fully off (translateX past its own width and the gap). */
+body[data-tab="quote"] #quotePricingPanel{ right:46px; border-right:1px solid var(--border); border-radius:12px; }
+body[data-tab="quote"] #quotePricingPanel:not(.is-open){ transform:translateX(calc(100% + 46px)); }
 /* The office price bar is fixed to the bottom — lift the pricing slide-out
    and pad the Quote tab so it never sits on top of either. */
 html.office-price-bar #quotePricingPanel{ bottom:calc(var(--office-bar-h, 96px) + 10px); }
@@ -66523,9 +66530,16 @@ function _fergusRoofPhotosOnTabOpen(){
 // a GAP — giving the content breathing room from the pop-out, matching the
 // gap on the left between the canvas and the sidebar. Closed = just the
 // toggle strip + gap.
+// EVERY SIDE PANEL NOW SITS OVER THE PAGE (2026-09-30, the owner's: "have
+// the pricing tab pop up over top of the quote tab, and let me slide it
+// left/right to make it bigger or smaller without it squeezing the quote tab
+// smaller — make this the same for all the other side pop-outs"). The page
+// keeps only the strip the panels' tabs sit in, open or closed, so nothing
+// underneath reflows when a panel opens, closes or is dragged wider. `px` is
+// still passed by every caller; it no longer moves anything.
 function _setPopReserve(px){
   var TOGGLE = 46, GAP = 26;
-  var reserve = (px && px > 60) ? (Math.round(px) + TOGGLE + GAP) : (TOGGLE + GAP);
+  var reserve = TOGGLE + GAP;
   try { document.documentElement.style.setProperty('--pop-reserve', reserve + 'px'); } catch(e){}
   try { _fitDocZoom(); } catch(e){}          // Job Pack pages (CSS --doc-zoom)
   try { _fitProposalPages(); } catch(e){}    // Quote proposal (inline zoom, fill-to-width)
@@ -66622,12 +66636,15 @@ function _sidepopResizeStart(e, panel){
   e.preventDefault();
   panel.classList.add('is-resizing');
   var lastW = panel.getBoundingClientRect().width;
+  // Measured from the panel's own right edge, not the window's: the Pricing
+  // drawer on the Quote tab stands 46px in from the edge (clear of the PHOTOS
+  // tab), and a width taken from the window edge would jump 46px on grab.
+  var rightEdge = panel.getBoundingClientRect().right;
   function mv(ev){
-    var w = window.innerWidth - ev.clientX;
+    var w = rightEdge - ev.clientX;
     w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
     lastW = w;
     document.documentElement.style.setProperty('--sidepop-w', w + 'px');   // drives ALL three panels
-    _setPopReserve(w);
   }
   function up(){
     panel.classList.remove('is-resizing');

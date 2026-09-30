@@ -89,7 +89,11 @@ const cvs = await pg.evaluate(async () => {
   return { hitName, openW: Math.round(openW), closedW: Math.round(cr.width), wrapW: Math.round(wr.width), inline: cv.style.width,
            hitCanvas: hit === cv, buf: Math.abs(cv.width - Math.round(cr.width * dpr)) <= 2 };
 });
-check('closing the Photos panel gives the canvas the whole space — no dead strip where the panel was', cvs.closedW > cvs.openW + 100 && Math.abs(cvs.closedW - cvs.wrapW) <= 2 && !cvs.inline, JSON.stringify(cvs));
+// Since 2026-09-30 every side panel sits OVER the page rather than squeezing
+// it (the owner's). So the canvas has the whole space with Photos open or
+// closed — it never shrinks, and closing the panel leaves no dead strip.
+check('the canvas keeps the whole space whether the Photos panel is open or closed — nothing squeezes it, no dead strip',
+  Math.abs(cvs.closedW - cvs.openW) <= 2 && Math.abs(cvs.closedW - cvs.wrapW) <= 2 && !cvs.inline, JSON.stringify(cvs));
 check('…a click at the far right lands on the canvas, drawn at full resolution', cvs.hitCanvas && cvs.buf, JSON.stringify(cvs));
 
 // ── the quote's roof plans: a Background picture switch ──
