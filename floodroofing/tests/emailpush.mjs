@@ -66,6 +66,12 @@ check('…and the exact line shape Fergus accepted', /isLabour/.test(base.matSha
 // (2026-09-24: "if every change I make in the quote starts to auto produce
 // the customer versions … when I finally send the quote it doesn't have to
 // start from scratch creating the customer link")
+// The Quote tab's boxes are filled FROM the quote, as they are in real use.
+// This suite used to set S.quote directly and leave the boxes empty; the
+// send's readQuoteFromInputs then blanked the ref, client and address. That
+// only went unnoticed because the new-account wizard — wrongly opened when
+// the settings never loaded — cut openQuoteEmail short (2026-09-30).
+await pg.evaluate(() => { buildQuote(); });
 const prep = await pg.evaluate(async () => {
   document.body.setAttribute('data-tab', 'quote');
   AUTOSAVE.on = true; AUTOSAVE._hold = false;
