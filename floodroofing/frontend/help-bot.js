@@ -600,7 +600,7 @@
     return out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   }
 
-  var CHIPS = ['How do I start a new job?', 'How do I trace the roof?', 'What is the roof setup popup?', 'How do I price a second roof?', 'How do I send the quote to a customer?', 'Run me through the app', 'How do I order the roof?', 'What is Zincalume?'];
+  var CHIPS = ['Talk to a real person', 'How do I start a new job?', 'How do I trace the roof?', 'What is the roof setup popup?', 'How do I price a second roof?', 'How do I send the quote to a customer?', 'Run me through the app', 'How do I order the roof?', 'What is Zincalume?'];
 
   // ── UI ────────────────────────────────────────────────────────────────
   var openState = false;
@@ -630,6 +630,10 @@
       '</div>' +
       '<div id="frHelpMsgs" style="flex:1;overflow-y:auto;padding:14px;background:#f7fafc;-webkit-overflow-scrolling:touch"></div>' +
       '<div id="frHelpChips" style="padding:8px 12px 0;display:flex;gap:6px;flex-wrap:wrap;background:#fff;border-top:1px solid #eef2f6"></div>' +
+      '<div id="frHelpSupBar" style="display:none;padding:6px 12px;background:#ecfdf5;border-top:1px solid #d1fae5;font-size:11.5px;color:#065f46;align-items:center;gap:8px">' +
+        '<span style="flex:1">Talking to <b>RoofMap support</b> \u2014 a real person replies here</span>' +
+        '<button id="frHelpSupBack" style="background:none;border:none;color:#0099cc;font:inherit;font-size:11.5px;cursor:pointer;padding:0">Back to the assistant</button>' +
+      '</div>' +
       '<div style="padding:10px 12px 12px;background:#fff;display:flex;gap:8px;align-items:flex-end">' +
         '<textarea id="frHelpInput" rows="1" placeholder="Type your question…" style="flex:1;resize:none;max-height:90px;box-sizing:border-box;font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid #d3dce6;border-radius:10px;outline:none"></textarea>' +
         '<button id="frHelpSend" aria-label="Send" style="flex-shrink:0;width:40px;height:40px;background:#0099cc;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:16px">➤</button>' +
@@ -637,6 +641,7 @@
     document.body.appendChild(panel);
 
     document.getElementById('frHelpClose').onclick = function () { toggle(false); };
+    document.getElementById('frHelpSupBack').onclick = function () { supportMode(false); };
     var input = document.getElementById('frHelpInput');
     document.getElementById('frHelpSend').onclick = submit;
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
@@ -654,7 +659,7 @@
       return '<button class="fr-help-chip" style="background:#eef7fc;border:1px solid #cfe8f5;color:#036;border-radius:14px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit;line-height:1.2">' + esc(c) + '</button>';
     }).join('');
     Array.prototype.forEach.call(host.querySelectorAll('.fr-help-chip'), function (b) {
-      b.onclick = function () { ask(b.textContent); };
+      b.onclick = function () { if (b.textContent === 'Talk to a real person') return supportStart(); ask(b.textContent); };
     });
   }
 
@@ -678,6 +683,7 @@
     var v = (input.value || '').trim();
     if (!v) return;
     input.value = ''; input.style.height = 'auto';
+    if (SUP.mode) { addMsg('user', v); return supportSend(v); }
     ask(v);
   }
 
@@ -696,7 +702,18 @@
           Array.prototype.forEach.call(rel.querySelectorAll('.fr-help-rel'), function (b) { b.onclick = function () { ask(b.getAttribute('data-q')); }; });
         }
       } else {
-        addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, use **Send Feedback** in the left-hand menu, or email **support@roofmap.co.nz**.");
+        // THE OWNER'S RULE (2026-09-30): a question the assistant cannot
+        // answer is offered to a real person, not left at "try rephrasing".
+        if (supportAvailable()) {
+          var off = addMsg('bot', fmt("I'm not sure I have an answer for that one.\n\nWould you like me to send your question to **a real person** on our support team? They reply right here.") +
+            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">' +
+            '<button class="fr-help-sup-yes" style="background:#0099cc;color:#fff;border:none;border-radius:9px;padding:7px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Yes, send it to a person</button>' +
+            '<button class="fr-help-sup-no" style="background:#fff;color:#0a1628;border:1px solid #d3dce6;border-radius:9px;padding:7px 11px;font:inherit;font-size:12.5px;cursor:pointer">No thanks</button></div>', true);
+          off.querySelector('.fr-help-sup-yes').onclick = function () { off.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); supportMode(true); supportSend(text); };
+          off.querySelector('.fr-help-sup-no').onclick = function () { off.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); addMsg('bot', 'No problem. Try rephrasing, or tap a suggestion below — and **support@roofmap.co.nz** is always there too.'); };
+        } else {
+          addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, use **Send Feedback** in the left-hand menu, or email **support@roofmap.co.nz**.");
+        }
       }
     }, 260);
   }
@@ -707,12 +724,103 @@
     if (p) p.style.display = show ? 'flex' : 'none';
     if (l) l.style.display = show ? 'none' : 'flex';
     if (show) { var i = document.getElementById('frHelpInput'); if (i) setTimeout(function () { i.focus(); }, 60); }
+    if (show) supportShowNew();
   }
+
+  // ── Talking to a real person (the support desk) ─────────────────────
+  // Messages go to POST /support/messages (stored, and emailed to support@);
+  // the replies written on the support desk come back through GET
+  // /support/messages — a red count on the Help button until they are read.
+  var SUP = { mode: false, shown: {}, loaded: false, unread: 0, timer: null };
+  function supportAvailable() {
+    try { return typeof window.api === 'function' && !!localStorage.getItem('fr_token') && !window.__PLAYGROUND && !window.__CUSTOMER_MODE; }
+    catch (e) { return false; }
+  }
+  function supportMode(on) {
+    SUP.mode = !!on;
+    var bar = document.getElementById('frHelpSupBar'), i = document.getElementById('frHelpInput');
+    if (bar) bar.style.display = on ? 'flex' : 'none';
+    if (i) i.placeholder = on ? 'Message our support team\u2026' : 'Type your question\u2026';
+  }
+  function supportStart() {
+    supportMode(true);
+    addMsg('bot', "Sure \u2014 type your message below and it goes straight to **our support team**. A real person replies right here (you'll see a red dot on **Help** when they do).");
+    var i = document.getElementById('frHelpInput'); if (i) i.focus();
+  }
+  function supportSend(text) {
+    var ctx = '';
+    try { ctx = String(document.body.getAttribute('data-tab') || ''); } catch (e) {}
+    Promise.resolve(window.api('POST', '/support/messages', { body: text, context: ctx })).then(function (r) {
+      if (r && r.message && r.message.id) SUP.shown[r.message.id] = 1;
+      addMsg('bot', "Sent to our support team \u2713 \u2014 a real person will reply here in the Help bubble. You'll see a red dot on **Help** when they have.");
+    }).catch(function () {
+      addMsg('bot', "Sorry \u2014 that didn't send just now. Please email **support@roofmap.co.nz** and we'll get back to you.");
+    });
+  }
+  function supportBubble(m) {
+    var who = m.sender === 'support' ? (m.author || 'RoofMap support') : 'You';
+    var b = addMsg(m.sender === 'support' ? 'bot' : 'user',
+      (m.sender === 'support' ? '<div style="font-size:10.5px;font-weight:700;color:#059669;margin-bottom:3px">' + esc(who) + '</div>' : '') +
+      '<div style="white-space:pre-wrap">' + esc(m.body) + '</div>', true);
+    if (b && m.sender === 'support') { b.style.borderColor = '#a7f3d0'; b.style.background = '#f0fdf4'; }
+    SUP.shown[m.id] = 1;
+  }
+  function supportBadge(n) {
+    SUP.unread = n || 0;
+    var l = document.getElementById('frHelpLauncher'); if (!l) return;
+    var d = document.getElementById('frHelpBadge');
+    if (!n) { if (d) d.remove(); return; }
+    if (!d) {
+      d = document.createElement('span'); d.id = 'frHelpBadge';
+      d.style.cssText = 'position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;box-sizing:border-box;border-radius:10px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff';
+      l.style.position = 'fixed'; l.appendChild(d);
+    }
+    d.textContent = String(n);
+    l.setAttribute('aria-label', 'Open help assistant \u2014 ' + n + ' new reply' + (n === 1 ? '' : 'ies') + ' from support');
+  }
+  function supportPoll() {
+    if (!supportAvailable()) return Promise.resolve(null);
+    return Promise.resolve(window.api('GET', '/support/messages')).then(function (r) {
+      SUP.data = r || { messages: [], unread: 0 };
+      supportBadge(SUP.data.unread || 0);
+      if (openState && SUP.data.unread) supportShowNew();
+      return SUP.data;
+    }).catch(function () { return null; });
+  }
+  // Put what they have not seen yet into the chat: on the first open, the
+  // conversation so far (the last few); after that, only new replies.
+  function supportShowNew() {
+    var d = SUP.data; if (!d || !d.messages || !d.messages.length) return;
+    var fresh = d.messages.filter(function (m) { return !SUP.shown[m.id]; });
+    if (!SUP.loaded) {
+      SUP.loaded = true;
+      fresh = fresh.slice(-6);
+      if (fresh.length) addMsg('bot', '<div style="font-size:11px;color:#64748b">Your conversation with RoofMap support</div>', true);
+    } else {
+      fresh = fresh.filter(function (m) { return m.sender === 'support'; });
+    }
+    if (!fresh.length) return;
+    fresh.forEach(supportBubble);
+    var last = d.messages[d.messages.length - 1];
+    if (last && last.sender === 'support') supportMode(true);
+    if (d.unread) {
+      Promise.resolve(window.api('POST', '/support/messages/read', {})).catch(function () {});
+      d.unread = 0; supportBadge(0);
+    }
+  }
+  function supportStartPolling() {
+    if (SUP.timer) return;
+    var go = function () { if (document.visibilityState !== 'hidden') supportPoll(); };
+    setTimeout(go, 4000);
+    SUP.timer = setInterval(go, 90000);
+  }
+  window._helpSupport = { poll: supportPoll, state: SUP, start: supportStart };
 
   function init() {
     // Office app only — never on the shared customer proposal view.
     if (window.__CUSTOMER_MODE) return;
     build();
+    supportStartPolling();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

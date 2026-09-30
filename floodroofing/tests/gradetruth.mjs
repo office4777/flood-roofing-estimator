@@ -116,6 +116,9 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
 await pg.goto(`http://127.0.0.1:${PORT}/app.html`);
 await pg.waitForTimeout(3000);
 await pg.evaluate(() => { const w=document.getElementById('setupWizard'); if(w) w.remove(); });
+// Since 2026-09-30 the side panels sit OVER the page (the owner's), so the
+// open Photos panel covers the right of it — fold it before clicking there.
+await pg.evaluate(() => { try { _fergusPanelClose(); } catch(e){} });
 await pg.click('.panel.active .sj-go');
 await pg.waitForTimeout(2500);
 

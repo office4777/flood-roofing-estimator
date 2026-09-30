@@ -4593,7 +4593,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // account that set it.
   window._frWipeBusinessLocal = function(){
     try {
-      ['fr_jms','fr_jms_linked','fr_ferg2job','fr_fergus_panel_w','fr_sidepop_w']
+      ['fr_jms','fr_jms_linked','fr_ferg2job','fr_fergus_panel_w','fr_sidepop_w',
+       // Walkthrough answers are the ACCOUNT's (2026-09-30): the owner's own
+       // "done" on this browser swallowed a new trial's first-login welcome.
+       'fr_first_roof','fr_first_roof_at','fr_tour_done','fr_about_done']
         .forEach(function(k){ localStorage.removeItem(k); });
     } catch(e){}
     try { sessionStorage.removeItem('fr_fergus_panel_open'); } catch(e){}
@@ -21230,7 +21233,7 @@ function _sampleJobBannerSync(){
   // Home and Map Roof both carry it: signing in lands on Map Roof, and an
   // account with no work of its own should meet the finished sample wherever
   // it lands. One piece of html, so the two can never drift apart.
-  var html = (_hasOwnWork() || (window.S && S.isSampleJob) || (window.TOUR && TOUR.open && TOUR.kind === 'firstroof')) ? '' : _sampleJobBannerHtml();
+  var html = (_hasOwnWork() || (window.S && S.isSampleJob) || (window.TOUR && TOUR.open && (TOUR.kind === 'firstroof' || TOUR.kind === 'coach'))) ? '' : _sampleJobBannerHtml();
   ['sampleJobBanner', 'sampleJobBannerRoof'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.innerHTML = html;
@@ -47140,6 +47143,20 @@ function closeTour(cancelled){
   TOUR.open = false;
   if (TOUR._poll){ clearInterval(TOUR._poll); TOUR._poll = null; }
   var wasInbox = TOUR.kind === 'inbox';
+  // The getting-started coach answers the account's first-login question
+  // (done or stopped), and never marks the 29-step tutorial as seen.
+  if (TOUR.kind === 'coach'){
+    var _cst = TOUR.steps[TOUR.i] || {};
+    try { _walkthroughEvent(_cst.key || '', cancelled ? 'stopped' : 'finished'); } catch(e){}
+    try { _firstRoofMark(cancelled ? 'stopped' : 'done'); } catch(e){}
+    try { _firstRoofAtSave(null); } catch(e){}
+    TOUR.kind = 'main';
+    try { _aboutYouSync(); _sampleJobBannerSync(); } catch(e){}
+    window.removeEventListener('resize', _tourPlace);
+    window.removeEventListener('scroll', _tourPlace, true);
+    if (cancelled){ try { _setSaveStatus && _setSaveStatus('Tips closed — Settings → Guides has the guides and tutorials.', '#64748b'); } catch(e){} }
+    return;
+  }
   // The practice walkthrough is its own thing: closing it never marks the
   // 29-step tutorial as seen, and it remembers itself on the account.
   if (TOUR.kind === 'firstroof'){
@@ -47202,6 +47219,12 @@ function tourStep(n){
 function _tourPlace(){
   var w = document.getElementById('tourWrap'); if (!w) return;
   var st = TOUR.steps[TOUR.i];
+  // A step can stay QUIET while the reader works (the coach says nothing
+  // while the corners go in, or while the roof-type window is up): nothing
+  // on screen, and the poller keeps checking.
+  var _quiet = false; try { _quiet = !!(st && typeof st.quiet === 'function' && st.quiet()); } catch(e){}
+  w.style.display = _quiet ? 'none' : '';
+  if (_quiet) return;
   var ring = w.querySelector('#tourRing'), card = w.querySelector('#tourCard'),
       hand = w.querySelector('#tourHand');
   if (st && st.centre){
@@ -47266,7 +47289,7 @@ function _tourRender(){
   st._at = Date.now();
   var _card = w.querySelector('#tourCard'); if (_card) _card.classList.toggle('tour-light', !!st.light);
   if (typeof st.onEnter === 'function'){ try { st.onEnter(); } catch(e){} }
-  try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'shown'); } catch(e){}
+  try { if (TOUR.kind === 'firstroof' || TOUR.kind === 'coach') _walkthroughEvent(st.key, 'shown'); } catch(e){}
   w.querySelector('#tourBody').innerHTML = _tourBodyHtml(typeof st.body === 'function' ? st.body() : _tourStepBody(st));
   // A step can carry its own buttons (the practice job's start and finish
   // cards) — rendered under the body, wired by the step itself.
@@ -47274,10 +47297,11 @@ function _tourRender(){
   if (!extra){ extra = document.createElement('div'); extra.id = 'tourExtra'; w.querySelector('#tourBody').parentNode.insertBefore(extra, w.querySelector('#tourBody').nextSibling); }
   extra.innerHTML = st.extra ? st.extra : '';
   extra.style.display = st.extra ? 'block' : 'none';
-  w.querySelector('#tourCount').textContent = (TOUR.steps.length > 1) ? ('Step ' + (TOUR.i + 1) + ' of ' + TOUR.steps.length) : '';
-  w.querySelector('#tourBack').style.visibility = TOUR.i ? 'visible' : 'hidden';
+  // The coach has a silent step and waits on the reader: no "Step 4 of 9".
+  w.querySelector('#tourCount').textContent = (TOUR.steps.length > 1 && TOUR.kind !== 'coach') ? ('Step ' + (TOUR.i + 1) + ' of ' + TOUR.steps.length) : '';
+  w.querySelector('#tourBack').style.visibility = (TOUR.i && TOUR.kind !== 'coach') ? 'visible' : 'hidden';
   var nextBtn = w.querySelector('#tourNext');
-  if (el && !st.centre){
+  if (el && !st.centre && !st.noScroll){
     // Bring it into view before we draw a ring round where it used to be.
     try { el.scrollIntoView({ block:'center', inline:'nearest' }); } catch(e){}
   }
@@ -47309,8 +47333,8 @@ function openTour(force, steps, kind){
   if (!TOUR.steps.length) { _onbRelease('tour'); return; }
   TOUR.kind = kind || 'main';
   TOUR.i = 0; TOUR.open = true;
-  var _hdr = TOUR.kind === 'inbox' ? 'Inbox guide' : (TOUR.kind === 'firstroof' ? (FIRST_ROOF.path === 'practice' ? 'Your first roof — the practice job' : 'Your first roof') : 'RoofMap tutorial');
-  var _cancelLbl = TOUR.kind === 'inbox' ? 'Close guide' : (TOUR.kind === 'firstroof' ? 'Cancel practice job' : 'Cancel tutorial');
+  var _hdr = TOUR.kind === 'coach' ? 'Getting started' : TOUR.kind === 'inbox' ? 'Inbox guide' : (TOUR.kind === 'firstroof' ? (FIRST_ROOF.path === 'practice' ? 'Your first roof — the practice job' : 'Your first roof') : 'RoofMap tutorial');
+  var _cancelLbl = TOUR.kind === 'coach' ? 'Skip the tips' : TOUR.kind === 'inbox' ? 'Close guide' : (TOUR.kind === 'firstroof' ? 'Cancel practice job' : 'Cancel tutorial');
   var w = document.createElement('div');
   w.id = 'tourWrap';
   w.className = 'no-print';
@@ -47351,7 +47375,7 @@ function openTour(force, steps, kind){
         try { st.onNext(); } catch(e){}
         if (!st.until()) return;   // the action is asynchronous — the poller moves on when it lands
       } else {
-        try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'skipped'); } catch(e){}
+        try { if (TOUR.kind === 'firstroof' || TOUR.kind === 'coach') _walkthroughEvent(st.key, 'skipped'); } catch(e){}
       }
     }
     // On a gated step the button does exactly what clicking the tab does, so
@@ -47385,14 +47409,14 @@ function openTour(force, steps, kind){
         if (nb && nb.textContent !== (st.doneNext || 'Next')) nb.textContent = st.doneNext || 'Next';
       } else {
         st._done = true;
-        try { if (TOUR.kind === 'firstroof') _walkthroughEvent(st.key, 'done'); } catch(e){}
+        try { if (TOUR.kind === 'firstroof' || TOUR.kind === 'coach') _walkthroughEvent(st.key, 'done'); } catch(e){}
         setTimeout(function(){ if (TOUR.open && TOUR.steps[TOUR.i] === st) tourStep(TOUR.i + 1); }, st.settle || 500);
         return;
       }
     }
     if (!st.centre) _tourPlace();
   }, 350);
-  try { if (TOUR.kind === 'firstroof') _walkthroughEvent('start', 'started'); } catch(e){}
+  try { if (TOUR.kind === 'firstroof' || TOUR.kind === 'coach') _walkthroughEvent('start', 'started'); } catch(e){}
   // The walkthrough has the screen: the sample banner and the setup
   // questions stay out of its way until it is done.
   try { if (TOUR.kind === 'firstroof'){ _sampleJobBannerSync(); _aboutYouSync(); _fergusPanelClose(); } } catch(e){}
@@ -47492,9 +47516,15 @@ function _firstRoofMaybeStart(){
       if (st !== 'offer' && st !== 'left') return;
       if (_onbActive() || document.getElementById('setupWizard') || document.getElementById('setupGuide') || document.getElementById('tourWrap')) return;
       if (S.currentJobId || S.linkedJobId) return;
+      // Since 2026-09-30 a new account meets the GETTING STARTED coach on its
+      // own first roof (the owner's spec); the practice job stays in
+      // Settings → Guides. A practice job left part-way still offers to carry on.
       var at = (st === 'left') ? (uf.first_roof_at || _firstRoofAt()) : null;
-      if (at && at.step){ try { localStorage.setItem('fr_first_roof_at', JSON.stringify(at)); } catch(e){} }
-      startFirstRoof(at && at.step ? at : null);
+      if (at && at.step && at.step.indexOf('c-') !== 0){
+        try { localStorage.setItem('fr_first_roof_at', JSON.stringify(at)); } catch(e){}
+        return startFirstRoof(at);
+      }
+      startCoach();
     })();
   } catch(e){}
 }
@@ -47914,6 +47944,75 @@ function _firstRoofSteps(path){
       noNext: true }
   );
   return steps;
+}
+// ── GETTING STARTED (the owner's spec, 2026-09-30) ─────────────────
+// A new account's first login: the Photos panel folded away, a welcome that
+// says where the guides are, then a few pointers on THEIR OWN first roof —
+// each one waits for the thing before it to be done, and says nothing while
+// they work. The tour engine runs it (kind 'coach'); `quiet` steps hide the
+// card until there is something to say.
+var COACH = { idleMs: 2500 };
+function startCoach(){
+  try { closeTour(true); } catch(e){}
+  try { _fergusPanelClose(); } catch(e){}
+  try { if (document.body.getAttribute('data-tab') !== 'roof') gotoTab('roof'); } catch(e){}
+  try { _usageEvent('onboarding_path', { path: 'coach', example: false }); } catch(e){}
+  openTour(true, _coachSteps(), 'coach');
+  // One thing at a time: the "look at a finished job" banner waits for the end.
+  try { _sampleJobBannerSync(); _aboutYouSync(); } catch(e){}
+}
+function _coachSteps(){
+  var vis = function(id){ var el = document.getElementById(id); return !!el && el.style.display !== 'none' && el.getBoundingClientRect().width > 0; };
+  var btn = function(label, fn, primary){
+    return '<button type="button" onclick="' + fn + '" style="display:block;width:100%;margin-top:7px;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;' +
+      (primary ? 'background:#0099cc;color:#fff;border:none' : 'background:#fff;color:#0a1628;border:1.5px solid #cbd5e1') + '">' + label + '</button>';
+  };
+  var drawn = function(){ return !!(DRAW.outlineDone || (DRAW.roofs && DRAW.roofs.length)); };
+  var pts = function(){ return (DRAW.currentPts || []).length; };
+  var guides = 'closeTour(false); gotoTab(\'settings\'); try { switchSettingsSub(\'set-guides\'); } catch(e){}';
+  return [
+    { key: 'c-welcome', centre: true, title: 'Welcome to RoofMap',
+      body: 'Good to have you here. A few quick pointers will walk you through your first roof — they only speak up when there is something to do.\n\n**Guides and tutorials** are in **Settings → Guides** whenever you want them.',
+      extra: btn('Show me how', 'tourStep(TOUR.i + 1)', true) + btn('I’ll find my own way', 'closeTour(true)'),
+      noNext: true },
+    { key: 'c-picture', sel: '#roofBgCard', tab: 'roof', title: 'Start with a picture of the roof',
+      body: 'Use **Find your property** to find the roof on the **satellite image**.\n\nOr upload your own — an **aerial or drone shot**, or a **PDF plan** — with **Upload from PC** or **PDF Plans**.',
+      onEnter: function(){ try { _expandRoofBg && _expandRoofBg(); } catch(e){} },
+      // Out of the way while the satellite finder or the PDF page picker is up.
+      quiet: function(){ return vis('aerialModal') || vis('roofPdfModal'); },
+      until: function(){ return !!DRAW.bgImg; }, noNext: true, settle: 700 },
+    { key: 'c-outline', sel: '#btn-outline', tab: 'roof', title: 'Map out the roof',
+      body: 'Click **Building outline**, then click on each **corner of the roof**, going round in order.',
+      onEnter: function(){ try { _collapseRoofBg && _collapseRoofBg(); } catch(e){} },
+      until: function(){ return DRAW.tool === 'outline' || drawn(); }, onNext: function(){ setTool('outline'); }, next: 'Select it for me', settle: 300 },
+    // Nothing while the corners go in. Once there are four or more and they
+    // have stopped clicking, it looks finished: say how to finish it.
+    { key: 'c-enter', sel: '#roofCanvas', tab: 'roof', light: true, noScroll: true, title: 'All the way round?',
+      body: 'Press **Enter** to finish the outline.',
+      quiet: function(){
+        var st = TOUR.steps[TOUR.i] || {}, n = pts(), now = Date.now();
+        if (st._n !== n){ st._n = n; st._t = now; }
+        return n < 4 || (now - st._t) < COACH.idleMs;
+      },
+      until: function(){ return drawn(); }, onNext: function(){ if (pts() >= 3) finishCurrent(); }, next: 'Finish it for me', settle: 300 },
+    // The roof-type window explains itself: nothing until the roof is drawn.
+    { key: 'c-rooftype', sel: '#roofCanvas', tab: 'roof', noScroll: true, title: '',
+      body: '', quiet: function(){ return true; },
+      until: function(){ return drawn() && !document.getElementById('_rsModal'); }, settle: 700 },
+    { key: 'c-measure', sel: '#roofCanvas', tab: 'roof', light: true, noScroll: true, title: 'Know a real measurement?',
+      body: 'If you want, click any **line’s measurement** and type its **real-life length** — a wall you have measured on site, say. The whole drawing rescales to it and every number follows.',
+      next: 'Got it' },
+    { key: 'c-jobpack', sel: '#navJobPackBtn', title: 'The Job Pack',
+      body: 'This is the **Job Pack** for material orders: the sheets, flashings, gutter and fixings for this roof.\n\nOrders can be made **directly to your chosen supplier** from here.',
+      next: 'Next' },
+    { key: 'c-quote', sel: '#navQuoteBtn', title: 'The Quote',
+      body: 'Your **quote** is a **live, interactive** quote sent **straight to the customer**. They open it on their phone or computer, choose their options, watch the price move, and accept it online.',
+      next: 'Next' },
+    { key: 'c-done', centre: true, title: 'You’re all set',
+      body: '**Guides and tutorials** are in **Settings → Guides**.\n\nWe’re here whenever you need us: email **support@roofmap.co.nz**, or click the **💬 Help** bubble at the bottom right and type your question.',
+      extra: btn('Finish', 'closeTour(false)', true) + btn('Open the guides', guides),
+      noNext: true }
+  ];
 }
 // ── THE PLAYGROUND ─────────────────────────────────────────────────
 // roofmap.co.nz/app?try=1 — the canvas for a stranger, framed on the

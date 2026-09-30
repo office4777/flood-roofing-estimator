@@ -51,6 +51,9 @@ async function boot(opts){
     if (o.done) localStorage.setItem('fr_first_roof', o.done);
   }, opts);
   await pg.goto('file://' + DIR + '/app.html');
+  // Since 2026-09-30 a first login gets the getting-started coach
+  // (tests/coach.mjs); the practice job is started from Settings → Guides.
+  if (opts.practice){ await sleep(1800); await pg.evaluate(() => startFirstRoof()); }
   return { ctx, pg, errs, usage, puts, sends };
 }
 const stepKey = pg => pg.evaluate(() => (window.TOUR && TOUR.open && TOUR.steps[TOUR.i]) ? TOUR.steps[TOUR.i].key : '');
@@ -65,11 +68,11 @@ const overlays = pg => pg.evaluate(() => ({
   tab: document.body.getAttribute('data-tab'),
 }));
 
-// ── a new account: straight onto Map Roof, at the satellite box ───
-let { ctx, pg, errs, usage, puts, sends } = await boot({});
+// ── the practice job: straight onto Map Roof, at the satellite box ───
+let { ctx, pg, errs, usage, puts, sends } = await boot({ flags: { first_roof: 'has-work' }, practice: true });
 await waitStep(pg, 'find', 9000);
 let v = await overlays(pg);
-check('a first sign-in lands on Map Roof with ONE thing open: the walkthrough, at "find the property"', v.tab === 'roof' && v.tour && v.kind === 'firstroof' && !v.wizard && !v.guide,
+check('the practice job lands on Map Roof with ONE thing open: the walkthrough, at "find the property"', v.tab === 'roof' && v.tour && v.kind === 'firstroof' && !v.wizard && !v.guide,
   JSON.stringify(v));
 v = await pg.evaluate(() => ({
   client: document.getElementById('jobClient').value, addr: document.getElementById('jobAddr').value, no: document.getElementById('jobNo').value,
@@ -241,7 +244,7 @@ check('nothing threw along the way', errs.length === 0, errs.join(' | ').slice(0
 await ctx.close();
 
 // ── left mid-way: carry on from there ─────────────────────────────
-({ ctx, pg, errs, usage, puts } = await boot({}));
+({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'has-work' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.click('#aerialFindBtn');
 await waitStep(pg, 'useview');
@@ -273,7 +276,7 @@ check('…so a stopped walkthrough stays stopped next login', !(await overlays(p
 await ctx.close();
 
 // ── no practice picture on the server: the drawn stand-in ─────────
-({ ctx, pg, errs, usage } = await boot({ noPractice: true }));
+({ ctx, pg, errs, usage } = await boot({ noPractice: true, flags: { first_roof: 'has-work' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.click('#aerialFindBtn');
 await waitStep(pg, 'useview');
@@ -285,7 +288,7 @@ check('…and it says so in the events', usage.some(u => u.name === 'roof_source
 await ctx.close();
 
 // ── "Stop the walkthrough" on the first card ──────────────────────
-({ ctx, pg, errs, usage, puts } = await boot({}));
+({ ctx, pg, errs, usage, puts } = await boot({ flags: { first_roof: 'has-work' }, practice: true }));
 await waitStep(pg, 'find', 9000);
 await pg.evaluate(() => document.getElementById('tourCancel').click());
 await sleep(400);

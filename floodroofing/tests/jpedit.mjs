@@ -253,6 +253,9 @@ check('and the page is fully editable again the moment the capture is done',
 // banner sits: fixed, and with a higher z-index. So it never scrolled away,
 // it parked underneath, and the buttons went with it. Geometry alone reads
 // that as "on screen", so this asks what is actually painted there.
+// The Maps pop-out sits OVER the page since 2026-09-30 (the owner's), so it
+// is folded for a question about what the page itself paints.
+await pg.evaluate(() => { const p = document.getElementById('jpMapPanel'); if (p && p.classList.contains('is-open')) _jpToggleMapPanel(); });
 await pg.evaluate(() => window.scrollTo(0, 2200));
 await pg.waitForTimeout(400);
 const stick = await pg.evaluate(() => {

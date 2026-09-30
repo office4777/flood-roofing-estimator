@@ -25,6 +25,9 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => r
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); localStorage.setItem('fr_site_mode','off'); });
 await pg.goto('file://' + DIR + '/app.html'); await pg.waitForTimeout(2600);
 await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); gotoTab('roof'); });
+// Since 2026-09-30 the side panels sit OVER the page (the owner's), so the
+// open Photos panel covers the right of it — fold it before clicking there.
+await pg.evaluate(() => { try { _fergusPanelClose(); } catch(e){} });
 
 // ── the roof image boxes: always open, no frame; no history box ──
 const top = await pg.evaluate(() => {

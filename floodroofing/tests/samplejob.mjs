@@ -99,6 +99,9 @@ check('…and told it will not be saved to their account',
 
 // ── opening it ──
 // Whichever copy of the offer is in front of them.
+// Since 2026-09-30 the side panels sit OVER the page (the owner's), so the
+// open Photos panel covers the right of it — fold it before clicking there.
+await pg.evaluate(() => { try { _fergusPanelClose(); } catch(e){} });
 await pg.click('.panel.active .sj-go');
 await pg.waitForTimeout(2200);
 let o = await pg.evaluate(() => ({

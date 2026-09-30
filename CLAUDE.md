@@ -597,6 +597,53 @@ Discipline (non-negotiable):
   it. `set-pricebook` (the wizard, old links, the suites) is an alias for it
   now, and it is what `openPriceSettings()` opens; Quote's Product Options
   keeps the products list alone.
+- EVERY SIDE PANEL SITS OVER THE PAGE (2026-09-30, the owner's): Photos,
+  the Job Pack maps and Pricing never squeeze the page — `_setPopReserve`
+  keeps only the toggle strip (72px) whatever it is passed, and a drag on a
+  panel's edge (`_sidepopResizeStart`) widens it over the page. On the Quote
+  tab Pricing stops 46px short of the right edge so the folded PHOTOS tab
+  never covers it. The open Photos panel therefore covers the right of Map
+  Roof (the sample-job banner's button, the canvas's right third): UI
+  suites that click there fold it first (`_fergusPanelClose()`).
+  `tests/photoviewer.mjs`, `tests/bgclear.mjs`.
+- GUTTER PRICES (2026-09-30): 125mm Colorsteel box gutter is ONE row at
+  `gutter.box125_lm` ($21/lm, BRACKETS INCLUDED) plus an 80mm dropper every
+  8 m (`dropper_ea`); Marley Classic is itemised like Typhoon
+  (`classic_spouting_lm`, `classic_bracket_ea` one per 500 mm, outlets,
+  joiners, angles, stop ends — NZ retail less GST until the owner types
+  trade prices; `_gutterClassicInv`). `_gutterSupply` answers 0 for "not
+  priced" so a blank never reads as free. A custom line on the gutter card
+  (`_qCustomTotal('gutter')`, `_gutterCustomBase`) is part of the GUTTER —
+  in `_gutterMaterialCharge`, the card, the profitability cost and the
+  Fergus gutter lines — never pushed as a separate quote line (it used to
+  move the quote's total and not the Pricing tab's). `tests/gutterprice.mjs`,
+  `tests/chainwalk.mjs`, pricegold regenerated.
+- GETTING STARTED (2026-09-30, `startCoach`, tour kind `'coach'`,
+  `tests/coach.mjs`): a new account (`ui_flags.first_roof === 'offer'`)
+  meets a welcome (guides in Settings → Guides), then pointers on its OWN
+  roof: the picture box (quiet while the aerial finder / PDF picker is up)
+  until `DRAW.bgImg`; Building outline; NOTHING while corners go in (a step's
+  `quiet()` hides the whole card) until 4+ corners and 2.5 s idle
+  (`COACH.idleMs`) → "press Enter"; silent over the roof-type window; the
+  real-measurement tip; Job Pack; Quote; a last card (guides,
+  support@roofmap.co.nz, the Help bubble). Photos folded, sample banner held
+  back. Finish = `done`, skip = `stopped`. The practice job is Settings →
+  Guides only (a practice walkthrough left part-way still resumes). The
+  walkthrough answers (`fr_first_roof`, `fr_first_roof_at`, `fr_tour_done`,
+  `fr_about_done`) are wiped by `_frWipeBusinessLocal` at every sign-in/out
+  — the owner's own "done" on his laptop swallowed a new trial's welcome.
+- THE SUPPORT DESK (2026-09-30): the Help bubble offers an unanswerable
+  question to "a real person" (and has a "Talk to a real person" chip);
+  `POST /support/messages` stores it (`support_messages`: company_id,
+  user_id, sender user|support, author, email, company, body, read_at — one
+  conversation per user_id) and emails support@ with Reply-To them. The
+  owner answers on `/admin/support/page` (the API's origin; admin token or
+  an ANALYTICS_OWNERS login, like analytics) → `POST /admin/support/reply`
+  stores it and emails them as `platform:true` from support@ — HELD while
+  the platform cannot send as roofmap.co.nz, and the page says so; the
+  bubble has it either way (`GET /support/messages` polled every 90 s, a
+  red count on Help, `POST /support/messages/read` when shown).
+  `tests/supportdesk.mjs`, `tests/helpsupport.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

@@ -10340,6 +10340,82 @@ app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
+// SUPPORT DESK (the owner, 2026-09-30): "if they type in a random question
+// that the speech bubble assistant doesn't know ... ask the user if they
+// would like this message to be connected directly to ... a real person,
+// then we need to build some sort of way that I can message back."
+// One conversation per person (keyed by user_id). Their messages come from
+// the Help bubble and are emailed to support@ with Reply-To set to them; a
+// reply written on /admin/support/page lands back in their bubble (a badge
+// on the Help button) and is emailed to them from the platform's own address
+// — HELD, never sent from a roofing company's mailbox, when that address
+// cannot send yet: the bubble still carries it.
+// ══════════════════════════════════════════════════════════════════
+const SUPPORT_MAX_BODY = 4000;
+function _supportRowOut(r){
+  return { id: r.id, sender: r.sender, author: r.author || '', body: r.body || '', created_at: r.created_at, read_at: r.read_at || null };
+}
+app.get('/support/messages', requireAuth, async (req, res) => {
+  try {
+    const data = _mustRead(await supabase.from('support_messages').select('*')
+      .eq('user_id', req.user.id).order('created_at', { ascending: true }).limit(200), 'support messages');
+    const rows = (data || []).filter(function(r){ return String(r.user_id) === String(req.user.id); });
+    res.json({ messages: rows.map(_supportRowOut), unread: rows.filter(function(r){ return r.sender === 'support' && !r.read_at; }).length });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/support/messages', requireAuth, rateLimit(10, 60000), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const body = String(b.body || '').trim().slice(0, SUPPORT_MAX_BODY);
+    if (!body) return res.status(400).json({ error: 'Type a message first' });
+    const email = String((req.user && req.user.email) || '').trim();
+    let company = '';
+    try { const row = await _companySettingsRow(req); company = String((((row || {}).branding) || {}).company_name || '').trim(); } catch (e) {}
+    const row = {
+      id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id,
+      sender: 'user', author: String(b.name || (req.user && req.user.name) || '').slice(0, 120), email: email,
+      company: company.slice(0, 200), body: body, created_at: new Date().toISOString(), read_at: null,
+    };
+    const { error } = await supabase.from('support_messages').insert(row);
+    if (error) throw new Error(error.message);
+    // The support inbox hears about it. The message is already stored, so a
+    // mail failure never loses it — the desk page lists it either way.
+    let emailed = false;
+    try {
+      if (EMAIL_ENABLED){
+        const who = [company, email].filter(Boolean).join(' · ') || 'a RoofMap user';
+        const ctx = String(b.context || '').slice(0, 300);
+        const info = await _dispatchMail({
+          to: MAIL_SUPPORT,
+          subject: 'RoofMap support: ' + body.replace(/\s+/g, ' ').slice(0, 70),
+          text: who + ' asked, from the Help bubble:\n\n' + body + '\n\n' + (ctx ? ('(They were on: ' + ctx + ')\n\n') : '') +
+                'Reply on the support desk so it reaches their Help bubble:\n' + PUBLIC_API_URL + '/admin/support/page\n' +
+                '(Replying to this email reaches their inbox only.)',
+          fromName: 'RoofMap Support — ' + who, fromAddress: MAIL_SUPPORT,
+          replyTo: /.@./.test(email) ? email : undefined,
+        });
+        emailed = !(info && info.held);
+      }
+    } catch (e) { console.error('support email failed:', e.message); }
+    res.json({ ok: true, message: _supportRowOut(row), emailed: emailed });
+    try { recordUsage('support_message', req); } catch (e) {}
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/support/messages/read', requireAuth, async (req, res) => {
+  try {
+    const { error } = await supabase.from('support_messages').update({ read_at: new Date().toISOString() })
+      .eq('user_id', req.user.id).eq('sender', 'support').is('read_at', null);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
 // EARLY ACCESS — the waitlist, and getting people off it
 // ══════════════════════════════════════════════════════════════════
 // RoofMap is invite-gated (see /auth/register). This is the front door to
@@ -11179,6 +11255,11 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions add column if not exists quiet_alert_at timestamptz",
   "alter table public.profiles add column if not exists interests jsonb",
   "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
+  // The support desk (2026-09-30): the Help bubble's "talk to a person" and
+  // the replies written on /admin/support/page. One conversation per user_id.
+  "create table if not exists public.support_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, sender text not null default 'user', author text not null default '', email text not null default '', company text not null default '', body text not null default '', created_at timestamptz not null default now(), read_at timestamptz)",
+  "create index if not exists support_messages_user_idx on public.support_messages (user_id, created_at)",
+  "alter table public.support_messages enable row level security",
 ];
 
 // A DATABASE BLIP AT BOOT IS NOT WORTH THE PROCESS (2026-09-30). On the
@@ -11695,6 +11776,179 @@ app.get('/admin/analytics/manifest.webmanifest', (req, res) => {
     icons: [{ src: '/admin/analytics/icon.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/admin/analytics/icon.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' }],
   }));
 });
+// ── The support desk (read and reply). Same gate as the analytics: the admin
+// token, or a signed-in platform owner (ANALYTICS_OWNERS) — so it works on
+// the owner's phone with his ordinary RoofMap login.
+app.get('/admin/support', async (req, res) => {
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
+  try {
+    const since = new Date(Date.now() - 120 * 864e5).toISOString();
+    const data = _mustRead(await supabase.from('support_messages').select('*')
+      .gte('created_at', since).order('created_at', { ascending: true }).limit(3000), 'support messages');
+    const by = new Map();
+    for (const r of (data || [])){
+      const k = String(r.user_id || '');
+      if (!by.has(k)) by.set(k, { user_id: r.user_id, email: '', author: '', company: '', messages: [] });
+      const c = by.get(k);
+      if (r.sender === 'user'){ c.email = r.email || c.email; c.author = r.author || c.author; c.company = r.company || c.company; }
+      c.messages.push(_supportRowOut(r));
+    }
+    const list = Array.from(by.values()).map(function(c){
+      const last = c.messages[c.messages.length - 1] || {};
+      c.last_at = last.created_at || null;
+      c.waiting = last.sender === 'user';      // their message is the last word: it wants an answer
+      return c;
+    }).sort(function(a, b){ return (b.waiting - a.waiting) || String(b.last_at).localeCompare(String(a.last_at)); });
+    res.json({ conversations: list, waiting: list.filter(function(c){ return c.waiting; }).length });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/admin/support/reply', async (req, res) => {
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
+  try {
+    const b = req.body || {};
+    const userId = String(b.user_id || '').trim();
+    const body = String(b.body || '').trim().slice(0, SUPPORT_MAX_BODY);
+    if (!userId || !body) return res.status(400).json({ error: 'user_id and body are required' });
+    const theirs = _mustRead(await supabase.from('support_messages').select('*')
+      .eq('user_id', userId).order('created_at', { ascending: true }).limit(200), 'support messages');
+    const mine = (theirs || []).filter(function(r){ return String(r.user_id) === userId; });
+    const lastUser = mine.filter(function(r){ return r.sender === 'user'; }).pop();
+    if (!lastUser) return res.status(404).json({ error: 'No conversation with that person' });
+    const row = {
+      id: crypto.randomUUID(), company_id: lastUser.company_id || null, user_id: lastUser.user_id,
+      sender: 'support', author: String(b.author || 'RoofMap support').slice(0, 120), email: MAIL_SUPPORT,
+      company: '', body: body, created_at: new Date().toISOString(), read_at: null,
+    };
+    const { error } = await supabase.from('support_messages').insert(row);
+    if (error) throw new Error(error.message);
+    // Their inbox hears about it too — from the platform's own address only.
+    // An answer they asked for, but it goes out as RoofMap: never through the
+    // roofing company's relay (_dispatchMail holds a platform message it
+    // cannot send as MAIL_SUPPORT). Held or not, the bubble has it.
+    let emailed = false, held = false;
+    try {
+      if (EMAIL_ENABLED && /.@./.test(lastUser.email || '')){
+        const q = String(lastUser.body || '').replace(/\s+/g, ' ').slice(0, 300);
+        const info = await _dispatchMail({
+          to: lastUser.email, platform: true,
+          subject: 'RoofMap support replied to your question',
+          text: 'Hi' + (lastUser.author ? ' ' + String(lastUser.author).split(' ')[0] : '') + ',\n\n' + body +
+                '\n\n— ' + row.author + '\n\n' + 'You asked: "' + q + '"\n\n' +
+                'To reply, open RoofMap (' + PUBLIC_APP_URL + '/app) and click the Help bubble at the bottom right, or just reply to this email.',
+          fromName: 'RoofMap Support', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT,
+        });
+        held = !!(info && info.held); emailed = !held;
+      }
+    } catch (e) { console.error('support reply email failed:', e.message); }
+    res.json({ ok: true, message: _supportRowOut(row), emailed: emailed, held: held });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+// The page carries no data (everything comes through the gated reads
+// above), so it is served to anyone and shows a sign-in until the browser
+// holds an owner's login or the admin token — like the analytics page, and
+// sharing its stored sign-in.
+app.get('/admin/support/page', (req, res) => {
+  res.setHeader('Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; " +
+    "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.type('html').send(SUPPORT_PAGE_HTML);
+});
+const SUPPORT_PAGE_HTML = String.raw`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>RoofMap support desk</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--ink:#0a1628;--mut:#64748b;--line:#e3e8ef;--acc:#0099cc;--bg:#f3f5f8}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--ink);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2}
+header h1{font-size:17px;margin:0;flex:1}header button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:8px;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:14px 16px 40px}
+.conv{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.conv.waiting{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18)}
+.who{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.who b{font-size:14px}.who span{color:var(--mut);font-size:12px}.tag{margin-left:auto;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;background:#fef3c7;color:#92400e}
+.msgs{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.m{max-width:85%;padding:8px 11px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.m small{display:block;font-size:10.5px;opacity:.7;margin-top:3px}
+.m.user{align-self:flex-start;background:#f1f5f9}.m.support{align-self:flex-end;background:var(--acc);color:#fff}
+.reply{display:flex;gap:8px;padding:10px 14px 14px}.reply textarea{flex:1;min-height:44px;resize:vertical;border:1px solid #cbd5e1;border-radius:10px;padding:9px 11px;font:inherit;font-size:14px}
+.reply button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:0 16px;font:inherit;font-weight:700;cursor:pointer}
+.note{font-size:12px;color:var(--mut);padding:0 14px 10px}.empty{text-align:center;color:var(--mut);padding:40px 10px}
+#login{max-width:360px;margin:40px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+#login input{width:100%;margin:6px 0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+#login button{width:100%;padding:11px;background:var(--acc);color:#fff;border:0;border-radius:8px;font:inherit;font-weight:700;margin-top:6px}
+#liErr{color:#b91c1c;font-size:13px;min-height:18px}
+</style></head><body>
+<header><h1>Support desk</h1><span id="count" style="font-size:12px;color:#9fb3c8"></span><button type="button" id="refresh">Refresh</button><button type="button" id="out" style="display:none">Sign out</button></header>
+<div id="login" style="display:none"><b>Sign in with your RoofMap login</b>
+<form id="liForm"><input id="liEmail" type="email" autocomplete="username" placeholder="Email"><input id="liPass" type="password" autocomplete="current-password" placeholder="Password"><div id="liErr"></div><button id="liBtn" type="submit">Sign in</button></form></div>
+<main id="main" style="display:none"><div id="list"></div></main>
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var TOKEN = (function(){
+  var u = new URL(location.href), t = u.searchParams.get('token');
+  if (t){ try { localStorage.setItem('rm_admin_token', t); } catch(e){} u.searchParams.delete('token'); history.replaceState(null, '', u.pathname); return t; }
+  try { return localStorage.getItem('rm_admin_token') || ''; } catch(e){ return ''; }
+})();
+var JWT = (function(){ try { return localStorage.getItem('rm_owner_jwt') || ''; } catch(e){ return ''; } })();
+function hdrs(){ var h = { 'content-type': 'application/json' }; if (TOKEN) h['x-admin-token'] = TOKEN; if (JWT) h['Authorization'] = 'Bearer ' + JWT; return h; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function when(t){ try { return new Date(t).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch(e){ return ''; } }
+function showLogin(msg){ $('login').style.display = ''; $('main').style.display = 'none'; $('liErr').textContent = msg || ''; }
+var DRAFTS = {};
+async function load(){
+  var r = await fetch('/admin/support', { headers: hdrs() });
+  if (r.status === 404){ return showLogin(JWT ? 'That login is not a RoofMap owner.' : ''); }
+  var j = await r.json().catch(function(){ return {}; });
+  if (!r.ok){ $('list').innerHTML = '<div class="empty">' + esc(j.error || 'Could not load') + '</div>'; return; }
+  $('login').style.display = 'none'; $('main').style.display = ''; $('out').style.display = JWT ? '' : 'none';
+  Array.prototype.forEach.call(document.querySelectorAll('textarea[data-u]'), function(t){ DRAFTS[t.getAttribute('data-u')] = t.value; });
+  var list = j.conversations || [];
+  $('count').textContent = j.waiting ? (j.waiting + ' waiting') : '';
+  document.title = (j.waiting ? '(' + j.waiting + ') ' : '') + 'RoofMap support desk';
+  $('list').innerHTML = list.length ? list.map(function(c){
+    return '<div class="conv' + (c.waiting ? ' waiting' : '') + '"><div class="who"><b>' + esc(c.author || c.email || 'Someone') + '</b><span>' + esc([c.company, c.email].filter(Boolean).join(' · ')) + '</span>' +
+      (c.waiting ? '<span class="tag">Waiting for you</span>' : '') + '</div><div class="msgs">' +
+      c.messages.map(function(m){ return '<div class="m ' + (m.sender === 'support' ? 'support' : 'user') + '">' + esc(m.body) + '<small>' + esc(m.sender === 'support' ? (m.author || 'You') : 'Them') + ' · ' + esc(when(m.created_at)) + (m.sender === 'support' ? (m.read_at ? ' · seen' : '') : '') + '</small></div>'; }).join('') +
+      '</div><div class="reply"><textarea data-u="' + esc(c.user_id) + '" placeholder="Reply to ' + esc(c.author || c.email || 'them') + '…">' + esc(DRAFTS[c.user_id] || '') + '</textarea><button type="button" data-send="' + esc(c.user_id) + '">Send</button></div><div class="note" data-note="' + esc(c.user_id) + '"></div></div>';
+  }).join('') : '<div class="empty">No support messages yet.</div>';
+}
+document.addEventListener('click', async function(ev){
+  var u = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-send'); if (!u) return;
+  var ta = document.querySelector('textarea[data-u="' + u + '"]'), note = document.querySelector('[data-note="' + u + '"]');
+  var body = (ta.value || '').trim(); if (!body) return;
+  ev.target.disabled = true; note.textContent = 'Sending…';
+  try {
+    var r = await fetch('/admin/support/reply', { method: 'POST', headers: hdrs(), body: JSON.stringify({ user_id: u, body: body }) });
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok) throw new Error(j.error || 'Not sent');
+    DRAFTS[u] = ''; ta.value = '';
+    await load();
+    var n2 = document.querySelector('[data-note="' + u + '"]');
+    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble and emailed to them.' : (j.held ? 'Sent to their Help bubble. Not emailed: RoofMap cannot send from its own address yet.' : 'Sent to their Help bubble.');
+  } catch (e){ note.textContent = e.message; ev.target.disabled = false; }
+});
+$('liForm').addEventListener('submit', async function(ev){
+  ev.preventDefault(); $('liBtn').disabled = true; $('liErr').textContent = '';
+  try {
+    var r = await fetch('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('liEmail').value.trim(), password: $('liPass').value }) });
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok || !j.token) throw new Error(j.error || 'Could not sign in');
+    JWT = j.token; try { localStorage.setItem('rm_owner_jwt', JWT); } catch(e){}
+    await load();
+  } catch (e){ $('liErr').textContent = e.message; }
+  $('liBtn').disabled = false;
+});
+$('refresh').onclick = load;
+$('out').onclick = function(){ JWT = ''; try { localStorage.removeItem('rm_owner_jwt'); } catch(e){} showLogin(); };
+if (!TOKEN && !JWT) showLogin(); else load();
+setInterval(function(){ if ($('main').style.display !== 'none' && !document.activeElement.matches('textarea')) load(); }, 60000);
+</script></body></html>`;
 app.get('/admin/analytics/icon.png', (req, res) => { res.setHeader('Cache-Control', 'public, max-age=86400'); res.type('png').send(ANALYTICS.iconPng()); });
 app.get('/admin/analytics/sw.js', (req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'");
