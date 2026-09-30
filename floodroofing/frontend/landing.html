@@ -84,6 +84,12 @@
         "Works offline on site"
       ],
       "offers": [
+        { "@type": "Offer", "name": "Measure", "price": "79.00", "priceCurrency": "NZD",
+          "priceSpecification": [
+            { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "55.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
+            { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "79.00", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
+          ],
+          "category": "Monthly subscription", "url": "https://roofmap.co.nz/pricing" },
         { "@type": "Offer", "name": "Trade", "price": "149", "priceCurrency": "NZD",
           "priceSpecification": [
             { "@type": "UnitPriceSpecification", "name": "Founding rate — first 12 months, monthly billing, for businesses joining by 31 December 2026", "price": "104.30", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "validThrough": "2026-12-31", "valueAddedTaxIncluded": false },
@@ -157,6 +163,12 @@
      Loaded only when asked for (the app is 2 MB), and on a phone replaced by
      the video and a box to email the link to a computer. -->
 <section id="try" class="tint">
+  <style>
+    /* Four plans (2026-10-01 — Measure was missing here): four across on a
+       wide screen, two by two on a laptop, one column on a phone. */
+    @media (min-width:1101px){ #pricing .tiers{ grid-template-columns:repeat(4,1fr); gap:18px } #pricing .wrap{ max-width:1240px } }
+    @media (min-width:901px) and (max-width:1100px){ #pricing .tiers{ grid-template-columns:repeat(2,1fr) } }
+  </style>
   <style>@media (max-width:799px){ #try{padding:56px 0} #try .sec-head p{margin-bottom:0} #tryHost{margin-top:18px !important} }</style>
   <div class="wrap">
     <div class="sec-head" style="max-width:640px">
@@ -424,6 +436,26 @@
          that measures on the roof reads as a doubt, not a bargain.
          ───────────────────────────────────────────────────────────── -->
     <div class="tiers">
+      <!-- Measure: measuring only, for the roofer who quotes elsewhere — the
+           same card as the pricing page (tests/sitecopy.mjs keeps them in step). -->
+      <div class="tier" data-plan="measure">
+        <h3>Measure</h3>
+        <div class="who">Just the tape measure.</div>
+        <div class="amt">$55.30<span class="was">$79</span></div>
+        <div class="per">per month + GST · 1 user</div>
+        <div class="then">Founding rate for your first 12 months, then <strong>$79</strong> a month + GST</div>
+        <ul>
+          <li>Unlimited roofs measured from the aerial</li>
+          <li>Sheet counts, flashing lengths and the cut list</li>
+          <li>Job pack PDF to print or file</li>
+          <li>Works offline on site</li>
+          <li class="off">One login</li>
+          <li class="off">Customer quotes and online acceptance</li>
+          <li class="off">Merchant orders</li>
+        </ul>
+        <a href="/signup" class="btn btn-dark">Start free — no card</a>
+      </div>
+
       <div class="tier">
         <h3>Trade</h3>
         <div class="who">One person doing the measuring, the quoting and the ordering.</div>

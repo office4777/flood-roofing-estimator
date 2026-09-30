@@ -34,6 +34,11 @@ for (const [name, html] of [['homepage', landing], ['pricing page', pricing]]){
   check('…with both prices on every card: the founding rate and what it goes to',
     /\$104\.30[\s\S]{0,120}\$149/.test(trade) && /\$209\.30[\s\S]{0,120}\$299/.test(team) && /\$384\.30[\s\S]{0,120}\$549/.test(biz), name);
   check('…and says yearly is instead of the 30%, not on top', /one or the other, not both/.test(html), name);
+  // Measure is sold (2026-09-19) — the homepage left it off until 2026-10-01.
+  const measure = card(html, 'Measure');
+  check('…and carries the Measure plan, $55.30 going to $79, with no quotes or orders in it',
+    /\$55\.30[\s\S]{0,160}\$79/.test(measure) && /class="off">[^<]*[Qq]uotes/.test(measure) && /class="off">[^<]*orders/i.test(measure), name);
+  check('…in its structured data too', /"name": "Measure", "price": "79\.00"/.test(html), name);
 }
 check('nothing on the homepage says "unlimited users" or "unlimited logins"', !/unlimited (users|logins)/i.test(landing));
 

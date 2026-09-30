@@ -111,7 +111,8 @@ check('…with a real screenshot of the app, not an illustration',
   extra.phoneShot && extra.phoneOk);
 check('…and covers what actually matters on a roof',
   /gloves on/i.test(extra.t) && /Lock the screen/i.test(extra.t) && /No signal/i.test(extra.t));
-check('there are three pricing tiers', extra.tiers.length === 3, JSON.stringify(extra.tiers.map(x=>x.name)));
+// Four since 2026-10-01: Measure was sold but missing from the homepage.
+check('there are four pricing tiers, Measure first', extra.tiers.length === 4 && extra.tiers[0].name === 'Measure', JSON.stringify(extra.tiers.map(x=>x.name)));
 check('…each with a price and what you get for it',
   extra.tiers.every(x => /^\$\d/.test(x.amt||'') && /per month/.test(x.per||'')),
   JSON.stringify(extra.tiers.map(x=>x.amt+' '+x.per)));
@@ -190,7 +191,8 @@ check('…and leads with the trial, which is the thing being offered',
 // Was 13. The category line, the feature links and the collapsed walkthrough
 // are deliberate content; the proxy moved with them, once. Then the Try it
 // section (the playground, or on a phone the email-me-the-link box): twice.
-check('…on a page that is still not endless', v.screens < 15, v.screens + ' screens');
+// The fourth pricing card (Measure, 2026-10-01): three times.
+check('…on a page that is still not endless', v.screens < 16, v.screens + ' screens');
 await pg.screenshot({ path: S+'/landing_phone.png', fullPage: true });
 await ctx.close();
 
