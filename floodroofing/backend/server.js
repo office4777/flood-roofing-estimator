@@ -947,6 +947,17 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
       return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
     }
   } else if (GAS_ENABLED) {
+    // RoofMap's own mail NEVER rides the Google relay (2026-10-01, the
+    // owner's: "it can never come from Flood Roofing"). The relay is the
+    // Flood Roofing Gmail account and sends as it whatever From it is handed
+    // — so with no Resend, a platform message is held, not sent as Flood
+    // Roofing. GAS_RELAY_IS_PLATFORM=true declares a relay that really is
+    // RoofMap's own mailbox.
+    if (platform && String(process.env.GAS_RELAY_IS_PLATFORM || '') !== 'true') {
+      MAIL_STATS.held = (MAIL_STATS.held || 0) + 1;
+      console.warn('[mail] held — ' + subj.slice(0, 80) + ': no Resend, and the Google relay sends as Flood Roofing.');
+      return { held: true, reason: 'relay-is-not-platform' };
+    }
     return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
   }
   // The display name is the tenant's; the address stays ours, because it is the
@@ -11854,8 +11865,12 @@ app.post('/admin/support/reply', async (req, res) => {
             (m.sender === 'support' ? 'background:#f0f9ff;border:1px solid #cfe8f5' : 'background:#f1f5f9') + '"><b style="font-size:12px">' +
             escH(m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + '</b><br>' + escH(String(m.body || '').trim()) + '</div>'; }).join('') +
           '<p style="margin-top:16px">To reply, open <a href="' + PUBLIC_APP_URL + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
+        // FROM ROOFMAP OR NOT AT ALL (2026-10-01, the owner's: "it can never
+        // come from Flood Roofing"): platform mail, so it is held until the
+        // platform can send as support@roofmap.co.nz — the bubble pops open
+        // with the reply at their next sign-in either way.
         const info = await _dispatchMail({
-          to: lastUser.email, subject: 'RoofMap support replied to your message', text, html,
+          to: lastUser.email, subject: 'RoofMap support replied to your message', text, html, platform: true,
           fromName: 'RoofMap Support', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT,
         });
         held = !!(info && info.held); emailed = !held;
@@ -11948,7 +11963,7 @@ document.addEventListener('click', async function(ev){
     DRAFTS[u] = ''; ta.value = '';
     await load();
     var n2 = document.querySelector('[data-note="' + u + '"]');
-    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble, and the conversation emailed to them.' : ('Sent to their Help bubble (it pops up when they next open RoofMap). Not emailed' + (j.emailError ? ': ' + j.emailError : '') + '.');
+    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble, and the conversation emailed to them from support@roofmap.co.nz.' : ('Sent to their Help bubble (it pops up when they next open RoofMap). Not emailed' + (j.held ? ': RoofMap cannot send from roofmap.co.nz yet, and it never sends as Flood Roofing' : (j.emailError ? ': ' + j.emailError : '')) + '.');
   } catch (e){ note.textContent = e.message; ev.target.disabled = false; }
 });
 $('liForm').addEventListener('submit', async function(ev){

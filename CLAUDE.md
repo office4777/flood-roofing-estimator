@@ -167,7 +167,12 @@ Discipline (non-negotiable):
   ("Platform email HELD") instead of falling back — the relay is one Gmail
   account that sends as the owner's roofing company, which is exactly how
   the trial email once reached a stranger from office@floodroofing.co.nz.
-  Requested mail still degrades to the relay. `tests/platformrelay.mjs`,
+  Requested mail still degrades to the relay. And with NO Resend at all a
+  `platform:true` message is HELD too (`relay-is-not-platform`), because the
+  relay is the Flood Roofing Gmail and sends as it whatever From it is
+  handed; `GAS_RELAY_IS_PLATFORM=true` declares a relay that really is
+  RoofMap's (the suites whose fake relay stands in for one set it).
+  `tests/platformrelay.mjs`,
   with a fake Resend that refuses everything (`RESEND_API_BASE`).
 - ONE COPY OF EACH PICTURE (2026-09-23): the quote's versions (sent,
   accepted, drafts) hold `@media:<key>` in place of every embedded picture
@@ -659,10 +664,10 @@ Discipline (non-negotiable):
   owner answers on `/admin/support/page` (the API's origin; admin token or
   an ANALYTICS_OWNERS login, like analytics) → `POST /admin/support/reply`
   stores it and emails them the CONVERSATION (their messages and the
-  replies, text + HTML) — REQUESTED mail, never `platform:true`, so it is
-  never held for the sending domain (from support@ where the platform can,
-  else the deployment's address named RoofMap Support, Reply-To support@);
-  the page says when it could not email and why. The bubble polls `GET
+  replies, text + HTML) as `platform:true` from support@roofmap.co.nz — and
+  NEVER from Flood Roofing (the owner, 2026-10-01: "it can never come from
+  Flood Roofing"): held until the platform can send as roofmap.co.nz, and
+  the page says so; the bubble pops the reply open either way. The bubble polls `GET
   /support/messages` every 90 s and POPS OPEN on an unread reply (once per
   page, `SUP.popped`), marking it read. After every answer it asks "Did this
   help?" — "No — connect me with a real person" sends their question with

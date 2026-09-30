@@ -45,6 +45,9 @@ process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
 process.env.GAS_MAIL_URL = 'http://127.0.0.1:' + relay.address().port;
 process.env.GAS_MAIL_TOKEN = 'tok';
+// The fake relay stands in for a mailbox that really is RoofMap's own:
+// RoofMap's mail never rides the real (Flood Roofing) relay (2026-10-01).
+process.env.GAS_RELAY_IS_PLATFORM = 'true';
 process.env.EMAIL_FROM = 'RoofMap <noreply@roofmap.co.nz>';
 process.env.ADMIN_TOKEN = 'admin-token-for-the-support-test-0123456789';
 const PORT = process.env.TEST_PORT || '34671';
@@ -123,6 +126,19 @@ r = await call('GET', '/support/messages', null, bearer(TOK)); j = await r.json(
 check('…opening it marks it read', j.unread === 0 && !!j.messages[1].read_at, JSON.stringify(j));
 r = await call('GET', '/admin/support', null, ADMIN); j = await r.json();
 check('…which the desk can see', !!j.conversations[0].messages[1].read_at);
+
+// ── never from Flood Roofing (2026-10-01, the owner's) ─────────────
+// With no mailbox of RoofMap's own to send from, the reply is HELD — kept in
+// their Help bubble — and never handed to the Flood Roofing relay.
+delete process.env.GAS_RELAY_IS_PLATFORM;
+sent.length = 0;
+r = await call('POST', '/admin/support/reply', { user_id: U, body: 'A second note while the mail is off.' }, ADMIN);
+j = await r.json();
+await settle();
+check('with no RoofMap mailbox to send from, a reply is held — stored for their bubble, never relayed as Flood Roofing',
+  r.status === 200 && j.held === true && j.emailed === false && !sent.some(x => /second note/.test(JSON.stringify(x))) &&
+  (db.support_messages || []).some(x => /second note/.test(x.body)), JSON.stringify(j));
+process.env.GAS_RELAY_IS_PLATFORM = 'true';
 
 // ── the page ──────────────────────────────────────────────────────
 r = await fetch(BASE + '/admin/support/page'); const html = await r.text();

@@ -75,6 +75,9 @@ const relay = http.createServer((req, res) => {
 await new Promise(r => relay.listen(0, '127.0.0.1', r));
 process.env.GAS_MAIL_URL = 'http://127.0.0.1:' + relay.address().port;
 process.env.GAS_MAIL_TOKEN = 'tok';
+// The fake relay stands in for a mailbox that really is RoofMap's own:
+// RoofMap's mail never rides the real (Flood Roofing) relay (2026-10-01).
+process.env.GAS_RELAY_IS_PLATFORM = 'true';
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
