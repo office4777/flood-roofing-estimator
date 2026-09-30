@@ -1052,7 +1052,10 @@ function _supabaseKeyInfo(){
   if (k.startsWith('sb_publishable_')) return { role: 'new-publishable-key', from, bypassesRls: false };
   try {
     const payload = JSON.parse(Buffer.from(k.split('.')[1] || '', 'base64').toString('utf8'));
-    return { role: payload.role || 'unknown', from, bypassesRls: payload.role === 'service_role' };
+    // ref: which Supabase project this server talks to. Not a secret (it is
+    // the project's public URL); it is how the database move proves the
+    // server has switched projects (2026-09-30).
+    return { role: payload.role || 'unknown', from, bypassesRls: payload.role === 'service_role', ref: payload.ref || null };
   } catch (e) { return { role: 'unparseable-jwt', from, bypassesRls: false }; }
 }
 
