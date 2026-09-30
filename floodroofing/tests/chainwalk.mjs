@@ -179,8 +179,8 @@ check('…and the gutter they bought', /box/i.test(order.gutter), order.gutter);
 check('…with the gutter section switched on for the pack', order.gutterOn);
 check('…the gutter actually on the cut list', order.gutterOrdered > 0,
   order.gutterOrdered + ' pieces');
-check('…and charged as GUTTER material (spouting, brackets, droppers), never in the roofing material table',
-  !order.gutterPriced && order.gutterKit.length >= 3, JSON.stringify(order.gutterKit));
+check('…and charged as GUTTER material (the gutter with its brackets, and droppers), never in the roofing material table',
+  !order.gutterPriced && order.gutterKit.length >= 2 && order.gutterKit.some(d => /brackets included/.test(d)) && order.gutterKit.some(d => /droppers/i.test(d)), JSON.stringify(order.gutterKit));
 
 // Choosing "no gutter" again takes it back off both.
 const undone = await pg.evaluate(() => {

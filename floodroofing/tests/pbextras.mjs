@@ -71,7 +71,9 @@ check('the rows it recognised still set real rates', v.ridge === 21.97, 'ridge $
 // and "Fiberglass Hip" matches the ridge/hip pattern — it is offered against
 // ridge_lm but left unticked, because it is priced each and that field is
 // per metre. A matched row is never quietly turned into a custom item.
-check('the rest are kept as rates', v.extras.length === 3, v.extras.length + ' custom item(s)');
+// Since 2026-09-30 "MC2 Classic bracket" has a field of its own too (Marley Classic
+// is itemised), so two are left.
+check('the rest are kept as rates', v.extras.length === 2, v.extras.length + ' custom item(s)');
 check('…every one of them at quantity 0', v.extras.every(x => (+x.q) === 0),
   v.extras.map(x => x.d.slice(0,18) + '=' + x.q).join(', '));
 check('…with their prices intact, so the book still knows what they cost',

@@ -72,21 +72,70 @@ const v3 = await opg.evaluate(() => {
 check('once guttering is on the quote the card prices exactly that product',
   v3.picked === 'box125' && v3.on, JSON.stringify(v3));
 
-// STEEL GUTTER MATERIAL IS ITEMISED (2026-09-22): the spouting, a bracket
-// every 800 mm and a dropper every 8 m (never fewer than one per run) —
+// THE BOX GUTTER (the owner, 2026-09-30): "$21/lm for the gutter and
+// brackets combined, no bends or any other accessories required except an
+// 80mm dropper every 8 m" — two rows, never fewer than one dropper per run,
 // and the gutter is NOT counted in the roofing material table as well.
 const kit = await opg.evaluate(() => {
   const rows = _gutterMaterialLines('box125', 54, 3, 4);
   const shown = [...document.querySelectorAll('#gutterDownpipeWrap table')].map(t => t.textContent).join(' ');
   let roofRows = [];
   try { roofRows = _buildMaterialPriceRows().map(r => r.label); } catch(e){ roofRows = ['ERR ' + e.message]; }
-  return { rows: rows.map(r => r.desc + ':' + r.qty + r.unit), bracketEa: _gutterBracketEa(), dropperEa: _gutterDropperEa(), shown: /brackets \(1 \/ 800mm\)/.test(shown) && /Droppers \(1 \/ 8m\)/.test(shown), roofRows };
+  return { rows: rows.map(r => r.desc + ':' + r.qty + r.unit), perLm: rows[0] && rows[0].price, dropperEa: _gutterDropperEa(), shown: /brackets included/.test(shown) && /80mm droppers \(1 \/ 8m\)/.test(shown), roofRows };
 });
-check('a 54 m box gutter on three runs lists the spouting, 68 brackets and 7 droppers',
-  kit.rows.join('|') === 'Gutter (supply):54lm|Gutter brackets (1 / 800mm):68ea|Droppers (1 / 8m):7ea' && kit.bracketEa > 0 && kit.dropperEa > 0, JSON.stringify(kit.rows));
+check('a 54 m box gutter on three runs is the gutter with its brackets, and 7 droppers — nothing else',
+  kit.rows.join('|') === '125mm Colorsteel box gutter, brackets included:54lm|80mm droppers (1 / 8m):7ea' && kit.dropperEa > 0, JSON.stringify(kit.rows));
 check('…and the card shows them', kit.shown);
-check('a short run still gets one dropper per run', await opg.evaluate(() => _gutterMaterialLines('box125', 6, 2, 0).filter(r => /Droppers/.test(r.desc))[0].qty) === 2);
+check('a short run still gets one dropper per run', await opg.evaluate(() => _gutterMaterialLines('box125', 6, 2, 0).filter(r => /droppers/i.test(r.desc))[0].qty) === 2);
 check('the gutter is no longer counted in the ROOFING material table', !kit.roofRows.some(l => /^Gutter$/.test(l)), kit.roofRows.join(', '));
+
+// ── MARLEY CLASSIC, itemised like Typhoon (2026-09-30) ──
+const classic = await opg.evaluate(() => _gutterMaterialLines('marley_classic', 30, 2, 2).map(r => r.desc.replace(/\s*\(.*\)$/, '') + ':' + r.qty + ':' + r.price));
+check('Marley Classic is priced item by item — spouting, brackets every 500 mm, outlets, joiners, angles, stop ends',
+  classic.some(x => /^Marley Classic spouting \(supply\):30:20$/.test(x) || /^Marley Classic spouting:30:20$/.test(x)) &&
+  classic.some(x => /^Marley Classic internal brackets:60:4\.7$/.test(x)) &&
+  classic.some(x => /^Marley Classic 80mm dropper outlets:2:/.test(x)) &&
+  classic.some(x => /^Marley Classic angles:2:33\.48$/.test(x) || /^Marley Classic angles \(int\/ext\):2:33\.48$/.test(x)) &&
+  classic.some(x => /^Marley Classic stop ends:4:7\.15$/.test(x) || /^Marley Classic stop ends \(LH\/RH\):4:7\.15$/.test(x)), JSON.stringify(classic));
+
+// ── a blank price-book box is "not priced", not "free" (2026-09-30) ──
+const zero = await opg.evaluate(() => {
+  const g = S.settings.price_book.gutter, was = g.box125_lm, wasQ = S.quote.gutterUnitPrices;
+  g.box125_lm = 0; S.quote.gutterUnitPrices = { perlm_box125: 0 };
+  const perLm = _gutterMaterialPerLm('box125');
+  g.box125_lm = was; S.quote.gutterUnitPrices = wasQ;
+  return perLm;
+});
+check('a box-gutter price saved blank (0) falls back to $21/lm instead of pricing the gutter at nothing', zero === 21, String(zero));
+
+// ── custom gutter lines are the gutter's material (2026-09-30) ──
+// "that custom added in price for 125mm box gutter didn't increase the pricing
+// tab total but did increase the quote's total, which is very wrong."
+const cust = await opg.evaluate(async () => {
+  const tot = () => Math.round(_quoteMoney().tot * 100) / 100;
+  _setProposalOption('gutterType', 'none'); renderGutterDownpipePricing();
+  const noneBefore = tot(), cardBefore = window._gdCardTotal;
+  const matBefore = _gutterMaterialCharge('box125', 54, 3, 4);
+  S.quote.customLines = S.quote.customLines || {};
+  S.quote.customLines.gutter = [{ desc: 'material', qty: 1, unit: 1800, amount: 1800 }];
+  try { resyncQuoteLines(); } catch(e){}
+  renderGutterDownpipePricing();
+  const cardAfter = window._gdCardTotal, noneAfter = tot();
+  const matAfter = _gutterMaterialCharge('box125', 54, 3, 4);
+  const mul = (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
+  const inBase = (S.quote.lineItems || []).some(l => l && l._custom && l._area === 'gutter');
+  _setProposalOption('gutterType', 'box125'); renderGutterDownpipePricing();
+  const withGutter = tot();
+  S.quote.customLines.gutter = []; try { resyncQuoteLines(); } catch(e){}
+  renderGutterDownpipePricing();
+  const withGutterNoCustom = tot();
+  return { noneBefore, noneAfter, cardBefore, cardAfter, matGrew: Math.round((matAfter - matBefore) * 100) / 100, expect: Math.round(1800 * mul * 100) / 100, inBase, withGutter, withGutterNoCustom };
+});
+check('a custom gutter line counts on the Pricing card — its total goes up by it', cust.cardAfter - cust.cardBefore > 1799, JSON.stringify(cust));
+check('…at the card\'s own buffer and mark-up, like every other gutter row', Math.abs(cust.matGrew - cust.expect) < 0.02, JSON.stringify(cust));
+check('…and with "No new guttering" picked it does NOT raise the customer\'s total', cust.noneAfter === cust.noneBefore && !cust.inBase, JSON.stringify(cust));
+check('…while picking a gutter carries it in that gutter\'s price', cust.withGutter - cust.withGutterNoCustom > 1799, JSON.stringify(cust));
+
 
 // ── EXCLUDE ───────────────────────────────────────────────────────
 await opg.evaluate(() => _toggleGutterExcluded(true));

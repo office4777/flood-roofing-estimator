@@ -8694,18 +8694,24 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>Typhoon weld solvent ($/tube)</label><input type="number" id="pbGutTyphoonWeldSolvent" step="0.01" min="0" placeholder="0.00"></div>
           <div></div>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">125mm Colorsteel box gutter</div>
         <div class="f3">
-          <div><label>125mm box gutter ($/lm)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Gutter bracket ($/each, one every 800mm)</label><input type="number" id="pbGutBracketEach" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Dropper ($/each, one every 8m)</label><input type="number" id="pbGutDropperEach" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Marley Classic ($/lm, all-in)</label><input type="number" id="pbGutMarleyClassicLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>Marley Typhoon simple ($/lm)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>125mm Colorsteel box gutter, brackets included ($/lm)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="21.00"></div>
+          <div><label>80mm dropper ($/each, one every 8m)</label><input type="number" id="pbGutDropperEach" step="0.01" min="0" placeholder="16.50"></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Marley Classic — itemised <span style="font-weight:400;color:var(--text2)">(starting figures are NZ retail less GST — put your trade prices in)</span></div>
+        <div class="f3">
+          <div><label>Classic spouting ($/lm)</label><input type="number" id="pbGutClassicSpouting" step="0.01" min="0" placeholder="20.00"></div>
+          <div><label>Classic bracket ($/each, one every 500mm)</label><input type="number" id="pbGutClassicBracket" step="0.01" min="0" placeholder="4.70"></div>
+          <div><label>Classic 80mm dropper outlet ($/each)</label><input type="number" id="pbGutClassicOutlet" step="0.01" min="0" placeholder="23.48"></div>
+          <div><label>Classic joiner ($/each)</label><input type="number" id="pbGutClassicJoiner" step="0.01" min="0" placeholder="4.78"></div>
+          <div><label>Classic angle, int/ext ($/each)</label><input type="number" id="pbGutClassicCorner" step="0.01" min="0" placeholder="33.48"></div>
+          <div><label>Classic stop end ($/each)</label><input type="number" id="pbGutClassicStopend" step="0.01" min="0" placeholder="7.15"></div>
         </div>
         <div class="f3" style="margin-top:6px">
           <div><label>External bracket upcharge — box ($/lm)</label><input type="number" id="pbGutExtBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div>
+          <div><label>Marley Typhoon simple ($/lm, only if not itemised)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
         <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
           <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
@@ -12945,10 +12951,15 @@ function defaultSettings(){
         typhoon_stopend_ea:   5.16,  // Typhoon stop-ends (LH/RH) $/ea
         typhoon_expjoiner_ea:21.92,  // Typhoon expansion joiners $/ea
         typhoon_weldsolvent_ea:20.87,// Typhoon weld solvent $/180g tube
-        box125_lm:           19.89,  // 125mm box gutter $/lm (the spouting; brackets and droppers are their own lines)
-        bracket_ea:           4.20,  // steel/Classic gutter bracket $/ea (one every 800 mm)
-        dropper_ea:          16.50,  // dropper $/ea (one every 8 m)
-        marley_classic_lm:   29.53,  // Marley Classic PVC $/lm all-in (spouting + fittings)
+        box125_lm:           21.00,  // 125mm Colorsteel box gutter $/lm, BRACKETS INCLUDED (the owner, 2026-09-30)
+        dropper_ea:          16.50,  // 80mm dropper $/ea (one every 8 m, at least one per run)
+        // Marley Classic, itemised (2026-09-30) — NZ retail less GST; see GUTTER_MATERIAL_PRICES.
+        classic_spouting_lm: 20.00,
+        classic_bracket_ea:   4.70,  // one every 500 mm
+        classic_outlet_ea:   23.48,  // 80mm dropper outlet
+        classic_joiner_ea:    4.78,
+        classic_corner_ea:   33.48,
+        classic_stopend_ea:   7.15,
         marley_typhoon_lm:      40,  // Marley Typhoon simple $/lm (fallback if not itemised)
         // External brackets on 125 square are dear: plain external against
         // internal, at one every 500mm, is most of this figure.
@@ -13582,9 +13593,13 @@ function collectPriceBookFromUI(){
     typhoon_expjoiner_ea:  _num('pbGutTyphoonExpJoiner'),
     typhoon_weldsolvent_ea:_num('pbGutTyphoonWeldSolvent'),
     box125_lm:             _num('pbGutBox125Lm'),
-    bracket_ea:            _num('pbGutBracketEach'),
     dropper_ea:            _num('pbGutDropperEach'),
-    marley_classic_lm:     _num('pbGutMarleyClassicLm'),
+    classic_spouting_lm:   _num('pbGutClassicSpouting'),
+    classic_bracket_ea:    _num('pbGutClassicBracket'),
+    classic_outlet_ea:     _num('pbGutClassicOutlet'),
+    classic_joiner_ea:     _num('pbGutClassicJoiner'),
+    classic_corner_ea:     _num('pbGutClassicCorner'),
+    classic_stopend_ea:    _num('pbGutClassicStopend'),
     marley_typhoon_lm:     _num('pbGutMarleyTyphoonLm'),
     ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
     ext_bracket_marley_lm: _num('pbGutExtMarleyLm')
@@ -13692,9 +13707,13 @@ function renderPriceBookUI(){
   setN('pbGutTyphoonExpJoiner',   g.typhoon_expjoiner_ea);
   setN('pbGutTyphoonWeldSolvent', g.typhoon_weldsolvent_ea);
   setN('pbGutBox125Lm',        g.box125_lm);
-  setN('pbGutBracketEach',     g.bracket_ea);
+  setN('pbGutClassicSpouting', g.classic_spouting_lm);
+  setN('pbGutClassicBracket',  g.classic_bracket_ea);
+  setN('pbGutClassicOutlet',   g.classic_outlet_ea);
+  setN('pbGutClassicJoiner',   g.classic_joiner_ea);
+  setN('pbGutClassicCorner',   g.classic_corner_ea);
+  setN('pbGutClassicStopend',  g.classic_stopend_ea);
   setN('pbGutDropperEach',     g.dropper_ea);
-  setN('pbGutMarleyClassicLm', g.marley_classic_lm);
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
   setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
   setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
@@ -13855,10 +13874,14 @@ var PB_CSV_TARGETS = [
   { path: 'gutter.typhoon_bracket_ea',   label: 'Typhoon bracket',    unit: 'ea', re: /(?=.*typhoon)(?=.*bracket)/i },
   { path: 'gutter.typhoon_joiner_ea',    label: 'Typhoon joiner',     unit: 'ea', re: /(?=.*typhoon)(?=.*joiner)/i },
   { path: 'gutter.typhoon_spouting_lm',  label: 'Typhoon spouting',   unit: 'lm', re: /(?=.*typhoon)(?=.*spout)/i },
-  { path: 'gutter.box125_lm',            label: '125mm box gutter',   unit: 'lm', re: /(?=.*\bbox\b)(?=.*125)/i },
-  { path: 'gutter.bracket_ea',           label: 'Gutter bracket',     unit: 'ea', re: /^(?!.*typhoon)(?=.*(gutter|spout))(?=.*bracket)/i },
-  { path: 'gutter.dropper_ea',           label: 'Dropper',            unit: 'ea', re: /dropper/i },
-  { path: 'gutter.marley_classic_lm',    label: 'Marley Classic',     unit: 'lm', re: /(?=.*marley)(?=.*classic)/i },
+  { path: 'gutter.classic_bracket_ea',   label: 'Marley Classic bracket',  unit: 'ea', re: /(?=.*classic)(?=.*bracket)/i },
+  { path: 'gutter.classic_outlet_ea',    label: 'Marley Classic dropper outlet', unit: 'ea', re: /(?=.*classic)(?=.*(outlet|dropper))/i },
+  { path: 'gutter.classic_joiner_ea',    label: 'Marley Classic joiner',   unit: 'ea', re: /(?=.*classic)(?=.*joiner)/i },
+  { path: 'gutter.classic_corner_ea',    label: 'Marley Classic angle',    unit: 'ea', re: /(?=.*classic)(?=.*(corner|angle))/i },
+  { path: 'gutter.classic_stopend_ea',   label: 'Marley Classic stop end', unit: 'ea', re: /(?=.*classic)(?=.*stop\s*end)/i },
+  { path: 'gutter.classic_spouting_lm',  label: 'Marley Classic spouting', unit: 'lm', re: /(?=.*marley)(?=.*classic)/i },
+  { path: 'gutter.box125_lm',            label: '125mm box gutter, brackets included', unit: 'lm', re: /(?=.*\bbox\b)(?=.*125)/i },
+  { path: 'gutter.dropper_ea',           label: '80mm dropper',       unit: 'ea', re: /dropper/i },
   { path: 'gutter.marley_typhoon_lm',    label: 'Marley Typhoon ($/lm)', unit: 'lm', re: /(?=.*marley)(?=.*typhoon)/i },
   // Underlay is billed per roll and the roll size is in the description.
   { path: 'underlay.50',  label: 'Underlay (50 m² roll)',  unit: 'roll', re: /(?=.*(underlay|covertek|dristud|thermakraft))(?=.*\b50\s*m)/i },
@@ -14192,8 +14215,11 @@ var CPB_INPUT_IDS = { 'underlay.50':'pbUnderlay50', 'underlay.75':'pbUnderlay75'
   'gutter.typhoon_outlet_ea':'pbGutTyphoonOutlet', 'gutter.typhoon_joiner_ea':'pbGutTyphoonJoiner',
   'gutter.typhoon_corner_ea':'pbGutTyphoonCorner', 'gutter.typhoon_stopend_ea':'pbGutTyphoonStopend',
   'gutter.typhoon_expjoiner_ea':'pbGutTyphoonExpJoiner', 'gutter.typhoon_weldsolvent_ea':'pbGutTyphoonWeldSolvent',
-  'gutter.box125_lm':'pbGutBox125Lm', 'gutter.bracket_ea':'pbGutBracketEach', 'gutter.dropper_ea':'pbGutDropperEach',
-  'gutter.marley_classic_lm':'pbGutMarleyClassicLm', 'gutter.marley_typhoon_lm':'pbGutMarleyTyphoonLm',
+  'gutter.box125_lm':'pbGutBox125Lm', 'gutter.dropper_ea':'pbGutDropperEach',
+  'gutter.classic_spouting_lm':'pbGutClassicSpouting', 'gutter.classic_bracket_ea':'pbGutClassicBracket',
+  'gutter.classic_outlet_ea':'pbGutClassicOutlet', 'gutter.classic_joiner_ea':'pbGutClassicJoiner',
+  'gutter.classic_corner_ea':'pbGutClassicCorner', 'gutter.classic_stopend_ea':'pbGutClassicStopend',
+  'gutter.marley_typhoon_lm':'pbGutMarleyTyphoonLm',
   ridge_lm:'pbRidgeLm', ridge_wide_lm:'pbRidgeWideLm', valley_lm:'pbValleyLm', barge_lm:'pbBargeLm', apron_lm:'pbApronLm',
   changepitch_lm:'pbChangepitchLm', box_pen_lm:'pbBoxPenLm' };
 function _cpbInputFor(path){
@@ -23946,7 +23972,7 @@ function renderGutterDownpipePricing(){
   var gls = _gutterLabourState(lm);
   var labCharge = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
   var matLines = _gutterMaterialLines(gtype, lm, lines, corners);
-  var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+  var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0) + _gutterCustomBase();   // the custom lines are rows of this table
   var bufPct = _gutterMatQtyBufferPct(), bufAmt = matBase * (bufPct/100);
   var bufferedMat = matBase + bufAmt;
   var mkPct = _gutterMatMarkupPct(), mkAmt = bufferedMat * (mkPct/100);
@@ -24184,7 +24210,7 @@ function _profitSelectionItems(){
       var lm = 0; try { lm = f(_selGutterLm()); } catch(e){}
       var gl = _gutterLabourState(lm);
       var matBase = 0;
-      try { matBase = _gutterMaterialLines(p.gutterType, lm, _selGutterLineCount(), _selGutterCorners()).reduce(function(a, r){ return a + f(r.lineTotal); }, 0) * (1 + f(_gutterMatQtyBufferPct()) / 100); } catch(e){}
+      try { matBase = (_gutterMaterialLines(p.gutterType, lm, _selGutterLineCount(), _selGutterCorners()).reduce(function(a, r){ return a + f(r.lineTotal); }, 0) + f(_gutterCustomBase())) * (1 + f(_gutterMatQtyBufferPct()) / 100); } catch(e){}
       it.hrs = f(gl.leadHrs) + f(gl.appHrs);
       it.cost = matBase + f(gl.leadHrs) * f(gl.leadCost) + f(gl.appHrs) * f(gl.appCost);
       it.sub = lm.toFixed(1) + ' lm \u00b7 ' + it.hrs.toFixed(1) + ' hrs labour + material';
@@ -26640,7 +26666,7 @@ var SEL_GAUGE55_PCT = 0.22;
 // Guttering is priced like the roof — MATERIAL ($/lm, per profile) + LABOUR
 // (hours by gutter run, charged at the lead + apprentice rates) — not a single
 // flat all-in $/lm rate.
-var SEL_GUTTER_MATERIAL_PER_LM = { box125: 30, marley_typhoon: 40, marley_classic: 35 }; // $/lm ex-GST
+var SEL_GUTTER_MATERIAL_PER_LM = { box125: 21, marley_typhoon: 40, marley_classic: 35 }; // $/lm ex-GST (box: brackets included, the owner's 2026-09-30)
 // ── Settings-driven guttering + downpipe unit prices ──────────────────
 // The office sets these in Settings → Price book. Resolvers prefer, in order:
 //   1) the price stashed on the quote at publish (so a customer share link
@@ -26655,25 +26681,48 @@ function _gutterPrice(stashKey, pbKey, def){
   var p = _pbNum(_pbGutterCfg()[pbKey]);                 if (p != null) return p;
   return def;
 }
+// A SUPPLY PRICE OF 0 IS "NOT PRICED" (2026-09-30). A blank price-book box is
+// saved as 0, and 0 beat the default — so the box gutter and Marley Classic
+// came out at $0.00 on every row, and quotes froze those zeros when saved.
+// Spouting, fittings and droppers are never really free, so for them a 0
+// falls through to the next source. (The external-bracket upcharges keep the
+// plain lookup: "no upcharge" is a real answer there.)
+function _gutterSupply(stashKey, pbKey, def){
+  var q = (window.S && S.quote) || {};
+  var s = _pbNum((q.gutterUnitPrices || {})[stashKey]); if (s != null && s > 0) return s;
+  var p = _pbNum(_pbGutterCfg()[pbKey]);                 if (p != null && p > 0) return p;
+  return def;
+}
 // All-in $/lm for the box / Marley Classic (and the Typhoon simple fallback).
 function _gutterMaterialPerLm(id){
-  if (id === 'box125')        return _gutterPrice('perlm_box125',        'box125_lm',        SEL_GUTTER_MATERIAL_PER_LM.box125);
-  if (id === 'marley_classic')return _gutterPrice('perlm_marley_classic','marley_classic_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_classic);
-  if (id === 'marley_typhoon')return _gutterPrice('perlm_marley_typhoon','marley_typhoon_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_typhoon);
+  if (id === 'box125')        return _gutterSupply('perlm_box125',        'box125_lm',        SEL_GUTTER_MATERIAL_PER_LM.box125);
+  if (id === 'marley_classic')return _gutterSupply('perlm_marley_classic','marley_classic_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_classic);
+  if (id === 'marley_typhoon')return _gutterSupply('perlm_marley_typhoon','marley_typhoon_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_typhoon);
   return SEL_GUTTER_MATERIAL_PER_LM[id] || 0;
 }
 // Itemised Typhoon invoice — descriptions stay fixed; prices come from settings.
 function _gutterTyphoonInv(){
   var b = GUTTER_MATERIAL_PRICES.marley_typhoon;
   return {
-    gutter:  _gutterPrice('typhoon_spouting', 'typhoon_spouting_lm', b.gutter),  gutterDesc:  b.gutterDesc,
-    bracket: _gutterPrice('typhoon_bracket',  'typhoon_bracket_ea',  b.bracket), bracketDesc: b.bracketDesc,
-    outlet:  _gutterPrice('typhoon_outlet',   'typhoon_outlet_ea',   b.outlet),  outletDesc:  b.outletDesc,
-    joiner:  _gutterPrice('typhoon_joiner',   'typhoon_joiner_ea',   b.joiner),  joinerDesc:  b.joinerDesc,
-    corner:  _gutterPrice('typhoon_corner',   'typhoon_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc,
-    stopend: _gutterPrice('typhoon_stopend',  'typhoon_stopend_ea',  b.stopend), stopendDesc: b.stopendDesc,
-    expjoiner: _gutterPrice('typhoon_expjoiner','typhoon_expjoiner_ea', b.expjoiner), expjoinerDesc: b.expjoinerDesc,
-    weldsolvent: _gutterPrice('typhoon_weldsolvent','typhoon_weldsolvent_ea', b.weldsolvent), weldsolventDesc: b.weldsolventDesc
+    gutter:  _gutterSupply('typhoon_spouting', 'typhoon_spouting_lm', b.gutter),  gutterDesc:  b.gutterDesc,
+    bracket: _gutterSupply('typhoon_bracket',  'typhoon_bracket_ea',  b.bracket), bracketDesc: b.bracketDesc,
+    outlet:  _gutterSupply('typhoon_outlet',   'typhoon_outlet_ea',   b.outlet),  outletDesc:  b.outletDesc,
+    joiner:  _gutterSupply('typhoon_joiner',   'typhoon_joiner_ea',   b.joiner),  joinerDesc:  b.joinerDesc,
+    corner:  _gutterSupply('typhoon_corner',   'typhoon_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc,
+    stopend: _gutterSupply('typhoon_stopend',  'typhoon_stopend_ea',  b.stopend), stopendDesc: b.stopendDesc,
+    expjoiner: _gutterSupply('typhoon_expjoiner','typhoon_expjoiner_ea', b.expjoiner), expjoinerDesc: b.expjoinerDesc,
+    weldsolvent: _gutterSupply('typhoon_weldsolvent','typhoon_weldsolvent_ea', b.weldsolvent), weldsolventDesc: b.weldsolventDesc
+  };
+}
+function _gutterClassicInv(){
+  var b = GUTTER_MATERIAL_PRICES.marley_classic;
+  return {
+    gutter:  _gutterSupply('classic_spouting', 'classic_spouting_lm', b.gutter),  gutterDesc:  b.gutterDesc,
+    bracket: _gutterSupply('classic_bracket',  'classic_bracket_ea',  b.bracket), bracketDesc: b.bracketDesc,
+    outlet:  _gutterSupply('classic_outlet',   'classic_outlet_ea',   b.outlet),  outletDesc:  b.outletDesc,
+    joiner:  _gutterSupply('classic_joiner',   'classic_joiner_ea',   b.joiner),  joinerDesc:  b.joinerDesc,
+    corner:  _gutterSupply('classic_corner',   'classic_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc,
+    stopend: _gutterSupply('classic_stopend',  'classic_stopend_ea',  b.stopend), stopendDesc: b.stopendDesc
   };
 }
 // External-bracket upcharge ($/lm) for a gutter profile.
@@ -26693,8 +26742,10 @@ function _bracketExtPerLm(id){
 // Downpipe unit price ($ per gutter line).
 function _downpipeUnitPrice(){
   var q = (window.S && S.quote) || {};
-  var s = _pbNum((q.gutterUnitPrices || {}).downpipe); if (s != null) return s;
-  var p = _pbNum(((window.S && S.settings && S.settings.price_book) || {}).downpipe_ea); if (p != null) return p;
+  // A 0 is "not priced" here too — "New downpipes" ticked on the owner's job
+  // showed "computed $0.00" off a blank price-book box (2026-09-30).
+  var s = _pbNum((q.gutterUnitPrices || {}).downpipe); if (s != null && s > 0) return s;
+  var p = _pbNum(((window.S && S.settings && S.settings.price_book) || {}).downpipe_ea); if (p != null && p > 0) return p;
   return SEL_DOWNPIPE_PER_LINE;
 }
 // Typhoon gutter material — PER-UNIT (trade) prices (ex-GST) taken from the
@@ -26716,6 +26767,20 @@ var GUTTER_MATERIAL_PRICES = {
     stopend:  5.16, stopendDesc: 'Typhoon stop-ends (LH/RH)',
     expjoiner:21.92, expjoinerDesc:'Typhoon expansion joiners',
     weldsolvent:20.87, weldsolventDesc:'Typhoon weld solvent (180g tube)'
+  },
+  // MARLEY CLASSIC (2026-09-30): NZ retail prices found for the owner, GST
+  // taken off — spouting $115 per 5 m (Mitre 10), bracket $5.40, joiner $5.50,
+  // internal/external angle $38.50 (NZ Plumbing Supplies), stop end $8.22
+  // (Bunnings), 80mm dropper outlet $27.00 (NZ Spouting). Retail, not trade:
+  // a believable first quote, to be typed over with the supplier's own.
+  // Brackets every 500 mm — Marley's own maximum centres for Classic.
+  marley_classic: {
+    gutter:  20.00, gutterDesc:  'Marley Classic spouting (supply)',
+    bracket:  4.70, bracketDesc: 'Marley Classic internal brackets',
+    outlet:  23.48, outletDesc:  'Marley Classic 80mm dropper outlets',
+    joiner:   4.78, joinerDesc:  'Marley Classic joiners',
+    corner:  33.48, cornerDesc:  'Marley Classic angles (int/ext)',
+    stopend:  7.15, stopendDesc: 'Marley Classic stop ends (LH/RH)'
   }
 };
 var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm (Typhoon)
@@ -26725,7 +26790,7 @@ var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm (Typhoon)
 var GUTTER_STEEL_BRACKET_SPACING_M = 0.8;
 var GUTTER_DROPPER_SPACING_M       = 8;
 function _gutterBracketEa(){ return _gutterPrice('bracket', 'bracket_ea', 4.20); }
-function _gutterDropperEa(){ return _gutterPrice('dropper', 'dropper_ea', 16.50); }
+function _gutterDropperEa(){ return _gutterSupply('dropper', 'dropper_ea', 16.50); }
 var GUTTER_OUTLET_SPACING_M   = 15;    // one outlet every 15 m
 var GUTTER_SPOUTING_LENGTH_M  = 5;     // spouting sold in 5 m lengths → one joiner per join
 var GUTTER_EXPJOINER_SPACING_M = 12;   // one expansion joiner every 12 m of run
@@ -26762,7 +26827,7 @@ function _gutterMatMarkupPct(){
 // their single all-in $/lm figure as one line.
 function _gutterMaterialLines(id, lm, lines, corners){
   lm = parseFloat(lm) || 0; lines = parseInt(lines, 10) || 0; corners = parseInt(corners, 10) || 0;
-  var out = [], inv = (id === 'marley_typhoon') ? _gutterTyphoonInv() : GUTTER_MATERIAL_PRICES[id];
+  var out = [], inv = (id === 'marley_typhoon') ? _gutterTyphoonInv() : (id === 'marley_classic') ? _gutterClassicInv() : null;
   if (inv && lm > 0){
     var nBr   = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
     var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
@@ -26787,11 +26852,14 @@ function _gutterMaterialLines(id, lm, lines, corners){
       out.push({ desc: inv.weldsolventDesc, qty: nSol, unit:'ea', price: inv.weldsolvent });
     }
   } else if (lm > 0){
-    out.push({ desc:'Gutter (supply)', qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
-    var nSBr  = Math.ceil(lm / GUTTER_STEEL_BRACKET_SPACING_M);
+    // THE 125mm COLORSTEEL BOX GUTTER (the owner, 2026-09-30): "$21/lm for the
+    // gutter and brackets combined, no bends or any other accessories
+    // required except an 80mm dropper every 8 m". So two rows: the gutter
+    // with its brackets in the $/lm, and the droppers (never fewer than one
+    // per run). No separate bracket row, no corners, no stop ends.
     var nDrop = Math.max(Math.max(1, lines), Math.ceil(lm / GUTTER_DROPPER_SPACING_M));
-    out.push({ desc:'Gutter brackets (1 / '+Math.round(GUTTER_STEEL_BRACKET_SPACING_M*1000)+'mm)', qty: nSBr,  unit:'ea', price: _gutterBracketEa() });
-    out.push({ desc:'Droppers (1 / '+GUTTER_DROPPER_SPACING_M+'m)',                                 qty: nDrop, unit:'ea', price: _gutterDropperEa() });
+    out.push({ desc: (id === 'box125' ? '125mm Colorsteel box gutter, brackets included' : 'Gutter (supply)'), qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
+    out.push({ desc:'80mm droppers (1 / '+GUTTER_DROPPER_SPACING_M+'m)', qty: nDrop, unit:'ea', price: _gutterDropperEa() });
   }
   out.forEach(function(r){ r.lineTotal = (parseFloat(r.qty)||0) * (parseFloat(r.price)||0); });
   return out;
@@ -26800,8 +26868,16 @@ function _gutterMaterialLines(id, lm, lines, corners){
 // safety buffer, then the mark-up on that buffered cost. Same order as the roof
 // material table, and this is the figure that reaches the customer through
 // _selGutterDelta — so it has to match what the pricing card shows.
+// CUSTOM GUTTER LINES ARE GUTTER MATERIAL (2026-09-30). A line typed or added
+// from the price book under the gutter card never reached the card's own
+// total, while the quote pushed it into the MAIN RE-ROOF price — so $1,800 of
+// gutter material was charged on a quote whose customer had picked "No new
+// guttering", and the card read $0.00. They are part of the gutter's material
+// now: in the card's subtotal, under the same buffer and mark-up, and in the
+// price the customer sees for a gutter — and nowhere when they pick none.
+function _gutterCustomBase(){ try { return _qCustomTotal('gutter'); } catch(e){ return 0; } }
 function _gutterMaterialCharge(id, lm, lines, corners){
-  var base = _gutterMaterialLines(id, lm, lines, corners).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+  var base = _gutterMaterialLines(id, lm, lines, corners).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0) + _gutterCustomBase();
   return base * (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
 }
 // Angle (deg, 0–360) from vector u to vector v.
@@ -33716,7 +33792,10 @@ function _syncQuoteBaseLineItems(){
   try {
     S.quote.lineItems = S.quote.lineItems.filter(function(x){ return !(x && x._custom); });
     var _cl = S.quote.customLines || {};
-    ['labour','material','scaffold','gutter'].forEach(function(area){
+    // Not 'gutter': those lines are the gutter's material and reach the quote
+    // through the gutter the customer picks (_gutterMaterialCharge), never in
+    // the main re-roof price (2026-09-30).
+    ['labour','material','scaffold'].forEach(function(area){
       (_cl[area] || []).forEach(function(row){
         var amt = parseFloat(row && row.amount) || 0;
         var desc = ((row && row.desc) || '').trim();
@@ -36240,9 +36319,13 @@ function refreshQuoteProposal(){
         typhoon_joiner:       _g.typhoon_joiner_ea,
         typhoon_corner:       _g.typhoon_corner_ea,
         perlm_box125:         _g.box125_lm,
-        bracket:              _g.bracket_ea,
         dropper:              _g.dropper_ea,
-        perlm_marley_classic: _g.marley_classic_lm,
+        classic_spouting:     _g.classic_spouting_lm,
+        classic_bracket:      _g.classic_bracket_ea,
+        classic_outlet:       _g.classic_outlet_ea,
+        classic_joiner:       _g.classic_joiner_ea,
+        classic_corner:       _g.classic_corner_ea,
+        classic_stopend:      _g.classic_stopend_ea,
         perlm_marley_typhoon: _g.marley_typhoon_lm,
         ext_box125:           _g.ext_bracket_box125_lm,
         ext_marley:           _g.ext_bracket_marley_lm,
@@ -64857,6 +64940,7 @@ function _buildFergusItemisedSections(opts){
     _gutterMaterialLines(p.gutterType, _glm, _glines, _gcorn).forEach(function(r){
       gutterMat.push(matLine('Gutter — ' + r.desc, r.qty, (+r.price || 0) * _mkMul));
     });
+    try { _qCustom('gutter').forEach(function(r){ var a = parseFloat(r && r.amount) || 0; if (a) gutterMat.push(matLine('Gutter — ' + ((r.desc || '').trim() || 'Custom gutter item'), 1, a * _mkMul)); }); } catch(e){}
     // If the office typed a manual gutter total (gutterPriceOverride), the quote
     // charges that lump sum for the gutter — not the itemised labour+material.
     // Reconcile the itemised sections to it with one adjustment line so the
@@ -64913,7 +64997,7 @@ function _buildFergusItemisedSections(opts){
     (_qcl.labour   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofLabour.push(labLine((r.desc||'Custom labour'), 1, a, 0)); });
     (_qcl.material || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofMat.push(matLine((r.desc||'Custom material'), 1, a)); });
     (_qcl.scaffold || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) scaff.push(matLine((r.desc||'Custom scaffold'), 1, a)); });
-    (_qcl.gutter   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a){ (gutterOn ? gutterMat : roofMat).push(matLine((r.desc||'Custom gutter'), 1, a)); } });
+    // gutter custom lines: pushed with the gutter's own material above (only when a gutter is on the quote)
   } catch(e){}
 
   // ── The quote is the contract: make the pushed lines add up to it ──
