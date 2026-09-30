@@ -2997,7 +2997,9 @@ function _jobLight(row){
 }
 
 app.put('/jobs/:id', requireAuth, async (req, res) => {
-  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
+  // A sent quote or a customer's move shows on Home at once — but a drawing
+  // autosave does not touch the feed, so it no longer resets it.
+  try { if (!req.body || !req.body.draw_state || _feedChangedBy(req.params.id, req.body.draw_state)) _quoteFeedInvalidate(req.companyId); } catch (e) {}
   // Build the patch from the WHITELIST, not from the body. Filtering a copy
   // and then sending the original is how a stray key reaches SQL.
   // A whole-job save carries the quote inside draw_state — keep the durable
@@ -3299,7 +3301,7 @@ function _pgPool(){
 // ages" regression). Falls back to the supabase read-modify-write if there's no
 // direct DB connection.
 app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
-  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
+  try { _quoteFeedInvalidate(req.companyId); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
   const quote = req.body && req.body.quote;
   if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
   // A share token is a customer link going out: not on a measuring-only plan.
@@ -3355,7 +3357,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
 // multi-MB quote again. Keys the office's copy does not carry (the customer's
 // opens and events) are kept.
 app.put('/jobs/:id/quote-share', requireAuth, async (req, res) => {
-  try { _quoteFeedCache.clear(); } catch (e) {}
+  try { _quoteFeedInvalidate(req.companyId); } catch (e) {}
   const share = req.body && req.body.share;
   if (!share || typeof share !== 'object' || Array.isArray(share)) return res.status(400).json({ error: 'share object required' });
   if (share.token){
@@ -4353,7 +4355,7 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
 // this): whitelist the event type, clamp every string, force numeric
 // fields to numbers, and cap array sizes before it touches the job.
 app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
-  try { _quoteFeedCache.clear(); } catch (e) {}   // a sent quote or a customer's move shows on Home at once
+  try { _quoteFeedInvalidate(null); } catch (e) {}   // a customer's move shows on Home at once
   try {
     let { type, selections, name, message, total, acceptedOptions } = req.body || {};
     const ALLOWED_TYPES = ['accepted', 'declined', 'queried', 'opened', 'update'];
@@ -5743,6 +5745,39 @@ async function _autoDepositInvoice(job, quote){
 // each — and the office would rather see the feed as of a minute ago than a
 // 500. On a timeout the read is retried smaller, then served from here.
 const _quoteFeedCache = new Map();
+// A CHANGE MARKS THE FEED STALE; IT NEVER THROWS IT AWAY (2026-09-30). Every
+// job save used to .clear() this cache, and a job is saved every few seconds
+// while anyone works on it. So the feed — 13 seconds a read on the owner's
+// database, pg_stat_statements' single most expensive query — was recomputed
+// on nearly every Home visit, and the last good answer the timeout path falls
+// back on was gone at the moment it was needed: the 5xx storm of that
+// evening. Now a stale entry is re-read when asked for, but its rows stay
+// to be served if the re-read times out.
+function _quoteFeedInvalidate(companyId){
+  try {
+    const pre = companyId ? (String(companyId) + '|') : null;
+    for (const [k, e] of _quoteFeedCache){ if (!pre || k.indexOf(pre) === 0) e.stale = true; }
+  } catch (e) {}
+}
+// What the feed shows of one job: the share (as the feed's SQL reads it,
+// without fergus/priced), the ref, the client, the acceptance, the Fergus
+// stamp and the link. A drawing autosave changes none of it.
+const _jobFeedFp = new Map();
+function _feedFpOf(ds){
+  try {
+    const st = (ds && ds.state) || {}, q = st.quote || {};
+    const sh = Object.assign({}, q.share || {}); delete sh.fergus; delete sh.priced;
+    return JSON.stringify([sh, q.ref || '', q.client || '', q.accepted || null, q.fergusAutoPushedFor || null, st.linkedJobId || null]);
+  } catch (e) { return null; }
+}
+function _feedChangedBy(jobId, ds){
+  const fp = _feedFpOf(ds);
+  if (fp == null) return true;
+  const was = _jobFeedFp.get(String(jobId));
+  if (_jobFeedFp.size > 5000) _jobFeedFp.clear();
+  _jobFeedFp.set(String(jobId), fp);
+  return was !== fp;
+}
 // THE FEED OVER THE DIRECT CONNECTION (2026-09-24). "Couldn't load quote
 // activity" after a deploy: a fresh server has no cached feed, and the read
 // — which has to open up to 120 jobs' multi-MB saved drawings to pull the
@@ -5791,7 +5826,7 @@ async function _quoteShareRows(req, limit){
   // The same office asking again within a minute (Home, the bell, the tiles)
   // gets the answer it just had rather than another heavy read.
   const hot = _quoteFeedCache.get(key);
-  if (hot && hot.limit >= limit && Date.now() - hot.at < 60 * 1000) return hot.rows.slice(0, limit);
+  if (hot && !hot.stale && hot.limit >= limit && Date.now() - hot.at < 60 * 1000) return hot.rows.slice(0, limit);
   if (_pgPool()){
     try {
       const rows = await _quoteShareRowsPg(req, limit);

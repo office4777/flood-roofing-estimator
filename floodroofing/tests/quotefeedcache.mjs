@@ -51,6 +51,43 @@ db.__fail500 = ''; db.__failMsg = '';
 const back = await get(tokFor('ub', 'cB'));
 check('and reads normally once the database answers again', back.status === 200 && back.body.length === 0, JSON.stringify(back));
 
+
+// ── a drawing autosave no longer throws the feed away (2026-09-30) ──
+// Every job save used to .clear() the cache, and a job saves every few
+// seconds while anyone works on it: the feed — the database's single most
+// expensive query that evening, 13 s a read — was recomputed on nearly every
+// Home visit, and the last good answer was gone when the timeout path wanted
+// it. Reads are observed by changing the database BEHIND the server's back:
+// a cached answer does not see the change, a fresh read does.
+const tokA = tokFor('ua', 'cA');
+const put = (ds) => fetch(BASE + '/jobs/a1', { method: 'PUT',
+  headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tokA },
+  body: JSON.stringify({ draw_state: ds }) }).then(r => r.status);
+const Q = (client, status) => ({ ref: 'R1', client, share: { token: 't1', sentAt: now, status, events: [] } });
+const feedTxt = async () => JSON.stringify((await get(tokA)).body);
+
+let st = await put({ state: { quote: Q('Smith', 'sent') }, draw: { v: 1 } });
+await get(tokA);                                               // the server has now seen this quote
+st = await put({ state: { quote: Q('Smith', 'sent') }, draw: { v: 2, moved: 'a corner' } });
+db.jobs[0].draw_state.state.quote.share.status = 'SNEAK';      // changed behind the server's back
+check('a save that only moves the drawing leaves the feed as it was — no fresh 13-second read',
+  st < 300 && !/SNEAK/.test(await feedTxt()), 'save ' + st);
+
+st = await put({ state: { quote: Q('Smith', 'opened') }, draw: { v: 3 } });
+db.jobs[0].draw_state.state.quote.share.status = 'SNEAK-2';    // the same trick: a fresh read must see it
+const fresh = await feedTxt();
+check('…but a change to what the feed shows (the share moved) reads it again',
+  st < 300 && /SNEAK-2/.test(fresh), fresh.slice(0, 160));
+
+// Marked stale is not thrown away: a timeout straight after still has an answer.
+await put({ state: { quote: Q('Smith', 'queried') }, draw: { v: 4 } });
+db.__fail500 = 'jobs'; db.__failMsg = 'canceling statement due to statement timeout';
+const afterStale = await get(tokA);
+db.__fail500 = ''; db.__failMsg = '';
+check('…and a feed marked stale by a save still serves its last good answer if the re-read times out',
+  afterStale.status === 200 && Array.isArray(afterStale.body) && afterStale.body.length === 1,
+  afterStale.status + ' ' + JSON.stringify(afterStale.body).slice(0, 100));
+
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
 process.exit(bad ? 1 : 0);
