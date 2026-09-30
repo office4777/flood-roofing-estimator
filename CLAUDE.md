@@ -639,7 +639,12 @@ Discipline (non-negotiable):
   `tests/coach.mjs`): a new account (`ui_flags.first_roof === 'offer'`)
   meets a welcome (guides in Settings → Guides), then pointers on its OWN
   roof: the picture box (quiet while the aerial finder / PDF picker is up)
-  until `DRAW.bgImg`; Building outline; NOTHING while corners go in (a step's
+  until `DRAW.bgImg`; ZOOM + DRAG (`c-zoom`: the Zoom buttons and the canvas
+  both lit — a step's `also` is the second ring `#tourRing2` — waiting on
+  `DRAW.zoom`/`IMG_OFFSET`, `manual` so it never jumps on mid-drag, card
+  ABOVE the controls via `side:'top'`); ROTATE (`c-rotate`: the Rotate bar
+  and the canvas, "snap points work best when the picture is square to the
+  canvas", waiting on `IMG_ROTATION`/`IMG_FINE_ROTATION`); Building outline; NOTHING while corners go in (a step's
   `quiet()` hides the whole card) until 4+ corners and 2.5 s idle
   (`COACH.idleMs`) → "press Enter"; silent over the roof-type window; the
   real-measurement tip; Job Pack; Quote; a last card (guides,

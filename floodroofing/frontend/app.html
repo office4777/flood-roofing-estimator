@@ -47252,6 +47252,7 @@ function _tourPlace(){
     // No target to cut a hole around, so the dim moves onto the wrapper —
     // which is pointer-events:none, so it still catches nothing.
     ring.style.display = 'none'; hand.style.display = 'none';
+    try { w.querySelector('#tourRing2').style.display = 'none'; } catch(e){}
     w.style.background = 'rgba(10,22,40,.55)';
     card.style.left = '50%'; card.style.top = '50%';
     card.style.transform = 'translate(-50%,-50%)';
@@ -47270,6 +47271,17 @@ function _tourPlace(){
   card.style.right = ''; card.style.bottom = '';
   if (!el){ return tourStep(TOUR.i + 1); }
   var r = el.getBoundingClientRect(), pad = 7;
+  // `also`: a second thing lit on the same step (light, no dim of its own).
+  var ring2 = w.querySelector('#tourRing2');
+  if (ring2){
+    var el2 = st.also ? _tourFind(st.also) : null;
+    if (el2){
+      var r2 = el2.getBoundingClientRect();
+      ring2.style.display = 'block';
+      ring2.style.left = (r2.left - pad) + 'px'; ring2.style.top = (r2.top - pad) + 'px';
+      ring2.style.width = (r2.width + pad * 2) + 'px'; ring2.style.height = (r2.height + pad * 2) + 'px';
+    } else ring2.style.display = 'none';
+  }
   ring.style.display = 'block';
   ring.style.boxShadow = st.light ? '0 0 0 5px rgba(0,153,204,.28)' : '';
   ring.style.left = (r.left - pad) + 'px';   ring.style.top = (r.top - pad) + 'px';
@@ -47282,7 +47294,10 @@ function _tourPlace(){
   // or the finger ends up tucked under the card's edge and points at nothing.
   var cw = card.offsetWidth || 320, ch = card.offsetHeight || 190, gap = 38, HAND = 26;
   var vw = window.innerWidth, vh = window.innerHeight, side;
-  if (r.right + gap + cw < vw - 8) side = 'right';
+  // A step may ask for its card ABOVE its target (the coach's zoom and
+  // rotate steps: to the right would sit on the canvas they are working on).
+  if (st.side === 'top' && r.top - gap - ch > 8) side = 'top';
+  else if (r.right + gap + cw < vw - 8) side = 'right';
   else if (r.left - gap - cw > 8) side = 'left';
   else if (r.bottom + gap + ch < vh - 8) side = 'bottom';
   else side = 'top';
@@ -47361,6 +47376,7 @@ function openTour(force, steps, kind){
   w.className = 'no-print';
   w.innerHTML =
     '<div id="tourRing"></div>' +
+    '<div id="tourRing2" style="display:none;position:absolute;border-radius:10px;border:2.5px solid #0099cc;box-shadow:0 0 0 5px rgba(0,153,204,.28);pointer-events:none"></div>' +
     '<div id="tourHand" aria-hidden="true"></div>' +
     '<div id="tourCard" role="dialog" aria-live="polite">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
@@ -48010,6 +48026,24 @@ function _coachSteps(){
       // Out of the way while the satellite finder or the PDF page picker is up.
       quiet: function(){ return vis('aerialModal') || vis('roofPdfModal'); },
       until: function(){ return !!DRAW.bgImg; }, noNext: true, settle: 700 },
+    // THE OWNER'S (2026-10-01): before the outline, get the picture right —
+    // zoom and drag it into place, then turn it square. Each step lights its
+    // controls AND the canvas and waits for them to do it.
+    { key: 'c-zoom', sel: '#roofZoomStepper', also: '#roofCanvas', tab: 'roof', light: true, manual: true, side: 'top', noScroll: true, title: 'Zoom in on the roof',
+      body: 'Use the **Zoom + / −** buttons (or **Ctrl + mouse wheel**) to zoom in on the roof, then **drag the picture with the mouse** to put the roof where you want it on the canvas.',
+      onEnter: function(){
+        var st = TOUR.steps[TOUR.i]; st._base = [DRAW.zoom, IMG_OFFSET.x, IMG_OFFSET.y].join('|');
+        try { var zs = document.getElementById('roofZoomStepper'); if (zs){ var zr = zs.getBoundingClientRect(); if (zr.top < 330 || zr.top > window.innerHeight * 0.6) window.scrollBy(0, zr.top - 340); } } catch(e){}
+        try { _collapseRoofBg && _collapseRoofBg(); } catch(e){}
+        try { if (DRAW.tool !== 'select') setTool('select'); } catch(e){}
+      },
+      until: function(){ var st = TOUR.steps[TOUR.i] || {}; return !!st._base && [DRAW.zoom, IMG_OFFSET.x, IMG_OFFSET.y].join('|') !== st._base; },
+      next: 'It’s already right', doneNext: 'Next' },
+    { key: 'c-rotate', sel: '#rotImgWrap', also: '#roofCanvas', tab: 'roof', light: true, manual: true, side: 'top', noScroll: true, title: 'Turn it square',
+      body: 'Slide **Rotate background image** until the building’s walls run straight across and straight up the canvas.\n\nThe **snap points work best when the picture is square to the canvas**.',
+      onEnter: function(){ var st = TOUR.steps[TOUR.i]; st._base = [IMG_ROTATION, IMG_FINE_ROTATION].join('|'); },
+      until: function(){ var st = TOUR.steps[TOUR.i] || {}; return !!st._base && [IMG_ROTATION, IMG_FINE_ROTATION].join('|') !== st._base; },
+      next: 'It’s already square', doneNext: 'Next' },
     { key: 'c-outline', sel: '#btn-outline', tab: 'roof', title: 'Map out the roof',
       body: 'Click **Building outline**, then click on each **corner of the roof**, going round in order.',
       onEnter: function(){ try { _collapseRoofBg && _collapseRoofBg(); } catch(e){} },

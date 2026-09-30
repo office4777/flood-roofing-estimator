@@ -95,7 +95,32 @@ check('…and comes back, still on the picture, when it closes without one', v.s
 await putPicture(pg, 900, 600);
 
 // ── the outline ───────────────────────────────────────────────────
-check('the picture on the canvas → "click Building outline"', await waitKey(pg, 'c-outline', 5000), await key(pg));
+// ── zoom and move, then turn it square (2026-10-01, the owner's) ──
+check('the picture on the canvas → "zoom in on the roof"', await waitKey(pg, 'c-zoom', 5000), await key(pg));
+const rings = () => pg.evaluate(() => {
+  const r = (id) => { const e = document.getElementById(id); return e && e.style.display === 'block' ? e.getBoundingClientRect() : null; };
+  const inside = (ring, id) => { const t = document.getElementById(id).getBoundingClientRect(); return !!ring && ring.left <= t.left && ring.right >= t.right && ring.top <= t.top && ring.bottom >= t.bottom; };
+  const a = r('tourRing'), b = r('tourRing2');
+  return { a: !!a, b: !!b, sel: TOUR.steps[TOUR.i].sel, canvasLit: inside(b, 'roofCanvas'), tool: DRAW.tool };
+});
+v = await card(pg); p = await rings();
+check('…lighting the Zoom buttons AND the canvas, saying zoom with the buttons and drag the picture with the mouse',
+  p.sel === '#roofZoomStepper' && p.a && p.b && p.canvasLit && /Zoom \+ \/ −/.test(v.body) && /drag the picture with the mouse/.test(v.body) && p.tool === 'select', JSON.stringify(p) + ' ' + v.body);
+check('…and waiting: the button offers "It’s already right" until they zoom or drag', /already right/.test(v.next), v.next);
+await pg.evaluate(() => adjustZoom(0.1)); await sleep(700);
+v = await card(pg);
+check('zooming turns it into Next — it does not jump on while they are still placing it', await key(pg) === 'c-zoom' && v.next === 'Next', v.next);
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('→ "turn it square"', await waitKey(pg, 'c-rotate', 3000), await key(pg));
+v = await card(pg); p = await rings();
+check('…lighting the Rotate bar AND the canvas, saying snap points work best with the picture square to the canvas',
+  p.sel === '#rotImgWrap' && p.a && p.b && p.canvasLit && /Rotate background image/.test(v.body) && /snap points work best when the picture is square to the canvas/.test(v.body), JSON.stringify(p) + ' ' + v.body);
+check('…waiting for them the same way', /already square/.test(v.next), v.next);
+await pg.evaluate(() => _setFineRotate(2.5)); await sleep(700);
+check('turning it makes the button Next', (await card(pg)).next === 'Next' && await key(pg) === 'c-rotate');
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('→ "click Building outline"', await waitKey(pg, 'c-outline', 3000), await key(pg));
+check('…with the second ring gone', !(await rings()).b);
 v = await card(pg);
 check('…explaining to click the corners of the roof', /Building outline/.test(v.body) && /corner of the roof/.test(v.body), v.body);
 await pg.click('#btn-outline');
@@ -152,7 +177,7 @@ p = await pg.evaluate(() => ({ tour: !!document.getElementById('tourWrap'), st: 
 check('Finish closes it (done — which does not stop it next sign-in)', !p.tour && p.st === 'done' && puts.some(x => x.first_roof === 'done'), JSON.stringify(p));
 const shown = usage.filter(u => u.name === 'walkthrough' && u.props.action === 'shown').map(u => u.props.step);
 check('every step is reported as it shows',
-  ['c-welcome','c-picture','c-outline','c-enter','c-measure','c-jobpack','c-quote','c-done'].every(k => shown.includes(k)), shown.join());
+  ['c-welcome','c-picture','c-zoom','c-rotate','c-outline','c-enter','c-measure','c-jobpack','c-quote','c-done'].every(k => shown.includes(k)), shown.join());
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 200));
 await ctx.close();
 
@@ -200,7 +225,11 @@ await ctx.close();
 await waitKey(pg, 'c-welcome', 9000);
 await putPicture(pg, 600, 400);
 await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('with a picture already on the canvas it goes straight to the outline', await waitKey(pg, 'c-outline', 5000), await key(pg));
+check('with a picture already on the canvas it goes straight to zooming it', await waitKey(pg, 'c-zoom', 5000), await key(pg));
+await pg.evaluate(() => document.getElementById('tourNext').click());
+await waitKey(pg, 'c-rotate', 3000);
+await pg.evaluate(() => document.getElementById('tourNext').click());
+check('…and "already right" / "already square" step on to the outline', await waitKey(pg, 'c-outline', 3000), await key(pg));
 await ctx.close();
 
 // ── another account's answer on this browser ──────────────────────
