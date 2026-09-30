@@ -6,6 +6,7 @@
       "Bash(node floodroofing/tools/check-app-syntax.mjs:*)",
       "Bash(node floodroofing/tools/sitemap-dates.mjs)",
       "Bash(node floodroofing/tools/sheet-shots.mjs:*)",
+      "Bash(node C:/Users/OEM/pgtools/cutover.cjs:*)",
       "Bash(npm test:*)",
       "Bash(npm ci)",
       "Bash(git status:*)",
