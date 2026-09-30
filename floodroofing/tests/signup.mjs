@@ -221,8 +221,8 @@ check('…offering the same thing: free, and no card',
   JSON.stringify(v.ctas.filter(c => c.startsWith('/signup'))));
 check('…with the setup call as the second option', v.ctas.some(c => c.startsWith('/early-access')));
 check('…and the form no longer lives on the landing page too', v.form === false);
-// 15 since the Try it section (see landing.mjs).
-check('…which is still not endless', v.screens < 15, v.screens + ' screens on a phone');
+// 15 since the Try it section, 16 since the Measure card (see landing.mjs).
+check('…which is still not endless', v.screens < 16, v.screens + ' screens on a phone');
 await ctx.close();
 
 // ── the front door ──
