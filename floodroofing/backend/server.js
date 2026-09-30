@@ -435,7 +435,7 @@ app.use(function (req, res, next) {
   const send = res.json.bind(res);
   res.json = function (body) {
     try {
-      if (res.statusCode >= 500){
+      if (res.statusCode >= 500 && !(body && body.code === 'MAINTENANCE')){
         const msg = (body && (body.error || body.message)) || ('HTTP ' + res.statusCode);
         const e = new Error(String(msg));
         e.stack = '';   // there is no throw site — the route handled it itself
@@ -452,6 +452,69 @@ app.use(function (req, res, next) {
     return send(body);
   };
   next();
+});
+
+// ── MAINTENANCE (2026-09-30: the database moves Mumbai → Singapore) ──────
+// While the data is copied from one database to the other, NOTHING may be
+// written to the old one: a save, a send, a customer's accept, an inbox sync
+// or an hourly email stamp that lands after the final copy is simply lost the
+// moment the server is pointed at the new database. So the switch shuts the
+// door on every write and on the background jobs, and says so plainly.
+//
+//   • on at boot when MAINTENANCE_UNTIL (an ISO time) is still in the future —
+//     it expires by itself, so a forgotten variable can never hold the app
+//     shut through the night;
+//   • switched at any moment by POST /admin/maintenance {on, until, allow}
+//     (ADMIN_TOKEN), and read back from GET /admin/maintenance and /health;
+//   • MAINTENANCE_ALLOW / allow: the people let through — the owner testing
+//     the new database before anyone else is let back in.
+//
+// Reads carry on (people can still look at their jobs); writes answer 503
+// MAINTENANCE, which the app shows as a banner and keeps the work on the
+// device, the same as any failed save. A customer opening a quote link gets
+// "back in a few minutes" — the open itself stamps the quote, so it is a
+// write. None of it raises an alarm email: a closed door is not an incident.
+function _maintParseAllow(v){
+  return String(v || '').split(/[\s,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+const MAINT = (function(){
+  const until = Date.parse(process.env.MAINTENANCE_UNTIL || '');
+  return { on: isFinite(until) && until > Date.now(), until: isFinite(until) ? new Date(until).toISOString() : '',
+           allow: _maintParseAllow(process.env.MAINTENANCE_ALLOW), since: isFinite(until) && until > Date.now() ? new Date().toISOString() : null };
+})();
+function _maintOn(){
+  if (!MAINT.on) return false;
+  // A window with an end time closes itself.
+  if (MAINT.until && Date.parse(MAINT.until) <= Date.now()){ MAINT.on = false; MAINT.since = null; return false; }
+  return true;
+}
+function _maintMessage(){
+  let t = '';
+  try { if (MAINT.until) t = ' — back by ' + new Date(MAINT.until).toLocaleTimeString('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+  return 'RoofMap is moving to a faster server' + t + '. Nothing is lost: anything you change now stays on this device and saves when we are back.';
+}
+function _maintWho(req){
+  try {
+    const h = String(req.headers.authorization || '');
+    if (/^Bearer\s+/i.test(h)){
+      const p = jwt.verify(h.replace(/^Bearer\s+/i, ''), JWT_SECRET);
+      if (p && p.email) return String(p.email).toLowerCase();
+    }
+  } catch (e) {}
+  try { if (req.path === '/auth/login' && req.body && req.body.email) return String(req.body.email).toLowerCase(); } catch (e) {}
+  return '';
+}
+app.use(function (req, res, next) {
+  if (!_maintOn()) return next();
+  const p = req.path || '';
+  if (req.method === 'OPTIONS' || p === '/health' || p === '/' || /^\/admin(\/|$)/.test(p)) return next();
+  const who = _maintWho(req);
+  if (who && MAINT.allow.indexOf(who) >= 0) return next();
+  const customerOpen = /^\/q\//.test(p);
+  const write = !(req.method === 'GET' || req.method === 'HEAD');
+  if (!write && !customerOpen) return next();
+  res.set('Retry-After', '300');
+  return res.status(503).json({ error: _maintMessage(), code: 'MAINTENANCE', until: MAINT.until || null });
 });
 
 // Express 4 does not catch an async handler that rejects — it hangs the
@@ -1001,7 +1064,7 @@ app.get('/imagery-config', (req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.json({ linzKey: String(process.env.LINZ_BASEMAPS_KEY || '').trim() });
 });
-app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo(),
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, maintenance: { on: _maintOn(), until: MAINT.until || null }, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo(),
   // pg=true means DATABASE_URL is set: the share-token index migration ran and
   // quote writes use the targeted jsonb update instead of round-tripping the
   // whole multi-MB draw_state. If this reads false, set DATABASE_URL on the
@@ -2215,6 +2278,7 @@ async function _trialEndedDue(){
   } catch (e) { return false; }
 }
 async function _trialEndedTick(){
+  if (_maintOn()) return;   // maintenance: same: the watermark would be lost and the email sent twice
   try {
     if (!EMAIL_ENABLED) return;
     if (!(await _trialEndedDue())) return;
@@ -2380,6 +2444,7 @@ async function _trialDripSweep(){
   return out;
 }
 async function _trialDripTick(){
+  if (_maintOn()) return;   // maintenance: same
   try {
     if (!EMAIL_ENABLED || !TRIAL_DRIP_ENABLED) return;
     const r = await supabase.from('platform_state').select('value').eq('key', 'trial_drip').maybeSingle();
@@ -2485,6 +2550,7 @@ async function _quietTrialSweep(){
   return out;
 }
 async function _quietTrialTick(){
+  if (_maintOn()) return;   // maintenance: same
   try {
     if (!EMAIL_ENABLED) return;
     const r = await supabase.from('platform_state').select('value').eq('key', 'quiet_trial').maybeSingle();
@@ -6161,6 +6227,7 @@ async function _reminderDue(){
   } catch (e) { return false; }
 }
 async function _reminderTick(){
+  if (_maintOn()) return;   // maintenance: a reminder stamped on the old database would be SENT AGAIN from the new one
   try {
     if (!EMAIL_ENABLED || !REMINDERS_ENABLED) return;
     if (!(await _reminderDue())) return;
@@ -6551,6 +6618,7 @@ async function _inboxSyncAccount(acct){
 }
 // Wake snoozed threads whose time has come, then poll every account.
 async function _inboxSweep(){
+  if (_maintOn()) return;   // maintenance: the snooze sweep un-snoozes threads
   try {
     const now = new Date().toISOString();
     const { data: snoozed } = await supabase.from('mail_threads').select('id, snoozed_until').eq('status', 'snoozed');
@@ -8390,6 +8458,7 @@ function _fergusComposeSections(plan, P, quote){
   return { sections, changes, deltaSum, sub: (+P.base || 0) + deltaSum };
 }
 async function _fergusAutoVersionNow(jobId){
+  if (_maintOn()) return;   // maintenance: a Fergus version made from the old copy of the job
   _fergusAutoTimers.delete(String(jobId));
   const { data } = await supabase.from('jobs')
     .select('id, user_id, company_id, client_name, quote:draw_state->state->quote').eq('id', jobId).limit(1);
@@ -11431,6 +11500,7 @@ function _usageProps(name, raw){
   return out;
 }
 async function recordUsage(name, req, props){
+  if (_maintOn()) return;   // maintenance: a usage row written to a database about to be left behind
   try {
     if (USAGE_EVENTS.indexOf(name) < 0) return;   // an allow-list, so this can never become page tracking
     await supabase.from('usage_events').insert({
@@ -11466,6 +11536,7 @@ app.post('/usage', requireAuth, (req, res) => {
 // names and a timestamp, and it is indexed on `at`.
 const USAGE_KEEP_DAYS = 730;
 async function _pruneUsage(){
+  if (_maintOn()) return;   // maintenance: retention deletes
   try {
     const cutoff = new Date(Date.now() - USAGE_KEEP_DAYS * 864e5).toISOString();
     const { error } = await supabase.from('usage_events').delete().lt('at', cutoff);
@@ -11692,6 +11763,21 @@ app.post('/client-error', (req, res) => {
 
 // What has gone wrong lately, newest first. Gated on ADMIN_TOKEN — without
 // one set, the route stays shut rather than defaulting to open.
+app.get('/admin/maintenance', (req, res) => {
+  if (!_adminOk(req)) return res.status(404).end();
+  res.json({ on: _maintOn(), until: MAINT.until || null, allow: MAINT.allow, since: MAINT.since });
+});
+app.post('/admin/maintenance', (req, res) => {
+  if (!_adminOk(req)) return res.status(404).end();
+  const b = req.body || {};
+  const until = b.until ? Date.parse(b.until) : NaN;
+  MAINT.on = !!b.on;
+  MAINT.until = (MAINT.on && isFinite(until)) ? new Date(until).toISOString() : '';
+  if (Array.isArray(b.allow) || typeof b.allow === 'string') MAINT.allow = _maintParseAllow(Array.isArray(b.allow) ? b.allow.join(',') : b.allow);
+  MAINT.since = MAINT.on ? (MAINT.since || new Date().toISOString()) : null;
+  console.log('[maintenance] ' + (MAINT.on ? 'ON until ' + (MAINT.until || 'switched off') + ', allowed: ' + (MAINT.allow.join(', ') || 'nobody') : 'OFF'));
+  res.json({ on: _maintOn(), until: MAINT.until || null, allow: MAINT.allow, since: MAINT.since });
+});
 function _adminOk(req){
   if (!ADMIN_TOKEN) return false;
   const given = String(req.headers['x-admin-token'] || req.query.token || '');

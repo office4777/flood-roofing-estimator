@@ -12551,6 +12551,37 @@ function _guideVideoPlay(){
 S.currentJobId = null;
 S.settings = null; // cached user settings (branding/quote_defaults/jms_keys)
 
+// MAINTENANCE (2026-09-30). While the database moves, the server answers
+// every write with 503 MAINTENANCE. One calm banner says what is happening and
+// that nothing is lost — the failed save has already kept the work on this
+// device, as any failed save does. It watches /health and, the moment the door
+// opens again, says so and saves what is on screen.
+var _MAINT_UI = { shown: false, timer: null };
+function _maintBanner(payload){
+  var msg = (payload && payload.error) || 'RoofMap is moving to a faster server. Anything you change now stays on this device and saves when we are back.';
+  var el = document.getElementById('maintBanner');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'maintBanner'; el.className = 'no-print'; el.setAttribute('role', 'status');
+    el.setAttribute('style', 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100050;max-width:640px;width:calc(100% - 24px);box-sizing:border-box;background:#0a1628;color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 10px 30px rgba(10,22,40,.3);font-size:13.5px;line-height:1.45;font-family:inherit');
+    document.body.appendChild(el);
+  }
+  el.style.background = '#0a1628';
+  el.innerHTML = '<strong style="display:block;margin-bottom:2px">Back in a few minutes</strong>' + esc2(msg);
+  if (_MAINT_UI.timer) return;
+  _MAINT_UI.timer = setInterval(async function(){
+    try {
+      var r = await fetch(PROXY + '/health', { cache: 'no-store' });
+      var h = await r.json();
+      if (h && h.maintenance && h.maintenance.on) return;
+      clearInterval(_MAINT_UI.timer); _MAINT_UI.timer = null;
+      el.style.background = '#15803d';
+      el.innerHTML = '<strong>We’re back.</strong> Saving what is on your screen now.';
+      try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+      setTimeout(function(){ try { el.remove(); } catch(e){} }, 8000);
+    } catch(e){}
+  }, 20000);
+}
 async function api(method, path, body) {
   if (window.__PLAYGROUND){ var _pe = new Error('Not in the playground'); _pe.status = 0; _pe.playground = true; throw _pe; }
   var tok = localStorage.getItem('fr_token') || '';
@@ -12590,6 +12621,7 @@ async function api(method, path, body) {
     // moment to show the plans — that refusal used to surface as a bare
     // error on a save, which reads as the app being broken.
     if (err.code === 'SUBSCRIPTION_REQUIRED') { try { _planGateOpen(true); } catch(e){} }
+    if (err.code === 'MAINTENANCE') { try { _maintBanner(payload); } catch(e){} }
     throw err;
   }
   if (r.status === 204) return null;
@@ -32213,6 +32245,15 @@ async function bootCustomerView(token){
         lastStatus = r.status;
         if (r.ok) break;
         if (r.status === 404) { lastFail = 'missing'; notFound++; if (notFound >= MAX_404) break; }
+        else if (r.status === 503 && (await r.clone().json().catch(function(){ return null; }) || {}).code === 'MAINTENANCE'){
+          // The quote is being moved to a faster server (2026-09-30). Say so,
+          // and keep trying without a limit: it opens by itself when the move
+          // is done, rather than giving up and calling the link broken.
+          try { var _ms = document.getElementById('custSplashSub');
+                if (_ms) _ms.textContent = 'Your quote is being moved to a faster server — it will open here by itself in a few minutes. No need to refresh.'; } catch(e){}
+          await new Promise(function(res){ setTimeout(res, 20000); });
+          continue;
+        }
         else if (r.status >= 500) { lastFail = 'unreachable'; serverDown++; if (serverDown >= MAX_DOWN) break; }
         else { lastFail = 'missing'; break; } // other 4xx — a real client error, don't retry
       } catch(err){

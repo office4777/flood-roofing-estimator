@@ -59,7 +59,10 @@ const TABLES = ['companies', 'company_users', 'profiles', 'user_settings', 'jobs
                 'invoices', 'schedule_rows', 'schedule_blocks', 'comms_tasks', 'job_revisions'];
 const counts = {};
 for (const t of TABLES) {
-  const r = await q(t + '?select=id&limit=1');
+  // select=* rather than id: company_users and user_settings have no id
+  // column and never did, so asking for one failed on a perfect restore
+  // (found in the Mumbai → Singapore rehearsal, 2026-09-30).
+  const r = await q(t + '?select=*&limit=1');
   counts[t] = r.total;
   check('table ' + t + ' is present', r.ok, r.ok ? (r.total + ' rows') : ('HTTP ' + r.status + ' ' + r.raw));
 }
