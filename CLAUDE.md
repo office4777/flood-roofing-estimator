@@ -619,10 +619,33 @@ Discipline (non-negotiable):
   STARTS CLOSED on Map Roof (2026-10-01): it opens only once opened in this
   session (`fr_fergus_panel_open === '1'`). `tests/photoviewer.mjs`,
   `tests/bgclear.mjs`.
-- THE OUTLINE SNAPS SQUARE BY ITSELF within `AUTO_SQUARE_TOL_DEG` = 12°
-  (2026-10-01; it was 20° — which flattened real raking walls — then 6°,
-  which the owner found too weak). Snap square and Square corner still force
-  it. `tests/squarecorner.mjs`.
+- THE OUTLINE SNAPS SQUARE BY ITSELF within `AUTO_SQUARE_TOL_DEG` = 20°
+  (back to the original on 2026-10-01 after 6° and 12° — the owner: "roll
+  back to the old snap points"). An outline OUTSIDE it (a dog-leg, a splay)
+  is not squared but LINED UP: `_outlineSnapParallel` groups the walls by
+  direction modulo 90° within `PARALLEL_SNAP_DEG` (10°), gives each group
+  its length-weighted direction and rebuilds the corners where the walls now
+  meet (no corner further than 12% of its shorter wall, or nothing moves).
+  A corner DRAG on such an outline uses `_stretchParallelOutline` (every
+  wall keeps its direction) instead of the square stretch, which flattened
+  the bent wing. Picking Building outline shows the Shift tip (`#shiftTip`,
+  "hold Shift … to turn the snapping off", `fr_shift_tip_off`). The snap
+  while drawing (`snap()`, `SNAP_AXIS_PX` 24) has not changed since
+  2026-09-07. `tests/report60.mjs`, `tests/squarecorner.mjs`.
+- THE DOG-LEG GABLE (report 60, 2026-10-01, `fixtures-report60.json`): a
+  gable on an outline that is a bent STRIP (`_doglegStrip`: 2(k+2) corners,
+  two long sides pairing across at each of k bends, each wing's two sides
+  within 12°, each bend 8–80°, the ends within 30° of square) is drawn by
+  `buildDoglegGableLines` from the top of `buildGableRoofLines` (only when
+  the outline is NOT rectilinear at 20°, so no square gable ever reaches
+  it): a ridge down each wing's centre line meeting where they cross, a
+  VALLEY from the inside (reflex) bend corner and a HIP from the outside one,
+  gable barges (starter/finish) on both ends. The ridges carry `dogleg`
+  (in `LINE_FLAG_KEYS`). The sheet engine (`_doglegSections` in
+  sheet-plan.js, ahead of the ridge-claim) counts each wing square to its
+  own ridge: each slope its own span along the ridge ÷ cover
+  (`_sheetsAcross`), at that wing's run, plus one valley spare — 7+7 @ 2.11
+  and 5+5 @ 2.02 + 1 = 25 on the report's roof.
 - GUTTER PRICES (2026-09-30): 125mm Colorsteel box gutter is ONE row at
   `gutter.box125_lm` ($21/lm, BRACKETS INCLUDED) plus an 80mm dropper every
   8 m (`dropper_ea`); Marley Classic is itemised like Typhoon

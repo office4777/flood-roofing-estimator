@@ -6109,7 +6109,66 @@ function _renderRoofSheetPlanInner() {
     _drawnRidges.length >= 2 &&
     _drawnLines.some(function(l){ return l && l.type === 'hip'; }) &&
     (!_isGable || _gableHasHips);
-  if (_isMultiRidgeHip){
+  // ── THE DOG-LEG GABLE (2026-10-01, report 60) ─────────────────────
+  // A gable that bends part-way along (buildDoglegGableLines in app.html).
+  // The ridge-claim grid below works in ONE frame and extends each ridge
+  // along its own line to the outline, so the first wing's ridge ran on
+  // through the bent wing and claimed its sheets. Here each WING is its
+  // own run of sheets, square to its own ridge: each slope counts its own
+  // span along the ridge (the gutter, or the ridge where the face reaches
+  // past the gutter into a valley) ÷ cover by _sheetsAcross, at the length
+  // from ridge to that slope's gutter; one long spare covers the valley.
+  var _dlSecs = (_drawnRidges.length >= 2 && _drawnRidges.every(function(r){ return r.dogleg; }) &&
+                 typeof _doglegStrip === 'function') ? _doglegSections() : null;
+  function _doglegSections(){
+    var st = _doglegStrip(outline); if (!st) return null;
+    var A = st.A, B = st.B, k = st.k, out = [];
+    var dot = function(p, v){ return p[0]*v[0] + p[1]*v[1]; };
+    // the ridge's corners: the drawn dog-leg ridges, end to end
+    var pts = [];
+    _drawnRidges.forEach(function(r){ pts.push(r.pts[0], r.pts[1]); });
+    for (var j = 0; j <= k; j++){
+      var dA = [A[j+1][0]-A[j][0], A[j+1][1]-A[j][1]], dB = [B[j+1][0]-B[j][0], B[j+1][1]-B[j][1]];
+      var la = Math.hypot(dA[0], dA[1]) || 1, lb = Math.hypot(dB[0], dB[1]) || 1;
+      var R = [dA[0]/la + dB[0]/lb, dA[1]/la + dB[1]/lb], rl = Math.hypot(R[0], R[1]) || 1;
+      R = [R[0]/rl, R[1]/rl];
+      var Pp = [-R[1], R[0]];
+      // this wing's ridge piece: the drawn ridge most nearly along R inside the wing
+      var mid = [(A[j][0]+A[j+1][0]+B[j][0]+B[j+1][0])/4, (A[j][1]+A[j+1][1]+B[j][1]+B[j+1][1])/4];
+      var rg = null, rd = Infinity;
+      _drawnRidges.forEach(function(r){
+        var v = [r.pts[1][0]-r.pts[0][0], r.pts[1][1]-r.pts[0][1]], L = Math.hypot(v[0], v[1]) || 1;
+        if (Math.abs(dot(v, R) / L) < 0.97) return;
+        var c = [(r.pts[0][0]+r.pts[1][0])/2, (r.pts[0][1]+r.pts[1][1])/2];
+        var d = Math.hypot(c[0]-mid[0], c[1]-mid[1]); if (d < rd){ rd = d; rg = r; }
+      });
+      if (!rg) return null;
+      var ridgeP = dot(rg.pts[0], Pp);
+      // each slope: its run to its gutter, and its span along the ridge
+      var side = function(p0, p1){
+        var run = Math.abs((dot(p0, Pp) + dot(p1, Pp)) / 2 - ridgeP);
+        var us = [dot(p0, R), dot(p1, R), dot(rg.pts[0], R), dot(rg.pts[1], R)];
+        return { run: run, lo: Math.min.apply(null, us), hi: Math.max.apply(null, us), neg: ((dot(p0, Pp) + dot(p1, Pp)) / 2) < ridgeP };
+      };
+      var sa = side(A[j], A[j+1]), sb = side(B[j], B[j+1]);
+      var nA = _sheetsAcross(sa.hi - sa.lo, coverPx), nB = _sheetsAcross(sb.hi - sb.lo, coverPx);
+      var run = Math.max(sa.run, sb.run);
+      if (!(run > coverPx*0.2)) return null;
+      var neg = sa.neg ? sa : sb, pos = sa.neg ? sb : sa;
+      out.push({ col: COL_ORANGE, mm: orderedLengthMm(run * effectiveScale * pitchFactor),
+        runPx: 2*run, eavePx: Math.max(sa.hi - sa.lo, sb.hi - sb.lo), ridgePx: Math.max(sa.hi - sa.lo, sb.hi - sb.lo),
+        valley: false, valleys: 0, rdir: R.slice(),
+        obU0: Math.min(sa.lo, sb.lo), obU1: Math.max(sa.hi, sb.hi),
+        obV0: ridgeP - neg.run, obV1: ridgeP + pos.run, _claim: true, _dogleg: true,
+        _perNeg: sa.neg ? nA : nB, _perPos: sa.neg ? nB : nA });
+    }
+    out._valleySpare = _drawnValleys.length ? 1 : 0;
+    return out;
+  }
+  if (_dlSecs && _dlSecs.length){
+    secData = _dlSecs;
+    Object.keys(groups).forEach(function(k){ delete groups[k]; });
+  } else if (_isMultiRidgeHip){
     var _rc = _ridgeClaimSections();
     if (_rc && _rc.length){
       secData = _rc;

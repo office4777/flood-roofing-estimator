@@ -44549,6 +44549,7 @@ function setTool(t) {
   }
   DRAW.tool = t;
   DRAW.currentPts = [];
+  if (t === 'outline') { try { _outlineShiftTip(); } catch(e){} }
   try { TAPE.start = null; TAPE.hover = null; if (t !== 'tape' && t !== 'select') DRAW.selTape = -1; } catch(e){}
   try { SQC.hover = -1; } catch(e){}
   try { _inkResetRuns(); } catch(e){}
@@ -45182,7 +45183,7 @@ function _ridgeBreakBoxRender(l){
 
 // What a built line carries beyond its type: a broken ridge's pieces (see
 // _gblPushRidge in buildGableRoofLines).
-var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun'];
+var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg'];
 function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
 function regenerateAutoRoofLines(roofType){
   if (!roofType || !DRAW.outline || DRAW.outline.length < 3) return;
@@ -45455,7 +45456,10 @@ function _outlineIsRectilinear(pts, tolDeg){
 // Snap square button and Square corner are still there to force the issue.
 // 12° since 2026-10-01 (the owner's: "too weak at the moment, it worked
 // better before") — halfway back to the old 20°, still short of a real rake.
-var AUTO_SQUARE_TOL_DEG = 12;
+// 20° again the same afternoon (the owner's: "roll back to the old snap
+// points, it was much easier to use"). A bent building — a dog-leg — is far
+// outside it and is not squared: it gets _outlineSnapParallel instead.
+var AUTO_SQUARE_TOL_DEG = 20;
 // The little right-angle mark on a corner is a CLAIM that the corner is
 // square, so it may only appear when it is. 0.12 was the cosine of 83° — a
 // corner almost 7° out wore the mark and the roofer had no way to see it was
@@ -45463,9 +45467,122 @@ var AUTO_SQUARE_TOL_DEG = 12;
 var CORNER_SQUARE_DOT = 0.026;
 function _autoSquareOutline(){
   if (!DRAW.outline || DRAW.outline.length < 4) return false;
-  if (!_outlineIsRectilinear(DRAW.outline, AUTO_SQUARE_TOL_DEG)) return false;
+  if (!_outlineIsRectilinear(DRAW.outline, AUTO_SQUARE_TOL_DEG)){
+    // Not a square building (a dog-leg, a splay): its walls are lined up
+    // PARALLEL to each other instead — each set of near-parallel walls, and
+    // the walls square to them, takes one shared direction.
+    try { return _outlineSnapParallel(DRAW.outline); } catch(e){ return false; }
+  }
   snapOutlineToSquare(true);
   return true;
+}
+// THE SHIFT TIP (2026-10-01, the owner's: "when entering an outline, pop-up
+// an information note explaining the user can hold down the shift button to
+// remove the snap points"). A note over the top of the canvas each time the
+// outline tool is picked, gone after eight seconds or with its ✕; "Don't
+// show again" keeps it away on this device.
+function _outlineShiftTip(){
+  try { if (localStorage.getItem('fr_shift_tip_off') === '1') return; } catch(e){}
+  if (document.documentElement.classList.contains('site-mode') || window.__PLAYGROUND) return;
+  var host = document.getElementById('canvasWrap'); if (!host) return;
+  var el = document.getElementById('shiftTip');
+  if (!el){
+    el = document.createElement('div'); el.id = 'shiftTip'; el.className = 'no-print';
+    el.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:30;background:#0a1628;color:#fff;border-radius:10px;padding:9px 12px 9px 14px;font-size:12.5px;line-height:1.4;box-shadow:0 8px 24px rgba(10,22,40,.3);display:flex;align-items:center;gap:12px;max-width:min(560px,92%);font-family:inherit';
+    el.innerHTML = '<span>💡 Click each corner of the roof. Corners <b>snap square</b> to help you — <b>hold Shift</b> while you click to turn the snapping off.</span>' +
+      '<button type="button" onclick="try{localStorage.setItem(\'fr_shift_tip_off\',\'1\')}catch(e){};this.parentNode.remove()" style="background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:7px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;white-space:nowrap">Don’t show again</button>' +
+      '<button type="button" aria-label="Close" onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;font-size:15px;cursor:pointer;padding:0 2px">✕</button>';
+    host.appendChild(el);
+  }
+  clearTimeout(window.__shiftTipT);
+  window.__shiftTipT = setTimeout(function(){ var t = document.getElementById('shiftTip'); if (t) t.remove(); }, 8000);
+}
+// LINE THE WALLS UP WITHOUT SQUARING THE BUILDING (2026-10-01, the owner's
+// dog-leg: "these should try auto snap to parallel the gutter lines"). The
+// walls are grouped by direction, modulo a right angle, within
+// PARALLEL_SNAP_DEG; each group takes its length-weighted direction (so a
+// wing's two gutters come out exactly parallel and its gable end exactly
+// square to them), and every corner is rebuilt where its two walls now
+// meet. A wall in a group of its own (a real rake) keeps its direction.
+// Nothing moves more than a hand-trace's wobble, or nothing moves at all.
+var PARALLEL_SNAP_DEG = 10;
+function _outlineSnapParallel(pts){
+  var n = pts.length; if (n < 4) return false;
+  var HALF = Math.PI / 2, tol = PARALLEL_SNAP_DEG * Math.PI / 180;
+  var E = [], i;
+  for (i = 0; i < n; i++){
+    var a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+    if (L < 1) return false;
+    // direction folded into [0, 90°): parallel and square walls land together
+    var th = Math.atan2(dy, dx), f = ((th % HALF) + HALF) % HALF;
+    E.push({ a: a, b: b, L: L, th: th, f: f, g: -1 });
+  }
+  var fd = function(x, y){ var d = Math.abs(x - y) % HALF; return Math.min(d, HALF - d); };
+  // group: longest wall first, everything within tol of it joins
+  var order = E.map(function(e, k){ return k; }).sort(function(p, q){ return E[q].L - E[p].L; });
+  var groups = [];
+  order.forEach(function(k){
+    if (E[k].g >= 0) return;
+    var gi = groups.length, base = E[k].f;
+    groups.push({ members: [] });
+    E.forEach(function(e, m){ if (e.g < 0 && fd(e.f, base) <= tol){ e.g = gi; groups[gi].members.push(m); } });
+  });
+  if (groups.length === n) return false;            // nothing parallel to anything
+  // each group's direction: length-weighted mean of the folded angles about its base
+  groups.forEach(function(g){
+    var base = E[g.members[0]].f, sum = 0, w = 0;
+    g.members.forEach(function(m){
+      var d = E[m].f - base; d = d - Math.round(d / HALF) * HALF;
+      sum += d * E[m].L; w += E[m].L;
+    });
+    g.f = base + sum / w;
+  });
+  // each wall's new direction: its own angle moved onto the group's
+  var dirs = E.map(function(e){
+    var d = groups[e.g].f - e.f; d = d - Math.round(d / HALF) * HALF;
+    var t2 = e.th + d;
+    return [Math.cos(t2), Math.sin(t2)];
+  });
+  // each wall's line passes through its own midpoint; corners are where lines meet
+  var out = [];
+  for (i = 0; i < n; i++){
+    var p = (i + n - 1) % n;
+    var mp = [(E[p].a[0] + E[p].b[0]) / 2, (E[p].a[1] + E[p].b[1]) / 2], up = dirs[p];
+    var mi = [(E[i].a[0] + E[i].b[0]) / 2, (E[i].a[1] + E[i].b[1]) / 2], ui = dirs[i];
+    var det = up[0] * ui[1] - up[1] * ui[0];
+    if (Math.abs(det) < 0.05) return false;          // two walls in a row the same way
+    var rx = mi[0] - mp[0], ry = mi[1] - mp[1];
+    var t = (rx * ui[1] - ry * ui[0]) / det;
+    var c = [mp[0] + t * up[0], mp[1] + t * up[1]];
+    // never a corner pulled further than a wobble: 12% of its shorter wall
+    var lim = Math.max(3, 0.12 * Math.min(E[p].L, E[i].L));
+    if (Math.hypot(c[0] - pts[i][0], c[1] - pts[i][1]) > lim) return false;
+    out.push(c);
+  }
+  for (i = 0; i < n; i++){ pts[i][0] = out[i][0]; pts[i][1] = out[i][1]; }
+  return true;
+}
+// DRAGGING A CORNER OF A BUILDING THAT IS NOT SQUARE (2026-10-01): the
+// square stretch forces every wall onto one pair of axes, which flattened a
+// dog-leg's angled wing the moment a corner moved (it only "came out right"
+// with Shift). Here every wall keeps its own direction: the two walls at the
+// corner slide with it and their far corners ride along their next walls.
+function _stretchParallelOutline(idx, x, y, initial){
+  var n = initial.length; if (n < 4) return null;
+  var P = function(k){ return initial[(k + n) % n]; };
+  var meet = function(p, u, q, v){
+    var det = u[0] * v[1] - u[1] * v[0]; if (Math.abs(det) < 1e-6) return null;
+    var rx = q[0] - p[0], ry = q[1] - p[1], t = (rx * v[1] - ry * v[0]) / det;
+    return [p[0] + t * u[0], p[1] + t * u[1]];
+  };
+  var dir = function(a, b){ return [b[0] - a[0], b[1] - a[1]]; };
+  var c = [x, y];
+  var prev = meet(c, dir(P(idx - 1), P(idx)), P(idx - 2), dir(P(idx - 2), P(idx - 1)));
+  var next = meet(c, dir(P(idx), P(idx + 1)), P(idx + 1), dir(P(idx + 1), P(idx + 2)));
+  if (!prev || !next) return null;
+  var out = initial.map(function(p){ return p.slice(); });
+  out[idx] = c; out[(idx - 1 + n) % n] = prev; out[(idx + 1) % n] = next;
+  return out;
 }
 
 // Stretch the outline so the dragged corner can move freely while
@@ -49620,9 +49737,10 @@ function onCanvasMove(e) {
     // "stop". Shift bypasses the stretch — for diagonal roofs.
     var stretched = null;
     if (!e.shiftKey && DRAG_OUTLINE_VERT.initialOutline) {
-      stretched = _stretchRectilinearOutline(
-        DRAG_OUTLINE_VERT.idx, rawX, rawY, DRAG_OUTLINE_VERT.initialOutline
-      );
+      var _io = DRAG_OUTLINE_VERT.initialOutline;
+      stretched = _outlineIsRectilinear(_io, AUTO_SQUARE_TOL_DEG)
+        ? _stretchRectilinearOutline(DRAG_OUTLINE_VERT.idx, rawX, rawY, _io)
+        : _stretchParallelOutline(DRAG_OUTLINE_VERT.idx, rawX, rawY, _io);
     }
     var movedC;
     if (stretched && stretched.length === DRAW.outline.length) {
@@ -70609,7 +70727,95 @@ function buildHipValleyLines(outline) {
 // Ridge endpoints with anything other than exactly 2 hips attached
 // (interior junctions, T-joints, valley meets) are left untouched —
 // those are the L's inner corners and must keep their hips / valleys.
+// THE DOG-LEG GABLE (2026-10-01, feedback report 60: "this roof has a dog
+// leg, the app needs to be able to draw gable roof like this one as these
+// roofs are very common"). A gable building that bends part-way along: the
+// outline is a STRIP — two long sides of k+2 corners each, joined by a gable
+// end at each end, the corners pairing up across the strip at each bend.
+// Each wing gets a ridge down its middle; the ridges meet where the wings'
+// centre lines cross; at each bend a VALLEY runs from the inside corner to
+// that point and a HIP from the outside corner. Gutters along the sides,
+// barges on the two gable ends. Returns null for anything that is not a bent
+// strip, so a square gable never comes here.
+function _doglegStrip(outline){
+  var n = outline.length;
+  if (n < 6 || n % 2) return null;
+  var k = n / 2 - 2, best = null;
+  var V = function(i){ return outline[((i % n) + n) % n]; };
+  var ang = function(a, b){ return Math.atan2(b[1] - a[1], b[0] - a[0]); };
+  var dAng = function(x, y){ var d = x - y; d = d - Math.round(d / (2 * Math.PI)) * 2 * Math.PI; return Math.abs(d); };
+  for (var s = 0; s < n; s++){
+    var A = [], B = [], j;
+    for (j = 0; j <= k + 1; j++){ A.push(V(s + j)); B.push(V(s - 1 - j)); }
+    var ok = true, err = 0, bends = 0, wd = [];
+    for (j = 0; j <= k && ok; j++){
+      var ta = ang(A[j], A[j + 1]), tb = ang(B[j], B[j + 1]);
+      var e1 = dAng(ta, tb);
+      if (e1 > 12 * Math.PI / 180) ok = false;      // a wing's two sides must run together
+      err += e1;
+      wd.push(Math.atan2(Math.sin(ta) + Math.sin(tb), Math.cos(ta) + Math.cos(tb)));
+    }
+    for (j = 1; j <= k && ok; j++){
+      var bend = dAng(wd[j], wd[j - 1]);
+      if (bend < 8 * Math.PI / 180 || bend > 80 * Math.PI / 180) ok = false;
+      else bends++;
+    }
+    // the ends run across their wing (within 30° of square to it)
+    var endSq = function(p, q, w){ var e = dAng(ang(p, q), w); e = Math.abs(e - Math.PI / 2); return e; };
+    if (ok){
+      var e0 = endSq(A[0], B[0], wd[0]), e2 = endSq(A[k + 1], B[k + 1], wd[k]);
+      if (Math.min(e0, Math.abs(e0 - Math.PI)) > Math.PI / 6 || Math.min(e2, Math.abs(e2 - Math.PI)) > Math.PI / 6) ok = false;
+      err += e0 + e2;
+    }
+    if (ok && bends === k && (!best || err < best.err)) best = { A: A, B: B, wd: wd, k: k, err: err };
+  }
+  return best;
+}
+function buildDoglegGableLines(outline){
+  var st = _doglegStrip(outline); if (!st) return null;
+  var A = st.A, B = st.B, k = st.k, wd = st.wd;
+  var meet = function(p, u, q, v){
+    var det = u[0] * v[1] - u[1] * v[0]; if (Math.abs(det) < 1e-6) return null;
+    var rx = q[0] - p[0], ry = q[1] - p[1], t = (rx * v[1] - ry * v[0]) / det;
+    return [p[0] + t * u[0], p[1] + t * u[1]];
+  };
+  var mid = function(p, q){ return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; };
+  // each wing's centre line: through the middle of its four corners, along the wing
+  var C = [], U = [];
+  for (var j = 0; j <= k; j++){
+    C.push(mid(mid(A[j], A[j + 1]), mid(B[j], B[j + 1])));
+    U.push([Math.cos(wd[j]), Math.sin(wd[j])]);
+  }
+  var ends0 = meet(C[0], U[0], A[0], [B[0][0] - A[0][0], B[0][1] - A[0][1]]) || mid(A[0], B[0]);
+  var ends1 = meet(C[k], U[k], A[k + 1], [B[k + 1][0] - A[k + 1][0], B[k + 1][1] - A[k + 1][1]]) || mid(A[k + 1], B[k + 1]);
+  var bendPts = [];
+  for (j = 1; j <= k; j++) bendPts.push(meet(C[j - 1], U[j - 1], C[j], U[j]) || mid(A[j], B[j]));
+  // which corners are on the inside of a bend (reflex): the polygon's own turn
+  var area = 0; for (var i = 0; i < outline.length; i++){ var p = outline[i], q = outline[(i + 1) % outline.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  var reflex = function(pt){
+    var n = outline.length, i2 = outline.indexOf(pt); if (i2 < 0) return false;
+    var a = outline[(i2 + n - 1) % n], b = outline[(i2 + 1) % n];
+    var cr = (pt[0] - a[0]) * (b[1] - pt[1]) - (pt[1] - a[1]) * (b[0] - pt[0]);
+    return (cr > 0) !== (area > 0);
+  };
+  var out = [], L = function(type, p, q, extra){ var l = { type: type, pts: [p.slice(), q.slice()] }; if (extra) for (var x in extra) l[x] = extra[x]; out.push(l); };
+  var chain = [ends0].concat(bendPts).concat([ends1]);
+  for (j = 0; j < chain.length - 1; j++) L('ridge', chain[j], chain[j + 1], { dogleg: true });
+  for (j = 0; j <= k; j++){ L('gutter', A[j], A[j + 1]); L('gutter', B[j], B[j + 1]); }
+  for (j = 1; j <= k; j++){
+    L(reflex(A[j]) ? 'valley' : 'hip', A[j], bendPts[j - 1], { dogleg: true });
+    L(reflex(B[j]) ? 'valley' : 'hip', B[j], bendPts[j - 1], { dogleg: true });
+  }
+  L('barge', A[0], ends0, { subtype: 'starter' }); L('barge', ends0, B[0], { subtype: 'starter' });
+  L('barge', A[k + 1], ends1, { subtype: 'finish' }); L('barge', ends1, B[k + 1], { subtype: 'finish' });
+  return out;
+}
 function buildGableRoofLines(outline, flipAxis) {
+  // A dog-leg (a building that bends part-way along) is its own shape.
+  if (outline && outline.length >= 6 && !_outlineIsRectilinear(outline, 20)){
+    var _dl = buildDoglegGableLines(outline);
+    if (_dl) return _dl;
+  }
   // ── Rectilinear "straight gable" mode ─────────────────────────────
   // The user-facing intent of the Straight Gable button is: one ridge
   // running through the long axis of the building with rake barges

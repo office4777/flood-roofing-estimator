@@ -42,9 +42,12 @@ const draw = (pts) => pg.evaluate((p) => {
 }, pts);
 
 // ── a raking wall survives being drawn ────────────────────────────
-// The bottom-right corner is pulled 60px out: about 11° off square, which
-// the old 20° gate swallowed whole.
-const RAKE = [[200,300],[800,300],[860,620],[200,600]];
+// The gate went 20° → 6° → 12° and, on 2026-10-01, back to 20° (the owner:
+// "roll back to the old snap points, it was much easier to use"). So an
+// 11° rake is squared again; a real rake past 20° — this one is about 24° —
+// is left exactly as drawn (its square walls are already square, and the
+// rake is a direction of its own, so the line-up moves nothing).
+const RAKE = [[200,300],[800,300],[945,620],[200,620]];
 const rake = await draw(RAKE);
 check('a roof drawn well out of square is left exactly as it was drawn',
   JSON.stringify(rake) === JSON.stringify(RAKE), JSON.stringify(rake));
@@ -69,7 +72,8 @@ const marks = await pg.evaluate((p) => {
   return [0,1,2,3].map(i => _sqcIsSquare(DRAW.outline, i));
 }, RAKE);
 check('…so the corners a raking wall pulls out of square do not claim to be square',
-  !marks[1] && !marks[2] && !marks[3] && marks[0], JSON.stringify(marks));
+  // (the 24° rake: its two ends are out of square, the other two are true)
+  marks[0] && !marks[1] && !marks[2] && marks[3], JSON.stringify(marks));
 
 // ── the Square corner tool ────────────────────────────────────────
 const btn = await pg.evaluate(() => {
@@ -100,7 +104,9 @@ check('clicking a corner makes it a true right angle', one.ok && one.sqNow, JSON
 check('…and moves only that corner — the rest of the building stays put',
   one.movedOthers.length === 0, JSON.stringify(one.movedOthers) + ' ' + JSON.stringify(one.after));
 check('…by the smallest move that squares it, so the shape is kept',
-  Math.hypot(one.after[2][0] - one.before[2][0], one.after[2][1] - one.before[2][1]) < 80,
+  // a 24° rake is a long way out, so the move is bigger than it was for the
+  // 11° one — still well short of rebuilding the wall (it is 350px long)
+  Math.hypot(one.after[2][0] - one.before[2][0], one.after[2][1] - one.before[2][1]) < 150,
   JSON.stringify(one.before[2]) + ' → ' + JSON.stringify(one.after[2]));
 
 // Undo puts the corner back — the tool takes a snapshot before it moves.
