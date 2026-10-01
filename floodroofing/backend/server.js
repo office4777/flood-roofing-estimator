@@ -3076,6 +3076,96 @@ function _jobLight(row){
   return out;
 }
 
+
+// ── A CUSTOMER'S ACCEPTANCE IS NEVER OVERWRITTEN BY AN OFFICE SAVE ──────
+// (2026-10-02, job 3288.) The customer accepted at 3:20 pm; eight minutes
+// later an office screen still holding the quote as it was before that
+// published it again (PUT /jobs/:id/quote — no "has this moved?" check), and
+// the acceptance, the customer's picks, their events and the frozen Accepted
+// copy were gone; the office was left reading "Not accepted yet". An accepted
+// quote must never change (the owner's rule), and the customer's own actions
+// are not the office's to undo by accident.
+//
+// So every quote write is compared with what is stored. If the stored quote
+// is ACCEPTED and the incoming copy does not show the office has seen that
+// acceptance — its frozen Accepted copy (versions.accepted, same id) is not in
+// it — the incoming copy is stale: the acceptance, the accepted picks, the
+// frozen copy and the share's status are put back. The office's deliberate
+// moves keep working because they all carry the frozen copy: Undo acceptance
+// keeps it ("the accepted version stays on record"), a new draft after an
+// acceptance keeps it. The customer's events are always kept (a union), and a
+// stored opened / queried / declined status is not knocked back to "sent" by
+// a copy that has not seen it. Returns true when it put an acceptance back.
+async function _keepCustomerState(req, jobId, inQ){
+  if (!inQ || typeof inQ !== 'object') return false;
+  let held = null;
+  const pool = _pgPool();
+  if (pool){
+    const r = await pool.query(
+      "select draw_state->'state'->'quote'->'share' as share," +
+      "       draw_state->'state'->'quote'->'accepted' as accepted," +
+      "       draw_state->'state'->'quote'->'versions'->'accepted'->>'id' as acc_id," +
+      "       draw_state->'state'->'quote'->'proposalOptions' as po" +
+      ' from public.jobs where id = $1 and (company_id = $2 or (company_id is null and user_id = $3))',
+      [jobId, req.companyId || null, req.user.id]);
+    if (r.rows.length) held = r.rows[0];
+  } else {
+    const { data, error } = await _scopeCompany(supabase.from('jobs').select('draw_state').eq('id', jobId), req);
+    if (error) throw new Error(error.message);
+    const q0 = data && data[0] && data[0].draw_state && data[0].draw_state.state && data[0].draw_state.state.quote;
+    if (q0) held = { share: q0.share || null, accepted: q0.accepted || null,
+                     acc_id: (q0.versions && q0.versions.accepted && q0.versions.accepted.id) || null,
+                     po: q0.proposalOptions || null, _versions: q0.versions || null };
+  }
+  if (!held) return false;
+  const hs = (held.share && typeof held.share === 'object') ? held.share : {};
+  if (!hs.token) return false;
+  const is0 = (inQ.share && typeof inQ.share === 'object') ? inQ.share : null;
+  if (is0 && is0.token && is0.token !== hs.token) return false;      // a different link: nothing of this customer's
+  // A copy with no share at all is older than the link: the stored one, whole.
+  const is = inQ.share = is0 || JSON.parse(JSON.stringify(hs));
+  if (!is.token) is.token = hs.token;
+  // The customer's events, always: the stored ones and the incoming ones, once each.
+  const seen = {}, ev = [];
+  [].concat(Array.isArray(hs.events) ? hs.events : [], Array.isArray(is.events) ? is.events : []).forEach(function(e){
+    if (!e || typeof e !== 'object') return;
+    const k = String(e.type) + '|' + String(e.at);
+    if (seen[k]) return; seen[k] = 1; ev.push(e);
+  });
+  ev.sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
+  if (ev.length) is.events = ev.slice(-80);
+  const accId = held.acc_id || null;
+  const inV = (inQ.versions && typeof inQ.versions === 'object') ? inQ.versions : null;
+  const knows = accId ? !!(inV && inV.accepted && inV.accepted.id === accId) : !!inQ.accepted;
+  if (hs.status === 'accepted' && !knows){
+    // Stale: put the acceptance back, whole.
+    let fullV = held._versions || null;
+    if (!fullV && pool){
+      const r2 = await pool.query("select draw_state->'state'->'quote'->'versions' as v from public.jobs where id = $1", [jobId]);
+      fullV = r2.rows.length ? r2.rows[0].v : null;
+    }
+    const v = inV || (inQ.versions = { sent: null, accepted: null, drafts: [] });
+    if (fullV && fullV.accepted){
+      v.accepted = fullV.accepted;
+      // the pictures the frozen copy points at
+      if (fullV.media && typeof fullV.media === 'object'){
+        v.media = Object.assign({}, fullV.media, (v.media && typeof v.media === 'object') ? v.media : {});
+      }
+    }
+    if (held.accepted) inQ.accepted = held.accepted;
+    if (held.po && typeof held.po === 'object') inQ.proposalOptions = held.po;
+    is.status = 'accepted';
+    if (hs.acceptedAt) is.acceptedAt = hs.acceptedAt;
+    try { console.warn('[job ' + jobId + '] kept the customer\'s acceptance: the save had not seen it'); } catch (e) {}
+    return true;
+  }
+  if (!knows && ['opened', 'queried', 'declined'].indexOf(hs.status) >= 0 && (!is.status || is.status === 'sent')){
+    is.status = hs.status;
+    if (hs.query && !is.query) is.query = hs.query;
+    if (hs.declinedAt && !is.declinedAt) is.declinedAt = hs.declinedAt;
+  }
+  return false;
+}
 app.put('/jobs/:id', requireAuth, async (req, res) => {
   // A sent quote or a customer's move shows on Home at once — but a drawing
   // autosave does not touch the feed, so it no longer resets it.
@@ -3228,6 +3318,14 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
       }
     }
   } catch (e) {}
+  // …and the customer's acceptance, which a stale copy must never write over.
+  let _keptAcc = false;
+  try {
+    const _inQ2 = patch.draw_state && patch.draw_state.state && patch.draw_state.state.quote;
+    if (_inQ2) _keptAcc = await _keepCustomerState(req, req.params.id, _inQ2);
+  } catch (e) {
+    return res.status(503).json({ error: 'Could not read the job to keep the customer\'s acceptance — try again.' });
+  }
 
   patch.updated_at = new Date().toISOString();
   cols.push('updated_at');
@@ -3261,7 +3359,7 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
         'update public.jobs set ' + sets.join(', ') + ' where ' + where +
         ' returning ' + JOB_LIGHT_COLS, p);
       if (!r.rows.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
-      res.json(_jobLight(r.rows[0]));
+      res.json(Object.assign(_jobLight(r.rows[0]), _keptAcc ? { keptAcceptance: true } : {}));
       return;
     } catch (e) {
       // Never lose a save to a bad pool — fall through to PostgREST, which is
@@ -3279,7 +3377,7 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   // base timestamp, it has moved. .single() used to turn a miss into a 500,
   // which reads as our fault.
   if (!data || !data.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
-  res.json(_jobLight(data[0]));
+  res.json(Object.assign(_jobLight(data[0]), _keptAcc ? { keptAcceptance: true } : {}));
 });
 
 // ── Recently deleted jobs, and putting one back ─────────────────────
@@ -3390,6 +3488,10 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   }
   const clientName = req.body.client_name ? String(req.body.client_name).slice(0, 300) : null;
   const siteAddr   = req.body.site_address ? String(req.body.site_address).slice(0, 500) : null;
+  // The customer's acceptance, never written over by a stale copy (job 3288).
+  let _keptAcc = false;
+  try { _keptAcc = await _keepCustomerState(req, req.params.id, quote); }
+  catch (e) { return res.status(503).json({ error: 'Could not read the job to keep the customer\'s acceptance — try again.' }); }
   const pool = _pgPool();
   if (pool) {
     try {
@@ -3407,7 +3509,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
       // office was asked whether to write over "someone" — themselves,
       // seconds earlier, from the quote save.
       const _ua = r.rows && r.rows[0] && r.rows[0].updated_at;
-      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined });
+      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined, keptAcceptance: _keptAcc || undefined });
       if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, req.params.id); }
       return;
     } catch (e) {
@@ -3426,7 +3528,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   if (siteAddr) patch.site_address = siteAddr;
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
-  res.json({ ok: true, id: job.id, updated_at: patch.updated_at });
+  res.json({ ok: true, id: job.id, updated_at: patch.updated_at, keptAcceptance: _keptAcc || undefined });
   if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, job.id); }
 });
 

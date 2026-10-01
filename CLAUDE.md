@@ -1181,6 +1181,32 @@ Discipline (non-negotiable):
   onto the quote as `gradeDeltas`). A grade with no prices of its own still
   runs on the percentage from the Products list. `tests/gradeprices.mjs`.
 
+## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
+
+The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen
+still holding the pre-acceptance quote published it (`PUT /jobs/:id/quote`,
+which had no check), and the acceptance, the customer's picks, events and the
+frozen Accepted copy were wiped. `_keepCustomerState(req, jobId, inQ)` now runs
+on BOTH quote writes (`PUT /jobs/:id` and `PUT /jobs/:id/quote`): if the
+stored share is `accepted` and the incoming copy does not carry that
+acceptance's frozen copy (`versions.accepted.id`), the acceptance,
+`proposalOptions`, `versions.accepted` (+ its media) and the share status are
+put back and the response says `keptAcceptance` (the app shows
+`_keptAcceptanceNotice` with Reopen the job). Undo acceptance and a new draft
+after an acceptance keep the frozen copy, so they pass. Customer events are
+always unioned; an opened/queried/declined status is not knocked back to sent
+by a copy that has not seen it; a different token is left alone. A read
+failure refuses the write (503). `tests/acceptguard.mjs`.
+
+Same job: Paint Roof (an office option, `selectables.extras`) was added in
+Settings on another screen two minutes before the send, and the sending screen
+stamped the customer's copy from its OLD product list — no Paint Roof, so the
+customer never saw it and accepted $3,364.45. `_ensureCustomerLink` now runs
+`_qFreshProductsForSend()` first (GET /settings → selectables + price_book);
+if that moves the total from what the screen showed, NOTHING is sent and both
+figures are named. A Settings save in another tab reaches open tabs (the
+`storage` event on `fr_settings`). `tests/sendfresh.mjs`.
+
 ## OPEN AND URGENT — an accepted quote's figures still move
 
 The owner, 2026-09-30: "an accepted quote must never ever change, no matter

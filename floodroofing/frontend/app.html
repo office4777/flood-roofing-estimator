@@ -12657,7 +12657,43 @@ async function api(method, path, body) {
     throw err;
   }
   if (r.status === 204) return null;
-  return r.json();
+  var _j = await r.json();
+  try { if (_j && _j.keptAcceptance) _keptAcceptanceNotice(); } catch(e){}
+  return _j;
+}
+// Another tab saved Settings: take its products and price book, so this tab
+// never prices a quote from a list somebody has since changed.
+try {
+  window.addEventListener('storage', function(ev){
+    if (ev.key !== 'fr_settings' || !ev.newValue) return;
+    try {
+      var o = JSON.parse(ev.newValue); if (!o || typeof o !== 'object' || !window.S) return;
+      if (!S.settings) S.settings = {};
+      if (o.selectables && typeof o.selectables === 'object') S.settings.selectables = o.selectables;
+      if (o.price_book && typeof o.price_book === 'object') S.settings.price_book = o.price_book;
+      try { _qbBindExtraSetters(); } catch(e){}
+      try { if (document.body.getAttribute('data-tab') === 'quote') refreshQuoteProposal(); } catch(e){}
+    } catch(e){}
+  });
+} catch(e){}
+// THE CUSTOMER ACCEPTED WHILE THIS SCREEN WAS OPEN (2026-10-02, job 3288):
+// the server kept their acceptance rather than take this screen's older copy
+// of the quote. Say so, plainly and once, and offer to reopen the job so the
+// screen shows what the customer accepted.
+function _keptAcceptanceNotice(){
+  if (document.getElementById('keptAccBar')) return;
+  var b = document.createElement('div');
+  b.id = 'keptAccBar'; b.className = 'no-print';
+  b.setAttribute('style', 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:100006;background:#065f46;color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 12px 32px rgba(10,22,40,.35);font-size:13.5px;max-width:min(620px,94vw);display:flex;gap:12px;align-items:center;font-family:inherit');
+  b.innerHTML = '<span><b>The customer has accepted this quote.</b> This screen was showing an older copy, so their acceptance was kept and nothing they accepted was changed. Reopen the job to see it.</span>' +
+    '<button type="button" onclick="_keptAcceptanceReopen()" style="background:#fff;color:#065f46;border:none;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap">Reopen the job</button>' +
+    '<button type="button" aria-label="Close" onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer">\u2715</button>';
+  document.body.appendChild(b);
+}
+async function _keptAcceptanceReopen(){
+  var id = S.currentJobId; var b = document.getElementById('keptAccBar'); if (b) b.remove();
+  if (!id) return;
+  try { S._jobLoaded = null; await openJob(id, { quiet: true }); } catch(e){ try { location.reload(); } catch(e2){} }
 }
 
 // ── CRASH REPORTING ──────────────────────────────────────────────────
@@ -29489,10 +29525,47 @@ async function _publishQuoteForLink(opts){
   }
   return { ok: true, confirmed: true, heavySave: heavySave };
 }
+// THE CUSTOMER'S COPY IS PRICED FROM THE PRODUCTS AS THEY STAND (2026-10-02,
+// job 3288): the Paint Roof option was added in Settings two minutes before
+// the send, on another screen, and the screen that sent still held the
+// product list from before it — so the customer's copy carried no Paint Roof
+// at all, and they accepted a quote without it. The send now reads the
+// products (and the price book) from the server first; if that moves the
+// total from what the office was looking at, it stops and says so instead of
+// sending a figure nobody saw.
+async function _qFreshProductsForSend(){
+  if (window.__PLAYGROUND || window.__CUSTOMER_MODE) return { changed: false };
+  var before = null; try { before = _custBarTotalValue(); } catch(e){}
+  var s = null;
+  try { s = await Promise.race([ api('GET', '/settings'), new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 8000); }) ]); } catch(e){ return { changed: false, unread: true }; }
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return { changed: false, unread: true };
+  try {
+    if (!S.settings) S.settings = {};
+    if (s.selectables && typeof s.selectables === 'object') S.settings.selectables = s.selectables;
+    if (s.price_book && typeof s.price_book === 'object') S.settings.price_book = Object.assign({}, S.settings.price_book || {}, s.price_book);
+    try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+  } catch(e){}
+  try { _qbBindExtraSetters(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  var after = null; try { after = _custBarTotalValue(); } catch(e){}
+  var changed = (before != null && after != null && Math.abs(after - before) > 0.5);
+  if (changed){ try { refreshQuoteProposal(); } catch(e){} }
+  return { changed: changed, before: before, after: after };
+}
 async function _ensureCustomerLink(msg, opts){
   opts = opts || {};
   if (!S.quote){ alert('Open or create a quote first.'); return null; }
   if (!_quoteShareToken()){ alert('Could not generate a share token — try reopening the quote.'); return null; }
+  if (!opts.skipFresh){
+    var _fr = await _qFreshProductsForSend();
+    if (_fr && _fr.changed){
+      var _m = 'Your products or prices were changed on another screen since this quote was put together, so the quote now totals ' +
+        fmtMoney(_fr.after) + ' (it was ' + fmtMoney(_fr.before) + ' on this screen). Nothing has been sent \u2014 check the quote, then send it again.';
+      try { if (msg) { msg.textContent = _m; msg.style.color = '#b45309'; } } catch(e){}
+      alert(_m);
+      return null;
+    }
+  }
   var link = _customerLinkString(opts);
   if (!link){
     alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
