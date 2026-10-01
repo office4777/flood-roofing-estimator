@@ -188,7 +188,10 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
     panel.fit !== 'cover' && panel.h === 'auto', JSON.stringify({ fit: panel.fit, h: panel.h }));
   check('…each captioned with its page number', panel.caps.length === 3, JSON.stringify(panel.caps));
   await pg.evaluate(() => { const sl = document.getElementById('jobPhotosZoom'); sl.value = 250; _jobPhotosZoom(250); });
-  await pg.waitForTimeout(200);
+  // The zoom eases in: wait for it to arrive rather than reading it 200 ms in
+  // (a busy CI machine caught it at 2.47 on its way to 2.5, 2026-10-01).
+  await pg.waitForFunction(() => { const im = document.querySelector('#jobPhotosGrid > .pv-slot img');
+    return !im || /matrix\(2\.5/.test(getComputedStyle(im).transform); }, null, { timeout: 3000 }).catch(() => {});
   panel = await pg.evaluate(() => ({
     width: (document.getElementById('jobPhotosGrid') || {}).style?.width,
     out: (document.getElementById('jobPhotosZoomOut') || {}).textContent,
