@@ -86,6 +86,29 @@ v = await picks();
 check('deleting the grade, profile and thickness pages takes them off "What you chose" (and the rail, which reads the same list)',
   !['Steel grade', 'Roof profile', 'Steel thickness'].some(k => v.all.includes(k)) && !v.sum.some(k => /Steel grade|Roof profile|Steel thickness/.test(k)), JSON.stringify(v));
 
+// ── a deleted page takes its PRICE with it (the owner's Re-Screw quote:
+// the profile page deleted, "5-Rib profile +$41.49" still in the total) ──
+v = await pg.evaluate(async () => {
+  // as the quote was: page already out, the 5-Rib pick still set
+  S.quote.proposalOptions = Object.assign({}, S.quote.proposalOptions, { profile: '5rib' });
+  const parked = S.quote.modernParked.slice();
+  S.quote.modernParked = parked.filter(k => k !== 'profile');
+  const withPage = _qpSelectionChanges().filter(c => /profile/i.test(c.label)).length;
+  const sumWith = _qpSelectionDeltaSum();
+  S.quote.modernParked = parked;
+  const without = _qpSelectionChanges().filter(c => /profile/i.test(c.label)).length;
+  const sumWithout = _qpSelectionDeltaSum();
+  // and deleting a page now puts its pick back to the standard one
+  S.quote.modernParked = parked.filter(k => k !== 'grade');
+  S.quote.proposalOptions = Object.assign({}, S.quote.proposalOptions, { steelGrade: (_selGrades().find(g => g.id !== _selBaseGradeId()) || {}).id });
+  const gradeBefore = S.quote.proposalOptions.steelGrade;
+  _qbSectionRemove('grade'); await new Promise(r => setTimeout(r, 300));
+  return { withPage, without, sumWith, sumWithout, gradeBefore, gradeAfter: S.quote.proposalOptions.steelGrade, base: _selBaseGradeId() };
+});
+check('with its page in the quote, the 5-Rib pick is on the summary’s priced lines', v.withPage === 1 && v.sumWith >= v.sumWithout, JSON.stringify(v));
+check('…with its page deleted, it is not: no "5-Rib profile" line, and the total drops by it', v.without === 0, JSON.stringify(v));
+check('deleting a selection page puts its pick back to the standard one', v.gradeBefore !== v.base && v.gradeAfter === v.base, JSON.stringify(v));
+
 // ── Edit summary ──────────────────────────────────────────────────
 v = await pg.evaluate(() => { const b = document.querySelector('#qpRoot [data-qe-btn="summary"]'); return b ? b.textContent : ''; });
 check('the summary carries an "Edit summary" button (office)', /Edit summary/.test(v), v);
@@ -104,6 +127,18 @@ v = await pg.evaluate(async () => {
 });
 check('Edit summary rewords the main line', v.base === 'Re-screw & paint — main scope of work' && /Re-screw & paint — main scope of work/.test(v.sumText), v.sumText.slice(0, 120));
 check('…takes a line off, adds the office’s own, and the summary shows it', /Fixings/.test(v.pickText) && /New roofing screws/.test(v.pickText) && Array.isArray(v.saved), v.pickText);
+v = await pg.evaluate(async () => {
+  _qeEdit('summary'); await new Promise(r => setTimeout(r, 200));
+  const m = document.getElementById('qsumModal');
+  const priced = m._priced.map(r => r.key);
+  const i = m._priced.findIndex(r => /Roof Paint/.test(r.key));
+  if (i >= 0) m._priced[i].label = 'Roof painting (airless spray)';
+  _qsumSave(); await new Promise(r => setTimeout(r, 500));
+  const row = _custBarRows().find(r => r.key && /Roof Paint/.test(r.key));
+  return { priced, label: row && row.label, value: row && row.value, text: (document.querySelector('#qpRoot .qb-sum') || {}).textContent || '' };
+});
+check('Edit summary lists the priced lines under "What is in it" and rewords them — the price stays',
+  v.priced.some(k => /Roof Paint/.test(k)) && v.label === 'Roof painting (airless spray)' && /\+\$/.test(v.value) && /Roof painting \(airless spray\)/.test(v.text), JSON.stringify(v).slice(0, 300));
 v = await pg.evaluate(async () => {
   window.__CUSTOMER_MODE = true; refreshQuoteProposal(); await new Promise(r => setTimeout(r, 400));
   const out = { btn: !!document.querySelector('#qpRoot [data-qe-btn="summary"]'), text: (document.querySelector('#qpRoot .qb-picks') || {}).textContent || '',

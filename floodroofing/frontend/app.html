@@ -27268,7 +27268,14 @@ function _qpSelectionChanges(){
                  roofName: (rr.name || ('Roof ' + (i + 2))), roofIdx: rr.idx,
                  split: { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 } });
   });
-  if (p.steelGrade && p.steelGrade !== _selBaseGradeId())
+  // A selection page the office took out of a modern quote is no price
+  // either (2026-10-01, the owner's Re-Screw quote: the profile page was
+  // deleted and "5-Rib profile +$41.49" stayed in the total). Like the
+  // guttering, which has always gone with its page.
+  var _gone = [];
+  try { if (_quoteStyle() === 'modern' && Array.isArray(q.modernParked)) _gone = q.modernParked; } catch(e){}
+  var _off = function(k){ return _gone.indexOf(k) >= 0; };
+  if (p.steelGrade && p.steelGrade !== _selBaseGradeId() && !_off('grade'))
     out.push({ label: _gradeLabel(p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
   // 5-Rib is only supplied in 0.55 gauge, so the compulsory gauge upgrade is
   // charged (and labelled) as part of the 5-Rib pick — its card shows the
@@ -27276,11 +27283,11 @@ function _qpSelectionChanges(){
   // Corrugate stays its own line.
   // A profile that locks a gauge carries the gauge upgrade in its own price —
   // otherwise the profile looks free and the charge appears from nowhere.
-  var _lockG = _selProfileLocksGauge(p.profile);
+  var _lockG = _off('profile') ? null : _selProfileLocksGauge(p.profile);
   if (_lockG)
     out.push({ label: (_selProfileOf(p.profile) || {}).name + ' profile (supplied in 0.' + _lockG + ' gauge)',
                delta: _selGauge55Delta() });
-  else if (p.steelThickness && p.steelThickness !== '40')
+  else if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
     out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
@@ -27439,13 +27446,18 @@ function _qpSelectionChangesPriced(P){
     }
   });
   var baseG = q.baseGrade || 'maxam';
-  if (p.steelGrade && p.steelGrade !== baseG && P.grade[p.steelGrade] != null)
+  // A section deleted from a modern quote is no price on the customer's copy
+  // either — but never on an ACCEPTED quote, whose figures do not move.
+  var _gone = [];
+  try { if (!q.accepted && _quoteStyle() === 'modern' && Array.isArray(q.modernParked)) _gone = q.modernParked; } catch(e){}
+  var _off = function(k){ return _gone.indexOf(k) >= 0; };
+  if (p.steelGrade && p.steelGrade !== baseG && P.grade[p.steelGrade] != null && !_off('grade'))
     out.push({ label: (P.gradeLabel[p.steelGrade] || p.steelGrade) + ' steel', delta: P.grade[p.steelGrade] });
-  var lock = (P.profileLocks || {})[p.profile] || '';
+  var lock = _off('profile') ? '' : ((P.profileLocks || {})[p.profile] || '');
   if (lock)
     out.push({ label: (P.profileLabel[p.profile] || p.profile) + ' profile (supplied in 0.' + lock + ' gauge)',
                delta: P.gaugeUpgrade });
-  else if (p.steelThickness && p.steelThickness !== '40')
+  else if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
     out.push({ label: '0.55 gauge steel', delta: P.gaugeUpgrade });
   if (p.gutterType !== undefined && P.gutter[p.gutterType] != null) {
     // The override follows the selection, exactly as the live calc does.
@@ -28493,7 +28505,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -30684,6 +30696,8 @@ function _qsumOpen(){
       '<div class="qdesc-hd"><b>Edit summary</b><span>The words on the quote\u2019s summary, for this quote only. The prices are worked out from the quote and are not edited here. A line left blank follows the customer\u2019s own choice.</span></div>'+
       '<div class="qdesc-title"><label for="qsumBase">Main line</label>'+
         '<input type="text" id="qsumBase" maxlength="80" value="'+esc2(S.quote.summaryBaseLabel || '')+'" placeholder="Original quote \u2014 main scope of work"></div>'+
+      '<div class="qdesc-sub">What is in it <span>\u2014 reword a priced line; its price stays (the total has to add up). To take a choice off the quote, delete its page.</span></div>'+
+      '<div class="qdesc-list" id="qsumPriced"></div>'+
       '<div class="qdesc-sub">What you chose <span>\u2014 remove what does not apply to this job, reword the rest, or add your own lines</span></div>'+
       '<div class="qdesc-list" id="qsumList"></div>'+
       '<div class="qdesc-ft">'+
@@ -30697,6 +30711,16 @@ function _qsumOpen(){
   document.body.appendChild(host);
   host.addEventListener('click', function(e){ if (e.target === host) _qsumClose(); });
   host._rows = rows; host._auto = auto;
+  // the priced lines, as the summary shows them now
+  var _pr = []; try { _pr = _custBarRows().filter(function(r){ return r.kind === 'change' && r.key; }); } catch(e){}
+  var _rl0 = (S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
+  host._priced = _pr.map(function(r){ return { key: r.key, label: _rl0[r.key] || '', value: r.value }; });
+  var pl = document.getElementById('qsumPriced');
+  if (pl) pl.innerHTML = host._priced.length ? host._priced.map(function(r, i){
+    return '<div class="qdesc-row" style="display:flex;gap:6px;align-items:center">'+
+      '<input type="text" data-qsum-priced="'+i+'" value="'+esc2(r.label)+'" placeholder="'+esc2(r.key)+'" style="flex:1" oninput="document.getElementById(\'qsumModal\')._priced['+i+'].label=this.value">'+
+      '<b style="font-size:12.5px;white-space:nowrap;min-width:84px;text-align:right">'+esc2(r.value)+'</b></div>';
+  }).join('') : '<div style="font-size:12px;color:#64748b;padding:6px 2px">No priced choices on this quote.</div>';
   _qsumPaint();
 }
 function _qsumPaint(){
@@ -30721,6 +30745,8 @@ function _qsumDel(i){ var h = document.getElementById('qsumModal'); if (!h) retu
 function _qsumMove(i, d){ var h = document.getElementById('qsumModal'); if (!h) return; var j = i + d; if (j < 0 || j >= h._rows.length) return;
   var t = h._rows[i]; h._rows[i] = h._rows[j]; h._rows[j] = t; _qsumPaint(); }
 function _qsumReset(){ var h = document.getElementById('qsumModal'); if (!h) return;
+  (h._priced || []).forEach(function(r){ r.label = ''; });
+  [].forEach.call(document.querySelectorAll('#qsumPriced input'), function(i){ i.value = ''; });
   h._rows = h._auto.map(function(a){ return { k: a[2], label: '', value: '' }; });
   var b = document.getElementById('qsumBase'); if (b) b.value = ''; _qsumPaint(); }
 function _qsumClose(){ var h = document.getElementById('qsumModal'); if (h) h.remove(); }
@@ -30728,6 +30754,9 @@ function _qsumSave(){
   var h = document.getElementById('qsumModal'); if (!h || !S.quote) return;
   var base = String((document.getElementById('qsumBase') || {}).value || '').trim();
   if (base) S.quote.summaryBaseLabel = base; else delete S.quote.summaryBaseLabel;
+  var rl = Object.assign({}, (S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {});
+  (h._priced || []).forEach(function(r){ var t = String(r.label || '').trim(); if (t) rl[r.key] = t; else delete rl[r.key]; });
+  if (Object.keys(rl).length) S.quote.summaryRowLabels = rl; else delete S.quote.summaryRowLabels;
   var rows = h._rows.map(function(r){ var o = { label: String(r.label || '').trim(), value: String(r.value || '').trim() }; if (r.k) o.k = r.k; return o; })
                     .filter(function(r){ return r.k || r.label || r.value; });
   // Unchanged from the automatic list: no field at all.
@@ -31421,6 +31450,15 @@ function _qbSectionRemove(key){
   // No guttering page, no gutter in the price: a gutter the customer can no
   // longer see must not stay in their total.
   if (key === 'gutter'){ try { var _po = S.quote.proposalOptions || {}; if (_po.gutterType && _po.gutterType !== 'none') _setProposalOption_gutter('none'); } catch(e){} }
+  // …and the grade, profile and thickness go back to the standard pick, so
+  // nothing the customer can no longer see stays in the price.
+  try {
+    var _po2 = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+    if (key === 'grade' && _po2.steelGrade && _po2.steelGrade !== _selBaseGradeId()) _po2.steelGrade = _selBaseGradeId();
+    if (key === 'profile' && _po2.profile){ var _p0 = (_selProfiles()[0] || {}).id || 'corrugate'; if (_po2.profile !== _p0) _po2.profile = _p0; }
+    if (key === 'thickness' && _po2.steelThickness && _po2.steelThickness !== '40') _po2.steelThickness = '40';
+    try { recalcQuoteTotals(); } catch(e){}
+  } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast(_qModernLabel(key) + ' taken out of this quote \u2014 an Insert button stands where it was'); } catch(e){}
@@ -32222,6 +32260,7 @@ function _custBarRows(){
   // The office's own words for the main line (Edit summary), e.g. "Re-screw
   // & paint — main scope of work"; the money is never editable.
   var _bl = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
+  var _rl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
   if (!(scaffSub > 0) || scaffSub >= baseSub){
     rows.push({ kind: 'base', label: _bl || 'Original quote — main scope of work', short: _bl || 'Main scope of work',
                 value: fmtMoney(baseSub * (1 + rate)) });
@@ -32241,7 +32280,10 @@ function _custBarRows(){
   // adding information; the full itemised record is on the acceptance page.
   extra.concat(_qpSelectionChanges()).forEach(function(c){
     if (!c.delta) return;
-    rows.push({ kind: 'change', label: String(c.label),
+    // The office's own words for a priced line (Edit summary), keyed by the
+    // line's own label; the money is never the office's to retype here.
+    var _own = String(_rl[String(c.label)] || '').trim();
+    rows.push({ kind: 'change', key: String(c.label), label: _own || String(c.label),
                 value: (c.delta > 0 ? '+' : '−') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
   });
   rows.push({ kind: 'total', label: 'Your total', value: fmtMoney(_custBarTotalValue()) });
@@ -38848,6 +38890,7 @@ function _qtSnapshot(){
     wording: (function(){
       var w = {};
       ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
+      if (q.summaryRowLabels && typeof q.summaryRowLabels === 'object') w.summaryRowLabels = JSON.parse(JSON.stringify(q.summaryRowLabels));
       ['custDesc','custExcl','summaryPicks'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
       if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
       return w;
@@ -38870,7 +38913,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','custDesc','custExcl','summaryPicks','selHide'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','summaryPicks','selHide'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -39036,7 +39079,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel',
+var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;

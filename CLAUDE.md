@@ -647,7 +647,12 @@ Discipline (non-negotiable):
   pick, its blanks following the customer's choice; no `k` = the office's own
   line). `_qbPicks()` applies them over `_qbPicksAuto()` (keyed
   [label, value, key]); a section deleted from the quote (`_qModernParkedKeys`)
-  takes its pick with it. Saving the automatic list deletes both fields. Both
+  takes its pick with it — AND ITS PRICE (`_qpSelectionChanges` and, not on
+  an accepted quote, `_qpSelectionChangesPriced` skip a parked grade /
+  profile / thickness; `_qbSectionRemove` puts the pick back to the standard
+  one, like the gutter). The priced lines' words are editable too
+  (`S.quote.summaryRowLabels`, keyed by the line's own label, read in
+  `_custBarRows`; the money never). Saving the automatic list deletes the fields. Both
   are in Q_CONTENT_KEYS and Q_FRESH_DROP. AN OFFICE OPTION (extra group) shows
   its pick (`_qbExtraGroup` hands `current` the row's ID — it was handed the
   row, so nothing ever showed picked) and Recommended on the roofer's pick
