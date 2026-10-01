@@ -1205,7 +1205,25 @@ customer never saw it and accepted $3,364.45. `_ensureCustomerLink` now runs
 `_qFreshProductsForSend()` first (GET /settings → selectables + price_book);
 if that moves the total from what the screen showed, NOTHING is sent and both
 figures are named. A Settings save in another tab reaches open tabs (the
-`storage` event on `fr_settings`). `tests/sendfresh.mjs`.
+`storage` event on `fr_settings`), and a tab coming back after 2+ minutes
+re-reads the products (`visibilitychange`). The email window passes the job
+lock (typing, ✕, Send — `#quoteEmailModal` in `_lockClickAllowed` and the
+beforeinput/change guards), and opening it from the frozen Sent/Accepted view
+goes back to the working quote quietly (`_qvBackToDraft({stayLocked:true})`)
+— a re-send never asks to make a draft. Saved drafts carry a ✕
+(`_qvDeleteDraft`). `tests/sendfresh.mjs`.
+
+THE GATE FOR ALL OF IT: `tests/sendexact.mjs` runs the REAL server
+(fakepgrst) with the office app and the customer's page both routed to it:
+a quote with an office option picked as recommended, a job-only profile, a
+hidden grade, a page taken out, its own title/description/exclusions/summary,
+sent the real way (Email quote → Send) — then the customer's page must show
+the same sections, options, picks, recommendations, words, summary and total
+TO THE CENT; the job must keep `versions.sent` ("Sent quote") and, after the
+customer accepts, `versions.accepted` ("Accepted quote") beside it; a stale
+office save must not wipe the acceptance; and the office reopening the job
+sees both, marked. Extend THIS suite whenever a new kind of customisation is
+added to the quote.
 
 ## OPEN AND URGENT — an accepted quote's figures still move
 

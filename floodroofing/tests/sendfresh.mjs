@@ -77,6 +77,41 @@ check('a products change saved in another tab reaches this one', v === 'Paint Ro
 // the server kept a customer's acceptance over this screen's copy
 v = await pg.evaluate(() => { _keptAcceptanceNotice(); const b = document.getElementById('keptAccBar'); return b ? b.textContent : ''; });
 check('when the server keeps a customer’s acceptance, the office is told, with Reopen the job', /customer has accepted this quote/.test(v) && /Reopen the job/.test(v), v);
+// ── sending an already-sent quote again, on a locked job (2026-10-02) ──
+v = await pg.evaluate(async () => {
+  S.settings.branding = Object.assign({}, S.settings.branding || {}, { company_name: 'Flood Roofing', phone: '0800 435 663', email: 'office@floodroofing.co.nz' });
+  try { document.getElementById('setupWizard')?.remove(); } catch(e){}
+  S.currentJobId = 'job-3288'; S.jobLocked = true; try { _jobLockRender(); } catch(e){}
+  S.quote.versions = S.quote.versions || { sent: null, accepted: null, drafts: [] };
+  try { _qvMarkSent(); } catch(e){}
+  gotoTab('quote'); await new Promise(r => setTimeout(r, 400));
+  try { _qvView('sent'); } catch(e){}
+  await new Promise(r => setTimeout(r, 300));
+  const wasViewing = !!S._qvViewing;
+  await openQuoteEmail(); await new Promise(r => setTimeout(r, 300));
+  const m = document.getElementById('quoteEmailModal');
+  const lm = document.getElementById('jobLockModal');
+  return { wasViewing, open: m && m.style.display === 'block', viewing: S._qvViewing ? S._qvViewing.kind || 'yes' : null, lockModal: lm ? lm.textContent.slice(0, 120) : null };
+});
+check('Email quote from the frozen Sent view opens the email window on the quote the link shows', v.wasViewing && v.open && !v.viewing, JSON.stringify(v));
+await pg.click('#quoteEmailTo'); await pg.fill('#quoteEmailTo', 'customer@example.co.nz');
+await pg.click('#quoteEmailModal button[onclick="_closeQuoteEmail()"]');
+await sleep(300);
+v = await pg.evaluate(() => ({ ask: !!document.getElementById('qvAskModal'), lock: !!document.getElementById('jobLockModal'),
+  open: document.getElementById('quoteEmailModal').style.display === 'block' }));
+check('…typing in it and closing it ask nothing (no "This is the sent quote" window)', !v.ask && !v.lock && !v.open, JSON.stringify(v));
+
+// ── a saved draft can be deleted ──────────────────────────────────
+v = await pg.evaluate(async () => {
+  S.jobLocked = false; try { _jobLockRender(); } catch(e){}
+  const st = _qvStore();
+  st.drafts = [{ id: 'dA', at: new Date().toISOString(), label: 'Draft', total: 100, quote: {} }, { id: 'dB', at: new Date().toISOString(), label: 'Draft', total: 200, quote: {} }];
+  _qvRenderBar(); await new Promise(r => setTimeout(r, 100));
+  const btns = document.querySelectorAll('#qvViewingMenu .qv-draft-del').length;
+  _qvDeleteDraft('dA');
+  return { btns, left: _qvStore().drafts.map(d => d.id) };
+});
+check('each saved draft has a delete ✕, and deleting one leaves the others', v.btns === 2 && v.left.join() === 'dB', JSON.stringify(v));
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 300));
 await b.close();
 const bad = results.filter(x => !x).length;

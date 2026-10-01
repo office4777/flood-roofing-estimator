@@ -12676,6 +12676,28 @@ try {
     } catch(e){}
   });
 } catch(e){}
+// A TAB THAT HAS BEEN AWAY READS THE PRODUCTS AGAIN (2026-10-02, job 3288:
+// a screen left open since before Paint Roof was added drafted and saved
+// quotes without it). Coming back to the tab after two minutes or more, the
+// products and the price book are read from the server, quietly.
+window.__settingsAt = Date.now();
+try {
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState !== 'visible' || window.__CUSTOMER_MODE || window.__PLAYGROUND) return;
+    if (Date.now() - (window.__settingsAt || 0) < 120000) return;
+    try { if (!localStorage.getItem('fr_token')) return; } catch(e){ return; }
+    window.__settingsAt = Date.now();
+    Promise.resolve(api('GET', '/settings')).then(function(s){
+      if (!s || typeof s !== 'object' || Array.isArray(s) || !window.S) return;
+      if (!S.settings) S.settings = {};
+      if (s.selectables && typeof s.selectables === 'object') S.settings.selectables = s.selectables;
+      if (s.price_book && typeof s.price_book === 'object') S.settings.price_book = Object.assign({}, S.settings.price_book || {}, s.price_book);
+      try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+      try { _qbBindExtraSetters(); } catch(e){}
+      try { if (document.body.getAttribute('data-tab') === 'quote') refreshQuoteProposal(); } catch(e){}
+    }).catch(function(){});
+  });
+} catch(e){}
 // THE CUSTOMER ACCEPTED WHILE THIS SCREEN WAS OPEN (2026-10-02, job 3288):
 // the server kept their acceptance rather than take this screen's older copy
 // of the quote. Say so, plainly and once, and offer to reopen the job so the
@@ -17819,7 +17841,13 @@ function _lockClickAllowed(t){
   // price can move while a job is out with a customer — not to stop the
   // person who sent it reading it back. Photos, the maps panel, the photo
   // viewer and the page/zoom chrome are all browsing.
+  // The email window too (2026-10-02, the owner's: "let me send an already
+  // sent quote again ... let me exit the email window without this window
+  // appearing"): typing an address, closing it or pressing Send is not a
+  // change to the quote — Send is the deliberate act, and it takes care of
+  // the versions itself.
   if (t.closest('.lock-ok, [data-lock-ok], .no-lock, input[type="range"], #qaMsg, #qaVersions, ' +
+                '#quoteEmailModal, #quoteEmailOverlay, #qtSaveModal, ' +
                 '#jobLockModal, #qvAskModal, #aerialModal, #fergusRoofPanel, #jobPhotoViewer, ' +
                 '#photoLightbox, #jpMapPanelToggle, #jpMapPanelResize')) return true;
   var ctl = t.closest('button, [onclick], [onmousedown], [onwheel], input, select, textarea, [role="button"], [contenteditable="true"], .qp-map-frame');
@@ -17857,7 +17885,9 @@ function _lockCanvasEditGuard(e){
 document.addEventListener('beforeinput', function(e){
   if (!_jobLockActive()) return;
   var t = e.target; if (!t || !t.closest) return;
-  if (t.closest('#aerialModal, #jobLockModal')) return;
+  // …and the windows that never change the quote by typing in them (the email
+  // to the customer, Save as template, Edit summary — which saves on its own).
+  if (t.closest('#aerialModal, #jobLockModal, #quoteEmailModal, #qtSaveModal')) return;
   if (t.closest(_LOCK_SCOPE)){ e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt(); }
 }, true);
 // A pick in a drop-down or a tick in a box is a change too (a quote
@@ -17866,7 +17896,9 @@ document.addEventListener('beforeinput', function(e){
 document.addEventListener('change', function(e){
   if (!_jobLockActive()) return;
   var t = e.target; if (!t || !t.closest) return;
-  if (t.closest('#aerialModal, #jobLockModal')) return;
+  // …and the windows that never change the quote by typing in them (the email
+  // to the customer, Save as template, Edit summary — which saves on its own).
+  if (t.closest('#aerialModal, #jobLockModal, #quoteEmailModal, #qtSaveModal')) return;
   if (t.closest(_LOCK_SCOPE)){ e.stopImmediatePropagation(); _lockPrompt(); }
 }, true);
 
@@ -28613,6 +28645,17 @@ function _qvNewDraft(){
   go();
 }
 // Open a saved draft as the working draft — a worked-on one on screen is kept first.
+function _qvDeleteDraft(id){
+  var v = _qvStore(); if (!v || !Array.isArray(v.drafts)) return;
+  var i = v.drafts.findIndex(function(d){ return d && d.id === id; }); if (i < 0) return;
+  if (!confirm('Delete Draft ' + (i + 1) + '?\n\nThe quote on screen, the sent quote and the accepted quote are not touched.')) return;
+  v.drafts.splice(i, 1);
+  // The working quote was saved as that draft: it is just the working quote now.
+  if (S.quote && S.quote.draftId === id) delete S.quote.draftId;
+  try { _qvRenderBar(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast('Draft deleted'); } catch(e){}
+}
 function _qvOpenDraft(id){
   var v = _qvStore(); if (!v) return;
   var d = v.drafts.find(function(x){ return x && x.id === id; }); if (!d) return;
@@ -28723,7 +28766,10 @@ function _qvRenderBar(){
     (v.accepted ? item("_qvView('accepted')", 'Accepted quote', 'Exactly as accepted ' + _qvWhen(v.accepted.at), cur === 'accepted') : '') +
     (v.drafts.length ? '<div class="qv-menu-hd">Saved drafts (' + v.drafts.length + ')</div>' : '') +
     v.drafts.map(function(d, i){
-      return item("_qvOpenDraft('" + d.id + "')", 'Draft ' + (i + 1), _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · open now' : ''), false);
+      // ✕ deletes the saved copy (2026-10-02, the owner's: "let me delete a saved draft").
+      return '<div class="qv-draft-row" style="display:flex;align-items:stretch;gap:2px">' +
+        item("_qvOpenDraft('" + d.id + "')", 'Draft ' + (i + 1), _qvWhen(d.at) + ' · ' + fmtMoney(d.total || 0) + (d.id === S.quote.draftId ? ' · open now' : ''), false) +
+        '<button type="button" class="lock-ok qv-draft-del" title="Delete this saved draft" onclick="event.stopPropagation();' + close + '_qvDeleteDraft(\'' + d.id + '\')" style="flex:0 0 auto;width:34px;color:#b91c1c;font-size:14px;justify-content:center">\u2715</button></div>';
     }).join('') +
     _qvNewDraftMenu() +
     '</div></details>';
@@ -39919,6 +39965,10 @@ function _closeQuoteEmail(){
   if (o) o.style.display = 'none'; if (m) m.style.display = 'none';
 }
 async function openQuoteEmail(){
+  // Sending again from the frozen Sent (or Accepted) view: the email carries
+  // the customer's link, and the link shows the working quote — so the window
+  // works on that, quietly, with no "create a new draft?" question.
+  try { if (S._qvViewing && typeof _qvBackToDraft === 'function') _qvBackToDraft({ stayLocked: true }); } catch(e){}
   if (_brandingBeforeSend(function(){ openQuoteEmail(); })) return;
   // NO PRICE, NO SEND. A material row the job uses whose rate is nothing would
   // be quoted at nothing, and the owner sent one out that way on 2026-09-29.
