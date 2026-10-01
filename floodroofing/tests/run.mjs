@@ -6,6 +6,7 @@
 //   node floodroofing/tests/run.mjs plans     # one suite by name
 //
 //   JOBS=1 node floodroofing/tests/run.mjs   # one at a time, for a clean read
+//   SHARD=2/4 node floodroofing/tests/run.mjs ui   # the 2nd quarter of the browser suites
 //
 // These suites existed before this runner did — they were run by hand, which
 // meant they were run when somebody remembered. That is not a gate.
@@ -121,6 +122,18 @@ function run(name){
 console.log('RoofMap — ' + suites.length + ' suite' + (suites.length === 1 ? '' : 's')
   + (JOBS > 1 ? ', ' + JOBS + ' at a time' : '') + '\n');
 
+// SHARDS (2026-10-01, the owner's: "anyway we can speed up these?"). CI runs
+// the browser suites on four machines at once, each taking every fourth
+// suite of the longest-first order, so the slow ones are spread and each
+// machine gets a fair share. The browser half was ten minutes on one
+// machine; it is the step every ship waits on.
+const _shard = /^(\d+)\/(\d+)$/.exec(String(process.env.SHARD || ''));
+if (_shard){
+  const k = +_shard[1], n = +_shard[2];
+  const order = suites.slice().sort((a, b) => (SLOW.has(b) ? 1 : 0) - (SLOW.has(a) ? 1 : 0));
+  suites = order.filter((s, i) => i % n === (k - 1) % n);
+  console.log('shard ' + k + ' of ' + n + ': ' + suites.length + ' suites');
+}
 // Longest-first, but only as a scheduling hint — the reported failures below
 // still come back in the order the suites are declared, so a run is comparable
 // with the one before it however the workers happened to interleave.

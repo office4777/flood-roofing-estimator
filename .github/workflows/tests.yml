@@ -43,10 +43,17 @@ jobs:
       - name: Run the backend suites
         run: node floodroofing/tests/run.mjs api
 
+  # Four machines at once (2026-10-01): each runs every fourth browser suite
+  # (SHARD in run.mjs). One machine took ten minutes and every ship waited on
+  # it; the Tests run is only green when all four are.
   ui:
-    name: Browser
+    name: Browser (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,13 +75,15 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run the browser suites
         run: node floodroofing/tests/run.mjs ui
+        env:
+          SHARD: ${{ matrix.shard }}/4
       # Screenshots the suites take on the way through — the quickest way to
       # see what a failure actually looked like.
       - name: Keep the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-screenshots
+          name: test-screenshots-${{ matrix.shard }}
           path: .test-artifacts/
           if-no-files-found: ignore
           retention-days: 7

@@ -85,14 +85,21 @@ Discipline (non-negotiable):
    (`https://flood-roofing-estimator-git-claude-8454b2-office4777s-projects.vercel.app/app`,
    from `list_deployments` + `list_deployment_aliases` on the Vercel MCP)
    for a screenshot when words are not enough, never as a gate.
-2. Before fast-forwarding main: run the FULL local suite in the background
-   (`node floodroofing/tests/run.mjs`) on a clean committed tree and require
-   exit 0. If files changed mid-run, the result is void — re-run clean.
+2. ONE TEST RUN PER SHIP (the owner, 2026-10-01: "anyway we can speed up
+   these?" — "yes do them"). Run the AFFECTED suites locally (and the
+   sheet-layout gate after any engine change), commit, and push straight to
+   main: main's Tests run is the gate — the promote only runs when it is
+   green, so a red run ships nothing; fix forward. No PR run first (it ran
+   the same suites again and cost ~10 minutes a ship). The browser suites run
+   on FOUR machines at once (`strategy.matrix.shard` in tests.yml, `SHARD=k/4`
+   in run.mjs), so a ship is ~5–7 minutes from push to live. The full local
+   run (`node floodroofing/tests/run.mjs`) is still the tool for a wide change;
+   on Windows it cannot exit 0 (signup, dupjobui, restoredrill).
 3. Ship with `git push origin HEAD:main` (fast-forward only). Batch several
    commits into one ship when possible.
-4. After a green gate the pipeline lands about 10 minutes after the push
-   to main (Tests CI ~9 min, promote ~1 min). Schedule the promote check
-   for 12 minutes, not 22 — that wait was costing every ship ten minutes.
+4. The pipeline lands about 5–7 minutes after the push to main (Tests CI,
+   sharded, ~4 min; promote ~1–2 min). Watch the promote for that SHA
+   rather than waiting a fixed time.
 5. **A ship is not done until the promote workflow is green.** It verifies
    both halves, and both are the proof:
    - the FRONTEND, by fetching roofmap.co.nz/app and comparing it byte-for-byte
