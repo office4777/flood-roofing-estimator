@@ -3762,6 +3762,26 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-tot3 .qb-tl-big span{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fff; }
 .qb-tot3 .qb-tl-big b{ margin-top:2px; }
 .px-gst-note{ margin-left:10px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0a1628; background:#fde68a; border-radius:999px; padding:2px 8px; }
+.qd-addopt{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
+html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
+.qco{ background:#fff; border-radius:14px; width:min(640px,100%); max-height:92vh; overflow:auto; box-shadow:0 20px 60px rgba(10,22,40,.35); font-family:inherit; }
+.qco-hd{ padding:16px 20px 10px; border-bottom:1px solid #e5e9f0; }
+.qco-hd b{ display:block; font-size:16px; color:#0a1628; }
+.qco-hd span{ font-size:12.5px; color:#5b6b80; }
+.qco-bd{ padding:14px 20px; display:flex; flex-direction:column; gap:10px; }
+.qco-bd label.qco-l{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5b6b80; }
+.qco-bd input[type=text], .qco-bd input[type=number]{ width:100%; padding:8px 10px; border:1px solid #cfd8e3; border-radius:8px; font:inherit; font-size:13.5px; box-sizing:border-box; }
+.qco-row{ display:grid; grid-template-columns:1fr 1.6fr 92px 74px 28px; gap:6px; align-items:center; }
+.qco-row.hd{ font-size:10.5px; font-weight:700; color:#5b6b80; text-transform:uppercase; letter-spacing:.05em; }
+.qco-row .qco-rec{ font-size:11.5px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.qco-row .qco-x{ border:none; background:none; color:#b91c1c; font-size:15px; cursor:pointer; }
+.qco-ft{ padding:12px 20px 16px; border-top:1px solid #e5e9f0; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.qco-pick{ display:flex; flex-direction:column; gap:6px; }
+.qco-pick button{ text-align:left; padding:10px 12px; border:1px solid #cfd8e3; border-radius:10px; background:#fff; cursor:pointer; font:inherit; }
+.qco-pick button:hover{ border-color:#0a98d6; background:#f2f9fd; }
+.qco-pick small{ display:block; color:#5b6b80; font-size:11.5px; margin-top:2px; }
+.qco-msg{ color:#b91c1c; font-size:12px; }
+@media (max-width:560px){ .qco-row{ grid-template-columns:1fr 1fr 70px 60px 24px; } }
 .qd-parked{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
 .qe-insert{ border-style:dashed; }
 .qb-parked{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; background:#f4f6f9; border-top:1px dashed #b7c3d0; }
@@ -4593,7 +4613,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-01T18:55:51Z';
+  window.APP_BUILT_AT = '2026-10-01T19:15:54Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26601,9 +26621,27 @@ function _selExtras(){
   return _selExtrasOffered().filter(function(g){ return !_selQuoteHidden('extras', g.id); });
 }
 // Every extra group the company offers, before this quote's own hides.
+// A CUSTOM OPTION FOR THIS QUOTE (2026-10-02, the owner's: "let me add it as
+// an Insert custom option button ... edit the title and the options ... save
+// it as a saved custom option"). `S.quote.customExtras` holds groups of the
+// same shape as Settings' extras; they ride with the quote to the customer
+// (like customProfiles) and are merged here, so every reader — the sections,
+// the prices, share.priced, the acceptance — sees them. One with the SAME id
+// as a Settings option is this quote's own edit of it and takes its place.
+function _qCustomExtras(){
+  var q = window.S && S.quote;
+  return (q && Array.isArray(q.customExtras)) ? q.customExtras.filter(function(g){ return g && g.id; }) : [];
+}
 function _selExtrasOffered(){
   var list = (_selectables() || {}).extras;
-  if (!Array.isArray(list)) return [];
+  if (!Array.isArray(list)) list = [];
+  var cx = _qCustomExtras();
+  if (cx.length){
+    var own = {}; cx.forEach(function(g){ own[g.id] = g; });
+    list = list.map(function(g){ return (g && own[g.id]) ? own[g.id] : g; });
+    var have = {}; list.forEach(function(g){ if (g) have[g.id] = 1; });
+    list = list.concat(cx.filter(function(g){ return !have[g.id]; }));
+  }
   return list.filter(function(g){
     return g && !g.removed && _selIdOk(g.id) && String(g.title || '').trim() &&
            Array.isArray(g.rows) && g.rows.length >= 2 &&
@@ -28625,7 +28663,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -30092,7 +30130,7 @@ function _qbRender(){
       '</div>'+
       '<div class="qb-scroll-hint" id="qbScrollHint" aria-hidden="true">Scroll<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
       // The office's phone preview: the pages taken out, each with its Insert.
-      (function(){ var pk = _qbParkedForOffice(); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
+      (function(){ var pk = _qbParkedForOffice(); if (!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE)) pk = pk.concat(['__addopt']); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
     '</div>';
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
@@ -30493,6 +30531,8 @@ function _qbProposal(opts){
   opts = opts || {};
   var q = S.quote || {};
   var lines = _qbInclusionLines();
+  // The lines the options wrote come after the office's own (qb-incl-auto).
+  var ownIn = Math.min(_custDescLines().length, 12), ownEx = Math.min(_custExclLines().length, 12);
   var roofBlock = '';
   try { roofBlock = _qpInteractiveRoofBlock({ maxH: opts.mapH || 150, mapKey: opts.mapKey || 'book' }); } catch(e){ roofBlock = ''; }
   // Quotes sent before the book have no roof plan stashed on them, and the
@@ -30509,13 +30549,13 @@ function _qbProposal(opts){
       // get headings and the exclusions carry a red cross.
       (excl.length ? '<div class="qb-incl-hd">What\u2019s included</div>' : '')+
       '<div class="qb-incl">'+
-        lines.map(function(t){
-          return '<div class="qb-incl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
+        lines.map(function(t, i){
+          return '<div class="qb-incl-row'+(i >= ownIn ? ' qb-incl-auto' : '')+'"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+
       '</div>'+
       (excl.length ? '<div class="qb-incl-hd qb-excl-hd">What\u2019s excluded</div><div class="qb-incl qb-excl">'+
-        excl.map(function(t){
-          return '<div class="qb-incl-row qb-excl-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>'+esc2(t)+'</span></div>';
+        excl.map(function(t, i){
+          return '<div class="qb-incl-row qb-excl-row'+(i >= ownEx ? ' qb-incl-auto' : '')+'"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+'</div>' : '')+
       extraRows+
     '</div>'+
@@ -30593,7 +30633,52 @@ function _custDescLines(){
 }
 function _qbInclusionLines(){
   var g = _qbGradeName();
-  return _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+  var own = _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+  return _qbAddOptionLines(own, _qbOptionLines().incl);
+}
+// THE OPTIONS WRITE THEIR OWN LINES (2026-10-02, the owner's: "the
+// recommended choice should be added to the line item of the what's included,
+// then if the customer decides to exclude it, it should be removed from the
+// what's included and added as an exclusion line ... do the same for the
+// gutters"). Each office option (Paint Roof…) adds what is picked to What's
+// included — the choice's own description, else "Title — choice" — and a
+// pick that leaves it out ("Exclude", "None", "Not included" …, or a choice
+// marked `out`) puts the option's title under What's excluded instead. The
+// guttering does the same while its section is on the quote: the gutter
+// picked is included, "No new guttering" is an exclusion. The office's own
+// lines come first and a line it already wrote is not repeated.
+function _selExtraRowIsOut(r){
+  if (!r) return false;
+  if (r.out != null) return !!r.out;
+  return /^\s*(exclude|excluded|exclusion|none|no|not included|no thanks|without|leave it|decline)\b/i.test(String(r.name || ''));
+}
+function _qbOptionLines(){
+  var incl = [], excl = [];
+  try {
+    _selExtras().forEach(function(g){
+      var r = _selExtraPick(g); if (!r) return;
+      var title = String(g.title || '').trim();
+      if (_selExtraRowIsOut(r)){ if (title) excl.push(title); return; }
+      var d = String(r.desc || '').trim();
+      incl.push(d || (title + (r.name ? ' \u2014 ' + String(r.name).trim() : '')));
+    });
+  } catch(e){}
+  try {
+    var parked = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : [];
+    if (!_gutterExcluded() && parked.indexOf('gutter') < 0 && _selGutters().length){
+      var gt = ((S.quote && S.quote.proposalOptions) || {}).gutterType;
+      var gg = (gt && gt !== 'none') ? _selGutterOf(gt) : null;
+      if (gg){
+        var nm = String(gg.name || gg.id).trim();
+        incl.push('Supply & install new ' + nm + (/gutter|spouting/i.test(nm) ? '' : ' guttering'));
+      } else excl.push('New guttering');
+    }
+  } catch(e){}
+  return { incl: incl, excl: excl };
+}
+function _qbAddOptionLines(own, add){
+  var seen = {}; own.forEach(function(l){ seen[String(l).toLowerCase()] = 1; });
+  return own.concat(add.filter(function(l){ l = String(l || '').trim(); if (!l || seen[l.toLowerCase()]) return false; seen[l.toLowerCase()] = 1; return true; }));
 }
 // What the price does NOT cover, per quote (`S.quote.custExcl`); none by
 // default, so a quote with none reads exactly as before.
@@ -30603,7 +30688,8 @@ function _custExclLines(){
 }
 function _qbExclusionLines(){
   var g = _qbGradeName();
-  return _custExclLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+  var own = _custExclLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+  return _qbAddOptionLines(own, _qbOptionLines().excl);
 }
 // ── the office editor for those lines ─────────────────────────────
 // The classic document's description is the "What's included and our
@@ -31252,6 +31338,7 @@ function _qbOptionPage(o){
       '<h2 class="qb-h2">'+esc2(o.title)+'</h2>'+
       (o.edit ? _qeInlineBtn(o.edit) : '')+
       ((o.del && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\''+esc2(o.del)+'\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>' : '')+
+      (o.tools || '')+
       (o.blurb ? '<p class="qb-para">'+esc2(o.blurb)+'</p>' : '')+
       (o.figure || '')+
       '<div class="qb-opts">'+rows+'</div>'+
@@ -31593,7 +31680,8 @@ function _qbExtraGroup(g, gi){
   });
   return _qpOptPageWrap('extra' + gi, {
     eyebrow:'Also available', title:g.title || 'Options', group:'extra:' + g.id,
-    set:'_setProposalOption_extra_' + gi, current:pick, items:items, blurb:g.desc || ''
+    set:'_setProposalOption_extra_' + gi, current:pick, items:items, blurb:g.desc || '',
+    tools: _qcoToolsHtml(g)
   });
 }
 // The extra groups take two arguments, so each gets its own one-argument
@@ -31618,6 +31706,203 @@ function _qpOptPageWrap(key, o){
   // …and the guttering and the old roofing (2026-09-23).
   if (key === 'grade' || key === 'profile' || key === 'thickness' || key === 'gutter' || key === 'disposal') o.del = key;
   return _qbOptionPage(o);
+}
+// ── CUSTOM OPTIONS ON THE QUOTE (2026-10-02) ───────────────────────
+// Insert (new, or from the saved list), edit (title, words, choices, their
+// prices and which is recommended), delete from this quote, and save for
+// next time — all from the section itself. Saved options live in Settings
+// (`branding.saved_options`, beside the saved templates); a Settings option
+// (Quote's Product Options) edited here becomes this quote's own copy.
+function _qcoToolsHtml(g){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || !g) return '';
+  var id = esc2(g.id);
+  return '<div class="qco-tools no-print" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 8px">'+
+      '<button type="button" class="qe-inline qco-edit" onclick="event.stopPropagation();_qcoEdit(\''+id+'\')" title="The title, the words and the choices of this option, for this quote">\u270E Edit this section</button>'+
+      '<button type="button" class="qe-inline qco-save" onclick="event.stopPropagation();_qcoSave(\''+id+'\')" title="Keep this option so it can be inserted on another quote">\uD83D\uDCBE Save this custom option</button>'+
+      '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del qco-del" onclick="event.stopPropagation();_qcoDelete(\''+id+'\')" title="Take this option off this quote">Delete this page from this quote</button>'+
+    '</div>';
+}
+function _qcoSaved(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+  var br = S.settings.branding;
+  if (!Array.isArray(br.saved_options)) br.saved_options = [];
+  return br.saved_options;
+}
+function _qcoNewId(p){ return (p || 'qx') + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+function _qcoGroupOf(id){ return _selExtrasOffered().filter(function(g){ return g.id === id; })[0] || null; }
+function _qcoBusy(){ try { return typeof _qpAcceptedLock === 'function' && _qpAcceptedLock(); } catch(e){ return false; } }
+function _qcoChanged(msg){
+  try { _qbBindExtraSetters(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof renderProfitability === 'function') renderProfitability(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  if (msg) try { _siteToast(msg); } catch(e){}
+}
+function _qcoClose(){ var m = document.getElementById('qcoModal'); if (m) m.remove(); }
+function _qcoShell(inner){
+  _qcoClose();
+  var host = document.createElement('div');
+  host.id = 'qcoModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qco">' + inner + '</div>';
+  host.addEventListener('click', function(e){ if (e.target === host) _qcoClose(); });
+  document.body.appendChild(host);
+  return host;
+}
+// "+ Insert custom option": a new one, or one from the saved list (and any
+// Settings option this quote has had taken off).
+function _qcoInsertMenu(){
+  if (!S.quote || _qcoBusy()) return;
+  var saved = _qcoSaved();
+  var hidden = ((_selectables() || {}).extras || []).filter(function(g){ return g && !g.removed && _selQuoteHidden('extras', g.id); });
+  var rows = saved.map(function(o, i){
+    return '<button type="button" onclick="_qcoInsertSaved('+i+')"><b>'+esc2(o.title || 'Option')+'</b><small>'+
+      esc2((o.rows || []).map(function(r){ return r.name + (parseFloat(r.price) ? ' +' + fmtMoney(parseFloat(r.price)) : ''); }).join(' \u00b7 '))+'</small></button>';
+  }).concat(hidden.map(function(g){
+    return '<button type="button" onclick="_qcoUnhide(\''+esc2(g.id)+'\')"><b>'+esc2(g.title || 'Option')+'</b><small>From Settings \u2014 taken off this quote; put it back</small></button>';
+  }));
+  _qcoShell(
+    '<div class="qco-hd"><b>Insert custom option</b><span>An option the customer can choose on this quote, priced by you.</span></div>'+
+    '<div class="qco-bd"><div class="qco-pick">'+
+      '<button type="button" id="qcoNewBtn" onclick="_qcoEdit(null)"><b>+ New custom option</b><small>A title and two or more choices \u2014 e.g. Exclude / Include +$3,680</small></button>'+
+      '<label class="qco-l" style="margin-top:8px">Select from saved</label>'+
+      (rows.length ? rows.join('') : '<div style="font-size:12.5px;color:#5b6b80">No saved options yet \u2014 use \u201cSave this custom option\u201d on an option to keep it here.</div>')+
+    '</div></div>'+
+    '<div class="qco-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button></div>');
+}
+function _qcoPlace(g, rec){
+  if (!Array.isArray(S.quote.customExtras)) S.quote.customExtras = [];
+  var i = S.quote.customExtras.findIndex(function(x){ return x && x.id === g.id; });
+  if (i >= 0) S.quote.customExtras[i] = g; else S.quote.customExtras.push(g);
+  if (S.quote.selHide && S.quote.selHide.extras) delete S.quote.selHide.extras[g.id];
+  var po = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  var ex = Object.assign({}, po.extras || {});
+  if (rec && g.rows.some(function(r){ return r.id === rec; })) ex[g.id] = rec;
+  else if (!g.rows.some(function(r){ return r.id === ex[g.id]; })) delete ex[g.id];
+  po.extras = ex;
+}
+function _qcoInsertSaved(i){
+  if (_qcoBusy()) return;
+  var o = _qcoSaved()[i]; if (!o) return;
+  var g = JSON.parse(JSON.stringify(o));
+  var rec = g.rec; delete g.rec; delete g.savedAt;
+  g.id = _qcoNewId('qx');
+  _qcoPlace(g, rec);
+  _qcoClose();
+  _qcoChanged('\u201c' + (g.title || 'Option') + '\u201d added to this quote');
+}
+function _qcoUnhide(id){
+  if (_qcoBusy()) return;
+  if (S.quote.selHide && S.quote.selHide.extras) delete S.quote.selHide.extras[id];
+  _qcoClose();
+  _qcoChanged('Option put back on this quote');
+}
+// The editor. `id` null = a new option.
+function _qcoEdit(id){
+  if (!S.quote || _qcoBusy()) return;
+  var g = id ? _qcoGroupOf(id) : null;
+  var cur = g ? ((S.quote.proposalOptions || {}).extras || {})[g.id] : null;
+  var rows = g ? g.rows.map(function(r){ return { id:r.id, name:r.name || '', desc:r.desc || '', price:(parseFloat(r.price) || 0) }; })
+               : [{ id:'r1', name:'Exclude', desc:'', price:0 }, { id:'r2', name:'Include', desc:'', price:'' }];
+  var rec = g ? (cur && rows.some(function(r){ return r.id === cur; }) ? cur : rows[0].id) : 'r2';
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>'+(g ? 'Edit this option' : 'New custom option')+'</b><span>For this quote. The first choice is what the price already includes (no charge); each other choice adds its price, excl. GST. The recommended choice is what the quote starts on.</span></div>'+
+    '<div class="qco-bd">'+
+      '<label class="qco-l" for="qcoTitle">Title</label><input type="text" id="qcoTitle" maxlength="60" placeholder="e.g. Paint Roof" value="'+esc2(g ? g.title || '' : '')+'">'+
+      '<label class="qco-l" for="qcoDesc">Words under the title <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="text" id="qcoDesc" maxlength="240" value="'+esc2(g ? g.desc || '' : '')+'">'+
+      '<label class="qco-l">Choices</label><div id="qcoRows"></div>'+
+      '<div><button type="button" class="qa-btn" onclick="_qcoAddRow()">+ Add choice</button></div>'+
+      '<div class="qco-msg" id="qcoMsg"></div>'+
+    '</div>'+
+    '<div class="qco-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>'+
+      '<button type="button" class="qa-btn qa-btn-primary" id="qcoSaveBtn" onclick="_qcoApply()">'+(g ? 'Save' : 'Add to quote')+'</button></div>');
+  host._id = g ? g.id : null; host._rows = rows; host._rec = rec;
+  _qcoPaintRows();
+  setTimeout(function(){ try { document.getElementById('qcoTitle').focus(); } catch(e){} }, 30);
+}
+function _qcoReadRows(){
+  var host = document.getElementById('qcoModal'); if (!host) return;
+  host._rows.forEach(function(r, i){
+    var n = document.getElementById('qcoN' + i), d = document.getElementById('qcoD' + i), p = document.getElementById('qcoP' + i);
+    if (n) r.name = n.value; if (d) r.desc = d.value; if (p) r.price = p.value;
+  });
+  var c = host.querySelector('input[name=qcoRec]:checked'); if (c) host._rec = c.value;
+}
+function _qcoPaintRows(){
+  var host = document.getElementById('qcoModal'); if (!host) return;
+  var box = document.getElementById('qcoRows'); if (!box) return;
+  box.innerHTML = '<div class="qco-row hd"><span>Choice</span><span>Description (shown under it, and in What\u2019s included)</span><span>Price</span><span>Recomm.</span><span></span></div>'+
+    host._rows.map(function(r, i){
+      return '<div class="qco-row">'+
+        '<input type="text" id="qcoN'+i+'" maxlength="60" value="'+esc2(r.name)+'" placeholder="'+(i ? 'e.g. Include' : 'e.g. Exclude')+'">'+
+        '<input type="text" id="qcoD'+i+'" maxlength="200" value="'+esc2(r.desc)+'">'+
+        (i ? '<input type="number" id="qcoP'+i+'" step="0.01" min="0" value="'+esc2(r.price)+'" placeholder="$ excl. GST">' : '<span style="font-size:11.5px;color:#5b6b80">No charge</span>')+
+        '<label class="qco-rec"><input type="radio" name="qcoRec" value="'+esc2(r.id)+'"'+(host._rec === r.id ? ' checked' : '')+'> Rec.</label>'+
+        (host._rows.length > 2 ? '<button type="button" class="qco-x" title="Remove this choice" onclick="_qcoDelRow('+i+')">\u2715</button>' : '<span></span>')+
+      '</div>';
+    }).join('');
+}
+function _qcoAddRow(){
+  var host = document.getElementById('qcoModal'); if (!host) return;
+  _qcoReadRows();
+  if (host._rows.length >= 8) return;
+  var n = 1; while (host._rows.some(function(r){ return r.id === 'r' + n; })) n++;
+  host._rows.push({ id:'r' + n, name:'', desc:'', price:'' });
+  _qcoPaintRows();
+}
+function _qcoDelRow(i){
+  var host = document.getElementById('qcoModal'); if (!host) return;
+  _qcoReadRows();
+  if (host._rows.length <= 2) return;
+  var gone = host._rows.splice(i, 1)[0];
+  if (gone && host._rec === gone.id) host._rec = host._rows[0].id;
+  _qcoPaintRows();
+}
+function _qcoApply(){
+  var host = document.getElementById('qcoModal'); if (!host) return;
+  _qcoReadRows();
+  var msg = document.getElementById('qcoMsg');
+  var title = (document.getElementById('qcoTitle').value || '').trim().slice(0, 60);
+  var desc = (document.getElementById('qcoDesc').value || '').trim().slice(0, 240);
+  var rows = host._rows.map(function(r, i){
+    var o = { id:r.id, name:String(r.name || '').trim().slice(0, 60), desc:String(r.desc || '').trim().slice(0, 200), price: i ? Math.round((parseFloat(r.price) || 0) * 100) / 100 : 0 };
+    return o;
+  }).filter(function(r){ return r.name; });
+  if (!title){ if (msg) msg.textContent = 'Give the option a title.'; return; }
+  if (rows.length < 2){ if (msg) msg.textContent = 'An option needs at least two choices with names.'; return; }
+  var g = { id: host._id || _qcoNewId('qx'), title: title, desc: desc, rows: rows, custom: true };
+  _qcoPlace(g, host._rec);
+  _qcoClose();
+  _qcoChanged(host._id ? 'Option updated on this quote' : '\u201c' + title + '\u201d added to this quote');
+}
+function _qcoDelete(id){
+  if (!S.quote || _qcoBusy()) return;
+  var g = _qcoGroupOf(id);
+  if (!confirm('Take \u201c' + ((g && g.title) || 'this option') + '\u201d off this quote?')) return;
+  if (Array.isArray(S.quote.customExtras)) S.quote.customExtras = S.quote.customExtras.filter(function(x){ return x && x.id !== id; });
+  // A Settings option is taken off this quote only (Insert custom option puts it back).
+  if (((_selectables() || {}).extras || []).some(function(x){ return x && x.id === id; })){
+    if (!S.quote.selHide) S.quote.selHide = {};
+    if (!S.quote.selHide.extras) S.quote.selHide.extras = {};
+    S.quote.selHide.extras[id] = true;
+  }
+  var po = S.quote.proposalOptions || {};
+  if (po.extras && po.extras[id] != null){ po.extras = Object.assign({}, po.extras); delete po.extras[id]; }
+  _qcoChanged('Option taken off this quote');
+}
+async function _qcoSave(id){
+  var g = _qcoGroupOf(id); if (!g) return;
+  var list = _qcoSaved();
+  var copy = JSON.parse(JSON.stringify({ id: g.id, title: g.title, desc: g.desc || '', rows: g.rows }));
+  copy.rec = ((S.quote.proposalOptions || {}).extras || {})[g.id] || '';
+  copy.savedAt = new Date().toISOString();
+  var i = list.findIndex(function(o){ return o && String(o.title || '').toLowerCase() === String(g.title || '').toLowerCase(); });
+  if (i >= 0) list[i] = copy; else list.push(copy);
+  var ok = true;
+  try { if (typeof saveSettings === 'function') await saveSettings(); } catch(e){ ok = false; }
+  try { _siteToast(ok ? '\u201c' + (g.title || 'Option') + '\u201d saved \u2014 Insert custom option \u2192 Select from saved' : 'The option could not be saved \u2014 try again'); } catch(e){}
 }
 // ── taking a section out of this quote, and putting it back ─────────
 // The same store the template editor uses (`S.quote.modernParked`; the
@@ -31660,6 +31945,7 @@ function _qbParkedForOffice(){
   return out;
 }
 function _qbInsertBtnHtml(key){
+  if (key === '__addopt') return '<button type="button" class="qe-inline qe-insert qco-insert no-print" onclick="_qcoInsertMenu()" title="Add an option of your own to this quote \u2014 new, or one you saved">+ Insert custom option</button>';
   return '<button type="button" class="qe-inline qe-insert no-print" onclick="_qbSectionInsert(\''+esc2(key)+'\')" title="Put this section back into this quote">+ Insert '+esc2(_qModernLabel(key))+' page</button>';
 }
 // Mark the recommended row of a fixed group: the office's pick, else the base.
@@ -31933,6 +32219,23 @@ function _qdSectionsRaw(){
 // The office's preview shows an "Insert … page" placeholder where a
 // section was taken out, at the place the default order puts it.
 function _qdWithPlaceholders(secs){
+  return _qcoWithInsert(_qdWithParked(secs));
+}
+// "+ Insert custom option" stands above the roof colour section (the
+// owner's place for it), else above the first option, else above Review.
+// Office only, never the customer or paper.
+function _qcoWithInsert(list){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || !S.quote) return list;
+  var out = list.slice();
+  var at = -1;
+  ['colour'].forEach(function(k){ if (at < 0) out.forEach(function(x, i){ if (at < 0 && x.key === k) at = i; }); });
+  if (at < 0) out.forEach(function(x, i){ if (at < 0 && /^extra\d+$/.test(x.key)) at = i; });
+  if (at < 0) out.forEach(function(x, i){ if (at < 0 && (x.key === 'review' || x.key === 'summary')) at = i; });
+  if (at < 0) at = out.length;
+  out.splice(at, 0, { key:'__addopt', parked:true, label:'Custom option' });
+  return out;
+}
+function _qdWithParked(secs){
   var parked = _qbParkedForOffice(); if (!parked.length) return secs;
   var raw = _qdSectionsRaw().map(function(x){ return x.key; });
   if (raw.indexOf('condition') < 0) raw.splice(raw.indexOf('proposal'), 0, 'condition');
@@ -31956,6 +32259,7 @@ function _qdRender(){
   var logo = br.logo_url || br.logo || '';
   var q = S.quote || {};
   var main = _qdWithPlaceholders(secs).map(function(sc){
+    if (sc.key === '__addopt') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
     if (sc.parked) return '<section class="qd-sec qd-parked no-print" data-qd-parked="'+esc2(sc.key)+'">'+_qbInsertBtnHtml(sc.key)+'</section>';
     var inner = '';
     try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
@@ -39072,7 +39376,7 @@ function _qtSnapshot(){
       var w = {};
       ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
       if (q.summaryRowLabels && typeof q.summaryRowLabels === 'object') w.summaryRowLabels = JSON.parse(JSON.stringify(q.summaryRowLabels));
-      ['custDesc','custExcl','summaryPicks'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
+      ['custDesc','custExcl','summaryPicks','customExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
       if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
       return w;
     })(),
@@ -39094,7 +39398,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','summaryPicks','selHide'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','summaryPicks','selHide','customExtras'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -39260,7 +39564,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels',
+var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
@@ -39604,7 +39908,9 @@ function _fbAutoContext(){
   function add(k, v){ if (v !== '' && v != null) L.push(k + ': ' + v); }
   try {
     var build = '';
-    try { build = (document.querySelector('[title="App build"]')||{}).textContent || ''; } catch(e){}
+    // The build's own stamp (window.APP_BUILT_AT, set at every commit), then the label.
+    try { if (window.APP_BUILT_AT) build = 'build ' + window.APP_BUILT_AT + ' (updated ' + _appUpdatedText(window.APP_BUILT_AT) + ' NZ)'; } catch(e){}
+    try { if (!build) build = (document.querySelector('[title="App build"]')||{}).textContent || ''; } catch(e){}
     add('Build', build.replace(/\s+/g,' ').trim() || '(unknown)');
     add('Sent', new Date().toLocaleString('en-NZ'));
     try { add('In this session for', Math.round(performance.now()/60000) + ' min'); } catch(e){}

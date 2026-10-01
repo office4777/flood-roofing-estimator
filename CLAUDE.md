@@ -534,6 +534,30 @@ Discipline (non-negotiable):
   "Sent quote 1" (numbered only past one); `_qvView('sent', id)` opens any
   of them and an earlier one says the link shows the latest.
   `tests/sendexact.mjs` sends twice.
+- THE OPTIONS WRITE WHAT'S INCLUDED / EXCLUDED (2026-10-02,
+  `_qbOptionLines`): on the modern proposal each office option adds its
+  picked choice's description (else "Title — choice") after the office's own
+  lines; a pick that leaves it out (`_selExtraRowIsOut`: a name like
+  Exclude / None / Not included, or `row.out`) puts the option's TITLE under
+  What's excluded instead. The gutter does the same while its section is on
+  the quote ("Supply & install new <gutter>", or "New guttering" excluded).
+  A line the office already wrote is not repeated; the generated rows carry
+  `.qb-incl-auto` (suites pinning the office's own lines skip them).
+- CUSTOM OPTIONS ON THE QUOTE (2026-10-02, `_qco*`, `tests/customopts.mjs`):
+  `S.quote.customExtras` (Settings' extras shape) merged by
+  `_selExtrasOffered` — so pricing, `share.priced`, the customer and the
+  acceptance (server.js checks `quote.customExtras` too) all see them; one
+  with a Settings option's id is this quote's own edit of it. "+ Insert
+  custom option" (`_qcoInsertMenu`, the `__addopt` placeholder from
+  `_qcoWithInsert`, office only) stands ABOVE the roof colour (else the first
+  option, else Review) and offers New (`_qcoEdit(null)`) or Select from saved
+  (`branding.saved_options`, plus any Settings option hidden on this quote).
+  Each option section carries Edit this section (`_qcoEdit(id)`: title,
+  words, 2–8 choices, first = no charge, a Recommended radio = the pick),
+  Save this custom option (`_qcoSave`, upsert by title, `rec` kept) and
+  Delete this page (`_qcoDelete`: removes a quote option, hides a Settings
+  one via `selHide.extras`). `customExtras` is in Q_CONTENT_KEYS,
+  Q_FRESH_DROP and a template's `wording`. `tests/sendexact.mjs` sends one.
 - THE "UPDATED …" LINE (2026-10-02): `window.APP_BUILT_AT` (UTC ISO) in
   app.html, rendered by `_appUpdatedRender` as "Updated 7:48 am 2/10" (NZ
   time, light grey, full date on hover) in the sidebar's `.hdr-right` band

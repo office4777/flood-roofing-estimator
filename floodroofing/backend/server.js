@@ -4628,7 +4628,9 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
             // Known from the priced block the office stamped at send, or from
             // the products snapshot that rode with the quote.
             const fromPriced = known[gid] && known[gid].rows && known[gid].rows[rid];
-            const grp = listed.find(g => g && g.id === gid);
+            // …or from the quote's own custom options (2026-10-02, customExtras).
+            const grp = listed.find(g => g && g.id === gid) ||
+                        (Array.isArray(quote.customExtras) ? quote.customExtras : []).find(g => g && g.id === gid);
             const fromSnap = grp && Array.isArray(grp.rows) && grp.rows.some(r => r && r.id === rid);
             if (fromPriced || fromSnap) ex[gid] = rid;
           }

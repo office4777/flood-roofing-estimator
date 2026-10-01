@@ -121,12 +121,16 @@ v = await office.evaluate(async () => {
   q.custDesc = ['Remove existing Roofing Nails', 'Supply & install new Roofing Screws', 'Paint Roofing (unless deselected below)'];
   q.custExcl = ['Spouting'];
   q.customProfiles = [{ id: 'trimrib7', name: 'Trimrib 7 (this job only)', pct: 4 }];
+  // an option made on THIS quote (Insert custom option, 2026-10-02)
+  q.customExtras = [{ id: 'qxguard', title: 'Gutter guard', custom: true, rows: [
+    { id: 'r1', name: 'Not included', desc: '', price: 0 },
+    { id: 'r2', name: 'Fit gutter guard', desc: 'Supply & fit gutter guard to every gutter', price: 640 } ] }];
   const g2 = (_selGrades().find(g => g.id !== _selBaseGradeId()) || {}).id;
   q.selHide = { grades: { zincalume: true } };
   q.modernParked = ['disposal'];
   q.summaryBaseLabel = 'Re-screw & paint — main scope of work';
   q.summaryPicks = [{ k: 'grade', label: '', value: '' }, { label: 'Fixings', value: 'New roofing screws' }];
-  q.proposalOptions = { steelGrade: g2 || 'maxam', profile: 'corrugate', steelThickness: '40', extras: { paintroof: 'incl' } };
+  q.proposalOptions = { steelGrade: g2 || 'maxam', profile: 'corrugate', steelThickness: '40', extras: { paintroof: 'incl', qxguard: 'r2' } };
   try { recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   const ok = await saveCurrentJob({ force: true });
@@ -228,11 +232,13 @@ await sleep(1500);
 const custSaw = await cust.evaluate(new Function('return (' + SNAP.toString() + ')()'));
 const same = (k) => JSON.stringify(officeSent[k]) === JSON.stringify(custSaw[k]);
 check('the customer sees the same sections as the office sent', same('sections'), JSON.stringify({ office: officeSent.sections, customer: custSaw.sections }));
-check('…the same office option (Paint Roof), with the same choices and prices', same('extras') && custSaw.extras.length === 1, JSON.stringify({ office: officeSent.extras, customer: custSaw.extras }));
+check('…the same office options (Paint Roof, and the quote’s own Gutter guard), with the same choices and prices', same('extras') && custSaw.extras.length === 2 && custSaw.extras.some(x => /^qxguard:Gutter guard/.test(x)), JSON.stringify({ office: officeSent.extras, customer: custSaw.extras }));
 check('…on the same pick, recommended the same', same('extraPick') && same('extraRec') && custSaw.extraPick === 'incl' && custSaw.extraRec === 'incl', JSON.stringify({ o: [officeSent.extraPick, officeSent.extraRec], c: [custSaw.extraPick, custSaw.extraRec] }));
 check('…the same grades (the hidden one hidden) and profiles (the job’s own one there)',
   same('grades') && same('profiles') && !custSaw.grades.includes('zincalume') && custSaw.profiles.includes('trimrib7'), JSON.stringify({ o: [officeSent.grades, officeSent.profiles], c: [custSaw.grades, custSaw.profiles] }));
 check('…the same title, description and exclusions', same('title') && same('desc') && same('excl'), JSON.stringify({ o: officeSent.title, c: custSaw.title }));
+check('…What’s included carries the picked options’ own words (Paint Roof, Gutter guard)',
+  custSaw.desc.includes('Paint roof with roof paint using an airless sprayer') && custSaw.desc.includes('Supply & fit gutter guard to every gutter'), JSON.stringify(custSaw.desc));
 check('…the same summary, line for line, and the same picks', same('rows') && same('picks'), JSON.stringify({ o: officeSent.rows, c: custSaw.rows }));
 check('…and the same total, to the cent', officeSent.total === custSaw.total, officeSent.total + ' vs ' + custSaw.total);
 
@@ -248,6 +254,7 @@ q = row().draw_state.state.quote;
 check('the customer’s acceptance lands on the job: accepted, by name, at the total they saw',
   q.share.status === 'accepted' && q.accepted && /Miria/.test(q.accepted.name) && Math.abs((+q.accepted.total || 0) - custSaw.total) < 0.01,
   JSON.stringify({ st: q.share.status, acc: q.accepted && { name: q.accepted.name, total: q.accepted.total } }));
+check('…with the quote’s own option accepted as picked (Gutter guard)', ((q.proposalOptions || {}).extras || {}).qxguard === 'r2', JSON.stringify((q.proposalOptions || {}).extras));
 check('the job keeps the quote EXACTLY as accepted — versions.accepted, labelled "Accepted quote" — beside the sent one',
   q.versions && q.versions.accepted && /Accepted/i.test(q.versions.accepted.label || '') && q.versions.sent &&
   ((q.versions.accepted.quote || {}).proposalOptions || {}).extras && q.versions.accepted.quote.proposalOptions.extras.paintroof === 'incl',

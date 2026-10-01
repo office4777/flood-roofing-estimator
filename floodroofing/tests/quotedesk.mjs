@@ -121,7 +121,7 @@ check('the proposal carries the roof plan with the include/exclude buttons', v.p
 check('…and the review shows the roofs read-only', v.reviewPlan && v.reviewBtns === 0, v.reviewBtns + ' buttons');
 
 // ── the six description lines ────────────────────────────────────
-const lines = await d.pg.evaluate(() => [...document.querySelectorAll('#qd-proposal .qb-incl-row')].map(e => e.textContent.trim()));
+const lines = await d.pg.evaluate(() => [...document.querySelectorAll('#qd-proposal .qb-incl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()));
 const dcover = await d.pg.evaluate(() => { const el = document.getElementById('qd-cover'); const rows = {}; el.querySelectorAll('.qb-meta > div').forEach(x => { rows[x.querySelector('dt').textContent] = x.querySelector('dd').textContent; }); return { rows, stats: el.querySelectorAll('.qb-stat').length, lead: /Prepared for/.test(el.textContent) }; });
 check('the computer cover carries the same facts: Expires and Prepared by, no area, pitch or "Prepared for"', dcover.rows.Expires === '19/10/2026' && dcover.rows['Prepared by'] === 'Aron Flood' && dcover.stats === 0 && !dcover.lead, JSON.stringify(dcover));
 check('the proposal reads the six plain lines, the chosen grade filled in',
@@ -139,7 +139,7 @@ const pick = await d.pg.evaluate(async () => {
   document.querySelector('#qd-grade [data-qb-opt="steelGrade"][data-qb-val="colorzen"]').click();
   await new Promise(r => setTimeout(r, 700));
   return { y0, y1: sc.scrollTop, t0, t1: document.getElementById('qdTotal').textContent,
-           line: [...document.querySelectorAll('#qd-proposal .qb-incl-row')][3].textContent.trim(),
+           line: [...document.querySelectorAll('#qd-proposal .qb-incl-row:not(.qb-incl-auto)')][3].textContent.trim(),
            pick: /Armorsteel ColorZen/.test((document.querySelector('.qd-rail-picks') || {}).textContent || ''),
            on: (document.querySelector('#qdNav button.on') || {}).textContent,
            saved: S.quote.proposalOptions.steelGrade };
@@ -273,12 +273,12 @@ const ph = await m.pg.evaluate(async () => {
   _qbGo(keys.indexOf('proposal'));
   await new Promise(r => setTimeout(r, 400));
   return { book: document.documentElement.classList.contains('qp-book'),
-           lines: [...document.querySelectorAll('#qbPage .qb-incl-row')].map(e => e.textContent.trim()),
+           lines: [...document.querySelectorAll('#qbPage .qb-incl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()),
            total: _qbTotal() };
 });
 await m.ctx.close();
 const d2 = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house', 'Strip the old roof', 'Fit new {grade} sheets'] });
-const dk = await d2.pg.evaluate(() => ({ lines: [...document.querySelectorAll('#qd-proposal .qb-incl-row')].map(e => e.textContent.trim()), total: _qbTotal() }));
+const dk = await d2.pg.evaluate(() => ({ lines: [...document.querySelectorAll('#qd-proposal .qb-incl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()), total: _qbTotal() }));
 await d2.ctx.close();
 check('an office-edited description reaches the customer, grade filled in',
   ph.book && ph.lines.join('|') === 'Scaffold the house|Strip the old roof|Fit new Colorsteel® MAXAM sheets', ph.lines.join(' / '));
@@ -290,15 +290,15 @@ check('…and the phone and the computer read the same lines and the same total'
 const ex = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house'], custExcl:['Gutter replacement', 'Painting of {grade} flashings'] });
 const xd = await ex.pg.evaluate(() => ({
   heads: [...document.querySelectorAll('#qd-proposal .qb-incl-hd')].map(e => e.textContent.trim()),
-  incl: [...document.querySelectorAll('#qd-proposal .qb-incl:not(.qb-excl) .qb-incl-row')].map(e => e.textContent.trim()),
-  excl: [...document.querySelectorAll('#qd-proposal .qb-excl .qb-excl-row')].map(e => e.textContent.trim()),
+  incl: [...document.querySelectorAll('#qd-proposal .qb-incl:not(.qb-excl) .qb-incl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()),
+  excl: [...document.querySelectorAll('#qd-proposal .qb-excl .qb-excl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()),
   cross: [...document.querySelectorAll('#qd-proposal .qb-excl-row svg')].every(sv => getComputedStyle(sv).color === 'rgb(192, 57, 43)'),
 }));
 await ex.ctx.close();
 check('exclusions show under their own heading, crossed in red, and the inclusions get a heading too',
   xd.heads.join('|') === 'What’s included|What’s excluded' && xd.incl.join('|') === 'Scaffold the house' && xd.excl.join('|') === 'Gutter replacement|Painting of Colorsteel® MAXAM flashings' && xd.cross,
   JSON.stringify(xd));
-check('…and a quote with none carries no headings at all', dk.lines.length === 3 && !(await (async () => { const o = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house'] }); const h = await o.pg.evaluate(() => document.querySelectorAll('#qd-proposal .qb-incl-hd').length); await o.ctx.close(); return h; })()));
+check('…and a quote with none carries no headings at all', dk.lines.length === 3 && !(await (async () => { const o = await open({ width:1366, height:850 }, { custDesc:['Scaffold the house'], gutterExcluded:true }); const h = await o.pg.evaluate(() => document.querySelectorAll('#qd-proposal .qb-incl-hd').length); await o.ctx.close(); return h; })()));
 
 // ── the recommended choice is the roofer's own pick ──────────────
 // "whatever selection is chosen in the app before the user sends it …
@@ -386,8 +386,8 @@ const ed = await o.pg.evaluate(async () => {
   out.exclRows = document.querySelectorAll('#qdescExclList .qdesc-row').length;
   _qdescSave(); await new Promise(r => setTimeout(r, 400));
   out.exclSaved = (S.quote.custExcl || []).slice();
-  out.exclShown = _qbExclusionLines();
-  out.exclOnPage = document.querySelectorAll('#qpRoot .qb-excl-row').length;
+  out.exclShown = _qbExclusionLines().slice(0, _custExclLines().length);   // the office's own (the options' follow)
+  out.exclOnPage = document.querySelectorAll('#qpRoot .qb-excl-row:not(.qb-incl-auto)').length;
   _qdescOpen(); await new Promise(r => setTimeout(r, 200));
   _qdescDel(0, 'x'); _qdescSave(); await new Promise(r => setTimeout(r, 300));
   out.exclGone = !('custExcl' in S.quote);

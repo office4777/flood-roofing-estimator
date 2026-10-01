@@ -54,7 +54,8 @@ await pg.waitForTimeout(2400);
 // selections next to the selections, edit the gutter selections next to
 // the gutter selections") — no rail down the left any more.
 const where = await pg.evaluate(async () => {
-  const at = () => [...document.querySelectorAll('#qpRoot .qe-inline')].map(b => b.dataset.qeBtn + '@' + ((b.closest('section') || {}).id || ''));
+  // The Insert buttons (a parked page's, "+ Insert custom option") are not edit buttons.
+  const at = () => [...document.querySelectorAll('#qpRoot .qe-inline:not(.qe-insert)')].map(b => b.dataset.qeBtn + '@' + ((b.closest('section') || {}).id || ''));
   const out = { rail: !!document.getElementById('qeRail'), desk: at() };
   _qeEdit('gutter'); await new Promise(r => setTimeout(r, 200));
   out.gutterTitle = (document.querySelector('#qselModal .qsel-hd b') || {}).textContent || '';
@@ -75,7 +76,8 @@ check('Edit description sits on the proposal, Edit roof condition on the conditi
 const rail = await pg.evaluate(async () => {
   _qeRailSync(); await new Promise(r => setTimeout(r, 100));
   const wrap = document.getElementById('quoteProposal').getBoundingClientRect();
-  const btns = [...document.querySelectorAll('#qeRail .qe-rail-btn')].map(b => {
+  const insertOnRail = [...document.querySelectorAll('#qeRail .qe-rail-btn')].some(b => /Insert custom option/.test(b.textContent));
+  const btns = [...document.querySelectorAll('#qeRail .qe-rail-btn')].filter(b => b.dataset.qeRail).map(b => {
     const r = b.getBoundingClientRect();
     const a = document.querySelector('#qpRoot .qe-inline[data-qe-btn="' + b.dataset.qeRail + '"]').getBoundingClientRect();
     const hand = [...document.querySelectorAll('#qeRail .qe-rail-line')].find(l => Math.abs(parseFloat(l.style.top) - parseFloat(b.style.top)) < 2);
@@ -84,12 +86,13 @@ const rail = await pg.evaluate(async () => {
              close: a.left - r.right < 80, hand: !!h && h.left >= r.right - 2 && h.right <= a.left + 2 && /\u{1F449}/u.test(hand.textContent) };
   });
   const lines = [...document.querySelectorAll('#qeRail .qe-rail-line')].map(l => /\u{1F449}/u.test(l.textContent));
-  return { on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
+  return { insertOnRail, on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
            inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
 });
-// Seven since 2026-10-01: Edit summary on the Your quote section.
-check('a wide office screen shows the rail: seven buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
-  rail.on && rail.gutter >= 150 && rail.btns.length === 7 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 7 && rail.lines.every(Boolean) && rail.inlineHidden,
+// Seven since 2026-10-01: Edit summary on the Your quote section; and
+// "+ Insert custom option" (2026-10-02) rides the rail too, with its own hand.
+check('a wide office screen shows the rail: seven edit buttons in the left gutter, each level with its block, close beside it, a pointing hand between — and + Insert custom option',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 7 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.insertOnRail && rail.lines.length === 8 && rail.lines.every(Boolean) && rail.inlineHidden,
   JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
@@ -284,7 +287,7 @@ const park = await pg.evaluate(async () => {
 });
 check('the grade, profile, thickness, guttering and old roof sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness,gutter,disposal', JSON.stringify(park.delBtns));
 check('deleting the profile section leaves an Insert Profile page button between the grade and the thickness', park.parked.join(',') === 'profile' && park.profileGone && /Insert Profile page/.test(park.placeholder || '') && park.afterGrade === 'grade' && park.beforeThickness === 'thickness', JSON.stringify(park));
-check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
+check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page|+ Insert custom option' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
 check('…and Insert puts it back', park.back);
 
 // GRADE AND GAUGE DELTAS ARE WORKED ON THE RAW MATERIAL COST — before the
