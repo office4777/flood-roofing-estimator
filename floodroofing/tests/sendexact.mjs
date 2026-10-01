@@ -182,6 +182,40 @@ check('…with every customisation inside it: the option, the job’s own profil
   q.selHide && q.selHide.grades && q.selHide.grades.zincalume && (q.modernParked || []).includes('disposal') && q.proposalTitle && q.custDesc.length === 3 && q.summaryPicks.length === 2,
   JSON.stringify({ extras: (q.selectablesSnapshot.extras || []).map(g => g.id) }));
 
+// SENT AGAIN (2026-10-02, the owner's: "I just sent another quote and it has
+// overwritten the previous ... it should show both sent quotes separately"):
+// the second send is kept beside the first, never over it.
+const firstSentId = q.versions.sent.id, firstSentAt = q.versions.sent.at;
+await sleep(1100);
+v = await office.evaluate(async () => {
+  await openQuoteEmail(); await new Promise(r => setTimeout(r, 300));
+  document.getElementById('quoteEmailTo').value = 'customer@example.co.nz';
+  const su = document.getElementById('quoteEmailSubject'); if (su && !su.value) su.value = 'Your roofing quote 3288 — Flood Roofing';
+  const bo = document.getElementById('quoteEmailBody'); if (bo && !/https?:/.test(bo.value)) bo.value = 'Hi Miria, here is your quote again: ' + (_customerLinkString() || '');
+  const before = S.quote.versions.sent.id;
+  await _quoteEmailSendNow();
+  for (let i = 0; i < 60 && S.quote.versions.sent.id === before; i++) await new Promise(r => setTimeout(r, 250));
+  try { await (window.__qSendTail || Promise.resolve()); } catch(e){}
+  await new Promise(r => setTimeout(r, 1500));
+  const menu = document.getElementById('qvViewingMenu');
+  return { items: menu ? [...menu.querySelectorAll('button')].map(x => x.textContent.trim()) : [] };
+});
+q = row().draw_state.state.quote;
+check('a second send is KEPT BESIDE the first: the latest is the Sent quote, the first is still there whole',
+  q.versions.sent.id !== firstSentId && Array.isArray(q.versions.sentEarlier) && q.versions.sentEarlier.length === 1 &&
+  q.versions.sentEarlier[0].id === firstSentId && q.versions.sentEarlier[0].at === firstSentAt && !!q.versions.sentEarlier[0].quote,
+  JSON.stringify({ sent: q.versions.sent.id, first: firstSentId, earlier: (q.versions.sentEarlier || []).map(d => d.id) }));
+check('…and the Viewing menu lists both, numbered, the latest marked',
+  v.items.some(t => /^(✓ )?Sent quote 2 · latest/.test(t)) && v.items.some(t => /^(✓ )?Sent quote 1/.test(t)), JSON.stringify(v.items));
+v = await office.evaluate(async (id) => {
+  _qvView('sent', id); await new Promise(r => setTimeout(r, 400));
+  const t = Math.round(_custBarTotalValue() * 100) / 100, st = (document.querySelector('.qv-status') || {}).textContent || '';
+  _qvBackToDraft(); await new Promise(r => setTimeout(r, 300));
+  return { t, st };
+}, firstSentId);
+check('…the first send opens on its own, read only, saying the link shows the latest',
+  v.t === officeSent.total && /earlier send/.test(v.st), JSON.stringify(v));
+
 // ── the customer's page ──────────────────────────────────────────
 const custCtx = await b.newContext({ viewport: { width: 1500, height: 1000 } });
 await wire(custCtx);

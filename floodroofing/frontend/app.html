@@ -995,6 +995,11 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.2;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+.app-updated{
+  font-size:10.5px;letter-spacing:.02em;color:#9aa5b4;white-space:nowrap;
+}
+.app-updated:empty{ display:none; }
+.app-updated .app-upd-dot{ display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:6px;vertical-align:1px;opacity:.8; }
 .hdr-company .hdr-co-lbl{
   font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--text2);font-weight:700;margin-bottom:3px;
@@ -4585,6 +4590,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <script>
 (function(){
   var BACKEND='https://flood-roofing-estimator-production.up.railway.app';
+  // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
+  // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
+  // a ship whose stamp was left behind. Shown under the company logo.
+  window.APP_BUILT_AT = '2026-10-01T18:55:51Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5054,10 +5063,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   <!-- Whose account this is. Filled by applyBranding(); stays empty, and takes
        up no room, until a company has been set up. -->
   <div class="hdr-company" id="hdrCompany"></div>
+  <!-- When the app was last updated (2026-10-02, the owner's: "a nice
+       professional update status ... light grey writing like last updated
+       1:36pm 2/10"). From window.APP_BUILT_AT, in NZ time. -->
   <!-- The "System / Region / GST" block that sat here was Flood Roofing's own
        details, hard-coded, on every customer's sidebar — a roofer in Albany
-       read "Region: Whangarei" on his own account. Gone. -->
-  <div class="hdr-right"></div>
+       read "Region: Whangarei" on his own account. Gone. The band it left
+       now carries the update line. -->
+  <div class="hdr-right"><div class="app-updated no-print" id="appUpdated"></div></div>
 </div>
 
 <div class="nav">
@@ -5771,7 +5784,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div id="workflowTipBar" style="background:#fdf3e3;border:1px solid #e8c99a;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#7a4c07;display:none;align-items:center;gap:8px">
   <span style="font-size:16px">⚠️</span>
   <span>Measurements are roughly to satellite scale — <strong>click any measurement on the roof and type its real length</strong> to override. No line moves.</span>
-  <span style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build">build&nbsp;2026-09-09</span>
+  <span id="appBuildLbl" style="margin-left:auto;font-size:10px;color:#a07a3d;white-space:nowrap" title="App build"></span>
 </div>
 <div style="display:flex;flex-wrap:wrap;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -12698,6 +12711,27 @@ try {
     }).catch(function(){});
   });
 } catch(e){}
+// "Updated 1:36 pm 2/10" under the company logo, in New Zealand time.
+function _appUpdatedText(iso, long){
+  try {
+    var d = new Date(iso); if (isNaN(d)) return '';
+    var o = { timeZone: 'Pacific/Auckland' };
+    var t = d.toLocaleTimeString('en-NZ', Object.assign({ hour: 'numeric', minute: '2-digit', hour12: true }, o)).replace(/\s+/g, ' ').toLowerCase();
+    var dm = d.toLocaleDateString('en-NZ', Object.assign({ day: 'numeric', month: 'numeric' }, o));
+    if (long) return d.toLocaleString('en-NZ', Object.assign({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' }, o));
+    return t + ' ' + dm;
+  } catch(e){ return ''; }
+}
+function _appUpdatedRender(){
+  var iso = window.APP_BUILT_AT; if (!iso) return;
+  var el = document.getElementById('appUpdated');
+  if (el){
+    el.innerHTML = '<span class="app-upd-dot"></span>Updated ' + esc2(_appUpdatedText(iso));
+    el.title = 'This version of RoofMap was released ' + _appUpdatedText(iso, true) + ' (NZ time)';
+  }
+  var b = document.getElementById('appBuildLbl'); if (b) b.textContent = 'updated ' + _appUpdatedText(iso);
+}
+try { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _appUpdatedRender); else _appUpdatedRender(); } catch(e){}
 // THE CUSTOMER ACCEPTED WHILE THIS SCREEN WAS OPEN (2026-10-02, job 3288):
 // the server kept their acceptance rather than take this screen's older copy
 // of the quote. Say so, plainly and once, and offer to reopen the job so the
@@ -28472,6 +28506,7 @@ function _qvPackAll(){
   var pool = (v.media && typeof v.media === 'object') ? v.media : {};
   var used = {};
   if (v.sent && v.sent.quote) _qvPackQuote(v.sent.quote, pool, used);
+  (Array.isArray(v.sentEarlier) ? v.sentEarlier : []).forEach(function(d){ if (d && d.quote) _qvPackQuote(d.quote, pool, used); });
   if (v.accepted && v.accepted.quote) _qvPackQuote(v.accepted.quote, pool, used);
   (Array.isArray(v.drafts) ? v.drafts : []).forEach(function(d){ if (d && d.quote) _qvPackQuote(d.quote, pool, used); });
   var keep = {};
@@ -28512,6 +28547,15 @@ function _qvMarkSent(){
   var v = _qvStore(); if (!v) return;
   var snap = _qvSnapshot('Sent quote');
   snap.sentTo = (S.quote.share && S.quote.share.sentTo) || '';
+  // EVERY SEND IS KEPT (2026-10-02, the owner's: "I just sent another quote
+  // and it has overwritten the previous ... it should show both sent quotes
+  // separately"). `sent` stays the latest — everything that asks "was it
+  // sent, and what?" reads it — and each earlier send moves, whole, into
+  // `sentEarlier` (oldest first), never thrown away.
+  if (v.sent && v.sent.quote){
+    if (!Array.isArray(v.sentEarlier)) v.sentEarlier = [];
+    if (!v.sentEarlier.some(function(d){ return d && d.id === v.sent.id; })) v.sentEarlier.push(v.sent);
+  }
   v.sent = snap;
   try { _qvPackAll(); } catch(e){}
   _qvRenderBar();
@@ -28531,15 +28575,23 @@ function _qvEnsureAccepted(){
 }
 function _qvViewing(){ return (window.S && S._qvViewing) || null; }
 // Put a frozen version on screen. The working draft is set aside first.
-function _qvView(kind){
+// The sends, oldest first, the latest last (`sent` itself).
+function _qvSends(v){
+  v = v || _qvStore(); if (!v) return [];
+  var out = (Array.isArray(v.sentEarlier) ? v.sentEarlier : []).filter(function(d){ return d && d.quote; });
+  if (v.sent && v.sent.quote) out = out.concat([v.sent]);
+  return out;
+}
+function _qvView(kind, id){
   var v = _qvStore(); if (!v) return;
   var V = kind === 'sent' ? v.sent : v.accepted;
+  if (kind === 'sent' && id) V = _qvSends(v).find(function(d){ return d.id === id; }) || null;
   if (!V || !V.quote){ _siteToast('There is no ' + kind + ' quote on this job yet'); return; }
   if (!S._qvViewing) S._qvWork = _qvCopyOf(S.quote);          // the draft, kept whole (versions ride separately)
   var keep = S.quote.versions;
   S.quote = _qvQuoteOf(V);
   S.quote.versions = keep;
-  S._qvViewing = { kind: kind, at: V.at, total: V.total };
+  S._qvViewing = { kind: kind, at: V.at, total: V.total, id: V.id || null, earlier: !!(kind === 'sent' && v.sent && V !== v.sent) };
   S.jobLocked = true;
   try { _jobLockRender(); } catch(e){}
   try { buildQuote(); } catch(e){}
@@ -28756,13 +28808,22 @@ function _qvRenderBar(){
   };
   var draftNo = function(id){ var i = v.drafts.findIndex(function(d){ return d && d.id === id; }); return i >= 0 ? (i + 1) : 0; };
   var workingName = (function(){ var n = draftNo(S.quote.draftId); return (n ? ('Draft ' + n) : 'Draft') + (S.quote.templateName ? ' \u00b7 ' + esc2(S.quote.templateName) : ''); })();
-  var name = cur === 'sent' ? 'Sent quote' : cur === 'accepted' ? 'Accepted quote' : workingName;
+  var sends = _qvSends(v);
+  var sendNo = function(d){ return sends.length > 1 ? ' ' + (sends.indexOf(d) + 1) : ''; };
+  var viewingSend = (cur === 'sent') ? (sends.find(function(d){ return d.id === viewing.id; }) || v.sent) : null;
+  var name = cur === 'sent' ? 'Sent quote' + (viewingSend ? sendNo(viewingSend) : '') : cur === 'accepted' ? 'Accepted quote' : workingName;
   var html = '<details class="qv-menu lock-ok" id="qvViewingMenu"><summary class="qv-btn qv-viewing">Viewing: <b>' + name + '</b>' +
     (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">editing</span>') +
     ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
     '<div class="qv-menu-hd">Versions</div>' +
     item(viewing ? '_qvBackToDraft()' : '', workingName, 'The editable quote', cur === 'draft') +
-    (v.sent ? item("_qvView('sent')", 'Sent quote', 'Exactly as emailed ' + _qvWhen(v.sent.at), cur === 'sent') : '') +
+    // Every send, newest first: "Sent quote 2 · latest", "Sent quote 1".
+    sends.slice().reverse().map(function(d){
+      var latest = d === v.sent;
+      return item("_qvView('sent','" + esc2(d.id || '') + "')", 'Sent quote' + sendNo(d) + (latest && sends.length > 1 ? ' · latest' : ''),
+        'Exactly as emailed ' + _qvWhen(d.at) + (sends.length > 1 && d.total ? ' · ' + fmtMoney(d.total) : ''),
+        cur === 'sent' && viewingSend === d);
+    }).join('') +
     (v.accepted ? item("_qvView('accepted')", 'Accepted quote', 'Exactly as accepted ' + _qvWhen(v.accepted.at), cur === 'accepted') : '') +
     (v.drafts.length ? '<div class="qv-menu-hd">Saved drafts (' + v.drafts.length + ')</div>' : '') +
     v.drafts.map(function(d, i){
@@ -28776,7 +28837,8 @@ function _qvRenderBar(){
   // ONE sentence about the customer. Not a badge and a button that seem to
   // disagree ("this draft is live" beside "accepted") — the state, in words.
   var status;
-  if (viewing) status = 'Read only — exactly the quote that was ' + (viewing.kind === 'sent' ? 'emailed' : 'accepted') + ' at ' + _qvWhen(viewing.at) + '. Use Draft to keep editing.';
+  if (viewing) status = 'Read only — exactly the quote that was ' + (viewing.kind === 'sent' ? 'emailed' : 'accepted') + ' at ' + _qvWhen(viewing.at) +
+    (viewing.earlier ? ' (an earlier send — the customer’s link shows the latest)' : '') + '. Use Draft to keep editing.';
   else if (S.quote.accepted) status = 'The customer accepted this quote' + (S.quote.accepted.at ? ' on ' + _qvWhen(S.quote.accepted.at) : '') + '. Their selections are locked.';
   else if (v.accepted && v.sent) status = 'The customer’s link now shows this draft, which they have not accepted. Their earlier acceptance is kept under Accepted.';
   else if (v.sent) status = 'The customer’s link shows this draft. Not accepted yet.';

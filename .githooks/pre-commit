@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stamps the app's "Updated …" time (window.APP_BUILT_AT) into app.html when
+# it is part of the commit. Enable once per machine: git config core.hooksPath .githooks
+node floodroofing/tools/stamp-build.mjs --staged || exit 1

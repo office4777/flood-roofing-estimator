@@ -527,6 +527,22 @@ Discipline (non-negotiable):
   History → Roof map history: `job_revisions` keeps the EIGHT newest snapshots
   per job, one per 10 minutes, and a restore is itself snapshotted — so tell
   the owner to stop saving a damaged job before anything else.
+- EVERY SEND IS KEPT (2026-10-02): `versions.sent` is the LATEST send (every
+  "was it sent?" reader uses it) and `_qvMarkSent` moves the one it replaces,
+  whole, into `versions.sentEarlier` (oldest first, packed by `_qvPackAll`).
+  `_qvSends()` lists them; the Viewing menu shows "Sent quote 2 · latest",
+  "Sent quote 1" (numbered only past one); `_qvView('sent', id)` opens any
+  of them and an earlier one says the link shows the latest.
+  `tests/sendexact.mjs` sends twice.
+- THE "UPDATED …" LINE (2026-10-02): `window.APP_BUILT_AT` (UTC ISO) in
+  app.html, rendered by `_appUpdatedRender` as "Updated 7:48 am 2/10" (NZ
+  time, light grey, full date on hover) in the sidebar's `.hdr-right` band
+  under the company block, and on the canvas label (`#appBuildLbl`). Stamped
+  at every commit touching app.html by `.githooks/pre-commit` →
+  `tools/stamp-build.mjs --staged`; each machine runs
+  `git config core.hooksPath .githooks` once. `tests/buildstamp.mjs` fails a
+  stamp more than 30 min behind app.html's last commit (skipped on shallow
+  clones and an uncommitted app.html).
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
