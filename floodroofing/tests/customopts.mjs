@@ -176,6 +176,29 @@ check('…and Insert custom option offers it back', /Wash-down/.test(v.menu) && 
 v = await pg.evaluate(() => { const t = _qtSnapshot(); return (t.wording && t.wording.customExtras || []).map(g => g.title); });
 check('a template saved from this quote carries its custom options', v.includes('Roof Paint'), JSON.stringify(v));
 
+// ── a duplicate of a sent quote is a true duplicate AT ONCE (the owner: the new
+// draft showed the lower price without Paint Roof for ten seconds, until this
+// device's product list caught up) ──────────────────────────────────────────
+v = await pg.evaluate(async () => {
+  const PAINT = { id:'paintroof', title:'Paint Roof', rows:[ { id:'excl', name:'Exclude', price:0 }, { id:'incl', name:'Include', desc:'Paint roof', price:3680 } ] };
+  // sent from a screen whose products had Paint Roof…
+  S.quote.customExtras = [];
+  S.quote.selectablesSnapshot = Object.assign(JSON.parse(JSON.stringify(S.settings.selectables)), { extras: [PAINT] });
+  S.quote.proposalOptions = Object.assign({}, S.quote.proposalOptions, { extras: { paintroof: 'incl' } });
+  recalcQuoteTotals();
+  _qvMarkSent();
+  const sentTotal = S.quote.versions.sent.total;
+  // …and THIS device's list has not caught up: no Paint Roof in it
+  S.settings.selectables.extras = [];
+  _qvView('sent'); await new Promise(r => setTimeout(r, 300));
+  _qvNewDraft(); await new Promise(r => setTimeout(r, 300));
+  const M = _quoteMoney ? _quoteMoney() : { tot: 0 };
+  return { sentTotal, draftTotal: Math.round((M.tot || 0) * 100) / 100, viewing: !!S._qvViewing,
+           offered: _selExtras().map(g => g.id), onPage: [...document.querySelectorAll('#qpRoot h2')].some(h => h.textContent === 'Paint Roof') };
+});
+check('duplicating the sent quote on a device whose products had not caught up keeps Paint Roof and its price straight away',
+  !v.viewing && v.offered.includes('paintroof') && v.onPage && Math.abs(v.draftTotal - v.sentTotal) < 0.02, JSON.stringify(v));
+
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 300));
 await b.close();
 const bad = results.filter(x => !x).length;

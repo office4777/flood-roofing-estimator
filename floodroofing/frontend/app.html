@@ -4613,7 +4613,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-01T19:15:54Z';
+  window.APP_BUILT_AT = '2026-10-01T19:34:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26635,6 +26635,24 @@ function _qCustomExtras(){
 function _selExtrasOffered(){
   var list = (_selectables() || {}).extras;
   if (!Array.isArray(list)) list = [];
+  // A DUPLICATE IS A TRUE DUPLICATE AT ONCE (2026-10-02, the owner: the new
+  // draft "opened for 10 sec with the lower price without the roof paint
+  // custom option ... then 10 sec later the custom option was added"). The
+  // office's draft reads this device's product list, and a device whose list
+  // had not yet caught up with Settings (Paint Roof added on another screen,
+  // the server's answer still on its way) dropped the option the quote was
+  // sent with until the fresh list landed. An option the quote's own sent
+  // products carry is kept when this device's list has never heard of it —
+  // one Settings removed is still in the list (marked removed), so nothing
+  // deleted on purpose comes back.
+  try {
+    var snap = window.S && S.quote && S.quote.selectablesSnapshot;
+    if (snap && Array.isArray(snap.extras) && snap.extras !== list){
+      var known = {}; list.forEach(function(g){ if (g) known[g.id] = 1; });
+      var missing = snap.extras.filter(function(g){ return g && g.id && !g.removed && !known[g.id]; });
+      if (missing.length) list = list.concat(missing);
+    }
+  } catch(e){}
   var cx = _qCustomExtras();
   if (cx.length){
     var own = {}; cx.forEach(function(g){ own[g.id] = g; });
