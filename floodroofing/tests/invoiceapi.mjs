@@ -143,9 +143,11 @@ const deposits = db.invoices.filter(i => i.type === 'deposit');
 check('…and the 50% deposit invoice raised itself', deposits.length === 1 && deposits[0].total === 11500,
   deposits.length + ' × ' + (deposits[0]||{}).total);
 check('…stamped with the roofer\'s company, not the customer', deposits.length === 1 && deposits[0].company_id === CO, (deposits[0]||{}).company_id);
+// (since 2026-10-02 the accept also sends the customer their confirmation — the invoice is counted on its own)
+const _invMails = mails.slice(mailsBefore).filter(m => /invoice/i.test(String(m.subject || '')));
 check('…and auto-sent to the customer because the setting is on',
-  mails.length === mailsBefore + 1 && mails[mails.length-1].to === 'hale@example.com' && deposits[0].status === 'sent',
-  'mails ' + (mails.length - mailsBefore) + ', status ' + (deposits[0]||{}).status);
+  _invMails.length === 1 && _invMails[0].to === 'hale@example.com' && deposits[0].status === 'sent',
+  'invoice mails ' + _invMails.length + ', status ' + (deposits[0]||{}).status);
 check('…describing what it is', /50% deposit on acceptance/.test((deposits[0]||{}).description || ''), (deposits[0]||{}).description);
 
 r = await call('POST', '/q/tok-accept/event?job=' + JOB, { type: 'accepted', name: 'Mrs Hale', total: 23000 });

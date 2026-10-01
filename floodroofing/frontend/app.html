@@ -3762,6 +3762,50 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-tot3 .qb-tl-big span{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fff; }
 .qb-tot3 .qb-tl-big b{ margin-top:2px; }
 .px-gst-note{ margin-left:10px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0a1628; background:#fde68a; border-radius:999px; padding:2px 8px; }
+.emx-top{ background:#f2f9fd; border:2px solid #0a98d6; border-radius:14px; padding:16px 18px; margin-bottom:16px; }
+.emx-big-l{ display:block; font-size:17px; font-weight:800; color:#0a1628; margin-bottom:8px; }
+.emx-big{ width:100%; font-size:17px !important; padding:12px 14px !important; border:2px solid #0a98d6 !important; border-radius:10px !important; box-sizing:border-box; }
+.emx-hint{ font-size:11.5px; color:var(--text2); margin-top:4px; line-height:1.45; }
+.emx-top2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+.emx-from{ font-size:12.5px; color:#334155; padding:8px 0; line-height:1.45; }
+.emx{ display:grid; grid-template-columns:260px 1fr; gap:0; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#fff; }
+.emx-list{ background:#f6f8fb; border-right:1px solid var(--border); padding:6px 0; }
+.emx-g{ font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#64748b; padding:12px 14px 4px; }
+.emx-it{ display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:none; border-left:3px solid transparent; padding:9px 14px; font:inherit; font-size:13px; color:#1e293b; cursor:pointer; }
+.emx-it:hover{ background:#eef4fa; }
+.emx-it.on{ background:#fff; border-left-color:#0a98d6; font-weight:700; }
+.emx-it span{ flex:1; }
+.emx-st{ font-size:10px; font-weight:800; padding:2px 7px; border-radius:20px; background:#e2e8f0; color:#475569; flex:0 0 auto; }
+.emx-st.on{ background:#dcfce7; color:#166534; }
+.emx-ed{ padding:16px 20px; min-width:0; }
+.emx-pane{ display:none; }
+.emx-pane.on{ display:block; }
+.emx-hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.emx-hd h3{ margin:0; font-size:17px; color:#0a1628; }
+.emx-badge{ font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px; }
+.emx-auto{ background:#e0f2fe; color:#075985; }
+.emx-man{ background:#f1f5f9; color:#475569; }
+.emx-when{ font-size:12.5px; color:var(--text2); margin:6px 0 12px; line-height:1.5; }
+.emx-switch{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:700; cursor:pointer; margin:0 0 10px; }
+.emx-switch input{ width:18px; height:18px; margin:0; }
+.emx-days{ display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:13px; }
+.emx-days input{ width:64px; text-align:center; }
+.emx-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 14px; margin:4px 0 12px; }
+.emx-f label, .emx-l{ display:block; font-size:12px; font-weight:700; color:#334155; margin:0 0 3px; }
+.emx-l{ margin-top:8px; }
+.emx-subj{ width:100%; box-sizing:border-box; }
+.emx-body{ width:100%; box-sizing:border-box; font-size:12.5px; line-height:1.5; font-family:inherit; }
+.emx-tags{ display:flex; flex-wrap:wrap; gap:5px; margin:8px 0; align-items:center; font-size:11.5px; color:var(--text2); }
+.emx-tag{ border:1px solid #bae6fd; background:#f0f9ff; color:#075985; border-radius:6px; padding:3px 8px; font-size:11.5px; cursor:pointer; font-family:inherit; }
+.emx-tag:hover{ background:#e0f2fe; }
+.emx-acts{ display:flex; gap:8px; flex-wrap:wrap; }
+.emx-btn{ padding:6px 12px; background:#fff; border:1px solid var(--border); border-radius:7px; font-size:12px; cursor:pointer; font-family:inherit; }
+.emx-prev{ display:none; margin-top:10px; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:#fbfcfe; font-size:12.5px; white-space:pre-wrap; line-height:1.5; }
+.emx-prev.on{ display:block; }
+.emx-prev b{ display:block; margin-bottom:8px; }
+.emx-more{ margin-top:18px; }
+#emxSchedHost #schedTplSection{ border-top:0 !important; margin-top:6px !important; padding-top:0 !important; }
+@media (max-width:820px){ .emx{ grid-template-columns:1fr; } .emx-list{ border-right:0; border-bottom:1px solid var(--border); } .emx-top2{ grid-template-columns:1fr; } }
 .qd-addopt{ padding:14px 28px !important; background:#f4f6f9 !important; border:1px dashed #b7c3d0 !important; box-shadow:none !important; }
 html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .qco{ background:#fff; border-radius:14px; width:min(640px,100%); max-height:92vh; overflow:auto; box-shadow:0 20px 60px rgba(10,22,40,.35); font-family:inherit; }
@@ -4613,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-01T19:34:18Z';
+  window.APP_BUILT_AT = '2026-10-01T21:36:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8847,58 +8891,127 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       </div>
     </div>
 
-    <!-- EMAIL -->
+    <!-- EMAIL (2026-10-02, the owner's: "revamp the email settings tab ... simplify it but make sure
+         the user has a huge amount of options with the automatic emails and they get to edit the
+         templates of all different types of emails and who receives a copy of each email and who
+         the customer replies go to, make it similar to Fergus email templates" — and a master
+         "copy of all sent RoofMap emails" at the top, big and obvious). Every email the app sends
+         for the business is on the list; each one has its wording, its copies and its reply-to.
+         Stored under quote_defaults.email; the server mirrors the defaults. -->
     <div class="sub-panel settings-sub" id="set-email" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Who gets copied on the emails the app sends. Separate multiple addresses with a comma (e.g. <code>office@yourcompany.co.nz, sam@yourcompany.co.nz</code>).</p>
-      <div style="display:grid;gap:14px;max-width:620px">
-        <div>
-          <label>Copy of quotes sent (CC)</label>
-          <input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off">
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a quote is emailed to a customer.</div>
+      <div class="emx-top">
+        <label class="emx-big-l" for="emCopyAll">&#128232; Send a copy of every RoofMap email to</label>
+        <input type="text" id="emCopyAll" class="emx-big" placeholder="office@yourcompany.co.nz" autocomplete="off">
+        <div class="emx-hint">Every email RoofMap sends for your business &mdash; quotes, follow-ups, acceptances, questions, invoices, orders and schedule updates &mdash; is copied here, on top of the copies set on each email below. Separate several addresses with a comma.</div>
+        <div class="emx-top2">
+          <div class="emx-f"><label for="emReplyTo">Customer replies go to</label><input type="text" id="emReplyTo" placeholder="Your Branding email" autocomplete="off"><div class="emx-hint">Where a customer&rsquo;s reply lands. Any email below can send its replies somewhere else.</div></div>
+          <div class="emx-f"><label>Sent from</label><div class="emx-from" id="emFromInfo"></div></div>
         </div>
-        <div>
-          <label>Acceptance email goes to</label>
-          <input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off">
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">Notified when a customer accepts their quote online (with the accepted-quote PDF).</div>
+      </div>
+      <div class="emx">
+        <nav class="emx-list" id="emxList" aria-label="Email templates"></nav>
+        <div class="emx-ed">
+<section class="emx-pane" data-emx="quote" id="emxPane-quote">
+<div class="emx-hd"><h3>Quote to customer</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">When you press <b>Email quote</b> on the Quote tab. It opens with this wording; you can change it for that one quote before it goes.</p>
+
+<div class="emx-grid"><div class="emx-f"><label for="emQuoteCc">Also send a copy to (CC)</label><input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emQuoteReplyTo">Customer replies go to</label><input type="text" id="emQuoteReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<label class="emx-l" for="emQuoteSubject">Subject</label><input type="text" id="emQuoteSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emQuoteBody">Message</label><textarea id="emQuoteBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="quote"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('quote')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('quote')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-quote"></div>
+
+</section>
+<section class="emx-pane" data-emx="reminder" id="emxPane-reminder">
+<div class="emx-hd"><h3>Quote follow-up</h3><span class="emx-badge emx-auto">Automatic</span></div>
+<p class="emx-when">One polite reminder, with their live quote link, when a quote has gone quiet. Never after they accept, decline or ask a question, and never twice.</p>
+<div id="emReminderBlock"><label class="emx-switch"><input type="checkbox" id="emReminderOn" onchange="_emxRenderList()"><span>Send an automatic follow-up when a quote goes quiet</span></label><div class="emx-days"><span>after</span><input type="number" id="emReminderDays" min="1" max="30" step="1" placeholder="3"><span>days without a response</span></div><div id="emReminderLock" style="display:none;font-size:12px;color:#b45309;margin-top:8px">Quote follow-ups are not on your plan &mdash; <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch them on</a>.</div></div>
+<div class="emx-grid"><div class="emx-f"><label for="emReminderCc">Also send a copy to (CC)</label><input type="text" id="emReminderCc" placeholder="Same as the quote copies" autocomplete="off"></div><div class="emx-f"><label for="emReminderReplyTo">Customer replies go to</label><input type="text" id="emReminderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<label class="emx-l" for="emReminderSubject">Subject</label><input type="text" id="emReminderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emReminderBody">Message</label><textarea id="emReminderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="reminder"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('reminder')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('reminder')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-reminder"></div>
+
+</section>
+<section class="emx-pane" data-emx="accept_cust" id="emxPane-accept_cust">
+<div class="emx-hd"><h3>Quote accepted — confirmation to the customer</h3><span class="emx-badge emx-auto">Automatic</span></div>
+<p class="emx-when">The moment a customer accepts online, they get this: what they accepted, their total, every selection they made, a link back to their accepted quote &mdash; and your phone number for a last-minute change.</p>
+<label class="emx-switch"><input type="checkbox" id="emAcceptCustOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
+
+<div class="emx-grid"><div class="emx-f"><label for="emAcceptCustCc">Also send a copy to (CC)</label><input type="text" id="emAcceptCustCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptCustReplyTo">Customer replies go to</label><input type="text" id="emAcceptCustReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<label class="emx-l" for="emAcceptCustSubject">Subject</label><input type="text" id="emAcceptCustSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emAcceptCustBody">Message</label><textarea id="emAcceptCustBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="accept_cust"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('accept_cust')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('accept_cust')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-accept_cust"></div>
+
+</section>
+<section class="emx-pane" data-emx="accept_office" id="emxPane-accept_office">
+<div class="emx-hd"><h3>Quote accepted — tell the office</h3><span class="emx-badge emx-auto">Automatic</span></div>
+<p class="emx-when">When a customer accepts online, your office gets their selections, the accepted total and the accepted-quote PDF. Replying goes straight to the customer.</p>
+<label class="emx-switch"><input type="checkbox" id="emAcceptOfficeOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
+
+<div class="emx-grid"><div class="emx-f"><label for="emAcceptTo">Sends to</label><input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptOfficeCc">Also send a copy to (CC)</label><input type="text" id="emAcceptOfficeCc" placeholder="" autocomplete="off"></div></div>
+<label class="emx-l" for="emAcceptOfficeSubject">Subject</label><input type="text" id="emAcceptOfficeSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emAcceptOfficeBody">Message</label><textarea id="emAcceptOfficeBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="accept_office"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('accept_office')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('accept_office')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-accept_office"></div>
+
+</section>
+<section class="emx-pane" data-emx="question" id="emxPane-question">
+<div class="emx-hd"><h3>Customer asked a question</h3><span class="emx-badge emx-auto">Automatic</span></div>
+<p class="emx-when">When a customer presses <b>Ask a question</b> on their quote. It also goes on your task list for today. Replying goes straight to the customer.</p>
+<label class="emx-switch"><input type="checkbox" id="emQuestionOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
+
+<div class="emx-grid"><div class="emx-f"><label for="emQuestionTo">Sends to</label><input type="text" id="emQuestionTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emQuestionCc">Also send a copy to (CC)</label><input type="text" id="emQuestionCc" placeholder="" autocomplete="off"></div></div>
+<label class="emx-l" for="emQuestionSubject">Subject</label><input type="text" id="emQuestionSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emQuestionBody">Message</label><textarea id="emQuestionBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="question"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('question')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('question')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-question"></div>
+
+</section>
+<section class="emx-pane" data-emx="invoice" id="emxPane-invoice">
+<div class="emx-hd"><h3>Invoice to customer</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">When you send an invoice (and the automatic deposit invoice, if it is switched on under Invoicing). The amounts, due date and bank details are always added below your message.</p>
+
+<div class="emx-grid"><div class="emx-f"><label for="emInvoiceCc">Also send a copy to (CC)</label><input type="text" id="emInvoiceCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emInvoiceReplyTo">Customer replies go to</label><input type="text" id="emInvoiceReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<label class="emx-l" for="emInvoiceSubject">Subject</label><input type="text" id="emInvoiceSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emInvoiceBody">Message</label><textarea id="emInvoiceBody" class="emx-body" rows="13" onfocus="_emxFocus(this)" placeholder="Optional — a few words above the invoice, e.g. Hi {client}, thank you for having us."></textarea>
+<div class="emx-tags" data-emx-tags="invoice"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('invoice')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('invoice')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-invoice"></div>
+
+</section>
+<section class="emx-pane" data-emx="order" id="emxPane-order">
+<div class="emx-hd"><h3>Material order to supplier</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">When you press <b>Email order</b> on the Job Pack. It opens with this wording and the order PDF attached; you can change it before it goes.</p>
+
+<div class="emx-grid"><div class="emx-f"><label for="emOrderCc">Also send a copy to (CC)</label><input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emOrderReplyTo">Supplier replies go to</label><input type="text" id="emOrderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<label class="emx-l" for="emOrderSubject">Subject</label><input type="text" id="emOrderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emOrderBody">Message</label><textarea id="emOrderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="order"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('order')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('order')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-order"></div>
+
+</section>
+<section class="emx-pane" data-emx="sched" id="emxPane-sched">
+<div class="emx-hd"><h3>Schedule updates to customers</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">What the Schedule board&rsquo;s &#9993; button starts from &mdash; you review every one before it sends.</p>
+
+<div class="emx-grid"><div class="emx-f"><label for="emSchedCc">Also send a copy to (CC)</label><input type="text" id="emSchedCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emSchedReplyTo">Customer replies go to</label><input type="text" id="emSchedReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<div id="emxSchedHost"></div>
+</section>
         </div>
-        <div>
-          <label>Copy of orders sent (CC)</label>
-          <input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off">
-          <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a material order is emailed to a supplier.</div>
+      </div>
+      <div class="emx-more">
+        <div id="emDomainBlock">
+          <label style="font-weight:700">Send from your own email address <span style="font-weight:400;color:var(--text2);font-size:11px">&mdash; Team plan</span></label>
+          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">Your emails normally send from the RoofMap address wearing your business name, with replies going to you. Verify a domain you own and they send genuinely from your address instead &mdash; e.g. <code>office@yourcompany.co.nz</code>. One-time DNS setup, about 5 minutes wherever your domain is managed.</div>
+          <div id="emDomainBody"><span style="font-size:12px;color:var(--text2)">Checking&hellip;</span></div>
         </div>
-        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
-          <label style="font-weight:700">Quote email — your default wording</label>
-          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">What the "Email Quote" window opens with — edit it here once and every quote starts from your wording. You can still tweak each email before it sends. These fill in automatically: <code>{client}</code> <code>{address}</code> <code>{link}</code> <code>{ref}</code> <code>{company}</code> <code>{valid_until}</code> <code>{phone}</code> <code>{email}</code> <code>{website}</code>.</div>
-          <label style="font-size:12px">Subject</label>
-          <input type="text" id="emQuoteSubject" autocomplete="off" style="margin-bottom:8px">
-          <label style="font-size:12px">Message</label>
-          <textarea id="emQuoteBody" rows="10" style="width:100%;font-size:12.5px;line-height:1.45;font-family:inherit"></textarea>
-          <button type="button" onclick="_resetQuoteEmailTemplate()" style="margin-top:6px;padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">↺ Reset to the standard wording</button>
-        </div>
-        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px" id="emReminderBlock">
-          <label style="font-weight:700">Automatic quote follow-up <span style="font-weight:400;color:var(--text2);font-size:11px">— Team plan</span></label>
-          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">If a quote hasn't been answered, RoofMap emails the customer one polite reminder with their live quote link — from your name, CC'd to your office. One reminder per quote, never after they accept, decline or ask a question.</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="emReminderOn" style="width:16px;height:16px;margin:0">
-            Send an automatic follow-up when a quote goes quiet
-          </label>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px">
-            <span>after</span>
-            <input type="number" id="emReminderDays" min="1" max="30" step="1" placeholder="3" style="width:64px;text-align:center">
-            <span>days without a response</span>
-          </div>
-          <div id="emReminderLock" style="display:none;font-size:12px;color:#b45309;margin-top:8px">Quote follow-ups are on the Team plan — <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch them on</a>.</div>
-        </div>
-        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px" id="emDomainBlock">
-          <label style="font-weight:700">Send from your own email address <span style="font-weight:400;color:var(--text2);font-size:11px">— Team plan</span></label>
-          <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">Your emails normally send from the RoofMap address wearing your business name, with replies going to you. Verify a domain you own and they send genuinely from your address instead — e.g. <code>office@yourcompany.co.nz</code>. One-time DNS setup, about 5 minutes wherever your domain is managed.</div>
-          <div id="emDomainBody"><span style="font-size:12px;color:var(--text2)">Checking…</span></div>
-        </div>
-        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
-          <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+          <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#9993;&#65039; Send test email</button>
           <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
-          <div style="font-size:11px;color:var(--text2);margin-top:6px">Sends a clearly-labelled test to every address above, so you can confirm they arrive.</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px">Sends a clearly-labelled test to every address on this page, so you can confirm they arrive.</div>
         </div>
+      </div>
         <div id="schedTplSection" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
           <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Schedule update emails</div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:8px">What the Schedule board's ✉ button starts from — you still review every email before it sends. These fill in automatically: <code>{client}</code> <code>{site}</code> <code>{month_part}</code> <code>{start_date}</code> <code>{crew}</code> <code>{company}</code>.</div>
@@ -8911,7 +9024,6 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button type="button" onclick="_schedTplSave()" style="padding:8px 16px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Save templates</button>
           <span id="schedTplMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
         </div>
-      </div>
     </div>
 
     <!-- LABOUR PRICING -->
@@ -13442,6 +13554,7 @@ function collectSettingsFromUI(){
   if (q.email.quote_body === QUOTE_EMAIL_DEFAULT.body) q.email.quote_body = '';
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
+  try { _emxCollect(q.email); } catch(e){}
   q.email.reminder_enabled = !!((document.getElementById('emReminderOn')||{}).checked);
   var _rd = parseInt(((document.getElementById('emReminderDays')||{}).value || ''), 10);
   q.email.reminder_days = (isFinite(_rd) && _rd >= 1 && _rd <= 30) ? _rd : 3;
@@ -16774,6 +16887,7 @@ function refreshSettingsUI(){
     if (_lockN) _lockN.style.display = _noRem ? '' : 'none';
   } catch(e){}
   try { _mailDomainLoad(); } catch(e){}
+  try { _emxFill(_em); } catch(e){ console.warn('email settings', e); }
   var _iv = q.invoicing || {};
   set('invDepositPct', _iv.deposit_percent == null ? 50 : _iv.deposit_percent);
   set('invDueDays', _iv.due_days == null ? 7 : _iv.due_days);
@@ -32048,7 +32162,8 @@ function _qbAcceptedBlock(accepted){
         '<li>If a deposit is needed, the invoice will follow separately.</li>'+
       '</ol>'+
       '<button type="button" class="qb-done-btn" onclick="printCustomerQuote()">Save a copy as PDF</button>'+
-      (br.phone ? '<p class="qb-done-ph">Questions? Call '+esc2(co)+' on <a href="tel:'+esc2(String(br.phone).replace(/\s+/g,''))+'">'+esc2(br.phone)+'</a>.</p>' : '')+
+      // A last-minute change is a phone call (2026-10-02, the owner's): an email may not be seen in time.
+      (br.phone ? '<p class="qb-done-ph"><b>Need a last-minute change?</b> Please ring '+esc2(co)+' on <a href="tel:'+esc2(String(br.phone).replace(/\s+/g,''))+'">'+esc2(br.phone)+'</a> \u2014 an email may not be seen in time to make the change.</p>' : '')+
     '</div>';
 }
 // Every choice the customer made, named — including the ones that cost
@@ -39704,6 +39819,180 @@ function _quoteEmailTemplate(link){
     .replace(/\n{3,}/g, '\n\n');
   return { subject: subject, body: body };
 }
+// ── SETTINGS → EMAIL: THE TEMPLATES (2026-10-02) ───────────────────────
+// One list of every email RoofMap sends for the business (EMX_ITEMS), each
+// with its wording, its copies and its reply-to. The defaults are mirrored on
+// the server (server.js *_EMAIL_DEFAULT); a blank saved field = the default.
+var EMX_DEFAULTS = {
+  reminder: { subject: 'Following up on your roofing quote {ref} — {company}',
+    body: 'Hi {client},\n\nJust checking in on the roofing quote we sent{address}.\n\nYou can view it, pick your options and accept online any time:\n{link}\n{valid_until}If anything is unclear, or you would like to talk it through, just reply to this email or give us a call — happy to help.\n\nKind regards,\n{company}\n{phone}{email}{website}' },
+  accept_cust: { subject: 'Quote accepted — {ref} — {company}',
+    body: 'Hi {client},\n\nThank you for accepting your quote. This email confirms what you accepted.\n\nQuote: {ref}\nProperty: {site}\nAccepted by: {accepted_by}\nAccepted: {accepted_at}\nTotal accepted (incl. GST): {total}\n\nYour selections:\n{selections}\n\nYou can view your accepted quote at any time:\n{link}\n\nNeed a last-minute change? Please ring us on {office_phone} rather than emailing — an email may not be seen in time to make the change before your materials are ordered.\n\nKind regards,\n{company}\n{phone}{email}{office_address}{website}' },
+  accept_office: { subject: 'Quote accepted — {ref} — {client}',
+    body: "A customer has accepted their quote online.\n\nQuote reference: {ref}\nCustomer: {client}\nAddress: {site}\n{accepted_by_line}Accepted: {accepted_at}\n\nAccepted total (incl. GST): {total}\n\nThe customer's selections:\n{selections}\n\n{pdf_note}" },
+  question: { subject: 'Question on quote {ref} — {client}',
+    body: '{client} has asked a question about their quote.\n\nQuote reference: {ref}\nAddress: {site}\n\nWhat they asked:\n{question}\n\nOpen the job in RoofMap to reply.' },
+  invoice: { subject: 'Invoice {invoice_no} from {company} — {site}', body: '' },
+  order: { subject: 'Order #{job}',
+    body: 'Hi {supplier_contact},\n\nPlease find the attached order for job #{job}.\nPlease deliver to {deliver_to}{delivery_date}.\n\nThanks,\n{company}' }
+};
+function _emxDefault(k){ return k === 'quote' ? QUOTE_EMAIL_DEFAULT : (EMX_DEFAULTS[k] || { subject:'', body:'' }); }
+var EMX_TAGS = {
+  quote:         ['client','address','link','ref','company','valid_until','phone','email','website'],
+  reminder:      ['client','address','link','ref','company','valid_until','phone','email','website'],
+  accept_cust:   ['client','site','ref','total','accepted_by','accepted_at','selections','link','company','office_phone','phone','email','office_address','website'],
+  accept_office: ['client','site','ref','total','accepted_by_line','accepted_at','selections','pdf_note','company'],
+  question:      ['client','site','ref','question','company'],
+  invoice:       ['client','invoice_no','total','due_date','site','company'],
+  order:         ['supplier_contact','job','deliver_to','delivery_date','client','site','company']
+};
+var EMX_TAG_LABEL = { client:'Customer name', address:'“ at ” + address', site:'Address', link:'Quote link', ref:'Quote number', company:'Your company',
+  valid_until:'Valid until', phone:'Your phone', email:'Your email', website:'Your website', total:'Accepted total', accepted_by:'Accepted by',
+  accepted_at:'Accepted on', accepted_by_line:'“Accepted by” line', selections:'Their selections', office_phone:'Your phone (in a sentence)',
+  office_address:'Your address', pdf_note:'PDF note', question:'Their question', supplier_contact:'Supplier contact', job:'Job number',
+  deliver_to:'Deliver to', delivery_date:'“ on ” + delivery date', invoice_no:'Invoice number', due_date:'Due date' };
+// key → [subject id, body id]; and the plain fields: [id, quote_defaults.email key, kind]
+var EMX_TPL = { quote:['emQuoteSubject','emQuoteBody'], reminder:['emReminderSubject','emReminderBody'], accept_cust:['emAcceptCustSubject','emAcceptCustBody'],
+  accept_office:['emAcceptOfficeSubject','emAcceptOfficeBody'], question:['emQuestionSubject','emQuestionBody'], invoice:['emInvoiceSubject','emInvoiceBody'],
+  order:['emOrderSubject','emOrderBody'] };
+var EMX_FIELDS = [
+  ['emCopyAll','copy_all'], ['emReplyTo','reply_to'], ['emQuoteReplyTo','quote_reply_to'],
+  ['emReminderCc','reminder_cc'], ['emReminderReplyTo','reminder_reply_to'],
+  ['emAcceptCustOn','accept_cust_on','on'], ['emAcceptCustCc','accept_cust_cc'], ['emAcceptCustReplyTo','accept_cust_reply_to'],
+  ['emAcceptOfficeOn','accept_office_on','on'], ['emAcceptOfficeCc','accept_office_cc'],
+  ['emQuestionOn','question_on','on'], ['emQuestionTo','question_to'], ['emQuestionCc','question_cc'],
+  ['emInvoiceCc','invoice_cc'], ['emInvoiceReplyTo','invoice_reply_to'],
+  ['emOrderReplyTo','order_reply_to'], ['emSchedCc','sched_cc'], ['emSchedReplyTo','sched_reply_to']
+];
+var EMX_ITEMS = [
+  { g:'To your customers' },
+  { k:'quote', t:'Quote to customer' },
+  { k:'reminder', t:'Quote follow-up', on:'emReminderOn' },
+  { k:'accept_cust', t:'Quote accepted — to customer', on:'emAcceptCustOn' },
+  { k:'invoice', t:'Invoice' },
+  { k:'sched', t:'Schedule updates', when: function(){ try { return _schedCanUse(); } catch(e){ return false; } } },
+  { g:'To your office' },
+  { k:'accept_office', t:'Quote accepted — to office', on:'emAcceptOfficeOn' },
+  { k:'question', t:'Customer asked a question', on:'emQuestionOn' },
+  { g:'To suppliers' },
+  { k:'order', t:'Material order' }
+];
+var _EMX = { k: null };
+function _emxFill(em){
+  em = em || {};
+  EMX_FIELDS.forEach(function(f){
+    var el = document.getElementById(f[0]); if (!el) return;
+    if (f[2] === 'on') el.checked = em[f[1]] !== false; else el.value = em[f[1]] || '';
+  });
+  Object.keys(EMX_TPL).forEach(function(k){
+    if (k === 'quote') return;                          // filled by refreshSettingsUI as before
+    var d = _emxDefault(k), su = document.getElementById(EMX_TPL[k][0]), bo = document.getElementById(EMX_TPL[k][1]);
+    if (su) su.value = em[k + '_subject'] || d.subject;
+    if (bo) bo.value = em[k + '_body'] || d.body;
+  });
+  try {
+    var br = (S.settings && S.settings.branding) || {};
+    var rt = document.getElementById('emReplyTo'); if (rt) rt.placeholder = br.email ? br.email + ' (your Branding email)' : 'Your Branding email';
+    var fi = document.getElementById('emFromInfo');
+    if (fi) fi.innerHTML = '<b>' + esc2(br.company_name || 'Your business name') + '</b> &lt;sent by RoofMap&gt; &mdash; or from your own address once it is verified at the bottom of this page.';
+  } catch(e){}
+  // the schedule wording lives with its own Save button; it sits in the Schedule updates pane
+  try { var sh = document.getElementById('emxSchedHost'), sec = document.getElementById('schedTplSection'); if (sh && sec && sec.parentNode !== sh) sh.appendChild(sec); } catch(e){}
+  try { _emxTagsRender(); } catch(e){}
+  _emxRenderList();
+  var want = _EMX.k;
+  if (!want){ try { want = localStorage.getItem('fr_emx') || 'quote'; } catch(e){ want = 'quote'; } }
+  _emxShow(want);
+}
+function _emxCollect(out){
+  EMX_FIELDS.forEach(function(f){
+    var el = document.getElementById(f[0]); if (!el) return;
+    if (f[2] === 'on'){ if (el.checked) delete out[f[1]]; else out[f[1]] = false; }
+    else { var v = String(el.value || '').trim(); if (v) out[f[1]] = v; else delete out[f[1]]; }
+  });
+  Object.keys(EMX_TPL).forEach(function(k){
+    if (k === 'quote') return;
+    var d = _emxDefault(k), su = document.getElementById(EMX_TPL[k][0]), bo = document.getElementById(EMX_TPL[k][1]);
+    var sv = su ? String(su.value || '').trim() : '', bv = bo ? String(bo.value || '').trim() : '';
+    // unedited = the standard wording, so an improvement to it reaches this office
+    out[k + '_subject'] = (sv === String(d.subject).trim()) ? '' : sv;
+    out[k + '_body'] = (bv === String(d.body).trim()) ? '' : bv;
+  });
+}
+function _emxRenderList(){
+  var nav = document.getElementById('emxList'); if (!nav) return;
+  nav.innerHTML = EMX_ITEMS.map(function(it){
+    if (it.g) return '<div class="emx-g">' + esc2(it.g) + '</div>';
+    if (it.when && !it.when()) return '';
+    var st = '';
+    if (it.on){ var cb = document.getElementById(it.on); var on = !!(cb && cb.checked && !cb.disabled); st = '<em class="emx-st' + (on ? ' on' : '') + '">' + (on ? 'On' : 'Off') + '</em>'; }
+    return '<button type="button" class="emx-it' + (_EMX.k === it.k ? ' on' : '') + '" data-emx-it="' + it.k + '" onclick="_emxShow(\'' + it.k + '\')"><span>' + esc2(it.t) + '</span>' + st + '</button>';
+  }).join('');
+}
+function _emxShow(k){
+  if (!document.getElementById('emxPane-' + k)) k = 'quote';
+  _EMX.k = k;
+  try { localStorage.setItem('fr_emx', k); } catch(e){}
+  document.querySelectorAll('#set-email .emx-pane').forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-emx') === k); });
+  document.querySelectorAll('#emxList .emx-it').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-emx-it') === k); });
+}
+function _emxFocus(el){ var p = el.closest('.emx-pane'); if (p) p._last = el; }
+function _emxTagsRender(){
+  document.querySelectorAll('#set-email [data-emx-tags]').forEach(function(box){
+    var k = box.getAttribute('data-emx-tags');
+    box.innerHTML = '<span>Click to insert:</span>' + (EMX_TAGS[k] || []).map(function(t){
+      return '<button type="button" class="emx-tag" title="{' + t + '}" onmousedown="event.preventDefault()" onclick="_emxTag(\'' + k + '\',\'' + t + '\')">' + esc2(EMX_TAG_LABEL[t] || t) + '</button>';
+    }).join('');
+  });
+}
+function _emxTag(k, t){
+  var pane = document.getElementById('emxPane-' + k); if (!pane) return;
+  var el = pane._last || document.getElementById((EMX_TPL[k] || [])[1]); if (!el) return;
+  var tag = '{' + t + '}', a = el.selectionStart, b = el.selectionEnd;
+  if (a == null){ el.value += tag; } else { el.value = el.value.slice(0, a) + tag + el.value.slice(b); el.selectionStart = el.selectionEnd = a + tag.length; }
+  el.focus();
+  try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+}
+function _emxReset(k){
+  if (k === 'quote') return _resetQuoteEmailTemplate();
+  var d = _emxDefault(k), ids = EMX_TPL[k] || [];
+  var su = document.getElementById(ids[0]), bo = document.getElementById(ids[1]);
+  if (su) su.value = d.subject; if (bo) bo.value = d.body;
+  try { if (bo) bo.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+}
+// Sample figures, from the open job where there is one.
+function _emxSampleVars(){
+  var br = (S.settings && S.settings.branding) || {}, q = S.quote || {};
+  var site = q.addr || '72 Example Street, Whangarei';
+  return { client: q.client || 'Jane Smith', address: ' at ' + site, site: site, link: 'https://roofmap.co.nz/?q=…\n', ref: q.ref || '3288',
+    company: br.company_name || 'Your company', valid_until: '\nQuote valid until: ' + (q.validUntil || '31/10/2026') + '\n',
+    phone: br.phone ? br.phone + '\n' : '', email: br.email ? br.email + '\n' : '', website: br.website || '',
+    total: '$7,044.45', accepted_by: q.client || 'Jane Smith', accepted_at: new Date().toLocaleString('en-NZ', { day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit' }),
+    accepted_by_line: '', selections: '  • Steel grade: Colorsteel MAXAM\n  • Steel gauge: 0.40 gauge\n  • Colour: Ironsand\n  • Paint Roof: Include',
+    office_phone: br.phone || 'the office', office_address: br.address ? br.address + '\n' : '', pdf_note: 'The accepted quote PDF (showing the customer\'s selections) is attached.',
+    question: '  Can you start before Christmas?', supplier_contact: 'Sam', job: q.ref || '3288', deliver_to: site, delivery_date: ' on Monday 12 October',
+    invoice_no: 'INV-0042', due_date: '9/10/2026' };
+}
+function _emxFillTags(t, v){ return String(t || '').replace(/\{([a-z_]+)\}/g, function(m, k){ return Object.prototype.hasOwnProperty.call(v, k) ? v[k] : m; }); }
+function _emxPreview(k){
+  var box = document.getElementById('emxPrev-' + k); if (!box) return;
+  if (box.classList.contains('on')){ box.classList.remove('on'); return; }
+  var ids = EMX_TPL[k] || [], v = _emxSampleVars();
+  var su = (document.getElementById(ids[0]) || {}).value || '', bo = (document.getElementById(ids[1]) || {}).value || '';
+  box.innerHTML = '<b>' + esc2(_emxFillTags(su, v).replace(/\s{2,}/g, ' ')) + '</b>' + esc2(_emxFillTags(bo, v).replace(/\n{3,}/g, '\n\n')) +
+    (k === 'invoice' ? esc2('\n\n— the invoice: amounts, GST, total due, due date, bank details —') : '');
+  box.classList.add('on');
+}
+// The master copy, added to the copies the app shows and sends.
+function _emailMergeCopies(){
+  var seen = {}, out = [];
+  [].slice.call(arguments).forEach(function(v){
+    String(v || '').split(/[,;]+/).map(function(x){ return x.trim(); }).filter(function(x){ return /.@./.test(x); }).forEach(function(a){
+      var k = a.toLowerCase(); if (!seen[k]){ seen[k] = 1; out.push(a); }
+    });
+  });
+  return out.join(', ');
+}
 function _resetQuoteEmailTemplate(){
   var s = document.getElementById('emQuoteSubject'); if (s) s.value = QUOTE_EMAIL_DEFAULT.subject;
   var t = document.getElementById('emQuoteBody');    if (t) t.value = QUOTE_EMAIL_DEFAULT.body;
@@ -39749,9 +40038,9 @@ function _emailRecip(key){
   try { var me = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; if (me.email) return String(me.email).trim(); } catch(e){}
   return '';
 }
-function _quoteEmailCc(){ return _emailRecip('quote_cc'); }
+function _quoteEmailCc(){ return _emailMergeCopies(_emailRecip('quote_cc'), _emailCfg().copy_all); }
 function _myEmail(){ try { var me = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; return String(me.email || '').trim(); } catch(e){ return ''; } }
-function _orderEmailCc(){ return _emailRecip('order_cc'); }
+function _orderEmailCc(){ return _emailMergeCopies(_emailRecip('order_cc'), _emailCfg().copy_all); }
 function _acceptNotifyTo(){ return _emailRecip('accept_to'); }
 // Send a clearly-labelled test email to every address configured in Settings →
 // Email, so the office can confirm the recipients + relay are working.
@@ -39761,7 +40050,7 @@ async function _sendTestEmail(btn){
   try { collectSettingsFromUI(); } catch(e){}   // capture the latest field values
   var em = _emailCfg();
   var seen = {}, uniq = [];
-  [em.quote_cc, em.accept_to, em.order_cc].forEach(function(v){
+  [em.copy_all, em.quote_cc, em.accept_to, em.order_cc].forEach(function(v){
     String(v || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(a){
       var k = a.toLowerCase(); if (!seen[k]){ seen[k] = 1; uniq.push(a); }
     });
@@ -40467,7 +40756,7 @@ async function _quoteEmailSendNow(){
     // instead of blocking on the slow mail relay (the office is CC'd as the
     // delivery check).
     await api('POST', '/email/send-order', {
-      to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true
+      to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true, kind: 'quote'
     });
     _tSend = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0 - _tPub; } catch(e){ return 0; } })();
     // Email is out — NOW persist the job's photos/aerial in the background so
@@ -68693,12 +68982,13 @@ function _orderEmailDefaults(){
   var brand = (window.S && S.settings && S.settings.branding) || {};
   var first = (s && s.contact || '').trim();
   var dateStr = _fmtOrderDate((document.getElementById('orderEmailDate')||{}).value);
+  // Settings → Email → Material order: the office's wording, or the standard one.
+  var em = _emailCfg(), d = EMX_DEFAULTS.order;
+  var v = { supplier_contact: first || 'there', job: jobNum || '(tbc)', deliver_to: deliverTo, delivery_date: dateStr ? ' on ' + dateStr : '',
+            company: _proposalCompanyName(brand), client: (document.getElementById('jobClient')||{}).value || '', site: siteAddr || '' };
   return {
-    subject: (_isDemoJob() ? 'TEST ORDER (practice job) — ' : '') + 'Order #' + (jobNum || ''),
-    body: 'Hi ' + (first || 'there') + ',\n\n' +
-      'Please find the attached order for job #' + (jobNum || '(tbc)') + '.\n' +
-      'Please deliver to ' + deliverTo + (dateStr ? ' on ' + dateStr : '') + '.\n\n' +
-      'Thanks,\n' + _proposalCompanyName(brand)
+    subject: (_isDemoJob() ? 'TEST ORDER (practice job) — ' : '') + _emxFillTags(em.order_subject || d.subject, v).replace(/#\(tbc\)$/, '#'),
+    body: _emxFillTags(em.order_body || d.body, v)
   };
 }
 // Re-prefill the visible subject + message from the template — called on
@@ -68919,7 +69209,7 @@ async function _orderEmailSendNow(){
       cc: o.cc || undefined,
       subject: o.subject,
       text: o.body,
-      test: !!o.test || undefined,
+      test: !!o.test || undefined, kind: 'order',
       attachment: { filename: o.filename, base64: base64 }
     });
     if (o.test){ window.__demoOrderSent = Date.now(); try { _usageEvent('output_created', { kind: 'order', example: true }); } catch(e){} }

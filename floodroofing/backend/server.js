@@ -4042,11 +4042,11 @@ app.put('/settings', requireAuth, async (req, res) => {
     try {
       const exE = (existing && existing.quote_defaults && existing.quote_defaults.email) || {};
       const inE = (payload.quote_defaults && payload.quote_defaults.email) || {};
-      const F = ['quote_cc', 'accept_to', 'order_cc'];
+      const F = ['quote_cc', 'accept_to', 'order_cc', 'copy_all'];
       const hasExE = F.some(k => String(exE[k] || '').trim());
       const hasInE = F.some(k => String(inE[k] || '').trim());
       if (hasExE && !hasInE && !inE.__cleared){
-        payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, inE, { quote_cc: exE.quote_cc || '', accept_to: exE.accept_to || '', order_cc: exE.order_cc || '' }) });
+        payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, inE, { quote_cc: exE.quote_cc || '', accept_to: exE.accept_to || '', order_cc: exE.order_cc || '', copy_all: exE.copy_all || '' }) });
       }
       if (payload.quote_defaults && payload.quote_defaults.email && payload.quote_defaults.email.__cleared){
         payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, payload.quote_defaults.email) });
@@ -4651,6 +4651,7 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         }
       }
     }
+    const _firstAccept = (type === 'accepted') && share.status !== 'accepted';
     if (type === 'accepted') {
       // Both numbers are kept: what the customer's browser reported, and what
       // the office sent. The office screen can then show a disagreement rather
@@ -4691,6 +4692,7 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
       _autoDepositInvoice(job, quote);
       _acceptanceScheduleRow(job);
       _acceptanceTasks(job, quote);
+      if (_firstAccept) _acceptCustomerEmail(job, quote);
     }
     if (type === 'queried') {
       _questionNotify(job, quote, message);
@@ -4753,10 +4755,21 @@ async function _questionNotify(job, quote, message){
       '', 'Open the job in RoofMap to reply.',
     ].filter(l => l !== null);
     if (EMAIL_ENABLED) {
-      const to = await _officeNotifyTo(job, quote);
-      if (to) await _dispatchMail({ to,
-        subject: 'Question on quote' + (ref ? (' — ' + ref) : '') + ' — ' + who,
-        text: lines.join('\n') });
+      const st = await _settingsRowForJob(job);
+      const em = _emailCfgOfRow(st);
+      if (em.question_on !== false){
+        const to = (_emailList(em.question_to).join(', ')) || await _officeNotifyTo(job, quote);
+        const vars = { client: who, ref: ref, site: job.site_address || (quote && quote.addr) || '',
+                       question: '  ' + String(message || '(no message)').slice(0, 2000),
+                       company: String((((st || {}).branding) || {}).company_name || '') };
+        const body = (em.question_body ? _fillTpl(em.question_body, vars) : lines.join('\n')).replace(/\n{3,}/g, '\n\n');
+        const subject = em.question_subject ? _fillTpl(em.question_subject, vars).replace(/\s{2,}/g, ' ').trim()
+                                           : 'Question on quote' + (ref ? (' — ' + ref) : '') + ' — ' + who;
+        const cust = _emailList(((quote || {}).share || {}).sentTo || (quote || {}).email || '')[0];
+        if (to) await _dispatchMail({ to, cc: _emailCopies(st, em.question_cc, _emailList(to)), subject, text: body,
+          fromName: String((((st || {}).branding) || {}).company_name || '').trim() || undefined,
+          replyTo: cust || undefined });
+      }
     }
     // And on somebody's list, so it survives an unread inbox.
     if (job.company_id) {
@@ -4807,7 +4820,7 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     // inside the attached PDF, so settling "did she take MAXAM or ColorZen?"
     // meant opening an attachment and reading a radio button — on the one
     // question where getting it wrong means ordering the wrong steel.
-    const _chosen = _quoteSelectionLines(quote).map(x => '  • ' + x);
+    const _chosen = _quoteChoiceLines(quote).filter(x => !/^Option: /.test(x)).map(x => '  • ' + x);
     if (_chosen.length) lines.push('', "The customer's selections:", ..._chosen);
     if (Array.isArray(acc.options) && acc.options.length) {
       lines.push('', 'Selected options:');
@@ -4832,7 +4845,23 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
       console.warn('[accept-email] no recipient for job ' + job.id + ' — acceptance is still recorded');
       return res.json({ ok: false, code: 'NO_RECIPIENT' });
     }
-    await _dispatchMail({ to: acceptTo, subject, text: lines.join('\n'), attachment });
+    // Settings → Email → "Quote accepted — tell the office": its wording, its
+    // copies (and the master copy), replies straight to the customer.
+    let _st = null; try { _st = await _settingsRowForJob(job); } catch (e) {}
+    const _em = _emailCfgOfRow(_st);
+    if (_em.accept_office_on === false) return res.json({ ok: true, off: true });
+    let _subject = subject, _text = lines.join('\n');
+    if (_em.accept_office_subject || _em.accept_office_body){
+      const _v = _acceptVars(job, quote, ((_st || {}).branding) || {}, '');
+      _v.pdf_note = attachment ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
+                               : '(The quote PDF could not be attached automatically — see the customer link in the app.)';
+      if (_em.accept_office_subject) _subject = _fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject;
+      _text = _fillTpl(_em.accept_office_body || ACCEPT_OFFICE_EMAIL_DEFAULT.body, _v).replace(/\n{3,}/g, '\n\n');
+    }
+    const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
+    await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
+                          fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
+                          replyTo: _cust || undefined });
     res.json({ ok: true });
   } catch (e) {
     console.error('accept-email failed:', e.message);
@@ -5647,11 +5676,14 @@ function _invoiceEmail(invRow, branding, invSettings){
 // The business a message should appear to come from, out of their branding.
 // Both blank (a tenant who has not filled in Settings → Branding) falls back
 // to the platform identity rather than sending something nameless.
-function _tenantMailIdentity(settingsRow){
+function _tenantMailIdentity(settingsRow, kind){
   const b = ((settingsRow || {}).branding) || {};
   const name = String(b.company_name || '').trim();
   const email = String(b.email || '').trim();
-  return { fromName: name || null, replyTo: /.@./.test(email) ? email : null };
+  // Settings → Email: where customer replies go — per email, else for all.
+  const em = _emailCfgOfRow(settingsRow);
+  const set = _emailList((kind && em[kind + '_reply_to']) || '')[0] || _emailList(em.reply_to || '')[0];
+  return { fromName: name || null, replyTo: set || (/.@./.test(email) ? email : null) };
 }
 async function _sendInvoice(invRow, settingsRow, to){
   const invSettings = _invoiceSettingsOf(settingsRow);
@@ -5659,10 +5691,21 @@ async function _sendInvoice(invRow, settingsRow, to){
   const recipient = String(to || invRow.client_email || '').trim();
   if (!recipient) throw new Error('No customer email on this invoice — add one and send again');
   const mail = _invoiceEmail(invRow, branding, invSettings);
+  // Settings → Email → Invoice: the subject and a message of the office's above the invoice.
+  const _em = _emailCfgOfRow(settingsRow);
+  const _iv = { invoice_no: invRow.number, company: String(branding.company_name || 'Your roofer'), site: invRow.site_address || '',
+                client: invRow.client_name || '', total: _money(invRow.total),
+                due_date: invRow.due_at ? new Date(invRow.due_at).toLocaleDateString('en-NZ') : 'on receipt' };
+  if (_em.invoice_subject) mail.subject = _fillTpl(_em.invoice_subject, _iv).replace(/\s{2,}/g, ' ').trim() || mail.subject;
+  const _intro = _fillTpl(_em.invoice_body || INVOICE_EMAIL_DEFAULT.body, _iv).trim();
+  if (_intro){
+    mail.text = _intro + '\n\n' + mail.text;
+    mail.html = mail.html.replace(/^(<div[^>]*>)/, '$1<p style="margin:0 0 14px">' + _intro.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g, '<br>') + '</p>');
+  }
   // A tax invoice for their job, from their roofer — not from us. A business
   // with a verified sending domain goes the whole way: their address too.
-  const who = _tenantMailIdentity(settingsRow);
-  await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html,
+  const who = _tenantMailIdentity(settingsRow, 'invoice');
+  await _dispatchMail({ to: recipient, cc: _emailCopies(settingsRow, _em.invoice_cc, _emailList(recipient)), subject: mail.subject, text: mail.text, html: mail.html,
                         fromName: who.fromName, replyTo: who.replyTo,
                         fromAddress: _tenantSendAddress(invRow.company_id, who.fromName, who.replyTo) });
   const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
@@ -6185,6 +6228,158 @@ const REMINDER_EMAIL_DEFAULT = {
     'to this email or give us a call — happy to help.\n\n' +
     'Kind regards,\n{company}\n{phone}{email}{website}',
 };
+// ── THE COMPANY'S EMAIL TEMPLATES (2026-10-02, Settings → Email) ─────────
+// Every email RoofMap sends for a business has wording the office can edit,
+// copies it can add, and a reply-to it can point. All of it lives under
+// quote_defaults.email; a blank field means the standard wording (kept in
+// step with EMX_DEFAULTS in app.html — tests/emailsettings.mjs compares them).
+// `copy_all` is the master copy: every email for the business goes to it too.
+const ACCEPT_CUST_EMAIL_DEFAULT = {
+  subject: 'Quote accepted — {ref} — {company}',
+  body: 'Hi {client},\n\n' +
+    'Thank you for accepting your quote. This email confirms what you accepted.\n\n' +
+    'Quote: {ref}\nProperty: {site}\nAccepted by: {accepted_by}\nAccepted: {accepted_at}\n' +
+    'Total accepted (incl. GST): {total}\n\n' +
+    'Your selections:\n{selections}\n\n' +
+    'You can view your accepted quote at any time:\n{link}\n\n' +
+    'Need a last-minute change? Please ring us on {office_phone} rather than emailing — ' +
+    'an email may not be seen in time to make the change before your materials are ordered.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{office_address}{website}',
+};
+const ACCEPT_OFFICE_EMAIL_DEFAULT = {
+  subject: 'Quote accepted — {ref} — {client}',
+  body: 'A customer has accepted their quote online.\n\n' +
+    'Quote reference: {ref}\nCustomer: {client}\nAddress: {site}\n{accepted_by_line}Accepted: {accepted_at}\n\n' +
+    'Accepted total (incl. GST): {total}\n\n' +
+    "The customer's selections:\n{selections}\n\n" +
+    '{pdf_note}',
+};
+const QUESTION_EMAIL_DEFAULT = {
+  subject: 'Question on quote {ref} — {client}',
+  body: '{client} has asked a question about their quote.\n\n' +
+    'Quote reference: {ref}\nAddress: {site}\n\n' +
+    'What they asked:\n{question}\n\n' +
+    'Open the job in RoofMap to reply.',
+};
+const INVOICE_EMAIL_DEFAULT = {
+  subject: 'Invoice {invoice_no} from {company} — {site}',
+  body: '',
+};
+function _emailCfgOfRow(row){ return ((((row || {}).quote_defaults) || {}).email) || {}; }
+const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function _emailList(v){
+  return String(v || '').split(/[,;\s]+/).map(function(x){ return x.trim(); }).filter(function(x){ return _EMAIL_RE.test(x); });
+}
+// The copies for one email: its own CC, then the master copy, never anyone
+// it is already addressed to, each address once. undefined when there are none.
+function _emailCopies(row, own, toList){
+  const seen = {}; (toList || []).forEach(function(a){ seen[String(a).toLowerCase()] = 1; });
+  const out = [];
+  [].concat(_emailList(own), _emailList(_emailCfgOfRow(row).copy_all)).forEach(function(a){
+    const k = a.toLowerCase(); if (seen[k]) return; seen[k] = 1; out.push(a);
+  });
+  return out.length ? out.join(', ') : undefined;
+}
+// Fill {name} tags; a tag the vars do not know is left as written.
+function _fillTpl(tpl, vars){
+  return String(tpl || '').replace(/\{([a-z_]+)\}/g, function(m, k){ return Object.prototype.hasOwnProperty.call(vars, k) ? (vars[k] == null ? '' : String(vars[k])) : m; });
+}
+function _nzWhen(iso){
+  try { return new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  catch (e) { return String(iso || ''); }
+}
+// What the customer chose, in words, including the office's own options
+// (Paint Roof…), an added roof and any legacy option package.
+function _quoteChoiceLines(quote){
+  const out = _quoteSelectionLines(quote);
+  const po = (quote && quote.proposalOptions) || {};
+  const ex = (po.extras && typeof po.extras === 'object') ? po.extras : {};
+  const priced = (((quote || {}).share || {}).priced || {}).extras || {};
+  const groups = [].concat((((quote || {}).selectablesSnapshot || {}).extras) || [], (quote && Array.isArray(quote.customExtras)) ? quote.customExtras : []);
+  Object.keys(ex).forEach(function(gid){
+    const rid = ex[gid]; let title = '', name = '';
+    const p = priced[gid];
+    if (p && p.rows && p.rows[rid]) { title = p.title; name = p.rows[rid].name; }
+    else {
+      const g = groups.find(function(x){ return x && x.id === gid; });
+      const r = g && (g.rows || []).find(function(x){ return x && x.id === rid; });
+      if (g && r) { title = g.title; name = r.name; }
+    }
+    if (title && name) out.push(String(title).slice(0, 60) + ': ' + String(name).slice(0, 60));
+  });
+  const sel = (po.extraRoofsSel && typeof po.extraRoofsSel === 'object') ? po.extraRoofsSel : {};
+  const xr = Array.isArray(quote && quote.extraRoofs) ? quote.extraRoofs : [];
+  Object.keys(sel).forEach(function(k){ if (sel[k] && xr[+k]) out.push('Additional roof: ' + String(xr[+k].name || ('Roof ' + (+k + 2))).slice(0, 60)); });
+  const acc = (quote && quote.accepted) || {};
+  (Array.isArray(acc.options) ? acc.options : []).forEach(function(o){
+    o = o || {};
+    out.push('Option: ' + (o.title || 'Option') + (o.grade && o.grade !== 'Standard' ? ' — ' + o.grade : '') + ' ' + _money(o.total));
+  });
+  return out;
+}
+// The tags an acceptance email can use.
+function _acceptVars(job, quote, br, link){
+  const acc = (quote && quote.accepted) || {};
+  const client = (job && job.client_name) || (quote && quote.client) || acc.name || 'Customer';
+  const lines = _quoteChoiceLines(quote).map(function(x){ return '  • ' + x; });
+  return {
+    client: client, site: (job && job.site_address) || (quote && quote.addr) || '',
+    ref: (quote && quote.ref) || '', company: String(br.company_name || '').trim() || 'the team',
+    total: _money(acc.total), accepted_by: acc.name || client, accepted_at: acc.at ? _nzWhen(acc.at) : '',
+    accepted_by_line: (acc.name && acc.name !== client) ? ('Accepted by: ' + acc.name + '\n') : '',
+    selections: lines.length ? lines.join('\n') : '  • As quoted',
+    link: link || '',
+    phone: br.phone ? (br.phone + '\n') : '', email: br.email ? (br.email + '\n') : '', website: br.website || '',
+    office_phone: br.phone || 'the office', office_address: br.address ? (br.address + '\n') : '',
+  };
+}
+// Plain text → HTML: the first link becomes a big button, and a paragraph
+// that starts "Need a last-minute change?" is set in a yellow box so it is
+// the thing a customer sees.
+function _tplEmailHtml(message, button){
+  const esc = function(x){ return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  const m = String(message || '').match(/https?:\/\/[^\s<]+/);
+  const link = m ? m[0] : '';
+  const paras = String(message || '').split(/\n{2,}/).map(function(p){
+    let h = esc(p).replace(/\n/g, '<br>');
+    if (link && p.indexOf(link) >= 0){
+      const btn = '<div style="margin:12px 0"><a href="' + esc(link) + '" style="display:inline-block;background:#2eaa46;color:#ffffff;text-decoration:none;font-weight:800;font-size:17px;padding:14px 34px;border-radius:8px;font-family:Arial,Helvetica,sans-serif">' + esc(button || 'View this Quote') + '</a></div>';
+      h = h.split(esc(link)).join(btn);
+    }
+    if (/^\s*need a last-minute change\?/i.test(p))
+      return '<div style="margin:14px 0;padding:12px 14px;background:#fff7d6;border:1px solid #f0d27a;border-radius:8px"><b>' + h.replace(/^(\s*Need a last-minute change\?)/i, '$1</b>') + '</div>';
+    return '<p style="margin:0 0 12px">' + h + '</p>';
+  }).join('');
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:600px">' + paras + '</div>';
+}
+// The customer's own confirmation (2026-10-02, the owner's: "a quote accepted
+// email that goes from the system to the customer ... so that the customer
+// can see confirmation of their accepted quote and their selections ... if
+// they would like to make any last-minute change please ring the office").
+// Sent by the server the moment the acceptance is recorded — once per
+// acceptance — from the business's name, replies to the business.
+async function _acceptCustomerEmail(job, quote){
+  try {
+    if (!EMAIL_ENABLED || !job || !quote) return;
+    const st = await _settingsRowForJob(job);
+    const em = _emailCfgOfRow(st);
+    if (em.accept_cust_on === false) return;
+    const sh = quote.share || {};
+    const toList = _emailList(sh.sentTo || quote.email || (((job.draw_state || {}).form) || {}).jobEmail || '');
+    if (!toList.length) return;
+    const br = (st || {}).branding || {};
+    let link = '';
+    try { link = await _reminderQuoteLink({ id: job.id, company_id: job.company_id, ref: quote.ref }, sh); } catch (e) {}
+    const vars = _acceptVars(job, quote, br, link);
+    const subject = _fillTpl(em.accept_cust_subject || ACCEPT_CUST_EMAIL_DEFAULT.subject, vars).replace(/\s{2,}/g, ' ').trim();
+    const body = _fillTpl(em.accept_cust_body || ACCEPT_CUST_EMAIL_DEFAULT.body, vars).replace(/\n{3,}/g, '\n\n');
+    const who = _tenantMailIdentity(st, 'accept_cust');
+    await _dispatchMail({ to: toList.join(', '), cc: _emailCopies(st, em.accept_cust_cc, toList), subject, text: body,
+                          html: _tplEmailHtml(body, 'View your accepted quote'),
+                          fromName: who.fromName, replyTo: who.replyTo,
+                          fromAddress: _tenantSendAddress(job.company_id, who.fromName, who.replyTo) });
+  } catch (e) { console.warn('[accept] customer confirmation failed:', e && e.message); }
+}
 // The same {placeholder} fill the office's quote email uses client-side.
 function _fillEmailTemplate(tpl, vars){
   return String(tpl || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
@@ -6321,8 +6516,8 @@ async function _reminderSweep(){
         .replace(/\s{2,}/g, ' ').trim();
       const body = _fillEmailTemplate(em.reminder_body || REMINDER_EMAIL_DEFAULT.body, vars)
         .replace(/\n{3,}/g, '\n\n');
-      const who = _tenantMailIdentity(settingsRow);
-      const cc = String(em.quote_cc || '').trim() || undefined;
+      const who = _tenantMailIdentity(settingsRow, 'reminder');
+      const cc = _emailCopies(settingsRow, String(em.reminder_cc || '').trim() || em.quote_cc, _emailList(to));
       await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
                             html: _reminderEmailHtml(body),
                             fromName: who.fromName, replyTo: who.replyTo,
@@ -8024,9 +8219,10 @@ app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
     if (!rows || !rows.length) return res.status(404).json({ error: 'Row not found' });
     const settings = await _companySettingsRow(req);
     const brand = (settings && settings.branding) || {};
-    const replyTo = brand.email || undefined;
+    const replyTo = _tenantMailIdentity(settings, 'sched').replyTo || undefined;
     await _dispatchMail({
       to: String(b.to).slice(0, 200),
+      cc: _emailCopies(settings, _emailCfgOfRow(settings).sched_cc, _emailList(b.to)),
       subject: String(b.subject).slice(0, 250),
       text: String(b.body).slice(0, 8000),
       fromName: brand.company_name || undefined,
@@ -10354,9 +10550,13 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     // customer — so it goes out under their name with replies pointed at them,
     // not at us. A tenant who has not filled in Branding keeps the platform
     // identity rather than sending something nameless.
-    let _who = { fromName: null, replyTo: null };
-    try { _who = _tenantMailIdentity(await _companySettingsRow(req)); } catch (e) {}
-    const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
+    let _who = { fromName: null, replyTo: null }, _stRow = null;
+    const _kind = (req.body && (req.body.kind === 'quote' || req.body.kind === 'order')) ? req.body.kind : null;
+    try { _stRow = await _companySettingsRow(req); _who = _tenantMailIdentity(_stRow, _kind); } catch (e) {}
+    // The master copy (Settings → Email), never on a practice send.
+    let _cc = cc;
+    if (!(req.body && req.body.test === true) && _stRow) _cc = _emailCopies(_stRow, cc, _emailList(to));
+    const mail = { to, cc: _cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
                    attachment, fromName: _who.fromName, replyTo: _who.replyTo,
                    fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo) };
     // The Google Apps Script relay can take 10-20s to wake + send, which made

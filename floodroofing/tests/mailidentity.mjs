@@ -109,7 +109,8 @@ if (sent.length) {
 // ── a tenant with no branding gets the platform identity, not a blank ──
 const src = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 check('a business that has not filled in Branding falls back rather than sending nameless',
-  /return \{ fromName: name \|\| null, replyTo: \/\.@\.\/\.test\(email\) \? email : null \}/.test(src));
+  // (2026-10-02: a reply-to set in Settings → Email comes first, then the Branding email)
+  /return \{ fromName: name \|\| null, replyTo: set \|\| \(\/\.@\.\/\.test\(email\) \? email : null\) \}/.test(src));
 check('_mailFromName falls back to the address on EMAIL_FROM',
   /function _mailFromName\(fallback\)/.test(src) && /fallback \|\| \(m && m\[1\]\.trim\(\)\)/.test(src));
 check('the envelope address stays VERIFIED — ours, or a domain the tenant proved they own',

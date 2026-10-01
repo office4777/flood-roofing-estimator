@@ -159,8 +159,12 @@ Discipline (non-negotiable):
 - An UNPROMPTED platform email (the trial drip, the trial-ended email) is
   HELD, never sent from a company address. `_allowedFromAddress` drops a
   From outside the verified sending domain back to `EMAIL_FROM`, which on
-  this deployment is office@floodroofing.co.nz — so RoofMap's onboarding
-  mail was reaching strangers out of the owner's roofing inbox. All three
+  this deployment WAS office@floodroofing.co.nz — so RoofMap's onboarding
+  mail was reaching strangers out of the owner's roofing inbox. (Since
+  2026-10-02 Railway has `EMAIL_FROM = RoofMap <support@roofmap.co.nz>`,
+  `RESEND_API_KEY` set, and roofmap.co.nz + quotes.roofmap.co.nz VERIFIED in
+  Resend — DNS on Vercel: DKIM `resend._domainkey`, `send` MX/SPF in Resend's
+  Tokyo region, DMARC to support@. So platform mail sends; nothing is held.) All three
   sweeps (drip, trial-ended and the gone-quiet alert to support@, which
   reached the owner from office@ on 2026-09-21) bail on
   `_platformMailboxSendable(MAIL_SUPPORT)` BEFORE they stamp their
@@ -567,6 +571,45 @@ Discipline (non-negotiable):
   `git config core.hooksPath .githooks` once. `tests/buildstamp.mjs` fails a
   stamp more than 30 min behind app.html's last commit (skipped on shallow
   clones and an uncommitted app.html).
+- SETTINGS → EMAIL (2026-10-02, `tests/emailsettings.mjs` server,
+  `emailtpl`/`tenantbrand`/`maildomainui` app): a Fergus-style list
+  (`EMX_ITEMS`, `#emxList`, `_emxShow`, remembered in `localStorage.fr_emx`)
+  of every email the business sends — Quote to customer, Quote follow-up,
+  Quote accepted → customer, Invoice, Schedule updates (the old
+  `#schedTplSection`, re-homed into `#emxSchedHost`, its own Save), Quote
+  accepted → office, Customer asked a question, Material order — each a
+  pane (`#emxPane-<k>`) with an Automatic on/off switch where it is
+  automatic, Sends to (office ones), Also send a copy to (CC), Customer
+  replies go to, Subject, Message, click-to-insert tags (`EMX_TAGS`,
+  `_emxTag`), Reset and Preview (`_emxPreview`, sample figures). At the TOP,
+  big: "Send a copy of every RoofMap email to" (`#emCopyAll` →
+  `copy_all`) and the default "Customer replies go to" (`#emReplyTo` →
+  `reply_to`). All under `quote_defaults.email`: `<kind>_subject`,
+  `<kind>_body` ('' = the standard wording, `EMX_DEFAULTS` in app.html =
+  the `*_EMAIL_DEFAULT` constants in server.js — the suite compares them),
+  `<kind>_cc`, `<kind>_reply_to`, `accept_cust_on` / `accept_office_on` /
+  `question_on` (absent = on, false = off), `question_to`; the old ids
+  (`emQuoteCc`, `emAcceptTo`, `emOrderCc`, `emQuoteSubject/Body`,
+  `emReminderOn/Days`) are kept. `_emxFill` / `_emxCollect` do the rest.
+  SERVER: `_emailCopies(row, own, toList)` = the email's CC + `copy_all`,
+  deduped, minus the To; `_tenantMailIdentity(row, kind)` takes the reply-to
+  from `<kind>_reply_to`, then `reply_to`, then Branding email;
+  `/email/send-order` takes `kind:'quote'|'order'` and adds the master copy
+  (never on a practice `test:true` send); the follow-up, invoices
+  (`invoice_subject`, an intro from `invoice_body` above the fixed invoice
+  block), schedule sends (`sched_cc`), the question email and the office
+  acceptance email (now with the company's name, reply-to = the customer,
+  its own subject/body when edited, `_quoteChoiceLines` — Paint Roof and
+  added roofs included) all go through it. THE CUSTOMER'S CONFIRMATION:
+  `_acceptCustomerEmail(job, quote)` from `POST /q/:token/event` on the
+  FIRST accept only (`_firstAccept`), to `share.sentTo` → `quote.email`;
+  total, every selection, a "View your accepted quote" button, and the
+  "Need a last-minute change? Please ring us on {office_phone}" paragraph
+  in a yellow box (`_tplEmailHtml`). The blank-save guard keeps `copy_all`
+  too. The app's quote/order windows show the master copy in their CC
+  (`_emailMergeCopies`).
+- THE "UPDATED …" LINE (2026-10-02): see the bullet below; also the bug
+  report records `build <APP_BUILT_AT>` (`tests/fbcontext.mjs`).
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
@@ -899,7 +942,10 @@ Discipline (non-negotiable):
   acceptance the LAST PAGE LEADS with `_qbAcceptedBlock` ("Quote accepted",
   who and when, what happens next, Save a copy as PDF) — no popup on the book,
   because the page is the confirmation. The office gets the acceptance email;
-  the customer does not, so the block must never promise them one.
+  since 2026-10-02 the customer gets a confirmation too (server-side, see
+  Settings → Email) unless the office switched it off — the page cannot know
+  which, so the block still never promises one. It carries "Need a
+  last-minute change? Please ring … on <phone>" instead.
 - The customer on a COMPUTER (or tablet, anything wider than 720px) gets
   the same quote as ONE PAGE (on a MODERN quote; see the style bullet): `_qdRender()` into `#qpRoot` under
   `html.qp-desk` when `_qpDeskActive()` (customer mode, not phone width,
@@ -1421,75 +1467,104 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-09-25 (8:40 am NZ)
+## Open at last handover — 2026-10-02 (late morning NZ)
 
 Delete or rewrite this section as it is dealt with; a stale list here is
 worse than none.
 
-**Where things stand.** Everything is shipped and verified live: main =
-`093fc6d`, promoted 8:31 am NZ 2026-09-25 (site byte-identical, `/health`
-build matches). Nothing is uncommitted. The working branch was
-`claude/pricing-totals-photos`; each batch went branch → PR (the Tests
-workflow runs on `pull_request` — that is the Linux gate) → green →
-`git push origin <sha>:main` → watch the promote. The Conventions bullets
-dated 2026-09-24/25 describe every feature below in detail; read those
-before touching them.
+**Where things stand.** Main carries everything below and is promoted and
+verified live (`/health.build` = main's SHA). Nothing uncommitted. Working
+branch `claude/pricing-totals-photos` (kept equal to main). The sidebar's
+"Updated h:mm d/m" line shows which build a screen is on — ask the owner
+for it before believing "it's still broken" (an un-reloaded tab runs the
+old build).
 
-**Shipped 2026-09-24/25, watch the first days through it:**
-- Quote drafts & templates: Viewing button beside "Change quote
-  template"; switching never asks — a worked-on draft is saved first
-  (`_qvKeepWorking`, `_qContentFp`); the template editor edits a COPY and
-  never the open quote; `_qChangeTemplate` makes a fresh draft.
-- Background saving: switching jobs no longer waits (`_jobSaveDetach` +
-  `_jobSaveSendDetached`); the working pill ends "✓ Saved h:mm". If an
-  office reports a job "lost its last changes" after switching, look here
-  first (the device copy is kept on failure; 3 retries).
-- Send: the link upload is skipped when the server already holds the quote
-  (`__qWritten`), a first send sends the share alone (`PUT
-  /jobs/:id/quote-share`); the Sent view waits for the last save.
-- Push to Fergus has Cancel on the pill (voids a just-created version).
-  Fergus mark-as-sent is `POST /jobs/quotes/{id}/markAsSent {isSent:true}`.
-- `/quote-activity` reads through the pg pool (`_quoteShareRowsPg`).
-- Custom Price Book (Settings → Pricing): upload CSV/PDF, links to RoofMap
-  defaults, server guard + `price_book_revisions`; the price book window
-  (`_pbPickOpen`) with folders and a Defaults tab; any material row takes a
-  price typed per job; the materials table's edits are now SAVED with the
-  job (`state.matOv/matDel`) — they used to leak between jobs.
-- Map Roof: Break up ridge (straight gables), report 58 sheet-engine fixes
-  (step split in `_sgmSplit`, `_sgmUncoveredGutters`, head-barge edge),
-  measuring tape (`DRAW.tapes`), canvas never pinned to a pixel width,
-  Fergus photos cached per job, roof image boxes always open, history moved
-  into the History popup, outline tool never selects a line.
+**Starting on ANOTHER computer (the owner is away from this laptop until
+about mid/late October 2026 and continues elsewhere):**
+- `git fetch && git checkout claude/pricing-totals-photos` (equal to main
+  at handover) — or branch a new `claude/...` off main.
+- `git config core.hooksPath .githooks` once (the build-stamp hook), then
+  `npm install` at the repo root AND in `floodroofing/backend` (as CI
+  does), then `npx playwright install chromium` for the browser suites; `floodroofing/docs/VSCODE.md` is the editor setup.
+- `gh auth login` (GitHub CLI) to watch Tests/promote runs.
+- NOT on the other machine: `C:/Users/OEM/pgtools` (the read-only prod
+  query tool and the Singapore cutover script) and
+  `C:\Users\OEM\roofmap-migrate.env` (the secrets) live only on this
+  laptop, and the auto-memory notes are per machine (their content is in
+  this file). Without them there is no direct production database access —
+  diagnose from feedback reports, `/health`, and the owner. Do not recreate
+  the secrets file anywhere; the cutover waits until he is back here.
 
-**Open with the owner (Aron), 2026-09-25:**
-- A missing green "1 × 2.78 m" sheet measure on a job pack roof map —
-  his screenshots never arrived (twice). Ask for the feedback report from
-  that job (it now carries roofType, ridgeBreaks and line flags) and
-  reproduce from its geometry. Head barges now carry a measure, which may
-  already be the fix.
-- Break up ridge was built from his description and one photo: he is to
-  check the flashings (head apron + barge + side apron at each end) on the
-  real zig-zag roof.
-- UNANSWERED: a Custom Price Book line's mark-up is applied to the supplier
-  cost and the job's material mark-up still goes ON TOP. Ask whether he
-  meant the line's mark-up to REPLACE the job's for that item.
-- His price book CSVs are in `C:\Users\OEM\Downloads`:
-  `floodroofingpricebook.csv` and `floodroofinggutterpricebook.csv` (24
-  Aug, description/unit/price — upload as they are); `Bills_Flood Roofing
-  LTD_2026-Aug-24.06.16.42.csv` holds real purchase prices.
-- Still his (older, below): LINZ Developer key on Railway as
-  `LINZ_BASEMAPS_KEY` (`/health.features.linz` is false until then);
-  Nearmap stays off until privacy.html v1.2 + 30 days' notice.
+**How to work (2026-10-01 onward — keep doing it):**
+- Run the AFFECTED suites locally (`node floodroofing/tests/run.mjs <name>`
+  — ONE name per call; it ignores the rest), commit, `git push origin
+  HEAD:main` (and the same SHA to the branch). Main's Tests run (browser
+  suites sharded 4 ways) is the gate; watch it, then the promote, then
+  `/health.build`. A red run ships nothing — read the failing suite with
+  `gh run view <id> --log-failed | grep FAIL`, fix forward. Two CI-only
+  timing flakes were fixed today (onboarding's two start events, report61's
+  select-then-convert); if another suite fails ONLY on CI, look for a test
+  that splits one action across two `evaluate` calls.
+- `gh` is `/c/Program Files/GitHub CLI/gh.exe`. NZ time: `node -e
+  "console.log(new Date().toLocaleString('en-NZ',{timeZone:'Pacific/Auckland'}))"`
+  (`TZ=… date` lies in Git Bash). The laptop cannot run the full gate to
+  exit 0 (signup, dupjobui, restoredrill fail on Windows' timezone).
+- THE COMMIT HOOK: `.githooks/pre-commit` stamps `window.APP_BUILT_AT` in
+  app.html whenever app.html is committed. This laptop already has
+  `git config core.hooksPath .githooks`; ANY OTHER MACHINE must run that
+  once, or `tests/buildstamp.mjs` fails the ship.
+- Scripted edits to app.html: Python in a FILE in the scratchpad (bash
+  heredocs mangle `\u`, `\n` and quotes), assert every replacement's
+  count, `node floodroofing/tools/check-app-syntax.mjs` → `blocks 6 bad 0`.
+- Read-only production queries: `node C:/Users/OEM/pgtools/q.cjs old "<sql>"`
+  (prod DB is still the Mumbai one). Never print secrets; secrets live only
+  in `C:\Users\OEM\roofmap-migrate.env`. The Singapore DB move waits on
+  the owner's "ready" and runs ONLY through `node
+  C:/Users/OEM/pgtools/cutover.cjs <step>`; don't change JWT_SECRET,
+  MAIL_CRED_KEY or ADMIN_TOKEN on Railway during it.
+- The owner's messages sometimes say "see attached" with nothing attached,
+  or "2 more things" with one — say so rather than guess.
 
-**How the last session worked (keep doing it):** the laptop gate cannot
-exit 0 on Windows (dupjobui, signup, restoredrill fail on the timezone), so
-run the affected suites locally, then PR → Linux gate. `gh` is at
-`/c/Program Files/GitHub CLI/gh.exe` (run from `C:\Users\OEM\roofmap`).
-Scripted edits to app.html: write the Python to a FILE (heredocs mangle
-`\u`/`\n`/quotes), assert every replacement's count, then
-`node floodroofing/tools/check-app-syntax.mjs`. Explore agents are good for
-mapping a subsystem before a change. The owner's messages sometimes say
-"see attached" with nothing attached — say so rather than guess.
+**Shipped 2026-10-01/02 (all live), watch the first days through it** —
+each has its Conventions bullet: the getting-started coach every sign-in
+until "Don't show this again"; the help bubble's real-person support desk
+(`/admin/support/page`); Photos closed by default; Job Pack panels push the
+pages; the outline snap back at 20° + parallel line-up + Shift tip; the
+dog-leg gable (report 60); gable↔hip end conversion (reports 61, 64);
+Measure plan on the pricing page; the editable quote summary; office
+options' pick/recommended; Save as template; Fergus last-sent per job; a
+deleted page drops its price; the acceptance guard (`_keepCustomerState`,
+job 3288) and the fresh-products-before-send check; re-send a sent quote,
+close the email window freely, delete saved drafts; `tests/sendexact.mjs`
+(the customer sees exactly what was sent); EVERY SEND KEPT (Sent quote 1,
+2 …); the "Updated …" line; CUSTOM OPTIONS on the quote (+ Insert custom
+option, edit / save / delete, saved options); options and the gutter write
+What's included / excluded; a duplicate keeps its options at once on a
+device whose products are behind; SETTINGS → EMAIL rebuilt with the
+master copy and the customer's acceptance confirmation.
+
+**Open — needs the owner (Aron):**
+- Job 3288's acceptance (accepted 3:20 pm NZ 1 Oct, wiped by a stale screen
+  before the guard existed) can only be put back from his acceptance email
+  (name, time, total). Its first Sent copy is gone too (the job's history
+  holds only the 7:48 am 2 Oct send).
+- His own quotes now leave as "Flood Roofing <…@roofmap.co.nz>" with
+  replies to office@. To send as office@floodroofing.co.nz: the Resend
+  entries for floodroofing.co.nz read FAILED and Settings → Email shows
+  office@floodroofing.co.nz "Waiting for DNS" — the records go in
+  Cloudflare (floodroofing.co.nz's DNS), then Check now.
+- The two OPEN AND URGENT items above (an accepted quote's figures move;
+  the previous job's quote carried into the next) are still open.
+- Older, still his: the missing "1 × 2.78 m" sheet measure (ask for that
+  job's feedback report); check Break up ridge's flashings on the real
+  zig-zag roof; UNANSWERED — should a Custom Price Book line's mark-up
+  REPLACE the job's material mark-up for that item; his price book CSVs in
+  `C:\Users\OEM\Downloads` (floodroofingpricebook.csv,
+  floodroofinggutterpricebook.csv, the Bills CSV); Nearmap stays off until
+  privacy.html v1.2 + 30 days' notice; the "Waiting on the owner" lists
+  below.
+
+### Older handover notes (history — check before relying on them)
 
 **Shipped 2026-09-22 (promotes 178–182, all verified live), watch the
 first day through it:** the database stall of 10:18–10:38 am NZ (autosave
