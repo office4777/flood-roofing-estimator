@@ -632,6 +632,20 @@ Discipline (non-negotiable):
   "hold Shift … to turn the snapping off", `fr_shift_tip_off`). The snap
   while drawing (`snap()`, `SNAP_AXIS_PX` 24) has not changed since
   2026-09-07. `tests/report60.mjs`, `tests/squarecorner.mjs`.
+- A HIP END ON A GABLE (report 61, 2026-10-01, `tests/report61.mjs`): a
+  selected gable-end barge's popup offers "Convert this gable end to a hip
+  end", a hip on such an end the way back, and on a plain RECTANGULAR hip
+  roof a hip offers "Convert this hip end to a gable end" (the roof becomes
+  a gable whose OTHER end stays hipped). `DRAW.hipEnds = {starter, finish}`
+  per roof (ROOF_FIELDS, the draw block, snapshots; reset by clearAll and by
+  picking a shape or rotating, like ridgeBreaks; `DRAW._keepHipEnds` guards
+  the hip→gable regen). `buildGableRoofLines` = `_applyHipEnds(
+  _buildGableRoofLinesBase(...))`: an end that is two barges meeting at a
+  ridge end loses them, its wall becomes a gutter, the ridge stops short by
+  the run (45° in plan; both ends on one ridge meet at most in the middle)
+  and two hips run up — lines flagged `hipEnd` (in LINE_FLAG_KEYS). Works on
+  the straight gable and the dog-leg. The sheet count does not change (the
+  hip end is cut from the same sheets).
 - THE DOG-LEG GABLE (report 60, 2026-10-01, `fixtures-report60.json`): a
   gable on an outline that is a bent STRIP (`_doglegStrip`: 2(k+2) corners,
   two long sides pairing across at each of k bends, each wing's two sides

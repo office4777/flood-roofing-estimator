@@ -17411,7 +17411,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[],
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -17557,6 +17557,7 @@ function restoreFromJob(j){
     DRAW.rotation = snap.draw.rotation || 0;
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
     DRAW.ridgeBreaks = Array.isArray(snap.draw.ridgeBreaks) ? snap.draw.ridgeBreaks : [];
+    DRAW.hipEnds = (snap.draw.hipEnds && typeof snap.draw.hipEnds === 'object') ? snap.draw.hipEnds : null;
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -44673,7 +44674,7 @@ function _roofGeometryPayload(){
       activeRoofIdx: DRAW.activeRoofIdx,
       // The builder's own inputs, so a report re-builds the same roof.
       roofType: DRAW.roofType || '', rotation: DRAW.rotation || 0, roofBaseHoriz: DRAW.roofBaseHoriz,
-      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [],
+      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null,
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
       // Everything the CUT LIST is built from besides the geometry — the
       // typed quantities and lengths, sheets deleted off the plan, measure
@@ -45172,6 +45173,15 @@ function _ridgeBreakBoxRender(l){
     box.style.display = 'block';
     return;
   }
+  var _he = null; try { _he = _hipEndOf(l); } catch(e){}
+  if (_he){
+    box.innerHTML = '<button type="button" id="hipEndBtn" onclick="_hipEndConvert()" style="padding:7px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">' +
+      (_he.to === 'hip' ? '\u25E2 Convert this gable end to a hip end' : '\u25AE Convert this hip end to a gable end') + '</button>' +
+      '<div style="font-size:11px;color:#64748b;line-height:1.4;margin-top:5px">' +
+      (_he.to === 'hip' ? 'For a roof with a hip at this end and a gable at the other.' : 'The other end stays as it is.') + '</div>';
+    box.style.display = 'block';
+    return;
+  }
   if (l && l.type === 'ridge' && gable){
     box.innerHTML = '<button type="button" id="rbAddBtn" onclick="_ridgeBreakAdd()" style="padding:7px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">\u2702 Break up ridge</button>' +
       '<div style="font-size:11px;color:#64748b;line-height:1.4;margin-top:5px">For a roof where one side runs on past the ridge and the other stops short, in part of its length.</div>';
@@ -45183,7 +45193,7 @@ function _ridgeBreakBoxRender(l){
 
 // What a built line carries beyond its type: a broken ridge's pieces (see
 // _gblPushRidge in buildGableRoofLines).
-var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg'];
+var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg', 'hipEnd'];
 function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
 function regenerateAutoRoofLines(roofType){
   if (!roofType || !DRAW.outline || DRAW.outline.length < 3) return;
@@ -51447,6 +51457,8 @@ function clearAll(silent) {
   DRAW.flashLetterOffsets = {};
   DRAW.editMode = 'scaled';
   DRAW.offScale = null;
+  // A new job never inherits the last roof's broken ridge or hipped ends.
+  DRAW.ridgeBreaks = []; DRAW.hipEnds = null;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -70810,7 +70822,100 @@ function buildDoglegGableLines(outline){
   L('barge', A[k + 1], ends1, { subtype: 'finish' }); L('barge', ends1, B[k + 1], { subtype: 'finish' });
   return out;
 }
-function buildGableRoofLines(outline, flipAxis) {
+// A HIP END ON A GABLE (2026-10-01, feedback report 61: "this real life roof
+// has a hip end at one end, and a gable end at the other ... when a barge or
+// hip line is selected, inside the popup add an option to convert it").
+// DRAW.hipEnds = { starter: bool, finish: bool } per roof — which of the
+// gable's two ends (the builder's starter / finish barges) is hipped. A
+// hipped end loses its two barges; the end wall becomes a gutter; the ridge
+// stops short by the run (a 45° hip in plan, both slopes the same pitch);
+// two hips run from the end's corners to the ridge's new end. Works on the
+// straight gable and the dog-leg alike — any end that is two barges meeting
+// at a ridge end.
+function _applyHipEnds(lines, ends){
+  ends = ends || (window.DRAW && DRAW.hipEnds) || null;
+  if (!ends || !lines || !lines.length) return lines;
+  var near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 0.75; };
+  ['starter', 'finish'].forEach(function(sub){
+    if (!ends[sub]) return;
+    var bs = lines.filter(function(l){ return l.type === 'barge' && l.subtype === sub; });
+    if (bs.length !== 2) return;
+    var E = null, C = [];
+    bs[0].pts.forEach(function(p){ bs[1].pts.forEach(function(q){ if (near(p, q)) E = p; }); });
+    if (!E) return;
+    bs.forEach(function(b){ b.pts.forEach(function(p){ if (!near(p, E)) C.push(p); }); });
+    if (C.length !== 2) return;
+    var r = lines.filter(function(l){ return l.type === 'ridge' && (near(l.pts[0], E) || near(l.pts[1], E)); })[0];
+    if (!r) return;
+    var ei = near(r.pts[0], E) ? 0 : 1, F = r.pts[1 - ei];
+    var len = Math.hypot(F[0]-E[0], F[1]-E[1]); if (len < 1) return;
+    var u = [(F[0]-E[0])/len, (F[1]-E[1])/len];
+    var d = Math.hypot(C[0][0]-E[0], C[0][1]-E[1]);
+    // both ends hipped on a short ridge: the hips meet in the middle
+    var other = sub === 'starter' ? 'finish' : 'starter';
+    var max = (ends[other] && lines.some(function(l){ return l.type === 'barge' && l.subtype === other; }) && !lines.some(function(l){ return l.type === 'ridge' && l !== r; })) ? len / 2 : len - 0.5;
+    var t = Math.min(d, max), E2 = [E[0] + u[0]*t, E[1] + u[1]*t];
+    for (var i = lines.length - 1; i >= 0; i--) if (lines[i] === bs[0] || lines[i] === bs[1]) lines.splice(i, 1);
+    r.pts[ei] = E2.slice();
+    lines.push({ type: 'gutter', pts: [C[0].slice(), C[1].slice()], hipEnd: sub });
+    lines.push({ type: 'hip', pts: [C[0].slice(), E2.slice()], hipEnd: sub });
+    lines.push({ type: 'hip', pts: [C[1].slice(), E2.slice()], hipEnd: sub });
+  });
+  return lines;
+}
+function buildGableRoofLines(outline, flipAxis){
+  return _applyHipEnds(_buildGableRoofLinesBase(outline, flipAxis));
+}
+// From a selected barge or hip: which end of THIS roof it belongs to, and
+// whether the conversion can be made.
+function _hipEndOf(l){
+  if (!l) return null;
+  if (DRAW.roofType === 'gable' && l.type === 'barge' && (l.subtype === 'starter' || l.subtype === 'finish') && l.autoGenerated){
+    var trial = _applyHipEnds(_buildGableRoofLinesBase(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1),
+      Object.assign({}, DRAW.hipEnds || {}, (function(){ var o = {}; o[l.subtype] = true; return o; })()));
+    return trial.some(function(x){ return x.hipEnd === l.subtype && x.type === 'hip'; }) ? { to: 'hip', end: l.subtype } : null;
+  }
+  if (DRAW.roofType === 'gable' && l.type === 'hip' && l.hipEnd) return { to: 'gable', end: l.hipEnd };
+  // A plain hip roof on a rectangle: either end may become a gable.
+  if (DRAW.roofType === 'hip' && l.type === 'hip' && DRAW.outline && DRAW.outline.length === 4 && _outlineIsRectilinear(DRAW.outline, 20)){
+    var rg = DRAW.lines.filter(function(x){ return x.type === 'ridge'; })[0];
+    if (!rg) return null;
+    var horiz = Math.abs(rg.pts[1][0] - rg.pts[0][0]) >= Math.abs(rg.pts[1][1] - rg.pts[0][1]);
+    var k = horiz ? 0 : 1;
+    // the hip's ridge end: the hip end nearer the ridge
+    var hp = l.pts.reduce(function(a, p){
+      var d = Math.min(Math.hypot(p[0]-rg.pts[0][0], p[1]-rg.pts[0][1]), Math.hypot(p[0]-rg.pts[1][0], p[1]-rg.pts[1][1]));
+      return (!a || d < a.d) ? { p: p, d: d } : a;
+    }, null).p;
+    var lo = Math.min(rg.pts[0][k], rg.pts[1][k]);
+    return { to: 'gable', end: (Math.abs(hp[k] - lo) < Math.abs(hp[k] - Math.max(rg.pts[0][k], rg.pts[1][k]))) ? 'starter' : 'finish', fromHip: true, horiz: horiz };
+  }
+  return null;
+}
+function _hipEndConvert(){
+  var l = DRAW.lines[DRAW.selectedLine], h = _hipEndOf(l); if (!h) return;
+  saveSnapshot();
+  if (h.fromHip){
+    // the hip roof becomes a gable with its OTHER end still hipped
+    DRAW.roofBaseHoriz = h.horiz;
+    DRAW.hipEnds = { starter: h.end !== 'starter', finish: h.end !== 'finish' };
+    DRAW.roofType = 'gable';
+    DRAW._keepHipEnds = true;
+    try { autoGenerateRoof('gable', 0); } finally { DRAW._keepHipEnds = false; }
+  } else {
+    var he = Object.assign({}, DRAW.hipEnds || {});
+    he[h.end] = (h.to === 'hip');
+    DRAW.hipEnds = he;
+    regenerateAutoRoofLines('gable');
+  }
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof(); syncToRoofData(); } catch(e){}
+  DRAW.selectedLine = -1; try { hidePropPanel(); } catch(e){}
+  redrawAll();
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast(h.to === 'hip' ? 'That end is a hip end now' : 'That end is a gable end now'); } catch(e){}
+}
+function _buildGableRoofLinesBase(outline, flipAxis) {
   // A dog-leg (a building that bends part-way along) is its own shape.
   if (outline && outline.length >= 6 && !_outlineIsRectilinear(outline, 20)){
     var _dl = buildDoglegGableLines(outline);
@@ -71949,6 +72054,7 @@ function autoGenerateRoof(type, rotation) {
   // it or changing its type starts the ridge whole again. Sliding the ridge
   // (same type, same rotation) keeps the breaks.
   try { if (!(type === 'gable' && rotation != null && (+rotation || 0) === (+DRAW.rotation || 0))) DRAW.ridgeBreaks = []; } catch(e){}
+  try { if (!(type === 'gable' && rotation != null && (+rotation || 0) === (+DRAW.rotation || 0)) && !DRAW._keepHipEnds) DRAW.hipEnds = null; } catch(e){}
   // A roof with lines on it is the first milestone that says the product
   // works for them. It's the one number worth knowing about a trial — and
   // only counts when the drawing is to scale, since a shape with no
@@ -72048,7 +72154,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -72061,7 +72167,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[],
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -72073,7 +72179,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [],
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }
