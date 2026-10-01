@@ -52,6 +52,8 @@ const select = (pred) => pg.evaluate((src) => {
   return { i, shown: !!btn && box.style.display !== 'none', text: btn ? btn.textContent : '' };
 }, pred.toString());
 
+// Select and press in one step (see the convert calls): a late boot task on a
+// loaded CI runner cleared the selection between two separate calls.
 await setup('gable');
 let L = await lines();
 const ridge0 = L.find(x => x.t === 'ridge');
@@ -59,7 +61,7 @@ check('the report’s roof: a straight gable, four barges and one ridge end to e
 
 let v = await select(l => l.type === 'barge' && l.subtype === 'starter');
 check('a selected gable-end barge offers "Convert this gable end to a hip end"', v && v.shown && /Convert this gable end to a hip end/.test(v.text), JSON.stringify(v));
-await pg.evaluate(() => _hipEndConvert());
+await pg.evaluate((i) => { if (i != null && i >= 0) DRAW.selectedLine = i; _hipEndConvert(); }, v && v.i);
 L = await lines();
 const hips = L.filter(x => x.t === 'hip'), ridge = L.find(x => x.t === 'ridge'), barges = L.filter(x => x.t === 'barge'), endGutter = L.find(x => x.t === 'gutter' && x.he === 'starter');
 check('…pressed: that end loses its barges, the other end keeps its two', barges.length === 2 && barges.every(x => x.sub === 'finish'), JSON.stringify(barges));
@@ -93,7 +95,7 @@ check('the sheet count is the gable’s: 9 + 9 = 18 (the hip end is cut from tho
 // and back again
 v = await select(l => l.type === 'hip' && l.hipEnd === 'starter');
 check('a selected hip on that end offers "Convert this hip end to a gable end"', v && v.shown && /Convert this hip end to a gable end/.test(v.text), JSON.stringify(v));
-await pg.evaluate(() => _hipEndConvert());
+await pg.evaluate((i) => { if (i != null && i >= 0) DRAW.selectedLine = i; _hipEndConvert(); }, v && v.i);
 L = await lines();
 check('…pressed: the roof is exactly the gable it was', L.filter(x => x.t === 'barge').length === 4 && !L.some(x => x.t === 'hip') &&
   JSON.stringify(L.find(x => x.t === 'ridge').p.map(p => p[0]).sort()) === JSON.stringify([219, 350]), JSON.stringify(L.map(x => x.t)));
@@ -102,7 +104,7 @@ check('…pressed: the roof is exactly the gable it was', L.filter(x => x.t === 
 await setup('hip');
 v = await select(l => l.type === 'hip' && l.pts.some(p => Math.abs(p[0] - 350) < 0.5));
 check('on a plain hip roof a selected hip offers "Convert this hip end to a gable end"', v && v.shown && /hip end to a gable end/.test(v.text), JSON.stringify(v));
-await pg.evaluate(() => _hipEndConvert());
+await pg.evaluate((i) => { if (i != null && i >= 0) DRAW.selectedLine = i; _hipEndConvert(); }, v && v.i);
 L = await lines();
 v = await pg.evaluate(() => ({ type: DRAW.roofType, he: DRAW.hipEnds }));
 check('…pressed: it is a gable with barges at that end and the other end still a hip',
