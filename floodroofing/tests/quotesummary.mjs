@@ -118,6 +118,49 @@ v = await pg.evaluate(async () => {
   return { picks: 'summaryPicks' in S.quote, base: 'summaryBaseLabel' in S.quote };
 });
 check('"Reset to automatic" and Save deletes the edits from the quote', !v.picks && !v.base, JSON.stringify(v));
+// ── Save as template (2026-10-01, the owner's: "add a save as template
+// button on the quote tab ... save as a re-screw and paint template") ──
+v = await pg.evaluate(async () => {
+  S.quote.proposalTitle = 'Re-Screw & Optional Painting Proposal';
+  S.quote.custDesc = ['Remove existing Roofing Nails', 'Supply & install new Roofing Screws'];
+  S.quote.summaryBaseLabel = 'Re-screw & paint — main scope of work';
+  S.quote.summaryPicks = [{ label: 'Fixings', value: 'New roofing screws' }];
+  const btn = document.getElementById('qaSaveTplBtn');
+  _qtSaveQuoteAsTemplate(); await new Promise(r => setTimeout(r, 100));
+  const offered = document.getElementById('qtSaveName').value;
+  document.getElementById('qtSaveName').value = 'Re-Screw & Paint';
+  await _qtSaveQuoteAsTemplateGo();
+  const t = _qtTemplates().find(x => x.name === 'Re-Screw & Paint');
+  return { btn: !!btn && /Save as template/.test(btn.textContent), offered, saved: !!t, id: t && t.id, wording: t && t.tpl.wording,
+           parked: t && t.tpl.modernParked, named: S.quote.templateName };
+});
+check('the Quote tab has a Save as template button, offering the proposal’s own title as the name',
+  v.btn && v.offered === 'Re-Screw & Optional Painting', JSON.stringify(v).slice(0, 200));
+check('…which saves the quote as a template carrying its title, description, summary and the pages taken out',
+  v.saved && v.wording.proposalTitle === 'Re-Screw & Optional Painting Proposal' && v.wording.custDesc.length === 2 &&
+  v.wording.summaryBaseLabel && v.wording.summaryPicks.length === 1 && ['grade', 'profile', 'thickness'].every(k => v.parked.includes(k)) && v.named === 'Re-Screw & Paint',
+  JSON.stringify(v).slice(0, 300));
+const tplId = v.id;
+v = await pg.evaluate(async (id) => {
+  // another quote, back to the default layout and wording…
+  _qChangeTemplate('__default'); await new Promise(r => setTimeout(r, 300));
+  const before = { title: _qbProposalTitle(), desc: S.quote.custDesc };
+  // …then started from the template
+  _qChangeTemplate(id); await new Promise(r => setTimeout(r, 500));
+  return { before, title: _qbProposalTitle(), desc: S.quote.custDesc, base: S.quote.summaryBaseLabel, parked: S.quote.modernParked };
+}, tplId);
+check('starting a quote from it brings all of that back', v.before.title !== v.title && v.title === 'Re-Screw & Optional Painting Proposal' &&
+  Array.isArray(v.desc) && v.desc.length === 2 && /Re-screw/.test(v.base) && v.parked.includes('grade'), JSON.stringify(v).slice(0, 300));
+
+// ── "Quote last sent to Fergus" belongs to its job ────────────────
+v = await pg.evaluate(async () => {
+  S.fergusSent = { quote: '2026-10-01T01:00:00.000Z' }; _renderFergusSent();
+  const shownA = (document.getElementById('fergusSentQuoteLbl') || { style: {} }).style.display !== 'none';
+  restoreFromJob({ id: 'jobB', draw_state: { state: { quote: defaultQuote() }, draw: {} } });
+  const lbl = document.getElementById('fergusSentQuoteLbl');
+  return { shownA, after: S.fergusSent, shownB: !!lbl && lbl.style.display !== 'none' };
+});
+check('opening another job clears the last job’s "Quote last sent to Fergus" (it was crossing between jobs)', v.shownA && !v.after && !v.shownB, JSON.stringify(v));
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 300));
 await b.close();
 const bad = results.filter(x => !x).length;

@@ -7255,6 +7255,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          quote and names it on the Viewing button. _qaTplMenuRender. -->
     <span id="qaViewingHost" class="no-print" style="display:contents"></span>
     <details class="qv-menu no-print lock-ok" id="qaTplMenu"><summary class="qa-btn qa-btn-tpl">Change quote template <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list" id="qaTplList"></div></details>
+    <!-- SAVE AS TEMPLATE (2026-10-01, the owner's: "like the re-screw and
+         paint quote, i'd like to save as a re-screw and paint template").
+         The quote on screen, named — _qtSaveQuoteAsTemplate. -->
+    <button type="button" id="qaSaveTplBtn" class="qa-btn lock-ok no-print" onclick="_qtSaveQuoteAsTemplate()" title="Save this quote's layout and wording as a template to start other quotes from">Save as template</button>
     <span id="qaAutosave" title="Every change is saved as you make it — there is nothing to press" style="font-size:11px;color:var(--text2);white-space:nowrap">✓ Quote autosaves</span>
     <button onclick="openQuoteEmail()" class="lock-ok qa-btn qa-btn-primary" data-tour="q-link">Email quote</button>
     <button onclick="printQuote()" class="qa-btn">Print / PDF</button>
@@ -17466,6 +17470,10 @@ function restoreFromJob(j){
   }
   if (snap.state) {
     S.orderSent = null;   // pre-stamp jobs: don't inherit the previous job's stamp
+    // …nor the last job's "Quote last sent to Fergus" (2026-10-01, the owner:
+    // "this is a new job i opened, so there's some crossed wires"). The job's
+    // own stamp comes back with its state below; a job without one has none.
+    S.fergusSent = null;
     S.files = [];         // same leak: a job without files must not inherit the last job's
     // Same leak again, and a worse one: a flashing struck off job A would
     // arrive struck off job B, quietly missing from a supplier order nobody
@@ -17486,6 +17494,7 @@ function restoreFromJob(j){
     S.img64 = null;
     S.jobPack = null;   // and the job pack: a job without one starts from the default pages, not the last job's
     Object.assign(S, snap.state);
+    try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
     try { _qvPackAll(); } catch(e){}         // a job saved before the picture pool: one copy of each picture from here on
     if (!Array.isArray(S.photos)) S.photos = [];
@@ -20136,6 +20145,7 @@ function _releaseCurrentJob(){
   S.linkedJobUrl = null;
   S._jobLoaded = null;
   S.orderSent = null;
+  S.fergusSent = null; try { _renderFergusSent(); } catch(e){}
   try { window._photoAck = null; window._lastSent = null; } catch(e){}
   try { _UNT.tried = false; } catch(e){}
   // The Fergus job keeps pointing at the job it actually belongs to. Only
@@ -38831,6 +38841,17 @@ function _qtSnapshot(){
     modernOrder: (Array.isArray(q.modernOrder) ? q.modernOrder : []).slice(),
     modernParked: (Array.isArray(q.modernParked) ? q.modernParked : []).slice(),
     style: _quoteStyle(),
+    // The modern quote's own wording (2026-10-01): a "Re-Screw & Paint"
+    // template is its title, its description, what it leaves out, its summary
+    // and the products it offers — not only the page arrangement. Never the
+    // prices, the customer or the photos.
+    wording: (function(){
+      var w = {};
+      ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
+      ['custDesc','custExcl','summaryPicks'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
+      if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
+      return w;
+    })(),
   };
 }
 function _qtApplySnapshot(t){
@@ -38846,6 +38867,13 @@ function _qtApplySnapshot(t){
   if (Array.isArray(t.options)) q.options = JSON.parse(JSON.stringify(t.options));
   if (Array.isArray(t.modernOrder)) q.modernOrder = t.modernOrder.slice();
   if (Array.isArray(t.modernParked)) q.modernParked = t.modernParked.slice();
+  // A template that carries the wording sets all of it — a field it does not
+  // have goes back to the default, so its quote reads as the template does.
+  if (t.wording && typeof t.wording === 'object'){
+    ['proposalTitle','summaryBaseLabel','custDesc','custExcl','summaryPicks','selHide'].forEach(function(k){
+      if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
+    });
+  }
   if (t.style === 'classic' || t.style === 'modern'){ q.style = t.style; try { _qpPreviewClassesSync(); _syncQuotePreviewToggle(); } catch(e){} }
   // Inside the editor, a template of the other style switches the editor
   // to that layout as well, or the rail and the stage disagree.
@@ -38906,6 +38934,58 @@ async function _qtSaveAsNamed(){
   }
   _qtSyncTemplatePicker();
   await _qtPersist('✓ Saved as “' + name + '”');
+}
+// SAVE THIS QUOTE AS A TEMPLATE — from the Quote tab, without opening the
+// template editor. A name (offered from the proposal's title), a template of
+// that name replaced only when the office says so, saved to Settings like the
+// editor's; the quote on screen then names the template it now matches.
+function _qtSaveQuoteAsTemplate(){
+  if (!S.quote) return;
+  var old = document.getElementById('qtSaveModal'); if (old) old.remove();
+  var guess = '';
+  try { guess = String(_qbProposalTitle() || '').replace(/\s*proposal\s*$/i, '').trim(); } catch(e){}
+  if (guess === 'Re-Roof') guess = '';
+  var host = document.createElement('div');
+  host.id = 'qtSaveModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qdesc" style="max-width:460px">'+
+      '<div class="qdesc-hd"><b>Save as template</b><span>Saves this quote\u2019s layout, title, description, summary and the pages you took out \u2014 not the prices, the customer or the photos. Start any quote from it with <b>Change quote template</b>.</span></div>'+
+      '<div class="qdesc-title"><label for="qtSaveName">Template name</label>'+
+        '<input type="text" id="qtSaveName" maxlength="60" value="'+esc2(guess)+'" placeholder="e.g. Re-Screw &amp; Paint" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_qtSaveQuoteAsTemplateGo();}"></div>'+
+      '<div id="qtSaveWarn" style="display:none;font-size:12px;color:#b45309;padding:0 2px 8px"></div>'+
+      '<div class="qdesc-ft"><span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="document.getElementById(\'qtSaveModal\').remove()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" id="qtSaveGo" onclick="_qtSaveQuoteAsTemplateGo()">Save template</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) host.remove(); });
+  var inp = document.getElementById('qtSaveName');
+  var warn = function(){
+    var n = inp.value.trim().toLowerCase(), w = document.getElementById('qtSaveWarn'), b = document.getElementById('qtSaveGo');
+    var ex = n && _qtTemplates().some(function(x){ return x.name.toLowerCase() === n; });
+    w.style.display = ex ? '' : 'none'; w.textContent = ex ? 'A template with this name already exists \u2014 saving replaces it.' : '';
+    b.textContent = ex ? 'Replace template' : 'Save template';
+  };
+  inp.addEventListener('input', warn); warn();
+  setTimeout(function(){ try { inp.focus(); inp.select(); } catch(e){} }, 30);
+}
+async function _qtSaveQuoteAsTemplateGo(){
+  var inp = document.getElementById('qtSaveName'); if (!inp) return;
+  var name = inp.value.trim().slice(0, 60);
+  if (!name){ inp.style.borderColor = '#dc2626'; inp.focus(); return; }
+  var list = _qtTemplates();
+  var t = list.filter(function(x){ return x.name.toLowerCase() === name.toLowerCase(); })[0];
+  if (t){ t.tpl = _qtSnapshot(); }
+  else { t = { id: 'tpl' + Date.now().toString(36), name: name, tpl: _qtSnapshot() }; list.push(t); }
+  try { S.quote.templateId = t.id; S.quote.templateName = t.name; } catch(e){}
+  var m = document.getElementById('qtSaveModal'); if (m) m.remove();
+  var ok = true;
+  try { if (typeof saveSettings === 'function') await saveSettings(); } catch(e){ ok = false; }
+  try { _qtSyncSavedPicker(); } catch(e){}
+  try { _qaTplMenuRender && _qaTplMenuRender(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast(ok ? 'Saved as the \u201c' + t.name + '\u201d template' : 'The template could not be saved \u2014 try again'); } catch(e){}
 }
 async function _qtSaveAsDefault(){
   if (!S.settings) S.settings = defaultSettings();
@@ -43312,6 +43392,7 @@ async function useFergusJobInModal(jobId){
     S.currentJobId = null;
     try { clearAll && clearAll(true); } catch(e){}
     S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.files = []; S.orderSent = null;
+    S.fergusSent = null; try { _renderFergusSent(); } catch(e){}
     try { _roofPrevReset(); renderPhotos(); renderJobFiles(); } catch(e){}
     var _client = j.customer || j.client || '', _addr = j.address || j.siteAddress || '';
     var c = document.getElementById('jobClient'); if (c) c.value = _client;

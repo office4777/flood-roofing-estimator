@@ -646,6 +646,17 @@ Discipline (non-negotiable):
   row, so nothing ever showed picked) and Recommended on the roofer's pick
   (`_qbExtraRec`, `recommended.extras` stamped with the other choices — it was
   always the first row).
+- SAVE AS TEMPLATE on the Quote tab (2026-10-01, `#qaSaveTplBtn`,
+  `_qtSaveQuoteAsTemplate`): names the open quote (the proposal title offered,
+  a same-named template replaced only on "Replace template") into
+  `branding.quote_templates` and saves Settings. `_qtSnapshot` carries
+  `wording` too — proposalTitle, custDesc, custExcl, summaryPicks,
+  summaryBaseLabel, selHide — and `_qtApplySnapshot` sets every one of them
+  from a template that has `wording` (deleting what it lacks). Never prices,
+  the customer or photos. "QUOTE LAST SENT TO FERGUS" (`S.fergusSent`) is
+  the job's own: reset on opening a job (before its state is assigned) and on
+  a new job, and redrawn (`_renderFergusSent`) — it showed the previous job's
+  date. `tests/quotesummary.mjs`.
 - A HIP END ON A GABLE (report 61, 2026-10-01, `tests/report61.mjs`): a
   selected gable-end barge's popup offers "Convert this gable end to a hip
   end", a hip on such an end the way back, and on a plain RECTANGULAR hip
