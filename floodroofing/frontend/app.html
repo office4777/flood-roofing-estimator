@@ -28483,7 +28483,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -30560,7 +30560,8 @@ var QE_INLINE = {
   gutter: { label:'Edit gutter selections',           title:'Which gutters, brackets and downpipes this quote offers. For this quote only.' },
   profile:   { label:'Edit roof profiles',            title:'Which roof profiles this quote offers. For this quote only.' },
   thickness: { label:'Edit steel thicknesses',        title:'Which steel gauges this quote offers. For this quote only.' },
-  cond:   { label:'Edit roof condition',              title:'The summary, the age, the material, the issues and the photos of the existing roof.' }
+  cond:   { label:'Edit roof condition',              title:'The summary, the age, the material, the issues and the photos of the existing roof.' },
+  summary:{ label:'Edit summary',                     title:'The words of the quote\u2019s summary \u2014 the main line, and the "What you chose" list. For this quote only; the prices are not edited here.' }
 };
 function _qeInlineBtn(what){
   if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return '';
@@ -30652,6 +30653,79 @@ function _qeEdit(what){
   if (what === 'profile') return _qselOpen('profile');
   if (what === 'thickness') return _qselOpen('thickness');
   if (what === 'cond') return _qeOpenCondition();
+  if (what === 'summary') return _qsumOpen();
+}
+// EDIT SUMMARY (2026-10-01): the main scope line's words and the "What you
+// chose" list, for this quote. Rows are the automatic picks (label and value
+// typed over, or left blank to follow the customer's choice) and the office's
+// own lines; remove, reorder, add. Saving the automatic list unchanged deletes
+// the fields, so a later change to the automatic list reaches this quote.
+function _qsumOpen(){
+  if (!S.quote) return;
+  var old = document.getElementById('qsumModal'); if (old) old.remove();
+  var auto = _qbPicksAuto();
+  var ed = Array.isArray(S.quote.summaryPicks) ? S.quote.summaryPicks : null;
+  var rows = ed ? ed.filter(function(e){ return e && (!e.k || auto.some(function(a){ return a[2] === e.k; })); }).map(function(e){ return { k: e.k || null, label: e.label || '', value: e.value || '' }; })
+                : auto.map(function(a){ return { k: a[2], label: '', value: '' }; });
+  var host = document.createElement('div');
+  host.id = 'qsumModal'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div class="qdesc">'+
+      '<div class="qdesc-hd"><b>Edit summary</b><span>The words on the quote\u2019s summary, for this quote only. The prices are worked out from the quote and are not edited here. A line left blank follows the customer\u2019s own choice.</span></div>'+
+      '<div class="qdesc-title"><label for="qsumBase">Main line</label>'+
+        '<input type="text" id="qsumBase" maxlength="80" value="'+esc2(S.quote.summaryBaseLabel || '')+'" placeholder="Original quote \u2014 main scope of work"></div>'+
+      '<div class="qdesc-sub">What you chose <span>\u2014 remove what does not apply to this job, reword the rest, or add your own lines</span></div>'+
+      '<div class="qdesc-list" id="qsumList"></div>'+
+      '<div class="qdesc-ft">'+
+        '<button type="button" class="qa-btn" onclick="_qsumAdd()">+ Add line</button>'+
+        '<button type="button" class="qa-btn" onclick="_qsumReset()">Reset to automatic</button>'+
+        '<span style="flex:1"></span>'+
+        '<button type="button" class="qa-btn" onclick="_qsumClose()">Cancel</button>'+
+        '<button type="button" class="qa-btn qa-btn-primary" id="qsumSave" onclick="_qsumSave()">Save</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  host.addEventListener('click', function(e){ if (e.target === host) _qsumClose(); });
+  host._rows = rows; host._auto = auto;
+  _qsumPaint();
+}
+function _qsumPaint(){
+  var host = document.getElementById('qsumModal'); if (!host) return;
+  var list = document.getElementById('qsumList'); if (!list) return;
+  var autoOf = function(k){ return host._auto.filter(function(a){ return a[2] === k; })[0]; };
+  list.innerHTML = host._rows.length ? host._rows.map(function(r, i){
+    var a = r.k ? autoOf(r.k) : null;
+    return '<div class="qdesc-row" style="display:flex;gap:6px;align-items:center">'+
+      '<input type="text" data-qsum="label" data-i="'+i+'" value="'+esc2(r.label)+'" placeholder="'+esc2(a ? a[0] : 'Label')+'" style="flex:1" oninput="_qsumSet('+i+',\'label\',this.value)">'+
+      '<input type="text" data-qsum="value" data-i="'+i+'" value="'+esc2(r.value)+'" placeholder="'+esc2(a ? a[1] + ' (their choice)' : 'Value')+'" style="flex:1" oninput="_qsumSet('+i+',\'value\',this.value)">'+
+      '<button type="button" class="qa-btn" title="Up" onclick="_qsumMove('+i+',-1)">\u2191</button>'+
+      '<button type="button" class="qa-btn" title="Down" onclick="_qsumMove('+i+',1)">\u2193</button>'+
+      '<button type="button" class="qa-btn" title="Remove this line" data-qsum-del="'+i+'" onclick="_qsumDel('+i+')" style="color:#b91c1c">\u2715</button>'+
+    '</div>';
+  }).join('') : '<div style="font-size:12px;color:#64748b;padding:8px 2px">No lines \u2014 "What you chose" will not be shown on this quote.</div>';
+}
+function _qsumSet(i, f, v){ var h = document.getElementById('qsumModal'); if (h && h._rows[i]) h._rows[i][f] = v; }
+function _qsumAdd(){ var h = document.getElementById('qsumModal'); if (!h) return; h._rows.push({ k: null, label: '', value: '' }); _qsumPaint();
+  try { var ins = document.querySelectorAll('#qsumList input[data-qsum="label"]'); ins[ins.length - 1].focus(); } catch(e){} }
+function _qsumDel(i){ var h = document.getElementById('qsumModal'); if (!h) return; h._rows.splice(i, 1); _qsumPaint(); }
+function _qsumMove(i, d){ var h = document.getElementById('qsumModal'); if (!h) return; var j = i + d; if (j < 0 || j >= h._rows.length) return;
+  var t = h._rows[i]; h._rows[i] = h._rows[j]; h._rows[j] = t; _qsumPaint(); }
+function _qsumReset(){ var h = document.getElementById('qsumModal'); if (!h) return;
+  h._rows = h._auto.map(function(a){ return { k: a[2], label: '', value: '' }; });
+  var b = document.getElementById('qsumBase'); if (b) b.value = ''; _qsumPaint(); }
+function _qsumClose(){ var h = document.getElementById('qsumModal'); if (h) h.remove(); }
+function _qsumSave(){
+  var h = document.getElementById('qsumModal'); if (!h || !S.quote) return;
+  var base = String((document.getElementById('qsumBase') || {}).value || '').trim();
+  if (base) S.quote.summaryBaseLabel = base; else delete S.quote.summaryBaseLabel;
+  var rows = h._rows.map(function(r){ var o = { label: String(r.label || '').trim(), value: String(r.value || '').trim() }; if (r.k) o.k = r.k; return o; })
+                    .filter(function(r){ return r.k || r.label || r.value; });
+  // Unchanged from the automatic list: no field at all.
+  var plain = rows.length === h._auto.length && rows.every(function(r, i){ return r.k === h._auto[i][2] && !r.label && !r.value; });
+  if (plain) delete S.quote.summaryPicks; else S.quote.summaryPicks = rows;
+  _qsumClose();
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function _qeEditDescription(){ _qeSpot('desc'); _qdescOpen(); }
 function _qeEditSelections(){ _qeSpot('sel'); _qselOpen(); }
@@ -30971,7 +31045,7 @@ function _qbOptionPage(o){
 // office the live selection is the recommendation, so the preview shows
 // exactly what would go out. A quote sent before this carries no stamp and
 // falls back to the priced base (the old "standard").
-function _qbRecFields(){ return ['steelGrade','profile','steelThickness','colour','gutterType','gutterBracket','downpipes','disposal']; }
+function _qbRecFields(){ return ['steelGrade','profile','steelThickness','colour','gutterType','gutterBracket','downpipes','disposal','extras']; }
 function _qbRecSnapshot(){
   var p = (S.quote && S.quote.proposalOptions) || {}, o = {};
   _qbRecFields().forEach(function(f){ if (p[f] != null && p[f] !== '') o[f] = p[f]; });
@@ -31278,12 +31352,24 @@ function _qbDisposal(){
     note:'Either choice is included at no change to your price.'
   });
 }
+// The office's own options (Roof Paint…). Two bugs the owner found on
+// 2026-10-01 ("it changed the price but doesn't show it selected or show it's
+// recommended"): `current` was handed the pick's whole ROW, so no row ever
+// matched and none showed as picked; and the Recommended pill sat on the first
+// row whatever the roofer picked. The pick is its id now, and Recommended is
+// the roofer's own pick — stamped at the send with the other choices
+// (`recommended.extras`), live in the office — like every other section.
+function _qbExtraRec(g){
+  var rec = null; try { rec = (_qbRecPick('extras', null) || {})[g.id]; } catch(e){}
+  return ((g.rows || []).some(function(r){ return r.id === rec; })) ? rec : ((g.rows || [])[0] || {}).id;
+}
 function _qbExtraGroup(g, gi){
   var pick = '';
-  try { pick = _selExtraPick(g); } catch(e){}
+  try { var _pr = _selExtraPick(g); pick = _pr ? _pr.id : ''; } catch(e){}
+  var rec = _qbExtraRec(g);
   var items = (g.rows || []).map(function(r, i){
     var d = 0; try { d = _qbIncl(_selExtraDelta(g, r)); } catch(e){}
-    return { id:r.id, label:r.name || r.id, isDefault:(i === 0), delta:d, desc:r.desc || '' };
+    return { id:r.id, label:r.name || r.id, isDefault:(r.id === rec), delta:d, desc:r.desc || '' };
   });
   return _qpOptPageWrap('extra' + gi, {
     eyebrow:'Also available', title:g.title || 'Options', group:'extra:' + g.id,
@@ -31381,6 +31467,7 @@ function _qbSummary(opts){
         ? _qbAcceptedBlock(accepted)+'<h3 class="qb-h3" style="margin-top:22px">Your accepted quote</h3>'
         : '<span class="qb-eyebrow">Ready when you are</span>'+
           '<h2 class="qb-h2">Your quote</h2>')+
+      _qeInlineBtn('summary')+
       '<div class="qb-total qb-tot3">'+_qbTotalLines(sub, total)+'</div>'+
       '<h3 class="qb-h3">What is in it</h3>'+
       '<div class="qb-sum">'+body+'</div>'+
@@ -31438,34 +31525,65 @@ function _qbPicksList(){ return _qbPicks().map(function(r){
   }).join(''); }
 // [label, value] for every choice on the quote — the customer's own words for
 // them. _qbPicksList draws these; the Fergus job summary writes them out.
+// THE OFFICE EDITS THEM (2026-10-01, the owner's: "a quote i just made is for
+// a Re-Screw and paint, so the summary is wrong, make the summary editable").
+// S.quote.summaryPicks = [{ k, label, value }] in the office's order: a row
+// with `k` is one of the automatic picks (its label and value replace the
+// automatic ones only where typed — a blank value keeps following the
+// customer's choice; it disappears when the automatic pick does, e.g. its page
+// deleted); a row without `k` is the office's own line. No summaryPicks = the
+// automatic list.
 function _qbPicks(){
+  var auto = _qbPicksAuto();
+  var ed = S.quote && Array.isArray(S.quote.summaryPicks) ? S.quote.summaryPicks : null;
+  if (!ed) return auto.map(function(r){ return [r[0], r[1]]; });
+  var byK = {}; auto.forEach(function(r){ byK[r[2]] = r; });
+  var out = [];
+  ed.forEach(function(e){
+    if (!e) return;
+    if (e.k){
+      var a = byK[e.k]; if (!a) return;
+      out.push([String(e.label || '').trim() || a[0], String(e.value || '').trim() || a[1]]);
+    } else if (String(e.label || '').trim() || String(e.value || '').trim()){
+      out.push([String(e.label || '').trim(), String(e.value || '').trim()]);
+    }
+  });
+  return out;
+}
+// The automatic picks, each with its key: [label, value, key]. A section the
+// office took out of the quote (its page deleted) takes its line with it —
+// "remove those things if their selection was removed".
+function _qbPicksAuto(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var out = [];
+  var _gone = []; try { _gone = _qModernParkedKeys(); } catch(e){ _gone = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : []; }
+  var _off = function(k){ return _gone.indexOf(k) >= 0; };
   var name = function(list, id, fallback){
     try {
       var hit = (list || []).filter(function(x){ return x.id === id; })[0];
       return (hit && (hit.name || hit.label)) || fallback || '';
     } catch(e){ return fallback || ''; }
   };
-  try { out.push(['Steel grade', name(_selGrades(), p.steelGrade || 'maxam', 'Standard')]); } catch(e){}
-  try { out.push(['Roof profile', name(_selProfiles(), p.profile || 'corrugate', 'Corrugate')]); } catch(e){}
-  out.push(['Steel thickness', (p.profile === '5rib' ? '0.55 gauge' : ((p.steelThickness || '40') === '55' ? '0.55 gauge' : '0.40 gauge'))]);
-  if ((p.steelGrade || 'maxam') === 'zincalume') out.push(['Colour', 'Plain silver Zincalume']);
-  else if (p.colour === QB_COLOUR_UNDECIDED) out.push(['Colour', 'Undecided — to be confirmed']);
-  else if (p.colour) out.push(['Colour', p.colour]);
+  if (!_off('grade')) try { out.push(['Steel grade', name(_selGrades(), p.steelGrade || 'maxam', 'Standard'), 'grade']); } catch(e){}
+  if (!_off('profile')) try { out.push(['Roof profile', name(_selProfiles(), p.profile || 'corrugate', 'Corrugate'), 'profile']); } catch(e){}
+  if (!_off('thickness')) out.push(['Steel thickness', (p.profile === '5rib' ? '0.55 gauge' : ((p.steelThickness || '40') === '55' ? '0.55 gauge' : '0.40 gauge')), 'thickness']);
+  if (_off('colour')) {}
+  else if ((p.steelGrade || 'maxam') === 'zincalume') out.push(['Colour', 'Plain silver Zincalume', 'colour']);
+  else if (p.colour === QB_COLOUR_UNDECIDED) out.push(['Colour', 'Undecided — to be confirmed', 'colour']);
+  else if (p.colour) out.push(['Colour', p.colour, 'colour']);
   var gt = p.gutterType || 'none';
   // A job priced without guttering offers none, so it lists none; nor does a
   // quote the office took the Guttering page out of.
   var _parked = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : [];
   var gutterOff = _parked.indexOf('gutter') >= 0; try { gutterOff = gutterOff || _gutterExcluded(); } catch(e){}
   if (gutterOff) {}
-  else if (gt === 'none') out.push(['Guttering', 'No new guttering']);
+  else if (gt === 'none') out.push(['Guttering', 'No new guttering', 'gutter']);
   else {
-    try { out.push(['Guttering', name(_selGutters(), gt, gt)]); } catch(e){ out.push(['Guttering', gt]); }
-    out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal']);
-    out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes']);
+    try { out.push(['Guttering', name(_selGutters(), gt, gt), 'gutter']); } catch(e){ out.push(['Guttering', gt, 'gutter']); }
+    out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal', 'brackets']);
+    out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes', 'downpipes']);
   }
-  if (_parked.indexOf('disposal') < 0) out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away']);
+  if (_parked.indexOf('disposal') < 0) out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away', 'disposal']);
   return out.filter(function(r){ return r[1]; });
 }
 // THE SUMMARY WRITTEN ONTO THE FERGUS JOB (2026-09-30, the owner's): the
@@ -32091,11 +32209,14 @@ function _custBarRows(){
   // straight under it. Same two numbers added up; the customer can see both.
   var scaffSub = 0;
   try { if (!mainOpt) scaffSub = _qpBaseScaffold(); } catch(e){ scaffSub = 0; }
+  // The office's own words for the main line (Edit summary), e.g. "Re-screw
+  // & paint — main scope of work"; the money is never editable.
+  var _bl = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
   if (!(scaffSub > 0) || scaffSub >= baseSub){
-    rows.push({ kind: 'base', label: 'Original quote — main scope of work', short: 'Main scope of work',
+    rows.push({ kind: 'base', label: _bl || 'Original quote — main scope of work', short: _bl || 'Main scope of work',
                 value: fmtMoney(baseSub * (1 + rate)) });
   } else {
-    rows.push({ kind: 'base', label: 'Re-roof — main scope of work', short: 'Re-roof',
+    rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof',
                 value: fmtMoney((baseSub - scaffSub) * (1 + rate)) });
     rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding',
                 value: fmtMoney(scaffSub * (1 + rate)) });
@@ -37613,9 +37734,9 @@ function refreshQuoteProposal(){
         // ones RoofMap ships and which ones the roofer added, which is the
         // point.
         _selExtras().map(function(g){
-          var pick = _selExtraPick(g);
+          var pick = _selExtraPick(g), _rec = _qbExtraRec(g);
           var rows = (g.rows || []).map(function(r, i){
-            return { id: r.id, label: r.name || r.id, isDefault: (i === 0),
+            return { id: r.id, label: r.name || r.id, isDefault: (r.id === _rec),
                      delta: _dIncl(_selExtraDelta(g, r)), desc: r.desc || '' };
           });
           return '<div style="margin-bottom:6px">' +
@@ -38835,7 +38956,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle',
+var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;

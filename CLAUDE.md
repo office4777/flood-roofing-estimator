@@ -632,6 +632,20 @@ Discipline (non-negotiable):
   "hold Shift … to turn the snapping off", `fr_shift_tip_off`). The snap
   while drawing (`snap()`, `SNAP_AXIS_PX` 24) has not changed since
   2026-09-07. `tests/report60.mjs`, `tests/squarecorner.mjs`.
+- THE QUOTE'S SUMMARY IS THE OFFICE'S TO WORD (2026-10-01,
+  `tests/quotesummary.mjs`): "Edit summary" (`QE_INLINE.summary`,
+  `_qsumOpen`) on the Your-quote section — the main line's words
+  (`S.quote.summaryBaseLabel`, read by `_custBarRows`) and "What you chose"
+  as `S.quote.summaryPicks = [{k, label, value}]` (a `k` row is an automatic
+  pick, its blanks following the customer's choice; no `k` = the office's own
+  line). `_qbPicks()` applies them over `_qbPicksAuto()` (keyed
+  [label, value, key]); a section deleted from the quote (`_qModernParkedKeys`)
+  takes its pick with it. Saving the automatic list deletes both fields. Both
+  are in Q_CONTENT_KEYS and Q_FRESH_DROP. AN OFFICE OPTION (extra group) shows
+  its pick (`_qbExtraGroup` hands `current` the row's ID — it was handed the
+  row, so nothing ever showed picked) and Recommended on the roofer's pick
+  (`_qbExtraRec`, `recommended.extras` stamped with the other choices — it was
+  always the first row).
 - A HIP END ON A GABLE (report 61, 2026-10-01, `tests/report61.mjs`): a
   selected gable-end barge's popup offers "Convert this gable end to a hip
   end", a hip on such an end the way back, and on a plain RECTANGULAR hip

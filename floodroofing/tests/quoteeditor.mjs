@@ -69,7 +69,7 @@ const where = await pg.evaluate(async () => {
   return out;
 });
 check('Edit description sits on the proposal, Edit roof condition on the condition, Edit this quote’s selections on the roofing, Edit gutter selections on the guttering',
-  where.desk.join(',') === 'cond@qd-condition,desc@qd-proposal,sel@qd-grade,profile@qd-profile,thickness@qd-thickness,gutter@qd-gutter', JSON.stringify(where.desk));
+  where.desk.join(',') === 'cond@qd-condition,desc@qd-proposal,sel@qd-grade,profile@qd-profile,thickness@qd-thickness,gutter@qd-gutter,summary@qd-review', JSON.stringify(where.desk));
 // …and on a wide office screen they are lifted into a rail down the LEFT of
 // the preview, each one level with the thing it edits and pointing at it.
 const rail = await pg.evaluate(async () => {
@@ -87,8 +87,9 @@ const rail = await pg.evaluate(async () => {
   return { on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
            inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
 });
-check('a wide office screen shows the rail: six buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
-  rail.on && rail.gutter >= 150 && rail.btns.length === 6 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 6 && rail.lines.every(Boolean) && rail.inlineHidden,
+// Seven since 2026-10-01: Edit summary on the Your quote section.
+check('a wide office screen shows the rail: seven buttons in the left gutter, each level with its block, close beside it, a pointing hand between',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 7 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.lines.length === 7 && rail.lines.every(Boolean) && rail.inlineHidden,
   JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
