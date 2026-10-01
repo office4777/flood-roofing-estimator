@@ -84,6 +84,9 @@ check('…it is John Smith at 23 Don Buck Road, Massey, as a demo job with no id
 check('…the strip says it is the practice job and nothing saves', /practice job/.test(v.strip) && /not.*saved/.test(v.strip), v.strip.slice(0, 80));
 check('…no picture yet: the card points at the satellite box, with 23 Don Buck Road in the finder', !v.img && v.open && v.sel === '#aerialFindBtn' && /23 Don Buck Road/.test(v.finder) && /23 Don Buck Road/.test(v.body), JSON.stringify(v));
 check('…no survey and no sample banner crowd it', await pg.evaluate(() => !document.querySelector('#aboutYouCard select') && !document.querySelector('#sampleJobBannerRoof .sj-card')));
+// The two events are sent separately; on a loaded CI runner the second can land
+// a beat after the first, so wait (up to 8 s) for both rather than racing them.
+for (let i = 0; i < 40 && !(usage.some(u => u.name === 'onboarding_path' && u.props.path === 'practice') && usage.some(u => u.name === 'walkthrough' && u.props.action === 'started')); i++) await new Promise(r => setTimeout(r, 200));
 check('the path is reported the moment it starts', usage.some(u => u.name === 'onboarding_path' && u.props.path === 'practice') && usage.some(u => u.name === 'walkthrough' && u.props.action === 'started'),
   JSON.stringify(usage.map(u => u.name + ':' + JSON.stringify(u.props))));
 await pg.click('#aerialFindBtn');
