@@ -4651,8 +4651,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         }
       }
     }
-    const _firstAccept = (type === 'accepted') && share.status !== 'accepted';
     if (type === 'accepted') {
+      // The customer's confirmation goes on the FIRST accept only. (A `var`, set
+      // here: tests/acceptcarry.mjs lifts the code above this block verbatim.)
+      var _firstAccept = share.status !== 'accepted';
       // Both numbers are kept: what the customer's browser reported, and what
       // the office sent. The office screen can then show a disagreement rather
       // than it being invisible.
