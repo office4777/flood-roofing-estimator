@@ -53,6 +53,7 @@ const PAGES = {
   '/case-studies/re-roof-quoted-in-ten-minutes': 'case-study-re-roof-quoted-in-ten-minutes.html',
   '/terms':                         'terms.html',
   '/privacy':                       'privacy.html',
+  '/security':                      'security.html',
 };
 // Deliberately out of the sitemap: a form nobody should land on from a search,
 // and the app.
@@ -204,7 +205,7 @@ const faqPages = Object.entries(ldTypes).filter(([, t]) => t.includes('FAQPage')
 check('the pages that answer questions say so with FAQPage', faqPages.length >= 5, faqPages.join(' '));
 const crumbed = Object.entries(ldTypes).filter(([u, t]) => u === '/' || t.includes('BreadcrumbList')).map(([u]) => u);
 check('…and every page below the home page has breadcrumbs',
-  crumbed.length === Object.keys(PAGES).length - 2,   // terms and privacy predate this and have none
+  crumbed.length === Object.keys(PAGES).length - 3,   // terms, privacy and security are documents, not site pages
   crumbed.join(' '));
 
 // ── the honesty guard ─────────────────────────────────────────────

@@ -19,6 +19,7 @@ const flat = (x) => x.replace(/\s+/g, ' ');
 const terms   = flat(await readFile(_j(DIR, 'terms.html'), 'utf8'));
 const privacy = flat(await readFile(_j(DIR, 'privacy.html'), 'utf8'));
 const landing = flat(await readFile(_j(DIR, 'landing.html'), 'utf8'));
+const security = flat(await readFile(_j(DIR, 'security.html'), 'utf8'));
 const server  = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 const app     = await readFile(_j(DIR, 'app.html'), 'utf8');
 
@@ -160,6 +161,54 @@ for (const [name, src] of [['terms.html', terms], ['privacy.html', privacy]]){
 }
 check('(placeholders still to fill before publishing)', true, holes.length ? holes.join(', ') : 'none');
 
+// ── THE SECURITY PAGE IS PINNED TO THE CODE ──────────────────────────
+// A security page that drifts from the software is worse than none: it is a
+// promise nobody kept. Each of these fails the build the day the code and the
+// page stop agreeing — and the first one is the important one.
+//
+// NO MFA IS THE CLAIM THAT MUST NOT ROT. The page says plainly that there is
+// no multi-factor sign-in. The day one ships, this check fails and the page
+// has to be rewritten in the same commit. It cannot quietly go on confessing
+// a gap that has been closed, and — far more to the point — it cannot be
+// quietly edited to claim one that has not.
+const _mfaInCode = /\b(mfa|totp|two-factor|2fa|authenticator)\b/i.test(server);
+check('the backend still has no multi-factor sign-in, which is what the page says',
+  !_mfaInCode && /no multi-factor sign-in/i.test(security),
+  _mfaInCode ? 'MFA now exists in server.js — update security.html' : 'no MFA, and the page says so');
+check('…and it is on the page as a gap, not buried',
+  /What we have not done yet/i.test(security) && /No New Zealand data residency/i.test(security));
+
+// The customer quote link: 32 random bytes, and a 90-day window on acting.
+check('the quote token really is 256 bits of randomness, as the page claims',
+  /randomBytes\(32\)/.test(server) && /256-bit random token/.test(security));
+check('…and the 90 days the page quotes is the number the server uses',
+  /SHARE_ACTION_DAYS = 90\b/.test(server) && /90 days after you/.test(security));
+// What the customer's copy never carries. The page promises cost and markup
+// are stripped; this is the list that does the stripping.
+check('…and the cost basis the page says is stripped really is',
+  /CUSTOMER_HIDDEN_FIELDS/.test(server) && /'materialBase'/.test(server) &&
+  /'roofMaterialMarkup'/.test(server) && /markup/i.test(security));
+
+// Inbox credentials: the mode named on the page is the mode in the code.
+check('inbox credentials are encrypted the way the page says they are',
+  /aes-256-gcm/i.test(server) && /AES-256-GCM/.test(security));
+
+// Fergus: a per-company key, no shared key, no environment fallback.
+check('the Fergus key is per-company with no shared fallback, as the page says',
+  /There is no environment fallback and no shared key/.test(server) &&
+  /no shared RoofMap key and no fallback/i.test(security));
+
+// NEITHER page may claim row-level security. The API holds the Supabase
+// service_role key, which bypasses RLS by design (server.js says so where the
+// client is built), so separation is enforced by _scopeCompany on every query
+// and by tests/crosstenant.mjs — which is what both pages now say instead.
+// This claim was on the privacy policy for three weeks and was not true.
+check('no page claims row-level security while the server bypasses it',
+  !/row.level security/i.test(privacy) && !/row.level security/i.test(security) &&
+  /service_role key so it bypasses RLS/.test(server));
+check('…and the separation they DO claim has a suite behind it',
+  /_scopeCompany/.test(server) && /fails the build/.test(security));
+
 // ── they are reachable from where somebody agrees to them ──
 // The form moved to its own page — that is where somebody agrees, so that is
 // where the agreement has to be visible.
@@ -177,7 +226,7 @@ const PUBLIC_PAGES = ['landing.html','signup.html','pricing.html','early-access.
   'guides-roof-pitch-explained.html','guides-colorsteel-grades-compared.html',
   'guides-flashing-wastage.html','guides-pipe-flashings-and-back-trays.html',
   'guides-coastal-zones-and-warranties.html','guides-re-roof-scope-of-work.html',
-  'tools-roof-pitch-calculator.html','tools-roofing-sheet-calculator.html'];
+  'tools-roof-pitch-calculator.html','tools-roofing-sheet-calculator.html','security.html'];
 const footless = [];
 for (const f of PUBLIC_PAGES){
   const pg = flat(await readFile(_j(DIR, f), 'utf8'));
@@ -199,7 +248,7 @@ await new Promise(r => srv.listen(0, '127.0.0.1', r));
 const PORT = srv.address().port;
 const b = await chromium.launch();
 
-for (const page of ['terms', 'privacy']){
+for (const page of ['terms', 'privacy', 'security']){
   for (const [w, label] of [[1200, 'desktop'], [390, 'phone']]){
     const ctx = await b.newContext({ viewport: { width: w, height: 900 } });
     const pg = await ctx.newPage();
