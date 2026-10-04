@@ -53,8 +53,8 @@
     about it. Written to be checked against the software rather than to cover us.
   </p>
   <p class="dates">
-    <span>Version 1.1</span>
-    <span>In force from 16 September 2026</span>
+    <span>Version 1.2</span>
+    <span>In force from 4 October 2026</span>
     <span>Privacy Act 2020 (NZ)</span>
   </p>
 
@@ -107,9 +107,11 @@
   <h3>What nobody at Flood Roofing can do</h3>
   <ul>
     <li><strong>Open your jobs.</strong> Every job, drawing, photo, quote and price book belongs to one
-      business, and that separation is enforced by the database itself with row-level security, not
-      merely by the app on top of it. Flood Roofing's own RoofMap account is an ordinary account with
-      exactly the same walls around it as yours.</li>
+      business, and every database query the server makes is filtered to the business that asked —
+      there is no screen and no API call that returns another business's rows. An automated test
+      tries to reach one company's job through another company's sign-in, and fails the build if it
+      ever gets through. Flood Roofing's own RoofMap account is an ordinary account with exactly the
+      same walls around it as yours.</li>
     <li><strong>See your work through the support tools.</strong> The admin screens we use to run the
       service show <em>accounts</em> — business name, the owner's name and contact, which plan, how
       many people, whether the trial has run out, how many roofs have been drawn. They do not show a
@@ -367,9 +369,10 @@
   <h2>Where it is stored</h2>
   <p class="gloss">Overseas, on managed infrastructure, encrypted in transit and at rest.</p>
   <p>
-    Your data is held in the <strong>[Supabase region]</strong> region of Supabase's managed
-    Postgres service, with the backend running on Railway and the frontend on Vercel. That means it
-    is stored outside New Zealand.
+    Your data is held in <strong>Supabase's managed Postgres service</strong>, with the backend
+    running on Railway and the frontend on Vercel. All three run on infrastructure
+    <strong>outside New Zealand</strong>. There is no New Zealand-resident option today, and we
+    would rather say so here than leave you to find out.
   </p>
   <p>
     All traffic between your browser and our servers, and between our servers and every provider
@@ -398,9 +401,9 @@
 
 <section id="security">
   <h2>How it is protected</h2>
-  <p class="gloss">Separation between businesses is enforced by the database, not just by the app.</p>
+  <p class="gloss">Separation between businesses is enforced on every query, and tested.</p>
   <ul>
-    <li>Every job, setting and price book is scoped to the business that owns it, and that separation is enforced at the database with row-level security — not only by the code above it.</li>
+    <li>Every job, setting and price book is scoped to the business that owns it, and every query the server makes is filtered by that business — a request can only ever reach its own company's rows. A test suite tries to cross that line through an id in a URL, and fails the build if it succeeds.</li>
     <li>Passwords are hashed by Supabase Auth. Nobody at RoofMap can see one.</li>
     <li>Sessions are signed tokens that expire, and are checked on every request.</li>
     <li>Customer quote links are guarded by a long random token, and stop working when the quote is withdrawn or the account is closed.</li>
@@ -408,6 +411,11 @@
     <li>Errors are monitored, and secrets are stripped before an error is recorded or sent.</li>
     <li>Changes are covered by an automated test suite that runs on every deployment.</li>
   </ul>
+  <p>
+    A fuller account — how the customer quote links work, what sits on a phone on site, how the
+    Fergus key is held, and the list of what we have <em>not</em> built yet — is on the
+    <a href="/security">security page</a>.
+  </p>
   <p>
     No system is perfect, and we would rather say so than imply otherwise. If there is ever a
     privacy breach that is likely to cause serious harm, we will notify the affected people and the
@@ -502,6 +510,7 @@
   <div class="wrap">
     <a href="/">RoofMap</a>
     <a href="/terms">Terms of Service</a>
+    <a href="/security">Security</a>
     <a href="mailto:support@roofmap.co.nz">Contact</a>
     <span class="sp">© 2026 Flood Roofing Limited</span>
   </div>

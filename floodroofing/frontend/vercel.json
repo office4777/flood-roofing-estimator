@@ -261,6 +261,11 @@
       "permanent": true
     },
     {
+      "source": "/security.html",
+      "destination": "/security",
+      "permanent": true
+    },
+    {
       "source": "/signup.html",
       "destination": "/signup",
       "permanent": true
@@ -384,6 +389,10 @@
     {
       "source": "/privacy",
       "destination": "/privacy.html"
+    },
+    {
+      "source": "/security",
+      "destination": "/security.html"
     }
   ]
 }

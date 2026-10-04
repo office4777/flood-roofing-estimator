@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security — RoofMap roofing software</title>
+<meta name="description" content="How RoofMap protects your jobs, prices and customer details: quote links, sign-in, offline data, the Fergus key, where it runs — and what we have not done yet.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://roofmap.co.nz/security">
+<meta name="theme-color" content="#0a1628">
+<link rel="apple-touch-icon" href="/brand/pwa-192.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="RoofMap">
+<meta property="og:locale" content="en_NZ">
+<meta property="og:url" content="https://roofmap.co.nz/security">
+<meta property="og:title" content="Security — RoofMap roofing software">
+<meta property="og:description" content="How RoofMap protects your jobs, prices and customer details: quote links, sign-in, offline data, the Fergus key, where it runs — and what we have not done yet.">
+<meta property="og:image" content="https://roofmap.co.nz/brand/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RoofMap — one drawing becomes the job pack, the merchant order and the customer quote">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Security — RoofMap roofing software">
+<meta name="twitter:description" content="How RoofMap protects your jobs, prices and customer details: quote links, sign-in, offline data, the Fergus key, where it runs — and what we have not done yet.">
+<meta name="twitter:image" content="https://roofmap.co.nz/brand/og-card.png">
+<link rel="icon" href="brand/roofmap_icon.png">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     KEEP THIS HONEST.
+
+     Every statement on this page is checkable against the code in this
+     repository, and tests/legal.mjs pins the ones that would rot first: the
+     quote-token length, the 90-day action window, the AES mode on inbox
+     credentials, and the fact that the "what we have not done" section still
+     names MFA while no MFA exists in the backend.
+
+     That last one is the important one. The day multi-factor sign-in ships,
+     this page has to change in the SAME commit — a security page that claims
+     a gap it has closed is merely out of date, but one that hides a gap it
+     still has is the thing nobody forgives.
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="/"><img src="brand/roofmap_icon.png" alt="">RoofMap</a>
+    <a class="back" href="/">← Back to RoofMap</a>
+  </div>
+</header>
+
+<div class="wrap doc-head">
+  <h1>Security</h1>
+  <p class="sub">
+    Your quotes hold your customers' names, their addresses and your prices. This is what protects
+    them, written so you can check it rather than take it on faith — including the parts we have not
+    built yet.
+  </p>
+  <p class="dates">
+    <span>Last reviewed 4 October 2026</span>
+    <span>Checked against the code by automated tests</span>
+  </p>
+
+  <nav class="toc">
+    <h2>What's in here</h2>
+    <ol>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#links">Customer quote links</a></li>
+      <li><a href="#signin">Signing in</a></li>
+      <li><a href="#device">What sits on a phone on site</a></li>
+      <li><a href="#separation">Keeping one business out of another's</a></li>
+      <li><a href="#fergus">The Fergus connection</a></li>
+      <li><a href="#inbox">The team inbox</a></li>
+      <li><a href="#where">Where it runs</a></li>
+      <li><a href="#gaps">What we have not done yet</a></li>
+      <li><a href="#report">Reporting a problem</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+<section id="short">
+  <h2>The short version</h2>
+  <p class="gloss">If you read nothing else, read this.</p>
+  <ul>
+    <li>A customer quote link is a <strong>256-bit random token</strong>. There is no sign-in on that
+      page on purpose — a homeowner should not need an account to read their own quote — so anyone
+      holding the full link can open it. It is unguessable, it is not indexed by search engines, and
+      it does not carry your costs or your markup.</li>
+    <li><strong>There is no multi-factor sign-in yet.</strong> That is the biggest gap and we are not
+      going to bury it: <a href="#gaps">it has its own section</a>.</li>
+    <li>Every query the server makes is filtered to the business that asked. A test suite tries to
+      cross that line and fails the build if it ever gets through.</li>
+    <li>Inbox passwords are encrypted with AES-256-GCM and are never returned by any API — not even
+      to the account that typed them in.</li>
+    <li>Everything runs on managed infrastructure <strong>outside New Zealand</strong>.</li>
+  </ul>
+</section>
+
+<section id="links">
+  <h2>Customer quote links</h2>
+  <p class="gloss">Unguessable, not indexed, stripped of your costs, and they stop working.</p>
+  <p>
+    When you send a quote, that customer gets a link with a token on the end of it. The token is 32
+    random bytes — 256 bits — from the operating system's cryptographic random source. It is not a
+    job number, a sequence, or anything a person could walk through by changing a digit.
+  </p>
+  <p>
+    There is no password on the page, and that is a decision rather than an oversight. A homeowner
+    deciding on a re-roof should not have to create an account to read what they are being asked to
+    pay. So the honest answer to "can anyone with the URL open it?" is <strong>yes</strong> — the
+    same as a bank's secure document link or a shared Google Drive file. What matters is everything
+    around that:
+  </p>
+  <ul>
+    <li><strong>It cannot be found.</strong> The quote pages carry
+      <code>noindex, nofollow</code>, so they stay out of Google. There is no listing, no directory
+      and no way to enumerate tokens.</li>
+    <li><strong>It is not your full quote.</strong> Before the page is sent, the server strips the
+      things that are yours and not the customer's: material cost, your markup, your quantity
+      buffers, your labour rates and how they were worked out, and every saved draft and earlier
+      version. The customer's browser receives the sell prices it needs to add up their own choices,
+      and nothing behind them.</li>
+    <li><strong>The decision expires.</strong> Accepting or declining stops working 90 days after you
+      sent it. The page stays readable after that — a customer re-reading what they agreed to is a
+      good thing — but nobody can accept a price you set three years ago.</li>
+    <li><strong>You can end it.</strong> Withdraw the quote or close the account and the link stops
+      answering.</li>
+    <li><strong>It is rate-limited</strong>, so the link cannot be used to hammer the server.</li>
+  </ul>
+</section>
+
+<section id="signin">
+  <h2>Signing in</h2>
+  <p class="gloss">Hashed passwords, signed sessions that expire — and no MFA yet.</p>
+  <ul>
+    <li>Passwords are hashed by Supabase Auth. Nobody at RoofMap can see one, including us.</li>
+    <li>A session is a signed token that expires and is re-checked on every single request. It
+      carries a version number, so changing a password invalidates sessions already issued — if a
+      device goes missing, a password reset logs it out.</li>
+    <li>Sign-in is rate-limited twice over: by where the attempt comes from, and by the email address
+      being tried. Guessing one account's password at scale is not a thing you can do from the
+      outside.</li>
+    <li>Registration, password resets and email verification are each rate-limited separately, and a
+      reset link is short-lived.</li>
+  </ul>
+  <div class="callout">
+    <p>
+      <strong>There is no multi-factor sign-in today.</strong> If someone has a user's password, they
+      have that user's RoofMap. That is the gap we would most like to close, and saying so is more
+      use to you than a paragraph that talks around it.
+    </p>
+  </div>
+</section>
+
+<section id="device">
+  <h2>What sits on a phone on site</h2>
+  <p class="gloss">A working copy so the app survives no signal — protected by the phone, not by us.</p>
+  <p>
+    RoofMap keeps working on a roof with no coverage, which means the job you are on is held in the
+    browser's own storage on that device until it syncs. That copy includes the drawing, the
+    measurements and any photos you have taken, plus your sign-in token and your layout preferences.
+    Once the work reaches our servers the local copy is deleted.
+  </p>
+  <p>
+    <strong>RoofMap does not add its own layer of encryption on top of that.</strong> It relies on the
+    device's own disk encryption and lock screen — which on any current iPhone or Android is on by
+    default and is genuinely strong, but is the phone's protection rather than ours. This is the same
+    position as every other browser-based field tool, and we would rather you knew it than assume we
+    had done something extra.
+  </p>
+  <p>
+    What follows from that is practical: <strong>put a PIN or biometric lock on any device that opens
+    RoofMap</strong>, and sign out on a shared or borrowed one — signing out clears the local copy.
+  </p>
+</section>
+
+<section id="separation">
+  <h2>Keeping one business out of another's</h2>
+  <p class="gloss">Every query is filtered by the business that asked, and a test tries to break it.</p>
+  <p>
+    Every job, drawing, photo, quote, price book and setting belongs to exactly one business. Every
+    read and every write the server makes is filtered by that business before it reaches the
+    database, so there is no screen and no API call that can return another company's rows.
+  </p>
+  <p>
+    Saying that is easy, so it is tested rather than asserted. One suite signs in as one business and
+    tries to reach another's job, quote and backup by putting their ids in the URL — the way a real
+    attempt would look — and the build fails if any of it comes back. Another feeds a job full of
+    customer names, addresses and prices through every one of the admin screens we use to run the
+    service, and fails if a single field of it appears: those screens show accounts, not anybody's
+    work.
+  </p>
+  <p>
+    RoofMap is built and run by Flood Roofing, a working roofing company, and that deserves a straight
+    answer rather than a reassuring one. Flood Roofing's own account is an ordinary account with
+    exactly the same walls around it as yours. The full version of that answer — including what one
+    or two people <em>can</em> reach in order to keep the service running, which is not nothing — is
+    in the <a href="/privacy#floodroofing">privacy policy</a>.
+  </p>
+</section>
+
+<section id="fergus">
+  <h2>The Fergus connection</h2>
+  <p class="gloss">Your own key, used only for you, and you can kill it from the Fergus end.</p>
+  <p>
+    This is not an OAuth integration and we do not describe it as one. Each company pastes in its own
+    Fergus personal API key. There is no shared RoofMap key and no fallback: if your key is not there,
+    nothing of yours talks to Fergus.
+  </p>
+  <ul>
+    <li>The key is used <strong>server-side only</strong>, for your company's own requests. It is
+      never sent to a browser other than back into the settings screen you typed it into.</li>
+    <li><strong>Revoking it in Fergus kills it immediately</strong> — you do not need us to act, and
+      you do not have to tell us.</li>
+    <li>Clearing the field in RoofMap settings means we stop holding it at all.</li>
+    <li>When you run the built-in connection diagnostic, the report it produces records the key's
+      <em>length</em> and never the key. A test fails the build if that ever changes.</li>
+  </ul>
+  <p>
+    The same shape applies to any job-system key: it is yours, it is per-company, and you can end it
+    from the other end without asking us.
+  </p>
+</section>
+
+<section id="inbox">
+  <h2>The team inbox</h2>
+  <p class="gloss">Mail passwords encrypted with AES-256-GCM, and never handed back out.</p>
+  <p>
+    The Business plan can pull your real email into RoofMap, which means we hold a credential for a
+    mailbox. That is the most sensitive thing in the system and it is treated that way.
+  </p>
+  <ul>
+    <li>The password is encrypted at rest with <strong>AES-256-GCM</strong> under a key held only in
+      the server's environment — not in the database, so a copy of the database is not enough to read
+      it.</li>
+    <li>It is <strong>never returned by any API response</strong>. Not to the admin screens, not to
+      support, and not to the account that entered it. Once it goes in, the only thing that can use
+      it is the server making a mail connection.</li>
+    <li>Incoming HTML is sanitised on the server before it is stored — scripts, event handlers and
+      <code>javascript:</code> links are removed — and then rendered inside a sandboxed frame. Remote
+      images are held back until you ask for them, so simply opening a message does not tell the
+      sender you read it.</li>
+  </ul>
+</section>
+
+<section id="where">
+  <h2>Where it runs</h2>
+  <p class="gloss">Managed infrastructure, outside New Zealand, encrypted in transit.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Who</th><th>What it does</th><th>What it holds</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Supabase</strong><span class="sub">Database &amp; sign-in</span></td>
+          <td>Stores the data and handles passwords.</td>
+          <td>All of it, encrypted at rest by the provider.</td>
+        </tr>
+        <tr>
+          <td><strong>Railway</strong><span class="sub">Backend hosting</span></td>
+          <td>Runs the server the app talks to.</td>
+          <td>Everything, in transit. Server logs.</td>
+        </tr>
+        <tr>
+          <td><strong>Vercel</strong><span class="sub">Website hosting</span></td>
+          <td>Serves the app and the customer quote pages.</td>
+          <td>Request logs and IP addresses. No job data is stored there.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    All three run outside New Zealand, and there is no NZ-resident option today. Traffic between your
+    browser and our servers, and between our servers and every provider, is encrypted with HTTPS/TLS,
+    with HSTS set so a browser will not fall back to an unencrypted connection. The API refuses to be
+    framed by another site, and the pages set the headers that stop content-type guessing and limit
+    what is leaked in a referrer.
+  </p>
+  <p>
+    The full list of every company your data passes through, what each one gets and how long anything
+    is kept is in the <a href="/privacy#who">privacy policy</a>, and it is checked against the code —
+    a new outbound call to a third party fails the build until that page names it.
+  </p>
+</section>
+
+<section id="gaps">
+  <h2>What we have not done yet</h2>
+  <p class="gloss">The list every security page should have and almost none do.</p>
+  <p>
+    RoofMap is built by a small team inside a roofing company. Some things are not built yet, and you
+    are better served by a list than by silence.
+  </p>
+  <ul>
+    <li><strong>No multi-factor sign-in.</strong> Password only, today. This is the one we care most
+      about closing.</li>
+    <li><strong>No New Zealand data residency.</strong> Your data goes offshore. If that is a
+      dealbreaker for your business, it is a dealbreaker — better to know before you start than
+      after.</li>
+    <li><strong>No RoofMap-level encryption of the on-device copy.</strong> It leans on the phone's
+      own encryption and lock screen, as described <a href="#device">above</a>.</li>
+    <li><strong>No formal certification.</strong> We hold no ISO 27001 or SOC 2 report. What we have
+      instead is a test suite that runs on every single deployment and a policy of writing down what
+      is actually true, which is not the same thing and we are not going to pretend it is.</li>
+  </ul>
+  <p>
+    If one of these is blocking you, say so — knowing which of them a real roofing business actually
+    stops at is how we decide what to build next.
+  </p>
+</section>
+
+<section id="report">
+  <h2>Reporting a problem</h2>
+  <p class="gloss">Tell us and we will fix it. No lawyers, no runaround.</p>
+  <p>
+    If you think you have found a security problem in RoofMap, email
+    <a href="mailto:support@roofmap.co.nz">support@roofmap.co.nz</a> with enough detail to reproduce
+    it. We would far rather hear it from you than from a customer.
+  </p>
+  <ul>
+    <li>We will acknowledge it, and we will tell you what we found and what we did.</li>
+    <li>We will not threaten anyone who reports something in good faith.</li>
+    <li>Please do not test against another business's live data. If you need an account to poke at,
+      ask and we will give you one.</li>
+  </ul>
+  <p>
+    If there is ever a breach likely to cause serious harm, we will notify the people affected and the
+    Office of the Privacy Commissioner, as the Privacy Act 2020 requires. That commitment is in the
+    <a href="/privacy#security">privacy policy</a> too.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <a href="/">RoofMap</a>
+    <a href="/terms">Terms of Service</a>
+    <a href="/privacy">Privacy</a>
+    <a href="mailto:support@roofmap.co.nz">Contact</a>
+    <span class="sp">© 2026 Flood Roofing Limited</span>
+  </div>
+</footer>
+
+</body>
+</html>
