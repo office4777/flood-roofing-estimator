@@ -58,7 +58,7 @@
     built yet.
   </p>
   <p class="dates">
-    <span>Last reviewed 4 October 2026</span>
+    <span>Last reviewed 5 October 2026</span>
     <span>Checked against the code by automated tests</span>
   </p>
 
@@ -70,6 +70,7 @@
       <li><a href="#signin">Signing in</a></li>
       <li><a href="#device">What sits on a phone on site</a></li>
       <li><a href="#separation">Keeping one business out of another's</a></li>
+      <li><a href="#pricebook">Your price book</a></li>
       <li><a href="#fergus">The Fergus connection</a></li>
       <li><a href="#inbox">The team inbox</a></li>
       <li><a href="#where">Where it runs</a></li>
@@ -93,6 +94,10 @@
       going to bury it: <a href="#gaps">it has its own section</a>.</li>
     <li>Every query the server makes is filtered to the business that asked. A test suite tries to
       cross that line and fails the build if it ever gets through.</li>
+    <li><strong>Your price book</strong> cannot be read through any support screen, is never pooled
+      with anyone else's, and never reaches your customer's copy of a quote —
+      <a href="#pricebook">it has a section of its own</a>, because it is the question we are asked
+      first.</li>
     <li>Inbox passwords are encrypted with AES-256-GCM and are never returned by any API — not even
       to the account that typed them in.</li>
     <li>Everything runs on managed infrastructure <strong>outside New Zealand</strong>.</li>
@@ -202,6 +207,86 @@
   </p>
 </section>
 
+<section id="pricebook">
+  <h2>Your price book</h2>
+  <p class="gloss">The question roofers ask first, answered one worry at a time.</p>
+  <p>
+    Your rates are the most sensitive thing you will put into RoofMap — more than the jobs, more than
+    the customers. You are typing them into software owned by another roofing company, and the only
+    answer worth anything is a specific one. So here is each worry on its own.
+  </p>
+
+  <h3>"Can Flood Roofing see my rates?"</h3>
+  <p>
+    Not through RoofMap. Your price book belongs to one business, and every read and every write is
+    filtered to the business that asked before it reaches the database, exactly as described
+    <a href="#separation">above</a>. The admin screens we use to run the service show
+    <em>accounts</em> — business name, plan, how many people, whether the trial has run out. There is
+    no screen that shows a price.
+  </p>
+  <p>
+    That is tested rather than promised. One suite builds a company whose job carries a deliberately
+    odd material rate and a note about a thin margin, pushes it through every one of those admin
+    screens, and fails the build if either string comes back out. The day somebody adds a "just show
+    me their price book" screen to chase a bug, the build stops.
+  </p>
+  <p>
+    What is also true, and we will not dress it up: one or two people at Flood Roofing can reach the
+    database itself, because somebody has to be able to restore a backup or fix a save that broke.
+    That access exists to run RoofMap and for nothing else, we do not look at a subscriber's prices,
+    and the longer version of that answer is in the
+    <a href="/privacy#floodroofing">privacy policy</a>. If what you need is a technical
+    impossibility, no company of this size can honestly sell you one — including this one.
+  </p>
+
+  <h3>"Will it be used to work out what anyone else charges?"</h3>
+  <p>
+    No. Your rates are never shown to another subscriber, never sent to a supplier, and never pooled
+    into an average, a benchmark or a "typical price in your region". RoofMap ships default prices
+    taken from published retail figures, the same for everybody, and they sit there until you type
+    your own over them. Nothing in the software reads your book to price somebody else's job, and
+    nothing will without asking you first.
+  </p>
+
+  <h3>"Can my own customer see my margin?"</h3>
+  <p>
+    No — and this one is worth describing, because it is how a margin leaks quietly. The customer's
+    quote page used to be handed the whole quote so it could work out option prices in the browser,
+    which meant the cost basis sat in that page's data for anyone who opened the browser's developer
+    tools. The office prices the options before sending now and the page only adds up sell prices:
+    material cost, the mark-up percentages, the scaffold cost and your labour cost rates never leave
+    the office. A test sends a quote carrying all four and fails the build if any of them turns up in
+    the customer's copy.
+  </p>
+
+  <h3>"What happens to the price list file I upload?"</h3>
+  <p>
+    A supplier CSV or PDF is read in your own browser. It goes to an AI service in exactly one case —
+    you pressing <strong>Read it with AI</strong> on a PDF that could not be read on its own — and
+    then it is the file's text, to Anthropic's Claude, which does not use data submitted through its
+    API to train models. Nothing about your price book is ever sent for AI in the background. The
+    number of places in the app that can make that call is counted by a test, so a third one cannot
+    be added quietly.
+  </p>
+
+  <h3>"Can I get it back out again?"</h3>
+  <p>
+    Yes, and check it on day one rather than taking our word for it: Settings → Pricing → Custom
+    Price Book → <strong>Download as CSV</strong> gives you your own list back, whenever you like,
+    without asking us. Your book is also versioned — previous copies are kept and any of them can be
+    restored — so an upload that lands on the wrong thing is a nuisance rather than a disaster.
+  </p>
+
+  <h3>"So what actually guards it?"</h3>
+  <p>
+    Your password, today. There is no multi-factor sign-in yet, and on a page about your price book
+    that is the sentence that matters most: it is in <a href="#gaps">the gaps list</a>, it is the gap
+    we care most about closing, and until it is closed the honest advice is a password you use nowhere
+    else. Inside your own business, everyone you invite can see the price book — there is no way yet
+    to let a crew member use the job pack without seeing your rates.
+  </p>
+</section>
+
 <section id="fergus">
   <h2>The Fergus connection</h2>
   <p class="gloss">Your own key, used only for you, and you can kill it from the Fergus end.</p>
@@ -297,6 +382,9 @@
   <ul>
     <li><strong>No multi-factor sign-in.</strong> Password only, today. This is the one we care most
       about closing.</li>
+    <li><strong>No way to hide prices from your own staff.</strong> Everyone you invite into your
+      business sees the same price book and the same margins. A crew member who only needs the job
+      pack on site still sees your rates.</li>
     <li><strong>No New Zealand data residency.</strong> Your data goes offshore. If that is a
       dealbreaker for your business, it is a dealbreaker — better to know before you start than
       after.</li>

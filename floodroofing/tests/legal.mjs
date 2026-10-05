@@ -189,6 +189,42 @@ check('…and the cost basis the page says is stripped really is',
   /CUSTOMER_HIDDEN_FIELDS/.test(server) && /'materialBase'/.test(server) &&
   /'roofMaterialMarkup'/.test(server) && /markup/i.test(security));
 
+// ── THE PRICE BOOK SECTION ───────────────────────────────────────────
+// The first question a roofer asks before handing their rates to software
+// owned by another roofer, so the page answers it in its own section and
+// every claim in there is held to the code that makes it true.
+check('the price book has its own section on the page',
+  /id="pricebook"/.test(security) && /Your price book/.test(security));
+// It tells people to check the export on day one. If the button goes, so does
+// the sentence.
+check('…and the CSV export it tells people to try really exists',
+  /function _cpbExportCsv\(/.test(app) && /Download as CSV/.test(app) &&
+  /Download as CSV/.test(security));
+// It names four cost fields by description (material cost, the mark-ups, the
+// scaffold cost, labour cost rates) as never reaching the customer's copy.
+check('…and all four cost fields it describes are in the stripped list',
+  ['materialBase', 'scaffoldBase', 'roofMaterialMarkup', 'labourRatesCustom']
+    .every(f => new RegExp("'" + f + "'").test(server)) &&
+  /never leave the office/.test(security));
+check('…and the price book really is versioned, as the page claims',
+  /price_book_revisions/.test(server) && /previous copies are kept/.test(security));
+// The two claims that rest on a suite rather than a line of code. The page
+// says "a test" twice in this section; these are the suites, and they have to
+// be in the runner or the sentences are decoration.
+const runner = await readFile(_j(_ROOT, 'tests', 'run.mjs'), 'utf8');
+check('…and the suites behind those two sentences actually run',
+  /adminblind/.test(runner) && /markupleak/.test(runner));
+
+// THE STAFF ADMISSION MUST NOT BE QUIETLY DROPPED. The page says plainly that
+// everyone invited into a business sees the price book. The settings read is
+// what would change that — the day a role check gates it, this fails and the
+// admission has to come off the page in the same commit.
+const _settingsRead = (server.match(/app\.get\('\/settings',[\s\S]*?\n\}\);/) || [''])[0];
+check('prices are still visible to everyone in a business, which the page admits',
+  !/\brole\b/.test(_settingsRead) && /no way yet to let a crew member/.test(security),
+  /\brole\b/.test(_settingsRead) ? 'the settings read now checks a role — update security.html'
+                                : 'no role gate on the settings read, and the page says so');
+
 // Inbox credentials: the mode named on the page is the mode in the code.
 check('inbox credentials are encrypted the way the page says they are',
   /aes-256-gcm/i.test(server) && /AES-256-GCM/.test(security));
