@@ -2879,10 +2879,10 @@ html.playground #roofStatsBar{ display:flex; flex:0 0 100%; gap:8px; flex-wrap:w
 .report-preview .rp-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12.5px;line-height:1.6;color:#1d2a3d}
 .report-preview .rp-body *{box-sizing:border-box}
 /* ── Editorial / capability-statement palette ───────────────────
-   Warm cream paper, deep brand-blue-black ink, Flood Roofing
-   electric-blue accent and terracotta warm-tone — channels the
+   Warm cream paper, deep brand-blue-black ink, an electric-blue
+   accent and terracotta warm-tone — channels the
    "designer-builder magazine" aesthetic while staying tied to the
-   real Flood Roofing brand colours (cyan-blue + black).  Headlines
+   real brand colours (cyan-blue + black).  Headlines
    run on Inter throughout — clean sans-serif for body and headings,
    hierarchy from weight + size. */
 .report-preview{
@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-05T23:51:46Z';
+  window.APP_BUILT_AT = '2026-10-05T23:59:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5130,7 +5130,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   <!-- When the app was last updated (2026-10-02, the owner's: "a nice
        professional update status ... light grey writing like last updated
        1:36pm 2/10"). From window.APP_BUILT_AT, in NZ time. -->
-  <!-- The "System / Region / GST" block that sat here was Flood Roofing's own
+  <!-- The "System / Region / GST" block that sat here was our own
        details, hard-coded, on every customer's sidebar — a roofer in Albany
        read "Region: Whangarei" on his own account. Gone. The band it left
        now carries the update line. -->
@@ -7597,7 +7597,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <!-- populated by renderProposalSectionToggles() -->
     </div>
     <label style="display:block;margin-top:14px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">Proposal cover title <span style="color:var(--text3);font-weight:400">(optional — defaults to "Roofing Proposal")</span></span><input type="text" id="qdCoverTitle" placeholder="e.g. Roof Replacement Proposal — Smith Residence" oninput="onQuoteEdit()"></label>
-    <label style="display:block;margin-top:10px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">"About us" blurb <span style="color:var(--text3);font-weight:400">(used on the company-profile page — falls back to settings → branding)</span></span><textarea id="qdAboutText" rows="3" oninput="onQuoteEdit()" placeholder="Founded in 2016, Flood Roofing is a proud Northland-based roofing company…"></textarea></label>
+    <label style="display:block;margin-top:10px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">"About us" blurb <span style="color:var(--text3);font-weight:400">(used on the company-profile page — falls back to settings → branding)</span></span><textarea id="qdAboutText" rows="3" oninput="onQuoteEdit()" placeholder="Founded in 2016, we are a proud Northland-based roofing company…"></textarea></label>
     </div>
   </details>
 
@@ -26021,7 +26021,7 @@ function _defaultQuoteInner(){
     // When false, the printed proposal shows only the combined total
     // (Subtotal / GST / Total / Deposit) on the Price page; line items
     // are hidden. When true, an itemised table renders alongside the
-    // total. Default off — matches Flood Roofing's Fergus quote style.
+    // total. Default off — matches our own Fergus quote style.
     showLineItemsInQuote: !!tpl.showLineItemsInQuote,
     // Multi-option proposal: selectable packages the client can choose
     // between, each with its own inclusions/scope, line items and
@@ -26447,7 +26447,7 @@ function _gutterDelta(){
 // share link prices identically without the roof drawing.
 // ── THE PRODUCTS A ROOFING BUSINESS ACTUALLY SELLS ──────────────────
 // Steel grades, sheet profiles and gutter profiles were three hard-coded
-// constants, so every subscriber sold exactly what Flood Roofing sells. They
+// constants, so every subscriber sold exactly what our own crews sell. They
 // are a per-company list now, editable in Settings → Products.
 //
 // Two things make this more than a list of names and prices:
@@ -29077,7 +29077,7 @@ function _quoteShareToken(){
 // network. The job still has to be saved for the link to RESOLVE; callers do
 // that separately (blocking, or in the background alongside another request).
 // Returns null if there's no client/address yet to attach the job to.
-// A business can send its customer quotes on its OWN domain (Flood Roofing on
+// A business can send its customer quotes on its OWN domain (ours is on
 // quote.floodroofing.co.nz) while the office app itself lives on roofmap.co.nz.
 // Normalised to a bare https origin: a pasted path, query or http:// URL would
 // produce links that open on the wrong page or not at all, and a customer
@@ -29642,7 +29642,7 @@ function _customerLinkString(opts){
   if (ja && !ja.value && S.quote.addr)   ja.value = S.quote.addr;
   if ((!jc || !jc.value) && (!ja || !ja.value)) return null;
   // Human-friendly job number on the URL so the customer tab reads
-  // "Flood Roofing Quote #3080"; &j is harmless when missing (lookup keys off q).
+  // "<Company> Quote #3080"; &j is harmless when missing (lookup keys off q).
   var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
   // Always hand the customer the branded custom-domain link even when the
   // office is on the *.vercel.app host; fall back to the current origin only
@@ -33090,7 +33090,7 @@ async function bootCustomerView(token){
                           // tell the customer the quote can't be found.
   try {
     // Read the optional &j=<jobNo> the office side tacks on copyCustomerLink
-    // so the browser tab reads "Flood Roofing Quote #<n>" instead of the
+    // so the browser tab reads "<Company> Quote #<n>" instead of the
     // generic placeholder while the proposal is fetching.
     var urlJobNo = '';
     try {
@@ -33807,7 +33807,7 @@ function toggleProposalSection(key, ev){
   try { if (_QT.open) setTimeout(_qtRenderRail, 120); } catch(e){}
 }
 // Show / hide the itemised line-items table on the Price page of the
-// printed proposal. Off by default to match Flood Roofing's standard
+// printed proposal. Off by default to match our own standard
 // Fergus-style quote (combined total only).
 function toggleShowLineItems(on){
   if (!S.quote) S.quote = defaultQuote();
@@ -33837,7 +33837,7 @@ function _stockSet(){
   return n.indexOf(STOCK_OWNER) === 0 ? STOCK_OWNER : '';
 }
 function _stockPhoto(file){ return _stockSet() === STOCK_OWNER ? ('brand/' + file) : ''; }
-// Pole sheds are Flood Roofing's own product line, not part of what RoofMap
+// Pole sheds are our own product line, not part of what RoofMap
 // sells to other roofing companies. Another company opening the Quote tab was
 // being offered a "Pole Shed" draft it has no business writing, with its own
 // pricing model and consent wording — so the choice is hidden unless the
@@ -34710,7 +34710,7 @@ function rpHeading(icon, label){
 // on the right.  The banner extends past the rp-body padding to
 // both A4 page edges via negative margins.  Used by every page in
 // the redesigned proposal so each page kicks off with the
-// recognisable Flood Roofing brand block.  The number isn't escaped
+// recognisable brand block.  The number isn't escaped
 // (we control it) and the title may carry entities so it's inserted
 // verbatim.
 // Renders a clean roof-outline preview of one roof to a PNG data URL.
@@ -36141,7 +36141,7 @@ function gutterProfileSvg(key){
 // Curated profile lists for the renderer.  Keeping these inline so
 // editing the marketing copy doesn't require touching the renderer.
 // Marley NZ residential spouting range — Typhoon leads because it's
-// Flood Roofing's standard fit (far superior to Classic for our
+// our standard fit (far superior to Classic for our
 // catchments).  Classic remains for heritage homes; Stormcloud for
 // modern square detail; Magnum for high-flow / commercial.
 var MARLEY_PROFILES = [
@@ -36295,7 +36295,7 @@ function _residenceTitle(name){
 // POLE-SHED QUOTE DRAFT
 // A second quote document type (S.quote.quoteKind === 'poleshed') that
 // reuses the premium branded proposal styling but restructures content
-// for pole-shed builds — modelled on Flood Roofing's shed quotes: cover,
+// for pole-shed builds — modelled on our own shed quotes: cover,
 // shed specification, inclusions / exclusions / options + special notes,
 // a single manual subtotal (GST + deposit computed) and an acceptance
 // page. Roofing quotes are unchanged (quoteKind 'roofing' / undefined).
@@ -36550,7 +36550,7 @@ function _buildPoleShedSelections(){
 // ══════════════════════════════════════════════════════════════════
 // SHED MATERIALS ESTIMATOR  (estimate only — NOT a certified NZS 3604
 // takeoff). Dimension-driven quantities + best-guess NZ rates, tuned so
-// the total lands near real Flood Roofing shed quotes. All rates and
+// the total lands near real shed quotes of our own. All rates and
 // spacings live in SHED_RATES so they're easy to correct.
 // ══════════════════════════════════════════════════════════════════
 // TIMBER pole-shed model, calibrated so the trade-materials portion
@@ -37235,7 +37235,7 @@ function refreshQuoteProposal(){
   }
 
   // ── Header (always shown) ──
-  // Uses the real Flood Roofing logo file when present (placed in
+  // Uses the real company logo file when present (placed in
   // /brand/logo_square.webp during setup) and falls back to the saved
   // branding logo data-url, then to plain company text.
   var html = '';
@@ -37292,7 +37292,7 @@ function refreshQuoteProposal(){
   // ── Cover (editorial / capability-statement style) ──
   if (on('cover')) {
     // Cover hero — explicitly assigned slot wins, otherwise we show
-    // the real Flood Roofing winter-crew team photo (strong cover
+    // the real winter-crew team photo (strong cover
     // hero — full crew lined up in front of the branded fleet).
     // Cover hero: use the photo the office assigned to the "Cover hero" image
     // slot (Quote → cover image → upload) if any, else the branded fleet shot.
@@ -37327,7 +37327,7 @@ function refreshQuoteProposal(){
       '<div style="position:relative;aspect-ratio:1100/322;overflow:hidden;background:var(--ed-ink);margin:0">'+
         '<img src="'+esc2(hero)+'" decoding="async" fetchpriority="high" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
         // Brand-blue gradient overlay at the bottom — ties hero to the
-        // Flood Roofing electric-blue brand colour without obscuring
+        // the electric-blue brand colour without obscuring
         // the photo content.
         // Subtle brand-blue gradient at the base (caption removed per request).
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 62%,rgba(0,153,224,.14) 85%,rgba(10,24,40,.45) 100%)"></div>'+
@@ -37704,7 +37704,7 @@ function refreshQuoteProposal(){
                       + _qpSelectionDeltaSum();
     var combinedGst = combinedSub * _rate;
     var combinedTot = combinedSub + combinedGst;
-    var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
+    var combinedDep = combinedTot * 0.5;  // 50% deposit per our standard T&Cs
     // Big per-section Total chip for the option's title row (incl. GST).
     var _priceChip = function(id, sub){
       return '<div style="text-align:right;white-space:nowrap;flex-shrink:0">'+
@@ -37918,7 +37918,7 @@ function refreshQuoteProposal(){
     // No multi-option packages defined, so we present one clean price:
     // scope/inclusions on the left, a prominent price card on the right,
     // and (optionally) an itemised breakdown below.
-    var _dep0 = tot0 * 0.5;  // 50% deposit per Flood Roofing T&Cs
+    var _dep0 = tot0 * 0.5;  // 50% deposit per our standard T&Cs
     // Structure-aware scope render: blank lines add spacing, "heading" lines
     // (Scope of Work…, Warranty, or a line ending in ":") render as
     // subheadings and restart the counter; everything else is a numbered
@@ -38436,7 +38436,7 @@ function refreshQuoteProposal(){
           '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.55">Up to 50 years in Mild environments (more than 5km from breaking surf). *NZ Steel exposure zones apply — see table below.</div>'+
         '</div>'+
       '</div>'+
-      // Flood Roofing's actual warranty-by-zone breakdown (surf distance)
+      // our actual warranty-by-zone breakdown (surf distance)
       '<div class="ed-eyebrow" style="margin-bottom:8px">Colorsteel MAXAM warranty — by distance to breaking surf</div>'+
       '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12.5px;margin-bottom:20px">'+
         '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)"><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Zone</th><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Distance from surf</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Perforation</th></tr></thead>'+
@@ -38669,11 +38669,11 @@ function refreshQuoteProposal(){
     // payment, warranty, weather, site, variations, liability,
     // ownership and disputes.
     var customTerms = (S.quote.terms||'').trim();
-    // Flood Roofing's actual T&Cs (from their published doc) +
+    // our actual T&Cs (from the published doc) +
     // recommended additions covering workmanship, variations, weather,
     // hidden defects, insurance, H&S, cancellation, photos, disputes.
     var dflt = [
-      // ───── Flood Roofing core clauses (from the published T&Cs PDF)
+      // ───── Core clauses (from the published T&Cs PDF)
       { h:'1. Quote validity',    b:'This quote is valid for 60 days from the date quoted and is subject to '+esc2(_proposalCompanyName(br))+'\'s terms and conditions of sale. After that date materials and labour rates may be re-quoted.' },
       { h:'2. Standard Colorsteel colours', b:'The quoted price is based on standard Colorsteel® colours. Non-standard colours selected after quoting may attract additional cost; we\'ll confirm any uplift in writing before ordering.' },
       { h:'3. Colorsteel MAXAM warranty', b:'We install genuine Colorsteel® MAXAM as standard — NZ Steel\'s newest pre-painted roofing product. Perforation warranty by zone: 50 years Mild (5 km+ from breaking surf), 40 years Moderate (500–1,000 m), 30 years Severe (100–500 m), 20 years Very Severe (25–100 m). Full warranty info: https://www.colorsteel.co.nz/resources/warranty/' },
@@ -38810,7 +38810,7 @@ function refreshQuoteProposal(){
       '<div style="text-align:center;margin-top:6px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
       '</div>'+
-      // Full-bleed team closing banner — the Flood Roofing crew sees
+      // Full-bleed team closing banner — the crew sees
       // the proposal out under the signature block.  Straight
       // rectangular crop (no diagonal clip); brand-blue duotone wash
       // ties it to the colour scheme.
@@ -40029,7 +40029,7 @@ function _emailCfg(){
 // Settings → Email first, then the business's branding email, then the
 // signed-in person's own address. NEVER our office: that was the last
 // fallback, and with the branding wizard no longer forced at sign-in every
-// new business's orders and quotes were being CC'd to Flood Roofing.
+// new business's orders and quotes were being CC'd to our own office.
 function _emailRecip(key){
   var v = (_emailCfg()[key] || '').trim();
   if (v) return v;
@@ -44139,7 +44139,7 @@ function _paintSelectJobFergusList(box, matched, q, totalCached, isSearching){
 async function _serverSearchSelectJobFergus(q, seq){
   var box = document.getElementById('selectJobFergList'); if (!box) return;
   // Same endpoint pair runFergSearch uses — both confirmed working on
-  // the Flood Roofing tenant by the /jms/debug/fergus-find probe.
+  // our own tenant by the /jms/debug/fergus-find probe.
   //
   // These used to be awaited TOGETHER, which meant typing a job number made
   // you wait for the slower of the two. filterJobNo on a tenant with a few

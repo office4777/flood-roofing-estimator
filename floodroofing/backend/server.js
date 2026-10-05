@@ -133,7 +133,7 @@ const VERCEL_PROJECT_PREFIXES = [
 // broken", not as a CORS problem. Each entry covers the apex and any subdomain
 // of it (roofmap.co.nz, www.roofmap.co.nz, quote.roofmap.co.nz …).
 const APP_DOMAINS = [
-  'floodroofing.co.nz',   // quote.floodroofing.co.nz — Flood Roofing's own
+  'floodroofing.co.nz',   // quote.floodroofing.co.nz — our own roofing company's
   'roofmap.co.nz',        // the product, New Zealand
   'roofmap.com',          // the product, international
 ];
@@ -564,7 +564,7 @@ const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 
 //     verified there (Resend → Domains) — an unverified domain can only
 //     send to the account's own signup address, not real suppliers.
 //       RESEND_API_KEY=re_xxx
-//       EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>"
+//       EMAIL_FROM="Your Company <office@yourcompany.co.nz>"
 //
 //  2. Raw SMTP (SMTP_USER/SMTP_PASS) — kept as a fallback for hosts that
 //     don't restrict outbound SMTP.  Some platforms (Railway included,
@@ -573,7 +573,7 @@ const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 
 //       SMTP_HOST=smtp.gmail.com   SMTP_PORT=465
 //       SMTP_USER=office@floodroofing.co.nz
 //       SMTP_PASS=<16-char Google App Password>
-//       SMTP_FROM="Flood Roofing <office@floodroofing.co.nz>"
+//       SMTP_FROM="Your Company <office@yourcompany.co.nz>"
 //
 // Until one of these is fully configured, /email/send-order answers 503
 // EMAIL_NOT_CONFIGURED and the frontend falls back to Gmail compose.
@@ -633,7 +633,7 @@ const _mailDomains = { at: 0, byCompany: new Map(), domains: new Set(), loading:
 // The middle rung between "our address with their display name" and "their
 // own verified domain": a sending subdomain WE own (quotes.roofmap.co.nz),
 // verified once in Resend with records in OUR DNS, on which every business
-// gets an address made from its name — "Flood Roofing" becomes
+// gets an address made from its name — "Kauri Roofing" becomes
 // floodroofing@quotes.roofmap.co.nz. Zero subscriber setup, every plan, and
 // a subdomain keeps the quote-mail reputation separate from the root
 // domain's own mailboxes. The address is identity only — it is not a real
@@ -948,14 +948,14 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
     }
   } else if (GAS_ENABLED) {
     // RoofMap's own mail NEVER rides the Google relay (2026-10-01, the
-    // owner's: "it can never come from Flood Roofing"). The relay is the
-    // Flood Roofing Gmail account and sends as it whatever From it is handed
+    // owner's: "it can never come from the roofing company"). The relay is
+    // our own roofing company's Gmail and sends as it whatever From it is handed
     // — so with no Resend, a platform message is held, not sent as Flood
     // Roofing. GAS_RELAY_IS_PLATFORM=true declares a relay that really is
     // RoofMap's own mailbox.
     if (platform && String(process.env.GAS_RELAY_IS_PLATFORM || '') !== 'true') {
       MAIL_STATS.held = (MAIL_STATS.held || 0) + 1;
-      console.warn('[mail] held — ' + subj.slice(0, 80) + ': no Resend, and the Google relay sends as Flood Roofing.');
+      console.warn('[mail] held — ' + subj.slice(0, 80) + ': no Resend, and the Google relay sends as the roofing company.');
       return { held: true, reason: 'relay-is-not-platform' };
     }
     return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
@@ -8310,7 +8310,7 @@ const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
 // jms_keys.fergus). There is no environment fallback and no shared key.
 // The legacy FERGUS_API_KEY env var predates multi-tenancy and served
 // EVERY authenticated company, which showed one business's Fergus jobs to
-// every other business — a trial account saw Flood Roofing's job list. It
+// every other business — a trial account saw our own job list. It
 // is not read here at all now: a business with no key of its own gets
 // "not connected", never someone else's jobs.
 //
@@ -12172,7 +12172,7 @@ app.post('/admin/support/reply', async (req, res) => {
             escH(m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + '</b><br>' + escH(String(m.body || '').trim()) + '</div>'; }).join('') +
           '<p style="margin-top:16px">To reply, open <a href="' + PUBLIC_APP_URL + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
         // FROM ROOFMAP OR NOT AT ALL (2026-10-01, the owner's: "it can never
-        // come from Flood Roofing"): platform mail, so it is held until the
+        // come from the roofing company"): platform mail, so it is held until the
         // platform can send as support@roofmap.co.nz — the bubble pops open
         // with the reply at their next sign-in either way.
         const info = await _dispatchMail({
@@ -12269,7 +12269,7 @@ document.addEventListener('click', async function(ev){
     DRAFTS[u] = ''; ta.value = '';
     await load();
     var n2 = document.querySelector('[data-note="' + u + '"]');
-    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble, and the conversation emailed to them from support@roofmap.co.nz.' : ('Sent to their Help bubble (it pops up when they next open RoofMap). Not emailed' + (j.held ? ': RoofMap cannot send from roofmap.co.nz yet, and it never sends as Flood Roofing' : (j.emailError ? ': ' + j.emailError : '')) + '.');
+    if (n2) n2.textContent = j.emailed ? 'Sent — in their Help bubble, and the conversation emailed to them from support@roofmap.co.nz.' : ('Sent to their Help bubble (it pops up when they next open RoofMap). Not emailed' + (j.held ? ': RoofMap cannot send from roofmap.co.nz yet, and it never sends as the roofing company' : (j.emailError ? ': ' + j.emailError : '')) + '.');
   } catch (e){ note.textContent = e.message; ev.target.disabled = false; }
 });
 $('liForm').addEventListener('submit', async function(ev){
