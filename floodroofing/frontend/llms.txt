@@ -5,8 +5,8 @@
 > crew, and a quote the customer can accept online — without going up a ladder
 > to price the job.
 
-Built by Flood Roofing Limited, a working roofing company in Northland, New
-Zealand. The software is used on the company's own jobs before it ships, which
+Built by RoofMap Limited, started by a working roofer in Northland, New
+Zealand. The software is used on the founder's own roofing jobs before it ships, which
 is why the vocabulary is trade vocabulary: Colorsteel, dektites, back-trays,
 barge, apron, change-of-pitch, coastal zones.
 
@@ -68,8 +68,8 @@ barge, apron, change-of-pitch, coastal zones.
 - [Re-roof scope of work](https://roofmap.co.nz/guides/re-roof-scope-of-work): the inclusions, the exclusions, and why the exclusions are the important half.
 - [Roof pitch calculator](https://roofmap.co.nz/tools/roof-pitch-calculator): degrees ↔ ratio, plus rafter, area, hip and valley multipliers, with the formulas.
 - [Roofing sheet calculator](https://roofmap.co.nz/tools/roofing-sheet-calculator): face size and pitch in; sheet length, count, lineal metres and true area out.
-- [About](https://roofmap.co.nz/about): Flood Roofing Limited, and why a roofing company wrote estimating software.
-- [A re-roof quoted in ten minutes — Flood Roofing case study](https://roofmap.co.nz/case-studies/re-roof-quoted-in-ten-minutes): one real job, before and after, with the founder's own numbers and caveats.
+- [About](https://roofmap.co.nz/about): RoofMap Limited, and why a working roofer wrote estimating software.
+- [A re-roof quoted in ten minutes — a RoofMap case study](https://roofmap.co.nz/case-studies/re-roof-quoted-in-ten-minutes): one real job, before and after, with the founder's own numbers and caveats.
 - [Security](https://roofmap.co.nz/security): how customer quote links, sign-in, offline data, the Fergus key and the team inbox are protected — and a plain list of what is not built yet (no multi-factor sign-in, no New Zealand data residency).
 - [Terms](https://roofmap.co.nz/terms) · [Privacy](https://roofmap.co.nz/privacy)
 

@@ -4627,9 +4627,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <label class="li-label">Full name</label>
       <input id="su-name" type="text" placeholder="Matt" class="li-input">
       <label class="li-label">Company</label>
-      <input id="su-company" type="text" value="Flood Roofing" placeholder="Your company name" class="li-input">
+      <input id="su-company" type="text" placeholder="Your company name" class="li-input">
       <label class="li-label">Email</label>
-      <input id="su-email" type="email" placeholder="matt@floodroofing.co.nz" class="li-input">
+      <input id="su-email" type="email" placeholder="you@yourcompany.co.nz" class="li-input">
       <label class="li-label">Phone</label>
       <input id="su-phone" type="tel" placeholder="021 000 0000" class="li-input" autocomplete="tel">
       <label class="li-label">What interests you most about RoofMap? <span style="font-weight:400;color:#888">pick one or more</span></label>
@@ -4640,7 +4640,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><input type="checkbox" name="su-interest" value="ordering" style="width:16px;height:16px;margin:0"> Auto-calculated material ordering</label>
       </div>
       <label class="li-label">Invite code</label>
-      <input id="su-invite" type="text" placeholder="Code from Flood Roofing" class="li-input">
+      <input id="su-invite" type="text" placeholder="Code from RoofMap" class="li-input">
       <label class="li-label">Choose a password</label>
       <input id="su-pass" type="password" placeholder="At least 8 characters" class="li-input">
       <label class="li-label">Confirm password</label>
@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-01T21:36:30Z';
+  window.APP_BUILT_AT = '2026-10-05T23:51:46Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -7511,7 +7511,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <label style="margin-top:8px">Notes for client</label>
     <textarea id="qdNotes" rows="2" placeholder="Access, timing, special considerations…" oninput="onQuoteEdit()"></textarea>
     <label style="margin-top:8px">Additional terms <span style="color:var(--text3);font-weight:400">(optional — appended after the standard T&amp;Cs on the proposal)</span></label>
-    <textarea id="qtTerms" rows="3" placeholder="Any job-specific terms to add — the full standard Flood Roofing T&Cs print automatically." oninput="onQuoteEdit()"></textarea>
+    <textarea id="qtTerms" rows="3" placeholder="Any job-specific terms to add — your full standard T&Cs print automatically." oninput="onQuoteEdit()"></textarea>
   </div>
 
   <!-- Existing roof condition. The tick puts the section in the quote or
@@ -8547,7 +8547,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <!-- BRANDING -->
     <div class="sub-panel on settings-sub" id="set-brand" style="margin-top:14px">
       <div class="f2">
-        <div><label>Company name</label><input type="text" id="brCompanyName" placeholder="Flood Roofing"></div>
+        <div><label>Company name</label><input type="text" id="brCompanyName" placeholder="Your company name"></div>
         <div><label>Tagline</label><input type="text" id="brTagline" placeholder="Northland's Roofing Specialists"></div>
       </div>
       <div class="f3">

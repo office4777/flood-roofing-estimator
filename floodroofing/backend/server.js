@@ -2074,7 +2074,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     const invite = String((req.body || {}).invite || '').trim();
     const expected = String(process.env.REGISTRATION_INVITE_CODE || '').trim();
     if (!expected || invite !== expected) {
-      return res.status(403).json({ error: 'Registration is invite-only — contact Flood Roofing for access.' });
+      return res.status(403).json({ error: 'Registration is invite-only — contact RoofMap for access.' });
     }
     invitedViaCode = true;
   }
@@ -10865,7 +10865,7 @@ app.post('/waitlist', rateLimit(10, 3600000), async (req, res) => {
         PUBLIC_APP_URL + '/\n\n' +
         'Reply to this email if you want to tell us anything else about your setup —\n' +
         'it reaches a person.\n\n' +
-        '— RoofMap, by Flood Roofing\n';
+        '— RoofMap\n';
       _dispatchMail({
         to: email, subject: 'You are on the list — RoofMap early access',
         text: theirs,
@@ -10951,7 +10951,7 @@ async function _waitlistInvite(row){
              'standard rate. It comes off automatically when you subscribe — there is no\n' +
              'code to enter.\n\n')
           : '') +
-        'Reply to this email if anything is in your way.\n\n— RoofMap, by Flood Roofing\n',
+        'Reply to this email if anything is in your way.\n\n— RoofMap\n',
       html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
         '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
         '<h2 style="font-size:21px;margin:10px 0 14px">You are in' + (row.name ? (', ' + esc(row.name)) : '') + '.</h2>' +
