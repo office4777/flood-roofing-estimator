@@ -1,71 +1,80 @@
-/* Shared styling for the Terms and the Privacy Policy.
+/* The document pages — Terms, Privacy, Security.
  *
- * These are documents, not marketing pages, so the job is legibility: one
- * narrow column, numbered clauses a customer can quote back at us, and a
- * plain-English summary at the top of each section that says what the clause
- * below actually means. Anything a subscriber has to agree to should be
- * readable on a phone in a ute.
+ * This file is a LAYER ON TOP OF site.css, not a second stylesheet. Every
+ * page here loads site.css first and gets the same tokens, the same type, the
+ * same navy header and footer as the home page; this file adds only what a
+ * legal document needs and a marketing page does not — a narrow reading
+ * column, numbered clauses a customer can quote back at us, a contents list,
+ * the plain-English gloss under each heading, and the sub-processor tables.
  *
- * Palette and type match landing.html so they don't feel like somebody else's
- * website, but with none of the hero treatment.
+ * It used to be a standalone stylesheet that re-declared the palette, the
+ * font and the body rules, and built its own pale masthead with a "← Back to
+ * RoofMap" link instead of the real nav. Two copies of a palette is two
+ * places for a colour to drift, and a reader who followed a footer link from
+ * the home page landed on something that looked like a different company.
+ * So: nothing in here may re-declare a token, a font or a colour that
+ * site.css already sets. Anything two pages need belongs in site.css.
+ *
+ * NOTE ON ORDER — site.css loads first, so a bare element selector here wins
+ * on equal specificity. Where that is doing real work it is called out,
+ * because the rule looks redundant until you know what it is overriding.
  */
-*,*::before,*::after{ box-sizing:border-box }
 :root{
-  --ink:#0a1628; --ink-2:#1c2b3f; --body:#3d4d61; --muted:#6b7c91;
-  --accent:#0099cc; --accent-deep:#00719a;
-  --paper:#ffffff; --paper-2:#f4f7fa; --line:#dde5ee;
+  /* The only tokens site.css has no use for: the callout's tint. */
   --note:#f1f8fb; --note-line:#bfe3f0;
+  --doc:860px;          /* ≈74ch at the site's 17px body — the same measure as .prose */
 }
-html{ -webkit-text-size-adjust:100% }
-body{
-  margin:0; background:var(--paper); color:var(--body);
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-  font-size:16.5px; line-height:1.65;
-}
-.wrap{ max-width:760px; margin:0 auto; padding:0 24px }
 
-/* ── masthead ── */
-header{ border-bottom:1px solid var(--line); background:var(--paper-2) }
-header .wrap{ display:flex; align-items:center; gap:14px; height:66px }
-header .brand{ display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); font-weight:800; font-size:17px }
-header .brand img{ width:28px; height:28px }
-header .back{ margin-left:auto; font-size:14px; color:var(--accent); text-decoration:none; font-weight:600 }
-header .back:hover{ color:var(--accent-deep) }
+/* ── the reading column ──────────────────────────────────────────────
+   The header and the footer keep site.css's full 1180px width, so they line
+   up with every other page. Only the document itself narrows. */
+.wrap.doc-head,
+main.wrap{ max-width:var(--doc) }
 
 /* ── title block ── */
-.doc-head{ padding:52px 0 30px; border-bottom:1px solid var(--line) }
-h1{ color:var(--ink); font-size:clamp(28px,4.4vw,40px); line-height:1.12; letter-spacing:-.022em; font-weight:800; margin:0 }
-.doc-head .sub{ margin:14px 0 0; font-size:17px; color:var(--body) }
+.doc-head{ padding:46px 0 30px; border-bottom:1px solid var(--line) }
+/* site.css sizes h1 for a hero (up to 62px). A document's title is a title. */
+.doc-head h1{ font-size:clamp(28px,4.4vw,42px) }
+.doc-head .sub{ margin:14px 0 0; font-size:17.5px; color:var(--body) }
 .doc-head .dates{ margin-top:18px; font-size:13.5px; color:var(--muted) }
 .doc-head .dates span + span::before{ content:'·'; margin:0 9px; color:var(--line) }
 
 /* ── contents ── */
 .toc{ margin:30px 0 0; padding:20px 24px; background:var(--paper-2); border:1px solid var(--line); border-radius:12px }
 .toc h2{ margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted) }
-.toc ol{ margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:3px 26px; counter-reset:toc }
+.toc ol{ margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:3px 26px; counter-reset:toc }
 .toc li{ counter-increment:toc; font-size:14.5px }
 .toc a{ color:var(--ink-2); text-decoration:none; display:block; padding:3px 0 }
 .toc a::before{ content:counter(toc) '.'; color:var(--muted); font-variant-numeric:tabular-nums; margin-right:8px }
 .toc a:hover{ color:var(--accent) }
 
-/* ── body ── */
+/* ── body ──
+   site.css gives every section 88px top AND bottom — right for a marketing
+   page built of big bands, far too much for twenty numbered clauses. The
+   shorthand has to be re-stated rather than just the top, or the 88px bottom
+   survives and the clauses drift apart. */
 main{ counter-reset:sec; padding-bottom:40px }
-section{ padding-top:38px }
-section h2{
+main section{ padding:38px 0 0 }
+main section h2{
   color:var(--ink); font-size:21px; font-weight:800; letter-spacing:-.015em;
   line-height:1.25; margin:0 0 6px; scroll-margin-top:20px;
 }
-section h2::before{
+main section h2::before{
   counter-increment:sec; content:counter(sec) '.';
   color:var(--accent); margin-right:10px; font-variant-numeric:tabular-nums;
 }
-section h3{ color:var(--ink-2); font-size:16px; font-weight:700; margin:22px 0 4px }
-p{ margin:12px 0 }
-ul,ol.plain{ margin:12px 0; padding-left:22px }
-li{ margin:6px 0 }
-strong{ color:var(--ink-2); font-weight:700 }
-a{ color:var(--accent) }
-a:hover{ color:var(--accent-deep) }
+main section h3{ color:var(--ink-2); font-size:16.5px; font-weight:700; margin:22px 0 4px }
+/* site.css sets p{margin:0} — its pages space their own blocks. A document
+   is paragraphs, so they space themselves. */
+main p{ margin:12px 0 }
+main ul,main ol.plain{ margin:12px 0; padding-left:22px }
+main li{ margin:6px 0 }
+main strong{ color:var(--ink-2); font-weight:700 }
+/* site.css sets a{color:inherit} for links inside coloured bands. In a
+   document every link is a link and should look like one — scoped to the
+   document so the navy header and footer keep their own treatment. */
+main a,.doc-head a{ color:var(--accent) }
+main a:hover,.doc-head a:hover{ color:var(--accent-deep) }
 a:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:2px }
 
 /* The one-line plain-English gloss under each heading. It is not a summary
@@ -76,7 +85,8 @@ a:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-rad
 }
 
 /* A clause worth not missing. Used sparingly — measurements, liability,
-   whose customer data it is. */
+   whose customer data it is. Same shape as site.css's .answer and .anchor
+   blocks, so a reader meets one treatment across the whole site. */
 .callout{
   margin:18px 0; padding:16px 20px; background:var(--note);
   border:1px solid var(--note-line); border-left:4px solid var(--accent);
@@ -95,30 +105,21 @@ a:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-rad
   display:none; padding-top:8px; font-size:12.5px; color:var(--muted); font-style:italic;
 }
 @media (max-width:620px){ .tbl-wrap::after{ display:block } }
-table{ border-collapse:collapse; width:100%; min-width:520px; font-size:14.5px }
-th,td{ text-align:left; vertical-align:top; padding:10px 14px 10px 0; border-bottom:1px solid var(--line) }
-th{ font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); white-space:nowrap }
+.tbl-wrap table{ border-collapse:collapse; width:100%; min-width:520px; font-size:14.5px }
+.tbl-wrap th,.tbl-wrap td{ text-align:left; vertical-align:top; padding:10px 14px 10px 0; border-bottom:1px solid var(--line) }
+.tbl-wrap th{ font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); white-space:nowrap }
 /* A provider's name, then what kind of thing it is. Two lines, always —
    relying on a block <strong> and a bare text node put the subtitle on the
    same line as a name that wrapped. */
-td strong{ display:block; color:var(--ink-2) }
-td .sub{ display:block; color:var(--muted); font-size:13px; line-height:1.4; margin-top:1px }
-
-/* ── footer ── */
-footer{ border-top:1px solid var(--line); background:var(--paper-2); margin-top:20px }
-footer .wrap{ padding-top:26px; padding-bottom:34px; font-size:14px; color:var(--muted);
-  display:flex; gap:8px 22px; flex-wrap:wrap; align-items:center }
-footer a{ color:var(--muted); text-decoration:none }
-footer a:hover{ color:var(--accent) }
-footer .sp{ margin-left:auto }
+.tbl-wrap td strong{ display:block; color:var(--ink-2) }
+.tbl-wrap td .sub{ display:block; color:var(--muted); font-size:13px; line-height:1.4; margin-top:1px }
 
 @media (max-width:560px){
-  .doc-head{ padding-top:34px }
+  .doc-head{ padding-top:30px }
   .toc ol{ grid-template-columns:1fr }
-  footer .sp{ margin-left:0 }
 }
 @media print{
-  header,footer,.toc,.back{ display:none }
+  header,footer,.toc{ display:none }
   body{ font-size:11pt } .wrap{ max-width:none; padding:0 }
-  section{ padding-top:20px; break-inside:avoid }
+  main section{ padding-top:20px; break-inside:avoid }
 }
