@@ -1089,6 +1089,29 @@ Discipline (non-negotiable):
   (`_qbScrollHintSync` on the page's scroller, `_qbScrollEl`). The
   proposal's lines are tightened (`.qb-split .qb-incl-row`) so page 3 fits
   a phone without scrolling, and it carries no GST note.
+- ACCREDITATION LOGOS (2026-10-07, the owner's RANZ / Sitewise Gold / LBP):
+  `branding.accred_logos` = up to four `{src, alt}`, COMPANY-WIDE like the
+  cover hero and for the same reason — a roofer's RANZ membership is the same
+  on every quote they will ever send, so nothing is per-quote and nothing new
+  rides in versions, templates or the frozen customer copy. `_accredStripHtml
+  (where, plain)` draws them over the hero on the cover (`qb-accred-cover`, a
+  white chip each so any logo reads over any photograph) and as a centred row
+  on the last page (`qb-accred-foot`), in `_qbCover`, `_qdCover` and
+  `_qbSummary` — so the book, the one-page layout and the computer's Review
+  all carry them. NOTHING IS SHOWN WHEN NONE ARE SET: the customer never sees
+  an empty slot where a credential would go. The office gets a ✕ per logo and
+  ONE "+ Logo" at a time (four dashed holes on a photograph is a form, not a
+  quote); Settings → Branding (`#brAccredSlots`, `_accredSettingsRender`)
+  shows the same store filled out to four, and either place writes the other.
+  `_accredShrink` keeps a logo as PNG — the JPEG shrinker fills a transparent
+  background with black — and files under 180 KB (an SVG among them) are kept
+  exactly as they came in. The A4's cover `trustLogosHtml` prefers the
+  company's own, and the line of words under it ("Member of Roofing
+  Association NZ · Licensed Building Practitioner · Site Safe · Sitewise Gold
+  · Colorsteel Authorised") now follows them — it was printed on EVERY
+  company's cover, gated on nothing, asserting credentials they may not hold,
+  while the logos above it were gated to the account that supplied them.
+  `tests/accredlogos.mjs`.
 - The cover's facts (phone and computer) are ONE list, `_qbCoverMeta()`:
   Quote, Date, Expires (`_qbExpiryText`: the date plus the validity's days,
   or the validity verbatim when it is already a date), Prepared by

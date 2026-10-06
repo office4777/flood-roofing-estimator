@@ -3737,6 +3737,29 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-hero-tools button{ height:28px; min-width:28px; padding:0 10px; border:none; border-radius:7px; background:rgba(10,22,40,.78); color:#fff; font:700 12px/1 inherit; font-family:inherit; cursor:pointer; }
 .qb-hero-tools button:first-child{ background:#0099cc; }
 .qb-hero-hint{ position:absolute; top:44px; right:12px; z-index:3; font-size:10.5px; color:rgba(255,255,255,.85); text-shadow:0 1px 2px rgba(0,0,0,.6); pointer-events:none; }
+/* ACCREDITATION LOGOS (the owner, 2026-10-07: "small photo/logo slots … to
+   allow the user to set their logos, like I'd like to be able to add my RANZ
+   logo, site wise gold logo and lbp logo"). On the cover they sit over the
+   hero photo, each on its own white chip so a logo of any colour reads over
+   any photograph; on the last page they are a plain centred row. */
+.qb-accred{ display:flex; align-items:center; flex-wrap:wrap; }
+.qb-accred-slot{ position:relative; display:inline-flex; align-items:center; }
+.qb-accred-slot img{ display:block; width:auto; object-fit:contain; }
+.qb-accred-cover{ position:absolute; right:12px; bottom:11px; z-index:3; gap:8px; justify-content:flex-end; max-width:66%; }
+.qb-accred-cover .qb-accred-slot{ background:rgba(255,255,255,.93); border-radius:8px; padding:5px 8px; box-shadow:0 2px 9px rgba(10,22,40,.22); }
+.qb-accred-cover .qb-accred-slot img{ height:30px; max-width:104px; }
+.qb-accred-foot{ gap:20px; justify-content:center; margin:20px 0 2px; }
+.qb-accred-foot .qb-accred-slot img{ height:40px; max-width:140px; }
+.qb-accred-x{ position:absolute; top:-7px; right:-7px; width:18px; height:18px; padding:0; border:none; border-radius:50%; background:#b91c1c; color:#fff; font:700 12px/1 inherit; font-family:inherit; cursor:pointer; }
+.qb-accred-add{ height:30px; padding:0 11px; border:1.5px dashed rgba(255,255,255,.75); border-radius:8px; background:rgba(10,22,40,.55); color:#fff; font:700 11.5px/1 inherit; font-family:inherit; cursor:pointer; white-space:nowrap; }
+.qb-accred-foot .qb-accred-add{ border-color:#c7d2de; background:#f4f7fa; color:#44566b; height:34px; }
+@media (max-width:720px){
+  .qb-accred-cover{ right:8px; bottom:8px; gap:6px; max-width:78%; }
+  .qb-accred-cover .qb-accred-slot{ padding:4px 6px; }
+  .qb-accred-cover .qb-accred-slot img{ height:22px; max-width:76px; }
+  .qb-accred-foot{ gap:14px; }
+  .qb-accred-foot .qb-accred-slot img{ height:32px; max-width:110px; }
+}
 .qb-hero-own .qb-hero-veil, .qb-hero-own .qb-hero-txt{ z-index:1; }
 .qb-hero-own .qb-hero-veil{ pointer-events:none; }
 .qb-fig-photo{ margin:0 0 14px; padding:0; background:none; }
@@ -4657,7 +4680,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T23:00:18Z';
+  window.APP_BUILT_AT = '2026-10-06T23:35:15Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8611,6 +8634,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
           <img id="brHeroPreview" alt="cover hero preview" style="max-height:70px;max-width:240px;object-fit:cover;border-radius:6px;display:none">
           <button onclick="clearCompanyHero()" type="button" class="tool-btn" style="font-size:11px">Remove hero photo</button>
+        </div>
+        <!-- Accreditation logos. Four slots, drawn by _accredSettingsRender
+             into #brAccredSlots; the same store the quote's cover edits, so
+             either place sets them for every quote. -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <label>Accreditation logos (up to four)</label>
+          <div style="font-size:11px;color:var(--text2);margin:-2px 0 8px">RANZ, Licensed Building Practitioner, Site Safe, Sitewise — whatever you hold. They go on the cover of every quote, over the hero photo, and on its last page. Leave them empty and the customer sees nothing there.</div>
+          <div id="brAccredSlots" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>
         </div>
         <!-- Whether the shared inbox gets a place in the left menu. Some
              offices run the whole job out of it; others only ever email a
@@ -13138,6 +13169,11 @@ function defaultSettings(){
                 // quote it is on, but a new business should not have to pick a
                 // hero shot again on every job it prices.
                 hero_photo: '',
+                // The company's accreditation logos (RANZ, LBP, Site Safe,
+                // Sitewise…), up to four, on every quote's cover and last
+                // page: [{src, alt}]. Empty means nothing is shown at all —
+                // a quote must never assert a credential nobody supplied.
+                accred_logos: [],
                 // Saved quote layouts, made in the quote template editor.
                 // [{id, name, tpl}] — tpl is the page arrangement plus the
                 // standard copy that goes with it.
@@ -16892,6 +16928,7 @@ function refreshSettingsUI(){
     if (b.hero_photo) { hp.src = b.hero_photo; hp.style.display = 'inline-block'; }
     else { hp.style.display = 'none'; hp.removeAttribute('src'); }
   }
+  try { _accredSettingsRender(); } catch(e){}
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
   set('qdNextJobNo', q.next_job_no || '06121');
   var _qlInfo = document.getElementById('qdQuoteLinkInfo');
@@ -30393,6 +30430,7 @@ function _qbCover(){
         (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
       '</div>'+
       _qbHeroTools()+
+      _accredStripHtml('cover')+
     '</div>'+
     '<div class="qb-body">'+
       _qbCoverMeta()+
@@ -30514,6 +30552,113 @@ function _qbCoverDragStart(e){
   var move = function(ev){ c.offX = ox + (ev.clientX - sx) / w * 100; c.offY = oy + (ev.clientY - sy) / h * 100; _qbCoverChanged(false); };
   var up = function(){ window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); frame.classList.remove('qb-hero-grab'); _qbCoverChanged(false); };
   window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+}
+// ── ACCREDITATION LOGOS (2026-10-07) ──────────────────────────────
+// The owner: "small photo/logo slots (max of four empty slots) to allow the
+// user to set their logos, like I'd like to be able to add my RANZ logo, site
+// wise gold logo and lbp logo … if the logo spots are not filled in, don't
+// show the slots on the customer quote".
+//
+// COMPANY-WIDE, like the cover hero and for the same reason: a roofer's RANZ
+// membership and LBP licence are the same on every quote they will ever send,
+// so setting them on a quote sets them for the company (`branding.accred_logos`)
+// and Settings → Branding shows the same four slots. Nothing is per-quote,
+// which also means nothing new has to be carried through versions, templates
+// or the frozen customer copy.
+//
+// Until this existed the A4's cover printed Flood Roofing's OWN RANZ, LBP,
+// Site Safe, Sitewise and Colorsteel logos — gated to that account — above a
+// line of text naming all five that was NOT gated, so every other company's
+// quote asserted credentials it may not hold. That line now follows the logos.
+var ACCRED_MAX = 4;
+function _accredLogos(){
+  try {
+    var a = (S.settings && S.settings.branding && S.settings.branding.accred_logos);
+    if (!Array.isArray(a)) return [];
+    return a.filter(function(x){ return x && x.src; }).slice(0, ACCRED_MAX);
+  } catch(e){ return []; }
+}
+// The office sees the slots; the customer and the paper see only filled ones,
+// and nothing at all when there are none.
+function _accredOffice(){ return !(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE); }
+function _accredStripHtml(where, plain){
+  var logos = _accredLogos(), office = _accredOffice() && !plain;
+  if (!logos.length && !office) return '';
+  var html = logos.map(function(l, i){
+    return '<span class="qb-accred-slot">'+
+        '<img src="'+esc2(l.src)+'" alt="'+esc2(l.alt || 'Accreditation')+'" loading="lazy" decoding="async">'+
+        (office ? '<button type="button" class="qb-accred-x no-print" title="Remove this logo" onclick="event.stopPropagation();_accredRemove('+i+')">\u00d7</button>' : '')+
+      '</span>';
+  }).join('');
+  // One "+ Logo" at a time rather than four empty boxes: four dashed holes on
+  // every cover is a form, not a quote. It stops appearing at the fourth.
+  if (office && logos.length < ACCRED_MAX)
+    html += '<button type="button" class="qb-accred-add no-print" title="Add an accreditation logo \u2014 it goes on every quote you send" '+
+      'onclick="event.stopPropagation();_accredPick()">+ Logo</button>';
+  if (!html) return '';
+  return '<div class="qb-accred qb-accred-'+(where === 'cover' ? 'cover' : 'foot')+'">'+html+'</div>';
+}
+// A logo is not a photograph: it is usually a PNG with a transparent
+// background, and putting one through the JPEG shrinker fills that with
+// black. Small files are kept exactly as they came in (an SVG among them);
+// anything bigger is redrawn as a PNG, which keeps the transparency.
+function _accredShrink(dataUrl, cb){
+  try {
+    if (!dataUrl || dataUrl.indexOf('data:image') !== 0) return cb('');
+    if (dataUrl.length < 180000) return cb(dataUrl);
+    var img = new Image();
+    img.onload = function(){
+      try {
+        var sc = Math.min(1, 440 / Math.max(img.width || 1, img.height || 1));
+        var cw = Math.max(1, Math.round((img.width || 1) * sc)), ch = Math.max(1, Math.round((img.height || 1) * sc));
+        var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+        c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        cb(c.toDataURL('image/png'));
+      } catch(e){ cb(dataUrl); }
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  } catch(e){ cb(dataUrl); }
+}
+function _accredPick(){
+  if (!_accredOffice()) return;
+  if (_accredLogos().length >= ACCRED_MAX){ alert('Four logos is the most a quote carries.'); return; }
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+    // The file's own name is the alt text — "ranz.png" becomes "Ranz", which
+    // is a better thing for a screen reader to say than "Accreditation".
+    var alt = String(f.name || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    alt = alt ? alt.charAt(0).toUpperCase() + alt.slice(1) : '';
+    var r = new FileReader();
+    r.onload = function(ev){
+      _accredShrink(ev.target.result, function(src){
+        if (!src) return;
+        if (!S.settings) S.settings = defaultSettings();
+        if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
+        var list = Array.isArray(S.settings.branding.accred_logos) ? S.settings.branding.accred_logos.slice() : [];
+        list.push({ src: src, alt: alt });
+        S.settings.branding.accred_logos = list.slice(0, ACCRED_MAX);
+        _accredChanged();
+      });
+    };
+    r.readAsDataURL(f);
+  });
+  document.body.appendChild(inp); inp.click();
+}
+function _accredRemove(i){
+  if (!_accredOffice()) return;
+  var list = _accredLogos(); if (!list[i]) return;
+  if (!S.settings || !S.settings.branding) return;
+  list.splice(i, 1);
+  S.settings.branding.accred_logos = list;
+  _accredChanged();
+}
+function _accredChanged(){
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _accredSettingsRender(); } catch(e){}
+  try { if (typeof saveSettings === 'function') saveSettings(); } catch(e){}
 }
 function _qbHeroSrc(){
   var br = (S.settings && S.settings.branding) || {};
@@ -32178,6 +32323,7 @@ function _qbSummary(opts){
             '<button type="button" onclick="printCustomerQuote()">Download PDF</button>'+
             '<button type="button" onclick="customerDecline()">Decline</button>'+
           '</div>')+
+      _accredStripHtml('foot')+
       '<p class="qb-fine">'+esc2((S.settings && S.settings.branding && S.settings.branding.company_name) || '')+
         (q.validUntil ? ' · This quote is valid for '+esc2(q.validUntil) : '')+'</p>'+
     '</div>';
@@ -32477,6 +32623,7 @@ function _qdCover(){
         (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
       '</div>'+
       _qbHeroTools()+
+      _accredStripHtml('cover')+
     '</div>'+
     '<div class="qb-body qd-cover-body">'+
       '<div>'+
@@ -33952,6 +34099,27 @@ function onCompanyHeroFile(ev){
   };
   r.readAsDataURL(f);
   if (ev && ev.target) ev.target.value = '';
+}
+// The four slots on Settings → Branding. Deliberately the same store and the
+// same pickers as the quote's cover strip — a roofer who adds a logo in one
+// place must never find the other still empty.
+function _accredSettingsRender(){
+  var host = document.getElementById('brAccredSlots'); if (!host) return;
+  var logos = (typeof _accredLogos === 'function') ? _accredLogos() : [];
+  var box = 'display:inline-flex;align-items:center;justify-content:center;width:104px;height:62px;border-radius:8px;background:#fff;border:1px solid var(--border)';
+  var html = logos.map(function(l, i){
+    return '<span style="position:relative;'+box+'">'+
+        '<img src="'+esc2(l.src)+'" alt="'+esc2(l.alt || 'Accreditation')+'" style="max-width:92px;max-height:50px;width:auto;height:auto;object-fit:contain">'+
+        '<button type="button" title="Remove this logo" onclick="_accredRemove('+i+')" style="position:absolute;top:-7px;right:-7px;width:18px;height:18px;padding:0;border:none;border-radius:50%;background:#b91c1c;color:#fff;font:700 12px/1 inherit;cursor:pointer">\u00d7</button>'+
+      '</span>';
+  }).join('');
+  // Empty slots up to four, so the Settings screen shows how many there is
+  // room for. The quote's cover shows one "+ Logo" at a time instead: four
+  // dashed holes over a photograph on every quote is a form, not a quote.
+  for (var i = logos.length; i < (window.ACCRED_MAX || 4); i++)
+    html += '<button type="button" onclick="_accredPick()" title="Add an accreditation logo" '+
+      'style="'+box+';border:1.5px dashed #c7d2de;background:#f6f9fb;color:#5b6b7c;font:600 11.5px/1.3 inherit;cursor:pointer">+ Add logo</button>';
+  host.innerHTML = html;
 }
 function clearCompanyHero(){
   if (!S.settings) S.settings = defaultSettings();
@@ -38876,12 +39044,15 @@ function refreshQuoteProposal(){
   // (and prominently on the cover) so the customer immediately sees the
   // credentials. PNG paths live under /brand/; missing files self-hide
   // via onerror so they don't break the layout.
-  var trustLogosHtml =
-    '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+(
-      // These are CLAIMS, not decoration: RANZ membership, an LBP licence,
-      // Site Safe, a Sitewise grade. Printing them on another company's quote
-      // asserts credentials they may not hold. They belong to the account that
-      // supplied them until there is a place in Settings to tick your own.
+  // These are CLAIMS, not decoration: RANZ membership, an LBP licence, Site
+  // Safe, a Sitewise grade. Printing them on another company's quote asserts
+  // credentials they may not hold. Since 2026-10-07 a company sets its OWN in
+  // Settings → Branding (or on the quote's cover), and those win; the built-in
+  // five stay gated to the account that supplied them, for when it has not.
+  var _ownTrust = (typeof _accredLogos === 'function') ? _accredLogos() : [];
+  var trustLogosHtml = _ownTrust.length
+    ? '<div class="rp-trust-strip">'+_accredStripHtml('foot', true)+'</div>'
+    : '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+(
       _stockPhoto('ranz.png') ? (
         '<img src="brand/ranz.png" alt="Member of Roofing Association NZ" onerror="this.style.display=\'none\'" style="height:46px;width:auto;object-fit:contain">'+
         '<img src="brand/lbp.png" alt="Licensed Building Practitioner" onerror="this.style.display=\'none\'" style="height:42px;width:auto;object-fit:contain">'+
@@ -38890,6 +39061,12 @@ function refreshQuoteProposal(){
         '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'
       ) : ''
     )+'</div>';
+  // The line of words under them names the same five, so it is the same claim
+  // and follows the same rule. It was printed unconditionally, on every
+  // company's cover, whether or not the logos above it were shown.
+  var trustLineHtml = (!_ownTrust.length && _stockPhoto('ranz.png'))
+    ? '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Member of Roofing Association NZ \u00b7 Licensed Building Practitioner \u00b7 Site Safe \u00b7 Sitewise Gold 2025/26 \u00b7 Colorsteel Authorised</div>'
+    : '';
   // Per-page footer — a slim company · ref line only. The trust logos now
   // live ONLY on the cover (page 1); removing them from every other page
   // de-clutters the document and frees vertical space.
@@ -38937,7 +39114,7 @@ function refreshQuoteProposal(){
           // Trust strip + small footer credit centred under the cover hero.
           '<div style="padding:18px 36px 24px;background:#fff;border-top:1px solid var(--ed-line)">'+
             trustLogosHtml +
-            '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Member of Roofing Association NZ · Licensed Building Practitioner · Site Safe · Sitewise Gold 2025/26 · Colorsteel Authorised</div>'+
+            trustLineHtml +
           '</div>'+
         '</div>';
       case 'condition':  return rpPage(partCondition, '', mark);
@@ -38953,6 +39130,7 @@ function refreshQuoteProposal(){
         if (!partSignature) return '';
         return '<div class="rp-body rp-page"'+mark+' style="display:flex;flex-direction:column;background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
             '<div class="rp-page-content" style="flex:1;display:flex;flex-direction:column">'+partSignature+'</div>'+
+            _accredStripHtml('foot', true) +
             pageFooterHtml +
           '</div>';
       default: return '';
