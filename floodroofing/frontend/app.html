@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T22:11:56Z';
+  window.APP_BUILT_AT = '2026-10-06T22:26:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -7420,6 +7420,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <textarea id="quoteEmailBody" rows="10" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;min-height:180px;box-sizing:border-box;color:#0a1628"></textarea>
       </label>
       <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5"><strong>Send email now</strong> sends it for you — the customer gets a big green <strong>“View this Quote” button</strong> that opens their live quote (no PDF attached), and a copy is CC'd to <strong id="quoteEmailCc"></strong>.</div>
+      <label id="quoteEmailTermsRow" style="display:none;align-items:center;gap:8px;font-size:12px;color:#334155;cursor:pointer">
+        <input type="checkbox" id="quoteEmailTerms" style="width:15px;height:15px;margin:0">
+        <span>Attach our Terms of Trade (<span id="quoteEmailTermsName"></span>)</span>
+      </label>
       <div id="quoteEmailStatus" style="display:none;font-size:12px;line-height:1.5;border-radius:8px;padding:9px 11px"></div>
       <button id="quoteEmailSendBtn" onclick="_quoteEmailSendNow()" style="width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">📤 Send email now — with quote link</button>
     </div>
@@ -8306,6 +8310,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div class="set-grp">Quoting</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-invoicing',this)">Invoicing</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-terms',this);_totLoad()">Terms of Trade</button>
         <div class="set-grp">App</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">General</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-guides',this)">Guides</button>
@@ -8317,6 +8322,27 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <button onclick="_saveClick(this,'settings')" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
 
+    <!-- Terms of Trade: the business's own PDF, attached to what it sends. -->
+    <div class="sub-panel settings-sub" id="set-terms" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Upload your terms of trade once and RoofMap attaches them to the emails you choose. Which emails carry them is set here and on <a onclick="switchSettingsSub('set-email')" style="cursor:pointer;text-decoration:underline;color:#0284b5">Settings &rarr; Email</a>, email by email.</p>
+      <div id="totBox" style="border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff;max-width:620px">
+        <div id="totState" style="font-size:13px;color:var(--text2)">Loading&hellip;</div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <label class="btn-sm" style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:var(--fr-dark);color:#fff;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">
+            <span id="totPickLabel">Upload a PDF</span>
+            <input type="file" id="totFile" accept="application/pdf,.pdf" data-noautosave onchange="_totPick(this)" style="display:none">
+          </label>
+          <button type="button" id="totViewBtn" onclick="_totView()" style="display:none;padding:9px 16px;background:#fff;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">View it</button>
+          <button type="button" id="totDelBtn" onclick="_totRemove()" style="display:none;padding:9px 16px;background:#fff;border:1.5px solid #fecaca;color:#b91c1c;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Remove</button>
+        </div>
+        <div id="totMsg" style="font-size:12.5px;margin-top:12px;line-height:1.5"></div>
+        <label class="emx-switch" style="margin-top:16px;display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="emTerms_quote_mirror" onchange="_totQuoteToggle(this.checked)">
+          <span>Attach it to every quote I email</span>
+        </label>
+        <p style="font-size:11.5px;color:var(--text2);margin:8px 0 0;line-height:1.5">PDF only, up to 8MB. It goes out as a second attachment beside the quote, under its own file name, so the customer gets both.</p>
+      </div>
+    </div>
     <!-- Guides: the setup guide, the tutorial and the practice job. -->
     <div class="sub-panel settings-sub" id="set-guides" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Five ways to learn the app. Each one can be run as often as you like.</p>
@@ -8918,6 +8944,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emQuoteCc">Also send a copy to (CC)</label><input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emQuoteReplyTo">Customer replies go to</label><input type="text" id="emQuoteReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
 <label class="emx-l" for="emQuoteSubject">Subject</label><input type="text" id="emQuoteSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emQuoteBody">Message</label><textarea id="emQuoteBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_quote" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="quote"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('quote')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('quote')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-quote"></div>
 
@@ -8929,6 +8956,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emReminderCc">Also send a copy to (CC)</label><input type="text" id="emReminderCc" placeholder="Same as the quote copies" autocomplete="off"></div><div class="emx-f"><label for="emReminderReplyTo">Customer replies go to</label><input type="text" id="emReminderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
 <label class="emx-l" for="emReminderSubject">Subject</label><input type="text" id="emReminderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emReminderBody">Message</label><textarea id="emReminderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_reminder" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="reminder"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('reminder')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('reminder')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-reminder"></div>
 
@@ -8941,6 +8969,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emAcceptCustCc">Also send a copy to (CC)</label><input type="text" id="emAcceptCustCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptCustReplyTo">Customer replies go to</label><input type="text" id="emAcceptCustReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
 <label class="emx-l" for="emAcceptCustSubject">Subject</label><input type="text" id="emAcceptCustSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emAcceptCustBody">Message</label><textarea id="emAcceptCustBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_accept_cust" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="accept_cust"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('accept_cust')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('accept_cust')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-accept_cust"></div>
 
@@ -8953,6 +8982,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emAcceptTo">Sends to</label><input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptOfficeCc">Also send a copy to (CC)</label><input type="text" id="emAcceptOfficeCc" placeholder="" autocomplete="off"></div></div>
 <label class="emx-l" for="emAcceptOfficeSubject">Subject</label><input type="text" id="emAcceptOfficeSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emAcceptOfficeBody">Message</label><textarea id="emAcceptOfficeBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_accept_office" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="accept_office"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('accept_office')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('accept_office')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-accept_office"></div>
 
@@ -8965,6 +8995,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emQuestionTo">Sends to</label><input type="text" id="emQuestionTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emQuestionCc">Also send a copy to (CC)</label><input type="text" id="emQuestionCc" placeholder="" autocomplete="off"></div></div>
 <label class="emx-l" for="emQuestionSubject">Subject</label><input type="text" id="emQuestionSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emQuestionBody">Message</label><textarea id="emQuestionBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_question" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="question"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('question')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('question')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-question"></div>
 
@@ -8976,6 +9007,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emInvoiceCc">Also send a copy to (CC)</label><input type="text" id="emInvoiceCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emInvoiceReplyTo">Customer replies go to</label><input type="text" id="emInvoiceReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
 <label class="emx-l" for="emInvoiceSubject">Subject</label><input type="text" id="emInvoiceSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emInvoiceBody">Message</label><textarea id="emInvoiceBody" class="emx-body" rows="13" onfocus="_emxFocus(this)" placeholder="Optional — a few words above the invoice, e.g. Hi {client}, thank you for having us."></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_invoice" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="invoice"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('invoice')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('invoice')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-invoice"></div>
 
@@ -8987,6 +9019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="emx-grid"><div class="emx-f"><label for="emOrderCc">Also send a copy to (CC)</label><input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emOrderReplyTo">Supplier replies go to</label><input type="text" id="emOrderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
 <label class="emx-l" for="emOrderSubject">Subject</label><input type="text" id="emOrderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emOrderBody">Message</label><textarea id="emOrderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_order" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
 <div class="emx-tags" data-emx-tags="order"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('order')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('order')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-order"></div>
 
@@ -39906,6 +39939,12 @@ function _emxFill(em){
   } catch(e){}
   // the schedule wording lives with its own Save button; it sits in the Schedule updates pane
   try { var sh = document.getElementById('emxSchedHost'), sec = document.getElementById('schedTplSection'); if (sh && sec && sec.parentNode !== sh) sh.appendChild(sec); } catch(e){}
+  EMX_ITEMS.forEach(function(it){
+    if (!it.k) return;
+    var cb = document.getElementById('emTerms_' + it.k);
+    if (cb) cb.checked = em[it.k + '_terms'] === true;      // off unless switched on
+  });
+  try { _totLoad(); } catch(e){}
   try { _emxTagsRender(); } catch(e){}
   _emxRenderList();
   var want = _EMX.k;
@@ -39926,6 +39965,139 @@ function _emxCollect(out){
     out[k + '_subject'] = (sv === String(d.subject).trim()) ? '' : sv;
     out[k + '_body'] = (bv === String(d.body).trim()) ? '' : bv;
   });
+  EMX_ITEMS.forEach(function(it){
+    if (!it.k) return;
+    var cb = document.getElementById('emTerms_' + it.k); if (!cb) return;
+    // Absent means off, so only an ON switch is stored.
+    if (cb.checked) out[it.k + '_terms'] = true; else delete out[it.k + '_terms'];
+  });
+}
+// What the Email quote window should do about the terms. Undefined when
+// nothing is uploaded: the send then says nothing and the server decides.
+function _quoteTermsWanted(){
+  var cb = document.getElementById('quoteEmailTerms');
+  if (!cb || !_TOT.meta) return undefined;
+  return !!cb.checked;
+}
+// Called when the Email quote window opens: show the row only when there is
+// a document to attach, and start it where the Settings default is.
+function _quoteTermsRowSync(){
+  var row = document.getElementById('quoteEmailTermsRow');
+  var cb = document.getElementById('quoteEmailTerms');
+  var nm = document.getElementById('quoteEmailTermsName');
+  if (!row || !cb) return;
+  var m = _TOT.meta;
+  row.style.display = m ? 'flex' : 'none';
+  if (!m) return;
+  if (nm) nm.textContent = m.filename;
+  var em = ((S.settings && S.settings.quote_defaults) || {}).email || {};
+  cb.checked = em.quote_terms === true;
+}
+// ══ TERMS OF TRADE ════════════════════════════════════════════════
+// The business's own terms, held once and attached by rule. The PDF lives in
+// its own table on the server (settings is read on every load and written by
+// every autosave; a couple of megabytes riding along with it would be paid
+// for on every one of those), so only its NAME and SIZE come down here. The
+// switches are ordinary settings fields — `<kind>_terms` in
+// quote_defaults.email — which is why they save with everything else.
+var _TOT = { meta: null, loaded: false, busy: false };
+function _totSize(b){
+  b = +b || 0;
+  return b >= 1048576 ? ((b / 1048576).toFixed(b >= 10485760 ? 0 : 1) + 'MB') : (Math.max(1, Math.round(b / 1024)) + 'KB');
+}
+function _totMsg(t, bad){
+  var el = document.getElementById('totMsg'); if (!el) return;
+  el.textContent = t || ''; el.style.color = bad ? '#b91c1c' : '#15803d';
+}
+async function _totLoad(force){
+  if (_TOT.loaded && !force){ _totRender(); return; }
+  try {
+    var r = await api('GET', '/settings/terms');
+    _TOT.meta = (r && r.terms) || null; _TOT.loaded = true;
+  } catch(e){ _TOT.meta = null; }
+  _totRender();
+}
+function _totRender(){
+  var st = document.getElementById('totState');
+  var m = _TOT.meta;
+  if (st){
+    st.innerHTML = m
+      ? ('<b style="color:var(--text)">' + esc2(m.filename) + '</b> &middot; ' + _totSize(m.bytes) +
+         (m.updated_at ? (' &middot; uploaded ' + esc2(_totWhen(m.updated_at))) : ''))
+      : 'No terms of trade uploaded yet.';
+  }
+  var pick = document.getElementById('totPickLabel'); if (pick) pick.textContent = m ? 'Replace it' : 'Upload a PDF';
+  var v = document.getElementById('totViewBtn'); if (v) v.style.display = m ? '' : 'none';
+  var d = document.getElementById('totDelBtn'); if (d) d.style.display = m ? '' : 'none';
+  // Every switch says plainly when there is nothing to attach — a switch that
+  // is on with no file behind it is the worst of both.
+  EMX_ITEMS.forEach(function(it){
+    if (!it.k) return;
+    var cb = document.getElementById('emTerms_' + it.k); if (!cb) return;
+    var lab = cb.parentNode, none = lab && lab.querySelector('.emx-terms-none');
+    cb.disabled = !m;
+    if (lab) lab.style.opacity = m ? '' : '.6';
+    if (none) none.textContent = m ? '' : ' — nothing uploaded yet';
+  });
+  var mir = document.getElementById('emTerms_quote_mirror'), q = document.getElementById('emTerms_quote');
+  if (mir){ mir.checked = !!(q && q.checked); mir.disabled = !m; }
+}
+function _totWhen(iso){
+  try { return new Date(iso).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  catch(e){ return String(iso || '').slice(0, 10); }
+}
+async function _totPick(input){
+  var f = input && input.files && input.files[0]; if (!f) return;
+  input.value = '';                                  // so picking the same file again still fires
+  if (_TOT.busy) return;
+  if (!/pdf$/i.test(f.name) && f.type !== 'application/pdf'){ _totMsg('That is not a PDF. Save your terms as a PDF and try again.', true); return; }
+  if (f.size > 8 * 1024 * 1024){ _totMsg('That file is ' + _totSize(f.size) + '. The limit is 8MB.', true); return; }
+  _TOT.busy = true; _totMsg('Uploading ' + esc2(f.name) + '…');
+  try {
+    var b64 = await new Promise(function(res, rej){
+      var fr = new FileReader();
+      fr.onload = function(){ res(String(fr.result || '').replace(/^data:[^;]*;base64,/, '')); };
+      fr.onerror = function(){ rej(new Error('That file could not be read.')); };
+      fr.readAsDataURL(f);
+    });
+    var r = await api('PUT', '/settings/terms', { filename: f.name, base64: b64 });
+    _TOT.meta = (r && r.terms) || null; _TOT.loaded = true;
+    _totMsg('Saved. ' + (_totAnyOn() ? 'It will be attached to the emails you have switched on.' : 'Switch on the emails that should carry it.'));
+  } catch(e){ _totMsg((e && e.message) || 'That upload failed.', true); }
+  _TOT.busy = false; _totRender();
+}
+function _totAnyOn(){
+  return EMX_ITEMS.some(function(it){ var cb = it.k && document.getElementById('emTerms_' + it.k); return cb && cb.checked; });
+}
+// The file endpoint needs the sign-in header, so it cannot simply be a link.
+async function _totView(){
+  try {
+    var tok = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/settings/terms/file', { headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!r.ok) throw new Error('Could not open it (' + r.status + ')');
+    var b = await r.blob(), u = URL.createObjectURL(b);
+    window.open(u, '_blank');
+    setTimeout(function(){ try { URL.revokeObjectURL(u); } catch(e){} }, 60000);
+  } catch(e){ _totMsg((e && e.message) || 'Could not open it.', true); }
+}
+async function _totRemove(){
+  if (!confirm('Remove your terms of trade? Emails set to attach them will go out without them.')) return;
+  try {
+    await api('DELETE', '/settings/terms');
+    _TOT.meta = null; _totMsg('Removed.');
+  } catch(e){ _totMsg((e && e.message) || 'Could not remove it.', true); }
+  _totRender();
+}
+// The Terms screen's own switch is the quote switch — the same setting, put
+// where somebody uploading their terms is already looking.
+function _totQuoteToggle(on){
+  var q = document.getElementById('emTerms_quote');
+  if (q){ q.checked = !!on; }
+  _totKindChanged();
+}
+function _totKindChanged(){
+  _totRender();
+  try { saveSettings(true); } catch(e){}
 }
 function _emxRenderList(){
   var nav = document.getElementById('emxList'); if (!nav) return;
@@ -40685,6 +40857,9 @@ async function openQuoteEmail(){
   _quoteEmailStatus('');
   var o = document.getElementById('quoteEmailOverlay'), m = document.getElementById('quoteEmailModal');
   if (o) o.style.display = 'block'; if (m) m.style.display = 'block';
+  // The terms row, once we know whether there are any. The window opens
+  // either way — it must never wait on this.
+  try { _totLoad().then(_quoteTermsRowSync).catch(function(){}); } catch(e){ try { _quoteTermsRowSync(); } catch(e2){} }
 }
 // Turn the editable plain-text message into an HTML email: escape + nl2br, and
 // swap the customer-link URL for a big "View & accept your quote" button. The
@@ -40764,7 +40939,11 @@ async function _quoteEmailSendNow(){
     // instead of blocking on the slow mail relay (the office is CC'd as the
     // delivery check).
     await api('POST', '/email/send-order', {
-      to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true, kind: 'quote'
+      to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true, kind: 'quote',
+      // The tick in this window, so one quote can carry the terms when the
+      // default is off (or go without when it is on). Undefined when there
+      // is nothing uploaded, which leaves the server's default alone.
+      attachTerms: _quoteTermsWanted()
     });
     _tSend = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0 - _tPub; } catch(e){ return 0; } })();
     // Email is out — NOW persist the job's photos/aerial in the background so

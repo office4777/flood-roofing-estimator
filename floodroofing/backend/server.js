@@ -239,6 +239,7 @@ const BIG_BODY = [
   ['PUT',  /^\/jobs\/[^/]+\/?$/],                 // save, spreads the whole body
   ['PUT',  /^\/jobs\/[^/]+\/quote\/?$/],          // quote holds its own photos
   ['PUT',  /^\/settings\/?$/],                    // logo, gallery, price book
+  ['PUT',  /^\/settings\/terms\/?$/],              // the Terms of Trade PDF
   ['POST', /^\/q\/[^/]+\/accept-email\/?$/],      // the accepted-quote PDF
   ['POST', /^\/fergus-files\/upload\/?$/],
   ['POST', /^\/email\/send-order\/?$/],            // order PDF attachment
@@ -717,7 +718,7 @@ async function _gasVerify() {
   if (r.ok && parsed && parsed.ok) return { ok: true };
   throw new Error('Google relay URL did not respond as expected (' + r.status + '). Make sure GAS_MAIL_URL is the deployed Apps Script web-app URL.');
 }
-async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
+async function _gasSendMail({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress }) {
   // The relay already took a display name and a reply-to; it was only ever
   // handed the platform's.
   const payload = {
@@ -737,12 +738,17 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName,
   // Send the HTML body under both common keys so whichever the Apps Script
   // relay reads (html / htmlBody) picks it up and calls GmailApp with htmlBody.
   if (html) { payload.html = html; payload.htmlBody = html; }
-  if (attachment && attachment.base64) {
-    payload.attachment = {
-      base64: attachment.base64,
-      filename: attachment.filename || 'order.pdf',
-      mimeType: 'application/pdf',
-    };
+  // The Apps Script relay reads ONE attachment, and it lives in the owner's
+  // Google account rather than in this repository, so it cannot be taught
+  // otherwise from here. Both shapes go out: `attachment` is what today's
+  // script reads, `attachments` is the whole list for the day it is updated.
+  // Until then a relayed send carries the first file only — which is why the
+  // quote PDF is first and the terms second, and why the send says so.
+  const _gf = _mailFiles(attachment, attachments);
+  if (_gf.length) {
+    payload.attachment = { base64: _gf[0].base64, filename: _gf[0].filename || 'order.pdf', mimeType: 'application/pdf' };
+    payload.attachments = _gf.map(a => ({ base64: a.base64, filename: a.filename, mimeType: 'application/pdf' }));
+    payload.attachmentsDropped = Math.max(0, _gf.length - 1);
   }
   const r = await fetch(GAS_MAIL_URL, {
     method: 'POST',
@@ -757,7 +763,7 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName,
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
+async function _resendSendMail({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
   // Their name, a verified address — Resend will not send from a domain
@@ -773,9 +779,8 @@ async function _resendSendMail({ to, cc, subject, text, html, attachment, fromNa
   if (replyTo || EMAIL_REPLYTO) payload.reply_to = _split(replyTo || EMAIL_REPLYTO);
   if (html) payload.html = html;
   if (cc) payload.cc = _split(cc);
-  if (attachment && attachment.base64) {
-    payload.attachments = [{ filename: attachment.filename || 'order.pdf', content: attachment.base64 }];
-  }
+  const _f = _mailFiles(attachment, attachments);
+  if (_f.length) payload.attachments = _f.map(a => ({ filename: a.filename || 'order.pdf', content: a.base64 }));
   const resp = await fetch(RESEND_API_BASE + '/emails', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
@@ -911,9 +916,33 @@ async function _dispatchMail(opts) {
     throw e;                                  // callers still decide what the user sees
   }
 }
-async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress, platform }) {
+// Every attachment on a message, as one list. The mail layer carried a single
+// `attachment` because for a year there was only ever one — the order PDF, or
+// the quote. The Terms of Trade made it two, so callers may pass `attachments`
+// and the old single field still works and goes first.
+function _mailFiles(attachment, attachments){
+  const all = [].concat(attachments || []).concat(attachment ? [attachment] : [])
+    .filter(a => a && a.base64);
+  // _dispatchMailInner normalises once and then hands BOTH fields on, so the
+  // single `attachment` is usually already in the list. Same object, one file.
+  const list = all.filter(function(a, i){ return all.indexOf(a) === i; });
+  const seen = new Set();
+  return list.filter(function(a){
+    a.filename = String(a.filename || 'attachment.pdf').split(/[\\/]/).pop()
+      .replace(/[^\w.\- ]+/g, '_').replace(/^\.+/, '').slice(0, 100) || 'attachment.pdf';
+    // Two files of the same name in one email is a mail client's idea of a
+    // puzzle, and the second usually wins silently.
+    let name = a.filename, i = 2;
+    while (seen.has(name.toLowerCase())) name = a.filename.replace(/(\.[^.]*)?$/, ' (' + (i++) + ')$1');
+    a.filename = name; seen.add(name.toLowerCase());
+    return true;
+  });
+}
+async function _dispatchMailInner({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, platform }) {
+  const _files = _mailFiles(attachment, attachments);
+  attachment = _files[0] || null;
+  attachments = _files;
   if (attachment && attachment.base64) {
-    attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
   // Resend rejects a subject with a line break in it (422), and a subject
   // is built from error messages that can carry anything. One line, always.
@@ -927,7 +956,7 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
   // to exactly yesterday's behaviour instead of silence.
   if (RESEND_ENABLED) {
     try {
-      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress });
     } catch (e) {
       // A stale key or an unverified domain must not take the platform's mail
       // down while a working relay is configured. Degrade, and page about it —
@@ -944,7 +973,7 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
         throw new Error('platform email held: Resend failed (' + (e && e.message) + ') and the relay sends as another company');
       }
       try { recordError('server', new Error('Resend send failed, fell back to the Google relay: ' + (e && e.message)), { route: '_dispatchMail' }); } catch (e2) {}
-      return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+      return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress });
     }
   } else if (GAS_ENABLED) {
     // RoofMap's own mail NEVER rides the Google relay (2026-10-01, the
@@ -958,19 +987,20 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, fro
       console.warn('[mail] held — ' + subj.slice(0, 80) + ': no Resend, and the Google relay sends as the roofing company.');
       return { held: true, reason: 'relay-is-not-platform' };
     }
-    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
+    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress });
   }
   // The display name is the tenant's; the address stays ours, because it is the
   // only one we are authorised to send from.
   const addr = _allowedFromAddress(fromAddress) || process.env.SMTP_FROM || process.env.SMTP_USER;
   const from = (fromName || _allowedFromAddress(fromAddress))
     ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + addr + '>') : addr;
-  const attachments = (attachment && attachment.base64)
-    ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
+  const _nf = _mailFiles(attachment, attachments);
+  const _nodeFiles = _nf.length
+    ? _nf.map(a => ({ filename: a.filename, content: Buffer.from(a.base64, 'base64'), contentType: 'application/pdf' }))
     : [];
   const resolved = await _resolveMailTransport();
   return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj,
-    text: body, html: htmlBody, attachments, replyTo: replyTo || EMAIL_REPLYTO || undefined });
+    text: body, html: htmlBody, attachments: _nodeFiles, replyTo: replyTo || EMAIL_REPLYTO || undefined });
 }
 function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
@@ -4114,6 +4144,100 @@ async function _customBookSnapshot(req, before, after){
     await _scopeCompany(supabase.from('price_book_revisions').delete().lt('at', cutoff), req);
   }
 }
+// ══════════════════════════════════════════════════════════════════
+// TERMS OF TRADE — the business's own PDF, attached to what it sends
+//
+// A roofer's terms are a fixed document that belongs on the quote, and
+// re-attaching it by hand every time is exactly the sort of thing that gets
+// forgotten on the job that ends up in dispute. So it is held once and
+// attached by rule.
+//
+// The bytes live in their own table (see the DDL) and the SWITCHES live in
+// quote_defaults.email as `<kind>_terms`, beside that kind's subject, body
+// and CC — so the Email screen can turn it on per email without ever
+// loading the PDF.
+const TERMS_MAX_BYTES = 8 * 1024 * 1024;        // a terms document is never this big
+function _termsMeta(row){
+  return row ? { filename: row.filename, bytes: row.bytes || 0, updated_at: row.updated_at } : null;
+}
+async function _termsRow(companyId, withData){
+  if (!companyId) return null;
+  const { data, error } = await supabase.from('company_terms')
+    .select(withData ? '*' : 'company_id, filename, bytes, updated_at')
+    .eq('company_id', companyId).maybeSingle();
+  if (error) throw Object.assign(new Error(error.message), { upstream: true });
+  return data || null;
+}
+// Should this kind of email carry it? An explicit choice on the send wins —
+// the office ticking or unticking the box in the email window — and the
+// saved default for that kind answers when the send says nothing.
+function _termsWantedFor(row, kind, explicit){
+  if (explicit === true || explicit === false) return explicit;
+  const em = (row && row.quote_defaults && row.quote_defaults.email) || {};
+  return em[String(kind || '') + '_terms'] === true;
+}
+// The attachment itself, or null. Never throws into a send: an email that
+// goes out without the terms is better than one that does not go out.
+async function _termsAttachment(companyId){
+  try {
+    const row = await _termsRow(companyId, true);
+    if (!row || !row.data) return null;
+    return { base64: row.data, filename: row.filename || 'Terms of Trade.pdf' };
+  } catch (e) { console.warn('[terms] could not be read: ' + e.message); return null; }
+}
+async function _termsFilesFor(row, kind, companyId){
+  if (!_termsWantedFor(row, kind)) return undefined;
+  const a = await _termsAttachment(companyId);
+  return a ? [a] : undefined;
+}
+app.get('/settings/terms', requireAuth, async (req, res) => {
+  try { res.json({ terms: _termsMeta(await _termsRow(req.companyId, false)) }); }
+  catch (e) { res.status(e.upstream ? 503 : 500).json({ error: e.message }); }
+});
+// The file itself, for the preview link and for "download a copy".
+app.get('/settings/terms/file', requireAuth, async (req, res) => {
+  try {
+    const row = await _termsRow(req.companyId, true);
+    if (!row || !row.data) return res.status(404).json({ error: 'No Terms of Trade uploaded yet.' });
+    const buf = Buffer.from(row.data, 'base64');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="' + String(row.filename || 'terms.pdf').replace(/[^\w.\- ]+/g, '_') + '"');
+    res.send(buf);
+  } catch (e) { res.status(e.upstream ? 503 : 500).json({ error: e.message }); }
+});
+app.put('/settings/terms', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const b64 = String(b.base64 || '').replace(/^data:[^;]*;base64,/, '');
+  if (!b64) return res.status(400).json({ error: 'No file sent.' });
+  let buf;
+  try { buf = Buffer.from(b64, 'base64'); } catch (e) { return res.status(400).json({ error: 'That file could not be read.' }); }
+  if (!buf.length) return res.status(400).json({ error: 'That file is empty.' });
+  if (buf.length > TERMS_MAX_BYTES)
+    return res.status(413).json({ error: 'That file is ' + Math.round(buf.length / 1048576) + 'MB. The limit is 8MB — a terms document is usually well under one.' });
+  // A PDF and nothing else. Checked on the BYTES, not the file name: the
+  // name is the one part of an upload anybody can make say anything, and
+  // this document goes out attached to the business's own quotes.
+  if (buf.slice(0, 5).toString('latin1') !== '%PDF-')
+    return res.status(400).json({ error: 'That is not a PDF. Save your terms as a PDF and upload it again.' });
+  const filename = String(b.filename || 'Terms of Trade.pdf').split(/[\\/]/).pop()
+    .replace(/[^\w.\- ]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'Terms of Trade.pdf';
+  const row = {
+    company_id: req.companyId, user_id: req.user.id,
+    filename: /\.pdf$/i.test(filename) ? filename : (filename + '.pdf'),
+    bytes: buf.length, data: b64,
+    updated_at: new Date().toISOString(), updated_by: req.user.id,
+  };
+  const { error } = await supabase.from('company_terms').upsert(row, { onConflict: 'company_id' });
+  if (error) return res.status(500).json({ error: error.message });
+  recordUsage('terms_uploaded', req);
+  res.json({ terms: _termsMeta(row) });
+});
+app.delete('/settings/terms', requireAuth, async (req, res) => {
+  const { error } = await supabase.from('company_terms').delete().eq('company_id', req.companyId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, terms: null });
+});
+
 app.get('/settings/custom-book/revisions', requireAuth, async (req, res) => {
   try {
     const { data, error } = await _scopeCompany(
@@ -4769,6 +4893,7 @@ async function _questionNotify(job, quote, message){
                                            : 'Question on quote' + (ref ? (' — ' + ref) : '') + ' — ' + who;
         const cust = _emailList(((quote || {}).share || {}).sentTo || (quote || {}).email || '')[0];
         if (to) await _dispatchMail({ to, cc: _emailCopies(st, em.question_cc, _emailList(to)), subject, text: body,
+          attachments: await _termsFilesFor(st, 'question', job.company_id),
           fromName: String((((st || {}).branding) || {}).company_name || '').trim() || undefined,
           replyTo: cust || undefined });
       }
@@ -4862,6 +4987,7 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     }
     const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
     await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
+                          attachments: await _termsFilesFor(_st, 'accept_office', job.company_id),
                           fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
                           replyTo: _cust || undefined });
     res.json({ ok: true });
@@ -5789,6 +5915,7 @@ async function _sendInvoice(invRow, settingsRow, to){
   // with a verified sending domain goes the whole way: their address too.
   const who = _tenantMailIdentity(settingsRow, 'invoice');
   await _dispatchMail({ to: recipient, cc: _emailCopies(settingsRow, _em.invoice_cc, _emailList(recipient)), subject: mail.subject, text: mail.text, html: mail.html,
+                        attachments: await _termsFilesFor(settingsRow, 'invoice', invRow.company_id),
                         fromName: who.fromName, replyTo: who.replyTo,
                         fromAddress: _tenantSendAddress(invRow.company_id, who.fromName, who.replyTo) });
   const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
@@ -6459,6 +6586,7 @@ async function _acceptCustomerEmail(job, quote){
     const who = _tenantMailIdentity(st, 'accept_cust');
     await _dispatchMail({ to: toList.join(', '), cc: _emailCopies(st, em.accept_cust_cc, toList), subject, text: body,
                           html: _tplEmailHtml(body, 'View your accepted quote'),
+                          attachments: await _termsFilesFor(st, 'accept_cust', job.company_id),
                           fromName: who.fromName, replyTo: who.replyTo,
                           fromAddress: _tenantSendAddress(job.company_id, who.fromName, who.replyTo) });
   } catch (e) { console.warn('[accept] customer confirmation failed:', e && e.message); }
@@ -6603,6 +6731,7 @@ async function _reminderSweep(){
       const cc = _emailCopies(settingsRow, String(em.reminder_cc || '').trim() || em.quote_cc, _emailList(to));
       await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
                             html: _reminderEmailHtml(body),
+                            attachments: await _termsFilesFor(settingsRow, 'reminder', r.company_id),
                             fromName: who.fromName, replyTo: who.replyTo,
                             fromAddress: _tenantSendAddress(r.company_id, who.fromName, who.replyTo) });
       out.sent++;
@@ -10606,6 +10735,11 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
   }
   try {
     const { to, cc, subject, text, html, attachment } = req.body || {};
+    // Whether the business's Terms of Trade ride along. Resolved on the
+    // SERVER from its own copy, so the browser never has to carry a few
+    // megabytes of PDF up the wire just to send an email that already has
+    // the quote in it.
+    const _wantTerms = (req.body && req.body.attachTerms);
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     // to / cc may be a comma-separated list of addresses — validate each part.
     const validList = (v) => { const p = String(v || '').split(',').map(s => s.trim()).filter(Boolean); return p.length > 0 && p.every(a => emailRe.test(a)); };
@@ -10639,7 +10773,11 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     // The master copy (Settings → Email), never on a practice send.
     let _cc = cc;
     if (!(req.body && req.body.test === true) && _stRow) _cc = _emailCopies(_stRow, cc, _emailList(to));
+    let _terms = null;
+    if (!(req.body && req.body.test === true) && _termsWantedFor(_stRow, _kind, _wantTerms))
+      _terms = await _termsAttachment(req.companyId);
     const mail = { to, cc: _cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
+                   attachments: _terms ? [_terms] : undefined,
                    attachment, fromName: _who.fromName, replyTo: _who.replyTo,
                    fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo) };
     // The Google Apps Script relay can take 10-20s to wake + send, which made
@@ -10648,14 +10786,14 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     // process is long-lived (Railway), so the promise completes after we reply.
     // Failures are logged; the office is CC'd on quote emails as the human
     // safety net. Attachment sends stay synchronous so their result is known.
-    if ((req.body && req.body.background === true) && !(attachment && attachment.base64)) {
+    if ((req.body && req.body.background === true) && !(attachment && attachment.base64) && !_terms) {
       _dispatchMail(mail)
         .then(function(info){ console.log('send-order (bg) sent to', to, '·', (info && info.messageId) || ''); })
         .catch(function(e){ console.error('send-order (bg) email failed to', to, ':', e.message); });
       return res.status(202).json({ ok: true, queued: true });
     }
     const info = await _dispatchMail(mail);
-    res.json({ ok: true, id: info.messageId || null });
+    res.json({ ok: true, id: info.messageId || null, terms: _terms ? _terms.filename : null });
     // A practice-job order never touches a job row, so its milestone is
     // recorded here — flagged as the example it is.
     if (req.body && req.body.test === true) recordUsage(req.body.kind === 'quote' ? 'quote_sent' : 'order_sent', req, { example: true });
@@ -11286,6 +11424,18 @@ const _MIGRATION_SQL = [
   "  last_checked_at timestamptz)",
   "create unique index if not exists idx_company_mail_domains_domain on public.company_mail_domains (lower(domain))",
   "create unique index if not exists idx_company_mail_domains_company on public.company_mail_domains (company_id)",
+  // THE TERMS OF TRADE PDF. Its own table rather than a field on settings:
+  // settings is read on every app load and written by every autosave, and a
+  // couple of megabytes of base64 riding along with it would be paid for on
+  // every one of those. Here it is fetched only when it is shown or sent.
+  "create table if not exists public.company_terms (" +
+  "  company_id uuid primary key references public.companies(id) on delete cascade," +
+  "  user_id uuid," +
+  "  filename text not null," +
+  "  bytes int not null default 0," +
+  "  data text not null," +
+  "  updated_at timestamptz not null default now()," +
+  "  updated_by uuid)",
   "create unique index if not exists idx_company_invites_token on public.company_invites (token_hash)",
   // Billing is per BUSINESS, not per login — three office staff are one
   // subscription, and an invited teammate must not need their own.
