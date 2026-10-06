@@ -115,8 +115,8 @@ const want = 78271.51696 * Math.cos(LAT * Math.PI / 180) / Math.pow(2, 19.05) / 
 const a = await capture();
 const capNm = asked.nm.filter(u => /\/Vert\/2\d\//.test(u));
 check('Nearmap is asked first whether it has flown this address — at the roof’s own point', asked.cov.length === 1 && asked.cov[0].indexOf('/point/175.262400,-37.785100') >= 0 && /apikey=nm-key/.test(asked.cov[0]), asked.cov[0]);
-check('…and where it has, that survey’s tiles are stitched in (pinned to the survey, whole zoom 20)',
-  capNm.length > 20 && capNm.every(u => /\/tiles\/v3\/surveys\/sv-2026-03\/Vert\/20\//.test(u) && /apikey=nm-key/.test(u)) && a.centre === 'green' && asked.linz.filter(u => /\/20\//.test(u)).length === 0,
+check('…and where it has, that survey’s tiles are stitched in (pinned to the survey, whole zoom 21)',
+  capNm.length > 20 && capNm.every(u => /\/tiles\/v3\/surveys\/sv-2026-03\/Vert\/21\//.test(u) && /apikey=nm-key/.test(u)) && a.centre === 'green' && asked.linz.filter(u => /WebMercatorQuad\/21\//.test(u)).length === 0,
   JSON.stringify({ n: capNm.length, first: capNm[0], centre: a.centre }));
 check('…into the Mapbox capture’s exact picture, so the scale is the same metres per IMAGE pixel', a.w === 2560 && a.h === 1280 && Math.abs(a.scale - want) < 1e-9 && !a.mapboxAsked, JSON.stringify({ w: a.w, h: a.h, scale: a.scale, want }));
 check('…with a dated Nearmap credit in the corner, and the capture date kept', a.credit && a.src && a.src.source === 'nearmap' && a.src.captureDate === '2026-03-12', JSON.stringify(a.src));
@@ -124,7 +124,7 @@ check('…with a dated Nearmap credit in the corner, and the capture date kept',
 nm = { covered: false, tiles: 'ok' };
 const b1 = await capture();
 check('where Nearmap has not flown, the LINZ aerial is used — and no Nearmap tile is asked for',
-  asked.nm.filter(u => /\/Vert\/(1[7-9]|2\d)\//.test(u)).length === 0 && asked.linz.some(u => /\/20\//.test(u)) && b1.centre === 'red' && b1.w === 2560 && !b1.mapboxAsked, JSON.stringify({ nm: asked.nm.filter(u => /\/Vert\/(1[7-9]|2\d)\//.test(u)).length, centre: b1.centre }));
+  asked.nm.filter(u => /\/Vert\/(1[7-9]|2\d)\//.test(u)).length === 0 && asked.linz.some(u => /WebMercatorQuad\/21\//.test(u)) && b1.centre === 'red' && b1.w === 2560 && !b1.mapboxAsked, JSON.stringify({ nm: asked.nm.filter(u => /\/Vert\/(1[7-9]|2\d)\//.test(u)).length, centre: b1.centre }));
 
 nm = { covered: true, tiles: '404' };
 const b2 = await capture();

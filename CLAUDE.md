@@ -1413,6 +1413,41 @@ canvas size and `DRAW.zoom` have nothing to do with it. Dividing by how large
 the photo happens to be drawn makes every measurement move when the roofer
 zooms — the same roof read 1.86m at 490% and 2.95m at 310%, on live quotes.
 The aerial's own Mapbox zoom does change it, and must.
+THE SCALE BAR, though, is drawn in SCREEN pixels, so it divides by `t.s`
+(`getImgTransform()`) and does follow the zoom — it did not until 2026-10-06,
+so it was out by exactly the zoom, which after an aerial capture starts at
+AERIAL_PAD and is never 1. It picks the roundest length that lands between 70
+and 200 px (100 mm to a kilometre) instead of a fixed 10 m that was simply not
+drawn when it did not fit. `tests/canvassetup.mjs` reads it off the canvas.
+A STITCHED AERIAL (LINZ, Nearmap) IS NOT THE SAME THING AS ITS SCALE
+(2026-10-06, feedback reports 7 and 8). Two faults, both measured rather than
+reasoned — stitch a picture from tiles coloured by `(x+y)` parity and read the
+seam spacing off its centre row (`tests/aeriallinz.mjs` does exactly this now;
+the stub tiles had to become real 256×256 ones, because a 1×1 PNG blown up to
+a tile leaves the rasteriser nothing to resample and the seams then snap to a
+64-pixel grid):
+  1. `_stitchTileZoom` was `z + 1`. Mapbox serves 512px tiles, so its zoom z is
+     256-tile zoom z+1 — right for a CSS pixel, and the picture is asked for
+     @2x, which is one level again: `z + 2`. At z+1 the picture covered twice
+     the ground per pixel that the scale beside it claimed, so EVERY length
+     measured off a LINZ aerial read half its true size and every area a
+     quarter. Mapbox's own static pictures were never affected, and LINZ is the
+     default in New Zealand, so this was most roofs here. k is unchanged by the
+     fix (both Zf and Z move a level), so the tile count per picture is too.
+  2. The canvas transform was handed absolute world pixels (`translate(-cx,
+     -cy)`, tiles drawn at `t.x*256`). A canvas matrix is kept in 32-bit
+     FLOATS, and at tile zoom 21 world pixels are around 5×10⁸, where a float's
+     steps are 64 whole pixels — so every tile was rounded onto a 64-pixel grid
+     and landed up to 32 px, about 2 m of ground, out of line with the tile
+     beside it. Seams measured 256 and 320 apart where all of them should have
+     been 265. The transform now holds the picture's own numbers only and each
+     tile is drawn at its offset from the centre, worked out in doubles.
+     Anything that puts a world coordinate into a canvas transform has this
+     bug; keep them small.
+A JOB TRACED BEFORE 2026-10-06 ON A LINZ AERIAL STILL READS HALF. The stored
+scale and `geoScale` are unchanged by the fix — only new pictures are right —
+so such a job is corrected by clicking any measurement and typing the real
+length (`_rescaleFromMeasure`), or by capturing the aerial again.
 
 **Publishing a quote in Fergus.** The quote pushed at send arrives as a
 Draft and `_fergusPublishQuote(key, quoteId, jobId)` then tries the

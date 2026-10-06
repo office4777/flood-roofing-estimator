@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T22:26:34Z';
+  window.APP_BUILT_AT = '2026-10-06T23:00:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -55180,20 +55180,48 @@ function redrawAll() {
     ctx.fillText(DRAW.scaleMetresPerPx>0?'Scale ref':'Calibrating...',cmx,cmy);
     ctx.restore();
   }
-  // Scale bar bottom-left. Suppressed during the Job Pack capture
-  // (same signal as the grid + canvas background) so the exported roof-
-  // map picture shows only the roof, matching the on-screen Map Roof.
+  // THE SCALE BAR, bottom-left. Suppressed during the Job Pack capture
+  // (same signal as the grid + canvas background) so the exported roof-map
+  // picture shows only the roof, matching the on-screen Map Roof.
+  //
+  // THE OWNER, 6 OCTOBER 2026: "I've noticed that the canvas scale … when I
+  // zoom the picture in the canvas, that scale never changes. So as I zoom
+  // in, that scale is still the same for the number of pixels, which is
+  // wrong." He is right, and it was this bar he was reading. The scale is
+  // metres per IMAGE pixel — which must NOT follow the zoom, or every
+  // measurement moves when a roofer zooms (the same roof once read 1.86 m at
+  // 490% and 2.95 m at 310%). But the BAR is drawn in screen pixels, so it
+  // has to be divided by how large an image pixel is being drawn. It was not,
+  // so it was wrong by exactly the zoom — and after an aerial capture the
+  // zoom starts at AERIAL_PAD, never 1, so it was never once right.
+  //
+  // It was also a fixed 10 m, hidden altogether when 10 m would not fit
+  // between 10 px and nearly half the canvas ("I can't see the actual
+  // satellite scale guide … it's cut off from the canvas"). It now picks the
+  // roundest length that lands between 70 and 200 pixels, from 100 mm to a
+  // kilometre, so there is always a bar and a roofer can hold a tape to it.
   if(DRAW.scaleMetresPerPx>0 && !window._matRoofMapHideCanvasBg){
-    var barM=10, barPx=Math.round(barM/DRAW.scaleMetresPerPx);
-    if(barPx>10&&barPx<W*0.45){
+    var _sbT=(typeof getImgTransform==='function')?getImgTransform():null;
+    var _sbMScr=(_sbT&&_sbT.s>0)?(DRAW.scaleMetresPerPx/_sbT.s):0;
+    var barM=0, barPx=0;
+    if(_sbMScr>0){
+      var _sbSteps=[0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000];
+      for(var _sbI=0;_sbI<_sbSteps.length;_sbI++){
+        barM=_sbSteps[_sbI]; barPx=barM/_sbMScr;
+        if(barPx>=70) break;
+      }
+      barPx=Math.round(barPx);
+    }
+    if(barPx>10&&barPx<W*0.6){
+      var _sbLbl=(barM<1)?(Math.round(barM*100)+'cm'):(barM+'m');
       var sbX=10,sbY=H-22;
-      ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillRect(sbX-4,sbY-20,barPx+60,28);
+      ctx.fillStyle='rgba(255,255,255,0.72)';ctx.fillRect(sbX-4,sbY-20,barPx+58,28);
       ctx.strokeStyle='#0a1628';ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(sbX,sbY);ctx.lineTo(sbX+barPx,sbY);ctx.stroke();
       ctx.beginPath();ctx.moveTo(sbX,sbY-5);ctx.lineTo(sbX,sbY+4);ctx.stroke();
       ctx.beginPath();ctx.moveTo(sbX+barPx,sbY-5);ctx.lineTo(sbX+barPx,sbY+4);ctx.stroke();
       ctx.fillStyle='#0a1628';ctx.font='bold 10px sans-serif';ctx.textAlign='left';
-      ctx.fillText(barM+'m',sbX+barPx+5,sbY+4);
+      ctx.fillText(_sbLbl,sbX+barPx+5,sbY+4);
       if(DRAW.scaleLabel){ctx.font='9px sans-serif';ctx.fillStyle='#555';ctx.fillText(DRAW.scaleLabel,sbX,sbY-8);}
     }
   }
@@ -74422,7 +74450,17 @@ var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributor
 // scaled and turned into place. Resolves a JPEG blob; rejects when tiles fail
 // or LINZ has no cover here, so the caller falls back to Mapbox.
 function _linzStitch(key, lat, lng, z, bearing, W, H){
-  return _tileStitch(LINZ_TILE_URL + encodeURIComponent(key), '\u00a9 LINZ CC BY 4.0', lat, lng, z, bearing, W, H, 21);
+  var url = LINZ_TILE_URL + encodeURIComponent(key), cr = '\u00a9 LINZ CC BY 4.0';
+  return _tileStitch(url, cr, lat, lng, z, bearing, W, H, 21).catch(function(e){
+    // A zoom deeper than LINZ holds here answers with empty tiles, and until
+    // 6 October 2026 the stitcher asked one level shallower than it should
+    // have — so this is the first build that can reach a zoom LINZ might not
+    // have everywhere. k takes up the difference, so one level back is the
+    // same picture of the same ground at the same scale, only softer. That is
+    // far better than dropping the whole country to Mapbox on a rural roof.
+    if (!/no LINZ cover/.test(String(e && e.message))) throw e;
+    return _tileStitch(url, cr, lat, lng, z, bearing, W, H, 20);
+  });
 }
 // Any XYZ source on 256px Web Mercator tiles ({z}/{x}/{y} in the URL), into
 // the Mapbox picture's exact geometry, with `credit` stamped in the corner.
@@ -74445,21 +74483,33 @@ function _linzStitch(key, lat, lng, z, bearing, W, H){
 // The old aeriallinz pin reasoned in CSS pixels too and expected z+1, so it
 // agreed with the fault rather than catching it. It now derives the zoom from
 // the recorded scale, which is the thing that has to match.
-// NOT CHANGED YET, AND HERE IS WHY. On the arithmetic this should be z + 2:
-// the callers hand this function the picture's @2x pixel size (boxW*2), and a
-// picture pixel has to BE a tile pixel, so Mapbox's 512-tile zoom z (= 256-tile
-// zoom z+1) needs one more level again for @2x. At z + 1 the picture covers
-// 291.8 m where the scale recorded beside it claims 145.9 m — exactly twice —
-// which would make every length off a stitched aerial read half.
+// It is z + 2, and that was MEASURED rather than reasoned (6 October 2026).
+// A stitched picture was built from tiles coloured red/blue by (x+y) parity
+// and the parity period read off its centre row: at zoom 18.84 the period is
+// 228.8 picture pixels, so a picture pixel is 1/0.895 of a tile pixel at the
+// whole zoom the stitcher chose — 0.1362 m of ground, against the 0.0680 m
+// the scale recorded beside it claimed. Exactly twice. Every length measured
+// off a stitched aerial therefore read HALF its true size, and every area a
+// quarter.
 //
-// But report 7's roofer tape-measured a gutter at 25 m that RoofMap called
-// 14.12 m: a factor of 1.77, not 2. Doubling would take it to 28.24 m and
-// over-order the steel. So the inconsistency above is real but is NOT the
-// whole story, and a change that doubles every measurement in New Zealand is
-// not one to make on a factor that does not match the tape. The feedback
-// report now carries the picture's own pixel size and which imagery made it
-// (bgPx, bgFrom), which is what was missing to tell the two apart.
-function _stitchTileZoom(z){ return z + 1; }
+// Reports 7 and 8 are the same roof, where the roofer's tape says 25 m on a
+// gutter RoofMap called 13.97 m — a factor of 1.78, not 2.00. The 2.00 is
+// proven by the measurement above and is being fixed; the remaining 12% is
+// either the trace (he was tracing a roof drawn at half size) or the tape,
+// and a click on that gutter now corrects the scale for the whole job either
+// way. The reply to him says so.
+//
+// Why it went unseen for a fortnight: it is the 256-vs-512 tile convention
+// twice over. Mapbox serves 512px tiles, so its zoom z is 256-tile zoom z+1 —
+// right for a CSS pixel, and the callers ask for @2x, which puts twice as
+// many pixels over the same ground: one level again. Mapbox's own static
+// pictures were never affected, and LINZ is the DEFAULT in New Zealand, so
+// this was most roofs here.
+//
+// k is unchanged by the fix (both Zf and Z move one level), so the tile COUNT
+// per picture is unchanged too: the same request budget, half the ground, and
+// the sharper tiles the owner asked LINZ for in the first place.
+function _stitchTileZoom(z){ return z + 2; }
 function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
   return new Promise(function(resolve, reject){
     try {
@@ -74487,7 +74537,20 @@ function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var ctx = cv.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
-      ctx.translate(W / 2, H / 2); ctx.rotate(-th); ctx.scale(k, k); ctx.translate(-cx, -cy);
+      // EVERYTHING THE CANVAS TRANSFORM IS HANDED MUST BE SMALL (6 October
+      // 2026). A canvas matrix is kept in 32-bit floats. World pixels at
+      // tile zoom 21 are around 5×10^8, where a float's steps are SIXTY-FOUR
+      // whole pixels — so `translate(-cx, -cy)` and each tile's own
+      // `t.x * 256` were both rounded onto a 64-pixel grid, and tiles landed
+      // up to 32 pixels, about 2 m of ground, out of line with their
+      // neighbours. Measured on a stitched picture: tile seams 256 and 320
+      // picture pixels apart where every one of them should have been 265.
+      // A roofer tracing a gutter across one of those steps traces it wrong.
+      //
+      // So the transform holds the picture's OWN numbers only, and each tile
+      // is drawn at its offset FROM THE CENTRE — worked out below in
+      // JavaScript doubles, which are exact at this size.
+      ctx.translate(W / 2, H / 2); ctx.rotate(-th); ctx.scale(k, k);
       var failed = 0, i = 0, running = 0, done = 0;
       var next = function(){
         while (running < 12 && i < tiles.length){
@@ -74499,7 +74562,7 @@ function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
               return r.blob();
             }).then(function(b){
               if (!b) return;
-              return createImageBitmap(b).then(function(bm){ ctx.drawImage(bm, t.x * 256, t.y * 256, 256.6, 256.6); try { bm.close(); } catch(e){} });
+              return createImageBitmap(b).then(function(bm){ ctx.drawImage(bm, t.x * 256 - cx, t.y * 256 - cy, 256.6, 256.6); try { bm.close(); } catch(e){} });
             }).catch(function(){ failed++; }).then(function(){
               running--; done++;
               if (done === tiles.length) finish(); else next();

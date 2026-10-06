@@ -191,6 +191,51 @@ v = await pg.evaluate(() => {
 check('when the canvas gets narrower, what was at its centre stays at its centre',
   v.w1 < v.w0 && Math.abs(v.cx0 - v.cx1) <= 1, JSON.stringify(v));
 
+// ── THE SCALE BAR SAYS WHAT A METRE IS ON SCREEN ──────────────────
+// The owner, 6 October 2026: "as I zoom in, that scale is still the same for
+// the number of pixels, which is wrong." The scale itself is metres per IMAGE
+// pixel and must NOT follow the zoom; the BAR is drawn in screen pixels and
+// must. It was a fixed 10 m divided by the image scale alone, so it was out
+// by exactly the zoom — and after an aerial capture the zoom starts at
+// AERIAL_PAD, never 1, so it was never once right. It was also hidden
+// altogether whenever 10 m would not fit ("I can't see the actual satellite
+// scale guide ... it's cut off from the canvas").
+const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+const bar = (z) => pg.evaluate((zz) => {
+  DRAW.zoom = zz; redrawAll();
+  const c = document.getElementById('roofCanvas'), dpr = window.devicePixelRatio || 1;
+  const x = c.getContext('2d'), H = c.height / dpr;
+  // The rule is drawn at H-22 in CSS pixels, from x=10 rightwards, in #0a1628.
+  const y = Math.round((H - 22) * dpr);
+  const n = Math.min(c.width, Math.round(700 * dpr));
+  const d = x.getImageData(0, y, n, 1).data;
+  const dark = (p) => d[p * 4] < 90 && d[p * 4 + 1] < 100 && d[p * 4 + 2] < 120;
+  // The rule starts at x=10 and runs unbroken to its far tick; the label sits
+  // 5px past it. So walk from the start and stop at the first real gap —
+  // anything else dark on that row (a roof line, the grid) is not the bar.
+  let a = -1;
+  for (let p = Math.round(6 * dpr); p < Math.round(20 * dpr); p++) if (dark(p)){ a = p; break; }
+  let b = a, gap = 0;
+  for (let p = a + 1; a >= 0 && p < n; p++){
+    if (dark(p)){ b = p; gap = 0; } else if (++gap > Math.round(3 * dpr)) break;
+  }
+  const t = getImgTransform();
+  return { px: a < 0 ? 0 : (b - a) / dpr, mScr: DRAW.scaleMetresPerPx / t.s, zoom: DRAW.zoom,
+    mImg: DRAW.scaleMetresPerPx, s: t.s };
+}, z);
+await pg.evaluate(() => { _autoScaleFromAerial(-35.3696, 18.84, true); redrawAll(); });
+const bars = [];
+for (const z of [1, 2, 3, 6, 12]) bars.push(await bar(z));
+const round = (b) => STEPS.some(m => Math.abs(b.px * b.mScr - m) < m * 0.02);
+check('the scale bar spans a round number of metres ON SCREEN at every zoom, and is always drawn',
+  bars.every(b => b.px >= 60 && b.px <= 260 && round(b)),
+  JSON.stringify(bars.map(b => ({ z: b.zoom, px: Math.round(b.px), m: +(b.px * b.mScr).toFixed(2), s: +b.s.toFixed(3), mImg: +b.mImg.toFixed(4) }))));
+// Zooming in has to shorten the ground the bar covers — the whole complaint.
+check('…and zooming in makes the bar cover less ground, not the same',
+  (bars[0].px * bars[0].mScr) > (bars[4].px * bars[4].mScr) * 4,
+  JSON.stringify({ at1: +(bars[0].px * bars[0].mScr).toFixed(2), at12: +(bars[4].px * bars[4].mScr).toFixed(2) }));
+await pg.evaluate(() => { DRAW.zoom = 1; redrawAll(); });
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;
