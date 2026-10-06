@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T21:33:06Z';
+  window.APP_BUILT_AT = '2026-10-06T21:52:45Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -74232,10 +74232,30 @@ function _linzStitch(key, lat, lng, z, bearing, W, H){
 }
 // Any XYZ source on 256px Web Mercator tiles ({z}/{x}/{y} in the URL), into
 // the Mapbox picture's exact geometry, with `credit` stamped in the corner.
+// The 256px-tile zoom whose pixels are EXACTLY the size of the picture being
+// built. W and H are that picture's own pixels, and the picture has to match a
+// Mapbox static image at zoom z taken @2x — which is what the callers pass
+// (boxW*2, boxH*2) and what _autoScaleRecompute then records the scale from.
+//
+// Mapbox serves 512px tiles, so its zoom z is 256-tile zoom z+1. That is the
+// right answer for a CSS pixel and the wrong one here, because @2x puts twice
+// as many pixels over the same ground: one more zoom level again, z+2.
+//
+// It was z+1 (feedback report 7, 7 October 2026). The picture therefore
+// covered TWICE the ground per pixel that the scale beside it claimed, so
+// every length measured off a stitched aerial read HALF its true size and
+// every area a QUARTER — the roof in that report measured 110m² against a
+// real 440. Mapbox's own pictures were never affected, which is why it went
+// unseen: LINZ is the DEFAULT in New Zealand, so it was most roofs here.
+//
+// The old aeriallinz pin reasoned in CSS pixels too and expected z+1, so it
+// agreed with the fault rather than catching it. It now derives the zoom from
+// the recorded scale, which is the thing that has to match.
+function _stitchTileZoom(z){ return z + 2; }
 function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
   return new Promise(function(resolve, reject){
     try {
-      var Zf = z + 1;                                   // the same metres per pixel on 256px tiles
+      var Zf = _stitchTileZoom(z);                      // the same metres per pixel on 256px tiles
       var Z = Math.max(12, Math.min(maxZ || 21, Math.round(Zf)));
       var k = Math.pow(2, Zf - Z);                      // picture pixels per tile pixel
       var n = 256 * Math.pow(2, Z);
