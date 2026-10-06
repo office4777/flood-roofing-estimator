@@ -1611,7 +1611,12 @@ async function fergusFetchFinancialSummary(jobId){
 function fergusErrMsg(err){
   const m=err&&err.message?err.message:String(err);
   if(m==='NO_PROXY'||m==='PROXY_NEEDED')return 'Fergus isn\'t connected yet.\n\nTap ⚙ (top right) and paste your proxy URL + secret. See /fergus-proxy in the repo to deploy it (3 min).';
-  if(/HTTP 401/.test(m))return 'The proxy rejected the request (401).\n\nThe Proxy secret in ⚙ probably doesn\'t match PROXY_SECRET on the proxy. Re-enter it.\n\n'+m;
+  // Two different 401s come back through the proxy: its own secret check ("Bad or missing
+  // X-Proxy-Secret") and Fergus's, passed through unchanged ({"error":"unauthorized"}) when the
+  // FERGUS_API_KEY on the proxy is old or revoked. Telling the owner to re-enter the secret for
+  // the second one sent him the wrong way after a key rotation (2026-10-06).
+  if(/HTTP 401/.test(m)&&/X-Proxy-Secret/i.test(m))return 'The proxy rejected the request (401).\n\nThe Proxy secret in ⚙ doesn\'t match PROXY_SECRET on the proxy. Re-enter it.\n\n'+m;
+  if(/HTTP 401/.test(m))return 'Fergus rejected the proxy\'s API key (401).\n\nThe key is NOT in this app — it is FERGUS_API_KEY on the fergus-proxy Vercel project. If you have made a new Personal Access Token in Fergus, paste it there (Settings → Environment Variables) and redeploy the proxy; the proxy secret is fine.\n\n'+m;
   if(/HTTP 403/.test(m))return 'Fergus said 403 — token/plan issue. Check the Fergus Open API access + token on the proxy.\n\n'+m;
   return 'Request failed.\n\n'+m;
 }
