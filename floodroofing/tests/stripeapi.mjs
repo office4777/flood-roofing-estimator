@@ -398,6 +398,39 @@ check('only the owner can cancel', r.status === 403 && r.body.code === 'OWNER_ON
     JSON.stringify(rd.body.webhook_secret));
 }
 
+// ── A REFUSED WEBHOOK PAGES THE OWNER ─────────────────────────────
+// 1–7 October 2026: the signing secret was nine characters, so all 21
+// deliveries were refused while billing was ON. Nothing paged — the error
+// monitor fires on 5xx and a refusal is a 400 — so payments were taken and
+// never recorded for a week, and the first anybody knew was a subscriber
+// emailing support. These pin the alarm that was missing.
+{
+  const paged = [];
+  globalThis.__TEST_RECORD_ERROR = function(kind, err){
+    paged.push({ kind: kind, message: String((err && err.message) || '') });
+  };
+  const payload = JSON.stringify({ type: 'invoice.paid', data: { object: { id: 'in_alarm' } } });
+  const t = Math.floor(Date.now() / 1000);
+  const wrong = crypto.createHmac('sha256', 'whsec_someoneelses').update(t + '.' + payload).digest('hex');
+  await call('POST', '/billing/webhook', payload, null, { 'stripe-signature': 't=' + t + ',v1=' + wrong });
+  check('a refused delivery pages the owner while billing is on',
+    paged.some(function(p){ return p.kind === 'stripe-webhook-rejected'; }), JSON.stringify(paged).slice(0, 200));
+  check('…and the page says what it costs, not just that it failed',
+    paged.some(function(p){ return /payments are being taken and not recorded/.test(p.message); }),
+    JSON.stringify(paged.map(function(p){ return p.message.slice(0, 80); })));
+
+  // Scanners POST to known paths all day. A missing or malformed signature is
+  // that, not Stripe — and an alarm that fires on strangers gets muted, which
+  // is how it comes to be ignored on the day it is right.
+  paged.length = 0;
+  await call('POST', '/billing/webhook', payload, null, {});
+  await call('POST', '/billing/webhook', payload, null, { 'stripe-signature': 'rubbish' });
+  check('…but a stranger posting nonsense at the path does not',
+    paged.length === 0, JSON.stringify(paged).slice(0, 200));
+
+  delete globalThis.__TEST_RECORD_ERROR;
+}
+
 // ── asking Stripe directly ────────────────────────────────────────
 // A subscription that exists only because a webhook arrived does not exist
 // on the day the webhook is rejected — which is exactly what happened to the

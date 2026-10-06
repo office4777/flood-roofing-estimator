@@ -4983,6 +4983,86 @@ function _billingNoteWebhook(kind, type, reason){
   } catch (e) {}
 }
 
+// ── THE ALARM NOBODY HAD ────────────────────────────────────────────
+// 1–7 October 2026: STRIPE_WEBHOOK_SECRET was nine characters — a
+// half-copied paste — so every one of 21 deliveries answered "Bad signature".
+// Billing was ON the whole time. Stripe retried for three days, gave up, and
+// went quiet. Subscriptions people had genuinely paid for never landed, the
+// app went on asking them to pay at every sign-in, and the first anybody knew
+// was a subscriber emailing support a week later: "the website took the money
+// ... every time I log in it tells me I need to pay for the subscription
+// again."
+//
+// Nothing paged, and that was by design: the error monitor fires on 5xx, and
+// a rejected webhook is a 400. Correct for Stripe, silent for us.
+//
+// Two alarms now, because the failure has two shapes.
+//
+// THE FIRST: a delivery arrives and is refused. recordError is the existing
+// pager — it fingerprints, holds the same alarm for ERR_QUIET_MS, and obeys
+// the hourly cap, so a retry storm cannot become an inbox storm.
+//
+// It fires only when billing is ON (a rejected webhook with no money moving
+// costs nothing and would be crying wolf), and only when the request really
+// looks like Stripe. An unauthenticated POST to a known path is something
+// scanners do all day; a missing or malformed stripe-signature header is that,
+// not us. A well-formed signature that does not verify is Stripe talking and
+// us refusing — which is the thing worth waking up for.
+function _billingWebhookAlarm(why){
+  try {
+    if (!BILLING_ENABLED) return;
+    const s = String(why || '');
+    if (/carried no stripe-signature header|not in the expected/.test(s)) return;
+    recordError('stripe-webhook-rejected',
+      new Error('Stripe webhook REFUSED while billing is on — ' + s +
+                '. Until this is fixed, payments are being taken and not recorded: ' +
+                'the subscription never goes active and the app keeps asking the customer to pay.'),
+      { route: 'POST /billing/webhook' });
+  } catch (e) {}
+}
+
+// THE SECOND: silence. Stripe stops retrying after about three days, so the
+// first alarm stops firing while the fault is still there and the money is
+// still going missing — exactly what happened here between 3 and 7 October.
+//
+// The test is deliberately narrow, so it cannot cry wolf: the LAST thing we
+// heard from Stripe was a refusal. A quiet week with no payments says nothing
+// and raises nothing; one webhook passing clears it for good.
+async function _webhookSilenceDue(){
+  try {
+    const r = await supabase.from('platform_state').select('value').eq('key', 'stripe:webhook:alarm').maybeSingle();
+    const last = Date.parse(((r.data || {}).value || {}).last_run_at || '');
+    return !isFinite(last) || (Date.now() - last) > 24 * 3600e3;
+  } catch (e) { return false; }
+}
+async function _webhookHealthTick(){
+  if (_maintOn()) return;
+  try {
+    if (!BILLING_ENABLED) return;
+    const { data } = await supabase.from('platform_state')
+      .select('key, value').in('key', ['stripe:webhook:ok', 'stripe:webhook:bad']);
+    const row = function(k){ return ((data || []).find(function(x){ return x.key === k; }) || {}).value || null; };
+    const ok = row('stripe:webhook:ok'), bad = row('stripe:webhook:bad');
+    // Nothing has ever been refused: either it is working, or Stripe has never
+    // been pointed here at all. Neither is this alarm's business.
+    if (!bad) return;
+    const okAt = Date.parse((ok && ok.at) || '') || 0;
+    const badAt = Date.parse(bad.at || '') || 0;
+    if (okAt > badAt) return;                       // a good one came after: healthy
+    if (!(await _webhookSilenceDue())) return;      // already said so today
+    await supabase.from('platform_state').upsert(
+      { key: 'stripe:webhook:alarm', value: { last_run_at: new Date().toISOString() }, updated_at: new Date().toISOString() },
+      { onConflict: 'key' });
+    recordError('stripe-webhook-down',
+      new Error('Billing is ON and the last thing Stripe heard back from us was a REFUSAL' +
+                (bad.reason ? ' (' + bad.reason + ')' : '') + ', at ' + (bad.at || 'unknown') + '. ' +
+                (ok ? 'The last delivery that passed was ' + ok.at + '.' : 'No delivery has ever passed. ') +
+                'Stripe stops retrying after about three days, so payments may be going missing in silence. ' +
+                'Check /admin/billing-readiness.'),
+      { route: 'stripe-webhook-health' });
+  } catch (e) { console.error('[webhook-health] tick failed: ' + (e && e.message)); }
+}
+
 // Did this business come in through early access? The waitlist row is the
 // record of that: somebody who was invited, or who went on to join, gets the
 // founding rate. Anyone who found the pricing page on their own does not.
@@ -5464,6 +5544,7 @@ async function _stripeWebhook(req, res){
     const why = _stripeSigReason(raw, req.headers['stripe-signature']);
     if (why){
       _billingNoteWebhook('bad', '', why);
+      _billingWebhookAlarm(why);
       console.warn('[stripe] webhook rejected: ' + why);
       // Stripe shows this body in the dashboard, next to the failed delivery.
       // The person looking at it is the person who can fix it.
@@ -12969,6 +13050,11 @@ app.listen(PORT, () => {
   const _qtKick = setTimeout(function(){ _quietTrialTick(); }, 11 * 60e3);
   if (_qtKick.unref) _qtKick.unref();
   setInterval(function(){ _quietTrialTick(); }, 3600e3).unref();
+  // The webhook silence check. Same shape, staggered again — and not on boot,
+  // so a deploy during an outage does not add its own email to the pile.
+  const _whKick = setTimeout(function(){ _webhookHealthTick(); }, 13 * 60e3);
+  if (_whKick.unref) _whKick.unref();
+  setInterval(function(){ _webhookHealthTick(); }, 3600e3).unref();
   console.log('Weekly metrics: ' + (String(process.env.METRICS_ENABLED || 'true') === 'false'
     ? 'disabled (METRICS_ENABLED=false)'
     : METRICS.config.to + ' every ' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][METRICS.config.day]
