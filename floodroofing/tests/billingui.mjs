@@ -211,6 +211,39 @@ check('…and that button really starts a Business checkout',
   checkouts.length === 1 && checkouts[0].plan === 'business', JSON.stringify(checkouts));
 await ctx.close();
 
+// ── PAID, BUT THE PAYMENT NEVER LANDED ────────────────────────────
+// A real one, 7 Oct 2026: a subscriber paid, Stripe took the money, and the
+// app went on telling him to pay at every sign-in. "Already paid? Check with
+// Stripe" is the escape hatch that asks Stripe directly — and it was hidden
+// whenever we held a Stripe customer id, which is EXACTLY what a half-landed
+// payment leaves behind. The only person who needed the button was the only
+// person who could not see it, so he emailed support and waited.
+//
+// It is shown now unless the account is genuinely 'active'. A subscriber who
+// has paid must always be able to ask Stripe themselves.
+({ ctx, pg, checkouts } = await boot({ status:'trialing', billing:true, live:false, plan:'team',
+  billing_account:true, trial:{ expired:true, days_left:0 } }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  btns: [...document.querySelectorAll('#billingBody button')].map(b => b.textContent.trim()),
+}));
+check('a locked-out account that Stripe already has a customer for can still ask Stripe',
+  v.btns.some(x => /Already paid\? Check with Stripe/.test(x)), JSON.stringify(v.btns));
+await ctx.close();
+
+// …and a paying account is not nagged with it.
+({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, plan:'team',
+  billing_account:true, trial:null }));
+await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+await pg.waitForTimeout(500);
+v = await pg.evaluate(() => ({
+  btns: [...document.querySelectorAll('#billingBody button')].map(b => b.textContent.trim()),
+}));
+check('…and an account that really is paying is not offered it',
+  !v.btns.some(x => /Already paid/.test(x)), JSON.stringify(v.btns));
+await ctx.close();
+
 // ── active AND paying: the portal is right for them ───────────────
 ({ ctx, pg, checkouts } = await boot({ status:'active', billing:true, live:true, plan:'team',
   billing_account:true, trial:null }));

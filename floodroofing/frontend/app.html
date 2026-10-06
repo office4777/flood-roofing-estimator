@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-05T23:59:34Z';
+  window.APP_BUILT_AT = '2026-10-06T20:00:28Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -21210,7 +21210,15 @@ function _billingRenderSection(){
 // thing standing between a paying customer and a locked app.
 function _billingSyncHtml(){
   var s = SUBSCRIPTION;
-  if (!s || !s.billing || s.billing_account) return '';
+  if (!s || !s.billing) return '';
+  // Hide it only once the account is genuinely PAYING. This used to hide as
+  // soon as we held a Stripe customer id (`s.billing_account`) — and holding a
+  // customer id is exactly what a half-finished payment leaves behind: the
+  // card was taken, something did not land, the status never reached 'active'.
+  // So the one person who needed this button was the one person who could not
+  // see it, and their only way out was to email support and wait. A subscriber
+  // who has paid must always be able to ask Stripe themselves.
+  if (s.status === 'active') return '';
   return '<div style="margin-top:12px">' +
     '<button onclick="_billingSync(this)" style="background:none;border:none;color:#0284b5;font-size:12px;' +
       'text-decoration:underline;cursor:pointer;font-family:inherit;padding:2px 0">' +
