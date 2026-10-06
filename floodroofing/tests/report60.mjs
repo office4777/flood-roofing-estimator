@@ -140,6 +140,45 @@ v = await pg.evaluate(async () => {
 });
 check('picking Building outline says hold Shift to turn the snapping off', v.shown && /hold Shift/.test(v.text) && /snap/i.test(v.text), v.text);
 check('…and "Don’t show again" keeps it away', !v.after);
+// ── the Enter tip ────────────────────────────────────────────────
+// The Shift tip fires when the TOOL is picked. This one answers the question
+// that only arises once corners are going in — how do I stop? So it is tied
+// to the drawing, not to a timer: it must appear on the first corner and be
+// gone the moment the outline is finished.
+v = await pg.evaluate(async () => {
+  localStorage.removeItem('fr_enter_tip_off');
+  const read = () => { const t = document.getElementById('enterTip'); return t ? t.textContent : null; };
+  const out = {};
+  setTool('outline'); DRAW.currentPts = []; DRAW.outlineDone = false; redrawAll();
+  out.beforeAnyCorner = read();                       // tool picked, nothing drawn yet
+  DRAW.currentPts = [[100, 100]]; redrawAll();
+  out.onFirstCorner = read();
+  const t = document.getElementById('enterTip');
+  const box = t.getBoundingClientRect(), host = document.getElementById('canvasWrap').getBoundingClientRect();
+  out.right = Math.round(host.right - box.right);     // pinned to the right-hand edge
+  out.top = Math.round(box.top - host.top);
+  out.width = Math.round(box.width);
+  const sh = document.getElementById('shiftTip');
+  out.clearsShiftTip = !sh || box.top >= sh.getBoundingClientRect().bottom;
+  DRAW.outlineDone = true; redrawAll();               // finished
+  out.afterFinish = read();
+  DRAW.outlineDone = false; redrawAll();
+  document.getElementById('enterTip').querySelector('button').click();
+  DRAW.currentPts = [[1, 1]]; redrawAll();
+  out.afterDontShow = read();
+  DRAW.currentPts = []; DRAW.outlineDone = false; setTool('select'); redrawAll();
+  return out;
+});
+check('nothing is said until a corner actually goes in', v.beforeAnyCorner === null, String(v.beforeAnyCorner));
+check('the first corner says to press Enter to finish the outline',
+  /press\s+Enter/i.test(v.onFirstCorner || '') && /finish the building outline/i.test(v.onFirstCorner || ''),
+  String(v.onFirstCorner));
+check('…in the top right of the canvas, small, and clear of the Shift tip',
+  v.right >= 0 && v.right <= 20 && v.top >= 0 && v.width <= 230 && v.clearsShiftTip,
+  JSON.stringify({ right: v.right, top: v.top, width: v.width, clears: v.clearsShiftTip }));
+check('…and it goes the moment the outline is finished', v.afterFinish === null, String(v.afterFinish));
+check('…"Don\u2019t show again" keeps it away', v.afterDontShow === null, String(v.afterDontShow));
+
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 300));
 await b.close();
 const bad = results.filter(x => !x).length;

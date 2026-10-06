@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T20:00:28Z';
+  window.APP_BUILT_AT = '2026-10-06T21:33:06Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -46558,6 +46558,50 @@ function _outlineShiftTip(){
   clearTimeout(window.__shiftTipT);
   window.__shiftTipT = setTimeout(function(){ var t = document.getElementById('shiftTip'); if (t) t.remove(); }, 8000);
 }
+// THE ENTER TIP (2026-10-06, the owner's: "when the user has started to
+// outline a building, pop up a little information box to the side of the
+// canvas ... off to the right hand top corner ... when you've finished
+// entering your outline, click Enter to finish the building outline").
+//
+// The Shift tip above fires when the TOOL is picked and explains the snapping.
+// This one answers the question that only arises once corners are going in —
+// how do I stop? So it is tied to the drawing rather than to a timer: it
+// appears on the first corner and goes the moment the shape is closed, the
+// tool changes, or the corners are cleared. Nothing to dismiss in the usual
+// case, because finishing the outline is what dismisses it.
+//
+// It sits under the Shift tip rather than beside it: the Shift tip is centred
+// and up to 560px wide, so on a laptop canvas a box pinned to the top right
+// would land on top of it for the eight seconds they overlap.
+function _outlineEnterTipSync(){
+  try {
+    var host = document.getElementById('canvasWrap'); if (!host) return;
+    var el = document.getElementById('enterTip');
+    var want = !!(window.DRAW && DRAW.tool === 'outline' && !DRAW.outlineDone &&
+                  (DRAW.currentPts || []).length >= 1);
+    // Site mode is a tablet on a roof and the playground is a teaser; neither
+    // has a keyboard to press Enter on.
+    if (document.documentElement.classList.contains('site-mode') || window.__PLAYGROUND) want = false;
+    try { if (localStorage.getItem('fr_enter_tip_off') === '1') want = false; } catch(e){}
+    if (!want){ if (el) el.remove(); return; }
+    if (!el){
+      el = document.createElement('div'); el.id = 'enterTip'; el.className = 'no-print';
+      el.style.cssText = 'position:absolute;right:10px;z-index:30;background:#0a1628;color:#fff;' +
+        'border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.45;max-width:210px;' +
+        'box-shadow:0 8px 24px rgba(10,22,40,.3);font-family:inherit';
+      el.innerHTML = '<div>When you\u2019ve finished entering your outline, press <b>Enter</b> ' +
+        'to finish the building outline.</div>' +
+        '<button type="button" onclick="try{localStorage.setItem(\'fr_enter_tip_off\',\'1\')}catch(e){};' +
+        'this.parentNode.remove()" style="background:none;border:none;color:rgba(255,255,255,.6);' +
+        'font:inherit;font-size:11px;text-decoration:underline;cursor:pointer;padding:5px 0 0">' +
+        'Don\u2019t show again</button>';
+      host.appendChild(el);
+    }
+    // Keep clear of the Shift tip while both are up.
+    var sh = document.getElementById('shiftTip');
+    el.style.top = (sh ? (sh.offsetTop + sh.offsetHeight + 8) : 10) + 'px';
+  } catch(e){}
+}
 // LINE THE WALLS UP WITHOUT SQUARING THE BUILDING (2026-10-01, the owner's
 // dog-leg: "these should try auto snap to parallel the gutter lines"). The
 // walls are grouped by direction, modulo a right angle, within
@@ -55044,6 +55088,7 @@ function redrawAll() {
 
   ctx.restore(); // restore dpr scale transform
   try { syncInfoOverlays(); } catch(e){}
+  try { _outlineEnterTipSync(); } catch(e){}
 }
 
 // ── MEASURING TAPE (2026-09-25) ──────────────────────────────────────────
