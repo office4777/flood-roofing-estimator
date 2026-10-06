@@ -111,8 +111,20 @@ const pg2 = await ctx.newPage();
 convo.messages.push({ id: 's2', sender: 'support', author: 'Aron', body: 'One more thing — reload after the update.', created_at: new Date().toISOString(), read_at: null });
 convo.unread = 1;
 await pg2.goto('file://' + DIR + '/app.html');
-await sleep(6500);
-v = await pg2.evaluate(() => ({ open: getComputedStyle(document.getElementById('frHelpPanel')).display, text: document.getElementById('frHelpMsgs').textContent }));
+// WAIT FOR THE POP, do not guess how long a boot takes. This was a flat
+// 6.5 s sleep and it was enough on a laptop and not on CI, where four suites
+// share a runner — it failed the whole Tests run on 6 October 2026 and with
+// it the promote, so a shipped fix sat on main unshipped. The bubble's first
+// poll is what is being waited for; 30 s is long enough for the slowest boot
+// and still fails in reasonable time if the pop never comes.
+try {
+  await pg2.waitForFunction(() => {
+    const p = document.getElementById('frHelpPanel');
+    return !!p && getComputedStyle(p).display === 'flex';
+  }, null, { timeout: 30000 });
+} catch(e){}
+v = await pg2.evaluate(() => { const p = document.getElementById('frHelpPanel'), m = document.getElementById('frHelpMsgs');
+  return { open: p ? getComputedStyle(p).display : 'missing', text: m ? m.textContent : '' }; });
 check('signing back in with an unread reply: it pops up on its own, showing the reply', v.open === 'flex' && /reload after the update/.test(v.text), JSON.stringify(v).slice(0, 200));
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 200));
 await b.close();
