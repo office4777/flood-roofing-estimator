@@ -4657,7 +4657,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T21:52:45Z';
+  window.APP_BUILT_AT = '2026-10-06T22:11:56Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -45714,6 +45714,17 @@ function _roofGeometryPayload(){
     g = {
       v: 1,
       scaleMetresPerPx: DRAW.scaleMetresPerPx || 0, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
+      // THE PICTURE ITSELF. geoScale says what the scale was worked out
+      // FROM; this says what it was worked out ON. Report 7 (a 25 m gutter
+      // measuring 14.12 m) could not be diagnosed without it: the recorded
+      // zoom and the picture's real ground scale disagreed by 1.77x and
+      // nothing in the report said how many pixels wide the aerial was, so
+      // there was no way to tell which of the two was wrong.
+      bgPx: (DRAW.bgImg && DRAW.bgImg.naturalWidth)
+        ? { w: DRAW.bgImg.naturalWidth, h: DRAW.bgImg.naturalHeight } : null,
+      bgZoom: DRAW.zoom || 1,
+      bgFrom: DRAW.bgFrom || '',
+
       calPitch: DRAW.calPitch || 0,
       profile: (document.getElementById('matProfile') || {}).value || '',
       outline: (DRAW.outline || []).map(function(p){ return [Math.round(p[0]), Math.round(p[1])]; }),
@@ -74159,6 +74170,10 @@ function captureFromMapbox(lat, lon, zoom) {
         try { _collapseRoofBg(); } catch(e){}
         try { _closeAerialModal(); } catch(e){}
         try { _afterAerialPlaced(); } catch(e){}
+        // Which imagery actually produced this picture, kept on the drawing so
+        // a feedback report can say so. Mapbox and the stitched sources do not
+        // share a code path, and report 7 could not be pinned to either.
+        try { DRAW.bgFrom = _placedFrom; } catch(e){}
         try { _usageEvent('roof_source', { type: 'aerial', source: _placedFrom }); } catch(e){}
         if (hint) hint.innerHTML = '<span style="color:#059669">✅ Aerial image loaded (' + metersPerPx.toFixed(3) + 'm/px). Draw your building outline on top.</span>';
       };
@@ -74251,7 +74266,21 @@ function _linzStitch(key, lat, lng, z, bearing, W, H){
 // The old aeriallinz pin reasoned in CSS pixels too and expected z+1, so it
 // agreed with the fault rather than catching it. It now derives the zoom from
 // the recorded scale, which is the thing that has to match.
-function _stitchTileZoom(z){ return z + 2; }
+// NOT CHANGED YET, AND HERE IS WHY. On the arithmetic this should be z + 2:
+// the callers hand this function the picture's @2x pixel size (boxW*2), and a
+// picture pixel has to BE a tile pixel, so Mapbox's 512-tile zoom z (= 256-tile
+// zoom z+1) needs one more level again for @2x. At z + 1 the picture covers
+// 291.8 m where the scale recorded beside it claims 145.9 m — exactly twice —
+// which would make every length off a stitched aerial read half.
+//
+// But report 7's roofer tape-measured a gutter at 25 m that RoofMap called
+// 14.12 m: a factor of 1.77, not 2. Doubling would take it to 28.24 m and
+// over-order the steel. So the inconsistency above is real but is NOT the
+// whole story, and a change that doubles every measurement in New Zealand is
+// not one to make on a factor that does not match the tape. The feedback
+// report now carries the picture's own pixel size and which imagery made it
+// (bgPx, bgFrom), which is what was missing to tell the two apart.
+function _stitchTileZoom(z){ return z + 1; }
 function _tileStitch(urlTpl, credit, lat, lng, z, bearing, W, H, maxZ){
   return new Promise(function(resolve, reject){
     try {
