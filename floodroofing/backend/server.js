@@ -2085,7 +2085,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   // What brought them here — at least one of the four, so every trial
   // arrives with a reason we can follow up on.
   const interests = _cleanInterests((req.body || {}).interests);
-  if (!interests.length) return res.status(400).json({ error: 'Pick at least one thing that interests you about RoofMap.' });
+  if (!interests.length) return res.status(400).json({ error: 'Pick the one thing that drew you here.' });
   const verifyFirst = _verifyRequired();
   // Self-registration is OPEN: the product is sold as "start free, 14 days,
   // no card", and a signup form that answers "invite-only" is not that.
@@ -2203,8 +2203,12 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
 // confirmed — so a real trial can be told from a typo. SIGNUP_ALERT_TO
 // overrides the address; empty string turns it off.
 const SIGNUP_ALERT_TO = process.env.SIGNUP_ALERT_TO == null ? MAIL_SUPPORT : String(process.env.SIGNUP_ALERT_TO).trim();
-// The sign-up question: what interests them most. Keys are stored; labels
-// are what people (and the alert email) see.
+// The sign-up question — "What has drawn you here the most?" since
+// 2026-10-07, and ONE answer (it was "What interests you most about RoofMap?"
+// with as many ticks as they liked). Keys are stored; labels are what people
+// and the alert email see. It is still kept and sent as a LIST: every profile
+// signed up before today holds several, and a page cached from before the
+// change can still send several.
 const INTERESTS = {
   satellite: 'Satellite measuring',
   drawings:  'Scaled drawings & auto quantities',
@@ -2227,7 +2231,7 @@ async function _signupAlert(o){
       ? 'They have confirmed their email — the 14-day Team trial is under way.\n\n'
       : 'A new business has signed up for the 14-day Team trial.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
-      nice('Interested in', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
+      nice('Drawn here by', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
       '\nReply to this email and it goes straight to them.',
   });

@@ -190,12 +190,12 @@
           </div>
         </div>
         <div class="field" id="suInterestWrap">
-          <label>What interests you most about RoofMap? <span style="font-weight:400;color:var(--muted)">Pick one or more</span></label>
+          <label>What has drawn you here the most? <span style="font-weight:400;color:var(--muted)">Pick one</span></label>
           <div class="ticks">
-            <label><input type="checkbox" name="interest" value="satellite"> Satellite measuring</label>
-            <label><input type="checkbox" name="interest" value="drawings"> Scaled drawings &amp; auto quantities</label>
-            <label><input type="checkbox" name="interest" value="quotes"> Live interactive quotes</label>
-            <label><input type="checkbox" name="interest" value="ordering"> Auto-calculated material ordering</label>
+            <label><input type="radio" name="interest" value="satellite"> Satellite measuring</label>
+            <label><input type="radio" name="interest" value="drawings"> Scaled drawings &amp; auto quantities</label>
+            <label><input type="radio" name="interest" value="quotes"> Live interactive quotes</label>
+            <label><input type="radio" name="interest" value="ordering"> Auto-calculated material ordering</label>
           </div>
         </div>
         <!-- Honeypot: people never see this field; a script filling in every
@@ -288,7 +288,7 @@
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
     if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
     if (phone.replace(/\D/g, '').length < 7){ say('Please add a phone number we can reach you on.', 'bad'); return; }
-    if (!interests.length){ say('Pick at least one thing that interests you about RoofMap.', 'bad'); return; }
+    if (!interests.length){ say('Pick the one thing that drew you here.', 'bad'); return; }
     btn.disabled = true; btn.textContent = 'Setting up your account…';
     say('');
     try {

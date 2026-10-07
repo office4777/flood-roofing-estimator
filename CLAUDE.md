@@ -140,6 +140,16 @@ Discipline (non-negotiable):
 - The public pages (`landing`, `pricing`, `fergus`, `early-access`, `signup`)
   must agree with the `PLANS` table in server.js about what each tier gets.
   `tests/sitecopy.mjs` pins it; change the table and the pages together.
+- THE SIGN-UP QUESTION is asked in TWO places — `signup.html` and the app's own
+  `login-setup-view` — and they must not drift. Since 2026-10-07 it reads "What
+  has drawn you here the most?" and takes ONE answer (radios; it was "What
+  interests you most about RoofMap?" with as many ticks as they liked). The
+  field is still a LIST on the wire and in `profiles.interests`: accounts from
+  before hold several, and a page cached from before the change still sends
+  several, so the server takes what it is given. `INTERESTS` in server.js holds
+  the keys and labels; the signup alert says "Drawn here by".
+  `tests/signup.mjs` pins both forms (it reads app.html off disk for the
+  second), `tests/register.mjs` the server.
 - Sitemap dates come from git: after committing any public-page change, run
   `node floodroofing/tools/sitemap-dates.mjs` and commit the sitemap before
   the gate. `tests/seo.mjs` fails on a stale date (skipped on shallow clones).

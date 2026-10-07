@@ -93,7 +93,37 @@ let v = await pg.evaluate(() => ({
   noindex: (document.querySelector('meta[name=robots]')||{}).content,
 }));
 check('it is a short page, not another sales pitch', v.words < 700, v.words + ' words');
-check('…asking for five things, plus what interests them (four ticks)', v.visible === 9, v.visible + ' visible fields');
+check('…asking for five things, plus what drew them here (four choices)', v.visible === 9, v.visible + ' visible fields');
+// ONE answer, 2026-10-07 (the owner): it was as many ticks as they liked, and
+// several answers told us everything and so nothing. The one thing a roofer
+// reaches for first is what the trial's first twenty minutes should lead with.
+{
+  const q = await pg.evaluate(() => {
+    const all = Array.from(document.querySelectorAll('input[name=interest]'));
+    return { label: (document.querySelector('#suInterestWrap label') || {}).textContent.replace(/\s+/g, ' ').trim(),
+             types: Array.from(new Set(all.map(i => i.type))), n: all.length };
+  });
+  check('the question is "What has drawn you here the most?", and one answer',
+    /What has drawn you here the most\?/.test(q.label) && /Pick one\b/.test(q.label) &&
+    q.n === 4 && q.types.length === 1 && q.types[0] === 'radio', JSON.stringify(q));
+  await pg.check('input[name=interest][value=satellite]');
+  await pg.check('input[name=interest][value=quotes]');
+  const picked = await pg.evaluate(() => Array.from(document.querySelectorAll('input[name=interest]:checked')).map(i => i.value));
+  check('…so picking a second answer replaces the first, never adds to it',
+    picked.length === 1 && picked[0] === 'quotes', JSON.stringify(picked));
+  await pg.evaluate(() => document.querySelectorAll('input[name=interest]').forEach(i => { i.checked = false; }));
+  // The APP has a sign-up screen of its own (`login-setup-view`) asking the
+  // same question. The two must not drift: a roofer would get a different
+  // question depending on which door they came in by, and the answers would
+  // not compare. Read off the file — this needs no browser.
+  const appHtml = await readFile(_j(DIR, 'app.html'), 'utf8');
+  const appQ = appHtml.slice(appHtml.indexOf('id="su-interests"') - 400, appHtml.indexOf('id="su-interests"') + 1400);
+  check('the app’s own sign-up screen asks the same question, the same way',
+    /What has drawn you here the most\?/.test(appQ) && /pick one</.test(appQ) &&
+    (appQ.match(/type="radio" name="su-interest"/g) || []).length === 4 &&
+    !/type="checkbox" name="su-interest"/.test(appHtml),
+    (appQ.match(/type="radio" name="su-interest"/g) || []).length + ' radios');
+}
 check('…with the invite-code field and the honeypot kept out of sight', v.fields === 11 && v.visible === 9);
 check('…and says what you are agreeing to, next to the button',
   /By creating an account you agree/.test(v.fine) && /Terms of Service/.test(v.fine) && /Privacy Policy/.test(v.fine));

@@ -62,16 +62,21 @@ const register = (body) => fetch(BASE + '/auth/register', {
 // ── the sign-up question ─────────────────────────────────────────
 {
   const none = await register({ email: 'quiet@example.com', password: 'password123', phone: '021 555 0100', name: 'Q', company: 'Quiet Roofing', interests: [] });
-  check('a sign-up with nothing ticked is refused', none.status === 400 && /at least one/.test(JSON.stringify(await none.json())), String(none.status));
+  check('a sign-up with nothing ticked is refused', none.status === 400 && /the one thing that drew you here/.test(JSON.stringify(await none.json())), String(none.status));
   const junk = await register({ email: 'junk@example.com', password: 'password123', phone: '021 555 0100', name: 'J', company: 'Junk Roofing', interests: ['<script>', 'pricing'] });
   check('…and unknown answers count for nothing', junk.status === 400);
+  // The form asks for ONE answer since 2026-10-07, but the field is still a
+  // LIST on the wire and in the profile: every account signed up before then
+  // holds several, and a page cached from before the change still sends
+  // several. The server takes what it is given rather than refusing somebody
+  // mid-signup over it.
   const two = await register({ email: 'two@example.com', password: 'password123', phone: '021 555 0100', name: 'T', company: 'Two Roofing', interests: ['quotes', 'ordering', 'quotes'] });
   const twoBody = await two.json();
   const prof = db.profiles.find(p => p.email === 'two@example.com');
   check('two answers are stored on the profile, once each', two.status === 200 && prof && JSON.stringify(prof.interests) === JSON.stringify(['quotes', 'ordering']), JSON.stringify(prof && prof.interests));
   await new Promise(r => setTimeout(r, 300));
   const alert = sent.find(m => /New signup: Two Roofing/.test(JSON.stringify(m)));
-  check('…and the signup alert names them in words', !!alert && /Interested in: Live interactive quotes, Auto-calculated material ordering/.test(JSON.stringify(alert)), alert ? '' : 'no alert');
+  check('…and the signup alert names them in words', !!alert && /Drawn here by: Live interactive quotes, Auto-calculated material ordering/.test(JSON.stringify(alert)), alert ? '' : 'no alert');
 }
 
 // ── the front door is open ───────────────────────────────────────
