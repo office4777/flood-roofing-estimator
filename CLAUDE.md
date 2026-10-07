@@ -1094,9 +1094,11 @@ Discipline (non-negotiable):
   cover hero and for the same reason — a roofer's RANZ membership is the same
   on every quote they will ever send, so nothing is per-quote and nothing new
   rides in versions, templates or the frozen customer copy. `_accredStripHtml
-  (where, plain)` draws them over the hero on the cover (`qb-accred-cover`, a
-  white chip each so any logo reads over any photograph) and as a centred row
-  on the last page (`qb-accred-foot`), in `_qbCover`, `_qdCover` and
+  (where, plain)` draws them over the hero on the cover (`qb-accred-cover`,
+  TOP LEFT and small, no chip behind them — the owner, 2026-10-07: the chip
+  was a white box around artwork that already comes on a white ground, and
+  the hero's own tools are top right, its title bottom left) and as a centred
+  row on the last page (`qb-accred-foot`), in `_qbCover`, `_qdCover` and
   `_qbSummary` — so the book, the one-page layout and the computer's Review
   all carry them. NOTHING IS SHOWN WHEN NONE ARE SET: the customer never sees
   an empty slot where a credential would go. The office gets a ✕ per logo and

@@ -3745,18 +3745,16 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-accred{ display:flex; align-items:center; flex-wrap:wrap; }
 .qb-accred-slot{ position:relative; display:inline-flex; align-items:center; }
 .qb-accred-slot img{ display:block; width:auto; object-fit:contain; }
-.qb-accred-cover{ position:absolute; right:12px; bottom:11px; z-index:3; gap:8px; justify-content:flex-end; max-width:66%; }
-.qb-accred-cover .qb-accred-slot{ background:rgba(255,255,255,.93); border-radius:8px; padding:5px 8px; box-shadow:0 2px 9px rgba(10,22,40,.22); }
-.qb-accred-cover .qb-accred-slot img{ height:30px; max-width:104px; }
+.qb-accred-cover{ position:absolute; left:11px; top:10px; z-index:3; gap:7px; justify-content:flex-start; max-width:62%; }
+.qb-accred-cover .qb-accred-slot img{ height:22px; max-width:76px; }
 .qb-accred-foot{ gap:20px; justify-content:center; margin:20px 0 2px; }
 .qb-accred-foot .qb-accred-slot img{ height:40px; max-width:140px; }
 .qb-accred-x{ position:absolute; top:-7px; right:-7px; width:18px; height:18px; padding:0; border:none; border-radius:50%; background:#b91c1c; color:#fff; font:700 12px/1 inherit; font-family:inherit; cursor:pointer; }
-.qb-accred-add{ height:30px; padding:0 11px; border:1.5px dashed rgba(255,255,255,.75); border-radius:8px; background:rgba(10,22,40,.55); color:#fff; font:700 11.5px/1 inherit; font-family:inherit; cursor:pointer; white-space:nowrap; }
+.qb-accred-add{ height:22px; padding:0 8px; border:1.5px dashed rgba(255,255,255,.75); border-radius:8px; background:rgba(10,22,40,.55); color:#fff; font:700 10.5px/1 inherit; font-family:inherit; cursor:pointer; white-space:nowrap; }
 .qb-accred-foot .qb-accred-add{ border-color:#c7d2de; background:#f4f7fa; color:#44566b; height:34px; }
 @media (max-width:720px){
-  .qb-accred-cover{ right:8px; bottom:8px; gap:6px; max-width:78%; }
-  .qb-accred-cover .qb-accred-slot{ padding:4px 6px; }
-  .qb-accred-cover .qb-accred-slot img{ height:22px; max-width:76px; }
+  .qb-accred-cover{ left:8px; top:8px; gap:5px; max-width:66%; }
+  .qb-accred-cover .qb-accred-slot img{ height:17px; max-width:58px; }
   .qb-accred-foot{ gap:14px; }
   .qb-accred-foot .qb-accred-slot img{ height:32px; max-width:110px; }
 }
@@ -4680,7 +4678,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-06T23:35:15Z';
+  window.APP_BUILT_AT = '2026-10-07T00:43:33Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
