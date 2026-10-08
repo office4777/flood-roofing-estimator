@@ -4678,7 +4678,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-08T03:55:18Z';
+  window.APP_BUILT_AT = '2026-10-08T04:18:37Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -9124,6 +9124,15 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
       </div>
 
+      <div style="margin:6px 0 14px;padding-top:12px;border-top:1px solid var(--border)">
+        <strong style="font-size:13px">Charging by area or by the metre</strong>
+        <span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Your default rates for pricing labour by the square metre of roof, and gutter labour by the lineal metre. Each job can be switched between hourly and these on the Pricing tab, and changing a rate there offers to save it back here. Leave blank to price by the hour.</span>
+        <div class="f2" style="margin-top:10px">
+          <div><label>Roof labour — default ($/m²)</label><input type="number" id="lpLabourM2" min="0" step="0.5" placeholder="e.g. 45"></div>
+          <div><label>Gutter labour — default ($/lm)</label><input type="number" id="lpGutterLm" min="0" step="0.5" placeholder="e.g. 18"></div>
+        </div>
+      </div>
+
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <strong style="font-size:13px">Default hours per scope item</strong>
         <span style="font-size:11px;color:var(--text2)">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
@@ -13383,6 +13392,11 @@ function defaultSettings(){
       scaffold_price: 2500, scaffold_cost: 2000,
       // Platform scaffolding costs more than edge protection — uplift %.
       scaffold_platform_pct: 25,
+      // CHARGING BY AREA / BY THE METRE (2026-10-08, the owner). Plenty of
+      // roofers price labour at a rate per square metre of roof and per
+      // lineal metre of gutter rather than by the hour. 0 = never set, and
+      // the switch in the Pricing tab says so rather than charging nothing.
+      labour_m2: 0, gutter_lm: 0,
       default_workers: 2,
       default_rate: 55,
       default_complexity: 1,
@@ -13749,6 +13763,8 @@ function collectLabourPricingFromUI(){
   lp.scaffold_cost  = numOr('lpScaffoldCost', 2000);
   lp.scaffold_price = numOr('lpScaffoldPrice', 2500);
   lp.scaffold_platform_pct = numOr('lpScaffoldPlatformPct', 25);
+  lp.labour_m2 = numOr('lpLabourM2', 0);
+  lp.gutter_lm = numOr('lpGutterLm', 0);
   var dict = {};
   Array.from(document.querySelectorAll('#lpItemsList > [data-lp-item]')).forEach(function(row){
     var name  = (row.querySelector('input[data-f="name"]')||{}).value || '';
@@ -13771,6 +13787,8 @@ function renderLabourPricingUI(){
   setN('lpScaffoldCost',  lp.scaffold_cost);
   setN('lpScaffoldPrice', lp.scaffold_price);
   setN('lpScaffoldPlatformPct', lp.scaffold_platform_pct);
+  setN('lpLabourM2', lp.labour_m2);
+  setN('lpGutterLm', lp.gutter_lm);
   renderLabourItemsList(lp.per_item_hours || {});
 }
 function renderLabourItemsList(dict){
@@ -16546,6 +16564,142 @@ function _materialsCostForRoofIdx(idx){
     leave();
   }
 }
+// ── CHARGING BY AREA, OR BY THE METRE ────────────────────────────
+// The owner, 2026-10-08: "make the labour pricing switchable between the
+// current hourly or m2, for the gutter make the labour switchable from
+// hourly to LM ... let the user set their default m2/lm rates in settings,
+// alway if they adjust it in the pricing tab ask if they would like to save
+// as the new default".
+//
+// THE MODE CHANGES THE PRICE, NEVER THE COST. Hours are worked out from the
+// drawing and are what the job actually costs to do — and GP, GP/hr and the
+// profitability panel are all built on them. Choosing to CHARGE by the metre
+// does not change how long the roof takes, so cost stays hours x cost/hr and
+// the margin on screen stays a real number. Only the charge-out side moves.
+function _labourMode(){ return ((S.quote && S.quote.labourMode) === 'm2') ? 'm2' : 'hourly'; }
+function _gutterLabourMode(){ return ((S.quote && S.quote.gutterLabourMode) === 'lm') ? 'lm' : 'hourly'; }
+function _lpDefaults(){ return (S.settings && S.settings.labour_pricing) || {}; }
+// This job's rate, else the Settings default, else 0 — and 0 means "not set",
+// which the switch says out loud rather than quietly charging nothing.
+function _labourM2Rate(){
+  var j = parseFloat(S.quote && S.quote.labourM2);
+  if (isFinite(j) && j > 0) return j;
+  var d = parseFloat(_lpDefaults().labour_m2);
+  return (isFinite(d) && d > 0) ? d : 0;
+}
+function _gutterLmRate(){
+  var j = parseFloat(S.quote && S.quote.gutterLabourLm);
+  if (isFinite(j) && j > 0) return j;
+  var d = parseFloat(_lpDefaults().gutter_lm);
+  return (isFinite(d) && d > 0) ? d : 0;
+}
+// The roof area a by-the-metre price is worked on: the same m2 the labour
+// auto-calculator uses, so the figure on the Pricing tab and the one behind
+// the price are one number.
+function _labourAreaForRoof(idx){
+  try { return parseFloat(_labourCalcAutoQty(idx || 0).roof) || 0; } catch(e){ return 0; }
+}
+function _setLabourMode(mode){
+  if (!S.quote) return;
+  S.quote.labourMode = (mode === 'm2') ? 'm2' : 'hourly';
+  try { calcLabour(); } catch(e){}
+  try { resyncQuoteLines(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _setGutterLabourMode(mode){
+  if (!S.quote) return;
+  S.quote.gutterLabourMode = (mode === 'lm') ? 'lm' : 'hourly';
+  _gdChanged();
+  try { renderProfitability(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+// A rate typed on the Pricing tab is this JOB's. Then the same question the
+// material rows ask: should it become the default? Yes writes it into
+// Settings -> Labour pricing and saves, so the next job starts there.
+async function _setLabourM2(val, ask){
+  if (!S.quote) return;
+  var n = parseFloat(val);
+  S.quote.labourM2 = (isFinite(n) && n > 0) ? n : 0;
+  try { calcLabour(); } catch(e){}
+  try { resyncQuoteLines(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  if (ask !== false) await _labourRateAskDefault('labour_m2', n, 'Roof labour', 'm²');
+}
+async function _setGutterLabourLm(val, ask){
+  if (!S.quote) return;
+  var n = parseFloat(val);
+  S.quote.gutterLabourLm = (isFinite(n) && n > 0) ? n : 0;
+  _gdChanged();
+  try { renderProfitability(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  if (ask !== false) await _labourRateAskDefault('gutter_lm', n, 'Gutter labour', 'lm');
+}
+// Shared with the material rows' question (_matDefaultAsk), because it is the
+// same question and a second dialog saying the same thing differently is how
+// an app stops feeling like one app.
+async function _labourRateAskDefault(key, n, label, unit){
+  if (!isFinite(n) || n <= 0) return;
+  var was = parseFloat(_lpDefaults()[key]) || 0;
+  if (Math.abs(n - was) < 0.005) return;                       // nothing moved
+  try { if (!(await _matDefaultAsk(label, was, n, unit))) return; } catch(e){ return; }
+  try {
+    if (!S.settings) return;
+    if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
+    S.settings.labour_pricing[key] = n;
+    try { renderLabourPricingUI(); } catch(e){}      // so the save reads it back off the inputs
+    await saveSettings(true);
+  } catch(e){ try { console.warn('labour default', e); } catch(_){} }
+}
+// TWO BIG BUTTONS AT THE TOP OF EACH LABOUR SECTION (the owner's words,
+// 2026-10-08). Which way this job charges labour, said plainly, with the rate
+// to type beside it — and a straight "set a rate" rather than a silent $0
+// when neither the job nor Settings has one.
+function _labourModeBtnHtml(onclick, label, sub, on){
+  return '<button type="button" onclick="'+onclick+'" style="flex:1;min-width:0;padding:11px 10px;border-radius:10px;cursor:pointer;text-align:center;font-family:inherit;'+
+    'border:2px solid '+(on?'#0099cc':'var(--border,#d6dbe2)')+';background:'+(on?'#0099cc':'#fff')+';color:'+(on?'#fff':'#0a1628')+'">'+
+    '<div style="font-size:13px;font-weight:800;line-height:1.2">'+label+'</div>'+
+    '<div style="font-size:10.5px;font-weight:600;margin-top:2px;opacity:'+(on?'.92':'.6')+'">'+sub+'</div>'+
+  '</button>';
+}
+function _labourRateRowHtml(qty, unit, rate, setter, note){
+  var total = (rate > 0) ? qty * rate : 0;
+  return '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 12px;margin-bottom:8px;border-radius:9px;background:'+(rate>0?'#e8f5e9':'#fffbeb')+';border-left:3px solid '+(rate>0?'#2e7d32':'#f59e0b')+'">'+
+    '<span style="font-size:12.5px;font-weight:700;color:#0a1628">'+qty.toFixed(1)+' '+unit+'</span>'+
+    '<span style="font-size:12px;color:var(--text2)">×</span>'+
+    '<span style="display:inline-flex;align-items:center;gap:3px"><span style="font-size:11px;color:var(--text2)">$</span>'+
+      '<input type="number" min="0" step="0.5" value="'+(rate>0?rate:'')+'" placeholder="rate" onchange="'+setter+'" style="width:84px;font-size:12px;padding:5px 7px">'+
+      '<span style="font-size:11px;color:var(--text2)">/'+unit+'</span></span>'+
+    '<span style="font-size:12px;color:var(--text2)">=</span>'+
+    '<strong style="font-size:15px;color:'+(rate>0?'#2e7d32':'#b45309')+'">'+(rate>0?('$'+total.toFixed(2)):'set a rate')+'</strong>'+
+    '<span style="font-size:10.5px;color:var(--text3);margin-left:auto;text-align:right">'+note+'</span>'+
+  '</div>';
+}
+function _labourModeButtonsHtml(ri){
+  var m2 = (_labourMode() === 'm2');
+  var html = '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+    _labourModeBtnHtml("_setLabourMode('hourly')", 'By the hour', 'hours \u00d7 charge-out rates', !m2)+
+    _labourModeBtnHtml("_setLabourMode('m2')", 'By the m\u00b2', 'roof area \u00d7 your rate', m2)+
+  '</div>';
+  if (!m2) return html;
+  return html + _labourRateRowHtml(_labourAreaForRoof(ri || 0), 'm\u00b2', _labourM2Rate(),
+    '_setLabourM2(this.value)', 'Hours below still set your cost and GP.');
+}
+function _gutterLabourModeButtonsHtml(lm){
+  var per = (_gutterLabourMode() === 'lm');
+  var html = '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+    _labourModeBtnHtml("_setGutterLabourMode('hourly')", 'By the hour', 'hours \u00d7 charge-out rates', !per)+
+    _labourModeBtnHtml("_setGutterLabourMode('lm')", 'Per lineal metre', 'gutter run \u00d7 your rate', per)+
+  '</div>';
+  if (!per) return html;
+  return html + _labourRateRowHtml(parseFloat(lm) || 0, 'lm', _gutterLmRate(),
+    '_setGutterLabourLm(this.value)', 'Hours still set your cost and GP.');
+}
 // Current labour charge-out rates (from the main labour table).
 function _labourRates(){
   var L = (S.quote && S.quote.labour) || {};
@@ -16562,6 +16716,12 @@ function _roofLabour(idx){
 // Labour charge-out ($) for a roof. Roof 0 = the main table total (S.labour).
 function _labourPriceForRoof(idx){
   if (idx === 0) return (typeof S.labour === 'number') ? S.labour : 0;
+  // Priced by area: this roof's own m2 at the job's rate. Roof 0 goes through
+  // calcLabour, which stamps S.labour the same way.
+  if (_labourMode() === 'm2'){
+    var rate = _labourM2Rate();
+    if (rate > 0) return _labourAreaForRoof(idx) * rate;
+  }
   var rl = _roofLabour(idx), r = _labourRates();
   return (parseFloat(rl.leadHrs)||0) * r.leadPrice + (parseFloat(rl.appHrs)||0) * r.appPrice;
 }
@@ -24155,6 +24315,14 @@ function calcLabour(){
   var totalHrs = leadHrs + appHrs + extrasHrs;
   var totalPrice = leadHrs*f(L.leadPrice) + appHrs*f(L.appPrice) + extrasPrice;
   var totalCost  = leadHrs*f(L.leadCost)  + appHrs*f(L.appCost)  + extrasCost;
+  // CHARGED BY THE SQUARE METRE: the roof's own area at this job's rate
+  // replaces the charge-out total outright — an extra labourer then shows up
+  // in the COST and the margin, which is the truth of it, instead of being
+  // added to a price the rate already covers. totalCost is untouched, so GP
+  // and GP/hr stay real. With no rate set anywhere the hourly figure stands,
+  // because a roof priced at nothing is never what anyone meant.
+  var _labM2 = (_labourMode() === 'm2') ? _labourM2Rate() : 0;
+  if (_labM2 > 0) totalPrice = _labourAreaForRoof(0) * _labM2;
   // Extra labourers — editable name + hours/rates + delete. Each becomes its
   // own Fergus labour line on push.
   function extraRow(x, i){
@@ -24189,13 +24357,14 @@ function calcLabour(){
   if (isBaseRoof){ dispHrs = totalHrs; dispPrice = totalPrice; }
   else {
     var _rl = _roofLabour(ri), lh = f(_rl.leadHrs), ah = f(_rl.appHrs);
-    dispHrs = lh + ah; dispPrice = lh * f(L.leadPrice) + ah * f(L.appPrice);
+    dispHrs = lh + ah; dispPrice = _labourPriceForRoof(ri);
   }
   var scR = _roofScaffold(ri);
   var html =
     (_multiRoofLab
       ? '<div style="font-size:11.5px;color:var(--text2);background:#f4f5f7;border:1px solid #e3e6ea;border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing <strong style="color:#0a1628">'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+' Switch roofs at the top of the panel.</div>'
       : '')+
+    _labourModeButtonsHtml(ri)+
     _labourCalcPanelHtml(ri)+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
@@ -24218,7 +24387,8 @@ function calcLabour(){
     (isBaseRoof ? _qCustomRowsHtml('labour') : '')+
     // Combined labour total (for the selected roof)
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+dispHrs.toFixed(1)+' hrs</strong>'+
+      '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+
+        ((_labM2 > 0) ? (_labourAreaForRoof(ri).toFixed(1)+' m\u00b2 @ $'+_labM2+'/m\u00b2') : (dispHrs.toFixed(1)+' hrs'))+'</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+dispPrice.toFixed(2)+'</span>'+
     '</div>';
   wrap.innerHTML = html;
@@ -24382,7 +24552,12 @@ function renderGutterDownpipePricing(){
   var gOnQuote = _gutterOnQuote();
   var lm = _selGutterLm(), lines = _selGutterLineCount(), corners = _selGutterCorners();
   var gls = _gutterLabourState(lm);
-  var labCharge = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
+  // What the job is actually charged — by the hour, or the run at a rate per
+  // lineal metre. One function, so this card, the customer's gutter price and
+  // the profitability panel can never disagree.
+  var labCharge = _gutterLabourCharge(lm);
+  var labHourly = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
+  var labByLm = (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0);
   var matLines = _gutterMaterialLines(gtype, lm, lines, corners);
   var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0) + _gutterCustomBase();   // the custom lines are rows of this table
   var bufPct = _gutterMatQtyBufferPct(), bufAmt = matBase * (bufPct/100);
@@ -24421,26 +24596,6 @@ function renderGutterDownpipePricing(){
       '<td style="text-align:right;font-weight:600">'+money(hrs*price)+'</td>'+
     '</tr>';
   };
-  // Gutter labour — hours are auto-entered from the run length; the editable
-  // Lead/Apprentice breakdown stays hidden until the office ticks "Show labour
-  // auto-calculations" (shared toggle with the roofing labour panel).
-  var _showLC = _showLabourCalc();
-  var gutLabHtml =
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
-      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:var(--text)"><input type="checkbox" '+(_showLC?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> Show labour auto-calculations</label>'+
-      '<span style="font-size:10.5px;color:var(--text3);margin-left:auto">Gutter labour · auto '+gls.band+' hr → '+money(labCharge)+'</span>'+
-    '</div>'+
-    (_showLC ?
-      (gls.overridden?'<div style="text-align:right;margin-bottom:4px"><button type="button" onclick="_resetGutterLabour()" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset to auto ('+gls.band+' hr)</button></div>':'')+
-      '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
-        '<thead><tr><th style="width:34%">Worker</th><th style="width:22%;text-align:right">Hours</th><th style="width:24%;text-align:right">Price/hr</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
-        '<tbody>'+
-          labRow('Lead Roofer','leadHrs','leadPrice',gls.leadHrs,gls.leadPrice)+
-          labRow('Apprentice','appHrs','appPrice',gls.appHrs,gls.appPrice)+
-        '</tbody>'+
-        '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
-      '</table>'
-    : '');
   // Which product this job is priced against. When the customer has actually
   // taken guttering up this IS their pick, so changing it changes their
   // selection; otherwise it's just the basis the office is costing against.
@@ -24458,15 +24613,19 @@ function renderGutterDownpipePricing(){
     '</div>'+
     '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span>'+
       (lm > 0 ? '' : ' <span style="color:#b45309">— no gutter line drawn yet, so only labour is costed. Draw the gutter on Map Roof for a full price.</span>')+'</div>'+
-    // Labour — editable hour lines like the re-roof labour table (lead + apprentice)
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:var(--text)">Gutter labour</div>'+(gls.overridden?'<button type="button" onclick="_resetGutterLabour()" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset to auto ('+gls.band+' hr)</button>':'<span style="font-size:10.5px;color:var(--text3)">auto '+gls.band+' hr · editable</span>')+'</div>'+
+    // Labour — two big buttons for how it is charged (2026-10-08), then the
+    // editable hour lines like the re-roof labour table (lead + apprentice).
+    // The hours stay on screen in either mode: they are what the gutter COSTS
+    // and what GP/hr is worked on, whichever way it is charged out.
+    _gutterLabourModeButtonsHtml(lm)+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:var(--text)">Gutter labour</div>'+(gls.overridden?'<button type="button" onclick="_resetGutterLabour()" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset to auto ('+gls.band+' hr)</button>':'<span style="font-size:10.5px;color:var(--text3)">'+(labByLm?('hours set the cost \u00b7 charged per lm'):('auto '+gls.band+' hr \u00b7 editable'))+'</span>')+'</div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
       '<thead><tr><th style="width:34%">Worker</th><th style="width:22%;text-align:right">Hours</th><th style="width:24%;text-align:right">Price/hr</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
       '<tbody>'+
         labRow('Lead Roofer','leadHrs','leadPrice',gls.leadHrs,gls.leadPrice)+
         labRow('Apprentice','appHrs','appPrice',gls.appHrs,gls.appPrice)+
       '</tbody>'+
-      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
+      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">'+(labByLm?'Hourly equivalent — not what this job is charged':'Labour')+'</td><td style="text-align:right;font-weight:700;color:'+(labByLm?'var(--text2)':'#2e7d32')+'">'+money(labHourly)+'</td></tr></tfoot>'+
     '</table>'+
     // Material — itemised list like the re-roof material table (invoice per-unit pricing)
     '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· '+(gtype === 'marley_typhoon' ? 'Typhoon invoice pricing' : 'itemised \u00b7 brackets every 800mm, a dropper every 8m')+'</span></div>'+
@@ -24786,7 +24945,13 @@ function renderProfitability(){
     '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px">'+
       stat('Job revenue / m²', area > 0 ? fmtMoney(revM2) : '—', area > 0 ? 'ex GST · the whole job' : 'draw a roof first') +
       stat('Material cost / m²', area > 0 ? fmtMoney(matM2) : '—', area > 0 ? 'from the price book' : 'draw a roof first') +
-      stat('Labour price / m²', '<span id="profitLabM2">' + (area > 0 ? whole(labM2) : '—') + '</span>' + nudge('labm2', area > 0 && hrs > 0), area > 0 ? '±$1 moves the charge-out rates' : 'draw a roof first') +
+      stat('Labour price / m²',
+        area > 0
+          ? ('<span style="font-size:13px;color:var(--text2)">$</span><input type="number" min="0" step="0.5" id="profitLabM2" value="' + (Math.round(labM2 * 100) / 100) + '" onchange="_profitLabM2Typed(this.value)" style="width:68px;font-size:16px;font-weight:700;color:#0a1628;padding:1px 4px;border:1px solid var(--border);border-radius:6px;vertical-align:middle">' + nudge('labm2', hrs > 0 || _labourMode() === 'm2'))
+          : '—',
+        area > 0
+          ? (_labourMode() === 'm2' ? 'type it — this is what the job is charged at' : 'type it — every charge-out rate follows')
+          : 'draw a roof first') +
     '</div>'+
     '<div style="margin-top:10px;font-size:12px;color:var(--text2);display:flex;gap:18px;flex-wrap:wrap">'+
       '<span>Gross profit <strong style="color:#0a1628">'+fmtMoney(gp)+'</strong></span>'+
@@ -24822,6 +24987,13 @@ function _profitNudge(kind, dir){
     var curM2 = labourPrice / area, targetM2 = Math.round(curM2) + (dir > 0 ? 1 : -1);
     deltaPrice = (targetM2 - curM2) * area;
   }
+  // Charged by the m², the rate IS the price: move the rate. Spreading the
+  // dollar over charge-out rates would move the figure on screen not at all,
+  // because nothing downstream reads them for the price any more.
+  if (_labourMode() === 'm2' && _labourM2Rate() > 0 && g.area > 0){
+    _setLabourM2(Math.max(0, Math.round((_labourM2Rate() + deltaPrice / g.area) * 100) / 100), false);
+    return;
+  }
   var perHr = deltaPrice / hrs;
   var bump = function(v){ return Math.max(0, Math.round((f(v) + perHr) * 100) / 100); };
   L.leadPrice = bump(L.leadPrice); L.appPrice = bump(L.appPrice);
@@ -24831,6 +25003,33 @@ function _profitNudge(kind, dir){
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+// TYPING THE $/m² (the owner, 2026-10-08: "build the labour $/m2 typing").
+// Charged by the m² the typed figure IS the rate, and it is offered as the
+// new default like any other price typed on this tab. Charged by the hour it
+// is a TARGET: the same spread across every charge-out rate the ± buttons
+// do, so the figure lands exactly where it was typed.
+function _profitLabM2Typed(val){
+  var n = parseFloat(val);
+  if (!isFinite(n) || n < 0) return;
+  if (_labourMode() === 'm2'){ _setLabourM2(n); return; }
+  if (!S.quote || !S.quote.labour) return;
+  var g = _profitFigures(_profitView());
+  if (!(g.area > 0) || !(g.hrs > 0)) return;
+  var delta = (n * g.area) - g.labourPrice;
+  if (Math.abs(delta) < 0.005) return;
+  var perHr = delta / g.hrs, L = S.quote.labour;
+  var f = function(v){ return parseFloat(v) || 0; };
+  var bump = function(v){ return Math.max(0, Math.round((f(v) + perHr) * 100) / 100); };
+  L.leadPrice = bump(L.leadPrice); L.appPrice = bump(L.appPrice);
+  (L.extras || []).forEach(function(x){ x.price = bump(x.price); });
+  S.quote.labourRatesCustom = true;
+  calcLabour();
+  try { resyncQuoteLines(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function _onLabourHoursChange(key, value){
   if (key.indexOf('custom:') === 0) {
@@ -27427,8 +27626,14 @@ function _gutterLabourHours(lm){
   if (lm <= 100) return 12;
   return 14;                  // 100–150 lm (and beyond)
 }
-// Gutter labour charge ($ ex-GST) = editable lead/apprentice hours × rates.
+// Gutter labour charge ($ ex-GST) = editable lead/apprentice hours × rates,
+// or the run at a rate per lineal metre when the office prices it that way.
+// The COST side is untouched either way — see _labourMode.
 function _gutterLabourCharge(lm){
+  if (_gutterLabourMode() === 'lm'){
+    var rate = _gutterLmRate();
+    if (rate > 0) return (parseFloat(lm) || 0) * rate;
+  }
   var g = _gutterLabourState(lm);
   return g.leadHrs * g.leadPrice + g.appHrs * g.appPrice;
 }

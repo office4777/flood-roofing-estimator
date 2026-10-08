@@ -69,7 +69,7 @@ const read = () => pg.evaluate(() => {
   const L = S.quote.labour;
   const area = _labourCalcAutoQty(0).roof;
   const gp = (S.labour + S.materials + S.quote.scaffold.price) - (S.labourCost + S.materials + S.quote.scaffold.cost);
-  return { text: t, gpHrShown: (document.getElementById('profitGpHr') || {}).textContent, labM2Shown: (document.getElementById('profitLabM2') || {}).textContent,
+  return { text: t, gpHrShown: (document.getElementById('profitGpHr') || {}).textContent, labM2Shown: (document.getElementById('profitLabM2') || {}).value,
            gpHr: gp / S.labourHours, labM2: S.labour / area, matM2: S.materials / area, area, lead: L.leadPrice, app: L.appPrice, labour: S.labour, hrs: S.labourHours, sub: quoteSubtotal() };
 });
 let v = await read();
@@ -77,7 +77,11 @@ check('the panel shows material cost per m² and labour price per m²', /Materia
 check('…material cost/m² is the material cost over the roof this price covers', new RegExp('\\$' + v.matM2.toFixed(2).replace('.', '\\.')).test(v.text) || new RegExp(fmt(v.matM2)).test(v.text), '$' + v.matM2.toFixed(2) + ' over ' + v.area + ' m²');
 function fmt(n){ return '\\$' + Math.round(n * 100) / 100; }
 check('GP/hr is shown to the nearest dollar', v.gpHrShown === '$' + Math.round(v.gpHr).toLocaleString('en-NZ'), v.gpHrShown + ' for ' + v.gpHr.toFixed(2));
-check('…and so is labour/m²', v.labM2Shown === '$' + Math.round(v.labM2).toLocaleString('en-NZ'), v.labM2Shown + ' for ' + v.labM2.toFixed(2));
+// Labour/m² is a BOX you type in since 2026-10-08 (the owner: "build the
+// labour $/m2 typing"), so it carries the real rate to the cent rather than
+// a figure rounded for display. The ± buttons beside it still step a dollar.
+check('…and labour/m² is a box carrying the real rate',
+  Math.abs(parseFloat(v.labM2Shown) - v.labM2) < 0.015, v.labM2Shown + ' for ' + v.labM2.toFixed(2));
 
 // ── nudge GP/hr up a dollar ──
 const before = v;

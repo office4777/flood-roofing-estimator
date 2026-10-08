@@ -898,6 +898,41 @@ Discipline (non-negotiable):
   turns a PostgREST failure into a 503 `UPSTREAM_UNAVAILABLE`; reading it as
   "no rows" once logged the owner out of his company, dropped the Fergus
   key and showed "No subscription found" after a reload.
+- LABOUR CHARGED BY AREA, THE GUTTER BY THE METRE (2026-10-08, the owner:
+  "make the labour pricing switchable between the current hourly or m2, for
+  the gutter make the labour switchable from hourly to LM ... let the user set
+  their default m2/lm rates in settings, alway if they adjust it in the
+  pricing tab ask if they would like to save as the new default, make the
+  switch between hourly and m2/lm two big buttons at the top of each labour
+  pricing section"). `tests/labourmode.mjs`.
+  THE MODE CHANGES THE PRICE, NEVER THE COST — the one rule the rest hangs on.
+  Hours come off the drawing and are what the job really takes, so cost stays
+  hours × cost/hr and GP, GP/hr and the whole profitability panel stay honest
+  whichever way it is charged out. An extra labourer added on an m² job shows
+  up in the cost and the margin, not on top of a price the rate already covers.
+  `S.quote.labourMode` is `'hourly'` (default) or `'m2'`, `S.quote
+  .gutterLabourMode` `'hourly'` or `'lm'`; `S.quote.labourM2` /
+  `gutterLabourLm` are THIS job's rates and 0 means "use the Settings
+  default" (`labour_pricing.labour_m2` / `gutter_lm`, also 0 = never set).
+  With NO rate anywhere the hourly figure stands — a switch must never price a
+  roof at nothing. Three seams carry it, and there are only three:
+  `calcLabour` (roof 0 → `S.labour`), `_labourPriceForRoof` (every other roof)
+  and `_gutterLabourCharge` (one caller, so the gutter card, the customer's
+  gutter price and the profitability panel cannot disagree).
+  `_labourModeButtonsHtml` / `_gutterLabourModeButtonsHtml` draw the two big
+  buttons plus the rate box; `_setLabourM2` / `_setGutterLabourLm` save the
+  job's rate and then ask `_labourRateAskDefault`, which reuses the material
+  rows' own `_matDefaultAsk` dialog (same question, so not a second dialog
+  saying the same thing differently) and writes Settings → Labour pricing.
+  THE $/m² ON THE PROFITABILITY PANEL IS A BOX YOU TYPE IN (`#profitLabM2`,
+  `_profitLabM2Typed`): by the m² the typed figure IS the rate; by the hour it
+  is a TARGET, spread over every charge-out rate exactly as the ± buttons do,
+  so the figure lands where it was typed. `_profitNudge` moves the RATE in m²
+  mode — spreading a dollar over charge-out rates nothing reads any more would
+  move the number on screen not at all. `gphr.mjs` reads that box's `.value`.
+  Removed with this: a dead `gutLabHtml` in `renderGutterDownpipePricing` —
+  a full second copy of the gutter labour block that nothing referenced and
+  that silently absorbed the first attempt at these buttons.
 - A CHANGE OF PITCH BREAKS THE ROOF (2026-10-08, feedback reports 9 and 10,
   info@wellingtonroof.co.nz: "when applying / using change in pitch how /
   where can you enter 2nd pitch? ... the job pack sheet lengths don't appear
