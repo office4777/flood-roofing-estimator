@@ -241,6 +241,138 @@ check('switching both back to hourly restores the hourly figures exactly',
 check('…and the rates typed are still remembered for the next switch',
   back.jobM2 === 81 && back.jobLm === 30, JSON.stringify({ m2: back.jobM2, lm: back.jobLm }));
 
+// ── THE PROFITABILITY ADJUSTMENTS, IN BOTH METHODS ────────────────
+// The owner: "Make sure it all works with my m2 or gp$/hr adjustments in the
+// pricing tabs job profitability section, make sure those adjustments still
+// work and any adjustments to that also adjust the labour sections prices."
+const nudge = (id, dir) => pg.evaluate(async ([id, dir]) => {
+  renderProfitability();
+  const el = document.getElementById(id);
+  el.nextElementSibling.querySelectorAll('button')[dir > 0 ? 1 : 0].click();
+  await new Promise(r => setTimeout(r, 400));
+  renderProfitability();
+  const area = _labourCalcAutoQty(0).roof;
+  const gp = (S.labour + S.materials + S.quote.scaffold.price) - (S.labourCost + S.materials + S.quote.scaffold.cost);
+  return { rate: _labourM2Rate(), labour: S.labour, labM2: S.labour / area,
+           gpHr: gp / S.labourHours, sub: _quoteMoney().sub,
+           lead: S.quote.labour.leadPrice, app: S.quote.labour.appPrice,
+           section: (document.getElementById('labourTableWrap') || {}).innerText || '' };
+}, [id, dir]);
+
+await pg.evaluate(() => { _setLabourMode('m2'); _setLabourM2(50, false); });
+await pg.waitForTimeout(400);
+let m0 = await read();
+let m1 = await nudge('profitLabM2', 1);
+check('charged by the m², + on labour/m² steps the rate exactly one whole dollar',
+  Math.abs(m1.rate - 51) < 0.001 && Math.abs(m1.labM2 - 51) < 0.02, '$' + m0.m2Rate + ' → $' + m1.rate);
+check('…and the roof labour section redraws with the new price',
+  new RegExp('\\$\\s*' + Math.round(m1.labour).toLocaleString('en-NZ').replace(/,/g, ',?')).test(m1.section.replace(/\s+/g, ' ')) ||
+  m1.section.indexOf('51') >= 0, m1.section.replace(/\s+/g, ' ').slice(0, 130));
+check('…and the quote total follows it to the cent',
+  Math.abs((m1.sub - m0.sub) - (m1.labour - m0.labour)) < 0.02,
+  '$' + m0.sub.toFixed(2) + ' → $' + m1.sub.toFixed(2));
+check('…without touching the charge-out rates, which price nothing in this mode',
+  m1.lead === m0.rates.lead && m1.app === m0.rates.app, JSON.stringify({ lead: m1.lead, app: m1.app }));
+
+const m2down = await nudge('profitLabM2', -1);
+check('…and − steps it back down a whole dollar', Math.abs(m2down.rate - 50) < 0.001, '$' + m2down.rate);
+
+// GP/hr on a job priced by area: the extra revenue has to come out of the
+// rate, since the charge-out rates no longer price anything.
+const g0 = await pg.evaluate(() => {
+  renderProfitability();
+  const gp = (S.labour + S.materials + S.quote.scaffold.price) - (S.labourCost + S.materials + S.quote.scaffold.cost);
+  return { gpHr: gp / S.labourHours, rate: _labourM2Rate() };
+});
+const g1 = await nudge('profitGpHr', 1);
+check('charged by the m², + on GP/hr still lands exactly one whole dollar up',
+  Math.abs(g1.gpHr - (Math.round(g0.gpHr) + 1)) < 0.05, g0.gpHr.toFixed(2) + ' → ' + g1.gpHr.toFixed(2));
+check('…by moving the m² RATE, which is the only thing pricing the job now',
+  g1.rate > g0.rate, '$' + g0.rate + ' → $' + g1.rate);
+
+// A job priced purely by area may carry no hours at all. The ± beside the
+// rate is then the only control there is, so it must still work.
+const noHrs = await pg.evaluate(async () => {
+  S.quote.labourHrsManual = { 0: true };
+  S.quote.labour.leadHrs = 0; S.quote.labour.appHrs = 0;
+  _setLabourM2(60, false);
+  await new Promise(r => setTimeout(r, 300));
+  renderProfitability();
+  const before = { rate: _labourM2Rate(), labour: S.labour, hrs: S.labourHours };
+  document.getElementById('profitLabM2').nextElementSibling.querySelectorAll('button')[1].click();
+  await new Promise(r => setTimeout(r, 400));
+  return { before, rate: _labourM2Rate(), labour: S.labour,
+           area: _labourCalcAutoQty(0).roof };
+});
+check('…and with NO hours on the job at all the $/m² ± still steps the rate and the price',
+  noHrs.before.hrs === 0 && Math.abs(noHrs.rate - 61) < 0.001 &&
+  Math.abs(noHrs.labour - noHrs.area * 61) < 0.05, JSON.stringify(noHrs));
+
+// ── TYPED FIGURES SURVIVE THE SWITCH ──────────────────────────────
+// The owner: "Make sure if the user enters/changes figure in either new
+// labour price method then switch between them, those new figures save and
+// not revert back to defualt when changing between them."
+const roundTrip = await pg.evaluate(async () => {
+  const step = (fn) => new Promise(r => { fn(); setTimeout(r, 260); });
+  // Type a figure in EVERY one of the four places.
+  await step(() => { _setLabourMode('hourly'); });
+  await step(() => { S.quote.labour.leadHrs = 12; S.quote.labour.appHrs = 9;
+                     S.quote.labour.leadPrice = 211; S.quote.labour.appPrice = 97; calcLabour(); });
+  await step(() => { _setLabourM2(73, false); });
+  await step(() => { _setGutterLabourMode('hourly'); });
+  await step(() => { _setGutterLabour('leadHrs', 6); });
+  await step(() => { _setGutterLabour('leadPrice', 155); });
+  await step(() => { _setGutterLabourLm(27, false); });
+  const typed = { lead: S.quote.labour.leadPrice, app: S.quote.labour.appPrice,
+                  leadHrs: S.quote.labour.leadHrs, m2: _labourM2Rate(),
+                  gLeadHrs: _gutterLabourState(_selGutterLm()).leadHrs,
+                  gLeadPrice: _gutterLabourState(_selGutterLm()).leadPrice, lm: _gutterLmRate() };
+  // Now flip both, twice each, and come back.
+  await step(() => { _setLabourMode('m2'); _setGutterLabourMode('lm'); });
+  const atArea = { m2: _labourM2Rate(), lm: _gutterLmRate(),
+                   labour: S.labour, gutter: _gutterLabourCharge(_selGutterLm()) };
+  await step(() => { _setLabourMode('hourly'); _setGutterLabourMode('hourly'); });
+  await step(() => { _setLabourMode('m2'); _setGutterLabourMode('lm'); });
+  await step(() => { _setLabourMode('hourly'); _setGutterLabourMode('hourly'); });
+  const back = { lead: S.quote.labour.leadPrice, app: S.quote.labour.appPrice,
+                 leadHrs: S.quote.labour.leadHrs, m2: _labourM2Rate(),
+                 gLeadHrs: _gutterLabourState(_selGutterLm()).leadHrs,
+                 gLeadPrice: _gutterLabourState(_selGutterLm()).leadPrice, lm: _gutterLmRate(),
+                 labour: S.labour, gutter: _gutterLabourCharge(_selGutterLm()) };
+  await step(() => { _setLabourMode('m2'); _setGutterLabourMode('lm'); });
+  const again = { m2: _labourM2Rate(), lm: _gutterLmRate(),
+                  labour: S.labour, gutter: _gutterLabourCharge(_selGutterLm()) };
+  return { typed, atArea, back, again,
+           setM2: S.settings.labour_pricing.labour_m2, setLm: S.settings.labour_pricing.gutter_lm };
+});
+check('the hourly figures typed come back EXACTLY after two round trips through by-the-m²',
+  roundTrip.back.lead === 211 && roundTrip.back.app === 97 && roundTrip.back.leadHrs === 12,
+  JSON.stringify({ typed: roundTrip.typed, back: roundTrip.back }));
+check('…and the by-the-m² rate comes back exactly too, not the Settings default',
+  roundTrip.again.m2 === 73 && roundTrip.setM2 !== 73,
+  JSON.stringify({ job: roundTrip.again.m2, settingsDefault: roundTrip.setM2 }));
+check('the gutter’s typed hours and rate come back after two round trips through per-lm',
+  roundTrip.back.gLeadHrs === 6 && roundTrip.back.gLeadPrice === 155,
+  JSON.stringify({ hrs: roundTrip.back.gLeadHrs, price: roundTrip.back.gLeadPrice }));
+check('…and its $/lm comes back exactly, not the Settings default',
+  roundTrip.again.lm === 27 && roundTrip.setLm !== 27,
+  JSON.stringify({ job: roundTrip.again.lm, settingsDefault: roundTrip.setLm }));
+check('…so each switch lands on the same money every time, both ways',
+  Math.abs(roundTrip.again.labour - roundTrip.atArea.labour) < 0.02 &&
+  Math.abs(roundTrip.again.gutter - roundTrip.atArea.gutter) < 0.02 &&
+  Math.abs(roundTrip.back.labour - (12 * 211 + 9 * 97)) < 0.02,
+  JSON.stringify({ area: roundTrip.atArea, again: roundTrip.again, hourly: roundTrip.back.labour }));
+
+// And they are on the QUOTE, so the job carries them to the next time it is
+// opened rather than starting from the defaults again.
+const saved = await pg.evaluate(() => ({
+  mode: S.quote.labourMode, gMode: S.quote.gutterLabourMode,
+  m2: S.quote.labourM2, lm: S.quote.gutterLabourLm,
+  lead: S.quote.labour.leadPrice, gLead: (S.quote.gutterLabour || {}).leadPrice }));
+check('every one of them is stored on the quote, so the job keeps them',
+  saved.mode === 'm2' && saved.gMode === 'lm' && saved.m2 === 73 && saved.lm === 27 &&
+  saved.lead === 211 && saved.gLead === 155, JSON.stringify(saved));
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

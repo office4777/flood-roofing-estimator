@@ -930,6 +930,19 @@ Discipline (non-negotiable):
   so the figure lands where it was typed. `_profitNudge` moves the RATE in m²
   mode — spreading a dollar over charge-out rates nothing reads any more would
   move the number on screen not at all. `gphr.mjs` reads that box's `.value`.
+  BOTH NUDGES WORK IN BOTH METHODS. The $/m² step is settled BEFORE
+  `_profitNudge`'s `hrs > 0` guard, because a job priced by area may carry no
+  hours at all and the ± beside the rate is then the only control there is;
+  GP/hr stays behind the guard, since there is no figure per hour without
+  hours, and on an m² job it spreads its dollar over the roof's m² instead.
+  Every path goes through `calcLabour`, which re-renders the labour table, the
+  gutter card AND the profitability panel, so one adjustment moves all three.
+  NOTHING REVERTS ON A SWITCH: the four typed figures live in four separate
+  places (`labour.leadPrice`/`appPrice`/hours, `labourM2`, `gutterLabour.*`,
+  `gutterLabourLm`), all on `S.quote` and so saved with the job, and a mode is
+  only a choice of WHICH to read, never a reset. `labourmode.mjs` flips both
+  switches twice each and checks all four come back to the cent rather than to
+  the Settings default.
   Removed with this: a dead `gutLabHtml` in `renderGutterDownpipePricing` —
   a full second copy of the gutter labour block that nothing referenced and
   that silently absorbed the first attempt at these buttons.

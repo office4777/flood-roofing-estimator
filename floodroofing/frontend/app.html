@@ -4678,7 +4678,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-08T04:18:37Z';
+  window.APP_BUILT_AT = '2026-10-08T04:26:07Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -24973,6 +24973,18 @@ function _profitNudge(kind, dir){
   // change per hour moves this view by exactly what was asked and every
   // other roof in proportion.
   var g = _profitFigures(_profitView());
+  // CHARGED BY THE m², the rate IS the price, so a nudge moves the rate and
+  // nothing else: spreading a dollar over charge-out rates nothing reads for
+  // the price any more would move the figure on screen not at all.
+  var byArea = (_labourMode() === 'm2' && _labourM2Rate() > 0 && g.area > 0);
+  // The $/m² step is settled BEFORE the hours guard below. A job priced by
+  // area may carry no hours at all, and the ± beside the rate has to work on
+  // one — it is the only thing setting the price. (GP/hr still needs hours:
+  // it is a figure per hour, and there is no such thing without them.)
+  if (byArea && kind !== 'gphr'){
+    _setLabourM2(Math.max(0, Math.round(_labourM2Rate()) + (dir > 0 ? 1 : -1)), false);
+    return;
+  }
   var hrs = g.hrs; if (!(hrs > 0)) return;          // the roof's own hours: the charge-out rates move these
   var hrsAll = g.hrsAll || hrs;                      // every hour on the job, gutters included: what GP/hr is over
   var labourPrice = g.labourPrice;
@@ -24987,11 +24999,10 @@ function _profitNudge(kind, dir){
     var curM2 = labourPrice / area, targetM2 = Math.round(curM2) + (dir > 0 ? 1 : -1);
     deltaPrice = (targetM2 - curM2) * area;
   }
-  // Charged by the m², the rate IS the price: move the rate. Spreading the
-  // dollar over charge-out rates would move the figure on screen not at all,
-  // because nothing downstream reads them for the price any more.
-  if (_labourMode() === 'm2' && _labourM2Rate() > 0 && g.area > 0){
-    _setLabourM2(Math.max(0, Math.round((_labourM2Rate() + deltaPrice / g.area) * 100) / 100), false);
+  // GP/hr on a job priced by area: the extra revenue has to come from the
+  // rate, so spread it over the roof's m² instead of over its hours.
+  if (byArea){
+    _setLabourM2(Math.max(0, Math.round((_labourM2Rate() + deltaPrice / g.area) * 10000) / 10000), false);
     return;
   }
   var perHr = deltaPrice / hrs;
