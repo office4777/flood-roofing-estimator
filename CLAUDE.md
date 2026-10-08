@@ -898,6 +898,54 @@ Discipline (non-negotiable):
   turns a PostgREST failure into a 503 `UPSTREAM_UNAVAILABLE`; reading it as
   "no rows" once logged the owner out of his company, dropped the Fergus
   key and showed "No subscription found" after a reload.
+- A CHANGE OF PITCH BREAKS THE ROOF (2026-10-08, feedback reports 9 and 10,
+  info@wellingtonroof.co.nz: "when applying / using change in pitch how /
+  where can you enter 2nd pitch? ... the job pack sheet lengths don't appear
+  to reflect different sheets for change in pitch" — it did nothing at all:
+  deleting both lines left the count byte-identical, and a roof carried ONE
+  pitch). The owner: "a change of pitch should always break a roof and split
+  the sheets and then make two different roof pitches by default always show
+  the roof pitch on the roof on the canvas and add another roof pitch to edit
+  separate to the main roof pitch whenever there is a change of pitch line or
+  another roof outline."
+  `DRAW.calPitch` is still THE roof's pitch — everything that knows about one
+  keeps reading it, so nothing that worked before moves — and `DRAW.lowPitch`
+  is the pitch BELOW the line: a ROOF_FIELD (on `_newEmptyRoof`, in the undo
+  snapshot and in `_roofGeometryPayload`), 0 meaning "not typed yet" with the
+  roof's own pitch standing in, so drawing the line breaks the sheets at once
+  without inventing an angle the roofer never gave. "Lower pitch"
+  (`#roofLowPitchInput`, `setRoofLowPitch`) appears in the roof panel only
+  where there IS one (`_roofHasChangePitch`, `_syncLowPitchRow`, re-read from
+  `autoCalcLineMeasurements` so it shows the moment the line is drawn);
+  another ROOF OUTLINE already carries its own pitch pair, and neither leaks
+  across. In the engine `_sgmRayDistCp` stops a ray at the line so the ridge
+  walk makes the UPPER face only, and `_sgmChangePitchBands` sheets the band
+  below it at `lowPitchFactor`, tiled across the LINE's own length (never the
+  eave — on a dutch the corners beyond it are the hip ends). Breaking a roof
+  orders no extra steel: more sheets, the same square metres.
+  ONLY the gable / mono / dutch enumerator does this. The hip-and-valley path
+  has no band pass and still measures straight THROUGH a change of pitch —
+  deliberate, and pinned: a stopped ray with nothing sheeting what lies
+  beyond it would UNDER-order the roof, which is worse than the fault being
+  fixed. Doing it there means the skeleton solver, so read the roof-engine
+  warning above first.
+  THE PITCH IS ON THE CANVAS BY DEFAULT now (it was off until asked for, and
+  `tests/roofpitch.mjs` pinned that); a roof with a change of pitch draws
+  BOTH — the lower one in the middle of each band — and either plate is the
+  click-to-remove target. `tests/report9.mjs`.
+- THE DUTCH GABLE COUNTED ITS HIP ENDS TWICE (2026-10-08, feedback report 10,
+  the same roofer: "not sure re orange main sheet counts" — he was right).
+  `_sgmUncoveredGutters` sheets a stretch of ridge-direction gutter no ridge
+  spans from that gutter to the far edge: right for a block beside a straight
+  gable's ridge end, wrong on a dutch, where the ridge stops short of BOTH
+  ends precisely because there are hips there and the `isDutch` block already
+  counts each as its own short-sheet face. So every hip end was counted again
+  as a sheet spanning the whole building eave-to-eave over the ridge — 92
+  sheets and 397 m² of steel for a 313 m² roof, 27% over, on every dutch
+  gable quoted. The rule is skipped on a dutch (`if (!isDutch)`); hip and
+  gable on the same outline were already right and are unmoved at 68 sheets.
+  It survived because the 37-shape sheet gate covers hip ONLY and no suite in
+  the repo had ever counted a dutch gable. `tests/report9.mjs` does now.
 - Sheet counting rule (the owner's, pinned in `tests/report52.mjs`): each
   roof counts its OWN gutter ÷ sheet cover, rounded up from a tenth of a
   sheet (10 m / 0.762 = 13.12 → 14; 13.05 → 13). Overlapping roofs never

@@ -1250,6 +1250,15 @@ function _renderRoofSheetPlanInner() {
   var coverM       = sheetCoverMm / 1000;
   var coverPx      = coverM / effectiveScale;
   var pitchFactor  = (pitchDeg > 0 && pitchDeg < 80) ? (1 / Math.cos(pitchDeg * Math.PI / 180)) : 1;
+  // A CHANGE OF PITCH BREAKS THE ROOF (the owner, 2026-10-08, on feedback
+  // reports 9 and 10): "a change of pitch should always break a roof and
+  // split the sheets and then make two different roof pitches". The part
+  // below the line is its own face at its own pitch — DRAW.lowPitch, which
+  // falls back to the roof's own pitch so a line drawn before the second
+  // angle is typed changes the break, never the lengths.
+  var _cpLines = (DRAW.lines || []).filter(function(l){ return l && l.type === 'changepitch' && l.pts && l.pts.length === 2; });
+  var lowPitchDeg = (DRAW.lowPitch > 0) ? +DRAW.lowPitch : pitchDeg;
+  var lowPitchFactor = (lowPitchDeg > 0 && lowPitchDeg < 80) ? (1 / Math.cos(lowPitchDeg * Math.PI / 180)) : 1;
 
   // Ordered sheet length brackets — SOP says we round up to common
   // ordering increments. NZ corrugate is commonly 7650 (long) and
@@ -5515,6 +5524,55 @@ function _renderRoofSheetPlanInner() {
     }
     return best;
   }
+  // THE SAME RAY, STOPPED AT A CHANGE OF PITCH. The roof above the line and
+  // the band below it are two faces at two pitches, so a run measured through
+  // the line is neither. Only the enumerators that ALSO run
+  // _sgmChangePitchBands use this one: stopping a ray without sheeting what
+  // lies beyond it would under-order the roof, which is a worse fault than
+  // the one being fixed. The hip-and-valley path therefore still measures
+  // straight through a change-of-pitch line, exactly as it did before.
+  function _sgmRayDistCp(px, py, dx, dy){
+    var best = _sgmRayDist(px, py, dx, dy);
+    if (!_cpLines.length) return best;
+    for (var i = 0; i < _cpLines.length; i++){
+      var a = _cpLines[i].pts[0], b = _cpLines[i].pts[1];
+      var ex = b[0]-a[0], ey = b[1]-a[1];
+      var den = dx*ey - dy*ex;
+      if (Math.abs(den) < 1e-9) continue;                 // parallel
+      var t  = ((a[0]-px)*ey - (a[1]-py)*ex) / den;       // distance along the ray
+      var sp = ((a[0]-px)*dy - (a[1]-py)*dx) / den;       // param along the line
+      if (t > 1e-3 && sp >= -1e-6 && sp <= 1+1e-6 && t < best) best = t;
+    }
+    return best;
+  }
+  // The band BELOW each change-of-pitch line: its own face, tiled across the
+  // change-of-pitch line's own length (never the full eave — on a dutch gable
+  // the corners beyond it are the hip ends, counted by the isDutch block), and
+  // measured at the LOWER pitch. The ridge walk stops at the line, so the two
+  // faces meet there and nothing is counted twice.
+  function _sgmChangePitchBands(mkSec, addGroup){
+    if (!_cpLines.length || !outline || outline.length < 3) return;
+    var cx = 0, cy = 0;
+    outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
+    cx /= outline.length; cy /= outline.length;
+    _cpLines.forEach(function(cp){
+      var a = cp.pts[0], b = cp.pts[1], L = Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if (L < coverPx * 0.3) return;
+      var R = [(b[0]-a[0])/L, (b[1]-a[1])/L], perp = [-R[1], R[0]];
+      var m = [(a[0]+b[0])/2, (a[1]+b[1])/2], cpP = a[0]*perp[0] + a[1]*perp[1];
+      // Down-slope is away from the middle of the roof — the same test the
+      // dutch end block uses to find the outward side of a head apron.
+      var outS = ((m[0]-cx)*perp[0] + (m[1]-cy)*perp[1]) >= 0 ? 1 : -1;
+      var run = _sgmRayDist(m[0], m[1], perp[0]*outS, perp[1]*outS);
+      if (!isFinite(run) || run <= coverPx * 0.2) return;
+      var n = _sheetsAcross(L, coverPx);
+      if (!n) return;
+      var uMin = Math.min(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
+      var uMax = Math.max(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
+      addGroup(orderedLengthMm(run * effectiveScale * lowPitchFactor), n,
+               mkSec(R, uMin, uMax, cpP, outS*run, n, n, true));
+    });
+  }
   function _sgmSplit(uLo, uHi, runAt){
     var N = 160, regions = [], regStart = uLo, regRuns = [], have = false, prev = null;
     for (var i = 0; i <= N; i++){
@@ -5623,7 +5681,7 @@ function _renderRoofSheetPlanInner() {
         if ((c || i === N) && st != null){ var e = c ? u : uHi; if (e - st > coverPx*0.3) runs.push([st, e]); st = null; }
       }
       runs.forEach(function(rg){
-        function ray(u){ var x = u*R[0]+gP*perp[0], y = u*R[1]+gP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        function ray(u){ var x = u*R[0]+gP*perp[0], y = u*R[1]+gP*perp[1]; return _sgmRayDistCp(x, y, perp[0]*side, perp[1]*side); }
         var regs = _sgmSplit(rg[0], rg[1], ray);
         if (!regs.length) return;
         var v0 = gP, v1 = gP + side * regs[0].run, lo = Math.min(v0, v1), hi = Math.max(v0, v1);
@@ -5725,7 +5783,7 @@ function _renderRoofSheetPlanInner() {
           var rp = a[0]*perp[0]+a[1]*perp[1];
           var uA = a[0]*R[0]+a[1]*R[1], uB = b[0]*R[0]+b[1]*R[1], uLo = Math.min(uA,uB), uHi = Math.max(uA,uB);
           if (uHi - uLo < 1) return;
-          function ray(u, side){ var x=u*R[0]+rp*perp[0], y=u*R[1]+rp*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+          function ray(u, side){ var x=u*R[0]+rp*perp[0], y=u*R[1]+rp*perp[1]; return _sgmRayDistCp(x, y, perp[0]*side, perp[1]*side); }
           _sgmSplit(uLo, uHi, function(u){ return ray(u, 1); }).forEach(function(r){ r.rp = rp; up.push(r); });
           _sgmSplit(uLo, uHi, function(u){ return ray(u, -1); }).forEach(function(r){ r.rp = rp; dn.push(r); });
         });
@@ -5743,14 +5801,23 @@ function _renderRoofSheetPlanInner() {
         });
       });
       var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && !l.ridgeChain && l.pts && l.pts.length===2; });
-      try { _sgmUncoveredGutters(mkSec, addGroup); } catch(e){ try { console.warn('uncovered gutters:', e); } catch(_){} }
+      // NOT on a Dutch gable (feedback reports 9 and 10, 2026-10-08). The
+      // uncovered-gutter rule sheets a stretch of ridge-direction gutter no
+      // ridge spans from that gutter to the far edge — right for a block
+      // beside a straight gable's ridge end. On a Dutch gable the ridge
+      // stops short of BOTH ends precisely because there are hip ends there,
+      // and the isDutch block below already counts each of them as its own
+      // short-sheet face. Running both counted every hip end twice, the
+      // second time as a sheet spanning the whole building eave-to-eave over
+      // the ridge: 92 sheets and 397 m2 of steel for a 313 m2 roof.
+      if (!isDutch) try { _sgmUncoveredGutters(mkSec, addGroup); } catch(e){ try { console.warn('uncovered gutters:', e); } catch(_){} }
       ridges.forEach(function(rl){
         var a=rl.pts[0], b=rl.pts[1], rL=Math.hypot(b[0]-a[0], b[1]-a[1]);
         if (rL < coverPx*0.3) return;
         var R=[(b[0]-a[0])/rL,(b[1]-a[1])/rL], perp=[-R[1],R[0]];
         var ridgeP=a[0]*perp[0]+a[1]*perp[1];
         var uA=a[0]*R[0]+a[1]*R[1], uB=b[0]*R[0]+b[1]*R[1], uLo=Math.min(uA,uB), uHi=Math.max(uA,uB);
-        function ray(u, side){ var x=u*R[0]+ridgeP*perp[0], y=u*R[1]+ridgeP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        function ray(u, side){ var x=u*R[0]+ridgeP*perp[0], y=u*R[1]+ridgeP*perp[1]; return _sgmRayDistCp(x, y, perp[0]*side, perp[1]*side); }
         var up=_sgmSplit(uLo,uHi,function(u){return ray(u,1);});
         var dn=_sgmSplit(uLo,uHi,function(u){return ray(u,-1);});
         // Symmetric fast-path: one region each side, equal run → one classic
@@ -5798,7 +5865,7 @@ function _renderRoofSheetPlanInner() {
         var side = ((cx-gm[0])*perp[0] + (cy-gm[1])*perp[1]) >= 0 ? 1 : -1;   // into the roof
         var gutP=a[0]*perp[0]+a[1]*perp[1];
         var uA=a[0]*R[0]+a[1]*R[1], uB=b[0]*R[0]+b[1]*R[1], uLo=Math.min(uA,uB), uHi=Math.max(uA,uB);
-        function ray(u){ var x=u*R[0]+gutP*perp[0], y=u*R[1]+gutP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        function ray(u){ var x=u*R[0]+gutP*perp[0], y=u*R[1]+gutP*perp[1]; return _sgmRayDistCp(x, y, perp[0]*side, perp[1]*side); }
         // The gutter's whole span is one face — same rules as the gable
         // sides (0.15 threshold on a single length, round-up + longer
         // sheet at length changes on a stepped face).
@@ -5814,6 +5881,7 @@ function _renderRoofSheetPlanInner() {
         });
       });
     }
+    try { _sgmChangePitchBands(mkSec, addGroup); } catch(e){ try { console.warn('change-of-pitch bands:', e); } catch(_){} }
     if (isDutch){
       // Dutch gable: the ridge walk above counts the main slopes over the
       // ridge (centre gable). Each hip END below a gablet is a short-sheet

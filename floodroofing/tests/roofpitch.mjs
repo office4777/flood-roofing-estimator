@@ -218,22 +218,40 @@ const painted = () => pg.evaluate(() => {
   g.__spy2.length = 0; redrawAll();
   return g.__spy2.slice();
 });
-check('the pitch is not on the roof until it is asked for',
-  !(await painted()).some(t => /^\d+(\.\d+)?°$/.test(t)), 'a degree label appeared unbidden');
+// THE PITCH IS ON THE ROOF BY DEFAULT since 2026-10-08. It used to be off
+// until asked for, on the reasoning that a number nobody asked for is
+// clutter. The owner reversed that with the second pitch (feedback reports 9
+// and 10): "always show the roof pitch on the roof on the canvas" — it is
+// what every length on the drawing is worked out from, and a roof that can
+// now carry TWO pitches has to say so where the roof is, not only in a panel.
+const degs = (t) => t.filter(x => /^\d+(\.\d+)?°$/.test(x));
+const nPitched = await pg.evaluate(() => {
+  _syncCurrentToRoof();
+  return DRAW.roofs.filter(r => +r.calPitch > 0).length;
+});
+let txts = await painted();
+check('the pitch is on the roof without being asked for — every roof that has one says so',
+  nPitched > 0 && degs(txts).length === nPitched,
+  JSON.stringify({ shown: degs(txts), pitched: nPitched }));
+check('…and each roof shows its own', degs(txts).indexOf('20°') >= 0, JSON.stringify(degs(txts)));
 
 await pg.evaluate(() => { switchToRoof(3); togglePitchLabel(); });
-let txts = await painted();
-check('Show on roof puts it there, reading like 20°',
-  txts.indexOf('20°') >= 0, JSON.stringify(txts.filter(t => t.indexOf('°') >= 0)));
-check('…and only on the roof it belongs to',
-  txts.filter(t => /°$/.test(t)).length === 1, JSON.stringify(txts.filter(t => /°$/.test(t))));
+txts = await painted();
+check('Show on roof takes it off again — that roof’s, and no other roof’s',
+  degs(txts).length === nPitched - 1 && degs(txts).indexOf('20°') < 0, JSON.stringify(degs(txts)));
+check('the Show-on-roof control shows it is off',
+  !(await pg.isChecked('#roofPitchShowBtn')), 'checkbox still ticked');
+
+await pg.evaluate(() => { togglePitchLabel(); });
+txts = await painted();
+check('…and puts it back', degs(txts).length === nPitched && degs(txts).indexOf('20°') >= 0, JSON.stringify(degs(txts)));
 check('the Show-on-roof control shows it is on',
   await pg.isChecked('#roofPitchShowBtn'), 'checkbox not ticked');
 
 // It has to be a hit target, or it can be neither moved nor deleted.
 check('it registers somewhere the mouse can find it',
-  await pg.evaluate(() => (window._roofCanvasHits.pitch || []).length === 1),
-  JSON.stringify(await pg.evaluate(() => window._roofCanvasHits.pitch)));
+  await pg.evaluate(() => (window._roofCanvasHits.pitch || []).length) === nPitched,
+  JSON.stringify(await pg.evaluate(() => (window._roofCanvasHits.pitch || []).length)));
 
 // "…not near any other measures." The middle of a roof is where its measure
 // labels crowd, so an undragged plate steps off anything it would cover.
