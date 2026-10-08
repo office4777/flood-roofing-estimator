@@ -1167,10 +1167,18 @@ function _mustRead(res, what){
 // multi-tenant upgrade; those self-heal here (a company is created on the fly
 // if the boot migration hasn't backfilled one yet) so nobody is logged out or
 // loses access to their jobs by the upgrade.
+// user id → the company they are really in. A MINUTE, like the token-version
+// cache beside it. It had no expiry at all: an answer cached once was served
+// until the map passed two thousand entries or the process restarted, so a
+// membership repaired in the database could not reach a running server. That
+// is half of how an account stays locked out of its own business after the
+// invite it is owed has been accepted.
 const _companyCache = new Map();
+const COMPANY_CACHE_MS = 60 * 1000;
 async function _companyOf(userId){
   if (!userId) return null;
-  if (_companyCache.has(userId)) return _companyCache.get(userId);
+  const _cc = _companyCache.get(userId);
+  if (_cc && Date.now() - _cc.at < COMPANY_CACHE_MS) return _cc.cid;
   let cid = null;
   // A read that FAILED must never reach the create below: an outage that
   // answered "no membership" once was enough to build a second, empty
@@ -1214,9 +1222,31 @@ async function _companyOf(userId){
   }
   if (cid) {
     if (_companyCache.size > 2000) _companyCache.clear();
-    _companyCache.set(userId, cid);
+    _companyCache.set(userId, { at: Date.now(), cid: cid });
   }
   return cid;
+}
+// Which companies this user is REALLY a member of, oldest first. Read-only on
+// purpose: _companyOf creates a business when it finds none, which is right at
+// sign-in and quite wrong on every authenticated request. Answers null when it
+// could not tell — a blip must never be read as "you are in no company".
+const _memCache = new Map();
+async function _memberCompaniesOf(userId){
+  if (!userId) return null;
+  const hit = _memCache.get(userId);
+  if (hit && Date.now() - hit.at < COMPANY_CACHE_MS) return hit.ids;
+  let ids = null;
+  try {
+    const { data, error } = await supabase.from('company_users')
+      .select('company_id, created_at').eq('user_id', userId)
+      .order('created_at', { ascending: true });
+    if (!error) ids = (data || []).map(r => String(r.company_id)).filter(Boolean);
+  } catch (e) { ids = null; }
+  if (ids){
+    if (_memCache.size > 2000) _memCache.clear();
+    _memCache.set(userId, { at: Date.now(), ids: ids });
+  }
+  return ids;
 }
 
 async function requireAuth(req, res, next) {
@@ -1247,8 +1277,30 @@ async function requireAuth(req, res, next) {
   // Scoping to null when the lookup FAILED served an empty app — no jobs, no
   // settings — and looked exactly like a wiped account. A blip says "try
   // again", it does not say "you have nothing".
+  // A SESSION TOKEN LASTS THIRTY DAYS AND CARRIES THE COMPANY IN IT. Until
+  // 2026-10-08 that was taken on trust, so a token signed while the account
+  // was in the wrong business kept it there for a month — every job, setting
+  // and the company's Fergus key are scoped by company, so the app opened
+  // onto nothing and there was no way to tell from inside it. Signing out and
+  // back in was the only cure, and nobody knew to try it.
+  //
+  // So the token's company is checked against the memberships the database
+  // actually holds, cached for a minute. A token naming a company this user
+  // is not in gets the real one instead and the session heals itself on the
+  // next request. If the check cannot be made, the token's own claim stands —
+  // auth must never break because a lookup did, and the safe direction is
+  // leaving somebody where they were, not moving them nowhere.
   try {
-    req.companyId = req.user.cid || await _companyOf(req.user.id);
+    let cid = req.user.cid || null;
+    if (cid){
+      const mine = await _memberCompaniesOf(req.user.id);
+      if (mine && mine.length && mine.indexOf(String(cid)) < 0){
+        console.warn('[company] token for ' + req.user.id + ' named a company they are not in — using ' + mine[0]);
+        cid = mine[0];
+        req.companyMoved = true;
+      }
+    }
+    req.companyId = cid || await _companyOf(req.user.id);
   } catch(e){
     if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     req.companyId = null;
@@ -1818,6 +1870,89 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     const sub = await _companySubscription(inv.company_id, userId);
     res.json({ token: authToken, user: profile || { id: userId, email }, subscription: sub, company: await _companyBrief(inv.company_id, userId) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// AN INVITATION THAT WAS NEVER CLICKED (2026-10-08)
+// ══════════════════════════════════════════════════════════════════
+// A roofer invites their teammate; the teammate misses the email and signs up
+// on the sign-up page instead, which is the obvious thing to do. That creates
+// a business of their own, and because every job, setting and the company's
+// Fergus key are scoped by company, they open RoofMap onto a blank screen
+// with no jobs and no connection — while the invitation sits unaccepted.
+// Nothing anywhere said so. The office read it as "Fergus has disconnected on
+// his account" and lost an evening to it.
+//
+// The invitation is addressed to an email, and this caller has signed in AS
+// that email, so the emailed link adds nothing a password did not already
+// prove: they can take it from inside the app. No token, no new password, no
+// second sign-up.
+app.get('/auth/pending-invite', requireAuth, async (req, res) => {
+  try {
+    const email = String(req.user.email || '').trim().toLowerCase();
+    if (!email) return res.json({ invite: null });
+    const { data } = await supabase.from('company_invites')
+      .select('id, company_id, role, created_at, expires_at')
+      .eq('email', email).is('accepted_at', null)
+      .order('created_at', { ascending: false }).limit(5);
+    const live = (data || []).filter(i => new Date(i.expires_at) > new Date() &&
+      String(i.company_id) !== String(req.companyId || ''));
+    if (!live.length) return res.json({ invite: null });
+    const inv = live[0];
+    const { data: co } = await supabase.from('companies').select('name').eq('id', inv.company_id).maybeSingle();
+    // What they would be leaving behind. Joining moves the person, not their
+    // work, and somebody with jobs of their own has to be told that plainly
+    // rather than find out afterwards.
+    let leaving = 0;
+    try {
+      const { count } = await supabase.from('jobs').select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id);
+      leaving = count || 0;
+    } catch (e) {}
+    res.json({ invite: { id: inv.id, company: (co && co.name) || '', role: inv.role || 'member', jobsLeftBehind: leaving } });
+  } catch (e) {
+    // A banner is a nicety; it never stops the app from starting.
+    res.json({ invite: null });
+  }
+});
+// Take it. Same seat check as the emailed link — an invitation is good for a
+// fortnight and a business can downgrade inside it.
+app.post('/auth/join-invite', requireAuth, rateLimit(10, 900000), async (req, res) => {
+  const email = String(req.user.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'This login has no email address on it.' });
+  try {
+    const { data } = await supabase.from('company_invites')
+      .select('id, company_id, role, expires_at, accepted_at')
+      .eq('email', email).is('accepted_at', null)
+      .order('created_at', { ascending: false }).limit(5);
+    const wanted = String((req.body && req.body.id) || '');
+    const live = (data || []).filter(i => new Date(i.expires_at) > new Date() &&
+      String(i.company_id) !== String(req.companyId || '') &&
+      (!wanted || String(i.id) === wanted));
+    const inv = live[0];
+    if (!inv) return res.status(404).json({ error: 'That invitation has expired or has already been used.' });
+    const lim = _limitsFor(await _planOf(inv.company_id));
+    if (lim.seats !== Infinity) {
+      const { data: mem } = await supabase.from('company_users').select('user_id').eq('company_id', inv.company_id);
+      if ((mem || []).length >= lim.seats)
+        return res.status(403).json({ error: 'That business has filled every seat on its plan. Ask them to upgrade, then try again.', code: 'PLAN_SEATS' });
+    }
+    const userId = req.user.id;
+    await supabase.from('company_users').delete().eq('user_id', userId);
+    await supabase.from('company_users').insert({ company_id: inv.company_id, user_id: userId, role: inv.role || 'member' });
+    await supabase.from('profiles').update({ company_id: inv.company_id }).eq('id', userId);
+    await supabase.from('company_invites').update({ accepted_at: new Date().toISOString(), accepted_by: userId }).eq('id', inv.id);
+    _companyCache.set(userId, { at: Date.now(), cid: inv.company_id });
+    _memCache.delete(userId);
+    _membersCache.delete(inv.company_id);
+    // A fresh token, because the old one still names the business they left.
+    // The check in requireAuth would correct it anyway; this saves it a trip.
+    const token = jwt.sign({ id: userId, email, cid: inv.company_id, tv: await _tokenVersion(userId) }, JWT_SECRET, { expiresIn: '30d' });
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    res.json({ token, user: profile || { id: userId, email },
+               subscription: await _companySubscription(inv.company_id, userId),
+               company: await _companyBrief(inv.company_id, userId) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -11393,6 +11528,9 @@ const _MIGRATION_SQL = [
   "  accepted_at timestamptz," +
   "  accepted_by uuid)",
   "create index if not exists idx_company_invites_company on public.company_invites (company_id)",
+  // Looked up by address on every app start, to spot an invitation that was
+  // sent but never clicked.
+  "create index if not exists idx_company_invites_email on public.company_invites (lower(email))",
   // A subscriber's OWN quote domain, registered with Vercel on their behalf.
   // status: pending → (they add the DNS record) → verified. Unique on the
   // domain so two businesses can't both claim one.

@@ -155,6 +155,35 @@ Discipline (non-negotiable):
   the gate. `tests/seo.mjs` fails on a stale date (skipped on shallow clones).
 - Every company-scoped table needs `company_id` AND `user_id` from day one —
   `_scopeCompany()` filters on both.
+- A SESSION TOKEN'S COMPANY IS NOT EVIDENCE (2026-10-08, ethan@): a token
+  carries `cid` and lasts 30 days, and `requireAuth` took it on trust — so an
+  account signed in while it was in the wrong business STAYED there for a
+  month. Jobs, settings and the Fergus key are all read by company, so the app
+  opened onto nothing and there was no way to tell from inside it; signing out
+  and back in was the only cure and nobody knew to try it. `requireAuth` now
+  checks the token's `cid` against `_memberCompaniesOf(userId)` (read-only,
+  never creates a company, cached a minute) and uses the real one on a
+  mismatch, so a session heals itself on the next request. A lookup that FAILS
+  leaves the token's claim alone — auth never breaks because a lookup did, and
+  the safe direction is leaving somebody where they were, not moving them
+  nowhere. `_companyCache` grew a 60 s TTL at the same time; it had none, so a
+  membership repaired in the database could not reach a running server.
+- AN INVITATION NOBODY CLICKED (2026-10-08): the teammate misses the invite
+  email and signs up on the sign-up page, which is the obvious thing to do —
+  that makes them a business of their own and a blank screen, while the invite
+  sits unaccepted and unmentioned. The office read it as "Fergus has
+  disconnected on his account"; it never can be, because the Fergus key is the
+  COMPANY's (`_companySettingsRow` reads by company_id), so the right business
+  shares the office's key and the wrong one has nothing. `GET
+  /auth/pending-invite` reports an unaccepted, unexpired invite for the
+  signed-in address to a company they are not in (+ `jobsLeftBehind`), the app
+  shows `#joinInviteBar` once per sign-in (`_joinInviteCheck`,
+  `sessionStorage.fr_join_asked`), and `POST /auth/join-invite` takes it — no
+  emailed token and no new password, because the invite is addressed to an
+  email and they have signed in as it. Same seat check as the emailed link,
+  and an invite addressed to anyone else is refused however its id is passed.
+  Joining moves the PERSON, not their work, so the app says what stays behind.
+  `tests/joininvite.mjs`.
 - Test seams: `__TEST_MAIL_FETCHER`, `__TEST_MAIL_JSON`, `__TEST_SMTP_FAIL`,
   `__TEST_AI` (routed by system-prompt sniffing). Suites import server.js
   in-process, so seams are set as globals before import.

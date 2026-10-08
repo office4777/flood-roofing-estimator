@@ -4678,7 +4678,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-07T06:27:36Z';
+  window.APP_BUILT_AT = '2026-10-08T01:31:02Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -12136,9 +12136,78 @@ function _gtbTasksBadge(){
     // Email tab is ever opened. Quiet: not signed in / not on the
     // plan just leaves the badge blank.
     try { if (localStorage.getItem('fr_token')) setTimeout(function(){ _ibxTasksLoad(true); }, 3000); } catch(e){}
+    try { if (localStorage.getItem('fr_token')) setTimeout(function(){ _joinInviteCheck(); }, 1500); } catch(e){}
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
+// ── AN INVITATION THAT WAS NEVER CLICKED (2026-10-08) ─────────────
+// The office invites a teammate; the teammate misses the email and signs up
+// on the sign-up page, which is the obvious thing to do. That gives them a
+// business of their own, and since jobs, prices and the Fergus connection all
+// belong to a BUSINESS, they open RoofMap onto a blank screen. Nothing said
+// so — the office read it as Fergus having disconnected on that account.
+//
+// So the app asks, once per sign-in, whether an invitation is waiting for the
+// address they are signed in as, and says plainly what is going on. They are
+// already signed in as that address, so taking it needs no emailed link.
+function _joinInviteCheck(){
+  try {
+    if (window.__CUSTOMER_MODE || window.__PLAYGROUND) return;
+    if (sessionStorage.getItem('fr_join_asked') === '1') return;
+    sessionStorage.setItem('fr_join_asked', '1');
+  } catch(e){}
+  try {
+    api('GET', '/auth/pending-invite').then(function(d){
+      var inv = d && d.invite; if (!inv) return;
+      _joinInviteBar(inv);
+    }).catch(function(){});
+  } catch(e){}
+}
+function _joinInviteBar(inv){
+  var co = String(inv.company || 'another business');
+  var el = document.createElement('div');
+  el.id = 'joinInviteBar'; el.className = 'no-print';
+  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:100002;' +
+    'max-width:min(560px,94vw);background:#0a1628;color:#fff;border-radius:12px;' +
+    'box-shadow:0 12px 34px rgba(0,0,0,.4);padding:14px 16px;font-family:Inter,-apple-system,sans-serif;font-size:13px;line-height:1.5';
+  el.innerHTML =
+    '<div style="font-weight:700;font-size:14px;margin-bottom:4px">' + esc2(co) + ' invited you to join them</div>' +
+    '<div style="color:rgba(255,255,255,.82)">Until you do, you are in a business of your own — with none of their jobs, ' +
+      'prices or connections. Join and you will see everything they have.</div>' +
+    '<div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">' +
+      '<button type="button" id="joinInviteGo" style="background:#7fd4ff;color:#062033;border:none;border-radius:8px;' +
+        'padding:8px 14px;font:700 12.5px/1 inherit;cursor:pointer">Join ' + esc2(co) + '</button>' +
+      '<button type="button" id="joinInviteNo" style="background:none;color:rgba(255,255,255,.72);border:none;' +
+        'font:600 12.5px/1 inherit;cursor:pointer;padding:8px 6px;text-decoration:underline">Not now</button>' +
+    '</div>' +
+    '<div id="joinInviteMsg" style="margin-top:8px;color:#ffd4d4;font-size:12px;display:none"></div>';
+  document.body.appendChild(el);
+  document.getElementById('joinInviteNo').onclick = function(){ el.remove(); };
+  document.getElementById('joinInviteGo').onclick = function(){ _joinInviteGo(inv, el); };
+}
+async function _joinInviteGo(inv, el){
+  var btn = document.getElementById('joinInviteGo');
+  var msg = document.getElementById('joinInviteMsg');
+  // Joining moves the PERSON, not their work. Somebody who has saved jobs of
+  // their own is told before it happens, not after.
+  var n = +inv.jobsLeftBehind || 0;
+  if (n > 0 && !confirm('You have ' + n + ' job' + (n === 1 ? '' : 's') + ' saved under your own account.\n\n' +
+      'Joining ' + (inv.company || 'them') + ' moves you across — those jobs stay where they are and will not come with you.\n\nJoin anyway?')) return;
+  if (btn){ btn.disabled = true; btn.textContent = 'Joining…'; }
+  try {
+    var d = await api('POST', '/auth/join-invite', { id: inv.id });
+    if (!d || !d.token) throw new Error('The server did not sign you in to the new business.');
+    try { window._frWipeBusinessLocal && window._frWipeBusinessLocal(); } catch(e){}
+    localStorage.setItem('fr_token', d.token);
+    localStorage.setItem('fr_user', JSON.stringify(d.user || {}));
+    if (d.company) localStorage.setItem('fr_company', JSON.stringify(d.company));
+    // Everything on screen belongs to the business they have just left.
+    location.reload();
+  } catch(e){
+    if (btn){ btn.disabled = false; btn.textContent = 'Join ' + (inv.company || 'them'); }
+    if (msg){ msg.style.display = ''; msg.textContent = (e && e.message) || 'Could not join just now.'; }
+  }
+}
 function _frBubblesSync(){
   var onComms = document.body.getAttribute('data-tab') === 'inbox';
   var l1 = document.getElementById('ichatLaunch'), l2 = document.getElementById('iaiLaunch');
