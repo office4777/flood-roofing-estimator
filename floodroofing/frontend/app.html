@@ -1197,6 +1197,63 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 #tab-scope .card.px-collapsed > :not(.card-hd){ display:none !important; }
 @media (max-width:640px){ #tab-scope .card-hd .tile-sub-note{ display:none; } }
 
+/* ── SETTINGS SECTIONS ARE TILES (2026-10-08) ──────────────────────
+   The owner, on the pricing settings pages: "These pages are hard to
+   seperate the different sections, make it easier to tell the different
+   sections, maybe more of a boarder/tile type sections more similar to the
+   quote tab." A bold run of text on a white page is not a boundary — by the
+   fourth heading you cannot tell whether a field belongs to the section
+   above it or the one below. This is the SAME shape as the Pricing drawer's
+   cards above: a bordered white tile with the quote page's navy band across
+   its head, so a heading can never be read as content and where one section
+   stops is never a guess. */
+.settings-sub .set-sec{
+  padding:0 14px 14px;
+  margin:0 0 14px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  box-shadow:0 1px 2px rgba(10,22,40,.04);
+  overflow:hidden;
+  background:#fff;
+}
+.settings-sub .set-sec-hd{
+  margin:0 -14px 12px;
+  padding:11px 14px 10px;
+  background:#0a1628;
+  font-size:12.5px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#fff;
+  line-height:1.25;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.settings-sub .set-sec-hd strong{ font-weight:700; }
+/* The note beside a title stays sentence case — it is a sentence, not a label. */
+.settings-sub .set-sec-hd .set-sec-note{
+  font-size:11px; font-weight:400; color:rgba(255,255,255,.72);
+  text-transform:none; letter-spacing:0; flex:1 1 auto; min-width:120px;
+}
+.settings-sub .set-sec-hd .tool-btn{
+  text-transform:none; letter-spacing:0; font-size:11px;
+  background:#fff; color:#0a1628; border:1px solid rgba(255,255,255,.35);
+}
+.settings-sub .set-sec-sub{ font-size:11.5px; color:var(--text2); margin:0 0 10px; line-height:1.5; }
+/* A block INSIDE a tile (Downpipes under Guttering, say) — quieter than the
+   band, but still obviously a step down from it. */
+.settings-sub .set-sub-hd{
+  font-size:11px; font-weight:700; color:var(--text2);
+  text-transform:uppercase; letter-spacing:.06em;
+  margin:16px 0 8px; padding-top:12px; border-top:1px dashed var(--border);
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+}
+.settings-sub .set-sub-hd .set-sec-note{
+  font-size:11px; font-weight:400; color:var(--text2);
+  text-transform:none; letter-spacing:0;
+}
+@media (max-width:640px){ .settings-sub .set-sec{ padding:0 11px 12px; }
+  .settings-sub .set-sec-hd{ margin:0 -11px 10px; padding:10px 11px 9px; } }
+
 /* Sticky Main Roof / Roof 2 switch in the pricing-panel header. */
 #pricingRoofSwitchBar{
   display:flex; gap:8px; padding:9px 14px;
@@ -4678,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-08T04:26:07Z';
+  window.APP_BUILT_AT = '2026-10-08T08:05:37Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8722,11 +8779,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
            items. The Custom Price Book tab is the other way round — it keeps
            the supplier’s list as its own and links a line to an item here. -->
       <!-- Upload supplier price book -->
-      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
+      <div class="set-sec">
         <div data-pb-listnote="settings"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <strong style="font-size:13px">📤 Upload supplier price book</strong>
-          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
+        <div class="set-sec-hd">
+          <strong>📤 Upload supplier price book</strong>
+          <span class="set-sec-note">CSV (immediate) or PDF (AI parse)</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
@@ -8741,10 +8798,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
            The base grade's set is the price book itself; every other grade
            keeps its own under price_book.by_grade and falls back to the
            percentage on the list until it has prices of its own. -->
-      <div id="pbGradeBlock" style="margin-bottom:18px;padding:14px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-          <strong style="font-size:13px">Roofing sheets, flashings &amp; back-trays — by steel grade</strong>
-          <span style="font-size:11px;color:var(--text2)">— pick a grade, then type its prices</span>
+      <div id="pbGradeBlock" class="set-sec">
+        <div class="set-sec-hd">
+          <strong>Roofing sheets, flashings &amp; back-trays</strong>
+          <span class="set-sec-note">— pick a grade, then type its prices</span>
         </div>
         <div id="pbGradeTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 6px"></div>
         <div id="pbGradeNote" style="font-size:11.5px;color:var(--text2);margin-bottom:12px"></div>
@@ -8787,9 +8844,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       </div>
 
       <!-- Underlay: the products offered, then what a roll costs -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-      <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay</strong>
-        <span style="font-size:11px;color:var(--text2);margin-left:6px">— the papers you offer, and what a roll costs</span></div>
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Underlay</strong>
+        <span class="set-sec-note">— the papers you offer, and what a roll costs</span></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Underlay products offered on a material order</strong>
           <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper — offered on the Order Material tab</span>
@@ -8806,9 +8863,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       </div>
 
       <!-- Fixings: the screw and rivet rates, whatever the steel -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-      <div style="margin-bottom:8px"><strong style="font-size:13px">Fixings</strong>
-        <span style="font-size:11px;color:var(--text2);margin-left:6px">— the same whichever grade is chosen</span></div>
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Fixings</strong>
+        <span class="set-sec-note">— the same whichever grade is chosen</span></div>
         <div class="f3">
           <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
           <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
@@ -8823,9 +8880,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
       <!-- Guttering, spouting and downpipes, all in one place -->
       <!-- Guttering & spouting (long-run) — customer Selections page -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Guttering &amp; spouting</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— long-run spouting the customer can add on the Selections page</span></div>
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Guttering &amp; spouting</strong>
+          <span class="set-sec-note">— long-run spouting the customer can add on the Selections page</span></div>
         <div class="f3" style="margin-bottom:10px">
           <div><label>Gutter ($/lm, generic)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
           <div></div><div></div>
@@ -8866,8 +8923,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Marley Typhoon simple ($/lm, only if not itemised)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
+        <div class="set-sub-hd"><strong>Downpipes</strong>
+          <span class="set-sec-note">— one downpipe per gutter line</span></div>
         <div class="f3">
           <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
           <div></div><div></div>
@@ -8875,18 +8932,18 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       </div>
 
       <!-- Pipe penetrations -->
-      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
-        <div style="margin-bottom:8px"><strong style="font-size:13px">Pipe penetrations</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— every flue, vent and pipe you draw picks its own boot size (the back-trays are priced by grade above)</span></div>
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Pipe penetrations</strong>
+          <span class="set-sec-note">— every flue, vent and pipe you draw picks its own boot size (the back-trays are priced by grade above)</span></div>
         <div style="font-size:11px;font-weight:700;color:var(--text);margin:6px 0 6px">Pipe flashings — Aquaseal / Dektite ($/each) <span style="font-weight:400;color:var(--text3)">— the size is chosen from the pipe's outside diameter. Leave blank for $0.</span></div>
         <div id="pbAquasealList" class="f3"></div>
       </div>
 
       <!-- Custom extras -->
-      <div style="margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">One-off items you add yourself</strong>
-          <span style="font-size:11px;color:var(--text2)">— things RoofMap does not measure off the roof (skylights, vents, hire). Your supplier’s whole list belongs in <strong>Custom Price Book</strong>.</span>
+      <div class="set-sec">
+        <div class="set-sec-hd">
+          <strong>One-off items you add yourself</strong>
+          <span class="set-sec-note">— things RoofMap does not measure off the roof (skylights, vents, hire). Your supplier’s whole list belongs in <strong>Custom Price Book</strong>.</span>
           <button type="button" onclick="clearPriceBookExtraQtys()" class="tool-btn" style="margin-left:auto;font-size:11px" title="Set every custom item's quantity to 0 so none of them are charged on a job">Clear all quantities</button>
           <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="font-size:11px">+ Add item</button>
         </div>
@@ -9097,7 +9154,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <div class="sub-panel settings-sub" id="set-labour" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Default hour budgets used by the editable <strong>Labour</strong> breakdown on the Scope &amp; Pricing tab. The user can still tweak hours per job; this just sets the starting numbers.</p>
 
-      <div class="f3" style="margin-bottom:14px">
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Crew defaults</strong>
+        <span class="set-sec-note">— where a new job's labour table starts</span></div>
+      <div class="f3">
         <div><label>Default workers on site</label><input type="number" id="lpWorkers" min="1" max="20" placeholder="2"></div>
         <div><label>Default rate ($/hr per worker)</label><input type="number" id="lpRate" min="1" step="0.5" placeholder="55"></div>
         <div><label>Default complexity multiplier</label>
@@ -9109,11 +9169,12 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           </select>
         </div>
       </div>
+      </div>
 
-      <div style="margin:6px 0 14px;padding-top:12px;border-top:1px solid var(--border)">
-        <strong style="font-size:13px">Default charge-out rates &amp; scaffolding</strong>
-        <span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Starting numbers for the Labour table on a new quote — cost/hr is what you pay, price/hr is the charge-out rate. Editable per job.</span>
-        <div class="f2" style="margin-top:10px">
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Default charge-out rates &amp; scaffolding</strong></div>
+        <div class="set-sec-sub">Starting numbers for the Labour table on a new quote — cost/hr is what you pay, price/hr is the charge-out rate. Editable per job.</div>
+        <div class="f2">
           <div><label>Lead Roofer — cost ($/hr)</label><input type="number" id="lpLeadCost" min="0" step="0.5" placeholder="45"></div>
           <div><label>Lead Roofer — price/hr ($)</label><input type="number" id="lpLeadPrice" min="0" step="0.5" placeholder="200"></div>
           <div><label>Apprentice — cost ($/hr)</label><input type="number" id="lpAppCost" min="0" step="0.5" placeholder="25"></div>
@@ -9124,21 +9185,23 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
       </div>
 
-      <div style="margin:6px 0 14px;padding-top:12px;border-top:1px solid var(--border)">
-        <strong style="font-size:13px">Charging by area or by the metre</strong>
-        <span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Your default rates for pricing labour by the square metre of roof, and gutter labour by the lineal metre. Each job can be switched between hourly and these on the Pricing tab, and changing a rate there offers to save it back here. Leave blank to price by the hour.</span>
-        <div class="f2" style="margin-top:10px">
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Charging by area or by the metre</strong></div>
+        <div class="set-sec-sub">Your default rates for pricing labour by the square metre of roof, and gutter labour by the lineal metre. Each job can be switched between hourly and these on the Pricing tab, and changing a rate there offers to save it back here. Leave blank to price by the hour.</div>
+        <div class="f2">
           <div><label>Roof labour — default ($/m²)</label><input type="number" id="lpLabourM2" min="0" step="0.5" placeholder="e.g. 45"></div>
           <div><label>Gutter labour — default ($/lm)</label><input type="number" id="lpGutterLm" min="0" step="0.5" placeholder="e.g. 18"></div>
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <strong style="font-size:13px">Default hours per scope item</strong>
-        <span style="font-size:11px;color:var(--text2)">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
-        <button type="button" onclick="addLabourItem()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add item</button>
+      <div class="set-sec">
+        <div class="set-sec-hd">
+          <strong>Default hours per scope item</strong>
+          <span class="set-sec-note">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
+          <button type="button" onclick="addLabourItem()" class="tool-btn" style="margin-left:auto">+ Add item</button>
+        </div>
+        <div id="lpItemsList"></div>
       </div>
-      <div id="lpItemsList"></div>
     </div>
 
     <!-- SUPPLIERS & MATERIALS -->
@@ -26946,9 +27009,9 @@ function renderSelectablesUI(){
             : '<button type="button" onclick="_selRemove(\'' + kind + '\',' + i + ')" title="Remove" style="width:24px;height:24px;border:none;border-radius:6px;background:#f1f5f9;color:#64748b;font-size:12px;cursor:pointer">✕</button>') +
         '</td></tr>';
     }).join('');
-    return '<div style="margin-bottom:20px">' +
-      '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">' + title + '</div>' +
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">' + blurb + '</div>' +
+    return '<div class="set-sec">' +
+      '<div class="set-sec-hd"><strong>' + title + '</strong></div>' +
+      '<div class="set-sec-sub">' + blurb + '</div>' +
       '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' + cols + '<th style="width:52px"></th></tr></thead>' +
       '<tbody>' + (body || '<tr><td colspan="9" style="color:var(--text2);font-size:11.5px;padding:10px">None yet.</td></tr>') + '</tbody></table>' +
       '<button type="button" onclick="_selAdd(\'' + kind + '\')" style="margin-top:6px;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add</button>' +
@@ -27012,17 +27075,17 @@ function renderSelectablesUI(){
               ' title="Take this choice off the customer\'s quote" style="width:auto;margin:0">') +
           '</td></tr>';
       }).join('');
-      return '<div style="margin-bottom:20px">' +
-        '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">' + g.title + '</div>' +
-        '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Leave a box empty to keep the wording RoofMap ships with. The first row is the standard every price is measured from — it can be renamed, not removed.</div>' +
+      return '<div class="set-sec">' +
+        '<div class="set-sec-hd"><strong>' + g.title + '</strong></div>' +
+        '<div class="set-sec-sub">Leave a box empty to keep the wording RoofMap ships with. The first row is the standard every price is measured from — it can be renamed, not removed.</div>' +
         '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
         '<th>Called</th><th>Described as</th><th style="width:70px">Hide</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div>';
     }).join('') +
     // Whatever else this company sells.
-    '<div style="margin-bottom:20px;padding-top:14px;border-top:1px solid var(--border)">' +
-      '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">Your own options</div>' +
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Anything else you sell — gutter guard, ridge vents, a wash-down, a longer warranty. Each one is a group of choices on the customer\'s Selections page. The <strong>first choice is what the quote already includes</strong>; every other one adds its price to the total, ex-GST. The customer cannot tell these from the options RoofMap ships.</div>' +
+    '<div class="set-sec">' +
+      '<div class="set-sec-hd"><strong>Your own options</strong></div>' +
+      '<div class="set-sec-sub">Anything else you sell — gutter guard, ridge vents, a wash-down, a longer warranty. Each one is a group of choices on the customer\'s Selections page. The <strong>first choice is what the quote already includes</strong>; every other one adds its price to the total, ex-GST. The customer cannot tell these from the options RoofMap ships.</div>' +
       _selExtrasRaw().map(function(g, gi){
         var rows = (g.rows || []).map(function(r, ri){
           var f = function(field, v, ph, extra){

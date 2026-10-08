@@ -898,6 +898,21 @@ Discipline (non-negotiable):
   turns a PostgREST failure into a 503 `UPSTREAM_UNAVAILABLE`; reading it as
   "no rows" once logged the owner out of his company, dropped the Fergus
   key and showed "No subscription found" after a reload.
+- SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
+  pages: "These pages are hard to seperate the different sections, make it
+  easier to tell the different sections, maybe more of a boarder/tile type
+  sections more similar to the quote tab"). A bold run of text on a white page
+  is not a boundary — by the fourth heading you cannot tell whether a field
+  belongs to the section above it or the one below. `.set-sec` /
+  `.set-sec-hd` / `.set-sec-note` / `.set-sec-sub` (scoped to `.settings-sub`)
+  are the SAME shape as the Pricing drawer's cards: a bordered white tile with
+  the quote page's navy band across its head. `.set-sub-hd` is a block INSIDE
+  a tile (Downpipes under Guttering, which the documented tab order keeps
+  together) — a dashed rule and small caps, plainly a step down from a band.
+  Carried by Quote's Product Options (`renderSelectablesUI` — one wrapper in
+  `section()`, one in the fixed groups, one for Your own options), Default
+  item pricing and Labour pricing. Settings → Suppliers still uses the old
+  flat `border-bottom` divider; convert it the same way when it next comes up.
 - LABOUR CHARGED BY AREA, THE GUTTER BY THE METRE (2026-10-08, the owner:
   "make the labour pricing switchable between the current hourly or m2, for
   the gutter make the labour switchable from hourly to LM ... let the user set
