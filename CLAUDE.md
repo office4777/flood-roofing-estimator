@@ -898,6 +898,19 @@ Discipline (non-negotiable):
   turns a PostgREST failure into a 503 `UPSTREAM_UNAVAILABLE`; reading it as
   "no rows" once logged the owner out of his company, dropped the Fergus
   key and showed "No subscription found" after a reload.
+- THE UNDERLAY HAS A DEFAULT PRODUCT, AND THE PRICE SHEET DOWNLOADS AS CSV
+  (2026-10-11, info@wellingtonroof.co.nz). `price_book.defaultUnderlayProduct`
+  + `#pbDefaultUnderlay` on Default item pricing, filled from
+  `materials_catalog.underlays` by `refreshDefaultUnderlayPicker`; a product
+  since removed from that list is still shown marked "(not in list)" rather
+  than silently dropped. `populateOrderDropdowns` puts it in `#orderUnderlay`
+  ONLY when that box is empty — a job that has chosen its paper is never
+  overwritten, which is the rule the whole thing rests on.
+  `_pbExportCsv` (beside Copy my price book) writes one row per item RoofMap
+  prices off the roof: Steel grade, Item, Unit, Price. It walks
+  `PB_CSV_TARGETS` + the sheet variants per grade, and a grade with no prices
+  of its own is LEFT OUT rather than listed at the base grade's numbers,
+  which would read as a price somebody had set. `tests/pbdefaults.mjs`.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type
@@ -990,8 +1003,19 @@ Discipline (non-negotiable):
   has no band pass and still measures straight THROUGH a change of pitch —
   deliberate, and pinned: a stopped ray with nothing sheeting what lies
   beyond it would UNDER-order the roof, which is worse than the fault being
-  fixed. Doing it there means the skeleton solver, so read the roof-engine
-  warning above first.
+  fixed.
+  TRIED AND REVERTED on 2026-10-11, and the reason is worth keeping. Making
+  `_runFromOutline` treat a change-of-pitch line as an edge (it is a six-line
+  loop beside the outline-edge one) does break the hip path's sheets
+  correctly, and `_cpBandSpecs` can add the bands. But on a HIP the band does
+  not stop where the line does: the line runs along the two long sides only,
+  and the corners and the hip ends beyond its ends are then covered by
+  nothing. A 25.4 x 11.2 m hip at 25/10 degrees ordered 300 m2 for a 307 m2
+  roof. The dutch is safe from this because its `isDutch` end block already
+  sheets the ends; the hip has no such block. Doing it properly means
+  covering the eave the band actually runs along, which needs a real roof to
+  measure against — ask for the feedback report (Send Feedback on that job)
+  rather than reasoning it out from a screenshot.
   THE PITCH IS ON THE CANVAS BY DEFAULT now (it was off until asked for, and
   `tests/roofpitch.mjs` pinned that); a roof with a change of pitch draws
   BOTH — the lower one in the middle of each band — and either plate is the

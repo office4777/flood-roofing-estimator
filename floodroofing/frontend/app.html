@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-08T08:05:37Z';
+  window.APP_BUILT_AT = '2026-10-11T20:02:59Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8853,6 +8853,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
         </div>
         <div id="catalogUnderlays"></div>
+        <div style="margin-top:10px">
+          <label style="font-size:11px">Default product for this job</label>
+          <select id="pbDefaultUnderlay" style="max-width:340px"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">A new job's material order starts with this one, so the office only picks a paper when it is not the usual. Leave it unset to type the paper each time.</div>
+        </div>
         <div style="margin:14px 0 6px"><strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">What a roll costs</strong>
           <span style="font-size:11px;color:var(--text2);margin-left:6px">— by roll size</span></div>
         <div class="f3">
@@ -8954,6 +8959,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
            finished book to somebody who is setting the app up. -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
         <button type="button" onclick="_pbCopyBook()" class="tool-btn" style="font-size:12px">📋 Copy my price book</button>
+        <button type="button" onclick="_pbExportCsv()" class="tool-btn" style="font-size:12px">⬇ Download as CSV</button>
         <span id="pbCopyMsg" style="font-size:11.5px;color:var(--text2)"></span>
       </div>
     </div>
@@ -14045,6 +14051,7 @@ function collectPriceBookFromUI(){
     '75':  _num('pbUnderlay75'),
     '100': _num('pbUnderlay100')
   };
+  pb.defaultUnderlayProduct = (document.getElementById('pbDefaultUnderlay')||{}).value || '';
   pb.gutter_lm      = _num('pbGutterLm');
   pb.screws_each    = _num('pbScrewsEach');
   pb.rivets_each    = _num('pbRivetsEach');
@@ -14098,6 +14105,66 @@ function collectPriceBookFromUI(){
 // hand a finished book to somebody setting the app up for the first time —
 // the numbers a roofing company has negotiated are the slowest part of
 // getting started, and re-typing them is how people give up.
+// THE PRICE SHEET AS A SPREADSHEET (2026-10-11,
+// info@wellingtonroof.co.nz: "in addition to PDF export include an option for
+// Excel or CSV export?"). Every item RoofMap prices off the roof, at the
+// price it is using, one row each — opens straight in Excel or Sheets. The
+// GRADE column is there because roofing sheets, flashings and back-trays are
+// priced per steel grade: a grade with no prices of its own is left out
+// rather than listed at the base grade's numbers, which would read as a
+// price somebody had set.
+function _pbExportCsv(){
+  var msg = document.getElementById('pbCopyMsg');
+  var say = function(t, ok){ if (!msg) return; msg.textContent = t;
+    msg.style.color = ok === false ? '#b91c1c' : '#15803d';
+    setTimeout(function(){ msg.textContent = ''; msg.style.color = ''; }, 6000); };
+  try {
+    var pb = (S.settings && S.settings.price_book) || {};
+    var q = function(v){ v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var rows = [], seen = {};
+    var push = function(grade, item, unit, price){
+      var k = grade + '|' + item;
+      if (seen[k]) return; seen[k] = 1;
+      rows.push([grade, item, unit, (price == null || price === '') ? '' : price]);
+    };
+    // Which grades to walk: the base always, then any with prices of its own.
+    var base = '', grades = [];
+    try { base = _pbBaseId(); } catch(e){}
+    try { grades = _selGrades().map(function(g){ return g.id || g.name; }).filter(Boolean); } catch(e){}
+    if (!grades.length) grades = [base || 'Base'];
+    var nameOf = function(id){
+      try { var g = _selGrades().filter(function(x){ return (x.id || x.name) === id; })[0]; return (g && g.name) || id; } catch(e){ return id; }
+    };
+    grades.forEach(function(gid){
+      var own = (gid === base);
+      try { own = own || _pbGradeHasPrices(gid); } catch(e){}
+      if (!own) return;
+      var set = pb; try { set = _pbForGrade(gid) || pb; } catch(e){}
+      var gn = nameOf(gid);
+      (set.sheets || []).forEach(function(sh){
+        if (sh && sh.product) push(gn, 'Roofing sheet \u2014 ' + sh.product, sh.unit || 'lm', sh.price);
+      });
+      PB_CSV_TARGETS.forEach(function(t){
+        var v = _pbReadPath(set, t.path);
+        if (v === undefined) v = _pbReadPath(pb, t.path);
+        push(gn, t.label, t.unit || '', v);
+      });
+    });
+    // The one-off items the office types itself are not per grade.
+    ((pb.extras) || []).forEach(function(x){
+      if (x && (x.desc || x.name)) push('', (x.desc || x.name), x.unit || '', x.price);
+    });
+    if (!rows.length){ say('Nothing to download yet', false); return; }
+    var out = ['Steel grade,Item,Unit,Price (ex GST)'];
+    rows.forEach(function(r){ out.push(r.map(q).join(',')); });
+    var blob = new Blob([out.join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'RoofMap price sheet.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    say(rows.length + ' prices downloaded');
+  } catch(e){ say('Could not build the file', false); try { console.warn('price csv', e); } catch(_){} }
+}
 function _pbCopyBook(){
   var msg = document.getElementById('pbCopyMsg');
   var say = function(t, ok){ if (!msg) return; msg.textContent = t;
@@ -14156,6 +14223,7 @@ function renderPriceBookUI(){
   if (!S.settings || !S.settings.price_book) return;
   var pb = S.settings.price_book;
   function setN(id, v){ var el=document.getElementById(id); if (el) el.value = (v == null || v === 0) ? '' : v; }
+  try { refreshDefaultUnderlayPicker(pb.defaultUnderlayProduct || ''); } catch(e){}
   setN('pbUnderlay50',  (pb.underlay||{})['50']);
   setN('pbUnderlay75',  (pb.underlay||{})['75']);
   setN('pbUnderlay100', (pb.underlay||{})['100']);
@@ -14251,6 +14319,25 @@ function onPriceBookSheetChange(){
   var products = rows.map(function(r){ return (r.querySelector('input[data-f="product"]')||{}).value || ''; }).filter(Boolean);
   var current = (document.getElementById('pbDefaultSheet')||{}).value || '';
   refreshDefaultSheetPicker(products.map(function(p){return {product:p};}), current);
+}
+// THE UNDERLAY HAS A DEFAULT PRODUCT TOO (2026-10-11,
+// info@wellingtonroof.co.nz: "add a default product option for the Underlay,
+// same as available for Roof sheets"). Same shape as the sheet picker above,
+// off the underlays on the Order Material list, and a product that has since
+// been removed from that list is still shown so nobody loses a default
+// without being told.
+function _pbUnderlayNames(){
+  try { return ((S.settings.materials_catalog || {}).underlays || [])
+    .map(function(u){ return (u && u.name) || ''; }).filter(Boolean); } catch(e){ return []; }
+}
+function refreshDefaultUnderlayPicker(current){
+  var sel = document.getElementById('pbDefaultUnderlay'); if (!sel) return;
+  if (current == null) current = sel.value || '';
+  var names = _pbUnderlayNames();
+  sel.innerHTML = '<option value="">\u2014 pick a default \u2014</option>' +
+    names.map(function(n){ return '<option value="'+esc(n)+'"'+(n === current ? ' selected' : '')+'>'+esc(n)+'</option>'; }).join('');
+  if (current && names.indexOf(current) < 0)
+    sel.innerHTML += '<option value="'+esc(current)+'" selected>'+esc(current)+' (not in list)</option>';
 }
 function refreshDefaultSheetPicker(sheets, current){
   var sel = document.getElementById('pbDefaultSheet'); if (!sel) return;
@@ -41986,6 +42073,14 @@ function populateOrderDropdowns(){
   var grades = []; try { grades = _selGrades(); } catch(e){}
   fillList('orderProductList',  grades.concat(cat.products || []));
   fillList('orderUnderlayList', cat.underlays);
+  // The job starts on the default paper, if one is set and the office has not
+  // already chosen. Never overwrites a choice already made on this job.
+  try {
+    var _uDef = ((S.settings.price_book || {}).defaultUnderlayProduct) || '';
+    var _uEl = document.getElementById('orderUnderlay');
+    if (_uDef && _uEl && !(_uEl.value || '').trim()) _uEl.value = _uDef;
+    refreshDefaultUnderlayPicker(_uDef);
+  } catch(e){}
   fillList('orderScrewsList',   cat.screws);
 }
 
