@@ -102,8 +102,13 @@ check('the five coloured roof-type buttons are gone from the toolbar',
 check('…replaced by one "Change roof type" button', v.dropBtn);
 // 2026-09-24: one row — shape, Rotate 90°, Snap square, Make main roof,
 // Delete roof — plus the phone's collapse and the gable Centre button.
+// 2026-10-12: and the full-width "Close roof settings" bar, which is the
+// way out of the overlay the panel became (the owner: "an up arrow so the
+// user knows where and how to collapse this dropdown window"). Eight, and
+// the cap still means what it meant: this panel is a handful of controls,
+// not a settings page.
 check('…so the roof panel is down to a handful of controls',
-  v.buttons > 0 && v.buttons <= 7, v.buttons + ' buttons');
+  v.buttons > 0 && v.buttons <= 8, v.buttons + ' buttons');
 
 const menu = await pg.evaluate(() => {
   toggleRoofTypeMenu();
