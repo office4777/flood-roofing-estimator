@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T22:30:35Z';
+  window.APP_BUILT_AT = '2026-10-12T22:49:57Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16169,8 +16169,106 @@ function _gutterOnJob(){
     return sel !== 'none';
   } catch(e){ return false; }
 }
+// A POLE SHED IS PRICED LIKE A ROOFING JOB (2026-10-13, the owner: "the
+// pricing estimator should estimate the sheds material cost (and labour cost
+// if it already does) then i should be able to edit everything just like i
+// can with a roofing quote, should let me add material line items and labour
+// lines, pretty much an exact copy of the roofing quote").
+//
+// A shed has no roof DRAWN, so the roof-derived rows came out empty and the
+// Pricing drawer read "No quantifiable items yet". The shed's take-off is the
+// Shed estimator's — poles, girts, cladding, concrete, doors — so those items
+// ARE its material rows, in the same shape the roof's are. Everything that
+// already works on a roofing row then works here for nothing: the qty box,
+// the $/unit box, the ✕, MATERIAL_OVERRIDES / MATERIAL_DELETED, the quantity
+// buffer and the mark-up, "+ Add custom line" and "📖 Add from price book",
+// the materials total, the profitability panel, the pricing CSV and the
+// Fergus push. Derived every render, exactly like a roof's — change a shed
+// dimension and the rows follow, and the office's edits ride on the override
+// store rather than being baked in.
+//
+// The estimator's OWN markup item is dropped: the table has a mark-up row of
+// its own and counting both would charge it twice. Its hourly labour lines
+// are dropped too — they belong on the Labour card, which seeds its hours
+// from the same estimate. Anything else in the labour group (the building
+// consent allowance) is a lot price and stays here as a row.
+function _psIsShed(){ return !!(window.S && S.quote && S.quote.quoteKind === 'poleshed'); }
+function _shedKeySlug(label){
+  return 'shed_' + String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+}
+// THE TAKE-OFF IS TAKEN ONCE AND THEN IT IS THE OFFICE'S — the same rule the
+// Job Pack cut list learned the hard way (three feedback reports): a list
+// re-derived on every render, with the office's edits re-attached by key, is
+// a list that shifts under them. A shed's rows are worked out from the
+// estimate ONCE, stored on the quote as `shedTakeoff`, and from then on they
+// are what the Pricing drawer shows and prices. "Reset from the estimate"
+// (and the estimator's own Apply, and a fresh WebShed import) throws it away
+// and takes it again.
+function _shedTakeoffBuild(){
+  var out = [];
+  try {
+    var e = _shedEst(); if (!e) return out;
+    var est = _shedEstimate(e); if (!est || !est.items) return out;
+    var seen = {};
+    est.items.forEach(function(it){
+      if (!it) return;
+      if (it.group === 'markup') return;                       // the table's own mark-up row does this
+      if (it.group === 'labour' && it.unit === 'hr') return;    // the Labour card's hours
+      var key = _shedKeySlug(it.label);
+      if (seen[key]){ seen[key] += 1; key = key + '_' + seen[key]; }
+      seen[key] = seen[key] || 1;
+      out.push({ key: key, label: it.label, qty: +it.qty || 0,
+                 unit: it.unit || 'ea', rate: +it.rate || 0, group: it.group || '' });
+    });
+  } catch(e){}
+  return out;
+}
+function _shedTakeoff(){
+  if (!_psIsShed()) return [];
+  if (!S.quote) return [];
+  if (!Array.isArray(S.quote.shedTakeoff) || !S.quote.shedTakeoff.length){
+    var built = _shedTakeoffBuild();
+    if (!built.length) return [];
+    S.quote.shedTakeoff = built;
+  }
+  return S.quote.shedTakeoff;
+}
+// Take it again from the estimate, throwing away what was there.
+function _shedTakeoffReset(ask){
+  if (!_psIsShed() || !S.quote) return;
+  if (ask && !confirm('Take the material list off the shed estimate again?\n\nAnything you have typed, added or deleted on these rows is thrown away.')) return;
+  S.quote.shedTakeoff = _shedTakeoffBuild();
+  // The rows are new, so the edits that hung off the old ones go with them.
+  try {
+    Object.keys(MATERIAL_OVERRIDES || {}).forEach(function(k){ if (/^shed_/.test(k)) delete MATERIAL_OVERRIDES[k]; });
+    Object.keys(MATERIAL_DELETED || {}).forEach(function(k){ if (/^shed_/.test(k)) delete MATERIAL_DELETED[k]; });
+  } catch(e){}
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _autoSyncLabourMaterials(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _shedMaterialRows(){
+  var out = [];
+  try {
+    if (!_psIsShed()) return out;
+    _shedTakeoff().forEach(function(it){
+      if (!it) return;
+      out.push({ key: it.key, label: it.label, autoQty: +it.qty || 0, autoUnit: it.unit || 'ea',
+                 variants: [{ value: it.label, label: it.label, price: +it.rate || 0, unit: it.unit || 'ea' }],
+                 defaultVariant: it.label, singleVariant: true, decimalQty: true,
+                 note: (it.group === 'flood') ? 'roofing / cladding' : (it.group === 'doors' ? 'doors' : '') });
+    });
+  } catch(e){}
+  return out;
+}
 function _buildMaterialPriceRows(){
   var rows = [];
+  // The shed's take-off comes from its estimator, not from a drawing, so it
+  // is answered BEFORE the price-book and drawing guards below.
+  var _shed = _shedMaterialRows();
+  if (_shed.length) return _shed;
   if (!S.settings || !S.settings.price_book || !window.DRAW) return rows;
   var pb = _pbForGrade(_pbGradeInUse());
 
@@ -16417,20 +16515,27 @@ function _cpbBrandRows(rows){
 // Order quantities are whole units: lineal metres round UP to the next full
 // metre (you buy full lengths), everything else to the nearest whole. No
 // decimal quantities anywhere in the material order.
-function _matOrderQty(qtyRaw, unit){
+function _matOrderQty(qtyRaw, unit, keepDecimals){
   var q = parseFloat(qtyRaw) || 0;
+  // A row that says so keeps its decimals: a pole shed's concrete (m³),
+  // timber (m) and cladding (m²) are MEASURED, and rounding 12.47 m³ to 12
+  // both misprices the shed and makes every small edit jump. Everything
+  // ordered by the piece still rounds, so a supplier order is still whole.
+  if (keepDecimals) return Math.round(q * 1000) / 1000;
   return (unit === 'lm') ? Math.ceil(q - 1e-9) : Math.round(q);
 }
 function renderMaterialPriceTable(){
   var box = document.getElementById('materialPriceTableWrap'); if (!box) return;
-  if (!S.settings || !S.settings.price_book) {
+  // A pole shed is priced from its own estimator, not the roofing price book.
+  var _isShed = !!(window.S && S.quote && S.quote.quoteKind === 'poleshed');
+  if (!_isShed && (!S.settings || !S.settings.price_book)) {
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> first.</p>';
     return;
   }
   // Per-roof selector — big roof-switch buttons (shared with the Labour +
   // Scaffold sections). On multi-roof jobs the table is scoped to the selected
   // roof; single-roof jobs render normally.
-  var _multiMat = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var _multiMat = !_isShed && (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
   var _matRi = _multiMat ? _pricingRoofIdx() : -1;
   try {
     var _pkr = document.getElementById('materialPriceRoofPicker');
@@ -16531,7 +16636,7 @@ function renderMaterialPriceTable(){
     var price = _matOvPrice(ov, picked ? picked.price : 0);
     var unit  = picked ? picked.unit : r.autoUnit;
     var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
-    var qty   = _matOrderQty(qtyRaw, unit);
+    var qty   = _matOrderQty(qtyRaw, unit, r.decimalQty);
     var lineTotal = (qty||0) * (price||0);
     total += lineTotal;
 
@@ -16567,7 +16672,7 @@ function renderMaterialPriceTable(){
       '</td>'+
       '<td>'+
         '<div style="display:flex;align-items:center;gap:2px">'+
-        '<input type="number" step="1" min="0" value="'+(qty||0)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+_ovk+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
+        '<input type="number" step="'+(r.decimalQty ? 'any' : '1')+'" min="0" value="'+(qty||0)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+_ovk+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
         resetBtn +
         '</div>'+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
@@ -16589,7 +16694,9 @@ function renderMaterialPriceTable(){
   // stays the Maxam (grade-neutral) subtotal — the quote applies the grade
   // factor once in _autoSyncLabourMaterials so it is never double-counted.
   var _grade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
-  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor(_grade) : 1;
+  // A shed's cladding is priced in the estimator at its own rate; the roofing
+  // steel-grade percentage has nothing to say about it.
+  var _gf = (_isShed || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor(_grade);
   var _gradeAdj = total * (_gf - 1);
   if (Math.abs(_gradeAdj) > 0.005) {
     var _pctTxt = Math.abs((_gf - 1) * 100).toFixed(1).replace(/\.0$/,'') + '%';
@@ -16633,14 +16740,23 @@ function renderMaterialPriceTable(){
     _bufPct, _bufAmt, '_setRoofMatQtyBuffer');
   html += _pctRow('Add mark-up', 'margin on material cost', _mkPct, _mkAmt, '_setRoofMatMarkup');
   var _gradeSpan = (_grade !== 'maxam') ? ' <span style="font-weight:400;color:var(--text2)">· '+esc(_gradeLabel(_grade))+'</span>' : '';
-  var _matRoofNm = (_multiMat ? _pricingRoofName(_matRi) : '');
+  var _matRoofNm = _isShed ? (_psPricingPlans() ? _psPlanLabel(_psPlanIdx()) : 'this shed')
+                           : (_multiMat ? _pricingRoofName(_matRi) : '');
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
+      '<strong style="font-size:13px">'+((_isShed || _multiMat) ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+(_isShed ? '' : _gradeSpan)+'</strong>'+
       '<span id="matTotalShown" data-base="'+_finalMat.toFixed(2)+'" style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMatShown.toFixed(2)+'</span>'+
     '</div>';
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
+  }
+  // The shed's list is taken off the estimate ONCE and is then the office's
+  // to edit, like the Job Pack cut list. This is the way back.
+  if (_isShed) {
+    html += '<div style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5">'+
+      'These are the Shed estimator\u2019s quantities — change any of them, add your own lines, delete what you don\u2019t need. '+
+      '<button type="button" onclick="_shedTakeoffReset(true)" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">\u21bb Take the list off the estimate again</button>'+
+    '</div>';
   }
   box.innerHTML = html;
   // Base quote materials stay Roof 1 even while viewing another roof. Store the
@@ -16754,7 +16870,7 @@ function _materialsTotalFromRows(rows, idx){
     var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
     var unit = picked ? picked.unit : r.autoUnit;
     var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
-    var qty = _matOrderQty(qtyRaw, unit);
+    var qty = _matOrderQty(qtyRaw, unit, r.decimalQty);
     var price = _matOvPrice(ov, picked ? picked.price : 0);
     total += (qty || 0) * (price || 0);
   });
@@ -16767,7 +16883,7 @@ function _materialsTotalFromRows(rows, idx){
 // apart each round their lineal metres up to a full length, so the same job
 // buys two part-lengths of the same flashing instead of one.
 function _materialsCostForRoofIdx(idx){
-  if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
+  if (_psIsShed() || !window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
     return _materialsTotalFromRows(_buildMaterialPriceRows(), 0);
   }
   var leave = _roofScopeEnter();
@@ -24743,6 +24859,19 @@ function _pricingUseSettingsDefaults(){
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
   try { _qaMsg && _qaMsg('Labour + scaffold rates reset to your Settings defaults.', true); } catch(e){}
 }
+// The man-hours the Shed estimator works out, laid on the Labour card. Only
+// while the office has not typed its own: a figure somebody entered is never
+// recomputed out from under them.
+function _shedLabourToHours(){
+  if (!(window.S && S.quote && S.quote.quoteKind === 'poleshed')) return;
+  if (_labourHrsManual(0)) return;
+  var est = null;
+  try { var e = _shedEst(); if (e) est = _shedEstimate(e); } catch(err){ return; }
+  if (!est || !(est.manHrs > 0)) return;
+  var L = _pricingState().L;
+  var half = Math.round(est.manHrs / 2 * 10) / 10;
+  L.leadHrs = half; L.appHrs = half;
+}
 function calcLabour(){
   var wrap = document.getElementById('labourTableWrap');
   if (!wrap) return;
@@ -24760,6 +24889,11 @@ function calcLabour(){
     var _lcAll = [_lcRi]; try { if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) _lcAll = _pricingRoofTabIdxs(); } catch(e){}
     _lcAll.forEach(function(i){ try { _applyLabourCalcToHours(i); } catch(e){} });
   }
+  // A SHED'S HOURS COME OFF ITS ESTIMATE, the way a roof's come off the
+  // drawing: build days x crew x hours a day, split between the lead and the
+  // apprentice. Typed over, they stay typed (`labourHrsManual`) — the same
+  // rule the roofing auto-calc follows.
+  try { _shedLabourToHours(); } catch(e){}
   function row(label, hrsKey, costKey, priceKey){
     var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
     return '<tr>'+
@@ -24801,7 +24935,7 @@ function calcLabour(){
   }; }
   var extraRow = extraRowOn(0);
 
-  var _multiRoofLab = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var _multiRoofLab = !_psIsShed() && (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
   var ri = _multiRoofLab ? _pricingRoofIdx() : 0;
   var isBaseRoof = (ri === 0);
   var _tabs = _pricingRoofTabsHtml();
@@ -35714,8 +35848,10 @@ function _syncQuoteBaseLineItems(){
   // are applied ONCE as a Selections delta (_selGradeDelta). Using the selected
   // grade here would double-count it against that delta, so the base stays
   // grade-neutral and the delta is the single source of the grade change.
-  var _multiRoof = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
-  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam') : 1;
+  var _multiRoof = !_psIsShed() && (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  // A shed's cladding is priced at its own rate in the estimator; the roofing
+  // steel-grade percentage has nothing to say about it.
+  var _gf = (_psIsShed() || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
   var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
   var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
   // Roofs after the main one that AREN'T flagged "separate" are part of the
@@ -35758,6 +35894,15 @@ function _syncQuoteBaseLineItems(){
       updated = true;
     }
   });
+  // A POLE SHED'S psSubtotal IS A STAMP of what the drawer came to, not a
+  // second opinion: the plan chips (_psPlanSubtotalAt), the A4 and the
+  // customer's copy all read that field, and they must read the shed the
+  // office is actually looking at. Never while the office has typed one.
+  try {
+    if (S.quote.quoteKind === 'poleshed' && !S.quote.psSubtotalManual && !window.__CUSTOMER_MODE && !S._qvViewing){
+      if (_shedMaterialRows().length) S.quote.psSubtotal = Math.round(quoteSubtotal() * 100) / 100;
+    }
+  } catch(e){}
   // Project per-area custom lines into lineItems (re-built each sync so
   // they always follow the pricing tab + can't double-add).
   try {
@@ -37424,6 +37569,12 @@ function _attachInlineEditors(){
       val = val.replace(/[\r\n]+$/, '').trim();
       if (!S.quote) return;
       S.quote[field] = val;
+      // TYPING THE SHED'S TOTAL IS AN OVERRIDE of what the Pricing drawer
+      // adds up to — flagged, so the next recalc does not quietly take it
+      // back; clearing the box hands the shed back to the drawer.
+      if (field === 'psSubtotal'){
+        S.quote.psSubtotalManual = !!String(val).replace(/[^0-9.]/g, '').trim();
+      }
       // Sync the corresponding sidebar input/textarea
       var sid = inputMap[field];
       if (sid){ var inp = document.getElementById(sid); if (inp) inp.value = val; }
@@ -37624,7 +37775,8 @@ function _poleShedSelDelta(){
 // and the Pricing tab needs no new seam.
 var PS_PLAN_SLOTS = { hero: 6, floor: 1, elev: 2 };
 var PS_PLAN_FIELDS = ['psWidth','psLength','psHeight','psBays','psBayAmount',
-                      'psDoors','psDesignLink','psSubtotal','psRoofType','psRoofPitch'];
+                      'psDoors','psDesignLink','psSubtotal','psSubtotalManual',
+                      'psRoofType','psRoofPitch'];
 function _psPlans(){
   if (!S.quote) return [];
   if (!Array.isArray(S.quote.shedPlans)) S.quote.shedPlans = [];
@@ -37661,6 +37813,19 @@ function _psPlanCapture(name){
 // they are across roof tabs — they are the crew's, not the shed's — and so is
 // the way labour is charged (by the hour or by the m²), which is a choice
 // about the job, not about which shed is on screen.
+// The shed rows' own overrides and deletions — they are keyed by the row, and
+// each plan option has its own rows, so they travel with the plan and nothing
+// else in MATERIAL_OVERRIDES is touched.
+function _psShedOvSnapshot(store){
+  var out = {};
+  try { Object.keys(store || {}).forEach(function(k){ if (/^shed_/.test(k)) out[k] = store[k]; }); } catch(e){}
+  return out;
+}
+function _psShedOvRestore(store, snap){
+  if (!store) return;
+  Object.keys(store).forEach(function(k){ if (/^shed_/.test(k)) delete store[k]; });
+  Object.keys(snap || {}).forEach(function(k){ store[k] = snap[k]; });
+}
 var PS_PRICING_KEYS = ['scaffold', 'roofMatQtyBuffer', 'roofMaterialMarkup',
                        'roofMatQtyBufferByRoof', 'roofMaterialMarkupByRoof'];
 function _psPricingCapture(){
@@ -37671,6 +37836,10 @@ function _psPricingCapture(){
   out.labour = { leadHrs: L.leadHrs, appHrs: L.appHrs, extras: cp(L.extras) || [] };
   out.labourHrsManual = cp(q.labourHrsManual);
   out.roofLabourCalc  = cp(q.roofLabourCalc);
+  // The take-off is this plan's own list, with this plan's edits on it.
+  out.shedTakeoff = cp(q.shedTakeoff);
+  out.matOv  = cp(_psShedOvSnapshot(MATERIAL_OVERRIDES));
+  out.matDel = cp(_psShedOvSnapshot(MATERIAL_DELETED));
   PS_PRICING_KEYS.forEach(function(k){ out[k] = cp(q[k]); });
   ['labour', 'material', 'scaffold'].forEach(function(a){ out.customLines[a] = cp((q.customLines || {})[a]) || []; });
   return out;
@@ -37686,6 +37855,11 @@ function _psPricingApply(p){
   }
   if (p.labourHrsManual !== undefined) q.labourHrsManual = cp(p.labourHrsManual);
   if (p.roofLabourCalc  !== undefined) q.roofLabourCalc  = cp(p.roofLabourCalc);
+  if (p.shedTakeoff !== undefined) q.shedTakeoff = cp(p.shedTakeoff);
+  try {
+    _psShedOvRestore(MATERIAL_OVERRIDES, p.matOv);
+    _psShedOvRestore(MATERIAL_DELETED, p.matDel);
+  } catch(e){}
   PS_PRICING_KEYS.forEach(function(k){ if (p[k] !== undefined) q[k] = cp(p[k]); });
   if (p.customLines){
     if (!q.customLines) q.customLines = {};
@@ -37857,9 +38031,40 @@ function _togglePsSel(field){ if (!S.quote) return; S.quote[field] = !S.quote[fi
 // Subtotal is typed by the office (excl GST); selection add-ons adjust it,
 // then GST + total + deposit are derived. Deposit is 50% for an exemption
 // build, 60% when consented.
+// THE SHED'S PRICE IS WHAT THE PRICING DRAWER ADDS UP TO (2026-10-13). It
+// used to be `psSubtotal` alone — one figure the estimator wrote and the
+// office could type over — so the drawer's labour, materials and scaffold
+// moved the margin panel and nothing else. Now the drawer prices a shed
+// exactly as it prices a roof: `quoteSubtotal()` is Labour + Materials +
+// Scaffolding + every line typed on them, the same engine, the same lines.
+//
+// THREE CASES, in this order, because an existing quote must not move:
+//   1. the office TYPED a total on the quote page  -> that figure, always;
+//   2. there is a shed take-off to price           -> the drawer's total;
+//   3. neither                                     -> the stored psSubtotal,
+//      so a shed priced before any of this, by typing one number, reads
+//      exactly as it did.
+// In customer mode `_syncQuoteBaseLineItems` returns early, so case 2 reads
+// the lines the office last saved — frozen, which is what the customer must
+// see.
+function _shedBaseFromDrawer(){
+  try {
+    if (!(window.S && S.quote && S.quote.quoteKind === 'poleshed')) return null;
+    if (S.quote.psSubtotalManual) return null;
+    if (window.__CUSTOMER_MODE || S._qvViewing){
+      // The copy they hold: its own line items, if it was priced this way.
+      var sub = quoteSubtotal();
+      return (sub > 0) ? sub : null;
+    }
+    if (!_shedMaterialRows().length) return null;
+    return quoteSubtotal();
+  } catch(e){ return null; }
+}
 function _poleShedMoney(){
   var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g,'');
   var base = parseFloat(raw) || 0;
+  var _drawer = _shedBaseFromDrawer();
+  if (_drawer != null) base = _drawer;
   var delta = _poleShedSelDelta();
   var sub = base + delta;
   var rate = (S.quote && S.quote.gstRate != null ? parseFloat(S.quote.gstRate) : 15) / 100;
@@ -38168,8 +38373,21 @@ function _syncSpecFromEst(){
 function applyShedEstimate(){
   var e = _shedEst(); if (!e) return;
   var total = _syncSpecFromEst();
+  // The estimate is the TAKE-OFF now: its items become the Pricing drawer's
+  // material rows and its man-hours the labour card's, and what the quote
+  // reads is what that drawer adds up to. Recalculate, then report THAT —
+  // reporting the estimator's own total would name a figure the quote does
+  // not carry the moment anything in the drawer differs.
+  try { S.quote.shedTakeoff = _shedTakeoffBuild(); } catch(err){}
+  try { calcLabour(); } catch(err){}
+  try { renderMaterialPriceTable(); } catch(err){}
+  try { _syncQuoteBaseLineItems(); } catch(err){}
+  var shown = total;
+  try { var m = _poleShedMoney(); if (m && m.base > 0) shown = m.base; } catch(err){}
   var st = document.getElementById('shedEstApplied');
-  if (st){ st.textContent = '✓ Applied ' + fmtMoney(total) + ' — dimensions + price pushed to the quote.'; }
+  if (st){
+    st.textContent = '✓ Applied ' + fmtMoney(shown) + ' — dimensions and the take-off are on the quote. Edit any line in Pricing.';
+  }
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
 function renderShedEstimator(){
@@ -38419,6 +38637,8 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
       '<div class="ed-serif" style="font-size:'+(opts.strong?'18px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
     '</div>';
   };
+  // Typing here is an OVERRIDE of the drawer, flagged so it is not silently
+  // recomputed away; "↻ price from the drawer" clears it.
   var subEditable = '<span class="qp-editable" contenteditable="true" data-qfield="psSubtotal" spellcheck="false" style="color:#fff;font-weight:600">'+(M.sub>0?fmtMoney(M.sub):'<span class="qp-placeholder" style="color:rgba(255,255,255,.5)">$0.00</span>')+'</span>';
   var priceCard =
     '<div style="margin-top:6px;background:var(--ed-ink);border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(10,24,40,.2)">'+
@@ -67531,7 +67751,7 @@ function _scopePricingRows(){
       var vv = (ov.variant != null) ? ov.variant : row.defaultVariant;
       var picked = (row.variants || []).filter(function(v){ return v.value === vv; })[0] || (row.variants || [])[0];
       var unit = picked ? picked.unit : row.autoUnit;
-      var qty = _matOrderQty((ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : row.autoQty, unit);
+      var qty = _matOrderQty((ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : row.autoQty, unit, row.decimalQty);
       var price = _matOvPrice(ov, picked ? picked.price : 0);
       var line = (qty || 0) * (price || 0);
       matBase += line;
@@ -68508,7 +68728,7 @@ function _readFergusMaterialItems(){
       // job is priced on 142 — every line drifted, and the pushed total came
       // out $1,116 above the quote the customer accepted.
       var unit  = picked ? picked.unit : r.autoUnit;
-      var qty   = (typeof _matOrderQty === 'function') ? _matOrderQty(qtyRaw, unit) : qtyRaw;
+      var qty   = (typeof _matOrderQty === 'function') ? _matOrderQty(qtyRaw, unit, r.decimalQty) : qtyRaw;
       var price = _matOvPrice(ov, picked ? picked.price : 0);
       qty = parseFloat(qty) || 0;
       if (qty > 0 && price > 0){

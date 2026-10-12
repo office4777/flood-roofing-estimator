@@ -179,7 +179,7 @@ const plan = await pg.evaluate(() => {
   S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
   // Shed A, as an import leaves it.
   S.quote.psWidth='7.2m'; S.quote.psLength='12.6m'; S.quote.psHeight='3.48m';
-  S.quote.psBayAmount='3'; S.quote.psSubtotal=48000; S.quote._psLastFile='3-Bay';
+  S.quote.psBayAmount='3'; S.quote.psSubtotal=48000; S.quote.psSubtotalManual=true; S.quote._psLastFile='3-Bay';
   _qpCondPhotoSet(6,{src:PNG('A-hero')}); _qpCondPhotoSet(1,{src:PNG('A-floor')}); _qpCondPhotoSet(2,{src:PNG('A-elev')});
   _psPlanRecordImport();
   r.first = { n:_psPlans().length, name:_psPlans()[0].name };
@@ -188,7 +188,7 @@ const plan = await pg.evaluate(() => {
   r.added = { n:_psPlans().length, idx:_psPlanIdx(), w:S.quote.psWidth,
               photoGone: !((_qpCondPhoto(1)||{}).src) };
   S.quote.psWidth='9m'; S.quote.psLength='18m'; S.quote.psHeight='4.2m';
-  S.quote.psBayAmount='4'; S.quote.psSubtotal=61500; S.quote._psLastFile='4-Bay';
+  S.quote.psBayAmount='4'; S.quote.psSubtotal=61500; S.quote.psSubtotalManual=true; S.quote._psLastFile='4-Bay';
   _qpCondPhotoSet(6,{src:PNG('B-hero')}); _qpCondPhotoSet(1,{src:PNG('B-floor')}); _qpCondPhotoSet(2,{src:PNG('B-elev')});
   _psPlanRecordImport();
   r.second = { names:_psPlans().map(p=>p.name), total:_poleShedMoney().sub, delta:_psPlanDeltaAt(1) };
@@ -239,9 +239,9 @@ check('a one-shed quote shows no plan chooser at all', !single.strip && !/3-Bay/
 
 // An accepted quote is the shed they signed off.
 const locked = await pg.evaluate(() => {
-  S.quote.shedPlans = [{name:'A',fields:{psWidth:'7.2m',psSubtotal:48000},photos:{},est:{}},
-                       {name:'B',fields:{psWidth:'9m',psSubtotal:61500},photos:{},est:{}}];
-  S.quote.psPlanIdx = 0; S.quote.psWidth = '7.2m'; S.quote.psSubtotal = 48000;
+  S.quote.shedPlans = [{name:'A',fields:{psWidth:'7.2m',psSubtotal:48000,psSubtotalManual:true},photos:{},est:{}},
+                       {name:'B',fields:{psWidth:'9m',psSubtotal:61500,psSubtotalManual:true},photos:{},est:{}}];
+  S.quote.psPlanIdx = 0; S.quote.psWidth = '7.2m'; S.quote.psSubtotal = 48000; S.quote.psSubtotalManual = true;
   S.quote.accepted = { name:'Phyllis', at: new Date().toISOString() };
   window.__CUSTOMER_MODE = true;
   _setPsPlan(1);
@@ -265,7 +265,7 @@ await ctx.close();
 const styles = await pg.evaluate(() => {
   gotoTab('quote');
   S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed';
-  S.quote.psWidth = '7.2m'; S.quote.psLength = '12.6m'; S.quote.psSubtotal = 48000;
+  S.quote.psWidth = '7.2m'; S.quote.psLength = '12.6m'; S.quote.psSubtotal = 48000; S.quote.psSubtotalManual = true;
   const out = {};
   ['classic','modern'].forEach(st => {
     S.quote.style = st; refreshQuoteProposal();
@@ -309,7 +309,7 @@ check('a ROOFING quote in modern style is untouched by any of it',
 const planPrice = await pg.evaluate(() => {
   S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed';
   S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psBayAmount = '3';
-  S.quote.psSubtotal = 64585;
+  S.quote.psSubtotal = 64585; S.quote.psSubtotalManual = true;
   S.quote.shedPlans = []; S.quote.psPlanIdx = 0;
   _psPlanRecordImport();                       // Option A banked
   // price Option A the way the drawer does
@@ -318,7 +318,7 @@ const planPrice = await pg.evaluate(() => {
   _qAddCustom('material', { desc:'Crane', qty:1, unit:900, uom:'', amount:900 });
   // a second plan
   _psPlanAddAnother();
-  S.quote.psSubtotal = 71200; S.quote.psBayAmount = '4';
+  S.quote.psSubtotal = 71200; S.quote.psSubtotalManual = true; S.quote.psBayAmount = '4';
   _psPlanRecordImport();
   const bIdx = _psPlanIdx();
   const bFresh = { lead: S.quote.labour.leadHrs, scaff: (S.quote.scaffold||{}).price,
@@ -359,6 +359,139 @@ check('…and the second plan keeps the ones it was priced with',
   JSON.stringify(planPrice.bBack));
 check('the band names the plan being priced and its price',
   /64,585/.test(planPrice.card), planPrice.card);
+
+// ── A SHED IS PRICED LIKE A ROOFING JOB (2026-10-13) ──────────────
+// The owner: "the pricing estimator should estimate the sheds material cost
+// (and labour cost if it already does) then i should be able to edit
+// everything just like i can with a roofing quote, should let me add material
+// line items and labour lines, pretty much an exact copy of the roofing
+// quote". A shed has no roof DRAWN, so the Pricing drawer read "No
+// quantifiable items yet" and its labour, materials and scaffold fed nothing:
+// the quote's price was one figure the estimator wrote.
+const shedPricing = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  S.quote.psDoors = '2x Roller Door, 1x P.A. Door';
+  gotoTab('scope');
+  const price = () => { calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+                        return +_poleShedMoney().base.toFixed(2); };
+  const out = {};
+  out.base = price();
+  const rows = _buildMaterialPriceRows();
+  out.rowCount = rows.length;
+  out.labels = rows.map(r => r.label);
+  out.hasMarkupRow = rows.some(r => /markup/i.test(r.label));
+  out.hasHourRow = rows.some(r => r.autoUnit === 'hr');
+  out.decimalQty = rows.every(r => r.decimalQty === true);
+  const L = S.quote.labour || {};
+  out.leadHrs = L.leadHrs; out.appHrs = L.appHrs;
+  out.est = (function(){ const e = _shedEstimate(_shedEst()); return { manHrs: e.manHrs, total: Math.round(e.total) }; })();
+  out.parts = { mat: +(+S.materials).toFixed(2), lab: +(+S.labour).toFixed(2),
+                scaff: +_scaffoldEff(_roofScaffold(0)).price };
+  // delete a row — the price drops by that row, buffered and marked up
+  const poles = rows[0];
+  out.polesVal = +(poles.autoQty * poles.variants[0].price).toFixed(2);
+  const pct = (1 + _roofMatQtyBufferPct(0) / 100) * (1 + _roofMatMarkupPct(0) / 100);
+  out.expectDrop = +(out.polesVal * pct).toFixed(2);
+  _deleteMatRow(_matOvKey(poles.key, 0));
+  out.afterDelete = price();
+  out.drop = +(out.base - out.afterDelete).toFixed(2);
+  delete MATERIAL_DELETED[_matOvKey(poles.key, 0)];
+  price();
+  // type a quantity and a $/unit on a row, as on a roofing job
+  _onMatOverride(_matOvKey(poles.key, 0), 'qty', 100);
+  out.afterQty = price();
+  _onMatOverride(_matOvKey(poles.key, 0), 'price', 30);
+  out.afterRate = price();
+  out.expectRate = +((out.afterRate)).toFixed(2);
+  out.rateMath = +( (100 * 30) ).toFixed(2);
+  // a custom material line, and a custom labour line
+  _qAddCustom('material', { desc:'Site levelling', qty:1, unit:2500, uom:'', amount:2500 });
+  out.afterCustomMat = price();
+  _qAddCustom('labour', { desc:'Traffic management', qty:1, unit:900, uom:'', amount:900 });
+  out.afterCustomLab = price();
+  // typed hours stay typed
+  updateLabour('leadHrs', 10);
+  out.typedLead = (S.quote.labour || {}).leadHrs;
+  price();
+  out.typedLeadAfter = (S.quote.labour || {}).leadHrs;
+  // the office types the total: that figure wins, and clearing hands it back
+  S.quote.psSubtotal = 99000; S.quote.psSubtotalManual = true;
+  out.typedTotal = _poleShedMoney().base;
+  S.quote.psSubtotalManual = false;
+  out.backToDrawer = price();
+  out.stamped = S.quote.psSubtotal;
+  return out;
+});
+check('a shed\'s material rows are the estimator\'s own take-off',
+  shedPricing.rowCount > 10 && shedPricing.labels.some(l => /Building poles/.test(l)) &&
+  shedPricing.labels.some(l => /Roof cladding/.test(l)) && shedPricing.labels.some(l => /Concrete/.test(l)) &&
+  shedPricing.labels.some(l => /Roller doors/.test(l)), JSON.stringify(shedPricing.rowCount));
+check('…without the estimator\'s own markup line (the table marks up once) or its hours',
+  !shedPricing.hasMarkupRow && !shedPricing.hasHourRow);
+check('…and they keep their decimals — concrete in m³ is measured, not counted', shedPricing.decimalQty);
+check('the labour card\'s hours come off the estimate, split between the crew',
+  shedPricing.leadHrs > 0 && shedPricing.leadHrs === shedPricing.appHrs &&
+  Math.abs((shedPricing.leadHrs + shedPricing.appHrs) - shedPricing.est.manHrs) < 0.3,
+  JSON.stringify({ lead: shedPricing.leadHrs, manHrs: shedPricing.est.manHrs }));
+check('THE SHED\'S PRICE IS WHAT THE DRAWER ADDS UP TO — labour + materials + scaffold',
+  Math.abs(shedPricing.base - (shedPricing.parts.mat + shedPricing.parts.lab + shedPricing.parts.scaff)) < 0.02,
+  JSON.stringify({ base: shedPricing.base, parts: shedPricing.parts }));
+check('…and it is in the same country as the estimate it was taken from',
+  Math.abs(shedPricing.base - shedPricing.est.total) / shedPricing.est.total < 0.15,
+  JSON.stringify({ base: shedPricing.base, est: shedPricing.est.total }));
+check('DELETING A ROW takes exactly that row, buffered and marked up, off the shed',
+  Math.abs(shedPricing.drop - shedPricing.expectDrop) < 0.02,
+  JSON.stringify({ drop: shedPricing.drop, expect: shedPricing.expectDrop }));
+check('typing a quantity moves the price', shedPricing.afterQty !== shedPricing.base, JSON.stringify(shedPricing.afterQty));
+check('…and so does typing a $/unit', shedPricing.afterRate !== shedPricing.afterQty, JSON.stringify(shedPricing.afterRate));
+check('A CUSTOM MATERIAL LINE adds to the shed', Math.abs((shedPricing.afterCustomMat - shedPricing.afterRate) - 2500) < 0.02,
+  JSON.stringify({ a: shedPricing.afterRate, b: shedPricing.afterCustomMat }));
+check('…and a custom LABOUR line does too', Math.abs((shedPricing.afterCustomLab - shedPricing.afterCustomMat) - 900) < 0.02,
+  JSON.stringify({ a: shedPricing.afterCustomMat, b: shedPricing.afterCustomLab }));
+check('hours typed on the labour card are never recomputed away', shedPricing.typedLeadAfter === 10,
+  JSON.stringify(shedPricing));
+check('typing the total on the quote overrides the drawer', shedPricing.typedTotal === 99000);
+check('…and clearing that hands the shed back to the drawer', shedPricing.backToDrawer !== 99000 && shedPricing.backToDrawer > 0);
+check('psSubtotal is STAMPED with what the drawer came to, so the plan chips follow',
+  Math.abs(shedPricing.stamped - shedPricing.backToDrawer) < 0.02,
+  JSON.stringify({ stamped: shedPricing.stamped, base: shedPricing.backToDrawer }));
+
+// THE TAKE-OFF IS TAKEN ONCE and is then the office's, like the Job Pack cut
+// list: a list re-derived on every render is a list that shifts under them.
+const frozen = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  renderMaterialPriceTable();
+  const first = _buildMaterialPriceRows().length;
+  const poles = _buildMaterialPriceRows()[0];
+  _onMatOverride(_matOvKey(poles.key, 0), 'qty', 123);
+  // the shed grows — the office's rows do NOT move under them
+  _shedEstInput('L', 30);
+  renderMaterialPriceTable();
+  const stillTyped = (MATERIAL_OVERRIDES[_matOvKey(poles.key, 0)] || {}).qty;
+  const sameRows = _buildMaterialPriceRows().length === first;
+  const sameQty = _buildMaterialPriceRows()[0].autoQty === poles.autoQty;
+  // …until it is taken again
+  _shedTakeoffReset(false);
+  const afterReset = { rows: _buildMaterialPriceRows().length,
+                       ov: Object.keys(MATERIAL_OVERRIDES).filter(k => /^shed_/.test(k)).length };
+  return { first, stillTyped, sameRows, sameQty, afterReset };
+});
+check('the take-off is taken ONCE and then belongs to the office',
+  frozen.first > 10 && frozen.sameRows && frozen.sameQty && String(frozen.stillTyped) === '123', JSON.stringify(frozen));
+check('…and "take it again" rebuilds it and drops the edits that hung off the old rows',
+  frozen.afterReset.rows > 10 && frozen.afterReset.ov === 0, JSON.stringify(frozen.afterReset));
+
+// A ROOFING job is untouched by all of it.
+const roofUntouched = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'roofing';
+  return { shedRows: _shedMaterialRows().length, isShed: _psIsShed(),
+           drawerBase: _shedBaseFromDrawer() };
+});
+check('a ROOFING quote has no shed rows, no shed base and is priced as it always was',
+  roofUntouched.shedRows === 0 && roofUntouched.isShed === false && roofUntouched.drawerBase === null,
+  JSON.stringify(roofUntouched));
 
 // ── THE JOB TYPE IS NOT A SETTING (2026-10-12) ────────────────────
 // The owner opened a pole-shed job, switched to another job, and that one

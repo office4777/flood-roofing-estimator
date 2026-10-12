@@ -1179,11 +1179,53 @@ Discipline (non-negotiable):
   its difference from the first plan and the GST. NOTHING IN A ROOFING JOB
   MOVES: every path is behind `_psPricingPlans()`, which answers null unless
   `quoteKind === 'poleshed'` AND there is more than one plan.
-  STILL OPEN AND THE OWNER'S CALL: a pole shed's QUOTED price is `psSubtotal`,
-  the figure the Shed estimator produces — the drawer's labour / material /
-  scaffold cards do not feed it, so they move the margin panel and nothing
-  else. Making the drawer drive a shed's price would move money on live shed
-  quotes; ask before doing it. `tests/poleshed.mjs`.
+  `tests/poleshed.mjs`.
+- A POLE SHED IS PRICED LIKE A ROOFING JOB (2026-10-13, the owner, answering
+  the question above: "the pricing estimator should estimate the sheds
+  material cost (and labour cost if it already does) then i should be able to
+  edit everything just like i can with a roofing quote, should let me add
+  material line items and labour lines, pretty much an exact copy of the
+  roofing quote"). A shed has no roof DRAWN, so the Pricing drawer read "No
+  quantifiable items yet" and its labour, materials and scaffold fed nothing —
+  the quote's price was one figure the estimator wrote and the office could
+  type over.
+  THE SHED ESTIMATOR IS THE TAKE-OFF NOW. `_shedTakeoffBuild()` turns its
+  items into the same row shape a roof's take-off has, so everything already
+  built on those rows works for nothing: the qty and $/unit boxes, the ✕,
+  `MATERIAL_OVERRIDES` / `MATERIAL_DELETED`, the buffer and the mark-up, "+
+  Add custom line" and "📖 Add from price book", the materials total, the
+  profitability panel, the pricing CSV and the Fergus push. The estimator's
+  OWN markup item is dropped (the table marks up once) and its HOURLY labour
+  lines are dropped — they seed the Labour card instead (`_shedLabourToHours`,
+  man-hours split between lead and apprentice, and never once the office has
+  typed hours: the same `labourHrsManual` rule the roofing auto-calc follows).
+  TAKEN ONCE, THEN THE OFFICE'S — the Job Pack cut list's rule, learned from
+  three feedback reports: a list re-derived on every render is a list that
+  shifts under them. `_shedTakeoff()` stores it on the quote as `shedTakeoff`
+  the first time and reads it from then on; `_shedTakeoffReset(ask)` (the
+  link under the table, and the estimator's Apply) takes it again and drops
+  the edits that hung off the old rows. Each PLAN OPTION carries its own
+  take-off and its own row overrides (`_psPricingCapture`,
+  `_psShedOvSnapshot` — `shed_`-prefixed keys only, so nothing else in
+  MATERIAL_OVERRIDES is touched).
+  A SHED'S QUANTITIES KEEP THEIR DECIMALS (`decimalQty` on the row,
+  `_matOrderQty(qty, unit, keepDecimals)`): the rounding exists so a roofing
+  order comes out in whole sheets and screws, and rounding 25.08 m³ of
+  concrete to 25 both misprices the shed and makes every small edit jump.
+  THE PRICE IS `quoteSubtotal()` — the same engine, the same lines, as a
+  roofing quote — through `_shedBaseFromDrawer()`, in THREE cases and this
+  order, because an existing quote must not move: a total the office TYPED on
+  the quote page wins (`psSubtotalManual`, set by that field's own blur);
+  else, if there is a take-off to price, the drawer's total; else the stored
+  `psSubtotal`, so a shed priced before any of this by typing one number
+  reads exactly as it did. `psSubtotal` is STAMPED with the drawer's figure
+  (never over a typed one), because the plan chips, the A4 and the customer's
+  copy all read that field. A SHED HAS NO ROOF TABS: `_psIsShed()` turns off
+  the per-roof keying in the material table, the labour card,
+  `_materialsCostForRoofIdx` and `_syncQuoteBaseLineItems`, and the roofing
+  steel-grade percentage with it — a shed's cladding is priced at its own
+  rate in the estimator. Its tabs are its PLAN OPTIONS.
+  `tests/poleshed.mjs` (63).
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make
