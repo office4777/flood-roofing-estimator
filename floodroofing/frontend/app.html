@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T22:49:57Z';
+  window.APP_BUILT_AT = '2026-10-12T23:03:16Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16230,8 +16230,29 @@ function _shedTakeoff(){
     var built = _shedTakeoffBuild();
     if (!built.length) return [];
     S.quote.shedTakeoff = built;
+    _shedSeedPcts();
   }
   return S.quote.shedTakeoff;
+}
+// NO OFFCUT BUFFER ON A SHED'S TAKE-OFF. The quantity buffer exists so a
+// ROOFING job prices in a bit more steel than the drawing calls for —
+// offcuts, a mis-cut — and `defaultQuote()` seeds it at 5%. A shed's
+// quantities are not measured off a drawing: they come out of the estimator,
+// which already carries its own allowances AND its own 5% on materials. Left
+// at 5% the drawer charges that twice, and a shed quoted before this read 3%
+// dearer the moment it was reopened — $64,585 became $66,519 on the owner's
+// own job 3287. So the first time a shed's take-off is built, the buffer is
+// set to 0 and the mark-up to the estimator's own, which makes the drawer
+// reproduce the figure the estimator wrote. Done ONCE and remembered, so the
+// office can set a buffer afterwards and keep it.
+function _shedSeedPcts(){
+  if (!_psIsShed() || !S.quote) return;
+  if (S.quote.shedPctsSeeded) return;
+  S.quote.shedPctsSeeded = true;
+  try {
+    _setRoofMatQtyBuffer(0, 0);
+    _setRoofMatMarkup(Math.round((SHED_RATES.materialMarkup || 0) * 1000) / 10, 0);
+  } catch(e){}
 }
 // Take it again from the estimate, throwing away what was there.
 function _shedTakeoffReset(ask){
@@ -25080,7 +25101,12 @@ function GUTTER_PRICE_TYPES_LIST(){ return _selGutters().map(function(g){ return
 // The shipped ids, kept as a fallback name; readers use the function above.
 var GUTTER_PRICE_TYPES = ['box125', 'marley_typhoon', 'marley_classic'];
 var GUTTER_TYPE_NAMES = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
-function _gutterExcluded(){ return !!(window.S && S.quote && S.quote.gutterExcluded); }
+function _gutterExcluded(){
+  // A pole shed's guttering is in its take-off, so the roofing gutter is
+  // never priced beside it and never offered as an optional extra.
+  if (_psIsShed()) return true;
+  return !!(window.S && S.quote && S.quote.gutterExcluded);
+}
 // Is guttering actually ON the customer's quote (as opposed to merely priced)?
 function _gutterOnQuote(){
   if (_gutterExcluded()) return false;
@@ -25157,6 +25183,20 @@ function renderGutterDownpipePricing(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   if (card) card.style.display = '';
+  // A POLE SHED'S GUTTERING IS IN ITS PRICE ALREADY (2026-10-13, the owner:
+  // "also guttering should be apart of the main price"). The shed's take-off
+  // carries "Box gutter + downpipes" as a priced line, so the guttering IS in
+  // the shed's price — but this card is the ROOFING one: it prices a gutter
+  // run off the drawing (a shed has none), offers it as a customer OPTION,
+  // and sat there reading "$625 · not on the quote", which says the opposite
+  // of the truth. On a shed it says where the guttering actually is, and
+  // sends the office to the row that prices it.
+  if (_psIsShed()){
+    if (card) card.style.display = 'none';
+    wrap.innerHTML = '';
+    window._gdCardTotal = 0;
+    return;
+  }
   // Deliberately not quoting gutter on this job — collapse to the tick that
   // says so (and can put it back), and price nothing.
   if (_gutterExcluded()){
@@ -25455,7 +25495,8 @@ function _pxHeadTotals(){
     set('roofPriceTile', fmtMoney(lab + mat), !(lab + mat > 0));
   } catch(e){ set('roofPriceTile', ''); }
   try {
-    if (_gutterExcluded()) set('gutterDownpipeCard', 'Excluded', true);
+    if (_psIsShed()) set('gutterDownpipeCard', '');
+    else if (_gutterExcluded()) set('gutterDownpipeCard', 'Excluded', true);
     else {
       var p = (S.quote && S.quote.proposalOptions) || {};
       var on = _gutterOnQuote();

@@ -507,6 +507,63 @@ check('…but a shed row left with NO price still holds the send, and is named',
 check('the pricing CSV writes the shed rather than throwing',
   shedGates.csvRows > 25 && !shedGates.csvErr, JSON.stringify({ rows: shedGates.csvRows, err: shedGates.csvErr }));
 
+// GUTTERING IS PART OF THE SHED'S PRICE (2026-10-13, the owner: "also
+// guttering should be apart of the main price"). It always was — the take-off
+// carries a Box gutter + downpipes line — but the ROOFING gutter card sat
+// beside it reading "not on the quote", which says the opposite of the truth.
+const shedGutter = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  gotoTab('scope'); calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+  const base = +_poleShedMoney().base.toFixed(2);
+  const row = _buildMaterialPriceRows().filter(r => /gutter/i.test(r.label))[0] || null;
+  const amt = row ? +(row.autoQty * row.variants[0].price).toFixed(2) : 0;
+  renderGutterDownpipePricing();
+  const txt = (document.getElementById('gutterDownpipeWrap') || {}).textContent || '';
+  const cardShown = (document.getElementById('gutterDownpipeCard') || {}).style.display !== 'none';
+  const offered = _gutterOnQuote();
+  const excluded = _gutterExcluded();
+  _pxHeadTotals();
+  const head = (document.getElementById('pxTot_gutterDownpipeCard') || {}).textContent || '';
+  // and it really is inside the price: delete it and the shed gets cheaper
+  _deleteMatRow(_matOvKey(row.key, 0));
+  calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+  const without = +_poleShedMoney().base.toFixed(2);
+  return { amt, txt, head, cardShown, offered, excluded, base, without, drop: +(base - without).toFixed(2),
+           pct: (1 + _roofMatQtyBufferPct(0) / 100) * (1 + _roofMatMarkupPct(0) / 100) };
+});
+check('a shed carries its guttering as a priced line in the take-off', shedGutter.amt > 0, JSON.stringify(shedGutter.amt));
+check('…and it IS in the shed\'s price — taking the line off makes the shed cheaper by it',
+  Math.abs(shedGutter.drop - shedGutter.amt * shedGutter.pct) < 0.02,
+  JSON.stringify({ drop: shedGutter.drop, amt: shedGutter.amt, pct: shedGutter.pct }));
+check('THE ROOFING GUTTER SECTION IS GONE from a shed\'s Pricing tab',
+  shedGutter.cardShown === false && shedGutter.txt.trim() === '' && shedGutter.head.trim() === '',
+  JSON.stringify({ shown: shedGutter.cardShown, txt: shedGutter.txt.slice(0, 80), head: shedGutter.head }));
+check('…and the gutter is not offered on a shed\'s quote as an optional extra',
+  shedGutter.offered === false && shedGutter.excluded === true,
+  JSON.stringify({ offered: shedGutter.offered, excluded: shedGutter.excluded }));
+
+// NO OFFCUT BUFFER ON A SHED, so reopening one quoted before this does not
+// reprice it: the estimator's quantities already carry their allowances and
+// its own 5% on materials, and charging the roofing buffer on top read 3%
+// dearer on the owner's job 3287.
+const shedBuffer = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '7.2m'; S.quote.psLength = '16.8m'; S.quote.psHeight = '3.48m - 2.58m';
+  const seeded = { bufBefore: _roofMatQtyBufferPct(0) };
+  gotoTab('scope'); calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+  seeded.bufAfter = _roofMatQtyBufferPct(0);
+  seeded.mkAfter = _roofMatMarkupPct(0);
+  // and a buffer the office sets afterwards is kept
+  _setRoofMatQtyBuffer(7, 0);
+  renderMaterialPriceTable();
+  seeded.bufTyped = _roofMatQtyBufferPct(0);
+  return seeded;
+});
+check('a shed starts with NO offcut buffer and the estimator\'s own mark-up',
+  shedBuffer.bufBefore === 5 && shedBuffer.bufAfter === 0 && shedBuffer.mkAfter === 5, JSON.stringify(shedBuffer));
+check('…and a buffer the office sets afterwards is kept', shedBuffer.bufTyped === 7, JSON.stringify(shedBuffer));
+
 // A ROOFING job is untouched by all of it.
 const roofUntouched = await pg.evaluate(() => {
   S.quote = defaultQuote(); S.quote.quoteKind = 'roofing';

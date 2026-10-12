@@ -1225,7 +1225,28 @@ Discipline (non-negotiable):
   `_materialsCostForRoofIdx` and `_syncQuoteBaseLineItems`, and the roofing
   steel-grade percentage with it — a shed's cladding is priced at its own
   rate in the estimator. Its tabs are its PLAN OPTIONS.
-  `tests/poleshed.mjs` (63).
+  NO OFFCUT BUFFER ON A SHED (`_shedSeedPcts`, once, remembered): the
+  quantity buffer prices in extra steel for a ROOFING job's offcuts and
+  `defaultQuote()` seeds it at 5%, but a shed's quantities come out of the
+  estimator, which already carries its own allowances AND its own 5% on
+  materials — charging the roofing buffer on top read 3% dearer the moment a
+  shed quoted before this was reopened ($64,585 → $66,519 on job 3287). The
+  first time a take-off is built the buffer is set to 0 and the mark-up to
+  the estimator's own; a buffer the office sets afterwards is kept. What is
+  left is a ~0.5% difference from the estimator's own total, and it is
+  honest: the drawer charges labour at the roofer's real rates and adds the
+  scaffold the estimator has no concept of.
+  A POLE SHED HAS NO ROOFING GUTTER SECTION (the owner, 2026-10-13: "also
+  guttering should be apart of the main price" → "i mean remove the gutter
+  pricing section" → "gutter shouldn't be a default optional extra in the
+  quote either"). The shed's guttering is the "Box gutter + downpipes" line
+  in its own take-off, so it IS the main price; the roofing card beside it
+  priced a run off a drawing a shed does not have and read "$625 · not on
+  the quote", which says the opposite of the truth. `_gutterExcluded()`
+  answers TRUE for a shed — the existing, already-wired meaning of "not
+  priced here AND not offered anywhere on the customer's quote" — and
+  `renderGutterDownpipePricing` hides the card outright rather than showing
+  the excluded box. `tests/poleshed.mjs` (72).
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make
