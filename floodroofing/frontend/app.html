@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T20:54:30Z';
+  window.APP_BUILT_AT = '2026-10-12T21:03:06Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -30775,6 +30775,8 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 // downpipes when a gutter is chosen — simply is not in the book until it
 // applies, and the page numbers close up behind it.
 function _qbPages(){
+  // The phone book turns the same shed sections as the computer layout.
+  if (S.quote && S.quote.quoteKind === 'poleshed') return _psModernSections();
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
     { key:'cover',     label:'Your quote',    html:_qbCover }
@@ -33042,6 +33044,7 @@ function _qbCondSectionOn(){
 }
 function _qdSections(){ return _qModernApply(_qdSectionsRaw()); }
 function _qdSectionsRaw(){
+  if (S.quote && S.quote.quoteKind === 'poleshed') return _psModernSections();
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
   if (_qbCondSectionOn()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
@@ -37777,7 +37780,7 @@ function _renderShedEstResults(){
 }
 // Build all pole-shed proposal pages. rpPage / headerHtml / trustLogosHtml
 // are passed in from refreshQuoteProposal's local scope.
-function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
+function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   var q = S.quote;
   var M = _poleShedMoney();
   var consented = (q.psConsent === 'consented');
@@ -37981,6 +37984,9 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       '</div>'+
     '</div>';
 
+  if (wantParts) return { cover: cover, designElev: designElev, spec: spec,
+                          selections: _buildPoleShedSelections(),
+                          inclusions: inclusions, accept: accept };
   var html = '';
   // Cover page (padding:0 so the hero band bleeds to the edges).
   html += '<div class="rp-body rp-page" style="padding:0;background:#fff;display:flex;flex-direction:column">'+
@@ -37994,6 +38000,31 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
   html += rpPage(inclusions);
   html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
   return html;
+}
+// The shed's content, without the A4 around it. ONE source of truth: the
+// modern layout renders these same blocks, so a change to the shed's pages
+// cannot leave the two styles disagreeing about what the shed is.
+function _psParts(){
+  var pass = function(x){ return x; };
+  return _buildPoleShedPages(pass, '', '', true) || {};
+}
+// A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12). It was not:
+// _qdSectionsRaw and _qbPages are written entirely around a roofing quote,
+// and nothing asked what kind of quote this was — so a shed set to Modern
+// rendered the ROOFING sections (steel grade, profile, guttering, old roof)
+// with no shed content on them at all. Modern is also the DEFAULT style, so
+// a brand-new shed quote came out as a re-roof quote, and that is what the
+// customer's link would have shown them.
+function _psModernSections(){
+  var P = _psParts();
+  var body = function(html){ return function(){ return '<div class="qb-body">' + (html || '') + '</div>'; }; };
+  var list = [{ key:'cover', label:'Your quote', html:body(P.cover) }];
+  list.push({ key:'psplans',   label:'Plans',      html:body(P.designElev) });
+  list.push({ key:'psdetails', label:'Your shed',  html:body(P.spec) });
+  list.push({ key:'psoptions', label:'Options',    html:body(P.selections) });
+  list.push({ key:'psincluded',label:"What's included", html:body(P.inclusions) });
+  list.push({ key:'psreview',  label:'Review',     html:body(P.accept) });
+  return list;
 }
 // The customer's quote is locked once they've accepted it — selections are
 // frozen at what they signed off. Blocks the option/roof/colour setters (the

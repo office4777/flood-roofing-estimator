@@ -253,6 +253,56 @@ check('a customer cannot switch the shed after accepting it',
   locked.idx === 0 && locked.w === '7.2m', JSON.stringify(locked));
 await ctx.close();
 
+// ── A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12) ───
+// It was not. _qdSectionsRaw (the one-page computer layout) and _qbPages
+// (the phone book) are written entirely around a ROOFING quote, and
+// nothing asked what kind of quote this was — so a shed set to Modern
+// rendered the roofing sections (steel grade, profile, guttering, old
+// roof) with no shed content on them at all. Modern is also the DEFAULT
+// style, so a brand-new shed quote came out as a re-roof quote, and that
+// is what the customer's link would have shown them.
+({ ctx, pg } = await open('Flood Roofing'));
+const styles = await pg.evaluate(() => {
+  gotoTab('quote');
+  S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '7.2m'; S.quote.psLength = '12.6m'; S.quote.psSubtotal = 48000;
+  const out = {};
+  ['classic','modern'].forEach(st => {
+    S.quote.style = st; refreshQuoteProposal();
+    const root = document.getElementById('qpRoot');
+    out[st] = { a4: root.querySelectorAll('.rp-page').length,
+                qd: root.querySelectorAll('.qd-sec').length,
+                keys: _qdSectionsRaw().map(x => x.key),
+                txt: (root.textContent || '').replace(/\s+/g, ' ') };
+  });
+  S.quote.style = 'modern'; QP_PREVIEW.mode = 'phone'; refreshQuoteProposal();
+  out.phone = (document.getElementById('qpRoot').textContent || '').replace(/\s+/g, ' ');
+  QP_PREVIEW.mode = 'desk';
+  // A ROOFING quote must be exactly as it was.
+  S.quote.quoteKind = 'roofing'; refreshQuoteProposal();
+  out.roofing = (document.getElementById('qpRoot').textContent || '').replace(/\s+/g, ' ');
+  return out;
+});
+check('a shed in CLASSIC style is still the A4 document, unchanged',
+  styles.classic.a4 === 6 && styles.classic.qd === 0 && /Your Shed Details/i.test(styles.classic.txt),
+  JSON.stringify({ a4: styles.classic.a4, qd: styles.classic.qd }));
+check('a shed in MODERN style renders the SHED, not a roofing quote',
+  styles.modern.qd > 0 && /Your Shed Details/i.test(styles.modern.txt),
+  styles.modern.txt.slice(0, 110));
+check('…its sections are the shed\'s own, with not one roofing section among them',
+  JSON.stringify(styles.modern.keys) ===
+    JSON.stringify(['cover','psplans','psdetails','psoptions','psincluded','psreview']),
+  JSON.stringify(styles.modern.keys));
+check('…and the phone book turns the same shed sections',
+  /Your quote/i.test(styles.phone) && /Pole Shed|Project quote/i.test(styles.phone),
+  styles.phone.slice(0, 110));
+const roofKeys = await pg.evaluate(() => { S.quote.quoteKind='roofing'; return _qdSectionsRaw().map(x => x.key); });
+check('a ROOFING quote in modern style is untouched by any of it',
+  roofKeys.indexOf('grade') >= 0 && roofKeys.indexOf('disposal') >= 0 &&
+  !roofKeys.some(k => /^ps/.test(k)) && !/Your Shed Details/i.test(styles.roofing),
+  JSON.stringify(roofKeys));
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

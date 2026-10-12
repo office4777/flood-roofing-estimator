@@ -671,6 +671,30 @@ Discipline (non-negotiable):
   `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
   count the file gave with the one worked back out of the pole grid. Every
   field stays hand-editable, as they always were. `tests/poleshed.mjs`.
+- A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12, found while
+  building the shed's modern styling — it was not a styling gap but a live
+  bug). `_qdSectionsRaw` (the one-page computer layout) and `_qbPages` (the
+  phone book) are written entirely around a ROOFING quote, and neither ever
+  asked what kind of quote it was. A shed set to Modern therefore rendered
+  the roofing sections — steel grade, profile, thickness, colour, guttering,
+  old roof, review — with NO shed content on them at all: no dimensions, no
+  drawings, no consent block, no shed price. And `_quoteStyle()` falls back
+  to MODERN, so a brand-new pole shed quote came out as a re-roof quote and
+  that is what the customer's link would have shown. (Job 3287's screenshot
+  is exactly this: Pole Shed in the job details, the roofing nav on the
+  Quote tab.) Both renderers now branch on `quoteKind` to
+  `_psModernSections()` — cover, psplans, psdetails, psoptions, psincluded,
+  psreview. ONE SOURCE OF TRUTH: `_buildPoleShedPages(…, wantParts)` returns
+  its content blocks instead of the assembled A4, `_psParts()` fetches them,
+  and the modern sections wrap those same blocks — so the two styles cannot
+  drift about what the shed is. Classic still renders the six A4 pages
+  unchanged and a roofing quote is untouched; `tests/poleshed.mjs` pins the
+  section KEYS rather than page text, because the shed's own wording
+  legitimately contains phrases like "Steel grade" and "Old roof".
+  STILL TO DO: the shed's modern sections carry the A4's typography inside
+  the modern cards. They read correctly and the Style switch works, but they
+  do not yet use the modern card/rail idiom the roofing quote does — the
+  owner should see them before that is finished.
 - TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed pdf
   button called 'Add another plan option' ... switch between the two options
   should change the photos imported in the quote so the customer can see the
