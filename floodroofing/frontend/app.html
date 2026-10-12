@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T03:50:27Z';
+  window.APP_BUILT_AT = '2026-10-12T20:46:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26007,6 +26007,40 @@ function _loadPdfJs(){
 // Best-effort read of the shed's geometry from the plan PDF's text layer.
 // Returns whatever it can find (floor, span/length, eaves, door counts).
 // Fragile by nature — the estimator inputs let the user correct anything.
+// "7.2m (W) x 12.6m (L) x 3.48m (H)" — WebShed's own title for the export.
+function _parseWebShedTitle(t){
+  t = String(t || '');
+  var out = {};
+  var grab = function(letter){
+    var m = t.match(new RegExp('([\\d.]+)\\s*m?\\s*\\(\\s*' + letter + '\\s*\\)', 'i'));
+    return m ? parseFloat(m[1]) : 0;
+  };
+  var w = grab('W'), l = grab('L'), h = grab('H');
+  // No (W)/(L)/(H) labels: fall back to the first three "0.0m" figures in
+  // the order WebShed writes them.
+  if (!w && !l){
+    var all = (t.match(/([\d.]+)\s*m/gi) || []).map(parseFloat).filter(function(v){ return v > 0.5 && v < 100; });
+    if (all.length >= 2){ w = all[0]; l = all[1]; h = all[2] || 0; }
+  }
+  if (w > 0) out.W = w;
+  if (l > 0) out.L = l;
+  if (h > 0) out.H = h;
+  return (out.W || out.L) ? out : null;
+}
+// The number of bays, from the file WebShed was saved as ("3-Bay.pdf",
+// "3 bay shed.pdf"). The bay COUNT is nowhere in the PDF's data — it is
+// drawn on the plan — so the filename is the only honest source, and a
+// file that does not say leaves the field blank rather than guessing.
+function _parseWebShedBays(name){
+  var m = String(name || '').match(/(\d+)\s*[-_ ]?\s*bay/i);
+  var n = m ? parseInt(m[1], 10) : 0;
+  return (n > 0 && n < 40) ? n : 0;
+}
+// The "View & Edit in 3D" URL, straight out of the text layer.
+function _parseWebShedLink(text){
+  var m = String(text || '').match(/https?:\/\/[^\s)"']*webshed[^\s)"']*/i);
+  return m ? m[0].replace(/[.,;]+$/, '') : '';
+}
 async function _parseShedDimsFromPdf(pdf){
   var text = '';
   for (var p = 1; p <= Math.min(pdf.numPages, 6); p++){
@@ -26016,6 +26050,19 @@ async function _parseShedDimsFromPdf(pdf){
   }
   text = text.replace(/\s+/g, ' ');
   var out = {}, found = false;
+  // The title metadata first — it is the only place the real size lives.
+  try {
+    var meta = await pdf.getMetadata();
+    var fromTitle = _parseWebShedTitle(meta && meta.info && meta.info.Title);
+    if (fromTitle){
+      if (fromTitle.W) out.W = fromTitle.W;
+      if (fromTitle.L) out.L = fromTitle.L;
+      if (fromTitle.H) out.H = fromTitle.H;
+      found = true;
+    }
+  } catch(e){}
+  var link = _parseWebShedLink(text);
+  if (link){ out.link = link; found = true; }
   // Floor area — "Area: 110m²" / "110 m2"
   var am = text.match(/([\d.]+)\s*m\s*²/) || text.match(/([\d.]+)\s*m\s*2\b/i);
   var floor = am ? parseFloat(am[1]) : 0;
@@ -26040,7 +26087,7 @@ async function _parseShedDimsFromPdf(pdf){
     var big = dims.slice().sort(function(a, b){ return b - a; });
     L = big[0]; W = big[1];
   }
-  if (W && L){ out.W = W; out.L = L; found = true; }
+  if (W && L && !(out.W && out.L)){ out.W = W; out.L = L; found = true; }
   // (Eave heights aren't auto-read — bay spacings and door widths sit in
   //  the same range and would contaminate them. The user sets/confirms
   //  eaves off the elevation drawing they just imported.)
@@ -26098,12 +26145,31 @@ async function importWebShedPdf(ev){
       out = _trimWhite(out);
       _qpCondPhotoSet(SLOT_MAP[p - 1], { src: out.toDataURL('image/jpeg', 0.9), offX: 0, offY: 0, zoom: 1 });
     }
-    // Auto-read dimensions from the plan text and price it.
+    // Auto-read dimensions from the plan and price it.
     var dims = null;
     try { dims = await _parseShedDimsFromPdf(pdf); } catch(e){}
+    // The bay count is drawn on the plan, not stored in it — the filename
+    // is the only place it can be read from honestly.
+    var bays = _parseWebShedBays(f && f.name);
     if (dims && S.quote){
       var e = _shedEst() || {};
-      Object.keys(dims).forEach(function(k){ e[k] = dims[k]; });
+      var _link = dims.link, _H = dims.H;
+      Object.keys(dims).forEach(function(k){
+        if (k === 'link' || k === 'H') return;     // quote fields, not estimator ones
+        e[k] = dims[k];
+      });
+      // The ridge height off the title block is the HIGH eave on a
+      // mono-pitch; the low eave follows the roof's own fall so the price
+      // is never worked out on one height. Both stay editable below.
+      if (_H > 0){
+        e.hiEave = _H;
+        if (!(e.loEave > 0)) e.loEave = Math.max(Math.round((_H - 0.9) * 100) / 100, 2);
+      }
+      if (_link) S.quote.psDesignLink = _link;
+      if (bays > 0){
+        S.quote.psBays = String(bays);
+        S.quote.psBayAmount = String(bays);
+      }
       // Recompute pole count + build days from the new footprint.
       var across = (e.W > 7) ? 3 : 2, along = Math.max(Math.round(e.L / 5.5), 1) + 1;
       if (e.W && e.L){
@@ -36518,8 +36584,8 @@ var PROPOSAL_CHAPTERS = [
   { step:6, short:'Accept',     title:'Accept Your Quote',         accent:_CH_BLUE }
 ];
 var POLESHED_CHAPTERS = [
-  { step:1, short:'Your Shed', title:'Your Shed',            accent:_CH_BLUE },
-  { step:2, short:'Design',    title:'Design & Elevations',  accent:_CH_BLUE },
+  { step:1, short:'Design',    title:'Design & Elevations',  accent:_CH_BLUE },
+  { step:2, short:'Your Shed', title:'Your Shed Details',    accent:_CH_BLUE },
   { step:3, short:'Options',   title:'Choose Your Options',  accent:_CH_BLUE },
   { step:4, short:'Included',  title:'What’s Included',  accent:_CH_BLUE },
   { step:5, short:'Accept',    title:'Accept Your Quote',    accent:_CH_BLUE }
@@ -37372,7 +37438,19 @@ function _syncSpecFromEst(){
   if (e.hiEave) S.quote.psHeight = (e.loEave && e.loEave !== e.hiEave) ? (e.hiEave + 'm – ' + e.loEave + 'm') : (e.hiEave + 'm');
   var across = (e.W > 7) ? 3 : 2;
   var along = e.poles ? Math.max(Math.round(e.poles / across), 1) : 0;
-  if (along) S.quote.psBayAmount = String(Math.max(along - 1, 1));
+  // A bay count read off the imported file wins over the one worked back
+  // out of the pole grid — the file is what the shed really is.
+  if (along && !String(S.quote.psBays || '').trim()) S.quote.psBayAmount = String(Math.max(along - 1, 1));
+  // Bays and bay WIDTH: the length divided by the count is the bay centre,
+  // which is the figure a roofer reads off the plan.
+  if (e.L > 0 && !String(S.quote.psBays || '').trim()){
+    var nb = parseInt(S.quote.psBayAmount, 10) || 0;
+    if (nb > 0) S.quote.psBays = String(nb);
+  }
+  var nBay = parseInt(S.quote.psBayAmount, 10) || 0;
+  if (nBay > 0 && e.L > 0 && !/@/.test(String(S.quote.psBays || ''))){
+    S.quote.psBays = nBay + ' @ ' + (Math.round(e.L / nBay * 100) / 100) + 'm';
+  }
   if (e.roller || e.pa){
     S.quote.psDoors = [
       e.roller ? (e.roller + 'x Roller Door' + (e.roller > 1 ? 's' : '')) : '',
@@ -37583,7 +37661,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Shed specification ───────────────────────────────────────────
   var spec =
-    edHeading('1','Specification','Your Shed',{chapter:POLESHED_CHAPTERS[0],chapters:POLESHED_CHAPTERS})+
+    edHeading('2','Specification','Your Shed Details',{chapter:POLESHED_CHAPTERS[1],chapters:POLESHED_CHAPTERS})+
     consentBlock +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+
@@ -37604,20 +37682,24 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
         '</div>'+
       '</div>'+
     '</div>'+
-    // Floor plan shares the shed-details page (fills the lower half).
-    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 8px">'+
+    '';
+
+  // ── The two drawings, together, on the sheet after the cover ──
+  // Equal halves of the page: the floor plan reads landscape and the
+  // elevations stack, so an even split suits both and neither is the
+  // afterthought at the bottom of a page of text.
+  var designElev =
+    edHeading('1','Plans & elevations','Design &amp; Elevations',{chapter:POLESHED_CHAPTERS[0],chapters:POLESHED_CHAPTERS})+
+    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 10px">'+
       '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
       '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
       '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
-    '<div class="ed-eyebrow" style="margin:6px 0 6px">Floor plan</div>'+
-    '<div style="height:470px">'+_psDesignSlot(1,'Floor plan')+'</div>';
-
-  // ── Elevations get their own full page (3D is the cover hero) ──
-  var designElev =
-    edHeading('2','Plans & elevations','Design &amp; Elevations',{chapter:POLESHED_CHAPTERS[1],chapters:POLESHED_CHAPTERS})+
-    '<div style="height:840px">'+_psDesignSlot(2,'Elevations')+'</div>';
+    '<div style="display:flex;flex-direction:column;gap:14px;height:820px">'+
+      '<div style="flex:1;min-height:0">'+_psDesignSlot(1,'Floor plan')+'</div>'+
+      '<div style="flex:1;min-height:0">'+_psDesignSlot(2,'Elevations')+'</div>'+
+    '</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
   var listBlock = function(title, field, accent){
@@ -37684,8 +37766,8 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '<div style="flex:1">'+cover+'</div>'+
     '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+trustLogosHtml+'</div>'+
   '</div>';
-  html += rpPage(spec);
   html += rpPage(designElev);
+  html += rpPage(spec);
   html += rpPage(_buildPoleShedSelections());
   html += rpPage(inclusions);
   html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');

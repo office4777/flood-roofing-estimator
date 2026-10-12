@@ -101,6 +101,71 @@ check('a company switched on by hand gets it, without a deploy',
   await shown(pg, '#qkDraftToggle'));
 await ctx.close();
 
+// ── THE WEBSHED IMPORT READS THE SHED (2026-10-12) ────────────────
+// The owner: the imported WebShed PDF should fill the quote and "it's
+// missing the width, the length, height, number of bays". It always was:
+// a WebShed export's TEXT layer carries the contact block and the 3D link
+// and nothing else — every dimension is drawn inside the page's JPEG — so
+// the old text scrape could never find one. The size is in the PDF's own
+// Title metadata, which jsPDF writes from the shed's configuration.
+({ ctx, pg } = await open('Flood Roofing'));
+const parsed = await pg.evaluate(() => ({
+  // The attached 3-Bay.pdf's real title.
+  title:   _parseWebShedTitle('7.2m (W) x 12.6m (L) x 3.48m (H)'),
+  noLabel: _parseWebShedTitle('7.2m x 12.6m x 3.48m'),
+  junk:    _parseWebShedTitle('Web Shed'),
+  blank:   _parseWebShedTitle(''),
+  bays:    ['3-Bay.pdf','3 Bay shed.pdf','12_bay.pdf','shed.pdf','0-bay.pdf'].map(_parseWebShedBays),
+  link:    _parseWebShedLink('View & Edit in 3D: https://floodroofing.webshed.app/#xjNQfOCnXmi/0 Developed by https://www.webshed.app'),
+  linkEnd: _parseWebShedLink('see https://floodroofing.webshed.app/#abc/0.'),
+  noLink:  _parseWebShedLink('nothing here'),
+}));
+check('the shed\'s size is read from the PDF title, where WebShed really puts it',
+  parsed.title && parsed.title.W === 7.2 && parsed.title.L === 12.6 && parsed.title.H === 3.48,
+  JSON.stringify(parsed.title));
+check('…a title with no (W)/(L)/(H) labels still reads in WebShed\'s own order',
+  parsed.noLabel && parsed.noLabel.W === 7.2 && parsed.noLabel.L === 12.6, JSON.stringify(parsed.noLabel));
+check('…and a title with no size in it reads as nothing, rather than inventing one',
+  parsed.junk === null && parsed.blank === null, JSON.stringify([parsed.junk, parsed.blank]));
+check('the bay count comes off the filename — the only place it is written down',
+  JSON.stringify(parsed.bays) === JSON.stringify([3, 3, 12, 0, 0]), JSON.stringify(parsed.bays));
+check('the 3D link is read out of the text layer, trailing punctuation trimmed',
+  parsed.link === 'https://floodroofing.webshed.app/#xjNQfOCnXmi/0' &&
+  parsed.linkEnd === 'https://floodroofing.webshed.app/#abc/0' && parsed.noLink === '',
+  JSON.stringify([parsed.link, parsed.linkEnd, parsed.noLink]));
+await ctx.close();
+
+// ── THE PAGES, IN THE ORDER HE ASKED FOR ──────────────────────────
+// "remove floor plan from the 1 page and onto the 2 page, then move that
+// page with the photos up one page so they are on the 2nd physical page
+// and the 'your shed' page is below it", and "rename 'your shed' to
+// 'your shed details'".
+({ ctx, pg } = await open('Flood Roofing'));
+const doc = await pg.evaluate(() => {
+  gotoTab('quote');
+  S.quote = S.quote || {};
+  S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
+  S.quote.psWidth = '7.2m'; S.quote.psLength = '12.6m'; S.quote.psHeight = '3.48m';
+  S.quote.psBayAmount = '3'; S.quote.psBays = '3 @ 4.2m';
+  S.quote.psDesignLink = 'https://floodroofing.webshed.app/#xjNQfOCnXmi/0';
+  refreshQuoteProposal();
+  const pages = Array.from(document.querySelectorAll('#qpRoot .rp-page'));
+  const txt = i => (pages[i] ? pages[i].textContent : '').replace(/\s+/g, ' ');
+  return { n: pages.length, p1: txt(0), p2: txt(1), p3: txt(2),
+           link: !!document.querySelector('#qpRoot a[href*="webshed"]') };
+});
+check('the drawings are the SECOND physical page, straight after the cover',
+  /Design & Elevations/i.test(doc.p2), doc.p2.slice(0, 80));
+check('…with BOTH the floor plan and the elevations on it',
+  /Floor plan/i.test(doc.p2) && /Elevations/i.test(doc.p2), doc.p2.slice(0, 120));
+check('…the shed details page sits below them, renamed "Your Shed Details"',
+  /Your Shed Details/i.test(doc.p3), doc.p3.slice(0, 80));
+check('…and the floor plan is no longer on the details page',
+  !/Floor plan/i.test(doc.p3), doc.p3.slice(0, 120));
+check('the 3D link renders as a button the customer can click',
+  doc.link === true);
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

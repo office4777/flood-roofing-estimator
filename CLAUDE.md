@@ -649,6 +649,36 @@ Discipline (non-negotiable):
   (`_emailMergeCopies`).
 - THE "UPDATED …" LINE (2026-10-02): see the bullet below; also the bug
   report records `build <APP_BUILT_AT>` (`tests/fbcontext.mjs`).
+- THE WEBSHED IMPORT READS THE SHED (2026-10-12, the owner: "i want the
+  uploaded imported webshed pdf to auto show the data in the quote ... it's
+  missing the width, the length, height, number of bays"). It always was.
+  `_parseShedDimsFromPdf` scraped the PDF's TEXT layer, and a WebShed export's
+  text layer holds the contact block and the "View & Edit in 3D" URL and
+  NOTHING else — every dimension is drawn inside each page's JPEG, so the
+  scrape could never find one and those four fields stayed blank on every
+  import. The size is in the PDF's own Title metadata, which jsPDF writes from
+  the shed's configuration: `7.2m (W) x 12.6m (L) x 3.48m (H)`.
+  `_parseWebShedTitle` reads it (falling back to the first three figures in
+  WebShed's own order when the labels are missing, and to NOTHING rather than
+  a guess when there is no size in it) → `psWidth`/`psLength`/`psHeight`, and
+  the height seeds `hiEave` with `loEave` a fall below it so the price is
+  never worked out on one height. `_parseWebShedLink` takes the 3D URL out of
+  the text layer into `psDesignLink`, which already renders the customer's
+  "view the design" button. THE BAY COUNT IS NOT IN THE FILE AT ALL — not the
+  metadata, not the text, only drawn on the plan — so `_parseWebShedBays`
+  reads it off the FILENAME (`3-Bay.pdf`, `3 bay shed.pdf`) and a file that
+  does not say leaves the field blank rather than inventing one;
+  `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
+  count the file gave with the one worked back out of the pole grid. Every
+  field stays hand-editable, as they always were. `tests/poleshed.mjs`.
+- THE SHED'S DRAWINGS ARE THE SECOND PAGE (2026-10-12, same batch): the floor
+  plan used to fill the lower half of the shed-details page while the
+  elevations had a page of their own, so the two drawings a customer wants
+  side by side were on different sheets. They now share one page in equal
+  halves, that page is the sheet straight after the cover, and the spec page
+  (renamed "Your Shed Details", chapter 2) sits below it. POLESHED_CHAPTERS
+  swapped to match. Pole-shed only — `_buildPoleShedPages` runs solely when
+  `quoteKind === 'poleshed'`, and nothing in the roofing document moved.
 - A REPEATED OUTLINE CORNER IS NOT A CORNER (2026-10-12, feedback report 11,
   info@wellingtonroof.co.nz — he rebuilt the reports 9/10 roof on that
   morning's build, typed `lowPitch` 10, and the sheets STILL did not break at
