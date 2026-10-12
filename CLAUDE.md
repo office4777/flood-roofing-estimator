@@ -1065,6 +1065,43 @@ Discipline (non-negotiable):
   carries "Message a real person" (`#frHelpPerson`); the suggestions fold
   away once the chat starts.
   `tests/supportdesk.mjs`, `tests/helpsupport.mjs`.
+- THE CANVAS COACH (2026-10-12, the owner: "after i've either imported the
+  satellite image to the canvas or upload a picture from fergus/pc upload, the
+  first action it the building outline, however the first action should be the
+  move button to first locate the image properly"). Four hints in order, each
+  waiting on what the one before it asked for: a big "Drag the roof to centre
+  it" over the top of the canvas, gone the moment they press on the picture;
+  one second after they let go, "Now zoom in on the roof" ringing the + button;
+  one second after the LAST zoom click (every click restarts the wait), "Square
+  the building up" ringing the Rotate background image slider, whose wording
+  changes to "Outlines work best when building is square" the moment it is
+  touched and which clears two seconds after they let go; then, only if nothing
+  is drawn yet, "Now outline your Roof" on the Building outline button.
+  `CC`, `_ccStart`, `_ccShow`, `_ccPlace`, `_ccOn(what)` — one entry point the
+  hooks call (`_applyCanvasBg` with NO stored view, `onCanvasMouseDown` /
+  `onCanvasMouseUp` while panning, `adjustZoom`, the slider's pointerdown /
+  pointerup, `setTool('outline')`, `clearAll`).
+  DELIBERATELY NOT THE TOUR ENGINE: that claims the onboarding arbiter and
+  runs once per account, and these come back with EVERY picture ("these should
+  appear all the time except when in any tutorial or guide or onboarding
+  mode"). `_ccSuppressed()` READS the arbiter rather than claiming it
+  (`_onbActive()`, `TOUR.open`, `#tourWrap`, `#setupWizard`, `#setupGuide`,
+  customer mode). The card is `pointer-events:none` apart from its ✕ — it must
+  never swallow the very drag it is asking for — and the ✕ hides the tips for
+  THIS picture only, because nothing is written down. `_ccStart` picks the Move
+  tool, because `onCanvasMouseDown` returns unless `DRAW.tool === 'select'` and
+  a drag would otherwise drop an outline corner. `tests/canvascoach.mjs`.
+- A TAB IN THE BACKGROUND STILL READS ITS MESSAGES (2026-10-13,
+  `help-bot.js`): `supportStartPolling`'s FIRST read carried the same
+  `visibilityState !== 'hidden'` test as the 90-second repeats, so a tab the
+  browser restored on start-up, or one opened behind another, skipped it — and
+  a support reply waiting for them sat unseen until a tick happened to land
+  while that tab was in front. The first read is unconditional now, the repeats
+  still skip a hidden tab, and a tab coming back to the front reads again
+  (throttled to 20 s) rather than waiting out the rest of its ninety seconds.
+  This is also what made `tests/helpsupport.mjs` fail about one run in three —
+  Playwright's second page boots hidden — including the Tests run that skipped
+  a promote on 2026-10-13. Pinned there with a page that boots hidden.
 - EVERY ROOF PRICES LIKE THE MAIN ROOF (2026-10-12, the owner: "the add
   custom material line or from price books has disapeared from the addition
   roofs ... please check every other thing from the main roof is on the

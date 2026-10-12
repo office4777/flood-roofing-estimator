@@ -811,6 +811,7 @@
   }
   function supportPoll() {
     if (!supportAvailable()) return Promise.resolve(null);
+    SUP.lastPoll = Date.now();
     return Promise.resolve(window.api('GET', '/support/messages')).then(function (r) {
       SUP.data = r || { messages: [], unread: 0 };
       supportBadge(SUP.data.unread || 0);
@@ -845,8 +846,25 @@
   function supportStartPolling() {
     if (SUP.timer) return;
     var go = function () { if (document.visibilityState !== 'hidden') supportPoll(); };
-    setTimeout(go, 4000);
+    // THE FIRST READ ALWAYS HAPPENS (2026-10-13). It carried the same
+    // visibility test as the repeats, so a tab that was in the BACKGROUND
+    // four seconds after boot — a tab the browser restored on start-up, one
+    // opened behind another, a second window — never made it, and a reply
+    // waiting for them sat unseen until a 90-second tick happened to land
+    // while that tab was in front. The test belongs on the repeats, which is
+    // what it is there to spare; not on the one read that answers "has
+    // anybody written to me?".
+    setTimeout(supportPoll, 4000);
     SUP.timer = setInterval(go, 90000);
+    // …and a tab coming back to the front reads again rather than waiting out
+    // the rest of its ninety seconds.
+    try {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') return;
+        if (Date.now() - (SUP.lastPoll || 0) < 20000) return;
+        supportPoll();
+      });
+    } catch (e) {}
   }
   window._helpSupport = { poll: supportPoll, state: SUP, start: supportStart };
 

@@ -126,6 +126,33 @@ try {
 v = await pg2.evaluate(() => { const p = document.getElementById('frHelpPanel'), m = document.getElementById('frHelpMsgs');
   return { open: p ? getComputedStyle(p).display : 'missing', text: m ? m.textContent : '' }; });
 check('signing back in with an unread reply: it pops up on its own, showing the reply', v.open === 'flex' && /reload after the update/.test(v.text), JSON.stringify(v).slice(0, 200));
+await pg2.close();
+
+// ── A TAB IN THE BACKGROUND STILL READS ITS MESSAGES (2026-10-13) ──
+// The first poll carried the same visibility test as the 90-second repeats,
+// so a tab the browser restored on start-up, or one opened behind another,
+// skipped it — and a reply waiting for them sat unseen until a tick happened
+// to land while that tab was in front. This is also what made this suite fail
+// about one run in three: Playwright's second page boots hidden.
+const pg3 = await ctx.newPage();
+convo.messages.push({ id: 's3', sender: 'support', author: 'Aron', body: 'Third reply, read from a background tab.', created_at: new Date().toISOString(), read_at: null });
+convo.unread = 1;
+await pg3.addInitScript(() => {
+  Object.defineProperty(document, 'visibilityState', { get: function(){ return 'hidden'; }, configurable: true });
+  Object.defineProperty(document, 'hidden', { get: function(){ return true; }, configurable: true });
+});
+await pg3.goto('file://' + DIR + '/app.html');
+let hid = { got: false };
+try {
+  await pg3.waitForFunction(() => {
+    const d = window._helpSupport && window._helpSupport.state && window._helpSupport.state.data;
+    return !!(d && (d.messages || []).some(m => /background tab/.test(m.body || '')));
+  }, null, { timeout: 15000 });
+  hid.got = true;
+} catch(e){}
+check('a tab that boots in the background still reads its messages', hid.got, JSON.stringify(hid));
+await pg3.close();
+
 check('nothing threw', errs.length === 0, errs.join(' | ').slice(0, 200));
 await b.close();
 const bad = results.filter(x => !x).length;

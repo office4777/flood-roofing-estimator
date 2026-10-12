@@ -881,6 +881,28 @@ html.site-mode #fergusRoofPanelResize{display:none!important}
    9999px box-shadow on the ring, which gives a real hole with no
    overlay panel in front of the thing it is pointing at. */
 #tourWrap{position:fixed;inset:0;z-index:100080;pointer-events:none;font-family:inherit}
+/* THE CANVAS COACH (2026-10-13) — its own layer, not the tour's: these come
+   back with every picture and must never claim the onboarding arbiter. */
+#ccWrap{position:fixed;inset:0;z-index:9400;pointer-events:none}
+#ccRing{position:absolute;border-radius:10px;border:2.5px solid #0099cc;
+  box-shadow:0 0 0 5px rgba(0,153,204,.26);pointer-events:none;transition:all .18s ease}
+#ccHand{position:absolute;font-size:22px;line-height:1;pointer-events:none;
+  filter:drop-shadow(0 2px 3px rgba(10,22,40,.3));animation:ccNudge 1.1s ease-in-out infinite}
+@keyframes ccNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-5px)}}
+/* The card is a HINT, not a dialog: it must never swallow the very drag it is
+   asking for, so only its x takes a click. */
+#ccCard{position:absolute;max-width:340px;background:#fff;border-radius:14px;
+  box-shadow:0 18px 44px rgba(10,22,40,.26);border:1px solid #d9e2ec;padding:15px 17px;
+  pointer-events:none;font-family:inherit}
+#ccCard.cc-big{max-width:420px;padding:20px 24px;text-align:center}
+#ccCard .cc-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc}
+#ccCard .cc-title{font-size:17px;font-weight:800;color:#0a1628;margin:6px 0 0;line-height:1.25}
+#ccCard.cc-big .cc-title{font-size:22px}
+#ccCard .cc-body{font-size:12.5px;line-height:1.55;color:#475569;margin-top:7px}
+#ccCard .cc-x{position:absolute;top:6px;right:9px;background:none;border:none;color:#94a3b8;
+  font-size:17px;line-height:1;cursor:pointer;padding:2px 4px;font-family:inherit;pointer-events:auto}
+#ccCard .cc-x:hover{color:#0a1628}
+@media (prefers-reduced-motion:reduce){ #ccHand{animation:none} #ccRing{transition:none} }
 #tourRing{position:absolute;border-radius:10px;border:2.5px solid #0099cc;
   box-shadow:0 0 0 9999px rgba(10,22,40,.55),0 0 0 5px rgba(0,153,204,.28);
   transition:left .18s ease,top .18s ease,width .18s ease,height .18s ease;pointer-events:none}
@@ -4763,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T22:10:32Z';
+  window.APP_BUILT_AT = '2026-10-12T22:22:52Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5886,9 +5908,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button type="button" id="phoneClearBtn" onclick="clearAll()" style="display:none;padding:7px 13px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer"><span class="rt-emo">🗑 </span>Clear</button>
         <div id="roofZoomStepper" style="display:flex;align-items:center;gap:4px">
           Zoom:
-          <button onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
+          <button id="zoomOutBtn" onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
           <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
-          <button onclick="adjustZoom(0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">+</button>
+          <button id="zoomInBtn" onclick="adjustZoom(0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">+</button>
           <button onclick="resetZoom()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">Fit</button>
         </div>
         <!-- ROTATE IMAGE (2026-09-24): its own slider. Moving it brings the
@@ -5899,9 +5921,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <input type="range" id="fineRotateSlider" min="-100" max="100" step="0.1" value="0" class="rotimg-range"
             title="Turn the photo under the drawing (−100° to 100°)"
             oninput="_setFineRotate(this.value);_rotImgOpen()"
-            onpointerdown="DRAW.showAlignGrid=true;redrawAll();_rotImgOpen()"
-            onpointerup="DRAW.showAlignGrid=false;redrawAll()"
-            onblur="DRAW.showAlignGrid=false;redrawAll()">
+            onpointerdown="DRAW.showAlignGrid=true;redrawAll();_rotImgOpen();_ccOn('rotdown')"
+            onpointerup="DRAW.showAlignGrid=false;redrawAll();_ccOn('rotup')"
+            onblur="DRAW.showAlignGrid=false;redrawAll();_ccOn('rotup')">
           <div id="rotImgFine" class="rotimg-fine" style="display:none">
             <button type="button" id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" title="Turn 0.1° anticlockwise">−.1</button>
             <input type="number" id="fineRotate" min="-100" max="100" step="0.1" value="0"
@@ -47236,6 +47258,9 @@ function setTool(t) {
   }
   DRAW.tool = t;
   DRAW.currentPts = [];
+  // Picking the outline tool is the end of the canvas coach — they are past
+  // centring, zooming and squaring and on to the roof itself.
+  if (t === 'outline') { try { _ccOutlineStarted(); } catch(e){} }
   if (t === 'outline') { try { _outlineShiftTip(); } catch(e){} }
   try { TAPE.start = null; TAPE.hover = null; if (t !== 'tape' && t !== 'select') DRAW.selTape = -1; } catch(e){}
   try { SQC.hover = -1; } catch(e){}
@@ -48894,10 +48919,12 @@ function onCanvasMouseDown(e) {
   PAN.originX = IMG_OFFSET.x;
   PAN.originY = IMG_OFFSET.y;
   document.getElementById('roofCanvas').style.cursor = 'grabbing';
+  try { _ccOn('canvasdown'); } catch(e){}
   e.preventDefault();
 }
 
 function onCanvasMouseUp(e) {
+  try { if (PAN.active) _ccOn('canvasup'); } catch(e){}
   if (_tapeMouseUp()) return;
   // Star-drag end — commit the pre-drag snapshot so undo restores
   // the star to its original position.
@@ -50107,6 +50134,196 @@ function tourStep(n){
   }
   closeTour(false);
 }
+// ── THE CANVAS COACH ──────────────────────────────────────────────
+// The owner, 2026-10-12: "after i've either imported the satellite image to
+// the canvas or upload a picture from fergus/pc upload, the first action it
+// the building outline, however the first action should be the move button to
+// first locate the image properly, a big pop-up should appear saying 'drag the
+// roof to centre it', that window should disapear when the user clicks the
+// image to start the drag, then when the user releases the drag, wait 1 sec
+// then appear another that points to the zoom + button ... then wait 1 sec
+// after the final click on either of the zoom buttons (restart timer every
+// click) then pop-up window pointing at the rotate image slider bar to square
+// the building then change the wording as soon as they click the slider bar
+// ... which that box disapears after 2second after releasing the click button,
+// then only once that is done, appear another window pointing at the building
+// outline (only if there isn't any outlines drawn yet) that say 'now outline
+// your Roof'. these should appear all the time except when in any tutorial or
+// guide or onboarding mode".
+//
+// DELIBERATELY NOT THE TOUR ENGINE. That claims the onboarding arbiter and
+// runs once per account; these are four hints that come back with EVERY
+// picture. They read the arbiter rather than claiming it, so a walkthrough,
+// the setup guide or the tutorial simply switches them off.
+//
+// Panning only works in the Move tool (onCanvasMouseDown returns unless
+// DRAW.tool === 'select'), so the coach picks that tool up front — which is
+// the "first action should be the move button" half of the ask.
+var CC = { step: null, timer: null, rotTouched: false, off: false };
+var CC_ORDER = ['move', 'zoom', 'rotate', 'outline'];
+function _ccSuppressed(){
+  try { if (window.__CUSTOMER_MODE) return true; } catch(e){}
+  try { if (typeof _onbActive === 'function' && _onbActive()) return true; } catch(e){}
+  try { if (window.TOUR && TOUR.open) return true; } catch(e){}
+  try {
+    if (document.getElementById('tourWrap') || document.getElementById('setupWizard') ||
+        document.getElementById('setupGuide')) return true;
+  } catch(e){}
+  return false;
+}
+function _ccHasOutline(){
+  try {
+    if (DRAW.outline && DRAW.outline.length >= 3) return true;
+    if (DRAW.currentPts && DRAW.currentPts.length) return true;
+    if (DRAW.roofs && DRAW.roofs.some(function(r){ return r && r.outline && r.outline.length >= 3; })) return true;
+  } catch(e){}
+  return false;
+}
+function _ccClearTimer(){ if (CC.timer){ clearTimeout(CC.timer); CC.timer = null; } }
+function _ccStop(){
+  _ccClearTimer();
+  CC.step = null; CC.rotTouched = false;
+  var w = document.getElementById('ccWrap'); if (w) w.remove();
+  try { window.removeEventListener('resize', _ccPlace); } catch(e){}
+  try { window.removeEventListener('scroll', _ccPlace, true); } catch(e){}
+}
+// The x on the card: these tips are for this picture, not forever - he asked
+// for them every time, so nothing is written down.
+function _ccDismiss(){ CC.off = true; _ccStop(); }
+// A picture has just been placed under the drawing. Start at the beginning.
+function _ccStart(){
+  CC.off = false;
+  if (_ccSuppressed() || _ccHasOutline()) return;
+  try { if (!DRAW.bgImg) return; } catch(e){ return; }
+  try { if (typeof setTool === 'function' && DRAW.tool !== 'select') setTool('select'); } catch(e){}
+  _ccShow('move');
+}
+var CC_TEXT = {
+  move:   { eyebrow:'Step 1 of 4', title:'Drag the roof to centre it',
+            body:'Press anywhere on the picture and drag, so the building you are quoting sits in the middle of the canvas.' },
+  zoom:   { eyebrow:'Step 2 of 4', title:'Now zoom in on the roof',
+            body:'Zoom until the roof fills the canvas — the closer in you are, the more exactly the corners land.' },
+  rotate: { eyebrow:'Step 3 of 4', title:'Square the building up',
+            body:'Slide <strong>Rotate background image</strong> until the walls run straight across and straight up the canvas.' },
+  rotateOn:{ eyebrow:'Step 3 of 4', title:'Outlines work best when building is square',
+            body:'Keep going until the walls line up with the edges of the canvas.' },
+  outline:{ eyebrow:'Step 4 of 4', title:'Now outline your Roof',
+            body:'Click <strong>Building outline</strong>, then click each corner of the building. Press Enter when you are back where you started.' }
+};
+var CC_TARGET = { move: null, zoom: '#zoomInBtn', rotate: '#fineRotateSlider', outline: '#btn-outline' };
+function _ccShow(step){
+  _ccClearTimer();
+  if (CC.off || _ccSuppressed()){ _ccStop(); return; }
+  if (step === 'outline' && _ccHasOutline()){ _ccStop(); return; }
+  CC.step = step;
+  var w = document.getElementById('ccWrap');
+  if (!w){
+    w = document.createElement('div');
+    w.id = 'ccWrap'; w.className = 'no-print';
+    w.innerHTML = '<div id="ccRing" style="display:none"></div>' +
+      '<div id="ccHand" style="display:none" aria-hidden="true"></div>' +
+      '<div id="ccCard" role="status" aria-live="polite">' +
+        '<button type="button" class="cc-x" title="Hide these tips for this picture" onclick="_ccDismiss()">×</button>' +
+        '<div class="cc-eyebrow"></div><div class="cc-title"></div><div class="cc-body"></div>' +
+      '</div>';
+    document.body.appendChild(w);
+    try { window.addEventListener('resize', _ccPlace); } catch(e){}
+    try { window.addEventListener('scroll', _ccPlace, true); } catch(e){}
+  }
+  var t = CC_TEXT[(step === 'rotate' && CC.rotTouched) ? 'rotateOn' : step] || {};
+  w.querySelector('.cc-eyebrow').textContent = t.eyebrow || '';
+  w.querySelector('.cc-title').textContent = t.title || '';
+  w.querySelector('.cc-body').innerHTML = t.body || '';
+  w.querySelector('#ccCard').classList.toggle('cc-big', step === 'move');
+  _ccPlace();
+  setTimeout(_ccPlace, 30);
+}
+function _ccPlace(){
+  var w = document.getElementById('ccWrap'); if (!w) return;
+  var card = w.querySelector('#ccCard'), ring = w.querySelector('#ccRing'), hand = w.querySelector('#ccHand');
+  var sel = CC_TARGET[CC.step];
+  var el = null; try { el = sel ? document.querySelector(sel) : null; } catch(e){}
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var cw = card.offsetWidth || 340, chh = card.offsetHeight || 150;
+  if (!el){
+    // The big one: over the top of the canvas, clear of where they will grab.
+    ring.style.display = 'none'; hand.style.display = 'none';
+    var box = null; try { box = document.getElementById('canvasWrap'); } catch(e){}
+    var r0 = box ? box.getBoundingClientRect() : { left: 0, top: 0, width: vw, height: vh };
+    var L0 = r0.left + r0.width / 2 - cw / 2;
+    var T0 = r0.top + 18;
+    card.style.left = Math.max(8, Math.min(L0, vw - cw - 8)) + 'px';
+    card.style.top  = Math.max(8, Math.min(T0, vh - chh - 8)) + 'px';
+    return;
+  }
+  try { if (el.scrollIntoView) el.scrollIntoView({ block:'nearest', inline:'nearest' }); } catch(e){}
+  var r = el.getBoundingClientRect(), pad = 7, gap = 36, HAND = 24;
+  ring.style.display = 'block';
+  ring.style.left = (r.left - pad) + 'px'; ring.style.top = (r.top - pad) + 'px';
+  ring.style.width = (r.width + pad * 2) + 'px'; ring.style.height = (r.height + pad * 2) + 'px';
+  // Below the target where there is room — these controls sit in a strip
+  // above the canvas, so the card drops onto the picture rather than off the
+  // top of the window.
+  var midX = r.left + r.width / 2, L, T, ch2, hx, hy;
+  if (r.bottom + gap + chh < vh - 8){ L = midX - cw / 2; T = r.bottom + gap; ch2 = '👆'; hx = midX - HAND / 2; hy = r.bottom + 4; }
+  else if (r.right + gap + cw < vw - 8){ L = r.right + gap; T = r.top + r.height / 2 - chh / 2; ch2 = '👈'; hx = r.right + 4; hy = r.top + r.height / 2 - HAND / 2; }
+  else { L = midX - cw / 2; T = Math.max(8, r.top - gap - chh); ch2 = '👇'; hx = midX - HAND / 2; hy = r.top - 4 - HAND; }
+  card.style.left = Math.max(8, Math.min(L, vw - cw - 8)) + 'px';
+  card.style.top  = Math.max(8, Math.min(T, vh - chh - 8)) + 'px';
+  hand.style.display = 'block'; hand.textContent = ch2;
+  hand.style.left = Math.max(2, Math.min(hx, vw - 28)) + 'px';
+  hand.style.top  = Math.max(2, Math.min(hy, vh - 28)) + 'px';
+}
+// Everything the canvas and its controls report back. One entry point, so a
+// hook that fires when the coach is not running costs nothing.
+function _ccOn(what){
+  if (!CC.step || CC.off) return;
+  if (_ccSuppressed()){ _ccStop(); return; }
+  if (what === 'canvasdown' && CC.step === 'move'){
+    // "that window should disapear when the user clicks the image to start
+    // the drag" — the card goes now, the next one is timed off the release.
+    var w = document.getElementById('ccWrap'); if (w) w.style.display = 'none';
+    return;
+  }
+  if (what === 'canvasup' && CC.step === 'move'){
+    _ccClearTimer();
+    CC.timer = setTimeout(function(){
+      var w = document.getElementById('ccWrap'); if (w) w.style.display = '';
+      _ccShow('zoom');
+    }, 1000);
+    return;
+  }
+  if (what === 'zoom'){
+    if (CC.step !== 'zoom' && CC.step !== 'move') return;
+    // The card goes on the first click; the timer restarts on every one, so
+    // the next hint waits until they have stopped zooming.
+    CC.step = 'zoom';
+    var w2 = document.getElementById('ccWrap'); if (w2) w2.style.display = 'none';
+    _ccClearTimer();
+    CC.timer = setTimeout(function(){
+      var w3 = document.getElementById('ccWrap'); if (w3) w3.style.display = '';
+      CC.rotTouched = false;
+      _ccShow('rotate');
+    }, 1000);
+    return;
+  }
+  if (CC.step !== 'rotate') return;
+  if (what === 'rotdown'){
+    // "change the wording as soon as they click the slider bar"
+    _ccClearTimer();
+    if (!CC.rotTouched){ CC.rotTouched = true; _ccShow('rotate'); }
+    return;
+  }
+  if (what === 'rotup'){
+    _ccClearTimer();
+    CC.timer = setTimeout(function(){
+      if (_ccHasOutline()){ _ccStop(); return; }
+      _ccShow('outline');
+    }, 2000);
+  }
+}
+// Picking the outline tool, or drawing one, is the end of it.
+function _ccOutlineStarted(){ if (CC.step) _ccStop(); }
 function _tourPlace(){
   var w = document.getElementById('tourWrap'); if (!w) return;
   var st = TOUR.steps[TOUR.i];
@@ -54277,6 +54494,7 @@ function redoLast() {
 }
 
 function clearAll(silent) {
+  try { _ccStop(); } catch(e){}
   if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   try { _lkgForget(); } catch(e){}   // asked for — an empty save is now correct
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[]; DRAW.tapes=[]; DRAW.selTape=-1;
@@ -70567,6 +70785,9 @@ function _applyCanvasBg(img, view){
   }
   try { redrawAll(); } catch(e){}
   try { _applyPendingView(); } catch(e){}
+  // A FRESH picture (no stored view) with nothing drawn on it yet: walk them
+  // through centring, zooming and squaring it before the outline.
+  try { if (!view) setTimeout(function(){ try { _ccStart(); } catch(e){} }, 260); } catch(e){}
 }
 // THE CANVAS IS NEVER PINNED TO A PIXEL SIZE (2026-09-24). Placing a picture
 // used to write the canvas's CSS width and height in pixels, and nothing ever
@@ -71597,6 +71818,7 @@ function adjustZoom(delta) {
   DRAW.zoom = Math.max(0.1, Math.min(5, DRAW.zoom + delta));
   document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
   redrawAll();
+  try { _ccOn('zoom'); } catch(e){}
 }
 // Zoom + pan so the whole drawn roof fits the canvas with a margin. Works
 // with or without a background image (the transform differs — see
