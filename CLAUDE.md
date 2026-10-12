@@ -1232,8 +1232,15 @@ Discipline (non-negotiable):
   priced from the list without it being kept on them: they are what went out,
   and nothing a render happens to do may change them. `window.__CUSTOMER_MODE
   || S._qvViewing || _qpAcceptedLock()` returns the built list and stores
-  nothing; the office's working draft still keeps its take-off. Pinned in
-  `tests/poleshed.mjs`.
+  nothing; the office's working draft still keeps its take-off. BE ACCURATE
+  ABOUT WHAT THAT GUARD CATCHES: `_qvQuoteOf` deep-clones a version, so a
+  write while a frozen copy is on screen only ever reached the clone and the
+  stored `versions.sent` was never reachable from a render — measured with
+  the real `_qvView`/`_qvBackToDraft` pair, not assumed. The case that was
+  LIVE is `_qpAcceptedLock()` without a frozen view: the working draft of an
+  ACCEPTED shed job, which is the real quote and is autosaved, so opening one
+  quoted before the take-off existed would have stamped today's estimator
+  onto it. Pinned in `tests/poleshed.mjs`.
   A SHED'S QUANTITIES KEEP THEIR DECIMALS (`decimalQty` on the row,
   `_matOrderQty(qty, unit, keepDecimals)`): the rounding exists so a roofing
   order comes out in whole sheets and screws, and rounding 25.08 m³ of
