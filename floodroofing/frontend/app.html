@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T02:44:42Z';
+  window.APP_BUILT_AT = '2026-10-12T03:50:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -66439,27 +66439,135 @@ function _csvCell(v){
 }
 function _scopePricingRows(){
   var money = function(n){ var f = parseFloat(n); return isFinite(f) ? f.toFixed(2) : ''; };
-  var hours = function(n){ var f = parseFloat(n); return (isFinite(f) && f) ? (Math.round(f * 10) / 10) : ''; };
+  var num   = function(n, dp){ var f = parseFloat(n); return isFinite(f) && f ? (Math.round(f * Math.pow(10, dp||2)) / Math.pow(10, dp||2)) : ''; };
+  var rows  = [];
+  // Section, Item, Detail, Qty, Unit, Rate, Charge-out, Cost, Hours
+  var put = function(sec, item, detail, qty, unit, rate, charge, cost, hrs){
+    rows.push([sec||'', item||'', detail||'', qty==null?'':qty, unit||'',
+               rate==null?'':money(rate), charge==null?'':money(charge),
+               cost==null?'':money(cost), hrs==null?'':num(hrs,1)]);
+  };
+  var gap = function(){ rows.push([]); };
+  var idx = 0; try { idx = _pricingRoofIdx() || 0; } catch(e){}
+
+  // ── THE JOB ───────────────────────────────────────────────────
   var g = _profitFigures('total');
-  var rows = [];
+  try {
+    put('Job', 'Quote', (S.quote && S.quote.ref) ? String(S.quote.ref) : '');
+    put('Job', 'Client', (S.quote && S.quote.clientName) || '');
+    put('Job', 'Roof area', 'along the pitch', num(g.area, 1), 'm²');
+    put('Job', 'Pitch', '', num(DRAW && DRAW.calPitch, 1), '°');
+  } catch(e){}
+
+  // ── SCAFFOLDING ───────────────────────────────────────────────
+  try {
+    var sc = _scaffoldEff(_roofScaffold(idx));
+    var scType = (_roofScaffold(idx).type === 'platform') ? 'full working platform' : 'edge protection';
+    gap(); put('Scaffolding', 'Scaffolding', scType, null, null, null, sc.price, sc.cost);
+  } catch(e){}
+
+  // ── ROOF LABOUR, the way this job charges it ──────────────────
+  try {
+    gap();
+    var L = (S.quote && S.quote.labour) || {}, r = _labourRates();
+    var byArea = (_labourMode() === 'm2' && _labourM2Rate() > 0);
+    put('Roof labour', 'Charged', byArea ? 'by the square metre' : 'by the hour');
+    if (byArea){
+      put('Roof labour', 'Roof area × rate', '', num(g.area, 1), 'm²', _labourM2Rate(),
+          _labourAreaForRoof(idx) * _labourM2Rate());
+    }
+    var lead = parseFloat(L.leadHrs) || 0, app = parseFloat(L.appHrs) || 0;
+    if (idx !== 0){ var rl = _roofLabour(idx); lead = parseFloat(rl.leadHrs) || 0; app = parseFloat(rl.appHrs) || 0; }
+    put('Roof labour', 'Lead hand', byArea ? 'hours (cost only)' : '', lead, 'hrs',
+        r.leadPrice, byArea ? null : lead * r.leadPrice, lead * r.leadCost, lead);
+    put('Roof labour', 'Apprentice', byArea ? 'hours (cost only)' : '', app, 'hrs',
+        r.appPrice, byArea ? null : app * r.appPrice, app * r.appCost, app);
+    put('Roof labour', 'Labour total', '', null, null, null,
+        _labourPriceForRoof(idx), _labourCostForRoof(idx), lead + app);
+  } catch(e){}
+
+  // ── ROOF MATERIALS, every row the table shows ─────────────────
+  try {
+    gap();
+    var mrows = _buildMaterialPriceRows(), matBase = 0;
+    mrows.forEach(function(row){
+      var ovk = _matOvKey(row.key, idx);
+      if (typeof MATERIAL_DELETED !== 'undefined' && MATERIAL_DELETED[ovk]) return;
+      var ov = (typeof MATERIAL_OVERRIDES !== 'undefined' && MATERIAL_OVERRIDES[ovk]) || {};
+      var vv = (ov.variant != null) ? ov.variant : row.defaultVariant;
+      var picked = (row.variants || []).filter(function(v){ return v.value === vv; })[0] || (row.variants || [])[0];
+      var unit = picked ? picked.unit : row.autoUnit;
+      var qty = _matOrderQty((ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : row.autoQty, unit);
+      var price = _matOvPrice(ov, picked ? picked.price : 0);
+      var line = (qty || 0) * (price || 0);
+      matBase += line;
+      var detail = (picked && picked.label && picked.label !== row.label) ? picked.label : '';
+      put('Roof materials', row.label || row.key, detail, qty, unit, price, line);
+    });
+    var bufPct = _roofMatQtyBufferPct(idx), mkPct = _roofMatMarkupPct(idx);
+    var buffered = matBase * (1 + bufPct / 100);
+    put('Roof materials', 'Materials at cost', '', null, null, null, matBase);
+    put('Roof materials', 'Quantity buffer', bufPct + '%', null, null, null, buffered - matBase);
+    put('Roof materials', 'Mark-up', mkPct + '%', null, null, null, buffered * (mkPct / 100));
+    put('Roof materials', 'Materials total', '', null, null, null, buffered * (1 + mkPct / 100));
+  } catch(e){ try { console.warn('pricing csv materials', e); } catch(_){} }
+
+  // ── GUTTERING & DOWNPIPES, itemised like the card ─────────────
+  try {
+    var excluded = false; try { excluded = _gutterExcluded(); } catch(e){}
+    gap();
+    if (excluded){
+      put('Guttering', 'Guttering', 'excluded from this job');
+    } else {
+      var gt = _gutterPricingType(), gname = (window.GUTTER_TYPE_NAMES || {})[gt] || gt;
+      var glm = _selGutterLm(), glines = _selGutterLineCount(), gcorners = _selGutterCorners();
+      put('Guttering', 'Gutter', gname + (_gutterOnQuote() ? '' : ' — not on the quote'), num(glm, 2), 'lm');
+      var gBase = 0;
+      (_gutterMaterialLines(gt, glm, glines, gcorners) || []).forEach(function(r2){
+        gBase += (r2.lineTotal || 0);
+        put('Guttering', r2.desc, '', _matOrderQty(r2.qty, r2.unit), r2.unit, r2.price, r2.lineTotal);
+      });
+      var gCustom = _gutterCustomBase();
+      if (gCustom) { put('Guttering', 'Custom lines on this card', '', null, null, null, gCustom); gBase += gCustom; }
+      var gBuf = _gutterMatQtyBufferPct(), gMk = _gutterMatMarkupPct();
+      var gBuffered = gBase * (1 + gBuf / 100);
+      put('Guttering', 'Quantity buffer', gBuf + '%', null, null, null, gBuffered - gBase);
+      put('Guttering', 'Mark-up', gMk + '%', null, null, null, gBuffered * (gMk / 100));
+      var gls = _gutterLabourState(glm);
+      var byLm = (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0);
+      put('Guttering', 'Labour', byLm ? ('by the lineal metre at $' + money(_gutterLmRate()) + '/lm') : 'by the hour',
+          byLm ? num(glm, 2) : null, byLm ? 'lm' : null, byLm ? _gutterLmRate() : null,
+          _gutterLabourCharge(glm), null, (gls.leadHrs || 0) + (gls.appHrs || 0));
+      var scUp = 0.25 * ((typeof _selScaffoldBasePrice === 'function' ? parseFloat(_selScaffoldBasePrice()) : 0) || 0);
+      if (scUp) put('Guttering', 'Platform scaffolding upgrade', '25% of the scaffold', null, null, null, scUp);
+      if (((S.quote || {}).proposalOptions || {}).downpipes === 'yes')
+        put('Guttering', 'Downpipes', '', glines, 'ea', _downpipeUnitPrice(), _downpipeUnitPrice() * glines);
+      put('Guttering', 'Guttering total', '', null, null, null, window._gdCardTotal);
+    }
+  } catch(e){ try { console.warn('pricing csv gutter', e); } catch(_){} }
+
+  // ── JOB PROFITABILITY, the panel's own list ───────────────────
+  gap();
   (g.items || []).forEach(function(it, i){
-    rows.push([ (i + 1), it.label || '', it.sub || '',
-                money(it.revenue), money(it.cost),
-                money((parseFloat(it.revenue) || 0) - (parseFloat(it.cost) || 0)), hours(it.hrs) ]);
+    put('Job profitability', (i + 1) + '. ' + (it.label || ''), it.sub || '',
+        null, null, null, it.revenue, it.cost, it.hrs);
   });
   var rev = parseFloat(g.revenue) || 0, cost = parseFloat(g.cost) || 0;
-  rows.push([]);
-  rows.push(['', 'TOTAL', '', money(rev), money(cost), money(rev - cost), hours(g.hrsAll)]);
-  rows.push(['', 'Gross profit %', '', rev ? ((rev - cost) / rev * 100).toFixed(1) + '%' : '', '', '', '']);
+  gap();
+  put('Totals', 'TOTAL', '', null, null, null, rev, cost, g.hrsAll);
+  put('Totals', 'Gross profit', '', null, null, null, rev - cost);
+  rows.push(['Totals', 'Gross profit %', '', '', '', '', rev ? ((rev - cost) / rev * 100).toFixed(1) + '%' : '', '', '']);
+  var hrsAll = parseFloat(g.hrsAll) || 0;
+  if (hrsAll > 0) put('Totals', 'Gross profit per hour', '', null, null, null, (rev - cost) / hrsAll);
   // The per-square-metre figures the panel shows under the list — read the
   // same way the panel reads them. No area, no rows: an empty roof would
   // otherwise print a column of divide-by-zeros.
   var area = parseFloat(g.area) || 0;
   if (area > 0){
-    rows.push([]);
-    rows.push(['', 'Roof area (m²)', '', area.toFixed(1), '', '', '']);
-    rows.push(['', 'Revenue per m²', '', money(rev / area), '', '', '']);
-    rows.push(['', 'Cost per m²', '', money(cost / area), '', '', '']);
+    gap();
+    put('Per square metre', 'Roof area', '', num(area, 1), 'm²');
+    put('Per square metre', 'Revenue per m²', '', null, null, null, rev / area);
+    put('Per square metre', 'Cost per m²', '', null, null, null, cost / area);
   }
   return rows;
 }
@@ -66469,7 +66577,8 @@ function saveScopePricingAsCsv(){
     if (!rows.length){ _scopeMsg('Nothing priced yet.', false); return; }
     var ref = '';
     try { ref = (S.quote && S.quote.ref) ? String(S.quote.ref) : ''; } catch(e){}
-    var head = ['#', 'Item', 'Detail', 'Charge-out (ex GST)', 'Cost (ex GST)', 'Gross profit (ex GST)', 'Hours'];
+    var head = ['Section', 'Item', 'Detail', 'Qty', 'Unit', 'Rate (ex GST)',
+                'Charge-out (ex GST)', 'Cost (ex GST)', 'Hours'];
     var out = [head.map(_csvCell).join(',')];
     rows.forEach(function(r){ out.push(r.map(_csvCell).join(',')); });
     var blob = new Blob([out.join('\n')], { type: 'text/csv' });

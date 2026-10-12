@@ -170,36 +170,75 @@ check('…and taking it off the list takes it out of the picker', removed.n === 
 
 // ── THE PRICING SHEET AS A CSV (2026-10-12) ───────────────────────
 // "the intention was for a Quote Pricing sheet to be available as Download
-// CSV beside" Save pricing as PDF.
+// CSV beside" Save pricing as PDF — then, once it shipped: "can it be
+// available with the same level of detail as the Save Pricing as PDF?
+// Current Download pricing as CSV option is set for summary only." So it
+// carries every section of the page, not the profitability list alone.
 const pcsv = await pg.evaluate(async () => {
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[814,465],[1633,465],[1633,827],[814,827]]; finishCurrent();
+  DRAW.scaleMetresPerPx = 0.031; DRAW.calPitch = 25; DRAW.roofType = 'hip';
+  autoGenerateRoof('hip', 0); autoCalcLineMeasurements(); syncToRoofData();
   S.quote = S.quote || {}; S.quote.ref = '06125';
-  S.labour = 15324; S.labourCost = 2730; S.labourHours = 78; S.materials = 14548.71;
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); renderGutterDownpipePricing(); renderProfitability(); } catch(e){}
   window.__dl = null; window.__dlBlob = null;
   const btn = Array.from(document.querySelectorAll('#tab-scope .mat-actions button'))
     .find(b => /download pricing as csv/i.test(b.textContent || ''));
   if (!btn) return { btn: false };
   btn.click();
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 400));
   return { btn: true, name: window.__dl, text: window.__dlBlob ? await window.__dlBlob.text() : '' };
 });
 const plines = (pcsv.text || '').split('\n');
+const sect = n => plines.filter(l => l.indexOf(n + ',') === 0);
 check('the Pricing page offers a CSV beside Save pricing as PDF',
   pcsv.btn && /\.csv$/i.test(pcsv.name || ''), JSON.stringify({ btn: pcsv.btn, name: pcsv.name }));
 check('…named for the quote it came from, so two jobs do not overwrite each other',
   /06125/.test(pcsv.name || ''), String(pcsv.name));
 check('…with a header that says the figures are ex GST, not bare numbers',
-  plines[0] === '#,Item,Detail,Charge-out (ex GST),Cost (ex GST),Gross profit (ex GST),Hours', plines[0]);
-check('…one row per thing the job is made of, in the order the panel lists them',
-  /^1,Scaffolding/.test(plines[1] || '') && /^2,Roofing/.test(plines[2] || ''),
-  plines.slice(1, 3).join(' // '));
-check('…carrying the roofing labour and materials actually priced',
-  (plines[2] || '').indexOf('29872.71') >= 0, plines[2]);
-check('…and a TOTAL and gross profit % underneath',
-  plines.some(l => /^,TOTAL,/.test(l)) && plines.some(l => /^,Gross profit %,/.test(l)),
-  plines.filter(l => /TOTAL|Gross profit/.test(l)).join(' // '));
-check('…every row the same width, so the columns do not shift in a spreadsheet',
-  plines.filter(Boolean).every(l => l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length === 7),
-  (plines.find(l => l && l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length !== 7) || '').slice(0, 90));
+  plines[0] === 'Section,Item,Detail,Qty,Unit,Rate (ex GST),Charge-out (ex GST),Cost (ex GST),Hours',
+  plines[0]);
+// The sections the PDF prints, each with its real content.
+check('…carrying the SCAFFOLDING section with its price and its cost',
+  sect('Scaffolding').some(l => /edge protection|working platform/.test(l) && /2500\.00,2000\.00/.test(l)),
+  sect('Scaffolding').join(' // '));
+check('…the ROOF LABOUR section with hours, rates and how it is charged',
+  sect('Roof labour').some(l => /^Roof labour,Charged,by the (hour|square metre)/.test(l)) &&
+  sect('Roof labour').some(l => /^Roof labour,Lead hand,.*,hrs,/.test(l)) &&
+  sect('Roof labour').some(l => /^Roof labour,Labour total,/.test(l)),
+  sect('Roof labour').join(' // '));
+check('…the ROOF MATERIALS section itemised — one row per line, with qty, unit and $/unit',
+  sect('Roof materials').filter(l => /,(m2|lm|each|roll),/.test(l)).length >= 4,
+  sect('Roof materials').slice(0, 3).join(' // '));
+check('…and the buffer, the mark-up and the materials total under them',
+  sect('Roof materials').some(l => /^Roof materials,Quantity buffer,/.test(l)) &&
+  sect('Roof materials').some(l => /^Roof materials,Mark-up,/.test(l)) &&
+  sect('Roof materials').some(l => /^Roof materials,Materials total,/.test(l)),
+  sect('Roof materials').slice(-3).join(' // '));
+check('…the GUTTERING section itemised the way its card itemises it',
+  sect('Guttering').some(l => /gutter/i.test(l) && /,lm,/.test(l)) &&
+  sect('Guttering').some(l => /^Guttering,Labour,/.test(l)) &&
+  sect('Guttering').some(l => /^Guttering,Guttering total,/.test(l)),
+  sect('Guttering').slice(0, 3).join(' // '));
+check('…the JOB PROFITABILITY list, in the order the panel reads it',
+  /^Job profitability,1\. Scaffolding/.test(sect('Job profitability')[0] || '') &&
+  /^Job profitability,2\. Roofing/.test(sect('Job profitability')[1] || ''),
+  sect('Job profitability').slice(0, 2).join(' // '));
+check('…a TOTAL, gross profit, GP% and GP per hour',
+  ['TOTAL', 'Gross profit', 'Gross profit %', 'Gross profit per hour']
+    .every(k => sect('Totals').some(l => l.indexOf('Totals,' + k + ',') === 0)),
+  sect('Totals').join(' // '));
+check('…and the per-square-metre figures the panel shows underneath',
+  sect('Per square metre').some(l => /Revenue per m/.test(l)) &&
+  sect('Per square metre').some(l => /Cost per m/.test(l)),
+  sect('Per square metre').join(' // '));
+check('every row the same width, so the columns do not shift in a spreadsheet',
+  plines.filter(Boolean).every(l => l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length === 9),
+  (plines.find(l => l && l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length !== 9) || '').slice(0, 100));
+check('…and a description with a comma in it is quoted rather than splitting a row',
+  !pcsv.text || plines.filter(l => /"/.test(l)).every(l => (l.match(/"/g) || []).length % 2 === 0),
+  (plines.find(l => /"/.test(l)) || '').slice(0, 100));
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

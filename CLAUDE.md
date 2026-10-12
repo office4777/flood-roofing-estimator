@@ -979,13 +979,28 @@ Discipline (non-negotiable):
   which would read as a price somebody had set.
   THE PRICING PAGE HAS ITS OWN CSV (2026-10-12, the clarification: "the
   intention was for a Quote Pricing sheet to be available as Download CSV
-  beside" Save pricing as PDF — a different sheet from the price book's).
-  `saveScopePricingAsCsv` / `_scopePricingRows` write the Job profitability
-  list as it reads on screen: one row per thing the job is made of, in the
-  panel's own order, with charge-out, cost, gross profit and hours, then
-  TOTAL, GP% and the per-square-metre figures (area from `g.area`, the same
-  field the panel reads). All ex GST and the header says so. Named for the
-  quote's ref so two jobs do not overwrite each other.
+  beside" Save pricing as PDF — a different sheet from the price book's),
+  AT THE PDF'S LEVEL OF DETAIL (the same day, once the first version
+  shipped: "can it be available with the same level of detail as the Save
+  Pricing as PDF? Current Download pricing as CSV option is set for summary
+  only." He was right — it was the profitability list alone, and the PDF
+  prints the whole page). `saveScopePricingAsCsv` / `_scopePricingRows`
+  write one nine-column sheet — Section, Item, Detail, Qty, Unit, Rate,
+  Charge-out, Cost, Hours — with a blank row between sections, covering
+  every card on `#tab-scope` in the order it is printed: Job (ref, client,
+  roof area, pitch), Scaffolding (type, price, cost), Roof labour (how it is
+  charged, lead and apprentice hours at their rates, the total), Roof
+  materials (EVERY row of the material table with its qty, unit and $/unit,
+  honouring `MATERIAL_OVERRIDES`/`MATERIAL_DELETED` exactly as
+  `_materialsTotalFromRows` does, then the buffer, the mark-up and the
+  total), Guttering (each material line, buffer, mark-up, labour by hour or
+  by the metre, the platform uplift, downpipes, the card total — or one row
+  saying it is excluded), Job profitability (the panel's own list), Totals
+  (TOTAL, gross profit, GP%, GP/hr) and Per square metre. Read through the
+  SAME helpers the cards read, never a second copy of the arithmetic, so a
+  figure in the file cannot disagree with the one on screen. All ex GST and
+  the header says so. Named for the quote's ref so two jobs do not
+  overwrite each other.
   `tests/pbdefaults.mjs`.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
