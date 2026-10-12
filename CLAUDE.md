@@ -1081,6 +1081,11 @@ Discipline (non-negotiable):
   hooks call (`_applyCanvasBg` with NO stored view, `onCanvasMouseDown` /
   `onCanvasMouseUp` while panning, `adjustZoom`, the slider's pointerdown /
   pointerup, `setTool('outline')`, `clearAll`).
+  A SATELLITE CAPTURE DOES NOT GO THROUGH `_applyCanvasBg` — `placeBlob` sets
+  `DRAW.bgImg` itself, deliberately, to skip a canvas conversion — so
+  `_afterAerialPlaced` starts the coach too (and `applyAerialToCanvas`, the
+  older tile path). Without that it missed the ONE path the owner was on when
+  he asked for it.
   DELIBERATELY NOT THE TOUR ENGINE: that claims the onboarding arbiter and
   runs once per account, and these come back with EVERY picture ("these should
   appear all the time except when in any tutorial or guide or onboarding

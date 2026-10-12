@@ -140,6 +140,26 @@ await pg.evaluate(() => { const m = document.getElementById('_rsModal'); if (m) 
 const drawn = await pg.evaluate(() => { _ccStart(); return !!document.getElementById('ccWrap'); });
 check('…and never over a picture that is already outlined', drawn === false);
 
+// ── THE SATELLITE CAPTURE IS THE PATH HE WAS ON ──────────────────
+// placeBlob sets DRAW.bgImg itself to skip a canvas conversion, so it never
+// reaches _applyCanvasBg — the coach has to be started from the aerial's own
+// hook or it misses the one case the owner actually described.
+const aerial = await pg.evaluate(async (src) => {
+  _ccStop();
+  clearAll(true);
+  const img = new Image();
+  await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = src; });
+  DRAW.bgImg = img;                       // what placeBlob does
+  DRAW.scaleMetresPerPx = 0.05;
+  _afterAerialPlaced();                   // …and the hook it calls after it
+  await new Promise(r => setTimeout(r, 1300));
+  const w = document.getElementById('ccWrap');
+  return { on: !!w, step: CC.step, tool: DRAW.tool,
+           title: w ? w.querySelector('.cc-title').textContent : '' };
+}, PIC);
+check('A SATELLITE CAPTURE STARTS THE TIPS TOO', aerial.on && aerial.step === 'move' && /centre it/i.test(aerial.title), JSON.stringify(aerial));
+check('…on the Move tool, so the drag it asks for actually pans', aerial.tool === 'select', aerial.tool);
+
 // ── and never on top of a tutorial, guide or walkthrough ─────────
 const quiet = await pg.evaluate(() => {
   clearAll(true);

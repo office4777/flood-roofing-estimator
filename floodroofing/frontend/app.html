@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T22:22:52Z';
+  window.APP_BUILT_AT = '2026-10-12T22:30:35Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -22779,6 +22779,13 @@ function _afterAerialPlaced(){
       if (m && m.style.display !== 'block') m.style.display = 'block';
     } catch(e){}
   }, 350);
+  // A SATELLITE CAPTURE DOES NOT GO THROUGH _applyCanvasBg — placeBlob sets
+  // DRAW.bgImg itself, deliberately, to skip a canvas conversion — so the
+  // canvas coach is started here as well, or it would miss the one path the
+  // owner was on when he asked for it. Late enough for the smooth scroll
+  // above to have settled, so the first card lands over the canvas rather
+  // than over where the canvas used to be.
+  setTimeout(function(){ try { _ccStart(); } catch(e){} }, 900);
 }
 function _closeAerialModal(){
   var ov = document.getElementById('aerialModalOverlay');
@@ -76769,6 +76776,7 @@ function applyAerialToCanvas(tileCanvas, lat, zoom) {
     _autoScaleFromAerial(lat, zoom, true);
     var metersPerPx = DRAW.scaleMetresPerPx;
     redrawAll();
+    setTimeout(function(){ try { _ccStart(); } catch(e){} }, 600);
     // Scroll to canvas
     var cv = document.getElementById('mainCanvas') || document.querySelector('canvas');
     if(cv) cv.scrollIntoView({behavior:'smooth', block:'start'});
