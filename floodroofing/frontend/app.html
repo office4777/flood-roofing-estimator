@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T23:21:09Z';
+  window.APP_BUILT_AT = '2026-10-12T23:24:06Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -35967,7 +35967,13 @@ function _syncQuoteBaseLineItems(){
   // office is actually looking at. Never while the office has typed one.
   try {
     if (S.quote.quoteKind === 'poleshed' && !S.quote.psSubtotalManual && !window.__CUSTOMER_MODE && !S._qvViewing){
-      if (_shedMaterialRows().length) S.quote.psSubtotal = Math.round(quoteSubtotal() * 100) / 100;
+      // NEVER STAMP A ZERO over a real price. This runs on every recalc,
+      // including ones that land mid-open before the material table has been
+      // rendered and the lines built — and a shed is never worth nothing, so
+      // a zero here is always "not worked out yet", not an answer. It wrote
+      // $0 over job 3287's $64,585 on the open.
+      var _sv = Math.round(quoteSubtotal() * 100) / 100;
+      if (_shedMaterialRows().length && _sv > 0) S.quote.psSubtotal = _sv;
     }
   } catch(e){}
   // Project per-area custom lines into lineItems (re-built each sync so
@@ -38129,7 +38135,10 @@ function _shedBaseFromDrawer(){
       return (sub > 0) ? sub : null;
     }
     if (!_shedMaterialRows().length) return null;
-    return quoteSubtotal();
+    // A zero is "not worked out yet", never a shed's price — fall through to
+    // the stored figure rather than reading the quote as free.
+    var v = quoteSubtotal();
+    return (v > 0) ? v : null;
   } catch(e){ return null; }
 }
 function _poleShedMoney(){

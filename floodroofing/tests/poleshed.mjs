@@ -668,6 +668,35 @@ check('…its customer quote is still the shed\'s, not a re-roof',
 check('…and the Roofing / Pole Shed switcher is THERE, so it can be put back',
   notLanded.avail === true && notLanded.toggle !== 'none', JSON.stringify(notLanded));
 
+// THE WHOLE OPEN, in the order it really happens: a saved shed job is restored
+// while the settings read is still in flight, then the read lands. Its type,
+// its dimensions and its PRICE all have to come through — the price because
+// the drawer stamps psSubtotal on every recalc, including ones that land
+// before the material table has been rendered, and a zero there is "not
+// worked out yet", never an answer. It wrote $0 over job 3287's $64,585.
+const openSeq = await pg.evaluate(() => {
+  const real = S.settings;
+  S.settings = {}; try { localStorage.removeItem('fr_settings'); } catch(e){}
+  restoreFromJob({ draw_state: { state: { quote: { ref:'3287', client:'Phyllis Rintoul',
+    quoteKind:'poleshed', psWidth:'7.2m', psLength:'16.8m', psSubtotal:64585 } } } });
+  try { _syncQuoteKindToggle(); _syncJobTypeToggle(); } catch(e){}
+  const mid = { kind: S.quote.quoteKind, sub: S.quote.psSubtotal };
+  S.settings = real;
+  try { _syncQuoteKindToggle(); _syncJobTypeToggle(); refreshQuoteProposal(); } catch(e){}
+  try { calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems(); } catch(e){}
+  let secs = []; try { secs = _qdSectionsRaw().map(x => x.key); } catch(e){}
+  return { mid, kind: S.quote.quoteKind, width: S.quote.psWidth, sub: S.quote.psSubtotal,
+           ref: S.quote.ref, secs };
+});
+check('a saved shed job restored mid-settings-read keeps its type AND its price',
+  openSeq.mid.kind === 'poleshed' && openSeq.mid.sub === 64585, JSON.stringify(openSeq.mid));
+check('…and once the read lands it is still the shed, with its figures intact',
+  openSeq.kind === 'poleshed' && openSeq.width === '7.2m' && openSeq.ref === '3287' &&
+  openSeq.sub > 0, JSON.stringify(openSeq).slice(0, 170));
+check('…showing the shed\'s own quote, not a re-roof',
+  (openSeq.secs || []).indexOf('psdetails') >= 0 && (openSeq.secs || []).indexOf('grade') < 0,
+  JSON.stringify(openSeq.secs));
+
 // An account that genuinely does not sell pole sheds is still not offered one.
 const notSold = await pg.evaluate(() => {
   const real = S.settings;
