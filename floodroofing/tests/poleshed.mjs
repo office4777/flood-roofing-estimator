@@ -166,6 +166,93 @@ check('the 3D link renders as a button the customer can click',
   doc.link === true);
 await ctx.close();
 
+// ── TWO SHEDS ON ONE QUOTE (2026-10-12) ───────────────────────────
+// "a 2nd import webshed pdf button called 'Add another plan option' ...
+// switch between the two options should change the photos imported in the
+// quote so the customer can see the different plans as they click between
+// them, this should work in the quote and in the pricing just how the
+// separate roofs work."
+({ ctx, pg } = await open('Flood Roofing'));
+const plan = await pg.evaluate(() => {
+  const r = {}, PNG = n => 'data:image/png;base64,PLAN' + n;
+  gotoTab('quote');
+  S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
+  // Shed A, as an import leaves it.
+  S.quote.psWidth='7.2m'; S.quote.psLength='12.6m'; S.quote.psHeight='3.48m';
+  S.quote.psBayAmount='3'; S.quote.psSubtotal=48000; S.quote._psLastFile='3-Bay';
+  _qpCondPhotoSet(6,{src:PNG('A-hero')}); _qpCondPhotoSet(1,{src:PNG('A-floor')}); _qpCondPhotoSet(2,{src:PNG('A-elev')});
+  _psPlanRecordImport();
+  r.first = { n:_psPlans().length, name:_psPlans()[0].name };
+  // "Add another plan option" banks A and clears the decks for B.
+  _psPlanAddAnother();
+  r.added = { n:_psPlans().length, idx:_psPlanIdx(), w:S.quote.psWidth,
+              photoGone: !((_qpCondPhoto(1)||{}).src) };
+  S.quote.psWidth='9m'; S.quote.psLength='18m'; S.quote.psHeight='4.2m';
+  S.quote.psBayAmount='4'; S.quote.psSubtotal=61500; S.quote._psLastFile='4-Bay';
+  _qpCondPhotoSet(6,{src:PNG('B-hero')}); _qpCondPhotoSet(1,{src:PNG('B-floor')}); _qpCondPhotoSet(2,{src:PNG('B-elev')});
+  _psPlanRecordImport();
+  r.second = { names:_psPlans().map(p=>p.name), total:_poleShedMoney().sub, delta:_psPlanDeltaAt(1) };
+  // Back to A — dimensions, price AND every drawing.
+  _setPsPlan(0);
+  r.backToA = { w:S.quote.psWidth, bays:S.quote.psBayAmount, sub:_poleShedMoney().sub,
+                hero:(_qpCondPhoto(6)||{}).src, floor:(_qpCondPhoto(1)||{}).src, elev:(_qpCondPhoto(2)||{}).src };
+  _setPsPlan(1);
+  r.toB = { w:S.quote.psWidth, sub:_poleShedMoney().sub, floor:(_qpCondPhoto(1)||{}).src };
+  refreshQuoteProposal();
+  const txt = document.getElementById('qpRoot').textContent.replace(/\s+/g,' ');
+  r.customerPanel = txt;
+  r.officeStrip = !!document.querySelector('#qpRoot button[onclick^="_setPsPlan"]');
+  return r;
+});
+check('the first import becomes plan 1, named after the file it came from',
+  plan.first.n === 1 && plan.first.name === '3-Bay', JSON.stringify(plan.first));
+check('"Add another plan option" banks it and clears the decks for the next shed',
+  plan.added.n === 2 && plan.added.idx === 1 && plan.added.w === '' && plan.added.photoGone,
+  JSON.stringify(plan.added));
+check('…so the second import does not land on top of the first',
+  JSON.stringify(plan.second.names) === JSON.stringify(['3-Bay','4-Bay']), JSON.stringify(plan.second.names));
+check('switching back brings the whole shed — its size, its bays and its PRICE',
+  plan.backToA.w === '7.2m' && plan.backToA.bays === '3' && plan.backToA.sub === 48000,
+  JSON.stringify(plan.backToA).slice(0, 120));
+check('…and every drawing with it, which is the point of the option',
+  /PLANA-hero/.test(plan.backToA.hero) && /PLANA-floor/.test(plan.backToA.floor) && /PLANA-elev/.test(plan.backToA.elev),
+  JSON.stringify([plan.backToA.hero, plan.backToA.floor, plan.backToA.elev]));
+check('…and forward again shows the other shed, not a mix of the two',
+  plan.toB.w === '9m' && plan.toB.sub === 61500 && /PLANB-floor/.test(plan.toB.floor),
+  JSON.stringify(plan.toB));
+check('the customer is offered the choice, priced against the first plan',
+  /Your shed/i.test(plan.customerPanel) && /3-Bay/.test(plan.customerPanel) &&
+  /4-Bay/.test(plan.customerPanel) && /\$13,500/.test(plan.customerPanel),
+  plan.customerPanel.slice(plan.customerPanel.indexOf('Your shed'), plan.customerPanel.indexOf('Your shed') + 110));
+check('…the delta is the difference between the two sheds, not a second charge',
+  plan.second.delta === 13500 && plan.second.total === 61500, JSON.stringify(plan.second));
+check('the office gets its own strip to switch, rename and remove', plan.officeStrip);
+
+// One shed = no choice to make: the panel and the strip stay out of the way.
+const single = await pg.evaluate(() => {
+  S.quote.shedPlans = [S.quote.shedPlans[0]]; S.quote.psPlanIdx = 0;
+  refreshQuoteProposal();
+  return { txt: document.getElementById('qpRoot').textContent.replace(/\s+/g,' '),
+           strip: !!document.querySelector('#qpRoot button[onclick^="_setPsPlan"]') };
+});
+check('a one-shed quote shows no plan chooser at all', !single.strip && !/3-Bay/.test(single.txt));
+
+// An accepted quote is the shed they signed off.
+const locked = await pg.evaluate(() => {
+  S.quote.shedPlans = [{name:'A',fields:{psWidth:'7.2m',psSubtotal:48000},photos:{},est:{}},
+                       {name:'B',fields:{psWidth:'9m',psSubtotal:61500},photos:{},est:{}}];
+  S.quote.psPlanIdx = 0; S.quote.psWidth = '7.2m'; S.quote.psSubtotal = 48000;
+  S.quote.accepted = { name:'Phyllis', at: new Date().toISOString() };
+  window.__CUSTOMER_MODE = true;
+  _setPsPlan(1);
+  const after = { idx:_psPlanIdx(), w:S.quote.psWidth };
+  window.__CUSTOMER_MODE = false; delete S.quote.accepted;
+  return after;
+});
+check('a customer cannot switch the shed after accepting it',
+  locked.idx === 0 && locked.w === '7.2m', JSON.stringify(locked));
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

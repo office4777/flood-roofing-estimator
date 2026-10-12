@@ -671,6 +671,39 @@ Discipline (non-negotiable):
   `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
   count the file gave with the one worked back out of the pole grid. Every
   field stays hand-editable, as they always were. `tests/poleshed.mjs`.
+- TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed pdf
+  button called 'Add another plan option' ... switch between the two options
+  should change the photos imported in the quote so the customer can see the
+  different plans as they click between them, this should work in the quote
+  and in the pricing just how the separate roofs work").
+  A PLAN IS A WHOLE SHED — its drawings, its dimensions, its own price —
+  stored whole in `S.quote.shedPlans[]`, and the PICKED one is copied into
+  the live fields. That is the trick the rest hangs on: every reader
+  downstream (the pages, the A4, the customer's frozen copy, the Fergus push,
+  `_poleShedMoney`) already reads `psWidth`/`psSubtotal`/the photo slots and
+  must not learn that plans exist. `_psPlanCapture` lifts the live quote into
+  a plan (`PS_PLAN_FIELDS` + the three slots in `PS_PLAN_SLOTS`: hero 6,
+  floor plan 1, elevations 2, plus the estimator), `_psPlanApply` lays one
+  back out, and `_setPsPlan` is just the two in order — stash what is on
+  screen back into the plan it came from, then lay the other one out. Nothing
+  is lost either way, which is what lets the customer click back and forth.
+  PLAN 1 IS THE PRICE: `_psPlanDeltaAt(i)` is that plan's subtotal less plan
+  1's, shown on the option chip. The TOTAL needs no seam at all —
+  switching swaps `psSubtotal` itself, so `_poleShedMoney` is already
+  answering for the shed on screen and `_poleShedSelDelta` must NOT count it
+  again. `_psPlanSubtotalAt` reads the LIVE field for the picked plan and the
+  stored one for the others, never both, or a shed re-priced on screen reads
+  at its import price.
+  `_psPlanAddAnother` banks the current shed, makes a blank plan, CLEARS the
+  slots and the dimension fields (a half-copied previous shed would read as
+  this one's until every field was overwritten) and opens the file picker;
+  `_psPlanRecordImport` runs at the end of every import so the first one
+  becomes plan 1 — without it a single-shed quote carries no plan and the
+  first shed would be lost to the second import — and names a plan after its
+  file. The customer picks on the options page (`planPanel`, first because it
+  is the biggest choice there), the office gets `_psPlanBarHtml` above the
+  drawings with rename and remove. `_setPsPlan` refuses on an accepted quote.
+  `tests/poleshed.mjs`.
 - THE SHED'S DRAWINGS ARE THE SECOND PAGE (2026-10-12, same batch): the floor
   plan used to fill the lower half of the shed-details page while the
   elevations had a page of their own, so the two drawings a customer wants

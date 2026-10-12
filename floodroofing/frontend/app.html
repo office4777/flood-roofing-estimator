@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T20:46:41Z';
+  window.APP_BUILT_AT = '2026-10-12T20:54:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26170,6 +26170,7 @@ async function importWebShedPdf(ev){
         S.quote.psBays = String(bays);
         S.quote.psBayAmount = String(bays);
       }
+      if (f && f.name) S.quote._psLastFile = String(f.name).replace(/\.pdf$/i, '');
       // Recompute pole count + build days from the new footprint.
       var across = (e.W > 7) ? 3 : 2, along = Math.max(Math.round(e.L / 5.5), 1) + 1;
       if (e.W && e.L){
@@ -26183,9 +26184,15 @@ async function importWebShedPdf(ev){
       S.quote.shedEst = e;
       // Push dimensions + price into the quote so nothing shows $0/blank.
       var total = (typeof _syncSpecFromEst === 'function') ? _syncSpecFromEst() : 0;
+      // The shed just imported IS a plan: bank it in the slot it belongs to,
+      // so "Add another plan option" has something to switch back to and the
+      // first shed is never lost to the second import.
+      try { _psPlanRecordImport(); } catch(e){}
       setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ' + read the plan → ' + fmtMoney(total) + ' (ex GST). Check the inputs below.');
       if (typeof renderShedEstimator === 'function') renderShedEstimator();
     } else {
+      if (f && f.name && S.quote) S.quote._psLastFile = String(f.name).replace(/\.pdf$/i, '');
+      try { _psPlanRecordImport(); } catch(e){}
       setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ', cropped to the plan. Couldn\'t auto-read dimensions — enter them below.');
     }
     _qpRerenderCondPhotos();
@@ -37166,6 +37173,205 @@ function _poleShedSelDelta(){
   if (S.quote.psAddWindow)                d += A.doubleWindow;
   return d;
 }
+// ── TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed
+// pdf button called 'Add another plan option' ... switch between the two
+// options should change the photos imported in the quote so the customer
+// can see the different plans as they click between them, this should work
+// in the quote and in the pricing just how the separate roofs work").
+//
+// A plan is a whole shed: its drawings, its dimensions, its own price. It is
+// stored WHOLE in S.quote.shedPlans[] and the picked one is copied into the
+// live fields (the photo slots, the psSpec fields, the estimator), because
+// every reader downstream — the pages, the A4, the customer's frozen copy,
+// the Fergus push — already reads those and must not learn about plans.
+// Switching is therefore: stash what is live back into the plan it came
+// from, then lay the other plan out in its place. Nothing is lost either
+// way, which is what lets the customer click back and forth.
+//
+// PLAN 1 IS THE PRICE; every other plan's delta is its own subtotal less
+// plan 1's, so it rides _poleShedSelDelta exactly like a steel grade does
+// and the Pricing tab needs no new seam.
+var PS_PLAN_SLOTS = { hero: 6, floor: 1, elev: 2 };
+var PS_PLAN_FIELDS = ['psWidth','psLength','psHeight','psBays','psBayAmount',
+                      'psDoors','psDesignLink','psSubtotal','psRoofType','psRoofPitch'];
+function _psPlans(){
+  if (!S.quote) return [];
+  if (!Array.isArray(S.quote.shedPlans)) S.quote.shedPlans = [];
+  return S.quote.shedPlans;
+}
+function _psPlanIdx(){
+  var n = _psPlans().length;
+  var i = parseInt(S.quote && S.quote.psPlanIdx, 10) || 0;
+  return (i >= 0 && i < n) ? i : 0;
+}
+// Everything that makes this shed THIS shed, lifted off the live quote.
+function _psPlanCapture(name){
+  var p = { name: name || '', fields: {}, photos: {} };
+  PS_PLAN_FIELDS.forEach(function(f){ p.fields[f] = (S.quote && S.quote[f] != null) ? S.quote[f] : ''; });
+  Object.keys(PS_PLAN_SLOTS).forEach(function(k){
+    try {
+      var cp = _qpCondPhoto(PS_PLAN_SLOTS[k]);
+      if (cp && cp.src) p.photos[k] = { src: cp.src, offX: cp.offX || 0, offY: cp.offY || 0, zoom: cp.zoom || 1 };
+    } catch(e){}
+  });
+  try { p.est = JSON.parse(JSON.stringify(_shedEst() || {})); } catch(e){ p.est = {}; }
+  return p;
+}
+// …and the way back: lay a stored plan out as the live quote.
+function _psPlanApply(p){
+  if (!p || !S.quote) return;
+  PS_PLAN_FIELDS.forEach(function(f){ if (p.fields && p.fields[f] != null) S.quote[f] = p.fields[f]; });
+  Object.keys(PS_PLAN_SLOTS).forEach(function(k){
+    var idx = PS_PLAN_SLOTS[k], ph = p.photos && p.photos[k];
+    try {
+      if (ph && ph.src) _qpCondPhotoSet(idx, { src: ph.src, offX: ph.offX || 0, offY: ph.offY || 0, zoom: ph.zoom || 1 });
+      else _qpCondPhotoClear(idx);
+    } catch(e){}
+  });
+  if (p.est) S.quote.shedEst = JSON.parse(JSON.stringify(p.est));
+}
+// The office picked a different shed. Keep the one on screen first — the
+// drawings and any figure typed over the import belong to it.
+function _setPsPlan(i){
+  if (!S.quote) return;
+  // An accepted quote never changes — the shed they signed off is the shed.
+  if (typeof _qpAcceptedLock === 'function' && _qpAcceptedLock()) return;
+  var plans = _psPlans(); if (!plans.length) return;
+  i = Math.max(0, Math.min(parseInt(i, 10) || 0, plans.length - 1));
+  var cur = _psPlanIdx();
+  if (i === cur){ return; }
+  var keep = _psPlanCapture(plans[cur] && plans[cur].name);
+  keep.name = (plans[cur] && plans[cur].name) || keep.name;
+  plans[cur] = keep;
+  S.quote.psPlanIdx = i;
+  _psPlanApply(plans[i]);
+  try { _qpRerenderCondPhotos(); } catch(e){}
+  try { if (typeof renderShedEstimator === 'function') renderShedEstimator(); } catch(e){}
+  try { if (typeof renderProfitability === 'function') renderProfitability(); } catch(e){}
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _psPlanSubtotal(p){
+  var raw = String((p && p.fields && p.fields.psSubtotal != null) ? p.fields.psSubtotal : '').replace(/[^0-9.]/g, '');
+  return parseFloat(raw) || 0;
+}
+// A plan's price. The PICKED plan's figures are the live quote (that is the
+// whole trick), so read the live field for it and the stored one for the
+// others — never both, or a plan priced on screen reads at its import price.
+function _psPlanSubtotalAt(i){
+  var plans = _psPlans();
+  if (i === _psPlanIdx()){
+    var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g, '');
+    return parseFloat(raw) || 0;
+  }
+  return _psPlanSubtotal(plans[i]);
+}
+// What choosing this plan costs against the first one — the figure on the
+// option chip. The TOTAL needs no help: switching swaps psSubtotal itself,
+// so _poleShedMoney is already answering for the shed on screen and
+// _poleShedSelDelta must NOT count this twice.
+function _psPlanDeltaAt(i){
+  var plans = _psPlans();
+  if (plans.length < 2 || i === 0) return 0;
+  return _psPlanSubtotalAt(i) - _psPlanSubtotalAt(0);
+}
+// One line per plan for the summaries — the same shape the roof modes use.
+function _psPlanLabel(i){
+  var plans = _psPlans(), p = plans[i] || {};
+  if (p.name) return p.name;
+  return 'Option ' + String.fromCharCode(65 + i);
+}
+function _psPlanSize(i){
+  var plans = _psPlans();
+  var f = (i === _psPlanIdx()) ? (S.quote || {}) : ((plans[i] && plans[i].fields) || {});
+  var w = String(f.psWidth || '').trim(), l = String(f.psLength || '').trim();
+  var b = String(f.psBayAmount || '').trim();
+  return [ (w && l) ? (w + ' \u00d7 ' + l) : (w || l), b ? (b + ' bays') : '' ].filter(Boolean).join(' \u00b7 ');
+}
+// The office is about to import a SECOND shed. Bank the first one, then
+// clear the slots so the import lands on an empty plan rather than beside
+// the drawings it is replacing.
+function _psPlanAddAnother(){
+  if (!S.quote) return;
+  var plans = _psPlans();
+  if (!plans.length){
+    plans.push(_psPlanCapture('Option A'));
+    S.quote.psPlanIdx = 0;
+  } else {
+    plans[_psPlanIdx()] = (function(){ var k = _psPlanCapture(plans[_psPlanIdx()].name); return k; })();
+  }
+  var letter = String.fromCharCode(65 + plans.length);
+  plans.push({ name: 'Option ' + letter, fields: {}, photos: {}, est: {} });
+  S.quote.psPlanIdx = plans.length - 1;
+  // A fresh plan starts blank: its drawings and figures come from the file
+  // about to be picked, and a half-copied previous shed would read as this
+  // one's until every field was overwritten.
+  Object.keys(PS_PLAN_SLOTS).forEach(function(k){ try { _qpCondPhotoClear(PS_PLAN_SLOTS[k]); } catch(e){} });
+  ['psWidth','psLength','psHeight','psBays','psBayAmount','psDesignLink'].forEach(function(f){ S.quote[f] = ''; });
+  try { _qpRerenderCondPhotos(); } catch(e){}
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  var inp = document.getElementById('webshedPdfInput');
+  if (inp) inp.click();
+}
+// The office's strip above the drawings: which shed is on screen, what each
+// one costs, rename, remove. Office only — the customer picks on the
+// options page like every other choice.
+function _psPlanBarHtml(){
+  var plans = _psPlans();
+  if (plans.length < 2) return '';
+  if (window.__CUSTOMER_MODE) return '';
+  var cur = _psPlanIdx();
+  return '<div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:9px 11px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:8px">'+
+    '<span class="ed-eyebrow" style="margin:0">Plan option</span>'+
+    plans.map(function(p, i){
+      var on = (i === cur);
+      var d = _psPlanDeltaAt(i);
+      return '<button type="button" onclick="_setPsPlan('+i+')" style="padding:6px 12px;border:1px solid '+(on?'var(--ed-accent)':'var(--ed-line)')+';background:'+(on?'var(--ed-accent)':'#fff')+';color:'+(on?'#fff':'var(--ed-ink)')+';border-radius:6px;font-family:var(--ed-sans);font-size:11.5px;font-weight:600;cursor:pointer">'+
+        esc2(_psPlanLabel(i))+(d ? ' <span style="opacity:.8">'+(d>0?'+':'\u2212')+fmtMoney(Math.abs(d))+'</span>' : '')+'</button>';
+    }).join('')+
+    '<span style="flex:1"></span>'+
+    '<button type="button" onclick="_psPlanRename('+0+', prompt(\'Name this plan option\', _psPlanLabel('+0+')) || \'\')" style="display:none"></button>'+
+    '<button type="button" onclick="var n=prompt(\'Name this plan option\', _psPlanLabel(_psPlanIdx()));if(n)_psPlanRename(_psPlanIdx(),n)" style="padding:5px 10px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-size:11px;cursor:pointer">Rename</button>'+
+    '<button type="button" onclick="_psPlanDelete(_psPlanIdx())" style="padding:5px 10px;background:#fff0f0;color:#b91c1c;border:1px solid #f09595;border-radius:6px;font-size:11px;cursor:pointer">Remove this plan</button>'+
+  '</div>';
+}
+// Called at the end of every import: the drawings and figures now on screen
+// are the plan the office is standing on. Creates plan 1 on a first import
+// (so a single-shed quote carries one plan rather than none) and names a
+// plan after the file it came from, which is what the office recognises.
+function _psPlanRecordImport(){
+  if (!S.quote) return;
+  var plans = _psPlans();
+  var name = String(S.quote._psLastFile || '').trim();
+  if (!plans.length){
+    plans.push(_psPlanCapture(name || 'Option A'));
+    S.quote.psPlanIdx = 0;
+    return;
+  }
+  var i = _psPlanIdx();
+  var keep = _psPlanCapture((plans[i] && plans[i].name) || name || _psPlanLabel(i));
+  // A plan added blank takes the imported file's name; one the office has
+  // already named keeps it.
+  if (name && (!plans[i] || !plans[i].name || /^Option [A-Z]$/.test(plans[i].name))) keep.name = name;
+  plans[i] = keep;
+}
+function _psPlanRename(i, name){
+  var plans = _psPlans(); if (!plans[i]) return;
+  plans[i].name = String(name || '').trim() || plans[i].name;
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _psPlanDelete(i){
+  var plans = _psPlans(); if (plans.length < 2 || !plans[i]) return;
+  if (!confirm('Remove ' + (plans[i].name || 'this plan') + ' from this quote?')) return;
+  plans.splice(i, 1);
+  var cur = Math.min(_psPlanIdx(), plans.length - 1);
+  S.quote.psPlanIdx = cur;
+  _psPlanApply(plans[cur]);
+  try { _qpRerenderCondPhotos(); } catch(e){}
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  try { _scheduleAutosave(); } catch(e){}
+}
 function _setPsSel(field, val){ if (!S.quote) return; S.quote[field] = val; if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); }
 function _togglePsSel(field){ if (!S.quote) return; S.quote[field] = !S.quote[field]; if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); }
 // Subtotal is typed by the office (excl GST); selection add-ons adjust it,
@@ -37216,6 +37422,19 @@ function _buildPoleShedSelections(){
   var thick = q.psSelThickness || '0.40';
   var roller = q.psSelRoller || 'colorsteel';
   var colour = q.psSelColour || '';
+  // THE SHED ITSELF, where there is more than one to choose from. First on
+  // the page because it is the biggest choice on it: picking one swaps the
+  // drawings the customer is looking at as well as the price.
+  var planPanel = '';
+  var _plans = _psPlans();
+  if (_plans.length > 1){
+    var _cur = _psPlanIdx();
+    planPanel = panel('Your shed',
+      _plans.map(function(p, i){
+        return opt(i === _cur, _psPlanLabel(i), _psPlanSize(i), "_setPsPlan(" + i + ")", _psPlanDeltaAt(i));
+      }).join('')+
+      '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2);margin-top:6px">The plans and elevations above change with your choice.</div>');
+  }
   var gradePanel = panel('Steel grade',
     opt(grade==='colorsteel','Colorsteel®','Prepainted, full colour range',"_setPsSel('psSelGrade','colorsteel')",0)+
     opt(grade==='zincalume','Plain silver Zincalume®','Unpainted Al/Zn — lowest cost',"_setPsSel('psSelGrade','zincalume')",-A.zincalumeSave));
@@ -37272,6 +37491,7 @@ function _buildPoleShedSelections(){
 
   return edHeading('3','Choose your options','Choose Your Options',{chapter:POLESHED_CHAPTERS[2],chapters:POLESHED_CHAPTERS})+
     '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
+    (planPanel ? '<div style="margin-bottom:14px">'+planPanel+'</div>' : '')+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'+
       '<div>'+gradePanel+thickPanel+colourPanel+'</div>'+
       '<div>'+rollerPanel+extrasPanel+priceImpact+'</div>'+
@@ -37694,8 +37914,10 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
       '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
       '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
+      '<button type="button" onclick="_psPlanAddAnother()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#fff;color:#0a1628;border:1px solid var(--ed-line);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">\u2795 Add another plan option</button>'+
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
+    _psPlanBarHtml()+
     '<div style="display:flex;flex-direction:column;gap:14px;height:820px">'+
       '<div style="flex:1;min-height:0">'+_psDesignSlot(1,'Floor plan')+'</div>'+
       '<div style="flex:1;min-height:0">'+_psDesignSlot(2,'Elevations')+'</div>'+
