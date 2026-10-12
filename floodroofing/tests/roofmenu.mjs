@@ -140,6 +140,61 @@ await pg.waitForTimeout(300);
 v = await look();
 check('with nothing drawn there is no roof bar at all', !v.barShown);
 
+// ── THE ROOF'S SETTINGS COME TO YOU (2026-10-12) ──────────────────
+// The owner on roof 7 of a real job: "i need to rotate the roof 90deg,
+// however i don't think it easy to tell how to do this". The panel was a
+// dropdown behind a 9px arrow on a roof button, and opening it shoved the
+// toolbars and the canvas down the page. It is now an overlay that slides
+// down by itself a second after the roof is drawn -- when Rotate 90° is
+// exactly what a roofer reaches for next -- with a full-width way out.
+const reveal = await pg.evaluate(async () => {
+  const out = {}, rtp = () => document.getElementById('roofTypePanel');
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[300,300],[700,300],[700,560],[300,560]]; finishCurrent();
+  DRAW.scaleMetresPerPx = 0.03;
+  out.position = getComputedStyle(rtp()).position;
+  await new Promise(r => setTimeout(r, 200));
+  rtp().style.display = 'none';
+  const ok = document.querySelector('#_rsModal #_rsOk');
+  out.hadPopup = !!ok;
+  if (ok) ok.click();
+  out.straightAfter = rtp().style.display;
+  await new Promise(r => setTimeout(r, 1300));
+  out.afterDelay = rtp().style.display;
+  out.slid = /rtp-anim/.test(rtp().className);
+  const close = rtp().querySelector('.rtp-close');
+  out.closeTxt = close ? close.textContent.replace(/\s+/g, ' ').trim() : '';
+  const span = (document.querySelector('#roofMenuBar button') || {}).querySelector
+    ? document.querySelector('#roofMenuBar button').querySelector('span') : null;
+  out.arrow = span ? span.textContent : '';
+  out.arrowPx = span ? parseFloat(getComputedStyle(span).fontSize) : 0;
+  if (close) close.click();
+  out.afterClose = rtp().style.display;
+  // Never over a walkthrough — the tour, the first-roof steps and the coach
+  // all run through the same engine, so TOUR.open covers all three.
+  TOUR.open = true; _roofPanelReveal();
+  out.duringTour = rtp().style.display;
+  TOUR.open = false; _roofPanelReveal();
+  out.afterTour = rtp().style.display;
+  return out;
+});
+check('the roof settings panel OVERLAYS the page instead of shoving it down',
+  reveal.position === 'absolute', reveal.position);
+check('it stays shut as the roof is drawn…',
+  reveal.hadPopup && reveal.straightAfter === 'none', JSON.stringify(reveal));
+check('…then slides down by itself a second later',
+  reveal.afterDelay === 'block' && reveal.slid === true,
+  JSON.stringify({ shown: reveal.afterDelay, slid: reveal.slid }));
+check('…with a full-width way out carrying an up arrow',
+  /\u25B4/.test(reveal.closeTxt) && /close roof settings/i.test(reveal.closeTxt),
+  reveal.closeTxt);
+check('…which shuts it', reveal.afterClose === 'none', reveal.afterClose);
+check('the arrow on a roof button is big enough to read — it was 9px',
+  reveal.arrowPx >= 12, reveal.arrowPx + 'px ' + reveal.arrow);
+check('and it NEVER slides over a walkthrough',
+  reveal.duringTour === 'none' && reveal.afterTour === 'block',
+  JSON.stringify({ during: reveal.duringTour, after: reveal.afterTour }));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();

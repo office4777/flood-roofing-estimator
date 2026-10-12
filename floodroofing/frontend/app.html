@@ -371,7 +371,21 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 
 /* roof-shape sheet: one calm dark surface instead of a blue gradient card */
 /* THE ROOF PANEL (2026-09-24): one tidy row in the app's own colours. */
-#roofTypePanel.rtp{ position:relative; margin:0 .75rem .55rem; padding:10px 12px 9px; background:#fff; border:1px solid var(--border,#e3e6ea); border-radius:12px; box-shadow:0 8px 22px rgba(10,22,40,.10); }
+/* THE ROOF SETTINGS PANEL IS AN OVERLAY (2026-10-12, the owner on roof 7:
+   "i need to rotate the roof 90deg, however i don't think it easy to tell how
+   to do this"). It used to sit in the flow and push the toolbars and the
+   canvas down the page every time it opened, so the one control he needed
+   arrived by shoving everything else out of the way. It now hangs over the
+   page from the roof bar, and SLIDES rather than appearing, because a thing
+   that moves is a thing you can see arrive. */
+#roofTypePanel.rtp{ position:absolute; z-index:60; left:.75rem; right:.75rem; margin:0; padding:10px 12px 9px; background:#fff; border:1px solid var(--border,#e3e6ea); border-radius:12px; box-shadow:0 14px 34px rgba(10,22,40,.18); }
+#roofTypePanel.rtp.rtp-anim{ animation:rtpDrop .34s cubic-bezier(.22,1,.36,1); }
+@keyframes rtpDrop{ from{ opacity:0; transform:translateY(-14px); } to{ opacity:1; transform:translateY(0); } }
+@media (prefers-reduced-motion:reduce){ #roofTypePanel.rtp.rtp-anim{ animation:none; } }
+/* The way out, where the way in was: a full-width hit area with an up arrow,
+   not a 9px glyph on a button somewhere else. */
+#roofTypePanel .rtp-close{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin:9px 0 0; padding:7px 10px; background:#f1f5f9; color:#334155; border:1px solid #dde3ea; border-radius:9px; font-size:11.5px; font-weight:700; letter-spacing:.03em; cursor:pointer; font-family:inherit; }
+#roofTypePanel .rtp-close:hover{ background:#e6edf4; }
 #roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; margin:0 0 8px; }
 #roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 #roofTypePanel .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
@@ -4735,7 +4749,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T21:19:10Z';
+  window.APP_BUILT_AT = '2026-10-12T21:26:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5768,6 +5782,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <!-- Roof switcher (retired; kept for older code paths) -->
         <div id="roofSwitcher" style="display:none"></div>
         <div id="roofShiftHint" class="rtp-tip">Shift-drag a corner for a non-square roof · right-click a line to delete it</div>
+        <button type="button" class="rtp-close no-print" onclick="_toggleRoofMenu(DRAW.activeRoofIdx)" title="Close roof settings">▴ &nbsp;Close roof settings</button>
       </div>
 
       <!-- Toolbar -->
@@ -74778,6 +74793,12 @@ function _roofSetupPopup(opts){
     try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
     try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){}
     try { if (typeof _syncRoofTypeDropLabel === 'function') _syncRoofTypeDropLabel(); } catch(e){}
+    // A second after the roof lands, its settings slide down over the page.
+    // The roofer has just chosen a shape and a pitch; what they reach for
+    // next is Rotate 90°, and on roof 7 there was no way to tell where that
+    // lived. One second so the roof is on screen first and the panel is
+    // plainly a second event, not part of the window that just closed.
+    try { setTimeout(function(){ _roofPanelReveal(); }, 1000); } catch(e){}
   }
   card.querySelector('#_rsOk').onclick = apply;
   card.querySelector('#_rsSkip').onclick = close;
@@ -75047,10 +75068,38 @@ function _renderRoofMenuBar(){
         'border-radius:8px;border:1.5px solid ' + (on ? '#0099cc' : 'var(--border,#d6dbe2)') + ';' +
         'background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';' +
         'display:inline-flex;align-items:center;gap:6px">' +
-      esc(nm) + '<span style="font-size:9px;opacity:.85">' + (opn ? '\u25B4' : '\u25BE') + '</span>' +
+      esc(nm) + '<span aria-hidden="true" style="font-size:13px;line-height:1;font-weight:900;opacity:1;' +
+        'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;' +
+        'background:' + (on ? 'rgba(255,255,255,.22)' : '#eef2f7') + '">' + (opn ? '\u25B4' : '\u25BE') + '</span>' +
       '</button>';
   }).join('');
   try { _roofPanelSync(); } catch(e){}
+}
+// Open the roof's settings deliberately, with the slide. Used after the roof
+// is drawn so the one control a roofer needs next — Rotate 90° — arrives
+// where it can be seen, instead of waiting behind a small arrow on a button.
+// NEVER over a walkthrough: the tour, the coach and the onboarding each put
+// their own card on this screen and two things cannot both be the next step.
+function _roofPanelReveal(){
+  // ONE guard covers all three walkthroughs: the 29-step tour, the
+  // first-roof walkthrough and the getting-started coach all run through the
+  // same tour engine, so TOUR.open is true for every one of them. (TOUR.open,
+  // not TOUR.active, and there is no COACH.running — COACH holds only idleMs.
+  // Guessing either would have left this guard dead and the panel sliding
+  // over a tour card.) _onbActive is the arbiter that lets one layer own the
+  // screen at a time.
+  try { if (typeof _onbActive === 'function' && _onbActive()) return; } catch(e){}
+  try { if (window.TOUR && TOUR.open) return; } catch(e){}
+  var rtp = document.getElementById('roofTypePanel'); if (!rtp) return;
+  if (rtp.style.display !== 'none') return;          // already open — leave it
+  rtp.style.display = 'block';
+  rtp.classList.remove('rtp-anim');
+  void rtp.offsetWidth;                               // restart the animation
+  rtp.classList.add('rtp-anim');
+  setTimeout(function(){ try { rtp.classList.remove('rtp-anim'); } catch(e){} }, 420);
+  try { _syncRoofTypeDropLabel(); } catch(e){}
+  try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
+  try { _renderRoofMenuBar(); } catch(e){}
 }
 function _toggleRoofMenu(idx){
   var rtp = document.getElementById('roofTypePanel');

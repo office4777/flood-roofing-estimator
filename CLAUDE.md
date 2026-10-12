@@ -671,6 +671,24 @@ Discipline (non-negotiable):
   `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
   count the file gave with the one worked back out of the pole grid. Every
   field stays hand-editable, as they always were. `tests/poleshed.mjs`.
+- THE ROOF'S SETTINGS COME TO YOU (2026-10-12, the owner on roof 7 of a real
+  job: "i need to rotate the roof 90deg, however i don't think it easy to tell
+  how to do this"). `#roofTypePanel` was a dropdown behind a 9px arrow on a
+  roof button, and opening it sat in the flow and shoved the toolbars and the
+  canvas down the page — so the one control he needed arrived by pushing
+  everything else out of the way, if he found it at all. It is now
+  `position:absolute` over the page from the roof bar, and `_roofPanelReveal()`
+  SLIDES it down (`.rtp-anim`, a 0.34s drop, dropped under
+  `prefers-reduced-motion`) ONE SECOND after "Draw the roof" — the roof lands
+  first so the panel reads as its own event, and Rotate 90° is what a roofer
+  reaches for next. It carries a full-width `.rtp-close` bar with an up arrow,
+  and the roof buttons' own arrow is a 13px chip rather than a 9px glyph.
+  THE GUARD IS `TOUR.open`, and it matters that it is: the 29-step tour, the
+  first-roof walkthrough and the getting-started coach ALL run through the one
+  tour engine, so that single flag covers every walkthrough. There is no
+  `TOUR.active` and no `COACH.running` (COACH holds only `idleMs`) — both were
+  written first and would have left the guard dead, sliding a panel over a
+  tour card. `_onbActive()` is checked beside it. `tests/roofmenu.mjs`.
 - THE STEP-DOWN GABLE'S JUNCTION BARGE IS AN OPEN QUESTION FOR THE OWNER
   (feedback report 12, 2026-10-12: "step-down gable isnt right, the barge
   going down from the top ridge line to the lower ridge line shouldn't carry
