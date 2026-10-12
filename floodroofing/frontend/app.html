@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T23:24:06Z';
+  window.APP_BUILT_AT = '2026-10-12T23:29:54Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16229,6 +16229,11 @@ function _shedTakeoff(){
   if (!Array.isArray(S.quote.shedTakeoff) || !S.quote.shedTakeoff.length){
     var built = _shedTakeoffBuild();
     if (!built.length) return [];
+    // THIS IS A WRITE ON A READ, and it runs from a render. A FROZEN version
+    // (the sent or accepted copy) and the customer's own copy are not ours to
+    // put a take-off into — they are what went out. Work from the list
+    // without keeping it there.
+    if (window.__CUSTOMER_MODE || S._qvViewing || _qpAcceptedLock()) return built;
     S.quote.shedTakeoff = built;
   }
   return S.quote.shedTakeoff;

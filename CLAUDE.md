@@ -1227,6 +1227,13 @@ Discipline (non-negotiable):
   take-off and its own row overrides (`_psPricingCapture`,
   `_psShedOvSnapshot` — `shed_`-prefixed keys only, so nothing else in
   MATERIAL_OVERRIDES is touched).
+  THAT STORE IS A WRITE ON A READ, and it is read from a render — so a FROZEN
+  version (the sent or the accepted copy) and the CUSTOMER'S own copy are
+  priced from the list without it being kept on them: they are what went out,
+  and nothing a render happens to do may change them. `window.__CUSTOMER_MODE
+  || S._qvViewing || _qpAcceptedLock()` returns the built list and stores
+  nothing; the office's working draft still keeps its take-off. Pinned in
+  `tests/poleshed.mjs`.
   A SHED'S QUANTITIES KEEP THEIR DECIMALS (`decimalQty` on the row,
   `_matOrderQty(qty, unit, keepDecimals)`): the rounding exists so a roofing
   order comes out in whole sheets and screws, and rounding 25.08 m³ of

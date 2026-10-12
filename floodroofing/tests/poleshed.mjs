@@ -697,6 +697,28 @@ check('…showing the shed\'s own quote, not a re-roof',
   (openSeq.secs || []).indexOf('psdetails') >= 0 && (openSeq.secs || []).indexOf('grade') < 0,
   JSON.stringify(openSeq.secs));
 
+// A FROZEN COPY IS NOT OURS TO WRITE INTO. _shedTakeoff() writes on a read,
+// and it is read from a render — so viewing the sent or accepted copy, or the
+// customer viewing theirs, would have stamped a take-off onto what went out.
+const frozen2 = await pg.evaluate(() => {
+  const mk = () => { S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+    S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48'; };
+  mk(); S._qvViewing = { kind: 'sent' };
+  const sent = { rows: _shedMaterialRows().length, wrote: Array.isArray(S.quote.shedTakeoff) };
+  S._qvViewing = null;
+  mk(); window.__CUSTOMER_MODE = true;
+  const cust = { rows: _shedMaterialRows().length, wrote: Array.isArray(S.quote.shedTakeoff) };
+  window.__CUSTOMER_MODE = false;
+  mk();
+  const draft = { rows: _shedMaterialRows().length, wrote: Array.isArray(S.quote.shedTakeoff) };
+  return { sent, cust, draft };
+});
+check('viewing the SENT copy prices it without writing a take-off into it',
+  frozen2.sent.rows > 10 && frozen2.sent.wrote === false, JSON.stringify(frozen2.sent));
+check('…nor into the customer\'s own copy', frozen2.cust.rows > 10 && frozen2.cust.wrote === false, JSON.stringify(frozen2.cust));
+check('…while the office\'s working draft still keeps its take-off',
+  frozen2.draft.rows > 10 && frozen2.draft.wrote === true, JSON.stringify(frozen2.draft));
+
 // An account that genuinely does not sell pole sheds is still not offered one.
 const notSold = await pg.evaluate(() => {
   const real = S.settings;
