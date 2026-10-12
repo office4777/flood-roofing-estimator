@@ -483,6 +483,30 @@ check('the take-off is taken ONCE and then belongs to the office',
 check('…and "take it again" rebuilds it and drops the edits that hung off the old rows',
   frozen.afterReset.rows > 10 && frozen.afterReset.ov === 0, JSON.stringify(frozen.afterReset));
 
+// The two BLOCKING paths a shed now walks into, because its rows are roofing
+// rows: "No price, no send" must let a priced shed out and still catch a row
+// with no price, and the pricing CSV must write the shed rather than throw.
+const shedGates = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  S.quote.psDoors = '2x Roller Door';
+  gotoTab('scope'); calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+  const out = { err: null, csvErr: null };
+  try { out.unpriced = (_unpricedItems() || []).length; } catch(e){ out.err = e.message; }
+  try { out.csvRows = (_scopePricingRows() || []).length; } catch(e){ out.csvErr = e.message; }
+  const rows = _buildMaterialPriceRows();
+  _onMatOverride(_matOvKey(rows[0].key, 0), 'price', 0);
+  renderMaterialPriceTable();
+  try { const u = _unpricedItems() || []; out.zeroed = u.length; out.zeroedLabel = (u[0] || {}).label || ''; } catch(e){}
+  return out;
+});
+check('a priced shed is not held up by "No price, no send"',
+  shedGates.unpriced === 0 && !shedGates.err, JSON.stringify(shedGates));
+check('…but a shed row left with NO price still holds the send, and is named',
+  shedGates.zeroed === 1 && /Building poles/.test(shedGates.zeroedLabel || ''), JSON.stringify(shedGates));
+check('the pricing CSV writes the shed rather than throwing',
+  shedGates.csvRows > 25 && !shedGates.csvErr, JSON.stringify({ rows: shedGates.csvRows, err: shedGates.csvErr }));
+
 // A ROOFING job is untouched by all of it.
 const roofUntouched = await pg.evaluate(() => {
   S.quote = defaultQuote(); S.quote.quoteKind = 'roofing';
