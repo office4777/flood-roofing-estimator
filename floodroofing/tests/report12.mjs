@@ -3,24 +3,30 @@
 // through to the gutter."
 //
 // His L: a narrow block on the left (86px across) meeting a wider one on the
-// right (169px), ridges running the same way, the step at x=1093.
+// right (169px), ridges the same way, the step at x=1093. His junction came
+// out carrying all of:
 //
-// Where two blocks meet, buildStepGableRoofLines carves the SHARED stretch
-// out of the outline pieces and then stamps it: an apron on the narrower
-// block, and — the bug — a barge on the wider one as well, split at its own
-// ridge. But that shared stretch is where the narrower block's roof BUTTS
-// INTO the wider block's wall. The roofing line there is the apron that
-// flashes it; the wall behind is a wall, not an exposed gable edge. So his
-// junction came out carrying all of:
+//   apron  583 -> 669    4.85m   the wing flashing into the wall
+//   barge  583 -> 667.5  4.93m   the wider block's wall, behind that apron
+//   barge  667.5 -> 669  0.09m   a 90mm stub where the two ridges missed
+//   barge  669 -> 752    4.85m   the wall below the wing
 //
-//   apron  583 → 669   4.85m   (right)
-//   barge  583 → 667.5 4.93m   (behind the apron — what he could see)
-//   barge  667.5 → 669 0.09m   (a 90mm stub where the ridges missed)
-//   barge  669 → 752   4.85m   (right — the exposed wall below the wing)
+// TWO OF THOSE ARE SETTLED AND ONE IS NOT.
 //
-// Only the narrower block marks the shared stretch now. Where the wider
-// block's wall IS exposed, `pieces` already carries it — that stretch has
-// just been carved out of them. The sheet counts do not move: 40 either way.
+// The 90mm stub is wrong on anybody's reading: the shared stretch is split
+// at the WIDER block's ridge, and where that ridge does not line up with the
+// wing's edge the split leaves a sliver that is not a flashing anybody can
+// order or fit. Dropped (anything under 0.25m).
+//
+// The 4.93m barge behind the apron is the OPEN question, and it is the
+// owner's to settle, not this file's. He is reporting it as wrong here — but
+// tests/stepgable.mjs pins it as RIGHT, deliberately, from his own sketch
+// when the shape was built: "the wider block keeps its barge along that same
+// stretch (the wall above the lower roof)". On a step-down gable the taller
+// block's gable rake really does continue above the lower roof, so there is
+// a case for each. Taking it out passes this report and breaks that pin, so
+// the shipped behaviour stands until he says which he wants. What this file
+// pins is that nothing ELSE moved while the question is open.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 import { chromium } from 'playwright';
@@ -67,15 +73,14 @@ const barges = j.filter(x => x.t === 'barge');
 check('the step still flashes: the lower wing runs an apron up to the wall',
   aprons.length === 1 && aprons[0].lo === 583 && aprons[0].hi === 669,
   JSON.stringify(aprons));
-check('…and exactly ONE barge is left at the junction, not three',
-  barges.length === 1, JSON.stringify(barges));
-check('…it is the stretch where the wall really is exposed, below the wing',
-  barges.length === 1 && barges[0].lo === 669 && barges[0].hi === 752,
-  JSON.stringify(barges));
-check('…so no barge sits behind the apron, which is what he could see',
-  !barges.some(x => x.lo < 669 - 0.5), JSON.stringify(barges));
-check('…and the 90mm stub where the two ridges missed each other is gone',
+check('THE SLIVER IS GONE — no 90mm stub where the two ridges miss each other',
   r.tiny.length === 0, JSON.stringify(r.tiny));
+check('the wall below the wing still gets its barge — the stretch that is '
+    + 'plainly exposed', barges.some(x => x.lo === 669 && x.hi === 752),
+  JSON.stringify(barges));
+check('the junction is now two barges, not three: the disputed one and the '
+    + 'exposed one, with the sliver dropped', barges.length === 2,
+  JSON.stringify(barges));
 check('the roof is otherwise the same shape — two ridges, four gutters',
   r.counts.ridge === 2 && r.counts.gutter === 4, JSON.stringify(r.counts));
 check('and the ORDER does not move: dropping a flashing nobody can fix to a '

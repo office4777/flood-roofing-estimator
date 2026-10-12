@@ -671,23 +671,29 @@ Discipline (non-negotiable):
   `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
   count the file gave with the one worked back out of the pole grid. Every
   field stays hand-editable, as they always were. `tests/poleshed.mjs`.
-- THE STEP-DOWN GABLE'S JUNCTION IS AN APRON, NOT AN APRON AND A BARGE
+- THE STEP-DOWN GABLE'S JUNCTION BARGE IS AN OPEN QUESTION FOR THE OWNER
   (feedback report 12, 2026-10-12: "step-down gable isnt right, the barge
   going down from the top ridge line to the lower ridge line shouldn't carry
-  through to the gutter"). Where two blocks meet,
-  `buildStepGableRoofLines` carves the SHARED stretch out of the outline
-  pieces and then stamps it — an apron on the narrower block, and a barge on
-  the wider one as well, split at its own ridge. But the shared stretch is
-  where the narrower block's roof BUTTS INTO the wider block's wall: the
-  roofing line there is the apron that flashes it, and the wall behind it is
-  a wall, not an exposed gable edge. His L carried a 4.93 m barge sitting
-  behind the apron and a 90 mm stub where the two ridges missed each other,
-  and the barge ran on past the lower ridge to the gutter, which is what he
-  could see. Only the narrower block marks that stretch now; where the wider
-  block's wall IS exposed, `pieces` already carries it, that stretch having
-  just been carved out of them. THE ORDER DOES NOT MOVE — 40 sheets either
-  way, measured both ways before and after, because a flashing against a
-  wall was never steel on the roof. Sheet gate 37/37. `tests/report12.mjs`.
+  through to the gutter"). Where two blocks meet, `buildStepGableRoofLines`
+  carves the SHARED stretch out of the outline pieces and stamps it: an apron
+  on the narrower block AND a barge on the wider one, split at its own ridge.
+  His L therefore carried a 4.93 m barge behind the apron, a 90 mm stub where
+  the two ridges missed, and the real 4.85 m barge below the wing.
+  THE STUB IS SETTLED AND FIXED: splitting the shared stretch at the wider
+  block's ridge leaves a sliver wherever that ridge does not line up with the
+  wing's edge, and a 90 mm flashing is not something anybody can order or
+  fit. Pieces under 0.25 m are dropped.
+  THE BARGE BEHIND THE APRON IS NOT SETTLED, and it is the owner's call.
+  `tests/stepgable.mjs` pins it as RIGHT, deliberately, from his own sketch
+  when the shape was built — "the wider block keeps its barge along that same
+  stretch (the wall above the lower roof)" — and on a step-down gable the
+  taller block's gable rake really does continue above the lower roof. Taking
+  it out passes report 12 and breaks that pin; it was tried, and reverted for
+  exactly that reason. The shipped behaviour stands until he says which he
+  wants. DO NOT flip it without asking him: it is a disagreement between two
+  things he has said, not a bug with a right answer in the code.
+  The order does not move either way — 40 sheets, measured both ways.
+  `tests/report12.mjs` pins the stub's removal and that nothing else moved.
 - A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12, found while
   building the shed's modern styling — it was not a styling gap but a live
   bug). `_qdSectionsRaw` (the one-page computer layout) and `_qbPages` (the
