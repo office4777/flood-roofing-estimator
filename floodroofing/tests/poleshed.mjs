@@ -543,6 +543,20 @@ check('…and the gutter is not offered on a shed\'s quote as an optional extra'
   shedGutter.offered === false && shedGutter.excluded === true,
   JSON.stringify({ offered: shedGutter.offered, excluded: shedGutter.excluded }));
 
+// …and the shed's OWN selections page offers no guttering either — a
+// different path from _gutterOnQuote, and the half of the ask that reaches
+// the customer.
+const shedSel = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  let sel = '', err = null, keys = [];
+  try { sel = _buildPoleShedSelections() || ''; } catch(e){ err = e.message; }
+  try { keys = _qdSectionsRaw().map(x => x.key); } catch(e){ err = (err || '') + ' ' + e.message; }
+  return { gutterOffered: /gutter|spouting|downpipe/i.test(sel), err, keys, len: sel.length };
+});
+check('the shed\'s selections page does not offer guttering as an extra',
+  shedSel.gutterOffered === false && !shedSel.err && shedSel.len > 200, JSON.stringify(shedSel).slice(0, 160));
+
 // NO OFFCUT BUFFER ON A SHED, so reopening one quoted before this does not
 // reprice it: the estimator's quantities already carry their allowances and
 // its own 5% on materials, and charging the roofing buffer on top read 3%
