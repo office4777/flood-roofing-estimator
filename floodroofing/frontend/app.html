@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-11T20:02:59Z';
+  window.APP_BUILT_AT = '2026-10-12T01:17:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6247,14 +6247,23 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             <div><label>Penetration type</label>
               <select id="editPenType" onchange="updatePenetration()" style="margin-bottom:0"><option value="skylight">Skylight</option><option value="chimney">Chimney</option><option value="pipe">Pipe/Flue</option><option value="skydome">Sky dome</option><option value="other">Other</option></select>
             </div>
-            <div><label>Width</label>
-              <div style="display:flex;gap:4px"><input type="number" id="editPenW" placeholder="e.g. 600" oninput="updatePenetration()" style="margin:0;flex:1"><select id="editPenWUnit" onchange="updatePenetration()" style="margin:0;width:60px"><option>mm</option><option>m</option></select></div>
+            <div id="editPenWRow"><label id="editPenWLbl">Diameter</label>
+              <div style="display:flex;gap:4px"><input type="number" id="editPenW" placeholder="e.g. 240" oninput="updatePenetration()" style="margin:0;flex:1"><select id="editPenWUnit" onchange="updatePenetration()" style="margin:0;width:60px"><option>mm</option><option>m</option></select></div>
             </div>
-            <div><label>Depth</label>
-              <div style="display:flex;gap:4px"><input type="number" id="editPenD" placeholder="e.g. 400" oninput="updatePenetration()" style="margin:0;flex:1"><select id="editPenDUnit" onchange="updatePenetration()" style="margin:0;width:60px"><option>mm</option><option>m</option></select></div>
+            <div id="editPenDRow"><label>Length</label>
+              <div style="display:flex;gap:4px"><input type="number" id="editPenD" placeholder="e.g. 850" oninput="updatePenetration()" style="margin:0;flex:1"><select id="editPenDUnit" onchange="updatePenetration()" style="margin:0;width:60px"><option>mm</option><option>m</option></select></div>
             </div>
           </div>
-
+          <div id="editPenBtRow" style="margin-top:.5rem">
+            <label>Back-tray length</label>
+            <div style="display:flex;max-width:240px">
+              <button type="button" id="editPenBtFull" onclick="_penEditorSetBt('full')" style="flex:1;padding:7px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:6px 0 0 6px">Full length</button>
+              <button type="button" id="editPenBtShort" onclick="_penEditorSetBt('short')" style="flex:1;padding:7px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;border-left:none;background:#fff;color:#475569;border-radius:0 6px 6px 0">Short</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:.5rem">
+            <button onclick="deletePen()" style="padding:6px 12px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:6px;cursor:pointer;font-size:12px">&#128465; Delete penetration</button>
+          </div>
         </div>
 
         <!-- Outline label -->
@@ -52735,11 +52744,59 @@ function showLineEditor(i) {
   try { _ridgeBreakBoxRender(l); } catch(e){}
 }
 
+// A round pipe has ONE size (its diameter); a boxed opening has two
+// (width x length). The editor shows whichever the penetration is, and the
+// back-tray choice the entry popup asks for, so a pipe can be changed from
+// full-length to short tray after it has been placed.
+function _penIsBox(p){ return !!(p && p.kind === 'box'); }
+function _penSetUnitBoxes(mm){
+  // Show a size in whichever unit keeps it readable, and say which.
+  return (mm >= 1000) ? { v: +(mm/1000).toFixed(3), u: 'm' } : { v: Math.round(mm), u: 'mm' };
+}
+function _penEditorBtSync(p){
+  var row = document.getElementById('editPenBtRow');
+  if (!row) return;
+  // A boxed opening has no back-tray, and nor has a pipe on a profile with
+  // no tray schedule — do not offer a choice that changes nothing.
+  var on = !!(p && !_penIsBox(p) && (typeof _penBackTrayName === 'function') && _penBackTrayName(p));
+  row.style.display = on ? '' : 'none';
+  if (!on) return;
+  var mode = (p.backTrayMode === 'short') ? 'short' : 'full';
+  [['editPenBtFull','full'],['editPenBtShort','short']].forEach(function(pair){
+    var b = document.getElementById(pair[0]); if (!b) return;
+    var sel = (mode === pair[1]);
+    b.style.background  = sel ? '#0a1628' : '#fff';
+    b.style.color       = sel ? '#fff'    : '#475569';
+    b.style.borderColor = sel ? '#0a1628' : '#cbd5e1';
+  });
+}
+function _penEditorSetBt(mode){
+  var i = DRAW.selectedPen; if (i < 0) return;
+  var p = DRAW.penetrations[i]; if (!p) return;
+  saveSnapshot();
+  if (typeof _setPenBackTrayMode === 'function') _setPenBackTrayMode(i, mode, DRAW.activeRoofIdx);
+  else { p.backTrayMode = (mode === 'short') ? 'short' : 'full'; }
+  _penEditorBtSync(p);
+}
 function showPenEditor(i) {
   var p = DRAW.penetrations[i];
+  if (!p) return;
+  var box = _penIsBox(p);
   showPropPanel('Penetration'+(p.sizeLabel?' — '+p.sizeLabel:''));
   document.getElementById('penetrationEditor').style.display='block';
-  document.getElementById('editPenLabel').value=p.sizeLabel||'';
+  var ty = document.getElementById('editPenType');
+  if (ty) ty.value = p.penType || (box ? 'chimney' : 'pipe');
+  var wLbl = document.getElementById('editPenWLbl');
+  if (wLbl) wLbl.textContent = box ? 'Width' : 'Diameter';
+  var dRow = document.getElementById('editPenDRow');
+  if (dRow) dRow.style.display = box ? '' : 'none';
+  var w = document.getElementById('editPenW'), wu = document.getElementById('editPenWUnit');
+  var d = document.getElementById('editPenD'), du = document.getElementById('editPenDUnit');
+  var wMm = box ? parseFloat(p.widthMm) : ((typeof _penDiamMm === 'function') ? _penDiamMm(p.sizeLabel) : null);
+  var dMm = box ? parseFloat(p.lengthMm) : null;
+  if (w && wu){ if (wMm > 0){ var a = _penSetUnitBoxes(wMm); w.value = a.v; wu.value = a.u; } else { w.value = ''; wu.value = 'mm'; } }
+  if (d && du){ if (dMm > 0){ var b2 = _penSetUnitBoxes(dMm); d.value = b2.v; du.value = b2.u; } else { d.value = ''; du.value = 'mm'; } }
+  _penEditorBtSync(p);
 }
 
 // Update functions
@@ -53102,11 +53159,38 @@ function deleteSelectedLine() {
   DRAW.selectedLine=-1;
   hidePropPanel(); redrawAll(); syncToRoofData(); updateMeasTotals();
 }
+// Read a size box + its unit back as millimetres (0 when blank).
+function _penMmFrom(inputId, unitId){
+  var el = document.getElementById(inputId); if (!el) return 0;
+  var n = parseFloat(el.value);
+  if (!isFinite(n) || n <= 0) return 0;
+  var u = (document.getElementById(unitId) || {}).value || 'mm';
+  return (u === 'm') ? n * 1000 : n;
+}
 function updatePenetration() {
   var i=DRAW.selectedPen; if(i<0) return;
-  DRAW.penetrations[i].sizeLabel=document.getElementById('editPenLabel').value;
-  document.getElementById('propTitle').textContent='Penetration'+(DRAW.penetrations[i].sizeLabel?' — '+DRAW.penetrations[i].sizeLabel:'');
+  var p=DRAW.penetrations[i]; if(!p) return;
+  var ty=document.getElementById('editPenType');
+  if (ty) p.penType = ty.value || p.penType || 'pipe';
+  var wMm=_penMmFrom('editPenW','editPenWUnit');
+  if (_penIsBox(p)){
+    var dMm=_penMmFrom('editPenD','editPenDUnit');
+    p.widthMm  = wMm ? String(Math.round(wMm)) : '';
+    p.lengthMm = dMm ? String(Math.round(dMm)) : '';
+    // The label every reader parses ("350x850 mm") — keep the shape
+    // _placeBoxedPen writes, or the order line loses the size.
+    p.sizeLabel = (wMm && dMm) ? (Math.round(wMm)+'×'+Math.round(dMm)+' mm') : '';
+  } else {
+    // A round pipe stores its diameter in the label, in mm with no unit —
+    // that is what _penDiamMm reads to pick the back-tray.
+    p.sizeLabel = wMm ? String(Math.round(wMm)) : '';
+  }
+  document.getElementById('propTitle').textContent='Penetration'+(p.sizeLabel?' — '+p.sizeLabel:'');
+  // The diameter decides the back-tray, so the Full/Short row may appear or
+  // go as the size is typed.
+  try { _penEditorBtSync(p); } catch(e){}
   redrawAll(); syncToRoofData();
+  try { updateMeasTotals(); } catch(e){}
 }
 
 function deletePen() {
@@ -58269,7 +58353,7 @@ function _setPenBackTrayMode(idx, mode, roofIdx){
   if (!p) return;
   p.backTrayMode = (mode === 'short') ? 'short' : 'full';
   try { syncToRoofData && syncToRoofData(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}   // autosaveJob never existed — the switch was never saved
   try { if (typeof _matRefreshPrintPreview === 'function') _matRefreshPrintPreview(); } catch(e){}
   try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
   try { redrawAll && redrawAll(); } catch(e){}
@@ -59024,8 +59108,23 @@ function _roofScopeEnter(){
   var savedActive = DRAW.activeRoofIdx;
   var saved = {};
   ROOF_FIELDS.forEach(function(k){ saved[k] = DRAW[k]; });
+  // A pass that walks every roof and comes back is NOT a roof switch: the
+  // person is still looking at the same roof, with the same thing selected
+  // and possibly half an outline tapped out. _loadRoofToCurrent clears both
+  // — right for a real switch, where the indices point into another roof's
+  // arrays — so the scope puts them back. Without this, any materials or
+  // Job Pack recalculation (they run off the back of an ordinary redraw)
+  // silently dropped the selected penetration, line or section while its
+  // editor stayed open on screen, and every edit then went nowhere.
+  var selSec = DRAW.selectedSection, selLine = DRAW.selectedLine, selPen = DRAW.selectedPen;
+  var curPts = DRAW.currentPts;
   return function _roofScopeLeave(){
-    if (savedActive >= 0 && savedActive < DRAW.roofs.length){ _loadRoofToCurrent(savedActive); return; }
+    if (savedActive >= 0 && savedActive < DRAW.roofs.length){
+      _loadRoofToCurrent(savedActive);
+      DRAW.selectedSection = selSec; DRAW.selectedLine = selLine; DRAW.selectedPen = selPen;
+      DRAW.currentPts = curPts;
+      return;
+    }
     // Nothing valid to load back into — put the fields back as they were, by
     // hand, rather than leaving DRAW wherever the loop finished.
     ROOF_FIELDS.forEach(function(k){ DRAW[k] = saved[k]; });

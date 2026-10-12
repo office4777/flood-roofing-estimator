@@ -649,6 +649,35 @@ Discipline (non-negotiable):
   (`_emailMergeCopies`).
 - THE "UPDATED …" LINE (2026-10-02): see the bullet below; also the bug
   report records `build <APP_BUILT_AT>` (`tests/fbcontext.mjs`).
+- A PENETRATION IS EDITABLE AFTER IT IS PLACED (2026-10-12, two client error
+  reports from info@wellingtonroof.co.nz on build 470e22d, eight seconds
+  apart: `showPenEditor` setting, then `updatePenetration` reading, `.value`
+  of null). One cause: both still used `#editPenLabel`, a single free-text
+  box that has not been in the page for as long as this repo's history goes
+  back — the editor's markup is `editPenType` + `editPenW` + `editPenD`. So
+  clicking any penetration with the select tool threw BEFORE the panel was
+  filled (it opened showing the previous selection's numbers) and the type
+  dropdown threw out of its own `onchange`, writing nothing. A penetration
+  was place-once: the entry popup was the only way to set its size and
+  nothing about it could be corrected afterwards. The editor now shows what
+  the penetration IS — one Diameter for a round pipe (stored in `sizeLabel`
+  as plain mm, the shape `_penDiamMm` reads to pick the back-tray), Width AND
+  Length for a boxed opening (`widthMm`/`lengthMm` + a `350×850 mm` label, the
+  shape `_placeBoxedPen` writes and the order line parses) — plus the
+  Full/Short back-tray choice the entry popup asks for and a Delete button
+  beside the Delete key. `_setPenBackTrayMode` called `autosaveJob`, which
+  does not exist, so a tray switched to short on the Job Pack card was never
+  saved; it schedules a real autosave now. `tests/penedit.mjs`.
+- A SELECTION SURVIVES A MEASURING PASS (2026-10-12, found reproducing the
+  above): `_loadRoofToCurrent` clears `selectedSection/Line/Pen` and
+  `currentPts`, which is right for a real roof SWITCH — the indices point
+  into another roof's arrays. But `_matEachSelectedRoof` and
+  `_materialsCostForRoofIdx` walk every roof and come back through the same
+  function, and they run off the back of an ordinary redraw. So a second
+  after clicking a penetration the selection was gone while its editor sat
+  open on screen, and every edit in it quietly did nothing; half an outline
+  tapped out went the same way. `_roofScopeEnter` now puts both back when it
+  restores the roof it started on. Pinned in `tests/penedit.mjs`.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
