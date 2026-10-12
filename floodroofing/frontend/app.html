@@ -1286,6 +1286,20 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 .pr-roof-btn.on .pr-roof-area{ color:#fff }
 .pr-roof-btn.on{ border-color:#0a1628; background:#0a1628; box-shadow:none; }
 .pr-roof-btn.on .pr-roof-nm, .pr-roof-btn.on .pr-roof-sub{ color:#fff; }
+/* The frozen roof map, with what the roof being priced comes to beside it. */
+.pr-map-row{ display:flex; align-items:center; gap:12px; }
+.pr-map-svg{ flex:1 1 auto; min-width:0; }
+.pr-price{ flex:0 0 auto; width:188px; background:#fff; border:1px solid #fde68a; border-radius:10px; padding:9px 11px; font-variant-numeric:tabular-nums; }
+.pr-price-hd{ font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#92400e; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pr-price-row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:12px; color:var(--text2); padding:2px 0; }
+.pr-price-row strong{ color:#0a1628; font-weight:700; }
+.pr-price-tot{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:5px; padding-top:6px; border-top:1px solid #fde68a; font-size:12px; font-weight:700; color:#78350f; }
+.pr-price-tot strong{ font-size:17px; color:#0a1628; }
+.pr-price-gst{ font-size:10.5px; color:var(--text2); margin-top:2px; text-align:right; }
+@media (max-width:760px){
+  .pr-map-row{ flex-direction:column; align-items:stretch; }
+  .pr-price{ width:auto; }
+}
 /* Sub-blocks inside a tile (e.g. Roof labour + Roof material). */
 #tab-scope .tile-block:first-of-type{ margin-top:2px; }
 #tab-scope .tile-block + .tile-block{ margin-top:16px;padding-top:14px;border-top:1px dashed var(--border); }
@@ -4749,7 +4763,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T21:26:50Z';
+  window.APP_BUILT_AT = '2026-10-12T22:01:44Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16545,7 +16559,7 @@ function renderMaterialPriceTable(){
   });
   // Custom material lines — sit directly under the item rows, above the
   // grade + safety-buffer rows.
-  if (!_multiMat || _matRi === 0) html += _qCustomTableRows('material', {totalCols:6, descColspan:4});
+  html += _qCustomTableRows(_qCustomArea('material', _pctIdx), {totalCols:6, descColspan:4});
   // Steel-grade adjustment — the roofing steel costs more/less by grade
   // (Maxam standard; ColorCote/ColorZen/Zincalume cheaper). Shown as its own
   // row so the office sees the selected grade's real material cost. S.materials
@@ -16579,7 +16593,7 @@ function renderMaterialPriceTable(){
   // $12,000 custom material read "$0.00" underneath. They reach the quote as
   // their own line items (not through S.materials), so they are added to the
   // figure shown here only — never to S.materials, or they would count twice.
-  var _customMat = (!_multiMat || _matRi === 0) ? _qCustomTotal('material') : 0;
+  var _customMat = _qCustomTotal(_qCustomArea('material', _pctIdx));
   var _finalMatShown = _finalMat + _customMat;
   var _pctRow = function(label, sub, pct, amt, setter){
     return '<tr style="background:#f7f8fa">'+
@@ -16898,19 +16912,69 @@ function _roofLabour(idx){
 // Labour charge-out ($) for a roof. Roof 0 = the main table total (S.labour).
 function _labourPriceForRoof(idx){
   if (idx === 0) return (typeof S.labour === 'number') ? S.labour : 0;
+  var _ex = _roofLabourExtras(idx), _f = function(v){ return parseFloat(v) || 0; };
   // Priced by area: this roof's own m2 at the job's rate. Roof 0 goes through
-  // calcLabour, which stamps S.labour the same way.
+  // calcLabour, which stamps S.labour the same way. An extra labourer then
+  // shows up in the COST and the margin, never on top of a rate that already
+  // covers the roof - the same rule the main table follows.
   if (_labourMode() === 'm2'){
     var rate = _labourM2Rate();
-    if (rate > 0) return _labourAreaForRoof(idx) * rate;
+    if (rate > 0) return _labourAreaForRoof(idx) * rate + _roofCustomTotal('labour', idx);
   }
-  var rl = _roofLabour(idx), r = _labourRates();
-  return (parseFloat(rl.leadHrs)||0) * r.leadPrice + (parseFloat(rl.appHrs)||0) * r.appPrice;
+  var rl = _roofLabour(idx), r = _roofLabourRates(idx);
+  var _exP = 0; _ex.forEach(function(x){ _exP += _f(x.hrs) * _f(x.price); });
+  return (parseFloat(rl.leadHrs)||0) * r.leadPrice + (parseFloat(rl.appHrs)||0) * r.appPrice
+    + _exP + _roofCustomTotal('labour', idx);
 }
 function _labourCostForRoof(idx){
   if (idx === 0) return (typeof S.labourCost === 'number') ? S.labourCost : 0;
-  var rl = _roofLabour(idx), r = _labourRates();
-  return (parseFloat(rl.leadHrs)||0) * r.leadCost + (parseFloat(rl.appHrs)||0) * r.appCost;
+  var rl = _roofLabour(idx), r = _roofLabourRates(idx), _f = function(v){ return parseFloat(v) || 0; };
+  var _exC = 0; _roofLabourExtras(idx).forEach(function(x){ _exC += _f(x.hrs) * _f(x.cost); });
+  // A typed labour line is revenue at cost: nobody told us its margin.
+  return (parseFloat(rl.leadHrs)||0) * r.leadCost + (parseFloat(rl.appHrs)||0) * r.appCost
+    + _exC + _roofCustomTotal('labour', idx);
+}
+// EACH ROOF MAY BE CHARGED AT ITS OWN RATE (2026-10-12, the owner: "let me
+// adjust my labour hourly rate seperately on the different roofs it's
+// currently locked and says shared, i want to be able to price a base price
+// on the main roof then a cheaper labour price for the optional roofs").
+// A rate TYPED on a roof is that roof's own; a rate left alone follows the
+// main labour table, so every quote written before this prices exactly as it
+// did and the box shows the shared figure until it is typed over.
+var ROOF_RATE_KEYS = ['leadPrice', 'appPrice', 'leadCost', 'appCost'];
+function _roofLabourRates(idx){
+  var r = _labourRates();
+  r.own = {};
+  if (!(idx >= 1)) return r;
+  var rl = _roofLabour(idx);
+  ROOF_RATE_KEYS.forEach(function(k){
+    if (rl[k] == null || rl[k] === '') return;
+    var v = parseFloat(rl[k]);
+    if (!isFinite(v) || v < 0) return;
+    r[k] = v; r.own[k] = true;
+  });
+  return r;
+}
+// Blank (or the reset arrow) puts a roof back on the shared rate rather than
+// charging it at nothing - a zero typed on purpose is still a zero.
+function _setRoofLabourRate(idx, key, val){
+  if (!(idx >= 1) || ROOF_RATE_KEYS.indexOf(key) < 0) return;
+  var rl = _roofLabour(idx);
+  var raw = (val == null) ? '' : String(val).trim();
+  if (raw === '') delete rl[key];
+  else { var v = parseFloat(raw); if (!isFinite(v) || v < 0) return; rl[key] = v; }
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+}
+// An extra roof's hours: its own lead + apprentice, plus any labourer taken
+// on for it. The quote's hours per roof are read here and nowhere else.
+function _roofLabourHours(idx){
+  if (idx === 0) return (typeof S.labourHours === 'number') ? S.labourHours : 0;
+  var rl = _roofLabour(idx), f = function(v){ return parseFloat(v) || 0; };
+  var h = f(rl.leadHrs) + f(rl.appHrs);
+  _roofLabourExtras(idx).forEach(function(x){ h += f(x.hrs); });
+  return h;
 }
 // Office edits an extra roof's labour hours (in the Labour section, scoped to
 // the selected roof). Re-renders labour (which refreshes the breakdown) + the
@@ -17279,8 +17343,63 @@ function _renderPricingRoofMap(){
         '<span style="font-size:11px;font-weight:700;color:#78350f;letter-spacing:.02em">Pricing ' +
           esc([_pricingRoofName(_pricingRoofIdx())]
                 .concat(_pricingRoofGroupExtras(_pricingRoofIdx())).join(' + ')) + '</span>' +
-      '</div>' + svg +
+      '</div>' +
+      '<div class="pr-map-row">' +
+        '<div class="pr-map-svg">' + svg + '</div>' +
+        _pricingRoofPriceHtml(_pricingRoofIdx()) +
+      '</div>' +
     '</div>';
+}
+// WHAT THE ROOF ON SCREEN COMES TO (2026-10-12, the owner: "put the total
+// price less gst for the total revenue on the different roof i'm pricing on
+// the right on the frozen roof map ... Labour $x, Material $x then total $x
+// +gst"). There is room beside the map and nowhere on the panel said what
+// the roof being priced actually adds up to — the cards each showed a part
+// of it and the office added them up by eye.
+//
+// Every figure is read through the helpers the cards read, so the panel
+// cannot disagree with the green totals above it: labour from
+// _labourPriceForRoof (S.labour for the main roof, which calcLabour stamps),
+// materials at the chosen grade the way the material table shows them, plus
+// each tab's own custom lines. Scaffolding earns a line of its own whenever
+// it is priced — leaving it out would make the total read less than the
+// roof is quoted at, which is worse than a third row.
+function _pricingRoofParts(ri){
+  var f = function(v){ return parseFloat(v) || 0; };
+  var base = !(ri >= 1);
+  var gf = 1; try { gf = _gradeFactor(); } catch(e){}
+  var mat = (base ? f(S.materials) : _materialsCostForRoofIdx(ri)) * gf;
+  var lab = _labourPriceForRoof(base ? 0 : ri);
+  var sc = 0; try { sc = f(_scaffoldEff(_roofScaffold(base ? 0 : ri)).price); } catch(e){}
+  if (base){
+    // The main roof's own lines are quote line items of their own, so they
+    // are not in S.labour / S.materials / the scaffold price — they are part
+    // of what this roof comes to all the same.
+    mat += _qCustomTotal('material'); lab += _qCustomTotal('labour'); sc += _qCustomTotal('scaffold');
+  } else {
+    mat += _roofCustomTotal('material', ri); sc += _roofCustomTotal('scaffold', ri);
+  }
+  return { labour: lab, material: mat, scaffold: sc, total: lab + mat + sc };
+}
+function _pricingGstRate(){
+  var g = parseFloat(window.S && S.quote && S.quote.gstRate);
+  return (isFinite(g) && g >= 0) ? g : 15;
+}
+function _pricingRoofPriceHtml(ri){
+  var p;
+  try { p = _pricingRoofParts(ri); } catch(e){ return ''; }
+  var money = function(v){ try { return fmtMoney(v); } catch(e){ return '$' + (v || 0).toFixed(2); } };
+  var line = function(label, v){
+    return '<div class="pr-price-row"><span>' + esc(label) + '</span><strong>' + money(v) + '</strong></div>';
+  };
+  return '<div class="pr-price">' +
+    '<div class="pr-price-hd">' + esc(_pricingRoofName(ri)) + '</div>' +
+    line('Labour', p.labour) +
+    line('Material', p.material) +
+    (p.scaffold > 0.005 ? line('Scaffolding', p.scaffold) : '') +
+    '<div class="pr-price-tot"><span>Total</span><strong>' + money(p.total) + '</strong></div>' +
+    '<div class="pr-price-gst">+ GST = ' + money(p.total * (1 + _pricingGstRate() / 100)) + '</div>' +
+  '</div>';
 }
 // Big roof-switch buttons for the top of each pricing section (multi-roof only).
 function _pricingRoofTabsHtml(){
@@ -18216,8 +18335,16 @@ function restoreFromJob(j){
     // files and the flashings above: a job that carries a quote gets its own
     // back on the next line, and one that carries none starts clean rather
     // than wearing another client's.
+    try { _clearPendingJobType(); } catch(e){}
     try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
     Object.assign(S, snap.state);
+    // A QUOTE THAT NEVER SAID WHAT IT WAS IS A ROOFING QUOTE. The assign puts
+    // the stored quote object back whole, so the default above cannot reach a
+    // job that HAS a quote; an older one carries no quoteKind at all and the
+    // readers then fell through to window._pendingJobType, which is how the
+    // last job's Pole Shed followed the office onto the next client's job.
+    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : 'roofing'; } catch(e){}
+    try { _clearPendingJobType(); } catch(e){}
     try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
     try { _qvPackAll(); } catch(e){}         // a job saved before the picture pool: one copy of each picture from here on
@@ -18500,7 +18627,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -20839,8 +20966,20 @@ async function deleteJob(id){
 // only wipes the DRAWING, so without this the Quote tab keeps the previous
 // job's proposal (client, ref, totals, photos). Optionally seed the new job's
 // client/site/contact, then re-render so the Quote tab reflects the reset.
+// THE JOB TYPE IS NOT A SETTING (2026-10-12, the owner: "this job was set as
+// a 'pole shed' in the job type, all jobs should default to 'Roofing' job
+// type, maybe it's because i switched from the phyllis job which was a pole
+// shed job"). He was right, and that is exactly it. window._pendingJobType is
+// the New/Edit Job modal's ONE-SHOT answer, read by defaultQuote() - and
+// nothing ever put it back. So once a pole-shed job had been through that
+// modal, every quote built from then on was born a pole shed: a brand-new
+// job, and any saved job whose stored quote predates quoteKind. The modal
+// still sets it as it opens (from the job being edited, else roofing), so
+// everything else that builds a quote clears it first.
+function _clearPendingJobType(){ window._pendingJobType = 'roofing'; }
 function _resetQuoteForFreshJob(seed){
   seed = seed || {};
+  _clearPendingJobType();
   try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
   if (S.quote){
     if (seed.client != null) S.quote.client = seed.client;
@@ -24449,23 +24588,39 @@ function _foldedScaffoldRowsHtml(){
 }
 // Extra labourers (beyond Lead Roofer + Apprentice) — each is its own Fergus
 // labour line on push. Stored on S.quote.labour.extras.
-function _addLabourer(){
-  var p = _pricingState();
-  if (!Array.isArray(p.L.extras)) p.L.extras = [];
+// THE CREW ON A ROOF (2026-10-12). The main roof's extra labourers are the
+// job's own, where they have always lived (S.quote.labour.extras); an extra
+// roof keeps its own on its labour row, so a labourer taken on for the
+// asbestos strip is not charged to the house as well. The three bare names
+// are kept because the main roof's buttons call them by name.
+function _roofLabourExtras(idx){
+  if (!(idx >= 1)){
+    var p = _pricingState();
+    if (!Array.isArray(p.L.extras)) p.L.extras = [];
+    return p.L.extras;
+  }
+  var rl = _roofLabour(idx);
+  if (!Array.isArray(rl.extras)) rl.extras = [];
+  return rl.extras;
+}
+function _addLabourerTo(ri){
   var lp = (S.settings && S.settings.labour_pricing) || {};
-  p.L.extras.push({ name: 'Labourer', hrs: 0, cost: (+lp.app_cost || 25), price: (+lp.app_price || 90) });
+  _roofLabourExtras(ri).push({ name: 'Labourer', hrs: 0, cost: (+lp.app_cost || 25), price: (+lp.app_price || 90) });
   calcLabour();
 }
-function _updateLabourer(idx, field, val){
-  var p = _pricingState(); if (!Array.isArray(p.L.extras) || !p.L.extras[idx]) return;
-  p.L.extras[idx][field] = (field === 'name') ? val : (parseFloat(val) || 0);
+function _updateLabourerOn(ri, i, field, val){
+  var a = _roofLabourExtras(ri); if (!a[i]) return;
+  a[i][field] = (field === 'name') ? val : (parseFloat(val) || 0);
   calcLabour();
 }
-function _removeLabourer(idx){
-  var p = _pricingState(); if (!Array.isArray(p.L.extras)) return;
-  p.L.extras.splice(idx, 1);
+function _removeLabourerFrom(ri, i){
+  var a = _roofLabourExtras(ri); if (!(i >= 0 && i < a.length)) return;
+  a.splice(i, 1);
   calcLabour();
 }
+function _addLabourer(){ _addLabourerTo(0); }
+function _updateLabourer(idx, field, val){ _updateLabourerOn(0, idx, field, val); }
+function _removeLabourer(idx){ _removeLabourerFrom(0, idx); }
 // Manually pull the Labour rates + scaffold back to the current Settings
 // defaults (clears the per-job overrides). Wired to the pricing panel.
 function _pricingUseSettingsDefaults(){
@@ -24521,15 +24676,19 @@ function calcLabour(){
   if (_labM2 > 0) totalPrice = _labourAreaForRoof(0) * _labM2;
   // Extra labourers — editable name + hours/rates + delete. Each becomes its
   // own Fergus labour line on push.
-  function extraRow(x, i){
+  // An extra labourer, on whichever roof the tab is showing. The main roof's
+  // are the job's own; an extra roof keeps its own (_roofLabourExtras).
+  function extraRowOn(_ri){ return function(x, i){
+    var u = '_updateLabourerOn('+_ri+','+i+',';
     return '<tr>'+
-      '<td><input type="text" value="'+esc2(x.name||'Labourer')+'" onchange="_updateLabourer('+i+',\'name\',this.value)" style="width:100%;font-size:12px;padding:5px 7px;font-weight:600"></td>'+
-      '<td><input type="number" step="0.5" min="0" value="'+f(x.hrs)+'" onchange="_updateLabourer('+i+',\'hrs\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
-      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.cost)+'" onchange="_updateLabourer('+i+',\'cost\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
-      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.price)+'" onchange="_updateLabourer('+i+',\'price\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
-      '<td style="text-align:right;font-weight:600;white-space:nowrap">$'+(f(x.hrs)*f(x.price)).toFixed(2)+' <button type="button" onclick="_removeLabourer('+i+')" title="Remove labourer" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 2px">×</button></td>'+
+      '<td><input type="text" value="'+esc2(x.name||'Labourer')+'" onchange="'+u+'\'name\',this.value)" style="width:100%;font-size:12px;padding:5px 7px;font-weight:600"></td>'+
+      '<td><input type="number" step="0.5" min="0" value="'+f(x.hrs)+'" onchange="'+u+'\'hrs\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.cost)+'" onchange="'+u+'\'cost\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.price)+'" onchange="'+u+'\'price\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td style="text-align:right;font-weight:600;white-space:nowrap">$'+(f(x.hrs)*f(x.price)).toFixed(2)+' <button type="button" onclick="_removeLabourerFrom('+_ri+','+i+')" title="Remove labourer" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 2px">×</button></td>'+
     '</tr>';
-  }
+  }; }
+  var extraRow = extraRowOn(0);
 
   var _multiRoofLab = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
   var ri = _multiRoofLab ? _pricingRoofIdx() : 0;
@@ -24537,14 +24696,31 @@ function calcLabour(){
   var _tabs = _pricingRoofTabsHtml();
   // A Lead/Apprentice row scoped to an EXTRA roof — hours per roof, shared
   // crew rates (editing a rate on Roof 1 changes it for all).
+  // An extra roof's own row: its hours, and its own charge-out and cost
+  // rates. A rate left alone follows the main table and says so; typed, it
+  // is this roof's and carries a reset back to the shared figure.
   function roofRow(label, hrsField, priceKey, costKey){
     var rl = _roofLabour(ri);
-    var hrs = f(rl[hrsField]), price = f(L[priceKey]), cost = f(L[costKey]);
+    var rr = _roofLabourRates(ri);
+    var hrs = f(rl[hrsField]), price = f(rr[priceKey]), cost = f(rr[costKey]);
+    var rateCell = function(key, v){
+      var own = !!rr.own[key];
+      return '<td>'+
+        '<div style="display:flex;align-items:center;gap:2px">'+
+          '<span style="color:var(--text2);font-size:11px">$</span>'+
+          '<input type="number" step="0.5" min="0" value="'+v+'" placeholder="'+v+'" '+
+            'title="This roof\u2019s own rate \u2014 leave it blank to follow the main table" '+
+            'onchange="_setRoofLabourRate('+ri+',\''+key+'\',this.value)" '+
+            'style="width:100%;font-size:12px;padding:5px 7px'+(own?';border-color:#7c3aed;color:#4c1d95;font-weight:700':'')+'">'+
+          (own ? '<button type="button" onclick="_setRoofLabourRate('+ri+',\''+key+'\',\'\')" title="Back to the shared rate" style="background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px;padding:0 2px">\u21BB</button>' : '')+
+        '</div>'+
+        '<div style="font-size:9px;color:'+(own?'#7c3aed':'var(--text2)')+';font-weight:'+(own?'700':'400')+'">'+(own?'THIS ROOF':'shared')+'</div>'+
+      '</td>';
+    };
     return '<tr>'+
       '<td style="font-weight:600">'+label+'</td>'+
       '<td><input type="number" step="0.5" min="0" value="'+hrs+'" onchange="_updateRoofLabour('+ri+',\''+hrsField+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
-      '<td style="color:var(--text2);font-size:12px">$'+cost.toFixed(0)+'<div style="font-size:9px;color:var(--text2)">shared</div></td>'+
-      '<td style="color:var(--text2);font-size:12px">$'+price.toFixed(0)+'<div style="font-size:9px;color:var(--text2)">shared</div></td>'+
+      rateCell(costKey, cost.toFixed(0)) + rateCell(priceKey, price.toFixed(0)) +
       '<td style="text-align:right;font-weight:600">$'+(hrs*price).toFixed(2)+'</td>'+
     '</tr>';
   }
@@ -24552,8 +24728,7 @@ function calcLabour(){
   var dispHrs, dispPrice;
   if (isBaseRoof){ dispHrs = totalHrs; dispPrice = totalPrice; }
   else {
-    var _rl = _roofLabour(ri), lh = f(_rl.leadHrs), ah = f(_rl.appHrs);
-    dispHrs = lh + ah; dispPrice = _labourPriceForRoof(ri);
+    dispHrs = _roofLabourHours(ri); dispPrice = _labourPriceForRoof(ri);
   }
   var scR = _roofScaffold(ri);
   var html =
@@ -24572,15 +24747,18 @@ function calcLabour(){
     '</tr></thead><tbody>'+
       (isBaseRoof
         ? row('Lead Roofer','leadHrs','leadCost','leadPrice')+row('Apprentice','appHrs','appCost','appPrice')+L.extras.map(extraRow).join('')
-        : roofRow('Lead Roofer','leadHrs','leadPrice','leadCost')+roofRow('Apprentice','appHrs','appPrice','appCost'))+
+        : roofRow('Lead Roofer','leadHrs','leadPrice','leadCost')+roofRow('Apprentice','appHrs','appPrice','appCost')+
+          _roofLabourExtras(ri).map(extraRowOn(ri)).join(''))+
     '</tbody></table>'+
+    // + Add labourer belongs on every roof, not only the main one: a crew
+    // taken on for the asbestos strip is that roof's cost, not the house's.
+    '<div style="margin-top:5px"><button type="button" onclick="_addLabourerTo('+ri+')" style="background:none;border:1px dashed var(--border);border-radius:6px;color:#0099cc;font-size:11px;cursor:pointer;padding:5px 11px;font-weight:600">+ Add labourer</button></div>'+
     (isBaseRoof
-      ? '<div style="margin-top:5px"><button type="button" onclick="_addLabourer()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:#0099cc;font-size:11px;cursor:pointer;padding:5px 11px;font-weight:600">+ Add labourer</button></div>'+
-        ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
+      ? ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
           ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
           : '')
       : '')+
-    (isBaseRoof ? _qCustomRowsHtml('labour') : '')+
+    _qCustomRowsHtml(_qCustomArea('labour', ri))+
     // Combined labour total (for the selected roof)
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+
@@ -24624,7 +24802,7 @@ function calcLabour(){
       // the main roof, and folding it away would quietly take money off quotes
       // that already exist. Set it to 0 for a lean-to the main scaffold reaches.
       (isBaseRoof ? _foldedScaffoldRowsHtml() : '')+
-      (isBaseRoof ? _qCustomRowsHtml('scaffold') : '');
+      _qCustomRowsHtml(_qCustomArea('scaffold', ri));
   }
 
   // Roll up to the quote (price feeds the combined quote total; cost +
@@ -24893,9 +25071,12 @@ function _profitFigures(view){
       return { labourPrice: f(S.labour), labourCost: f(S.labourCost), hrs: f(S.labourHours),
                mat: f(S.materials), scPrice: sc.price, scCost: sc.cost, area: area };
     }
-    var rl = _roofLabour(i);
-    return { labourPrice: _labourPriceForRoof(i), labourCost: _labourCostForRoof(i), hrs: f(rl.leadHrs) + f(rl.appHrs),
-             mat: _materialsCostForRoofIdx(i), scPrice: sc.price, scCost: sc.cost, area: area };
+    // An extra roof is priced as a lump, so its own custom lines are in it:
+    // labour's through _labourPriceForRoof/_labourCostForRoof, material's and
+    // scaffold's here. At cost - nobody told us a typed line's margin.
+    var _cMat = _roofCustomTotal('material', i), _cSc = _roofCustomTotal('scaffold', i);
+    return { labourPrice: _labourPriceForRoof(i), labourCost: _labourCostForRoof(i), hrs: _roofLabourHours(i),
+             mat: _materialsCostForRoofIdx(i) + _cMat, scPrice: sc.price + _cSc, scCost: sc.cost + _cSc, area: area };
   };
   // THE TOTAL IS THE QUOTE (2026-09-23). It used to add up every priced
   // roof — an optional roof the customer never took, each with its own
@@ -25020,12 +25201,12 @@ function _pxHeadTotals(){
   try {
     var ri = _pricingRoofIdx();
     var sc = _scaffoldEff(_roofScaffold(ri));
-    set('scaffoldCard', fmtMoney(sc.price) + (sc.type === 'platform' || (_roofScaffold(ri) || {}).type === 'platform' ? ' \u00b7 platform' : ''));
+    set('scaffoldCard', fmtMoney(sc.price + _roofCustomTotal('scaffold', ri)) + (sc.type === 'platform' || (_roofScaffold(ri) || {}).type === 'platform' ? ' \u00b7 platform' : ''));
   } catch(e){ set('scaffoldCard', ''); }
   try {
     var ri2 = _pricingRoofIdx();
     var lab = ri2 === 0 ? f(S.labour) : _labourPriceForRoof(ri2);
-    var mat = ri2 === 0 ? f(S.materials) : _materialsCostForRoofIdx(ri2);
+    var mat = ri2 === 0 ? f(S.materials) : (_materialsCostForRoofIdx(ri2) + _roofCustomTotal('material', ri2));
     set('roofPriceTile', fmtMoney(lab + mat), !(lab + mat > 0));
   } catch(e){ set('roofPriceTile', ''); }
   try {
@@ -35195,6 +35376,108 @@ function _qCustom(area){
   return S.quote.customLines[area];
 }
 function _qCustomTotal(area){ return _qCustom(area).reduce(function(s,r){ return s + (parseFloat(r&&r.amount)||0); }, 0); }
+// A PRICING TAB PRICES ONE ROOF, SO ITS CUSTOM LINES ARE THAT ROOF'S OWN
+// (2026-10-12, the owner: "the add custom material line or from price books
+// has disapeared from the addition roofs, it's still there on the main roof").
+// They were hidden on an extra roof because ONE store keyed by area alone
+// would have put the same line on every tab: type $800 of asbestos disposal
+// on the Asbestos Roof and the main roof's materials grew by $800 too. The
+// main roof keeps the BARE area name, so every quote written before this
+// prices exactly as it did; an extra roof's tab gets '<area>#<idx>'.
+// 'gutter' has no tabs at all - it is the job's own trade, one price.
+function _qCustomArea(area, idx){
+  if (idx == null){
+    try { idx = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) ? _pricingRoofIdx() : 0; } catch(e){ idx = 0; }
+  }
+  return (idx > 0) ? (area + '#' + idx) : area;
+}
+function _qCustomBaseArea(area){ return String(area || '').split('#')[0]; }
+// AN EXTRA ROOF IS PRICED AS A LUMP (materials + labour + scaffold), so its
+// own custom lines belong inside that lump. The main roof's reach the quote
+// as line items of their own (_syncQuoteBaseLineItems), so this answers 0 for
+// roof 0 and nothing is ever counted twice.
+function _roofCustomTotal(area, idx){
+  if (!(idx >= 1)) return 0;
+  try { return _qCustomTotal(_qCustomArea(area, idx)); } catch(e){ return 0; }
+}
+// The roofs whose custom lines are part of the BASE price: the main roof and
+// everything folded into it. A folded roof has no tab of its own, so its
+// lines would otherwise go with it - and money that disappears off a quote
+// because a roof was folded is the worst of the three outcomes. A SEPARATE
+// roof's lines ride inside its own optional price; an EXCLUDED roof is not
+// priced at all, so its lines are not either.
+function _qCustomBaseRoofs(){
+  var out = [0];
+  try {
+    if (window.DRAW && DRAW.roofs){
+      for (var i = 1; i < DRAW.roofs.length; i++){
+        if (_roofQuoteMode(i) === 'folded') out.push(i);
+      }
+    }
+  } catch(e){}
+  return out;
+}
+// The custom lines a pricing TAB shows, normalised for the pricing CSV: the
+// main roof's tab shows the base's (its own plus anything folded into it), an
+// extra roof's tab its own. Read through the same store the cards read, so a
+// figure in the file cannot disagree with the one on screen.
+function _qCustomLinesForCsv(area, idx){
+  var rows = (idx >= 1) ? _qCustom(_qCustomArea(area, idx)) : _qCustomBaseLines(area);
+  return (rows || []).map(function(r){
+    _qCustomNorm(r);
+    var amt = parseFloat(r && r.amount) || 0;
+    return { desc: ((r && r.desc) || '').trim() || ('Custom ' + area + ' line'),
+             qty: (r && r.qty != null) ? r.qty : 1, uom: (r && r.uom) || '',
+             unit: (r && r.unit != null) ? r.unit : amt, amount: amt };
+  }).filter(function(x){ return x.amount || x.desc; });
+}
+// FOLDING A ROOF IN TAKES AWAY ITS TAB, so its own typed lines would be
+// priced into the base with no row anywhere to show them or take them off.
+// They move onto the main roof's tab instead, which is where the office is
+// now pricing that roof. One way only: folding is the office saying this is
+// part of the main roof. (_qCustomBaseLines still prices a folded roof's
+// lines, for a job saved before this and for a mode changed from elsewhere.)
+function _qCustomFoldInto(idx){
+  if (!(idx >= 1)) return;
+  var q = (window.S && S.quote) || null;
+  if (!q || !q.customLines) return;
+  ['labour', 'material', 'scaffold'].forEach(function(area){
+    var from = q.customLines[_qCustomArea(area, idx)];
+    if (!Array.isArray(from) || !from.length) return;
+    var to = _qCustom(area);
+    from.forEach(function(r){ to.push(r); });
+    delete q.customLines[_qCustomArea(area, idx)];
+  });
+}
+function _qCustomBaseLines(area){
+  var cl = (window.S && S.quote && S.quote.customLines) || {}, out = [];
+  _qCustomBaseRoofs().forEach(function(ri){
+    (cl[_qCustomArea(area, ri)] || []).forEach(function(r){ if (r) out.push(r); });
+  });
+  return out;
+}
+// A pricing tab's custom lines belong to its roof, so they move when the
+// roofs are renumbered - '<area>#<idx>' by index, the main roof's bare
+// '<area>' as roof 0. 'gutter' is the job's own trade and never moves.
+function _qCustomRemap(mapFn){
+  var q = (window.S && S.quote) || null;
+  if (!q || !q.customLines || typeof q.customLines !== 'object') return;
+  var AREAS = ['labour', 'material', 'scaffold'];
+  var src = q.customLines, out = {};
+  Object.keys(src).forEach(function(k){
+    var h = k.indexOf('#');
+    var area = (h < 0) ? k : k.slice(0, h);
+    if (AREAS.indexOf(area) < 0){ out[k] = src[k]; return; }
+    var idx = (h < 0) ? 0 : parseInt(k.slice(h + 1), 10);
+    if (!isFinite(idx)){ out[k] = src[k]; return; }
+    var m = mapFn(idx);
+    if (!(m >= 0)) return;                       // that roof is gone
+    var key = (m > 0) ? (area + '#' + m) : area;
+    if (out[key]) out[key] = out[key].concat(src[k] || []);
+    else out[key] = src[k];
+  });
+  q.customLines = out;
+}
 // QUANTITY × UNIT PRICE (2026-09-25: a custom line "needs to have a quantity
 // and unit price just like the other set prices"). `amount` stays the line's
 // total — every reader (the materials total, the quote, profit, Fergus) reads
@@ -35229,20 +35512,21 @@ function _qCustomChanged(area, keepFocus){
   // (It called autosaveJob, which does not exist — custom lines only reached
   // the server when something else saved the job.)
   try { _scheduleAutosave(); } catch(e){}
+  var _ba = _qCustomBaseArea(area);
   if (!keepFocus){
     try {
-      if (area==='labour' || area==='scaffold') calcLabour();
-      else if (area==='material') renderMaterialPriceTable();
-      else if (area==='gutter') renderGutterDownpipePricing();
+      if (_ba==='labour' || _ba==='scaffold') calcLabour();
+      else if (_ba==='material') renderMaterialPriceTable();
+      else if (_ba==='gutter') renderGutterDownpipePricing();
     } catch(e){}
-  } else if (area==='material'){
+  } else if (_ba==='material'){
     // Typing an amount: the green "Total materials" line moves with it
     // without re-rendering the table (which would take the focus away).
     // It used to sit still until something else redrew the table, so a
     // custom line looked like it did nothing.
     try {
       var _mt = document.getElementById('matTotalShown');
-      if (_mt && _mt.getAttribute('data-base') != null) _mt.textContent = '$' + ((parseFloat(_mt.getAttribute('data-base')) || 0) + _qCustomTotal('material')).toFixed(2);
+      if (_mt && _mt.getAttribute('data-base') != null) _mt.textContent = '$' + ((parseFloat(_mt.getAttribute('data-base')) || 0) + _qCustomTotal(area)).toFixed(2);
     } catch(e){}
     try { renderProfitability(); } catch(e){}
   }
@@ -35367,12 +35651,13 @@ function _syncQuoteBaseLineItems(){
   // they always follow the pricing tab + can't double-add).
   try {
     S.quote.lineItems = S.quote.lineItems.filter(function(x){ return !(x && x._custom); });
-    var _cl = S.quote.customLines || {};
     // Not 'gutter': those lines are the gutter's material and reach the quote
     // through the gutter the customer picks (_gutterMaterialCharge), never in
-    // the main re-roof price (2026-09-30).
+    // the main re-roof price (2026-09-30). _qCustomBaseLines is the main roof's
+    // own lines plus any FOLDED roof's — a folded roof is priced with the main
+    // one, so a line typed on it before it was folded must still be charged.
     ['labour','material','scaffold'].forEach(function(area){
-      (_cl[area] || []).forEach(function(row){
+      _qCustomBaseLines(area).forEach(function(row){
         var amt = parseFloat(row && row.amount) || 0;
         var desc = ((row && row.desc) || '').trim();
         if (!amt && !desc) return;
@@ -35638,6 +35923,9 @@ function _setRoofMode(i, mode){
   var ex  = (S.quote.roofExcluded && typeof S.quote.roofExcluded === 'object') ? S.quote.roofExcluded : (S.quote.roofExcluded = {});
   sep[i] = (mode === 'separate');
   ex[i]  = (mode === 'excluded');
+  // Its tab is about to disappear — carry its own custom lines onto the main
+  // roof's, where they stay visible and can still be taken off.
+  if (mode !== 'separate' && mode !== 'excluded'){ try { _qCustomFoldInto(i); } catch(e){} }
   // The main roof's hours cover whatever is folded into it: work them out
   // again BEFORE the quote's lines are re-baked, or the materials carried the
   // folded roof while the labour did not (2026-09-23).
@@ -38198,9 +38486,11 @@ function refreshQuoteProposal(){
         var _extra = [];
         for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
           if (_roofQuoteMode(_ri) !== 'separate') continue;   // folded → in base; excluded → not quoted
-          var _matI = _materialsCostForRoofIdx(_ri) * _gfNow;   // materials at selected grade
+          // A custom line is a typed $ figure, not graded steel, so it goes on
+          // AFTER the grade factor; labour's is already inside the function.
+          var _matI = _materialsCostForRoofIdx(_ri) * _gfNow + _roofCustomTotal('material', _ri);
           var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
-          var _scaffI = _scaffoldPriceForRoof(_ri);             // this roof's own scaffold
+          var _scaffI = _scaffoldPriceForRoof(_ri) + _roofCustomTotal('scaffold', _ri);
           var _priceI = _matI + _labI + _scaffI;
           _extra.push({ idx: _ri, name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
                         area: +(_areaOf(_ri)).toFixed(1),
@@ -66838,12 +67128,15 @@ function _scopePricingRows(){
     var sc = _scaffoldEff(_roofScaffold(idx));
     var scType = (_roofScaffold(idx).type === 'platform') ? 'full working platform' : 'edge protection';
     gap(); put('Scaffolding', 'Scaffolding', scType, null, null, null, sc.price, sc.cost);
+    _qCustomLinesForCsv('scaffold', idx).forEach(function(cl){
+      put('Scaffolding', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
+    });
   } catch(e){}
 
   // ── ROOF LABOUR, the way this job charges it ──────────────────
   try {
     gap();
-    var L = (S.quote && S.quote.labour) || {}, r = _labourRates();
+    var L = (S.quote && S.quote.labour) || {}, r = _roofLabourRates(idx);
     var byArea = (_labourMode() === 'm2' && _labourM2Rate() > 0);
     put('Roof labour', 'Charged', byArea ? 'by the square metre' : 'by the hour');
     if (byArea){
@@ -66856,8 +67149,19 @@ function _scopePricingRows(){
         r.leadPrice, byArea ? null : lead * r.leadPrice, lead * r.leadCost, lead);
     put('Roof labour', 'Apprentice', byArea ? 'hours (cost only)' : '', app, 'hrs',
         r.appPrice, byArea ? null : app * r.appPrice, app * r.appCost, app);
+    // Every labourer taken on for THIS roof, then the lines typed on it.
+    var _exHrs = 0;
+    _roofLabourExtras(idx).forEach(function(x){
+      var h = parseFloat(x && x.hrs) || 0, pr = parseFloat(x && x.price) || 0, co = parseFloat(x && x.cost) || 0;
+      _exHrs += h;
+      put('Roof labour', (x && x.name) || 'Labourer', byArea ? 'hours (cost only)' : '', h, 'hrs',
+          pr, byArea ? null : h * pr, h * co, h);
+    });
+    _qCustomLinesForCsv('labour', idx).forEach(function(cl){
+      put('Roof labour', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
+    });
     put('Roof labour', 'Labour total', '', null, null, null,
-        _labourPriceForRoof(idx), _labourCostForRoof(idx), lead + app);
+        _labourPriceForRoof(idx), _labourCostForRoof(idx), lead + app + _exHrs);
   } catch(e){}
 
   // ── ROOF MATERIALS, every row the table shows ─────────────────
@@ -66878,12 +67182,19 @@ function _scopePricingRows(){
       var detail = (picked && picked.label && picked.label !== row.label) ? picked.label : '';
       put('Roof materials', row.label || row.key, detail, qty, unit, price, line);
     });
+    // The lines typed on this tab sit where the table puts them: under the
+    // items, OUTSIDE the buffer and the mark-up (a typed figure is the price).
+    var _mCustom = 0;
+    _qCustomLinesForCsv('material', idx).forEach(function(cl){
+      _mCustom += cl.amount;
+      put('Roof materials', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
+    });
     var bufPct = _roofMatQtyBufferPct(idx), mkPct = _roofMatMarkupPct(idx);
     var buffered = matBase * (1 + bufPct / 100);
     put('Roof materials', 'Materials at cost', '', null, null, null, matBase);
     put('Roof materials', 'Quantity buffer', bufPct + '%', null, null, null, buffered - matBase);
     put('Roof materials', 'Mark-up', mkPct + '%', null, null, null, buffered * (mkPct / 100));
-    put('Roof materials', 'Materials total', '', null, null, null, buffered * (1 + mkPct / 100));
+    put('Roof materials', 'Materials total', '', null, null, null, buffered * (1 + mkPct / 100) + _mCustom);
   } catch(e){ try { console.warn('pricing csv materials', e); } catch(_){} }
 
   // ── GUTTERING & DOWNPIPES, itemised like the card ─────────────
@@ -68026,10 +68337,11 @@ function _buildFergusItemisedSections(opts){
 
   // Custom pricing-tab lines → matching Fergus sections (flat $ each).
   try {
-    var _qcl = (S.quote && S.quote.customLines) || {};
-    (_qcl.labour   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofLabour.push(labLine((r.desc||'Custom labour'), 1, a, 0)); });
-    (_qcl.material || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofMat.push(matLine((r.desc||'Custom material'), 1, a)); });
-    (_qcl.scaffold || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) scaff.push(matLine((r.desc||'Custom scaffold'), 1, a)); });
+    // The BASE's lines only — the main roof's and anything folded into it. An
+    // optional roof's ride inside its own price, which is pushed as that roof.
+    _qCustomBaseLines('labour').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofLabour.push(labLine((r.desc||'Custom labour'), 1, a, 0)); });
+    _qCustomBaseLines('material').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofMat.push(matLine((r.desc||'Custom material'), 1, a)); });
+    _qCustomBaseLines('scaffold').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) scaff.push(matLine((r.desc||'Custom scaffold'), 1, a)); });
     // gutter custom lines: pushed with the gutter's own material above (only when a gutter is on the quote)
   } catch(e){}
 
@@ -75237,6 +75549,7 @@ function _roofRemap(mapFn){
     if (q.roofSeparate) delete q.roofSeparate[0];
     if (q.roofExcluded) delete q.roofExcluded[0];
   }
+  try { _qCustomRemap(mapFn); } catch(e){}
   try { if (S.jobPack && Array.isArray(S.jobPack.roofSel)) S.jobPack.roofSel = S.jobPack.roofSel.map(mapFn).filter(function(i){ return i >= 0; }); } catch(e){}
   DRAW.basicLabelOverrides = numObj(DRAW.basicLabelOverrides);
   DRAW.matSheetByRoof = numObj(DRAW.matSheetByRoof);

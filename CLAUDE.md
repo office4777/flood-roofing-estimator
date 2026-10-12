@@ -1065,6 +1065,81 @@ Discipline (non-negotiable):
   carries "Message a real person" (`#frHelpPerson`); the suggestions fold
   away once the chat starts.
   `tests/supportdesk.mjs`, `tests/helpsupport.mjs`.
+- EVERY ROOF PRICES LIKE THE MAIN ROOF (2026-10-12, the owner: "the add
+  custom material line or from price books has disapeared from the addition
+  roofs ... please check every other thing from the main roof is on the
+  additional roofs too"). Three things were main-roof-only and are now on
+  every pricing tab: "+ Add custom line" / "📖 Add from price book" on roof
+  materials, roof labour AND scaffolding, and "+ Add labourer".
+  CUSTOM LINES ARE KEYED BY THE TAB, not just the area: `S.quote.customLines`
+  holds the main roof's under the bare area name (so every quote written
+  before this prices exactly as it did) and an extra roof's under
+  `'<area>#<idx>'` — `_qCustomArea(area, idx)`, `_qCustomBaseArea`. One store
+  keyed by area alone is WHY they were hidden: the same line would have shown
+  on every tab, so $800 of asbestos disposal typed on the Asbestos Roof would
+  have grown the main roof's materials by $800 too. The main roof's lines
+  still reach the quote as line items of their own
+  (`_syncQuoteBaseLineItems`); an EXTRA roof is priced as a lump, so its lines
+  go INSIDE that lump — `_roofCustomTotal(area, idx)` answers 0 for roof 0 and
+  nothing is ever counted twice. Material's goes on AFTER the grade factor (a
+  typed $ figure is not graded steel); labour's is inside
+  `_labourPriceForRoof` / `_labourCostForRoof`, the one seam every reader goes
+  through. FOLDING a roof in takes away its tab, so `_setRoofMode` moves its
+  lines onto the main roof's (`_qCustomFoldInto`) where they stay visible and
+  can be taken off; `_qCustomBaseLines(area)` prices the main roof's plus any
+  folded roof's for a job saved before that. `_qCustomRemap` is in
+  `_roofRemap`, so the lines move when the roofs are renumbered and go when
+  the roof is deleted. The Fergus push and the pricing CSV read the same
+  helpers. EXTRA LABOURERS are per roof too (`_roofLabourExtras`,
+  `_addLabourerTo`, `_updateLabourerOn`, `_removeLabourerFrom`; the three bare
+  names stay as roof-0 wrappers) — a crew taken on for the asbestos strip is
+  that roof's cost, not the house's. `tests/roofcustom.mjs`.
+- EACH ROOF MAY BE CHARGED AT ITS OWN RATE (2026-10-12, the same morning:
+  "let me adjust my labour hourly rate seperately on the different roofs it's
+  currently locked and says shared, i want to be able to price a base price on
+  the main roof then a cheaper labour price for the optional roofs"). An extra
+  roof's Lead/Apprentice cost and charge-out boxes were read-only, printed
+  "shared". They are inputs now: `_roofLabourRates(idx)` takes the main
+  table's rates and lets `S.quote.roofLabour[idx].leadPrice/appPrice/leadCost/
+  appCost` override any of them, `_setRoofLabourRate(idx, key, val)` writes
+  one and a BLANK (or the ↻ beside it) deletes it so the roof goes back on the
+  shared rate — a rate left alone follows the main table, so no quote that
+  already exists moves. A roof on its own rate says THIS ROOF in purple.
+  `tests/roofcustom.mjs`.
+- WHAT THE ROOF ON SCREEN COMES TO, beside the frozen roof map (2026-10-12,
+  the owner: "put the total price less gst for the total revenue on the
+  different roof i'm pricing on the right on the frozen roof map ... Labour
+  $x, Material $x then total $x +gst"). `_pricingRoofPriceHtml` /
+  `_pricingRoofParts(ri)` draw a card in the yellow band beside the map
+  (`.pr-map-row` / `.pr-price*`, stacked under 760px): Labour, Material,
+  Scaffolding when it is priced, then Total and "+ GST = $y" at the quote's
+  own GST rate. Every figure is read through the helpers the cards read, so
+  the panel cannot disagree with the green totals above it — the MAIN roof's
+  total is `_quoteMoney().sub` to the cent and an extra roof's is what that
+  roof is quoted at. Scaffolding earns its own line rather than being left
+  out: a total that reads less than the roof is quoted at is worse than a
+  third row. It follows the roof switch (`_renderPricingRoofSwitchBar`, which
+  every recalc reaches). `tests/roofcustom.mjs`.
+- LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
+  "i just tried to click the mobile version after i sent the quote but it
+  wouldn't let me, it should letting me view the mobile version but not make
+  any edits while it's locked"). `_setQuotePreviewMode` moves `QP_PREVIEW`
+  and writes nothing to the quote, but it was not in `_LOCK_OK_CALLS`, so
+  Computer | Phone raised "This is the sent quote". It is now; the Style
+  switch writes `S.quote.style` and stays behind the lock.
+  `tests/quotepreview.mjs`.
+- THE JOB TYPE IS NOT A SETTING (2026-10-12, job 3296: "this job was set as a
+  'pole shed' in the job type, all jobs should default to 'Roofing' job type,
+  maybe it's because i switched from the phyllis job which was a pole shed
+  job" — he was right, and that is exactly it). `window._pendingJobType` is
+  the New/Edit Job modal's ONE-SHOT answer, read by `defaultQuote()`, and
+  nothing ever put it back: once a pole-shed job had been through that modal
+  every quote built afterwards was born a pole shed. `_clearPendingJobType()`
+  now runs in `_resetQuoteForFreshJob` and in `restoreFromJob`, and — because
+  `Object.assign(S, snap.state)` puts the stored quote back WHOLE, so the
+  default cannot reach a job that has one — `restoreFromJob` also normalises
+  `S.quote.quoteKind` to 'roofing' unless it says 'poleshed'. A quote that
+  never said what it was is a roofing quote. `tests/poleshed.mjs`.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.

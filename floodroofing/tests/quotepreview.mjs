@@ -236,6 +236,24 @@ check('\u2026and the price rail with it, its total never cut off',
   stick.every(s => s.railPinned && s.totalWhole), JSON.stringify(stick));
 await pg.evaluate(() => window.scrollTo(0, 0));
 
+// ── LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT ──────────
+// 2026-10-12, the owner on job 3296: "i just tried to click the mobile
+// version after i sent the quote but it wouldn't let me, it should letting me
+// view the mobile version but not make any edits while it's locked." The
+// Computer | Phone switch moves QP_PREVIEW and writes nothing to the quote,
+// but it was not in _LOCK_OK_CALLS, so it raised "This is the sent quote".
+const lockView = await pg.evaluate(() => {
+  const on = (id) => { const el = document.getElementById(id); return el && _lockClickAllowed(el); };
+  const out = { phone: on('qpViewBtn_phone'), computer: on('qpViewBtn_computer') };
+  // the Style switch IS an edit (it writes S.quote.style) and stays locked
+  const st = document.querySelector('#tab-quote [onclick*="_setQuoteStyle"]');
+  out.style = st ? _lockClickAllowed(st) : null;
+  return out;
+});
+check('a locked quote still lets the office switch the preview to Phone', lockView.phone === true, JSON.stringify(lockView));
+check('…and back to Computer', lockView.computer === true, JSON.stringify(lockView));
+check('…while Classic / Modern is a real change and stays behind the lock', lockView.style === false, JSON.stringify(lockView));
+
 check('nothing threw anywhere in the Quote tab', errs.length === 0, errs.join(' | ') || 'clean');
 
 await b.close();

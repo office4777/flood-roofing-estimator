@@ -301,6 +301,35 @@ check('a ROOFING quote in modern style is untouched by any of it',
   roofKeys.indexOf('grade') >= 0 && roofKeys.indexOf('disposal') >= 0 &&
   !roofKeys.some(k => /^ps/.test(k)) && !/Your Shed Details/i.test(styles.roofing),
   JSON.stringify(roofKeys));
+
+// ── THE JOB TYPE IS NOT A SETTING (2026-10-12) ────────────────────
+// The owner opened a pole-shed job, switched to another job, and that one
+// came up as a pole shed too. window._pendingJobType is the New/Edit Job
+// modal's one-shot answer and nothing put it back, so defaultQuote() went on
+// reading it for every quote built afterwards.
+const sticky = await pg.evaluate(() => {
+  S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed';
+  openJobDetailsModal('edit');                 // the modal stashes the pick
+  const stashed = window._pendingJobType;
+  closeJobDetailsModal();
+  // now start a fresh job the way the New Job button does
+  _resetQuoteForFreshJob();
+  const fresh = S.quote.quoteKind;
+  // …and open a saved job whose stored quote predates quoteKind
+  const after = (function(){
+    try {
+      window._pendingJobType = 'poleshed';
+      restoreFromJob({ draw_state: { state: { quote: { ref: '4001', client: 'Beth Williamson' } } } });
+    } catch(e){ return 'threw: ' + e.message; }
+    return S.quote.quoteKind;
+  })();
+  return { stashed, fresh, after, ref: S.quote && S.quote.ref };
+});
+check('the Edit job modal still reads a pole shed as a pole shed', sticky.stashed === 'poleshed', JSON.stringify(sticky));
+check('A BRAND-NEW JOB IS A ROOFING JOB', sticky.fresh === 'roofing', JSON.stringify(sticky));
+check('…and so is a saved job whose quote never said (it no longer inherits the last job\'s type)',
+  sticky.after === 'roofing' && sticky.ref === '4001', JSON.stringify(sticky));
+
 await ctx.close();
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
