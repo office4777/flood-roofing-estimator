@@ -1180,6 +1180,25 @@ Discipline (non-negotiable):
   MOVES: every path is behind `_psPricingPlans()`, which answers null unless
   `quoteKind === 'poleshed'` AND there is more than one plan.
   `tests/poleshed.mjs`.
+- A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13, the owner: "wheres
+  the switcher from roofing to pole shed job type gone? the phyllis job is now
+  missing the pole shed specific quote"). `_poleShedsAvailable()` reads
+  `S.settings.branding`, so a job opened BEFORE the settings read lands saw
+  branding `{}`, the company-name fallback answered FALSE, the Roofing / Pole
+  Shed toggle was hidden — and `_syncQuoteKindToggle` REWROTE the saved quote
+  to `'roofing'`. Job 3287 lost its shed quote that way, and the one control
+  that could put it back was hidden on the very job that needed it. A READ
+  THAT HAS NOT HAPPENED IS NOT A "NO" — the same rule as `_mustRead` and as
+  settings that never came from the server. There are two questions now:
+  `_poleShedGateBranding()` / `_poleShedsKnown()` say whether we can answer at
+  all (live branding, else the device's last good `fr_settings` copy), and
+  `_poleShedsAvailable()` answers — OFFERING the type when it is unknown,
+  because hiding the switch costs a real job and showing it to somebody else
+  for a boot is free. BOTH demotions (`quoteKind` and `_pendingJobType`) are
+  now behind `_poleShedsKnown()`, so an account that genuinely does not sell
+  pole sheds still gets a shed job put back to roofing rather than stranded —
+  the behaviour `tests/poleshed.mjs` already pinned, which is what caught the
+  first, too-blunt version of this fix.
 - A POLE SHED IS PRICED LIKE A ROOFING JOB (2026-10-13, the owner, answering
   the question above: "the pricing estimator should estimate the sheds
   material cost (and labour cost if it already does) then i should be able to

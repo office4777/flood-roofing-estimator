@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T23:11:43Z';
+  window.APP_BUILT_AT = '2026-10-12T23:21:09Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -21417,7 +21417,8 @@ function _syncJobTypeToggle(){
   var avail = _poleShedsAvailable();
   var wrap = document.getElementById('jtTypeToggle');
   if (wrap) wrap.style.display = avail ? '' : 'none';
-  if (!avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
+  // Only once we KNOW the account does not sell them.
+  if (_poleShedsKnown() && !avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
   var ps = avail && (window._pendingJobType === 'poleshed');
   ['roofing','poleshed'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
@@ -35062,8 +35063,33 @@ function _stockPhoto(file){ return _stockSet() === STOCK_OWNER ? ('brand/' + fil
 // the built-in photos", and turning the photos off should not take the shed
 // quote away with them. Same shape though — an explicit setting wins, so it
 // can be switched on for somebody by hand without a deploy.
+// WHO SELLS POLE SHEDS — and, separately, whether we can answer at all.
+//
+// This gate reads S.settings.branding, so a job opened BEFORE the settings
+// read lands sees branding {} and the company-name fallback answered FALSE.
+// The toggle was hidden and — far worse — _syncQuoteKindToggle REWROTE the
+// saved quote to 'roofing'. Job 3287 lost its shed quote that way. A read
+// that has not happened yet is NOT a "no": the same rule as _mustRead and as
+// settings that never came from the server. So there are two questions now,
+// and the destructive one may only be asked when the answer is KNOWN.
+function _poleShedGateBranding(){
+  var br = (window.S && S.settings && S.settings.branding) || null;
+  if (br && (br.poleshed_enabled != null || br.company_name)) return br;
+  // The device's own last good copy before admitting we do not know.
+  try {
+    var cached = JSON.parse(localStorage.getItem('fr_settings') || 'null');
+    var cb = (cached && cached.branding) || null;
+    if (cb && (cb.poleshed_enabled != null || cb.company_name)) return cb;
+  } catch(e){}
+  return null;
+}
+function _poleShedsKnown(){ return !!_poleShedGateBranding(); }
 function _poleShedsAvailable(){
-  var br = (window.S && S.settings && S.settings.branding) || {};
+  var br = _poleShedGateBranding();
+  // Unknown: OFFER it. Hiding the switch costs a Flood Roofing job the one
+  // control that puts it back; showing it to somebody else for a moment
+  // during boot costs nothing and corrects itself.
+  if (!br) return true;
   if (br.poleshed_enabled != null && br.poleshed_enabled !== '') return !!br.poleshed_enabled;
   var n = String(br.company_name || '').toLowerCase().replace(/[^a-z]/g, '');
   return n.indexOf(STOCK_OWNER) === 0;
@@ -37733,7 +37759,11 @@ function _syncQuoteKindToggle(){ _qkMenuRender(); }
 function _qkMenuRender(){
   var list = document.getElementById('qaMoreList'), more = document.getElementById('qaMore');
   var avail = _poleShedsAvailable();
-  if (!avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
+  // An account that genuinely does not sell pole sheds is put back to a
+  // roofing quote rather than stranded on one it can never open — but ONLY
+  // once the gate KNOWS that. Asked while the settings read was still in
+  // flight, this line turned job 3287's shed quote into a roofing one.
+  if (_poleShedsKnown() && !avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
   var close = "this.closest('details').removeAttribute('open');";
   var item = function(call, label, sub, on, id){

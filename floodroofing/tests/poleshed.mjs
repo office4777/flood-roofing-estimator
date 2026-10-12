@@ -580,6 +580,30 @@ check('a shed reads NO offcut buffer and the estimator\'s own mark-up, from its 
   shedBuffer.roofField === 5 && shedBuffer.roofFieldAfter === 5, JSON.stringify(shedBuffer));
 check('…and a buffer the office sets afterwards is kept', shedBuffer.bufTyped === 7, JSON.stringify(shedBuffer));
 
+// THE FERGUS PUSH carries the shed, because its rows are roofing rows: the
+// take-off goes over as itemised material lines and the builder's own
+// reconcile backstop lands on the quote. A live integration, so it gets a
+// tripwire.
+const shedFergus = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  S.quote.psDoors = '2x Roller Door';
+  gotoTab('scope'); calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
+  const out = { base: +_poleShedMoney().base.toFixed(2), err: null };
+  try {
+    const secs = _buildFergusItemisedSections({});
+    out.secNames = (secs.sections || []).map(x => x.name);
+    out.matCount = secs.matCount; out.labourCount = secs.labourCount;
+    out.reconciled = secs.reconciled;
+  } catch(e){ out.err = e.message; }
+  return out;
+});
+check('the Fergus push builds the shed — itemised materials and its labour',
+  !shedFergus.err && shedFergus.matCount > 10 && shedFergus.labourCount >= 2 &&
+  (shedFergus.secNames || []).indexOf('Materials') >= 0, JSON.stringify(shedFergus));
+check('…and the pushed lines add up to the quote (the reconcile is rounding, not a gap)',
+  Math.abs(+shedFergus.reconciled || 0) < 1, JSON.stringify({ reconciled: shedFergus.reconciled }));
+
 // A SHED'S PERCENTAGES ARE ITS OWN FIELDS, so switching a job back to Roofing
 // gets the roofing job back whole — the gutter, its own buffer, no shed rows,
 // and no exclusion flag written onto it.
@@ -613,6 +637,47 @@ const roofUntouched = await pg.evaluate(() => {
 check('a ROOFING quote has no shed rows, no shed base and is priced as it always was',
   roofUntouched.shedRows === 0 && roofUntouched.isShed === false && roofUntouched.drawerBase === null,
   JSON.stringify(roofUntouched));
+
+// ── A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13) ───────
+// The owner: "wheres the switcher from roofing to pole shed job type gone?
+// the phyllis job is now missing the pole shed specific quote".
+// _poleShedsAvailable() reads S.settings.branding, so a job opened BEFORE the
+// settings read lands sees branding {} and the company-name fallback answers
+// FALSE. The toggle was hidden — and far worse, _syncQuoteKindToggle REWROTE
+// the saved quote to 'roofing'. A read that has not happened yet is not a
+// "no"; that is this repo's own rule, and it cost a live job its shed quote.
+const notLanded = await pg.evaluate(() => {
+  const real = S.settings;
+  S.settings = {};                                  // the read has not come back
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '7.2m'; S.quote.psLength = '16.8m'; S.quote.psSubtotal = 64585;
+  const out = { avail: _poleShedsAvailable() };
+  try { _syncQuoteKindToggle(); } catch(e){}
+  try { _syncJobTypeToggle(); } catch(e){}
+  out.kind = S.quote.quoteKind;
+  out.toggle = (document.getElementById('jtTypeToggle') || {}).style.display;
+  try { out.secs = _qdSectionsRaw().map(x => x.key); } catch(e){ out.secs = []; }
+  S.settings = real;
+  return out;
+});
+check('a saved pole-shed job opened before the settings read lands STAYS a pole shed',
+  notLanded.kind === 'poleshed', JSON.stringify(notLanded));
+check('…its customer quote is still the shed\'s, not a re-roof',
+  (notLanded.secs || []).indexOf('psdetails') >= 0 && (notLanded.secs || []).indexOf('grade') < 0,
+  JSON.stringify(notLanded.secs));
+check('…and the Roofing / Pole Shed switcher is THERE, so it can be put back',
+  notLanded.avail === true && notLanded.toggle !== 'none', JSON.stringify(notLanded));
+
+// An account that genuinely does not sell pole sheds is still not offered one.
+const notSold = await pg.evaluate(() => {
+  const real = S.settings;
+  S.settings = { branding: { company_name: 'Someone Else Roofing', poleshed_enabled: false } };
+  S.quote = defaultQuote(); S.quote.quoteKind = 'roofing';
+  const avail = _poleShedsAvailable();
+  S.settings = real;
+  return { avail };
+});
+check('an account that does not sell pole sheds is still not offered one', notSold.avail === false, JSON.stringify(notSold));
 
 // ── THE JOB TYPE IS NOT A SETTING (2026-10-12) ────────────────────
 // The owner opened a pole-shed job, switched to another job, and that one
