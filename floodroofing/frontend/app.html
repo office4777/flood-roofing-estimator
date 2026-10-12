@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T21:03:06Z';
+  window.APP_BUILT_AT = '2026-10-12T21:08:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -38004,9 +38004,19 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
 // The shed's content, without the A4 around it. ONE source of truth: the
 // modern layout renders these same blocks, so a change to the shed's pages
 // cannot leave the two styles disagreeing about what the shed is.
+// Built at most once per turn. _qdSectionsRaw is called two or three times
+// in a single render (_qdSections, then _qdWithParked asks again for the
+// default order), and a shed's six pages carry the three imported drawings
+// as base64 — rebuilding all of it each time is megabytes of string work
+// for one screen. The cache is dropped on the next microtask, so it never
+// outlives the render that filled it and no edit can read a stale shed.
+var _PS_PARTS = null;
 function _psParts(){
+  if (_PS_PARTS) return _PS_PARTS;
   var pass = function(x){ return x; };
-  return _buildPoleShedPages(pass, '', '', true) || {};
+  _PS_PARTS = _buildPoleShedPages(pass, '', '', true) || {};
+  Promise.resolve().then(function(){ _PS_PARTS = null; });
+  return _PS_PARTS;
 }
 // A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12). It was not:
 // _qdSectionsRaw and _qbPages are written entirely around a roofing quote,
