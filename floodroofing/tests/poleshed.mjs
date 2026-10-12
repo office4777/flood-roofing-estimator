@@ -564,19 +564,45 @@ check('the shed\'s selections page does not offer guttering as an extra',
 const shedBuffer = await pg.evaluate(() => {
   S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
   S.quote.psWidth = '7.2m'; S.quote.psLength = '16.8m'; S.quote.psHeight = '3.48m - 2.58m';
-  const seeded = { bufBefore: _roofMatQtyBufferPct(0) };
+  const seeded = { roofField: S.quote.roofMatQtyBuffer };
   gotoTab('scope'); calcLabour(); renderMaterialPriceTable(); _syncQuoteBaseLineItems();
   seeded.bufAfter = _roofMatQtyBufferPct(0);
   seeded.mkAfter = _roofMatMarkupPct(0);
+  seeded.roofFieldAfter = S.quote.roofMatQtyBuffer;
   // and a buffer the office sets afterwards is kept
   _setRoofMatQtyBuffer(7, 0);
   renderMaterialPriceTable();
   seeded.bufTyped = _roofMatQtyBufferPct(0);
   return seeded;
 });
-check('a shed starts with NO offcut buffer and the estimator\'s own mark-up',
-  shedBuffer.bufBefore === 5 && shedBuffer.bufAfter === 0 && shedBuffer.mkAfter === 5, JSON.stringify(shedBuffer));
+check('a shed reads NO offcut buffer and the estimator\'s own mark-up, from its own fields',
+  shedBuffer.bufAfter === 0 && shedBuffer.mkAfter === 5 &&
+  shedBuffer.roofField === 5 && shedBuffer.roofFieldAfter === 5, JSON.stringify(shedBuffer));
 check('…and a buffer the office sets afterwards is kept', shedBuffer.bufTyped === 7, JSON.stringify(shedBuffer));
+
+// A SHED'S PERCENTAGES ARE ITS OWN FIELDS, so switching a job back to Roofing
+// gets the roofing job back whole — the gutter, its own buffer, no shed rows,
+// and no exclusion flag written onto it.
+const flip = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  gotoTab('scope'); calcLabour(); renderMaterialPriceTable();
+  _setRoofMatQtyBuffer(3, 0);                       // the office sets one on the shed
+  const shed = { buf: _roofMatQtyBufferPct(0), shedField: S.quote.shedMatQtyBuffer,
+                 roofField: S.quote.roofMatQtyBuffer, excluded: _gutterExcluded(),
+                 card: (document.getElementById('gutterDownpipeCard') || {}).style.display };
+  _setQuoteKind('roofing');
+  calcLabour(); renderMaterialPriceTable(); renderGutterDownpipePricing();
+  const roof = { buf: _roofMatQtyBufferPct(0), excluded: _gutterExcluded(),
+                 card: (document.getElementById('gutterDownpipeCard') || {}).style.display,
+                 shedRows: _shedMaterialRows().length, storedFlag: !!S.quote.gutterExcluded };
+  return { shed, roof };
+});
+check('a buffer typed on a shed is the SHED\'s, and never written over the roofing job\'s',
+  flip.shed.buf === 3 && flip.shed.shedField === 3 && flip.shed.roofField === 5, JSON.stringify(flip.shed));
+check('switching the job back to Roofing gets the roofing job back whole',
+  flip.roof.buf === 5 && flip.roof.excluded === false && flip.roof.card !== 'none' &&
+  flip.roof.shedRows === 0 && flip.roof.storedFlag === false, JSON.stringify(flip.roof));
 
 // A ROOFING job is untouched by all of it.
 const roofUntouched = await pg.evaluate(() => {

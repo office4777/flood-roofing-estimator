@@ -1225,17 +1225,21 @@ Discipline (non-negotiable):
   `_materialsCostForRoofIdx` and `_syncQuoteBaseLineItems`, and the roofing
   steel-grade percentage with it — a shed's cladding is priced at its own
   rate in the estimator. Its tabs are its PLAN OPTIONS.
-  NO OFFCUT BUFFER ON A SHED (`_shedSeedPcts`, once, remembered): the
-  quantity buffer prices in extra steel for a ROOFING job's offcuts and
-  `defaultQuote()` seeds it at 5%, but a shed's quantities come out of the
-  estimator, which already carries its own allowances AND its own 5% on
-  materials — charging the roofing buffer on top read 3% dearer the moment a
-  shed quoted before this was reopened ($64,585 → $66,519 on job 3287). The
-  first time a take-off is built the buffer is set to 0 and the mark-up to
-  the estimator's own; a buffer the office sets afterwards is kept. What is
-  left is a ~0.5% difference from the estimator's own total, and it is
-  honest: the drawer charges labour at the roofer's real rates and adds the
-  scaffold the estimator has no concept of.
+  NO OFFCUT BUFFER ON A SHED, AND ITS PERCENTAGES ARE ITS OWN FIELDS
+  (`shedMatQtyBuffer` / `shedMaterialMarkup`, read and written by
+  `_roofMatQtyBufferPct` / `_roofMatMarkupPct` and their setters when
+  `_psIsShed()`): the quantity buffer prices in extra steel for a ROOFING
+  job's offcuts and `defaultQuote()` seeds it at 5%, but a shed's quantities
+  come out of the estimator, which already carries its own allowances AND its
+  own 5% on materials — charging the roofing buffer on top read 3% dearer the
+  moment a shed quoted before this was reopened ($64,585 → $66,519 on job
+  3287). A shed defaults to 0 and the estimator's own mark-up. SEPARATE
+  FIELDS, not a seeded value: the first version wrote 0 into the roofing
+  field, which worked until a job was switched back to Roofing and quietly
+  kept the shed's 0% where the roofing default is 5% — a silent change to a
+  roofing price. What is left is a ~0.5% difference from the estimator's own
+  total, and it is honest: the drawer charges labour at the roofer's real
+  rates and adds the scaffold the estimator has no concept of.
   A POLE SHED HAS NO ROOFING GUTTER SECTION (the owner, 2026-10-13: "also
   guttering should be apart of the main price" → "i mean remove the gutter
   pricing section" → "gutter shouldn't be a default optional extra in the

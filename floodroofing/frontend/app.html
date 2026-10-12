@@ -4785,7 +4785,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T23:03:16Z';
+  window.APP_BUILT_AT = '2026-10-12T23:11:43Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16230,29 +16230,8 @@ function _shedTakeoff(){
     var built = _shedTakeoffBuild();
     if (!built.length) return [];
     S.quote.shedTakeoff = built;
-    _shedSeedPcts();
   }
   return S.quote.shedTakeoff;
-}
-// NO OFFCUT BUFFER ON A SHED'S TAKE-OFF. The quantity buffer exists so a
-// ROOFING job prices in a bit more steel than the drawing calls for —
-// offcuts, a mis-cut — and `defaultQuote()` seeds it at 5%. A shed's
-// quantities are not measured off a drawing: they come out of the estimator,
-// which already carries its own allowances AND its own 5% on materials. Left
-// at 5% the drawer charges that twice, and a shed quoted before this read 3%
-// dearer the moment it was reopened — $64,585 became $66,519 on the owner's
-// own job 3287. So the first time a shed's take-off is built, the buffer is
-// set to 0 and the mark-up to the estimator's own, which makes the drawer
-// reproduce the figure the estimator wrote. Done ONCE and remembered, so the
-// office can set a buffer afterwards and keep it.
-function _shedSeedPcts(){
-  if (!_psIsShed() || !S.quote) return;
-  if (S.quote.shedPctsSeeded) return;
-  S.quote.shedPctsSeeded = true;
-  try {
-    _setRoofMatQtyBuffer(0, 0);
-    _setRoofMatMarkup(Math.round((SHED_RATES.materialMarkup || 0) * 1000) / 10, 0);
-  } catch(e){}
 }
 // Take it again from the estimate, throwing away what was there.
 function _shedTakeoffReset(ask){
@@ -16867,16 +16846,37 @@ function _setRoofPctByRoof(key, legacyKey, val, idx){
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 function _roofMatQtyBufferPct(idx){
+  // A pole shed keeps its own, in its own field: the offcut buffer prices in
+  // extra steel for a roofing job cut off a drawing, and a shed's quantities
+  // come out of the estimator with their allowances already in them. Default
+  // 0, and writing it never touches the roofing job's own figure — a job
+  // switched back to Roofing must not quietly keep the shed's.
+  if (_psIsShed()) return _shedPct('shedMatQtyBuffer', 0);
   return _roofPctByRoof('roofMatQtyBufferByRoof', idx, 'roofMatQtyBuffer', 0);
 }
 function _setRoofMatQtyBuffer(val, idx){
+  if (_psIsShed()) return _setShedPct('shedMatQtyBuffer', val);
   _setRoofPctByRoof('roofMatQtyBufferByRoof', 'roofMatQtyBuffer', val, idx);
+}
+function _shedPct(key, dflt){
+  var v = parseFloat((window.S && S.quote) ? S.quote[key] : NaN);
+  return (isFinite(v) && v >= 0) ? v : dflt;
+}
+function _setShedPct(key, val){
+  if (!S.quote) return;
+  var v = parseFloat(val);
+  S.quote[key] = (isFinite(v) && v >= 0) ? v : 0;
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _autoSyncLabourMaterials(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // Roof material mark-up (%). Default 5, per roof.
 function _roofMatMarkupPct(idx){
+  if (_psIsShed()) return _shedPct('shedMaterialMarkup', Math.round((SHED_RATES.materialMarkup || 0) * 1000) / 10);
   return _roofPctByRoof('roofMaterialMarkupByRoof', idx, 'roofMaterialMarkup', 5);
 }
 function _setRoofMatMarkup(val, idx){
+  if (_psIsShed()) return _setShedPct('shedMaterialMarkup', val);
   _setRoofPctByRoof('roofMaterialMarkupByRoof', 'roofMaterialMarkup', val, idx);
 }
 // Sum a material-rows array to a $ total (Maxam / grade-neutral), honouring
@@ -37867,7 +37867,8 @@ function _psShedOvRestore(store, snap){
   Object.keys(store).forEach(function(k){ if (/^shed_/.test(k)) delete store[k]; });
   Object.keys(snap || {}).forEach(function(k){ store[k] = snap[k]; });
 }
-var PS_PRICING_KEYS = ['scaffold', 'roofMatQtyBuffer', 'roofMaterialMarkup',
+var PS_PRICING_KEYS = ['scaffold', 'shedMatQtyBuffer', 'shedMaterialMarkup',
+                       'roofMatQtyBuffer', 'roofMaterialMarkup',
                        'roofMatQtyBufferByRoof', 'roofMaterialMarkupByRoof'];
 function _psPricingCapture(){
   var q = (window.S && S.quote) || {};
