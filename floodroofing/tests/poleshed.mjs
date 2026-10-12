@@ -302,6 +302,64 @@ check('a ROOFING quote in modern style is untouched by any of it',
   !roofKeys.some(k => /^ps/.test(k)) && !/Your Shed Details/i.test(styles.roofing),
   JSON.stringify(roofKeys));
 
+// ── EACH PLAN OPTION IS PRICED ON ITS OWN (2026-10-13) ────────────
+// The owner: "it won't let me price the two plans seperately, like i said it
+// should act like the seperate roofs in a roofing job". The two plans shared
+// one set of pricing, and the Pricing drawer had no plan switch in it at all.
+const planPrice = await pg.evaluate(() => {
+  S.quote = S.quote || {}; S.quote.quoteKind = 'poleshed';
+  S.quote.psWidth = '8'; S.quote.psLength = '16.8'; S.quote.psBayAmount = '3';
+  S.quote.psSubtotal = 64585;
+  S.quote.shedPlans = []; S.quote.psPlanIdx = 0;
+  _psPlanRecordImport();                       // Option A banked
+  // price Option A the way the drawer does
+  updateLabour('leadHrs', 40); updateLabour('appHrs', 40);
+  updateScaffold('price', 3000); updateScaffold('cost', 2400);
+  _qAddCustom('material', { desc:'Crane', qty:1, unit:900, uom:'', amount:900 });
+  // a second plan
+  _psPlanAddAnother();
+  S.quote.psSubtotal = 71200; S.quote.psBayAmount = '4';
+  _psPlanRecordImport();
+  const bIdx = _psPlanIdx();
+  const bFresh = { lead: S.quote.labour.leadHrs, scaff: (S.quote.scaffold||{}).price,
+                   custom: _qCustomTotal('material') };
+  updateLabour('leadHrs', 62);
+  updateScaffold('price', 4200); updateScaffold('cost', 3300);
+  _qAddCustom('material', { desc:'Extra bay crane', qty:1, unit:1500, uom:'', amount:1500 });
+  const bPriced = { lead: S.quote.labour.leadHrs, scaff: S.quote.scaffold.price, custom: _qCustomTotal('material') };
+  // back to Option A — its own figures must come back untouched
+  _setPsPlan(0);
+  const aBack = { lead: S.quote.labour.leadHrs, scaff: (S.quote.scaffold||{}).price,
+                  custom: _qCustomTotal('material'), sub: _psPlanSubtotalAt(0) };
+  _setPsPlan(bIdx);
+  const bBack = { lead: S.quote.labour.leadHrs, scaff: (S.quote.scaffold||{}).price,
+                  custom: _qCustomTotal('material'), sub: _psPlanSubtotalAt(bIdx) };
+  _setPsPlan(0);
+  // the drawer's own switch
+  _renderPricingRoofSwitchBar();
+  const barBtns = Array.from(document.querySelectorAll('#pricingRoofSwitchBar button'))
+    .map(b => (b.getAttribute('onclick')||'') + '|' + (b.textContent||'').trim());
+  const tabs = _pricingRoofTabsHtml();
+  const card = (document.querySelector('#pricingRoofMap .pr-price')||{}).textContent || '';
+  return { bFresh, bPriced, aBack, bBack, barBtns, tabsHasPlan: /_setPsPlan/.test(tabs), card,
+           plans: _psPlans().length };
+});
+check('a second plan option is banked beside the first', planPrice.plans === 2, JSON.stringify(planPrice.plans));
+check('the Pricing drawer switches by PLAN OPTION on a shed',
+  planPrice.barBtns.length === 2 && planPrice.barBtns.every(x => /_setPsPlan\(/.test(x)) && planPrice.tabsHasPlan,
+  JSON.stringify(planPrice.barBtns));
+check('a new plan starts from the one it was added beside, not from nothing',
+  planPrice.bFresh.lead === 40 && planPrice.bFresh.scaff === 3000 && planPrice.bFresh.custom === 900,
+  JSON.stringify(planPrice.bFresh));
+check('OPTION A KEEPS ITS OWN LABOUR, SCAFFOLD AND TYPED LINES',
+  planPrice.aBack.lead === 40 && planPrice.aBack.scaff === 3000 && planPrice.aBack.custom === 900 && planPrice.aBack.sub === 64585,
+  JSON.stringify(planPrice.aBack));
+check('…and the second plan keeps the ones it was priced with',
+  planPrice.bBack.lead === 62 && planPrice.bBack.scaff === 4200 && planPrice.bBack.custom === 2400 && planPrice.bBack.sub === 71200,
+  JSON.stringify(planPrice.bBack));
+check('the band names the plan being priced and its price',
+  /64,585/.test(planPrice.card), planPrice.card);
+
 // ── THE JOB TYPE IS NOT A SETTING (2026-10-12) ────────────────────
 // The owner opened a pole-shed job, switched to another job, and that one
 // came up as a pole shed too. window._pendingJobType is the New/Edit Job

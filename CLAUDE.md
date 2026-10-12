@@ -1120,6 +1120,28 @@ Discipline (non-negotiable):
   out: a total that reads less than the roof is quoted at is worse than a
   third row. It follows the roof switch (`_renderPricingRoofSwitchBar`, which
   every recalc reaches). `tests/roofcustom.mjs`.
+- EACH PLAN OPTION IS PRICED ON ITS OWN (2026-10-13, the owner: "it won't let
+  me price the two plans seperately, like i said it should act like the
+  seperate roofs in a roofing job (remeber only change it for a pole shed job
+  type)"). A separate roof has its own pricing tab; a shed's plan options had
+  ONE set of pricing between them and the Pricing drawer had no plan switch in
+  it at all, so pricing the 4-bay wrote over Option A. `_psPricingCapture` /
+  `_psPricingApply` ride inside `_psPlanCapture` / `_psPlanApply`, so a plan
+  carries the state that drawer edits — labour hours and labourers, the
+  scaffold, the typed custom lines, the buffer and mark-up — beside its
+  drawings and its estimator. THE CREW'S RATES ARE SHARED, exactly as they are
+  across roof tabs (they are the crew's, not the shed's), and so is the way
+  labour is charged. `_psPlanSwitchHtml` puts the plan chips where the roof
+  switch goes (`_renderPricingRoofSwitchBar`, `_pricingRoofTabsHtml`) and
+  `_psPlanPriceHtml` fills the band beside them with that plan's shed price,
+  its difference from the first plan and the GST. NOTHING IN A ROOFING JOB
+  MOVES: every path is behind `_psPricingPlans()`, which answers null unless
+  `quoteKind === 'poleshed'` AND there is more than one plan.
+  STILL OPEN AND THE OWNER'S CALL: a pole shed's QUOTED price is `psSubtotal`,
+  the figure the Shed estimator produces — the drawer's labour / material /
+  scaffold cards do not feed it, so they move the margin panel and nothing
+  else. Making the drawer drive a shed's price would move money on live shed
+  quotes; ask before doing it. `tests/poleshed.mjs`.
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make

@@ -4763,7 +4763,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T22:01:44Z';
+  window.APP_BUILT_AT = '2026-10-12T22:10:32Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16413,7 +16413,8 @@ function renderMaterialPriceTable(){
   try {
     var _pkr = document.getElementById('materialPriceRoofPicker');
     if (_pkr){
-      if (_multiMat){ _pkr.style.display = 'block'; _pkr.innerHTML = _pricingRoofTabsHtml(); }
+      var _pkrHtml = _pricingRoofTabsHtml();   // roof tabs, or a shed's plan options
+      if (_pkrHtml){ _pkr.style.display = 'block'; _pkr.innerHTML = _pkrHtml; }
       else { _pkr.style.display = 'none'; _pkr.innerHTML = ''; }
     }
   } catch(e){}
@@ -17276,9 +17277,49 @@ function _setPricingRoof(i){
 // Sticky Main Roof / Roof 2 switch that lives in the pricing-panel header, so
 // it's always visible while scrolling. Replaces the per-section roof tabs.
 // Hidden on single-roof jobs.
+// A POLE SHED SWITCHES BY PLAN OPTION, NOT BY ROOF. A shed has no roofs
+// drawn, so the roof switch never appeared and the drawer priced whichever
+// plan happened to be on screen, over the top of the other one.
+function _psPricingPlans(){
+  try {
+    if (!(window.S && S.quote && S.quote.quoteKind === 'poleshed')) return null;
+    var plans = _psPlans();
+    return (plans && plans.length > 1) ? plans : null;
+  } catch(e){ return null; }
+}
+function _psPlanSwitchHtml(opts){
+  var plans = _psPricingPlans();
+  if (!plans) return '';
+  opts = opts || {};
+  var big = !!opts.big;
+  var cur = _psPlanIdx();
+  var cells = '';
+  plans.forEach(function(p, i){
+    var on = (i === cur);
+    var size = _psPlanSize(i);
+    var sub = _psPlanSubtotalAt(i);
+    cells += '<div class="pr-roof-cell">' +
+      '<button type="button" onclick="_setPsPlan(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '"' +
+        (big ? ' style="min-height:62px"' : '') + '>' +
+        '<span class="pr-roof-nm">' + esc(_psPlanLabel(i)) + '</span>' +
+        (size ? '<span class="pr-roof-area">' + esc(size) + '</span>' : '') +
+        '<span class="pr-roof-sub">' + (i === 0 ? 'Plan \u00b7 base' : 'Plan option') +
+          (sub > 0 ? '<br>' + esc(fmtMoney(sub)) : '') + '</span>' +
+      '</button>' +
+    '</div>';
+  });
+  return cells;
+}
 function _renderPricingRoofSwitchBar(){
   var bar = document.getElementById('pricingRoofSwitchBar');
   if (!bar) return;
+  var _psCells = _psPlanSwitchHtml();
+  if (_psCells){
+    bar.style.display = 'flex';
+    bar.innerHTML = _psCells;
+    try { _renderPricingRoofMap(); } catch(e){}
+    return;
+  }
   var n = _pricingRoofCount();
   if (n < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
   bar.style.display = 'flex';
@@ -17324,6 +17365,28 @@ function _renderPricingRoofSwitchBar(){
 function _renderPricingRoofMap(){
   var host = document.getElementById('pricingRoofMap');
   if (!host) return;
+  // A shed has no roof map; the plan it is pricing and that plan's price are
+  // what the band has to say.
+  if (_psPricingPlans()){
+    var _pi = _psPlanIdx();
+    host.style.display = 'block';
+    host.innerHTML =
+      '<div style="padding:8px 10px 10px;background:#fffbeb;border:1px solid #fde68a;border-bottom:none">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+          '<span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;flex:0 0 auto"></span>' +
+          '<span style="font-size:11px;font-weight:700;color:#78350f;letter-spacing:.02em">Pricing ' +
+            esc(_psPlanLabel(_pi)) + '</span>' +
+        '</div>' +
+        '<div class="pr-map-row">' +
+          '<div class="pr-map-svg" style="font-size:11.5px;color:#78350f;padding:4px 2px">' +
+            esc(_psPlanSize(_pi) || 'This plan option') +
+            '<div style="color:var(--text2);margin-top:3px">Every figure in this drawer belongs to this plan option.</div>' +
+          '</div>' +
+          _psPlanPriceHtml(_pi) +
+        '</div>' +
+      '</div>';
+    return;
+  }
   if (_pricingRoofCount() < 2){ host.style.display = 'none'; host.innerHTML = ''; return; }
   var svg = '';
   try {
@@ -17381,6 +17444,23 @@ function _pricingRoofParts(ri){
   }
   return { labour: lab, material: mat, scaffold: sc, total: lab + mat + sc };
 }
+// The shed's price is the figure the Shed estimator produces (psSubtotal) —
+// the roofing labour / material cards do not feed it — so the card says the
+// plan's own quoted price rather than adding up cards that price nothing.
+function _psPlanPriceHtml(i){
+  var money = function(v){ try { return fmtMoney(v); } catch(e){ return '$' + (v || 0).toFixed(2); } };
+  var sub = 0; try { sub = _psPlanSubtotalAt(i); } catch(e){}
+  var d = 0; try { d = _psPlanDeltaAt(i); } catch(e){}
+  var size = ''; try { size = _psPlanSize(i); } catch(e){}
+  return '<div class="pr-price">' +
+    '<div class="pr-price-hd">' + esc(_psPlanLabel(i)) + '</div>' +
+    (size ? '<div class="pr-price-row"><span>Shed</span><strong>' + esc(size) + '</strong></div>' : '') +
+    (i > 0 ? '<div class="pr-price-row"><span>Against ' + esc(_psPlanLabel(0)) + '</span><strong>' +
+      (d >= 0 ? '+' : '\u2212') + money(Math.abs(d)) + '</strong></div>' : '') +
+    '<div class="pr-price-tot"><span>Shed price</span><strong>' + money(sub) + '</strong></div>' +
+    '<div class="pr-price-gst">+ GST = ' + money(sub * (1 + _pricingGstRate() / 100)) + '</div>' +
+  '</div>';
+}
 function _pricingGstRate(){
   var g = parseFloat(window.S && S.quote && S.quote.gstRate);
   return (isFinite(g) && g >= 0) ? g : 15;
@@ -17403,6 +17483,8 @@ function _pricingRoofPriceHtml(ri){
 }
 // Big roof-switch buttons for the top of each pricing section (multi-roof only).
 function _pricingRoofTabsHtml(){
+  var _ps = _psPlanSwitchHtml({ big: true });
+  if (_ps) return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' + _ps + '</div>';
   var n = _pricingRoofCount();
   if (n < 2) return '';
   var cur = _pricingRoofIdx();
@@ -37535,7 +37617,51 @@ function _psPlanCapture(name){
     } catch(e){}
   });
   try { p.est = JSON.parse(JSON.stringify(_shedEst() || {})); } catch(e){ p.est = {}; }
+  try { p.pricing = _psPricingCapture(); } catch(e){}
   return p;
+}
+// WHAT A PLAN OPTION COSTS IS THE PLAN'S OWN (2026-10-13, the owner: "it won't
+// let me price the two plans seperately, like i said it should act like the
+// seperate roofs in a roofing job"). A separate roof has its own pricing tab
+// with its own labour, scaffold and typed lines; the shed's plan options had
+// ONE set between them, so pricing the 4-bay wrote over Option A and the
+// Pricing drawer had no plan switch in it at all.
+//
+// The plan carries the state that drawer edits, captured and laid back out
+// with the drawings and the estimator. THE CREW'S RATES ARE SHARED, exactly as
+// they are across roof tabs — they are the crew's, not the shed's — and so is
+// the way labour is charged (by the hour or by the m²), which is a choice
+// about the job, not about which shed is on screen.
+var PS_PRICING_KEYS = ['scaffold', 'roofMatQtyBuffer', 'roofMaterialMarkup',
+                       'roofMatQtyBufferByRoof', 'roofMaterialMarkupByRoof'];
+function _psPricingCapture(){
+  var q = (window.S && S.quote) || {};
+  var cp = function(v){ try { return (v == null) ? null : JSON.parse(JSON.stringify(v)); } catch(e){ return null; } };
+  var out = { labour: {}, customLines: {} };
+  var L = q.labour || {};
+  out.labour = { leadHrs: L.leadHrs, appHrs: L.appHrs, extras: cp(L.extras) || [] };
+  out.labourHrsManual = cp(q.labourHrsManual);
+  out.roofLabourCalc  = cp(q.roofLabourCalc);
+  PS_PRICING_KEYS.forEach(function(k){ out[k] = cp(q[k]); });
+  ['labour', 'material', 'scaffold'].forEach(function(a){ out.customLines[a] = cp((q.customLines || {})[a]) || []; });
+  return out;
+}
+function _psPricingApply(p){
+  var q = (window.S && S.quote) || null;
+  if (!q || !p) return;
+  var cp = function(v){ try { return (v == null) ? null : JSON.parse(JSON.stringify(v)); } catch(e){ return null; } };
+  if (!q.labour) q.labour = {};
+  if (p.labour){
+    q.labour.leadHrs = p.labour.leadHrs; q.labour.appHrs = p.labour.appHrs;
+    q.labour.extras = cp(p.labour.extras) || [];
+  }
+  if (p.labourHrsManual !== undefined) q.labourHrsManual = cp(p.labourHrsManual);
+  if (p.roofLabourCalc  !== undefined) q.roofLabourCalc  = cp(p.roofLabourCalc);
+  PS_PRICING_KEYS.forEach(function(k){ if (p[k] !== undefined) q[k] = cp(p[k]); });
+  if (p.customLines){
+    if (!q.customLines) q.customLines = {};
+    ['labour', 'material', 'scaffold'].forEach(function(a){ q.customLines[a] = cp(p.customLines[a]) || []; });
+  }
 }
 // …and the way back: lay a stored plan out as the live quote.
 function _psPlanApply(p){
@@ -37549,6 +37675,7 @@ function _psPlanApply(p){
     } catch(e){}
   });
   if (p.est) S.quote.shedEst = JSON.parse(JSON.stringify(p.est));
+  try { if (p.pricing) _psPricingApply(p.pricing); } catch(e){}
 }
 // The office picked a different shed. Keep the one on screen first — the
 // drawings and any figure typed over the import belong to it.
@@ -37567,6 +37694,10 @@ function _setPsPlan(i){
   _psPlanApply(plans[i]);
   try { _qpRerenderCondPhotos(); } catch(e){}
   try { if (typeof renderShedEstimator === 'function') renderShedEstimator(); } catch(e){}
+  // The Pricing drawer is showing the plan that was on screen a moment ago.
+  try { if (typeof calcLabour === 'function') calcLabour(); } catch(e){}
+  try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
+  try { if (typeof _renderPricingRoofSwitchBar === 'function') _renderPricingRoofSwitchBar(); } catch(e){}
   try { if (typeof renderProfitability === 'function') renderProfitability(); } catch(e){}
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
   try { _scheduleAutosave(); } catch(e){}
