@@ -671,6 +671,23 @@ Discipline (non-negotiable):
   `_syncSpecFromEst` then writes `psBays` as `3 @ 4.2m` and never overwrites a
   count the file gave with the one worked back out of the pole grid. Every
   field stays hand-editable, as they always were. `tests/poleshed.mjs`.
+- THE STEP-DOWN GABLE'S JUNCTION IS AN APRON, NOT AN APRON AND A BARGE
+  (feedback report 12, 2026-10-12: "step-down gable isnt right, the barge
+  going down from the top ridge line to the lower ridge line shouldn't carry
+  through to the gutter"). Where two blocks meet,
+  `buildStepGableRoofLines` carves the SHARED stretch out of the outline
+  pieces and then stamps it — an apron on the narrower block, and a barge on
+  the wider one as well, split at its own ridge. But the shared stretch is
+  where the narrower block's roof BUTTS INTO the wider block's wall: the
+  roofing line there is the apron that flashes it, and the wall behind it is
+  a wall, not an exposed gable edge. His L carried a 4.93 m barge sitting
+  behind the apron and a 90 mm stub where the two ridges missed each other,
+  and the barge ran on past the lower ridge to the gutter, which is what he
+  could see. Only the narrower block marks that stretch now; where the wider
+  block's wall IS exposed, `pieces` already carries it, that stretch having
+  just been carved out of them. THE ORDER DOES NOT MOVE — 40 sheets either
+  way, measured both ways before and after, because a flashing against a
+  wall was never steel on the roof. Sheet gate 37/37. `tests/report12.mjs`.
 - A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12, found while
   building the shed's modern styling — it was not a styling gap but a live
   bug). `_qdSectionsRaw` (the one-page computer layout) and `_qbPages` (the
@@ -1716,12 +1733,21 @@ opened, put the ACCEPTED VERSION on screen (`_qvView('accepted')`, 28231 —
 existing, tested machinery that locks the job and swaps in the frozen quote)
 rather than the working draft, and leave the pricing functions alone.
 
-Also open from the same evening: switching jobs can leave the PREVIOUS job's
-quote in place. The office moved from 3270 to 3228 and every autosave then
-tried to CREATE a record whose client was Deb Allen but whose `quote.ref` was
-still 3270 — the server derives a job's number from `draw_state.state.quote
-.ref` (server.js 2932), so it refused with DUPLICATE_JOB_NO over and over.
-The refusal is correct and nothing was corrupted; the carry-over is the bug.
+FIXED 2026-10-12 — the other half of that evening: switching jobs left the
+PREVIOUS job's quote in place. `restoreFromJob` does `Object.assign(S,
+snap.state)`, which only overwrites the keys the INCOMING job HAS, so a job
+saved with no `quote` block kept the last job's whole quote — client, totals
+and its `ref`. The server derives a job's number from
+`draw_state.state.quote.ref` (and the jobs list reads `job_no` straight off
+it), so every autosave then tried to CREATE a second record under the
+previous job's number and was refused with DUPLICATE_JOB_NO, over and over.
+The refusal was right; the carry-over was the bug. `S.quote` is now reset to
+`defaultQuote()` immediately BEFORE that assign — exactly like the picture,
+the files, the struck-off flashings and every other leak already fixed on
+those lines — so a job carrying a quote gets its own back on the next line
+and one carrying none starts clean rather than wearing another client's.
+(The owner, 2026-10-12: Phyllis's job open, chose another job, "Job 3287
+already exists" against Beth Williamson's.) `tests/jobbgleak.mjs`.
 
 ## Four things that have been broken twice
 

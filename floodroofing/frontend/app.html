@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T21:08:27Z';
+  window.APP_BUILT_AT = '2026-10-12T21:15:51Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -18188,6 +18188,20 @@ function restoreFromJob(j){
     // THIS job. Reset before the assign, like every leak above.
     S.img64 = null;
     S.jobPack = null;   // and the job pack: a job without one starts from the default pages, not the last job's
+    // AND THE QUOTE (2026-10-12, the owner: he had Phyllis's job open, chose
+    // another job, and "Job 3287 already exists" came up against Beth
+    // Williamson's). The same leak as every one above, and the worst of them:
+    // Object.assign only overwrites keys the incoming job HAS, so a job saved
+    // with no quote block kept the LAST job's quote — client, totals and, the
+    // part that bites, its `ref`. The server derives a job's number from
+    // draw_state.state.quote.ref, so every autosave then tried to create a
+    // second record under the previous job's number and was refused with
+    // DUPLICATE_JOB_NO, over and over. The refusal was right; the carry-over
+    // was the bug. Reset before the assign, exactly like the picture, the
+    // files and the flashings above: a job that carries a quote gets its own
+    // back on the next line, and one that carries none starts clean rather
+    // than wearing another client's.
+    try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
     Object.assign(S, snap.state);
     try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
@@ -74007,11 +74021,21 @@ function buildStepGableRoofLines(outline, flipAxis){
           if (pc[1] > hi + 0.5) out.push([Math.max(pc[0], hi), pc[1]]);
           return out;
         }));
-        // …and stamp it: the wider block's wall is the barge, the narrower
-        // roof runs an apron up to it. Equal widths: the first block (lower u) wins.
+        // …and stamp it. ONLY THE NARROWER BLOCK PUTS A LINE ON THE SHARED
+        // STRETCH (feedback report 12, 2026-10-12: "the barge going down from
+        // the top ridge line to the lower ridge line shouldn't carry through
+        // to the gutter"). The shared stretch is where the narrower block's
+        // roof BUTTS INTO the wider block's wall: the roofing line there is
+        // the apron that flashes it, and the wall behind it is a wall, not an
+        // exposed gable edge. The wider block used to push a barge across
+        // that whole stretch as well, split at its own ridge — so his L came
+        // out with a 4.93 m barge sitting behind the apron and a 90 mm stub
+        // where the two ridges missed each other, and the barge ran on past
+        // the lower ridge to the gutter, which is what he could see.
+        // Where the wider block's wall IS exposed, `pieces` below already
+        // carries it — that stretch has just been carved out of them.
         var mine = bk.width > ob.width + 0.5 || (Math.abs(bk.width - ob.width) <= 0.5 && bk.u0 < ob.u0);
-        if (mine) barges.push({ type:'barge', pts:[XY(ue, lo), XY(ue, vm)] }, { type:'barge', pts:[XY(ue, vm), XY(ue, hi)] });
-        else result.push({ type:'apron', pts:[XY(ue, lo), XY(ue, hi)] });
+        if (!mine) result.push({ type:'apron', pts:[XY(ue, lo), XY(ue, hi)] });
       });
       pieces.forEach(function(pc){
         if (pc[1] - pc[0] < 1) return;

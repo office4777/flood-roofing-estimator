@@ -80,6 +80,41 @@ v = await pg.evaluate(() => ({
 }));
 check('a picture still comes back when the job has one', v.img64 === true && v.prev === 'block', JSON.stringify(v));
 
+// ── AND THE QUOTE, THE WORST OF THEM (2026-10-12) ─────────────────
+// The owner had Phyllis's job open, chose a different job, and got
+// "Job 3287 already exists" against Beth Williamson's. Same leak, same
+// line: Object.assign only overwrites keys the incoming job HAS, so a job
+// saved with no quote block kept the LAST job's quote -- client, totals
+// and its `ref`. The server derives a job's number from
+// draw_state.state.quote.ref, so every autosave then tried to create a
+// second record under the previous job's number and was refused with
+// DUPLICATE_JOB_NO, over and over. The refusal was right; the carry-over
+// was the bug.
+const carry = await pg.evaluate(() => {
+  const r = {};
+  // A quoted job: Phyllis, 3287.
+  restoreFromJob({ id:'j1', updated_at:'x', draw_state:{ state:{
+    quote:{ ref:'3287', client:'Phyllis Rintoul', addr:'350 Horeke Road', psSubtotal:2500 } } } });
+  r.first = { ref:S.quote.ref, client:S.quote.client };
+  // Switch to a job that has NEVER been quoted -- no quote block at all.
+  restoreFromJob({ id:'j2', updated_at:'y', draw_state:{ state:{ client:'Beth Williamson' } } });
+  r.unquoted = { ref:S.quote.ref, client:S.quote.client, addr:S.quote.addr, sub:S.quote.psSubtotal };
+  // …and a job that carries its own quote still gets its own back.
+  restoreFromJob({ id:'j3', updated_at:'z', draw_state:{ state:{
+    quote:{ ref:'3296', client:'Beth Williamson' } } } });
+  r.own = { ref:S.quote.ref, client:S.quote.client };
+  return r;
+});
+check('the previous job\'s quote REF does not follow you into an unquoted job',
+  carry.unquoted.ref !== '3287' && !!carry.unquoted.ref, JSON.stringify(carry.unquoted));
+check('…nor its client, address or totals',
+  !carry.unquoted.client && !carry.unquoted.addr && !carry.unquoted.sub,
+  JSON.stringify(carry.unquoted));
+check('…and a job that has its own quote still opens on it',
+  carry.own.ref === '3296' && carry.own.client === 'Beth Williamson', JSON.stringify(carry.own));
+check('…the job it came from was itself unharmed',
+  carry.first.ref === '3287' && carry.first.client === 'Phyllis Rintoul', JSON.stringify(carry.first));
+
 check('no page errors through any of that', errs.length === 0, errs.join(' | ').slice(0, 160));
 await ctx.close();
 await b.close();
