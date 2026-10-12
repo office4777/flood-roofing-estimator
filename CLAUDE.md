@@ -1239,7 +1239,13 @@ Discipline (non-negotiable):
   `psSubtotal`, so a shed priced before any of this by typing one number
   reads exactly as it did. `psSubtotal` is STAMPED with the drawer's figure
   (never over a typed one), because the plan chips, the A4 and the customer's
-  copy all read that field. A SHED HAS NO ROOF TABS: `_psIsShed()` turns off
+  copy all read that field — and NEVER A ZERO. That stamp runs on every
+  recalc, including ones that land mid-open before the material table has
+  been rendered and the lines built; a shed is never worth nothing, so a zero
+  there is "not worked out yet", not an answer. It wrote $0 over job 3287's
+  $64,585 on the open, found by testing the open in the order it really
+  happens. `_shedBaseFromDrawer` falls through to the stored figure on a zero
+  for the same reason. A SHED HAS NO ROOF TABS: `_psIsShed()` turns off
   the per-roof keying in the material table, the labour card,
   `_materialsCostForRoofIdx` and `_syncQuoteBaseLineItems`, and the roofing
   steel-grade percentage with it — a shed's cladding is priced at its own
