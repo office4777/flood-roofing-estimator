@@ -133,6 +133,74 @@ check('…and every field with a comma in it is quoted, so the columns do not sh
   !lines.some(l => l && l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length !== 4),
   (lines.find(l => l && l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length !== 4) || '').slice(0, 90));
 
+// ── THE PICKER FOLLOWS ITS LIST (2026-10-12) ──────────────────────
+// "the Underlay Pick a default does not offer a selection, is there an
+// update to roll out, or have I missed a step here?" — neither. The list it
+// reads ships empty, and the picker was only ever filled by a full render
+// of the price book, so adding a product and even saving left it empty.
+const empty = await pg.evaluate(() => {
+  S.settings.materials_catalog.underlays = [];
+  renderCatalogList('underlays');
+  refreshDefaultUnderlayPicker('');
+  const sel = document.getElementById('pbDefaultUnderlay');
+  return { text: (sel.options[0] || {}).text || '', n: sel.options.length, disabled: sel.disabled };
+});
+check('with no underlay products yet the picker SAYS so instead of looking broken',
+  /add an underlay/i.test(empty.text) && empty.n === 1 && empty.disabled === true,
+  JSON.stringify(empty));
+
+const typed = await pg.evaluate(() => {
+  addCatalogItem('underlays');                    // the "+ Add underlay" button
+  const row = document.querySelector('#catalogUnderlays [data-row="cat-underlays"] input[data-field="name"]');
+  row.value = 'Thermakraft 215';
+  row.dispatchEvent(new Event('input', { bubbles: true }));   // typing it in
+  const sel = document.getElementById('pbDefaultUnderlay');
+  return { opts: Array.from(sel.options).map(o => o.value), disabled: sel.disabled };
+});
+check('…typing a product into the list offers it in the picker at once, with no reload',
+  typed.opts.indexOf('Thermakraft 215') >= 0 && typed.disabled === false, JSON.stringify(typed));
+
+const removed = await pg.evaluate(() => {
+  const x = document.querySelector('#catalogUnderlays [data-row="cat-underlays"] button');
+  x.click();
+  const sel = document.getElementById('pbDefaultUnderlay');
+  return { opts: Array.from(sel.options).map(o => o.value), n: sel.options.length };
+});
+check('…and taking it off the list takes it out of the picker', removed.n === 1, JSON.stringify(removed));
+
+// ── THE PRICING SHEET AS A CSV (2026-10-12) ───────────────────────
+// "the intention was for a Quote Pricing sheet to be available as Download
+// CSV beside" Save pricing as PDF.
+const pcsv = await pg.evaluate(async () => {
+  S.quote = S.quote || {}; S.quote.ref = '06125';
+  S.labour = 15324; S.labourCost = 2730; S.labourHours = 78; S.materials = 14548.71;
+  window.__dl = null; window.__dlBlob = null;
+  const btn = Array.from(document.querySelectorAll('#tab-scope .mat-actions button'))
+    .find(b => /download pricing as csv/i.test(b.textContent || ''));
+  if (!btn) return { btn: false };
+  btn.click();
+  await new Promise(r => setTimeout(r, 300));
+  return { btn: true, name: window.__dl, text: window.__dlBlob ? await window.__dlBlob.text() : '' };
+});
+const plines = (pcsv.text || '').split('\n');
+check('the Pricing page offers a CSV beside Save pricing as PDF',
+  pcsv.btn && /\.csv$/i.test(pcsv.name || ''), JSON.stringify({ btn: pcsv.btn, name: pcsv.name }));
+check('…named for the quote it came from, so two jobs do not overwrite each other',
+  /06125/.test(pcsv.name || ''), String(pcsv.name));
+check('…with a header that says the figures are ex GST, not bare numbers',
+  plines[0] === '#,Item,Detail,Charge-out (ex GST),Cost (ex GST),Gross profit (ex GST),Hours', plines[0]);
+check('…one row per thing the job is made of, in the order the panel lists them',
+  /^1,Scaffolding/.test(plines[1] || '') && /^2,Roofing/.test(plines[2] || ''),
+  plines.slice(1, 3).join(' // '));
+check('…carrying the roofing labour and materials actually priced',
+  (plines[2] || '').indexOf('29872.71') >= 0, plines[2]);
+check('…and a TOTAL and gross profit % underneath',
+  plines.some(l => /^,TOTAL,/.test(l)) && plines.some(l => /^,Gross profit %,/.test(l)),
+  plines.filter(l => /TOTAL|Gross profit/.test(l)).join(' // '));
+check('…every row the same width, so the columns do not shift in a spreadsheet',
+  plines.filter(Boolean).every(l => l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length === 7),
+  (plines.find(l => l && l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).length !== 7) || '').slice(0, 90));
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

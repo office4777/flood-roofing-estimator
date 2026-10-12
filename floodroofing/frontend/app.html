@@ -4735,7 +4735,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-12T01:17:50Z';
+  window.APP_BUILT_AT = '2026-10-12T02:44:42Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6392,6 +6392,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
        quote tab open for the client-facing version. -->
   <div class="card mat-actions">
     <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">Save pricing as PDF</button>
+    <button onclick="saveScopePricingAsCsv()" class="mat-btn mat-btn-light">⬇ Download pricing as CSV</button>
     <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green jms-only">Push pricing to Fergus</button>
     <button onclick="openFergusJob()" class="mat-btn mat-btn-light jms-only">Open in Fergus</button>
     <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">Open quote builder</button>
@@ -14343,7 +14344,14 @@ function refreshDefaultUnderlayPicker(current){
   var sel = document.getElementById('pbDefaultUnderlay'); if (!sel) return;
   if (current == null) current = sel.value || '';
   var names = _pbUnderlayNames();
-  sel.innerHTML = '<option value="">\u2014 pick a default \u2014</option>' +
+  if (!names.length && !current){
+    // Nothing to choose from yet. Say which list to fill in — an empty
+    // dropdown beside an empty list reads as a feature that has not shipped.
+    sel.innerHTML = '<option value="">— add an underlay product above first —</option>';
+    sel.disabled = true; return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">— pick a default —</option>' +
     names.map(function(n){ return '<option value="'+esc(n)+'"'+(n === current ? ' selected' : '')+'>'+esc(n)+'</option>'; }).join('');
   if (current && names.indexOf(current) < 0)
     sel.innerHTML += '<option value="'+esc(current)+'" selected>'+esc(current)+' (not in list)</option>';
@@ -41907,9 +41915,11 @@ function renderCatalogList(key){
   if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No items yet — add one.</div>'; return; }
   box.innerHTML = list.map(function(it){
     var name = String(it.name||'').replace(/"/g,'&quot;');
+    var hook = (key === 'underlays') ? ' oninput="onCatalogUnderlayChange()"' : '';
+    var gone = (key === 'underlays') ? 'this.parentNode.remove();onCatalogUnderlayChange();' : 'this.parentNode.remove()';
     return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-row="cat-'+key+'">'+
-      '<input type="text" data-field="name" value="'+name+'" placeholder="Name" style="flex:1;margin:0">'+
-      '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
+      '<input type="text" data-field="name" value="'+name+'" placeholder="Name" style="flex:1;margin:0"'+hook+'>'+
+      '<button type="button" onclick="'+gone+'" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
   }).join('');
 }
 function addCatalogItem(key){
@@ -41917,6 +41927,24 @@ function addCatalogItem(key){
   list.push({name:''});
   _ensureCatalog()[key] = list;
   renderCatalogList(key);
+  if (key === 'underlays') onCatalogUnderlayChange();
+}
+// THE DEFAULT UNDERLAY PICKER FOLLOWS THE LIST ABOVE IT (2026-10-12,
+// info@wellingtonroof.co.nz: "the Underlay Pick a default does not offer a
+// selection, is there an update to roll out, or have I missed a step?").
+// Neither — the picker is filled from the underlay products on the same
+// page, and that list ships EMPTY, so a new account has nothing to pick
+// from and the box says nothing about why. Worse, it was only ever filled
+// by a full render of the price book, so typing a product in and even
+// SAVING left the picker empty until the page was reopened. The sheet
+// picker has read its rows straight off the page since it was built; this
+// one does the same now, and an empty list says what to do instead of
+// looking broken.
+function onCatalogUnderlayChange(){
+  var rows = Array.from(document.querySelectorAll('#catalogUnderlays > [data-row="cat-underlays"]'));
+  var names = rows.map(function(r){ return ((r.querySelector('input[data-field="name"]')||{}).value || '').trim(); }).filter(Boolean);
+  try { _ensureCatalog().underlays = names.map(function(n){ return { name: n }; }); } catch(e){}
+  refreshDefaultUnderlayPicker((document.getElementById('pbDefaultUnderlay')||{}).value || '');
 }
 
 // — Wire the new section into existing settings lifecycle —
@@ -52431,6 +52459,30 @@ function _startPendingRoof(){
     try { _addAndSwitchToNewRoof(); } catch(e){}
   }
 }
+// A CORNER PLACED ON TOP OF THE ONE BEFORE IT IS NOT A CORNER (2026-10-12,
+// feedback report 11). A last tap that lands back on the previous point, or
+// on the first one to close the ring, was kept as a point of its own — so a
+// plain rectangle was stored with five corners and a zero-length edge.
+// Everything that counts corners then reads the wrong shape: the sheet
+// engine took that roofer's rectangular dutch gable down the branch meant
+// for an L, where a change of pitch does nothing, and his roof was measured
+// straight through the line at the full rafter length. Dropped here so no
+// new outline carries one; the engine drops them too, for outlines already
+// saved. Under half a pixel apart is the same point at any scale the app
+// draws at, and well under anything the corner snap would leave behind.
+function _outlineDropRepeats(pts){
+  var src = (pts || []).filter(function(p){ return p && isFinite(p[0]) && isFinite(p[1]); });
+  var out = [];
+  for (var i = 0; i < src.length; i++){
+    var prev = out.length ? out[out.length - 1] : null;
+    if (prev && Math.abs(src[i][0] - prev[0]) < 0.5 && Math.abs(src[i][1] - prev[1]) < 0.5) continue;
+    out.push(src[i].slice());
+  }
+  while (out.length > 1 && Math.abs(out[out.length-1][0] - out[0][0]) < 0.5
+                        && Math.abs(out[out.length-1][1] - out[0][1]) < 0.5) out.pop();
+  // Never hand back something that is no longer a shape.
+  return out.length >= 3 ? out : src.map(function(p){ return p.slice(); });
+}
 function finishCurrent() {
   var pts = DRAW.currentPts;
   var t = DRAW.tool;
@@ -52438,7 +52490,7 @@ function finishCurrent() {
   try { _inkResetRuns(); } catch(e){}
 
   if(t==='outline'&&pts.length>=3){
-    DRAW.outline=pts.slice();
+    DRAW.outline=_outlineDropRepeats(pts);
     DRAW.outlineDone=true;
     DRAW.currentPts=[];
     // Lazily seed roofs[] for the very first outline so subsequent
@@ -66371,6 +66423,65 @@ function saveScopePricingAsPdf(){
     setTimeout(function(){ html.classList.remove('print-scope'); }, 400);
   }, 60);
   _scopeMsg('Opening print dialog — choose "Save as PDF"…');
+}
+// THE PRICING SHEET AS A SPREADSHEET (2026-10-12,
+// info@wellingtonroof.co.nz: "the intention was for a Quote Pricing sheet
+// to be available as Download CSV beside" Save pricing as PDF). Same page,
+// same figures, same order as the Job profitability list reads them on
+// screen — one row per thing the job is made of, with what it is charged
+// out at, what it costs and the hours in it, then the totals and the
+// per-square-metre rates underneath. Everything is ex GST, as the whole
+// Pricing page is, and the header row says so rather than leaving a
+// spreadsheet of bare numbers to be guessed at.
+function _csvCell(v){
+  v = String(v == null ? '' : v);
+  return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function _scopePricingRows(){
+  var money = function(n){ var f = parseFloat(n); return isFinite(f) ? f.toFixed(2) : ''; };
+  var hours = function(n){ var f = parseFloat(n); return (isFinite(f) && f) ? (Math.round(f * 10) / 10) : ''; };
+  var g = _profitFigures('total');
+  var rows = [];
+  (g.items || []).forEach(function(it, i){
+    rows.push([ (i + 1), it.label || '', it.sub || '',
+                money(it.revenue), money(it.cost),
+                money((parseFloat(it.revenue) || 0) - (parseFloat(it.cost) || 0)), hours(it.hrs) ]);
+  });
+  var rev = parseFloat(g.revenue) || 0, cost = parseFloat(g.cost) || 0;
+  rows.push([]);
+  rows.push(['', 'TOTAL', '', money(rev), money(cost), money(rev - cost), hours(g.hrsAll)]);
+  rows.push(['', 'Gross profit %', '', rev ? ((rev - cost) / rev * 100).toFixed(1) + '%' : '', '', '', '']);
+  // The per-square-metre figures the panel shows under the list — read the
+  // same way the panel reads them. No area, no rows: an empty roof would
+  // otherwise print a column of divide-by-zeros.
+  var area = parseFloat(g.area) || 0;
+  if (area > 0){
+    rows.push([]);
+    rows.push(['', 'Roof area (m²)', '', area.toFixed(1), '', '', '']);
+    rows.push(['', 'Revenue per m²', '', money(rev / area), '', '', '']);
+    rows.push(['', 'Cost per m²', '', money(cost / area), '', '', '']);
+  }
+  return rows;
+}
+function saveScopePricingAsCsv(){
+  try {
+    var rows = _scopePricingRows();
+    if (!rows.length){ _scopeMsg('Nothing priced yet.', false); return; }
+    var ref = '';
+    try { ref = (S.quote && S.quote.ref) ? String(S.quote.ref) : ''; } catch(e){}
+    var head = ['#', 'Item', 'Detail', 'Charge-out (ex GST)', 'Cost (ex GST)', 'Gross profit (ex GST)', 'Hours'];
+    var out = [head.map(_csvCell).join(',')];
+    rows.forEach(function(r){ out.push(r.map(_csvCell).join(',')); });
+    var blob = new Blob([out.join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'RoofMap pricing' + (ref ? ' ' + ref : '') + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    _scopeMsg('Pricing downloaded as CSV.');
+  } catch(e){
+    _scopeMsg('Could not build the file.', false);
+    try { console.warn('pricing csv', e); } catch(_){}
+  }
 }
 async function pushScopePricingToFergus(){
   if (!window.S || !S.linkedJobId) { _scopeMsg('Link a Fergus job first (Home → 📂 Select Job → Fergus).', false); return; }

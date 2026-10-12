@@ -1367,8 +1367,33 @@ function _renderRoofSheetPlanInner() {
     return cur;
   }
 
+  // A REPEATED CORNER IS NOT A CORNER (2026-10-12, feedback report 11,
+  // info@wellingtonroof.co.nz). The outline tool can leave a point stored
+  // twice — his plain rectangle came through as five corners, the last one
+  // doubled — and a zero-length edge then lies to everything that COUNTS
+  // corners. The dutch gable's `outline.length > 4` test read his rectangle
+  // as an L, took the hip-band branch meant for an L or T, and that branch
+  // returns before the change-of-pitch bands are built: so his change of
+  // pitch did nothing at all, and the main faces were measured straight
+  // through it at the full rafter length. It also skews both centroids here,
+  // which are plain averages of the points. A zero-length edge adds nothing
+  // to the shoelace area and nothing to a ray cast, so dropping it changes
+  // no answer that was already right.
+  function _olDropRepeats(pts){
+    var src = (pts || []).filter(function(p){ return p && isFinite(p[0]) && isFinite(p[1]); });
+    var out = [];
+    for (var i = 0; i < src.length; i++){
+      var prev = out.length ? out[out.length - 1] : null;
+      if (prev && Math.abs(src[i][0] - prev[0]) < 0.5 && Math.abs(src[i][1] - prev[1]) < 0.5) continue;
+      out.push(src[i].slice());
+    }
+    // ...including one that closes the ring back onto the first corner.
+    while (out.length > 1 && Math.abs(out[out.length-1][0] - out[0][0]) < 0.5
+                          && Math.abs(out[out.length-1][1] - out[0][1]) < 0.5) out.pop();
+    return out.length >= 3 ? out : src.map(function(p){ return p.slice(); });
+  }
   // Outline winding: force CCW so our face polygons are CCW too.
-  var outline = DRAW.outline.slice();
+  var outline = _olDropRepeats(DRAW.outline);
   var olSA = 0;
   for (var i = 0; i < outline.length; i++) {
     var p = outline[i], q = outline[(i+1)%outline.length];

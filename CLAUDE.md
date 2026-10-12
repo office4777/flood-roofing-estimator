@@ -649,6 +649,32 @@ Discipline (non-negotiable):
   (`_emailMergeCopies`).
 - THE "UPDATED …" LINE (2026-10-02): see the bullet below; also the bug
   report records `build <APP_BUILT_AT>` (`tests/fbcontext.mjs`).
+- A REPEATED OUTLINE CORNER IS NOT A CORNER (2026-10-12, feedback report 11,
+  info@wellingtonroof.co.nz — he rebuilt the reports 9/10 roof on that
+  morning's build, typed `lowPitch` 10, and the sheets STILL did not break at
+  the change of pitch). Not the roof type: the report says `Auto roof type:
+  dutch`, the path that DOES break. His outline came through as
+  `[[814,465],[1633,465],[1633,827],[814,827],[814,827]]` — a plain rectangle
+  with the last point stored TWICE, a zero-length edge. Everything that
+  COUNTS corners then reads the wrong shape, and the one that bites is
+  `if (isDutch && outline && outline.length > 4)` in `_enumSimpleGableMono`:
+  the branch for a dutch on an L or T outline, which builds the roof with
+  `_ccHipBandSections` + `_ccBuildCookiePlan` and RETURNS — before
+  `_sgmChangePitchBands` is reached — and that model has no change-of-pitch
+  pass at all. So a rectangle was sheeted as an L and measured straight
+  through the line at the full 6.20 m rafter: the documented hip-path
+  limitation turning up on a roof that should never have been on that path.
+  Fixed at both ends: `_olDropRepeats` in sheet-plan.js drops repeated
+  corners as the engine takes its copy of `DRAW.outline` (so jobs ALREADY
+  SAVED come right, his among them, and both plain-average centroids stop
+  being skewed by the extra point), and `_outlineDropRepeats` in
+  `finishCurrent` drops them as an outline is finished, so no new one carries
+  one. Under half a pixel apart is the same point at any scale the app draws
+  at. A zero-length edge adds nothing to the shoelace area and nothing to a
+  ray cast, so nothing already right moves — the roof with no change of pitch
+  is unchanged at 82 sheets. A genuine L or T dutch still takes the hip-band
+  branch and still does not break at a change of pitch; that is the
+  limitation above, not this bug. `tests/report11.mjs`.
 - A PENETRATION IS EDITABLE AFTER IT IS PLACED (2026-10-12, two client error
   reports from info@wellingtonroof.co.nz on build 470e22d, eight seconds
   apart: `showPenEditor` setting, then `updatePenetration` reading, `.value`
@@ -935,11 +961,32 @@ Discipline (non-negotiable):
   than silently dropped. `populateOrderDropdowns` puts it in `#orderUnderlay`
   ONLY when that box is empty — a job that has chosen its paper is never
   overwritten, which is the rule the whole thing rests on.
+  THE PICKER FOLLOWS ITS LIST (2026-10-12, same roofer: "the Underlay Pick a
+  default does not offer a selection, is there an update to roll out, or have
+  I missed a step here?"). Neither — `materials_catalog.underlays` ships
+  EMPTY, so there was nothing to pick, and the box said nothing about why;
+  worse, the picker was only ever filled by a full render of the price book,
+  so typing a product in and even SAVING left it empty until the page was
+  reopened. `onCatalogUnderlayChange` now reads the rows straight off the
+  page on every add, keystroke and delete — the way `onPriceBookSheetChange`
+  has fed the sheet picker since it was built — and an empty list renders a
+  disabled "add an underlay product above first" rather than a bare, broken-
+  looking dropdown.
   `_pbExportCsv` (beside Copy my price book) writes one row per item RoofMap
   prices off the roof: Steel grade, Item, Unit, Price. It walks
   `PB_CSV_TARGETS` + the sheet variants per grade, and a grade with no prices
   of its own is LEFT OUT rather than listed at the base grade's numbers,
-  which would read as a price somebody had set. `tests/pbdefaults.mjs`.
+  which would read as a price somebody had set.
+  THE PRICING PAGE HAS ITS OWN CSV (2026-10-12, the clarification: "the
+  intention was for a Quote Pricing sheet to be available as Download CSV
+  beside" Save pricing as PDF — a different sheet from the price book's).
+  `saveScopePricingAsCsv` / `_scopePricingRows` write the Job profitability
+  list as it reads on screen: one row per thing the job is made of, in the
+  panel's own order, with charge-out, cost, gross profit and hours, then
+  TOTAL, GP% and the per-square-metre figures (area from `g.area`, the same
+  field the panel reads). All ex GST and the header says so. Named for the
+  quote's ref so two jobs do not overwrite each other.
+  `tests/pbdefaults.mjs`.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type
