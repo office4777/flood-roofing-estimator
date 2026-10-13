@@ -747,10 +747,13 @@ Discipline (non-negotiable):
   unchanged and a roofing quote is untouched; `tests/poleshed.mjs` pins the
   section KEYS rather than page text, because the shed's own wording
   legitimately contains phrases like "Steel grade" and "Old roof".
-  STILL TO DO: the shed's modern sections carry the A4's typography inside
-  the modern cards. They read correctly and the Style switch works, but they
-  do not yet use the modern card/rail idiom the roofing quote does — the
-  owner should see them before that is finished.
+  THE PHONE HALF OF THAT IS DONE (2026-10-13): the A4's two-column grids
+  collapse, spec rows stack label-above-value and the chapter band is cut down,
+  all scoped to `.ps-body` — see the customer-total bullet. STILL TO DO on the
+  COMPUTER: the sections carry the A4's typography inside the modern cards.
+  They read correctly and the Style switch works, but they do not yet use the
+  modern card/rail idiom the roofing quote does — the owner should see them
+  before that is finished.
 - TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed pdf
   button called 'Add another plan option' ... switch between the two options
   should change the photos imported in the quote so the customer can see the
