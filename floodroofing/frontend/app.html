@@ -378,18 +378,31 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
    arrived by shoving everything else out of the way. It now hangs over the
    page from the roof bar, and SLIDES rather than appearing, because a thing
    that moves is a thing you can see arrive. */
-#roofTypePanel.rtp{ position:absolute; z-index:60; left:.75rem; right:.75rem; margin:0; padding:10px 12px 9px; background:#fff; border:1px solid var(--border,#e3e6ea); border-radius:12px; box-shadow:0 14px 34px rgba(10,22,40,.18); }
+/* IT HAS TO LOOK LIKE A PANEL THAT OPENED (2026-10-13, the owner: "change the
+   background colour of the drop-down Roof settings window ... it looks
+   confusing and doesn't look like a collapsable menu, looks like the key
+   buttons have just disapeared"). It was WHITE, hanging over a white page: the
+   only thing separating it from the page was a 1px #e3e6ea line and a soft
+   shadow, so on a screenshot it reads as the toolbars having vanished and
+   some controls appearing where they used to be. A dropped panel needs to be
+   plainly a different surface from the thing it covers — so it is tinted
+   slate, edged in a colour you can actually see, and carries the app's blue
+   down its top edge, which is the same "this is a layer" language the quote
+   page's navy bands use. */
+#roofTypePanel.rtp{ position:absolute; z-index:60; left:.75rem; right:.75rem; margin:0; padding:11px 13px 10px; background:#eef3f9; border:1px solid #b9c7d8; border-top:3px solid #0099cc; border-radius:12px; box-shadow:0 18px 40px rgba(10,22,40,.26); }
 #roofTypePanel.rtp.rtp-anim{ animation:rtpDrop .34s cubic-bezier(.22,1,.36,1); }
 @keyframes rtpDrop{ from{ opacity:0; transform:translateY(-14px); } to{ opacity:1; transform:translateY(0); } }
 @media (prefers-reduced-motion:reduce){ #roofTypePanel.rtp.rtp-anim{ animation:none; } }
 /* The way out, where the way in was: a full-width hit area with an up arrow,
    not a 9px glyph on a button somewhere else. */
-#roofTypePanel .rtp-close{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin:9px 0 0; padding:7px 10px; background:#f1f5f9; color:#334155; border:1px solid #dde3ea; border-radius:9px; font-size:11.5px; font-weight:700; letter-spacing:.03em; cursor:pointer; font-family:inherit; }
-#roofTypePanel .rtp-close:hover{ background:#e6edf4; }
-#roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; margin:0 0 8px; }
+/* On the tinted panel a pale grey bar no longer reads as a button, so the way
+   out is solid and the same blue as the way in. */
+#roofTypePanel .rtp-close{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin:10px 0 0; padding:8px 10px; background:#0a1628; color:#fff; border:1px solid #0a1628; border-radius:9px; font-size:11.5px; font-weight:700; letter-spacing:.03em; cursor:pointer; font-family:inherit; }
+#roofTypePanel .rtp-close:hover{ background:#16314f; }
+#roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#3f5873; margin:0 0 8px; }
 #roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 #roofTypePanel .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
-#roofTypePanel .rtp-sep{ width:1px; height:22px; background:#e2e8f0; margin:0 2px; }
+#roofTypePanel .rtp-sep{ width:1px; height:22px; background:#c3d0de; margin:0 2px; }
 #roofTypePanel .rtp-grow{ flex:1 1 auto; }
 #roofTypePanel .rtp-type{ background:#0099cc; color:#fff; border:1px solid #0099cc; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:7px; line-height:1.2; font-family:inherit; }
 #roofTypePanel .rtp-type:hover{ background:#0088b8; }
@@ -542,7 +555,6 @@ html.site-mode .rt-short{display:inline}
 html.site-mode .rt-long{display:none}
 /* The suggestion box repeats what the shape buttons already offer and it is
    the tallest thing in the sheet — desktop keeps it. */
-html.site-mode #roofTypeHint{display:none!important}
 html.site-mode #roofSwitcher{margin-top:5px!important;padding-top:5px!important;font-size:11px}
 html.site-mode #roofSwitcher > div{font-size:11px!important;margin-right:4px!important}
 /* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
@@ -4888,7 +4900,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T21:22:16Z';
+  window.APP_BUILT_AT = '2026-10-13T21:31:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5914,7 +5926,6 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button type="button" id="roofDeleteBtn" class="tool-btn rtp-btn rtp-btn-red" onclick="deleteRoof(DRAW.activeRoofIdx)" title="Delete this roof — its outline, lines and measurements (Undo brings it back)">Delete roof</button>
         </div>
         <!-- Only when the chosen shape does not suit the footprint -->
-        <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-top:8px"></div>
         <!-- Straight-gable ridge slide: drag toward one gutter when the
              sheets on one side of the roof run longer than the other. -->
         <div id="gableRidgeSlideRow" style="display:none;margin-top:10px;align-items:center;gap:8px;flex-wrap:wrap">
@@ -6043,7 +6054,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             <button type="button" id="fineRotateDown" onclick="_nudgeFineRotate(-0.1)" title="Turn 0.1° anticlockwise">−.1</button>
             <input type="number" id="fineRotate" min="-100" max="100" step="0.1" value="0"
               title="Photo rotation in degrees (−100 to 100)"
-              oninput="_setFineRotate(this.value)"
+              oninput="_setFineRotate(this.value);_ccOn('fine')"
               onfocus="this.select();DRAW.showAlignGrid=true;redrawAll()"
               onblur="DRAW.showAlignGrid=false;redrawAll()">
             <button type="button" id="fineRotateUp" onclick="_nudgeFineRotate(0.1)" title="Turn 0.1° clockwise">+.1</button>
@@ -51190,8 +51201,14 @@ function tourStep(n){
 // Panning only works in the Move tool (onCanvasMouseDown returns unless
 // DRAW.tool === 'select'), so the coach picks that tool up front — which is
 // the "first action should be the move button" half of the ask.
-var CC = { step: null, timer: null, rotTouched: false, off: false };
-var CC_ORDER = ['move', 'zoom', 'rotate', 'outline'];
+var CC = { step: null, timer: null, rotTouched: false, off: false, fineSeen: false };
+var CC_ORDER = ['move', 'zoom', 'rotate', 'fine', 'outline'];
+// How long the LAST card stays up. The four before it wait on the roofer
+// doing the thing they ask for; "Now outline your Roof" asks for a click on a
+// button that is then lit for the rest of the job, so it says its piece and
+// gets out of the way (2026-10-13, the owner: "only show that build outline
+// box for 4 second then make it disappear").
+var CC_OUTLINE_MS = 4000;
 function _ccSuppressed(){
   try { if (window.__CUSTOMER_MODE) return true; } catch(e){}
   try { if (typeof _onbActive === 'function' && _onbActive()) return true; } catch(e){}
@@ -51230,22 +51247,33 @@ function _ccStart(){
   _ccShow('move');
 }
 var CC_TEXT = {
-  move:   { eyebrow:'Step 1 of 4', title:'Drag the roof to centre it',
+  move:   { eyebrow:'Step 1 of 5', title:'Drag the roof to centre it',
             body:'Press anywhere on the picture and drag, so the building you are quoting sits in the middle of the canvas.' },
-  zoom:   { eyebrow:'Step 2 of 4', title:'Now zoom in on the roof',
+  zoom:   { eyebrow:'Step 2 of 5', title:'Now zoom in on the roof',
             body:'Zoom until the roof fills the canvas — the closer in you are, the more exactly the corners land.' },
-  rotate: { eyebrow:'Step 3 of 4', title:'Square the building up',
+  rotate: { eyebrow:'Step 3 of 5', title:'Square the building up',
             body:'Slide <strong>Rotate background image</strong> until the walls run straight across and straight up the canvas.' },
-  rotateOn:{ eyebrow:'Step 3 of 4', title:'Outlines work best when building is square',
+  rotateOn:{ eyebrow:'Step 3 of 5', title:'Outlines work best when building is square',
             body:'Keep going until the walls line up with the edges of the canvas.' },
-  outline:{ eyebrow:'Step 4 of 4', title:'Now outline your Roof',
+  fine:   { eyebrow:'Step 4 of 5', title:'Nudge it exactly square',
+            body:'The slider gets you close; <strong>−.1</strong> and <strong>+.1</strong> turn the picture a tenth of a degree at a time until the walls sit dead straight.' },
+  outline:{ eyebrow:'Step 5 of 5', title:'Now outline your Roof',
             body:'Click <strong>Building outline</strong>, then click each corner of the building. Press Enter when you are back where you started.' }
 };
-var CC_TARGET = { move: null, zoom: '#zoomInBtn', rotate: '#fineRotateSlider', outline: '#btn-outline' };
+var CC_TARGET = { move: null, zoom: '#zoomInBtn', rotate: '#fineRotateSlider', fine: '#rotImgFine', outline: '#btn-outline' };
 function _ccShow(step){
   _ccClearTimer();
   if (CC.off || _ccSuppressed()){ _ccStop(); return; }
   if (step === 'outline' && _ccHasOutline()){ _ccStop(); return; }
+  // A STEP WITH NOTHING TO POINT AT IS SKIPPED, never shown ringing the top
+  // left corner: the fine-rotate row is hidden until the slider opens it, and
+  // "Done" closes it again, so by the time this step comes round it may not
+  // be on screen. Without this the sequence would also strand there — the
+  // outline hint waits on a nudge that cannot be made.
+  if (step === 'fine'){
+    var fr = document.getElementById('rotImgFine');
+    if (!fr || fr.offsetParent === null){ _ccShow('outline'); return; }
+  }
   CC.step = step;
   var w = document.getElementById('ccWrap');
   if (!w){
@@ -51266,8 +51294,16 @@ function _ccShow(step){
   w.querySelector('.cc-title').textContent = t.title || '';
   w.querySelector('.cc-body').innerHTML = t.body || '';
   w.querySelector('#ccCard').classList.toggle('cc-big', step === 'move');
+  w.style.display = '';
   _ccPlace();
   setTimeout(_ccPlace, 30);
+  // The last card takes itself away after four seconds; every earlier one
+  // waits on the roofer. _ccStop clears the coach outright, so the ring and
+  // the hand go with the card rather than being left pointing at nothing.
+  if (step === 'outline'){
+    _ccClearTimer();
+    CC.timer = setTimeout(function(){ _ccStop(); }, CC_OUTLINE_MS);
+  }
 }
 function _ccPlace(){
   var w = document.getElementById('ccWrap'); if (!w) return;
@@ -51338,19 +51374,42 @@ function _ccOn(what){
     }, 1000);
     return;
   }
-  if (CC.step !== 'rotate') return;
-  if (what === 'rotdown'){
-    // "change the wording as soon as they click the slider bar"
-    _ccClearTimer();
-    if (!CC.rotTouched){ CC.rotTouched = true; _ccShow('rotate'); }
+  if (CC.step === 'rotate'){
+    if (what === 'rotdown'){
+      // "change the wording as soon as they click the slider bar"
+      _ccClearTimer();
+      if (!CC.rotTouched){ CC.rotTouched = true; _ccShow('rotate'); }
+      return;
+    }
+    if (what === 'rotup'){
+      // ONE SECOND AFTER THEY LET THE SLIDER GO, point at the fine controls
+      // (2026-10-13, the owner: "after the user slides the rotate bar across,
+      // when they have finished sliding the bar across, have a 1 second delay
+      // then add a step to click the fine rotate adjustments"). The slider's
+      // own pointerdown has already opened that row, so it is on screen to
+      // be rung by the time this fires.
+      _ccClearTimer();
+      CC.timer = setTimeout(function(){
+        if (_ccHasOutline()){ _ccStop(); return; }
+        CC.fineSeen = false;
+        _ccShow('fine');
+      }, 1000);
+    }
     return;
   }
-  if (what === 'rotup'){
-    _ccClearTimer();
-    CC.timer = setTimeout(function(){
-      if (_ccHasOutline()){ _ccStop(); return; }
-      _ccShow('outline');
-    }, 2000);
+  if (CC.step === 'fine'){
+    // TWO SECONDS AFTER THE LAST NUDGE, and the timer restarts on every one,
+    // so the outline hint waits until they have stopped adjusting. "Done"
+    // says the same thing out loud, so it goes straight on.
+    if (what === 'fine' || what === 'finedone'){
+      CC.fineSeen = true;
+      _ccClearTimer();
+      CC.timer = setTimeout(function(){
+        if (_ccHasOutline()){ _ccStop(); return; }
+        _ccShow('outline');
+      }, what === 'finedone' ? 0 : 2000);
+    }
+    return;
   }
 }
 // Picking the outline tool, or drawing one, is the end of it.
@@ -61036,7 +61095,12 @@ var IMG_FINE_ROTATION = 0; // -45 to +45 degrees fine adjustment
 // readout and the canvas cannot drift apart — which is what happened when the
 // slider, the Reset button and _resetView each carried their own copy.
 function _rotImgOpen(){ var f = document.getElementById('rotImgFine'); if (f) f.style.display = 'flex'; }
-function _rotImgClose(){ var f = document.getElementById('rotImgFine'); if (f) f.style.display = 'none'; }
+function _rotImgClose(){
+  var f = document.getElementById('rotImgFine'); if (f) f.style.display = 'none';
+  // "Done" is the roofer saying the angle is right, so the coach does not sit
+  // on its two-second wait for a nudge that is not coming.
+  try { _ccOn('finedone'); } catch(e){}
+}
 // A click anywhere outside the rotate control puts the fine buttons away.
 document.addEventListener('pointerdown', function(e){
   var f = document.getElementById('rotImgFine');
@@ -61067,6 +61131,10 @@ function _setFineRotate(v){
 function _nudgeFineRotate(d){
   _setFineRotate((parseFloat(IMG_FINE_ROTATION) || 0) + d);
   _alignGridFlash();
+  // Hooked here rather than on the two buttons' onclick so the typed box and
+  // Reset report the same way — one entry point, the rule the rest of the
+  // canvas coach follows.
+  try { _ccOn('fine'); } catch(e){}
 }
 // A tenth of a degree is invisible without something square to judge it
 // against, and the alignment grid only ever showed while the slider was
@@ -76658,26 +76726,19 @@ function suggestRoofType(){
   if (ar >= 2.2) return { type:'gable', label:'Straight Gable', reason:'long, narrow footprint' };
   return { type:'hip', label:'Hip & Valley', reason:'simple rectangular footprint' };
 }
-// Populate #roofTypeHint. With no chosenType → show the suggestion. With a
-// chosenType that can't represent the footprint (gable/mono on a footprint
-// with internal corners) → show a mismatch warning instead.
-function _updateRoofTypeHint(chosenType){
-  var el = document.getElementById('roofTypeHint'); if (!el) return;
-  var o = DRAW.outline;
-  if (!o || o.length < 3 || !DRAW.outlineDone){ el.style.display = 'none'; return; }
-  var c = _roofReflexCount(o);
-  if (chosenType && (chosenType === 'gable' || chosenType === 'mono') && c.reflex >= 1){
-    el.style.display = 'block';
-    el.style.background = '#fef3c7'; el.style.color = '#92400e'; el.style.border = '1px solid #fcd34d';
-    el.innerHTML = '⚠ A ' + (chosenType==='mono'?'mono-pitch':'straight gable') + ' suits a simple rectangle — this footprint has ' +
-      c.reflex + ' internal corner' + (c.reflex>1?'s':'') + ', so a wing may end up without its own ridge. ' +
-      'Consider <strong>Hip &amp; Valley</strong> or <strong>Gable — hip+valley corner</strong>.';
-    return;
-  }
-  // No "Suggested" line any more (2026-09-24): the outline popup already
-  // offered the suggestion; the panel speaks only when a shape will not fit.
-  el.style.display = 'none';
-}
+// THE ROOF PANEL NO LONGER CAUTIONS ABOUT THE TYPE (2026-10-13, the owner:
+// "remove the warning caution about the roof type in orange in the roof
+// settings that appears"). `#roofTypeHint` was an amber box that appeared
+// whenever a gable or a mono-pitch was picked on a footprint with an internal
+// corner — "a wing may end up without its own ridge. Consider Hip & Valley".
+// The roofer picking the shape is the one standing on the roof, and the
+// step-down gable, the dog-leg gable and the gable hip-end conversions have
+// all since made a gable on a non-rectangle an ordinary thing to want, so it
+// was arguing with a correct choice. The element and the rule are gone; this
+// stub stays because six call sites reach it from the redraw and roof-switch
+// paths, and `suggestRoofType` still uses `_roofReflexCount` to OFFER a type
+// in the outline popup, which is an offer and not a warning.
+function _updateRoofTypeHint(){}
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();

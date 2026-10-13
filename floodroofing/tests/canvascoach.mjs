@@ -58,6 +58,7 @@ const card = async () => pg.evaluate(() => {
   return { on: true, vis, step: CC.step, big: w.querySelector('#ccCard').classList.contains('cc-big'),
            title: w.querySelector('.cc-title').textContent,
            onZoom: near('#zoomInBtn'), onRot: near('#fineRotateSlider'), onOutline: near('#btn-outline'),
+           onFine: near('#rotImgFine'),
            tool: DRAW.tool };
 });
 
@@ -113,16 +114,43 @@ await pg.waitForTimeout(80);
 const s7 = await card();
 check('touching the slider changes the wording to "outlines work best when building is square"',
   /work best when building is square/i.test(s7.title), s7.title);
-await pg.evaluate(() => { _setFineRotate(6); _ccOn('rotup'); });
-await pg.waitForTimeout(900);
+await pg.evaluate(() => { _rotImgOpen(); _setFineRotate(6); _ccOn('rotup'); });
+await pg.waitForTimeout(500);
 const s8 = await card();
-check('…and it is still there a second after letting go (it waits two)', s8.vis && s8.step === 'rotate', JSON.stringify(s8));
-await pg.waitForTimeout(1400);
+check('…and it is still there half a second after letting go (it waits one)', s8.vis && s8.step === 'rotate', JSON.stringify(s8));
+// A STEP BETWEEN THE SLIDER AND THE OUTLINE (2026-10-13, the owner: "after
+// the user slides the rotate bar across ... have a 1 second delay then add a
+// step to click the fine rotate adjustments, 2 seconds after the final
+// adjustment (timer restarts on every click) then do step 4").
+await pg.waitForTimeout(800);
+const s8b = await card();
+check('A SECOND AFTER LETTING THE SLIDER GO, the card points at the fine adjustments',
+  s8b.vis && s8b.step === 'fine' && s8b.onFine && /nudge it exactly square/i.test(s8b.title), JSON.stringify(s8b));
+// The timer restarts on EVERY nudge, so a run of clicks is not cut short.
+await pg.evaluate(() => _nudgeFineRotate(0.1));
+await pg.waitForTimeout(1300);
+const s8c = await card();
+check('…and a nudge holds it: 1.3s after the first click it is still the fine card', s8c.vis && s8c.step === 'fine', JSON.stringify(s8c));
+await pg.evaluate(() => _nudgeFineRotate(0.1));
+await pg.waitForTimeout(1300);
+const s8d = await card();
+check('…a second nudge restarts the two seconds rather than letting it run out', s8d.vis && s8d.step === 'fine', JSON.stringify(s8d));
+await pg.waitForTimeout(1100);
 const s9 = await card();
-check('TWO SECONDS AFTER LETTING GO, the last card points at Building outline',
+check('TWO SECONDS AFTER THE LAST NUDGE, the last card points at Building outline',
   s9.vis && s9.step === 'outline' && s9.onOutline && /outline your roof/i.test(s9.title), JSON.stringify(s9));
+// "only show that build outline box for 4 second then make it disappear" —
+// it asks for a click on a button that stays lit, so it says its piece and goes.
+await pg.waitForTimeout(2000);
+const s9b = await card();
+check('…and it is still up two seconds later', s9b.vis && s9b.step === 'outline', JSON.stringify(s9b));
+await pg.waitForTimeout(2600);
+const s9c = await card();
+check('FOUR SECONDS ON, the outline card takes itself away', !s9c.vis && !s9c.step, JSON.stringify(s9c));
 
 // clicking the tool ends it
+await place();
+await pg.waitForTimeout(400);
 await pg.click('#btn-outline');
 await pg.waitForTimeout(150);
 const s10 = await card();

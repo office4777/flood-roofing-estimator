@@ -415,6 +415,40 @@ Discipline (non-negotiable):
   `quoteKind`, then the client, each part dropped if it is blank, Windows'
   forbidden characters stripped and the whole thing capped at 100
   characters. `tests/quotedesk.mjs`, `tests/quoteeditor.mjs`.
+  AND THE CAPTURE IS THE WIDTH IT SAYS IT IS (2026-10-13, the owner on the
+  first such PDF: "pdf looks terrible"). Every sheet after the first was
+  sliced down its right-hand edge, mid-sentence — the hero ran off the page,
+  "the best corrosion resistance on the marke", the colour swatches' last
+  column gone. `_buildModernQuotePdf` sets `#qpRoot` to `QP_PDF_MODERN_W`
+  INLINE and hands html2canvas the same figure as `windowWidth`, so the clone
+  lays the quote out at that width — but
+  `html.qp-desk .report-preview #qpRoot{width:auto!important}` BEAT the inline
+  style, and an element measured at the office's own screen width (876px on a
+  1440 window, 722 on 1100, 622 on 1000) was handed content laid out at 1100.
+  The canvas kept 876 of it. The width is pinned in CSS now, under
+  `html.pdf-modern`, with the `!important` it takes to win, so the box
+  measured and the box drawn are the same box. A LESSON WORTH THE WORDS: an
+  inline style is not a guarantee in this stylesheet, and any capture whose
+  canvas comes from one measurement and whose layout comes from another will
+  clip in exactly this way.
+  THE PRICE BOX IS NOT REPEATED AT THE TOP (2026-10-13, the same message:
+  "remove the pricing box from the top of the quote, keep the price just at
+  the bottom of the pdf"). It was pulled to the front earlier that day so the
+  money was not lost with the nav, but the Review section at the END already
+  carries the sub-total, the GST, the total and What you chose — so the front
+  copy was the quote opening on its own price and saying it all twice. The
+  rail is furniture again, and with it goes the flex column it needed: the
+  wrap prints as a plain BLOCK, which is also the only layout html2canvas
+  lays out the way the browser does (its flexbox support is partial, and
+  `order` / `align-self` inside a capture is exactly where it drifts).
+  BUNCHED UP (the same message: "you can bunch it up a bit more too"): the
+  on-screen rhythm — 22px between sections, 26/28px inside every card, a 21:8
+  hero — is sized for a page you scroll, and on A4 it bought a sheet of air
+  per section. Section gaps, card padding and the hero come down in the print
+  rules only, so the screen is untouched; and `_pdfAddSlicedCanvas` may give
+  up a sheet's last QUARTER to find a clean break rather than its last half
+  (0.22/0.78, was 0.45/0.55), which is where the empty bottoms came from.
+  Nine sheets to about three. `tests/quotedesk.mjs`.
 - THE PROPOSAL'S TITLE is `S.quote.proposalTitle` (default
   `QB_PROPOSAL_TITLE` "Re-Roof Proposal", `_qbProposalTitle()`), edited in
   Edit description's Title box on a modern quote; saving the default
@@ -1244,6 +1278,50 @@ Discipline (non-negotiable):
   THIS picture only, because nothing is written down. `_ccStart` picks the Move
   tool, because `onCanvasMouseDown` returns unless `DRAW.tool === 'select'` and
   a drag would otherwise drop an outline corner. `tests/canvascoach.mjs`.
+  A FIFTH STEP, THE FINE ADJUSTMENTS (2026-10-13, the owner: "add a step
+  between 3 and 4 ... when they have finished sliding the bar across, have a 1
+  second delay then add a step to click the fine rotate adjustments, 2 seconds
+  after the final adjustment (timer restarts on every click) then do step 4").
+  The slider gets a roof close to square; `−.1` / `+.1` are what land it, and
+  nothing pointed at them. One second after the slider is let go the card rings
+  `#rotImgFine`; every nudge restarts a two-second wait, so a run of clicks is
+  never cut short; then step 5. `_nudgeFineRotate` is where the hook lives
+  (not the two buttons' onclick) so the typed box and Reset report the same
+  way, and `_rotImgClose` reports `finedone` — "Done" is the roofer saying the
+  angle is right, so the coach does not sit out its two seconds waiting for a
+  nudge that is not coming. A STEP WITH NOTHING TO POINT AT IS SKIPPED, never
+  shown ringing the top left corner: that row is hidden until the slider opens
+  it and "Done" closes it again, so `_ccShow('fine')` falls through to the
+  outline step when `#rotImgFine` is not on screen — without that the sequence
+  would STRAND there, the outline hint waiting on a nudge that cannot be made.
+  AND THE LAST CARD TAKES ITSELF AWAY after four seconds (`CC_OUTLINE_MS`;
+  "only show that build outline box for 4 second then make it disappear") —
+  the four before it wait on the roofer doing the thing they ask for, but this
+  one asks for a click on a button that stays lit for the rest of the job.
+- THE ROOF SETTINGS PANEL IS PLAINLY A LAYER (2026-10-13, the owner: "change
+  the background colour of the drop-down 'Roof settings' window ... it looks
+  confusing and doesn't look like a collaspable menu, looks like the key
+  buttons have just disapeared"). `#roofTypePanel.rtp` was WHITE, hanging over
+  a white page: a 1px `#e3e6ea` line and a soft shadow were the only things
+  saying it was on top, so it read as the toolbars having vanished and some
+  controls appearing where they used to be. It is tinted slate (`#eef3f9`),
+  edged `#b9c7d8`, and carries a 3px `#0099cc` top border — the same "this is
+  a layer" language the quote page's navy bands use — and `.rtp-close` is
+  solid navy, because a pale grey bar on a tinted panel no longer reads as a
+  button. `tests/roofmenu.mjs`.
+- THE ROOF PANEL NO LONGER CAUTIONS ABOUT THE TYPE (2026-10-13, the owner:
+  "remove the warning caution about the roof type in orange in the roof
+  settings that appears"). `#roofTypeHint` was an amber box that appeared
+  whenever a gable or a mono-pitch was picked on a footprint with an internal
+  corner — "a wing may end up without its own ridge. Consider Hip & Valley".
+  The roofer picking the shape is the one standing on the roof, and the
+  step-down gable, the dog-leg gable and the gable↔hip-end conversions have
+  all since made a gable on a non-rectangle an ordinary thing to want, so it
+  argued with a correct choice. The element, its `site-mode` hide rule and the
+  function's body are gone; `_updateRoofTypeHint` stays as an empty stub
+  because six call sites reach it from the redraw and roof-switch paths.
+  `suggestRoofType` still uses `_roofReflexCount` to OFFER a type in the
+  outline popup, which is an offer and not a warning.
 - A TAB IN THE BACKGROUND STILL READS ITS MESSAGES (2026-10-13,
   `help-bot.js`): `supportStartPolling`'s FIRST read carried the same
   `visibilityState !== 'hidden'` test as the 90-second repeats, so a tab the
