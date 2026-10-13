@@ -2927,8 +2927,16 @@ app.get('/auth/me', requireAuth, async (req, res) => {
 // (company_id null) arm is empty for anyone who joined after companies
 // existed, so in practice it is one fast indexed read.
 app.get('/jobs', requireAuth, async (req, res) => {
-  const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent, version_of, version_name';
-  const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id';
+  // THE JOB'S OWN NUMBER comes with the list. It lives in the drawing state
+  // (draw_state.state.quote.ref) and the list never carried it, so the Select
+  // Job search had nothing to match and a roofer typing a job number got
+  // nothing back however the box was worded. Read as a jsonb path, the way the
+  // schedule board reads it, so the multi-megabyte column stays in the
+  // database and only the number crosses the wire. On BOTH column lists, so
+  // neither the un-migrated fallback nor the timeout retry drops it.
+  const JNO  = ', job_no:draw_state->state->quote->ref';
+  const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent, version_of, version_name' + JNO;
+  const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id' + JNO;
   // A LIMIT, which this never had. Without one the read has to find EVERY
   // matching row before it can answer, so an office with a few thousand jobs
   // on a churned table runs past the PostgREST role's 8-second
@@ -2974,6 +2982,7 @@ app.get('/jobs', requireAuth, async (req, res) => {
   res.json((data || []).map(function (j) {
     const os = j.order_sent && typeof j.order_sent === 'object' ? j.order_sent : null;
     return Object.assign({}, j, {
+      job_no: (j.job_no == null) ? '' : String(j.job_no),
       created_by: names[j.user_id] || (j.user_id === req.user.id ? me : ''),
       order_sent: os ? Object.assign({}, os, { by_name: names[os.by] || '' }) : (j.order_sent || null),
     });

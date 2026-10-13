@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T03:12:39Z';
+  window.APP_BUILT_AT = '2026-10-13T04:23:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5392,6 +5392,18 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
            always did. -->
       <div id="navJobVersion" style="display:none;margin-top:4px;font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
+    <!-- SAVE IS IN EVERY VIEW (feedback, Scott 2026-10-13: "Save button
+         available in any view"). It was on Map Roof's site toolbar and inside
+         three windows, and nowhere at all on the Job Pack or the Quote tab —
+         so the one button a roofer reaches for after typing something had to
+         be hunted for, or found by going back to another tab. The left menu is
+         on every tab, so this is. ALWAYS SHOWN, including on a job that has
+         never been saved, which is the job that needs it most; saveCurrentJob
+         carries its own guards (a frozen version on screen, a locked job) and
+         _saveClick says what happened either way. -->
+    <button type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
+            title="Save this job now"
+            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:var(--fr-dark,#0a1628);color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
@@ -6024,6 +6036,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
               Outline text
               <input type="range" id="outlineTextScale" min="0.5" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setOutlineTextScale(this.value)">
               <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:8px 0 0" title="Multiplier for the small detail labels on the map — a penetration's size, its back-tray and a clearlite's length.">
+              Details text
+              <input type="range" id="detailTextScale" min="0.5" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setDetailTextScale(this.value)">
+              <span id="detailTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
           </div>
         </div>
@@ -20256,7 +20273,7 @@ async function refreshJobsList(){
     window._jobsCache = { jobs: jobs || [], actById: actById };
     if (!jobs.length) { box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">No saved jobs yet. Fill in client + address on the Map Roof tab, then click Save.</div>'; return; }
     box.innerHTML =
-      '<input id="jobsSearch" type="text" placeholder="Search client or address…" oninput="_renderJobsTable(this.value)" '+
+      '<input id="jobsSearch" type="text" placeholder="Search client, address or job number…" oninput="_renderJobsTable(this.value)" '+
         'style="width:100%;max-width:340px;margin-bottom:10px;padding:8px 12px;font-size:13px">'+
       '<div id="jobsTableWrap"></div>';
     _renderJobsTable('');
@@ -20281,17 +20298,15 @@ function _jobQuoteChip(a){
 function _renderJobsTable(filter){
   var wrap = document.getElementById('jobsTableWrap'); if (!wrap || !window._jobsCache) return;
   var f = String(filter || '').trim().toLowerCase();
-  var jobs = window._jobsCache.jobs.filter(function(j){
-    if (!f) return true;
-    return ((j.client_name || '') + ' ' + (j.site_address || '')).toLowerCase().indexOf(f) >= 0;
-  });
+  var jobs = window._jobsCache.jobs.filter(function(j){ return _savedJobMatches(j, f); });
   if (!jobs.length) { wrap.innerHTML = '<div style="padding:1rem;color:var(--text2);font-size:13px">No jobs match "'+esc(filter)+'".</div>'; return; }
   wrap.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
-    '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Quote</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
+    '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Job N\u00b0</th><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Quote</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
     jobs.map(function(j){
       var when = j.updated_at ? new Date(j.updated_at).toLocaleDateString('en-NZ',{day:'2-digit',month:'short',year:'numeric'}) : '';
       var sel = (j.id===S.currentJobId)?'background:var(--fr-light)':'';
       return '<tr style="border-top:1px solid var(--border);'+sel+'">'+
+        '<td style="padding:8px 10px;color:var(--text2);white-space:nowrap">'+ esc(j.job_no||'—') +'</td>'+
         '<td style="padding:8px 10px;font-weight:600">'+ esc(j.client_name||'(untitled)') +'</td>'+
         '<td style="padding:8px 10px;color:var(--text2)">'+ esc(j.site_address||'—') +'</td>'+
         '<td style="padding:8px 10px">'+ _jobQuoteChip(window._jobsCache.actById[j.id]) +'</td>'+
@@ -22492,6 +22507,22 @@ async function openSampleJob(){
   gotoTab('roof');
 }
 
+// A SAVED JOB IS FOUND BY ITS NUMBER TOO (feedback, Scott 2026-10-13). Both
+// search boxes matched client + address only, and the Home box's placeholder
+// has always said "client, address or job number" — a Fergus job matched its
+// number, a saved RoofMap job never could, because GET /jobs did not send one.
+// Digits typed on their own are matched loosely (3287 finds 3287 and 03287);
+// otherwise the number joins the client and the address as plain text.
+function _savedJobMatches(j, q){
+  if (!q) return true;
+  var ql = String(q).toLowerCase();
+  var no = String((j && j.job_no) || '');
+  if (((j.client_name || '') + ' ' + (j.site_address || '') + ' ' + no).toLowerCase().indexOf(ql) >= 0) return true;
+  // A job number with leading zeros ("06121") must still be found by "6121".
+  if (/^\d+$/.test(ql) && /^\d+$/.test(no)) return String(parseInt(no, 10)).indexOf(String(parseInt(ql, 10))) >= 0;
+  return false;
+}
+
 // ── Home "Select job" type-ahead ────────────────────────────────────
 // One search box over BOTH sources the Select Job modal covers: saved
 // RoofMap jobs (client/address) and Fergus jobs (client/address/job N°,
@@ -22520,8 +22551,7 @@ function _hbPaintSearch(q){
   if (!drop) return;
   var ql = (q || '').toLowerCase();
   var saved = (window._selectJobsCache || []).filter(function(j){
-    if (!q) return true;
-    return ((j.client_name || '') + ' ' + (j.site_address || '')).toLowerCase().indexOf(ql) >= 0;
+    return _savedJobMatches(j, q);
   }).slice(0, q ? 8 : 6);
   var ferg = [];
   var allF = S.fergJobsCache || [];
@@ -22536,7 +22566,7 @@ function _hbPaintSearch(q){
   var rows = saved.map(function(j){
     return '<div class="hb-drop-row" onmousedown="event.preventDefault()" onclick="_hbPickSaved(\'' + j.id + '\')">' +
       '<span class="hb-drop-badge" style="background:#dbeafe;color:#1d4ed8">Saved</span>' +
-      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.client_name || '(untitled)') + '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.client_name || '(untitled)') + (j.job_no ? ' <span style="color:#94a3b8;font-weight:500">\u00b7 #' + esc2(j.job_no) + '</span>' : '') + '</div>' +
       '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.site_address || '—') + '</div></div>' +
     '</div>';
   }).concat(ferg.map(function(j){
@@ -45534,6 +45564,7 @@ function _syncSheetTextScaleUi(){
   if (inp) inp.value = saved;
   if (out) out.textContent = saved.toFixed(1);
   try { _syncOutlineTextScaleUi(); } catch(e){}
+  try { _syncDetailTextScaleUi(); } catch(e){}
 }
 // Outline-text scaler (View menu) — sizes ALL the building outline / line
 // measurement labels (e.g. "19.85m") together, independent of the
@@ -45557,6 +45588,33 @@ function _setOutlineTextScale(v){
     localStorage.setItem('fr_outline_text_scale_v2', '1');
   } catch(e){}
 })();
+// DETAILS-TEXT SCALER (feedback, Scott 2026-10-13: "Map Roof details font
+// size"). The small labels on the map — a penetration's size, the back-tray
+// it calls up, a clearlite's length — were hard-coded at 8, 9 and 10 px with
+// no slider at all, while the measurements and the sheet lengths each had
+// one. 8px is not a size you read off a phone on a roof.
+function _detailTextScale(){
+  var n = parseFloat((typeof localStorage !== 'undefined' && localStorage.getItem('fr_detail_text_scale')) || '1') || 1;
+  if (!isFinite(n) || n < 0.5) n = 1;
+  if (n > 4) n = 4;
+  return n;
+}
+function _setDetailTextScale(v){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n < 0.5) n = 0.5;
+  if (n > 4) n = 4;
+  try { localStorage.setItem('fr_detail_text_scale', String(n)); } catch(e){}
+  var out = document.getElementById('detailTextScaleOut');
+  if (out) out.textContent = n.toFixed(1);
+  try { redrawAll(); } catch(e){}
+}
+function _syncDetailTextScaleUi(){
+  var saved = _detailTextScale();
+  var inp = document.getElementById('detailTextScale');
+  var out = document.getElementById('detailTextScaleOut');
+  if (inp) inp.value = saved;
+  if (out) out.textContent = saved.toFixed(1);
+}
 function _syncOutlineTextScaleUi(){
   var saved = parseFloat(localStorage.getItem('fr_outline_text_scale') || '1') || 1;
   if (!isFinite(saved) || saved < 0.5) saved = 1;
@@ -57280,7 +57338,8 @@ function redrawAll() {
         // Scale the label so it fits inside the box with a small inset
         // and never touches the sides. We start at a sensible cap and
         // shrink until both width AND height fit.
-        var maxFont = Math.min(20, Math.floor(rh * 0.55));
+        var _dsc = _detailTextScale();
+        var maxFont = Math.min(Math.round(20 * _dsc), Math.floor(rh * 0.55));
         var minFont = 6;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -57301,20 +57360,23 @@ function redrawAll() {
     ctx.beginPath(); ctx.arc(cx,cy,dotR,0,Math.PI*2);
     ctx.fillStyle=isSelected?'#ff6600':'#374151'; ctx.fill();
     ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+    var _dsc2 = _detailTextScale();
     if(p.sizeLabel){
       ctx.fillStyle='#374151';
-      ctx.font='9px sans-serif';
+      ctx.font=Math.round(9 * _dsc2)+'px sans-serif';
       ctx.textAlign='left';
-      ctx.fillText(p.sizeLabel, cx+dotR+3, cy+3);
+      ctx.fillText(p.sizeLabel, cx+dotR+3, cy+Math.round(3 * _dsc2));
     }
     // Auto back-tray callout — shows which pre-drawn tray this pipe size
     // + roof profile calls up, right under the size.
     var _bt = (typeof _penBackTrayName === 'function') ? _penBackTrayName(p) : null;
     if (_bt){
       ctx.fillStyle = '#0891b2';
-      ctx.font = '8px sans-serif';
+      ctx.font = Math.round(8 * _dsc2) + 'px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('→ ' + _bt, cx+dotR+3, cy+13);
+      // Clear of the size label above it at every setting, or the two overlap
+      // the moment the slider is moved.
+      ctx.fillText('→ ' + _bt, cx+dotR+3, cy+Math.round(13 * _dsc2));
     }
   });
 
@@ -57377,7 +57439,7 @@ function redrawAll() {
       ctx.stroke();
       ctx.setLineDash([]);
       var txt = lenM > 0 ? (lenM.toFixed(2) + 'm') : 'set length';
-      ctx.font = '600 10px Inter, -apple-system, sans-serif';
+      ctx.font = '600 ' + Math.round(10 * _detailTextScale()) + 'px Inter, -apple-system, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 3;
@@ -58395,6 +58457,26 @@ function calcMeasurements(){
 // ── LINE MEASUREMENTS ─────────────────────────────────────────────
 var _measLineIdx = -1;
 
+// The map popup's type list, kept level with the sidebar's #editLineType
+// select — change one and change the other.
+var LINE_MEAS_TYPE_OPTS = [
+  ['unknown',       'Unclassified'],
+  ['ridge',         'Ridge'],
+  ['valley',        'Valley'],
+  ['gutter',        'Gutter'],
+  ['hip',           'Hip'],
+  ['barge|side',    'Side barge'],
+  ['barge|starter', 'Starter barge'],
+  ['barge|finish',  'Finish barge'],
+  ['barge|head',    'Head barge'],
+  ['apron|side',    'Side apron'],
+  ['apron|head',    'Head apron'],
+  ['changepitch',   'Change of pitch'],
+  ['drip',          'Drip edge'],
+  ['custom',        'Custom flashing'],
+  ['outline',       'Outline']
+];
+
 function ptDist(a, b) {
   return Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));
 }
@@ -58402,7 +58484,9 @@ function ptDist(a, b) {
 function promptLineMeasurement(i) {
   _measLineIdx = i;
   var l = DRAW.lines[i];
-  var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge'};
+  var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',
+                    apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',
+                    custom:'Custom flashing',backtray:'Back-tray',unknown:'Unclassified'};
   var typeLabel = typeLabels[l.type] || l.type;
   var col = LINE_COLORS[l.type] || '#333';
 
@@ -58421,11 +58505,18 @@ function promptLineMeasurement(i) {
   }
 
   // Build type selector
-  var typeOpts = ['unknown','ridge','valley','gutter','hip','barge','outline'];
-  var typeColors = {unknown:'#94a3b8',ridge:'#dc2626',valley:'#f59e0b',gutter:'#7c3aed',hip:'#059669',barge:'#0891b2',outline:'#1b5e20'};
+  // THE SAME LIST THE SIDEBAR EDITOR OFFERS (#editLineType) — a line clicked
+  // on the map and the same line opened in the sidebar must be able to become
+  // the same things. This list held seven plain types with no apron, no change
+  // of pitch and no subtypes, so a head apron the roofer could see on the map
+  // read "Unknown" and there was no way to say what it was without finding the
+  // sidebar. Compound values are "type|subtype", read back in confirmLineMeas.
+  var typeOpts = LINE_MEAS_TYPE_OPTS;
+  var dropVal = l.type || 'unknown';
+  if (dropVal === 'barge' || dropVal === 'apron') dropVal += '|' + (l.subtype || 'side');
   var typeSelHtml = '<select id="lineMeasTypeSelect" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;margin-bottom:10px">';
   typeOpts.forEach(function(tp){
-    typeSelHtml += '<option value="'+tp+'"'+(l.type===tp?' selected':'')+'>'+tp.charAt(0).toUpperCase()+tp.slice(1)+'</option>';
+    typeSelHtml += '<option value="'+tp[0]+'"'+(dropVal===tp[0]?' selected':'')+'>'+tp[1]+'</option>';
   });
   typeSelHtml += '</select>';
   document.getElementById('lineMeasTitle').innerHTML = '<span style="color:'+col+'">■</span> Edit line &nbsp;' + typeSelHtml;
@@ -58555,9 +58646,28 @@ function confirmLineMeas() {
   saveSnapshot();
   // Save type
   var typeEl = document.getElementById('lineMeasTypeSelect');
-  if(typeEl && typeEl.value) l.type = typeEl.value;
+  var oldType = l.type;
+  if(typeEl && typeEl.value){
+    // Compound values ("apron|head") carry the subtype, same as the sidebar's
+    // dropdown — the cut list splits barges and aprons by it.
+    var raw = typeEl.value;
+    var pipe = raw.indexOf('|');
+    if (pipe >= 0) { l.type = raw.slice(0, pipe); l.subtype = raw.slice(pipe + 1); }
+    else { l.type = raw; delete l.subtype; }
+  }
   // Save measurement (optional - can just change type)
   if(!isNaN(val) && val > 0){ l.measM = val; l.label = val.toFixed(2)+'m'; _syncMeasureGroup(l, val); }
+  else if (l.type !== oldType && l.planM != null) {
+    // No figure typed and the type changed: the metres on the line were worked
+    // out at the OLD type's slope factor (a barge runs up the rake, an apron
+    // lies level), so re-derive them rather than leave a barge's length on an
+    // apron. The same rule updateLine() follows.
+    try {
+      var _p = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+      l.measM = Math.round(l.planM * slopeFactorForLineType(_lineSlopeType(l), _p) * 100)/100;
+      l.label = (l.measM > 0) ? (l.measM.toFixed(2) + 'm') : '';
+    } catch(e){}
+  }
   // The popup's second "Sheet length for this gutter" input was
   // removed — sheet runs are now placed independently via the Sheet
   // measure tool, so a custom line measurement no longer drags the
@@ -61781,6 +61891,26 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 6;
   }
+  // v6 → v7: the Sheet calc check becomes a page of the pack. An existing
+  // pack gets it appended ONLY if it is still the shipped shape (header +
+  // cut lists) and no calc-check picture has been placed on it — a pack the
+  // office has arranged is theirs, and a page appended to it is a change
+  // nobody asked for. Everyone else adds it from the page-type dropdown.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 7) {
+    try {
+      var _pp = S.jobPack.pages || [];
+      var _types = _pp.map(function(p){ return p && p.type; }).join(',');
+      var _hasCC = _pp.some(function(p){
+        if (!p) return false;
+        if (p.type === 'calccheck') return true;
+        return (p.images || []).some(function(im){
+          return im && String(im.mapKey || '').split(':')[0] === 'calccheck';
+        });
+      });
+      if (!_hasCC && _types === 'header,cutlists') _pp.push({ type:'calccheck' });
+    } catch(e){}
+    S.jobPack.pagesVersion = 7;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -61796,7 +61926,10 @@ function _jpDefaultPages(){
     { type:'header', images:[
       { id:'def_dt_'+Date.now(), mapKey:'detailed', x: 10, y:285, w:670, h:470 }
     ] },
-    { type:'cutlists'    }
+    { type:'cutlists'    },
+    // The check goes AFTER the cut lists, because that is what it checks:
+    // its own last line reads "should match the cut list above".
+    { type:'calccheck'   }
     // Flashings ride along inside the Cut Lists page ("Flashings — one
     // card per type", see _jpRenderCutLists) so they aren't printed
     // twice; and consumables (underlay / screws / rivets / dektites)
@@ -61810,6 +61943,7 @@ function _jpPageTypes(){
   return [
     { value:'header',      label:'Job header' },
     { value:'roofmap',     label:'Roof map' },
+    { value:'calccheck',   label:'Sheet calc check' },
     SHEET_LAYOUT_HIDDEN ? null : { value:'sheetplan',   label:'Sheet plan' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
@@ -63337,6 +63471,7 @@ function _jpRenderBlock(content, page, idx){
     case 'header':      return _jpRenderHeader(content, page, idx);
     case 'roofmap':     return _jpRenderRoofMap(content, page, idx);
     case 'sheetplan':   return _jpRenderSheetPlan(content, page, idx);
+    case 'calccheck':   return _jpRenderCalcCheck(content, page, idx);
     case 'cutlists':    return _jpRenderCutLists(content, page, idx);
     case 'flashings':   return _jpRenderFlashings(content, page, idx);
     case 'consumables': return _jpRenderConsumables(content, page, idx);
@@ -63723,6 +63858,32 @@ function _jpSetRoofMapView(idx, view){
   p.opts.view = view;
   try { autosaveJob && autosaveJob(); } catch(e){}
   renderJobPack();
+}
+// THE SHEET CALC CHECK IS A PAGE OF THE PACK (feedback, Scott 2026-10-13: it
+// was not in the Job Pack print). It was only ever a picture to place by hand
+// from the Maps panel, so the one page that proves the sheet count — the one
+// the crew checks the cut list against on site — was missing from every pack
+// nobody had thought to place it on. It reads the SAME sections the Maps
+// panel's capture reads (window._lastSheetSections via _jpCaptureCalcCheck),
+// so the page and the placed picture cannot disagree, and it covers the roofs
+// the pack covers, like every other whole-job picture.
+function _jpRenderCalcCheck(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Sheet calc check</div>' +
+    '<div class="jp-cc-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden"></div>';
+  var out = content.querySelector('.jp-cc-out');
+  var src = null;
+  try {
+    var vis = _jpMapRoofFilter();
+    src = (vis && vis.length) ? _jpCaptureCalcCheckCombined(vis, {})
+                              : _jpCaptureCalcCheck({}, -1);
+  } catch(e){}
+  if (!src){
+    out.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);font-style:italic">' +
+      'Nothing to check yet \u2014 draw the roof on Map Roof and the sheet sections appear here.</div>';
+    return;
+  }
+  out.innerHTML = '<img src="' + src + '" alt="Sheet calc check" style="max-width:100%;height:auto;display:block">';
 }
 function _jpRenderSheetPlan(content, page, idx){
   if (SHEET_LAYOUT_HIDDEN){

@@ -893,6 +893,59 @@ Discipline (non-negotiable):
   product decision, not a fix; ask him. Also worth knowing: `Roof image: none`
   on that report, and his outline is a perfect axis-aligned rectangle, so no
   amount of squaring the picture was ever going to help.
+- SCOTT'S QUICK WINS (2026-10-13, info@wellingtonroof.co.nz, relayed by the
+  owner; `tests/quickwins.mjs`). Four things a roofer could not do, and one
+  button that was not where a roofer looks.
+  AN APRON COULD NOT BE LABELLED FROM THE MAP. Clicking a line on the canvas
+  opens `promptLineMeasurement`'s popup; its `typeOpts` held seven PLAIN types
+  (`unknown ridge valley gutter hip barge outline`) while the sidebar editor's
+  `#editLineType` offered fourteen with subtypes. So a head apron the app had
+  drawn read "Unknown" on the one surface a roofer actually clicks, and the way
+  to say what it was lived somewhere they were not. The two lists are now ONE
+  (`LINE_MEAS_TYPE_OPTS`, beside the popup it feeds — change one and change the
+  other) and the popup reads the compound `type|subtype` value back the way
+  `updateLine()` does, so the cut list's barge/apron split works from either
+  surface. A type changed with NO figure typed re-derives `measM` from `planM`
+  at the new type's slope factor: an apron lies level where a barge runs up the
+  rake, so the metres belong to the type that was set.
+  A SAVED JOB COULD NOT BE FOUND BY ITS NUMBER. Both boxes matched
+  `client_name + site_address`, and `GET /jobs` never sent a number at all —
+  the number lives in `draw_state.state.quote.ref` — so there was nothing to
+  match, while the Home box's placeholder has always said "client, address or
+  job number". The list now carries `job_no:draw_state->state->quote->ref` (a
+  jsonb path, the way the schedule board reads it, so the multi-megabyte column
+  stays in the database) on BOTH column lists, so neither the un-migrated
+  fallback nor the timeout retry drops it. `_savedJobMatches(j, q)` is the one
+  matcher both boxes use; digits on their own match loosely (`3287` finds
+  `03287`), and both surfaces SHOW the number they can now be searched by.
+  THE SHEET CALC CHECK IS A PAGE OF THE PACK (`calccheck`,
+  `_jpRenderCalcCheck`). It was only ever a picture to place by hand from the
+  Maps panel, so the page that proves the sheet count was missing from every
+  pack nobody had thought to place it on. It reads the SAME sections the panel
+  reads (`window._lastSheetSections` via `_jpCaptureCalcCheck` /
+  `_jpCaptureCalcCheckCombined`), covers the roofs the pack covers, and sits
+  AFTER the cut lists because its own last line reads "should match the cut
+  list above". New packs carry it; the v6 -> v7 migration appends it to an
+  existing pack ONLY where it is still the shipped shape (`header,cutlists`)
+  and no calc-check picture has been placed — a pack the office has arranged is
+  theirs. With nothing worked out yet the engine's own "nothing to check yet"
+  card renders, so the page is never a blank box.
+  THE MAP'S DETAIL LABELS HAVE A SIZE (`fr_detail_text_scale`,
+  `_detailTextScale()`, "Details text" in the View menu beside Sheet text and
+  Outline text). A penetration's size (9px), the back-tray it calls up (8px)
+  and a clearlite's length (10px) were hard-coded while the measurements and
+  the sheet lengths each had a slider. 8px is not a size you read off a phone
+  on a roof. The boxed penetration's label keeps its shrink-to-fit — the slider
+  raises the cap, the box still decides what fits.
+  SAVE IS IN EVERY VIEW (`#navJobSaveBtn` in `#navJobBox`). It was on Map
+  Roof's site toolbar and inside three windows, and nowhere on the Job Pack or
+  the Quote tab. The left menu is on every tab, so this is. ALWAYS shown,
+  including on a job never saved, which is the job that needs it most;
+  `saveCurrentJob` carries its own guards and `_saveClick` says what happened.
+  STILL TO ASK SCOTT: "snap grid kept at maximum zoom" was in the same list and
+  is not clear enough to act on — the snap grid is already screen-constant at
+  every zoom (`g = gridSize / tr.s`), so whether he wants it to stay coarse or
+  to get FINER as he zooms in changes the fix completely. Not guessed at.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`
