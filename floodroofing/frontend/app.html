@@ -1312,6 +1312,59 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   opacity:.8; border-radius:5px; padding:3px 5px; }
 .ps-plan-pen:hover{ opacity:1; background:rgba(127,140,160,.18); }
 .ps-plan-pen-abs{ position:absolute; top:3px; right:3px; }
+.ps-cswitch-wrap{ margin:14px 0 2px; display:grid; gap:7px; }
+.ps-cswitch-wrap.rail{ margin:14px 0 0; }
+.ps-cswitch-hd{ font-family:var(--ed-sans,system-ui); font-size:10.5px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; color:#6b7a8c; }
+.ps-cswitch{ display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  padding:9px 12px; border:1px solid #d7dee7; border-radius:8px; background:#fff;
+  cursor:pointer; font-family:var(--ed-sans,system-ui); }
+.ps-cswitch:hover:not(:disabled){ border-color:#9fb4c9; }
+.ps-cswitch:disabled{ cursor:default; opacity:.75; }
+.ps-cswitch.on{ border-color:#0099e0; background:rgba(0,153,224,.07); }
+.ps-cswitch-dot{ width:15px; height:15px; border-radius:50%; border:2px solid #c5ccd6;
+  background:#fff; flex:0 0 auto; }
+.ps-cswitch.on .ps-cswitch-dot{ border-color:#0099e0; background:#0099e0; box-shadow:inset 0 0 0 2px #fff; }
+.ps-cswitch-main{ flex:1 1 auto; min-width:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
+.ps-cswitch-nm{ font-size:12.5px; font-weight:600; color:#0a1628; }
+.ps-cswitch-sz{ font-size:10.5px; color:#6b7a8c; }
+.ps-cswitch-amt{ flex:0 0 auto; font-size:11px; font-weight:700; color:#0a1628; white-space:nowrap; }
+.ps-cswitch.on .ps-cswitch-amt{ color:#6b7a8c; font-weight:600; }
+@media print { .ps-cswitch-wrap{ display:none } }
+
+/* ── THE SHED'S PAGES ON A PHONE (2026-10-13, the owner: "the quotes mobile
+   version is hard to read and not made properly"). The shed sections are the
+   A4's own blocks — that is deliberate, so the two styles cannot drift about
+   what the shed is — but the A4 is a two-column document 760px wide, and
+   inside a phone-width page its grids kept their two columns and ran off the
+   right edge: a 132px label beside a ~60px value, "Mono-pitch (flat)" set one
+   word per line, and the second column's headings cut off the screen. These
+   rules are scoped to .ps-body (the shed's sections only) under the phone
+   layers, so the computer layout and every roofing quote are untouched. */
+.qp-book .ps-body, .qp-phone-preview .ps-body{ max-width:100%; overflow-x:hidden; }
+.qp-book .ps-body [style*="grid-template-columns:1fr 1fr"],
+.qp-phone-preview .ps-body [style*="grid-template-columns:1fr 1fr"]{
+  grid-template-columns:1fr !important; gap:12px !important; }
+.qp-book .ps-body ul[style*="columns:2"],
+.qp-phone-preview .ps-body ul[style*="columns:2"]{ columns:1 !important; }
+/* label above value: on a phone the value is what they are reading */
+.qp-book .ps-body .ps-spec-row,
+.qp-phone-preview .ps-body .ps-spec-row{ display:block !important; padding:6px 0 !important; }
+.qp-book .ps-body .ps-spec-lbl,
+.qp-phone-preview .ps-body .ps-spec-lbl{ flex:none !important; padding-top:0 !important; margin-bottom:1px; }
+.qp-book .ps-body .ps-spec-val,
+.qp-phone-preview .ps-body .ps-spec-val{ font-size:14px !important; }
+/* the A4's generous page gutters are most of a phone's width */
+.qp-book .ps-body > div > [style*="padding:24px 36px"],
+.qp-phone-preview .ps-body > div > [style*="padding:24px 36px"]{ padding:16px 14px 6px !important; }
+.qp-book .ps-body .ed-h1, .qp-phone-preview .ps-body .ed-h1{ font-size:28px !important; }
+/* the chapter band: a three-line title and an oversized logo cost a third of
+   the screen before a word of the shed is read */
+.qp-book .ps-body .ed-heading-band .ed-h1,
+.qp-phone-preview .ps-body .ed-heading-band .ed-h1{ font-size:21px !important; line-height:1.15 !important; }
+.qp-book .ps-body .ed-heading-band img,
+.qp-phone-preview .ps-body .ed-heading-band img{ max-height:26px !important; width:auto !important; }
+.qp-book .ps-body img, .qp-phone-preview .ps-body img{ max-width:100%; height:auto; }
 /* The frozen roof map, with what the roof being priced comes to beside it. */
 .pr-map-row{ display:flex; align-items:center; gap:12px; }
 .pr-map-svg{ flex:1 1 auto; min-width:0; }
@@ -4789,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T02:34:07Z';
+  window.APP_BUILT_AT = '2026-10-13T03:06:08Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33713,16 +33766,12 @@ function _qdRail(){
   // A shed quote offering more than one plan: the price box says WHICH shed
   // this total is for. The rail is the computer layout's alone, so this
   // reaches no other surface.
-  var planRow = '';
-  try {
-    if (q.quoteKind === 'poleshed' && _psPlans().length > 1){
-      planRow = '<div class="qd-rail-row base"><span>Plan option</span><b>'+
-        esc2(_psPlanLabel(_psPlanIdx()))+'</b></div>';
-    }
-  } catch(e){}
+  var planPick = '';
+  try { if (q.quoteKind === 'poleshed') planPick = _psPlanSwitchHtmlCust('rail'); } catch(e){}
   return '<aside class="qd-rail"><div class="qd-rail-in">'+
       '<div class="qd-rail-total qb-tot3">'+_qbTotalLines(sub, total, 'qdTotal')+'</div>'+
-      ((lines || planRow) ? '<div class="qd-rail-rows">'+planRow+lines+'</div>' : '')+
+      planPick+
+      (lines ? '<div class="qd-rail-rows">'+lines+'</div>' : '')+
       (picks ? '<div class="qd-rail-h">Your choices</div><div class="qb-picks qd-rail-picks">'+picks+'</div>' : '')+
       (accepted
         ? '<div class="qd-rail-done"><b>Quote accepted</b><span>'+esc2(String(accepted.name || '').trim() || 'Thank you')+'</span></div>'+
@@ -34057,7 +34106,21 @@ function _invPrint(id){
   setTimeout(function(){ try { w.print(); } catch(e){} }, 250);
 }
 
+// A POLE SHED IS PRICED BY THE SHED'S OWN ENGINE, NOT THE ROOFING ONE
+// (2026-10-13, the owner, on a quote he had already sent: "the options to
+// switch between plans doesn't even change the price, neither does switch to
+// zincalume, the total doesn't change"). He was right, and this is why: every
+// customer-facing total came through here, and here reads `_qpBaseSub()` (the
+// roofing LINE ITEMS) plus `_qpSelectionDeltaSum()` (the roofing grade /
+// profile / gutter picks). Neither knows a shed exists — not psSubtotal, not
+// the plan options, not a single one of the shed's own add-ons — so the
+// customer could pick anything on the page and the figure never moved.
+// `_poleShedMoney()` is the shed's engine and already drives the A4's shed
+// pages; routing the summary through it is what makes the two agree.
 function _custBarTotalValue(){
+  if (window.S && S.quote && S.quote.quoteKind === 'poleshed'){
+    try { return _poleShedMoney().tot; } catch(e){}
+  }
   var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
   return (_qpBaseSub() + _qpSelectionDeltaSum()) * (1 + rate);
 }
@@ -34105,6 +34168,28 @@ function _qpScaffoldLabel(){
 function _custBarRows(){
   var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
   var rows = [];
+  // A shed's summary is the shed, then what they picked. The roofing rows
+  // below cannot describe one: they would read "Re-roof \u2014 main scope of
+  // work" over a pole shed and list none of its choices.
+  if (window.S && S.quote && S.quote.quoteKind === 'poleshed'){
+    try {
+      var M = _poleShedMoney();
+      var _bl2 = String(S.quote.summaryBaseLabel || '').trim();
+      var _nm = '';
+      try { if (_psPlans().length > 1) _nm = _psPlanLabel(_psPlanIdx()); } catch(e){}
+      rows.push({ kind:'base',
+                  label: _bl2 || ('Pole shed' + (_nm ? ' \u2014 ' + _nm : ' \u2014 main scope of work')),
+                  short: _bl2 || (_nm || 'Pole shed'),
+                  value: fmtMoney(M.base * (1 + M.rate)) });
+      _poleShedSelItems().forEach(function(c){
+        if (!c.delta) return;
+        rows.push({ kind:'change', key:String(c.label), label:String(c.label),
+                    value:(c.delta > 0 ? '+' : '\u2212') + fmtMoney(Math.abs(c.delta) * (1 + M.rate)) });
+      });
+      rows.push({ kind:'total', label:'Your total', value: fmtMoney(M.tot) });
+      return rows;
+    } catch(e){ rows.length = 0; }
+  }
   var optsAll = _qpPricedByLineItems() ? [] : ((S.quote && S.quote.options) || []);
   var mainOpt = optsAll[0] || null;
   var baseSub = (mainOpt ? _optEffectiveTotal(mainOpt) : _qpBaseSub());
@@ -37843,15 +37928,21 @@ var POLESHED_ADDONS = {
 };
 // Sum of the currently-selected add-on deltas (ex GST). Grade/thickness/
 // wall-underlay/door/window contribute; colour + roller finish are spec.
+// Every shed pick that moves money, as rows — the shape _qpSelectionChanges
+// hands the summary for a roofing quote. _poleShedSelDelta sums THIS, so the
+// list the customer reads and the figure they are charged cannot disagree.
+function _poleShedSelItems(){
+  if (!S.quote) return [];
+  var A = POLESHED_ADDONS, out = [];
+  if (S.quote.psSelGrade === 'zincalume') out.push({ label:'Plain silver Zincalume\u00ae', delta: -A.zincalumeSave });
+  if (S.quote.psSelThickness === '0.55')  out.push({ label:'0.55 gauge \u2014 heavier steel', delta: A.thick055 });
+  if (S.quote.psSelWallUnderlay)          out.push({ label:'Wall underlay / building paper', delta: A.wallUnderlay });
+  if (S.quote.psAddSliding)               out.push({ label:'Sliding door', delta: A.slidingDoor });
+  if (S.quote.psAddWindow)                out.push({ label:'Standard double window', delta: A.doubleWindow });
+  return out;
+}
 function _poleShedSelDelta(){
-  if (!S.quote) return 0;
-  var A = POLESHED_ADDONS, d = 0;
-  if (S.quote.psSelGrade === 'zincalume') d -= A.zincalumeSave;
-  if (S.quote.psSelThickness === '0.55')  d += A.thick055;
-  if (S.quote.psSelWallUnderlay)          d += A.wallUnderlay;
-  if (S.quote.psAddSliding)               d += A.slidingDoor;
-  if (S.quote.psAddWindow)                d += A.doubleWindow;
-  return d;
+  return _poleShedSelItems().reduce(function(d, r){ return d + r.delta; }, 0);
 }
 // ── TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed
 // pdf button called 'Add another plan option' ... switch between the two
@@ -38015,7 +38106,14 @@ function _psPlanSubtotalAt(i){
   var plans = _psPlans();
   if (i === _psPlanIdx()){
     var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g, '');
-    return parseFloat(raw) || 0;
+    var live = parseFloat(raw) || 0;
+    // A MISSING LIVE FIGURE IS NOT A PRICE OF ZERO — the same rule as
+    // _shedBaseFromDrawer: a shed is never worth nothing, so a blank there
+    // means "not worked out on this copy", not "free". The customer's frozen
+    // copy can reach here without psSubtotal, and reading it as 0 made the
+    // OTHER plan's whole price its difference: the owner's 4-bay offered at
+    // "+$71,225.11" on the sent quote where the app said +$16,734.33.
+    if (live > 0) return live;
   }
   return _psPlanSubtotal(plans[i]);
 }
@@ -38060,6 +38158,46 @@ function _psPlanPencilHtml(i, kind){
     ' aria-label="Rename this plan option"' +
     ' onclick="event.stopPropagation();_psPlanRenamePrompt(' + i + ')"' +
     ' style="color:' + col + '">\u270E</button>';
+}
+// THE CUSTOMER SWITCHES PLANS WHEREVER THE PRICE IS (2026-10-13, the owner:
+// "it's missing the buttons i asked for on page one for the customer to
+// switch between the two plans, and also missing those same buttons in the
+// fixed price box to the right of the quote like i asked for"). A label
+// naming the picked plan was not what he asked for: these are buttons, they
+// work for the CUSTOMER (unlike the office's rename pencil), and each says
+// what the swap does to the price. Nothing when there is only one plan.
+// `where` only picks the size: 'cover' on page one, 'rail' in the price box.
+function _psPlanSwitchHtmlCust(where){
+  var plans; try { plans = _psPlans(); } catch(e){ return ''; }
+  if (!plans || plans.length < 2) return '';
+  var rail = (where === 'rail');
+  var cur = _psPlanIdx();
+  var locked = false; try { locked = _qpAcceptedLock(); } catch(e){}
+  var money = function(v){ try { return fmtMoney(v); } catch(e){ return '$' + (v||0).toFixed(2); } };
+  var btns = plans.map(function(p, i){
+    var on = (i === cur);
+    var d = 0; try { d = _psPlanDeltaAt(i); } catch(e){}
+    var size = ''; try { size = _psPlanSize(i); } catch(e){}
+    // The price line reads against the plan ON SCREEN, not against plan 1 —
+    // "+$16,734.33" beside a plan you are already looking at is nonsense.
+    var rel = 0; try { rel = _psPlanSubtotalAt(i) - _psPlanSubtotalAt(cur); } catch(e){}
+    var note = on ? 'Your choice'
+                  : (Math.abs(rel) < 0.005 ? 'Same price'
+                     : (rel > 0 ? '+' : '\u2212') + money(Math.abs(rel)) + ' +GST');
+    return '<button type="button" class="ps-cswitch' + (on ? ' on' : '') + '"' +
+      (locked ? ' disabled' : '') +
+      ' onclick="_setPsPlan(' + i + ')">' +
+      '<span class="ps-cswitch-dot"></span>' +
+      '<span class="ps-cswitch-main">' +
+        '<span class="ps-cswitch-nm">' + esc2(_psPlanLabel(i)) + '</span>' +
+        (size && !rail ? '<span class="ps-cswitch-sz">' + esc2(size) + '</span>' : '') +
+      '</span>' +
+      '<span class="ps-cswitch-amt">' + esc2(note) + '</span>' +
+    '</button>';
+  }).join('');
+  return '<div class="ps-cswitch-wrap' + (rail ? ' rail' : '') + '">' +
+      '<div class="ps-cswitch-hd">Choose your plan</div>' + btns +
+    '</div>';
 }
 function _psPlanSize(i){
   var plans = _psPlans();
@@ -38620,9 +38758,9 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   };
   // definition-list spec row
   var specRow = function(label, field){
-    return '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
-      '<div style="flex:0 0 132px;font-family:var(--ed-sans);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ed-text2);padding-top:2px">'+esc2(label)+'</div>'+
-      '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psGet(field))+'</div>'+
+    return '<div class="ps-spec-row" style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div class="ps-spec-lbl" style="flex:0 0 132px;font-family:var(--ed-sans);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ed-text2);padding-top:2px">'+esc2(label)+'</div>'+
+      '<div class="ed-serif qp-editable ps-spec-val" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psGet(field))+'</div>'+
     '</div>';
   };
   // multiline editable (intro / special notes)
@@ -38677,6 +38815,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
       '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="psSubtitle" spellcheck="false" style="font-size:18px;color:var(--ed-ink);margin-top:2px">'+esc2(_psGet('psSubtitle'))+'</div>'+
       consentToggle +
       '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px">'+chips+'</div>'+
+      _psPlanSwitchHtmlCust('cover')+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:16px 0">'+
         '<div>'+eyebrow('Prepared for')+
           '<div class="qp-editable ed-serif" contenteditable="true" data-qfield="client" spellcheck="false" style="font-size:16px;color:var(--ed-ink);font-style:italic;margin-top:4px">'+esc2(q.client||'Client name')+'</div>'+
@@ -38864,7 +39003,7 @@ function _psParts(){
 // customer's link would have shown them.
 function _psModernSections(){
   var P = _psParts();
-  var body = function(html){ return function(){ return '<div class="qb-body">' + (html || '') + '</div>'; }; };
+  var body = function(html){ return function(){ return '<div class="qb-body ps-body">' + (html || '') + '</div>'; }; };
   var list = [{ key:'cover', label:'Your quote', html:body(P.cover) }];
   list.push({ key:'psplans',   label:'Plans',      html:body(P.designElev) });
   list.push({ key:'psdetails', label:'Your shed',  html:body(P.spec) });

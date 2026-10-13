@@ -835,20 +835,26 @@ check('Cancel, and an empty box, both keep the name',
 const planShown = await pg.evaluate(() => {
   const cover = _psParts().cover || '';
   const rail = _qdRail();
+  const sw = h => (h.match(/_setPsPlan\(/g) || []).length;
   return { coverLabel: /Plan option/.test(cover), coverName: /4-Bay Deluxe|Option A/.test(cover),
-           railLabel: /Plan option/.test(rail), railName: /Option A/.test(rail) };
+           coverSwitch: sw(cover), railSwitch: sw(rail), railName: /Option A/.test(rail) };
 });
 check('the cover names the plan option this quote is for',
   planShown.coverLabel && planShown.coverName, JSON.stringify(planShown));
+// BUTTONS, not a label — the owner, 2026-10-13: "it's missing the buttons i
+// asked for on page one for the customer to switch between the two plans, and
+// also missing those same buttons in the fixed price box".
+check('…and page one carries a BUTTON per plan for the customer to switch with',
+  planShown.coverSwitch === 2, JSON.stringify(planShown));
 check('…and so does the price box on the computer layout\'s rail',
-  planShown.railLabel && planShown.railName, JSON.stringify(planShown));
+  planShown.railSwitch === 2 && planShown.railName, JSON.stringify(planShown));
 
 // ONE plan is just "the shed": a cover or a price box that labels it reads as
 // though a choice were missing.
 const onePlan = await pg.evaluate(() => {
   S.quote.shedPlans = [S.quote.shedPlans[0]]; S.quote.psPlanIdx = 0;
-  return { cover: /Plan option/.test(_psParts().cover || ''), rail: /Plan option/.test(_qdRail()),
-           bar: _psPlanBarHtml(), drawer: _psPlanSwitchHtml() };
+  return { cover: /Plan option/.test(_psParts().cover || ''),
+           rail: /ps-cswitch/.test(_qdRail()), bar: _psPlanBarHtml(), drawer: _psPlanSwitchHtml() };
 });
 check('a shed with ONE plan says nothing about plan options anywhere',
   onePlan.cover === false && onePlan.rail === false && onePlan.bar === '' && onePlan.drawer === '',
@@ -869,13 +875,15 @@ const custPen = await pg.evaluate((src) => {
   const r = { bar: n(_psPlanBarHtml()), drawer: n(_psPlanSwitchHtml()),
               options: n(_buildPoleShedSelections()),
               // they still SEE which shed the price is for
-              cover: /Plan option/.test(_psParts().cover || ''), rail: /Plan option/.test(_qdRail()) };
+              // the switch is the CUSTOMER'S control, so it is there for them
+              cover: (( _psParts().cover || '').match(/_setPsPlan\(/g) || []).length === 2,
+              rail: ((_qdRail().match(/_setPsPlan\(/g)) || []).length === 2 };
   window.__CUSTOMER_MODE = false;
   return r;
 }, twoPlans.toString());
 check('the customer is offered no rename pencil anywhere',
   custPen.bar === 0 && custPen.drawer === 0 && custPen.options === 0, JSON.stringify(custPen));
-check('…but still sees which plan option the price is for',
+check('…but still sees which plan option the price is for, and can switch it',
   custPen.cover && custPen.rail, JSON.stringify(custPen));
 
 // AN ACCEPTED QUOTE NEVER CHANGES — the shed they signed off keeps its name,
@@ -890,6 +898,60 @@ const acc = await pg.evaluate(() => {
   return { was, after };
 });
 check('an accepted quote keeps its plan names', acc.after === acc.was, JSON.stringify(acc));
+
+// ── THE CUSTOMER'S TOTAL IS THE SHED'S OWN (2026-10-13) ─────────────────
+// The owner, on a quote he had already SENT: "the options to switch between
+// plans doesn't even change the price, neither does switch to zincalume, the
+// total doesn't change, plus, the extra price to upgrade to the 4-bay shed in
+// the customer quotes says an extra roughly 71k whereas the app quote shows
+// the correct etra cost of about 16k".
+const shedMoney = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
+  // A shed priced by typing its total — the office's typed figure wins over
+  // the drawer, so the cents below are stable and the pins read as money.
+  S.quote.gstRate = 15; S.quote.psSubtotal = 54490.78; S.quote.psSubtotalManual = true;
+  S.quote.psWidth = '7.2'; S.quote.psLength = '12.6'; S.quote.psBayAmount = '3';
+  S.quote.shedPlans = [
+    { name:'3-Bay Shed', fields:{ psSubtotal:54490.78, psWidth:'7.2', psLength:'12.6', psBayAmount:'3' }, photos:{}, est:{} },
+    { name:'4-Bay Shed', fields:{ psSubtotal:71225.11, psWidth:'7.2', psLength:'16.8', psBayAmount:'4' }, photos:{}, est:{} }
+  ];
+  S.quote.psPlanIdx = 0;
+  refreshQuoteProposal();
+  window.__CUSTOMER_MODE = true;
+  const snap = () => ({ total: +_qbTotal().toFixed(2),
+                        rows: _custBarRows().map(r => r.label + '|' + r.value) });
+  const start = snap();
+  _setPsSel('psSelGrade', 'zincalume');  const zinc = snap();
+  _setPsSel('psSelGrade', 'colorsteel');
+  _setPsPlan(1);                          const four = snap();
+  _setPsPlan(0);
+  const deltaHealthy = +_psPlanDeltaAt(1).toFixed(2);
+  // the frozen copy that reached his customer had no live psSubtotal on it
+  const keep = S.quote.psSubtotal; delete S.quote.psSubtotal;
+  const deltaNoLive = +_psPlanDeltaAt(1).toFixed(2);
+  S.quote.psSubtotal = keep;
+  window.__CUSTOMER_MODE = false;
+  return { start, zinc, four, deltaHealthy, deltaNoLive };
+});
+check('the customer\'s total on a shed starts at the shed\'s own price',
+  shedMoney.start.total === 62664.40, JSON.stringify(shedMoney.start));
+check('CHOOSING ZINCALUME MOVES THE CUSTOMER\'S TOTAL',
+  shedMoney.zinc.total === 60536.90, JSON.stringify(shedMoney.zinc.total));
+check('…and the saving is listed beside it, not just applied',
+  shedMoney.zinc.rows.some(r => /Zincalume/.test(r) && /−\$2,127\.50/.test(r)),
+  JSON.stringify(shedMoney.zinc.rows));
+check('SWITCHING PLAN MOVES THE CUSTOMER\'S TOTAL',
+  shedMoney.four.total === 81908.88, JSON.stringify(shedMoney.four.total));
+check('…and the summary names the shed they are now looking at',
+  shedMoney.four.rows.some(r => /4-Bay Shed/.test(r)), JSON.stringify(shedMoney.four.rows));
+check('a shed\'s summary never calls itself a re-roof',
+  !shedMoney.start.rows.join(' ').toLowerCase().includes('re-roof'),
+  JSON.stringify(shedMoney.start.rows));
+check('THE 4-BAY\'S EXTRA COST IS $16,734.33, the figure the app shows',
+  shedMoney.deltaHealthy === 16734.33, String(shedMoney.deltaHealthy));
+check('…and it stays right on a copy carrying no live psSubtotal (it read '
+    + '+$71,225.11 — the other plan\'s whole price — on the sent quote)',
+  shedMoney.deltaNoLive === 16734.33, String(shedMoney.deltaNoLive));
 
 await ctx.close();
 

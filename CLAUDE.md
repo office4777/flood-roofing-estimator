@@ -1225,7 +1225,51 @@ Discipline (non-negotiable):
   there is more than one plan — one plan is just "the shed", and labelling it
   reads as though a choice were missing. The customer sees both (it is a fact
   about the quote they are reading); only the pencil is office-only.
-  `tests/poleshed.mjs` (102).
+  `tests/poleshed.mjs` (111).
+- A POLE SHED'S CUSTOMER TOTAL IS THE SHED'S OWN ENGINE (2026-10-13, the owner
+  on a quote he had ALREADY SENT: "the options to switch between plans doesn't
+  even change the price, neither does switch to zincalume, the total doesn't
+  change, plus, the extra price to upgrade to the 4-bay shed in the customer
+  quotes says an extra roughly 71k whereas the app quote shows the correct
+  etra cost of about 16k"). Three faults, all in the customer's copy.
+  THE TOTAL NEVER MOVED because every customer-facing figure comes through
+  `_custBarTotalValue()`, and that read `_qpBaseSub()` (the roofing LINE
+  ITEMS) + `_qpSelectionDeltaSum()` (the roofing grade / profile / gutter
+  picks). Neither knows a shed exists — not `psSubtotal`, not the plan
+  options, not one of the shed's own add-ons — so the customer could pick
+  anything and the number sat still. `_poleShedMoney()` is the shed's engine
+  and already drove the A4's shed pages; `_custBarTotalValue` and
+  `_custBarRows` branch to it on `quoteKind === 'poleshed'`, which is the one
+  seam the rail, the phone's bottom bar, the Review page and `share.sentTotal`
+  all come through. `_qpBaseSub` is untouched (see OPEN AND URGENT).
+  THE ROWS BESIDE IT are the shed's too: the shed (named for the picked plan)
+  then one row per pick that moves money, from `_poleShedSelItems()` —
+  a new list that `_poleShedSelDelta()` now SUMS, so what the customer reads
+  and what they are charged cannot disagree. It also ends the shed reading
+  "Re-roof — main scope of work" over a pole shed.
+  THE +$71,225.11 was `_psPlanSubtotalAt(i)` reading the live `psSubtotal` for
+  the PICKED plan and taking a missing one as a price of zero, which makes the
+  delta the OTHER plan's whole price. A missing live figure is not zero — the
+  same rule as `_shedBaseFromDrawer` — so it falls back to that plan's stored
+  subtotal. His quote was sent before the never-stamp-a-zero fix, so the
+  fallback is what rescues copies ALREADY sent.
+  THE BUTTONS HE ASKED FOR: `_psPlanSwitchHtmlCust(where)` is a real switcher
+  for the CUSTOMER (unlike the office's rename pencil) on page one and in the
+  computer rail's price box — each button naming the plan and what the swap
+  does to the price, read against the plan ON SCREEN rather than plan 1. A
+  label naming the pick, which is what the first attempt shipped, was not what
+  he asked for.
+  THE SHED ON A PHONE (same message: "the quotes mobile version is hard to
+  read and not made properly"). The shed sections are the A4's own blocks —
+  deliberate, so the two styles cannot drift — but the A4 is a two-column
+  document and inside a phone-width page its grids kept both columns and ran
+  off the right edge: a 132px `specRow` label beside a ~60px value,
+  "Mono-pitch (flat)" set one word per line, the second column's headings off
+  screen. `_psModernSections` marks every shed section `.ps-body`, and rules
+  scoped to it under `html.qp-book` / `html.qp-phone-preview` collapse the
+  two-column grids, stack each spec row label-above-value, cut the A4's 36px
+  gutters and shrink the chapter band. Scoped to the shed: the computer
+  layout and every roofing quote are untouched. `tests/poleshed.mjs` (111).
 - A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13, the owner: "wheres
   the switcher from roofing to pole shed job type gone? the phyllis job is now
   missing the pole shed specific quote"). `_poleShedsAvailable()` reads
