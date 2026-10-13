@@ -1350,12 +1350,12 @@ Discipline (non-negotiable):
   a new list that `_poleShedSelDelta()` now SUMS, so what the customer reads
   and what they are charged cannot disagree. It also ends the shed reading
   "Re-roof — main scope of work" over a pole shed.
-  THE +$71,225.11 was `_psPlanSubtotalAt(i)` reading the live `psSubtotal` for
-  the PICKED plan and taking a missing one as a price of zero, which makes the
-  delta the OTHER plan's whole price. A missing live figure is not zero — the
-  same rule as `_shedBaseFromDrawer` — so it falls back to that plan's stored
-  subtotal. His quote was sent before the never-stamp-a-zero fix, so the
-  fallback is what rescues copies ALREADY sent.
+  THE +$71,225.11 (chased three times; SETTLED 2026-10-13 PM, see below) was
+  `_psPlanSubtotalAt(i)` reading the live `psSubtotal` for the PICKED plan and
+  taking a missing one as a price of zero, which makes the delta the OTHER
+  plan's whole price. The first fix fell back to that plan's stored subtotal,
+  which was not enough — the owner reopened the live link and it still read
+  +$71,225.11.
   THE BUTTONS HE ASKED FOR: `_psPlanSwitchHtmlCust(where)` is a real switcher
   for the CUSTOMER (unlike the office's rename pencil) on page one and in the
   computer rail's price box — each button naming the plan and what the swap
@@ -1373,6 +1373,38 @@ Discipline (non-negotiable):
   two-column grids, stack each spec row label-above-value, cut the A4's 36px
   gutters and shrink the chapter band. Scoped to the shed: the computer
   layout and every roofing quote are untouched. `tests/poleshed.mjs` (111).
+- A PLAN OPTION'S PRICE COMES FROM THE SHED'S ONE ENGINE (2026-10-13 PM, the
+  owner on job 3287's LIVE customer link: "customer quote still showing +71k for
+  the 4 bay vs 3 bay where as the user quote in the app i quoted $54,490.78 for
+  the 3bay and $71,225.11 for the 4bay" — so the swap costs $16,734.33). The
+  total beside it was already right ($62,664.40 incl / $54,490.78 excl, and
+  $60,536.90 / $52,640.78 on Zincalume), which is what gives the fault away:
+  THE CHIP AND THE TOTAL WERE READING DIFFERENT SOURCES FOR THE SAME NUMBER.
+  `_poleShedMoney().base` takes `_shedBaseFromDrawer()` OVER `psSubtotal`, and
+  in customer mode that is `quoteSubtotal()` — the frozen line items. A shed
+  priced by its TAKE-OFF (which is how a shed has been priced since this
+  morning) therefore reaches `_psPlanSubtotalAt` with no `psSubtotal` at all;
+  its stored-field fallback answered 0 too, because the 3-bay plan was banked
+  before it was priced; and 71,225.11 − 0 is the other shed's whole price
+  offered as the cost of swapping. Three fixes, and all three were needed:
+  1. THE PICKED PLAN'S PRICE IS `_poleShedMoney().base` — the one engine the
+     total reads. The chip and the total then cannot disagree, because there is
+     nothing left for them to disagree about.
+  2. A PLAN WITH NOTHING STORED, ON A FROZEN COPY, IS THE SHED AS SENT
+     (`quoteSubtotal()`). Without it the difference VANISHED the moment the
+     customer took the 4-bay — +$16,734.33 on the chip, then nothing. The
+     office is deliberately left out of this fallback: there a blank plan has
+     no price YET, and lending it the quote's own total would invent one.
+  3. SWITCHING PLAN MOVES A FROZEN COPY'S PRICE. `_shedBaseFromDrawer`'s
+     customer branch returned the line items whatever was picked — but they
+     are fixed at the send, so they can only ever price ONE of the sheds, and
+     taking the 4-bay left the total sitting still. The picked plan's own
+     stored price answers for it where it has one, line items as the fallback.
+  AND A DIFFERENCE NEEDS BOTH SIDES: `_psPlanDeltaAt` answers 0 rather than
+  subtracting from an unknown, so an unpriced plan can never again present the
+  other one's whole price as what it costs. Nothing is a better answer than a
+  wrong number. Pinned to the cent on his own figures in `tests/poleshed.mjs`
+  (167), sent copy and switch and Zincalume and back again.
 - A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13, the owner: "wheres
   the switcher from roofing to pole shed job type gone? the phyllis job is now
   missing the pole shed specific quote"). `_poleShedsAvailable()` reads

@@ -1217,6 +1217,102 @@ check('the office gets + Add on the add-ons band', pages.addBtn);
 
 await ctx.close();
 
+// ── JOB 3287'S PLAN OPTION, ON THE LIVE CUSTOMER LINK (2026-10-13) ──────
+// The owner, looking at floodroofing.roofmap.co.nz/q/... on his phone: the
+// 4-bay still offered at "+$71,225.11" where his app quoted $54,490.78 for the
+// 3-bay and $71,225.11 for the 4-bay, so the swap costs $16,734.33 — with the
+// total beside it reading $62,664.40 incl / $54,490.78 excl, correctly.
+//
+// The chip and the total were reading DIFFERENT SOURCES for the same number.
+// _poleShedMoney().base takes _shedBaseFromDrawer() over psSubtotal, and in
+// customer mode that is quoteSubtotal() — the frozen line items. A shed priced
+// by its take-off therefore reaches the chip with no psSubtotal at all, both
+// of its reads answer 0, and the difference becomes the other plan's WHOLE
+// PRICE. Three faults, all here:
+//   1. the picked plan's price must come from the one engine the total uses;
+//   2. a plan with nothing stored, on a frozen copy, is the shed AS SENT —
+//      without that the difference vanishes the moment they take the 4-bay;
+//   3. switching plan must MOVE a frozen copy's price: the line items are
+//      fixed at the send, so they can only ever price one of the sheds.
+({ ctx, pg } = await open('Flood Roofing LTD'));
+const plan3287 = await pg.evaluate(() => {
+  const res = {};
+  const M = () => ({ excl: +_poleShedMoney().sub.toFixed(2),
+                     incl: +_poleShedMoney().tot.toFixed(2),
+                     chip: +_psPlanDeltaAt(1).toFixed(2) });
+  const setup = (o) => { o = o || {};
+    S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.gstRate = 15;
+    // His copy: priced by its TAKE-OFF, so the line items are the price and
+    // psSubtotal is not on it at all.
+    S.quote.lineItems = o.noLines ? [] : [{ desc:'Pole shed', qty:1, unit:54490.78 }];
+    delete S.quote.psSubtotal;
+    S.quote.shedPlans = [
+      // The 3-bay was banked BEFORE it was priced, so it stores no figure.
+      { name:'3-Bay Shed', fields: o.price0 ? { psSubtotal:54490.78 } : {}, photos:{}, est:{} },
+      { name:'4-Bay Shed', fields: o.noPrice1 ? {} : { psSubtotal:71225.11 }, photos:{}, est:{} }
+    ];
+    S.quote.psPlanIdx = 0; };
+
+  setup(); window.__CUSTOMER_MODE = true;
+  res.sent = M();
+  _setPsPlan(1); res.onFour = M();
+  _setPsPlan(0); res.back = M();
+  S.quote.psSelGrade = 'zincalume'; res.zinc = M(); S.quote.psSelGrade = 'colorsteel';
+  window.__CUSTOMER_MODE = false;
+
+  // The ordinary shape, both plans priced, must read the same.
+  setup({ price0:true }); window.__CUSTOMER_MODE = true;
+  res.bothPriced = M();
+  _setPsPlan(1); res.bothPricedFour = M(); _setPsPlan(0);
+  window.__CUSTOMER_MODE = false;
+
+  // The OFFICE on a shed with nothing priced yet: no difference invented, and
+  // a blank plan is never lent the quote's own total.
+  setup({ noLines:true, noPrice1:true }); res.officeNothing = +_psPlanDeltaAt(1).toFixed(2);
+  setup({ noLines:true });                res.officeBlankFirst = +_psPlanDeltaAt(1).toFixed(2);
+  // ...and a shed priced by typing one figure is untouched.
+  setup({ noLines:true }); S.quote.psSubtotal = 54490.78; S.quote.psSubtotalManual = true;
+  res.officeTyped = M();
+
+  // A shed with ONE plan never reaches any of it.
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.gstRate = 15;
+  S.quote.lineItems = [{ desc:'Shed', qty:1, unit:40000 }];
+  window.__CUSTOMER_MODE = true;
+  res.onePlan = +_poleShedMoney().sub.toFixed(2);
+  window.__CUSTOMER_MODE = false;
+  return res;
+});
+check('the sent quote reads $54,490.78 excl \u2014 the figure on his screen',
+  plan3287.sent.excl === 54490.78, String(plan3287.sent.excl));
+check('\u2026and $62,664.40 incl beside it', plan3287.sent.incl === 62664.40, String(plan3287.sent.incl));
+check('THE 4-BAY COSTS +$16,734.33 TO SWAP TO, not +$71,225.11',
+  plan3287.sent.chip === 16734.33, String(plan3287.sent.chip));
+check('TAKING THE 4-BAY MOVES THE CUSTOMER\u2019S TOTAL to $71,225.11 excl',
+  plan3287.onFour.excl === 71225.11, String(plan3287.onFour.excl));
+check('\u2026$81,908.88 incl', plan3287.onFour.incl === 81908.88, String(plan3287.onFour.incl));
+check('\u2026and the difference still reads, rather than vanishing once taken',
+  plan3287.onFour.chip === 16734.33, String(plan3287.onFour.chip));
+check('going back to the 3-bay comes back to the cent',
+  plan3287.back.excl === 54490.78 && plan3287.back.incl === 62664.40, JSON.stringify(plan3287.back));
+check('Zincalume still takes $1,850 off \u2014 $52,640.78 excl, $60,536.90 incl',
+  plan3287.zinc.excl === 52640.78 && plan3287.zinc.incl === 60536.90, JSON.stringify(plan3287.zinc));
+check('\u2026without moving what the other shed costs',
+  plan3287.zinc.chip === 16734.33, String(plan3287.zinc.chip));
+check('a quote with BOTH plans priced reads the same both ways',
+  plan3287.bothPriced.excl === 54490.78 && plan3287.bothPriced.chip === 16734.33 &&
+  plan3287.bothPricedFour.excl === 71225.11 && plan3287.bothPricedFour.chip === 16734.33,
+  JSON.stringify([plan3287.bothPriced, plan3287.bothPricedFour]));
+check('the office is shown NO difference rather than a wrong one',
+  plan3287.officeNothing === 0 && plan3287.officeBlankFirst === 0,
+  plan3287.officeNothing + ' / ' + plan3287.officeBlankFirst);
+check('a shed priced by typing one total is untouched',
+  plan3287.officeTyped.excl === 54490.78 && plan3287.officeTyped.chip === 16734.33,
+  JSON.stringify(plan3287.officeTyped));
+check('a shed with one plan prices exactly as it did', plan3287.onePlan === 40000,
+  String(plan3287.onePlan));
+
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

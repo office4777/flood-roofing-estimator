@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T05:24:38Z';
+  window.APP_BUILT_AT = '2026-10-13T07:07:26Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -38253,17 +38253,39 @@ function _psPlanSubtotal(p){
 function _psPlanSubtotalAt(i){
   var plans = _psPlans();
   if (i === _psPlanIdx()){
-    var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g, '');
-    var live = parseFloat(raw) || 0;
-    // A MISSING LIVE FIGURE IS NOT A PRICE OF ZERO — the same rule as
-    // _shedBaseFromDrawer: a shed is never worth nothing, so a blank there
-    // means "not worked out on this copy", not "free". The customer's frozen
-    // copy can reach here without psSubtotal, and reading it as 0 made the
-    // OTHER plan's whole price its difference: the owner's 4-bay offered at
-    // "+$71,225.11" on the sent quote where the app said +$16,734.33.
-    if (live > 0) return live;
+    // THE PICKED PLAN'S PRICE IS WHAT THE QUOTE IS PRICED AT, read through the
+    // SAME engine the total reads (2026-10-13, the owner on job 3287's live
+    // customer link: the 4-bay still offered at "+$71,225.11" where the app
+    // said +$16,734.33, with the total beside it correctly reading $54,490.78).
+    //
+    // This read `S.quote.psSubtotal` and then the plan's stored field. Neither
+    // is where the figure on screen comes from: `_poleShedMoney().base` takes
+    // `_shedBaseFromDrawer()` over `psSubtotal`, and on the CUSTOMER's copy
+    // that is `quoteSubtotal()` — the frozen line items. So a shed priced by
+    // its take-off reaches here with no `psSubtotal` at all, both reads answer
+    // 0, and the difference becomes the OTHER plan's whole price. Reading the
+    // one engine is the fix: the chip and the total cannot disagree, because
+    // there is nothing left for them to disagree about.
+    var m = 0;
+    try { m = +_poleShedMoney().base || 0; } catch(e){}
+    if (m > 0) return m;
   }
-  return _psPlanSubtotal(plans[i]);
+  var stored = _psPlanSubtotal(plans[i]);
+  if (stored > 0) return stored;
+  // A PLAN WITH NOTHING STORED, ON A COPY THAT IS FROZEN, IS THE SHED AS SENT.
+  // The line items are that price, and it is the only figure this copy has for
+  // a plan the office banked before pricing it (job 3287's 3-bay). Without
+  // this the difference disappears the moment the customer picks the other
+  // shed — +$16,734.33 on the 4-bay, then nothing once they take it. The
+  // office is deliberately left out: there a blank plan has no price YET, and
+  // lending it the quote's own total would invent one.
+  try {
+    if ((window.__CUSTOMER_MODE || S._qvViewing) && plans.length > 1){
+      var sent = quoteSubtotal();
+      if (sent > 0) return sent;
+    }
+  } catch(e){}
+  return stored;
 }
 // What choosing this plan costs against the first one — the figure on the
 // option chip. The TOTAL needs no help: switching swaps psSubtotal itself,
@@ -38272,7 +38294,14 @@ function _psPlanSubtotalAt(i){
 function _psPlanDeltaAt(i){
   var plans = _psPlans();
   if (plans.length < 2 || i === 0) return 0;
-  return _psPlanSubtotalAt(i) - _psPlanSubtotalAt(0);
+  var mine = _psPlanSubtotalAt(i), first = _psPlanSubtotalAt(0);
+  // A DIFFERENCE NEEDS BOTH SIDES. With one of them unknown the subtraction
+  // reads the other plan's WHOLE PRICE as what it costs to swap — which is
+  // how a 4-bay $16,734 dearer than the 3-bay was offered at "+$71,225.11".
+  // Nothing is a better answer than a wrong number: the chip then just names
+  // the option, which is what a quote with one price per plan looks like.
+  if (!(mine > 0) || !(first > 0)) return 0;
+  return mine - first;
 }
 // One line per plan for the summaries — the same shape the roof modes use.
 function _psPlanLabel(i){
@@ -38471,6 +38500,20 @@ function _shedBaseFromDrawer(){
     if (!(window.S && S.quote && S.quote.quoteKind === 'poleshed')) return null;
     if (S.quote.psSubtotalManual) return null;
     if (window.__CUSTOMER_MODE || S._qvViewing){
+      // A PLAN OPTION MUST MOVE THE PRICE ON A FROZEN COPY TOO. The line items
+      // are fixed at the send, so they can only ever be right for ONE shed —
+      // the one picked when it went out. Reading them whatever the customer
+      // picks is why switching to the 4-bay left the total sitting still. The
+      // picked plan's OWN stored price answers for it where it has one, and
+      // the line items stay the fallback: a plan with nothing stored is the
+      // shed as sent (job 3287's 3-bay, banked before it was priced), and a
+      // quote with one plan never reaches this at all.
+      try {
+        if (_psPlans().length > 1){
+          var mine = _psPlanSubtotal(_psPlans()[_psPlanIdx()]);
+          if (mine > 0) return mine;
+        }
+      } catch(e){}
       // The copy they hold: its own line items, if it was priced this way.
       var sub = quoteSubtotal();
       return (sub > 0) ? sub : null;
