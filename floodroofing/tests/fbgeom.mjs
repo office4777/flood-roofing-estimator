@@ -156,8 +156,14 @@ check('…and whether anything threw on them',
   /JavaScript errors this session/.test(pdfTxt));
 check('…a brief telling Claude Code what to do with the file',
   /For Claude Code/.test(pdfTxt) && /reproduce/.test(pdfTxt) && /run\.mjs/.test(pdfTxt));
-check('…and the screenshots, one page each',
-  v.pdf.images === 2 && v.pdf.pages === 3, v.pdf.images + ' image(s) over ' + v.pdf.pages + ' pages');
+// Two screenshots they attached, plus the roof map the app attaches for them
+// (2026-10-13) — one page each, after the one page of text.
+check('…and the screenshots, one page each, with the roof map among them',
+  v.pdf.images === 3 && v.pdf.pages === 4 && v.pdf.images === v.pdf.pages - 1,
+  v.pdf.images + ' image(s) over ' + v.pdf.pages + ' pages');
+check('…and the roof map page says it was attached automatically',
+  /attached automatically/.test(pdfTxt),
+  (pdfTxt.match(/.*automatically.*/) || ['(not labelled)'])[0]);
 
 // The one that would quietly ruin the whole idea.
 const geomLines = pdfTxt.split('\n').filter(l => /^[\[{]|^"|,$|^\}/.test(l.trim()) && /[:{\[]/.test(l));
