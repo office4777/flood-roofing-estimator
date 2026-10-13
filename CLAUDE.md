@@ -340,6 +340,39 @@ Discipline (non-negotiable):
   the save goes ONTO that record, with nothing drawn yet that record is
   opened; only a different client's record still gets the "already
   exists" question. `tests/dupjobui.mjs`.
+- A SAVE NOBODY PRESSED NEVER ASKS A QUESTION (2026-10-13, the owner: "when i
+  am in a job (3264), then click change job and open another job (3302) a
+  window appears saying 'job 3264 already exists' ... it should just let me
+  open job 3302 and auto save the job 3264 as I'm opening job 3302 without any
+  warning box appearing"). Two faults on that one path:
+  THE DUPLICATE CHECK READ THE SCREEN, NOT THE SAVE. `_saveCurrentJobNow`
+  takes `client` and `addr` off `#jobClient` / `#jobAddr` WHEN THE SAVE RUNS,
+  and on a job switch the incoming job has already filled those in — so
+  3264's save was matched against 3302's name, `_dupJobIsSame` found nothing
+  alike, and the "already exists" question was asked instead of the record
+  being attached to. It compares `body.client_name` / `body.site_address` now:
+  what is actually being written.
+  AND A BACKGROUND SAVE MAY NOT PUT A MODAL ON SCREEN. `saveCurrentJob({quiet:
+  true})` is passed by the switch-save (`_saveBeforeSwitch`) and by EVERY
+  autosave — autosave fires on input events, including the ones
+  `restoreFromJob` raises while the next job is being laid out, which is how a
+  dialog about the job you just left lands on top of the job you are opening.
+  A quiet save still attaches when the record is plainly the same job; when it
+  is not, it keeps a device draft and says so on the working pill, and never
+  asks. It must NOT quietly create a second record either: landing there means
+  the number belongs to a record the save cannot identify itself with, which
+  is confused state, and a draft is the safe place for it. A save the office
+  PRESSED still asks — then the question is the point, because they are
+  looking at it. `tests/dupjobui.mjs`.
+  NOT REPRODUCED END-TO-END, and worth saying so: the exact path that loses
+  `S.currentJobId` on his machine was not pinned down — `_saveBeforeSwitch`
+  skips the server save entirely when there is neither a `currentJobId` nor a
+  `linkedJobId`, so a plain switch could not be made to raise the dialog here.
+  Both fixes above are right on their own merits and together close every
+  route by which that dialog can reach a switch; if it is ever seen again, the
+  thing to find out first is whether the job was FERGUS-LINKED (`linkedJobId`
+  set, `currentJobId` still null), which is the one shape that reaches
+  `saveCurrentJob` with no record to PUT onto.
 - EXCLUSIONS on the modern proposal: `S.quote.custExcl` (edited beside
   the inclusions in `_qdescOpen`, kind `'x'`; `_qbExclusionLines`). When
   any exist the two lists get "What's included" / "What's excluded"

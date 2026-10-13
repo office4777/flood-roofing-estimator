@@ -4910,7 +4910,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T21:50:02Z';
+  window.APP_BUILT_AT = '2026-10-13T22:15:35Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -19421,7 +19421,13 @@ async function _runAutosave(){
   // it and a send finds it already on the server.
   try { if (S.quote && !S._qvViewing && !window.__CUSTOMER_MODE && document.body.getAttribute('data-tab') === 'quote') _qStampCustomerCopy(); } catch(e){}
   AUTOSAVE._saving = true; updateSidebarJobChip();
-  try { await saveCurrentJob(); }
+  // AN AUTOSAVE NEVER PUTS A QUESTION ON SCREEN. It is, by definition, a save
+  // nobody pressed, and it fires on every input event — including the ones
+  // `restoreFromJob` raises while the NEXT job is being laid out. The
+  // duplicate-job-number dialog arriving unbidden in the middle of opening
+  // another job is the complaint this answers; the save still happens, it
+  // just keeps a device draft and says so on the pill instead of asking.
+  try { await saveCurrentJob({ quiet: true }); }
   catch(e) {
     console.warn('autosave failed', e);
     // Autosave failures used to be console-only — the office thought
@@ -19752,7 +19758,9 @@ async function _saveBeforeSwitch(){
       // page was reloaded (2026-09-22). Past the cap the draft goes to this
       // device and the open goes ahead.
       var _cap = (window.__SAVE_SWITCH_WAIT_MS > 0) ? window.__SAVE_SWITCH_WAIT_MS : 20000;
-      try { await Promise.race([saveCurrentJob(), new Promise(function(res){ setTimeout(res, _cap); })]); } catch(e){}
+      // quiet: the job they are LEAVING. Whatever happens to it, the answer
+      // is never a dialog over the job they are opening.
+      try { await Promise.race([saveCurrentJob({ quiet: true }), new Promise(function(res){ setTimeout(res, _cap); })]); } catch(e){}
       if (!_isJobDirty()) return;              // backend save landed
     }
     await _writeLocalDraftNow();               // couldn't save — keep a draft
@@ -20611,6 +20619,9 @@ async function saveCurrentJob(){
   return w.promise;
 }
 async function _saveCurrentJobNow(){
+  // `quiet`: a save the office did not press — the background save of the
+  // job they are leaving. It may never put a question on screen.
+  var _quiet = !!(arguments[0] && arguments[0].quiet);
   // A frozen version on screen is not the job. Nothing is written while one
   // is showing — the draft it replaced is what would be saved, and it is safe
   // where it is.
@@ -20717,17 +20728,48 @@ async function _saveCurrentJobNow(){
           // ONTO that record; with nothing drawn yet that record is opened.
           // A different client's record still gets the question.
           var _ex = e0.data && e0.data.existing;
-          if (_ex && _ex.id && _dupJobIsSame(_ex, client, addr)){
+          // COMPARE AGAINST THE JOB BEING SAVED, NOT THE SCREEN (2026-10-13,
+          // the owner: "when i am in a job (3264), then click change job and
+          // open another job (3302) a window appears saying 'job 3264 already
+          // exists' ... it should just let me open job 3302 and auto save the
+          // job 3264 ... without any warning box appearing"). `client` and
+          // `addr` are read off `#jobClient` / `#jobAddr` when the save runs,
+          // and on a job SWITCH the incoming job has already filled those in
+          // — so 3264's save was matched against 3302's name, found nothing
+          // alike, and asked. `body` carries what is actually being written,
+          // so that is what the question is asked of.
+          var _bc = body.client_name || client, _ba2 = body.site_address || addr;
+          if (_ex && _ex.id && _dupJobIsSame(_ex, _bc, _ba2)){
             if (_screenHasWork()){
               S.currentJobId = _ex.id; S._jobLoaded = null; window._photoAck = null; window._lastSent = null;
               saved = await api('PUT', '/jobs/' + _ex.id, body);
               try { _siteToast('Job ' + (e0.data.jobNo || '') + ' already existed — saved onto it'); } catch(e){}
+            } else if (_quiet){
+              // Leaving this job: there is nothing drawn to carry onto the
+              // other record, and opening it would hijack the switch they
+              // actually asked for.
+              set('', '');
+              try { await _writeLocalDraftNow(); } catch(e){}
+              return;
             } else {
               set('', '');
               try { _siteToast('Job ' + (e0.data.jobNo || '') + ' already exists — opening it'); } catch(e){}
               await _dupJobOpen(_ex.id);
               return;
             }
+          } else if (_quiet){
+            // A BACKGROUND SAVE NEVER ASKS. This is the OUTGOING job being
+            // put away while the office opens another one; a modal about the
+            // job they have just left, on top of the job they are opening, is
+            // the wrong thing in the wrong place. And it must not quietly
+            // CREATE a second record either — landing here means the number
+            // belongs to a record this save cannot identify itself with,
+            // which is confused state, and a device draft is the safe place
+            // for it. The pill says so; Menu \u2192 Offline saves has it.
+            set('', '');
+            try { await _writeLocalDraftNow(); } catch(e){}
+            try { window.__saveFailAt = Date.now(); _workingFlash('Job ' + (e0.data.jobNo || '') + ' kept on this device — that number is already on another record', true); } catch(e){}
+            return;
           } else { set('', ''); return _askDuplicateJob(e0.data, body, set); }
         } else throw e0;
       }

@@ -121,6 +121,32 @@ check('an unused job number saves with no interruption',
   !(await pg.evaluate(() => !!document.getElementById('dupJobModal'))) &&
   (await pg.evaluate(() => S.currentJobId)) === 'new-job-1');
 
+// A BACKGROUND SAVE NEVER ASKS (2026-10-13, the owner: "when i am in a job
+// (3264), then click change job and open another job (3302) a window appears
+// saying 'job 3264 already exists' ... it should just let me open job 3302 and
+// auto save the job 3264 ... without any warning box appearing"). A save the
+// office did not press — the switch-save of the job they are leaving, and
+// every autosave — carries `quiet`, and may keep a device draft but may never
+// put a question on top of the job they are opening.
+refuse = true;
+await pg.evaluate(() => { S.currentJobId = null; S.quote.ref = '3099';
+  const c = document.getElementById('jobClient'); if (c) c.value = 'Somebody Else';
+  const a = document.getElementById('jobAddr'); if (a) a.value = '1 Other Street';
+  return saveCurrentJob({ quiet: true }); });
+await pg.waitForTimeout(900);
+check('a quiet save of a job whose number is taken asks NOTHING',
+  !(await pg.evaluate(() => !!document.getElementById('dupJobModal'))));
+check('…and does not quietly create a second record under that number',
+  (await pg.evaluate(() => S.currentJobId)) !== 'new-job-1',
+  JSON.stringify(await pg.evaluate(() => S.currentJobId)));
+// …while a save the office DID press still asks, because then the question is
+// the point: they are looking at it and can answer it.
+await pg.evaluate(() => { S.currentJobId = null; S.quote.ref = '3099'; return saveCurrentJob(); });
+await pg.waitForTimeout(900);
+check('…while a save the office pressed still asks',
+  await pg.evaluate(() => !!document.getElementById('dupJobModal')));
+await pg.evaluate(() => { const m = document.getElementById('dupJobModal'); if (m) m.remove(); });
+
 // the server's own wording reaches the office on any failure
 const msg = await pg.evaluate(async () => {
   try { await api('GET', '/__failtest'); return { m:'(no error thrown)' }; }
