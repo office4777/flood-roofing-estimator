@@ -1411,6 +1411,84 @@ check('the STANDARD wording Settings shows has not moved',
 
 await ctx.close();
 
+// ── THE SHED'S MEASURES FILL THEMSELVES IN (2026-10-13) ─────────────────
+// The owner: "can you work on adding the measures of the shed into the empty
+// info lines, which should change between the two plans". Width, Length,
+// Height, Bays and Bay amount sat BLANK on Your Shed Details \u2014 those fields
+// are only filled when the WebShed PDF names them, and job 3287's did not. The
+// estimator knew all along: it PRICES the shed off W, L, the eave heights and
+// the pole grid.
+({ ctx, pg } = await open('Flood Roofing'));
+const measures = await pg.evaluate(() => {
+  const F = ['psWidth','psLength','psHeight','psBays','psBayAmount','psDoors'];
+  const read = () => { const o = {}; F.forEach(f => o[f] = _psSpecGet(f)); return o; };
+  const setup = () => {
+    S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.gstRate = 15;
+    S.quote.shedEst = { W:7.2, L:12.6, hiEave:3.48, loEave:2.9, poles:8, roller:3, pa:1, days:6 };
+    S.quote.shedPlans = [
+      { name:'3-Bay Shed', fields:{}, photos:{},
+        est:{ W:7.2, L:12.6, hiEave:3.48, loEave:2.9, poles:8,  roller:3, pa:1, days:6 } },
+      { name:'4-Bay Shed', fields:{}, photos:{},
+        est:{ W:7.2, L:16.8, hiEave:3.48, loEave:2.9, poles:10, roller:4, pa:1, days:7 } }];
+    S.quote.psPlanIdx = 0;
+  };
+  const res = {};
+  setup();
+  res.three = read();
+  res.chips = [_psPlanSize(0), _psPlanSize(1)];
+  _setPsPlan(1); res.four = read();
+  _setPsPlan(0); res.back = read();
+  // NOTHING was written to the quote by reading it \u2014 a render that writes is
+  // how a frozen copy gets today's figures stamped onto it.
+  res.stored = F.filter(f => S.quote[f] != null && String(S.quote[f]).trim());
+  // A plan whose name says no count falls back to the pole grid, as before.
+  S.quote.shedPlans[0].name = 'Option A';
+  res.unnamedBays = _psSpecGet('psBayAmount');
+  S.quote.shedPlans[0].name = '3-Bay Shed';
+  // Anything the office TYPES wins over the shed's own measurements.
+  S.quote.psWidth = '7.5m (as built)'; S.quote.psBayAmount = '5';
+  res.typed = { w:_psSpecGet('psWidth'), b:_psSpecGet('psBayAmount') };
+  delete S.quote.psWidth; delete S.quote.psBayAmount;
+  // A shed with no estimator reads blank rather than an invented figure.
+  S.quote.shedEst = { W:0, L:0, hiEave:0, loEave:0, poles:0, roller:0, pa:0 };
+  res.noEst = { w:_psSpecGet('psWidth'), l:_psSpecGet('psLength'), h:_psSpecGet('psHeight') };
+  return res;
+});
+check('THE MEASURES ARE NO LONGER BLANK: 7.2m \u00d7 12.6m',
+  measures.three.psWidth === '7.2m' && measures.three.psLength === '12.6m',
+  JSON.stringify(measures.three));
+check('\u2026a mono-pitch names BOTH eave heights, not one',
+  measures.three.psHeight === '3.48m \u2013 2.9m', measures.three.psHeight);
+check('\u2026a plan called "3-Bay Shed" has THREE bays, at 4.2m centres',
+  measures.three.psBayAmount === '3' && measures.three.psBays === '3 @ 4.2m',
+  JSON.stringify([measures.three.psBayAmount, measures.three.psBays]));
+check('\u2026and its doors come off the same estimator',
+  measures.three.psDoors === '3x Roller Doors, 1x P.A. Door', measures.three.psDoors);
+check('THE MEASURES CHANGE WITH THE PLAN: the 4-bay is 16.8m long',
+  measures.four.psLength === '16.8m' && measures.four.psWidth === '7.2m',
+  JSON.stringify(measures.four));
+check('\u2026four bays, still at 4.2m centres',
+  measures.four.psBayAmount === '4' && measures.four.psBays === '4 @ 4.2m',
+  JSON.stringify([measures.four.psBayAmount, measures.four.psBays]));
+check('\u2026and its own door count', measures.four.psDoors === '4x Roller Doors, 1x P.A. Door',
+  measures.four.psDoors);
+check('switching back brings the 3-bay\u2019s own measures back',
+  JSON.stringify(measures.back) === JSON.stringify(measures.three), JSON.stringify(measures.back));
+check('each option button names the shed it is',
+  measures.chips[0] === '7.2m \u00d7 12.6m \u00b7 3 bays' && measures.chips[1] === '7.2m \u00d7 16.8m \u00b7 4 bays',
+  JSON.stringify(measures.chips));
+check('READING THEM WRITES NOTHING TO THE QUOTE', measures.stored.length === 0,
+  JSON.stringify(measures.stored));
+check('a plan whose name says no count still works it off the pole grid',
+  measures.unnamedBays === '2', measures.unnamedBays);
+check('anything the office types wins',
+  measures.typed.w === '7.5m (as built)' && measures.typed.b === '5', JSON.stringify(measures.typed));
+check('a shed with nothing measured reads blank, not an invented figure',
+  measures.noEst.w === '' && measures.noEst.l === '' && measures.noEst.h === '',
+  JSON.stringify(measures.noEst));
+
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

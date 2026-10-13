@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T07:25:28Z';
+  window.APP_BUILT_AT = '2026-10-13T07:39:33Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -37923,6 +37923,80 @@ var POLESHED_DEFAULTS = {
   psIntro: 'Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you.\nThe total price is shown at the bottom of the quote.\nPayment terms: a deposit invoice is issued on acceptance of the quote and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work.\nOur lead-time is usually 5–8 weeks from quote acceptance to job start.',
   psDesignLink: ''
 };
+// THE SHED'S MEASURES COME OFF ITS OWN ESTIMATOR when nobody has typed them
+// (2026-10-13, the owner: "can you work on adding the measures of the shed into
+// the empty info lines, which should change between the two plans"). Width,
+// Length, Height, Bays and Bay amount sat BLANK on Your Shed Details for job
+// 3287: those fields are only filled when the WebShed PDF names them (the size
+// is in the PDF's Title metadata, the bay count only in the filename), and that
+// plan's did not. The estimator knew all along — it PRICES the shed off W, L,
+// the eave heights and the pole grid — so the figures were there and simply not
+// being read.
+//
+// DERIVED, NEVER STORED, and that is the point twice over. It is read from a
+// RENDER, and a render that writes is how a frozen copy gets today's figures
+// stamped onto it (the shed take-off taught that one). And it has to FOLLOW THE
+// PLAN ON SCREEN, which a stored value cannot: `_psPlanApply` swaps `shedEst`
+// with the plan, so a derived row changes when the customer picks the other
+// shed and a typed one stays the office's.
+// A PLAN NAMED "3-Bay Shed" HAS THREE BAYS. The count worked back out of the
+// pole grid is a GUESS — poles across the span is a rule of thumb, and on a
+// 7.2 x 12.6 shed with 8 poles it answers 2 for a shed the office, the file and
+// the button the customer presses all call a 3-bay. The same rule the WebShed
+// import already follows: a count somebody STATED beats one worked backwards.
+function _psBaysFromName(name){
+  var m = /(\d+)\s*-?\s*bay/i.exec(String(name || ''));
+  var n = m ? parseInt(m[1], 10) : 0;
+  return (n > 0 && n < 100) ? n : 0;
+}
+function _psSpecFromEst(e, name){
+  var out = {};
+  if (!e) return out;
+  var W = +e.W || 0, L = +e.L || 0, hi = +e.hiEave || 0, lo = +e.loEave || hi;
+  if (W > 0) out.psWidth  = W + 'm';
+  if (L > 0) out.psLength = L + 'm';
+  // A mono-pitch falls from one eave to the other, so it has two heights and
+  // naming one of them prices — and builds — the wrong shed.
+  if (hi > 0) out.psHeight = (lo && lo !== hi) ? (hi + 'm \u2013 ' + lo + 'm') : (hi + 'm');
+  // The bay count worked back out of the pole grid, exactly as
+  // _syncSpecFromEst reads it: poles across the span, the rest along the
+  // length, and one fewer bay than there are rows of poles.
+  var poles = +e.poles || 0;
+  var n = _psBaysFromName(name);
+  if (!n && poles > 0 && W > 0){
+    var across = (W > 7) ? 3 : 2;
+    var along = Math.max(Math.round(poles / across), 1);
+    n = Math.max(along - 1, 1);
+  }
+  if (n > 0){
+    out.psBayAmount = String(n);
+    // ...and the bay CENTRE beside it, which is the figure read off the plan.
+    if (L > 0) out.psBays = n + ' @ ' + (Math.round(L / n * 100) / 100) + 'm';
+  }
+  var roller = +e.roller || 0, pa = +e.pa || 0;
+  if (roller || pa){
+    out.psDoors = [ roller ? (roller + 'x Roller Door' + (roller > 1 ? 's' : '')) : '',
+                    pa ? (pa + 'x P.A. Door' + (pa > 1 ? 's' : '')) : '' ].filter(Boolean).join(', ');
+  }
+  return out;
+}
+// A spec field: what the office typed, else what the shed on screen measures.
+// `est` lets a plan that is NOT the picked one answer from its own estimator.
+function _psSpecGet(field, est, name){
+  var stored = (est === undefined && S.quote) ? S.quote[field] : undefined;
+  if (String(stored == null ? '' : stored).trim()) return _psGet(field);
+  var d = {};
+  try {
+    if (est === undefined){
+      var plans = _psPlans();
+      d = _psSpecFromEst(_shedEst(), (plans[_psPlanIdx()] || {}).name);
+    } else {
+      d = _psSpecFromEst(est, name);
+    }
+  } catch(e){}
+  if (d[field]) return d[field];
+  return (est === undefined) ? _psGet(field) : '';
+}
 function _psGet(field){
   var v = S.quote ? S.quote[field] : undefined;
   if (v == null || v === '') {
@@ -38416,10 +38490,15 @@ function _psPlanSwitchHtmlCust(where){
     '</div>';
 }
 function _psPlanSize(i){
-  var plans = _psPlans();
-  var f = (i === _psPlanIdx()) ? (S.quote || {}) : ((plans[i] && plans[i].fields) || {});
-  var w = String(f.psWidth || '').trim(), l = String(f.psLength || '').trim();
-  var b = String(f.psBayAmount || '').trim();
+  var plans = _psPlans(), mine = (i === _psPlanIdx());
+  var f = mine ? (S.quote || {}) : ((plans[i] && plans[i].fields) || {});
+  // Each plan answers from ITS OWN estimator where nobody typed a size, so the
+  // button for a shed the office never measured out still names what it is.
+  var d = {};
+  try { d = _psSpecFromEst(mine ? _shedEst() : ((plans[i] && plans[i].est) || null),
+                           (plans[i] || {}).name); } catch(e){}
+  var pick = function(k){ return String(f[k] || '').trim() || String(d[k] || '').trim(); };
+  var w = pick('psWidth'), l = pick('psLength'), b = pick('psBayAmount');
   return [ (w && l) ? (w + ' \u00d7 ' + l) : (w || l), b ? (b + ' bays') : '' ].filter(Boolean).join(' \u00b7 ');
 }
 // The office is about to import a SECOND shed. Bank the first one, then
@@ -39010,7 +39089,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   var specRow = function(label, field){
     return '<div class="ps-spec-row" style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
       '<div class="ps-spec-lbl" style="flex:0 0 132px;font-family:var(--ed-sans);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ed-text2);padding-top:2px">'+esc2(label)+'</div>'+
-      '<div class="ed-serif qp-editable ps-spec-val" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psGet(field))+'</div>'+
+      '<div class="ed-serif qp-editable ps-spec-val" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psSpecGet(field))+'</div>'+
     '</div>';
   };
   // multiline editable (intro / special notes)
@@ -39079,11 +39158,12 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
       '</div>';
   // Spec highlight chips — populate as the office fills the dimensions.
   var chip = function(t){ return t ? '<span style="display:inline-block;padding:5px 13px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:20px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink);white-space:nowrap">'+esc2(t)+'</span>' : ''; };
-  var _w = String(_psGet('psWidth')||'').trim(), _l = String(_psGet('psLength')||'').trim();
+  var _w = String(_psSpecGet('psWidth')||'').trim(), _l = String(_psSpecGet('psLength')||'').trim();
+  var _ba = String(_psSpecGet('psBayAmount')||'').trim();
   var chips = [
     (_w && _l) ? (_w + ' × ' + _l) : (_w || _l),
     _psGet('psRoofType'),
-    String(_psGet('psBayAmount')||'').trim() ? (_psGet('psBayAmount') + ' bays') : '',
+    _ba ? (_ba + ' bays') : '',
     String(_psGet('psHeight')||'').trim() ? ('Height ' + _psGet('psHeight')) : '',
     'Colorsteel'
   ].map(chip).join(' ');

@@ -1405,6 +1405,35 @@ Discipline (non-negotiable):
   other one's whole price as what it costs. Nothing is a better answer than a
   wrong number. Pinned to the cent on his own figures in `tests/poleshed.mjs`
   (167), sent copy and switch and Zincalume and back again.
+- THE SHED'S MEASURES COME OFF ITS OWN ESTIMATOR (2026-10-13, the owner: "can
+  you work on adding the measures of the shed into the empty info lines, which
+  should change between the two plans"). Width, Length, Height, Bays and Bay
+  amount sat BLANK on Your Shed Details for job 3287. Those fields are only
+  filled when the WebShed PDF names them — the size is in the PDF's Title
+  metadata and the bay count only in the filename — and that plan's did not.
+  The ESTIMATOR knew all along: it prices the shed off `W`, `L`, the eave
+  heights and the pole grid, so the figures were there and simply not read.
+  `_psSpecFromEst(est, name)` derives them and `_psSpecGet(field)` is what the
+  spec rows, the cover chips and `_psPlanSize` read: what the office TYPED
+  wins, else the shed's own measurements, else blank.
+  DERIVED, NEVER STORED, and that is the point twice over. It is read from a
+  RENDER, and a render that writes is how a frozen copy gets today's figures
+  stamped onto it (the shed take-off taught that one). And it has to FOLLOW THE
+  PLAN ON SCREEN, which a stored value cannot: `_psPlanApply` swaps `shedEst`
+  with the plan, so a derived row changes when the customer picks the other
+  shed while a typed one stays the office's. The row is still contenteditable
+  and the `[data-qfield]` focus handler clears the derived text first, so the
+  first keystroke lands in an empty box.
+  A PLAN NAMED "3-Bay Shed" HAS THREE BAYS. The count worked back out of the
+  pole grid (`poles / across`, `across` = 3 over 7 m else 2) is a GUESS, and on
+  a 7.2 x 12.6 shed with 8 poles it answers 2 for a shed the office, the file
+  and the button the customer presses all call a 3-bay. `_psBaysFromName` reads
+  the count off the plan's name FIRST and the grid is the fallback — the same
+  rule the WebShed import follows, that a count somebody STATED beats one
+  worked backwards. The bay CENTRE then falls out right too: 12.6 / 3 and
+  16.8 / 4 are both 4.2 m, which is the figure on the plan. A mono-pitch names
+  BOTH eave heights ("3.48m – 2.9m"), because naming one of them builds the
+  wrong shed. `tests/poleshed.mjs` (192).
 - A SHED'S QUOTE TALKS ABOUT A SHED (2026-10-13, the owner: "can you change the
   default wording for the Pole Shed quote in a Pole Shed job type, still relates
   to a roofing job instead of a Pole Shed, also the 'the old roofing we take it
