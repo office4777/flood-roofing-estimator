@@ -1317,7 +1317,11 @@ Discipline (non-negotiable):
   cover, in the customer's price box and on their options page — so
   `_psPlanRenamePrompt` takes the same two guards every other change takes:
   never in customer mode (they pick a shed, they do not name one) and never on
-  an accepted quote. Cancel and an empty box both keep the name.
+  an accepted quote. Cancel and an empty box both keep the name. THE SECOND
+  GUARD WAS DEAD UNTIL 2026-10-13: it was `_qpAcceptedLock()` alone, which
+  READS `__CUSTOMER_MODE`, so it is the customer's lock and answers false for
+  the office every time — the office could rename a plan on an accepted quote.
+  `S.quote.accepted` is tested directly beside it now, here and on the add-ons.
   AND THE QUOTE SAYS WHICH SHED IT IS: a "Plan option" cell on the cover's
   meta grid beside Reference and Deposit, and a row at the top of the computer
   rail's price box (`_qdRail`, which is that layout's alone). Both only where
@@ -1479,6 +1483,69 @@ Discipline (non-negotiable):
   priced here AND not offered anywhere on the customer's quote" — and
   `renderGutterDownpipePricing` hides the card outright rather than showing
   the excluded box. `tests/poleshed.mjs` (72).
+- THE SHED'S OPTIONS PAGE IS THE OFFICE'S (2026-10-13, the owner on a shed he
+  had sent: "the cover photo is blurry, can you also allow me to move the cover
+  photo and zoom in just like i can with the photo slots ... also in the options
+  allow me to add, delete or edit the different add-ons. then make the sections
+  bigger and one selection per row instead of jammed in next to each other like
+  that, just like the roofing type shows", then "also delete the pricing totals
+  on page 3 & 4"). `tests/poleshed.mjs` (154).
+  THE COVER MOVES AND ZOOMS. It was a `background-image` on a 330px band, which
+  can only ever be centred and cropped — a shed sitting low in a render had its
+  roof cut off and nothing could be done about it. It is an `<img>` carrying the
+  SAME `offX/offY/zoom` transform the condition slots carry, inside a frame
+  tagged `.qp-cond-photo[data-cp-idx="6"][data-cp-hero]`, which is what
+  `_qpApplySlotTransform`, `_qpCondPhotoDragStart` and `_qpCondPhotoWheel`
+  already look for — so the drag, the wheel and the −/+/↺ buttons are the
+  existing ones rather than a second copy that could drift. `_qpRerenderOneSlot`
+  branches on the cover and rebuilds the PAGE, or a reset would swap a dashed
+  16/9 thumbnail in where the cover band was.
+  AND IT IS NOT DOWNSCALED LIKE A SITE PHOTO. `_downscalePhoto(url, cb, big)`:
+  900px at quality 0.6 is sized for a photo a third of the page wide, and
+  blowing that across a full-bleed cover (and further again in the PDF) is what
+  "blurry" was. A cover gets 2000px at 0.86. `_qpCondSlotIsCover(idx)` is the
+  one place that says which slot that is (`PS_HERO_SLOT` = 6), and every path a
+  picture arrives by — upload, drag-and-drop, the Fergus picker — passes it.
+  THE ADD-ONS ARE A LIST THE OFFICE OWNS: `S.quote.psAddons` =
+  `[{id, label, summary, price, on}]`, with ✎ / ✕ per row and + Add on the band
+  (`_psAddons`, `_psAddonsWrite`, `_psAddonToggle`, `_psAddonEdit`,
+  `_psAddonAdd`, `_psAddonDelete`). NOTHING ALREADY QUOTED MOVES, and that is
+  the whole trick: a quote with NO list of its own is READ as the three
+  built-ins (`PS_ADDON_BUILTINS`) at their `POLESHED_ADDONS` prices with their
+  on/off taken from the three original flags (`psSelWallUnderlay`,
+  `psAddSliding`, `psAddWindow`), so every shed sent before this prices and
+  reads to the cent exactly as it did and no migration pass runs over saved
+  jobs. The list materialises only when somebody edits it, and a built-in's old
+  flag is kept in step anyway so a copy saved halfway reads right from either
+  side. The SUMMARY wording is kept separate from the option's label on a
+  built-in ('Sliding door' vs 'Add sliding door') or an already-sent quote's
+  summary rows would quietly re-word themselves; an add-on the office writes
+  uses its own label for both. A new add-on starts OFF, so adding one never
+  moves a price by itself. `_poleShedSelItems` reads the list, and
+  `_poleShedSelDelta` sums THAT, so what the customer reads and what they are
+  charged still cannot disagree.
+  THE CUSTOMER PICKS, THE OFFICE WRITES (`_psAddonEditable`): ticking an add-on
+  is the customer's — it is what the page is for — but adding, renaming,
+  re-pricing and deleting are office-only AND never on an accepted quote.
+  `_qpAcceptedLock()` cannot carry that second test by itself: it reads
+  `__CUSTOMER_MODE`, so it answers false for the office every time.
+  `S.quote.accepted` is tested directly beside it (the plan rename had the same
+  dead guard and was fixed with it).
+  ONE SELECTION PER ROW: the page's closing `1fr 1fr` grid put Steel grade
+  beside Roller door finish, which on a phone ran off the edge and on paper read
+  as two unrelated columns. Each section is a full-width band now, sized to
+  match — 12px band, 14px rows, 18px radios, colour chips 6 across at 46px — the
+  way the roofing quote gives grade, profile and thickness a section each.
+  NO TOTALS ON PAGES 3 AND 4. The running total follows the customer anyway
+  (the rail on a computer, the bar under the book on a phone, both through
+  `_custBarTotalValue`) and page 5 carries the breakdown; each option still
+  shows what IT adds, which is what page 3 is for. Both money builders were
+  DELETED rather than hidden — a money block nothing calls is how a second copy
+  of the arithmetic starts, and `_poleShedMoney` is the shed's one engine. The
+  one thing page 4's card held that page 5 did not, the hand-typed subtotal
+  (`psSubtotalManual`, the office's override of the Pricing drawer), MOVED onto
+  page 5's subtotal row rather than going with the card; deleting it would have
+  taken away a control nobody asked about.
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make

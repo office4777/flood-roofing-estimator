@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T04:23:18Z';
+  window.APP_BUILT_AT = '2026-10-13T05:24:38Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -20169,7 +20169,15 @@ function _setSaveStatus(text, color, sticky){
 // Downscale a photo before it's stored on the job — full-resolution
 // phone photos (5-12 MB each) are what pushed saves past the backend's
 // 25 MB cap.  ~1600px JPEG is plenty for the proposal/inspection pages.
-function _downscalePhoto(dataUrl, cb){
+// `big` asks for a COVER-sized picture rather than a site photo. The default
+// budget below is sized for a photo that lands about a third of the page wide;
+// a full-bleed cover is three times that on screen and more again in the PDF,
+// so 900px at quality 0.6 blown across it is visibly soft — which is exactly
+// what the owner saw on the pole shed's cover (2026-10-13: "the cover photo is
+// blurry"). ONE picture per quote carries the extra bytes, and the quote's
+// media store already keeps it once (_qvPackAll), so the cost is paid once and
+// not per version.
+function _downscalePhoto(dataUrl, cb, big){
   try {
     if (!/^data:image\//i.test(dataUrl)) return cb(dataUrl);
     var img = new Image();
@@ -20178,13 +20186,13 @@ function _downscalePhoto(dataUrl, cb){
       // whole to the customer link, so keep them light: 1280px is plenty for
       // the on-page display size (≈1/3-width site photos, full-width banners)
       // and roughly halves the bytes vs the old 1600px/0.82.
-      var maxDim = 900, w = img.width, h = img.height;
+      var maxDim = big ? 2000 : 900, w = img.width, h = img.height;
       if (Math.max(w, h) <= maxDim && dataUrl.length < 200 * 1024) return cb(dataUrl);
       var sc = Math.min(1, maxDim / Math.max(w, h));
       var c = document.createElement('canvas');
       c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      var out = c.toDataURL('image/jpeg', 0.6);
+      var out = c.toDataURL('image/jpeg', big ? 0.86 : 0.6);
       cb(out.length < dataUrl.length ? out : dataUrl);
     };
     img.onerror = function(){ cb(dataUrl); };
@@ -26384,6 +26392,11 @@ function _qpCondPhotoSet(idx, patch){
   var cur = S.quote.condPhotos[idx] || { offX:0, offY:0, zoom:1 };
   S.quote.condPhotos[idx] = Object.assign({}, cur, patch);
 }
+// Slot 6 is the pole shed's COVER — full-bleed, so it is downscaled on a
+// cover's budget and re-rendered as a whole page rather than as a 16/9 slot.
+// The 0–5 slots are the ordinary site photos.
+var PS_HERO_SLOT = 6;
+function _qpCondSlotIsCover(idx){ return +idx === PS_HERO_SLOT; }
 function _qpCondPhotoClear(idx){
   if (!S.quote || !Array.isArray(S.quote.condPhotos)) return;
   S.quote.condPhotos[idx] = null;
@@ -27024,7 +27037,7 @@ function _qpCondPhotoUpload(e){
     _downscalePhoto(ev.target.result, function(src){
       _qpCondPhotoSet(idx, { src: src, offX:0, offY:0, zoom:1 });
       _qpRerenderCondPhotos();
-    });
+    }, _qpCondSlotIsCover(idx));
   };
   r.readAsDataURL(f);
 }
@@ -27039,7 +27052,7 @@ function _qpCondPhotoDrop(e, idx){
     _downscalePhoto(ev.target.result, function(src){
       _qpCondPhotoSet(idx, { src: src, offX:0, offY:0, zoom:1 });
       _qpRerenderCondPhotos();
-    });
+    }, _qpCondSlotIsCover(idx));
   };
   r.readAsDataURL(f);
 }
@@ -27111,6 +27124,10 @@ function _qpApplySlotTransform(idx){
 // Replace one slot's DOM (for clear / upload paths where the
 // empty↔filled markup differs).
 function _qpRerenderOneSlot(idx){
+  // The shed's cover is not a 16/9 slot — swapping the generic slot markup in
+  // would replace the whole cover band with a dashed thumbnail. Its page is
+  // what draws it, so rebuild that.
+  if (_qpCondSlotIsCover(idx)) { _qpRerenderCondPhotos(); return; }
   var old = document.querySelector('.qp-cond-photo[data-cp-idx="'+idx+'"]');
   if (!old) { _qpRerenderCondPhotos(); return; }
   var tmp = document.createElement('div');
@@ -29992,7 +30009,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -37961,14 +37978,115 @@ var POLESHED_ADDONS = {
 // Every shed pick that moves money, as rows — the shape _qpSelectionChanges
 // hands the summary for a roofing quote. _poleShedSelDelta sums THIS, so the
 // list the customer reads and the figure they are charged cannot disagree.
+// THE ADD-ONS ARE A LIST THE OFFICE OWNS (2026-10-13, the owner: "in the
+// options allow me to add, delete or edit the different add-ons"). They were
+// three hard-coded checkboxes with three prices in POLESHED_ADDONS, so a shed
+// that wanted a second roller door or a concrete floor could not offer one and
+// a price that moved had to be edited in the code.
+//
+// NOTHING ALREADY QUOTED MOVES. A quote with no list of its own is READ as the
+// three built-ins at their built-in prices, with their on/off taken from the
+// three original flags \u2014 so every shed sent before today prices and reads to
+// the cent exactly as it did, with no migration pass over saved jobs. The
+// list materialises on `S.quote.psAddons` only when somebody edits it, and
+// from then on it is the source. A built-in's legacy flag is kept in step
+// anyway, so a copy saved halfway reads right from either side.
+//
+// The SUMMARY wording is kept separate from the option's label on a built-in
+// ('Sliding door' in the price summary, 'Add sliding door' on the option), or
+// an already-sent quote's summary rows would quietly re-word themselves. An
+// add-on the office writes uses its own label for both, which is what they
+// typed.
+var PS_ADDON_BUILTINS = [
+  { id:'wallUnderlay', label:'Wall underlay / building paper', summary:'Wall underlay / building paper', key:'wallUnderlay', legacy:'psSelWallUnderlay' },
+  { id:'slidingDoor',  label:'Add sliding door',               summary:'Sliding door',                   key:'slidingDoor',  legacy:'psAddSliding' },
+  { id:'doubleWindow', label:'Add standard double window',     summary:'Standard double window',         key:'doubleWindow', legacy:'psAddWindow' }
+];
+function _psAddons(){
+  var q = S.quote; if (!q) return [];
+  if (Array.isArray(q.psAddons)) return q.psAddons;
+  var A = POLESHED_ADDONS;
+  return PS_ADDON_BUILTINS.map(function(b){
+    return { id:b.id, label:b.label, summary:b.summary, price:(+A[b.key] || 0), on: !!q[b.legacy] };
+  });
+}
+// Write the list back, keeping a built-in's old flag in step.
+function _psAddonsWrite(list){
+  var q = S.quote; if (!q) return;
+  q.psAddons = list;
+  PS_ADDON_BUILTINS.forEach(function(b){
+    var hit = list.filter(function(a){ return a && a.id === b.id; })[0];
+    q[b.legacy] = !!(hit && hit.on);
+  });
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  try { _scheduleAutosave(); } catch(e){}
+}
+// Picking one is the CUSTOMER'S to do \u2014 that is what the options page is for.
+// Writing the list is not: adding, re-pricing or deleting an add-on changes
+// what is on offer and what it costs, so it takes the same two guards every
+// other quote edit takes.
+// _qpAcceptedLock() READS __CUSTOMER_MODE, so it is the customer's lock and
+// answers false for the office on a quote that has been accepted — the
+// acceptance itself is what to ask about. "An accepted quote must never ever
+// change, no matter what updates or fixes are made" is the owner's own rule,
+// and re-pricing an add-on on the page the customer accepted off is exactly
+// that. The way to change one afterwards is Undo acceptance or a new draft.
+function _psAddonEditable(){
+  if (window.__CUSTOMER_MODE) return false;
+  if (typeof _qpAcceptedLock === 'function' && _qpAcceptedLock()) return false;
+  if (window.S && S.quote && S.quote.accepted) return false;
+  return true;
+}
+function _psAddonToggle(id){
+  var list = _psAddons().map(function(a){
+    return (a.id === id) ? Object.assign({}, a, { on: !a.on }) : a;
+  });
+  _psAddonsWrite(list);
+}
+function _psAddonAsk(cur){
+  var name = prompt('What is this add-on called?', (cur && cur.label) || '');
+  if (name == null) return null;                      // Cancel keeps things as they are
+  name = String(name).trim();
+  if (!name) return null;                             // so does an empty box
+  var raw = prompt('What does \u201c' + name + '\u201d add to the price? (ex GST)',
+                   String((cur && cur.price) || ''));
+  if (raw == null) return null;
+  var price = parseFloat(String(raw).replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(price)) price = 0;
+  return { label: name, price: price };
+}
+function _psAddonEdit(id){
+  if (!_psAddonEditable()) return;
+  var list = _psAddons(), cur = list.filter(function(a){ return a.id === id; })[0];
+  if (!cur) return;
+  var got = _psAddonAsk(cur); if (!got) return;
+  _psAddonsWrite(list.map(function(a){
+    // The office's own wording wins on BOTH surfaces once they have typed it \u2014
+    // a built-in that has been renamed is no longer the built-in.
+    return (a.id === id) ? Object.assign({}, a, { label: got.label, summary: got.label, price: got.price }) : a;
+  }));
+}
+function _psAddonAdd(){
+  if (!_psAddonEditable()) return;
+  var got = _psAddonAsk(null); if (!got) return;
+  var id = 'ao' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  _psAddonsWrite(_psAddons().concat([{ id:id, label:got.label, summary:got.label, price:got.price, on:false }]));
+}
+function _psAddonDelete(id){
+  if (!_psAddonEditable()) return;
+  var list = _psAddons(), cur = list.filter(function(a){ return a.id === id; })[0];
+  if (!cur) return;
+  if (!confirm('Take \u201c' + cur.label + '\u201d off this quote\u2019s add-ons?')) return;
+  _psAddonsWrite(list.filter(function(a){ return a.id !== id; }));
+}
 function _poleShedSelItems(){
   if (!S.quote) return [];
   var A = POLESHED_ADDONS, out = [];
   if (S.quote.psSelGrade === 'zincalume') out.push({ label:'Plain silver Zincalume\u00ae', delta: -A.zincalumeSave });
   if (S.quote.psSelThickness === '0.55')  out.push({ label:'0.55 gauge \u2014 heavier steel', delta: A.thick055 });
-  if (S.quote.psSelWallUnderlay)          out.push({ label:'Wall underlay / building paper', delta: A.wallUnderlay });
-  if (S.quote.psAddSliding)               out.push({ label:'Sliding door', delta: A.slidingDoor });
-  if (S.quote.psAddWindow)                out.push({ label:'Standard double window', delta: A.doubleWindow });
+  _psAddons().forEach(function(a){
+    if (a && a.on) out.push({ label: a.summary || a.label, delta: (+a.price || 0) });
+  });
   return out;
 }
 function _poleShedSelDelta(){
@@ -38168,7 +38286,13 @@ function _psPlanLabel(i){
 // mode, never on an accepted quote (the shed they signed off keeps its name).
 function _psPlanRenamePrompt(i){
   if (window.__CUSTOMER_MODE) return;
+  // Same two tests as the add-ons, and for the same reason: the plan's name is
+  // on the cover, in the price box and on the options page, so renaming one is
+  // a change to a quote the customer has accepted. _qpAcceptedLock alone never
+  // answers for the office (it reads __CUSTOMER_MODE), which is why the
+  // acceptance is tested directly beside it.
   if (typeof _qpAcceptedLock === 'function' && _qpAcceptedLock()) return;
+  if (window.S && S.quote && S.quote.accepted) return;
   var n = prompt('Name this plan option', _psPlanLabel(i));
   if (n == null) return;                       // Cancel keeps the name
   n = String(n).trim();
@@ -38377,31 +38501,46 @@ function _poleShedMoney(){
 function _buildPoleShedSelections(){
   var q = S.quote, A = POLESHED_ADDONS;
   var eyebrow = function(t){ return '<div class="ed-eyebrow">'+esc2(t)+'</div>'; };
-  var panel = function(title, body){
-    return '<div style="border:1px solid var(--ed-line);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
-      '<div style="background:var(--ed-ink);color:#fff;padding:6px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">'+esc2(title)+'</div>'+
-      '<div style="padding:10px 12px;display:grid;gap:7px">'+body+'</div></div>';
+  // ONE SECTION PER ROW, FULL WIDTH (2026-10-13, the owner: "make the sections
+  // bigger and one selection per row instead of jammed in next to each other
+  // like that, just like the roofing type shows"). The two-column grid at the
+  // bottom of this function put Steel grade beside Roller door finish and
+  // Add-ons under it, which on a phone ran off the edge and on paper read as
+  // two unrelated columns. The roofing quote gives grade, profile and
+  // thickness a full-width section each; so does the shed now, and the panel
+  // is sized to match — a band you can read and rows you can hit.
+  // `head` is raw HTML dropped at the right of the band (the add-ons' + button).
+  var panel = function(title, body, head){
+    return '<div style="border:1px solid var(--ed-line);border-radius:10px;overflow:hidden;margin-bottom:14px">'+
+      '<div style="background:var(--ed-ink);color:#fff;padding:9px 15px;font-family:var(--ed-sans);font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:10px">'+
+        '<span style="flex:1">'+esc2(title)+'</span>'+(head||'')+'</div>'+
+      '<div style="padding:13px 15px;display:grid;gap:9px">'+body+'</div></div>';
   };
   var tag = function(delta){
-    if (!delta) return '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">Included</span>';
+    if (!delta) return '<span style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);white-space:nowrap">Included</span>';
     var pos = delta > 0;
-    return '<span style="font-family:var(--ed-sans);font-size:11px;font-weight:700;color:'+(pos?'var(--ed-ink)':'#2e7d32')+'">'+(pos?'+':'−')+fmtMoney(Math.abs(delta))+'<span style="font-weight:400;color:var(--ed-text2)"> +GST</span></span>';
+    return '<span style="font-family:var(--ed-sans);font-size:12.5px;font-weight:700;white-space:nowrap;color:'+(pos?'var(--ed-ink)':'#2e7d32')+'">'+(pos?'+':'−')+fmtMoney(Math.abs(delta))+'<span style="font-weight:400;color:var(--ed-text2)"> +GST</span></span>';
   };
   // `after` is raw HTML dropped in beside the label — the plan options' rename
   // pencil, and nothing else. Every other caller passes five arguments and is
   // unchanged.
   var opt = function(active, label, sub, onclick, delta, after){
-    return '<div onclick="'+onclick+'" style="cursor:pointer;border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:7px;padding:8px 11px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:10px">'+
-      '<div style="width:15px;height:15px;border-radius:50%;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;box-shadow:'+(active?'inset 0 0 0 2px #fff':'none')+'"></div>'+
-      '<div style="flex:1"><span style="font-family:var(--ed-sans);font-size:12.5px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</span>'+(sub?' <span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">'+esc2(sub)+'</span>':'')+(after||'')+'</div>'+
+    return '<div onclick="'+onclick+'" style="cursor:pointer;border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:8px;padding:12px 15px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:12px">'+
+      '<div style="width:18px;height:18px;border-radius:50%;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;box-shadow:'+(active?'inset 0 0 0 3px #fff':'none')+'"></div>'+
+      '<div style="flex:1"><span style="font-family:var(--ed-sans);font-size:14px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</span>'+(sub?' <span style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2)">'+esc2(sub)+'</span>':'')+(after||'')+'</div>'+
       tag(delta)+
     '</div>';
   };
-  var check = function(active, label, delta, onclick){
-    return '<div onclick="'+onclick+'" style="cursor:pointer;border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:7px;padding:8px 11px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:10px">'+
-      '<div style="width:16px;height:16px;border-radius:4px;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;color:#fff;font-size:11px;line-height:13px;text-align:center">'+(active?'✓':'')+'</div>'+
-      '<div style="flex:1;font-family:var(--ed-sans);font-size:12.5px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</div>'+
-      tag(delta)+
+  // `after` is the office's ✎ / ✕ beside an add-on, OUTSIDE the hit area that
+  // ticks it — the same rule the plan options' pencil follows, so renaming an
+  // add-on never also turns it on.
+  var check = function(active, label, delta, onclick, after){
+    return '<div style="border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:8px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:12px;padding-right:'+(after?'10px':'0')+'">'+
+      '<div onclick="'+onclick+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:12px;padding:12px 15px">'+
+        '<div style="width:19px;height:19px;border-radius:5px;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;color:#fff;font-size:13px;line-height:16px;text-align:center">'+(active?'✓':'')+'</div>'+
+        '<div style="flex:1;font-family:var(--ed-sans);font-size:14px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</div>'+
+        tag(delta)+
+      '</div>'+(after||'')+
     '</div>';
   };
   var grade = q.psSelGrade || 'colorsteel';
@@ -38432,12 +38571,12 @@ function _buildPoleShedSelections(){
   if (grade === 'zincalume'){
     colourBody = '<div style="font-family:var(--ed-serif);font-style:italic;font-size:12.5px;color:var(--ed-ink)">Plain silver Zincalume — no colour required.</div>';
   } else {
-    colourBody = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">'+
+    colourBody = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:9px">'+
       _paletteForGradeId(grade).map(function(c){
         var on = (colour === c.name);
         return '<div onclick="_setPsSel(\'psSelColour\',\''+esc2(c.name).replace(/'/g,"&#39;")+'\')" style="cursor:pointer;text-align:center">'+
-          '<div style="height:32px;border-radius:6px;background:'+c.hex+';border:'+(on?'3px solid var(--ed-accent)':'1px solid rgba(0,0,0,.15)')+'"></div>'+
-          '<div style="font-family:var(--ed-sans);font-size:8.5px;color:var(--ed-ink);margin-top:2px;line-height:1.1">'+esc2(c.name.replace(/®/g,''))+'</div>'+
+          '<div style="height:46px;border-radius:7px;background:'+c.hex+';border:'+(on?'3px solid var(--ed-accent)':'1px solid rgba(0,0,0,.15)')+'"></div>'+
+          '<div style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-ink);margin-top:3px;line-height:1.15">'+esc2(c.name.replace(/®/g,''))+'</div>'+
         '</div>';
       }).join('')+'</div>'+
       (colour ? '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink);margin-top:6px">Selected: <strong>'+esc2(colour)+'</strong></div>'
@@ -38447,42 +38586,47 @@ function _buildPoleShedSelections(){
   var rollerPanel = panel('Roller door finish',
     opt(roller==='colorsteel','Colorsteel® — matches the shed',"",'_setPsSel(\'psSelRoller\',\'colorsteel\')',0)+
     opt(roller==='zincalume','Plain Zincalume®',"",'_setPsSel(\'psSelRoller\',\'zincalume\')',0));
-  var extrasPanel = panel('Add-ons',
-    check(!!q.psSelWallUnderlay,'Wall underlay / building paper',A.wallUnderlay,"_togglePsSel('psSelWallUnderlay')")+
-    check(!!q.psAddSliding,'Add sliding door',A.slidingDoor,"_togglePsSel('psAddSliding')")+
-    check(!!q.psAddWindow,'Add standard double window',A.doubleWindow,"_togglePsSel('psAddWindow')"));
-
-  var M = _poleShedMoney();
-  var moneyRow = function(label, value, opts){
-    opts = opts || {};
-    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 16px;'+
-      (opts.top?'border-top:2px solid rgba(255,255,255,.32);':'border-top:1px solid rgba(255,255,255,.13);')+
-      (opts.strong?'background:rgba(255,255,255,.07);':'')+'">'+
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts.strong?'1':'.72')+');'+(opts.strong?'font-weight:700;':'')+'">'+label+'</div>'+
-      '<div class="ed-serif" style="font-size:'+(opts.strong?'17px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
-    '</div>';
+  var _aoEdit = _psAddonEditable();
+  var _aoBtn = function(call, title, label, col){
+    return '<button type="button" class="no-print" onclick="event.stopPropagation();'+call+'" title="'+title+'" '+
+      'style="width:26px;height:26px;border:1px solid var(--ed-line);border-radius:6px;background:#fff;color:'+(col||'var(--ed-ink-2)')+';cursor:pointer;font-size:12px;line-height:1;flex-shrink:0">'+label+'</button>';
   };
-  var deltaRows = '';
-  if (q.psSelGrade === 'zincalume') deltaRows += moneyRow('↳ Plain silver Zincalume', '−'+fmtMoney(A.zincalumeSave));
-  if (q.psSelThickness === '0.55')  deltaRows += moneyRow('↳ 0.55g upgrade', '+'+fmtMoney(A.thick055));
-  if (q.psSelWallUnderlay)          deltaRows += moneyRow('↳ Wall underlay', '+'+fmtMoney(A.wallUnderlay));
-  if (q.psAddSliding)               deltaRows += moneyRow('↳ Sliding door', '+'+fmtMoney(A.slidingDoor));
-  if (q.psAddWindow)                deltaRows += moneyRow('↳ Double window', '+'+fmtMoney(A.doubleWindow));
-  var priceImpact =
-    '<div style="margin-top:8px;background:var(--ed-ink);border-radius:8px;overflow:hidden">'+
-      '<div style="padding:9px 16px 7px"><div class="ed-eyebrow" style="color:#4fc3ff">Your selections &amp; price</div></div>'+
-      moneyRow('Base quote <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', fmtMoney(M.base), { top:true })+
-      (deltaRows || moneyRow('<span style="color:rgba(255,255,255,.6)">Standard selections — no change</span>',''))+
-      moneyRow('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
-    '</div>';
+  var _aoList = _psAddons();
+  var extrasBody = _aoList.map(function(a){
+    var tools = _aoEdit
+      ? '<div class="no-print" style="display:flex;gap:5px;align-items:center">'+
+          _aoBtn("_psAddonEdit('"+a.id+"')", 'Rename this add-on or change its price', '✎')+
+          _aoBtn("_psAddonDelete('"+a.id+"')", 'Take this add-on off the quote', '✕', '#b91c1c')+
+        '</div>'
+      : '';
+    return check(!!a.on, a.label, (+a.price || 0), "_psAddonToggle('"+a.id+"')", tools);
+  }).join('');
+  if (!_aoList.length){
+    extrasBody = '<div style="font-family:var(--ed-sans);font-size:12.5px;color:var(--ed-text2)">'+
+      (_aoEdit ? 'No add-ons on this quote — use + Add to offer one.' : 'No optional add-ons on this quote.')+'</div>';
+  }
+  // A customer is never shown an empty Add-ons band: with none on offer there
+  // is simply no section, the way a quote with no gutter has no gutter page.
+  var extrasPanel = (_aoList.length || _aoEdit)
+    ? panel('Add-ons', extrasBody,
+        _aoEdit ? '<button type="button" class="no-print" onclick="_psAddonAdd()" style="padding:4px 11px;border:none;border-radius:6px;background:rgba(255,255,255,.17);color:#fff;font-family:var(--ed-sans);font-size:11px;font-weight:700;cursor:pointer;text-transform:none;letter-spacing:0">+ Add</button>' : '')
+    : '';
+
+  // NO TOTAL ON THIS PAGE (2026-10-13, the owner: "delete the pricing totals on
+  // page 3 & 4"). The running total follows the customer anyway — the summary
+  // rail on a computer and the bar under the book on a phone, both through
+  // _custBarTotalValue — and the acceptance page (5) still carries the full
+  // breakdown. Each option goes on showing what IT adds, which is what this
+  // page is for; the whole total printed three times over was the noise.
+  // The block that drew it is gone rather than hidden: a money builder nothing
+  // calls is how a second copy of the arithmetic starts, and _poleShedMoney is
+  // the shed's one engine.
+  var priceImpact = '';
 
   return edHeading('3','Choose your options','Choose Your Options',{chapter:POLESHED_CHAPTERS[2],chapters:POLESHED_CHAPTERS})+
     '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
     (planPanel ? '<div style="margin-bottom:14px">'+planPanel+'</div>' : '')+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'+
-      '<div>'+gradePanel+thickPanel+colourPanel+'</div>'+
-      '<div>'+rollerPanel+extrasPanel+priceImpact+'</div>'+
-    '</div>';
+    gradePanel + thickPanel + colourPanel + rollerPanel + extrasPanel + priceImpact;
 }
 // ══════════════════════════════════════════════════════════════════
 // SHED MATERIALS ESTIMATOR  (estimate only — NOT a certified NZS 3604
@@ -38809,15 +38953,46 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   // Hero = an editable shed-render slot (condPhoto index 6, distinct from
   // the 0–5 elevation slots). Filled → full-bleed render; empty → a
   // branded band with upload buttons instead of a blank strip.
-  var HERO_IDX = 6;
+  var HERO_IDX = (typeof PS_HERO_SLOT === 'number') ? PS_HERO_SLOT : 6;
   var heroCp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(HERO_IDX) : null;
   var heroSrc = (heroCp && heroCp.src) ? heroCp.src : (typeof resolveSlotSrc === 'function' ? resolveSlotSrc('cover_hero') : null);
+  // THE COVER MOVES AND ZOOMS LIKE EVERY OTHER PHOTO SLOT (2026-10-13, the
+  // owner: "allow me to zoom in and out and grab to move the picture around
+  // inside the slot"). It was a background-image, which can only ever be
+  // centred and cropped, so a shed sitting low in a render had its roof cut
+  // off and nothing could be done about it. It is an <img> now carrying the
+  // SAME transform the condition slots carry (offX/offY/zoom on the slot), in
+  // a frame tagged .qp-cond-photo[data-cp-idx] — which is what
+  // _qpApplySlotTransform, _qpCondPhotoDragStart and _qpCondPhotoWheel look
+  // for, so the drag, the wheel and the −/+/↺ buttons are the existing ones
+  // rather than a second copy that could drift from them.
+  var _heroCust = !!window.__CUSTOMER_MODE;
+  var _hOx = (heroCp && +heroCp.offX) || 0, _hOy = (heroCp && +heroCp.offY) || 0,
+      _hZm = (heroCp && +heroCp.zoom) || 1;
+  var _heroBtn = function(call, title, label, bg){
+    return '<button type="button" onclick="event.stopPropagation();'+call+'" title="'+title+'" '+
+      'style="height:26px;min-width:26px;padding:0 7px;border:none;border-radius:6px;background:'+(bg||'rgba(10,24,40,.78)')+';color:#fff;cursor:pointer;font-size:12px;font-weight:600;line-height:1;display:flex;align-items:center;justify-content:center">'+label+'</button>';
+  };
   var heroBand = heroSrc
-    ? '<div style="height:330px;background:var(--ed-ink) url('+esc2(heroSrc)+') center/cover no-repeat;position:relative">'+
-        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.10),rgba(10,24,40,.30))"></div>'+
-        '<button type="button" class="no-print" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="position:absolute;top:12px;right:12px;padding:6px 12px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Change image</button>'+
-        '<button type="button" class="no-print" onclick="_qpCondPhotoClear('+HERO_IDX+')" style="position:absolute;top:12px;right:112px;padding:6px 10px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Remove</button>'+
-      '</div>'
+    ? '<figure class="qp-cond-photo qp-cond-filled" data-cp-idx="'+HERO_IDX+'" data-cp-hero="1" '+
+        (_heroCust ? '' :
+          'onwheel="_qpCondPhotoWheel(event,'+HERO_IDX+')" '+
+          'onmousedown="_qpCondPhotoDragStart(event,'+HERO_IDX+')" ')+
+        'style="margin:0;height:330px;background:var(--ed-ink);position:relative;overflow:hidden;cursor:'+(_heroCust?'default':'grab')+';user-select:none">'+
+        '<img src="'+esc2(heroSrc)+'" draggable="false" alt="" '+
+          'style="width:100%;height:100%;object-fit:cover;display:block;'+
+          'transform:translate('+_hOx+'px,'+_hOy+'px) scale('+_hZm+');transform-origin:center center;pointer-events:none">'+
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.10),rgba(10,24,40,.30));pointer-events:none"></div>'+
+        (_heroCust ? '' :
+        '<div class="qp-cond-controls no-print" style="position:absolute;top:12px;right:12px;display:flex;gap:5px;align-items:center">'+
+          _heroBtn('_qpCondPhotoZoom('+HERO_IDX+',-0.1)', 'Zoom out', '\u2212')+
+          _heroBtn('_qpCondPhotoZoom('+HERO_IDX+',+0.1)', 'Zoom in', '+')+
+          _heroBtn('_qpCondPhotoReset('+HERO_IDX+')', 'Back to the middle', '\u21ba')+
+          _heroBtn('_qpCondPhotoFromFergus('+HERO_IDX+')', 'Change the picture', 'Change image')+
+          _heroBtn('_qpCondPhotoClear('+HERO_IDX+')', 'Take the picture off', 'Remove', 'rgba(185,28,28,.82)')+
+        '</div>'+
+        '<div class="no-print" style="position:absolute;left:12px;bottom:12px;padding:4px 9px;border-radius:6px;background:rgba(10,24,40,.6);color:rgba(255,255,255,.88);font-family:var(--ed-sans);font-size:10.5px;pointer-events:none">Drag to move · scroll to zoom</div>')+
+      '</figure>'
     : '<div style="height:300px;background:linear-gradient(135deg,var(--ed-ink),#0f2740);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:0 24px">'+
         (_stockPhoto('logo_wide_white.png') ? '<img src="'+esc2(_stockPhoto('logo_wide_white.png'))+'" onerror="this.style.display=\'none\'" alt="" style="height:52px;width:auto;opacity:.92">' : '')+
         '<div class="no-print" style="font-family:var(--ed-serif);font-style:italic;color:rgba(255,255,255,.82);font-size:15px">Add your shed design render for the cover</div>'+
@@ -38949,25 +39124,19 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   // Typing here is an OVERRIDE of the drawer, flagged so it is not silently
   // recomputed away; "↻ price from the drawer" clears it.
   var subEditable = '<span class="qp-editable" contenteditable="true" data-qfield="psSubtotal" spellcheck="false" style="color:#fff;font-weight:600">'+(M.sub>0?fmtMoney(M.sub):'<span class="qp-placeholder" style="color:rgba(255,255,255,.5)">$0.00</span>')+'</span>';
-  var priceCard =
-    '<div style="margin-top:6px;background:var(--ed-ink);border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(10,24,40,.2)">'+
-      '<div style="padding:10px 16px 8px">'+
-        '<div class="ed-eyebrow" style="color:#4fc3ff">Your investment</div>'+
-        '<div style="font-family:var(--ed-sans);font-size:11px;color:rgba(255,255,255,.7);margin-top:2px">Type the subtotal (excl. GST); GST, total and deposit calculate automatically.</div>'+
-      '</div>'+
-      money('Subtotal <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', subEditable, { top:true })+
-      money('GST ('+Math.round(M.rate*100)+'%)', fmtMoney(M.gst))+
-      money('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
-      money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
-    '</div>';
   var inclusions =
     edHeading('4','What\'s included','What’s Included',{chapter:POLESHED_CHAPTERS[3],chapters:POLESHED_CHAPTERS})+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+ listBlock('Inclusions','psInclusions','#2e7d32') +'</div>'+
       '<div>'+ listBlock('Exclusions','psExclusions','var(--ed-warm,#c0794d)') + listBlock('Options','psOptions','var(--ed-accent)') +'</div>'+
     '</div>'+
-    '<div style="margin-top:6px">'+ eyebrow('Special notes')+ '<div style="margin-top:6px">'+edMulti('psSpecialNotes')+'</div></div>'+
-    priceCard;
+    '<div style="margin-top:6px">'+ eyebrow('Special notes')+ '<div style="margin-top:6px">'+edMulti('psSpecialNotes')+'</div></div>';
+    // NO PRICE CARD ON THIS PAGE (2026-10-13, the owner: "delete the pricing
+    // totals on page 3 & 4"). What is included is not a place to re-state the
+    // total; the acceptance page carries the breakdown and the customer's own
+    // running summary follows them down the whole quote. The one thing that
+    // card held and this page did not \u2014 the hand-typed subtotal \u2014 moved to the
+    // acceptance page rather than going with it.
 
   // ── Acceptance ───────────────────────────────────────────────────
   var accept =
@@ -38975,7 +39144,11 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
     '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
       '<div>'+
         '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
-          money('Subtotal <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', fmtMoney(M.sub), { top:true })+
+          // The office types the subtotal straight onto this row (an OVERRIDE of
+          // the Pricing drawer, flagged psSubtotalManual so it is not quietly
+          // recomputed away; "\u21bb price from the drawer" clears it). It was on
+          // page 4's price card until that card came off.
+          money('Subtotal <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', subEditable, { top:true })+
           money('GST ('+Math.round(M.rate*100)+'%)', fmtMoney(M.gst))+
           money('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
           money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
@@ -71465,7 +71638,7 @@ async function _fergusPickPhoto(f){
     _downscalePhoto(dataUrl, function(src){
       _qpCondPhotoSet(cidx, { src: src, offX:0, offY:0, zoom:1 });
       _qpRerenderCondPhotos();
-    });
+    }, _qpCondSlotIsCover(cidx));
   } else if (target && typeof target === 'string'){
     // Quote photo slot — store as an upload-style assignment so the
     // existing resolveSlotSrc dataUrl path renders it.

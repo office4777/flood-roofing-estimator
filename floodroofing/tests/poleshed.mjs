@@ -955,6 +955,268 @@ check('…and it stays right on a copy carrying no live psSubtotal (it read '
 
 await ctx.close();
 
+// ── THE SHED'S OPTIONS PAGE (2026-10-13) ────────────────────────────
+// The owner, on a shed quote he had sent: "the cover photo is blurry, can you
+// also allow me to move the cover photo and zoom in just like i can with the
+// photo slots ... also in the options allow me to add, delete or edit the
+// different add-ons. then make the sections bigger and one selection per row
+// instead of jammed in next to each other like that, just like the roofing
+// type shows" \u2014 and, a minute later, "also delete the pricing totals on page
+// 3 & 4".
+({ ctx, pg } = await open('Flood Roofing LTD'));
+
+// ── the cover is a photo slot like the others ───────────────────────
+const cover = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
+  S.quote.psWidth = '7.2'; S.quote.psLength = '12.6';
+  // A 2\u00d71 picture is enough: nothing here reads its pixels, only its frame.
+  _qpCondPhotoSet(6, { src:'data:image/gif;base64,R0lGODlhAgABAIAAAP///wAAACH5BAEAAAAALAAAAAACAAEAAAICRAEAOw==',
+                       offX:0, offY:0, zoom:1 });
+  refreshQuoteProposal();
+  const fig = document.querySelector('[data-cp-hero="1"]');
+  const img = fig && fig.querySelector('img');
+  return {
+    isSlot: !!(fig && fig.classList.contains('qp-cond-photo')),
+    idx: fig && fig.getAttribute('data-cp-idx'),
+    // The drag and the wheel are the condition slots' own handlers, not a
+    // second copy that could drift from them.
+    drag: !!(fig && (fig.getAttribute('onmousedown')||'').indexOf('_qpCondPhotoDragStart') >= 0),
+    wheel: !!(fig && (fig.getAttribute('onwheel')||'').indexOf('_qpCondPhotoWheel') >= 0),
+    hasImg: !!img,
+    transform: img ? img.style.transform : '',
+    // and the controls that do it by button
+    ctrls: fig ? Array.from(fig.querySelectorAll('.qp-cond-controls button'))
+                      .map(b => b.getAttribute('onclick')).join(' ') : ''
+  };
+});
+check('the shed cover is a photo slot, not a background image', cover.isSlot);
+check('\u2026on the cover\u2019s own slot', cover.idx === '6', String(cover.idx));
+check('\u2026it drags with the condition slots\u2019 own handler', cover.drag);
+check('\u2026and zooms on the wheel with theirs', cover.wheel);
+check('the picture is an <img> carrying the slot transform',
+  cover.hasImg && /translate\(0px, ?0px\) scale\(1\)/.test(cover.transform), cover.transform);
+check('the cover carries zoom out / zoom in / reset buttons',
+  /_qpCondPhotoZoom\(6,-0\.1\)/.test(cover.ctrls) &&
+  /_qpCondPhotoZoom\(6,\+0\.1\)/.test(cover.ctrls) &&
+  /_qpCondPhotoReset\(6\)/.test(cover.ctrls), cover.ctrls);
+
+const covMove = await pg.evaluate(() => {
+  _qpCondPhotoZoom(6, 0.4);
+  _qpCondPhotoSet(6, { offX: -40, offY: 25 });
+  _qpApplySlotTransform(6);
+  const img = document.querySelector('[data-cp-hero="1"] img');
+  const after = { zoom: _qpCondPhoto(6).zoom, t: img ? img.style.transform : '' };
+  _qpCondPhotoReset(6);
+  const cp = _qpCondPhoto(6);
+  return { after, reset: { x: cp.offX, y: cp.offY, z: cp.zoom } };
+});
+check('moving and zooming the cover reaches the picture on screen',
+  Math.abs(covMove.after.zoom - 1.4) < 1e-9 && /translate\(-40px, ?25px\) scale\(1\.4\)/.test(covMove.after.t),
+  JSON.stringify(covMove.after));
+check('\u2026and \u21ba puts it back to the middle',
+  covMove.reset.x === 0 && covMove.reset.y === 0 && covMove.reset.z === 1,
+  JSON.stringify(covMove.reset));
+// A reset must not swap a 16/9 thumbnail in where the cover band was.
+check('resetting the cover leaves it a cover, not a 16/9 slot',
+  await pg.evaluate(() => !!document.querySelector('[data-cp-hero="1"]')));
+check('the customer gets a plain picture \u2014 no drag, no buttons',
+  await pg.evaluate(() => {
+    window.__CUSTOMER_MODE = true; refreshQuoteProposal();
+    const fig = document.querySelector('[data-cp-hero="1"]');
+    const out = { drag: !!(fig && fig.getAttribute('onmousedown')),
+                  btns: fig ? fig.querySelectorAll('.qp-cond-controls button').length : -1 };
+    window.__CUSTOMER_MODE = false; refreshQuoteProposal();
+    return !out.drag && out.btns === 0;
+  }));
+
+// ── a cover is downscaled on a cover's budget ───────────────────────
+// 900px at quality 0.6 is sized for a photo a third of the page wide; across a
+// full-bleed cover it is visibly soft, which is what he was looking at.
+const budget = await pg.evaluate(() => {
+  // A picture bigger than either budget, so the cap is what decides.
+  const c = document.createElement('canvas'); c.width = 2600; c.height = 1700;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 400; i++){                   // noise, so JPEG cannot cheat
+    g.fillStyle = 'rgb('+(i%255)+','+((i*7)%255)+','+((i*13)%255)+')';
+    g.fillRect((i*37)%2600, (i*53)%1700, 90, 70);
+  }
+  const src = c.toDataURL('image/jpeg', 0.95);
+  const dim = (d) => new Promise(res => { const im = new Image();
+    im.onload = () => res({ w: im.width, h: im.height, bytes: d.length }); im.src = d; });
+  return new Promise(res => {
+    _downscalePhoto(src, function(small){
+      _downscalePhoto(src, function(bigger){
+        Promise.all([dim(small), dim(bigger)]).then(function(r){
+          res({ site: r[0], cover: r[1],
+                isCover6: _qpCondSlotIsCover(6), isCover0: _qpCondSlotIsCover(0) });
+        });
+      }, true);
+    });
+  });
+});
+check('a site photo is still held to 900px', budget.site.w === 900, JSON.stringify(budget.site));
+check('A COVER IS NOT: it keeps 2000px', budget.cover.w === 2000, JSON.stringify(budget.cover));
+check('\u2026and more of its detail with it', budget.cover.bytes > budget.site.bytes * 2,
+  budget.site.bytes + ' \u2192 ' + budget.cover.bytes);
+check('slot 6 is the cover, the site slots are not',
+  budget.isCover6 === true && budget.isCover0 === false);
+
+// ── the add-ons are a list the office owns ──────────────────────────
+const addons = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
+  S.quote.gstRate = 15; S.quote.psSubtotal = 50000; S.quote.psSubtotalManual = true;
+  // A quote from BEFORE any of this: no list, one of the three old flags on.
+  S.quote.psAddSliding = true;
+  const read = _psAddons().map(a => a.id + '|' + a.label + '|' + a.price + '|' + (a.on ? 1 : 0));
+  const sub0 = +_poleShedMoney().sub.toFixed(2);
+  const rows0 = _poleShedSelItems().map(r => r.label + '|' + r.delta);
+  return { read, sub0, rows0, hasList: Array.isArray(S.quote.psAddons) };
+});
+check('a quote with no add-on list reads as the three built-ins',
+  addons.read.length === 3 && /^wallUnderlay\|/.test(addons.read[0]), JSON.stringify(addons.read));
+check('\u2026at their built-in prices', /\|3850\|/.test(addons.read[1]), addons.read[1]);
+check('\u2026with the old flag deciding what is ticked',
+  addons.read[1].slice(-1) === '1' && addons.read[0].slice(-1) === '0', JSON.stringify(addons.read));
+check('\u2026and NOTHING is written to the quote by reading it', addons.hasList === false);
+check('an old quote prices to the cent exactly as it did',
+  addons.sub0 === 53850, String(addons.sub0));
+check('\u2026and the sliding door is still named in the summary',
+  addons.rows0.join(' ') === 'Sliding door|3850', JSON.stringify(addons.rows0));
+
+const aoEdit = await pg.evaluate(() => {
+  const out = {};
+  _psAddonToggle('wallUnderlay');
+  out.afterToggle = { list: Array.isArray(S.quote.psAddons),
+                      legacy: !!S.quote.psSelWallUnderlay,
+                      sub: +_poleShedMoney().sub.toFixed(2) };
+  // Add one of the office's own.
+  const ask = window.prompt;
+  window.prompt = (q) => /price/i.test(q) ? '1,250.50' : 'Concrete floor';
+  _psAddonAdd();
+  window.prompt = ask;
+  out.added = { n: _psAddons().length,
+                last: _psAddons()[_psAddons().length - 1],
+                sub: +_poleShedMoney().sub.toFixed(2) };     // off by default
+  const newId = _psAddons()[_psAddons().length - 1].id;
+  _psAddonToggle(newId);
+  out.onSub = +_poleShedMoney().sub.toFixed(2);
+  out.onRow = _poleShedSelItems().map(r => r.label + '|' + r.delta);
+  // Re-price it.
+  const ask2 = window.prompt;
+  window.prompt = (q) => /price/i.test(q) ? '2000' : 'Concrete floor (150mm)';
+  _psAddonEdit(newId);
+  window.prompt = ask2;
+  out.edited = { label: _psAddons().filter(a => a.id === newId)[0].label,
+                 sub: +_poleShedMoney().sub.toFixed(2) };
+  // Cancel keeps it as it is.
+  const ask3 = window.prompt; window.prompt = () => null;
+  _psAddonEdit(newId);
+  window.prompt = ask3;
+  out.cancelled = _psAddons().filter(a => a.id === newId)[0].price;
+  // Delete it.
+  const cf = window.confirm; window.confirm = () => true;
+  _psAddonDelete(newId);
+  window.confirm = cf;
+  out.deleted = { n: _psAddons().length, sub: +_poleShedMoney().sub.toFixed(2) };
+  return out;
+});
+check('ticking an add-on materialises the quote\u2019s own list',
+  aoEdit.afterToggle.list === true);
+check('\u2026and keeps the old flag in step, so a half-saved copy reads right',
+  aoEdit.afterToggle.legacy === true);
+check('\u2026and it reaches the price', aoEdit.afterToggle.sub === 55300,
+  String(aoEdit.afterToggle.sub));
+check('the office can ADD an add-on of their own', aoEdit.added.n === 4 &&
+  aoEdit.added.last.label === 'Concrete floor', JSON.stringify(aoEdit.added.last));
+check('\u2026with a price typed any way they like ($1,250.50)',
+  aoEdit.added.last.price === 1250.5, String(aoEdit.added.last.price));
+check('\u2026starting OFF, so adding one never moves a price by itself',
+  aoEdit.added.last.on === false && aoEdit.added.sub === 55300, String(aoEdit.added.sub));
+check('\u2026and ticking it charges for it', aoEdit.onSub === 56550.5, String(aoEdit.onSub));
+check('\u2026under the name the office typed',
+  aoEdit.onRow.join(' ').indexOf('Concrete floor|1250.5') >= 0, JSON.stringify(aoEdit.onRow));
+check('the office can EDIT one', aoEdit.edited.label === 'Concrete floor (150mm)' &&
+  aoEdit.edited.sub === 57300, JSON.stringify(aoEdit.edited));
+check('\u2026and Cancel keeps it exactly as it was', aoEdit.cancelled === 2000,
+  String(aoEdit.cancelled));
+check('the office can DELETE one', aoEdit.deleted.n === 3);
+check('\u2026and its price goes with it', aoEdit.deleted.sub === 55300,
+  String(aoEdit.deleted.sub));
+
+const aoGuard = await pg.evaluate(() => {
+  const out = {};
+  // The CUSTOMER picks add-ons \u2014 that is what the page is for \u2014 but never
+  // writes the list.
+  window.__CUSTOMER_MODE = true;
+  const before = _psAddons().length;
+  const ask = window.prompt; window.prompt = () => 'Sneaky';
+  _psAddonAdd(); _psAddonEdit('slidingDoor');
+  window.prompt = ask;
+  out.custWrote = _psAddons().length !== before ||
+                  _psAddons().filter(a => a.id === 'slidingDoor')[0].label === 'Sneaky';
+  _psAddonToggle('doubleWindow');
+  out.custPicked = !!_psAddons().filter(a => a.id === 'doubleWindow')[0].on;
+  out.custEditable = _psAddonEditable();
+  window.__CUSTOMER_MODE = false;
+  // An ACCEPTED quote is not edited either.
+  S.quote.share = { token:'t', status:'accepted' };
+  S.quote.accepted = { name:'Phyllis', at:new Date().toISOString() };
+  out.acceptedEditable = _psAddonEditable();
+  const ask2 = window.prompt; window.prompt = () => 'Changed';
+  _psAddonEdit('slidingDoor');
+  window.prompt = ask2;
+  out.acceptedLabel = _psAddons().filter(a => a.id === 'slidingDoor')[0].label;
+  S.quote.share = null; S.quote.accepted = null;
+  return out;
+});
+check('the customer may TICK an add-on', aoGuard.custPicked);
+check('\u2026but never add, rename or re-price one',
+  !aoGuard.custWrote && aoGuard.custEditable === false);
+check('an accepted quote\u2019s add-ons are not editable either',
+  aoGuard.acceptedEditable === false && aoGuard.acceptedLabel === 'Add sliding door',
+  aoGuard.acceptedLabel);
+
+// ── one selection per row, and no totals on pages 3 and 4 ───────────
+const pages = await pg.evaluate(() => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'classic';
+  S.quote.gstRate = 15; S.quote.psSubtotal = 54490.78; S.quote.psSubtotalManual = true;
+  refreshQuoteProposal();
+  const by = (n) => Array.from(document.querySelectorAll('.rp-page'))
+    .filter(p => (p.textContent || '').indexOf(n) >= 0)[0] || null;
+  const opts = by('Choose Your Options'), incl = by('What\u2019s Included'), acc = by('Accept Your Quote');
+  const txt = (e) => (e ? (e.textContent || '') : '');
+  return {
+    found: !!opts && !!incl && !!acc,
+    // Each section is its own full-width row, not two columns side by side.
+    twoCol: opts ? Array.from(opts.querySelectorAll('div'))
+      .some(d => /1fr 1fr/.test(d.getAttribute('style') || '') &&
+                 /STEEL THICKNESS/i.test(d.textContent || '')) : true,
+    optsTotal: /Your selections|Base quote|Total \(incl/i.test(txt(opts)),
+    // The page's own Options list legitimately says "+ GST" in the office's
+    // wording, so the pin looks for the navy MONEY CARD that was on it: its
+    // heading, its subtotal row and its deposit line.
+    inclTotal: /Your investment/i.test(txt(incl)) ||
+               /Subtotal\s*\(excl\. GST\)/i.test(txt(incl)) ||
+               /deposit on acceptance/i.test(txt(incl)),
+    accTotal: /Subtotal/.test(txt(acc)) && /Total/.test(txt(acc)),
+    // Each option still says what IT adds \u2014 that is what page 3 is for.
+    optsDeltas: /\+\$1,520\.00/.test(txt(opts)),
+    // The hand-typed subtotal moved with the card rather than going with it.
+    accTyped: acc ? !!acc.querySelector('[data-qfield="psSubtotal"]') : false,
+    addBtn: opts ? /_psAddonAdd\(\)/.test(opts.innerHTML) : false
+  };
+});
+check('the shed\u2019s five pages render', pages.found);
+check('the options page is ONE SELECTION PER ROW, not two columns', !pages.twoCol);
+check('PAGE 3 CARRIES NO TOTAL', !pages.optsTotal);
+check('PAGE 4 CARRIES NO TOTAL', !pages.inclTotal);
+check('\u2026but each option still shows what it adds', pages.optsDeltas);
+check('the acceptance page still carries the breakdown', pages.accTotal);
+check('\u2026and the office can still type the subtotal there', pages.accTyped);
+check('the office gets + Add on the add-ons band', pages.addBtn);
+
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;
