@@ -1180,6 +1180,37 @@ Discipline (non-negotiable):
   MOVES: every path is behind `_psPricingPlans()`, which answers null unless
   `quoteKind === 'poleshed'` AND there is more than one plan.
   `tests/poleshed.mjs`.
+- A PLAN OPTION IS NAMED WHEREVER IT IS OFFERED (2026-10-13, the owner: "let
+  me rename the two options, put a little edit pencil symbol button which lets
+  me change the name of either option, put it everywhere it has the two option
+  buttons aswell as in the pricing tab, also add plan option to the first page
+  aswell as the inside the price box on the right hand side of the quote").
+  Renaming existed, but as ONE "Rename" button that renamed whichever plan
+  happened to be on screen — so naming the other one meant switching to it
+  first, and nothing said which name you were about to change.
+  `_psPlanPencilHtml(i, kind)` is a ✎ per option, on all three surfaces that
+  offer them: the office strip above the drawings (`_psPlanBarHtml`), the
+  Pricing drawer's chips (`_psPlanSwitchHtml`) and the customer's options page
+  (`planPanel` in `_buildPoleShedSelections`, whose local `opt()` grew an
+  `after` argument for it — every other caller passes five arguments and is
+  unchanged). IT IS NEVER NESTED INSIDE THE OPTION'S OWN BUTTON: a button
+  inside a button is not valid markup and the browser breaks the inner one out
+  of its parent, which would land the pencil somewhere else entirely — the
+  strip wraps each option in a span, the drawer positions it over the cell
+  (`.ps-plan-pen-abs`), and the options page row is a div. Its click calls
+  `event.stopPropagation()` so renaming never also switches the plan.
+  RENAMING IS A QUOTE EDIT, not a label on a button — the name is on the
+  cover, in the customer's price box and on their options page — so
+  `_psPlanRenamePrompt` takes the same two guards every other change takes:
+  never in customer mode (they pick a shed, they do not name one) and never on
+  an accepted quote. Cancel and an empty box both keep the name.
+  AND THE QUOTE SAYS WHICH SHED IT IS: a "Plan option" cell on the cover's
+  meta grid beside Reference and Deposit, and a row at the top of the computer
+  rail's price box (`_qdRail`, which is that layout's alone). Both only where
+  there is more than one plan — one plan is just "the shed", and labelling it
+  reads as though a choice were missing. The customer sees both (it is a fact
+  about the quote they are reading); only the pencil is office-only.
+  `tests/poleshed.mjs` (102).
 - A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13, the owner: "wheres
   the switcher from roofing to pole shed job type gone? the phyllis job is now
   missing the pole shed specific quote"). `_poleShedsAvailable()` reads

@@ -337,17 +337,25 @@ const planPrice = await pg.evaluate(() => {
   _setPsPlan(0);
   // the drawer's own switch
   _renderPricingRoofSwitchBar();
-  const barBtns = Array.from(document.querySelectorAll('#pricingRoofSwitchBar button'))
+  // The option buttons only — the rename pencil beside each one is a separate
+  // control and is counted on its own, so neither can hide the other going wrong.
+  const barAll = Array.from(document.querySelectorAll('#pricingRoofSwitchBar button'));
+  const barBtns = barAll.filter(b => b.classList.contains('pr-roof-btn'))
     .map(b => (b.getAttribute('onclick')||'') + '|' + (b.textContent||'').trim());
+  const barPens = barAll.filter(b => b.classList.contains('ps-plan-pen')).length;
+  const barStray = barAll.length - barBtns.length - barPens;
   const tabs = _pricingRoofTabsHtml();
   const card = (document.querySelector('#pricingRoofMap .pr-price')||{}).textContent || '';
-  return { bFresh, bPriced, aBack, bBack, barBtns, tabsHasPlan: /_setPsPlan/.test(tabs), card,
-           plans: _psPlans().length };
+  return { bFresh, bPriced, aBack, bBack, barBtns, barPens, barStray,
+           tabsHasPlan: /_setPsPlan/.test(tabs), card, plans: _psPlans().length };
 });
 check('a second plan option is banked beside the first', planPrice.plans === 2, JSON.stringify(planPrice.plans));
 check('the Pricing drawer switches by PLAN OPTION on a shed',
   planPrice.barBtns.length === 2 && planPrice.barBtns.every(x => /_setPsPlan\(/.test(x)) && planPrice.tabsHasPlan,
   JSON.stringify(planPrice.barBtns));
+check('…with a rename pencil beside each, and nothing else in that bar',
+  planPrice.barPens === 2 && planPrice.barStray === 0,
+  JSON.stringify({ pens: planPrice.barPens, stray: planPrice.barStray }));
 check('a new plan starts from the one it was added beside, not from nothing',
   planPrice.bFresh.lead === 40 && planPrice.bFresh.scaff === 3000 && planPrice.bFresh.custom === 900,
   JSON.stringify(planPrice.bFresh));
@@ -757,6 +765,131 @@ check('the Edit job modal still reads a pole shed as a pole shed', sticky.stashe
 check('A BRAND-NEW JOB IS A ROOFING JOB', sticky.fresh === 'roofing', JSON.stringify(sticky));
 check('…and so is a saved job whose quote never said (it no longer inherits the last job\'s type)',
   sticky.after === 'roofing' && sticky.ref === '4001', JSON.stringify(sticky));
+
+// ── NAMING THE PLAN OPTIONS (2026-10-13) ────────────────────────────────
+// The owner: "let me rename the two options, put a little edit pencil symbol
+// button which lets me change the name of either option, put it everywhere it
+// has the two option buttons aswell as in the pricing tab, also add plan
+// option to the first page aswell as the inside the price box on the right
+// hand side of the quote".
+const twoPlans = () => {
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
+  S.quote.client = 'Phyllis Rintoul'; S.quote.ref = '3287';
+  S.quote.psWidth = '7.2'; S.quote.psLength = '16.8'; S.quote.psHeight = '3.48';
+  S.quote.psBayAmount = '4'; S.quote.psSubtotal = 35184.68;
+  S.quote.shedPlans = [
+    { name:'Option A',  fields:{ psWidth:'7.2', psLength:'16.8', psBayAmount:'4', psSubtotal:35184.68 }, photos:{}, est:{} },
+    { name:'4-bay (1)', fields:{ psWidth:'7.2', psLength:'16.8', psBayAmount:'4', psSubtotal:37684.68 }, photos:{}, est:{} }
+  ];
+  S.quote.psPlanIdx = 0;
+};
+
+const pens = await pg.evaluate((src) => {
+  eval('(' + src + ')')();
+  // A pencil per option on each of the three surfaces that offer the options.
+  const n = h => (h.match(/_psPlanRenamePrompt\(/g) || []).length;
+  return { bar: n(_psPlanBarHtml()), drawer: n(_psPlanSwitchHtml()),
+           options: n(_buildPoleShedSelections()) };
+}, twoPlans.toString());
+check('a rename pencil sits on BOTH options in the office strip above the drawings',
+  pens.bar === 2, JSON.stringify(pens));
+check('…on both chips in the Pricing drawer', pens.drawer === 2, JSON.stringify(pens));
+check('…and on both rows of the options page', pens.options === 2, JSON.stringify(pens));
+
+// A button inside a button is not valid markup — the browser breaks the inner
+// one out of its parent, which would put the pencil somewhere else entirely.
+const nested = await pg.evaluate(() => {
+  const bad = h => /<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/.test(h);
+  return { bar: bad(_psPlanBarHtml()), drawer: bad(_psPlanSwitchHtml()) };
+});
+check('the pencil is never nested inside the option\'s own button',
+  nested.bar === false && nested.drawer === false, JSON.stringify(nested));
+
+// The pencil renames, and the new name reaches every surface that names a plan.
+const renamed = await pg.evaluate(() => {
+  window.prompt = () => '4-Bay Deluxe';
+  _psPlanRenamePrompt(1);
+  const has = h => /4-Bay Deluxe/.test(h);
+  return { stored: (_psPlans()[1] || {}).name, label: _psPlanLabel(1),
+           bar: has(_psPlanBarHtml()), drawer: has(_psPlanSwitchHtml()),
+           options: has(_buildPoleShedSelections()) };
+});
+check('the pencil renames that option', renamed.stored === '4-Bay Deluxe' && renamed.label === '4-Bay Deluxe',
+  JSON.stringify(renamed));
+check('…and the new name reaches the strip, the Pricing drawer and the options page',
+  renamed.bar && renamed.drawer && renamed.options, JSON.stringify(renamed));
+
+// Cancel and an empty box both keep the name — a rename dialog dismissed must
+// never blank what is on the cover and on the customer's page.
+const kept = await pg.evaluate(() => {
+  const was = _psPlanLabel(1);
+  window.prompt = () => null; _psPlanRenamePrompt(1);
+  const afterCancel = _psPlanLabel(1);
+  window.prompt = () => '   '; _psPlanRenamePrompt(1);
+  return { was, afterCancel, afterBlank: _psPlanLabel(1) };
+});
+check('Cancel, and an empty box, both keep the name',
+  kept.afterCancel === kept.was && kept.afterBlank === kept.was, JSON.stringify(kept));
+
+// THE COVER AND THE PRICE BOX say which shed this quote is.
+const planShown = await pg.evaluate(() => {
+  const cover = _psParts().cover || '';
+  const rail = _qdRail();
+  return { coverLabel: /Plan option/.test(cover), coverName: /4-Bay Deluxe|Option A/.test(cover),
+           railLabel: /Plan option/.test(rail), railName: /Option A/.test(rail) };
+});
+check('the cover names the plan option this quote is for',
+  planShown.coverLabel && planShown.coverName, JSON.stringify(planShown));
+check('…and so does the price box on the computer layout\'s rail',
+  planShown.railLabel && planShown.railName, JSON.stringify(planShown));
+
+// ONE plan is just "the shed": a cover or a price box that labels it reads as
+// though a choice were missing.
+const onePlan = await pg.evaluate(() => {
+  S.quote.shedPlans = [S.quote.shedPlans[0]]; S.quote.psPlanIdx = 0;
+  return { cover: /Plan option/.test(_psParts().cover || ''), rail: /Plan option/.test(_qdRail()),
+           bar: _psPlanBarHtml(), drawer: _psPlanSwitchHtml() };
+});
+check('a shed with ONE plan says nothing about plan options anywhere',
+  onePlan.cover === false && onePlan.rail === false && onePlan.bar === '' && onePlan.drawer === '',
+  JSON.stringify({ cover: onePlan.cover, rail: onePlan.rail, bar: onePlan.bar.length, drawer: onePlan.drawer.length }));
+
+// A roofing quote's rail is untouched.
+const roofRail = await pg.evaluate(() => {
+  S.quote = defaultQuote();
+  return { plan: /Plan option/.test(_qdRail()) };
+});
+check('a ROOFING quote\'s price box gains nothing', roofRail.plan === false, JSON.stringify(roofRail));
+
+// THE CUSTOMER PICKS A SHED, THEY DO NOT NAME ONE.
+const custPen = await pg.evaluate((src) => {
+  eval('(' + src + ')')();
+  window.__CUSTOMER_MODE = true;
+  const n = h => (h.match(/_psPlanRenamePrompt\(/g) || []).length;
+  const r = { bar: n(_psPlanBarHtml()), drawer: n(_psPlanSwitchHtml()),
+              options: n(_buildPoleShedSelections()),
+              // they still SEE which shed the price is for
+              cover: /Plan option/.test(_psParts().cover || ''), rail: /Plan option/.test(_qdRail()) };
+  window.__CUSTOMER_MODE = false;
+  return r;
+}, twoPlans.toString());
+check('the customer is offered no rename pencil anywhere',
+  custPen.bar === 0 && custPen.drawer === 0 && custPen.options === 0, JSON.stringify(custPen));
+check('…but still sees which plan option the price is for',
+  custPen.cover && custPen.rail, JSON.stringify(custPen));
+
+// AN ACCEPTED QUOTE NEVER CHANGES — the shed they signed off keeps its name,
+// which is on the cover and in the price box they accepted.
+const acc = await pg.evaluate(() => {
+  window.__CUSTOMER_MODE = true; S.quote.accepted = { name: 'Phyllis' };
+  const was = _psPlanLabel(1);
+  window.prompt = () => 'Renamed after acceptance';
+  _psPlanRenamePrompt(1);
+  const after = _psPlanLabel(1);
+  window.__CUSTOMER_MODE = false; delete S.quote.accepted;
+  return { was, after };
+});
+check('an accepted quote keeps its plan names', acc.after === acc.was, JSON.stringify(acc));
 
 await ctx.close();
 
