@@ -6,8 +6,13 @@
 //
 // Pinned: the type is offered; on the L each block gets a ridge, gutters on
 // the edges along the ridge and rake barges across it; where the blocks meet
-// the wider block keeps its barge (the gable wall) and the narrower gets an
-// apron; Rotate flips the ridge direction and keeps the type; a T gets three
+// the wider block keeps a barge (the gable wall standing above the lower
+// roof) and the narrower gets an apron — and since 2026-10-13 that barge runs
+// RIDGE TO RIDGE rather than down to the gutter (feedback report 12, settled
+// by the owner; see tests/report12.mjs for why the geometry agrees). This
+// file used to pin the barge loosely, anywhere inside the shared stretch,
+// which is how the bug survived: it pins the exact extent now.
+// Rotate flips the ridge direction and keeps the type; a T gets three
 // ridges; grabbing the ridge does not re-label it a straight gable; the
 // sheet engine counts it. And the undo that the owner saw double lines from:
 // a snapshot carries EVERY roof, so undoing back past a second roof leaves
@@ -62,11 +67,27 @@ check('on the L it is two gables: a ridge down the middle of each block, gutters
 // (335 wide) dies into it: apron on the wing's edge at x=635 from 880 to 1215.
 check('…the ridges are one per block, each down its own middle', JSON.stringify(g.a.ridges) === '[[[180,888],[635,888]],[[635,1048],[860,1048]]]', JSON.stringify(g.a.ridges));
 check('…the narrower wing runs an APRON up to the wider block\'s gable wall', JSON.stringify(g.a.aprons) === '[[[635,880],[635,1215]]]', JSON.stringify(g.a.aprons));
-check('…and the wider block keeps its barge along that same stretch (the wall above the lower roof)',
-  g.a.barges.some(bg => bg[0][0] === 635 && bg[1][0] === 635 && Math.min(bg[0][1], bg[1][1]) >= 880 && Math.max(bg[0][1], bg[1][1]) <= 1215), JSON.stringify(g.a.barges));
+// The wider block's ridge is at y=887.5, the wing's at y=1047.5: the gable
+// wall standing above the wing is the stretch between them and nothing more.
+// Below the wing's ridge both roofs are the same plane, so there is no wall
+// there; 1215 is the gutter the barge used to run all the way down to.
+check('…and the wider block keeps a barge along that stretch, RIDGE TO RIDGE (the wall really standing above the lower roof)',
+  g.a.barges.some(bg => bg[0][0] === 635 && bg[1][0] === 635
+    && Math.min(bg[0][1], bg[1][1]) === 888 && Math.max(bg[0][1], bg[1][1]) === 1048),
+  JSON.stringify(g.a.barges));
+check('…and it stops there: no barge on that junction runs down to the gutter',
+  !g.a.barges.some(bg => bg[0][0] === 635 && bg[1][0] === 635
+    && Math.max(bg[0][1], bg[1][1]) > 1048),
+  JSON.stringify(g.a.barges));
 check('no hip and no valley anywhere on it', !g.a.counts.hip && !g.a.counts.valley);
 check('Rotate roof 90° turns both ridges the other way and keeps the type', g.b.type === 'stepgable' && g.b.rotation === 90 && JSON.stringify(g.b.ridges) === '[[[408,560],[408,880]],[[520,880],[520,1215]]]', JSON.stringify(g.b));
 check('…with the apron now along the cut at y=880 under the narrower top block', JSON.stringify(g.b.aprons) === '[[[180,880],[635,880]]]', JSON.stringify(g.b.aprons));
+// Rotated, the blocks swap roles: the lower block (now the wider one) carries
+// the barge, from its own ridge at x=520 to the top block's at x=407.5.
+check('…and rotated, its barge is ridge to ridge the same way',
+  g.b.barges.some(bg => bg[0][1] === 880 && bg[1][1] === 880
+    && Math.min(bg[0][0], bg[1][0]) === 408 && Math.max(bg[0][0], bg[1][0]) === 520),
+  JSON.stringify(g.b.barges));
 
 // a corner drag regenerates it as a step-down gable, not something else
 const regen = await pg.evaluate(() => {

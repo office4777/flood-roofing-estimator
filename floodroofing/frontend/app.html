@@ -4789,7 +4789,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T02:26:13Z';
+  window.APP_BUILT_AT = '2026-10-13T02:34:07Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -75071,25 +75071,33 @@ function buildStepGableRoofLines(outline, flipAxis){
         // …and stamp it: the wider block's wall is the barge, the narrower
         // roof runs an apron up to it. Equal widths: the first block (lower u) wins.
         //
-        // FEEDBACK REPORT 12 (2026-10-12) says this barge is wrong — "the
-        // barge going down from the top ridge line to the lower ridge line
-        // shouldn't carry through to the gutter". But tests/stepgable.mjs
-        // pins the opposite, deliberately, from the owner's own sketch when
-        // the shape was built: "the wider block keeps its barge along that
-        // same stretch (the wall above the lower roof)". Both cannot be
-        // right, and taking the barge out breaks that pin — so the question
-        // is the owner's to settle and the shipped behaviour stands until he
-        // does. What IS wrong either way is the sliver: splitting the shared
-        // stretch at the wider block's ridge leaves a stub where the two
-        // ridges miss each other (90mm on his roof), which is not a flashing
-        // anybody can order or fit. Pieces under 0.25m are dropped.
+        // THE JUNCTION BARGE RUNS RIDGE TO RIDGE, NOT TO THE GUTTER (feedback
+        // report 12, settled by the owner 2026-10-13: "the barge going down
+        // from the top ridge line to the lower ridge line shouldn't carry
+        // through to the gutter" … "the north west long barge shouldn't go
+        // all the way to the gutter").
+        //
+        // It used to be the whole shared stretch, split at THIS block's ridge
+        // — on his L, 4.93m running from the gutter all the way up to the
+        // ridge. The geometry says he is right. Both blocks slope at the same
+        // pitch off the same eave line, so from the eave up to the LOWER
+        // block's ridge the two roof planes sit at exactly the same height:
+        // there is no wall standing above that roof, so there is nothing to
+        // flash. Past the lower ridge its roof falls away while this one
+        // keeps climbing, and THAT triangle of gable wall — ridge to ridge —
+        // is the barge. On his roof 2.42m, not 4.93m.
+        //
+        // Two ridges that line up leave no wall at all and no barge; a sliver
+        // where they nearly line up (the 90mm stub on his L) is not a
+        // flashing anybody can order or fit, so anything under 0.25m is
+        // dropped — the same rule, now reached from one piece instead of two.
         var mine = bk.width > ob.width + 0.5 || (Math.abs(bk.width - ob.width) <= 0.5 && bk.u0 < ob.u0);
         if (mine){
+          var ovm = (ob.v0 + ob.v1) / 2;                            // the lower block's ridge
+          var b0 = Math.max(lo, Math.min(vm, ovm));
+          var b1 = Math.min(hi, Math.max(vm, ovm));
           var MIN_PIECE = 0.25 / (DRAW.scaleMetresPerPx || 0.03);   // 0.25m in px
-          [[lo, vm], [vm, hi]].forEach(function(pc){
-            if (Math.abs(pc[1] - pc[0]) < MIN_PIECE) return;
-            barges.push({ type:'barge', pts:[XY(ue, pc[0]), XY(ue, pc[1])] });
-          });
+          if (b1 - b0 >= MIN_PIECE) barges.push({ type:'barge', pts:[XY(ue, b0), XY(ue, b1)] });
         }
         else result.push({ type:'apron', pts:[XY(ue, lo), XY(ue, hi)] });
       });

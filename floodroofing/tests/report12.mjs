@@ -11,22 +11,27 @@
 //   barge  667.5 -> 669  0.09m   a 90mm stub where the two ridges missed
 //   barge  669 -> 752    4.85m   the wall below the wing
 //
-// TWO OF THOSE ARE SETTLED AND ONE IS NOT.
+// ALL THREE ARE SETTLED NOW (the owner, 2026-10-13).
 //
-// The 90mm stub is wrong on anybody's reading: the shared stretch is split
+// The 90mm stub is wrong on anybody's reading: the shared stretch was split
 // at the WIDER block's ridge, and where that ridge does not line up with the
 // wing's edge the split leaves a sliver that is not a flashing anybody can
 // order or fit. Dropped (anything under 0.25m).
 //
-// The 4.93m barge behind the apron is the OPEN question, and it is the
-// owner's to settle, not this file's. He is reporting it as wrong here — but
-// tests/stepgable.mjs pins it as RIGHT, deliberately, from his own sketch
-// when the shape was built: "the wider block keeps its barge along that same
-// stretch (the wall above the lower roof)". On a step-down gable the taller
-// block's gable rake really does continue above the lower roof, so there is
-// a case for each. Taking it out passes this report and breaks that pin, so
-// the shipped behaviour stands until he says which he wants. What this file
-// pins is that nothing ELSE moved while the question is open.
+// The 4.93m barge behind the apron was the open question, and he settled it:
+// "the barge going down from the top ridge line to the lower ridge line
+// shouldn't carry through to the gutter" … "the north west long barge
+// shouldn't go all the way to the gutter". THE GEOMETRY AGREES, which is why
+// this is a fix and not a preference: both blocks slope at the same pitch off
+// the same eave line, so from the eave up to the LOWER block's ridge the two
+// roof planes sit at exactly the same height — there is no wall above that
+// roof and nothing to flash. Past the lower ridge its roof falls away while
+// the taller one keeps climbing, and that triangle, ridge to ridge, is the
+// barge: 2.42m here, not 4.93m. tests/stepgable.mjs pinned the old behaviour
+// from what was believed to be his sketch; he has since said that drawing was
+// the app's own output, not his, so that pin was pinning the bug.
+//
+// The 4.85m barge below the wing he confirmed as correct, and it is untouched.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 import { chromium } from 'playwright';
@@ -78,13 +83,22 @@ check('THE SLIVER IS GONE — no 90mm stub where the two ridges miss each other'
 check('the wall below the wing still gets its barge — the stretch that is '
     + 'plainly exposed', barges.some(x => x.lo === 669 && x.hi === 752),
   JSON.stringify(barges));
-check('the junction is now two barges, not three: the disputed one and the '
-    + 'exposed one, with the sliver dropped', barges.length === 2,
-  JSON.stringify(barges));
+check('the junction is two barges, not three — the sliver is dropped',
+  barges.length === 2, JSON.stringify(barges));
+// THE SETTLED ANSWER. The wider block's ridge is at 667.5 and the wing's at
+// 626; the barge is the stretch between them and stops there. 583 is the
+// gutter it used to run down to.
+check('THE JUNCTION BARGE STOPS AT THE WING\'S RIDGE — it no longer carries '
+    + 'through to the gutter',
+  barges.some(x => x.lo === 626 && x.hi === 667.5), JSON.stringify(barges));
+check('…so it measures 2.42m of gable wall, not the 4.93m it ran before',
+  barges.some(x => x.lo === 626 && x.m === 2.42), JSON.stringify(barges));
+check('…and nothing on this junction reaches the top gutter at 583 but the apron',
+  barges.every(x => x.lo !== 583), JSON.stringify(barges));
 check('the roof is otherwise the same shape — two ridges, four gutters',
   r.counts.ridge === 2 && r.counts.gutter === 4, JSON.stringify(r.counts));
-check('and the ORDER does not move: dropping a flashing nobody can fix to a '
-    + 'wall must not change the steel', r.sheets === 40, String(r.sheets));
+check('and the ORDER does not move: shortening a flashing to the wall that is '
+    + 'really there must not change the steel', r.sheets === 40, String(r.sheets));
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

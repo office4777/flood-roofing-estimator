@@ -689,29 +689,44 @@ Discipline (non-negotiable):
   `TOUR.active` and no `COACH.running` (COACH holds only `idleMs`) — both were
   written first and would have left the guard dead, sliding a panel over a
   tour card. `_onbActive()` is checked beside it. `tests/roofmenu.mjs`.
-- THE STEP-DOWN GABLE'S JUNCTION BARGE IS AN OPEN QUESTION FOR THE OWNER
-  (feedback report 12, 2026-10-12: "step-down gable isnt right, the barge
-  going down from the top ridge line to the lower ridge line shouldn't carry
-  through to the gutter"). Where two blocks meet, `buildStepGableRoofLines`
-  carves the SHARED stretch out of the outline pieces and stamps it: an apron
-  on the narrower block AND a barge on the wider one, split at its own ridge.
-  His L therefore carried a 4.93 m barge behind the apron, a 90 mm stub where
-  the two ridges missed, and the real 4.85 m barge below the wing.
-  THE STUB IS SETTLED AND FIXED: splitting the shared stretch at the wider
-  block's ridge leaves a sliver wherever that ridge does not line up with the
-  wing's edge, and a 90 mm flashing is not something anybody can order or
-  fit. Pieces under 0.25 m are dropped.
-  THE BARGE BEHIND THE APRON IS NOT SETTLED, and it is the owner's call.
-  `tests/stepgable.mjs` pins it as RIGHT, deliberately, from his own sketch
-  when the shape was built — "the wider block keeps its barge along that same
-  stretch (the wall above the lower roof)" — and on a step-down gable the
-  taller block's gable rake really does continue above the lower roof. Taking
-  it out passes report 12 and breaks that pin; it was tried, and reverted for
-  exactly that reason. The shipped behaviour stands until he says which he
-  wants. DO NOT flip it without asking him: it is a disagreement between two
-  things he has said, not a bug with a right answer in the code.
-  The order does not move either way — 40 sheets, measured both ways.
-  `tests/report12.mjs` pins the stub's removal and that nothing else moved.
+- THE STEP-DOWN GABLE'S JUNCTION BARGE RUNS RIDGE TO RIDGE (feedback report
+  12, 2026-10-12: "step-down gable isnt right, the barge going down from the
+  top ridge line to the lower ridge line shouldn't carry through to the
+  gutter"; SETTLED by the owner 2026-10-13: "the south west long barge is
+  correct, but the north west long barge shouldn't go all the way to the
+  gutter"). Where two blocks meet, `buildStepGableRoofLines` carves the SHARED
+  stretch out of the outline pieces and stamps it: an apron on the narrower
+  block AND a barge on the wider one. His L carried a 4.93 m barge behind the
+  apron, a 90 mm stub where the two ridges missed, and the real 4.85 m barge
+  below the wing.
+  THE STUB: splitting the shared stretch at the wider block's ridge left a
+  sliver wherever that ridge does not line up with the wing's edge, and a
+  90 mm flashing is not something anybody can order or fit. Anything under
+  0.25 m is dropped.
+  THE BARGE: it is now the stretch between the TWO RIDGES
+  (`ovm = (ob.v0 + ob.v1) / 2`, clipped to the shared stretch), not the whole
+  shared stretch down to the gutter — 2.42 m on his L, not 4.93 m. THE
+  GEOMETRY AGREES, which is why this is a fix and not a preference: both
+  blocks slope at the same pitch off the same eave line, so from the eave up
+  to the LOWER block's ridge the two roof planes sit at exactly the same
+  height — there is no wall standing above that roof and nothing to flash.
+  Past the lower ridge its roof falls away while the taller one keeps
+  climbing, and that triangle is the barge. Two ridges that line up leave no
+  wall and no barge at all.
+  WHY IT SURVIVED SO LONG, worth keeping: `tests/stepgable.mjs` pinned the old
+  behaviour as right, from what was believed to be the owner's own sketch —
+  and he has since said that drawing "wasn't my drawing, it was the auto
+  drawing", so the pin was pinning the app's own output back at itself. It
+  also pinned the barge LOOSELY (anywhere inside the shared stretch), so the
+  bug fitted through it. Both are fixed: the pin now asserts the exact
+  ridge-to-ridge extent, rotated as well.
+  The order does not move — 40 sheets, measured both ways, and the
+  37-shape sheet gate is unchanged. STILL OPEN AND HIS CALL: the APRON on the
+  narrower block still runs the whole shared stretch (4.85 m). The same
+  argument says it should also start at the lower ridge, since below that the
+  two roofs are one plane — but he confirmed only the barge, and an apron is
+  what keeps water out, so it was not touched on reasoning alone. Ask him.
+  `tests/report12.mjs`, `tests/stepgable.mjs`.
 - A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12, found while
   building the shed's modern styling — it was not a styling gap but a live
   bug). `_qdSectionsRaw` (the one-page computer layout) and `_qbPages` (the
