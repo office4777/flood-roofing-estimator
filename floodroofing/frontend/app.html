@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T07:07:26Z';
+  window.APP_BUILT_AT = '2026-10-13T07:25:28Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33526,7 +33526,40 @@ function _qbPicks(){
 // The automatic picks, each with its key: [label, value, key]. A section the
 // office took out of the quote (its page deleted) takes its line with it —
 // "remove those things if their selection was removed".
+// WHAT THE CUSTOMER CHOSE, ON A POLE SHED, IS WHAT THE SHED OFFERED
+// (2026-10-13, the owner on job 3287's price box: "the 'the old roofing we
+// take it away' from the price box on the right of the quote shouldn't be
+// there"). The list below is written entirely around a RE-ROOF — roof
+// profile, guttering, downpipes, what happens to the old iron — and none of
+// it is a choice the shed's own options page offers. A new shed has no old
+// roofing to take away, and saying so on the quote reads as though a re-roof
+// had been priced. These are the shed's picks, keyed `ps*` so the office can
+// still re-word any of them in Edit summary.
+function _psPicksAuto(){
+  var q = S.quote || {}, out = [];
+  try {
+    var plans = _psPlans();
+    if (plans.length > 1) out.push(['Plan option', _psPlanLabel(_psPlanIdx()), 'psplan']);
+  } catch(e){}
+  var grade = q.psSelGrade || 'colorsteel';
+  out.push(['Steel grade', (grade === 'zincalume') ? 'Plain silver Zincalume\u00ae' : 'Colorsteel\u00ae', 'psgrade']);
+  out.push(['Steel thickness', ((q.psSelThickness || '0.40') === '0.55') ? '0.55 gauge' : '0.40 gauge', 'psthickness']);
+  // Zincalume is unpainted, so it has no colour to list rather than a blank.
+  if (grade === 'zincalume') out.push(['Roof & wall colour', 'Plain silver \u2014 unpainted', 'pscolour']);
+  else if (q.psSelColour) out.push(['Roof & wall colour', q.psSelColour, 'pscolour']);
+  out.push(['Roller door finish', ((q.psSelRoller || 'colorsteel') === 'zincalume')
+    ? 'Plain Zincalume\u00ae' : 'Colorsteel\u00ae \u2014 matches the shed', 'psroller']);
+  // Only the add-ons they took: an add-on they left off is not a choice worth
+  // printing, the way a quote with no gutter has no gutter line.
+  try {
+    _psAddons().forEach(function(a){
+      if (a && a.on) out.push([a.label, 'Included', 'ps:' + a.id]);
+    });
+  } catch(e){}
+  return out.filter(function(r){ return r[1]; });
+}
 function _qbPicksAuto(){
+  if (typeof _psIsShed === 'function' && _psIsShed()) { try { return _psPicksAuto(); } catch(e){} }
   var p = (S.quote && S.quote.proposalOptions) || {};
   var out = [];
   var _gone = []; try { _gone = _qModernParkedKeys(); } catch(e){ _gone = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : []; }
@@ -42036,6 +42069,26 @@ var QUOTE_EMAIL_DEFAULT = {
     'Any questions, just reply to this email or give us a call.\n\n' +
     'Kind regards,\n{company}\n{phone}{email}{website}',
 };
+// A POLE SHED'S QUOTE EMAIL IS ABOUT A SHED (2026-10-13, the owner: "can you
+// change the default wording for the Pole Shed quote in a Pole Shed job type,
+// still relates to a roofing job instead of a Pole Shed"). The standard
+// wording opened "Your roofing quote 3287" and "Thanks for the opportunity to
+// quote your roof at 350 Horeke Road" over a quote for a new shed.
+//
+// QUOTE_EMAIL_DEFAULT is NOT touched: it is what Settings \u2192 Email shows as
+// the standard wording and what the server's own copy is compared against.
+// This is the standard wording FOR A SHED, and an office that has written
+// their own still wins over both \u2014 `em.quote_subject` is read first either way.
+var POLESHED_EMAIL_DEFAULT = {
+  subject: 'Your pole shed quote {ref} \u2014 {company}',
+  body: 'Hi {client},\n\n' +
+    'Thanks for the opportunity to quote your new shed{address}.\n\n' +
+    'Your quote is ready \u2014 view it online, choose your options, and accept it right from your phone:\n' +
+    '{link}\n' +
+    '{valid_until}\n' +
+    'Any questions, just reply to this email or give us a call.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
 function _quoteEmailTemplate(link){
   var q = (window.S && S.quote) || {};
   var br = (window.S && S.settings && S.settings.branding) || {};
@@ -42056,9 +42109,10 @@ function _quoteEmailTemplate(link){
     return String(t || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
       function(m, k){ return vars[k]; });
   };
-  var subject = fill(em.quote_subject || QUOTE_EMAIL_DEFAULT.subject)
+  var _d = (typeof _psIsShed === 'function' && _psIsShed()) ? POLESHED_EMAIL_DEFAULT : QUOTE_EMAIL_DEFAULT;
+  var subject = fill(em.quote_subject || _d.subject)
     .replace(/\s{2,}/g, ' ').trim();
-  var body = fill(em.quote_body || QUOTE_EMAIL_DEFAULT.body)
+  var body = fill(em.quote_body || _d.body)
     .replace(/\n{3,}/g, '\n\n');
   return { subject: subject, body: body };
 }

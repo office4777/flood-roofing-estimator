@@ -1313,6 +1313,104 @@ check('a shed with one plan prices exactly as it did', plan3287.onePlan === 4000
 
 await ctx.close();
 
+// ── A SHED'S QUOTE TALKS ABOUT A SHED (2026-10-13) ──────────────────────
+// The owner: "can you change the default wording for the Pole Shed quote in a
+// Pole Shed job type, still relates to a roofing job instead of a Pole Shed,
+// also the 'the old roofing we take it away' from the price box on the right
+// of the quote shouldn't be there".
+({ ctx, pg } = await open('Flood Roofing'));
+const shedWords = await pg.evaluate(() => {
+  const res = {};
+  const shed = () => {
+    S.quote = defaultQuote();
+    S.quote.quoteKind = 'poleshed'; S.quote.gstRate = 15; S.quote.ref = '3287';
+    S.quote.client = 'Phyllis Rintoul'; S.quote.addr = '350 Horeke Road, Okaihau';
+    S.quote.psSelGrade = 'colorsteel'; S.quote.psSelThickness = '0.40';
+    S.quote.psSelColour = 'Ironsand'; S.quote.psSelRoller = 'colorsteel';
+    S.quote.psAddSliding = true;
+    S.quote.shedPlans = [{ name:'3-Bay Shed', fields:{psSubtotal:54490.78}, photos:{}, est:{} },
+                         { name:'4-Bay Shed', fields:{psSubtotal:71225.11}, photos:{}, est:{} }];
+    S.quote.psPlanIdx = 0;
+  };
+  shed();
+  res.picks = _qbPicks().map(r => r[0] + ' = ' + r[1]);
+  res.email = _quoteEmailTemplate('https://x/q/tok');
+  S.quote.psSelGrade = 'zincalume';
+  res.picksZinc = _qbPicks().map(r => r[0] + ' = ' + r[1]);
+  S.quote.psSelGrade = 'colorsteel';
+  S.quote.psAddSliding = false;
+  res.picksNoAddon = _qbPicks().map(r => r[0]);
+  S.quote.psAddSliding = true;
+  // The office can still re-word any of them, which needs the keys to be there.
+  S.quote.summaryPicks = [{ k:'psgrade', label:'Cladding', value:'' },
+                          { k:'psplan', label:'', value:'' }];
+  res.reworded = _qbPicks().map(r => r[0] + ' = ' + r[1]);
+  delete S.quote.summaryPicks;
+  // The office's OWN email wording still wins over the shed default.
+  S.settings = S.settings || {};
+  S.settings.quote_defaults = { email: { quote_subject:'MY SUBJECT {ref}', quote_body:'MY BODY' } };
+  res.officeWins = _quoteEmailTemplate('https://x/q/tok');
+  S.settings.quote_defaults = {};
+  // A ROOFING quote is untouched, wording and picks.
+  S.quote = defaultQuote();
+  S.quote.quoteKind = 'roofing'; S.quote.ref = '3290'; S.quote.client = 'Bob'; S.quote.addr = '1 Test Rd';
+  S.quote.proposalOptions = { steelGrade:'maxam', profile:'corrugate', steelThickness:'40',
+                              colour:'Ironsand', gutterType:'none', disposal:'remove' };
+  res.roofPicks = _qbPicks().map(r => r[0] + ' = ' + r[1]);
+  res.roofEmail = _quoteEmailTemplate('https://x/q/tok');
+  // Settings \u2192 Email still shows the ROOFING wording as the standard, and the
+  // server's copy is compared against it \u2014 so it must not have moved.
+  res.standard = { subject: QUOTE_EMAIL_DEFAULT.subject, body: QUOTE_EMAIL_DEFAULT.body };
+  res.emxQuote = _emxDefault('quote').subject;
+  return res;
+});
+check('A SHED\u2019S PRICE BOX SAYS NOTHING ABOUT OLD ROOFING',
+  !shedWords.picks.join(' ').toLowerCase().includes('old roofing'), JSON.stringify(shedWords.picks));
+check('\u2026nor about a roof profile, guttering or downpipes \u2014 a shed offers none',
+  !/roof profile|guttering|downpipe|gutter brackets/i.test(shedWords.picks.join(' ')),
+  JSON.stringify(shedWords.picks));
+check('it lists the SHED\u2019S own picks instead',
+  shedWords.picks.join(' | ') ===
+  'Plan option = 3-Bay Shed | Steel grade = Colorsteel\u00ae | Steel thickness = 0.40 gauge | '
+  + 'Roof & wall colour = Ironsand | Roller door finish = Colorsteel\u00ae \u2014 matches the shed | '
+  + 'Add sliding door = Included',
+  JSON.stringify(shedWords.picks));
+check('Zincalume says it is unpainted rather than leaving a blank colour',
+  shedWords.picksZinc.some(r => /Roof & wall colour = Plain silver/.test(r)),
+  JSON.stringify(shedWords.picksZinc));
+check('an add-on they did NOT take is not listed as a choice',
+  shedWords.picksNoAddon.indexOf('Add sliding door') < 0, JSON.stringify(shedWords.picksNoAddon));
+check('the office can still re-word a shed\u2019s picks (the keys are there)',
+  shedWords.reworded.some(r => /^Cladding = Colorsteel/.test(r)) &&
+  shedWords.reworded.some(r => /^Plan option = 3-Bay Shed/.test(r)),
+  JSON.stringify(shedWords.reworded));
+
+check('THE SHED\u2019S QUOTE EMAIL SAYS POLE SHED, not roofing',
+  shedWords.email.subject === 'Your pole shed quote 3287 \u2014 Flood Roofing',
+  shedWords.email.subject);
+check('\u2026and offers to quote a shed, not a roof',
+  /opportunity to quote your new shed at 350 Horeke Road/.test(shedWords.email.body) &&
+  !/your roof\b/.test(shedWords.email.body), JSON.stringify(shedWords.email.body.slice(0, 160)));
+check('an office that wrote their own wording still wins',
+  shedWords.officeWins.subject === 'MY SUBJECT 3287' && shedWords.officeWins.body === 'MY BODY',
+  JSON.stringify(shedWords.officeWins));
+
+check('A ROOFING QUOTE\u2019S EMAIL IS UNTOUCHED',
+  shedWords.roofEmail.subject === 'Your roofing quote 3290 \u2014 Flood Roofing' &&
+  /opportunity to quote your roof at 1 Test Rd/.test(shedWords.roofEmail.body),
+  shedWords.roofEmail.subject);
+check('\u2026and so are its picks, old roofing and all',
+  shedWords.roofPicks.join(' ').includes('The old roofing = We take it away') &&
+  shedWords.roofPicks.join(' ').includes('Roof profile = Corrugate'),
+  JSON.stringify(shedWords.roofPicks));
+check('the STANDARD wording Settings shows has not moved',
+  shedWords.standard.subject === 'Your roofing quote {ref} \u2014 {company}' &&
+  /quote your roof\{address\}/.test(shedWords.standard.body) &&
+  shedWords.emxQuote === 'Your roofing quote {ref} \u2014 {company}',
+  shedWords.emxQuote);
+
+await ctx.close();
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

@@ -6575,6 +6575,24 @@ app.get('/quote-analytics', requireAuth, requirePlan('activity', 'Quote analytic
 // never past the 90-day window the Accept button itself enforces, and never
 // twice: share.remindedAt is the claim, written BEFORE the send, so a crash
 // or a double-run can lose a reminder but can never duplicate one.
+// A POLE SHED'S FOLLOW-UP IS ABOUT A SHED TOO (2026-10-13, the same message as
+// the quote email's wording). This one is the SERVER'S — it goes out on a
+// sweep, so the app's swap cannot reach it, and a shed quote nobody answered
+// would have been chased with "Just checking in on the roofing quote we sent".
+// REMINDER_EMAIL_DEFAULT is not touched (Settings → Email shows it, and the
+// app's EMX_DEFAULTS is compared against it); an office that has written their
+// own wording still wins over both.
+const REMINDER_EMAIL_POLESHED = {
+  subject: 'Following up on your pole shed quote {ref} — {company}',
+  body: 'Hi {client},\n\n' +
+    'Just checking in on the shed quote we sent{address}.\n\n' +
+    'You can view it, pick your options and accept online any time:\n' +
+    '{link}\n' +
+    '{valid_until}' +
+    'If anything is unclear, or you would like to talk it through, just reply ' +
+    'to this email or give us a call — happy to help.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
 const REMINDER_EMAIL_DEFAULT = {
   subject: 'Following up on your roofing quote {ref} — {company}',
   body: 'Hi {client},\n\n' +
@@ -6871,9 +6889,10 @@ async function _reminderSweep(){
         email: br.email ? (br.email + '\n') : '',
         website: br.website || '',
       };
-      const subject = _fillEmailTemplate(em.reminder_subject || REMINDER_EMAIL_DEFAULT.subject, vars)
+      const _rd = (quote.quoteKind === 'poleshed') ? REMINDER_EMAIL_POLESHED : REMINDER_EMAIL_DEFAULT;
+      const subject = _fillEmailTemplate(em.reminder_subject || _rd.subject, vars)
         .replace(/\s{2,}/g, ' ').trim();
-      const body = _fillEmailTemplate(em.reminder_body || REMINDER_EMAIL_DEFAULT.body, vars)
+      const body = _fillEmailTemplate(em.reminder_body || _rd.body, vars)
         .replace(/\n{3,}/g, '\n\n');
       const who = _tenantMailIdentity(settingsRow, 'reminder');
       const cc = _emailCopies(settingsRow, String(em.reminder_cc || '').trim() || em.quote_cc, _emailList(to));

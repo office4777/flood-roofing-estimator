@@ -1405,6 +1405,33 @@ Discipline (non-negotiable):
   other one's whole price as what it costs. Nothing is a better answer than a
   wrong number. Pinned to the cent on his own figures in `tests/poleshed.mjs`
   (167), sent copy and switch and Zincalume and back again.
+- A SHED'S QUOTE TALKS ABOUT A SHED (2026-10-13, the owner: "can you change the
+  default wording for the Pole Shed quote in a Pole Shed job type, still relates
+  to a roofing job instead of a Pole Shed, also the 'the old roofing we take it
+  away' from the price box on the right of the quote shouldn't be there").
+  THE PRICE BOX'S "YOUR CHOICES" was `_qbPicksAuto()`, written entirely around a
+  RE-ROOF — Roof profile, Guttering, Gutter brackets, Downpipes, The old roofing
+  — none of which the shed's own options page offers, and a new shed has no old
+  roofing to take away. `_psPicksAuto()` lists the SHED'S picks instead (plan
+  option where there is more than one, steel grade, thickness, roof & wall
+  colour, roller door finish, then each add-on they TOOK), keyed `psplan`,
+  `psgrade`, `psthickness`, `pscolour`, `psroller` and `ps:<addonId>` so Edit
+  summary can still re-word any of them. Zincalume says "Plain silver —
+  unpainted" rather than leaving the colour blank, and an add-on left OFF is not
+  listed, the way a quote with no gutter has no gutter line.
+  THE QUOTE EMAIL: `POLESHED_EMAIL_DEFAULT` ("Your pole shed quote {ref}", "the
+  opportunity to quote your new shed{address}") is the standard wording FOR A
+  SHED, picked in `_quoteEmailTemplate` on `_psIsShed()`. The FOLLOW-UP is the
+  SERVER'S — it goes out on a sweep, so the app's swap cannot reach it and a
+  shed quote nobody answered was chased with "Just checking in on the roofing
+  quote we sent"; `REMINDER_EMAIL_POLESHED` in server.js, chosen on
+  `quote.quoteKind` off the row the sweep already has in hand.
+  NEITHER `QUOTE_EMAIL_DEFAULT` NOR `REMINDER_EMAIL_DEFAULT` IS TOUCHED: they are
+  what Settings → Email shows as the standard wording, and `tests/emailsettings
+  .mjs` compares the app's `EMX_DEFAULTS` against the server's constants. An
+  office that has written their own wording wins over both, because
+  `em.quote_subject` / `em.reminder_subject` is still read first either way.
+  `tests/poleshed.mjs` (179) pins the shed and the roofing quote side by side.
 - A QUOTE THAT SAYS IT IS A POLE SHED IS ONE (2026-10-13, the owner: "wheres
   the switcher from roofing to pole shed job type gone? the phyllis job is now
   missing the pole shed specific quote"). `_poleShedsAvailable()` reads
