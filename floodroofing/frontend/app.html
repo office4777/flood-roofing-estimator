@@ -4510,20 +4510,34 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qd-parked, html:is(.print-modern,.pdf-modern) #qbAcceptName, html:is(.print-modern,.pdf-modern) #qbAcceptTerms,
   html:is(.print-modern,.pdf-modern) .qd-accept, html:is(.print-modern,.pdf-modern) .qb-accept, html:is(.print-modern,.pdf-modern) .qb-sign, html:is(.print-modern,.pdf-modern) .qb-actions,
   html:is(.print-modern,.pdf-modern) button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
-  /* THE PRICE BOX IS ON THE PDF (2026-10-13, the owner: "i want a super tidy
-     well per portioned pdf version of the modern quote exactly how it looks in
-     the app just with the pricing box that's on the right hand side"). It was
-     in the hide list above with the nav and the sticky bar, which is right for
-     furniture and wrong for the one panel that carries the money. On screen it
-     sits beside the cover; on paper a single column cannot do "beside", so it
-     is pulled to the FRONT (order:-1) and reads as the summary card straight
-     after the cover \u2014 the nearest thing to where the eye finds it. */
-  html:is(.print-modern,.pdf-modern) .qd-wrap{display:flex!important; flex-direction:column!important; max-width:none!important; padding:10mm 10mm 12mm!important}
-  html:is(.print-modern,.pdf-modern) .qd-rail{order:-1; display:block!important; align-self:stretch!important; min-width:0; margin:0 0 6mm!important; break-inside:avoid; page-break-inside:avoid}
-  /* Sticky is a screen idea \u2014 on paper it pins the panel to the top of the
-     capture and the rest of the quote scrolls out from under it. */
-  html:is(.print-modern,.pdf-modern) .qd-rail-in{position:static!important; top:auto!important; box-shadow:none!important; border:1px solid #e3e6ea!important; border-radius:10px!important; padding:14px 16px!important}
-  html:is(.print-modern,.pdf-modern) .qd-rail-links{display:none!important}
+  /* THE PRICE BOX IS NOT REPEATED AT THE TOP (2026-10-13, the owner, on the
+     first PDF that carried it: "remove the pricing box from the top of the
+     quote, keep the price just at the bottom of the pdf"). It was pulled to
+     the front earlier the same day so the money was not lost with the nav;
+     the Review section at the END already carries the sub-total, the GST, the
+     total and What you chose, so on paper the front copy was the quote
+     opening on its own price and saying it all twice. The rail is furniture
+     again \u2014 and with it goes the flex column it needed: the wrap prints as a
+     plain BLOCK, which is also the only layout html2canvas lays out the same
+     way the browser does (its flexbox support is partial, and `order` /
+     `align-self` inside a capture is exactly where it drifts). */
+  html:is(.print-modern,.pdf-modern) .qd-rail{display:none!important}
+  /* THE CAPTURE IS THE WIDTH IT SAYS IT IS (2026-10-13, the same message:
+     "pdf looks terrible"). `_buildModernQuotePdf` sets `#qpRoot` to
+     QP_PDF_MODERN_W inline and hands html2canvas the same figure as
+     `windowWidth`, so the clone lays out at that width \u2014 but
+     `html.qp-desk .report-preview #qpRoot{width:auto!important}` BEAT the
+     inline style, so the canvas was only ever as wide as the office's own
+     screen (876px on a 1440 window, 722 on 1100). The clone laid the quote
+     out at 1100 and the canvas kept 876 of it: every section was sliced down
+     its right-hand edge, mid-sentence, on every sheet after the first. The
+     width is pinned here, with the !important it takes to win, so the thing
+     measured and the thing drawn are the same box. */
+  html.pdf-modern .report-preview #qpRoot, html.pdf-modern #qpRoot{
+    width:1100px!important; min-width:1100px!important; max-width:1100px!important;
+    zoom:1!important; margin:0!important; overflow:visible!important}
+  html:is(.print-modern,.pdf-modern) .qd-wrap{display:block!important; max-width:none!important;
+    width:auto!important; box-sizing:border-box!important; padding:8mm 8mm 9mm!important}
   /* An EMPTY photo slot is an invitation to upload one, which is an editing
      affordance like every button above \u2014 the customer's own copy already drops
      them (_qpCondPhotoSlotHtml returns nothing in customer mode). Printed from
@@ -4536,7 +4550,16 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qp-placeholder{display:none!important}
   html:is(.print-modern,.pdf-modern), html:is(.print-modern,.pdf-modern) body{height:auto!important; min-height:0!important; overflow:visible!important}
   html:is(.print-modern,.pdf-modern) .qd-main{display:block!important}
-  html:is(.print-modern,.pdf-modern) .qd-main > .qd-sec{margin:0 0 6mm!important}
+  /* BUNCHED UP (2026-10-13, the owner: "you can bunch it up a bit more too").
+     The on-screen rhythm \u2014 22px between sections, 26/28px inside every card,
+     a 21:8 hero \u2014 is sized for a page you scroll. On A4 it bought one sheet
+     of air per section and ran the quote to nine sheets. The gaps and the
+     paddings come down here and nowhere else, so the screen is untouched. */
+  html:is(.print-modern,.pdf-modern) .qd-main > .qd-sec{margin:0 0 4mm!important}
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-body{padding:14px 18px 13px!important}
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-cond-slots{padding:0 18px 14px!important}
+  html:is(.print-modern,.pdf-modern) .qd-hero .qb-hero-txt{padding:18px 20px 16px!important}
+  html:is(.print-modern,.pdf-modern) .qd-sec .qb-opt{margin-bottom:6px!important}
   /* Sections flow across sheets (kept whole they left half of every sheet
      blank); what must not split is a card, a photo, a swatch row, a heading
      from what follows it. */
@@ -4545,7 +4568,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qd-sec .qb-total, html:is(.print-modern,.pdf-modern) .qd-sec .qb-fig, html:is(.print-modern,.pdf-modern) .qd-sec .qb-plan,
   html:is(.print-modern,.pdf-modern) .qd-sec .qb-picks, html:is(.print-modern,.pdf-modern) .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
   html:is(.print-modern,.pdf-modern) .qd-sec h2, html:is(.print-modern,.pdf-modern) .qd-sec h3, html:is(.print-modern,.pdf-modern) .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
-  html:is(.print-modern,.pdf-modern) .qd-hero{aspect-ratio:auto!important; width:100%!important; height:62mm!important; min-height:0!important; max-height:none!important}
+  html:is(.print-modern,.pdf-modern) .qd-hero{aspect-ratio:auto!important; width:100%!important; height:46mm!important; min-height:0!important; max-height:none!important}
   html:is(.print-modern,.pdf-modern) .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
   html:is(.print-modern,.pdf-modern) body, html:is(.print-modern,.pdf-modern) #customerView, html:is(.print-modern,.pdf-modern) .report-preview,
   html:is(.print-modern,.pdf-modern) #qpRoot, html:is(.print-modern,.pdf-modern) .qd{background:#fff!important}
@@ -4865,7 +4888,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T08:02:30Z';
+  window.APP_BUILT_AT = '2026-10-13T21:22:16Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -69213,8 +69236,14 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH){
   while (sliceTop < canvas.height - 2) {
     var cutY = Math.min(canvas.height, sliceTop + hardStep);
     if (cutY < canvas.height - 2) {
-      var searchUp = Math.floor(hardStep * 0.45), bestY = cutY, bestInk = Infinity;
-      for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.55; sy -= 3){
+      // A sheet may give up its last QUARTER to find a clean break, not its
+      // last half: at 0.45/0.55 a page could end 55% full, which is where the
+      // empty bottoms on the modern quote's PDF came from (2026-10-13, the
+      // owner: "you can bunch it up a bit more too"). A card that will not fit
+      // in the remaining quarter is better carried whole to the next sheet by
+      // the hard step than paid for with a third of a blank page.
+      var searchUp = Math.floor(hardStep * 0.22), bestY = cutY, bestInk = Infinity;
+      for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.78; sy -= 3){
         var ink = rowInk(sy);
         if (ink === 0) { bestY = sy; break; }
         if (ink < bestInk) { bestInk = ink; bestY = sy; }

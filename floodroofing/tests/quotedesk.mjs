@@ -208,19 +208,32 @@ await d.pg.evaluate(() => { window.__PRINTING_MODERN = true; document.documentEl
 await new Promise(r => setTimeout(r, 400));
 const pm = await d.pg.evaluate(() => {
   const vis = sel => { const e = document.querySelector(sel); return !!e && e.getBoundingClientRect().height > 0 && getComputedStyle(e).display !== 'none'; };
-  const rail = document.querySelector('.qd-rail'), sec = document.querySelector('#qpRoot .qd-sec');
+  const wrap = document.querySelector('#qpRoot .qd-wrap');
+  // The capture must be the width it declares: html2canvas is handed
+  // QP_PDF_MODERN_W as windowWidth, so the clone lays the quote out at that
+  // width. If the element it measures is any other width the canvas keeps
+  // only part of it and every sheet is sliced down its right edge.
+  const over = wrap ? [...wrap.querySelectorAll('*')].filter(e => {
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && r.right > wrap.getBoundingClientRect().right -
+      parseFloat(getComputedStyle(wrap).paddingRight) + 2;
+  }).length : -1;
   return { rail: vis('.qd-rail'), nav: vis('.qd-nav'), top: vis('.qd-top'), sec: vis('#qpRoot .qd-sec'), opt: vis('#qpRoot .qb-opt'),
-           railFirst: !!rail && !!sec && rail.getBoundingClientRect().top <= sec.getBoundingClientRect().top,
-           railSticky: rail ? getComputedStyle(rail.querySelector('.qd-rail-in') || rail).position : '' };
+           total: vis('#qpRoot .qb-total'), overflow: over,
+           wrapDisplay: wrap ? getComputedStyle(wrap).display : '' };
 });
 await d.pg.evaluate(() => { window.__PRINTING_MODERN = false; document.documentElement.classList.remove('print-quote', 'print-modern'); refreshQuoteProposal(); _fitCustomerView(); });
 await d.pg.emulateMedia({ media: 'screen' });
-check('…printed without the bar or the nav, but with every section and its options', !pm.nav && !pm.top && pm.sec && pm.opt, JSON.stringify(pm));
-// THE ASK (2026-10-13): “exactly how it looks in the app just with the
-// pricing box that’s on the right hand side of the quote”. The rail IS the
-// price box, so it prints — at the top of the first sheet, not stuck to the
-// viewport.
-check('…and the price box (the rail) leads the document, unstuck', pm.rail && pm.railFirst && pm.railSticky === 'static', JSON.stringify(pm));
+check('…printed without the bar, the nav or the rail, but with every section and its options', !pm.nav && !pm.top && !pm.rail && pm.sec && pm.opt, JSON.stringify(pm));
+// THE ASK (2026-10-13, after a first PDF that carried the rail at the top):
+// “remove the pricing box from the top of the quote, keep the price just at
+// the bottom of the pdf”. The money still has to BE there — the Review
+// section's own total is what carries it.
+check('…and the price is still on it, at the end, in the Review section', pm.total, JSON.stringify(pm));
+// The right-hand edge of every sheet after the first was sliced off because
+// the captured element was the office's screen width while html2canvas laid
+// the clone out at QP_PDF_MODERN_W. Nothing inside the wrap may run past it.
+check('…and nothing on the page runs past the captured width', pm.overflow === 0 && pm.wrapDisplay === 'block', JSON.stringify(pm));
 
 // ── the acceptance PDF is the quote the customer was sent ────────
 const veil = await d.pg.evaluate(async () => {
@@ -232,8 +245,10 @@ const veil = await d.pg.evaluate(async () => {
                    covers: !!v && v.getBoundingClientRect().width >= window.innerWidth - 1,
                    secs: document.querySelectorAll('#qpRoot .qd-sec').length,
                    pdfModern: document.documentElement.classList.contains('pdf-modern'),
-                   rail: (() => { const e = document.querySelector('.qd-rail');
-                     return !!e && getComputedStyle(e).display !== 'none'; })() };
+                   railGone: (() => { const e = document.querySelector('.qd-rail');
+                     return !e || getComputedStyle(e).display === 'none'; })(),
+                   rootW: (() => { const e = document.getElementById('qpRoot');
+                     return e ? Math.round(e.getBoundingClientRect().width) : 0; })() };
   await p;
   await new Promise(r => setTimeout(r, 400));
   return { during, after: { veil: !!document.getElementById('qpPdfVeil'), desk: document.documentElement.classList.contains('qp-desk'), qd: !!document.getElementById('qdRoot') } };
@@ -244,8 +259,12 @@ check('while the acceptance PDF renders, a veil covers the screen and says why',
 // came back as the classic A4. The record must be the quote they were sent.
 check('the acceptance PDF of a MODERN quote is the one-page layout, not the A4',
   veil.during.a4 === 0 && veil.during.secs >= 4 && veil.during.pdfModern, JSON.stringify(veil.during));
-check('…carrying the price box, the same as the customer’s own Download PDF',
-  veil.during.rail, JSON.stringify(veil.during));
+check('…with the price box stripped off it, the same as the customer’s own Download PDF',
+  veil.during.railGone, JSON.stringify(veil.during));
+// The capture is pinned to QP_PDF_MODERN_W, not to whatever width the
+// office's own screen happens to give #qpRoot.
+check('…and the capture is pinned to the PDF width, not the office’s screen',
+  veil.during.rootW === 1100, JSON.stringify(veil.during));
 check('…and it lifts to the same page afterwards', !veil.after.veil && veil.after.desk && veil.after.qd, JSON.stringify(veil.after));
 
 // ── accept: inline, no popup, ends on "Quote accepted" ───────────
