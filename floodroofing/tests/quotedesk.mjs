@@ -208,11 +208,19 @@ await d.pg.evaluate(() => { window.__PRINTING_MODERN = true; document.documentEl
 await new Promise(r => setTimeout(r, 400));
 const pm = await d.pg.evaluate(() => {
   const vis = sel => { const e = document.querySelector(sel); return !!e && e.getBoundingClientRect().height > 0 && getComputedStyle(e).display !== 'none'; };
-  return { rail: vis('.qd-rail'), nav: vis('.qd-nav'), top: vis('.qd-top'), sec: vis('#qpRoot .qd-sec'), opt: vis('#qpRoot .qb-opt') };
+  const rail = document.querySelector('.qd-rail'), sec = document.querySelector('#qpRoot .qd-sec');
+  return { rail: vis('.qd-rail'), nav: vis('.qd-nav'), top: vis('.qd-top'), sec: vis('#qpRoot .qd-sec'), opt: vis('#qpRoot .qb-opt'),
+           railFirst: !!rail && !!sec && rail.getBoundingClientRect().top <= sec.getBoundingClientRect().top,
+           railSticky: rail ? getComputedStyle(rail.querySelector('.qd-rail-in') || rail).position : '' };
 });
 await d.pg.evaluate(() => { window.__PRINTING_MODERN = false; document.documentElement.classList.remove('print-quote', 'print-modern'); refreshQuoteProposal(); _fitCustomerView(); });
 await d.pg.emulateMedia({ media: 'screen' });
-check('…printed without the bar, the nav and the rail, but with every section and its options', !pm.rail && !pm.nav && !pm.top && pm.sec && pm.opt, JSON.stringify(pm));
+check('…printed without the bar or the nav, but with every section and its options', !pm.nav && !pm.top && pm.sec && pm.opt, JSON.stringify(pm));
+// THE ASK (2026-10-13): “exactly how it looks in the app just with the
+// pricing box that’s on the right hand side of the quote”. The rail IS the
+// price box, so it prints — at the top of the first sheet, not stuck to the
+// viewport.
+check('…and the price box (the rail) leads the document, unstuck', pm.rail && pm.railFirst && pm.railSticky === 'static', JSON.stringify(pm));
 
 // ── the acceptance PDF is the quote the customer was sent ────────
 const veil = await d.pg.evaluate(async () => {
@@ -224,8 +232,8 @@ const veil = await d.pg.evaluate(async () => {
                    covers: !!v && v.getBoundingClientRect().width >= window.innerWidth - 1,
                    secs: document.querySelectorAll('#qpRoot .qd-sec').length,
                    pdfModern: document.documentElement.classList.contains('pdf-modern'),
-                   railGone: (() => { const e = document.querySelector('.qd-rail');
-                     return !e || getComputedStyle(e).display === 'none'; })() };
+                   rail: (() => { const e = document.querySelector('.qd-rail');
+                     return !!e && getComputedStyle(e).display !== 'none'; })() };
   await p;
   await new Promise(r => setTimeout(r, 400));
   return { during, after: { veil: !!document.getElementById('qpPdfVeil'), desk: document.documentElement.classList.contains('qp-desk'), qd: !!document.getElementById('qdRoot') } };
@@ -236,8 +244,8 @@ check('while the acceptance PDF renders, a veil covers the screen and says why',
 // came back as the classic A4. The record must be the quote they were sent.
 check('the acceptance PDF of a MODERN quote is the one-page layout, not the A4',
   veil.during.a4 === 0 && veil.during.secs >= 4 && veil.during.pdfModern, JSON.stringify(veil.during));
-check('…with the rail stripped off it, the same as the customer’s own Download PDF',
-  veil.during.railGone, JSON.stringify(veil.during));
+check('…carrying the price box, the same as the customer’s own Download PDF',
+  veil.during.rail, JSON.stringify(veil.during));
 check('…and it lifts to the same page afterwards', !veil.after.veil && veil.after.desk && veil.after.qd, JSON.stringify(veil.after));
 
 // ── accept: inline, no popup, ends on "Quote accepted" ───────────

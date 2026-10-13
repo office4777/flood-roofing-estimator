@@ -381,6 +381,40 @@ Discipline (non-negotiable):
   the option cards (`.qb-opt`, `.qb-sw`, `.qb-undecided`). Classic quotes
   and the acceptance record (`_buildQuotePdf`) still print the A4.
   `tests/quotedesk.mjs`, `tests/quotebook.mjs`.
+- THE OFFICE'S PRINT / PDF BUTTON MAKES THE MODERN QUOTE'S OWN PDF
+  (2026-10-13, the owner: "i want to be able to print/pdf the modern quote,
+  but when i click the print/pdf button the attached is what it produces"
+  — a classic A4 of a quote he was looking at in the modern layout, the
+  cover and little else). `printQuote()` was the A4 path for every style;
+  on a modern quote it now goes to `_printModernQuoteFile()`, which builds
+  the SAME document the customer's own Download PDF builds
+  (`_buildQuotePdf({scale:2})` → `_buildModernQuotePdf`, one 1100px capture
+  sliced across A4 sheets) and SAVES it rather than opening the browser's
+  print dialog — html2canvas has already made the sheets, and handing them
+  to a print dialog only lets the browser re-paginate them. Classic quotes
+  print the A4 exactly as before.
+  THE PRICE BOX PRINTS (the same message: "exactly how it looks in the app
+  just with the pricing box that's on the right hand side of the quote").
+  The rail was in the print rules' hide list from the day the modern PDF was
+  built, on the reasoning that a sticky side panel is screen furniture. It
+  is not — it is the sub-total, the GST, the total and What you chose, and
+  a quote PDF without them is not a quote. `.qd-rail` is out of that list;
+  the wrap becomes a column, the rail takes `order:-1` and
+  `align-self:stretch` so it leads the first sheet full width, and
+  `.qd-rail-in` is un-stuck (`position:static`, no shadow) so html2canvas
+  captures it where it sits. `.qd-rail-links` (Review, the jump links) stay
+  hidden — nothing on paper is clickable.
+  AND THE OFFICE'S OWN PROMPTS DO NOT: an empty photo slot, an empty
+  caption and the grey "Click to write a short description of the roof's
+  condition" line are office furniture that the customer never sees but the
+  office's own PDF carried — four dashed boxes filled most of a sheet.
+  `.qp-cond-empty`, `.qp-cond-cap-empty`, `.qp-placeholder` and
+  `.qb-para-empty` are hidden in both print layers.
+  THE FILE IS NAMED FOR THE JOB (`_quotePdfFilename()`): "Quote 3301 - Pole
+  Shed - Aron Flood.pdf" — the quote's `ref`, Roofing or Pole Shed from
+  `quoteKind`, then the client, each part dropped if it is blank, Windows'
+  forbidden characters stripped and the whole thing capped at 100
+  characters. `tests/quotedesk.mjs`, `tests/quoteeditor.mjs`.
 - THE PROPOSAL'S TITLE is `S.quote.proposalTitle` (default
   `QB_PROPOSAL_TITLE` "Re-Roof Proposal", `_qbProposalTitle()`), edited in
   Edit description's Title box on a modern quote; saving the default

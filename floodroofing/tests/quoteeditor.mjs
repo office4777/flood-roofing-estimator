@@ -395,13 +395,39 @@ const drawer = await pg.evaluate(async () => {
 });
 check('opening the Pricing drawer leaves the quote where it is (no width reserved)', drawer.open && parseFloat(drawer.during) < 100 && drawer.during === drawer.before, JSON.stringify(drawer));
 
-// a print from the one-page preview is still the A4
+// PRINT / PDF ON A MODERN QUOTE SAVES THE MODERN QUOTE (2026-10-13, the owner:
+// "i want to be able to print/pdf the modern quote, but when i click the
+// print/pdf button the attached is what it produces"). It printed the A4
+// document whatever the quote was, and on a modern quote the A4 is a DIFFERENT
+// document \u2014 his came out as the classic pages, clipped off the right edge.
+// A modern quote is built as a FILE instead: the same capture the acceptance
+// email and the customer's own download carry, and the only path that can name
+// it. A classic quote still prints its A4, which the next check pins.
 const pr = await pg.evaluate(async () => {
   window.print = () => { window.__printedA4 = document.querySelectorAll('#qpRoot .rp-page').length; window.__printedDesk = !!document.getElementById('qdRoot'); };
-  printQuote(); await new Promise(r => setTimeout(r, 1500));
-  return { a4: window.__printedA4, desk: window.__printedDesk, back: !!document.getElementById('qdRoot'), flag: !!window.__PRINTING_QUOTE };
+  window.__printedA4 = 0; window.__printedDesk = false;
+  let saved = null;
+  const realBuild = window._buildQuotePdf;
+  window._buildQuotePdf = async () => ({ save: (n) => { saved = n; } });
+  printQuote(); await new Promise(r => setTimeout(r, 900));
+  window._buildQuotePdf = realBuild;
+  return { a4: window.__printedA4, desk: window.__printedDesk, saved,
+           back: !!document.getElementById('qdRoot'), flag: !!window.__PRINTING_QUOTE };
 });
-check('Print from the modern preview prints the A4 document and the preview comes back', pr.a4 > 0 && !pr.desk && pr.back && !pr.flag, JSON.stringify(pr));
+check('Print / PDF on a modern quote saves the modern quote, not the A4',
+  !pr.a4 && !!pr.saved && pr.back && !pr.flag, JSON.stringify(pr));
+check('\u2026and the file says the job, the type and the customer',
+  /^Quote .* - (Roofing|Pole Shed) - .*\.pdf$/.test(pr.saved || ''), String(pr.saved));
+const prC = await pg.evaluate(async () => {
+  window.__printedA4 = 0;
+  S.quote.style = 'classic'; refreshQuoteProposal();
+  printQuote(); await new Promise(r => setTimeout(r, 1500));
+  S.quote.style = 'modern';
+  document.documentElement.classList.remove('print-quote'); window.__PRINTING_QUOTE = false;
+  refreshQuoteProposal();
+  return { a4: window.__printedA4 };
+});
+check('\u2026while a CLASSIC quote still prints its A4 document', prC.a4 > 0, JSON.stringify(prC));
 check('nothing threw in the office', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close();
 

@@ -4504,13 +4504,36 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
    on purpose: html.print-modern is the browser printing it, html.pdf-modern
    is html2canvas capturing it for the acceptance / emailed PDF. One set of
    rules, so the two can never drift apart. */
-  html:is(.print-modern,.pdf-modern) .qd-top, html:is(.print-modern,.pdf-modern) .qd-nav, html:is(.print-modern,.pdf-modern) .qd-rail,
+  html:is(.print-modern,.pdf-modern) .qd-top, html:is(.print-modern,.pdf-modern) .qd-nav,
   html:is(.print-modern,.pdf-modern) .qd-mini, html:is(.print-modern,.pdf-modern) .qb-cta, html:is(.print-modern,.pdf-modern) .qb-hero-tools,
   html:is(.print-modern,.pdf-modern) .qb-hero-hint, html:is(.print-modern,.pdf-modern) .qb-ask, html:is(.print-modern,.pdf-modern) .qe-inline,
   html:is(.print-modern,.pdf-modern) .qd-parked, html:is(.print-modern,.pdf-modern) #qbAcceptName, html:is(.print-modern,.pdf-modern) #qbAcceptTerms,
   html:is(.print-modern,.pdf-modern) .qd-accept, html:is(.print-modern,.pdf-modern) .qb-accept, html:is(.print-modern,.pdf-modern) .qb-sign, html:is(.print-modern,.pdf-modern) .qb-actions,
   html:is(.print-modern,.pdf-modern) button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
-  html:is(.print-modern,.pdf-modern) .qd-wrap{display:block!important; max-width:none!important; padding:10mm 10mm 12mm!important}
+  /* THE PRICE BOX IS ON THE PDF (2026-10-13, the owner: "i want a super tidy
+     well per portioned pdf version of the modern quote exactly how it looks in
+     the app just with the pricing box that's on the right hand side"). It was
+     in the hide list above with the nav and the sticky bar, which is right for
+     furniture and wrong for the one panel that carries the money. On screen it
+     sits beside the cover; on paper a single column cannot do "beside", so it
+     is pulled to the FRONT (order:-1) and reads as the summary card straight
+     after the cover \u2014 the nearest thing to where the eye finds it. */
+  html:is(.print-modern,.pdf-modern) .qd-wrap{display:flex!important; flex-direction:column!important; max-width:none!important; padding:10mm 10mm 12mm!important}
+  html:is(.print-modern,.pdf-modern) .qd-rail{order:-1; display:block!important; align-self:stretch!important; min-width:0; margin:0 0 6mm!important; break-inside:avoid; page-break-inside:avoid}
+  /* Sticky is a screen idea \u2014 on paper it pins the panel to the top of the
+     capture and the rest of the quote scrolls out from under it. */
+  html:is(.print-modern,.pdf-modern) .qd-rail-in{position:static!important; top:auto!important; box-shadow:none!important; border:1px solid #e3e6ea!important; border-radius:10px!important; padding:14px 16px!important}
+  html:is(.print-modern,.pdf-modern) .qd-rail-links{display:none!important}
+  /* An EMPTY photo slot is an invitation to upload one, which is an editing
+     affordance like every button above \u2014 the customer's own copy already drops
+     them (_qpCondPhotoSlotHtml returns nothing in customer mode). Printed from
+     the office they filled most of a sheet with four dashed "Add site photo"
+     boxes, so the same rule applies on paper. The empty caption goes with
+     them, and so does a placeholder nobody typed over. */
+  html:is(.print-modern,.pdf-modern) .qp-cond-empty,
+  html:is(.print-modern,.pdf-modern) .qp-cond-cap-empty,
+  html:is(.print-modern,.pdf-modern) .qb-para-empty,
+  html:is(.print-modern,.pdf-modern) .qp-placeholder{display:none!important}
   html:is(.print-modern,.pdf-modern), html:is(.print-modern,.pdf-modern) body{height:auto!important; min-height:0!important; overflow:visible!important}
   html:is(.print-modern,.pdf-modern) .qd-main{display:block!important}
   html:is(.print-modern,.pdf-modern) .qd-main > .qd-sec{margin:0 0 6mm!important}
@@ -4842,7 +4865,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T07:39:33Z';
+  window.APP_BUILT_AT = '2026-10-13T08:02:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -43441,7 +43464,34 @@ function _qpUnfitPrintPages(){
   });
   _qpPrintFit = [];
 }
+// PRINT / PDF GIVES THE QUOTE THE OFFICE IS LOOKING AT (2026-10-13, the owner:
+// "i want to be able to print/pdf the modern quote, but when i click the
+// print/pdf button the attached is what it produces \u2014 i want a super tidy well
+// per portioned pdf version of the modern quote exactly how it looks in the
+// app"). It printed the A4 document whatever the quote was, and on a MODERN
+// quote the A4 is a different document: his came out as the classic pages, and
+// clipped off the right edge of every sheet.
+//
+// A modern quote is SAVED, not sent to the printer: `_buildQuotePdf` already
+// captures the real one-page layout, slices it onto A4 and numbers the pages
+// \u2014 the same copy the acceptance email and the customer's own download carry,
+// so there is one PDF of a modern quote and not two. It is also the only way
+// to name the file, which the browser's own print dialog never lets us do.
+// A CLASSIC quote still prints its A4 document, as it always did.
+async function _printModernQuoteFile(){
+  var pdf = null;
+  try { _qaMsg('Building the PDF\u2026'); } catch(e){}
+  try { pdf = await _buildQuotePdf({ scale: 2 }); } catch(e){ console.error('quote PDF:', e); }
+  if (!pdf){
+    try { _qaMsg('Could not build the PDF \u2014 try Print / PDF again in a moment.', false); } catch(e){}
+    return;
+  }
+  try { pdf.save(_quotePdfFilename()); } catch(e){ console.error('quote PDF save:', e); }
+  try { _qaMsg('Saved ' + _quotePdfFilename()); } catch(e){}
+}
 function printQuote(){
+  // A modern quote is the one-page layout, saved as a file (see above).
+  try { if (_quoteStyle() === 'modern') { _printModernQuoteFile(); return; } } catch(e){}
   // Print the A4 document, whatever the preview is showing: the roofer may
   // be looking at the customer's phone or the one-page layout, and paper
   // is always the document. The inspection report is the proposal's own
@@ -69493,12 +69543,19 @@ async function _buildQuotePdf(opts){
   return pdf;
 }
 
-// Versioned Quote filename — 'Quote FR-001 - Jim Harrison.pdf'.
+// THE FILE SAYS WHAT IT IS (2026-10-13, the owner: "the saved name of the pdf
+// it produces should say the job number, quote type (Roofing or Pole Shed) and
+// the owners name") \u2014 'Quote 3264 - Roofing - Robert Elliott.pdf'. It read
+// 'Quote 3264 - Robert Elliott.pdf', so a shed quote and a re-roof for the same
+// customer landed in Downloads looking identical.
 function _quotePdfFilename(){
   var q = (window.S && S.quote) || {};
-  var client = (q.client || 'Quote').replace(/[\\/:*?"<>|]/g,'').trim() || 'Quote';
-  var ref = (q.ref || '').replace(/[\\/:*?"<>|]/g,'').trim();
-  return ('Quote ' + (ref ? ref + ' - ' : '') + client).replace(/\s+/g,' ').trim().slice(0, 80) + '.pdf';
+  var clean = function(t){ return String(t == null ? '' : t).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); };
+  var ref    = clean(q.ref);
+  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : 'Roofing';
+  var client = clean(q.client);
+  return [ ref ? ('Quote ' + ref) : 'Quote', kind, client ]
+    .filter(Boolean).join(' - ').slice(0, 100) + '.pdf';
 }
 
 // Human date/time for the "last sent to Fergus" labels.
