@@ -2236,6 +2236,56 @@ Discipline (non-negotiable):
   `toggleProposalSection('condition')`; the card's tick puts it back). The
   customer only gets it when there is something on it (`_qbHasCondition`),
   as a gallery. The price shows on it because it follows the proposal.
+- THE PARAGRAPH IS THE TEXT BOX (2026-10-13, the owner on the condition
+  summary: "the edit text box is tiny and hard to edit, don't pop-up a window,
+  just let me edit the text, so that whole area is like a text box i can
+  edit"). `_qeBindModernEdits` opened `_styledPrompt` with a single-line
+  `<input>` — and the `multi` argument that function had always taken was
+  accepted and NEVER USED, so a five-line paragraph about a roof's condition
+  was edited through a box one line tall, scrolling sideways. The bound block
+  is `contenteditable` now (`plaintext-only` where the browser has it, so
+  pasted markup cannot get into a field stored as a plain string), marked
+  `.qe-edit`, which draws the box only on hover and while editing — office
+  only, since `_qeBindModernEdits` never runs in customer mode, and neutered
+  in both print layers. The cover title goes the same way.
+  SAVED ON THE WAY OUT, never per keystroke: `refreshQuoteProposal()` rebuilds
+  `#qpRoot`, so committing on every letter would tear the element out from
+  under the caret. Blur commits (`_qeCommitInline`), Esc restores what was
+  there, Enter commits (the field is one string and the renderer a single
+  `<p>`, so a line break has nowhere to go) and Shift+Enter is left alone. The
+  Quote tab's own `#qdCondSummary` is kept in step, and an emptied field
+  deletes the key so the grey placeholder comes back. THE JOB LOCK NEEDED
+  NOTHING: the document's `beforeinput` guard fires for a contenteditable
+  exactly as for an input, so a sent quote still asks before the first letter
+  lands. `tests/quoteeditor.mjs`.
+- A CUSTOM LINE MOVES THE FIGURES UNDER IT (2026-10-13, the owner: "a custom
+  line in the gutter section in the material doesn't actually add to the cost,
+  it does nothing to the cost of the gutter, make sure anywhere that allows a
+  custom line actually adds and effects the cost"). `_qUpdCustom` always calls
+  `_qCustomChanged(area, true)` — keepFocus, so the card is deliberately NOT
+  re-rendered while they type, or the input would be torn out from under the
+  caret. The row's own total was patched in place (`data-cl-total`) and the
+  quote's total recomputed, but the only card that got a live figure of its
+  own was MATERIAL (`#matTotalShown`). On the GUTTER card the Material
+  subtotal, the buffer, the mark-up, the Material line and the card's bottom
+  line all sat at whatever the last full render computed — so a $1,499.82 line
+  showed $1,499.82 on its own row and changed nothing beneath it. Labour and
+  scaffolding were the same. The stored figure was right all along, which is
+  why the quote's total did move; but a number that sits still while you type
+  it is indistinguishable from one that is being ignored, and nobody should
+  have to take it on trust. `_qCustomLiveRerender(baseArea)` now re-renders
+  the owning card (`_qCustomRenderArea`: labour/scaffold → `calcLabour`,
+  material → `renderMaterialPriceTable`, gutter →
+  `renderGutterDownpipePricing`) 280 ms after the LAST keystroke and puts the
+  focus and the caret back — found by `data-cl-qty` / `data-cl-unit` /
+  `data-cl-desc` (the description box grew one so it can be found too).
+  Debounced rather than per-keystroke because the material table is long and
+  redrawing it on every letter is what the keepFocus path existed to avoid;
+  `setSelectionRange` is tried inside its own `try` because a number input
+  refuses it in some browsers, and a refusal costs the caret position and
+  nothing more. `tests/gutterprice.mjs` types a real line and reads the card
+  before and after the beat — and the pin only passes with the Pricing drawer
+  actually open, because `focus()` on a card that is not rendered does nothing.
 - The EXISTING ROOF CONDITION card is on the Quote tab again (2026-09-20;
   `#qCondCard`, it was `display:none` for a while) with a tick
   (`#qCondInclude`, `_qCondIncludeToggle`) that is the same page move as

@@ -228,6 +228,42 @@ check('…each priced off that roof\'s own gutter run',
   JSON.stringify({runs:pr.runs, prices:pr.prices.map(x=>+x.toFixed(2))}));
 check('…without either roof having guttering on the customer\'s quote yet', !pr.onQuote);
 
+// A CUSTOM LINE MOVES THE FIGURES UNDER IT (2026-10-13, the owner: "a custom
+// line in the gutter section in the material doesn't actually add to the cost,
+// it does nothing to the cost of the gutter"). `_qUpdCustom` keeps the focus,
+// so the card is re-rendered a beat after the last keystroke rather than on
+// every letter — the pin therefore reads the card BEFORE and AFTER that beat,
+// and the caret must still be in the box it was typed into.
+await ppg.evaluate(() => { _toggleGutterExcluded(false); gotoTab('scope');
+  try { _openPricingPanel && _openPricingPanel(); } catch(e){}
+  S.quote.gutterType = 'marley_typhoon'; renderGutterDownpipePricing(); });
+await ppg.waitForTimeout(500);
+const gTxt = () => ppg.evaluate(() => {
+  const t = (document.getElementById('gutterDownpipeCard') || {}).innerText || '';
+  const g = r => { const m = t.match(r); return m ? parseFloat(m[1].replace(/,/g, '')) : null; };
+  return { sub: g(/Material subtotal\s*\$?([\d,\.]+)/), mat: g(/\nMaterial\s*\$?([\d,\.]+)/),
+           stored: (() => { try { return _gutterCustomBase(); } catch(e){ return -1; } })() };
+});
+const gc0 = await gTxt();
+await ppg.evaluate(() => _qAddCustom('gutter'));
+await ppg.waitForTimeout(350);
+await ppg.evaluate(() => {
+  const el = document.querySelector('[data-cl-unit="gutter:0"]');
+  el.focus(); el.value = '1499.82'; _qUpdCustom('gutter', 0, 'unit', '1499.82');
+});
+const gc1 = await gTxt();
+check('a typed gutter custom line is counted at once in the stored total',
+  gc1.stored === 1499.82, JSON.stringify(gc1));
+await ppg.waitForTimeout(700);
+const gc2 = await gTxt();
+check('…and the card’s Material subtotal grows by exactly that line',
+  gc0.sub != null && gc2.sub != null && Math.abs(gc2.sub - (gc0.sub + 1499.82)) < 0.02,
+  JSON.stringify({ before: gc0.sub, after: gc2.sub }));
+check('…without taking the caret out of the box being typed into',
+  await ppg.evaluate(() => document.activeElement === document.querySelector('[data-cl-unit="gutter:0"]')));
+await ppg.evaluate(() => { _qDelCustom('gutter', 0); });
+await ppg.waitForTimeout(400);
+
 await ppg.evaluate(() => { _toggleGutterExcluded(true); });
 await ppg.waitForTimeout(500);
 pr = await ppg.evaluate(() => ({ prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)) }));

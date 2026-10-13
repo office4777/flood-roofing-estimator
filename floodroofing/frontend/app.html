@@ -3896,6 +3896,16 @@ html.qp-book .report-preview #qpRoot{ width:auto !important; zoom:1 !important; 
 .qb-h3{ margin:20px 0 9px; font-size:13px; font-weight:700; letter-spacing:.02em; color:#33475f; }
 .qb-para{ margin:0 0 16px; font-size:14.5px; line-height:1.55; color:#42556b; }
 .qb-para-empty{ color:#8a97a6; font-style:italic; border:1px dashed #c9d3de; border-radius:8px; padding:10px 12px; }
+/* EDIT IT WHERE IT SITS (2026-10-13). The office's inline-editable blocks —
+   the cover title and the roof-condition summary — have to LOOK like somewhere
+   you can type without shouting at the customer's own layout, so the box only
+   draws itself on hover and while it is being edited. Office only: the class
+   is added by _qeBindModernEdits, which never runs in customer mode. */
+.qe-edit{ cursor:text; border-radius:8px; transition:background .12s, box-shadow .12s; }
+.qe-edit:hover{ background:#f4f8fc; box-shadow:0 0 0 1px #c3d4e4; }
+.qe-edit:focus{ outline:none; background:#fff; box-shadow:0 0 0 2px #0099cc; }
+.qe-edit:not(.qb-para-empty):hover, .qe-edit:not(.qb-para-empty):focus{ padding:8px 10px; margin-left:-10px; margin-right:-10px; }
+html:is(.print-modern,.pdf-modern) .qe-edit{ background:none!important; box-shadow:none!important; padding:revert!important; margin-left:revert!important; margin-right:revert!important; }
 /* The office's tools on the modern condition section. */
 .qb-cond-tools{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 0 12px; padding:8px 10px; background:#f3f7fb; border:1px solid #d9e4ee; border-radius:10px; }
 .qb-cond-fix{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -4900,7 +4910,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T21:31:18Z';
+  window.APP_BUILT_AT = '2026-10-13T21:50:02Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -32329,24 +32339,75 @@ function _qdescSave(){
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
   try { _siteToast(isDefault ? 'Description back to the default' : 'Description saved — the customer sees these lines'); } catch(e){}
 }
+// THE PARAGRAPH IS THE TEXT BOX (2026-10-13, the owner, on the condition
+// summary: "the edit text box is tiny and hard to edit, don't pop-up a
+// window, just let me edit the text, so that whole area is like a text box i
+// can edit"). It opened `_styledPrompt` with a single-line `<input>` — and
+// the `multi` argument this function has always taken was accepted and never
+// used, so a five-line paragraph about a roof's condition was edited through
+// a box one line tall, scrolling sideways. The paragraph itself is now the
+// editable thing: click it and type where it sits, at the size and the width
+// the customer will read it.
+//
+// SAVED ON THE WAY OUT, never per keystroke: `refreshQuoteProposal()` rebuilds
+// `#qpRoot`, so committing on every letter would tear the element out from
+// under the caret. Blur commits, Esc puts back what was there, Enter is a
+// commit (the stored field is one string and the renderer is a single `<p>`,
+// so a line break has nowhere to go) and Shift+Enter is left alone.
+//
+// The job lock needs nothing new: the document's `beforeinput` guard fires
+// for a contenteditable exactly as it does for an input, so a sent quote
+// still asks before the first letter lands.
+function _qeCommitInline(el, field){
+  if (!el || !window.S || !S.quote) return;
+  var v = String(el.innerText == null ? '' : el.innerText).replace(/\s+/g, ' ').trim();
+  var was = String(S.quote[field] == null ? '' : S.quote[field]);
+  if (v === was){
+    // Nothing typed. If they emptied it and put it back, or left the
+    // placeholder alone, a re-render is still what restores the prompt.
+    if (!v) { try { refreshQuoteProposal(); } catch(e){} }
+    return;
+  }
+  if (v) S.quote[field] = v; else delete S.quote[field];
+  // The Quote tab's own field for the same value must not drift.
+  try {
+    var inp = document.getElementById({ coverTitle:'qdCoverTitle', conditionSummary:'qdCondSummary' }[field] || '');
+    if (inp) inp.value = v;
+  } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast(field === 'coverTitle' ? 'Cover title saved' : 'Roof condition saved'); } catch(e){}
+}
 function _qeBindModernEdits(){
   var root = document.getElementById('qpRoot'); if (!root) return;
-  var bind = function(el, title, field, multi){
+  var bind = function(el, title, field){
     if (!el || el._qeBound) return;
-    el._qeBound = true; el.style.cursor = 'text'; el.title = 'Click to edit';
-    el.addEventListener('click', function(){
-      _styledPrompt({ title: title, value: String(S.quote[field] || ''), inputType: 'text', okLabel: 'Save' }, function(v){
-        if (v == null) return;
-        S.quote[field] = String(v).trim();
-        try { var inp = document.getElementById({ coverTitle:'qdCoverTitle', conditionSummary:'qdCondSummary' }[field] || ''); if (inp) inp.value = S.quote[field]; } catch(e){}
-        try { refreshQuoteProposal(); } catch(e){}
-        try { _scheduleAutosave(); } catch(e){}
-      });
+    el._qeBound = true;
+    el.classList.add('qe-edit');
+    el.title = title + ' — click to edit, click away to save';
+    el.setAttribute('role', 'textbox');
+    el.setAttribute('aria-label', title);
+    // plaintext-only keeps pasted markup out of a field that is stored as a
+    // plain string; browsers without it fall back to the ordinary mode and
+    // the commit below strips the markup anyway by reading innerText.
+    try { el.contentEditable = 'plaintext-only'; } catch(e){}
+    if (el.contentEditable !== 'plaintext-only'){ try { el.contentEditable = 'true'; } catch(e){} }
+    el.addEventListener('focus', function(){
+      el._qeWas = el.innerText;
+      // The grey italic prompt is a placeholder, not something to type around.
+      if (el.classList.contains('qb-para-empty')){
+        el.classList.remove('qb-para-empty'); el.textContent = ''; el._qeWas = '';
+      }
     });
+    el.addEventListener('keydown', function(ev){
+      if (ev.key === 'Escape'){ ev.preventDefault(); el.innerText = el._qeWas || ''; el.blur(); return; }
+      if (ev.key === 'Enter' && !ev.shiftKey){ ev.preventDefault(); el.blur(); }
+    });
+    el.addEventListener('blur', function(){ _qeCommitInline(el, field); });
   };
-  bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', 'coverTitle', false);
+  bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', 'coverTitle');
   var cond = root.querySelector('#qd-condition .qb-para') || (root.querySelector('#qbPage[data-qb-page="condition"] .qb-para'));
-  bind(cond, 'Existing roof condition — the summary the customer reads', 'conditionSummary', true);
+  bind(cond, 'Existing roof condition — the summary the customer reads', 'conditionSummary');
   var incl = root.querySelector('.qb-incl');
   if (incl && !incl._qeBound){ incl._qeBound = true; incl.style.cursor = 'pointer'; incl.title = 'Click to edit the description'; incl.addEventListener('click', function(){ _qdescOpen(); }); }
 }
@@ -36069,29 +36130,81 @@ function _qCustomChanged(area, keepFocus){
   try { _scheduleAutosave(); } catch(e){}
   var _ba = _qCustomBaseArea(area);
   if (!keepFocus){
-    try {
-      if (_ba==='labour' || _ba==='scaffold') calcLabour();
-      else if (_ba==='material') renderMaterialPriceTable();
-      else if (_ba==='gutter') renderGutterDownpipePricing();
-    } catch(e){}
-  } else if (_ba==='material'){
-    // Typing an amount: the green "Total materials" line moves with it
-    // without re-rendering the table (which would take the focus away).
-    // It used to sit still until something else redrew the table, so a
-    // custom line looked like it did nothing.
+    try { _qCustomRenderArea(_ba); } catch(e){}
+    return;
+  }
+  // Typing an amount: the green "Total materials" line moves with it at once,
+  // without waiting for the re-render below.
+  if (_ba==='material'){
     try {
       var _mt = document.getElementById('matTotalShown');
       if (_mt && _mt.getAttribute('data-base') != null) _mt.textContent = '$' + ((parseFloat(_mt.getAttribute('data-base')) || 0) + _qCustomTotal(area)).toFixed(2);
     } catch(e){}
     try { renderProfitability(); } catch(e){}
   }
+  _qCustomLiveRerender(_ba);
+}
+// Re-render whichever card owns an area's custom lines.
+function _qCustomRenderArea(ba){
+  if (ba==='labour' || ba==='scaffold') calcLabour();
+  else if (ba==='material') renderMaterialPriceTable();
+  else if (ba==='gutter') renderGutterDownpipePricing();
+}
+// A CUSTOM LINE HAS TO MOVE THE FIGURES UNDER IT (2026-10-13, the owner:
+// "a custom line in the gutter section in the material doesn't actually add
+// to the cost, it does nothing to the cost of the gutter, make sure anywhere
+// that allows a custom line actually adds and effects the cost").
+//
+// `_qUpdCustom` always calls `_qCustomChanged(area, true)` — keepFocus, so the
+// card is NOT re-rendered while they type, or the input would be torn out from
+// under the caret. The row's own total was patched in place and the quote's
+// total was recomputed, but the only card that got a live figure of its own
+// was MATERIAL. On the gutter card the Material subtotal, the buffer, the
+// mark-up, the Material line and the card's own bottom line all sat at
+// whatever the last full render had computed — so a $1,499.82 line showed
+// $1,499.82 on its row and changed nothing beneath it. Labour and scaffolding
+// were the same. A figure that does not move while you type it is
+// indistinguishable from one that is being ignored.
+//
+// So the card IS re-rendered now, a beat after the last keystroke, with the
+// focus and the caret put back where they were. Debounced rather than
+// per-keystroke because the material table is long and redrawing it on every
+// letter is what the keepFocus path was avoiding in the first place.
+var _QCL_T = null;
+function _qCustomLiveRerender(ba){
+  if (_QCL_T) clearTimeout(_QCL_T);
+  _QCL_T = setTimeout(function(){
+    _QCL_T = null;
+    // Which box has the caret, and where in it.
+    var key = null, ss = null, se = null;
+    try {
+      var ae = document.activeElement;
+      if (ae && ae.getAttribute){
+        ['data-cl-qty', 'data-cl-unit', 'data-cl-desc'].some(function(k){
+          var v = ae.getAttribute(k); if (v == null) return false; key = [k, v]; return true;
+        });
+        if (key){ try { ss = ae.selectionStart; se = ae.selectionEnd; } catch(e){} }
+      }
+    } catch(e){}
+    try { _qCustomRenderArea(ba); } catch(e){}
+    try { renderProfitability(); } catch(e){}
+    if (!key) return;
+    try {
+      var el = document.querySelector('[' + key[0] + '="' + key[1].replace(/"/g, '\\"') + '"]');
+      if (!el) return;
+      el.focus();
+      // A number input refuses setSelectionRange in some browsers; the focus
+      // is the part that matters, so a refusal costs the caret and nothing more.
+      if (ss != null && el.setSelectionRange){ try { el.setSelectionRange(ss, se); } catch(e){} }
+    } catch(e){}
+  }, 280);
 }
 // Editable custom-line rows + "add" button for a pricing area.
 function _qCustomRowsHtml(area){
   var rows = _qCustom(area).map(function(r,i){
     _qCustomNorm(r);
     return '<div class="cl-row" style="display:flex;gap:6px;align-items:center;margin-top:5px">'+
-      '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line description" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px;min-width:0">'+
+      '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line description" data-cl-desc="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px;min-width:0">'+
       '<input type="number" step="any" min="0" value="'+(r.qty != null ? r.qty : 1)+'" title="Quantity" data-cl-qty="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'qty\',this.value)" style="width:58px;margin:0;font-size:12px;padding:6px 6px;text-align:right">'+
       (r.uom ? '<span style="color:var(--text2);font-size:11px">'+esc(r.uom)+'</span>' : '')+
       '<span style="color:var(--text2);font-size:12px">\u00D7 $</span>'+
@@ -36123,7 +36236,7 @@ function _qCustomTableRows(area, opts){
     _qCustomNorm(r);
     var tot = '<td style="text-align:right;font-weight:600" data-cl-total="'+area+':'+i+'">$'+(parseFloat(r.amount)||0).toFixed(2)+'</td>';
     var del = '<td style="text-align:center"><button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:15px;cursor:pointer;padding:0 2px;line-height:1">×</button></td>';
-    var desc = '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="width:100%;margin:0;font-size:12px;padding:4px 6px">';
+    var desc = '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line" data-cl-desc="'+area+':'+i+'" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="width:100%;margin:0;font-size:12px;padding:4px 6px">';
     if (wide) return '<tr class="cl-row"><td colspan="'+(tc - 4)+'">'+desc+'</td><td>'+qIn(r, i)+(r.uom ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.uom)+'</div>' : '')+'</td><td>'+uIn(r, i)+'</td>'+tot+del+'</tr>';
     return '<tr class="cl-row"><td colspan="'+Math.max(1, tc - 3)+'">'+desc+'</td><td><div style="display:flex;gap:4px;align-items:center">'+qIn(r, i)+'<span style="color:var(--text2);font-size:11px">\u00D7</span>'+uIn(r, i)+'</div></td>'+tot+del+'</tr>';
   }).join('');

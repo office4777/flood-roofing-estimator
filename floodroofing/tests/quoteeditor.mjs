@@ -122,6 +122,34 @@ const cond = await pg.evaluate(async () => {
   return out;
 });
 check('the Existing roof condition card is on the Quote tab, ticked, and its summary reaches the customer’s page', cond.card && cond.tickedAtStart && cond.inDocAtStart && cond.saved === 'Around 35 years old and rusting through.' && cond.onPage, JSON.stringify(cond));
+
+// THE PARAGRAPH IS THE TEXT BOX (2026-10-13, the owner: "the edit text box is
+// tiny and hard to edit, don't pop-up a window, just let me edit the text, so
+// that whole area is like a text box i can edit"). It used to open a styled
+// prompt with a ONE-LINE <input> for a five-line paragraph.
+const inline = await pg.evaluate(async () => {
+  _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 700));
+  const el = document.querySelector('#qd-condition .qb-para');
+  if (!el) return { found:false };
+  const out = { found:true, editable: el.contentEditable === 'plaintext-only' || el.contentEditable === 'true',
+                klass: el.className.indexOf('qe-edit') >= 0,
+                width: Math.round(el.getBoundingClientRect().width) };
+  el.focus();
+  out.popup = !!document.querySelector('#styledPromptModal, .sp-modal');
+  el.textContent = 'Twisted-shank nails, well weathered, rust starting at the laps.';
+  el.blur();
+  await new Promise(r => setTimeout(r, 600));
+  out.saved = S.quote.conditionSummary;
+  out.tabInput = (document.getElementById('qdCondSummary') || {}).value;
+  out.onPage = (document.getElementById('qpRoot').textContent || '').indexOf('rust starting at the laps') >= 0;
+  return out;
+});
+check('the roof-condition summary is edited where it sits — the paragraph itself is the box',
+  inline.found && inline.editable && inline.klass && inline.width > 200, JSON.stringify(inline));
+check('…with no pop-up window in the way', inline.found && !inline.popup, JSON.stringify(inline));
+check('…and clicking away saves it, to the quote, the Quote tab’s field and the page',
+  inline.saved === 'Twisted-shank nails, well weathered, rust starting at the laps.' &&
+  inline.tabInput === inline.saved && inline.onPage, JSON.stringify(inline));
 check('unticking it takes the section out of the document, the one-page layout and the book (and the Proposal sections card agrees)',
   !cond.off.inDoc && !cond.off.desk && !cond.off.sectionsCard && !cond.off.text && !cond.offBook, JSON.stringify(cond.off));
 check('ticking it puts the section back, with Edit roof condition on it, which opens the card', cond.on.inDoc && cond.on.book && cond.condBtn === 'cond' && cond.cardOpened, JSON.stringify([cond.on, cond.condBtn, cond.cardOpened]));
