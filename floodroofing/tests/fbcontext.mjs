@@ -131,6 +131,39 @@ v = await pg.evaluate(() => {
 check('with no drawing and no settings it still returns something, and does not throw',
   !v.threw && v.len > 40, v.out);
 
+// ── THE ROOF MAP RIDES ALONG (2026-10-13) ─────────────────────────
+// The owner: "can the submit feedback also auto attached a picture of the
+// canvas so i can see what they're talking about?" — "the roof map is not
+// square and distorts ridges and hips" is a thing you have to see.
+const shot = await pg.evaluate(() => {
+  const R = {};
+  gotoTab('roof'); clearAll(true);
+  R.blank = _fbCanvasShot();
+  setTool('outline');
+  DRAW.currentPts = [[200,200],[700,200],[700,520],[200,520]]; finishCurrent();
+  DRAW.scaleMetresPerPx = 0.03; DRAW.calPitch = 20;
+  autoGenerateRoof('gable', 0); autoCalcLineMeasurements(); redrawAll();
+  const img = _fbCanvasShot();
+  R.drawn = { jpeg: !!img && img.indexOf('data:image/jpeg') === 0, kb: img ? Math.round(img.length/1024) : 0 };
+  // A canvas carrying a cross-origin aerial is TAINTED and toDataURL throws on
+  // it — the users most likely to be reporting a roof. It must cost them the
+  // picture, never the report.
+  const mk = document.createElement;
+  document.createElement = function(t){ const e = mk.call(document, t);
+    if (t === 'canvas') e.toDataURL = function(){ throw new Error('SecurityError'); };
+    return e; };
+  let threw = false, out = 'unset';
+  try { out = _fbCanvasShot(); } catch(e){ threw = true; }
+  document.createElement = mk;
+  R.tainted = { threw, out };
+  return R;
+});
+check('a drawn roof is captured as a picture for the report',
+  shot.drawn.jpeg && shot.drawn.kb > 2, JSON.stringify(shot.drawn));
+check('…an empty canvas attaches nothing', shot.blank === null, String(shot.blank));
+check('…and a canvas it is not allowed to read costs the picture, not the report',
+  shot.tainted.threw === false && shot.tainted.out === null, JSON.stringify(shot.tainted));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
 await b.close();

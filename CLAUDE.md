@@ -847,6 +847,23 @@ Discipline (non-negotiable):
   open on screen, and every edit in it quietly did nothing; half an outline
   tapped out went the same way. `_roofScopeEnter` now puts both back when it
   restores the roof it started on. Pinned in `tests/penedit.mjs`.
+- THE ROOF MAP RIDES WITH THE FEEDBACK REPORT (2026-10-13, the owner: "can
+  the submit feedback also auto attached a picture of the canvas so i can see
+  what they're talking about?"). The geometry already went as JSON, which is
+  what makes a report reproducible — but "the roof map is not square and
+  distorts ridges and hips" is a thing you have to SEE, and asking a roofer to
+  screenshot their own screen is asking them to do our job. `_fbCanvasShot()`
+  copies `#roofCanvas` onto a white ground (JPEG has no alpha, so an unpainted
+  canvas would come out black), downscales to 1400px and returns a JPEG;
+  `_sendFeedback` puts it FIRST in the PDF, labelled "attached automatically",
+  with the roofer's own screenshots after it. `_feedbackShotsToPdf` takes a
+  `[{src, label}]` list now rather than reading `_feedbackShots` itself.
+  THREE THINGS IT MUST NEVER DO, all pinned in `tests/fbcontext.mjs`: break
+  Send Feedback, attach a blank canvas (nothing drawn → nothing attached), or
+  throw on a canvas it is not allowed to read — a cross-origin aerial TAINTS
+  the canvas and `toDataURL` raises a SecurityError on it, which is exactly
+  the roofer most likely to be reporting a roof. Every step is guarded and a
+  failure costs the picture, never the report.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`

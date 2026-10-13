@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T03:06:08Z';
+  window.APP_BUILT_AT = '2026-10-13T03:09:00Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -42424,7 +42424,44 @@ function _fbAutoContext(){
   return L.join('\n');
 }
 
-async function _feedbackShotsToPdf(title, details, who, geom){
+// THE ROOF MAP GOES WITH THE REPORT (2026-10-13, the owner: "can the submit
+// feedback also auto attached a picture of the canvas so i can see what
+// they're talking about?"). The geometry already rides along as JSON, which
+// is what makes a report reproducible — but "the roof map is not square and
+// distorts ridges and hips" is a thing you have to SEE, and asking a roofer
+// to screenshot their own screen is asking them to do our job.
+//
+// Three things it must never do: break Send Feedback, attach a blank canvas,
+// or send a picture of somebody's house without the report that explains it.
+// A canvas carrying a cross-origin aerial is TAINTED and toDataURL throws a
+// SecurityError on it — exactly the users most likely to report a roof — so
+// every step is guarded and failure just means no picture.
+function _fbCanvasShot(){
+  try {
+    var cv = document.getElementById('roofCanvas');
+    if (!cv || !cv.width || !cv.height) return null;
+    // Nothing drawn is nothing worth attaching.
+    var drawn = false;
+    try {
+      drawn = !!(window.DRAW && (DRAW.bgImg ||
+        (DRAW.outline && DRAW.outline.length > 2) ||
+        (DRAW.lines && DRAW.lines.length) ||
+        (DRAW.roofs && DRAW.roofs.some(function(r){ return r && r.outline && r.outline.length > 2; }))));
+    } catch(e){ drawn = false; }
+    if (!drawn) return null;
+    var maxW = 1400;
+    var sc = Math.min(1, maxW / cv.width);
+    var out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(cv.width * sc));
+    out.height = Math.max(1, Math.round(cv.height * sc));
+    var cx = out.getContext('2d');
+    // JPEG has no transparency, so an unpainted canvas would come out black.
+    cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, out.width, out.height);
+    cx.drawImage(cv, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.72);
+  } catch(e){ return null; }       // tainted canvas, no context, anything
+}
+async function _feedbackShotsToPdf(title, details, who, geom, shots){
   // jsPDF is lazy-loaded from a CDN — make sure it's here before we build.
   try { if (typeof _loadPdfLibs === 'function') await _loadPdfLibs(); } catch(e){}
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
@@ -42480,15 +42517,16 @@ async function _feedbackShotsToPdf(title, details, who, geom){
     head('Roof geometry (paste as JSON)');
     body(_fbWrapJson(geom, 96), 7.5, true);
   }
-  for (var i = 0; i < _feedbackShots.length; i++){
+  var _shots = shots || _feedbackShots.map(function(src){ return { src: src, label: null }; });
+  for (var i = 0; i < _shots.length; i++){
     pdf.addPage();
-    var src = _feedbackShots[i];
+    var src = _shots[i].src;
     var dim = await new Promise(function(res){ var im = new Image(); im.onload = function(){ res({ w: im.width || 1, h: im.height || 1 }); }; im.onerror = function(){ res({ w: 1, h: 1 }); }; im.src = src; });
     var ratio = Math.min((pageW - 2*margin) / dim.w, (pageH - 2*margin) / dim.h);
     var w = dim.w * ratio, h = dim.h * ratio;
     try { pdf.addImage(src, 'JPEG', (pageW - w)/2, margin + 6, w, h, undefined, 'FAST'); } catch(e){}
     pdf.setFont('helvetica','normal'); pdf.setFontSize(9); pdf.setTextColor(100,116,139);
-    pdf.text('Screenshot ' + (i+1) + ' of ' + _feedbackShots.length, margin, margin + 1);
+    pdf.text(_shots[i].label || ('Screenshot ' + (i+1) + ' of ' + _shots.length), margin, margin + 1);
   }
   var blob = pdf.output('blob');
   var b64 = await new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1] || ''); }; fr.onerror = function(){ rej(fr.error); }; fr.readAsDataURL(blob); });
@@ -42700,9 +42738,15 @@ async function _sendFeedback(btn){
   // so fixing it starts from a single upload rather than a hunt.
   var attachment = null;
   show('Building the report…');
-  try { attachment = await _feedbackShotsToPdf(title, details, who, geom); } catch(e){ attachment = null; }
+  // The roof map as it was on screen, first, so the report opens on the thing
+  // they are describing. Theirs follow.
+  var _auto = null; try { _auto = _fbCanvasShot(); } catch(e){ _auto = null; }
+  var _shots = (_auto ? [{ src: _auto, label: 'The roof map as it was on screen (attached automatically)' }] : [])
+    .concat(_feedbackShots.map(function(src){ return { src: src, label: null }; }));
+  try { attachment = await _feedbackShotsToPdf(title, details, who, geom, _shots); } catch(e){ attachment = null; }
   var shotsNote = (_feedbackShots.length ? _feedbackShots.length : 'no') +
     ' screenshot' + (_feedbackShots.length === 1 ? '' : 's') +
+    (_auto ? ' + the roof map' : '') +
     (attachment ? ' — full report attached as roofmap-feedback.pdf'
                 : ' — the PDF could NOT be built, so the details are in this email only');
   var text =
