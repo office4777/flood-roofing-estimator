@@ -109,6 +109,36 @@ await pg.waitForTimeout(200);
 check('clicking a tape shows a delete button, and it deletes it', await pg.evaluate(() => (DRAW.tapes || []).length === 0));
 check('…and a new job starts with none', await pg.evaluate(() => { DRAW.tapes = [{ a: [0, 0], b: [10, 0] }]; clearAll(true); return (DRAW.tapes || []).length === 0; }));
 
+// ── A LINE THAT GOES NOWHERE IS NOT A LINE (feedback report 13) ────
+// info@wellingtonroof.co.nz sent a roof carrying SIX change-of-pitch lines,
+// two of which were the same point twice with measM null — a double-tap, or a
+// click landing twice on one snap point. Nothing is drawn, so nothing can be
+// clicked to delete it, and _roofHasChangePitch reads the LIST: two invisible
+// ones are enough to tell a roof it changes pitch.
+const zero = await pg.evaluate(() => {
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[980,648],[1550,648],[1550,965],[980,965]]; finishCurrent();
+  DRAW.scaleMetresPerPx = 0.0306; DRAW.calPitch = 25;
+  const before = DRAW.lines.length;
+  const place = (t, a, z) => { setTool(t); DRAW.currentPts = [a, z]; finishCurrent(); };
+  place('changepitch', [1076,857], [1076,857]);     // the exact pair he sent
+  const afterSame = DRAW.lines.length;
+  place('changepitch', [1076,857], [1076,857.4]);   // under half a pixel
+  const afterNear = DRAW.lines.length;
+  place('changepitch', [1076,727], [1454,730]);     // a real one of his
+  const afterReal = DRAW.lines.length;
+  return { before, afterSame, afterNear, afterReal,
+           zeroLen: DRAW.lines.filter(l => l.pts && l.pts.length > 1 &&
+             Math.hypot(l.pts[1][0]-l.pts[0][0], l.pts[1][1]-l.pts[0][1]) < 0.5).length,
+           hasCp: (typeof _roofHasChangePitch === 'function') ? _roofHasChangePitch() : null };
+});
+check('a line drawn start-to-finish in one spot is not stored',
+  zero.afterSame === zero.before, JSON.stringify(zero));
+check('…nor one under half a pixel long', zero.afterNear === zero.before, JSON.stringify(zero));
+check('…but a real change-of-pitch line still is',
+  zero.afterReal === zero.before + 1, JSON.stringify(zero));
+check('…so the roof carries no zero-length lines at all', zero.zeroLen === 0, String(zero.zeroLen));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

@@ -4842,7 +4842,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T03:09:00Z';
+  window.APP_BUILT_AT = '2026-10-13T03:12:39Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -54107,6 +54107,21 @@ function finishCurrent() {
   }
 
   if(['ridge','valley','gutter','hip','barge','apron','changepitch'].indexOf(t)>=0 && pts.length>=2) {
+    // A LINE THAT STARTS AND ENDS IN THE SAME PLACE IS NOT A LINE (feedback
+    // report 13, 2026-10-13, info@wellingtonroof.co.nz). A double-tap, or a
+    // click that lands twice on the same snap point, pushed a line whose two
+    // ends are one point: nothing is drawn on the canvas, measM stays null,
+    // and it cannot be picked to delete because there is nothing to click.
+    // His roof carried two of them among six change-of-pitch lines — and an
+    // invisible changepitch line is not harmless, because _roofHasChangePitch
+    // reads the LIST: two of these are enough to tell a roof it changes pitch,
+    // show the Lower pitch box and send the sheet engine down the band path.
+    // Half a pixel apart is the same point at any scale the app draws at —
+    // the rule _olDropRepeats already applies to outline corners.
+    var _a = pts[0], _z = pts[pts.length-1];
+    if (Math.hypot(_z[0] - _a[0], _z[1] - _a[1]) < 0.5){
+      DRAW.currentPts = []; redrawAll(); return;
+    }
     DRAW.lines.push({type:t, pts:[pts[0],pts[pts.length-1]], label:'', lengthM:''});
     DRAW.currentPts = [];
     DRAW.selectedLine = DRAW.lines.length-1;
