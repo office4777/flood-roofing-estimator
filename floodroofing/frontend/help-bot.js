@@ -854,7 +854,24 @@
     // while that tab was in front. The test belongs on the repeats, which is
     // what it is there to spare; not on the one read that answers "has
     // anybody written to me?".
-    setTimeout(supportPoll, 4000);
+    // ...AND IT KEEPS TRYING UNTIL IT CAN (2026-10-13). A single shot at four
+    // seconds assumed the app was ready by then. `supportAvailable()` wants
+    // `window.api`, which lives in app.html — 60k lines that a loaded machine
+    // may still be parsing at the four-second mark, and on CI four suites
+    // share a runner. When that happened the one read was dropped on the
+    // floor and the next was NINETY SECONDS later, so a reply waiting for
+    // them sat unseen that whole time; `tests/helpsupport.mjs` caught it
+    // about one run in six (its 30-second wait for the pop timing out), and
+    // it blocked a promote. The first read now retries every 1.5s until it
+    // actually goes, giving up after ~45s — by which point the app is not
+    // coming up at all and the 90-second cadence is the right owner of it.
+    var firstTries = 0;
+    var firstTimer = setInterval(function () {
+      if (++firstTries > 30) { clearInterval(firstTimer); return; }
+      if (!supportAvailable()) return;
+      clearInterval(firstTimer);
+      supportPoll();
+    }, 1500);
     SUP.timer = setInterval(go, 90000);
     // …and a tab coming back to the front reads again rather than waiting out
     // the rest of its ninety seconds.

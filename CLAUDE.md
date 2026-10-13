@@ -1322,6 +1322,21 @@ Discipline (non-negotiable):
   because six call sites reach it from the redraw and roof-switch paths.
   `suggestRoofType` still uses `_roofReflexCount` to OFFER a type in the
   outline popup, which is an offer and not a warning.
+- THE SUPPORT BUBBLE'S FIRST READ KEEPS TRYING (2026-10-13). `supportStartPolling`
+  fired its first read ONCE, at four seconds, and `supportAvailable()` wants
+  `window.api` — which lives in app.html, 60k lines a loaded machine may still
+  be parsing at that mark. When it was not ready the one read was dropped and
+  the next was NINETY SECONDS later, so a reply waiting for them sat unseen
+  that whole time. It retries every 1.5s until it goes, giving up after ~45s.
+  BE ACCURATE ABOUT WHAT THIS DID AND DID NOT FIX: it is a real latent bug on a
+  slow machine, but it was NOT the cause of `helpsupport` failing about one run
+  in six. That was the SUITE: `addInitScript` was on the first page rather than
+  the CONTEXT, so the second page — the "signing back in" one — got `fr_token`
+  only if `file://` localStorage happened to carry over, which in Chromium it
+  does not reliably do. Instrumented rather than reasoned about: the failing
+  runs report the token missing and ZERO polls. On the context now; eight runs
+  green where it used to fail one in six. It had taken a promote down with it
+  twice.
 - A TAB IN THE BACKGROUND STILL READS ITS MESSAGES (2026-10-13,
   `help-bot.js`): `supportStartPolling`'s FIRST read carried the same
   `visibilityState !== 'hidden'` test as the 90-second repeats, so a tab the

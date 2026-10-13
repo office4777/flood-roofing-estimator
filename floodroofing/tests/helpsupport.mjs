@@ -31,7 +31,15 @@ await ctx.route('**/flood-roofing-estimator-production.up.railway.app/**', r => 
   if (/\/settings/.test(u) && m === 'GET') return j({ branding: { company_name: 'Acme' }, quote_defaults: {}, jms_keys: {}, ui_flags: { first_roof: 'done' } });
   return j([]);
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_settings', 'null'); localStorage.setItem('fr_first_roof', 'done'); });
+// ON THE CONTEXT, NOT THE PAGE (2026-10-13). This was `pg.addInitScript`, so
+// the SECOND page below — the "signing back in" one — got the token only if
+// `file://` localStorage happened to carry over from the first, which in
+// Chromium it does not reliably do. About one run in six it booted with no
+// `fr_token`, `supportAvailable()` answered false, the bubble never polled
+// once and the 30-second wait for the pop timed out: the suite failed, Tests
+// went red and a green promote was skipped. Measured, not guessed — the
+// failing runs report `fr_token` missing and ZERO polls.
+await ctx.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_settings', 'null'); localStorage.setItem('fr_first_roof', 'done'); });
 await pg.goto('file://' + DIR + '/app.html');
 await sleep(2500);
 
