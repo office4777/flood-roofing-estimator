@@ -139,6 +139,49 @@ check('…but a real change-of-pitch line still is',
   zero.afterReal === zero.before + 1, JSON.stringify(zero));
 check('…so the roof carries no zero-length lines at all', zero.zeroLen === 0, String(zero.zeroLen));
 
+// ── A TAPE ON A PLAN SETS THE SCALE (2026-10-14) ────────────────
+// The owner, on an imported A3 consent plan: "can't you just base the scale
+// of this physical bar?". "Click a measurement to correct the scale" has been
+// the rule since 2026-09-24, but on a freshly imported plan there is no roof
+// line to click — and the measuring tape, which is the thing you lay along a
+// dimension before you have drawn anything, counted for nothing.
+const tape = await pg.evaluate(() => {
+  const r = {};
+  clearAll(true);
+  DRAW.scaleMetresPerPx = 0;              // a plan just imported: no scale yet
+  DRAW.tapes = [{ a:[100,100], b:[1063,100] }];   // 963 px, his own dimension line
+  DRAW.selTape = 0;
+  r.noScaleLabel = _tapeLenText(DRAW.tapes[0]);
+  // the handle exists and is not on top of the delete button
+  const h = _tapeHandles(DRAW.tapes[0], getImgTransform());
+  r.hasScl = !!h.scl;
+  r.apart = h.scl ? Math.hypot(h.scl[0]-h.del[0], h.scl[1]-h.del[1]) : 0;
+  // 31.56 m over 963 px
+  _tapeSetScale(0);
+  const inp = document.getElementById('_spInput');
+  r.prompted = !!inp;
+  if (inp){ inp.value = '31.56'; document.getElementById('_spOk').click(); }
+  r.mpp = DRAW.scaleMetresPerPx;
+  r.reads = _tapeLenText(DRAW.tapes[0]);
+  // mm typed instead of metres is the obvious slip on a plan dimensioned in mm
+  _tapeSetScale(0);
+  const inp2 = document.getElementById('_spInput');
+  if (inp2){ inp2.value = '31560'; document.getElementById('_spOk').click(); }
+  r.mmSlip = DRAW.scaleMetresPerPx;
+  return r;
+});
+check('an unscaled tape says what to do instead of a length',
+  /set the scale/.test(tape.noScaleLabel), tape.noScaleLabel);
+check('a selected tape carries a scale button, clear of the delete one',
+  tape.hasScl && tape.apart > 15, JSON.stringify({ apart: Math.round(tape.apart) }));
+check('typing the plan\'s own dimension sets the scale',
+  tape.prompted && Math.abs(tape.mpp - 31.56 / 963) < 1e-6,
+  JSON.stringify({ mpp: tape.mpp, want: 31.56 / 963 }));
+check('\u2026and the tape then reads back what was typed',
+  tape.reads === '31.56m', tape.reads);
+check('\u2026and millimetres typed by mistake are read as millimetres',
+  Math.abs(tape.mmSlip - 31.56 / 963) < 1e-6, String(tape.mmSlip));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

@@ -2498,6 +2498,54 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- A TAPE ON A PLAN SETS THE SCALE (2026-10-14, the owner on an imported A3
+  consent plan: "can't you just base the scale of this physical bar? ignore
+  the A3 it shouldn't matter? or am i wrong?").
+  HE IS HALF RIGHT, AND THE OTHER HALF IS WORTH KEEPING because it is
+  counter-intuitive. The printed scale bar IS the one reference immune to the
+  sheet being resized — that part is correct, and the paper size genuinely
+  does not matter. But it is also the WORST reference on the sheet. Measured
+  on his own file (a Canon iR-ADV scan, 7 pages, A3 exactly at 1190.4 x 841.68
+  pt, and NO TEXT LAYER on any page, so reading "1:100" off the drawing is
+  impossible on the files he actually receives; pages carry different scales
+  anyway — A02b is 1:125, A08 is 1:100): the bar runs about 120 px for 3.75 m,
+  so a 2 px reading error is 3%. The drawing's own 31560 mm dimension line
+  runs 963 px, where the same 2 px is 0.2%. Three ways of measuring page 1
+  gave 0.0313 (bar), 0.0318 (paper theory) and 0.0328 m/px (dimension line) —
+  the bar 4.6% short of the dimension and paper theory 3.1% short. THE LONGEST
+  DIMENSIONED THING ON THE SHEET IS THE RIGHT REFERENCE, every time.
+  So no auto-scaler off the bar. What was missing was the obvious thing: "click
+  a measurement to correct the scale" has been the rule since 2026-09-24 and
+  `_rescaleFromMeasure` does it for any drawn roof line — but on a freshly
+  imported plan there is no roof yet, so there is nothing to click. The
+  MEASURING TAPE is what you lay along a dimension before you have drawn
+  anything, and it was a drawing aid that counted for nothing. A selected tape
+  now carries a ruler button beside its ✕ (`_tapeHandles().scl`,
+  `_tapeSetScale`), it goes through `_scaleFromDrawn` — the ONE place the
+  scale is set — at slope factor 1, because a tape lies flat on the plan and
+  does not run up a rake, and an unscaled tape's label reads "tap the ruler to
+  set the scale" instead of a length it cannot know. A figure over 300 is read
+  as millimetres: a plan dimensioned in mm is where that slip comes from, and
+  nothing a roofer measures on one tape is 300 m. `tests/roofmeasure.mjs`
+  pins it on his own 963 px / 31.56 m dimension.
+- `autosaveJob` IS NOT A FUNCTION THIS APP HAS, IN FIFTY PLACES (2026-10-14).
+  Four had been found one at a time — the back-tray switch, the custom lines,
+  the roof-map background toggle, the corner pad — each written up as its own
+  bug. Grepping for the rest found FIFTY call sites, every one inside a `try`,
+  so every one a silent no-op: a Job Pack page added, moved or deleted, a crop,
+  a note, a back-tray / box-flashing / clearlite row edited, a flashing slot
+  filled, a roof's sheet type, an outline edge typed to a length, the scale
+  itself corrected by `_scaleFromDrawn`, and the office's own pick in
+  `_setProposalOption`. Each was saved only if some LATER action happened to
+  trigger an autosave, and lost if the roofer closed the tab. All now call
+  `_scheduleAutosave`, which carries its own guards (a locked job, the template
+  editor, a job with no id) so it is safe everywhere the dead call stood; the
+  one in `_setProposalOption` is office-only, because the customer has no job
+  to autosave and their own path is the debounced post beside it. ONE comment
+  above `onCanvasClick` explains all of them rather than fifty copies.
+  THE LESSON: a call guarded by `typeof x === 'function'` or `x && x()` is a
+  call that CANNOT fail loudly, so it never shows up as a bug — it shows up as
+  "it didn't save my change" months later. Grep for the ghost, not the symptom.
 - THE RIDGE / VALLEY JUNCTION IS DRAGGABLE (2026-10-14, the owner: "it won't
   let me click that junction where the two valleys meet the ridge to drag it
   keeping it inline with the connecting ridge"). The solver puts the ridge end

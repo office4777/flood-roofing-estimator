@@ -4927,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-14T23:01:50Z';
+  window.APP_BUILT_AT = '2026-10-14T23:06:58Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -29628,9 +29628,12 @@ function _setProposalOption(field, value){
   if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') {
     try { _postCustomerUpdateDebounced(); } catch(e){}
   }
-  if (typeof autosaveJob === 'function') {
-    try { autosaveJob(); } catch(e){}
-  }
+  // The OFFICE's own pick has to reach the job. This called `autosaveJob`,
+  // which is not a function this app has, behind a typeof test — so it was a
+  // no-op and the pick rode to the server on whatever edit happened next.
+  // The customer's own path is the debounced post above, and they have no job
+  // to autosave, so this is office-only.
+  if (!window.__CUSTOMER_MODE){ try { _scheduleAutosave(); } catch(e){} }
 }
 function _setProposalOption_grade(v){     _setProposalOption('steelGrade', v); }
 function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v); }
@@ -46260,7 +46263,7 @@ function saveFlashSketch(){
       arr[slotIdx] = { source: 'custom', sketch: url, name: 'Custom flashing #' + (slotIdx + 1) };
     }
     closeFlashSketch();
-    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}   // `autosaveJob` never existed — the sketch was never saved
     try { renderMatFlashingsGrid && renderMatFlashingsGrid(); } catch(e){}
     return;
   }
@@ -53699,7 +53702,7 @@ function _siteFlashSheet(){
 function _siteFlashSync(){
   try { if (typeof _renderFlashings === 'function') _renderFlashings(); } catch(e){}
   try { if (typeof _updateSavedFlashCount === 'function') _updateSavedFlashCount(); } catch(e){}
-  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}   // `autosaveJob` never existed — site flashings were never saved
 }
 // ── The sketch pad you can use up a ladder ─────────────────────────
 // The office editor has twelve tools, a 720px canvas and a mouse. On a roof
@@ -54747,6 +54750,17 @@ function _placeBoxedPen(x0, y0, x1, y1){
   return _penBox;
 }
 
+// NOTE on `_scheduleAutosave` below and in 47 other places (2026-10-14): they
+// all read `autosaveJob && autosaveJob()`, and `autosaveJob` is not a function
+// this app has. Inside a try, so every one was a silent no-op — a Job Pack
+// page added or moved, a crop, a back-tray or clearlite row edited, a flashing
+// slot filled, a roof's sheet type, an outline edge typed to length: each was
+// saved only if some LATER action happened to trigger an autosave, and lost if
+// the roofer closed the tab. Four of these had already been found one at a
+// time (the back-tray switch, the custom lines, the roof-map background, the
+// corner pad); this is the rest of them. `_scheduleAutosave` carries its own
+// guards — a locked job, the template editor, a job with no id — so it is
+// safe everywhere the dead call stood.
 function onCanvasClick(e) {
   if (_lockCanvasEditGuard(e)) return;
   if(e.detail>=2) return;
@@ -54810,7 +54824,7 @@ function onCanvasClick(e) {
       syncToRoofData(); redrawAll(); updateMeasTotals();
       try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
       try { renderJobPack && renderJobPack(); } catch(e){}
-      try { autosaveJob && autosaveJob(); } catch(e){}
+      try { _scheduleAutosave(); } catch(e){}
       return;
     }
     // Sheet measure (auto OR manual) under the cursor — clear it.
@@ -55164,7 +55178,7 @@ function _setOutlineEdgeLength(edgeIdx, newLenM){
     markOffScale('meas', 'Wall', _curM, newLenM);
     if (_shown){ try { syncToRoofData(); } catch(e){} }
     redrawAll(); updateMeasTotals();
-    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}
     return;
   }
   var n = DRAW.outline.length;
@@ -55182,7 +55196,7 @@ function _setOutlineEdgeLength(edgeIdx, newLenM){
   try { if (DRAW.roofType) regenerateAutoRoofLines(DRAW.roofType); else autoPopulateGutters(); } catch(e){}
   try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   syncToRoofData(); redrawAll(); updateMeasTotals();
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function onCanvasDblClick(e) {
   if (_lockCanvasEditGuard(e)) return;
@@ -55891,7 +55905,10 @@ function _scaleFromDrawn(px, f, typedM, refA, refB){
   try { redrawAll(); } catch(e){}
   try { _scaleStateShow(); } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  // `autosaveJob` is not a function this app has — the fourth place caught
+  // calling it. Inside a try, so correcting the scale by typing a real
+  // measurement has never once been saved by itself.
+  try { _scheduleAutosave(); } catch(e){}
   return true;
 }
 // A SHEET MEASURE WITH NO BARGE UNDER IT (2026-09-28). The owner: "it only
@@ -57097,7 +57114,7 @@ function markOffScale(kind, what, fromM, toM){
 function setEditMode(m, quiet){
   DRAW.editMode = (m === 'visual') ? 'visual' : 'scaled';
   try { _scaleStatusRender(); } catch(e){}
-  if (!quiet){ try { autosaveJob && autosaveJob(); } catch(e){} }
+  if (!quiet){ try { _scheduleAutosave(); } catch(e){} }
 }
 // The two mode buttons and the warning button, kept in step with DRAW.
 // Called from _scaleStateShow, so every redraw refreshes it.
@@ -57199,7 +57216,7 @@ function resetToExactScale(){
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // Say plainly where the scale came from, so nobody measures off an aerial
 // assuming it was never set — and so it is obvious that Calibrate overrides it.
@@ -59074,7 +59091,49 @@ function _tapeList(){ if (!Array.isArray(DRAW.tapes)) DRAW.tapes = []; return DR
 function _tapeLenText(t){
   var px = Math.hypot(t.b[0] - t.a[0], t.b[1] - t.a[1]);
   if (DRAW.scaleMetresPerPx > 0) return (px * DRAW.scaleMetresPerPx).toFixed(2) + 'm';
-  return 'set the scale';
+  return 'tap the ruler to set the scale';
+}
+// ══ A TAPE ON A PLAN SETS THE SCALE (2026-10-14) ══════════════════
+// The owner, on an imported A3 consent plan: "can't you just base the scale
+// of this physical bar? ignore the A3 it shouldn't matter? or am i wrong?"
+//
+// He is right that the printed scale bar is the one reference immune to the
+// sheet being resized — and wrong that it is the best one, which is worth
+// saying plainly because it is counter-intuitive. MEASURED on his own plan
+// (Canon scan, 7 pages, A3 exactly, no text layer on any page): the bar runs
+// about 120 px for 3.75 m, so a 2 px reading error is 3%. The drawing's own
+// 31560 mm dimension line runs 963 px, where the same 2 px is 0.2%. The bar
+// came out 4.6% short of the dimension line and the paper-size theory 3.1%
+// short. The longest DIMENSIONED thing on the sheet is the right reference,
+// every time.
+//
+// "Click a measurement to correct the scale" has been the rule since
+// 2026-09-24, and `_rescaleFromMeasure` does it for any drawn roof line — but
+// on a freshly imported plan there is no roof yet, so there was nothing to
+// click. The measuring tape is the thing you lay along a dimension before
+// you have drawn anything, and it was a drawing aid that counted for nothing.
+// It goes through `_scaleFromDrawn`, the ONE place the scale is set, at slope
+// factor 1: a tape lies flat on the plan, it does not run up a rake.
+function _tapeSetScale(i){
+  var t = _tapeList()[i]; if (!t || !t.a || !t.b) return;
+  var px = Math.hypot(t.b[0] - t.a[0], t.b[1] - t.a[1]);
+  if (!(px > 2)){ try { _siteToast('Draw the tape along a dimension first.'); } catch(e){} return; }
+  var cur = (DRAW.scaleMetresPerPx > 0) ? (px * DRAW.scaleMetresPerPx).toFixed(2) : '';
+  _styledPrompt({
+    title: 'How long is this really?',
+    message: 'Type the figure printed on the plan, in metres. Lay the tape along the LONGEST dimension line you can — that is far more accurate than the little scale bar, which is too short to read closely.',
+    value: cur, inputType: 'text', placeholder: 'e.g. 31.56', okLabel: 'Set the scale'
+  }, function(v){
+    var m = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+    if (!(isFinite(m) && m > 0)) return;
+    // mm typed instead of metres is the obvious slip on a plan that prints
+    // its dimensions in mm. Nothing a roofer measures on one tape is 300 m.
+    if (m > 300) m = m / 1000;
+    if (!_scaleFromDrawn(px, 1, m, t.a, t.b)) return;
+    try { _siteToast('Scale set — 1 px = ' + (DRAW.scaleMetresPerPx * 1000).toFixed(2) + 'mm'); } catch(e){}
+    try { redrawAll(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}
+  });
 }
 // Level or plumb unless Shift: within 8° of either, it goes square.
 function _tapeSnap(a, b, free){
@@ -59092,7 +59151,10 @@ function _tapeHandles(t, tr){
   var nx = uy, ny = -ux; if (ny > 0 || (ny === 0 && nx < 0)){ nx = -nx; ny = -ny; }   // "up" off the line
   var M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
   return { A: A, B: B, M: M, ux: ux, uy: uy, nx: nx, ny: ny, L: L,
-           rot: [M[0] + nx * 40, M[1] + ny * 40], del: [M[0] - nx * 26 + ux * 0, M[1] - ny * 26] };
+           rot: [M[0] + nx * 40, M[1] + ny * 40], del: [M[0] - nx * 26 + ux * 0, M[1] - ny * 26],
+           // The scale button sits beside the delete one, off along the tape,
+           // so a thumb reaching for one is not over the other.
+           scl: [M[0] - nx * 26 + ux * 24, M[1] - ny * 26 + uy * 24] };
 }
 function _tapeRender(ctx){
   var list = _tapeList(); if (!list.length && !TAPE.start) return;
@@ -59133,6 +59195,16 @@ function _tapeRender(ctx){
       ctx.beginPath(); ctx.arc(h.del[0], h.del[1], 9, 0, Math.PI * 2); ctx.fillStyle = '#dc2626'; ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.moveTo(h.del[0] - 3.5, h.del[1] - 3.5); ctx.lineTo(h.del[0] + 3.5, h.del[1] + 3.5); ctx.moveTo(h.del[0] + 3.5, h.del[1] - 3.5); ctx.lineTo(h.del[0] - 3.5, h.del[1] + 3.5); ctx.stroke();
+      // … and "this is <n> metres", which is how a PLAN gets its scale.
+      ctx.beginPath(); ctx.arc(h.scl[0], h.scl[1], 9, 0, Math.PI * 2);
+      ctx.fillStyle = (DRAW.scaleMetresPerPx > 0) ? '#0a1628' : '#0099cc'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(h.scl[0] - 4.5, h.scl[1] + 2.5); ctx.lineTo(h.scl[0] + 4.5, h.scl[1] + 2.5);
+      ctx.moveTo(h.scl[0] - 4.5, h.scl[1] + 2.5); ctx.lineTo(h.scl[0] - 4.5, h.scl[1] - 1.5);
+      ctx.moveTo(h.scl[0] - 1.5, h.scl[1] + 2.5); ctx.lineTo(h.scl[0] - 1.5, h.scl[1] - 0.5);
+      ctx.moveTo(h.scl[0] + 1.5, h.scl[1] + 2.5); ctx.lineTo(h.scl[0] + 1.5, h.scl[1] - 0.5);
+      ctx.moveTo(h.scl[0] + 4.5, h.scl[1] + 2.5); ctx.lineTo(h.scl[0] + 4.5, h.scl[1] - 1.5);
+      ctx.stroke();
       ctx.restore();
     }
   };
@@ -59294,6 +59366,7 @@ function _tapeMouseDown(e){
   if (sel != null && sel >= 0 && list[sel]){
     var h = _tapeHandles(list[sel], tr);
     if (Math.hypot(P[0] - h.del[0], P[1] - h.del[1]) < 11){ _tapeDelete(sel); SUPPRESS_NEXT_CLICK = true; try { e.preventDefault(); } catch(_){} return true; }
+    if (Math.hypot(P[0] - h.scl[0], P[1] - h.scl[1]) < 11){ _tapeSetScale(sel); SUPPRESS_NEXT_CLICK = true; try { e.preventDefault(); } catch(_){} return true; }
     if (Math.hypot(P[0] - h.rot[0], P[1] - h.rot[1]) < 11) return start(sel, 'rot');
     if (Math.hypot(P[0] - h.A[0], P[1] - h.A[1]) < 10) return start(sel, 'a');
     if (Math.hypot(P[0] - h.B[0], P[1] - h.B[1]) < 10) return start(sel, 'b');
@@ -60912,7 +60985,7 @@ function setRoofSheetType(key){
   try { redrawAll(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack && renderJobPack(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // Put the picker back in step with whichever roof is active. Called on every
 // roof switch and after a job loads — a picker showing the previous roof's
@@ -61053,7 +61126,7 @@ function confirmClearPopup(){
   try { redrawAll(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack && renderJobPack(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // The sheet length a FULL-length clear inherits. It replaces one steel sheet
 // in a run, so it is that run's length — read off the nearest sheet-run label
@@ -61254,14 +61327,14 @@ function _btSet(kind, key, v){
   var m = _btMap(kind);
   var raw = String(v == null ? '' : v).trim();
   if (raw === '') delete m[key]; else m[key] = parseFloat(raw) || 0;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _btSetOff(key, off){
   saveSnapshot();
   var m = _btMap('Off');
   if (off) m[key] = 1; else delete m[key];
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _btExtras(){
@@ -61271,19 +61344,19 @@ function _btExtras(){
 function _btExtraAdd(){
   saveSnapshot();
   _btExtras().push({ name: 'Back-tray', qty: 1, len: 0 });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _btExtraUpdate(i, field, v){
   var a = _btExtras(); if (!a[i]) return;
   a[i][field] = (field === 'name') ? String(v || '') : (parseFloat(v) || 0);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _btExtraDelete(i){
   saveSnapshot();
   _btExtras().splice(i, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 // ── WHICH ROOF A PENETRATION SITS ON ─────────────────────────────
@@ -61523,7 +61596,7 @@ function _bfSet(kind, key, v){
   saveSnapshot();
   var m = _bfMap(kind), raw = String(v == null ? '' : v).trim();
   if (raw === '') delete m[key]; else m[key] = parseFloat(raw) || 0;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
   try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
 }
@@ -61531,7 +61604,7 @@ function _bfSetOff(key, off){
   saveSnapshot();
   var m = _bfMap('Off');
   if (off) m[key] = 1; else delete m[key];
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
   try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
 }
@@ -61542,19 +61615,19 @@ function _bfExtras(){
 function _bfExtraAdd(){
   saveSnapshot();
   _bfExtras().push({ name:'Box flashing', qty:1, len:0 });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _bfExtraUpdate(i, field, v){
   var a = _bfExtras(); if (!a[i]) return;
   a[i][field] = (field === 'name') ? String(v || '') : (parseFloat(v) || 0);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _bfExtraDelete(i){
   saveSnapshot();
   _bfExtras().splice(i, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 // The library sketch for one box flashing piece. Library names are typed by
@@ -62658,7 +62731,7 @@ function _roofCanvasHitMeasureLabel(ev){
         try { markOffScale((l.type === 'barge') ? 'sheet' : 'meas', _lineNiceName(l), _was, m); } catch(e){}
         try { syncToRoofData(); } catch(e){}
         try { redrawAll(); updateMeasTotals(); } catch(e){}
-        try { autosaveJob && autosaveJob(); } catch(e){}
+        try { _scheduleAutosave(); } catch(e){}
         return;
       }
       // A piece that covers part of its wall (a barge half, split at the
@@ -64083,7 +64156,7 @@ function _jpHandleDrop(ev, pageIdx){
     h: defH
   };
   page.images.push(img);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 
@@ -64208,7 +64281,7 @@ function _jpImgMouseUp(){
         if (_im) _im.userSized = true;
       } catch(e){}
     }
-    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}
     _JP_IMG_DRAG = null;
   }
   document.removeEventListener('mousemove', _jpImgMouseMove);
@@ -64217,7 +64290,7 @@ function _jpImgMouseUp(){
 function _jpDeleteImage(pageIdx, imgId){
   var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
   page.images = page.images.filter(function(im){ return im.id !== imgId; });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpDuplicateImage(pageIdx, imgId){
@@ -64228,7 +64301,7 @@ function _jpDuplicateImage(pageIdx, imgId){
     id: 'img_' + Date.now() + '_' + Math.floor(Math.random()*1e4),
     x: src.x + 20, y: src.y + 20
   }));
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 // Crop edges — 4 draggable bars (top/right/bottom/left) overlaid on
@@ -64259,7 +64332,7 @@ function _jpFinishCrop(){
   _jpState().pages.forEach(function(p){
     if (p && p.images) p.images.forEach(function(x){ x._cropping = false; });
   });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpResetCrop(){
@@ -64270,7 +64343,7 @@ function _jpResetCrop(){
   var im = page.images.find(function(x){ return x._cropping; });
   if (!im) return;
   im.crop = { top:0, right:0, bottom:0, left:0 };
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 var _JP_CROP_DRAG = null;
@@ -64304,7 +64377,7 @@ function _jpCropEdgeMove(ev){
 }
 function _jpCropEdgeUp(){
   if (_JP_CROP_DRAG){
-    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { _scheduleAutosave(); } catch(e){}
     _JP_CROP_DRAG = null;
   }
   document.removeEventListener('mousemove', _jpCropEdgeMove);
@@ -64725,7 +64798,7 @@ function _jpAfterRoofSelChange(){
   try { renderMaterialsCutLists(); } catch(e){}
   try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
   try { renderJobPack(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 function _jpToggleRoof(i){
   var sel = _matSelectedRoofIndices();
@@ -64746,7 +64819,7 @@ function _jpAddPage(afterIdx){
   var insertAt = (typeof afterIdx === 'number' && afterIdx >= 0 && afterIdx < state.pages.length)
     ? afterIdx + 1 : state.pages.length;
   state.pages.splice(insertAt, 0, page);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpDeletePage(idx){
@@ -64754,7 +64827,7 @@ function _jpDeletePage(idx){
   if (state.pages.length <= 1) { alert('Keep at least one page.'); return; }
   if (!confirm('Delete page ' + (idx + 1) + '?')) return;
   state.pages.splice(idx, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpMovePage(idx, dir){
@@ -64762,7 +64835,7 @@ function _jpMovePage(idx, dir){
   var j = idx + dir;
   if (j < 0 || j >= state.pages.length) return;
   var t = state.pages[idx]; state.pages[idx] = state.pages[j]; state.pages[j] = t;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpChangeType(idx, newType){
@@ -64770,7 +64843,7 @@ function _jpChangeType(idx, newType){
   var p = state.pages[idx]; if (!p) return;
   p.type = newType;
   if (!p.opts) p.opts = {};
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _jpRenderBlock(content, page, idx){
@@ -64802,7 +64875,7 @@ function _jpSetPitch(v){
   try { saveSnapshot(); } catch(e){}
   try { redrawAll(); } catch(e){}
   try { renderJobPack(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // ── Block renderers ────────────────────────────────────────────────
 function _jpRenderHeader(content, page, idx){
@@ -64849,7 +64922,7 @@ function _jpRenderHeader(content, page, idx){
     return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
         'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
-        'try{autosaveJob&&autosaveJob();}catch(e){}" '+
+        'try{_scheduleAutosave();}catch(e){}" '+
       'style="font:inherit;font-size:'+(sizePx||12)+'px;line-height:1.6;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
   }
   content.innerHTML =
@@ -64934,7 +65007,7 @@ function _jpHeaderField(label, mirrorId, currentVal, full){
     '<input type="text" value="'+esc(currentVal||'')+'" placeholder="—" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
         'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
-        'try{autosaveJob&&autosaveJob();}catch(e){}" '+
+        'try{_scheduleAutosave();}catch(e){}" '+
       'style="width:100%;font-size:13px;margin-top:3px;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:3px 0;outline:none;color:#0a1628;font-family:inherit">'+
   '</div>';
 }
@@ -65163,7 +65236,7 @@ function _jpSetRoofMapView(idx, view){
   var p = _jpState().pages[idx]; if (!p) return;
   if (!p.opts) p.opts = {};
   p.opts.view = view;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 // THE SHEET CALC CHECK IS A PAGE OF THE PACK (feedback, Scott 2026-10-13: it
@@ -66268,7 +66341,7 @@ function _matRowSetOff(id, off){
   saveSnapshot();
   var m = _matRowOffMap();
   if (off) m[id] = 1; else delete m[id];
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
@@ -67135,7 +67208,7 @@ function _jpUpdateNote(idx, html){
   var p = _jpState().pages[idx]; if (!p) return;
   if (!p.opts) p.opts = {};
   p.opts.text = html;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 
 function renderMatRoofMap(){
@@ -68843,7 +68916,7 @@ function _clearMaterialLabel(){
 }
 function _clearMaterialSet(v){
   S.clearliteMaterial = (v === 'polycarbonate') ? 'polycarbonate' : 'fibreglass';
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack && renderJobPack(); } catch(e){}
 }
@@ -68862,19 +68935,19 @@ function _clearRowSet(kind, key, v){
   var raw = String(v == null ? '' : v).trim();
   if (raw === '') delete m[key];
   else m[key] = parseFloat(raw) || 0;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _clearRowHide(key){
   saveSnapshot();
   _clearRowOvGet('Hidden')[key] = 1;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _clearRowShow(key){
   saveSnapshot();
   delete _clearRowOvGet('Hidden')[key];
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _clearExtrasGet(){
@@ -68884,19 +68957,19 @@ function _clearExtrasGet(){
 function _clearExtraAdd(){
   saveSnapshot();
   _clearExtrasGet().push({ qty: 1, len: 0 });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _clearExtraUpdate(i, field, v){
   var arr = _clearExtrasGet(); if (!arr[i]) return;
   arr[i][field] = parseFloat(v) || 0;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 function _clearExtraDelete(i){
   saveSnapshot();
   _clearExtrasGet().splice(i, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   renderJobPack();
 }
 // Which roofs on this job are sheeted in clearlite, by index.
@@ -69061,7 +69134,7 @@ function _matFlashTypeOffList(){
 function _matFlashTypeSetOff(key, off){
   if (!S.jpFlashTypeOff) S.jpFlashTypeOff = {};
   if (off) S.jpFlashTypeOff[key] = 1; else delete S.jpFlashTypeOff[key];
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 // The delete / restore control for a whole flashing section, dressed for a
@@ -69101,14 +69174,14 @@ function _matFlashingsRefreshAll(){
 }
 function _matFlashingsAdd(){
   _matFlashingsArr().push({ source: null });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 function _matFlashingsRemove(idx){
   var arr = _matFlashingsArr();
   if (idx < 0 || idx >= arr.length) return;
   arr.splice(idx, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 // ── Slot flashing cut-list rows (qty × length) ────────────────────
@@ -69119,7 +69192,7 @@ function _matFlSlotRows(slot){
 function _matFlSlotRowAdd(si){
   var arr = _matFlashingsArr(); var slot = arr[si]; if (!slot) return;
   _matFlSlotRows(slot).push({ qty: 1, len: 0 });
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 function _matFlSlotRowUpdate(si, ri, field, value){
@@ -69127,13 +69200,13 @@ function _matFlSlotRowUpdate(si, ri, field, value){
   var rows = _matFlSlotRows(slot); if (!rows[ri]) return;
   var n = parseFloat(value);
   rows[ri][field] = isFinite(n) && n >= 0 ? n : 0;
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 function _matFlSlotRowRemove(si, ri){
   var arr = _matFlashingsArr(); var slot = arr[si]; if (!slot) return;
   _matFlSlotRows(slot).splice(ri, 1);
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 function _matFlashingsRender(){
@@ -69317,7 +69390,7 @@ function _matFlashingsPickerChoose(name){
   if (_matFlashingsPendingSlot >= arr.length) return;
   arr[_matFlashingsPendingSlot] = { source: 'library', name: name, rows: [{ qty: 1, len: 0 }] };
   _matFlashingsPickerClose();
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
   _matFlashingsRefreshAll();
 }
 // "Add Custom" — opens the existing flash sketch modal with the
