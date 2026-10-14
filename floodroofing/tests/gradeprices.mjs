@@ -162,6 +162,88 @@ check('…frozen onto the quote for the customer link', delta.snap && Math.abs(d
 check('a grade with no prices of its own still falls back to its percentage', Math.abs(delta.cc - delta.base) < 0.01 && Math.abs(delta.dCc - delta.pctCc * _num0(delta)) < 1e6, delta.dCc + ' (pct ' + delta.pctCc + ')');
 function _num0(){ return 0; }
 
+// ── A PROFILE MAY CARRY ITS OWN PRICE (2026-10-14) ───────────────
+// The owner: "corrugate and 5-rib share the same standard roofing sheet
+// price, but then a profile like RI-925 has it's own more expensive price".
+// Blank = the standard rate, which is every profile that existed before this
+// — so the first thing to pin is that nothing moves until a rate is typed.
+const prof = await pg.evaluate(() => {
+  const o = {};
+  const pb = S.settings.price_book;
+  pb.sheets = [{ product:'Standard corrugate', price:20, unit:'m2' }];
+  pb.defaultSheetProduct = 'Standard corrugate';
+  if (!S.quote) S.quote = {};
+  S.quote.proposalOptions = S.quote.proposalOptions || {};
+  const prs = _selKindList('profiles');
+  const first = prs[0].id;
+  S.quote.proposalOptions.profile = first;
+  S.quote.baseProfile = first;
+  delete S.quote.profileDeltas;
+  const sheetRow = () => (_buildMaterialPriceRows() || []).filter(r => r.key === 'sheets')[0] || null;
+  o.noneSet = { any: _anyProfilePriced(), snap: _profileDeltasSnapshot(),
+                d: _selProfileDelta(prs[1] ? prs[1].id : first),
+                price: (((sheetRow() || {}).variants || [])[0] || {}).price };
+  // now a tray with its own $/m²
+  prs.push({ id:'p_ri925', name:'RI-925', locksGauge:'', coverMm:925, rate:38, rateUnit:'m2', desc:'Tray' });
+  const r1 = sheetRow();
+  o.std = { price: ((r1.variants || [])[0] || {}).price, qty: r1.autoQty, note: r1.note };
+  S.quote.proposalOptions.profile = 'p_ri925';
+  const r2 = sheetRow();
+  o.own = { price: ((r2.variants || [])[0] || {}).price, qty: r2.autoQty, note: r2.note };
+  S.quote.proposalOptions.profile = first;
+  delete S.quote.profileDeltas;
+  o.scale = _profileDeltaScale();
+  o.dRi = _selProfileDelta('p_ri925');
+  o.dFirst = _selProfileDelta(first);
+  o.snap = _profileDeltasSnapshot();
+  // the frozen map wins, so the customer's copy cannot drift
+  S.quote.profileDeltas = { p_ri925: 99 };
+  o.frozen = _selProfileDelta('p_ri925');
+  delete S.quote.profileDeltas;
+  // and the summary row says the same thing as the card
+  S.quote.proposalOptions.profile = 'p_ri925';
+  o.row = (_qpSelectionChanges() || []).filter(x => /RI-925/.test(x.label))[0] || null;
+  o.card = (_qpCardDeltas().profile || {})['p_ri925'];
+  S.quote.proposalOptions.profile = first;
+  prs.pop();
+  return o;
+});
+check('with no profile priced on its own, nothing changes at all',
+  prof.noneSet.any === false && prof.noneSet.snap === null && prof.noneSet.d === 0 && prof.noneSet.price === 20,
+  JSON.stringify(prof.noneSet));
+check('a profile with its own rate takes over the sheets row',
+  prof.std.price === 20 && prof.own.price === 38 && /RI-925/.test(prof.own.note || '') && !/RI-925/.test(prof.std.note || ''),
+  JSON.stringify([prof.std.price, prof.own.price, prof.own.note]));
+check('…and its delta is the real difference, carrying the buffer and the mark-up',
+  Math.abs(prof.dRi - (prof.own.qty * 18 * prof.scale)) < 0.02 && prof.dRi > 0 && prof.dFirst === 0,
+  prof.dRi + ' vs ' + (prof.own.qty * 18 * prof.scale).toFixed(2) + ' (scale ' + prof.scale + ')');
+check('…frozen onto the quote for the customer link',
+  prof.snap && Math.abs(prof.snap.p_ri925 - prof.dRi) < 0.02 && prof.snap[Object.keys(prof.snap)[0]] === 0,
+  JSON.stringify(prof.snap));
+check('…and a frozen figure is never recomputed under the customer',
+  prof.frozen === 99, String(prof.frozen));
+check('the summary row and the option card agree to the cent',
+  prof.row && Math.abs(prof.row.delta - prof.card) < 0.005 && Math.abs(prof.row.delta - prof.dRi) < 0.02,
+  JSON.stringify({ row: prof.row && prof.row.delta, card: prof.card }));
+
+// The picture and the price are both on the Settings row — the owner asked
+// where a picture went for a profile he had already added.
+const prow = await pg.evaluate(() => {
+  switchSettingsSub('set-products'); renderSelectablesUI();
+  const secs = [...document.querySelectorAll('#selectablesUI .set-sec')];
+  const sec = secs.filter(s => /Roof profiles/.test((s.querySelector('.set-sec-hd') || {}).textContent || ''))[0];
+  if (!sec) return { none:true };
+  return { heads: [...sec.querySelectorAll('th')].map(t => t.textContent.trim()),
+           rate: !!sec.querySelector('[onchange*="\'rate\'"]'),
+           unit: !!sec.querySelector('[onchange*="rateUnit"]'),
+           pic: !!sec.querySelector('[onclick*="_qpfPicPick"]') };
+});
+check('the Roof profiles row takes a price of its own, per m² or LM',
+  prow.rate && prow.unit && prow.heads.some(h => /Own price/i.test(h)) && prow.heads.some(h => /^per$/i.test(h)),
+  JSON.stringify(prow.heads));
+check('…and a picture can be added to a profile already on the list',
+  prow.pic === true, JSON.stringify(prow));
+
 // The Order Material product list offers the grades.
 const order = await pg.evaluate(() => { populateOrderDropdowns(); return [...document.querySelectorAll('#orderProductList option')].map(o => o.value); });
 check('the order form’s roof products are the steel grades', order.includes('Colorsteel® MAXAM') && order.includes('Armorsteel ColorZen'), order.join(' | '));

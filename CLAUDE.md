@@ -2495,6 +2495,52 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- A ROOF PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate
+  and 5-rib share the same standard roofing sheet price, but then a profile
+  like RI-925 has it's own more expensive price"). He had added RI-925 and
+  there was nowhere to price it: a profile was `{id, name, locksGauge,
+  coverMm, desc}` and the only money anywhere near it was the 0.55 gauge
+  upgrade, which is why both 5-Rib and RI-925 showed the customer the same
+  +$2,420.81 and why that figure had nothing to do with either profile.
+  `rate` + `rateUnit` ('m2' | 'lm') on the profile, two columns on Settings ->
+  Quote's Product Options -> Roof profiles. BLANK IS THE WHOLE COMPATIBILITY
+  STORY: `_selProfileRate` answers null, `_anyProfilePriced()` is false, every
+  delta is 0 and `_profileDeltasSnapshot()` returns null, so Corrugate, 5-Rib
+  and every quote written before this price exactly as they did. Nothing
+  migrates and `pricegold` is unmoved.
+  ONE PLACE PRICES IT: the sheets row in `_buildMaterialPriceRows` reads
+  `_profileInUse()` and, where that profile has a rate, REPLACES the row's
+  variants with the profile's own rate, name and UNIT — the unit too, because
+  a tray priced by the metre is not priced by the square and the quantity
+  basis has to follow (roof area for m2, the sheet run for lm). Everything
+  downstream reads `r.variants[].price`, so the material table, the materials
+  total, the profitability panel, the pricing CSV, the Job Pack and the Fergus
+  push all follow for nothing. A typed `MATERIAL_OVERRIDES` price still wins
+  over it, as it does over every book price.
+  `_profileSheetCost(id)` is `_gradeMaterialTotal`'s shape exactly —
+  `window.__profileOverride` swapped under the row builder, the sheets row
+  read back, the override put down — and `_selProfileDelta(id)` is the
+  difference from `baseProfile` (the profile the quote was PRICED at, the
+  grade rule, so the quoted profile reads "Included" and the others read the
+  real difference either way). `_profileDeltasSnapshot()` freezes the map onto
+  the quote as `profileDeltas` at every recalc, never on an accepted quote,
+  and `_selProfileDelta` reads that map FIRST — the customer's copy has no
+  price book, so an un-frozen delta would read $0 on their screen while the
+  office showed a figure (the FR-14015 lesson).
+  THE DELTA CARRIES THE BUFFER AND THE MARK-UP (`_profileDeltaScale`), unlike
+  the grade percentages, and deliberately: this is a straight cost difference
+  on a material row, so without the margin the card would under-read by
+  exactly the margin while the total moved by the full amount — a card and a
+  total disagreeing about money. Both summary builders show the same figure
+  (inside the gauge-lock row where there is one, one line per decision), and
+  `gradeprices.mjs` pins row and card equal to the cent.
+  AND A PICTURE CAN BE ADDED TO A PROFILE ALREADY ON THE LIST (the same
+  message: "how do i add a profile photo to an already added roof profile?
+  theres nowhere to add it"). `_qpfPicPick(id)` always handled a saved
+  profile; it was only offered inside the quote's "Edit this quote's
+  selections" window, which is not where somebody who just added RI-925 in
+  Settings is standing. The Settings row carries the thumbnail and an add /
+  change link now. `tests/gradeprices.mjs`.
 - Prices by steel grade: the base grade's sheets, flashings and back-trays
   ARE the price book's top-level fields; any other grade's own set lives
   under `price_book.by_grade[id]` and is used only when it has a price in

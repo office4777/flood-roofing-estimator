@@ -4926,7 +4926,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-14T22:08:20Z';
+  window.APP_BUILT_AT = '2026-10-14T22:22:23Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16475,11 +16475,28 @@ function _buildMaterialPriceRows(){
     var defVar = pb.defaultSheetProduct || (variants[0] && variants[0].value);
     var defSheet = variants.filter(function(v){ return v.value === defVar; })[0] || variants[0];
     var sheetUnit = (defSheet && defSheet.unit) || 'lm';
+    // A profile priced on its own (Settings → Quote's Product Options → Roof
+    // profiles → Own price) takes the sheets row over entirely: its rate, its
+    // unit, its name. One place, so the table, the materials total, the
+    // profitability panel, the pricing CSV and the Fergus push all follow.
+    var _prOwn = null, _prNm = '';
+    try {
+      var _prId = _profileInUse();
+      _prOwn = _selProfileRate(_prId);
+      if (_prOwn) _prNm = ((_selProfileOf(_prId) || {}).name) || 'Roof profile';
+    } catch(e){ _prOwn = null; }
+    var _prNote = '';
+    if (_prOwn){
+      var _prLbl = _prNm + ' sheets';
+      variants = [{ value:_prLbl, label:_prLbl, price:_prOwn.rate, unit:_prOwn.unit }];
+      defVar = _prLbl; defSheet = variants[0]; sheetUnit = _prOwn.unit;
+      _prNote = ' — ' + _prNm + "'s own price";
+    }
     if (sheetUnit === 'm2') {
       if (roofArea > 0) {
         rows.push({ key:'sheets', label:'Roofing sheets', autoQty:roofArea, autoUnit:'m²',
-                    variants:variants, defaultVariant:defVar,
-                    note:'roof area (incl. pitch) × $/m²' });
+                    variants:variants, defaultVariant:defVar, singleVariant:!!_prOwn,
+                    note:'roof area (incl. pitch) × $/m²' + _prNote });
       }
     } else if (totals.gutter > 0) {
       var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
@@ -16487,8 +16504,8 @@ function _buildMaterialPriceRows(){
       var sheetsAcross = totals.gutter / sheetWidthM;
       var autoQty  = sheetsAcross * cutLen;
       rows.push({ key:'sheets', label:'Roofing sheets', autoQty:autoQty, autoUnit:'lm',
-                  variants:variants, defaultVariant:defVar,
-                  note:'≈ ' + Math.ceil(sheetsAcross) + ' across × ' + cutLen.toFixed(2) + 'm cut' });
+                  variants:variants, defaultVariant:defVar, singleVariant:!!_prOwn,
+                  note:'≈ ' + Math.ceil(sheetsAcross) + ' across × ' + cutLen.toFixed(2) + 'm cut' + _prNote });
     }
   }
 
@@ -27816,7 +27833,7 @@ function _selEdit(kind, i, field, val){
     // The table shows and takes a PERCENTAGE (100 = double the price); the
     // row stores the factor. Typing 100 used to store 100 = +10,000%.
     var np = parseFloat(val); row.pct = isFinite(np) ? np / 100 : 0;
-  } else if (field === 'extBracketLm' || field === 'coverMm') {
+  } else if (field === 'extBracketLm' || field === 'coverMm' || field === 'rate') {
     var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
   } else if (field === 'scaffoldUplift' || field === 'base') {
     row[field] = !!val;
@@ -27843,7 +27860,7 @@ function _selAdd(kind){
   var list = _selKindList(kind);
   var id = kind.slice(0, 1) + '_' + Date.now().toString(36);
   if (kind === 'grades')        list.push({ id: id, name: 'New grade', pct: 0, desc: '' });
-  else if (kind === 'profiles') list.push({ id: id, name: 'New profile', locksGauge: '', coverMm: 762, desc: '' });
+  else if (kind === 'profiles') list.push({ id: id, name: 'New profile', locksGauge: '', coverMm: 762, rate: 0, rateUnit: 'm2', desc: '' });
   else                          list.push({ id: id, name: 'New gutter', scaffoldUplift: true, extBracketLm: 0, desc: '' });
   renderSelectablesUI();
 }
@@ -27940,8 +27957,8 @@ function renderSelectablesUI(){
           '<td>' + inp('grades', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('profiles', 'Roof profiles',
-      'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere.',
-      '<th>Name</th><th style="width:110px">Cover (mm)</th><th style="width:110px">Locks gauge</th><th>Shown to the customer as</th>',
+      'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere. <strong>Own price</strong> is for a profile that does not come at your standard sheet rate — leave it blank and Corrugate, 5-Rib and anything else share the price in Default item pricing; set it and that profile is priced at its own rate, on the quote, in the Pricing tab and as the extra the customer sees.',
+      '<th>Name</th><th style="width:96px">Cover (mm)</th><th style="width:96px">Locks gauge</th><th style="width:92px">Own price $</th><th style="width:76px">per</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('profiles', i, 'name', r.name, 'Profile name') + '</td>' +
           '<td>' + inp('profiles', i, 'coverMm', r.coverMm, '762', ' type="number" step="1" min="100" max="2000" title="The width ONE sheet covers once lapped — what the sheet count is worked out from"') + '</td>' +
@@ -27950,6 +27967,15 @@ function renderSelectablesUI(){
             '<option value="40"' + (r.locksGauge === '40' ? ' selected' : '') + '>0.40 only</option>' +
             '<option value="55"' + (r.locksGauge === '55' ? ' selected' : '') + '>0.55 only</option>' +
           '</select></td>' +
+          '<td>' + inp('profiles', i, 'rate', (r.rate ? r.rate : ''), 'standard', ' type="number" step="0.01" min="0" title="Leave blank to price this profile at your standard roofing sheet rate"') + '</td>' +
+          '<td><select onchange="_selEdit(\'profiles\',' + i + ',\'rateUnit\',this.value)" style="width:100%;font-size:12px;padding:4px 6px;margin:0">' +
+            '<option value="m2"' + (String(r.rateUnit || 'm2') !== 'lm' ? ' selected' : '') + '>m\u00B2</option>' +
+            '<option value="lm"' + (String(r.rateUnit || '') === 'lm' ? ' selected' : '') + '>LM</option>' +
+          '</select></td>' +
+          '<td style="text-align:center">' +
+            (r.img ? '<img src="' + esc(r.img) + '" alt="" style="max-width:52px;max-height:30px;display:block;margin:0 auto 3px;border-radius:4px">' : '') +
+            '<button type="button" onclick="_qpfPicPick(\'' + esc(r.id) + '\')" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit">' +
+            (r.img ? 'change' : '\uD83D\uDCF7 add') + '</button></td>' +
           '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('gutters', 'Gutter profiles',
@@ -28750,6 +28776,62 @@ function _selGradeDelta(gradeId){
   return (pct - basePct) * _selMaterialBaseRaw();
 }
 function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBaseRaw(); }
+// ── A PROFILE'S OWN PRICE, AS A DELTA (2026-10-14) ─────────────────
+// The sheets row priced as ONE profile would price it. The same shape as
+// _gradeMaterialTotal: swap the profile under the row builder, read the
+// sheets row back, put it down again. A profile with no price of its own
+// prices at the standard sheet rate, so Corrugate and 5-Rib come out equal
+// and their difference is nothing — which is why nothing already quoted
+// moves until somebody types a rate.
+function _profileSheetCost(id){
+  var rows = [];
+  window.__profileOverride = id || '';
+  try { rows = (typeof _buildMaterialPriceRows === 'function') ? _buildMaterialPriceRows() : []; }
+  catch(e){ rows = []; }
+  finally { window.__profileOverride = null; }
+  var total = 0;
+  rows.forEach(function(r){
+    if (String(r.key || '') !== 'sheets') return;
+    var v = (r.variants || []).filter(function(x){ return x.value === r.defaultVariant; })[0] || (r.variants || [])[0];
+    if (!v) return;
+    total += (parseFloat(r.autoQty) || 0) * (parseFloat(v.price) || 0);
+  });
+  return total;
+}
+// The buffer and the mark-up the quote's own material line carries, so a
+// profile's extra COST reaches the customer as an extra PRICE. Without it the
+// card would under-read by exactly the margin while the total moved by the
+// full amount — a card and a total disagreeing about money.
+function _profileDeltaScale(){
+  try {
+    var b = parseFloat(_roofMatQtyBufferPct(0)) || 0, m = parseFloat(_roofMatMarkupPct(0)) || 0;
+    return (1 + b / 100) * (1 + m / 100);
+  } catch(e){ return 1; }
+}
+// Measured against the profile the base quote was PRICED at (baseProfile, the
+// grade rule), so the quoted profile reads "Included" and the others read the
+// real difference either way. Frozen onto the quote as profileDeltas at every
+// recalc, so the customer's copy — which has no price book — reads the same
+// numbers and does not shift when they click.
+function _profileDeltasSnapshot(){
+  if (!_anyProfilePriced()) return null;
+  var q0 = (window.S && S.quote) || {};
+  var anchor = q0.baseProfile || ((q0.proposalOptions || {}).profile) || ((_selProfilesAll()[0] || {}).id) || '';
+  var base = _profileSheetCost(anchor), scale = _profileDeltaScale(), out = {};
+  _selProfilesAll().forEach(function(pr){
+    if (pr && pr.id) out[pr.id] = (_profileSheetCost(pr.id) - base) * scale;
+  });
+  return out;
+}
+function _selProfileDelta(id){
+  if (!_selProfileOf(id)) return 0;
+  var q0 = (window.S && S.quote) || {};
+  if (q0.profileDeltas && q0.profileDeltas[id] != null) return parseFloat(q0.profileDeltas[id]) || 0;
+  if (!_anyProfilePriced()) return 0;
+  var anchor = q0.baseProfile || ((q0.proposalOptions || {}).profile) || ((_selProfilesAll()[0] || {}).id) || '';
+  if (!anchor || anchor === id) return 0;
+  return (_profileSheetCost(id) - _profileSheetCost(anchor)) * _profileDeltaScale();
+}
 var SEL_DOWNPIPE_PER_LINE = 150; // $/gutter line ex-GST
 // Number of gutter lines (runs) drawn on the roof — one downpipe per line.
 // Stashed on the quote office-side so the customer share prices identically.
@@ -28895,11 +28977,19 @@ function _qpSelectionChanges(){
   // A profile that locks a gauge carries the gauge upgrade in its own price —
   // otherwise the profile looks free and the charge appears from nowhere.
   var _lockG = _off('profile') ? null : _selProfileLocksGauge(p.profile);
+  // A profile priced on its own carries that price here too, so the summary
+  // and the option card cannot disagree. It rides INSIDE the gauge-lock row
+  // when there is one — one line per decision, as the lock row already does.
+  var _prD = _off('profile') ? 0 : _selProfileDelta(p.profile);
   if (_lockG)
     out.push({ label: (_selProfileOf(p.profile) || {}).name + ' profile (supplied in 0.' + _lockG + ' gauge)',
-               delta: _selGauge55Delta() });
-  else if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
-    out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
+               delta: _selGauge55Delta() + _prD });
+  else {
+    if (_prD)
+      out.push({ label: ((_selProfileOf(p.profile) || {}).name || 'Roof') + ' profile', delta: _prD });
+    if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
+      out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
+  }
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
     // "none") — it overrides the legacy Option-C gutter choice so the
@@ -28968,6 +29058,10 @@ function _qpBuildPriced(){
     // profile that locks it.
     gaugeUpgrade: _selGauge55Delta(),
     profileLocks: {}, profileLabel: {},
+    // What a profile priced on its own adds, per profile, measured against the
+    // one the quote was priced at. Every profile is 0 unless somebody has set
+    // a rate, so a quote that pre-dates this reads exactly as it did.
+    profile: {},
     // COMPUTED gutter charge per product. The office's lump-sum override is
     // kept apart because it follows whichever gutter is picked — reproducing
     // that quirk rather than quietly fixing it keeps prices identical.
@@ -29006,6 +29100,7 @@ function _qpBuildPriced(){
   _selProfilesAll().forEach(function(pr){
     out.profileLocks[pr.id] = _selProfileLocksGauge(pr.id);
     out.profileLabel[pr.id] = pr.name || pr.id;
+    out.profile[pr.id] = _selProfileDelta(pr.id);
   });
   _selGuttersAll().forEach(function(gt){
     out.gutter[gt.id] = _gutterExcluded() ? 0 : _gutterTotalCharge(gt.id, lm);
@@ -29065,11 +29160,16 @@ function _qpSelectionChangesPriced(P){
   if (p.steelGrade && p.steelGrade !== baseG && P.grade[p.steelGrade] != null && !_off('grade'))
     out.push({ label: (P.gradeLabel[p.steelGrade] || p.steelGrade) + ' steel', delta: P.grade[p.steelGrade] });
   var lock = _off('profile') ? '' : ((P.profileLocks || {})[p.profile] || '');
+  var _prDp = _off('profile') ? 0 : (parseFloat((P.profile || {})[p.profile]) || 0);
   if (lock)
     out.push({ label: (P.profileLabel[p.profile] || p.profile) + ' profile (supplied in 0.' + lock + ' gauge)',
-               delta: P.gaugeUpgrade });
-  else if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
-    out.push({ label: '0.55 gauge steel', delta: P.gaugeUpgrade });
+               delta: P.gaugeUpgrade + _prDp });
+  else {
+    if (_prDp)
+      out.push({ label: (P.profileLabel[p.profile] || p.profile) + ' profile', delta: _prDp });
+    if (p.steelThickness && p.steelThickness !== '40' && !_off('thickness'))
+      out.push({ label: '0.55 gauge steel', delta: P.gaugeUpgrade });
+  }
   if (p.gutterType !== undefined && P.gutter[p.gutterType] != null) {
     // The override follows the selection, exactly as the live calc does.
     var gd = (P.gutterOverride != null && !P.gutterExcluded) ? P.gutterOverride : P.gutter[p.gutterType];
@@ -29112,12 +29212,13 @@ function _qpCardDeltas(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   var P = _qpPriced();
-  var out = { grade: {}, gauge: 0, profileLock: {}, gutter: {}, gutterUp: {}, bracketExt: 0, downpipes: 0 };
+  var out = { grade: {}, gauge: 0, profileLock: {}, profile: {}, gutter: {}, gutterUp: {}, bracketExt: 0, downpipes: 0 };
   var gutterOn = !!(p.gutterType && p.gutterType !== 'none');
   if (P){
     Object.keys(P.grade || {}).forEach(function(id){ out.grade[id] = P.grade[id] || 0; });
     out.gauge = P.gaugeUpgrade || 0;
     Object.keys(P.profileLocks || {}).forEach(function(id){ out.profileLock[id] = !!P.profileLocks[id]; });
+    Object.keys(P.profile || {}).forEach(function(id){ out.profile[id] = parseFloat(P.profile[id]) || 0; });
     Object.keys(P.gutter || {}).forEach(function(id){
       // The office's lump-sum override follows the SELECTED gutter, exactly
       // as the live calc and the priced summary both do.
@@ -29135,7 +29236,10 @@ function _qpCardDeltas(){
   }
   _selGradesAll().forEach(function(g){ out.grade[g.id] = _selGradeDelta(g.id); });
   out.gauge = _selGauge55Delta();
-  _selProfilesAll().forEach(function(pr){ out.profileLock[pr.id] = !!_selProfileLocksGauge(pr.id); });
+  _selProfilesAll().forEach(function(pr){
+    out.profileLock[pr.id] = !!_selProfileLocksGauge(pr.id);
+    out.profile[pr.id] = _selProfileDelta(pr.id);
+  });
   _selGuttersAll().forEach(function(gt){
     out.gutterUp[gt.id] = (_gutterExcluded() || gt.scaffoldUplift === false) ? 0 : (0.25 * _selScaffoldBasePrice());
     out.gutter[gt.id] = _selGutterDelta(gt.id) + out.gutterUp[gt.id];
@@ -29334,6 +29438,32 @@ function _selProfileCoverMm(id){
 // half again as many sheets as 762mm corrugate over the same roof. The sheet
 // count, the cut list and the material cost all read #sheetWidth, so setting
 // it here is what makes the profile mean anything.
+// A PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate and
+// 5-rib share the same standard roofing sheet price, but then a profile like
+// RI-925 has it's own more expensive price"). Blank = the standard roofing
+// sheet rate from Default item pricing, which is every profile that existed
+// before this and why no quote already written moves. A rate set here
+// REPLACES that rate for the sheets row — and with it the basis, because a
+// tray priced by the metre is not priced by the square.
+function _selProfileRate(id){
+  var pr = _selProfileOf(id);
+  if (!pr) return null;
+  var n = parseFloat(pr.rate);
+  if (!(isFinite(n) && n > 0)) return null;
+  return { rate: n, unit: (String(pr.rateUnit || 'm2') === 'lm') ? 'lm' : 'm2' };
+}
+// Which profile the sheets are being priced at right now — the same shape as
+// _pbGradeInUse, so _profileSheetCost can swap one under the row builder.
+function _profileInUse(){
+  if (window.__profileOverride != null) return window.__profileOverride;
+  try { var p = window.S && S.quote && S.quote.proposalOptions && S.quote.proposalOptions.profile;
+        if (p && _selProfileOf(p)) return p; } catch(e){}
+  try { return (_selProfilesAll()[0] || {}).id || ''; } catch(e){ return ''; }
+}
+function _anyProfilePriced(){
+  try { return _selProfilesAll().some(function(pr){ return pr && !!_selProfileRate(pr.id); }); }
+  catch(e){ return false; }
+}
 function _applyProfileCover(id){
   var mm = _selProfileCoverMm(id);
   if (!mm) return false;
@@ -33054,7 +33184,8 @@ function _qbProfile(){
     var _recProfile = _qbRecPick('profile', (_prs[0] || {}).id);
     items = _prs.map(function(pr, i){
       return { id:pr.id, label:pr.name || pr.id, isDefault:(pr.id === _recProfile),
-               delta: CD.profileLock[pr.id] ? _qbIncl(CD.gauge) : 0,
+               delta: (CD.profileLock[pr.id] ? _qbIncl(CD.gauge) : 0)
+                      + _qbIncl((CD.profile || {})[pr.id] || 0),
                desc: pr.desc || _QB_PROFILE_COPY[pr.id] || '' };
     });
   } catch(e){}
@@ -39656,6 +39787,19 @@ function refreshQuoteProposal(){
     S.quote.baseGrade = _selGrade0;
     // Grades priced on their own: freeze each grade's real difference.
     try { var _gd = _gradeDeltasSnapshot(); if (_gd) S.quote.gradeDeltas = _gd; else delete S.quote.gradeDeltas; } catch(e){}
+    // The profile the base quote was priced at, and each profile's real
+    // difference from it — the same rule as the grade above, and for the same
+    // reason: the customer's copy has no price book, so an un-frozen delta
+    // would read $0 on their screen while the office showed a figure.
+    // Never on an accepted quote: its figures do not move, and this runs off
+    // the back of every autosave.
+    try {
+      if (!S.quote.accepted){
+        var _pf0 = (S.quote.proposalOptions && S.quote.proposalOptions.profile) || '';
+        if (_pf0) S.quote.baseProfile = _pf0;
+        var _pd = _profileDeltasSnapshot(); if (_pd) S.quote.profileDeltas = _pd; else delete S.quote.profileDeltas;
+      }
+    } catch(e){}
     // Stash the roof pitch (calibration is authoritative) so the quote's page-1
     // stat shows it — and the customer link, which has no live drawing/roofData,
     // still shows the pitch.
@@ -40722,7 +40866,8 @@ function refreshQuoteProposal(){
       // profiles do that is the product's own answer now.
       var PROFILES = _selProfiles().map(function(pr, i){
         return { id: pr.id, label: pr.name || pr.id, isDefault: (i === 0),
-                 delta: _CD.profileLock[pr.id] ? _dIncl(_CD.gauge) : 0,
+                 delta: (_CD.profileLock[pr.id] ? _dIncl(_CD.gauge) : 0)
+                        + _dIncl((_CD.profile || {})[pr.id] || 0),
                  desc: pr.desc || '' };
       });
       // "No new gutter" is not a product — it is the absence of one — so it is
