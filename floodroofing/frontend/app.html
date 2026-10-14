@@ -4926,7 +4926,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-14T22:45:05Z';
+  window.APP_BUILT_AT = '2026-10-14T22:52:13Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -25494,9 +25494,9 @@ function renderGutterDownpipePricing(){
   var labByLm = (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0);
   var matLines = _gutterMaterialLines(gtype, lm, lines, corners);
   var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0) + _gutterCustomBase();   // the custom lines are rows of this table
-  var bufPct = _gutterMatQtyBufferPct(), bufAmt = matBase * (bufPct/100);
+  var bufPct = _gutterMatQtyBufferPct(gtype), bufAmt = matBase * (bufPct/100);
   var bufferedMat = matBase + bufAmt;
-  var mkPct = _gutterMatMarkupPct(), mkAmt = bufferedMat * (mkPct/100);
+  var mkPct = _gutterMatMarkupPct(gtype), mkAmt = bufferedMat * (mkPct/100);
   var matCharge = bufferedMat + mkAmt;
   var gComputed = matCharge + labCharge, dComputed = _downpipeUnitPrice() * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
@@ -25515,13 +25515,40 @@ function renderGutterDownpipePricing(){
   // Material list rows — itemised like the re-roof material table.
   var matRows = matLines.map(function(r){
     var qtyTxt = String(_matOrderQty(r.qty, r.unit));
+    // The $/unit is an input, exactly as it is on the roofing material table
+    // — a price typed here is this job's, and if it moves off the book the
+    // office is asked whether it is the new default. A row with no keys (an
+    // older shape) stays a plain number rather than an input that saves
+    // nowhere.
+    var typed = false;
+    try { typed = r.stash != null && _gutterTypedPrice(r.stash) != null; } catch(e){}
+    var book = r.price;
+    try { if (r.pb) book = _pbNum(_pbGutterCfg()[r.pb]); } catch(e){ book = null; }
+    var priceCell = r.stash
+      ? ('<div style="display:flex;align-items:center;gap:2px;justify-content:flex-end">'+
+           '<span style="color:var(--text2);font-size:11px">$</span>'+
+           '<input type="number" step="0.01" min="0" value="'+(parseFloat(r.price)||0).toFixed(2)+'"'+
+             ' title="'+esc(typed ? 'Typed for this job — empty it to go back to your price book' : 'Your price book\u2019s figure')+'"'+
+             ' onchange="_gutterPriceTyped(\''+esc(r.stash)+'\',\''+esc(r.pb||'')+'\','+(parseFloat(book)||0)+',this.value,\''+esc(r.unit)+'\',\''+esc(String(r.desc).replace(/'/g,''))+'\')"'+
+             ' style="width:82px;font-size:12px;padding:4px 6px;text-align:right'+(typed?';border-color:#8b5cf6;background:#faf7ff':'')+'">'+
+         '</div>')
+      : money(r.price);
     return '<tr>'+
-      '<td>'+esc(r.desc)+'</td>'+
+      '<td>'+esc(r.desc)+(typed ? ' <span style="font-size:9.5px;font-weight:800;letter-spacing:.04em;color:#7c3aed">THIS JOB</span>' : '')+'</td>'+
       '<td style="text-align:right">'+qtyTxt+' '+esc(r.unit)+'</td>'+
-      '<td style="text-align:right">'+money(r.price)+'</td>'+
+      '<td style="text-align:right">'+priceCell+'</td>'+
       '<td style="text-align:right;font-weight:600">'+money(r.lineTotal)+'</td>'+
     '</tr>';
   }).join('');
+  // The buffer and the mark-up: this product's own figures where it has them,
+  // otherwise the job's shared pair. The badge says which, because a number
+  // that silently means two different things is how the wrong gutter gets
+  // repriced.
+  var pctOwn = _gutterPctOwn(gtype);
+  var pctNote = pctOwn
+    ? '<span style="font-size:9.5px;font-weight:800;letter-spacing:.04em;color:#7c3aed">THIS GUTTER</span> '+
+      '<button type="button" onclick="_gutterPctReset(\''+esc(gtype)+'\')" title="Put this gutter back on the job\u2019s shared figures" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ shared</button>'
+    : '<span style="font-size:10px;color:var(--text3)" title="Every gutter on this job uses this unless you give one its own">shared</span>';
   var labRow = function(label, hrsKey, priceKey, hrs, price){
     return '<tr>'+
       '<td style="font-weight:600">'+label+'</td>'+
@@ -25568,8 +25595,8 @@ function renderGutterDownpipePricing(){
       '<tbody>'+matRows+_qCustomTableRows('gutter',{totalCols:4,descColspan:2})+'</tbody>'+
       '<tfoot>'+
         '<tr><td colspan="3" style="text-align:right;color:var(--text2)">Material subtotal</td><td style="text-align:right;color:var(--text2)">'+money(matBase)+'</td></tr>'+
-        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add quantity safety buffer&nbsp;</span><input type="number" step="1" min="0" value="'+bufPct+'" onchange="_setGutterMatQtyBuffer(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(bufAmt)+'</td></tr>'+
-        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add mark-up&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right">'+pctNote+'<span style="color:var(--text2)">&nbsp;Add quantity safety buffer&nbsp;</span><input type="number" step="1" min="0" value="'+bufPct+'" onchange="_setGutterMatQtyBuffer(this.value,\''+esc(gtype)+'\')" style="width:56px;font-size:12px;padding:3px 6px;text-align:right'+(pctOwn?';border-color:#8b5cf6;background:#faf7ff':'')+'">&nbsp;%</td><td style="text-align:right">+'+money(bufAmt)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add mark-up&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value,\''+esc(gtype)+'\')" style="width:56px;font-size:12px;padding:3px 6px;text-align:right'+(pctOwn?';border-color:#8b5cf6;background:#faf7ff':'')+'">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
         '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr>'+
       '</tfoot>'+
     '</table>'+
@@ -25695,7 +25722,7 @@ function _profitSelectionItems(){
   var out = [];
   var changes = [];
   try { changes = _qpSelectionChanges() || []; } catch(e){ changes = []; }
-  var gutMark = 0; try { gutMark = f(_gutterMatMarkupPct()); } catch(e){}
+  var gutMark = 0; try { gutMark = f(_gutterMatMarkupPct(p.gutterType)); } catch(e){}
   var passMarked = function(rev){ return rev / (1 + gutMark / 100); };
   changes.forEach(function(ch){
     if (ch.roofName || ch.split){                        // an optional extra roof the customer has taken
@@ -25718,7 +25745,7 @@ function _profitSelectionItems(){
       var lm = 0; try { lm = f(_selGutterLm()); } catch(e){}
       var gl = _gutterLabourState(lm);
       var matBase = 0;
-      try { matBase = (_gutterMaterialLines(p.gutterType, lm, _selGutterLineCount(), _selGutterCorners()).reduce(function(a, r){ return a + f(r.lineTotal); }, 0) + f(_gutterCustomBase())) * (1 + f(_gutterMatQtyBufferPct()) / 100); } catch(e){}
+      try { matBase = (_gutterMaterialLines(p.gutterType, lm, _selGutterLineCount(), _selGutterCorners()).reduce(function(a, r){ return a + f(r.lineTotal); }, 0) + f(_gutterCustomBase())) * (1 + f(_gutterMatQtyBufferPct(p.gutterType)) / 100); } catch(e){}
       it.hrs = f(gl.leadHrs) + f(gl.appHrs);
       it.cost = matBase + f(gl.leadHrs) * f(gl.leadCost) + f(gl.appHrs) * f(gl.appCost);
       it.sub = lm.toFixed(1) + ' lm \u00b7 ' + it.hrs.toFixed(1) + ' hrs labour + material';
@@ -28362,8 +28389,21 @@ var SEL_GUTTER_MATERIAL_PER_LM = { box125: 21, marley_typhoon: 40, marley_classi
 //   3) the built-in default constant (used when nothing is configured).
 function _pbGutterCfg(){ return (window.S && S.settings && S.settings.price_book && S.settings.price_book.gutter) || {}; }
 function _pbNum(v){ var n = parseFloat(v); return (isFinite(n) && n >= 0) ? n : null; }
+// A $/unit THE OFFICE TYPED on this job (2026-10-14). It is kept apart from
+// `gutterUnitPrices`, which looks like the same thing and is not: that map is
+// a FROZEN SNAPSHOT of the price book, rebuilt from the book wholesale on
+// every recalc so the customer's copy can price gutters with no settings of
+// its own — so a figure written into it survives exactly until the next
+// keystroke anywhere on the quote. Typed prices live in their own map and are
+// layered OVER the snapshot when it is stamped, which is also what carries
+// them to the customer.
+function _gutterTypedPrice(stashKey){
+  try { return _pbNum(((window.S && S.quote && S.quote.gutterPriceTyped) || {})[stashKey]); }
+  catch(e){ return null; }
+}
 function _gutterPrice(stashKey, pbKey, def){
   var q = (window.S && S.quote) || {};
+  var t = _gutterTypedPrice(stashKey);                   if (t != null) return t;
   var s = _pbNum((q.gutterUnitPrices || {})[stashKey]); if (s != null) return s;
   var p = _pbNum(_pbGutterCfg()[pbKey]);                 if (p != null) return p;
   return def;
@@ -28376,6 +28416,7 @@ function _gutterPrice(stashKey, pbKey, def){
 // plain lookup: "no upcharge" is a real answer there.)
 function _gutterSupply(stashKey, pbKey, def){
   var q = (window.S && S.quote) || {};
+  var t = _gutterTypedPrice(stashKey);                   if (t != null && t > 0) return t;
   var s = _pbNum((q.gutterUnitPrices || {})[stashKey]); if (s != null && s > 0) return s;
   var p = _pbNum(_pbGutterCfg()[pbKey]);                 if (p != null && p > 0) return p;
   return def;
@@ -28492,21 +28533,78 @@ var GUTTER_LABOUR_APP_PRICE  = 70;
 // on that cost, and the buffer moves the PRICE only — the itemised quantities
 // that reach a supplier order stay exact. Defaults to 0 so no saved quote
 // reprices; the mark-up keeps its 10%.
-function _gutterMatQtyBufferPct(){
+// EACH GUTTER PRODUCT MAY CARRY ITS OWN (2026-10-14, the owner: "allow the
+// material safety buffer and markup to be applied differently between the
+// different gutter options"). A box gutter is cut from coil on site and a
+// Typhoon kit comes in 5 m lengths with fittings, so they do not waste the
+// same way or earn the same margin — but one pair of percentages priced all
+// three. `S.quote.gutterPctByType[id] = {buf, mk}` is the product's OWN pair
+// and the job-wide `gutterMatQtyBuffer` / `gutterMaterialMarkup` stay the
+// shared fallback, so a quote written before this prices to the cent as it
+// did and a product left alone follows the shared figure — the per-roof
+// labour rates' rule exactly. A blank, or the ↻ beside the box, deletes the
+// override and puts the product back on the shared one.
+function _gutterPctRow(id, make){
   var q = (window.S && S.quote) || {};
+  if (!q.gutterPctByType || typeof q.gutterPctByType !== 'object'){
+    if (!make) return null;
+    q.gutterPctByType = {};
+  }
+  if (!q.gutterPctByType[id]){
+    if (!make) return null;
+    q.gutterPctByType[id] = {};
+  }
+  return q.gutterPctByType[id];
+}
+// `id` omitted means the product this job is priced against, which is what
+// every existing caller wants.
+function _gutterPctFor(id){
+  try { return id || _gutterPricingType(); } catch(e){ return id || ''; }
+}
+function _gutterMatQtyBufferPct(id){
+  var q = (window.S && S.quote) || {};
+  var own = _gutterPctRow(_gutterPctFor(id), false);
+  if (own){ var o = parseFloat(own.buf); if (isFinite(o) && o >= 0) return o; }
   var v = parseFloat(q.gutterMatQtyBuffer);
   return (isFinite(v) && v >= 0) ? v : 0;
 }
-function _setGutterMatQtyBuffer(val){
+function _setGutterMatQtyBuffer(val, id){
   if (!S.quote) return;
   var v = parseFloat(val);
-  S.quote.gutterMatQtyBuffer = (isFinite(v) && v >= 0) ? v : 0;
+  if (id){
+    var row = _gutterPctRow(id, true);
+    if (String(val == null ? '' : val).trim() === '' || !isFinite(v) || v < 0) delete row.buf;
+    else row.buf = v;
+    _gutterPctTidy(id);
+  } else {
+    S.quote.gutterMatQtyBuffer = (isFinite(v) && v >= 0) ? v : 0;
+  }
   _gdChanged();
 }
-function _gutterMatMarkupPct(){
+function _gutterMatMarkupPct(id){
   var q = (window.S && S.quote) || {};
+  var own = _gutterPctRow(_gutterPctFor(id), false);
+  if (own){ var o = parseFloat(own.mk); if (isFinite(o) && o >= 0) return o; }
   var v = parseFloat(q.gutterMaterialMarkup);
   return (isFinite(v) && v >= 0) ? v : 10;
+}
+// An override that has been emptied leaves no trace: an empty object would
+// still read as "this product has its own", and the card would say THIS
+// GUTTER over a figure that is the shared one.
+function _gutterPctTidy(id){
+  try {
+    var m = S.quote && S.quote.gutterPctByType; if (!m || !m[id]) return;
+    if (!Object.keys(m[id]).length) delete m[id];
+    if (!Object.keys(m).length) delete S.quote.gutterPctByType;
+  } catch(e){}
+}
+function _gutterPctOwn(id){
+  var r = _gutterPctRow(_gutterPctFor(id), false);
+  return !!(r && (r.buf != null || r.mk != null));
+}
+function _gutterPctReset(id){
+  try { delete (S.quote.gutterPctByType || {})[id]; _gutterPctTidy(id); } catch(e){}
+  _gdChanged();
 }
 // Itemised gutter material for a profile + run length (lm) + gutter-line count
 // + corner count. Typhoon is priced line-by-line off the supplier invoice
@@ -28515,28 +28613,34 @@ function _gutterMatMarkupPct(){
 function _gutterMaterialLines(id, lm, lines, corners){
   lm = parseFloat(lm) || 0; lines = parseInt(lines, 10) || 0; corners = parseInt(corners, 10) || 0;
   var out = [], inv = (id === 'marley_typhoon') ? _gutterTyphoonInv() : (id === 'marley_classic') ? _gutterClassicInv() : null;
+  // Each row says WHICH price it was built from — the job's own typed figure
+  // (`gutterUnitPrices[stash]`), then the price book (`price_book.gutter[pb]`).
+  // Those two keys are what let the card's $/unit be an input and what let a
+  // typed figure be offered as the new default. `_gutterSupply` has read the
+  // first of them all along; nothing on screen ever wrote one.
+  var pfx = (id === 'marley_typhoon') ? 'typhoon' : 'classic';
   if (inv && lm > 0){
     var nBr   = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
     var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
     var nJoin = Math.max(0, Math.ceil(lm / GUTTER_SPOUTING_LENGTH_M) - Math.max(1, lines));
-    out.push({ desc: inv.gutterDesc,  qty: lm,  unit:'lm', price: inv.gutter });
-    out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(GUTTER_BRACKET_SPACING_M*1000)+'mm)', qty: nBr,  unit:'ea', price: inv.bracket });
-    out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet });
-    if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner });
-    if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner });
+    out.push({ desc: inv.gutterDesc,  qty: lm,  unit:'lm', price: inv.gutter, stash: pfx+'_spouting', pb: pfx+'_spouting_lm' });
+    out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(GUTTER_BRACKET_SPACING_M*1000)+'mm)', qty: nBr,  unit:'ea', price: inv.bracket, stash: pfx+'_bracket', pb: pfx+'_bracket_ea' });
+    out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet, stash: pfx+'_outlet', pb: pfx+'_outlet_ea' });
+    if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner, stash: pfx+'_joiner', pb: pfx+'_joiner_ea' });
+    if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner, stash: pfx+'_corner', pb: pfx+'_corner_ea' });
     // Typhoon-only fittings (solvent-weld PVC system). Only added when the
     // itemised invoice carries these prices, so box/Classic are unaffected.
     if (inv.stopend != null){
       var nEnd = Math.max(2, (parseInt(lines, 10) || 1) * 2);   // two ends per run
-      out.push({ desc: inv.stopendDesc, qty: nEnd, unit:'ea', price: inv.stopend });
+      out.push({ desc: inv.stopendDesc, qty: nEnd, unit:'ea', price: inv.stopend, stash: pfx+'_stopend', pb: pfx+'_stopend_ea' });
     }
     if (inv.expjoiner != null){
       var nExp = Math.floor(lm / GUTTER_EXPJOINER_SPACING_M);   // one per 12 m of run
-      if (nExp > 0) out.push({ desc: inv.expjoinerDesc + ' (1 / '+GUTTER_EXPJOINER_SPACING_M+'m)', qty: nExp, unit:'ea', price: inv.expjoiner });
+      if (nExp > 0) out.push({ desc: inv.expjoinerDesc + ' (1 / '+GUTTER_EXPJOINER_SPACING_M+'m)', qty: nExp, unit:'ea', price: inv.expjoiner, stash:'typhoon_expjoiner', pb:'typhoon_expjoiner_ea' });
     }
     if (inv.weldsolvent != null){
       var nSol = Math.max(1, Math.ceil(lm / GUTTER_SOLVENT_PER_M));   // one tube per ~30 m
-      out.push({ desc: inv.weldsolventDesc, qty: nSol, unit:'ea', price: inv.weldsolvent });
+      out.push({ desc: inv.weldsolventDesc, qty: nSol, unit:'ea', price: inv.weldsolvent, stash:'typhoon_weldsolvent', pb:'typhoon_weldsolvent_ea' });
     }
   } else if (lm > 0){
     // THE 125mm COLORSTEEL BOX GUTTER (the owner, 2026-09-30): "$21/lm for the
@@ -28545,8 +28649,10 @@ function _gutterMaterialLines(id, lm, lines, corners){
     // with its brackets in the $/lm, and the droppers (never fewer than one
     // per run). No separate bracket row, no corners, no stop ends.
     var nDrop = Math.max(Math.max(1, lines), Math.ceil(lm / GUTTER_DROPPER_SPACING_M));
-    out.push({ desc: (id === 'box125' ? '125mm Colorsteel box gutter, brackets included' : 'Gutter (supply)'), qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
-    out.push({ desc:'80mm droppers (1 / '+GUTTER_DROPPER_SPACING_M+'m)', qty: nDrop, unit:'ea', price: _gutterDropperEa() });
+    var _plmStash = (id === 'box125') ? 'perlm_box125' : ('perlm_' + id),
+        _plmPb    = (id === 'box125') ? 'box125_lm'    : (id + '_lm');
+    out.push({ desc: (id === 'box125' ? '125mm Colorsteel box gutter, brackets included' : 'Gutter (supply)'), qty: lm, unit:'lm', price: _gutterMaterialPerLm(id), stash: _plmStash, pb: _plmPb });
+    out.push({ desc:'80mm droppers (1 / '+GUTTER_DROPPER_SPACING_M+'m)', qty: nDrop, unit:'ea', price: _gutterDropperEa(), stash:'dropper', pb:'dropper_ea' });
   }
   out.forEach(function(r){ r.lineTotal = (parseFloat(r.qty)||0) * (parseFloat(r.price)||0); });
   return out;
@@ -28565,7 +28671,10 @@ function _gutterMaterialLines(id, lm, lines, corners){
 function _gutterCustomBase(){ try { return _qCustomTotal('gutter'); } catch(e){ return 0; } }
 function _gutterMaterialCharge(id, lm, lines, corners){
   var base = _gutterMaterialLines(id, lm, lines, corners).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0) + _gutterCustomBase();
-  return base * (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
+  // THAT product's percentages, not the picked one's — this is the function
+  // the customer's price for EVERY gutter comes through, so reading the
+  // picked product here would price a Typhoon at the box gutter's mark-up.
+  return base * (1 + _gutterMatQtyBufferPct(id) / 100) * (1 + _gutterMatMarkupPct(id) / 100);
 }
 // Angle (deg, 0–360) from vector u to vector v.
 function _gutterAngleBetween(u, v){
@@ -28645,11 +28754,66 @@ function _setGutterLabour(field, val){
 }
 function _resetGutterLabour(){ if (S.quote) S.quote.gutterLabour = {}; _gdChanged(); }
 // Office edits the gutter material markup (%).
-function _setGutterMatMarkup(val){
+function _setGutterMatMarkup(val, id){
   if (!S.quote) return;
   var v = parseFloat(val);
-  S.quote.gutterMaterialMarkup = (isFinite(v) && v >= 0) ? v : 0;
+  if (id){
+    var row = _gutterPctRow(id, true);
+    if (String(val == null ? '' : val).trim() === '' || !isFinite(v) || v < 0) delete row.mk;
+    else row.mk = v;
+    _gutterPctTidy(id);
+  } else {
+    S.quote.gutterMaterialMarkup = (isFinite(v) && v >= 0) ? v : 0;
+  }
   _gdChanged();
+}
+// ── A GUTTER MATERIAL ROW'S $/unit IS AN INPUT (2026-10-14, the owner: "allow
+// me to edit the fixed price of the different gutter material lines unit price
+// and ask if i'd like to save this new price as default (just like it does for
+// the roofing prices)"). The store was already there — `_gutterSupply` has
+// read `S.quote.gutterUnitPrices[stash]` ahead of the price book since it was
+// written — and nothing on screen ever wrote one, so the rows were read-only
+// numbers off a book the office had to leave the job to edit.
+async function _gutterPriceTyped(stash, pbKey, bookPrice, value, unit, label){
+  if (!S.quote) return;
+  var up = (S.quote.gutterPriceTyped && typeof S.quote.gutterPriceTyped === 'object')
+    ? S.quote.gutterPriceTyped : (S.quote.gutterPriceTyped = {});
+  var n = parseFloat(value), blank = String(value == null ? '' : value).trim() === '';
+  // A blank puts the row back on the book, the way a blank rate puts a roof
+  // back on the shared labour rate.
+  if (blank || !isFinite(n) || n < 0){
+    delete up[stash];
+    // …and out of the frozen snapshot too, or the figure this stamp carried
+    // over would stay on the quote with nothing on screen saying so. The next
+    // recalc rebuilds it from the book.
+    try { delete (S.quote.gutterUnitPrices || {})[stash]; } catch(e){}
+    if (!Object.keys(up).length) delete S.quote.gutterPriceTyped;
+  } else up[stash] = n;
+  _gdChanged();
+  if (blank || !isFinite(n) || n < 0 || !pbKey) return;
+  if (Math.abs(n - (parseFloat(bookPrice) || 0)) < 0.005) return;   // nothing moved
+  if (!(await _matDefaultAsk(label || 'This item', parseFloat(bookPrice) || 0, n, unit))) return;
+  _gutterSaveAsDefault(pbKey, n, label || 'This item');
+}
+async function _gutterSaveAsDefault(pbKey, n, label){
+  try {
+    if (!S.settings) return;
+    var pb = S.settings.price_book || (S.settings.price_book = {});
+    // NOT through `_matSaveAsDefault`: that scopes the write to the steel
+    // grade the job is priced at, and a gutter is not graded steel — its
+    // prices are the top-level `price_book.gutter` ones, so a graded write
+    // would land where nothing reads it.
+    var g = (pb.gutter && typeof pb.gutter === 'object') ? pb.gutter : (pb.gutter = {});
+    g[pbKey] = n;
+    try { renderPriceBookUI(); } catch(e){}
+    var ok = await saveSettings(true);
+    _gdChanged();
+    try { _siteToast(ok === false
+      ? ('Saved on this device — ' + label + ' is now $' + n.toFixed(2) + '. Reload to sync it.')
+      : ('Saved as the default price — ' + label + ' is now $' + n.toFixed(2))); } catch(e){}
+  } catch(e){
+    try { _siteToast('That could not be saved as the default price — it is still set for this job.'); } catch(e2){}
+  }
 }
 // Gutter install LABOUR HOURS by total gutter run (lm). Each band's hours are
 // worked by BOTH the lead roofer AND the apprentice, charged at the labour
@@ -39884,6 +40048,15 @@ function refreshQuoteProposal(){
         ext_marley:           _g.ext_bracket_marley_lm,
         downpipe:             _pbg.downpipe_ea
       };
+      // A $/unit the office typed on THIS job wins over the book, and has to
+      // survive this stamp — which rebuilds the whole map from the book on
+      // every recalc. Layering it on top here is also what carries it to the
+      // customer, whose copy has no price book and no idea a figure was typed.
+      var _gtp = S.quote.gutterPriceTyped;
+      if (_gtp && typeof _gtp === 'object') Object.keys(_gtp).forEach(function(k){
+        var v = parseFloat(_gtp[k]);
+        if (isFinite(v) && v >= 0) S.quote.gutterUnitPrices[k] = v;
+      });
     } catch(e){}
     // ── Optional extra roofs ─────────────────────────────────────────
     // The base quote is Roof 1 (main). Any further roof drawn is an optional
@@ -69150,7 +69323,7 @@ function _scopePricingRows(){
       });
       var gCustom = _gutterCustomBase();
       if (gCustom) { put('Guttering', 'Custom lines on this card', '', null, null, null, gCustom); gBase += gCustom; }
-      var gBuf = _gutterMatQtyBufferPct(), gMk = _gutterMatMarkupPct();
+      var gBuf = _gutterMatQtyBufferPct(gt), gMk = _gutterMatMarkupPct(gt);
       var gBuffered = gBase * (1 + gBuf / 100);
       put('Guttering', 'Quantity buffer', gBuf + '%', null, null, null, gBuffered - gBase);
       put('Guttering', 'Mark-up', gMk + '%', null, null, null, gBuffered * (gMk / 100));
@@ -70229,7 +70402,7 @@ function _buildFergusItemisedSections(opts){
     var gls = _gutterLabourState(_glm);
     if ((+gls.leadHrs) > 0) gutterLabour.push(labLine('Gutter — Lead Roofer', gls.leadHrs, +gls.leadPrice || 0, +gls.leadCost || 0));
     if ((+gls.appHrs)  > 0) gutterLabour.push(labLine('Gutter — Apprentice',  gls.appHrs,  +gls.appPrice  || 0, +gls.appCost || 0));
-    var _mkMul = (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
+    var _mkMul = (1 + _gutterMatQtyBufferPct(p.gutterType) / 100) * (1 + _gutterMatMarkupPct(p.gutterType) / 100);
     _gutterMaterialLines(p.gutterType, _glm, _glines, _gcorn).forEach(function(r){
       gutterMat.push(matLine('Gutter — ' + r.desc, r.qty, (+r.price || 0) * _mkMul));
     });

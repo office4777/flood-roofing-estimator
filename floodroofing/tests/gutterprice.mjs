@@ -189,6 +189,79 @@ const back = await opg.evaluate(() => {
 });
 check('unticking puts the gutter choice back on the Selections page',
   back.cards >= 3 && back.priced && back.tick, JSON.stringify(back));
+// ── EACH GUTTER PRODUCT MAY CARRY ITS OWN BUFFER AND MARK-UP (2026-10-14) ─
+// A box gutter is cut from coil on site and a Typhoon kit comes in 5 m
+// lengths with fittings; they do not waste the same way or earn the same
+// margin, and one pair of percentages priced all three.
+const pct = await opg.evaluate(() => {
+  const r = {}, lm = 40, li = 2, co = 4;
+  S.quote.gutterLm = lm; S.quote.gutterLines = li;
+  S.quote.gutterMatQtyBuffer = 5; S.quote.gutterMaterialMarkup = 10;
+  delete S.quote.gutterPctByType;
+  r.boxShared = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  r.typShared = +_gutterMaterialCharge('marley_typhoon', lm, li, co).toFixed(2);
+  _setGutterMatQtyBuffer(12, 'marley_typhoon');
+  _setGutterMatMarkup(30, 'marley_typhoon');
+  r.boxAfter = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  r.typAfter = +_gutterMaterialCharge('marley_typhoon', lm, li, co).toFixed(2);
+  r.own = { typ: _gutterPctOwn('marley_typhoon'), box: _gutterPctOwn('box125') };
+  r.pcts = { tb:_gutterMatQtyBufferPct('marley_typhoon'), tm:_gutterMatMarkupPct('marley_typhoon'),
+             bb:_gutterMatQtyBufferPct('box125'),         bm:_gutterMatMarkupPct('box125') };
+  // a blank puts the product back on the job's shared pair, and leaves no
+  // empty override behind to read as "this one has its own"
+  _setGutterMatQtyBuffer('', 'marley_typhoon');
+  _setGutterMatMarkup('', 'marley_typhoon');
+  r.back = +_gutterMaterialCharge('marley_typhoon', lm, li, co).toFixed(2);
+  r.store = S.quote.gutterPctByType == null ? 'gone' : JSON.stringify(S.quote.gutterPctByType);
+  return r;
+});
+check('a gutter given its own buffer and mark-up prices at them',
+  pct.typAfter > pct.typShared && pct.pcts.tb === 12 && pct.pcts.tm === 30,
+  JSON.stringify({ was: pct.typShared, now: pct.typAfter }));
+check('\u2026and the OTHER gutters do not move a cent',
+  pct.boxAfter === pct.boxShared && pct.pcts.bb === 5 && pct.pcts.bm === 10,
+  JSON.stringify({ was: pct.boxShared, now: pct.boxAfter }));
+check('\u2026only that product is marked as having its own',
+  pct.own.typ === true && pct.own.box === false, JSON.stringify(pct.own));
+check('\u2026and a blank puts it back on the shared pair, leaving nothing behind',
+  pct.back === pct.typShared && pct.store === 'gone',
+  JSON.stringify({ back: pct.back, shared: pct.typShared, store: pct.store }));
+
+// ── A GUTTER MATERIAL ROW'S $/unit IS AN INPUT (2026-10-14) ────────
+// The store was there all along; nothing on screen ever wrote one. The trap
+// is that `gutterUnitPrices` LOOKS like the place for it and is not — it is
+// a frozen snapshot of the price book, rebuilt wholesale on every recalc, so
+// a figure written into it survives until the next keystroke on the quote.
+const typed = await opg.evaluate(() => {
+  const r = {}, lm = 40, li = 2, co = 4;
+  const rows = _gutterMaterialLines('box125', lm, li, co);
+  r.keys = rows.map(x => x.stash);
+  r.before = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  _gutterPriceTyped('perlm_box125', 'box125_lm', 21, '35', 'lm', '125mm box');
+  r.after = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  r.perlm = _gutterMaterialPerLm('box125');
+  // THE REGRESSION THIS PINS: a recalc rebuilds the snapshot from the book.
+  _gdChanged(); try { recalcQuoteTotals(); } catch(e){}
+  r.afterRecalc = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  r.carried = (S.quote.gutterUnitPrices || {}).perlm_box125;   // → the customer
+  _gutterPriceTyped('perlm_box125', 'box125_lm', 21, '', 'lm', '125mm box');
+  r.cleared = +_gutterMaterialCharge('box125', lm, li, co).toFixed(2);
+  r.clearedTyped = _gutterTypedPrice('perlm_box125');
+  return r;
+});
+check('every gutter material row says which price it was built from',
+  typed.keys.length >= 2 && typed.keys.every(k => !!k), JSON.stringify(typed.keys));
+check('a $/unit typed on the card moves the gutter\'s price',
+  typed.perlm === 35 && typed.after > typed.before,
+  JSON.stringify({ before: typed.before, after: typed.after }));
+check('\u2026and a recalc does NOT wash it back to the price book',
+  typed.afterRecalc === typed.after, JSON.stringify({ after: typed.after, recalc: typed.afterRecalc }));
+check('\u2026the customer\'s frozen copy carries the typed figure, not the book\'s',
+  typed.carried === 35, String(typed.carried));
+check('\u2026and emptying the box goes back to the price book',
+  typed.cleared === typed.before && typed.clearedTyped == null,
+  JSON.stringify({ cleared: typed.cleared, before: typed.before }));
+
 await octx.close();
 
 // ── PER-ROOF BREAKDOWN — a gutter figure against every roof ────────

@@ -2498,6 +2498,44 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- EACH GUTTER PRODUCT MAY CARRY ITS OWN BUFFER AND MARK-UP, AND EVERY GUTTER
+  MATERIAL ROW'S $/unit IS AN INPUT (2026-10-14, the owner: "allow the
+  material safety buffer and markup to be applied differently between the
+  different gutter options" and "allow me to edit the fixed price of the
+  different gutter material lines unit price and ask if i'd like to save this
+  new price as default (just like it does for the roofing prices)").
+  THE PERCENTAGES: `S.quote.gutterPctByType[id] = {buf, mk}` is that product's
+  OWN pair and `gutterMatQtyBuffer` / `gutterMaterialMarkup` stay the job's
+  shared fallback — the per-roof labour rates' rule exactly, so a product left
+  alone follows the shared figure and no quote already written moves. A blank,
+  or the ↻ beside the box, deletes the override; `_gutterPctTidy` removes the
+  empty object with it, or the card would say THIS GUTTER over a shared
+  figure. `_gutterMatQtyBufferPct(id)` / `_gutterMatMarkupPct(id)` take the
+  product, defaulting to `_gutterPricingType()`, and EVERY caller that prices
+  a named gutter now passes it — `_gutterMaterialCharge` above all, because
+  that is the one function the customer's price for every gutter comes
+  through, and reading the picked product there would price a Typhoon at the
+  box gutter's mark-up. The profitability panel, the pricing CSV and the
+  Fergus push pass theirs too.
+  THE $/unit: `_gutterMaterialLines` rows now carry `stash` and `pb` — which
+  price each was built from — so the card can render an input and
+  `_gutterPriceTyped` can offer the typed figure as the new default through
+  the material table's OWN `_matDefaultAsk` dialog (the same question, not a
+  second one saying it differently). `_gutterSaveAsDefault` writes
+  `price_book.gutter[pb]` directly and NOT through `_matSaveAsDefault`, which
+  scopes its write to the steel grade in use — a gutter is not graded steel,
+  so a graded write would land where nothing reads it.
+  THE TRAP, and it cost a round: `S.quote.gutterUnitPrices` looks like the
+  place to keep a typed price and is NOT. It is a FROZEN SNAPSHOT of the price
+  book, rebuilt from the book wholesale on every recalc so the customer's copy
+  can price gutters with no settings of its own — so a figure written into it
+  survived until the next keystroke anywhere on the quote, and the first
+  version of this silently did nothing (measured, not reasoned: the charge did
+  not move and the store read back the book's 21). Typed prices live in
+  `S.quote.gutterPriceTyped`, are read FIRST by `_gutterSupply` /
+  `_gutterPrice`, and are layered OVER the snapshot where it is stamped —
+  which is also what carries them to the customer. Emptying the box deletes
+  both copies. `tests/gutterprice.mjs` pins the recalc explicitly.
 - EVERY JOB-CHANGE PATH LETS GO OF THE SAME THINGS (2026-10-14, feedback
   report 13: "data bleed between last open job (3292) as this open job
   (3306)"). `_releaseCurrentJob` has said who the job IS since the Fergus link
