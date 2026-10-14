@@ -389,10 +389,26 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
    slate, edged in a colour you can actually see, and carries the app's blue
    down its top edge, which is the same "this is a layer" language the quote
    page's navy bands use. */
-#roofTypePanel.rtp{ position:absolute; z-index:60; left:.75rem; right:.75rem; margin:0; padding:11px 13px 10px; background:#eef3f9; border:1px solid #b9c7d8; border-top:3px solid #0099cc; border-radius:12px; box-shadow:0 18px 40px rgba(10,22,40,.26); }
-#roofTypePanel.rtp.rtp-anim{ animation:rtpDrop .34s cubic-bezier(.22,1,.36,1); }
+/* ONLY AS WIDE AS ITS OWN ROW (2026-10-14, the owner: "can you also narrow it
+   up, it doesn't need to be the full width it is"). It was pinned to both
+   edges, so on a wide screen the controls sat in the left third and "Delete
+   roof" was flung to the far right with a metre of tinted nothing between
+   them — which reads as a page, not a dropped menu. It is anchored left and
+   sized to its content now, capped so it cannot run off a narrow screen. */
+#roofTypePanel.rtp{ position:absolute; z-index:60; left:.75rem; right:auto; width:max-content; max-width:min(1100px, calc(100% - 1.5rem)); margin:0; padding:11px 13px 10px; background:#eef3f9; border:1px solid #b9c7d8; border-top:3px solid #0099cc; border-radius:12px; box-shadow:0 18px 40px rgba(10,22,40,.26); }
+/* HALF A SECOND EACH WAY (2026-10-14, the owner: "only show it for 3 seconds
+   then do a 0.5 second collapse time to show the user it collapses, also do a
+   0.5sec open time aswell"). The point of the slow collapse is that the
+   roofer SEES it fold away, so they know where it went and that the roof
+   button brings it back — a panel that simply vanishes teaches nothing. */
+#roofTypePanel.rtp.rtp-anim{ animation:rtpDrop .5s cubic-bezier(.22,1,.36,1); }
+#roofTypePanel.rtp.rtp-anim-out{ animation:rtpLift .5s cubic-bezier(.4,0,.7,.2) forwards; }
 @keyframes rtpDrop{ from{ opacity:0; transform:translateY(-14px); } to{ opacity:1; transform:translateY(0); } }
-@media (prefers-reduced-motion:reduce){ #roofTypePanel.rtp.rtp-anim{ animation:none; } }
+@keyframes rtpLift{ from{ opacity:1; transform:translateY(0) scaleY(1); transform-origin:top; }
+                    to{ opacity:0; transform:translateY(-10px) scaleY(.82); transform-origin:top; } }
+@media (prefers-reduced-motion:reduce){
+  #roofTypePanel.rtp.rtp-anim, #roofTypePanel.rtp.rtp-anim-out{ animation:none; }
+}
 /* The way out, where the way in was: a full-width hit area with an up arrow,
    not a 9px glyph on a button somewhere else. */
 /* On the tinted panel a pale grey bar no longer reads as a button, so the way
@@ -4910,7 +4926,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-13T22:15:35Z';
+  window.APP_BUILT_AT = '2026-10-14T22:08:20Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -77144,13 +77160,64 @@ function _roofPanelReveal(){
   var rtp = document.getElementById('roofTypePanel'); if (!rtp) return;
   if (rtp.style.display !== 'none') return;          // already open — leave it
   rtp.style.display = 'block';
-  rtp.classList.remove('rtp-anim');
+  rtp.classList.remove('rtp-anim', 'rtp-anim-out');
   void rtp.offsetWidth;                               // restart the animation
   rtp.classList.add('rtp-anim');
-  setTimeout(function(){ try { rtp.classList.remove('rtp-anim'); } catch(e){} }, 420);
+  setTimeout(function(){ try { rtp.classList.remove('rtp-anim'); } catch(e){} }, 560);
   try { _syncRoofTypeDropLabel(); } catch(e){}
   try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
   try { _renderRoofMenuBar(); } catch(e){}
+  _roofPanelAutoHide(rtp);
+}
+// IT SHOWS ITSELF, THEN PUTS ITSELF AWAY (2026-10-14, the owner: "only show
+// it for 3 seconds then do a 0.5 second collapse"). The panel exists to say
+// "here is where the roof's settings live, and Rotate 90° is one of them" —
+// once that has been said it is in the way of the drawing underneath, and the
+// roof button brings it straight back.
+//
+// ONLY THE AUTOMATIC REVEAL closes itself. A panel the roofer opened on
+// purpose stays open until they close it; taking that away three seconds
+// later would be the app arguing with them.
+//
+// AND IT NEVER CLOSES UNDER THEIR HAND. Three seconds is barely time to read
+// the row, let alone reach it — so the moment the pointer arrives, or the
+// keyboard lands on anything inside, the timer is dropped for good. A menu
+// that shuts while you are reaching for it is worse than one that never
+// opened.
+var _RTP_T = null;
+function _roofPanelAutoHideCancel(){
+  if (_RTP_T){ clearTimeout(_RTP_T); _RTP_T = null; }
+}
+function _roofPanelAutoHide(rtp){
+  rtp = rtp || document.getElementById('roofTypePanel');
+  if (!rtp) return;
+  _roofPanelAutoHideCancel();
+  if (!rtp._rtpStay){
+    rtp._rtpStay = true;
+    var keep = function(){ _roofPanelAutoHideCancel(); };
+    try {
+      rtp.addEventListener('pointerenter', keep);
+      rtp.addEventListener('pointerdown', keep);
+      rtp.addEventListener('focusin', keep);
+    } catch(e){}
+  }
+  _RTP_T = setTimeout(function(){
+    _RTP_T = null;
+    try {
+      if (rtp.style.display === 'none') return;        // already put away
+      rtp.classList.remove('rtp-anim');
+      rtp.classList.add('rtp-anim-out');
+      setTimeout(function(){
+        try {
+          rtp.classList.remove('rtp-anim-out');
+          // Only hide if nothing re-opened it in the meantime.
+          if (rtp.classList.contains('rtp-anim')) return;
+          rtp.style.display = 'none';
+          _renderRoofMenuBar();
+        } catch(e){}
+      }, 500);
+    } catch(e){}
+  }, 3000);
 }
 function _toggleRoofMenu(idx){
   var rtp = document.getElementById('roofTypePanel');
@@ -77160,6 +77227,9 @@ function _toggleRoofMenu(idx){
   // Switching roofs re-points the menu rather than closing it; tapping the
   // roof whose menu is already open is how you put it away.
   if (!sameRoof) switchToRoof(idx);
+  // Opened or closed BY HAND: the automatic put-away is off from here on.
+  try { _roofPanelAutoHideCancel(); } catch(e){}
+  rtp.classList.remove('rtp-anim-out');
   rtp.style.display = (wasOpen && sameRoof) ? 'none' : 'block';
   try { _syncRoofTypeDropLabel(); } catch(e){}
   try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}

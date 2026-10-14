@@ -176,10 +176,20 @@ const reveal = await pg.evaluate(async () => {
   out.duringTour = rtp().style.display;
   TOUR.open = false; _roofPanelReveal();
   out.afterTour = rtp().style.display;
+  // NARROWER THAN THE PAGE (2026-10-14, the owner: "it doesn't need to be the
+  // full width it is"). Anchored left and sized to its own row.
+  out.panelW = Math.round(rtp().getBoundingClientRect().width);
+  out.viewW = window.innerWidth;
+  out.openDur = getComputedStyle(rtp()).animationDuration;
   return out;
 });
 check('the roof settings panel OVERLAYS the page instead of shoving it down',
   reveal.position === 'absolute', reveal.position);
+check('…and is only as wide as its own row, not the whole page',
+  reveal.panelW > 0 && reveal.panelW <= 1100 && reveal.panelW < reveal.viewW - 100,
+  JSON.stringify({ panel: reveal.panelW, view: reveal.viewW }));
+check('…opening over half a second, so it reads as a panel arriving',
+  reveal.openDur === '0.5s', reveal.openDur);
 check('it stays shut as the roof is drawn…',
   reveal.hadPopup && reveal.straightAfter === 'none', JSON.stringify(reveal));
 check('…then slides down by itself a second later',

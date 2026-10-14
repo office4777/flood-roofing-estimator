@@ -1342,6 +1342,26 @@ Discipline (non-negotiable):
   a layer" language the quote page's navy bands use — and `.rtp-close` is
   solid navy, because a pale grey bar on a tinted panel no longer reads as a
   button. `tests/roofmenu.mjs`.
+- THE ROOF PANEL SHOWS ITSELF AND PUTS ITSELF AWAY (2026-10-14, the owner:
+  "only show it for 3 seconds then do a 0.5 second collapse time to show the
+  user it collapses, also do a 0.5sec open time aswell, can you also narrow it
+  up"). The panel exists to say "the roof's settings live here, and Rotate 90°
+  is one of them"; once said it is over the drawing. `_roofPanelAutoHide` gives
+  it 3 s, then `.rtp-anim-out` (`rtpLift`, 0.5 s) and `display:none`. The slow
+  fold is the POINT — a panel that vanishes teaches nothing about where it
+  went; one that visibly folds says the roof button brings it back.
+  ONLY THE AUTOMATIC REVEAL CLOSES ITSELF: `_toggleRoofMenu` cancels the timer,
+  so a panel opened on purpose stays until it is closed. AND IT NEVER CLOSES
+  UNDER THEIR HAND — `pointerenter`, `pointerdown` and `focusin` drop the timer
+  for good, because three seconds is barely time to read the row, let alone
+  reach it, and a menu that shuts while you are reaching for it is worse than
+  one that never opened.
+  NARROWER: it was pinned to both edges (`left:.75rem; right:.75rem`), so on a
+  wide screen the controls sat in the left third with Delete roof flung to the
+  far right and a metre of tinted nothing between — which reads as a page, not
+  a dropped menu. `width:max-content`, anchored left, capped at
+  `min(1100px, 100% - 1.5rem)` so a long roof or sheet name cannot force a
+  needless wrap. `tests/roofmenu.mjs` pins the width and the 0.5 s open.
 - THE ROOF PANEL NO LONGER CAUTIONS ABOUT THE TYPE (2026-10-13, the owner:
   "remove the warning caution about the roof type in orange in the roof
   settings that appears"). `#roofTypeHint` was an amber box that appeared
