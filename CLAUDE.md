@@ -991,9 +991,12 @@ Discipline (non-negotiable):
   fighting an auto roof that did not match his building — his own first
   sentence is "Can we overwrite dimensions & manually move preset flashing
   lines". Whether hand-drawn structure should REPLACE the auto structure is a
-  product decision, not a fix; ask him. Also worth knowing: `Roof image: none`
-  on that report, and his outline is a perfect axis-aligned rectangle, so no
-  amount of squaring the picture was ever going to help.
+  product decision, not a fix; ask him. CORRECTED 2026-10-14: the note here
+  used to add "`Roof image: none` on that report" — that field was broken and
+  read `none` on EVERY report ever sent (see the bullet below), so it was no
+  evidence either way. His outline being a perfect axis-aligned rectangle
+  still stands, and still means no amount of squaring the picture would have
+  helped.
 - SCOTT'S QUICK WINS (2026-10-13, info@wellingtonroof.co.nz, relayed by the
   owner; `tests/quickwins.mjs`). Four things a roofer could not do, and one
   button that was not where a roofer looks.
@@ -2495,6 +2498,36 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- EVERY JOB-CHANGE PATH LETS GO OF THE SAME THINGS (2026-10-14, feedback
+  report 13: "data bleed between last open job (3292) as this open job
+  (3306)"). `_releaseCurrentJob` has said who the job IS since the Fergus link
+  leaked into a new job; what the job CONTAINS was a list living inside
+  `restoreFromJob` alone, grown there one feedback report at a time — the
+  files, report 53's picture, the struck-off flashings, the quote. The OTHER
+  two ways into a job never ran it. `useFergusJobInModal`'s fresh branch (a
+  Fergus job RoofMap has never saved, which is the shape the owner was on)
+  reset seven things by hand and `newJob` five, so the new job wore the last
+  one's JOB PACK PAGES, its struck-off FLASHING TYPES, its CLEARLITE and the
+  $/unit PRICES typed over the book on another roof — and because that branch
+  never called `_releaseCurrentJob` either, its LOCK, its version list and its
+  `base_updated_at` stamp as well. `_releaseJobContent()` is the one list and
+  all three paths call it. A list in three places is a list that drifts.
+  NOT MOVED to the top of `restoreFromJob`, deliberately: the roof-map history
+  restore calls it with a synthetic `{state:{img64}, draw}` to put an old
+  drawing back on the CURRENT job, and releasing there would throw away that
+  job's pack and its typed prices. It stays inside `if (snap.state)`.
+  AND TWO FIELDS OF THE FEEDBACK REPORT HAVE NEVER BEEN TRUE. `Roof image`
+  read `d.img || d.bgImage`, and neither is a field of DRAW — the picture is
+  `DRAW.bgImg` — so it printed `none` on every report ever sent, including
+  this one, whose own attached screenshot shows a PDF plan behind the roof. It
+  names `bgFrom` now (linz / mapbox / upload). `Job selected` read `S.job`,
+  which this app writes nowhere, so it printed `no` every time; it names
+  `currentJobId`, `linkedJobId`/`linkedJobNo` and the quote's `ref`, and adds
+  `Job locked`, because WHICH of those is set is exactly what decides the code
+  path a report is about. `tests/fbcontext.mjs` had PINNED the broken one by
+  setting `S.job` itself — the same mistake as the step-down gable pin, a test
+  asserting the app's own output back at itself. Both fixed.
+  `tests/jobbgleak.mjs` drives the real `useFergusJobInModal` fresh branch.
 - A ROOF PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate
   and 5-rib share the same standard roofing sheet price, but then a profile
   like RI-925 has it's own more expensive price"). He had added RI-925 and

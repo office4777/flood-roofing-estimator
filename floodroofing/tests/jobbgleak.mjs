@@ -115,6 +115,79 @@ check('…and a job that has its own quote still opens on it',
 check('…the job it came from was itself unharmed',
   carry.first.ref === '3287' && carry.first.client === 'Phyllis Rintoul', JSON.stringify(carry.first));
 
+// ── FEEDBACK 13: data bleed between the last open job and this one ──
+// Everything a job CONTAINS now goes through _releaseJobContent, because the
+// list had been copied into three places and only one of them was kept up.
+const rel = await pg.evaluate(() => {
+  const r = {};
+  // Job A: a fully worked job -- pages laid out, flashings struck off, a
+  // price typed over the book, a picture, files, an order sent.
+  restoreFromJob({ id:'a1', updated_at:'x', draw_state:{ state:{
+    quote:{ ref:'3292', client:'Job A' }, img64:'iVBORw0KGgo', files:[{name:'plan.pdf'}],
+    jobPack:{ pages:['header','cutlists'] }, jpFlashTypeOff:{ barge:true },
+    clearliteMaterial:'polycarb', orderSent:'2026-10-01', fergusSent:'2026-10-01',
+    matOv:{ sheets:{ price: 99 } }, matDel:{ underlay:true } } } });
+  r.a = { pack: !!S.jobPack, flash: Object.keys(S.jpFlashTypeOff || {}).length,
+          cl: S.clearliteMaterial, ov: Object.keys(MATERIAL_OVERRIDES || {}).length,
+          img: !!S.img64, files: (S.files || []).length };
+  S.jobLocked = true; S.versions = [{ id:'v1' }];
+  // Now take the ONE path that never ran that list: a Fergus job RoofMap has
+  // never saved. No saved mapping, no local draft -- the fresh branch.
+  S.fergJobsCache = [{ id:'f9', jobNo:'3306', customer:'Job B', address:'2 Elm St' }];
+  return r;
+});
+await pg.evaluate(async () => { try { await useFergusJobInModal('f9'); } catch(e){} });
+await pg.waitForTimeout(500);
+const after = await pg.evaluate(() => ({
+  pack: !!S.jobPack, flash: Object.keys(S.jpFlashTypeOff || {}).length,
+  cl: S.clearliteMaterial, ov: Object.keys(MATERIAL_OVERRIDES || {}).length,
+  del: Object.keys(MATERIAL_DELETED || {}).length,
+  img: !!S.img64, files: (S.files || []).length, order: S.orderSent, ferg: S.fergusSent,
+  ref: (S.quote || {}).ref, client: (S.quote || {}).client,
+  locked: !!S.jobLocked, loaded: !!S._jobLoaded, vers: (S.versions || []).length,
+  linked: S.linkedJobId,
+}));
+check('job A really was carrying all of it',
+  rel.a.pack && rel.a.flash === 1 && rel.a.cl === 'polycarb' && rel.a.ov === 1 && rel.a.img && rel.a.files === 1,
+  JSON.stringify(rel.a));
+check('a Fergus job RoofMap never saved does not inherit the last job\'s Job Pack',
+  after.pack === false, JSON.stringify({ pack: after.pack }));
+check('\u2026nor its struck-off flashings or its clearlite',
+  after.flash === 0 && after.cl === 'fibreglass', JSON.stringify({ flash: after.flash, cl: after.cl }));
+check('\u2026nor a $/unit typed on the other roof',
+  after.ov === 0 && after.del === 0, JSON.stringify({ ov: after.ov, del: after.del }));
+check('\u2026nor its picture, its files or its sent stamps',
+  after.img === false && after.files === 0 && !after.order && !after.ferg,
+  JSON.stringify({ img: after.img, files: after.files, order: after.order, ferg: after.ferg }));
+check('\u2026nor the quote: a fresh Fergus job is this customer\'s',
+  after.ref !== '3292' && after.client !== 'Job A', JSON.stringify({ ref: after.ref, client: after.client }));
+// The identity half: that branch never called _releaseCurrentJob, so a LOCKED
+// job arrived locked on a job that cannot be unlocked from.
+check('\u2026and it is NOT locked by the job you left',
+  after.locked === false, String(after.locked));
+check('\u2026with no stale base stamp or version list, and the new link in place',
+  after.loaded === false && after.vers === 0 && after.linked === 'f9',
+  JSON.stringify({ loaded: after.loaded, vers: after.vers, linked: after.linked }));
+
+// ── the report's own fields must be true ──────────────────────
+// "Roof image: none" and "Job selected: no" were printed on every report ever
+// sent, because neither field existed on the object being read. A diagnostic
+// that is wrong is worse than one that is missing: it gets believed.
+const diag = await pg.evaluate(() => {
+  DRAW.bgImg = { width: 10, height: 10 }; DRAW.bgFrom = 'linz';
+  S.currentJobId = 'j77'; S.linkedJobId = 'f9'; S.linkedJobNo = '3306';
+  S.quote = S.quote || {}; S.quote.ref = '3306';
+  const t = _fbAutoContext();
+  DRAW.bgImg = null;
+  return { txt: t, none: _fbAutoContext() };
+});
+check('the report says there IS a roof image when there is one',
+  /Roof image:\s*loaded \(linz\)/.test(diag.txt) && /Roof image:\s*none/.test(diag.none),
+  (diag.txt.match(/Roof image:.*/) || [''])[0]);
+check('\u2026and names the job that is actually open',
+  /Job selected:.*saved job j77/.test(diag.txt) && /Fergus job 3306/.test(diag.txt) && /job no 3306/.test(diag.txt),
+  (diag.txt.match(/Job selected:.*/) || [''])[0]);
+
 check('no page errors through any of that', errs.length === 0, errs.join(' | ').slice(0, 160));
 await ctx.close();
 await b.close();

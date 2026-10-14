@@ -110,10 +110,19 @@ v = await pg.evaluate(() => {
   S.settings = S.settings || {};
   S.settings.branding = { company_name:'Acme Roofing Ltd', phone:'0800 111 222',
                           email:'sam@acme.co.nz', address:'12 Somewhere Rd, Whangarei' };
-  S.job = { id:'j-77', client:'Mrs Henderson', address:'9 Private Lane', total: 41250 };
+  // S.job was what this pin set and what the report read, and S.job is not a
+  // field this app has ever written -- so the pin passed while every real
+  // report said "Job selected: no". It names the job the way the app does.
+  S.currentJobId = 'j-77'; S.linkedJobId = 'f-5'; S.linkedJobNo = '3306';
+  S.quote = S.quote || {}; S.quote.ref = '3306';
+  S.jobLocked = false;
+  window.__fbPriv = { client:'Mrs Henderson', address:'9 Private Lane', total: 41250 };
   return _fbAutoContext();
 });
-check('a job shows as selected, by id', /Job selected: yes \(id j-77\)/.test(v),
+check('a job shows as selected, by id', /Job selected: saved job j-77/.test(v),
+  (v.match(/Job selected:.*/)||[''])[0]);
+check('\u2026and says whether it is Fergus-linked and locked',
+  /Fergus job 3306/.test(v) && /job no 3306/.test(v) && /Job locked: no/.test(v),
   (v.match(/Job selected:.*/)||[''])[0]);
 check('…and no client name, address or price is anywhere in it',
   !/Henderson/i.test(v) && !/Private Lane/i.test(v) && !/41250/.test(v) &&
