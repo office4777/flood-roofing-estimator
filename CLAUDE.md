@@ -2498,6 +2498,49 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- THE RIDGE / VALLEY JUNCTION IS DRAGGABLE (2026-10-14, the owner: "it won't
+  let me click that junction where the two valleys meet the ridge to drag it
+  keeping it inline with the connecting ridge"). The solver puts the ridge end
+  where the straight skeleton says it goes, and on a real building that is
+  often a foot out — but the only way to move it was to delete the generated
+  structure and draw three lines by hand. An outline CORNER has had a grab
+  handle and a nudge pad for a year; a junction had neither, and it is the
+  same kind of point.
+  IT DOES NOT TOUCH THE ROOF ENGINE, which is why it is safe on a path this
+  file records as broken twice. The lines are already built; moving a junction
+  is an edit to the drawn lines, the same shape as the endpoint drag that has
+  always existed. `_roofJunctions()` is every point where three or more
+  ridge/hip/valley ends meet AND one of them is a ridge — the ridge is not
+  decoration, it IS the constraint, so a junction without one (or with two, a
+  dog-leg's crossing) has no single axis and is not offered. A gutter or barge
+  end is never a junction: that is the building's own corner and the outline's
+  to move. `_junctAxis` is the unit vector from the junction down its ridge
+  and `_junctMoveTo` projects the drag onto it, so the 40 px of cross-ridge
+  movement in a 60 px drag is thrown away — which is the ask, and is also what
+  keeps the two valleys symmetrical instead of racking the roof.
+  A JUNCTION YOU CAN SEE IS A JUNCTION YOU CAN CLICK: a hollow grab ring is
+  drawn on each one in the select tool (never in the Job Pack's captures), and
+  the selected one gets the ridge's axis drawn through it dashed, so it is
+  plain WHICH way it will move. That is most of what "it won't let me click
+  that junction" was.
+  THE NUDGE PAD (`#junctRepoPopup`) is the corner pad's twin with one axis
+  instead of two: ◀ Shorter / Longer ▶ at 0.01 m, the ridge's own length
+  under them, the arrow keys, Escape, a press elsewhere, and a draggable
+  header — wired by the SAME function as the corner pad's so neither can be
+  the one left undraggable. MIND THE SIGN: the axis points from the junction
+  towards the ridge's far end, so a positive step walks the junction up the
+  ridge and SHORTENS it. The first version read "Longer" and shortened it;
+  `tests/junction.mjs` pins the direction by metres, not by vector.
+  AN EXPLICIT ROOF REBUILD STILL WINS — changing the type, rotating, dragging
+  an outline corner all run the solver again and the nudge goes with it, which
+  is right: those say "work this roof out again". A save and reopen keeps it,
+  because the lines are what is stored. Pinned in `tests/junction.mjs`, which
+  drives a real mouse.
+  FOUND BESIDE IT: `_cornerRepoNudge` ended with `autosaveJob && autosaveJob()`
+  — the same ghost function the back-tray switch, the custom lines and the
+  roof-map background toggle were each caught calling, and inside a try, so a
+  corner moved with the pad was simply never saved. It schedules a real
+  autosave now.
 - EACH GUTTER PRODUCT MAY CARRY ITS OWN BUFFER AND MARK-UP, AND EVERY GUTTER
   MATERIAL ROW'S $/unit IS AN INPUT (2026-10-14, the owner: "allow the
   material safety buffer and markup to be applied differently between the

@@ -2352,6 +2352,7 @@ html.office-price-bar body[data-tab="quote"] #fergusRoofPanel{ bottom:calc(var(-
 }
 #fergusRoofPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
 #fergusRoofPanelResize:hover::after{ background:#0099cc; height:80px; }
+#junctRepoPopup .crn-btn{ width:64px; font-size:11px; font-weight:700; }
 .crn-btn{ width:38px; height:38px; border:1px solid rgba(255,255,255,.22); background:#152a44; color:#fff; border-radius:8px; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .12s,border-color .12s; }
 .crn-btn:hover{ background:#0099cc; border-color:#0099cc; }
 .crn-btn:active{ background:#007bab; }
@@ -4926,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-14T22:52:13Z';
+  window.APP_BUILT_AT = '2026-10-14T23:01:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6174,6 +6175,23 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
+      </div>
+      <!-- Ridge / valley junction nudge pad — the corner pad's twin, with one
+           axis instead of two: a junction may only move along the ridge that
+           meets it. Opened by grabbing a junction with the select tool. -->
+      <div id="junctRepoPopup" class="no-print" style="display:none;position:fixed;z-index:2000;left:140px;top:260px;width:176px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif">
+        <div id="junctRepoHdr" style="display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);touch-action:none">
+          <span class="crn-grip" style="font-size:12px;line-height:1">✥</span>
+          <span class="crn-title" style="font-size:11px;font-weight:700;color:#fff">Move junction</span>
+          <span class="crn-step" style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.01m</span>
+          <button onclick="_closeJunctRepo()" title="Close" style="background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px">✕</button>
+        </div>
+        <div class="crn-grid" style="display:grid;grid-template-columns:repeat(2,64px);gap:6px;padding:9px;justify-content:center">
+          <button onclick="_junctRepoNudge(-1)" class="crn-btn" title="Shorten the ridge by 0.01m">◀ Shorter</button>
+          <button onclick="_junctRepoNudge(1)" class="crn-btn" title="Lengthen the ridge by 0.01m">Longer ▶</button>
+        </div>
+        <div id="junctRepoLen" style="font-size:11px;font-weight:700;color:#7fd4ff;padding:0 9px 4px;text-align:center">—</div>
+        <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">It stays in line with the ridge. You can still drag it.</div>
       </div>
       <!-- "RoofMap has been updated" — a tab left open for a day is running
            whatever code it loaded that morning, and there was nothing to say
@@ -49156,6 +49174,143 @@ function _closeCornerRepo(){
 }
 // Nudge the active corner 0.01m (10mm) in a direction. Uses the SAME
 // rectilinear stretch a drag does, so arrows and dragging behave the same.
+// ══ THE RIDGE / VALLEY JUNCTION IS DRAGGABLE (2026-10-14) ══════════
+// The owner: "it won't let me click that junction where the two valleys meet
+// the ridge to drag it keeping it inline with the connecting ridge".
+//
+// The solver puts the ridge end where the straight skeleton says it goes, and
+// on a real building that is often a foot out — but the only way to move it
+// was to delete the generated structure and draw three lines by hand. An
+// outline CORNER has had a grab handle and a nudge pad for a year; a junction
+// had neither, and it is the same kind of point.
+//
+// WHAT IT IS NOT: this does not touch the roof engine. The lines are already
+// built; moving a junction is an edit to the drawn lines, the same shape as
+// the endpoint drag that has always existed — which is exactly why it is safe
+// on a path CLAUDE.md records as broken twice. An explicit roof rebuild
+// (changing the type, rotating, dragging an outline corner) still rebuilds
+// from the solver and throws the nudge away, which is right: those say "work
+// this roof out again".
+var JUNCT_GRAB = 15;                         // screen px
+var DRAG_JUNCT = null;
+// Which line types meet at a junction worth moving. A gutter or a barge ends
+// at the building's own corner, and that corner is the outline's to move.
+function _junctLineOk(t){ return t === 'ridge' || t === 'valley' || t === 'hip'; }
+function _junctKey(p){ return (Math.round(p[0]*2)/2) + '_' + (Math.round(p[1]*2)/2); }
+// Every point where three or more ridge/hip/valley ends meet AND one of them
+// is a ridge. The ridge is not decoration here: it IS the constraint, so a
+// junction without one has no line to stay in with and is not offered.
+function _roofJunctions(){
+  var map = {};
+  (DRAW.lines || []).forEach(function(l, i){
+    if (!l || !l.pts || l.pts.length < 2 || !_junctLineOk(l.type)) return;
+    [0, 1].forEach(function(e){
+      var k = _junctKey(l.pts[e]);
+      if (!map[k]) map[k] = { key: k, pt: l.pts[e].slice(), ends: [] };
+      map[k].ends.push({ i: i, e: e, type: l.type });
+    });
+  });
+  return Object.keys(map).map(function(k){ return map[k]; }).filter(function(j){
+    return j.ends.length >= 3 && j.ends.some(function(x){ return x.type === 'ridge'; });
+  });
+}
+// The unit vector the junction may slide along: away from the junction,
+// down the ridge that meets it. Two ridges meeting (a dog-leg's crossing)
+// have no single axis, so that junction is left alone.
+function _junctAxis(j){
+  var rid = j.ends.filter(function(x){ return x.type === 'ridge'; });
+  if (rid.length !== 1) return null;
+  var l = DRAW.lines[rid[0].i]; if (!l) return null;
+  var far = l.pts[1 - rid[0].e], here = l.pts[rid[0].e];
+  var dx = far[0] - here[0], dy = far[1] - here[1];
+  var len = Math.hypot(dx, dy);
+  if (!(len > 1)) return null;
+  return { ux: dx / len, uy: dy / len, len: len, ridgeIdx: rid[0].i };
+}
+function _junctAt(xy, tr){
+  var grab = tr ? (JUNCT_GRAB / tr.s) : JUNCT_GRAB;
+  var best = null, bd = grab;
+  _roofJunctions().forEach(function(j){
+    if (!_junctAxis(j)) return;
+    var d = Math.hypot(j.pt[0] - xy[0], j.pt[1] - xy[1]);
+    if (d < bd){ bd = d; best = j; }
+  });
+  return best;
+}
+// Put the junction at t along its axis (t measured from the drag's start) and
+// carry every line that ends there with it. Never past the ridge's far end,
+// and never through it — a ridge of nothing is not a roof.
+function _junctMoveTo(st, t){
+  var lo = -st.len * 0.92, hi = st.len * 0.92;
+  if (t < lo) t = lo; if (t > hi) t = hi;
+  var nx = st.from[0] + st.ux * t, ny = st.from[1] + st.uy * t;
+  st.ends.forEach(function(x){
+    var l = DRAW.lines[x.i]; if (!l || !l.pts) return;
+    l.pts[x.e] = [nx, ny];
+  });
+  st.now = [nx, ny]; st.t = t;
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  return t;
+}
+// The nudge pad, the outline corner's one in every respect but its axis.
+window._junctRepo = window._junctRepo || { key: '', moved: false };
+function _junctRepoOpen(j){
+  window._junctRepo.key = j ? j.key : '';
+  var pop = document.getElementById('junctRepoPopup'); if (!pop) return;
+  if (!j){ pop.style.display = 'none'; return; }
+  pop.style.display = 'block';
+  if (!window._junctRepo.moved){
+    try {
+      var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
+      pop.style.left = Math.max(6, r.left + 12) + 'px';
+      pop.style.top  = Math.min(Math.max(70, r.top + 120),
+                                Math.max(70, window.innerHeight - pop.offsetHeight - 12)) + 'px';
+    } catch(e){}
+  }
+  _junctRepoSync();
+}
+function _closeJunctRepo(){
+  window._junctRepo.key = '';
+  var pop = document.getElementById('junctRepoPopup'); if (pop) pop.style.display = 'none';
+  try { redrawAll(); } catch(e){}
+}
+function _junctSelected(){
+  var k = window._junctRepo && window._junctRepo.key; if (!k) return null;
+  return _roofJunctions().filter(function(j){ return j.key === k; })[0] || null;
+}
+// The ridge's own length, which is the figure the move is really about.
+function _junctRepoSync(){
+  var el = document.getElementById('junctRepoLen'); if (!el) return;
+  var j = _junctSelected(), ax = j && _junctAxis(j);
+  if (!ax){ el.textContent = '—'; return; }
+  var l = DRAW.lines[ax.ridgeIdx];
+  el.textContent = (l && l.measM > 0) ? (parseFloat(l.measM).toFixed(2) + 'm ridge')
+    : (DRAW.scaleMetresPerPx > 0 ? ((ax.len * DRAW.scaleMetresPerPx).toFixed(2) + 'm ridge') : 'ridge');
+}
+// dir -1 shortens the ridge, +1 lengthens it. NOTE THE SIGN: the axis points
+// from the junction TOWARDS the ridge's far end, so moving along it by a
+// positive amount walks the junction up the ridge and makes it SHORTER. The
+// buttons are labelled for the roofer, not for the vector — measured on a
+// real hip (8.40m ridge, +1 five times), because the first version read
+// "Longer" and shortened it.
+function _junctRepoNudge(dir){
+  var j = _junctSelected(); if (!j) return;
+  var ax = _junctAxis(j); if (!ax) return;
+  var step = (DRAW.scaleMetresPerPx > 0) ? (0.01 / DRAW.scaleMetresPerPx) : 1;   // 0.01m, as the corner pad
+  saveSnapshot();
+  _junctMoveTo({ from: j.pt.slice(), ux: ax.ux, uy: ax.uy, len: ax.len, ends: j.ends }, -dir * step);
+  // The junction has moved, so its key has: follow it, or the pad and the
+  // highlight would both be pointing at where it used to be.
+  var moved = _roofJunctions().filter(function(x){ return _junctAxis(x); })
+    .sort(function(a, b){ return Math.hypot(a.pt[0]-j.pt[0], a.pt[1]-j.pt[1])
+                               - Math.hypot(b.pt[0]-j.pt[0], b.pt[1]-j.pt[1]); })[0];
+  window._junctRepo.key = moved ? moved.key : '';
+  try { redrawAll(); } catch(e){}
+  try { updateMeasTotals(); } catch(e){}
+  _junctRepoSync();
+  try { _scheduleAutosave(); } catch(e){}
+}
 function _cornerRepoNudge(dirX, dirY){
   var idx = window._cornerRepo.idx;
   if (idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
@@ -49173,18 +49328,23 @@ function _cornerRepoNudge(dirX, dirY){
   try { syncToRoofData(); } catch(e){}
   redrawAll();
   try { updateMeasTotals(); } catch(e){}
-  try { autosaveJob && autosaveJob(); } catch(e){}
+  // `autosaveJob` is not a function this app has — the same ghost the
+  // back-tray switch, the custom lines and the roof-map background toggle
+  // were each caught calling. Guarded by a try, so a corner nudged with the
+  // pad was simply never saved.
+  try { _scheduleAutosave(); } catch(e){}
 }
-// Drag the popup by its header.
+// Drag either pad by its header — ONE wiring for both, so the junction pad
+// cannot be the one somebody forgets to make draggable.
 (function(){
-  function init(){
-    var hdr = document.getElementById('cornerRepoHdr'); if (!hdr) return;
+  function wire(hdrId, popId, mark){
+    var hdr = document.getElementById(hdrId); if (!hdr) return;
     hdr.addEventListener('pointerdown', function(e){
       if (e.target.closest('button')) return;
       e.preventDefault();
-      var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
+      var pop = document.getElementById(popId); if (!pop) return;
       var r = pop.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
-      window._cornerRepo.userMoved = true;
+      try { mark(); } catch(err){}
       function mv(ev){
         pop.style.left = Math.max(4, Math.min(window.innerWidth  - 40, ev.clientX - ox)) + 'px';
         pop.style.top  = Math.max(4, Math.min(window.innerHeight - 40, ev.clientY - oy)) + 'px';
@@ -49192,6 +49352,10 @@ function _cornerRepoNudge(dirX, dirY){
       function up(){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
     });
+  }
+  function init(){
+    wire('cornerRepoHdr', 'cornerRepoPopup', function(){ window._cornerRepo.userMoved = true; });
+    wire('junctRepoHdr',  'junctRepoPopup',  function(){ window._junctRepo.moved = true; });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
@@ -49214,6 +49378,16 @@ document.addEventListener('pointerdown', function(e){
     _closeCornerRepo();
   } catch(err){}
 }, true);
+// The junction pad, the same way and for the same reason.
+document.addEventListener('pointerdown', function(e){
+  try {
+    if (!window._junctRepo || !window._junctRepo.key) return;
+    var pop = document.getElementById('junctRepoPopup');
+    if (!pop || pop.style.display === 'none') return;
+    if (e.target && e.target.closest && e.target.closest('#junctRepoPopup')) return;
+    _closeJunctRepo();
+  } catch(err){}
+}, true);
 document.addEventListener('keydown', function(e){
   var ae = document.activeElement;
   var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
@@ -49224,12 +49398,25 @@ document.addEventListener('keydown', function(e){
     var _smp=document.getElementById('sheetMeasPopup'); if(_smp && _smp.style.display!=='none'){ e.preventDefault(); _closeSheetMeasPopup(); return; }
     // If the corner reposition popup is open, Escape closes it next.
     if(window._cornerRepo && window._cornerRepo.idx>=0){ var _crp=document.getElementById('cornerRepoPopup'); if(_crp && _crp.style.display!=='none'){ e.preventDefault(); _closeCornerRepo(); return; } }
+    if(window._junctRepo && window._junctRepo.key){ var _jrp=document.getElementById('junctRepoPopup'); if(_jrp && _jrp.style.display!=='none'){ e.preventDefault(); _closeJunctRepo(); return; } }
     DRAW.currentPts=[]; redrawAll(); return;
   }
   // Redo: Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — checked before plain undo.
   if((e.ctrlKey||e.metaKey) && ((e.shiftKey && (e.key==='z'||e.key==='Z')) || e.key==='y' || e.key==='Y')){ e.preventDefault(); redoLast(); return; }
   if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); undoLast(); return; }
   if(inField) return;
+  // Junction pad open → the arrow keys run along the ridge. Left/Up shorten
+  // it, Right/Down lengthen it: there is ONE axis, so all four do something
+  // rather than two of them doing nothing.
+  if (window._junctRepo && window._junctRepo.key){
+    var _jp = document.getElementById('junctRepoPopup');
+    if (_jp && _jp.style.display !== 'none'){
+      var _jdir = 0;
+      if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   _jdir = -1;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') _jdir = 1;
+      if (_jdir){ e.preventDefault(); _junctRepoNudge(_jdir); return; }
+    }
+  }
   // Corner reposition popup open → arrows nudge the corner 0.1m (100mm).
   if (window._cornerRepo && window._cornerRepo.idx >= 0){
     var _cp = document.getElementById('cornerRepoPopup');
@@ -50297,6 +50484,27 @@ function onCanvasMouseDown(e) {
       }
     }
   }
+  // A RIDGE / VALLEY JUNCTION, grabbed before anything else in this tool:
+  // it sits INSIDE the building where a press would otherwise fall through
+  // to selecting whichever line happens to pass under the finger, which is
+  // what "it won't let me click that junction" was.
+  if (DRAW.tool === 'select' && DRAW.outlineDone){
+    var _jxy = getXY(e), _jtr = getImgTransform();
+    var _jh = _junctAt(_jxy, _jtr);
+    if (_jh){
+      var _jax = _junctAxis(_jh);
+      if (_jax){
+        DRAG_JUNCT = { from: _jh.pt.slice(), ux: _jax.ux, uy: _jax.uy, len: _jax.len,
+                       ends: _jh.ends, start: _jxy, moved: false, t: 0,
+                       preSnap: _captureSnapState() };
+        try { _junctRepoOpen(_jh); } catch(err){}
+        try { document.getElementById('roofCanvas').style.cursor = 'grabbing'; } catch(err){}
+        try { redrawAll(); } catch(err){}
+        e.preventDefault();
+        return;
+      }
+    }
+  }
   // Corner-drag for the building outline (Move tool only). The
   // existing pan logic runs in the same tool, so we have to claim the
   // event first if the click landed on a vertex.
@@ -50528,6 +50736,27 @@ function onCanvasMouseUp(e) {
     if (_cv5) _cv5.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
     redrawAll();
     return;
+  }
+  if (DRAG_JUNCT){
+    if (DRAG_JUNCT.moved){
+      SUPPRESS_NEXT_CLICK = true;
+      _pushSnap(DRAG_JUNCT.preSnap);
+      // The junction has moved, so the key the pad holds has. Re-point it at
+      // where it landed, or the nudge buttons would push the old place.
+      try {
+        var _jn = _roofJunctions().filter(function(x){ return _junctAxis(x); })
+          .sort(function(a, b){ return Math.hypot(a.pt[0]-DRAG_JUNCT.now[0], a.pt[1]-DRAG_JUNCT.now[1])
+                                     - Math.hypot(b.pt[0]-DRAG_JUNCT.now[0], b.pt[1]-DRAG_JUNCT.now[1]); })[0];
+        window._junctRepo.key = _jn ? _jn.key : '';
+      } catch(e){}
+      try { syncToRoofData(); } catch(e){}
+      try { _scheduleAutosave(); } catch(e){}
+    }
+    DRAG_JUNCT = null;
+    try { document.getElementById('roofCanvas').style.cursor = ''; } catch(e){}
+    try { updateMeasTotals(); } catch(e){}
+    try { _junctRepoSync(); } catch(e){}
+    redrawAll(); return;
   }
   if(DRAG_EP) {
     if (DRAG_EP.moved && DRAG_EP.preSnap) _pushSnap(DRAG_EP.preSnap);
@@ -50764,7 +50993,7 @@ document.addEventListener('mouseup', function(e) {
                (e.clientY - rect.top)  * (cv.height / rect.height) / dpr ];
     }
     function dragActive(){
-      return !!(window.DRAG_INFO_STAR || window.DRAG_EP || window.DRAG_ROOF_VIEW ||
+      return !!(window.DRAG_INFO_STAR || window.DRAG_EP || window.DRAG_ROOF_VIEW || window.DRAG_JUNCT ||
                 window.DRAG_SHEET || window.DRAG_OUTLINE_VERT || window.DRAG_RIDGE ||
                 window.DRAG_GABLET || window.DRAG_RBREAK || window.DRAG_TAPE || (window.PAN && PAN.active));
     }
@@ -54317,6 +54546,17 @@ function onCanvasMove(e) {
   // drawing-time snap when Shift is held; we add a small-zone 90°
   // corner snap on top, also bypassed by Shift, so the user can
   // freely take the building out of square.
+  if (DRAG_JUNCT){
+    // Only the component along the ridge. That IS the ask — "keeping it
+    // inline with the connecting ridge" — and it is also what keeps the
+    // two valleys symmetrical about it instead of racking the roof.
+    var _jd = [xy[0] - DRAG_JUNCT.start[0], xy[1] - DRAG_JUNCT.start[1]];
+    _junctMoveTo(DRAG_JUNCT, _jd[0] * DRAG_JUNCT.ux + _jd[1] * DRAG_JUNCT.uy);
+    DRAG_JUNCT.moved = true;
+    try { _junctRepoSync(); } catch(e){}
+    redrawAll();
+    return;
+  }
   if(DRAG_OUTLINE_VERT) {
     DRAG_OUTLINE_VERT.moved = true;
     // Use RAW cursor image coordinates here (bypass getXY's grid-
@@ -58599,6 +58839,39 @@ function redrawAll() {
   if(DRAW.currentPts.length>0||['outline','section','ridge','valley','gutter','hip','penetration','info'].indexOf(DRAW.tool)>=0){var MAGNET2=15,allPts2=[];DRAW.outline.forEach(function(p){allPts2.push(p);});DRAW.sections.forEach(function(s){s.poly.forEach(function(p){allPts2.push(p);});});DRAW.lines.forEach(function(l){allPts2.push(l.pts[0]);allPts2.push(l.pts[1]);});var nearSnap=null,_mxy=_t?canvasToImg([DRAW.mouseX,DRAW.mouseY],_t):[DRAW.mouseX,DRAW.mouseY];allPts2.forEach(function(p){var d=Math.sqrt((p[0]-_mxy[0])*(p[0]-_mxy[0])+(p[1]-_mxy[1])*(p[1]-_mxy[1]));if(d<MAGNET2)nearSnap=p;});if(nearSnap){var nsp=dp(nearSnap);ctx.beginPath();ctx.arc(nsp[0],nsp[1],8,0,Math.PI*2);ctx.strokeStyle='#ff6600';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(nsp[0],nsp[1],3,0,Math.PI*2);ctx.fillStyle='#ff6600';ctx.fill();}}
   if(DRAW._hipIntersectSnap&&DRAW._hipIntersectSnap.active&&DRAW._hipIntersectSnap.pt){var _ipt=_t?imgToCanvas(DRAW._hipIntersectSnap.pt,_t):DRAW._hipIntersectSnap.pt;ctx.save();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],13,0,Math.PI*2);ctx.strokeStyle='#059669';ctx.lineWidth=2.5;ctx.stroke();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],4,0,Math.PI*2);ctx.fillStyle='#059669';ctx.fill();ctx.strokeStyle='#059669';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(_ipt[0]-18,_ipt[1]);ctx.lineTo(_ipt[0]+18,_ipt[1]);ctx.stroke();ctx.beginPath();ctx.moveTo(_ipt[0],_ipt[1]-18);ctx.lineTo(_ipt[0],_ipt[1]+18);ctx.stroke();ctx.fillStyle='rgba(5,150,105,0.93)';ctx.font='bold 10px sans-serif';var _cwM=ctx.measureText('✓ CENTRE MEET').width+10;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17,3);else ctx.rect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓ CENTRE MEET',_ipt[0],_ipt[1]+24);ctx.restore();}
   if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1){var _spM=DRAW.currentPts[0],_epM=[DRAW.mouseX,DRAW.mouseY],_dlM=Math.sqrt((_epM[0]-_spM[0])*(_epM[0]-_spM[0])+(_epM[1]-_spM[1])*(_epM[1]-_spM[1]));if(_dlM>8){var _spCM=_t?imgToCanvas(_spM,_t):_spM,_epCM=_t?imgToCanvas(_epM,_t):_epM,_mCM=[(_spCM[0]+_epCM[0])/2,(_spCM[1]+_epCM[1])/2],_lbM=(DRAW.tool==='hip'?'Hip':'Valley')+' ✓ 45°';ctx.save();ctx.font='bold 11px sans-serif';var _lwM=ctx.measureText(_lbM).width+10;ctx.fillStyle='rgba(5,150,105,0.92)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18,4);else ctx.rect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_lbM,_mCM[0],_mCM[1]-11);ctx.restore();}}
+
+  // A JUNCTION YOU CAN SEE IS A JUNCTION YOU CAN CLICK (2026-10-14). The
+  // drag existed nowhere, but even once it does, a point with nothing drawn
+  // on it is a point nobody tries to grab — which is most of what "it won't
+  // let me click that junction" was. A hollow grab ring on each one, and the
+  // ridge's own axis drawn through the selected one so it is plain WHICH way
+  // it will move. Never on paper or in the Job Pack's captures.
+  if (DRAW.tool === 'select' && DRAW.outlineDone && !window._hideCalibrationOverlay){
+    try {
+      var _jsel = (window._junctRepo && window._junctRepo.key) || '';
+      _roofJunctions().forEach(function(j){
+        var ax = _junctAxis(j); if (!ax) return;
+        var c = dp(j.pt), on = (j.key === _jsel);
+        if (on){
+          var f = dp([j.pt[0] + ax.ux * ax.len, j.pt[1] + ax.uy * ax.len]);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(250,204,21,.85)'; ctx.lineWidth = 2; ctx.setLineDash([7,5]);
+          ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(f[0], f[1]); ctx.stroke();
+          ctx.setLineDash([]); ctx.restore();
+        }
+        ctx.save();
+        ctx.beginPath(); ctx.arc(c[0], c[1], on ? 10 : 7, 0, Math.PI*2);
+        ctx.fillStyle = on ? 'rgba(250,204,21,.30)' : 'rgba(255,255,255,.72)';
+        ctx.fill();
+        ctx.lineWidth = on ? 3 : 2;
+        ctx.strokeStyle = on ? '#eab308' : '#0a1628';
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(c[0], c[1], 2, 0, Math.PI*2);
+        ctx.fillStyle = on ? '#eab308' : '#0a1628'; ctx.fill();
+        ctx.restore();
+      });
+    } catch(e){}
+  }
 
   // Live dimension HUD while dragging an outline corner: show the two
   // adjacent wall lengths (metres when calibrated, else pixels) at each
