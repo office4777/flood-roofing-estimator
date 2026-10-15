@@ -1334,6 +1334,22 @@ Discipline (non-negotiable):
   "only show that build outline box for 4 second then make it disappear") —
   the four before it wait on the roofer doing the thing they ask for, but this
   one asks for a click on a button that stays lit for the rest of the job.
+  NOTHING ELSE DROPS OPEN OVER THE FIRST CARD (2026-10-15, the owner: "stop
+  the 'canvas view' popdown window from opening automatically as soon as i've
+  used a satellite image or uploaded a background image, just run through the
+  5 steps"). `_afterAerialPlaced` opened the CANVAS VIEW menu (`#viewMenu`,
+  the "Edit font size" button) by itself 350 ms after a capture, and the
+  first-roof walkthrough's `adjust` step and the playground's
+  `_tryPictureReady` did the same — all three from the days when the rotate
+  control lived inside that menu. It has not since 2026-09-24 (`#rotImgWrap`
+  is its own slider on the toolbar), so what dropped open over the coach's
+  own "Drag the roof to centre it" card was Snap to grid and three text-size
+  sliders: nothing to do with squaring a picture up. All three opens are
+  gone; the menu opens on its own button and only there. `closeViewMenu()` in
+  the walkthrough's outline step is kept — a menu the roofer opened by hand
+  should still shut before the outline card points at the button under it.
+  `tests/canvascoach.mjs`, and the two suites that had pinned the menu OPEN
+  (`playground.mjs`, `onboarding.mjs`) now pin it shut.
 - THE ROOF SETTINGS PANEL IS PLAINLY A LAYER (2026-10-13, the owner: "change
   the background colour of the drop-down 'Roof settings' window ... it looks
   confusing and doesn't look like a collaspable menu, looks like the key

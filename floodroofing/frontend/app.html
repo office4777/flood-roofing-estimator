@@ -4927,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-15T21:22:38Z';
+  window.APP_BUILT_AT = '2026-10-15T22:39:39Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -23198,17 +23198,18 @@ function openSatelliteView(){
 }
 // The picture has just landed: bring the roof toolbar to the top of the
 // screen so the canvas fills it (the image card and the questions above
-// were taking half the window), and open the rotate control — the first
-// thing to do with a fresh aerial is square it up.
+// were taking half the window). The CANVAS VIEW menu is NOT opened — it used
+// to drop open by itself 350ms after a capture, from the days when the
+// rotate control lived inside it. It does not any more (#rotImgWrap is its
+// own slider on the toolbar), so all the menu had left to offer was Snap to
+// grid and three text-size sliders — and it opened straight over the canvas
+// coach's own first card. The coach is what walks them through the picture
+// now; nothing else should be covering it (the owner, 2026-10-15: "stop the
+// 'canvas view' popdown window from opening automatically ... just run
+// through the 5 steps").
 function _afterAerialPlaced(){
   var card = document.getElementById('roofPlanCard');
   if (card) { try { card.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch(e){ card.scrollIntoView(true); } }
-  setTimeout(function(){
-    try {
-      var m = document.getElementById('viewMenu');
-      if (m && m.style.display !== 'block') m.style.display = 'block';
-    } catch(e){}
-  }, 350);
   // A SATELLITE CAPTURE DOES NOT GO THROUGH _applyCanvasBg — placeBlob sets
   // DRAW.bgImg itself, deliberately, to skip a canvas conversion — so the
   // canvas coach is started here as well, or it would miss the one path the
@@ -52796,7 +52797,6 @@ function _firstRoofSteps(path){
         body: 'Slide the **Rotate photo** bar until the walls run straight. Then **Move / Edit** to drag the picture, and the zoom **+** / **−** until the roof fills the canvas. Click **Next** when it looks right.',
         onEnter: function(){
           base.img = DRAW.bgImg; base.adj = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|');
-          try { var m = document.getElementById('viewMenu'); if (m && m.style.display !== 'block') m.style.display = 'block'; } catch(e){}
         },
         until: function(){
           var now = [IMG_FINE_ROTATION, JSON.stringify(IMG_OFFSET), DRAW.zoom].join('|');
@@ -53128,7 +53128,6 @@ function _tryPictureReady(){
   if (!DRAW.bgImg) return;
   _tryChooser(false);
   try { setTool('select'); } catch(e){}
-  try { var m = document.getElementById('viewMenu'); if (m) m.style.display = 'block'; } catch(e){}
   _tryStep('1. Square it up', 'Slide the Rotate photo bar until the walls run straight. Zoom + / − and drag the picture with Move / Edit. Then click Building outline.');
   try { redrawAll(); } catch(e){}
   try { parent.postMessage({ type: 'roofmap-try', state: 'picture', source: TRY.source }, '*'); } catch(e){}

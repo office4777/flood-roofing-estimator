@@ -116,7 +116,7 @@ v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.na
   menu: document.getElementById('viewMenu').style.display, slider: !!document.getElementById('fineRotateSlider') && document.getElementById('fineRotateSlider').getBoundingClientRect().width > 0,
   step: document.getElementById('stepTitle').textContent, tool: DRAW.tool }));
 check('Satellite view puts the practice picture on the canvas at its scale', v.img && v.w === 900 && v.scale === 0.03 && !v.chooser, JSON.stringify(v));
-check('…with the rotate bar already open, the zoom in reach, Move / Edit selected', v.menu === 'block' && v.slider && v.tool === 'select' && /Square it up/.test(v.step), JSON.stringify(v));
+check('…with the rotate bar in reach, the CANVAS VIEW menu shut, Move / Edit selected', v.menu !== 'block' && v.slider && v.tool === 'select' && /Square it up/.test(v.step), JSON.stringify(v));
 check('…and the picture was fetched from the public route', calls.some(c => /GET \/practice\/picture/.test(c)));
 
 // Trace the building: four corners, Enter.

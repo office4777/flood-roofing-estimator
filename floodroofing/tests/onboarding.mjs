@@ -95,7 +95,7 @@ v = await pg.evaluate(() => ({ finder: document.getElementById('aerialAddressInp
 check('…with the practice address in the finder and a way through when there is no satellite picture', /23 Don Buck Road/.test(v.finder) && v.buttons.length === 1 && /practice picture/.test(v.buttons[0]), JSON.stringify(v));
 // No imagery here: the fallback puts the prepared picture on the canvas.
 await pg.evaluate(() => document.querySelector('#tourExtra button').click());
-check('the picture landing → "square it up", pointing at the Rotate photo slider with the menu open', await waitStep(pg, 'adjust', 8000) && (await pg.evaluate(() => TOUR.steps[TOUR.i].sel === '#fineRotateSlider' && document.getElementById('viewMenu').style.display === 'block')), await stepKey(pg));
+check('the picture landing → "square it up", pointing at the Rotate photo slider and nothing dropped over it', await waitStep(pg, 'adjust', 8000) && (await pg.evaluate(() => TOUR.steps[TOUR.i].sel === '#fineRotateSlider' && document.getElementById('viewMenu').style.display !== 'block')), await stepKey(pg));
 v = await pg.evaluate(() => ({ img: !!DRAW.bgImg, w: DRAW.bgImg && DRAW.bgImg.naturalWidth, scale: DRAW.scaleMetresPerPx, folded: document.getElementById('roofBgBody').style.display }));
 check('…the prepared aerial is on the canvas at its saved scale, the picture boxes still open (they never fold since 2026-09-25)', v.img && v.w === 900 && v.scale === 0.03 && v.folded !== 'none', JSON.stringify(v));
 check('…reported as an aerial source, not a fallback', usage.some(u => u.name === 'roof_source' && u.props.type === 'aerial') && !usage.some(u => u.name === 'roof_source' && u.props.type === 'fallback'));

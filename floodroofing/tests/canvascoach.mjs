@@ -188,6 +188,21 @@ const aerial = await pg.evaluate(async (src) => {
 check('A SATELLITE CAPTURE STARTS THE TIPS TOO', aerial.on && aerial.step === 'move' && /centre it/i.test(aerial.title), JSON.stringify(aerial));
 check('…on the Move tool, so the drag it asks for actually pans', aerial.tool === 'select', aerial.tool);
 
+// ── AND NOTHING ELSE DROPS OPEN OVER THE FIRST CARD ──────────────
+// _afterAerialPlaced used to open the CANVAS VIEW menu by itself 350ms after
+// a capture, from the days when the rotate control lived inside it. It landed
+// straight over "Drag the roof to centre it" (the owner, 2026-10-15). The menu
+// still opens on its own button, and only there.
+const vm = await pg.evaluate(() => {
+  const m = document.getElementById('viewMenu');
+  const shut = !m || m.style.display !== 'block';
+  toggleViewMenu(null);
+  return { shut, byHand: m && m.style.display === 'block' };
+});
+check('the CANVAS VIEW menu stays shut after a capture', vm.shut === true, JSON.stringify(vm));
+check('…and still opens when the button is pressed', vm.byHand === true, JSON.stringify(vm));
+await pg.evaluate(() => closeViewMenu());
+
 // ── and never on top of a tutorial, guide or walkthrough ─────────
 const quiet = await pg.evaluate(() => {
   clearAll(true);
