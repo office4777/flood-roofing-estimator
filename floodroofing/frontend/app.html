@@ -4927,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-14T23:06:58Z';
+  window.APP_BUILT_AT = '2026-10-15T21:22:38Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -56306,6 +56306,28 @@ function _applySnapState(snapStr) {
   }
   try { if (typeof _renderRoofMenuBar === 'function') _renderRoofMenuBar(); } catch(e){}
   try { if (typeof renderRoofSwitcher === 'function') renderRoofSwitcher(); } catch(e){}
+  // UNDO IS AN EXPLICIT EMPTYING (2026-10-15, a client error report from
+  // info@wellingtonroof.co.nz on build d8a0000: "empty drawing blocked at save
+  // — job=draft roofs=0 outline=0 lines=0 hadDrawing=no lkgSource=memory",
+  // through startNewJob → _saveBeforeSwitch → _writeLocalDraftNow).
+  //
+  // The last-known-good guard's own rule is that only an explicit clear may
+  // empty a drawing, "and those say so by calling _lkgForget()" — Clear,
+  // Delete roof and New job all do. UNDO DID NOT, and it is just as explicit:
+  // the roofer asked for it. So undoing back past the first corner left the
+  // guard still holding the roof, and the next save — an autosave, or the
+  // New Job he pressed — was "blocked", paged the office, told him the map
+  // had gone blank, and PUT THE UNDONE ROOF BACK into the draft. Reproduced
+  // exactly, every field of his report matching, before this was changed.
+  //
+  // Only when it is actually empty: undoing one line out of twenty must leave
+  // the guard armed. Redo needs nothing — landing on a drawing again, the
+  // guard remembers it at the next save, which is how it is armed in the
+  // first place.
+  try {
+    if (_drawIsEmpty({ outline:DRAW.outline, lines:DRAW.lines,
+                       roofs:(Array.isArray(DRAW.roofs) ? DRAW.roofs : []) })) _lkgForget();
+  } catch(e){}
 }
 // Push a pre-captured snapshot string onto the undo stack. Used by
 // drag handlers that capture state at drag-start and only commit it

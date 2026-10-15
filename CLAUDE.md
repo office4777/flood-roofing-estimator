@@ -2498,6 +2498,36 @@ Discipline (non-negotiable):
   means STATUS, not decoration. Menus are `<details>` so they work on a phone
   with no JS; `innerText` of the bar excludes a closed menu's items, so tests
   pin the summary text (`Drafts (1)`), not the items.
+- UNDO IS AN EXPLICIT EMPTYING (2026-10-15, a client error report from
+  info@wellingtonroof.co.nz on build d8a0000: "empty drawing blocked at save
+  — job=draft occurrence=1 roofs=0 activeRoofIdx=-1 outline=0 lines=0
+  tab=select hadDrawing=no lkgSource=memory", stack
+  `startNewJob` → `_saveBeforeSwitch` → `_writeLocalDraftNow` →
+  `snapshotCurrentJob` → `_lkgGuard`).
+  The last-known-good guard's own rule is that only an explicit clear may
+  empty a drawing, "and those say so by calling `_lkgForget()`" — Clear,
+  Delete roof and New job all do. UNDO DID NOT, and it is every bit as
+  explicit: the roofer asked for it. So undoing back past the first corner
+  left the guard still holding the roof, and the next save — an autosave, or
+  the New Job he pressed — was "blocked", paged the office, told him on screen
+  that his roof map had gone blank, and PUT THE UNDONE ROOF BACK into the
+  draft. The email was the least of it: undo did not stick.
+  REPRODUCED FIRST, every field of his report matching (`key=draft`,
+  `hadDrawing=no`, `lkgSource=memory`, the same message), and the substitution
+  measured — the snapshot came back carrying the four-corner outline he had
+  just undone. Two earlier theories were tested and WRONG: `startNewJob` not
+  calling `_lkgForget` (it is covered by `clearAll`, which forgets the current
+  key) and the Fergus fresh branch stranding a 'draft' entry. Neither
+  reproduced; undo did, first try.
+  THE FIX IS ONE PLACE: `_applySnapState` is called by `undoLast` and
+  `redoLast` and by nothing else, so a `_lkgForget()` at its end — ONLY when
+  the drawing is actually empty — covers both. Undoing one line out of twenty
+  must leave the guard armed, and does. Redo needs nothing: landing on a
+  drawing again, the guard remembers it at the next save, which is how it is
+  armed in the first place.
+  THE GUARD'S REAL JOB IS UNTOUCHED and pinned beside it: a drawing that
+  vanishes with NOBODY asking is still blocked, still put back, and still
+  reported. `tests/lkgguard.mjs`.
 - A TAPE ON A PLAN SETS THE SCALE (2026-10-14, the owner on an imported A3
   consent plan: "can't you just base the scale of this physical bar? ignore
   the A3 it shouldn't matter? or am i wrong?").

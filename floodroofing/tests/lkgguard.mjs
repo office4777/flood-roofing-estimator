@@ -271,6 +271,71 @@ check('resuming an empty draft over an open job is not reported as a blocked sav
 check('…says nothing about a blank roof map', !/blank/.test(v.status), v.status.slice(0, 100) || 'quiet');
 check('…and the read-only flag does not stick', v.roFlagCleared, '');
 
+// ── UNDO IS AN EXPLICIT EMPTYING (2026-10-15) ─────────────────
+// A client error report from info@wellingtonroof.co.nz on build d8a0000:
+// "empty drawing blocked at save — job=draft roofs=0 outline=0 lines=0
+// hadDrawing=no lkgSource=memory", through startNewJob → _saveBeforeSwitch
+// → _writeLocalDraftNow. The guard's own rule is that only an explicit clear
+// may empty a drawing, "and those say so by calling _lkgForget()" — Clear,
+// Delete roof and New job all do; UNDO did not, and it is just as explicit.
+// So undoing past the first corner paged the office, told him his roof map
+// had gone blank, and PUT THE UNDONE ROOF BACK into the draft.
+const undo = await pg.evaluate(async () => {
+  const r = {}; let seen = 0;
+  const realReport = window._lkgReport;
+  window._lkgReport = function(){ seen++; };
+  const drawOne = () => { DRAW.outline = [[200,200],[800,200],[800,520],[200,520]];
+    DRAW.outlineDone = true; regenerateAutoRoofLines('hip');
+    try { _syncCurrentToRoof(); } catch(e){} };
+
+  // (1) his exact path: draw on an unsaved draft, undo it all, then save
+  gotoTab('roof'); clearAll(true); setTool('select');
+  DRAW.scaleMetresPerPx = 0.03; DRAW.calPitch = 25;
+  saveSnapshot(); drawOne(); snapshotCurrentJob();
+  r.armed = !!LKG.byJob['draft'];
+  seen = 0;
+  for (let i = 0; i < 6; i++) { try { undoLast(); } catch(e){} }
+  r.afterUndo = { outline:(DRAW.outline||[]).length, lkg: !!LKG.byJob['draft'] };
+  const snap = snapshotCurrentJob();
+  r.saved = { outline: ((snap.draw||{}).outline||[]).length, reports: seen };
+
+  // (2) the guard still catches a drawing that vanished with NOBODY asking
+  clearAll(true); DRAW.scaleMetresPerPx = 0.03; drawOne(); snapshotCurrentJob();
+  seen = 0;
+  DRAW.outline = []; DRAW.lines = []; DRAW.roofs = [];
+  const s2 = snapshotCurrentJob();
+  r.vanished = { outline: ((s2.draw||{}).outline||[]).length, reports: seen };
+
+  // (3) undoing ONE line of many must leave the guard armed
+  clearAll(true); DRAW.scaleMetresPerPx = 0.03; saveSnapshot(); drawOne(); snapshotCurrentJob();
+  saveSnapshot(); DRAW.lines.pop(); undoLast();
+  r.partial = { lines:(DRAW.lines||[]).length, lkg: !!LKG.byJob[_lkgKey()] };
+
+  // (4) redo re-arms it by itself at the next save
+  for (let i = 0; i < 8; i++) { try { undoLast(); } catch(e){} }
+  const mid = !!LKG.byJob[_lkgKey()];
+  for (let i = 0; i < 8; i++) { try { redoLast(); } catch(e){} }
+  snapshotCurrentJob();
+  r.redo = { mid: mid, outline:(DRAW.outline||[]).length, lkg: !!LKG.byJob[_lkgKey()] };
+
+  window._lkgReport = realReport;
+  return r;
+});
+check('a roof drawn on an unsaved draft arms the guard', undo.armed === true);
+check('undoing back past the first corner lets the guard go',
+  undo.afterUndo.outline === 0 && undo.afterUndo.lkg === false, JSON.stringify(undo.afterUndo));
+check('\u2026so the save that follows writes the blank the roofer asked for',
+  undo.saved.outline === 0, JSON.stringify(undo.saved));
+check('\u2026and nobody is paged about it', undo.saved.reports === 0, String(undo.saved.reports));
+check('but a drawing that vanishes with NOBODY asking is still put back',
+  undo.vanished.outline === 4, JSON.stringify(undo.vanished));
+check('\u2026and that one still reports', undo.vanished.reports === 1, String(undo.vanished.reports));
+check('undoing one line of many leaves the guard armed',
+  undo.partial.lines > 0 && undo.partial.lkg === true, JSON.stringify(undo.partial));
+check('redo brings the drawing back and the guard re-arms itself',
+  undo.redo.mid === false && undo.redo.outline === 4 && undo.redo.lkg === true,
+  JSON.stringify(undo.redo));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();
