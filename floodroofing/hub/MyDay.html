@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>My Day — Flood Roofing</title>
+<meta name="description" content="Plan tomorrow tonight. Tick it off today.">
+<link rel="manifest" href="myday.webmanifest">
+<meta name="theme-color" content="#0f1722">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My Day">
+<link rel="apple-touch-icon" href="myday-icon.png">
+<link rel="icon" href="myday-icon.png">
+<style>
+/* ── The whole app is three colours and one idea: the big ones are loud,
+      everything else is quiet. ──────────────────────────────────────── */
+:root{
+  --bg:#0f1722; --card:#17202e; --card2:#1d2838; --line:#2a374a;
+  --ink:#eef4fb; --dim:#93a3b8; --faint:#64748b;
+  --go:#2dd482; --cy:#0099cc; --warn:#f7b955; --bad:#ef5f5f;
+  --pad:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink)}
+body{
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior-y:contain;
+}
+#app{max-width:620px;margin:0 auto;padding:0 var(--pad) 120px}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+input,textarea{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;width:100%;outline:none}
+input:focus,textarea:focus{border-color:var(--cy)}
+::placeholder{color:var(--faint)}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+header{padding:18px 0 10px;position:sticky;top:0;background:linear-gradient(var(--bg) 72%,transparent);z-index:5}
+.hrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+h1{margin:0;font-size:25px;line-height:1.15;font-weight:800;letter-spacing:-.4px}
+.sub{color:var(--dim);font-size:13.5px;margin-top:3px}
+.gear{font-size:20px;color:var(--faint);padding:6px 2px;line-height:1}
+
+/* The two screens. One tap between them — nothing else to learn. */
+.seg{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:5px;margin:14px 0 4px}
+.seg button{flex:1;padding:11px 8px;border-radius:10px;font-weight:700;font-size:14.5px;color:var(--dim);letter-spacing:.2px}
+.seg button.on{background:var(--cy);color:#04222e}
+.seg button.on.plan{background:var(--warn);color:#2e2003}
+
+/* ── Section headings ───────────────────────────────────────────────── */
+.lab{font-size:11.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);font-weight:800;margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lab .cnt{letter-spacing:0;text-transform:none;font-size:12.5px;font-weight:700;color:var(--dim)}
+.lab .cnt.all{color:var(--go)}
+
+/* ── A big one ──────────────────────────────────────────────────────── */
+.big{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--cy);
+  border-radius:16px;padding:18px 14px;margin-bottom:10px;min-height:72px;
+  transition:background .12s,border-color .12s,opacity .12s;
+}
+.big:active{background:var(--card2)}
+.big .tick{
+  flex:0 0 32px;height:32px;border-radius:50%;border:2.5px solid var(--faint);
+  display:flex;align-items:center;justify-content:center;font-size:17px;color:transparent;font-weight:900;
+}
+.big .txt{flex:1;font-size:18px;font-weight:650;line-height:1.3;word-break:break-word}
+.big .num{flex:0 0 auto;color:var(--faint);font-size:12px;font-weight:800;align-self:flex-start;margin-top:3px}
+.big.done{border-left-color:var(--go);opacity:.62}
+.big.done .tick{border-color:var(--go);background:var(--go);color:#06301c}
+.big.done .txt{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--dim)}
+.big .more{flex:0 0 36px;height:36px;border-radius:9px;color:var(--faint);font-size:19px;line-height:1}
+.big .more:active{background:var(--line)}
+
+/* ── A fill-in ──────────────────────────────────────────────────────── */
+.fill{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:transparent;
+  border:1px solid transparent;border-bottom:1px solid var(--line);border-radius:0;padding:13px 4px;min-height:52px}
+.fill:active{background:var(--card)}
+.fill .tick{flex:0 0 22px;height:22px;border-radius:50%;border:2px solid var(--faint);display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent;font-weight:900}
+.fill .txt{flex:1;font-size:15.5px;color:var(--dim)}
+.fill.done{opacity:.5}
+.fill.done .tick{border-color:var(--go);background:var(--go);color:#06301c}
+.fill.done .txt{text-decoration:line-through}
+.fill .more{flex:0 0 32px;height:32px;color:var(--faint);font-size:17px;border-radius:8px}
+
+.add{display:flex;gap:8px;margin-top:12px}
+.add input{flex:1}
+.add button{flex:0 0 52px;background:var(--card2);border:1px solid var(--line);border-radius:12px;font-size:22px;color:var(--cy);font-weight:700}
+
+/* ── Planning screen ────────────────────────────────────────────────── */
+.slot{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.slot .n{flex:0 0 34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--warn);font-size:15px}
+.slot input{font-size:16.5px;font-weight:600;padding:16px 14px}
+.slot.filled .n{background:var(--warn);color:#2e2003;border-color:var(--warn)}
+.ghost{display:block;width:100%;text-align:center;padding:13px;color:var(--dim);background:var(--card);
+  border:1px dashed var(--line);border-radius:12px;font-size:14.5px;font-weight:600}
+.ghost:active{background:var(--card2)}
+
+.carry{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.carry button{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:9px 14px;
+  font-size:13.5px;color:var(--ink);font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.carry button:active{border-color:var(--warn)}
+.carry button .p{color:var(--warn);font-weight:800;margin-right:5px}
+
+.done-btn{display:block;width:100%;background:var(--go);color:#06301c;font-weight:800;font-size:17px;
+  padding:18px;border-radius:16px;margin-top:26px;letter-spacing:.2px}
+.done-btn:active{filter:brightness(.92)}
+.done-btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+
+/* ── Banners, empties, footer ───────────────────────────────────────── */
+.banner{display:flex;align-items:center;gap:12px;background:#2a2109;border:1px solid #5a4410;color:#fde9b8;
+  border-radius:14px;padding:14px;margin:14px 0 2px;font-size:14.5px;font-weight:600;width:100%;text-align:left}
+.banner .go{margin-left:auto;color:var(--warn);font-weight:800;white-space:nowrap}
+.banner.good{background:#07271a;border-color:#15543a;color:#b9f0d6}
+.empty{color:var(--faint);font-size:14.5px;padding:16px 2px;line-height:1.5}
+.peek{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}
+.peek .pl{font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--faint);font-weight:800;margin-bottom:8px}
+.peek li{font-size:14.5px;color:var(--dim);margin:5px 0}
+.peek ol{margin:0;padding-left:20px}
+
+footer{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 42%);
+  padding:22px var(--pad) calc(12px + env(safe-area-inset-bottom));text-align:center;pointer-events:none}
+footer .s{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--faint);
+  background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 14px;pointer-events:auto}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--go);flex:0 0 8px}
+.dot.off{background:var(--faint)} .dot.bad{background:var(--bad)} .dot.busy{background:var(--warn)}
+
+/* ── Sheet (settings / edit) ────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);border:1px solid var(--line);border-radius:20px 20px 0 0;width:100%;max-width:620px;
+  padding:20px var(--pad) calc(24px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
+.sheet h2{margin:0 0 4px;font-size:19px;font-weight:800}
+.sheet p{color:var(--dim);font-size:14px;line-height:1.5;margin:8px 0}
+.sheet .row{display:flex;gap:10px;margin-top:14px}
+.sheet .row button{flex:1;padding:15px;border-radius:13px;background:var(--card2);border:1px solid var(--line);font-weight:700;font-size:15px}
+.sheet .row button.pri{background:var(--cy);color:#04222e;border-color:var(--cy)}
+.sheet .row button.danger{color:var(--bad)}
+.link{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12px;
+  color:var(--dim);word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.45}
+@media (min-width:640px){ h1{font-size:30px} .big .txt{font-size:19px} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="hrow">
+      <div>
+        <h1 id="hTitle">My Day</h1>
+        <div class="sub" id="hSub"></div>
+      </div>
+      <button class="gear" id="btnGear" aria-label="Settings">⚙</button>
+    </div>
+    <div class="seg">
+      <button id="segToday">TODAY</button>
+      <button id="segPlan" class="plan">PLAN TOMORROW</button>
+    </div>
+  </header>
+  <main id="main"></main>
+</div>
+<footer><span class="s"><span class="dot off" id="syncDot"></span><span id="syncTxt">starting…</span></span></footer>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════
+   MY DAY — plan tomorrow tonight, tick it off today.
+
+   Three rules this thing is built on:
+     1. The device is the truth. Everything is written to localStorage the
+        instant it changes, so it works on a roof with no signal and never
+        loses a tick to a dropped connection.
+     2. The server is a post box, not a brain. It holds one small blob per
+        key; the merging happens here, so phone and computer converge
+        whatever order they sync in.
+     3. There is no Save button. If you can forget to press it, it is not
+        a tool you can rely on at 6am.
+   ══════════════════════════════════════════════════════════════════════ */
+
+// The seam is here so the suite can drive the REAL page against a real
+// server rather than a mock of one. Nothing sets it in production.
+var API  = window.__MYDAY_API || 'https://flood-roofing-estimator-production.up.railway.app';
+var LS   = 'fr_myday_v1';        // the plan itself
+var LSK  = 'fr_myday_key';       // the sync key (also carried in the URL hash)
+var MAX_BIG = 4;                 // three is the ask; the fourth is there when a day demands it
+
+/* ── Dates. Everything is keyed by the LOCAL date, because "today" is
+      whatever day it is where he is standing, not in UTC. ───────────── */
+function iso(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dayFromIso(s){ var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function todayIso(){ return iso(new Date()); }
+function plusDays(s, n){ var d = dayFromIso(s); d.setDate(d.getDate() + n); return iso(d); }
+var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function pretty(s){ var d = dayFromIso(s); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONS[d.getMonth()]; }
+function shortDay(s){ var d = dayFromIso(s); return DAYS[d.getDay()]; }
+function relWord(s){
+  var t = todayIso();
+  if (s === t) return 'Today';
+  if (s === plusDays(t, 1)) return 'Tomorrow';
+  if (s === plusDays(t, -1)) return 'Yesterday';
+  return pretty(s);
+}
+function clockNow(){
+  var d = new Date(), h = d.getHours(), m = String(d.getMinutes()).padStart(2,'0');
+  var ap = h < 12 ? 'am' : 'pm'; h = h % 12; if (!h) h = 12;
+  return h + ':' + m + ' ' + ap;
+}
+
+/* ── The document ───────────────────────────────────────────────────── */
+function blankDoc(){ return { v:1, days:{} }; }
+var DOC = blankDoc();
+var REV = 0;              // the server revision this device last agreed with
+var KEY = '';             // the sync key, '' = this device only
+var VIEW = 'today';       // 'today' | 'plan'
+var dirty = false;        // there is work here the server has not got yet
+var PLAN_DATE = '';       // which day the PLAN screen is editing
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function now(){ return Date.now(); }
+
+function dayOf(d, make){
+  if (!DOC.days[d]){ if (!make) return { big:[], fill:[] }; DOC.days[d] = { big:[], fill:[] }; }
+  var x = DOC.days[d];
+  if (!x.big) x.big = [];
+  if (!x.fill) x.fill = [];
+  return x;
+}
+/* A deleted task is kept as a tombstone, so "I deleted it on the phone"
+   survives a computer that still has it. live() is what the screen reads. */
+function live(list){ return (list||[]).filter(function(t){ return !t.deleted; }).sort(function(a,b){ return (a.pos||0) - (b.pos||0); }); }
+function mkTask(text, pos){ return { id:uid(), text:String(text||'').trim(), done:false, doneAt:0, pos:pos, updatedAt:now(), deleted:false }; }
+
+/* ── Storage ────────────────────────────────────────────────────────── */
+function save(){
+  try { localStorage.setItem(LS, JSON.stringify({ doc:DOC, rev:REV, dirty:dirty })); } catch(e){}
+}
+function load(){
+  try {
+    var raw = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (raw && raw.doc){ DOC = raw.doc; REV = raw.rev || 0; dirty = !!raw.dirty; }
+    if (!DOC.days) DOC.days = {};
+  } catch(e){ DOC = blankDoc(); }
+  try { KEY = localStorage.getItem(LSK) || ''; } catch(e){}
+  // A key in the link always wins — that is how a second device joins.
+  var m = (location.hash || '').match(/k=([A-Za-z0-9]{10,80})/);
+  if (m && m[1] !== KEY){ KEY = m[1]; try { localStorage.setItem(LSK, KEY); } catch(e){} }
+}
+
+/* ── Merge. Last write wins per task, tombstones included. Two devices
+      that both sync end up identical whichever order they do it in. ─── */
+function mergeDocs(a, b){
+  var out = { v:1, days:{} };
+  var keys = {};
+  Object.keys((a&&a.days)||{}).forEach(function(k){ keys[k]=1; });
+  Object.keys((b&&b.days)||{}).forEach(function(k){ keys[k]=1; });
+  Object.keys(keys).forEach(function(d){
+    var A = ((a&&a.days)||{})[d] || {}, B = ((b&&b.days)||{})[d] || {};
+    out.days[d] = { big: mergeList(A.big, B.big), fill: mergeList(A.fill, B.fill) };
+  });
+  return out;
+}
+function mergeList(la, lb){
+  var by = {};
+  (la||[]).concat(lb||[]).forEach(function(t){
+    if (!t || !t.id) return;
+    var cur = by[t.id];
+    if (!cur || (t.updatedAt||0) > (cur.updatedAt||0)) by[t.id] = t;
+  });
+  return Object.keys(by).map(function(k){ return by[k]; }).sort(function(x,y){ return (x.pos||0)-(y.pos||0); });
+}
+/* Days long past are not worth carrying to every device forever. Keep a
+   fortnight of history and everything from today on. */
+function prune(doc){
+  var cut = plusDays(todayIso(), -14);
+  Object.keys(doc.days||{}).forEach(function(d){ if (d < cut) delete doc.days[d]; });
+  return doc;
+}
+
+/* ── Sync ───────────────────────────────────────────────────────────── */
+var syncTimer = null, syncing = false, lastSync = 0;
+function setSync(cls, txt){
+  var dot = document.getElementById('syncDot'), t = document.getElementById('syncTxt');
+  if (dot) dot.className = 'dot ' + cls;
+  if (t) t.textContent = txt;
+}
+function queueSync(){
+  dirty = true;
+  save();                       // the flag goes down with the change, not after it
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(doSync, 1200);
+  setSync('busy', 'saving…');
+}
+async function doSync(force){
+  if (!KEY){ setSync('off', 'this device only'); return; }
+  if (syncing) return;
+  if (!navigator.onLine){ setSync('off', 'offline — saved here'); return; }
+  syncing = true;
+  setSync('busy', 'syncing…');
+  try {
+    var body = { baseRev: REV, doc: prune(DOC) };
+    var r = await fetch(API + '/day/' + encodeURIComponent(KEY), {
+      method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body)
+    });
+    if (r.status === 409){
+      // Somebody else moved first. Merge theirs in and go again — this is
+      // the normal case when the phone and the computer are both open.
+      var other = await r.json();
+      DOC = prune(mergeDocs(DOC, other.doc || blankDoc()));
+      REV = other.rev || 0;
+      save(); render();
+      syncing = false;
+      return doSync(true);
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var out = await r.json();
+    // The server hands back what it now holds; agreeing with it keeps the
+    // two from drifting apart over weeks.
+    DOC = prune(mergeDocs(DOC, out.doc || DOC));
+    REV = out.rev || 0;
+    dirty = false; lastSync = now();
+    save();
+    setSync('', 'synced ' + clockNow());
+    render();
+  } catch(e){
+    setSync('bad', 'saved here — will sync');
+  }
+  syncing = false;
+}
+async function pullOnly(){
+  if (!KEY || !navigator.onLine) return;
+  try {
+    var r = await fetch(API + '/day/' + encodeURIComponent(KEY), { headers:{ 'Accept':'application/json' } });
+    if (!r.ok) return;
+    var out = await r.json();
+    var before = JSON.stringify(DOC);
+    DOC = prune(mergeDocs(DOC, out.doc || blankDoc()));
+    REV = out.rev || 0;
+    save();
+    if (JSON.stringify(DOC) !== before) render();
+    setSync('', 'synced ' + clockNow());
+  } catch(e){}
+}
+async function makeKey(){
+  var r = await fetch(API + '/day/new', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:'{}' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  var out = await r.json();
+  KEY = out.key;
+  REV = 0;
+  try { localStorage.setItem(LSK, KEY); } catch(e){}
+  try { history.replaceState(null, '', location.pathname + location.search + '#k=' + KEY); } catch(e){}
+  await doSync(true);
+  return KEY;
+}
+function myLink(){
+  return location.origin + location.pathname + (KEY ? '#k=' + KEY : '');
+}
+
+/* ── Mutations. Every one of them saves and queues a sync; there is no
+      other way to change the document. ──────────────────────────────── */
+function touch(t){ t.updatedAt = now(); }
+function toggle(d, kind, id){
+  var day = dayOf(d, true);
+  var t = (day[kind]||[]).filter(function(x){ return x.id===id; })[0];
+  if (!t) return;
+  t.done = !t.done;
+  t.doneAt = t.done ? now() : 0;
+  touch(t);
+  save(); queueSync(); render();
+}
+function addTask(d, kind, text){
+  text = String(text||'').trim();
+  if (!text) return false;
+  var day = dayOf(d, true);
+  var cap = kind === 'big' ? MAX_BIG : 999;
+  if (live(day[kind]).length >= cap) return false;
+  var pos = day[kind].reduce(function(m,t){ return Math.max(m, t.pos||0); }, 0) + 1;
+  day[kind].push(mkTask(text, pos));
+  save(); queueSync(); render();
+  return true;
+}
+function setBigAt(d, i, text){
+  var day = dayOf(d, true);
+  var list = live(day.big);
+  text = String(text||'').trim();
+  if (list[i]){
+    if (list[i].text === text) return;
+    if (!text){ list[i].deleted = true; touch(list[i]); }
+    else { list[i].text = text; touch(list[i]); }
+  } else if (text){
+    day.big.push(mkTask(text, i + 1));
+  } else return;
+  save(); queueSync();
+}
+function editTask(d, kind, id, text){
+  var day = dayOf(d, true);
+  var t = (day[kind]||[]).filter(function(x){ return x.id===id; })[0];
+  if (!t) return;
+  text = String(text||'').trim();
+  if (!text) t.deleted = true; else t.text = text;
+  touch(t); save(); queueSync(); render();
+}
+function delTask(d, kind, id){
+  var day = dayOf(d, true);
+  var t = (day[kind]||[]).filter(function(x){ return x.id===id; })[0];
+  if (!t) return;
+  t.deleted = true; touch(t);
+  save(); queueSync(); render();
+}
+
+/* ── Rendering ──────────────────────────────────────────────────────── */
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+function render(){
+  var t = todayIso();
+  if (!PLAN_DATE || PLAN_DATE < t) PLAN_DATE = plusDays(t, 1);
+  document.getElementById('segToday').className = VIEW === 'today' ? 'on' : '';
+  document.getElementById('segPlan').className  = VIEW === 'plan' ? 'plan on' : 'plan';
+  if (VIEW === 'today'){
+    document.getElementById('hTitle').textContent = 'Today';
+    document.getElementById('hSub').textContent = pretty(t);
+    document.getElementById('main').innerHTML = todayHtml(t);
+  } else {
+    document.getElementById('hTitle').textContent = relWord(PLAN_DATE);
+    document.getElementById('hSub').textContent = 'Planning ' + pretty(PLAN_DATE);
+    document.getElementById('main').innerHTML = planHtml(PLAN_DATE);
+    wirePlan();
+  }
+}
+
+function todayHtml(t){
+  var day = dayOf(t), big = live(day.big), fill = live(day.fill);
+  var doneBig = big.filter(function(x){ return x.done; }).length;
+  var h = '';
+
+  // Nothing planned: say so plainly and offer the one thing worth doing.
+  if (!big.length && !fill.length){
+    h += '<div class="empty" style="padding-top:26px">Nothing planned for today.<br><br>' +
+         'The idea is to set tomorrow up tonight — three big things, and whatever small jobs you want to list under them.</div>';
+    h += '<button class="done-btn" data-act="goplan">Plan ' + esc(relWord(PLAN_DATE).toLowerCase()) + ' now</button>';
+    h += '<button class="done-btn sec" data-act="addtoday">Add something for today</button>';
+    return h;
+  }
+
+  if (big.length){
+    h += '<div class="lab">The big ones' +
+         '<span class="cnt' + (doneBig === big.length ? ' all' : '') + '">' + doneBig + ' of ' + big.length + ' done</span></div>';
+    big.forEach(function(x, i){
+      h += '<div class="big' + (x.done ? ' done' : '') + '" role="button" tabindex="0" ' +
+             'data-act="tog" data-kind="big" data-id="' + x.id + '">' +
+             '<span class="tick">✓</span>' +
+             '<span class="txt">' + esc(x.text) + '</span>' +
+             '<button class="more" data-act="menu" data-kind="big" data-id="' + x.id + '" aria-label="Edit">⋯</button>' +
+           '</div>';
+    });
+    if (doneBig === big.length){
+      h += '<div class="banner good">That is the day done. Anything else is a bonus.</div>';
+    }
+  } else {
+    h += '<div class="lab">The big ones</div>';
+    h += '<div class="empty">No big ones set for today. ' +
+         '<button data-act="addbig" style="color:var(--cy);font-weight:700;text-decoration:underline">Add one</button></div>';
+  }
+
+  h += '<div class="lab">Fill-in jobs' + (fill.length ? '<span class="cnt">' + fill.filter(function(x){return x.done;}).length + ' of ' + fill.length + '</span>' : '') + '</div>';
+  if (!fill.length) h += '<div class="empty" style="padding:6px 2px 0">Small stuff that is not part of the plan.</div>';
+  fill.forEach(function(x){
+    h += '<div class="fill' + (x.done ? ' done' : '') + '" role="button" tabindex="0" ' +
+           'data-act="tog" data-kind="fill" data-id="' + x.id + '">' +
+           '<span class="tick">✓</span>' +
+           '<span class="txt">' + esc(x.text) + '</span>' +
+           '<button class="more" data-act="menu" data-kind="fill" data-id="' + x.id + '" aria-label="Edit">⋯</button>' +
+         '</div>';
+  });
+  h += '<div class="add"><input id="addFill" placeholder="Add a fill-in job" enterkeyhint="done" autocomplete="off">' +
+       '<button data-act="addfill" aria-label="Add">+</button></div>';
+
+  // The evening nudge. From 4pm, if tomorrow is bare, this is the thing
+  // that matters more than anything left on today's list.
+  var tomorrow = plusDays(t, 1), tb = live(dayOf(tomorrow).big);
+  if (!tb.length && new Date().getHours() >= 16){
+    h += '<button class="banner" data-act="goplan">📋 ' + shortDay(tomorrow) + ' is not planned yet<span class="go">Plan it →</span></button>';
+  } else if (tb.length){
+    h += '<div class="peek"><div class="pl">' + esc(shortDay(tomorrow)) + ' — already planned</div><ol>';
+    tb.forEach(function(x){ h += '<li>' + esc(x.text) + '</li>'; });
+    h += '</ol></div>';
+  }
+  return h;
+}
+
+function planHtml(d){
+  var day = dayOf(d), big = live(day.big), fill = live(day.fill);
+  var slots = Math.max(3, Math.min(MAX_BIG, big.length + (big.length < MAX_BIG ? 1 : 0)));
+  if (slots < 3) slots = 3;
+  var h = '';
+  h += '<div class="lab">The ' + (slots === 3 ? 'three' : slots) + ' big things<span class="cnt">' + big.length + ' set</span></div>';
+  for (var i = 0; i < slots; i++){
+    var v = big[i] ? big[i].text : '';
+    h += '<div class="slot' + (v ? ' filled' : '') + '">' +
+           '<div class="n">' + (i+1) + '</div>' +
+           '<input class="bigslot" data-i="' + i + '" value="' + esc(v) + '" placeholder="' +
+             (i === 0 ? 'The one thing that must happen' : i === 1 ? 'Second' : i === 2 ? 'Third' : 'Fourth (only if it must be)') +
+           '" enterkeyhint="next" autocomplete="off">' +
+         '</div>';
+  }
+
+  // Anything still open today is the most likely thing to want tomorrow,
+  // so it is one tap rather than retyping.
+  var t = todayIso();
+  if (d !== t){
+    var left = live(dayOf(t).big).filter(function(x){ return !x.done; })
+      .concat(live(dayOf(t).fill).filter(function(x){ return !x.done; }))
+      .filter(function(x){ return !big.concat(fill).some(function(y){ return y.text.toLowerCase() === x.text.toLowerCase(); }); });
+    if (left.length){
+      h += '<div class="lab">Still open today</div><div class="carry">';
+      left.slice(0, 8).forEach(function(x){
+        h += '<button data-act="carry" data-text="' + esc(x.text) + '"><span class="p">+</span>' + esc(x.text) + '</button>';
+      });
+      h += '</div>';
+    }
+  }
+
+  h += '<div class="lab">Fill-in jobs<span class="cnt">' + (fill.length || '') + '</span></div>';
+  fill.forEach(function(x){
+    h += '<div class="fill">' +
+           '<span class="tick" style="border-style:dashed"></span>' +
+           '<span class="txt">' + esc(x.text) + '</span>' +
+           '<button class="more" data-act="del" data-kind="fill" data-id="' + x.id + '" aria-label="Remove">✕</button>' +
+         '</div>';
+  });
+  h += '<div class="add"><input id="addFillPlan" placeholder="Small jobs for ' + esc(shortDay(d)) + '" enterkeyhint="done" autocomplete="off">' +
+       '<button data-act="addfillplan" aria-label="Add">+</button></div>';
+  h += '<button class="done-btn" data-act="planned">' + (big.length ? '✓ That is ' + esc(shortDay(d)) + ' sorted' : 'Back to today') + '</button>';
+  return h;
+}
+
+/* Inputs on the planning screen save as you leave each box — no button,
+   and no save-per-keystroke either, which would fight the caret. */
+function wirePlan(){
+  var ins = document.querySelectorAll('.bigslot');
+  Array.prototype.forEach.call(ins, function(inp){
+    inp.addEventListener('blur', function(){
+      setBigAt(PLAN_DATE, +inp.dataset.i, inp.value);
+      inp.parentNode.className = 'slot' + (inp.value.trim() ? ' filled' : '');
+    });
+    inp.addEventListener('keydown', function(e){
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      setBigAt(PLAN_DATE, +inp.dataset.i, inp.value);
+      var nxt = ins[+inp.dataset.i + 1];
+      if (nxt) nxt.focus(); else { inp.blur(); render(); }
+    });
+  });
+}
+
+/* ── One click handler for the lot ──────────────────────────────────── */
+var FORCE_SLOT4 = false;
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  var a = el.dataset.act, d = VIEW === 'today' ? todayIso() : PLAN_DATE;
+  if (a === 'tog')   return toggle(d, el.dataset.kind, el.dataset.id);
+  if (a === 'del')   return delTask(d, el.dataset.kind, el.dataset.id);
+  if (a === 'menu')  return openMenu(d, el.dataset.kind, el.dataset.id);
+  if (a === 'goplan'){ VIEW = 'plan'; render(); window.scrollTo(0,0); return; }
+  if (a === 'planned'){ VIEW = 'today'; render(); window.scrollTo(0,0); return; }
+  if (a === 'carry'){ addTask(PLAN_DATE, live(dayOf(PLAN_DATE).big).length < MAX_BIG ? 'big' : 'fill', el.dataset.text); return; }
+  if (a === 'addfill'){
+    var i1 = document.getElementById('addFill');
+    if (i1 && i1.value.trim()){ addTask(todayIso(), 'fill', i1.value); setTimeout(function(){ var n = document.getElementById('addFill'); if (n) n.focus(); }, 0); }
+    return;
+  }
+  if (a === 'addfillplan'){
+    var i2 = document.getElementById('addFillPlan');
+    if (i2 && i2.value.trim()){ addTask(PLAN_DATE, 'fill', i2.value); setTimeout(function(){ var n = document.getElementById('addFillPlan'); if (n) n.focus(); }, 0); }
+    return;
+  }
+  if (a === 'addbig'){ VIEW = 'plan'; PLAN_DATE = todayIso(); render(); return; }
+  if (a === 'addtoday'){ VIEW = 'plan'; PLAN_DATE = todayIso(); render(); return; }
+});
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter') return;
+  var id = (e.target && e.target.id) || '';
+  if (id === 'addFill'){ e.preventDefault(); if (e.target.value.trim()){ addTask(todayIso(), 'fill', e.target.value); setTimeout(function(){ var n = document.getElementById('addFill'); if (n) n.focus(); }, 0); } }
+  if (id === 'addFillPlan'){ e.preventDefault(); if (e.target.value.trim()){ addTask(PLAN_DATE, 'fill', e.target.value); setTimeout(function(){ var n = document.getElementById('addFillPlan'); if (n) n.focus(); }, 0); } }
+});
+document.getElementById('segToday').onclick = function(){ VIEW = 'today'; render(); window.scrollTo(0,0); };
+document.getElementById('segPlan').onclick  = function(){ VIEW = 'plan'; PLAN_DATE = plusDays(todayIso(), 1); render(); window.scrollTo(0,0); };
+document.getElementById('btnGear').onclick  = openSettings;
+
+/* ── Sheets ─────────────────────────────────────────────────────────── */
+function sheet(html, wire){
+  var s = document.createElement('div');
+  s.className = 'scrim';
+  s.innerHTML = '<div class="sheet">' + html + '</div>';
+  s.addEventListener('click', function(e){ if (e.target === s) s.remove(); });
+  document.body.appendChild(s);
+  if (wire) wire(s);
+  return s;
+}
+function openMenu(d, kind, id){
+  var day = dayOf(d, true);
+  var t = (day[kind]||[]).filter(function(x){ return x.id===id; })[0];
+  if (!t) return;
+  var s = sheet(
+    '<h2>Edit</h2>' +
+    '<input id="edTxt" value="' + esc(t.text) + '" style="margin-top:12px">' +
+    '<div class="row"><button data-x="cancel">Cancel</button><button class="pri" data-x="save">Save</button></div>' +
+    '<div class="row"><button class="danger" data-x="del">Delete this one</button></div>',
+    function(s){
+      var inp = s.querySelector('#edTxt');
+      inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+      s.querySelector('[data-x=cancel]').onclick = function(){ s.remove(); };
+      s.querySelector('[data-x=save]').onclick = function(){ editTask(d, kind, id, inp.value); s.remove(); };
+      s.querySelector('[data-x=del]').onclick = function(){ delTask(d, kind, id); s.remove(); };
+      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ editTask(d, kind, id, inp.value); s.remove(); } });
+    });
+}
+function openSettings(){
+  var synced = KEY
+    ? '<p>This device is synced. Open the link below on your other device <strong>once</strong> and the two stay in step from then on.</p><div class="link" id="lnk">' + esc(myLink()) + '</div>'
+    : '<p>Right now this plan lives on this device only. Turn on sync and you get a private link — open it once on your computer (or phone) and the list is the same in both places.</p>';
+  sheet(
+    '<h2>My Day</h2>' + synced +
+    (KEY ? '<div class="row"><button class="pri" data-x="copy">Copy my link</button><button data-x="close">Close</button></div>'
+         : '<div class="row"><button class="pri" data-x="mk">Turn on sync</button><button data-x="close">Close</button></div>') +
+    '<p style="margin-top:18px;font-size:12.5px;color:var(--faint)">Keep the link private — it is the key to your list. ' +
+    'Anything older than a fortnight is cleared automatically.</p>' +
+    '<div class="row"><button class="danger" data-x="wipe">Clear everything on this device</button></div>',
+    function(s){
+      var close = function(){ s.remove(); };
+      s.querySelector('[data-x=close]').onclick = close;
+      var mk = s.querySelector('[data-x=mk]');
+      if (mk) mk.onclick = async function(){
+        mk.textContent = 'Turning on…'; mk.disabled = true;
+        try { await makeKey(); close(); openSettings(); }
+        catch(e){ mk.textContent = 'Could not reach the server'; mk.disabled = false; }
+      };
+      var cp = s.querySelector('[data-x=copy]');
+      if (cp) cp.onclick = async function(){
+        try { await navigator.clipboard.writeText(myLink()); cp.textContent = 'Copied ✓'; }
+        catch(e){
+          var r = document.createRange(); r.selectNode(s.querySelector('#lnk'));
+          window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+          cp.textContent = 'Selected — press copy';
+        }
+      };
+      s.querySelector('[data-x=wipe]').onclick = function(){
+        if (!confirm('Clear the plan from this device? If sync is on, it comes back from the server.')) return;
+        DOC = blankDoc(); REV = 0; save(); render(); close(); pullOnly();
+      };
+    });
+}
+
+/* ── Boot ───────────────────────────────────────────────────────────── */
+load();
+// Which screen to open on. Evenings with tomorrow unplanned open straight
+// onto the planning screen — that is the whole point of the thing.
+(function pickView(){
+  var t = todayIso(), h = new Date().getHours();
+  PLAN_DATE = plusDays(t, 1);
+  var tomorrowSet = live(dayOf(plusDays(t,1)).big).length > 0;
+  if (h >= 17 && !tomorrowSet) VIEW = 'plan';
+})();
+render();
+setSync(KEY ? 'busy' : 'off', KEY ? 'syncing…' : 'this device only');
+if (dirty) doSync(); else pullOnly();
+
+// Keep the two devices honest: pull when the app comes back to the front,
+// when the network returns, and every couple of minutes while it is open.
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState !== 'visible') return;
+  if (ROLLED()) { render(); }
+  if (dirty) doSync(); else pullOnly();
+});
+window.addEventListener('online', function(){ if (dirty) doSync(); else pullOnly(); });
+setInterval(function(){ if (document.visibilityState === 'visible'){ if (dirty) doSync(); else pullOnly(); } }, 120000);
+
+// Midnight. A phone left open overnight must wake up on the new day's
+// plan, not yesterday's ticked-off list.
+var SEEN_DAY = todayIso();
+function ROLLED(){
+  var t = todayIso();
+  if (t === SEEN_DAY) return false;
+  SEEN_DAY = t; VIEW = 'today'; PLAN_DATE = plusDays(t, 1);
+  return true;
+}
+setInterval(function(){ if (ROLLED()) render(); }, 30000);
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('myday-sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

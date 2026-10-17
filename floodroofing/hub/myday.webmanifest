@@ -1,0 +1,17 @@
+{
+  "name": "My Day — Flood Roofing",
+  "short_name": "My Day",
+  "description": "Plan tomorrow tonight. Tick it off today.",
+  "start_url": "MyDay.html",
+  "scope": "./",
+  "id": "/flood-roofing-estimator/floodroofing/hub/MyDay.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1722",
+  "theme_color": "#0f1722",
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "myday-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "myday-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

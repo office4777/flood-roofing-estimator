@@ -1,6 +1,11 @@
 # Flood Roofing — Operations Hub
 
-Two single-file apps (open in a browser — no build step):
+Three single-file apps (open in a browser — no build step):
+
+- **`MyDay.html`** — the daily plan. Plan tomorrow tonight (three big things,
+  plus whatever small fill-in jobs you want under them), tick it off the next
+  day. Installs to a phone home screen and to a computer as its own window,
+  and the same plan is on both. See **My Day** below.
 
 - **`FloodRoofing_Hub_v6.html`** — the full desktop hub: schedule, to-dos, email
   triage, job board, back costing, quotes, marketing/ROI, Xero P&L, invoicing,
@@ -810,3 +815,85 @@ Setup (one-time):
 No API keys are stored in this file. The Fergus key lives on the proxy
 (server-side). The proxy URL/secret and any Xero credentials are entered in the
 app and kept in the browser's local storage only — safe to commit and share.
+
+
+---
+
+# My Day — the daily plan
+
+`MyDay.html` + `myday.webmanifest` + `myday-sw.js` + `myday-icon.png`.
+Served by GitHub Pages from `main`, like the rest of this folder, so a push to
+`main` is live within a minute or two — it does NOT go through the RoofMap
+promote. (The backend half does; see below.)
+
+## What it is
+
+Two screens and one toggle between them.
+
+- **TODAY** — the big ones (three, four at a push) as large cards, then the
+  fill-in jobs underneath in a lighter list. Tapping anywhere on a row ticks
+  it off. The heading counts "1 of 3 done" and says so plainly when the day
+  is done. From 4pm, if tomorrow is bare, a banner says so.
+- **PLAN TOMORROW** — three numbered boxes, the fill-in list, and one-tap
+  chips for anything still open today so nothing has to be retyped.
+
+Open it after 5pm with tomorrow unplanned and it opens straight onto the
+planning screen. That is the whole point of the thing: the plan is made the
+night before, not improvised at 7am.
+
+## How the two devices stay in step
+
+The device is the truth. Every change goes to `localStorage` the instant it
+happens, so it works on a roof with no signal and never loses a tick to a
+dropped connection. The server (`/day/:key` on the RoofMap API) is a post box,
+not a brain — it holds one small blob and a revision number.
+
+- The **merge happens in the app**, per task, last write wins, tombstones
+  included. Two devices converge whatever order they sync in.
+- A save whose `baseRev` has moved is **refused (409)** and handed the current
+  copy to merge from. The revision check is on the write itself, so two saves
+  in the same breath cannot both win.
+- "There is work here the server has not got" is **written down with the
+  plan**, not held in a variable. It was held in a variable first, and a tick
+  made with no signal then survived a reload on the phone but never reached
+  the server — so the computer never heard about it.
+- Nothing older than a fortnight is carried about; the server keeps ten weeks.
+
+## The key is the credential
+
+There is no login. Settings (⚙) → **Turn on sync** mints a 32-character key,
+which lives in the link. Open that link once on the other device and the two
+stay in step from then on. This is the same bargain `/q/:token` already makes
+in production, and it is the right one here: a password prompt at six in the
+morning is how a tool like this stops being used. The key is **server**-
+generated, never caller-chosen, so the endpoint cannot be squatted on, and
+every route is rate-limited.
+
+Keep the link private — it is the list.
+
+## Making it open by itself
+
+The app is only useful if it is unavoidable.
+
+- **iPhone** — open the link in Safari → Share → **Add to Home Screen**. Then
+  Shortcuts → Automation → **Time of Day**, pick a morning time, *Run
+  Immediately*, action **Open App → My Day**. A second one in the evening
+  opens it straight onto the planning screen.
+- **Android** — Chrome → ⋮ → **Install app**, then any scheduler app with an
+  "open app" action.
+- **Windows** — Edge → ⋯ → Apps → **Install this site as an app**, then in
+  `edge://apps` turn on **Start when you sign in**. No scripts, no startup
+  folder.
+
+## Tests
+
+- `floodroofing/tests/dayplan.mjs` — the post box: the revision bargain, the
+  key as credential, a failed read being a 503 and never an empty plan, and
+  the endpoint not becoming free storage.
+- `floodroofing/tests/mydayui.mjs` — the real page in Playwright, two browser
+  contexts standing in for his phone and his computer: plan tonight → it is
+  there tomorrow; one tap on the row ticks it; a tick on one device survives
+  the other saving; and the app still opens, and still syncs afterwards, with
+  the network off.
+
+Both are in `run.mjs` (`dayplan` in the API list, `mydayui` in the UI list).

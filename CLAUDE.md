@@ -2799,6 +2799,43 @@ Discipline (non-negotiable):
   onto the quote as `gradeDeltas`). A grade with no prices of its own still
   runs on the percentage from the Products list. `tests/gradeprices.mjs`.
 
+- MY DAY, THE OWNER'S DAILY PLAN (2026-10-17, his own ask: "I want an app
+  where I can plan my day at the end of each day for the next day ... 3 or 4
+  main things ... the rest small fill-in tasks ... on my phone and my computer
+  ... so I can never really forget about it"). `floodroofing/hub/MyDay.html`
+  + `myday.webmanifest` + `myday-sw.js` + `myday-icon.png` — a third
+  single-file hub app on GitHub Pages, so a push to main is live in a minute
+  and it does NOT ride the RoofMap promote. NOT built into app.html on
+  purpose: it is his personal tool, not a product feature, and real customers
+  use that file daily.
+  TWO SCREENS. TODAY (the big ones as large cards, tap ANYWHERE on the row to
+  tick, fill-ins lighter underneath and never counted in "1 of 3 done") and
+  PLAN TOMORROW (three numbered boxes, one-tap chips for anything still open
+  today). It opens straight onto the planning screen after 5pm when tomorrow
+  is bare, which is the whole point of it.
+  THE DEVICE IS THE TRUTH: every change hits localStorage at once, so it works
+  on a roof with no signal. The server (`/day/:key`) is a POST BOX, not a
+  brain — one blob, one revision. The merge is in the APP, per task, last
+  write wins with tombstones, so two devices converge whichever order they
+  sync in; a PUT whose `baseRev` has moved is REFUSED (409) and handed the
+  current copy, and the revision check rides on the write itself
+  (`.eq('rev', cur)`) so two saves in the same breath cannot both win.
+  THE FLAG THAT SAYS "THE SERVER HAS NOT GOT THIS YET" IS WRITTEN DOWN WITH
+  THE PLAN, and it had to be: it was a variable first, and a tick made with no
+  signal then survived a reload on the phone and NEVER reached the server, so
+  the computer never heard about it. Found by the suite, not by reasoning.
+  THE KEY IS THE CREDENTIAL — `/q/:token`'s bargain, and the right one here: a
+  password prompt at six in the morning is how a tool like this stops being
+  used. SERVER-generated, never caller-chosen (or the endpoint is squatted
+  on), rate-limited, and `_dayClean` keeps only the shape the app writes so an
+  unauthenticated endpoint cannot become a pastebin. A failed read is a 503,
+  never an empty plan — on the phone an empty plan reads as "my list has gone".
+  `office4777.github.io` was ALREADY in the CORS allowlist (the Finance Hub);
+  the suite has to declare its own origin via `FRONTEND_URL` before booting
+  the server, which is why it starts its static server first.
+  `tests/dayplan.mjs` (server), `tests/mydayui.mjs` (the real page, two
+  browser contexts as his two devices, including offline).
+
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
 The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen

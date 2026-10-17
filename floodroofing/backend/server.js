@@ -11121,6 +11121,115 @@ app.post('/support/messages/read', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
+// MY DAY — one person's daily plan, on every device they own
+// ══════════════════════════════════════════════════════════════════
+// A post box, not a brain. The app does the merging; this holds the blob and
+// one revision number so two devices editing at once cannot silently lose
+// each other's work — a PUT whose baseRev has moved is REFUSED (409) and
+// handed the current copy to merge, rather than overwriting it.
+//
+// THE KEY IS THE CREDENTIAL, the same bargain /q/:token already makes in
+// production: 32 bytes of randomness in the URL, no account, no password, no
+// login screen at six in the morning. The CORS allowlist is not what protects
+// it (any server can call this) and was never meant to be. So: the key is
+// SERVER-generated, never caller-chosen — otherwise anyone could PUT to "abc"
+// and this becomes free storage — and every route is rate-limited.
+const DAY_MAX_DAYS   = 70;     // a fortnight of history plus a long way ahead
+const DAY_MAX_ITEMS  = 200;    // per list, per day
+const DAY_MAX_TEXT   = 500;
+
+// Keep only the shape the app writes. An unauthenticated endpoint that stored
+// whatever JSON it was handed would be a free pastebin with our name on it.
+function _dayClean(doc){
+  const out = { v: 1, days: {} };
+  const days = (doc && typeof doc === 'object' && doc.days && typeof doc.days === 'object') ? doc.days : {};
+  const keys = Object.keys(days).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().slice(-DAY_MAX_DAYS);
+  for (const k of keys){
+    const d = days[k] || {};
+    out.days[k] = { big: _dayCleanList(d.big), fill: _dayCleanList(d.fill) };
+  }
+  return out;
+}
+function _dayCleanList(list){
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, DAY_MAX_ITEMS).map(t => ({
+    id:        String((t && t.id) || '').slice(0, 40),
+    text:      String((t && t.text) || '').slice(0, DAY_MAX_TEXT),
+    done:      !!(t && t.done),
+    doneAt:    Number((t && t.doneAt) || 0) || 0,
+    pos:       Number((t && t.pos) || 0) || 0,
+    updatedAt: Number((t && t.updatedAt) || 0) || 0,
+    deleted:   !!(t && t.deleted),
+  })).filter(t => t.id);
+}
+function _dayKeyOk(k){ return typeof k === 'string' && /^[a-f0-9]{32,64}$/.test(k); }
+
+// A read that FAILED is not an empty plan. Saying "no such key" because the
+// database blinked would read, on the phone, as the whole list having been
+// wiped — so a failure is a 503 and the app keeps its own copy.
+async function _dayRow(key){
+  const r = await supabase.from('day_plans').select('key,doc,rev').eq('key', key).limit(1);
+  const rows = _mustRead(r, 'day plan');
+  return (rows && rows[0]) || null;
+}
+
+app.post('/day/new', rateLimit(5, 3600000), async (req, res) => {
+  try {
+    const key = crypto.randomBytes(16).toString('hex');
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase.from('day_plans')
+      .insert({ key, doc: { v: 1, days: {} }, rev: 0, created_at: nowIso, updated_at: nowIso });
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, key, rev: 0 });
+  } catch (e) {
+    res.status(e && e.upstream ? 503 : 500).json({ error: e.message });
+  }
+});
+
+app.get('/day/:key', rateLimit(240, 60000), async (req, res) => {
+  try {
+    if (!_dayKeyOk(req.params.key)) return res.status(400).json({ error: 'Bad key' });
+    const row = await _dayRow(req.params.key);
+    if (!row) return res.status(404).json({ error: 'No plan for that link' });
+    res.json({ ok: true, rev: row.rev || 0, doc: row.doc || { v: 1, days: {} } });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/day/:key', rateLimit(240, 60000), async (req, res) => {
+  try {
+    if (!_dayKeyOk(req.params.key)) return res.status(400).json({ error: 'Bad key' });
+    const row = await _dayRow(req.params.key);
+    if (!row) return res.status(404).json({ error: 'No plan for that link' });
+    const cur = row.rev || 0;
+    const base = Number((req.body || {}).baseRev || 0) || 0;
+    // Somebody else wrote since this device last agreed with us. Hand back
+    // what we hold; the app merges it and comes straight back.
+    if (base !== cur) return res.status(409).json({ error: 'Out of date', rev: cur, doc: row.doc || { v: 1, days: {} } });
+    const doc = _dayClean((req.body || {}).doc);
+    const rev = cur + 1;
+    // The write itself carries the revision check (`.eq('rev', cur)`), so two
+    // devices saving in the same breath cannot both pass the test above and
+    // then overwrite each other. Nothing matched = the other one got there
+    // first, which is a 409 like any other, not a lost tick.
+    const { data: wrote, error } = await supabase.from('day_plans')
+      .update({ doc, rev, updated_at: new Date().toISOString() })
+      .eq('key', req.params.key).eq('rev', cur).select('key');
+    if (error) throw new Error(error.message);
+    if (!wrote || !wrote.length){
+      const fresh = await _dayRow(req.params.key);
+      return res.status(409).json({ error: 'Out of date', rev: (fresh && fresh.rev) || 0, doc: (fresh && fresh.doc) || { v: 1, days: {} } });
+    }
+    res.json({ ok: true, rev, doc });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
 // EARLY ACCESS — the waitlist, and getting people off it
 // ══════════════════════════════════════════════════════════════════
 // RoofMap is invite-gated (see /auth/register). This is the front door to
@@ -11980,6 +12089,13 @@ const _MIGRATION_SQL = [
   "create table if not exists public.support_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, sender text not null default 'user', author text not null default '', email text not null default '', company text not null default '', body text not null default '', created_at timestamptz not null default now(), read_at timestamptz)",
   "create index if not exists support_messages_user_idx on public.support_messages (user_id, created_at)",
   "alter table public.support_messages enable row level security",
+  // MY DAY (2026-10-17): the owner's own daily plan, shared between his phone
+  // and his computer. One row per key; the key IS the credential, exactly as
+  // a quote's share token is. Nothing here is company-scoped because nothing
+  // here belongs to a company — it is one person's list of three things.
+  "create table if not exists public.day_plans (key text primary key, doc jsonb, rev int not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now())",
+  "create index if not exists day_plans_updated_idx on public.day_plans (updated_at)",
+  "alter table public.day_plans enable row level security",
 ];
 
 // A DATABASE BLIP AT BOOT IS NOT WORTH THE PROCESS (2026-09-30). On the
