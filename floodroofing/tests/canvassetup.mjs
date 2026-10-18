@@ -241,6 +241,80 @@ check('…and zooming in makes the bar cover less ground, not the same',
   JSON.stringify({ at1: +(bars[0].px * bars[0].mScr).toFixed(2), at12: +(bars[4].px * bars[4].mScr).toFixed(2) }));
 await pg.evaluate(() => { DRAW.zoom = 1; redrawAll(); });
 
+// ── THE ALIGNMENT GRID (2026-10-18, the owner: "in the canvas rotating grid
+// lines that appear can you change the colour to a bright orange and make the
+// grid line 3x closer together"). A pale cyan line over a green-and-grey
+// aerial is the one colour on the picture you cannot see, and eight columns
+// across the whole canvas meant the line you were lining a ridge up with was
+// usually nowhere near one.
+const grid = await pg.evaluate(async () => {
+  DRAW.zoom = 1;
+  DRAW.showAlignGrid = true; redrawAll();
+  await new Promise(r => setTimeout(r, 120));
+  const cv = document.getElementById('roofCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = cv.getContext('2d');
+  // A scanline well below the label, across the full width.
+  const y = Math.round(cv.height * 0.55);
+  const d = ctx.getImageData(0, y, cv.width, 1).data;
+  // A 1px line on an integer coordinate straddles two pixel columns, so each
+  // is only part-covered and the blend over a pale canvas is pale too. What
+  // survives that is the HUE: orange leaves red ahead of blue, cyan the
+  // other way round. Measure the lean, not the exact colour.
+  let orange = 0, cyan = 0, runs = 0, inRun = false;
+  for (let x = 0; x < cv.width; x++){
+    const r = d[x*4], g = d[x*4+1], bl = d[x*4+2];
+    const isOrange = (r - bl) > 30 && (r - bl) > (g - bl);
+    const isCyan   = (bl - r) > 30;
+    if (isOrange) orange++;
+    if (isCyan) cyan++;
+    if (isOrange && !inRun){ runs++; inRun = true; }
+    else if (!isOrange) inRun = false;
+  }
+  const W = cv.width / dpr;
+  DRAW.showAlignGrid = false; redrawAll();
+  return { cols: (typeof ALIGN_GRID_COLS === 'number' ? ALIGN_GRID_COLS : 0),
+           colour: (typeof ALIGN_GRID_COLOUR === 'string' ? ALIGN_GRID_COLOUR : ''),
+           orange, cyan, runs, W: Math.round(W) };
+});
+check('the alignment grid is three times as fine as it was — 24 columns, not 8',
+  grid.cols === 24, JSON.stringify({ cols: grid.cols }));
+check('…and it is drawn in bright orange, with no cyan line left on the canvas',
+  grid.orange > 0 && grid.cyan === 0 && /255,\s*1\d\d,\s*0/.test(grid.colour),
+  JSON.stringify({ orange: grid.orange, cyan: grid.cyan, colour: grid.colour }));
+// The dashes break each line up, so count RUNS of orange on one scanline and
+// allow for a dash gap landing on it: 24 columns, never 8.
+check('…and a scanline crosses about two dozen of them, not eight',
+  grid.runs >= 14, JSON.stringify({ runs: grid.runs }));
+
+// ── THE BAR'S OWN CONTROLS (2026-10-18, the same message) ───────────
+const bar2 = await pg.evaluate(() => {
+  const menu = document.getElementById('viewMenu');
+  const btn  = document.getElementById('viewMenuBtn');
+  const op   = document.getElementById('bgOpacity');
+  const row  = document.getElementById('roofToolRow');
+  const si   = document.getElementById('scaleIntegrityRow');
+  const cal  = document.getElementById('btn-calibrate');
+  return {
+    hasSlider: !!op,
+    inMenu: !!(op && menu && menu.contains(op)),
+    // visible with the menu shut, which is how it is nearly always read
+    menuShut: !!(menu && menu.style.display === 'none'),
+    sliderShown: !!(op && op.offsetParent !== null),
+    afterBtn: !!(op && btn && (btn.compareDocumentPosition(op) & Node.DOCUMENT_POSITION_FOLLOWING)),
+    editsInToolbar: !!(si && row && row.contains(si)),
+    // the scalemode pin's rule still holds: it follows the Calibrate button
+    editsAfterCal: !!(si && cal && (cal.compareDocumentPosition(si) & Node.DOCUMENT_POSITION_FOLLOWING)),
+    hasModeBtns: !!(document.getElementById('btnModeScaled') && document.getElementById('btnModeVisual')),
+  };
+});
+check('the Background slider is out of the Edit font size menu…',
+  bar2.hasSlider && !bar2.inMenu, JSON.stringify(bar2));
+check('…and shown on the bar beside that button with the menu shut',
+  bar2.menuShut && bar2.sliderShown && bar2.afterBtn, JSON.stringify(bar2));
+check('the Edits buttons no longer have a row of their own — they ride with the toolbar',
+  bar2.editsInToolbar && bar2.hasModeBtns && bar2.editsAfterCal, JSON.stringify(bar2));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;

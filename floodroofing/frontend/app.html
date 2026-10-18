@@ -4927,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-18T21:17:52Z';
+  window.APP_BUILT_AT = '2026-10-18T22:33:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6029,18 +6029,26 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button id="btn-squarecorner" onclick="setTool('squarecorner')" class="tool-btn" title="Square one corner at a time — the map shows just the outline and its corners; click a corner to make it a true right angle. The rest of the building does not move."><span class="rt-emo">◻ </span>Square corner</button>
         <button onclick="setTool('tape')" id="btn-tape" class="tool-btn" title="Measure anything on the roof: click where it starts, click where it ends. Drag it, turn it, drag its ends; click it for the delete button.">📐 Measuring tape</button>
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Set scale</button>
-        <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap;margin-left:auto"></span>
-        <div style="display:flex;gap:6px">
-          <button onclick="undoLast()" class="tool-btn">↩ Undo</button>
-          <button onclick="redoLast()" class="tool-btn">↪ Redo</button>
-          <button onclick="clearAll()" class="tool-btn" style="color:#dc2626;border-color:#dc2626">🗑 Clear</button>
-        </div>
-      </div>
-
-      <!-- Under the Calibrate button: which way an edit behaves, and the
-           warning that the plan has stopped being exact. Its own thin row so
-           the toolbar above keeps its shape on a phone. -->
-      <div id="scaleIntegrityRow" style="display:flex;gap:8px;align-items:center;margin:0 .75rem .4rem;flex-wrap:wrap">
+        <!-- THE RIGHT-HAND SIDE OF THE TOOLBAR, ONE GROUP (2026-10-18, the
+             owner: "move the Edits buttons to underneath the Scale from the
+             aerial / Undo / Redo / Clear so that we remove one row and it
+             shortens that whole roof plan box by one row"). The edit-mode
+             buttons had a row of their own holding two small buttons and a
+             label, which cost a full row of a box that is mostly toolbars.
+             They ride with the scale line here: beside it where there is
+             room, folded underneath it where there is not. -->
+        <div id="roofToolRight" style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <span id="scaleState" style="font-size:11.5px;color:var(--text2);white-space:nowrap"></span>
+          <div style="display:flex;gap:6px">
+            <button onclick="undoLast()" class="tool-btn">↩ Undo</button>
+            <button onclick="redoLast()" class="tool-btn">↪ Redo</button>
+            <button onclick="clearAll()" class="tool-btn" style="color:#dc2626;border-color:#dc2626">🗑 Clear</button>
+          </div>
+          <!-- Which way an edit behaves, and the warning that the plan has
+               stopped being exact. Kept as its own element (and still after
+               the Calibrate button in the document) so every reader of it
+               carries on working. -->
+          <div id="scaleIntegrityRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:11px;font-weight:700;color:#64748b">Edits:</span>
         <button type="button" id="btnModeScaled" onclick="setEditMode('scaled')"
                 onmouseenter="showTip('btn-mode-scaled',event,500)" onmouseleave="hideTip()"
@@ -6051,6 +6059,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button type="button" id="btnNotToScale" onclick="openNotToScale()"
                 onmouseenter="showTip('btn-nottoscale',event,500)" onmouseleave="hideTip()"
                 style="display:none;align-items:center;gap:5px;padding:5px 11px;font-size:11.5px;font-family:inherit;border:1px solid #f59e0b;border-radius:7px;background:#fffbeb;color:#b45309;font-weight:800;cursor:pointer">⚠ No longer to Scale</button>
+          </div>
+        </div>
       </div>
 
       <!-- Compact view bar: Zoom stays out; every other display setting
@@ -6108,9 +6118,6 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
               <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> Show AI dimensions
             </label>
-            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
-              <span title="Left = the background picture is gone completely; right = at full strength">Background</span> <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="flex:1;margin:0" oninput="redrawAll()">
-            </label>
             <label style="display:flex;align-items:center;gap:6px;margin:0" title="Multiplier applied ONLY to the on-canvas sheet-length labels (e.g. 4.35m) — does not affect line measurements or letter tags.">
               Sheet text
               <input type="range" id="sheetTextScale" min="0.2" max="4" step="0.1" value="0.5" style="flex:1;margin:0" oninput="_setSheetTextScale(this.value)">
@@ -6128,6 +6135,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             </label>
           </div>
         </div>
+        <!-- THE BACKGROUND SLIDER LIVES ON THE BAR (2026-10-18, the owner:
+             "remove the background transparency slider from the edit font
+             size and put it to the right of that button so it's always
+             visable"). It is the control a roofer reaches for most often on
+             this bar — fading the aerial back to read the lines over it — and
+             it was two clicks deep behind a button labelled about text size. -->
+        <label id="bgOpacityWrap" style="display:inline-flex;align-items:center;gap:7px;margin:0;font-size:12px;color:var(--text2);white-space:nowrap"
+               title="Left = the background picture is gone completely; right = at full strength">
+          <span>Background</span>
+          <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="width:116px;margin:0" oninput="redrawAll()">
+        </label>
       </div>
 
       <!-- This bar used to explain the drawing order, which anybody working out
@@ -57403,13 +57421,18 @@ function redrawAll() {
   }
 
   // ── ALIGNMENT GRID — shown while dragging the rotation slider ──────
+  // BRIGHT ORANGE AND THREE TIMES AS FINE (2026-10-18, the owner). A pale
+  // cyan line over a green-and-grey aerial is the one colour on the picture
+  // you cannot see, and eight columns across the whole canvas is too coarse
+  // to tell a ridge from square by: the line you are lining up with was
+  // usually nowhere near one.
   if(DRAW.showAlignGrid) {
-    var gridSpacing = Math.round(W / 8); // ~8 columns, ~6 rows
+    var gridSpacing = Math.max(8, Math.round(W / ALIGN_GRID_COLS));
     var gridRows = Math.ceil(H / gridSpacing);
     var gridCols = Math.ceil(W / gridSpacing);
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,200,255,0.55)';
+    ctx.strokeStyle = ALIGN_GRID_COLOUR;
     ctx.lineWidth = 1;
     ctx.setLineDash([6, 4]);
 
@@ -57441,8 +57464,8 @@ function redrawAll() {
       ctx.beginPath(); ctx.moveTo(cx3, cy3+dy*m); ctx.lineTo(cx3, cy3); ctx.lineTo(cx3+dx*m, cy3); ctx.stroke();
     });
 
-    // Label
-    ctx.fillStyle='rgba(0,200,255,0.9)';
+    // Label — the grid's own, so it carries the grid's colour.
+    ctx.fillStyle = ALIGN_GRID_LABEL;
     ctx.font='bold 11px sans-serif';
     ctx.textAlign='center';
     ctx.fillText('Align grid — release to hide', W/2, 14);
@@ -62091,6 +62114,10 @@ function _nudgeFineRotate(d){
 // against, and the alignment grid only ever showed while the slider was
 // held. Each nudge brings it up for a second; nudging again restarts the
 // second rather than stacking timers, so a run of clicks keeps it up.
+// The alignment grid's own look. 24 columns is three times the 8 it was.
+var ALIGN_GRID_COLS = 24;
+var ALIGN_GRID_COLOUR = 'rgba(255,138,0,0.75)';
+var ALIGN_GRID_LABEL = 'rgba(255,138,0,0.95)';
 var _alignGridTimer = null;
 function _alignGridFlash(ms){
   try {
@@ -78004,21 +78031,65 @@ function _roofPanelReveal(){
 // keyboard lands on anything inside, the timer is dropped for good. A menu
 // that shuts while you are reaching for it is worse than one that never
 // opened.
+//
+// AND A CLICK INSIDE RESTARTS A SHORTER ONE (2026-10-18, the owner: "make it
+// auto close 2 seconds after the final click on any of the buttons inside
+// that box (timer restarts on each click)"). The reveal's own three seconds
+// are for reading the row; once a roofer has pressed Rotate 90° they are done
+// with the panel and it is over the drawing again. Every click restarts the
+// two seconds, so a run of presses is never cut short.
+//
+// BUTTONS ONLY. A field being typed in keeps the panel open until the caret
+// leaves it: two seconds between keystrokes is an ordinary pause when you are
+// reading a pitch off a plan, and a panel that folds mid-number is the same
+// fault as one that shuts while you reach for it.
 var _RTP_T = null;
+var RTP_HIDE_MS = 3000;         // the reveal's own window
+var RTP_CLICK_HIDE_MS = 2000;   // after a press on a control inside it
 function _roofPanelAutoHideCancel(){
   if (_RTP_T){ clearTimeout(_RTP_T); _RTP_T = null; }
 }
-function _roofPanelAutoHide(rtp){
+// Re-arm the put-away from the last interaction. ONLY inside the panel's
+// automatic session: one the roofer opened by hand stays until they close it.
+function _roofPanelAutoHideBump(ms){
+  var rtp = document.getElementById('roofTypePanel');
+  if (!rtp || !rtp._rtpAuto) return;
+  if (rtp.style.display === 'none') return;
+  _roofPanelAutoHide(rtp, ms || RTP_CLICK_HIDE_MS);
+}
+function _roofPanelAutoHide(rtp, ms){
   rtp = rtp || document.getElementById('roofTypePanel');
   if (!rtp) return;
+  rtp._rtpAuto = true;
   _roofPanelAutoHideCancel();
   if (!rtp._rtpStay){
     rtp._rtpStay = true;
     var keep = function(){ _roofPanelAutoHideCancel(); };
+    var inField = function(t){ return !!(t && t.closest && t.closest('input, select, textarea, label')); };
     try {
       rtp.addEventListener('pointerenter', keep);
       rtp.addEventListener('pointerdown', keep);
       rtp.addEventListener('focusin', keep);
+      // click fires after pointerdown, so the bump wins over the cancel above.
+      rtp.addEventListener('click', function(ev){
+        var t = ev && ev.target;
+        if (!t || !t.closest) return;
+        if (t.closest('.rtp-close')) return;        // that button closes it anyway
+        if (inField(t)) return;                     // still setting a value
+        if (!t.closest('button, a, [onclick]')) return;
+        _roofPanelAutoHideBump();
+      }, true);
+      // A dropdown settled on a shape or a sheet is a press, not typing.
+      rtp.addEventListener('change', function(ev){
+        var t = ev && ev.target;
+        if (t && t.closest && t.closest('input, textarea')) return;
+        _roofPanelAutoHideBump();
+      }, true);
+      // The caret leaving a field is the end of that interaction.
+      rtp.addEventListener('focusout', function(ev){
+        var t = ev && ev.target;
+        if (inField(t)) _roofPanelAutoHideBump();
+      }, true);
     } catch(e){}
   }
   _RTP_T = setTimeout(function(){
@@ -78037,7 +78108,7 @@ function _roofPanelAutoHide(rtp){
         } catch(e){}
       }, 500);
     } catch(e){}
-  }, 3000);
+  }, (ms || RTP_HIDE_MS));
 }
 function _toggleRoofMenu(idx){
   var rtp = document.getElementById('roofTypePanel');
@@ -78047,8 +78118,10 @@ function _toggleRoofMenu(idx){
   // Switching roofs re-points the menu rather than closing it; tapping the
   // roof whose menu is already open is how you put it away.
   if (!sameRoof) switchToRoof(idx);
-  // Opened or closed BY HAND: the automatic put-away is off from here on.
+  // Opened or closed BY HAND: the automatic put-away is off from here on —
+  // including the two-second one a press inside it would otherwise start.
   try { _roofPanelAutoHideCancel(); } catch(e){}
+  rtp._rtpAuto = false;
   rtp.classList.remove('rtp-anim-out');
   rtp.style.display = (wasOpen && sameRoof) ? 'none' : 'block';
   try { _syncRoofTypeDropLabel(); } catch(e){}

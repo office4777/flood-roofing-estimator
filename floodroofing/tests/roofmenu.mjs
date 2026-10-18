@@ -205,6 +205,80 @@ check('and it NEVER slides over a walkthrough',
   reveal.duringTour === 'none' && reveal.afterTour === 'block',
   JSON.stringify({ during: reveal.duringTour, after: reveal.afterTour }));
 
+// AND IT PUTS ITSELF AWAY TWO SECONDS AFTER THE LAST PRESS (2026-10-18, the
+// owner: "now make it auto close 2 seconds after the final click on any of the
+// buttons inside that box (timer restarts on each click)"). The reveal's three
+// seconds are for reading the row; once Rotate 90° has been pressed the roofer
+// is done with the panel and it is over the drawing again.
+const bump = await pg.evaluate(async () => {
+  const out = {}, rtp = () => document.getElementById('roofTypePanel');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const press = () => {
+    const b = [...rtp().querySelectorAll('button')]
+      .find(x => /Rotate 90/.test(x.textContent) && x.offsetParent !== null);
+    if (b) b.click();
+    return !!b;
+  };
+  // A fresh automatic reveal, then the pointer arrives — which drops the
+  // three seconds, as it always has (a panel must not shut while you reach).
+  rtp().style.display = 'none';
+  _roofPanelReveal();
+  rtp().dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+  await sleep(1400);
+  out.heldByPointer = rtp().style.display;
+
+  out.pressed = press();
+  await sleep(1100);
+  out.at1_1s = rtp().style.display;          // 2s has not run out yet
+  await sleep(1900);
+  out.at3_0s = rtp().style.display;          // 2s + the half-second fold
+
+  // EVERY PRESS RESTARTS IT: two presses 1.4 s apart leave it open past the
+  // moment one press alone would have folded it.
+  rtp().style.display = 'none';
+  _roofPanelReveal();
+  rtp().dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+  press(); await sleep(1400);
+  press(); await sleep(1400);
+  out.restarted = rtp().style.display;
+  await sleep(1400);
+  out.afterRestart = rtp().style.display;
+
+  // A FIELD BEING TYPED IN KEEPS IT OPEN. Two seconds between keystrokes is
+  // an ordinary pause when you are reading a pitch off a plan.
+  rtp().style.display = 'none';
+  _roofPanelReveal();
+  const pitch = document.getElementById('calPitchInput') ||
+                rtp().querySelector('input[type="number"], input[type="text"]');
+  out.hadField = !!pitch;
+  if (pitch) pitch.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  await sleep(2800);
+  out.whileTyping = rtp().style.display;
+
+  // OPENED BY HAND, IT STAYS. A press inside a panel the roofer opened does
+  // not start the two seconds — that one is theirs until they close it.
+  rtp().style.display = 'none';
+  _toggleRoofMenu(DRAW.activeRoofIdx);
+  out.handOpened = rtp().style.display;
+  press();
+  await sleep(2900);
+  out.handStill = rtp().style.display;
+  return out;
+});
+check('the pointer arriving still drops the reveal’s three seconds',
+  bump.heldByPointer === 'block', JSON.stringify(bump));
+check('a press on a button inside starts a TWO second put-away…',
+  bump.pressed && bump.at1_1s === 'block', JSON.stringify(bump));
+check('…and it has folded itself away by then',
+  bump.at3_0s === 'none', JSON.stringify(bump));
+check('every press restarts the two seconds, so a run of them is never cut short',
+  bump.restarted === 'block' && bump.afterRestart === 'none',
+  JSON.stringify({ at2_8s: bump.restarted, after: bump.afterRestart }));
+check('a field being typed in keeps the panel open',
+  bump.hadField && bump.whileTyping === 'block', JSON.stringify(bump));
+check('a panel opened BY HAND is never closed by a press inside it',
+  bump.handOpened === 'block' && bump.handStill === 'block', JSON.stringify(bump));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'clean');
 
 await ctx.close();
