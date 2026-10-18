@@ -3009,7 +3009,17 @@ app.get('/jobs', requireAuth, async (req, res) => {
   // schedule board reads it, so the multi-megabyte column stays in the
   // database and only the number crosses the wire. On BOTH column lists, so
   // neither the un-migrated fallback nor the timeout retry drops it.
-  const JNO  = ', job_no:draw_state->state->quote->ref';
+  //
+  // AND WHETHER IT IS A FERGUS JOB, AND WHETHER ITS QUOTE WENT OUT
+  // (2026-10-18, the owner: "if it's a fergus job it should have a fergus
+  // tick, if a quotes been sent in that job it should have a quote tick").
+  // Both are jsonb paths off draw_state like the number, so the multi-megabyte
+  // column stays in the database and only the two facts cross the wire; they
+  // ride on BOTH column lists for the same reason the number does.
+  const JNO  = ', job_no:draw_state->state->quote->ref' +
+               ', linked_job:draw_state->state->linkedJobId' +
+               ', linked_no:draw_state->state->linkedJobNo' +
+               ', quote_sent:draw_state->state->quote->share->sentAt';
   const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent, version_of, version_name' + JNO;
   const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id' + JNO;
   // A LIMIT, which this never had. Without one the read has to find EVERY
@@ -3058,6 +3068,9 @@ app.get('/jobs', requireAuth, async (req, res) => {
     const os = j.order_sent && typeof j.order_sent === 'object' ? j.order_sent : null;
     return Object.assign({}, j, {
       job_no: (j.job_no == null) ? '' : String(j.job_no),
+      linked_job: (j.linked_job == null) ? '' : String(j.linked_job),
+      linked_no: (j.linked_no == null) ? '' : String(j.linked_no),
+      quote_sent: (j.quote_sent == null) ? '' : String(j.quote_sent),
       created_by: names[j.user_id] || (j.user_id === req.user.id ? me : ''),
       order_sent: os ? Object.assign({}, os, { by_name: names[os.by] || '' }) : (j.order_sent || null),
     });
@@ -3090,18 +3103,20 @@ async function _versionGroup(req, job){
   rows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
   return rows;
 }
-// A name for a version nobody has named: whoever is making it.
-function _defaultVersionName(req, taken){
-  const who = String(req.user.name || String(req.user.email || '').split('@')[0] || 'New').trim();
-  const first = who.split(/[\s.@]+/)[0] || 'New';
-  const base = first.charAt(0).toUpperCase() + first.slice(1) + "'s version";
+// A name for a version nobody has named: WHICH ONE IT IS (2026-10-18, the
+// owner: "by default call that new version 'version 2' then allow me to edit
+// the name if i want"). It used to be "Aron's version", which answers who made
+// it — the wrong half, when the office is looking at three of them on one job
+// and needs to know which came after which. The root is "Original", so the
+// second is "Version 2".
+function _defaultVersionName(taken, have){
   const used = new Set((taken || []).map(t => String(t || '').toLowerCase()));
-  if (!used.has(base.toLowerCase())) return base;
-  for (let n = 2; n < 50; n++){
-    const t = base + ' ' + n;
+  const start = Math.max(2, (have || 1) + 1);
+  for (let n = start; n < start + 200; n++){
+    const t = 'Version ' + n;
     if (!used.has(t.toLowerCase())) return t;
   }
-  return base + ' ' + Date.now();
+  return 'Version ' + Date.now();
 }
 app.get('/jobs/:id/versions', requireAuth, async (req, res) => {
   try {
@@ -3144,9 +3159,26 @@ app.post('/jobs/:id/versions', requireAuth, requireSubscription, async (req, res
     const group = await _versionGroup(req, job);
     const taken = group.map(r => r.version_name).filter(Boolean);
     const name = String((req.body && req.body.name) || '').trim().slice(0, 80) ||
-                 _defaultVersionName(req, taken);
-    const ds = job.draw_state && typeof job.draw_state === 'object'
-      ? JSON.parse(JSON.stringify(job.draw_state)) : {};
+                 _defaultVersionName(taken, group.length);
+    // A NEW VERSION STARTS EMPTY (2026-10-18, the owner: "only then should it
+    // create a completely new version without the roofmap, canavs drawing or
+    // quote adjustements on it"). A version used to be a COPY, which is right
+    // when two people are working one roof two ways and wrong when the point
+    // is to quote the same job again from scratch.
+    //
+    // The app sends the state the empty one starts with — who the job is for,
+    // its number and its Fergus link — because what a blank quote looks like
+    // is the app's business, not this endpoint's. Without a draw_state in the
+    // body it still copies, so an older app on a cached page keeps working.
+    let ds;
+    if (req.body && req.body.draw_state && typeof req.body.draw_state === 'object' && !Array.isArray(req.body.draw_state)){
+      ds = req.body.draw_state;
+    } else {
+      ds = job.draw_state && typeof job.draw_state === 'object'
+        ? JSON.parse(JSON.stringify(job.draw_state)) : {};
+    }
+    // Whichever way it was built: the customer's link and their acceptance
+    // belong to the version they were sent, never to this one.
     try {
       const q = ds.state && ds.state.quote;
       if (q){ q.share = null; q.accepted = null; q.sent = null; }
@@ -6480,13 +6512,23 @@ async function _quoteShareRowsPg(req, limit){
     throw e;
   } finally { client.release(); }
 }
-async function _quoteShareRows(req, limit){
+async function _quoteShareRows(req, limit, fresh){
   const key = (req.companyId || '') + '|' + (req.user && req.user.id);
   const isTimeout = e => /statement timeout|canceling statement|57014/i.test(String(e && (e.message || e)));
   // The same office asking again within a minute (Home, the bell, the tiles)
   // gets the answer it just had rather than another heavy read.
+  //
+  // UNLESS IT ASKS FOR A FRESH ONE (2026-10-18, the owner: "i just sent a
+  // quote (job#3303) and it's not yet showing in the quotes sent which is
+  // annoying"). A write marks this cache stale, which is enough while one
+  // server answers everything — but the mark lives in THIS process's memory,
+  // so a send handled by one instance leaves another instance's minute-old
+  // copy looking perfectly good, and the board paints from before the send.
+  // The office's own ↻ and the refresh that follows a send say `fresh`, and
+  // a request carrying it is never served from the cache. It still FILLS the
+  // cache, so the heavy read happens once and only when somebody asked for it.
   const hot = _quoteFeedCache.get(key);
-  if (hot && !hot.stale && hot.limit >= limit && Date.now() - hot.at < 60 * 1000) return hot.rows.slice(0, limit);
+  if (!fresh && hot && !hot.stale && hot.limit >= limit && Date.now() - hot.at < 60 * 1000) return hot.rows.slice(0, limit);
   if (_pgPool()){
     try {
       const rows = await _quoteShareRowsPg(req, limit);
@@ -6572,7 +6614,7 @@ async function _quoteShareRowsRead(req, limit){
 // notifications feature the Team tier sells.
 app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notifications', 'Trade'), async (req, res) => {
   try {
-    const rows = await _quoteShareRows(req, 120);
+    const rows = await _quoteShareRows(req, 120, /^(1|true|yes)$/i.test(String(req.query.fresh || '')));
     const feed = rows.map(function(r){
       const sh = r.share;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;

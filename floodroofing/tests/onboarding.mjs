@@ -357,20 +357,30 @@ check('…and the sample job never asks — nothing it sends is real', !v.t && !
 // blank branding, and the owner — whose logo has been on every quote for
 // months — was shown "Set your business up" in front of a quote he was
 // sending. The wizard may only judge branding it actually read.
+// WIDENED 2026-10-18: a business with ANY of its details on file — a logo, a
+// phone, an address — is not a new one either, so the whole branding has to
+// be blank for this to ask. The owner met the wizard over a quote already
+// carrying his own logo, because it judged on company_name alone.
 v = await pg.evaluate(() => {
-  const live = window.__settingsLive, co = S.settings.branding.company_name;
-  S.settings.branding.company_name = '';
+  const live = window.__settingsLive, b = JSON.parse(JSON.stringify(S.settings.branding || {}));
+  try { sessionStorage.removeItem('fr_setup_later'); } catch(e){}
+  S.settings.branding = {};
   window.__settingsLive = false;
   const askedAfterFailedRead = _needsSetup();
   window.__settingsLive = true;
   const askedAfterGoodRead = _needsSetup();
-  window.__settingsLive = live; S.settings.branding.company_name = co;
-  return { askedAfterFailedRead, askedAfterGoodRead };
+  // And one detail on file is enough to stop asking.
+  S.settings.branding = { logo: 'data:image/png;base64,AAAA' };
+  const askedWithALogo = _needsSetup();
+  window.__settingsLive = live; S.settings.branding = b;
+  return { askedAfterFailedRead, askedAfterGoodRead, askedWithALogo };
 });
 check('settings that never came from the server never trigger the branding wizard',
   v.askedAfterFailedRead === false, JSON.stringify(v));
 check('…but a server that really says the branding is blank still does',
   v.askedAfterGoodRead === true, JSON.stringify(v));
+check('…and a business with so much as a logo on file is never asked',
+  v.askedWithALogo === false, JSON.stringify(v));
 v = await pg.evaluate(() => { localStorage.setItem('fr_first_roof', 'done'); _aboutYouSync(); return (document.getElementById('aboutYouCard') || {}).textContent || ''; });
 check('the setup questions card, once the practice job is behind them, says "Three things" and counts three', /Three things/.test(v) && !/Two things/.test(v) && (await pg.evaluate(() => document.querySelectorAll('#aboutYouCard select').length)) === 3, v.slice(0, 60));
 // Help with this step: the feedback form, with the step named.

@@ -332,6 +332,45 @@ check('…and once the wizard is gone nothing else jumps in', !v.wiz && !v.guide
 v = await pg.evaluate(() => { openSetupGuide(true); return !!document.getElementById('setupGuide'); });
 check('…the guide opens fine afterwards', v);
 check('nothing threw while they took turns', errs.length === 0, errs.join(' | ') || 'no page errors');
+
+// A BUSINESS WITH ANY OF ITS DETAILS ON FILE IS NOT A NEW ONE (2026-10-18,
+// the owner: "stop showing this window, sometimes after a app update and
+// reload, it thinks i'm a new user" — over a quote already carrying his own
+// logo). It asked on company_name alone, and that field can be empty on an
+// account whose NAME comes from the company record while its logo, phone and
+// address have been on every quote it has sent.
+const already = await pg.evaluate(async () => {
+  const out = {};
+  const wipe = () => { const h = document.getElementById('setupWizard'); if (h) h.remove(); _onbRelease('wizard'); };
+  // The guide opened just above owns the screen; the wizard cannot claim it
+  // while it does, which is the arbiter working.
+  try { const g = document.getElementById('setupGuide'); if (g) g.remove(); _onbRelease('guide'); } catch(e){}
+  try { ONB.active = null; } catch(e){}
+  wipe();
+  try { sessionStorage.removeItem('fr_setup_later'); } catch(e){}
+  window.__settingsLive = true;
+  S.settings.branding = {};
+  out.blank = _needsSetup();
+  // Each of these on its own is a business that has set itself up.
+  for (const k of ['logo', 'logo_data_url', 'phone', 'email', 'address']){
+    S.settings.branding = {}; S.settings.branding[k] = 'x';
+    out[k] = _needsSetup();
+  }
+  // And "I'll set this up later" is not asked again in the same sitting.
+  S.settings.branding = {};
+  _brandingBeforeSend(function(){});
+  out.asked = !!document.getElementById('setupWizard');
+  _swLater();
+  out.askedAgain = _brandingBeforeSend(function(){});
+  wipe();
+  try { sessionStorage.removeItem('fr_setup_later'); } catch(e){}
+  return out;
+});
+check('an account with genuinely nothing on file is still asked', already.blank === true, JSON.stringify(already));
+check('…but a logo, a phone, an email or an address on file is never asked again',
+  ['logo','logo_data_url','phone','email','address'].every(k => already[k] === false), JSON.stringify(already));
+check('…and "I\u2019ll set this up later" is not asked again in the same sitting',
+  already.asked === true && already.askedAgain === false, JSON.stringify(already));
 await ctx.close();
 
 // ── it does not re-ask for what the wizard just collected ─────────

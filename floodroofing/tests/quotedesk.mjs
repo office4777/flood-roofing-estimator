@@ -150,16 +150,27 @@ check('…and the description line follows the grade', pick.line === 'Install Ne
 check('…without throwing the page back to the top', pick.y0 > 100 && Math.abs(pick.y1 - pick.y0) < 40, pick.y0 + ' → ' + pick.y1);
 check('…and the nav still says Steel grade', pick.on === 'Steel grade', pick.on);
 
-// brackets & downpipes appear beside the gutter once a gutter is chosen
+// BRACKETS & DOWNPIPES ARE A SECTION OF THEIR OWN, UNDER THE GUTTERING
+// (2026-10-18, the owner: "when gutter is selected, don't squeeze the
+// brackets/downpipes selection in next to it, instead add this in underneath
+// in new section boxes so it feels natural and doesn't get squeezed in").
+// They used to share the gutter's row as a second column, so picking a gutter
+// halved the width of the cards the customer was still reading.
 const kit = await d.pg.evaluate(async () => {
-  const before = document.querySelectorAll('#qd-gutter [data-qb-opt="gutterBracket"]').length;
+  const before = document.querySelectorAll('[data-qb-opt="gutterBracket"]').length;
   const g = document.querySelector('#qd-gutter [data-qb-opt="gutterType"]:not([data-qb-val="none"])');
   if (g) g.click();
   await new Promise(r => setTimeout(r, 700));
-  return { before, after: document.querySelectorAll('#qd-gutter [data-qb-opt="gutterBracket"]').length,
-           sideBySide: !!document.querySelector('#qd-gutter .qd-grid2') };
+  const gut = document.getElementById('qd-gutter'), kitSec = document.getElementById('qd-gutterkit');
+  return { before, after: document.querySelectorAll('[data-qb-opt="gutterBracket"]').length,
+           ownSection: !!kitSec,
+           below: !!(gut && kitSec && (gut.compareDocumentPosition(kitSec) & Node.DOCUMENT_POSITION_FOLLOWING)),
+           sideBySide: !!document.querySelector('#qd-gutter .qd-grid2'),
+           fullWidth: !!(gut && kitSec && Math.abs(kitSec.getBoundingClientRect().width - gut.getBoundingClientRect().width) < 40) };
 });
-check('brackets and downpipes appear beside the gutter once one is chosen', kit.before === 0 && kit.after === 2 && kit.sideBySide, JSON.stringify(kit));
+check('brackets and downpipes appear once a gutter is chosen, in a section of their own underneath',
+  kit.before === 0 && kit.after === 2 && kit.ownSection && kit.below && kit.fullWidth && !kit.sideBySide,
+  JSON.stringify(kit));
 
 // the nav jumps
 const jump = await d.pg.evaluate(async () => {

@@ -65,10 +65,18 @@ check('…and it is the first one, named so there is something to point at',
 // ── Ethan takes his own copy ─────────────────────────────────────
 const made = await (await as(ETHAN, '/jobs/job-3045/versions', { method: 'POST', body: '{}' })).json();
 check('a second person can take a version of the job', !!made.id && made.id !== 'job-3045', JSON.stringify(made));
-check('…named after whoever made it, so the list says who is who',
-  made.name === "Ethan's version", made.name);
+// NAMED FOR WHICH ONE IT IS (2026-10-18, the owner: "by default call that new
+// version 'version 2' then allow me to edit the name if i want"). It used to
+// be "Ethan's version", which answers WHO made it — the wrong half, when the
+// office is looking at three of them on one job and needs to know the order.
+check('…named for which one it is: the root is Original, so this is Version 2',
+  made.name === 'Version 2', made.name);
 const copy = db.jobs.find(j => j.id === made.id);
-check('…carrying the drawing across', copy && JSON.stringify(copy.draw_state.draw) === JSON.stringify({ lines: [{ type: 'ridge' }] }));
+// The app sends a BLANK state for a new version now (2026-10-18); with none in
+// the body the endpoint still copies, which is what keeps an older app on a
+// cached page working. Both shapes are pinned — the blank one in jobsearch.mjs.
+check('…and with no state in the body it still copies, for an app on a cached page',
+  copy && JSON.stringify(copy.draw_state.draw) === JSON.stringify({ lines: [{ type: 'ridge' }] }));
 // The customer's link and their acceptance belong to the version they were
 // sent. A copy that carried them would show a second job as accepted, and
 // two jobs would answer the same customer link.
@@ -101,8 +109,8 @@ check('Ethan working on his version leaves Aron\'s alone',
 
 // ── a third version does not collide on the name ─────────────────
 const third = await (await as(ETHAN, '/jobs/job-3045/versions', { method: 'POST', body: '{}' })).json();
-check('a second version from the same person gets its own name',
-  third.name === "Ethan's version 2", third.name);
+check('a third version gets the next number, not a clashing name',
+  third.name === 'Version 3', third.name);
 const named = await (await as(ARON, '/jobs/job-3045/versions', { method: 'POST', body: JSON.stringify({ name: 'Priced high' }) })).json();
 check('…and a version can be named outright', named.name === 'Priced high', named.name);
 

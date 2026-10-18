@@ -2954,6 +2954,91 @@ Discipline (non-negotiable):
   `tests/dayplan.mjs` (server), `tests/mydayui.mjs` (the real page, two
   browser contexts as his two devices, including offline).
 
+- THE ROOF PANEL FOLDS TWO SECONDS AFTER THE LAST PRESS (2026-10-18): the
+  reveal's three seconds (`RTP_HIDE_MS`) are for reading the row; a press on a
+  BUTTON inside restarts `RTP_CLICK_HIDE_MS` (2 s) via `_roofPanelAutoHideBump`,
+  so a run of presses is never cut short. A field being typed in keeps it open
+  until the caret leaves (two seconds between keystrokes is an ordinary pause
+  reading a pitch off a plan); `pointerenter` still drops the reveal's timer for
+  good; and a panel opened BY HAND (`rtp._rtpAuto = false` in `_toggleRoofMenu`)
+  is never closed by a press inside it. `tests/roofmenu.mjs`.
+- THE ALIGNMENT GRID IS ORANGE AND THREE TIMES AS FINE (2026-10-18):
+  `ALIGN_GRID_COLS` 24 (was W/8), `ALIGN_GRID_COLOUR`/`ALIGN_GRID_LABEL`
+  `rgba(255,138,0,…)`. A pale cyan line over a green-and-grey aerial is the one
+  colour on the picture you cannot see. The BACKGROUND slider (`#bgOpacity`) is
+  out of the Edit font size menu and on the bar beside it; the Edits (Scaled /
+  Visual) buttons lost their own row and ride in `#roofToolRight` with the scale
+  line, `#scaleIntegrityRow` keeping its id and its place after `btn-calibrate`.
+  `tests/canvassetup.mjs` reads the grid off the canvas (count the HUE lean, not
+  the exact colour — a 1px line straddles two columns and blends pale).
+- EVERY QUOTE SECTION'S DESCRIPTION IS THE OFFICE'S TO WORD (2026-10-18):
+  `S.quote.sectionDesc[key]` for `grade`, `profile`, `thickness`, `colour`,
+  `gutter`, `disposal` (and `gutterkit`), rendered by `_qSecPara(key, default)`
+  which carries `data-qe-sec` + `data-qe-def` and is bound click-to-edit by
+  `_qeBindModernEdits` → `_qeCommitSection`. NO key means the built-in, so every
+  quote already written reads as it did; emptying it, or typing the built-in back
+  word for word, deletes the key (the custDesc rule). NO `{grade}` substitution
+  here, deliberately — a field substituted on the way out and read back on blur
+  would swallow the token the first time anybody clicked it.
+- NOTES ON A QUOTE (2026-10-18): `S.quote.custNotes`, a third list in Edit
+  description (kind `'n'`, `_qdescAdd('n')`), shown on the proposal under an
+  amber "Please note" heading with a caution triangle per line
+  (`.qb-note-hd`/`.qb-note-row`). Not an inclusion (a promise) and not an
+  exclusion (something withheld) — the thing the customer has to MIND. Nothing
+  generates them, so there is no `qb-incl-auto` half. Both new keys are in
+  `Q_CONTENT_KEYS`, `Q_FRESH_DROP` and a template's `wording`.
+  `tests/quotewording.mjs` pins both, office and customer.
+- A NEW VERSION STARTS BLANK (2026-10-18): `_versionCreate` sends
+  `_versionBlankState()` as `draw_state` on `POST /jobs/:id/versions` — the
+  client, the site, the job number and the Fergus link, nothing drawn or priced.
+  The state is built in the APP because what an empty quote looks like is the
+  app's business: a partial quote object handed to `restoreFromJob` is how a
+  renderer finds half a quote and throws. With NO `draw_state` in the body the
+  endpoint still COPIES, so an older app on a cached page keeps working, and both
+  shapes are pinned (`tests/jobsearch.mjs` blank, `tests/jobversions.mjs` copy).
+  The default name is `Version N` (`_defaultVersionName(taken, have)`), not
+  "Aron's version" — which answers who made it, the wrong half when three sit on
+  one job. Rename is on the Edit job details row as well as in the menu.
+- ONE JOB IS ONE ROW IN THE SEARCH (2026-10-18): `_jobGroupsOf(list, q)` groups
+  the saved jobs by `version_of || id`; a match on ANY version brings the whole
+  group (a blank new version has no number of its own yet), the root leads and
+  the rest sit under it as `.hb-drop-ver` rows. `_jobTicksHtml` shows a Fergus
+  tick and a Quote-sent tick, from `linked_job` / `quote_sent` — two jsonb paths
+  `GET /jobs` now sends beside `job_no`. A Fergus job a saved job is LINKED to is
+  dropped from the Fergus list (it was a third row for the same job); one nobody
+  has started is still offered. `_savedJobMatches` also matches `linked_no`, so
+  "3303" finds a job whose own RoofMap number is 06121. `tests/jobsearch.mjs`.
+- A FRESH FEED IS NEVER THE CACHED ONE (2026-10-18): `/quote-activity?fresh=1`
+  skips `_quoteFeedCache`'s minute. A write marks that cache stale, which is
+  enough while one server answers everything — but the mark lives in one
+  process's memory, so a send handled by one instance leaves another's
+  minute-old copy looking perfectly good and the board paints from before the
+  send. The Home ↻ asks fresh, and so does the first visit Home after a send in
+  this session (`window.__qSentAt`, stamped by `_qvMarkSent`). It still FILLS the
+  cache. `tests/sentboard.mjs` follows a real send to the board at three depths;
+  `tests/jobsearch.mjs` pins the bypass against a row changed under the cache.
+- A BUSINESS WITH ANY DETAILS ON FILE IS NOT A NEW ONE (2026-10-18):
+  `_needsSetup()` asked on `branding.company_name` alone, and that one field can
+  be empty on an account whose NAME comes from the company record while its logo,
+  phone, email and address have been on every quote for a year — so the "Set your
+  business up" wizard met the owner over a quote already carrying his own logo.
+  Any of company_name / logo / logo_data_url / phone / email / address / website /
+  gst_number / tagline means set up. "I'll set this up later" now holds for the
+  sitting (`sessionStorage.fr_setup_later`). The older lesson above it still
+  stands: a /settings read that FAILED is not an empty branding.
+  `tests/setupguide.mjs`.
+- A GUTTER CARRIES A PICTURE LIKE A PROFILE (2026-10-18): `img` on a
+  `selectables.gutters` row, set by `_qpfPicPick(id, 'gutters')` →
+  `_qpfPicSet(id, src, kind)` (kind defaults to 'profiles', so every existing
+  call is unchanged) from Settings → Quote's Product Options AND from the
+  quote's "Edit gutter selections" window. `_qbGutterFigure(id)` shows ONLY the
+  picked one, and nothing for a product with no picture — the roof profile's
+  rule. AND BRACKETS & DOWNPIPES ARE THEIR OWN SECTION: `gutterkit` is pushed
+  into `_qdSectionsRaw` under `gutter` when one is chosen, full width, each
+  choice in its own `.qb-sub` box; `_qdGutter` is just `_qbGutter()` now and the
+  `qd-grid2` two-column row is gone. Same fault and same fix as the
+  three-column "Roofing" grid of 2026-09-20. `tests/gutterlook.mjs`.
+
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
 The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen

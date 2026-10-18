@@ -4104,6 +4104,18 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .qb-excl-hd{ color:#c0392b; margin-top:4px; }
 .qb-excl-row svg{ color:#c0392b; }
 .qb-excl-row span{ color:#5b6b7c; }
+/* Brackets & downpipes: each choice its own box inside the section, so two
+   decisions on one page do not read as one long list. */
+.qb-sub{ border:1px solid #e9eef4; border-radius:13px; padding:13px 14px 4px; margin-bottom:13px; background:#fcfdfe; }
+.qb-sub .qb-h3{ margin-top:0; }
+/* NOTES (2026-10-18): the office's own cautions on this quote. Amber, with a
+   caution mark per line, so they read as "mind this" rather than as one more
+   thing the price leaves out. */
+.qb-note-hd{ color:#b45309; margin-top:4px; }
+.qb-note-list{ border-color:#f0dcb6; background:#fffdf6; }
+.qb-note-row{ border-bottom-color:#f5e8cf; }
+.qb-note-row svg{ color:#d97706; }
+.qb-note-row span{ color:#6b5327; }
 .qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:12px 0 4px; }
 .qp-bg-sw{ margin-left:auto; display:inline-flex; align-items:center; gap:7px; padding:4px 10px 4px 5px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#475569; font:600 11px/1.2 Inter,-apple-system,sans-serif; cursor:pointer; }
 .qp-bg-sw-knob{ width:26px; height:15px; border-radius:999px; background:#cbd5e1; position:relative; flex:0 0 auto; transition:background .15s; }
@@ -4273,6 +4285,13 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
 .qdesc-sub span{ font-weight:400; color:var(--text2); }
 .qdesc-row-x .qdesc-n{ color:#c0392b; font-weight:700; }
+.qdesc-row-n .qdesc-n{ color:#b45309; font-weight:700; }
+/* The search drop-down's ticks, and a job's other versions under it. */
+.hb-drop-ticks{ display:flex; gap:5px; flex:0 0 auto; align-items:center; }
+.hb-drop-tick{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; }
+.hb-drop-ver{ padding-left:26px; background:#fcfbff; }
+.hb-drop-ver .hb-drop-badge{ min-width:0; }
+.qdesc-sub-note{ color:#b45309; }
 .qb-price-open{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
   background:#0a1628; color:#fff; border-radius:13px; padding:11px 15px; margin-bottom:14px; }
 .qb-price-open span{ font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); }
@@ -4927,7 +4946,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-18T22:33:30Z';
+  window.APP_BUILT_AT = '2026-10-18T22:58:58Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5712,7 +5731,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
              oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
       <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
-    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts();try{_hbToPriceLoad(true)}catch(e){}" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
+    <button type="button" onclick="fetchQuoteActivity(true);fetchRecentDrafts();try{_hbToPriceLoad(true)}catch(e){}" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
   <!-- Filled by _planGateSync(): the "pick a plan" bar, or a legacy trial
        countdown for accounts that were given one. See loadSubscription(). -->
@@ -9735,7 +9754,14 @@ function gotoTab(t) {
   // tabs means the reader is done with it, so it goes.
   try { var _qnp = document.getElementById('qnPanel'); if (_qnp) _qnp.style.display = 'none'; } catch(e){}
   try { _frBubblesSync(); } catch(e){}
-  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} try{ _hbToPriceLoad(false); }catch(e){} }
+  // A quote sent in this session means the board IS behind: the first visit
+  // Home after one asks for a fresh read rather than whatever was cached
+  // before the send (window.__qSentAt, stamped by the send).
+  if(t==='select'){
+    var _qf = false;
+    try { _qf = !!(window.__qSentAt && window.__qSentAt > (window.__qFeedFreshAt || 0)); if (_qf) window.__qFeedFreshAt = Date.now(); } catch(e){}
+    try{ fetchQuoteActivity(_qf); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} try{ _hbToPriceLoad(false); }catch(e){}
+  }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   try { _sampleJobStripSync(); } catch(e){}
@@ -18104,8 +18130,27 @@ function _needsSetup(){
     // "Set your business up" in front of a quote he was trying to send.
     // Empty branding only means "not set up" when the server actually said so.
     if (!window.__settingsLive && !window.__PLAYGROUND) return false;
+    // A BUSINESS WITH ANY OF ITS DETAILS ON FILE IS NOT A NEW ONE (2026-10-18,
+    // the owner: "stop showing this window, sometimes after a app update and
+    // reload, it thinks i'm a new user" — over a quote that was already
+    // carrying his own logo). This asked on company_name ALONE, and that one
+    // field can be empty on an account whose NAME comes from the company
+    // record while its logo, phone, email and address have been on every
+    // quote it has ever sent. The company name is then filled in from
+    // localStorage when the wizard opens, so the window asks for details it
+    // is already showing back.
+    //
+    // The same lesson as the read above, one step further on: not knowing a
+    // field is not the same as knowing it is empty, and a business that has
+    // put ANYTHING on its quotes has plainly set itself up.
     var b = (S.settings && S.settings.branding) || {};
-    return !String(b.company_name || '').trim();
+    var any = ['company_name','logo','logo_data_url','phone','email','address','website','gst_number','tagline']
+      .some(function(k){ return !!String(b[k] || '').trim(); });
+    if (any) return false;
+    // And it never asks twice in one sitting: "I'll set this up later" holds
+    // until the tab is closed, so a second send does not meet it again.
+    try { if (sessionStorage.getItem('fr_setup_later') === '1') return false; } catch(e){}
+    return true;
   } catch(e){ return false; }
 }
 // The wizard used to open the moment a new account signed in — nine fields
@@ -18189,6 +18234,7 @@ function openSetupWizard(opts){
 function _swLater(){
   var h = document.getElementById('setupWizard'); if (h) h.remove();
   _onbRelease('wizard'); window.__swThen = null;
+  try { sessionStorage.setItem('fr_setup_later', '1'); } catch(e){}
   try { _siteToast('You can set your business up any time in Settings'); } catch(e){}
 }
 function _swLogoPick(ev){
@@ -20645,7 +20691,7 @@ function _versionMenuToggle(ev){
     rows +
     '<button type="button" class="lock-ok" onclick="_versionCreate()" style="display:block;width:100%;text-align:left;border:none;background:#fff;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;color:#0a1628">' +
       '＋ Create new version' +
-      '<div style="font-size:10.5px;font-weight:500;color:#64748b;margin-top:1px">Copies the version on screen and opens it</div>' +
+      '<div style="font-size:10.5px;font-weight:500;color:#64748b;margin-top:1px">A blank one for this job — the client, the number and the Fergus link come across, nothing else</div>' +
     '</button>' +
     ((window.S && S.currentJobId) ? '<button type="button" class="lock-ok" onclick="_versionRename()" style="display:block;width:100%;text-align:left;border:none;border-top:1px solid #f1f5f9;background:#fff;padding:9px 12px;cursor:pointer;font-family:inherit;font-size:12px;color:#475569">✎ Rename this version</button>' : '');
   m.style.display = 'block';
@@ -20663,23 +20709,55 @@ async function _versionSwitch(id){
   if (!id || String(id) === String(S.currentJobId)) return;
   try { await openJob(id); } catch(e){ alert('Could not open that version: ' + (e && e.message || e)); }
 }
+// A NEW VERSION STARTS EMPTY (2026-10-18, the owner: "if i click into that
+// job then click on create new version, only then should it create a
+// completely new version without the roofmap, canavs drawing or quote
+// adjustements on it"). A version used to be a COPY, which is right when two
+// people are working one roof two ways and wrong when the point is quoting
+// the same job again from scratch.
+//
+// What carries over is WHO THE JOB IS FOR: the client, the site, the job
+// number and the Fergus link. Everything the roofer draws or prices is
+// theirs to do again. The state is built HERE rather than in the endpoint
+// because what an empty quote looks like is the app's business — a partial
+// quote object handed to restoreFromJob is how a renderer finds half a
+// quote and throws.
+function _versionBlankState(){
+  var q = defaultQuote();
+  try {
+    var cur = S.quote || {};
+    ['ref','client','addr','email','phone','quoteKind'].forEach(function(k){ if (cur[k]) q[k] = cur[k]; });
+  } catch(e){}
+  var st = { quote: q };
+  try { if (S.linkedJobId) st.linkedJobId = S.linkedJobId; } catch(e){}
+  try { if (S.linkedJobNo) st.linkedJobNo = S.linkedJobNo; } catch(e){}
+  var form = {};
+  try {
+    ['jobClient','jobAddr','jobNo','jobEmail','jobPhone'].forEach(function(id){
+      var el = document.getElementById(id); if (el && el.value) form[id] = el.value;
+    });
+  } catch(e){}
+  return { state: st, form: form };
+}
 async function _versionCreate(){
   _versionMenuClose();
   if (!(window.S && S.currentJobId)){
     alert('Save this job first — then it can have versions.');
     return;
   }
-  busyShow('Creating a version…', 'Copying this one, then opening it');
+  busyShow('Creating a version…', 'A blank one for this job, then opening it');
   try {
-    // What is on screen belongs in the copy, so anything unsaved goes down
-    // first — a version that starts a step behind is how work gets lost.
+    // What is on screen belongs to the version they are LEAVING, so anything
+    // unsaved goes down first — a version that starts a step behind is how
+    // work gets lost, whether the new one copies it or not.
     try { await _saveBeforeSwitch(); } catch(e){}
-    var r = await api('POST', '/jobs/' + S.currentJobId + '/versions', {});
+    var r = await api('POST', '/jobs/' + S.currentJobId + '/versions', { draw_state: _versionBlankState() });
     if (!r || !r.id) throw new Error('no version came back');
     await openJob(r.id);
     await _versionRefresh();
-    _siteToast('New version: ' + (r.name || 'copy') + ' — you are working on it now');
+    _siteToast('New version: ' + (r.name || 'Version 2') + ' — blank, and you are working on it now');
     try { refreshJobsList(); } catch(e){}
+    try { window._selectJobsCache = null; } catch(e){}
   } catch(e){
     alert('Could not create a version: ' + (e && e.message || e));
   } finally { busyHide(); }
@@ -20712,6 +20790,13 @@ function _versionRenderDetails(){
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">' +
       '<strong style="font-size:13.5px;color:#0a1628">' + esc(name) + '</strong>' +
       (n > 1 ? '<span style="font-size:11.5px;color:#64748b">' + n + ' versions of this job</span>' : '') +
+      // Renaming beside the name it changes (2026-10-18, the owner: "in the
+      // 'edit job details' it should let me edit the name of the version").
+      // It was only ever in the Switch / new menu, two clicks away and under
+      // a heading about switching.
+      '<button type="button" id="jobDetailsVersionRename" class="lock-ok" onclick="_versionRename()" ' +
+        'style="padding:5px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit" ' +
+        'title="Rename this version">\u270E Rename</button>' +
       '<button type="button" id="jobDetailsVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)" ' +
         'style="margin-left:auto;padding:7px 12px;border:1px solid #7c3aed;border-radius:8px;background:#fff;color:#7c3aed;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Switch / new ▾</button>' +
     '</div>';
@@ -21107,7 +21192,7 @@ function _dupJobIsSame(ex, client, addr){
 function _screenHasWork(){
   try {
     if (window.DRAW && ((DRAW.outline && DRAW.outline.length >= 3) || (DRAW.roofs || []).some(function(r){ return r && r.outline && r.outline.length >= 3; }))) return true;
-    if (S.quote && ((S.quote.lineItems || []).length || (S.quote.condPhotos || []).some(Boolean) || S.quote.custDesc || S.quote.custExcl)) return true;
+    if (S.quote && ((S.quote.lineItems || []).length || (S.quote.condPhotos || []).some(Boolean) || S.quote.custDesc || S.quote.custExcl || S.quote.custNotes)) return true;
     if ((S.photos || []).length) return true;
   } catch(e){}
   return false;
@@ -22770,16 +22855,81 @@ async function openSampleJob(){
 // number, a saved RoofMap job never could, because GET /jobs did not send one.
 // Digits typed on their own are matched loosely (3287 finds 3287 and 03287);
 // otherwise the number joins the client and the address as plain text.
+// AND BY ITS FERGUS NUMBER (2026-10-18). The owner searched "job#3303" for a
+// job whose own RoofMap number is 06121 — 3303 is what Fergus calls it, and
+// it is the number on everything the office handles. A linked job carries it
+// (state.linkedJobNo), so it is matched like the job's own.
 function _savedJobMatches(j, q){
   if (!q) return true;
   var ql = String(q).toLowerCase();
   var no = String((j && j.job_no) || '');
-  if (((j.client_name || '') + ' ' + (j.site_address || '') + ' ' + no).toLowerCase().indexOf(ql) >= 0) return true;
+  var fno = String((j && j.linked_no) || '');
+  if (((j.client_name || '') + ' ' + (j.site_address || '') + ' ' + no + ' ' + fno).toLowerCase().indexOf(ql) >= 0) return true;
   // A job number with leading zeros ("06121") must still be found by "6121".
-  if (/^\d+$/.test(ql) && /^\d+$/.test(no)) return String(parseInt(no, 10)).indexOf(String(parseInt(ql, 10))) >= 0;
+  if (/^\d+$/.test(ql)){
+    var want = String(parseInt(ql, 10));
+    if (/^\d+$/.test(no) && String(parseInt(no, 10)).indexOf(want) >= 0) return true;
+    if (/^\d+$/.test(fno) && String(parseInt(fno, 10)).indexOf(want) >= 0) return true;
+  }
   return false;
 }
 
+// ONE ROW PER JOB, ITS OTHER VERSIONS UNDER IT (2026-10-18, the owner:
+// "when searching a job, like job#3303, it shows 3 jobs, two as 'saved' and
+// one as 'fergus' and i don't know which is the job i've been working on that
+// has work in it, there should only be one job when i search job #3303").
+//
+// All three rows were real and none of them said so. A VERSION is a job row
+// of its own — same client, same number — so a job he had versioned listed
+// twice with nothing to tell them apart; and the Fergus job the saved one is
+// LINKED TO was listed a third time, as though it were somewhere else to go.
+//
+// A group is every row sharing a version_of root. The job is its head row;
+// the other versions sit under it, named, so "show me that second version"
+// is answered without the job reading as three jobs.
+//
+// A MATCH ON ANY VERSION BRINGS THE WHOLE GROUP, which is what makes this
+// work at all: a new version starts blank and carries no job number of its
+// own yet, so typing the number finds the original and the group brings the
+// rest.
+function _jobGroupsOf(list, q){
+  var all = (list || []).filter(Boolean);
+  var byRoot = {}, hit = {};
+  all.forEach(function(j){
+    var r = String(j.version_of || j.id);
+    (byRoot[r] || (byRoot[r] = [])).push(j);
+    if (_savedJobMatches(j, q)) hit[r] = 1;
+  });
+  var out = Object.keys(hit).map(function(r){
+    var rows = (byRoot[r] || []).slice();
+    rows.sort(function(a, b){
+      var ar = String(a.id) === r, br = String(b.id) === r;
+      if (ar !== br) return ar ? -1 : 1;          // the original leads
+      return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+    });
+    var newest = '';
+    rows.forEach(function(x){ if (String(x.updated_at || '') > newest) newest = String(x.updated_at || ''); });
+    return {
+      root: r, rows: rows, head: rows[0] || null,
+      // The number can live on any version of the group — a blank new one has
+      // none of its own until it is saved.
+      jobNo: (rows.find(function(x){ return x.job_no; }) || {}).job_no || '',
+      linked: rows.filter(function(x){ return !!x.linked_job; }).map(function(x){ return String(x.linked_job); }),
+      sent: rows.some(function(x){ return !!x.quote_sent; }),
+      updated: newest,
+    };
+  }).filter(function(g){ return g.head; });
+  out.sort(function(a, b){ return String(b.updated).localeCompare(String(a.updated)); });
+  return out;
+}
+// The two ticks the owner asked for. Shown only when they are true — an
+// absent tick is not a cross, it is a job nobody has done that to yet.
+function _jobTicksHtml(g){
+  var t = '';
+  if (g.linked.length) t += '<span class="hb-drop-tick" style="background:#ede9fe;color:#6d28d9">\u2713 Fergus</span>';
+  if (g.sent) t += '<span class="hb-drop-tick" style="background:#dcfce7;color:#15803d">\u2713 Quote sent</span>';
+  return t;
+}
 // ── Home "Select job" type-ahead ────────────────────────────────────
 // One search box over BOTH sources the Select Job modal covers: saved
 // RoofMap jobs (client/address) and Fergus jobs (client/address/job N°,
@@ -22807,9 +22957,12 @@ function _hbPaintSearch(q){
   var drop = document.getElementById('homeJobSearchDrop');
   if (!drop) return;
   var ql = (q || '').toLowerCase();
-  var saved = (window._selectJobsCache || []).filter(function(j){
-    return _savedJobMatches(j, q);
-  }).slice(0, q ? 8 : 6);
+  var groups = _jobGroupsOf(window._selectJobsCache || [], q).slice(0, q ? 8 : 6);
+  // A FERGUS JOB A SAVED JOB IS ALREADY LINKED TO IS NOT A SECOND PLACE TO
+  // GO. It was listed again under its own badge, so the job he had been
+  // working on and the empty Fergus shell of it looked like two jobs.
+  var linkedIds = {};
+  groups.forEach(function(g){ g.linked.forEach(function(id){ linkedIds[String(id)] = 1; }); });
   var ferg = [];
   var allF = S.fergJobsCache || [];
   if (allF.length) {
@@ -22817,16 +22970,30 @@ function _hbPaintSearch(q){
       return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
         : ((j.customer || '').toLowerCase().indexOf(ql) >= 0 || (j.address || '').toLowerCase().indexOf(ql) >= 0 || String(j.jobNo || '').indexOf(q) >= 0);
     });
+    ferg = ferg.filter(function(j){ return !linkedIds[String(j.id)]; });
     if (typeof _fergRecencyComp === 'function') ferg.sort(_fergRecencyComp);
     ferg = ferg.slice(0, q ? 8 : 4);
   }
-  var rows = saved.map(function(j){
-    return '<div class="hb-drop-row" onmousedown="event.preventDefault()" onclick="_hbPickSaved(\'' + j.id + '\')">' +
+  var rows = [];
+  groups.forEach(function(g){
+    var j = g.head;
+    rows.push('<div class="hb-drop-row" data-job-head="' + esc2(g.root) + '" onmousedown="event.preventDefault()" onclick="_hbPickSaved(\'' + j.id + '\')">' +
       '<span class="hb-drop-badge" style="background:#dbeafe;color:#1d4ed8">Saved</span>' +
-      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.client_name || '(untitled)') + (j.job_no ? ' <span style="color:#94a3b8;font-weight:500">\u00b7 #' + esc2(j.job_no) + '</span>' : '') + '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.client_name || '(untitled)') + (g.jobNo ? ' <span style="color:#94a3b8;font-weight:500">\u00b7 #' + esc2(g.jobNo) + '</span>' : '') + '</div>' +
       '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.site_address || '—') + '</div></div>' +
-    '</div>';
-  }).concat(ferg.map(function(j){
+      '<span class="hb-drop-ticks">' + _jobTicksHtml(g) + '</span>' +
+    '</div>');
+    // The job's other versions, under it and plainly part of it.
+    g.rows.slice(1).forEach(function(v, i){
+      rows.push('<div class="hb-drop-row hb-drop-ver" data-job-version="' + esc2(g.root) + '" onmousedown="event.preventDefault()" onclick="_hbPickSaved(\'' + v.id + '\')">' +
+        '<span class="hb-drop-badge" style="background:#f5f3ff;color:#7c3aed">\u2442</span>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#4c1d95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+          esc2(v.version_name || ('Version ' + (i + 2))) + '</div>' +
+        '<div style="font-size:10.5px;color:#8b7bb8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">another version of this job</div></div>' +
+      '</div>');
+    });
+  });
+  rows = rows.concat(ferg.map(function(j){
     var fid = String(j.id).replace(/[\\']/g, '');
     return '<div class="hb-drop-row" onmousedown="event.preventDefault()" onclick="_hbPickFergus(\'' + fid + '\')">' +
       '<span class="hb-drop-badge" style="background:#ede9fe;color:#6d28d9">Fergus</span>' +
@@ -28115,12 +28282,16 @@ function renderSelectablesUI(){
       }) +
     section('gutters', 'Gutter profiles',
       'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not. The bracket rate is the per-lm upcharge when the customer picks external brackets.',
-      '<th>Name</th><th style="width:96px">Scaffold +25%</th><th style="width:110px">Ext bracket $/lm</th><th>Shown to the customer as</th>',
+      '<th>Name</th><th style="width:96px">Scaffold +25%</th><th style="width:110px">Ext bracket $/lm</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
           '<td style="text-align:center"><input type="checkbox" ' + (r.scaffoldUplift === false ? '' : 'checked') +
             ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
           '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0"') + '</td>' +
+          '<td style="text-align:center">' +
+            (r.img ? '<img src="' + esc(r.img) + '" alt="" style="max-width:52px;max-height:30px;display:block;margin:0 auto 3px;border-radius:4px">' : '') +
+            '<button type="button" onclick="_qpfPicPick(\'' + esc(r.id) + '\',\'gutters\')" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit">' +
+            (r.img ? 'change' : '\uD83D\uDCF7 add') + '</button></td>' +
           '<td>' + inp('gutters', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     // The four groups whose ids ARE the pricing. A company can word them its
@@ -30471,6 +30642,9 @@ function _qvMarkSent(){
     if (!v.sentEarlier.some(function(d){ return d && d.id === v.sent.id; })) v.sentEarlier.push(v.sent);
   }
   v.sent = snap;
+  // The Home board is now certainly behind (2026-10-18): the next visit asks
+  // the server for a feed it has not cached rather than the minute-old one.
+  try { window.__qSentAt = Date.now(); } catch(e){}
   try { _qvPackAll(); } catch(e){}
   _qvRenderBar();
   try { _jobLockRender(); } catch(e){}   // the left menu's strip says "Quote sent"
@@ -30536,7 +30710,7 @@ function _qvBackToDraft(opts){
 // a template or a new job's default (tplFresh → tplFp); prices that follow
 // the roof are not counted. A draft with no baseline (an older one) counts as
 // worked on: an extra saved draft is better than lost work.
-var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl',
+var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
   'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons'];
@@ -32514,6 +32688,7 @@ function _qbGalPaint(n, total){
 // the customer can add or drop. This is where the price starts.
 function _qbProposal(opts){
   var excl = _qbExclusionLines();
+  var notes = _qbNoteLines();
   opts = opts || {};
   var q = S.quote || {};
   var lines = _qbInclusionLines();
@@ -32542,6 +32717,14 @@ function _qbProposal(opts){
       (excl.length ? '<div class="qb-incl-hd qb-excl-hd">What\u2019s excluded</div><div class="qb-incl qb-excl">'+
         excl.map(function(t, i){
           return '<div class="qb-incl-row qb-excl-row'+(i >= ownEx ? ' qb-incl-auto' : '')+'"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>'+esc2(t)+'</span></div>';
+        }).join('')+'</div>' : '')+
+      // Please note — amber, each line with a caution mark.
+      (notes.length ? '<div class="qb-incl-hd qb-note-hd">Please note</div><div class="qb-incl qb-note-list">'+
+        notes.map(function(t){
+          return '<div class="qb-incl-row qb-note-row"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">'+
+            '<path d="M10 2.8l7.6 14.1H2.4L10 2.8z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>'+
+            '<path d="M10 8.1v3.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'+
+            '<circle cx="10" cy="14.7" r="1.05" fill="currentColor"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+'</div>' : '')+
       extraRows+
     '</div>'+
@@ -32677,6 +32860,26 @@ function _qbExclusionLines(){
   var own = _custExclLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
   return _qbAddOptionLines(own, _qbOptionLines().excl);
 }
+// NOTES (2026-10-18, the owner: "in the quotes edit description can you add a
+// 'notes' section which should be a orange/yellow title colour with a
+// orange/yellow caution symbol on each of the notes I add in").
+//
+// Not an exclusion and not an inclusion — the thing the customer has to MIND.
+// "Access is over the neighbour's lawn", "the scaffold stays up a fortnight",
+// "the roof cannot be walked on until it is screwed down". Written as an
+// exclusion it reads as something being withheld; written as an inclusion it
+// reads as a promise. Its own amber heading is the honest place for it.
+//
+// Nothing generates these, so every line is the office's own: there is no
+// qb-incl-auto half the way the inclusions and exclusions have.
+function _custNotesLines(){
+  var q = S.quote || {};
+  return (Array.isArray(q.custNotes) ? q.custNotes : []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+}
+function _qbNoteLines(){
+  var g = _qbGradeName();
+  return _custNotesLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
+}
 // ── the office editor for those lines ─────────────────────────────
 // The classic document's description is the "What's included and our
 // process" scope: one bullet a line, stored with a leading "• ".
@@ -32718,10 +32921,13 @@ function _qdescOpen(){
         '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(QB_PROPOSAL_TITLE)+'"></div>')+
       '<div class="qdesc-list" id="qdescList"></div>'+
       (classic ? '' : '<div class="qdesc-sub">Exclusions <span>— what the price does not cover; shown with a cross under their own heading, only when there are any</span></div>'+
-        '<div class="qdesc-list" id="qdescExclList"></div>')+
+        '<div class="qdesc-list" id="qdescExclList"></div>'+
+        '<div class="qdesc-sub qdesc-sub-note">Notes <span>— what the customer should mind; shown in amber under "Please note", each with a caution mark</span></div>'+
+        '<div class="qdesc-list" id="qdescNoteList"></div>')+
       '<div class="qdesc-ft">'+
         '<button type="button" class="qa-btn" onclick="_qdescAdd()">+ Add line</button>'+
         (classic ? '' : '<button type="button" class="qa-btn" onclick="_qdescAdd(\'x\')">+ Add exclusion</button>')+
+        (classic ? '' : '<button type="button" class="qa-btn" onclick="_qdescAdd(\'n\')">+ Add note</button>')+
         '<button type="button" class="qa-btn" onclick="_qdescReset()">Reset to default</button>'+
         '<span style="flex:1"></span>'+
         '<button type="button" class="qa-btn" onclick="_qdescClose()">Cancel</button>'+
@@ -32732,20 +32938,25 @@ function _qdescOpen(){
   host.addEventListener('click', function(e){ if (e.target === host) _qdescClose(); });
   host._lines = lines;
   host._excl = classic ? [] : _custExclLines().slice();
+  host._notes = classic ? [] : _custNotesLines().slice();
   _qdescPaint();
 }
-// Two lists in one editor: the inclusions (kind '' / 'i') and the
-// exclusions (kind 'x'). Every row helper takes the kind last.
-function _qdescListOf(h, k){ return k === 'x' ? (h._excl || (h._excl = [])) : h._lines; }
+// Three lists in one editor: the inclusions (kind '' / 'i'), the exclusions
+// (kind 'x') and the notes (kind 'n'). Every row helper takes the kind last.
+function _qdescListOf(h, k){
+  if (k === 'x') return (h._excl || (h._excl = []));
+  if (k === 'n') return (h._notes || (h._notes = []));
+  return h._lines;
+}
 function _qdescPaint(){
   var host = document.getElementById('qdescModal'); if (!host) return;
   var paint = function(id, k, ph, empty){
     var list = document.getElementById(id); if (!list) return;
     var lines = _qdescListOf(host, k);
-    var kq = k === 'x' ? "'x'" : "''";
+    var kq = k === 'x' ? "'x'" : (k === 'n' ? "'n'" : "''");
     list.innerHTML = lines.map(function(l, i){
-      return '<div class="qdesc-row'+(k === 'x' ? ' qdesc-row-x' : '')+'">'+
-          '<span class="qdesc-n">'+(k === 'x' ? '\u2715' : (i+1))+'</span>'+
+      return '<div class="qdesc-row'+(k === 'x' ? ' qdesc-row-x' : (k === 'n' ? ' qdesc-row-n' : ''))+'">'+
+          '<span class="qdesc-n">'+(k === 'x' ? '\u2715' : (k === 'n' ? '\u26A0' : (i+1)))+'</span>'+
           '<input type="text" value="'+esc2(l)+'" oninput="_qdescSet('+i+',this.value,'+kq+')" placeholder="'+ph+'">'+
           '<button type="button" title="Move up" onclick="_qdescMove('+i+',-1,'+kq+')"'+(i===0?' disabled':'')+'>&#9650;</button>'+
           '<button type="button" title="Move down" onclick="_qdescMove('+i+',1,'+kq+')"'+(i===lines.length-1?' disabled':'')+'>&#9660;</button>'+
@@ -32755,6 +32966,7 @@ function _qdescPaint(){
   };
   paint('qdescList', '', 'Describe one step of the work', 'No lines yet — add one, or reset to the default six.');
   paint('qdescExclList', 'x', 'Something the price does not cover', 'No exclusions — the customer sees the inclusions only.');
+  paint('qdescNoteList', 'n', 'Something the customer should mind', 'No notes — nothing extra is shown.');
 }
 function _qdescSet(i, v, k){ var h = document.getElementById('qdescModal'); if (!h) return; var L = _qdescListOf(h, k); if (L[i] != null) L[i] = v; }
 function _qdescMove(i, d, k){
@@ -32766,7 +32978,10 @@ function _qdescDel(i, k){ var h = document.getElementById('qdescModal'); if (!h)
 function _qdescAdd(k){
   var h = document.getElementById('qdescModal'); if (!h) return;
   _qdescListOf(h, k).push(''); _qdescPaint();
-  try { var ins = h.querySelectorAll(k === 'x' ? '#qdescExclList input' : '#qdescList input'); ins[ins.length - 1].focus(); } catch(e){}
+  try {
+    var sel = k === 'x' ? '#qdescExclList input' : (k === 'n' ? '#qdescNoteList input' : '#qdescList input');
+    var ins = h.querySelectorAll(sel); ins[ins.length - 1].focus();
+  } catch(e){}
 }
 function _qdescReset(){
   var h = document.getElementById('qdescModal'); if (!h) return;
@@ -32792,6 +33007,8 @@ function _qdescSave(){
   if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
   var excl = (h._excl || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
   if (excl.length) S.quote.custExcl = excl; else delete S.quote.custExcl;
+  var notes = (h._notes || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
+  if (notes.length) S.quote.custNotes = notes; else delete S.quote.custNotes;
   var ti = document.getElementById('qdescTitle');
   if (ti){
     var tv = String(ti.value || '').trim().slice(0, 60);
@@ -32841,6 +33058,32 @@ function _qeCommitInline(el, field){
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast(field === 'coverTitle' ? 'Cover title saved' : 'Roof condition saved'); } catch(e){}
 }
+// One section's paragraph, written back. An emptied one deletes the key, so
+// the built-in comes back; typing the built-in word for word does the same,
+// so a later change to it still reaches this quote.
+function _qeCommitSection(el, key, def){
+  if (!el || !window.S || !S.quote || !key) return;
+  var v = String(el.innerText == null ? '' : el.innerText).replace(/\s+/g, ' ').trim();
+  if (v === QE_SEC_PROMPT) v = '';
+  if (def && v === String(def).replace(/\s+/g, ' ').trim()) v = '';
+  var m = (S.quote.sectionDesc && typeof S.quote.sectionDesc === 'object' && !Array.isArray(S.quote.sectionDesc))
+    ? S.quote.sectionDesc : null;
+  var was = (m && m[key] != null) ? String(m[key]) : '';
+  if (v === was){
+    if (!v) { try { refreshQuoteProposal(); } catch(e){} }
+    return;
+  }
+  if (v){
+    if (!m) m = S.quote.sectionDesc = {};
+    m[key] = v;
+  } else if (m){
+    delete m[key];
+    if (!Object.keys(m).length) delete S.quote.sectionDesc;
+  }
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast(v ? 'Section description saved' : 'Section description back to the standard wording'); } catch(e){}
+}
 function _qeBindModernEdits(){
   var root = document.getElementById('qpRoot'); if (!root) return;
   var bind = function(el, title, field){
@@ -32866,8 +33109,17 @@ function _qeBindModernEdits(){
       if (ev.key === 'Escape'){ ev.preventDefault(); el.innerText = el._qeWas || ''; el.blur(); return; }
       if (ev.key === 'Enter' && !ev.shiftKey){ ev.preventDefault(); el.blur(); }
     });
-    el.addEventListener('blur', function(){ _qeCommitInline(el, field); });
+    el.addEventListener('blur', function(){
+      if (field && field.sec) _qeCommitSection(el, field.sec, el.getAttribute('data-qe-def') || '');
+      else _qeCommitInline(el, field);
+    });
   };
+  // Every section that carries a description of its own.
+  try {
+    Array.prototype.forEach.call(root.querySelectorAll('[data-qe-sec]'), function(el){
+      bind(el, 'This section\u2019s description', { sec: el.getAttribute('data-qe-sec') });
+    });
+  } catch(e){}
   bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', 'coverTitle');
   var cond = root.querySelector('#qd-condition .qb-para') || (root.querySelector('#qbPage[data-qb-page="condition"] .qb-para'));
   bind(cond, 'Existing roof condition — the summary the customer reads', 'conditionSummary');
@@ -33180,7 +33432,7 @@ function _qselPaint(){
           (g.kind === 'profiles' && r.img ? '<img class="qsel-pic" src="'+esc2(r.img)+'" alt="">' : '')+
           '<span>'+esc2(r.label)+'</span>'+
           (r.note ? '<span class="qsel-why">'+esc2(r.note)+'</span>' : '')+
-          (g.kind === 'profiles' ? '<button type="button" class="qsel-picbtn" onclick="event.preventDefault();event.stopPropagation();_qpfPicPick(\''+esc2(r.id)+'\')">'+(r.img ? 'Change picture' : '\uD83D\uDCF7 Add picture')+'</button>' : '')+
+          ((g.kind === 'profiles' || g.kind === 'gutters') ? '<button type="button" class="qsel-picbtn" onclick="event.preventDefault();event.stopPropagation();_qpfPicPick(\''+esc2(r.id)+'\',\''+esc2(g.kind)+'\')">'+(r.img ? 'Change picture' : '\uD83D\uDCF7 Add picture')+'</button>' : '')+
         '</label>';
     }).join('') + (g.kind === 'profiles' ? '<button type="button" class="qsel-add" onclick="_qpfOpen()">+ Add profile option</button>' : '');
   }).join('') + (host._msg ? '<div class="qsel-msg">'+esc2(host._msg)+'</div>' : '');
@@ -33292,28 +33544,38 @@ function _qpfAdd(){
 // A picture for a profile: the new one in the Add window (id null), a job's
 // own profile (kept on the quote), or a saved one (kept in Settings, so every
 // quote that offers it shows it).
-function _qpfPicPick(id){
+// A PICTURE BELONGS TO A GUTTER THE SAME WAY IT BELONGS TO A PROFILE
+// (2026-10-18, the owner: "allow me to add a picture of the gutter profiles
+// just like i can for the sheet profiles ... both in the settings and in the
+// gutter edit button on the quote"). A roof profile has carried one since
+// 2026-09-23; a customer choosing between a box gutter, a Typhoon and a
+// Classic had three names and three prices and nothing to look at.
+// `kind` is the selectables list the picture is written into: 'profiles'
+// (the default, so every existing call is unchanged) or 'gutters'.
+function _qpfPicPick(id, kind){
   var inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
   inp.addEventListener('change', function(){
     var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
     var r = new FileReader();
-    r.onload = function(ev){ _downscalePhoto(ev.target.result, function(src){ _qpfPicSet(id, src); }); };
+    r.onload = function(ev){ _downscalePhoto(ev.target.result, function(src){ _qpfPicSet(id, src, kind); }); };
     r.readAsDataURL(f);
   });
   document.body.appendChild(inp); inp.click();
 }
-function _qpfPicSet(id, src){
+function _qpfPicSet(id, src, kind){
   if (id == null){
     var host = document.getElementById('qpfModal'); if (!host) return;
     host._img = src;
     var pv = document.getElementById('qpfPrev'); if (pv) pv.innerHTML = '<img src="'+esc2(src)+'" alt="">';
     return;
   }
-  var cp = (S.quote && Array.isArray(S.quote.customProfiles)) ? S.quote.customProfiles.filter(function(x){ return x && x.id === id; })[0] : null;
+  var K = (kind === 'gutters') ? 'gutters' : 'profiles';
+  var cp = (K === 'profiles' && S.quote && Array.isArray(S.quote.customProfiles))
+    ? S.quote.customProfiles.filter(function(x){ return x && x.id === id; })[0] : null;
   if (cp){ cp.img = src; try { _scheduleAutosave(); } catch(e){} }
   else {
-    var sv = _selKindList('profiles').filter(function(x){ return x && x.id === id; })[0];
+    var sv = _selKindList(K).filter(function(x){ return x && x.id === id; })[0];
     if (!sv) return;
     sv.img = src;
     try { renderSelectablesUI(); } catch(e){}
@@ -33376,7 +33638,8 @@ function _qbOptionPage(o){
       (o.edit ? _qeInlineBtn(o.edit) : '')+
       ((o.del && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\''+esc2(o.del)+'\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>' : '')+
       (o.tools || '')+
-      (o.blurb ? '<p class="qb-para">'+esc2(o.blurb)+'</p>' : '')+
+      (o.secKey ? _qSecPara(o.secKey, o.blurb || '')
+                : (o.blurb ? '<p class="qb-para">'+esc2(o.blurb)+'</p>' : ''))+
       (o.figure || '')+
       '<div class="qb-opts">'+rows+'</div>'+
       (o.note ? '<p class="qb-note">'+o.note+'</p>' : '')+
@@ -33590,6 +33853,38 @@ function _qbThickness(){
     blurb:'How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail.'
   });
 }
+// THE SECTION DESCRIPTIONS ARE THE OFFICE'S TO WORD (2026-10-18, the owner:
+// "make the rest of the sections descriptions editable just like you have
+// with the quote description so that I can just click it to edit it ... Do
+// this for the steel grade, roof profile, steel thickness, roof colour,
+// guttering, the old roofing"). Each section's paragraph was a sentence
+// written into the app — true of most roofs, and wrong on the one in front of
+// them, with nowhere to say so.
+//
+// `S.quote.sectionDesc[key]` is the office's wording for THIS quote; NO key
+// means the built-in, so every quote already written reads exactly as it did
+// and a later change to a built-in still reaches the ones nobody reworded.
+// Typing the built-in back deletes the key again — the custDesc rule.
+//
+// NO {grade} SUBSTITUTION HERE, deliberately: the proposal description
+// substitutes at render, and a field that is both substituted on the way out
+// and read back on blur would quietly swallow the token the first time
+// anybody clicked it without changing a word.
+var QE_SEC_PROMPT = 'Click to write this section\u2019s description';
+function _qSecDesc(key, def){
+  var m = (S.quote && S.quote.sectionDesc) || null;
+  var v = (m && typeof m === 'object' && !Array.isArray(m)) ? String(m[key] == null ? '' : m[key]).trim() : '';
+  return v || String(def == null ? '' : def);
+}
+function _qSecPara(key, def){
+  var office = !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE;
+  var txt = _qSecDesc(key, def);
+  var attrs = office ? (' data-qe-sec="' + esc2(key) + '" data-qe-def="' + esc2(String(def == null ? '' : def)) + '"') : '';
+  // An empty one is a dashed prompt for the office and NOTHING for the
+  // customer or on paper — the same rule the condition summary follows.
+  if (!txt) return office ? ('<p class="qb-para qb-para-empty"' + attrs + '>' + esc2(QE_SEC_PROMPT) + '</p>') : '';
+  return '<p class="qb-para"' + attrs + '>' + esc2(txt) + '</p>';
+}
 var QB_COLOUR_UNDECIDED = 'Undecided';
 function _qbColour(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -33607,7 +33902,7 @@ function _qbColour(){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">The look of it</span>'+
       '<h2 class="qb-h2">Roof colour</h2>'+
-      '<p class="qb-para">Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered.</p>'+
+      _qSecPara('colour', 'Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered.')+
       // A customer who cannot pick a colour tonight must still be able to
       // accept the quote tonight. Undecided is a real choice, up top.
       '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-colour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
@@ -33642,8 +33937,25 @@ function _qbGutter(){
   return _qpOptPageWrap('gutter', {
     eyebrow:'While the scaffold is up', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
     current:p.gutterType || 'none', items:items, note:note,
+    figure:_qbGutterFigure(p.gutterType),
     blurb:'The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call.'
   });
+}
+// THE PICKED GUTTER, SHOWN (2026-10-18, the owner: "make sure the profile is
+// displayed for the gutter in the gutter section like the profile picture in
+// the profile section in the quote, only show the gutter profile selected").
+// ONLY the one they have picked: a row of three pictures is a catalogue, and
+// what the customer needs to see is the gutter that is on their house.
+// Nothing at all for "No new guttering", and nothing for a product with no
+// picture — the roof profile's rule, learned the hard way (a corrugate
+// drawing under "Dimond DP955" told a customer they were getting corrugate).
+function _qbGutterFigure(id){
+  if (!id || id === 'none') return '';
+  var g = null;
+  try { g = _selGutters().filter(function(x){ return x && x.id === id; })[0]; } catch(e){}
+  if (!g || !g.img) return '';
+  return '<figure class="qb-fig qb-fig-photo"><img src="'+esc2(g.img)+'" alt="'+esc2(g.name || '')+' gutter profile" loading="lazy">'+
+    '<figcaption>'+esc2(g.name || '')+'</figcaption></figure>';
 }
 function _qbGutterKit(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -33674,11 +33986,15 @@ function _qbGutterKit(){
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">Finishing the spouting</span>'+
       '<h2 class="qb-h2">Brackets &amp; downpipes</h2>'+
-      '<p class="qb-para">Two small choices that come with new guttering.</p>'+
-      '<h3 class="qb-h3">Gutter brackets</h3>'+
-      '<div class="qb-opts">'+rows('gutterBracket', '_setProposalOption_bracket', brackets, p.gutterBracket || 'internal')+'</div>'+
-      '<h3 class="qb-h3">Downpipes</h3>'+
-      '<div class="qb-opts">'+rows('downpipes', '_setProposalOption_downpipes', downpipes, p.downpipes || 'no')+'</div>'+
+      _qSecPara('gutterkit', 'Two small choices that come with new guttering.')+
+      '<div class="qb-sub">'+
+        '<h3 class="qb-h3">Gutter brackets</h3>'+
+        '<div class="qb-opts">'+rows('gutterBracket', '_setProposalOption_bracket', brackets, p.gutterBracket || 'internal')+'</div>'+
+      '</div>'+
+      '<div class="qb-sub">'+
+        '<h3 class="qb-h3">Downpipes</h3>'+
+        '<div class="qb-opts">'+rows('downpipes', '_setProposalOption_downpipes', downpipes, p.downpipes || 'no')+'</div>'+
+      '</div>'+
     '</div>';
 }
 function _qbDisposal(){
@@ -33734,6 +34050,9 @@ function _qbBindExtraSetters(){
 // The book's grade page carries the selections button, its gutter page the
 // gutter one; the one-page layout puts them on its own headings instead.
 function _qpOptPageWrap(key, o){
+  // The six sections the office can reword (2026-10-18). A custom option has
+  // its own "Edit this section" window, so it is not one of them.
+  if (key === 'grade' || key === 'profile' || key === 'thickness' || key === 'gutter' || key === 'disposal') o.secKey = key;
   if (key === 'grade') o.edit = 'sel';
   else if (key === 'gutter') o.edit = 'gutter';
   else if (key === 'profile') o.edit = 'profile';
@@ -34280,7 +34599,12 @@ function _qdSectionsRaw(){
   list.push({ key:'thickness', label:'Thickness',   html:_qbThickness });
   if ((p.steelGrade || 'maxam') !== 'zincalume') list.push({ key:'colour', label:'Colour', html:_qbColour });
   var gutterOff = false; try { gutterOff = _gutterExcluded(); } catch(e){}
-  if (!gutterOff) list.push({ key:'gutter', label:'Guttering', html:_qdGutter });
+  if (!gutterOff){
+    list.push({ key:'gutter', label:'Guttering', html:_qdGutter });
+    // Only once a gutter has actually been chosen — until then there is
+    // nothing to put brackets on.
+    if (_qdGutterKitOn()) list.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
+  }
   list.push({ key:'disposal', label:'Old roof', html:_qbDisposal });
   try {
     _selExtras().forEach(function(g, gi){
@@ -34399,13 +34723,22 @@ function _qdPhotoGrid(photos){
     '</div>';
 }
 function _qdProposal(){ return _qbProposal({ desk:true, mapH: 320, mapKey: 'desk' }); }
-function _qdGutter(){
+// BRACKETS AND DOWNPIPES ARE NOT A MARGIN NOTE ON THE GUTTER (2026-10-18,
+// the owner: "when gutter is selected, don't squeeze the brackets/downpipes
+// selection in next to it, instead add this in underneath in new section
+// boxes so it feels natural and doesn't get squeezed in"). They shared the
+// gutter's row as a second column, so picking a gutter halved the width of
+// the gutter cards the customer was still reading — four lines of
+// description wrapping to eight — and put two more decisions beside the one
+// they had just made.
+//
+// This is the same fault, and the same fix, as the three-column "Roofing"
+// grid on 2026-09-20: a full-width section of its own, under the thing it
+// belongs to.
+function _qdGutter(){ return _qbGutter(); }
+function _qdGutterKitOn(){
   var p = (S.quote && S.quote.proposalOptions) || {};
-  var kit = (p.gutterType && p.gutterType !== 'none') ? _qbGutterKit() : '';
-  return '<div class="'+(kit ? 'qd-grid2' : '')+'">'+
-      '<div class="qd-cell">'+_qbGutter()+'</div>'+
-      (kit ? '<div class="qd-cell">'+kit+'</div>' : '')+
-    '</div>';
+  return !!(p.gutterType && p.gutterType !== 'none');
 }
 function _qdReview(){ return _qbSummary({ mapH: 300, mapKey: 'desksum' }); }
 // The rail: the live total, what moved it, what was chosen, and the way to
@@ -35560,7 +35893,15 @@ function _qnOpenJob(id){
 })();
 
 // ── Office home-screen: customer quote activity feed ──
-async function fetchQuoteActivity(){
+// FRESH MEANS "DO NOT HAND ME THE MINUTE-OLD COPY" (2026-10-18, the owner:
+// "i just sent a quote (job#3303) and it's not yet showing in the quotes
+// sent which is annoying"). A quote write marks the server's feed cache
+// stale, which is enough while one server answers everything — but that mark
+// lives in one process's memory, so a send handled by one instance leaves
+// another's minute-old copy looking perfectly good. The office's own ↻ and
+// the refresh that follows a send ask for a fresh read; everything else
+// (a tab switch, the bell) still takes the cheap one.
+async function fetchQuoteActivity(fresh){
   if (!document.getElementById('homeBoard')) return;
   if (typeof _qnCanUse === 'function' && !_qnCanUse()){
     window._quoteActivityFeed = [];
@@ -35568,7 +35909,7 @@ async function fetchQuoteActivity(){
     return;
   }
   try {
-    var feed = await api('GET', '/quote-activity');
+    var feed = await api('GET', '/quote-activity' + (fresh ? '?fresh=1' : ''));
     feed = Array.isArray(feed) ? feed : [];
     feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
     window._quoteActivityFeed = feed;
@@ -35587,7 +35928,7 @@ async function fetchQuoteActivity(){
     // and four tiles at 0). Try again by itself, twice, before leaving it
     // to the Retry button.
     var n = window._quoteActivityRetries = (window._quoteActivityRetries || 0) + 1;
-    if (n <= 2) setTimeout(function(){ try { fetchQuoteActivity(); } catch(_){} }, n === 1 ? 5000 : 15000);
+    if (n <= 2) setTimeout(function(){ try { fetchQuoteActivity(fresh); } catch(_){} }, n === 1 ? 5000 : 15000);
   }
   _renderHomeBoard();
 }
@@ -42522,8 +42863,9 @@ function _qtSnapshot(){
       var w = {};
       ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
       if (q.summaryRowLabels && typeof q.summaryRowLabels === 'object') w.summaryRowLabels = JSON.parse(JSON.stringify(q.summaryRowLabels));
-      ['custDesc','custExcl','summaryPicks','customExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
+      ['custDesc','custExcl','custNotes','summaryPicks','customExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
       if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
+      if (q.sectionDesc && typeof q.sectionDesc === 'object') w.sectionDesc = JSON.parse(JSON.stringify(q.sectionDesc));
       return w;
     })(),
   };
@@ -42544,7 +42886,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','summaryPicks','selHide','customExtras'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -42710,7 +43052,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
+var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
