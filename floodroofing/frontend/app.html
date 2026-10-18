@@ -4927,7 +4927,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-16T00:44:06Z';
+  window.APP_BUILT_AT = '2026-10-18T21:17:52Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -15861,6 +15861,7 @@ function _onMatOverride(key, field, value){
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
+  _prMatChanged();
 }
 // ── NO PRICE, NO SEND (2026-09-29) ─────────────────────────────────────
 // The owner: "the app let me send a quote out that had items with no price
@@ -17041,6 +17042,7 @@ function _setRoofPctByRoof(key, legacyKey, val, idx){
   try { renderMaterialPriceTable(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  _prMatChanged();
 }
 function _roofMatQtyBufferPct(idx){
   // A pole shed keeps its own, in its own field: the offcut buffer prices in
@@ -17678,12 +17680,26 @@ function _renderPricingRoofSwitchBar(){
     try { _renderPricingRoofMap(); } catch(e){}
     return;
   }
+  // THE BAR AND THE BAND ARE TWO THINGS (2026-10-18, the owner: "the numbers
+  // don't add up properly"). Both of these used to `return` here — before
+  // _renderPricingRoofMap() at the foot of this function, which is the ONLY
+  // place the map and the price card beside it are ever drawn. So on a job
+  // with fewer than two pricing TABS the card was never redrawn again: it
+  // kept whatever was painted last and went on showing it while the office
+  // typed. His read Labour $8,100 / Material $7,347.09 / Scaffolding $2,500
+  // beside cards reading $13,800 / $10,124.16 / $5,500 — and added up
+  // correctly to its own stale total, which is what makes it so convincing.
+  // His job is exactly the shape that triggers it: Roof 2 folded into the
+  // main roof ("they are part of the same building, so they go up in the
+  // same scaffold"), which collapses two tabs into one.
+  // Nothing to switch between is a reason to hide the BUTTONS, never a reason
+  // to stop telling the truth about the money.
   var n = _pricingRoofCount();
-  if (n < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  if (n < 2){ bar.style.display = 'none'; bar.innerHTML = ''; _prMapRender(); return; }
   bar.style.display = 'flex';
   var cur = _pricingRoofIdx();
   var tabs = _pricingRoofTabIdxs();
-  if (tabs.length < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  if (tabs.length < 2){ bar.style.display = 'none'; bar.innerHTML = ''; _prMapRender(); return; }
   var html = '';
   // Area per roof, from the same collector the Materials tab uses, so the two
   // screens cannot quote different sizes for the same building.
@@ -17716,7 +17732,32 @@ function _renderPricingRoofSwitchBar(){
     '</div>';
   });
   bar.innerHTML = html;
+  _prMapRender();
+}
+// One guarded way in to the band, so every caller is the same call and a
+// render can never re-enter itself — _renderPricingRoofMap reads the material
+// rows, and renderMaterialPriceTable now asks for a redraw, so without this
+// the two could call each other.
+var _PR_MAP_BUSY = false;
+function _prMapRender(){
+  if (_PR_MAP_BUSY) return;
+  _PR_MAP_BUSY = true;
   try { _renderPricingRoofMap(); } catch(e){}
+  finally { _PR_MAP_BUSY = false; }
+}
+// THE CARD IS REFRESHED ON THE ACTION, NEVER FROM INSIDE A RENDER (2026-10-18).
+// The first fix for the material half of this called _prMapRender() at the end
+// of renderMaterialPriceTable, which looked tidy and broke `jpallroofs` and
+// `report51`: _renderPricingRoofMap runs _qpStashRoofGeom + _qpRoofMapSvg,
+// which walk and re-scope the roofs, and pulling that into the material render
+// left the sheet plan seeing ONE roof on a five-roof job. Caught by the full
+// gate, confirmed by running both suites against the commit before — a render
+// that triggers another render is how a measuring pass ends up standing on the
+// wrong roof, which this file already records twice.
+// So the money-moving ACTIONS ask for the redraw, after their own render has
+// finished. calcLabour already covers labour and the scaffold.
+function _prMatChanged(){
+  try { _prMapRender(); } catch(e){}
 }
 /* The mini map under the roof switcher: every building drawn, the one being
    priced picked out in full colour with an amber ring, the rest greyed. */

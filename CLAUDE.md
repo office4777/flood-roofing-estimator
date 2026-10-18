@@ -2714,6 +2714,46 @@ Discipline (non-negotiable):
   setting `S.job` itself — the same mistake as the step-down gable pin, a test
   asserting the app's own output back at itself. Both fixed.
   `tests/jobbgleak.mjs` drives the real `useFergusJobInModal` fresh branch.
+- A CARD THAT ADDS UP AND IS STILL WRONG (2026-10-18, the owner with
+  screenshots of his Pricing drawer: "the numbers don't add up properly", and
+  then the detail that names the trigger — "i selected roof wo to be apart of
+  the main roof which is why they should be priced together"). The price card
+  beside the frozen roof map read Labour $8,100.00 / Material $7,347.09 /
+  Scaffolding $2,500.00, total $17,947.09 — beside cards reading $13,800.00
+  (60 hrs x $140 + 60 x $90), $10,124.16 and $5,500.00, with the profitability
+  panel agreeing with THOSE.
+  ITS OWN THREE ROWS ADDED TO ITS OWN TOTAL EXACTLY, which is the tell and is
+  worth keeping: it was never bad arithmetic, it was ONE RENDER showing an
+  older state of the job. A figure that is internally consistent and agrees
+  with nothing else on screen is a stale render, every time — do not go looking
+  for a sum that is wrong.
+  TWO HOLES, both reproduced before anything was changed:
+  1. `_renderPricingRoofSwitchBar` had two early returns for "fewer than two
+     pricing tabs", and BOTH sat in front of `_renderPricingRoofMap()` — the
+     only place that card is ever drawn. Folding Roof 2 into the main roof
+     (his own words above) collapses two tabs into one, so from that moment
+     the card froze and kept showing whatever was last painted, for the rest
+     of the session. Nothing to switch between is a reason to hide the
+     BUTTONS, never a reason to stop telling the truth about the money.
+  2. Even with the card live, a MATERIAL edit never refreshed it:
+     `renderMaterialPriceTable` and `refreshQuoteProposal` do not call the
+     switch bar, so a mark-up typed 5% -> 50% moved the card's own figure by
+     thousands while the card sat still. `calcLabour` DOES call it, which is
+     why labour and the scaffold usually looked right and this hid for so long.
+  `_prMapRender()` is the one guarded way in now (a `_PR_MAP_BUSY` flag, because
+  `_renderPricingRoofMap` reads the material rows and `renderMaterialPriceTable`
+  now asks for a redraw — without it the two could call each other). Both early
+  returns call it before returning, and the material render calls it at the end.
+  A SINGLE-ROOF JOB STILL SHOWS NO BAND AT ALL: it needs the multi-roof mini map
+  and `_qpRoofMapSvg` draws nothing for one roof. That is a gap, not this bug,
+  and giving single-roof jobs a card is the owner's call rather than something
+  to slip in beside a fix — but on the old build such a job showed the PREVIOUS
+  job's card, which is worse than none. `tests/pricingcard.mjs` pins the
+  invariant instead of the gap: the card is either absent or correct, never
+  stale, so the band can be given to single-roof jobs later without the pin
+  fighting it. Run against the old build it fails 10 of 16, every failure the
+  same frozen 8,640 / 10,315.39 / 2,500 with rowsAdd true — his screenshot,
+  reproduced.
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted
