@@ -2714,6 +2714,35 @@ Discipline (non-negotiable):
   setting `S.job` itself — the same mistake as the step-down gable pin, a test
   asserting the app's own output back at itself. Both fixed.
   `tests/jobbgleak.mjs` drives the real `useFergusJobInModal` fresh branch.
+- MY DAY'S SECOND DEVICE OPENED ON THE WRONG SCREEN (2026-10-18). `mydayui`
+  was failing on main — the two-device half of the feature, which is its
+  headline promise — and a red Tests run on main SKIPS THE PROMOTE, so it was
+  holding back everything behind it (the Finance Hub marketing fallback and
+  the signup blocklist both sat on main, unshipped, while production stayed on
+  `30fd6ad`). A red main is never just one suite's problem.
+  THE SYNC WAS NEVER AT FAULT, which is where the whole morning would have
+  gone: instrumenting the failure showed the joining device with the key, the
+  doc pulled, `rev:3`, both days present and "synced 9:40 pm" on screen — and
+  `VIEW:'plan'` with nothing on it. `pickView()` runs at BOOT, before
+  `pullOnly()` has brought anything down, so it answers "is tomorrow planned?"
+  against an EMPTY doc; after 5pm that opens the planning screen, and nothing
+  ever re-decided once the real day landed a second later. The office opens My
+  Day on the computer in the evening and sees an empty plan screen over a full
+  day.
+  `pickView` is a named function now and runs a SECOND time, from `pullOnly`,
+  the first time a pull actually changes the doc — once (`VIEW_SETTLED`) and
+  never over a screen the person picked themselves (`VIEW_BY_HAND`, set by the
+  two segment buttons). A view they chose is never taken back off them.
+  THE RULE ITSELF IS UNCHANGED, and that is deliberate: the first version of
+  this fix also added "…unless today is full", which made an evening with
+  tomorrow unplanned open on TODAY and quietly deleted the evening nudge to
+  plan tomorrow — the whole point of the app. Re-taking the decision at a
+  better moment is the fix; changing what the decision IS is not.
+  THE OLD PIN ONLY FAILED AFTER 5PM — it would have passed on a morning gate
+  with the bug fully present, which is how it shipped. `tests/mydayui.mjs` now
+  pins the clock (`context.clock.setFixedTime`) for a device joining at 9pm,
+  and pins the evening nudge itself at 7:30pm with nothing planned, so both
+  directions hold at any hour. Against the unfixed page the two new pins fail.
 - A CARD THAT ADDS UP AND IS STILL WRONG (2026-10-18, the owner with
   screenshots of his Pricing drawer: "the numbers don't add up properly", and
   then the detail that names the trigger — "i selected roof wo to be apart of

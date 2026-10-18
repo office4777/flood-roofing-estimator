@@ -339,7 +339,12 @@ async function pullOnly(){
     DOC = prune(mergeDocs(DOC, out.doc || blankDoc()));
     REV = out.rev || 0;
     save();
-    if (JSON.stringify(DOC) !== before) render();
+    var moved = (JSON.stringify(DOC) !== before);
+    // The first pull is the one that can turn "nothing planned" into a full
+    // day, so the opening screen is chosen again now that there is something
+    // to choose from. Once only, and never over a screen they picked.
+    if (!VIEW_SETTLED && moved && !VIEW_BY_HAND){ VIEW_SETTLED = true; pickView(); render(); }
+    else if (moved) render();
     setSync('', 'synced ' + clockNow());
   } catch(e){}
 }
@@ -587,8 +592,8 @@ document.addEventListener('keydown', function(e){
   if (id === 'addFill'){ e.preventDefault(); if (e.target.value.trim()){ addTask(todayIso(), 'fill', e.target.value); setTimeout(function(){ var n = document.getElementById('addFill'); if (n) n.focus(); }, 0); } }
   if (id === 'addFillPlan'){ e.preventDefault(); if (e.target.value.trim()){ addTask(PLAN_DATE, 'fill', e.target.value); setTimeout(function(){ var n = document.getElementById('addFillPlan'); if (n) n.focus(); }, 0); } }
 });
-document.getElementById('segToday').onclick = function(){ VIEW = 'today'; render(); window.scrollTo(0,0); };
-document.getElementById('segPlan').onclick  = function(){ VIEW = 'plan'; PLAN_DATE = plusDays(todayIso(), 1); render(); window.scrollTo(0,0); };
+document.getElementById('segToday').onclick = function(){ VIEW_BY_HAND = true; VIEW = 'today'; render(); window.scrollTo(0,0); };
+document.getElementById('segPlan').onclick  = function(){ VIEW_BY_HAND = true; VIEW = 'plan'; PLAN_DATE = plusDays(todayIso(), 1); render(); window.scrollTo(0,0); };
 document.getElementById('btnGear').onclick  = openSettings;
 
 /* ── Sheets ─────────────────────────────────────────────────────────── */
@@ -659,12 +664,30 @@ function openSettings(){
 load();
 // Which screen to open on. Evenings with tomorrow unplanned open straight
 // onto the planning screen — that is the whole point of the thing.
-(function pickView(){
+//
+// THE DECISION IS TAKEN TWICE, and it has to be (2026-10-18): the first time
+// runs before the device has pulled anything, so on a SECOND DEVICE joining
+// from the link the doc is still empty and "is tomorrow planned?" is answered
+// no — after 5pm that opens the planning screen, and nothing ever re-decided
+// once the real day landed a second later. The computer sat on an empty plan
+// screen while the day it had just pulled was sitting in the doc, which is
+// the two-device promise failing on exactly the evening the thing is for.
+// So pickView runs again the first time a pull brings something down, unless
+// the person has already chosen a screen themselves — a view they picked is
+// never taken back off them.
+var VIEW_BY_HAND = false, VIEW_SETTLED = false;
+function pickView(){
   var t = todayIso(), h = new Date().getHours();
   PLAN_DATE = plusDays(t, 1);
   var tomorrowSet = live(dayOf(plusDays(t,1)).big).length > 0;
-  if (h >= 17 && !tomorrowSet) VIEW = 'plan';
-})();
+  // UNCHANGED RULE, re-taken at a better moment: an evening with tomorrow
+  // still unplanned opens on the planning screen, which is the whole point of
+  // the thing. Deciding it against a doc that has not been pulled yet is the
+  // bug; "today is full so show today" is NOT the rule and must not become it,
+  // or the evening nudge to plan tomorrow quietly disappears.
+  VIEW = (h >= 17 && !tomorrowSet) ? 'plan' : 'today';
+}
+pickView();
 render();
 setSync(KEY ? 'busy' : 'off', KEY ? 'syncing…' : 'this device only');
 if (dirty) doSync(); else pullOnly();

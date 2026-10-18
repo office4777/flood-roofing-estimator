@@ -141,6 +141,47 @@ check('the computer, opened on the link, shows the same day', await comp.pg.loca
   String(await comp.pg.locator('.big').count()));
 check('…with the phone\'s tick already on it', await comp.pg.locator('.big.done').count() === 1);
 
+// ── A SECOND DEVICE JOINING IN THE EVENING ────────────────────────────
+// The check above only catches this when the gate happens to run after 5pm,
+// which is how it shipped: pickView() asks "is tomorrow planned?" BEFORE the
+// device has pulled anything, so a joining device answers no, and after 5pm
+// opens on the planning screen while the day it is about to pull sits unseen.
+// The clock is pinned here so the evening case is tested at any hour.
+{
+  const evening = await browser.newContext({ viewport:{ width:1280, height:900 }, serviceWorkers:'block' });
+  await evening.addInitScript(a => { window.__MYDAY_API = a; }, API);
+  const d = new Date(); d.setHours(21, 0, 0, 0);
+  await evening.clock.setFixedTime(d);
+  const ep = await evening.newPage();
+  await ep.goto(SITE + '#k=' + KEY);
+  await ep.waitForTimeout(2000);
+  const hr = await ep.evaluate(() => new Date().getHours());
+  check('(set-up) the joining device really thinks it is evening', hr === 21, String(hr));
+  check('a device joining at 9pm lands on the day it pulled, not an empty plan screen',
+    await ep.locator('.big').count() === 3, String(await ep.locator('.big').count()));
+  check('…with the tick that was made on the phone',
+    await ep.locator('.big.done').count() === 1, String(await ep.locator('.big.done').count()));
+  await evening.close();
+}
+
+// …and the evening nudge itself is INTACT: a device with nothing planned for
+// tomorrow still opens straight onto the planning screen after 5pm. That is
+// the whole point of the app, and "today has things on it" must never become
+// the reason to skip it.
+{
+  const fresh = await browser.newContext({ viewport:{ width:390, height:844 }, serviceWorkers:'block' });
+  await fresh.addInitScript(a => { window.__MYDAY_API = a; }, API);
+  const d = new Date(); d.setHours(19, 30, 0, 0);
+  await fresh.clock.setFixedTime(d);
+  const fp = await fresh.newPage();
+  await fp.goto(SITE);
+  await fp.waitForTimeout(900);
+  check('an evening with tomorrow unplanned still opens on PLAN TOMORROW',
+    (await fp.locator('#segPlan').getAttribute('class') || '').indexOf('on') >= 0,
+    String(await fp.locator('#segPlan').getAttribute('class')));
+  await fresh.close();
+}
+
 await comp.pg.locator('#addFill').fill('Chase the Fergus invoice');
 await comp.pg.locator('#addFill').press('Enter');
 await settle(comp.pg, 1800);
