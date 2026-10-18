@@ -2714,6 +2714,44 @@ Discipline (non-negotiable):
   setting `S.job` itself — the same mistake as the step-down gable pin, a test
   asserting the app's own output back at itself. Both fixed.
   `tests/jobbgleak.mjs` drives the real `useFergusJobInModal` fresh branch.
+- SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
+  roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
+  you block this, it's a business growth ai company"). Not every unwanted
+  signup is a bot: this one had a real address, a real phone and a plausible
+  business name, so the honeypot, the throwaway-domain list, the phone
+  requirement and the email confirmation all passed it — and then the trial
+  drip, the gone-quiet alert and the owner's own time went to somebody who was
+  never going to roof anything.
+  `SIGNUP_BLOCKLIST` on Railway is a space/comma list of a WHOLE ADDRESS or a
+  bare DOMAIN; `BLOCKED_SIGNUPS_BUILTIN` in server.js carries the ones already
+  decided so they work with no env var set. Both are read AT BOOT, so a change
+  on Railway needs a restart.
+  FOUR CHECK SITES, and three would not have been enough: `/auth/register` (they
+  cannot come back), `/auth/login`, `/auth/verify` (the confirmation link signs
+  them straight in, so it is a sign-in), and `requireAuth` — which is the one
+  that actually CLOSES an existing account, because a session token lasts
+  thirty days and shutting the front door would have left theirs running for a
+  month. Blocking in requireAuth also means no database change is needed, which
+  is what makes this shippable at all: the cloud container has no production
+  database access, so a list in the code is the only lever a ship carries.
+  A FREE-MAIL DOMAIN IS NEVER BLOCKED AS A DOMAIN (`NEVER_BLOCK_DOMAIN`). Most
+  roofers sign up from gmail, so one careless `gmail.com` in that env var would
+  refuse every real trial in the country and look, from outside, like the
+  product being down. Those domains match only as a whole address, and
+  `tests/blocksignup.mjs` puts `gmail.com` ON the blocklist and then registers
+  and signs in a real roofer from it — so the pin proves the guard rather than
+  the absence of a bug.
+  GMAIL IS FOLDED FIRST (`_normaliseEmail`): gmail ignores dots in the local
+  part and everything from a `+` on, so trinity.ai.group@ and
+  trinityai.group+roofmap@ are the same mailbox and all three are blocked
+  together. Only gmail/googlemail are folded — every other provider treats a
+  dot as a real character. AND THE LIST ENTRIES ARE NORMALISED THE SAME WAY:
+  the first version normalised only the incoming address, so the dotted
+  built-in entry could never match itself and the one address this was written
+  for sailed through. The suite caught it; the env-var cases passed throughout,
+  which is exactly how it would have shipped unnoticed.
+  To block another: add it to `SIGNUP_BLOCKLIST` on Railway and restart — no
+  ship needed. A ship is only for the built-in list.
 - A ROOF REBUILD IS NOT A CLEAR (2026-10-16, feedback report 14,
   info@wellingtonroof.co.nz: "Hip & Valley Detail Disappears — this detail
   disappears after saving, not sure why, have had to redraw 2 times?"). His

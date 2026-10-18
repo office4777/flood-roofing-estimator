@@ -1261,6 +1261,12 @@ async function requireAuth(req, res, next) {
   // with the same secret but are NOT session tokens — a leaked reset email
   // must never grant API access.
   if (req.user && req.user.purpose) return res.status(401).json({ error: 'Invalid token' });
+  // A session token lasts thirty days, so closing the front door is not
+  // closing the account: this is what makes a blocked address stop being a
+  // working session at its very next request.
+  if (req.user && _blockedEmail(req.user.email)) {
+    return res.status(403).json({ error: 'This account has been closed.', code: 'ACCOUNT_BLOCKED' });
+  }
   // Has this session been ended since the token was issued? Signing out
   // everywhere, changing a password, or being removed from a company all bump
   // the number, and every token signed before that stops working. Cached for
@@ -2181,6 +2187,63 @@ function _disposableEmail(email){
   const at = String(email || '').lastIndexOf('@');
   return at > 0 && DISPOSABLE_DOMAINS.has(String(email).slice(at + 1).trim().toLowerCase());
 }
+// ── Shutting one account out ───────────────────────────────────────
+// Not every unwanted signup is a bot. A sales or "growth AI" outfit signs up
+// with a real address, a real phone and a plausible business name, so the four
+// checks above all pass — and then the trial drip, the gone-quiet alert and
+// the owner's own time go to somebody who was never going to roof anything.
+//
+// SIGNUP_BLOCKLIST on Railway is a space- or comma-separated list of either a
+// WHOLE ADDRESS or a bare DOMAIN; BLOCKED_SIGNUPS_BUILTIN carries the ones
+// already decided on so they work without an env var being set. It is checked
+// at registration, at sign-in, at email confirmation AND in requireAuth —
+// which matters, because blocking the front door alone leaves an account that
+// already exists running for the thirty days its token lasts. Four checks mean
+// an address on this list stops being an account at the next request, with no
+// database change: this container has no production database access, and a
+// list in the code is something a ship can carry.
+//
+// A FREE-MAIL DOMAIN IS NEVER BLOCKED AS A DOMAIN. Most roofers sign up from
+// gmail, so one careless `gmail.com` in that env var would refuse every real
+// trial in the country and read, from the outside, as the product being down.
+// Those domains are only ever matched as a whole address.
+const NEVER_BLOCK_DOMAIN = new Set(('gmail.com googlemail.com outlook.com hotmail.com live.com msn.com ' +
+  'yahoo.com yahoo.co.nz ymail.com icloud.com me.com mac.com xtra.co.nz slingshot.co.nz vodafone.co.nz ' +
+  'orcon.net.nz actrix.co.nz inspire.net.nz protonmail.com proton.me aol.com gmx.com').split(/\s+/));
+const BLOCKED_SIGNUPS_BUILTIN = 'trinityai.group@gmail.com';
+// Each ENTRY is normalised the same way an incoming address is, or a dotted
+// gmail address on the list could never match itself: the address arrives
+// dot-stripped and the entry still has its dots. (A bare domain has no '@',
+// and _normaliseEmail hands one back untouched.) The suite caught this.
+let BLOCKED_SIGNUPS = new Set();
+// Gmail ignores dots in the local part and everything from a '+' on, so
+// trinity.ai.group@gmail.com and trinityai.group+roofmap@gmail.com both reach
+// the same inbox as the address above. Normalise those two so one blocked
+// address is not re-registered from the same mailbox a minute later. Every
+// other provider treats a dot as a real character, so only gmail is folded.
+function _normaliseEmail(email){
+  const raw = String(email || '').trim().toLowerCase();
+  const at = raw.lastIndexOf('@');
+  if (at <= 0) return raw;
+  let local = raw.slice(0, at), domain = raw.slice(at + 1);
+  const plus = local.indexOf('+');
+  if (plus >= 0) local = local.slice(0, plus);
+  if (domain === 'gmail.com' || domain === 'googlemail.com') local = local.replace(/\./g, '');
+  return local + '@' + domain;
+}
+BLOCKED_SIGNUPS = new Set(
+  (BLOCKED_SIGNUPS_BUILTIN + ' ' + String(process.env.SIGNUP_BLOCKLIST || ''))
+    .split(/[\s,;]+/).map(function(x){ return _normaliseEmail(x); }).filter(Boolean));
+function _blockedEmail(email){
+  if (!BLOCKED_SIGNUPS.size) return false;
+  const norm = _normaliseEmail(email);
+  if (!norm) return false;
+  if (BLOCKED_SIGNUPS.has(norm)) return true;
+  const at = norm.lastIndexOf('@');
+  if (at <= 0) return false;
+  const domain = norm.slice(at + 1);
+  return !NEVER_BLOCK_DOMAIN.has(domain) && BLOCKED_SIGNUPS.has(domain);
+}
 function _cleanPhone(p){
   const s = String(p || '').trim().slice(0, 40);
   return s.replace(/\D/g, '').length >= 7 ? s : '';
@@ -2214,6 +2277,10 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   }
   if (_disposableEmail(email)) {
     return res.status(400).json({ error: 'Please sign up with your business email address — throwaway addresses can\'t be used.' });
+  }
+  if (_blockedEmail(email)) {
+    console.warn('[auth] blocked signup attempt: ' + _normaliseEmail(email));
+    return res.status(403).json({ error: 'This email address cannot open a RoofMap account. If you believe that is wrong, email support@roofmap.co.nz.' });
   }
   const phone = _cleanPhone((req.body || {}).phone);
   if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
@@ -2761,6 +2828,10 @@ app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
   try { payload = jwt.verify(token, JWT_SECRET); }
   catch { return res.status(401).json({ error: 'This confirmation link has expired — sign in and we\'ll send you a fresh one.' }); }
   if (payload.purpose !== 'verify') return res.status(401).json({ error: 'Invalid confirmation link.' });
+  if (_blockedEmail(payload.email)) {
+    console.warn('[auth] blocked confirmation: ' + _normaliseEmail(payload.email));
+    return res.status(403).json({ error: 'This account has been closed. Email support@roofmap.co.nz if you believe that is wrong.' });
+  }
   try {
     const { data: was } = await supabase.from('profiles').select('verify_pending, name, company, phone').eq('id', payload.id).maybeSingle();
     await supabase.from('profiles').update({ verify_pending: false, email_verified_at: new Date().toISOString() }).eq('id', payload.id);
@@ -2853,6 +2924,10 @@ app.post('/auth/reset', rateLimit(10, 900000), async (req, res) => {
 app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey), async (req, res) => {
   const { email, password } = req.body;
   try {
+    if (_blockedEmail(email)) {
+      console.warn('[auth] blocked sign-in: ' + _normaliseEmail(email));
+      return res.status(403).json({ error: 'This account has been closed. Email support@roofmap.co.nz if you believe that is wrong.' });
+    }
     const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: 'Invalid email or password' });
     const userId = data.user.id;
