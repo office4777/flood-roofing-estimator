@@ -56,6 +56,17 @@ accordingly.
   (`workflow_dispatch`) if production needs to carry it. Xero figures live in
   localStorage under `fr3_xeroMonthly`, which is how a headless screenshot
   gets seeded. The Dashboard's bar-graph panels were removed 2026-09-20.
+  THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
+  began answering 500 to `/enquiries?…sortField=createdAt…` on 9 Sept and
+  `syncMarketing` swallowed it, so the nightly's "marketing" step read ✓ for
+  six weeks while every enquiries / quotes / conversion tile on the Command
+  Centre went blank. `fergusPaginateAny` tries the sorted shape, then
+  plainer ones (401/403 stop at once); enquiries that fail every shape are
+  recorded (`mkt.enqErr`, a `marketing-enquiries` diag line) and the sync
+  carries on with jobs + quotes; jobs or quotes failing every shape THROWS
+  (`syncMarketing({rethrow:true})` from the master and the refresh), so the
+  step reads ✗. Read the nightly's job log for "Timestamps: … Mktg a -> b"
+  before believing a green run.
 - `floodroofing/tools/` — generators, never their output (`.gitignore` keeps
   it that way). `demo-shots.mjs` → `demo-slideshow.mjs` → `demo-record.mjs`
   build the sales demo; `restore-check.mjs` verifies a backup restore;

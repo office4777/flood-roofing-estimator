@@ -1785,7 +1785,7 @@ async function refreshAll(){
     try{await syncCash();}catch(e){}        // Xero balance sheet + AR/AP so the Cash tab stays current too
     try{await syncBank();}catch(e){}        // live Akahu bank balances (no-op if Akahu isn't configured on the proxy)
     syncProgress(92,'Marketing…');
-    try{await syncMarketing();}catch(e){}   // keep the dashboard's enquiries/quotes/conversion current too
+    try{await syncMarketing({rethrow:true});}catch(e){}   // keep the dashboard's enquiries/quotes/conversion current too
     syncProgressDone('Synced ✓');
     renderAll();recordKpiSnapshot(true);   // refresh recomputes the coverage/owed globals → snapshot with fresh data
   }finally{_syncActive=false;releaseWake();}
@@ -1824,7 +1824,7 @@ async function masterRefresh(auto){
     await _step('cash',()=>syncCash());
     await _step('bank',()=>syncBank());   // live Akahu bank balances (no-op if Akahu not configured on the proxy)
     syncProgress(94,'Marketing…');
-    await _step('marketing',()=>syncMarketing());
+    await _step('marketing',()=>syncMarketing({rethrow:true}));
     S.set('masterSyncMs',Date.now());
     window.__syncDiag.fwAfter=S.get('fw_last_sync','');window.__syncDiag.fwNAfter=(S.get('fwJobs',[])||[]).length;
     syncProgressDone('Master refresh complete ✓');
@@ -4843,23 +4843,43 @@ async function fergusPaginate(path,maxPages){
   }
   return all;
 }
-async function syncMarketing(){
+// Try each request shape in turn. Fergus answered the sorted, paged form of /enquiries until
+// September 2026 and then started returning 500 on it (the nightly log: "HTTP 500 Internal Server
+// Error" at the first request of syncMarketing, every night from 9/09) — and because the marketing
+// sync caught its own error, the master's step read ✓ while the Mktg stamp sat still for six weeks.
+// The same rule as the Fergus connection test: fall back through plainer requests, but a 401/403
+// (a rejected key) fails on the first call rather than being hammered. A plainer shape may come
+// back oldest-first, so the fallback shapes get more pages to reach the recent ones.
+async function fergusPaginateAny(shapes,maxPages,fallbackPages){
+  let last=null;
+  for(let i=0;i<shapes.length;i++){
+    try{return await fergusPaginate(shapes[i],i===0?maxPages:(fallbackPages||maxPages));}
+    catch(e){last=e;if(/HTTP 40[13]/.test(String(e&&e.message||e)))throw e;}
+  }
+  throw last;
+}
+async function syncMarketing(opts){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   const btn=document.getElementById('mkt-sync-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
   try{
     toast('Marketing: enquiries…');
-    const enq=await fergusPaginate('/enquiries?pageSize=100&sortField=createdAt&sortOrder=desc',6);
+    // Web enquiries are one of the two lead sources; if Fergus will not list them under any shape
+    // the sync still goes on with the jobs and the quotes, says so, and records it for the nightly.
+    let enq=[],enqErr='';
+    try{enq=await fergusPaginateAny(['/enquiries?pageSize=100&sortField=createdAt&sortOrder=desc','/enquiries?pageSize=100','/enquiries'],6,30);}
+    catch(e){enqErr=String(e&&e.message||e).slice(0,160);console.warn('marketing enquiries',enqErr);
+      if(window.__syncDiag&&window.__syncDiag.steps)window.__syncDiag.steps.push({step:'marketing-enquiries',ok:false,s:0,err:enqErr});}
     const enqJobIds=new Set();enq.forEach(e=>(e.jobIds||[]).forEach(id=>enqJobIds.add(String(id))));
     toast('Marketing: jobs…');
-    const jobs=await fergusPaginate('/jobs?pageSize=100&sortField=createdAt&sortOrder=desc',8);
+    const jobs=await fergusPaginateAny(['/jobs?pageSize=100&sortField=createdAt&sortOrder=desc','/jobs?pageSize=100'],8,40);
     // Map jobId → a readable name (customer + site) so the dashboard popups can list real jobs.
     const jobMap={};jobs.forEach(j=>{const id=String(j.id);const nm=fergusName(j.customer)||fergusName(j.mainContact)||('Job '+(j.jobNo||j.jobNumber||id));jobMap[id]={name:nm,site:fergusAddr(j.siteAddress),jobNo:String(j.jobNo||j.jobNumber||'')};});
     // Leads = web enquiries + jobs created directly in Fergus (not already counted via an enquiry)
     const leads=enq.map(e=>({createdAt:e.createdAt,name:fergusName(e.customer)||e.customerName||e.name||e.contactName||e.subject||'Web enquiry',jobNo:'',site:''}))
       .concat(jobs.filter(j=>!enqJobIds.has(String(j.id))).map(j=>{const jm=jobMap[String(j.id)];return {createdAt:j.createdAt,name:jm.name,jobNo:jm.jobNo,site:jm.site};}));
     toast('Marketing: quotes…');
-    const qs=await fergusPaginate('/jobs/quotes?pageSize=100&sortField=createdAt&sortOrder=desc',12);
+    const qs=await fergusPaginateAny(['/jobs/quotes?pageSize=100&sortField=createdAt&sortOrder=desc','/jobs/quotes?pageSize=100'],12,60);
     const byJob={};
     qs.forEach(q=>{
       if(q.isDraft||q.voidedAt)return;   // ignore drafts & voided (accepted quotes show as superseded in Fergus)
@@ -4868,10 +4888,10 @@ async function syncMarketing(){
       if(better)byJob[q.jobId]={jobId:String(q.jobId),jobNo:String(q.jobNumber||q.jobNo||''),custRaw:(fergusName(q.customer)||q.customerName||q.contactName||q.customerFullName||''),siteRaw:(fergusAddr(q.siteAddress)||q.address||''),total:(q.totals&&q.totals.total)||0,quoteDate:q.quoteDate,sentAt:q.publishedAt,acceptedAt:q.acceptedAt,isSent:!!q.isSent,isAccepted:!!q.isAccepted,versionNumber:q.versionNumber};
     });
     const quotes=Object.values(byJob).map(q=>{const jm=jobMap[q.jobId]||{};return Object.assign({},q,{job:(q.custRaw||jm.name||('Job '+q.jobId)),site:(q.siteRaw||jm.site||''),jobNo:(q.jobNo||jm.jobNo||'')});});
-    mkt={leads,quotes,ts:nzStamp(),nE:leads.length,nQ:quotes.length,nSent:quotes.filter(q=>q.isSent).length,nAcc:quotes.filter(q=>q.isAccepted).length};
+    mkt={leads,quotes,ts:nzStamp(),nE:leads.length,nQ:quotes.length,nSent:quotes.filter(q=>q.isSent).length,nAcc:quotes.filter(q=>q.isAccepted).length,enqErr:enqErr||''};
     S.set('mkt',mkt);S.set('mktSyncMs',Date.now());renderMkt();if(typeof renderCommand==='function')renderCommand();   // refresh the dashboard tiles too
-    toast('Marketing ✓ '+leads.length+' leads · '+mkt.nSent+' sent · '+mkt.nAcc+' won','ok');
-  }catch(err){console.error(err);toast(fergusErrMsg(err).split('\n')[0],'err');}
+    toast('Marketing ✓ '+leads.length+' leads · '+mkt.nSent+' sent · '+mkt.nAcc+' won'+(enqErr?' · web enquiries unavailable from Fergus':''),enqErr?'warn':'ok');
+  }catch(err){console.error(err);toast(fergusErrMsg(err).split('\n')[0],'err');if(opts&&opts.rethrow)throw err;}   // the master's step must read ✗, not ✓, when nothing was saved
   finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync marketing from Fergus';}}
 }
 // Bucket the funnel into this-week (since Monday) and this-month, by the right date for each stage.
@@ -4917,7 +4937,7 @@ function renderMkt(){
   document.getElementById('mkt-week').innerHTML=mktGrid(a.wk);
   document.getElementById('mkt-month').innerHTML=mktGrid(a.mo);
   document.getElementById('mkt-ts').textContent=mkt.ts?('· synced '+mkt.ts):'';
-  document.getElementById('mkt-note').innerHTML='From Fergus enquiries + quotes. Enquiries by created date · quotes by sent date · accepted by accepted date. This week = since Monday. Conversion = accepted ÷ quotes sent.'+(mkt.nQ!=null?(' (Scanned '+mkt.nE+' leads, '+mkt.nQ+' quotes.)'):'');
+  document.getElementById('mkt-note').innerHTML=(mkt.enqErr?'<b style="color:var(--warning);">⚠ Fergus would not list web enquiries at the last sync ('+esc(mkt.enqErr)+') — leads here are jobs created in Fergus only.</b> ':'')+'From Fergus enquiries + quotes. Enquiries by created date · quotes by sent date · accepted by accepted date. This week = since Monday. Conversion = accepted ÷ quotes sent.'+(mkt.nQ!=null?(' (Scanned '+mkt.nE+' leads, '+mkt.nQ+' quotes.)'):'');
 }
 
 // Back-costing 12-month history strip (Rev / GP$+% / Opex$+% / NP$+%).
