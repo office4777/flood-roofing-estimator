@@ -3844,17 +3844,15 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
 // written: a message thread names a customer and quotes their words.
 async function _jobForCaller(req, id){
   const sel = 'id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote';
-  let q = supabase.from('jobs').select(sel).eq('id', id);
-  const { data, error } = await q.limit(1);
+  const { data, error } = await _scopeCompany(
+    supabase.from('jobs').select(sel).eq('id', id), req).limit(1);
   if (error) throw new Error(error.message);
-  const job = data && data[0];
-  if (!job) return null;
-  const mine = String(job.user_id || '') === String(req.user.id);
-  const sameCo = req.companyId && job.company_id && String(job.company_id) === String(req.companyId);
-  return (mine || sameCo) ? job : null;
+  return (data && data[0]) || null;
 }
 app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
   try {
+    // Scoped IN THE QUERY by _jobForCaller (_scopeCompany on company_id), not
+    // checked after the read: a thread names a customer and quotes their words.
     const job = await _jobForCaller(req, req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
     const { data, error } = await supabase.from('job_messages')
@@ -3868,6 +3866,7 @@ app.post('/jobs/:id/messages', requireAuth, rateLimit(30, 60000), async (req, re
   try {
     const body = String((req.body || {}).body || '').trim();
     if (!body) return res.status(400).json({ error: 'A message is required' });
+    // Same company_id scoping as the read above, before a word is sent.
     const job = await _jobForCaller(req, req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
     const quote = _quoteOf(job) || {};

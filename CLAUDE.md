@@ -3317,6 +3317,24 @@ Discipline (non-negotiable):
   does not claim to have found it — it makes the next one say so.
   `tests/custevents.mjs` is a real tripwire: against the old build 12 of 23
   pins fail and every safety pin passes.
+- TWO STRUCTURAL GUARDS ASSERT A SHAPE, SO A REFACTOR TRIPS THEM (2026-10-19,
+  learned the expensive way: a red main skipped the promote on both ships
+  behind it).
+  `tests/sharetoken.mjs` read the `/q/:token/accept-email` route's SOURCE and
+  asserted `QUOTE_LINK_EXPIRED` appeared before `_dispatchMail`. Moving the
+  send into `_acceptOfficeNotify` left the guard perfectly in place and the
+  pin failing on `indexOf` returning -1. It now asserts the guard sits ahead
+  of whichever of `_acceptOfficeNotify` / `_fergusOnAccept` / `_dispatchMail`
+  are present, so the next move does not break it.
+  `tests/crosstenant.mjs` greps each authenticated `:param` route's body for
+  `_scopeCompany|_scopeInvoices|company_id`, so a route that delegates its
+  scoped read to a helper reads as UNSCOPED. That one was RIGHT to complain:
+  `_jobForCaller` was reading the row and checking it in JS afterwards, which
+  is one early return away from a leak. It uses `_scopeCompany` in the QUERY
+  now. Do that rather than satisfy the regex with a comment.
+  AND RUN `node floodroofing/tests/run.mjs api` BEFORE A SERVER SHIP - it is
+  the exact command CI's Backend job runs, 58 suites in 38 seconds. Picking
+  affected suites by hand is what missed both of these.
 - THE CORRESPONDENCE ON A JOB (2026-10-19, the owner: "i should get an email
   saying that on job #3303 that dot bolous asked a question, show the question
   and let me reply to them directly in Gmail, also keep history of that reply

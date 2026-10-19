@@ -89,9 +89,17 @@ check('…while plain analytics still go through', r.status === 200, 'status ' +
   const src0 = await (await import('node:fs/promises')).readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
   const h = src0.slice(src0.indexOf("app.post('/q/:token/accept-email'"));
   const body = h.slice(0, h.indexOf('\napp.'));
+  // The guard has to sit ahead of EVERYTHING the route then does, not ahead of
+  // one named call: on 2026-10-19 the send moved into _acceptOfficeNotify (the
+  // office's email became the server's job) and the Fergus upload joined it,
+  // so a pin naming _dispatchMail alone failed on a guard that was still
+  // perfectly in place. Assert it against whichever of them are there.
+  const guarded = ['_acceptOfficeNotify', '_fergusOnAccept', '_dispatchMail']
+    .map(n => body.indexOf(n)).filter(i => i > 0);
+  const at = body.indexOf('QUOTE_LINK_EXPIRED');
   check('…and the accept-email route is shut too',
-    body.indexOf('QUOTE_LINK_EXPIRED') > 0 && body.indexOf('QUOTE_LINK_EXPIRED') < body.indexOf('_dispatchMail'),
-    'guard sits ahead of the send');
+    at > 0 && guarded.length > 0 && guarded.every(i => at < i),
+    'guard at ' + at + ', work at ' + JSON.stringify(guarded));
 }
 
 // ── the browser's total is weighed against what the office sent ───
