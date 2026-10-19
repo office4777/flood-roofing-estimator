@@ -4690,6 +4690,18 @@ async function _saveShareBack(job, share){
     "UPDATE public.jobs SET draw_state = jsonb_set(draw_state, '{state,quote,share}', $1::jsonb, true), " +
     "updated_at = now() WHERE id = $2 AND draw_state->'state'->'quote' IS NOT NULL", [JSON.stringify(share), job.id]);
 }
+async function _shareStamp(job, quote, key){
+  try {
+    const sh = quote.share || {};
+    sh[key] = new Date().toISOString();
+    quote.share = sh;
+    if (_pgPool()) await _saveShareBack(job, sh);
+    else await _saveQuoteBack(job, quote);        // no direct pool: the whole quote, once
+  } catch (e) {
+    try { recordError('server', new Error('share stamp ' + key + ' failed: ' + (e && e.message || e)),
+      { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e2) {}
+  }
+}
 async function _saveQuoteBack(job, quote){
   // Fast path: targeted jsonb merge so the multi-MB draw_state (photos + aerial)
   // is never round-tripped just to update the quote — this is what made customer
@@ -5074,6 +5086,13 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
       _acceptanceScheduleRow(job);
       _acceptanceTasks(job, quote);
       if (_firstAccept) _acceptCustomerEmail(job, quote);
+      // The office's own email, from HERE rather than from the customer's
+      // browser. It waits out the grace period first, in case the browser
+      // manages the PDF version - see _acceptOfficeNotify.
+      if (_firstAccept) _acceptOfficeSoon(job);
+    }
+    if (type === 'declined') {
+      _declineNotify(job, quote);
     }
     if (type === 'queried') {
       _questionNotify(job, quote, message);
@@ -5123,6 +5142,56 @@ async function _officeNotifyTo(job, quote){
 // question only flipped a status — so it waited until somebody happened to
 // look at the Home tab, which on a busy week is the next day. The ball is in
 // the office's court by definition, and nothing was telling them.
+async function _declineNotify(job, quote){
+  try {
+    if (!job) return;
+    const st = await _settingsRowForJob(job).catch(function(){ return null; });
+    const em = _emailCfgOfRow(st);
+    const br = ((st || {}).branding) || {};
+    const ref = (quote && quote.ref) ? String(quote.ref) : '';
+    const who = (job.client_name || (quote && quote.client) || 'A customer');
+    if (EMAIL_ENABLED && em.decline_on !== false){
+      const to = (_emailList(em.decline_to).join(', ')) || await _officeNotifyTo(job, quote);
+      if (to){
+        const v = _acceptVars(job, quote, br, '');
+        const subject = _fillTpl(em.decline_subject || DECLINE_EMAIL_DEFAULT.subject, v).replace(/\s{2,}/g, ' ').trim();
+        const text = _fillTpl(em.decline_body || DECLINE_EMAIL_DEFAULT.body, v).replace(/\n{3,}/g, '\n\n');
+        const cust = _emailList(((quote || {}).share || {}).sentTo || (quote || {}).email || '')[0];
+        await _dispatchMail({ to, cc: _emailCopies(st, em.decline_cc, _emailList(to)), subject, text,
+          fromName: String(br.company_name || '').trim() || undefined,
+          replyTo: cust || undefined });
+      } else {
+        _notifyNoRecipient(job, 'declined');
+      }
+    }
+    // And on somebody's list, so it survives an unread inbox - the same
+    // belt-and-braces a question gets.
+    if (job.company_id) {
+      await supabase.from('comms_tasks').insert({
+        id: crypto.randomUUID(), company_id: job.company_id, user_id: job.user_id || null,
+        title: ('Ring ' + who + ' about the declined quote' + (ref ? (' ' + ref) : '')).slice(0, 300),
+        notes: 'The customer declined this quote online. Worth finding out why while it is fresh.',
+        due_date: _schedISO(new Date()),
+        assignee_user_id: null, done: false, urgency: 80,
+        thread_id: null, job_id: job.id, personal: false,
+        done_at: null, created_at: new Date().toISOString(),
+      });
+    }
+    await _shareStamp(job, quote, 'declineOfficeAt');
+  } catch (e) {
+    // A NOTIFICATION THAT FAILS SILENTLY IS THE BUG UNDERNEATH ALL THREE OF
+    // THESE. console.warn goes nowhere anybody reads; recordError reaches the
+    // owner, which is the only way the next one gets diagnosed.
+    try { recordError('server', new Error('decline notify failed: ' + (e && e.message || e)),
+      { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e2) {}
+  }
+}
+// Nowhere to send it is a real fault, not a quiet skip: the office has an
+// event it will never hear about, and only an alert can say so.
+function _notifyNoRecipient(job, kind){
+  try { recordError('server', new Error('no office recipient for a ' + kind + ' on job ' + ((job && job.id) || '?')),
+    { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e) {}
+}
 async function _questionNotify(job, quote, message){
   try {
     if (!job) return;
@@ -5147,10 +5216,21 @@ async function _questionNotify(job, quote, message){
         const subject = em.question_subject ? _fillTpl(em.question_subject, vars).replace(/\s{2,}/g, ' ').trim()
                                            : 'Question on quote' + (ref ? (' — ' + ref) : '') + ' — ' + who;
         const cust = _emailList(((quote || {}).share || {}).sentTo || (quote || {}).email || '')[0];
-        if (to) await _dispatchMail({ to, cc: _emailCopies(st, em.question_cc, _emailList(to)), subject, text: body,
-          attachments: await _termsFilesFor(st, 'question', job.company_id),
-          fromName: String((((st || {}).branding) || {}).company_name || '').trim() || undefined,
-          replyTo: cust || undefined });
+        // THE TERMS LOOKUP MUST NOT SINK THE EMAIL. It was awaited inside the
+        // _dispatchMail arguments, so a failure there threw before the mail was
+        // ever handed over - and the whole function's catch turned that into a
+        // console.warn nobody reads. An attachment is the least important part
+        // of telling the office a customer is waiting on an answer.
+        let _att; try { _att = await _termsFilesFor(st, 'question', job.company_id); } catch (e) { _att = undefined; }
+        if (to) {
+          await _dispatchMail({ to, cc: _emailCopies(st, em.question_cc, _emailList(to)), subject, text: body,
+            attachments: _att,
+            fromName: String((((st || {}).branding) || {}).company_name || '').trim() || undefined,
+            replyTo: cust || undefined });
+          await _shareStamp(job, quote, 'queryOfficeAt');
+        } else {
+          _notifyNoRecipient(job, 'question');
+        }
       }
     }
     // And on somebody's list, so it survives an unread inbox.
@@ -5165,7 +5245,114 @@ async function _questionNotify(job, quote, message){
         done_at: null, created_at: new Date().toISOString(),
       });
     }
-  } catch (e) { console.warn('[question] notify failed:', e && e.message); }
+  } catch (e) {
+    console.warn('[question] notify failed:', e && e.message);
+    try { recordError('server', new Error('question notify failed: ' + (e && e.message || e)),
+      { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e2) {}
+  }
+}
+// THE OFFICE HEARS IT FROM THE SERVER, NOT FROM THE CUSTOMER'S PHONE
+// (2026-10-19, the owner on job 3305: "when a quote gets accepted like it just
+// was for job #3305, i didn't recieve an acceptance email"). The acceptance
+// itself was recorded correctly; the EMAIL was only ever sent by a SECOND call
+// the customer's browser makes to /q/:token/accept-email after rendering the
+// quote to a PDF with html2canvas and jsPDF off a CDN. On a phone, on a long
+// quote, on a slow link, or with the tab closed on the thank-you screen, that
+// call simply never happens - and nothing anywhere noticed, because the accept
+// had already answered 200. The office's notification cannot depend on the
+// customer's device finishing a job after it has said yes.
+// So this is a function now, called from three places: that route (with the
+// PDF, when it does arrive), a short timer after the accept, and an hourly
+// sweep. `share.acceptOfficeAt` is the claim that keeps it to one email.
+async function _acceptOfficeNotify(job, quote, attachment){
+  const acc = quote.accepted || {};
+  const client = job.client_name || quote.client || acc.name || 'Customer';
+  const addr = job.site_address || quote.addr || '';
+  const ref = quote.ref || '';
+  const lines = ['A customer has accepted their quote online.', ''];
+  if (ref) lines.push('Quote reference: ' + ref);
+  lines.push('Customer: ' + client);
+  if (addr) lines.push('Address: ' + addr);
+  if (acc.name && acc.name !== client) lines.push('Accepted by: ' + acc.name);
+  if (acc.at) lines.push('Accepted: ' + acc.at);
+  lines.push('', 'Accepted total (incl. GST): ' + _money(acc.total));
+  // What she actually chose, in the email itself. This used to live only
+  // inside the attached PDF, so settling "did she take MAXAM or ColorZen?"
+  // meant opening an attachment and reading a radio button — on the one
+  // question where getting it wrong means ordering the wrong steel.
+  const _chosen = _quoteChoiceLines(quote).filter(x => !/^Option: /.test(x)).map(x => '  • ' + x);
+  if (_chosen.length) lines.push('', "The customer's selections:", ..._chosen);
+  if (Array.isArray(acc.options) && acc.options.length) {
+    lines.push('', 'Selected options:');
+    acc.options.forEach(function (o) {
+      o = o || {};
+      lines.push('  • ' + (o.title || 'Option') +
+        (o.grade && o.grade !== 'Standard' ? ' — ' + o.grade : '') +
+        '   ' + _money(o.total));
+    });
+  }
+  lines.push('', attachment
+    ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
+    : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
+  const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
+  // Who hears about this acceptance. It has to be the business that SENT the
+  // quote — a fixed address here mailed every subscriber's acceptances to one
+  // inbox, which is a leak between competitors, not just a wrong recipient.
+  // Order: the recipient the office configured on the quote → that company's
+  // settings → the person whose job it is → the server default, last.
+  let acceptTo = await _officeNotifyTo(job, quote);
+  if (!acceptTo) {
+    console.warn('[accept-email] no recipient for job ' + job.id + ' — acceptance is still recorded');
+    return { ok: false, code: 'NO_RECIPIENT' };
+  }
+  // Settings → Email → "Quote accepted — tell the office": its wording, its
+  // copies (and the master copy), replies straight to the customer.
+  let _st = null; try { _st = await _settingsRowForJob(job); } catch (e) {}
+  const _em = _emailCfgOfRow(_st);
+  if (_em.accept_office_on === false) return { ok: true, off: true };
+  let _subject = subject, _text = lines.join('\n');
+  if (_em.accept_office_subject || _em.accept_office_body){
+    const _v = _acceptVars(job, quote, ((_st || {}).branding) || {}, '');
+    _v.pdf_note = attachment ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
+                             : '(The quote PDF could not be attached automatically — see the customer link in the app.)';
+    if (_em.accept_office_subject) _subject = _fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject;
+    _text = _fillTpl(_em.accept_office_body || ACCEPT_OFFICE_EMAIL_DEFAULT.body, _v).replace(/\n{3,}/g, '\n\n');
+  }
+  const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
+  await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
+                        attachments: await _termsFilesFor(_st, 'accept_office', job.company_id),
+                        fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
+                        replyTo: _cust || undefined });
+  await _shareStamp(job, quote, 'acceptOfficeAt');
+  return { ok: true };
+}
+// The net under it. 90 seconds is long enough for the browser's PDF to land
+// (it is built and uploaded in a few seconds when it works at all) and short
+// enough that a roofer hears about a yes while the kettle is on.
+const ACCEPT_OFFICE_GRACE_MS = Number(process.env.ACCEPT_OFFICE_GRACE_MS || 90000);
+function _acceptOfficeSoon(job){
+  if (!job || !job.id || !EMAIL_ENABLED) return;
+  const id = job.id;
+  const t = setTimeout(function(){ _acceptOfficeCatchUp(id).catch(function(){}); }, ACCEPT_OFFICE_GRACE_MS);
+  if (t && t.unref) t.unref();
+}
+// Re-read the job: the browser may have sent the rich one in the meantime,
+// and the office must not get two.
+async function _acceptOfficeCatchUp(jobId){
+  try {
+    const r = await supabase.from('jobs')
+      .select('id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote')
+      .eq('id', jobId).single();
+    if (r.error || !r.data || !r.data.quote) return false;
+    const job = r.data, quote = r.data.quote, sh = quote.share || {};
+    if (sh.acceptOfficeAt) return false;              // already told
+    if ((sh.status || '') !== 'accepted') return false;
+    await _acceptOfficeNotify(job, quote, null);
+    return true;
+  } catch (e) {
+    try { recordError('server', new Error('accept-office catch-up failed: ' + (e && e.message || e)), { route: '/q/:token/event' }); } catch (e2) {}
+    return false;
+  }
 }
 app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
   try {
@@ -5187,64 +5374,9 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
         code: 'QUOTE_LINK_EXPIRED',
       });
     }
-    const acc = quote.accepted || {};
-    const client = job.client_name || quote.client || acc.name || 'Customer';
-    const addr = job.site_address || quote.addr || '';
-    const ref = quote.ref || '';
-    const lines = ['A customer has accepted their quote online.', ''];
-    if (ref) lines.push('Quote reference: ' + ref);
-    lines.push('Customer: ' + client);
-    if (addr) lines.push('Address: ' + addr);
-    if (acc.name && acc.name !== client) lines.push('Accepted by: ' + acc.name);
-    if (acc.at) lines.push('Accepted: ' + acc.at);
-    lines.push('', 'Accepted total (incl. GST): ' + _money(acc.total));
-    // What she actually chose, in the email itself. This used to live only
-    // inside the attached PDF, so settling "did she take MAXAM or ColorZen?"
-    // meant opening an attachment and reading a radio button — on the one
-    // question where getting it wrong means ordering the wrong steel.
-    const _chosen = _quoteChoiceLines(quote).filter(x => !/^Option: /.test(x)).map(x => '  • ' + x);
-    if (_chosen.length) lines.push('', "The customer's selections:", ..._chosen);
-    if (Array.isArray(acc.options) && acc.options.length) {
-      lines.push('', 'Selected options:');
-      acc.options.forEach(function (o) {
-        o = o || {};
-        lines.push('  • ' + (o.title || 'Option') +
-          (o.grade && o.grade !== 'Standard' ? ' — ' + o.grade : '') +
-          '   ' + _money(o.total));
-      });
-    }
-    lines.push('', attachment
-      ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
-      : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
-    const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
-    // Who hears about this acceptance. It has to be the business that SENT the
-    // quote — a fixed address here mailed every subscriber's acceptances to one
-    // inbox, which is a leak between competitors, not just a wrong recipient.
-    // Order: the recipient the office configured on the quote → that company's
-    // settings → the person whose job it is → the server default, last.
-    let acceptTo = await _officeNotifyTo(job, quote);
-    if (!acceptTo) {
-      console.warn('[accept-email] no recipient for job ' + job.id + ' — acceptance is still recorded');
-      return res.json({ ok: false, code: 'NO_RECIPIENT' });
-    }
-    // Settings → Email → "Quote accepted — tell the office": its wording, its
-    // copies (and the master copy), replies straight to the customer.
-    let _st = null; try { _st = await _settingsRowForJob(job); } catch (e) {}
-    const _em = _emailCfgOfRow(_st);
-    if (_em.accept_office_on === false) return res.json({ ok: true, off: true });
-    let _subject = subject, _text = lines.join('\n');
-    if (_em.accept_office_subject || _em.accept_office_body){
-      const _v = _acceptVars(job, quote, ((_st || {}).branding) || {}, '');
-      _v.pdf_note = attachment ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
-                               : '(The quote PDF could not be attached automatically — see the customer link in the app.)';
-      if (_em.accept_office_subject) _subject = _fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject;
-      _text = _fillTpl(_em.accept_office_body || ACCEPT_OFFICE_EMAIL_DEFAULT.body, _v).replace(/\n{3,}/g, '\n\n');
-    }
-    const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
-    await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
-                          attachments: await _termsFilesFor(_st, 'accept_office', job.company_id),
-                          fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
-                          replyTo: _cust || undefined });
+    const r = await _acceptOfficeNotify(job, quote, attachment);
+    if (r && r.code === 'NO_RECIPIENT') return res.json({ ok: false, code: 'NO_RECIPIENT' });
+    if (r && r.off) return res.json({ ok: true, off: true });
     res.json({ ok: true });
   } catch (e) {
     console.error('accept-email failed:', e.message);
@@ -6747,6 +6879,20 @@ const ACCEPT_OFFICE_EMAIL_DEFAULT = {
     "The customer's selections:\n{selections}\n\n" +
     '{pdf_note}',
 };
+// A DECLINE REACHED NOBODY AT ALL (2026-10-19, the owner on job 3320: "i
+// didn't get an email to say job #3320 was declined, i should get an email").
+// The event handler's `declined` branch set a status and stopped - an
+// acceptance emailed the office and a question emailed the office, but the one
+// answer that ends the job in the other direction only showed on the Home
+// board, where it waits for somebody to look. A no online is very often a
+// question nobody asked out loud, and it is worth a phone call the same day.
+const DECLINE_EMAIL_DEFAULT = {
+  subject: 'Quote declined \u2014 {ref} \u2014 {client}',
+  body: '{client} has declined their quote.\n\n' +
+    'Quote reference: {ref}\nAddress: {site}\nDeclined: {declined_at}\n\n' +
+    'Quoted total (incl. GST): {total}\n\n' +
+    'Worth a ring while it is fresh \u2014 a no online is often a question nobody got to ask.\n',
+};
 const QUESTION_EMAIL_DEFAULT = {
   subject: 'Question on quote {ref} — {client}',
   body: '{client} has asked a question about their quote.\n\n' +
@@ -6813,12 +6959,17 @@ function _quoteChoiceLines(quote){
 // The tags an acceptance email can use.
 function _acceptVars(job, quote, br, link){
   const acc = (quote && quote.accepted) || {};
+  const _sh = (quote && quote.share) || {};
   const client = (job && job.client_name) || (quote && quote.client) || acc.name || 'Customer';
   const lines = _quoteChoiceLines(quote).map(function(x){ return '  • ' + x; });
   return {
     client: client, site: (job && job.site_address) || (quote && quote.addr) || '',
     ref: (quote && quote.ref) || '', company: String(br.company_name || '').trim() || 'the team',
-    total: _money(acc.total), accepted_by: acc.name || client, accepted_at: acc.at ? _nzWhen(acc.at) : '',
+    // A DECLINED quote has no `accepted` block, so its total is what was SENT.
+    // The accept path never reaches the fallback - acc.total is stamped there.
+    total: _money(acc.total != null ? acc.total : _sh.sentTotal),
+    accepted_by: acc.name || client, accepted_at: acc.at ? _nzWhen(acc.at) : '',
+    declined_at: _sh.declinedAt ? _nzWhen(_sh.declinedAt) : '',
     accepted_by_line: (acc.name && acc.name !== client) ? ('Accepted by: ' + acc.name + '\n') : '',
     selections: lines.length ? lines.join('\n') : '  • As quoted',
     link: link || '',
@@ -7050,6 +7201,51 @@ async function _reminderTick(){
 }
 // Ops/tests: run the sweep NOW, ignoring the watermark. Same lock as the
 // other admin routes — no token, no route.
+// EVERY ANSWER THE OFFICE IS STILL OWED (2026-10-19). The 90-second timer
+// covers the ordinary case; this covers a server restart inside that window, a
+// mail provider that was refusing at the time, and any accept recorded before
+// this existed. Claim-then-send on a fresh copy, the reminder sweep's own rule.
+async function _officeOwedSweep(){
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  if (!EMAIL_ENABLED) return out;
+  const q = await supabase.from('jobs')
+    .select('id, user_id, company_id, client_name, site_address, ' +
+            'q_share:draw_state->state->quote->share')
+    .not('draw_state->state->quote->share->>token', 'is', null)
+    .gte('updated_at', new Date(Date.now() - 14 * 86400000).toISOString())
+    .order('updated_at', { ascending: false }).limit(500);
+  if (q.error) { console.error('[office-owed] query failed: ' + q.error.message); out.errors++; return out; }
+  for (const r of (q.data || [])){
+    const sh = r.q_share || {};
+    const st = sh.status || '';
+    // Only an accept, and only one that has an acceptedAt to judge the age by.
+    // A decline or a question is sent on the event and is not re-tried here:
+    // re-sending a week-old question would read as a new one.
+    if (st !== 'accepted' || sh.acceptOfficeAt) continue;
+    const at = Date.parse(sh.acceptedAt || '');
+    if (!isFinite(at)) continue;
+    const age = Date.now() - at;
+    if (age < ACCEPT_OFFICE_GRACE_MS) continue;          // the timer still has it
+    if (age > 14 * 86400000) continue;                   // too old to be news
+    out.checked++;
+    try { if (await _acceptOfficeCatchUp(r.id)) out.sent++; else out.skipped++; }
+    catch (e) { out.errors++; }
+  }
+  return out;
+}
+async function _officeOwedTick(){
+  if (_maintOn()) return;
+  try {
+    const r = await _officeOwedSweep();
+    if (r.sent || r.errors) console.log('[office-owed] checked ' + r.checked + ', sent ' + r.sent +
+      ', skipped ' + r.skipped + ', errors ' + r.errors);
+  } catch (e) { console.error('[office-owed] tick failed: ' + (e && e.message)); }
+}
+app.post('/admin/office-owed/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _officeOwedSweep()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/reminders/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _reminderSweep()); }
@@ -13592,6 +13788,7 @@ app.listen(PORT, () => {
   const _remKick = setTimeout(function(){ _reminderTick(); }, 5 * 60e3);
   if (_remKick.unref) _remKick.unref();
   setInterval(function(){ _reminderTick(); }, 3600e3).unref();
+  setInterval(function(){ _officeOwedTick(); }, 3600e3).unref();
   // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();

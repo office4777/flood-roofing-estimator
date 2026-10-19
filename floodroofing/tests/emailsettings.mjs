@@ -144,7 +144,7 @@ const app = readFileSync(_j(_ROOT, 'frontend', 'app.html'), 'utf8');
 const srv = readFileSync(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 const feDef = (k) => { const i = app.indexOf('var EMX_DEFAULTS = {'); const seg = app.slice(i, app.indexOf('};', i) + 2); const f = new Function(seg + '; return EMX_DEFAULTS;'); return f()[k]; };
 const beDef = (name) => { const i = srv.indexOf('const ' + name + ' = {'); const seg = srv.slice(i, srv.indexOf('};', i) + 2).replace('const ' + name, 'var X'); return new Function(seg + '; return X;')(); };
-const pairs = [['accept_cust', 'ACCEPT_CUST_EMAIL_DEFAULT'], ['accept_office', 'ACCEPT_OFFICE_EMAIL_DEFAULT'], ['question', 'QUESTION_EMAIL_DEFAULT'], ['invoice', 'INVOICE_EMAIL_DEFAULT'], ['reminder', 'REMINDER_EMAIL_DEFAULT']];
+const pairs = [['accept_cust', 'ACCEPT_CUST_EMAIL_DEFAULT'], ['accept_office', 'ACCEPT_OFFICE_EMAIL_DEFAULT'], ['question', 'QUESTION_EMAIL_DEFAULT'], ['decline', 'DECLINE_EMAIL_DEFAULT'], ['invoice', 'INVOICE_EMAIL_DEFAULT'], ['reminder', 'REMINDER_EMAIL_DEFAULT']];
 const diff = pairs.filter(([k, n]) => { const a = feDef(k), b = beDef(n); return !a || !b || a.subject !== b.subject || a.body !== b.body; }).map(p => p[0]);
 check('the app’s standard wording and the server’s are the same words', diff.length === 0, diff.join(', '));
 

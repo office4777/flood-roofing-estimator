@@ -3274,6 +3274,53 @@ Discipline (non-negotiable):
   `tests/matordering.mjs` is a tripwire — against the old build the bracket
   pins fail with the owner's own symptom and the ordering pins cannot run.
 
+- THE OFFICE HEARS EVERY ANSWER FROM THE SERVER (2026-10-19, the owner on
+  three live jobs: "i didn't get an email to say job #3320 was declined, i
+  should get an email" … "when a quote gets accepted like it just was for job
+  #3305, i didn't recieve an acceptance email"). Three holes in `POST
+  /q/:token/event`, all the same shape — the office's notification was not the
+  server's job.
+  A DECLINE SENT NOTHING AT ALL. The `declined` branch set a status and
+  stopped, so a no only ever showed on the Home board, where it waits for
+  somebody to look. `_declineNotify` emails it (`DECLINE_EMAIL_DEFAULT`,
+  Settings → Email → "Quote declined", keys `decline_on` / `_subject` /
+  `_body` / `_to` / `_cc`), names the customer and what the quote was worth
+  (`_acceptVars` falls back to `share.sentTotal`, since a declined quote has
+  no `accepted` block), replies to the customer, and raises a `comms_tasks`
+  row for today. Switching the EMAIL off does not switch the TASK off.
+  AN ACCEPTANCE DEPENDED ON THE CUSTOMER'S PHONE. The office email was only
+  ever sent by a SECOND call the customer's browser makes to
+  `/q/:token/accept-email` after rendering the quote to a PDF with html2canvas
+  and jsPDF off a CDN. On a phone, a long quote, a slow link, or a tab closed
+  on the thank-you screen that call never happens — and nothing noticed,
+  because the accept had already answered 200. That is job 3305.
+  `_acceptOfficeNotify(job, quote, attachment)` is now a function with THREE
+  callers: that route (with the PDF, when it arrives), `_acceptOfficeSoon`
+  (a 90 s timer — `ACCEPT_OFFICE_GRACE_MS` — long enough for the PDF to land,
+  short enough that a roofer hears about a yes while the kettle is on), and
+  `_officeOwedSweep` hourly (a restart inside that window, a provider that was
+  refusing, or an accept from before this existed; `POST
+  /admin/office-owed/run`). `share.acceptOfficeAt` is the claim that keeps it
+  to ONE email, written by `_shareStamp`, which uses the cheap `jsonb_set`
+  path when there is a pg pool and `_saveQuoteBack` when there is not —
+  `_saveShareBack` returns SILENTLY with no direct pool, and a claim that is
+  never written is a claim that never stops the second email.
+  A QUESTION'S ATTACHMENT COULD SINK IT. `_termsFilesFor` was awaited INSIDE
+  the `_dispatchMail` arguments, so a failure there threw before the mail was
+  handed over, and the function's own catch turned that into a `console.warn`
+  nobody reads. It has its own try now, and every one of these notifiers
+  reports through `recordError` instead of a warn — including
+  `_notifyNoRecipient`, because nowhere to send it is a real fault, not a
+  quiet skip. BE ACCURATE: the question path itself WORKS and is pinned
+  passing on the old build too, so job 3303's missing email was environmental
+  (his settings, the terms lookup, or the provider at that moment) and this
+  does not claim to have found it — it makes the next one say so.
+  `tests/custevents.mjs` is a real tripwire: against the old build 12 of 23
+  pins fail and every safety pin passes.
+  STILL OPEN AND ASKED FOR: the accepted quote's PDF uploaded to the Fergus
+  job, the customer's choices written as the Fergus job description, and the
+  office's Gmail reply to a question kept in RoofMap as correspondence.
+
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
 The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen
