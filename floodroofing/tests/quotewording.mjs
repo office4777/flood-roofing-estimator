@@ -120,8 +120,28 @@ const noted = await pg.evaluate(async () => {
   const m = document.getElementById('qdescModal');
   const out = {
     hasNoteList: !!document.getElementById('qdescNoteList'),
-    addBtn: [...m.querySelectorAll('.qdesc-ft button')].map(x => x.textContent.trim()),
-    headings: [...m.querySelectorAll('.qdesc-sub')].map(x => x.textContent.trim().split(' ')[0]),
+    addBtn: [...m.querySelectorAll('.qdesc-add')].map(x => x.textContent.trim()),
+    footBtn: [...m.querySelectorAll('.qdesc-ft button')].map(x => x.textContent.trim()),
+    headings: [...m.querySelectorAll('.qdesc-sub')].map(x =>
+      ((x.firstChild && x.firstChild.textContent) || x.textContent).trim()),
+    // TIDIED (2026-10-19, the owner: "tidy up this edit description window,
+    // it's very untidy"). One scroller for the lot instead of three fighting
+    // over the modal's height; each list a bordered group with its heading,
+    // its explanation on its own line under it, and its own Add button at its
+    // foot; the headings line up with the inputs beside them rather than
+    // sitting hard against the modal's left edge.
+    scrollers: [...m.querySelectorAll('.qdesc *')].filter(el => {
+      const o = getComputedStyle(el).overflowY; return o === 'auto' || o === 'scroll'; }).length,
+    groups: m.querySelectorAll('.qdesc-grp').length,
+    addInGroups: [...m.querySelectorAll('.qdesc-grp')].every(g => !!g.querySelector('.qdesc-add')),
+    hintOwnLine: (function(){
+      const sp = m.querySelector('.qdesc-sub span');
+      return sp ? getComputedStyle(sp).display : ''; })(),
+    headLeft: (function(){
+      const h = m.querySelector('.qdesc-sub-note');
+      const i = m.querySelector('#qdescNoteList input') || m.querySelector('#qdescList input');
+      if (!h || !i) return null;
+      return Math.round(i.getBoundingClientRect().left - h.getBoundingClientRect().left); })(),
     noteHdOrange: (function(){
       const h = m.querySelector('.qdesc-sub-note');
       return h ? getComputedStyle(h).color : '';
@@ -148,6 +168,18 @@ const amber = (c) => { const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(c || '');
 check('Edit description has a Notes list of its own, with its own Add button',
   noted.hasNoteList && noted.addBtn.some(t => /Add note/i.test(t)) && noted.headings.includes('Notes'),
   JSON.stringify({ btns: noted.addBtn, heads: noted.headings }));
+check('…one scrolling body, not three lists each with a scrollbar of their own',
+  noted.scrollers === 1, JSON.stringify({ scrollers: noted.scrollers }));
+check('…three bordered groups, each carrying its own Add button',
+  noted.groups === 3 && noted.addInGroups && noted.addBtn.length === 3,
+  JSON.stringify({ groups: noted.groups, add: noted.addBtn }));
+check('…the footer left with Reset, Cancel and Save alone',
+  noted.footBtn.length === 3 && /Reset/i.test(noted.footBtn[0]) && /Save/i.test(noted.footBtn[2]),
+  JSON.stringify(noted.footBtn));
+check('…each heading\u2019s explanation on its own line under it',
+  noted.hintOwnLine === 'block', noted.hintOwnLine);
+check('…and a heading lined up with the boxes beside it, not flush to the modal edge',
+  noted.headLeft != null && Math.abs(noted.headLeft) <= 24, JSON.stringify({ offset: noted.headLeft }));
 check('…its heading is amber, and each row is marked with a caution sign',
   amber(noted.noteHdOrange) && noted.marker === '⚠',
   JSON.stringify({ colour: noted.noteHdOrange, marker: noted.marker }));

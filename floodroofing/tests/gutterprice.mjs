@@ -337,6 +337,30 @@ check('…without taking the caret out of the box being typed into',
 await ppg.evaluate(() => { _qDelCustom('gutter', 0); });
 await ppg.waitForTimeout(400);
 
+// AND THE CARET STAYS AT THE END OF WHAT THEY TYPED (2026-10-19, the owner:
+// "I start typing a 5, and then it jumps to the front, so when I type in a 5
+// and then a 0, it shows up as a 05 … 0005"). The re-render above puts a NEW
+// input in place of the one being typed into; the quantity and unit boxes are
+// <input type=number>, and Chrome answers null for selectionStart on one of
+// those, so nothing could be restored and focus() alone parked the caret at
+// position 0. Each digit here is given longer than the 280 ms beat, so every
+// one of them lands in a box the card has just rebuilt — the exact case that
+// spelled the price backwards.
+await ppg.evaluate(() => { _qAddCustom('gutter'); });
+await ppg.waitForTimeout(400);
+await ppg.evaluate(() => { const e = document.querySelector('[data-cl-unit="gutter:0"]');
+  e.focus(); e.value = '5'; _qUpdCustom('gutter', 0, 'unit', '5'); });
+await ppg.waitForTimeout(430);            // the card rebuilds under their hand
+for (const d of ['0', '0', '0']){ await ppg.keyboard.type(d); await ppg.waitForTimeout(430); }
+const caretTyped = await ppg.evaluate(() => ({
+  box: (document.querySelector('[data-cl-unit="gutter:0"]') || {}).value,
+  stored: (_qCustom('gutter')[0] || {}).unit,
+  focused: document.activeElement === document.querySelector('[data-cl-unit="gutter:0"]') }));
+check('a 5 then three noughts reads 5000, not 0005',
+  caretTyped.box === '5000' && caretTyped.stored === 5000 && caretTyped.focused, JSON.stringify(caretTyped));
+await ppg.evaluate(() => { _qDelCustom('gutter', 0); });
+await ppg.waitForTimeout(400);
+
 await ppg.evaluate(() => { _toggleGutterExcluded(true); });
 await ppg.waitForTimeout(500);
 pr = await ppg.evaluate(() => ({ prices: DRAW.roofs.map((r,i) => _gutterPriceForRoof(i)) }));

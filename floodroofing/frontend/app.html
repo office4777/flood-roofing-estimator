@@ -3548,16 +3548,29 @@ html.qp-classic-phone .report-preview #qpRoot{ width:540px !important; height:11
 .qsel-row.off{ color:#8a97a6; }
 .qsel-row .qsel-why{ margin-left:auto; font-size:11px; color:#8a97a6; }
 .qsel-ft{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
-.qdesc{ background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; }
+.qdesc{ background:#fff; border-radius:14px; width:100%; max-width:620px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); font-family:inherit; }
+/* ONE SCROLLER, THREE TIDY GROUPS (2026-10-19, the owner: "tidy up this edit
+   description window, it's very untidy"). Each of the three lists used to be
+   its own flex:1 overflow-y:auto box, so the modal had three scrollbars
+   fighting over the same height, and the headings between them carried no
+   horizontal padding at all — "Exclusions" and "Notes" sat hard against the
+   left edge while every input beside them was inset 14px. The body scrolls
+   once and each list is a bordered card with its own heading, its own one-line
+   explanation UNDER that heading rather than running on after it, and its own
+   Add button at its foot; the footer keeps Reset, Cancel and Save. */
+.qdesc-body{ flex:1 1 auto; overflow-y:auto; padding:14px 16px 16px; display:flex; flex-direction:column; gap:13px; }
+.qdesc-grp{ border:1px solid var(--border); border-radius:10px; background:#fbfcfe; padding:11px 12px 12px; }
+.qdesc-add{ margin-top:2px; padding:7px 12px; border:1px dashed #b9c6d4; border-radius:8px; background:#fff; color:#2b3b4e; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer; }
+.qdesc-add:hover{ border-color:#0099cc; color:#0a1628; }
 .qdesc-hd{ padding:18px 20px 12px; border-bottom:1px solid var(--border); }
 .qdesc-hd b{ display:block; font-size:16px; color:#0a1628; margin-bottom:4px; }
 .qdesc-hd span{ display:block; font-size:12px; color:#5b6b7d; line-height:1.45; }
 .qdesc-hd code{ background:#f1f4f8; padding:1px 5px; border-radius:4px; font-size:11px; }
-.qdesc-list{ padding:10px 14px; overflow-y:auto; flex:1 1 auto; }
-.qdesc-row{ display:flex; gap:6px; align-items:center; margin-bottom:6px; }
-.qdesc-n{ width:18px; font-size:11px; color:#8a97a6; text-align:right; flex:0 0 auto; }
+.qdesc-list{ padding:0 0 2px; }
+.qdesc-row{ display:flex; gap:5px; align-items:center; margin-bottom:5px; }
+.qdesc-n{ width:15px; font-size:11px; color:#8a97a6; text-align:right; flex:0 0 auto; }
 .qdesc-row input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; color:#0a1628; }
-.qdesc-row button{ flex:0 0 auto; width:30px; height:32px; border:1px solid var(--border); border-radius:7px; background:#fff; color:#5b6b7d; font-size:11px; cursor:pointer; }
+.qdesc-row button{ flex:0 0 auto; width:27px; height:31px; border:1px solid var(--border); border-radius:7px; background:#fff; color:#5b6b7d; font-size:10px; cursor:pointer; padding:0; }
 .qdesc-row button:disabled{ opacity:.3; cursor:default; }
 .qdesc-row button.qdesc-del{ color:#b42318; }
 .qdesc-ft{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
@@ -4116,7 +4129,7 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .qb-note-row{ border-bottom-color:#f5e8cf; }
 .qb-note-row svg{ color:#d97706; }
 .qb-note-row span{ color:#6b5327; }
-.qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:12px 0 4px; }
+.qdesc-sub{ font-size:12.5px; font-weight:700; color:#0a1628; margin:0 0 9px; }
 .qp-bg-sw{ margin-left:auto; display:inline-flex; align-items:center; gap:7px; padding:4px 10px 4px 5px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#475569; font:600 11px/1.2 Inter,-apple-system,sans-serif; cursor:pointer; }
 .qp-bg-sw-knob{ width:26px; height:15px; border-radius:999px; background:#cbd5e1; position:relative; flex:0 0 auto; transition:background .15s; }
 .qp-bg-sw-knob::after{ content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:#fff; transition:left .15s; }
@@ -4280,10 +4293,13 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
   .unp-ft{ flex-wrap:wrap; }
   .unp-left{ flex-basis:100%; }
 }
-.qdesc-title{ display:flex; align-items:center; gap:10px; padding:12px 14px 0; }
+.qdesc-title{ display:flex; align-items:center; gap:10px; padding:0; }
 .qdesc-title label{ font-size:12.5px; font-weight:700; color:#0a1628; flex:0 0 auto; }
 .qdesc-title input{ flex:1 1 auto; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; font-family:inherit; color:#0a1628; }
-.qdesc-sub span{ font-weight:400; color:var(--text2); }
+.qdesc-sub span{ display:block; font-weight:400; color:var(--text2); font-size:11.5px; line-height:1.4; margin-top:3px; }
+.qdesc-sub-x{ color:#b42318; }
+.qdesc-sub-x span, .qdesc-sub-note span{ color:var(--text2); }
+.qdesc-list .qb-para{ margin:0 0 2px; font-size:12px; color:var(--text2); }
 .qdesc-row-x .qdesc-n{ color:#c0392b; font-weight:700; }
 .qdesc-row-n .qdesc-n{ color:#b45309; font-weight:700; }
 /* The search drop-down's ticks, and a job's other versions under it. */
@@ -4946,7 +4962,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-19T17:48:51Z';
+  window.APP_BUILT_AT = '2026-10-19T19:18:25Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -32917,17 +32933,29 @@ function _qdescOpen(){
       '<div class="qdesc-hd"><b>Edit description</b><span>'+(classic
         ? 'The "What\u2019s included and our process" list on the document, one line a bullet. For this quote only.'
         : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
+      '<div class="qdesc-body">'+
       (classic ? '' : '<div class="qdesc-title"><label for="qdescTitle">Title</label>'+
         '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(QB_PROPOSAL_TITLE)+'"></div>')+
-      '<div class="qdesc-list" id="qdescList"></div>'+
-      (classic ? '' : '<div class="qdesc-sub">Exclusions <span>— what the price does not cover; shown with a cross under their own heading, only when there are any</span></div>'+
+      '<div class="qdesc-grp">'+
+        '<div class="qdesc-sub">'+(classic ? 'What\u2019s included and our process' : 'What\u2019s included')+
+          '<span>'+(classic ? 'One line a bullet on the document.' : 'One line a step of the work. The customer sees these with a tick.')+'</span></div>'+
+        '<div class="qdesc-list" id="qdescList"></div>'+
+        '<button type="button" class="qdesc-add" onclick="_qdescAdd()">+ Add line</button>'+
+      '</div>'+
+      (classic ? '' : '<div class="qdesc-grp">'+
+        '<div class="qdesc-sub qdesc-sub-x">Exclusions'+
+          '<span>What the price does not cover. Shown with a cross under their own heading, only when there are any.</span></div>'+
         '<div class="qdesc-list" id="qdescExclList"></div>'+
-        '<div class="qdesc-sub qdesc-sub-note">Notes <span>— what the customer should mind; shown in amber under "Please note", each with a caution mark</span></div>'+
-        '<div class="qdesc-list" id="qdescNoteList"></div>')+
+        '<button type="button" class="qdesc-add" onclick="_qdescAdd(\'x\')">+ Add exclusion</button>'+
+      '</div>'+
+      '<div class="qdesc-grp">'+
+        '<div class="qdesc-sub qdesc-sub-note">Notes'+
+          '<span>What the customer should mind. Shown in amber under \u201cPlease note\u201d, each with a caution mark.</span></div>'+
+        '<div class="qdesc-list" id="qdescNoteList"></div>'+
+        '<button type="button" class="qdesc-add" onclick="_qdescAdd(\'n\')">+ Add note</button>'+
+      '</div>')+
+      '</div>'+
       '<div class="qdesc-ft">'+
-        '<button type="button" class="qa-btn" onclick="_qdescAdd()">+ Add line</button>'+
-        (classic ? '' : '<button type="button" class="qa-btn" onclick="_qdescAdd(\'x\')">+ Add exclusion</button>')+
-        (classic ? '' : '<button type="button" class="qa-btn" onclick="_qdescAdd(\'n\')">+ Add note</button>')+
         '<button type="button" class="qa-btn" onclick="_qdescReset()">Reset to default</button>'+
         '<span style="flex:1"></span>'+
         '<button type="button" class="qa-btn" onclick="_qdescClose()">Cancel</button>'+
@@ -36998,9 +37026,19 @@ function _qCustomLiveRerender(ba){
       var el = document.querySelector('[' + key[0] + '="' + key[1].replace(/"/g, '\\"') + '"]');
       if (!el) return;
       el.focus();
-      // A number input refuses setSelectionRange in some browsers; the focus
-      // is the part that matters, so a refusal costs the caret and nothing more.
-      if (ss != null && el.setSelectionRange){ try { el.setSelectionRange(ss, se); } catch(e){} }
+      // AND THE CARET GOES BACK TO THE END OF WHAT THEY TYPED (2026-10-19, the
+      // owner: "I start typing a 5 … it shows up as a 05 … 0005. Like the place
+      // where I enter keeps jumping to the front"). The quantity and unit-price
+      // boxes are <input type=number>, and Chrome answers NULL for
+      // selectionStart on one of those and ignores setSelectionRange — measured,
+      // both of them. So the position could never be read, nothing was restored,
+      // and focus() on its own parks the caret at position 0: the next digit
+      // landed in FRONT of the last, which is 5 → 05 → 005. Re-assigning the
+      // value of a focused box parks the caret at its end, which is where
+      // somebody typing a price is; switching the box to type=text to place the
+      // caret properly does NOT survive the switch back (measured too).
+      if (el.type === 'number'){ try { var _v = el.value; if (_v !== ''){ el.value = ''; el.value = _v; } } catch(e){} }
+      else if (ss != null && el.setSelectionRange){ try { el.setSelectionRange(ss, se); } catch(e){} }
     } catch(e){}
   }, 280);
 }
@@ -37940,6 +37978,44 @@ function _qpGutterSelected(){
 }
 // Build the combined roof map as an inline SVG from the stashed geometry.
 // opts: { sel (extraRoofsSel), showBg, maxH, showGutters, crossUnselected }.
+// A SMALLER CROSS, INSIDE THE ROOF'S OWN LINES (feedback report 66,
+// 2026-10-19: "quotes red cross is confusing, it crosses out part of the main
+// roof which looks wrong, it should be a smaller cross in the middle of roof 2
+// keeping within the lines").
+//
+// The cross was drawn corner to corner of the roof's BOUNDING BOX. On an L
+// that runs outside the outline, and on roofs that sit tight against each
+// other — a garage against a house, which is most of them — its arms carry on
+// straight over the neighbour. The customer reads that as the MAIN roof being
+// crossed out, which is the opposite of what the map is saying, and on job
+// 3305 that is exactly what it looked like.
+//
+// It is the green tick's counterpart now: the same size, in the same place
+// above the roof's own label, with the same white halo so it reads over an
+// aerial. The size is clamped to the roof's shorter side, so a little roof
+// gets a little cross and it is never wider than the shape it is on.
+function _roofCrossSvg(cx, cy, size, w){
+  var s = Math.max(3, size) / 2;
+  var d1 = 'M' + (cx - s).toFixed(1) + ',' + (cy - s).toFixed(1) + ' L' + (cx + s).toFixed(1) + ',' + (cy + s).toFixed(1);
+  var d2 = 'M' + (cx + s).toFixed(1) + ',' + (cy - s).toFixed(1) + ' L' + (cx - s).toFixed(1) + ',' + (cy + s).toFixed(1);
+  var sw = Math.max(1.6, w);
+  return '<g stroke-linecap="round" data-roof-cross="1">' +
+    '<path d="' + d1 + '" fill="none" stroke="#fff" stroke-width="' + (sw * 2).toFixed(1) + '"/>' +
+    '<path d="' + d2 + '" fill="none" stroke="#fff" stroke-width="' + (sw * 2).toFixed(1) + '"/>' +
+    '<path d="' + d1 + '" fill="none" stroke="#dc2626" stroke-width="' + sw.toFixed(1) + '"/>' +
+    '<path d="' + d2 + '" fill="none" stroke="#dc2626" stroke-width="' + sw.toFixed(1) + '"/></g>';
+}
+// The shorter side of a shape's own bounding box — what a mark drawn on it
+// has to fit inside.
+function _roofShortSpan(pts){
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  (pts || []).forEach(function(p){
+    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+  });
+  if (!isFinite(x0)) return 0;
+  return Math.min(x1 - x0, y1 - y0);
+}
 function _qpRoofMapSvg(opts){
   opts = opts || {};
   var g = S.quote && S.quote.roofMapGeom;
@@ -38061,8 +38137,10 @@ function _qpRoofMapSvg(opts){
       svg+='<path d="'+td+'" fill="none" stroke="#fff" stroke-width="'+(ts*0.5).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round"/>'+
            '<path d="'+td+'" fill="none" stroke="#16a34a" stroke-width="'+(ts*0.26).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>';
     } else {
-      var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; r.pts.forEach(function(p){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});
-      svg+='<g stroke="#dc2626" stroke-width="'+Math.max(2.5,h/90).toFixed(1)+'" stroke-linecap="round" opacity="0.7"><line x1="'+x0+'" y1="'+y0+'" x2="'+x1+'" y2="'+y1+'"/><line x1="'+x1+'" y1="'+y0+'" x2="'+x0+'" y2="'+y1+'"/></g>';
+      // The tick's counterpart: same size, same place above the label, and
+      // never wider than the roof it is on (report 66).
+      var _xs = Math.max(7, Math.min(fontSize * 1.15, _roofShortSpan(r.pts) * 0.34));
+      svg += _roofCrossSvg(cx, cy - fontSize * 1.55, _xs, Math.max(2, _xs * 0.21));
     }
   });
   svg+='</svg>';
@@ -63514,14 +63592,11 @@ function _renderMatRoofMapBasic(out, opts){
     svg += '<g data-basic-label="'+ri+'">'+
       '<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="'+sFs+'" font-weight="600" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>'+
     '</g>';
-    // Red X over an excluded / out-of-scope roof.
+    // Red X over an excluded / out-of-scope roof — a compact one above the
+    // label, inside the roof's own lines (report 66, the same fault here).
     if (crossSet && crossSet[_key]) {
-      var bx0=Infinity, by0=Infinity, bx1=-Infinity, by1=-Infinity;
-      r.outline.forEach(function(p){ if(p[0]<bx0)bx0=p[0]; if(p[0]>bx1)bx1=p[0]; if(p[1]<by0)by0=p[1]; if(p[1]>by1)by1=p[1]; });
-      svg += '<g stroke="#dc2626" stroke-width="'+Math.max(2.5,(h/90)).toFixed(1)+'" stroke-linecap="round" opacity="0.7">'+
-        '<line x1="'+bx0.toFixed(1)+'" y1="'+by0.toFixed(1)+'" x2="'+bx1.toFixed(1)+'" y2="'+by1.toFixed(1)+'"/>'+
-        '<line x1="'+bx1.toFixed(1)+'" y1="'+by0.toFixed(1)+'" x2="'+bx0.toFixed(1)+'" y2="'+by1.toFixed(1)+'"/>'+
-      '</g>';
+      var _cxs = Math.max(7, Math.min(sFs * 1.3, _roofShortSpan(r.outline) * 0.34));
+      svg += _roofCrossSvg(lx, ly - sFs * 1.35, _cxs, Math.max(2, _cxs * 0.21));
     }
   });
   svg += '</svg>';
@@ -70608,9 +70683,62 @@ function _custBusyBanner(show, msg){
 // slices through a card/row. Assumes the CURRENT pdf page is ready for the
 // first slice; extra slices call addPage themselves. (Same algorithm the
 // Job Pack PDF uses inline — kept as a helper for the Quote PDF.)
-function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH){
+// WHERE THE PAGE MAY BE CUT, READ OFF THE DOM (2026-10-19). Hunting for a
+// white row is guesswork on a dense page — the quote 3305 PDF cut the Marley
+// Classic gutter row in half, because the whitest row inside the search window
+// was inside that row rather than between two. The page KNOWS where its own
+// boundaries are: every section carries data-qd-sec and every choice is a
+// .qb-opt. Measured in CSS pixels against the capture target and scaled by the
+// canvas, they are exact. The ink search stays as the last resort, for a block
+// taller than a sheet (a colour grid, a long photo) where there is no boundary
+// to land on.
+// MEASURED IN THE CLONE, NEVER ON SCREEN. html2canvas rasterises a COPY of
+// the page inside its own iframe, and that copy does not lay out to the same
+// height as the live document — measured on this quote, 5621.8 CSS px on screen
+// against 5755 in the capture, a 2.4% drift that by the foot of the document is
+// a whole row of colour swatches. Scaling screen coordinates by the canvas's
+// WIDTH ratio therefore puts every boundary further and further out of place
+// the further down the page it is, which is the same fault as the clipped PDF
+// of 2026-10-13: a capture whose canvas comes from one measurement and whose
+// layout comes from another. So this runs from html2canvas's `onclone`, on the
+// cloned document, where the only conversion left is the capture scale.
+function _pdfBreakRows(target, scale){
+  var out = { sec: [], row: [] };
+  try {
+    var tr = target.getBoundingClientRect();
+    if (!(tr.width > 0)) return out;
+    var k = +scale || 1;
+    var push = function(list, el, lift){
+      var r = el.getBoundingClientRect();
+      if (!(r.height > 2)) return;
+      // Cut a few pixels ABOVE the block's own top edge, so the new sheet
+      // opens with a hairline of white rather than on the card's border.
+      var y = Math.round((r.top - tr.top - lift) * k);
+      if (y > 8) list.push(y);
+    };
+    Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){ push(out.sec, el, 5); });
+    Array.prototype.forEach.call(
+      target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, figure, h2, h3'),
+      function(el){ push(out.row, el, 3); });
+    var tidy = function(a){ a.sort(function(x, y){ return x - y; }); return a; };
+    tidy(out.sec); tidy(out.row);
+  } catch(e){}
+  return out;
+}
+// Add a (possibly tall) html2canvas capture to a jsPDF, slicing onto extra
+// A4 pages and breaking between cards rather than through them. Assumes the
+// CURRENT pdf page is ready for the first slice; extra slices call addPage
+// themselves. (Same algorithm the Job Pack PDF uses inline — kept as a helper
+// for the Quote PDF.) opts.footMm reserves a band at the foot of every sheet
+// that the image never reaches, so a stamped page number cannot land on the
+// content; opts.breaks is _pdfBreakRows' answer for this capture.
+function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH, opts){
+  opts = opts || {};
+  var footMm = Math.max(0, +opts.footMm || 0);
+  var usableH = Math.max(20, pageH - footMm);
+  var breaks = opts.breaks || { sec: [], row: [] };
   var pxPerMm = canvas.width / pageW;
-  var hardStep = Math.floor(pageH * pxPerMm);
+  var hardStep = Math.floor(usableH * pxPerMm);
   var cctx = canvas.getContext('2d', { willReadFrequently: true });
   function rowInk(y){
     if (y <= 0 || y >= canvas.height) return 0;
@@ -70620,31 +70748,58 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH){
     }
     return ink;
   }
-  var sliceTop = 0;
+  // The highest boundary in (lo, hi] — the fullest sheet that still breaks
+  // somewhere real. Nothing in range answers null and the caller falls through.
+  function pick(list, lo, hi){
+    var best = null;
+    for (var i = 0; i < list.length; i++){
+      var y = list[i];
+      if (y > lo && y <= hi && (best === null || y > best)) best = y;
+    }
+    return best;
+  }
+  // A final sheet carrying nothing but a stray border line is worse than no
+  // sheet at all — quote 3305 ended on a blank page 5. Sampled rows, not a
+  // total, because one full-width rule would swamp an ink count.
+  function nearlyBlank(y0, y1){
+    var step = Math.max(2, Math.floor((y1 - y0) / 40)), rows = 0, inked = 0;
+    for (var y = y0 + 1; y < y1 - 1; y += step){ rows++; if (rowInk(y) > 2) inked++; }
+    return rows > 0 && inked * 8 <= rows;
+  }
+  var sliceTop = 0, pageNo = 0;
   while (sliceTop < canvas.height - 2) {
     var cutY = Math.min(canvas.height, sliceTop + hardStep);
     if (cutY < canvas.height - 2) {
-      // A sheet may give up its last QUARTER to find a clean break, not its
-      // last half: at 0.45/0.55 a page could end 55% full, which is where the
-      // empty bottoms on the modern quote's PDF came from (2026-10-13, the
-      // owner: "you can bunch it up a bit more too"). A card that will not fit
-      // in the remaining quarter is better carried whole to the next sheet by
-      // the hard step than paid for with a third of a blank page.
-      var searchUp = Math.floor(hardStep * 0.22), bestY = cutY, bestInk = Infinity;
-      for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.78; sy -= 3){
-        var ink = rowInk(sy);
-        if (ink === 0) { bestY = sy; break; }
-        if (ink < bestInk) { bestInk = ink; bestY = sy; }
+      // A section boundary is worth giving up more of the sheet for than a row
+      // inside one; the ink search is the last resort and keeps its old window.
+      var at = pick(breaks.sec, sliceTop + hardStep * 0.58, cutY);
+      if (at === null) at = pick(breaks.row, sliceTop + hardStep * 0.78, cutY);
+      if (at !== null) cutY = at;
+      else {
+        // A sheet may give up its last QUARTER to find a clean break, not its
+        // last half: at 0.45/0.55 a page could end 55% full, which is where the
+        // empty bottoms on the modern quote's PDF came from (2026-10-13, the
+        // owner: "you can bunch it up a bit more too"). A card that will not fit
+        // in the remaining quarter is better carried whole to the next sheet by
+        // the hard step than paid for with a third of a blank page.
+        var searchUp = Math.floor(hardStep * 0.22), bestY = cutY, bestInk = Infinity;
+        for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.78; sy -= 3){
+          var ink = rowInk(sy);
+          if (ink === 0) { bestY = sy; break; }
+          if (ink < bestInk) { bestInk = ink; bestY = sy; }
+        }
+        cutY = bestY;
       }
-      cutY = bestY;
     }
     var sliceH = cutY - sliceTop;
+    if (pageNo > 0 && cutY >= canvas.height - 2 && sliceH < hardStep * 0.3 &&
+        nearlyBlank(sliceTop, cutY)) break;
     var sc = document.createElement('canvas');
     sc.width = canvas.width; sc.height = sliceH;
     sc.getContext('2d').drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
     if (sliceTop > 0) pdf.addPage();
     pdf.addImage(sc.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, sliceH / pxPerMm, undefined, 'FAST');
-    sliceTop = cutY;
+    sliceTop = cutY; pageNo++;
   }
 }
 
@@ -70699,6 +70854,11 @@ function _inlineCoverImagesForPdf(root){
 // sheets at the whitest rows by _pdfAddSlicedCanvas \u2014 the same slicer the A4
 // document uses.
 var QP_PDF_MODERN_W = 1100;
+// The band at the foot of every sheet the quote's own content never reaches,
+// so the page number has somewhere to go. Before this the slice image ran the
+// full 297mm and "3 of 5" was stamped at 292mm — on top of the Marley Classic
+// row on one sheet and the "valid for 30 days" line on the next.
+var QP_PDF_FOOT_MM = 9;
 async function _buildModernQuotePdf(opts, capScale){
   var htmlEl = document.documentElement, root = document.getElementById('qpRoot');
   var wasPrinting = !!window.__PRINTING_QUOTE, wasModern = !!window.__PRINTING_MODERN;
@@ -70761,14 +70921,24 @@ async function _buildModernQuotePdf(opts, capScale){
 
   var target = root.querySelector('.qd-wrap') || root;
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+  // Filled from inside the capture (see _pdfBreakRows); null means the clone
+  // could not be read and the slicer falls back to its own ink search.
+  var _qpPdfBreaks = null;
   try {
     _qaMsg('Rendering the quote\u2026');
     var canvas = await html2canvas(target, {
       scale: capScale, backgroundColor: '#ffffff', useCORS: true, logging: false,
       scrollX: 0, scrollY: 0, windowWidth: QP_PDF_MODERN_W,
       windowHeight: Math.max(document.documentElement.scrollHeight, target.scrollHeight),
+      onclone: function(doc){
+        try {
+          var t2 = doc.querySelector('#qpRoot .qd-wrap') || doc.querySelector('#qpRoot');
+          if (t2) _qpPdfBreaks = _pdfBreakRows(t2, capScale);
+        } catch(e){}
+      },
     });
-    _pdfAddSlicedCanvas(pdf, canvas, 210, 297);
+    _pdfAddSlicedCanvas(pdf, canvas, 210, 297, {
+      footMm: QP_PDF_FOOT_MM, breaks: _qpPdfBreaks });
   } catch(err){
     console.error('Modern quote PDF render failed:', err);
     done(); return null;

@@ -3075,6 +3075,87 @@ Discipline (non-negotiable):
   right it counts 22 at 3.18 m on his roof, and the 37-shape gate is
   unchanged. `tests/report65.mjs` is a real tripwire: against the old build
   the ten fault pins fail and all four safety pins pass.
+- A CROSSED-OUT ROOF IS CROSSED OUT, NOT THE HOUSE BESIDE IT (feedback report
+  66, 2026-10-19: "quotes red cross is confusing, it crosses out part of the
+  main roof which looks wrong, it should be a smaller cross in the middle of
+  roof 2 keeping within the lines"). The cross was drawn corner to corner of
+  the excluded roof's BOUNDING BOX, in two renderers — `_qpRoofMapSvg` and the
+  Job Pack's own canvas map — so on a garage standing against a house its arms
+  ran straight across the house, and two excluded roofs crossed each other.
+  `_roofCrossSvg(cx, cy, size, w)` draws it as the TICK'S COUNTERPART: the
+  same size, the same place above the roof's own label, white-haloed the same
+  way, and never wider than a third of the roof's short span
+  (`_roofShortSpan`), so a long thin lean-to gets a small cross rather than one
+  spilling off both ends. `tests/quotepdf.mjs`.
+- THE CUSTOMER'S PDF BREAKS WHERE THE PAGE DOES (2026-10-19, the owner on
+  quote 3305: "also fix the pdf print still not looking great"). Three faults
+  in the one file, all in `_pdfAddSlicedCanvas` and all now pinned in
+  `tests/quotepdf.mjs`, which drives the real slicer over a built canvas with
+  a recording stand-in for jsPDF — jsPDF and html2canvas come off a CDN the
+  test environment cannot reach, and what is worth pinning is the arithmetic.
+  THE PAGE NUMBER WAS STAMPED ON THE QUOTE. The slice image was placed 0→297mm
+  and "3 of 5" written at 292mm, so it landed on the Marley Classic gutter row
+  on one sheet and on "valid for 30 days" on the next. `opts.footMm`
+  (`QP_PDF_FOOT_MM` = 9) shortens the usable band and nothing else; the A4
+  path, which passes four arguments, is untouched.
+  A CARD WAS SLICED IN HALF. Hunting for the whitest row is guesswork on a
+  dense page. The page knows its own boundaries — `[data-qd-sec]` for a
+  section, `.qb-opt` and friends for a row — so `_pdfBreakRows` collects them
+  and the slicer prefers the deepest section boundary past 58% of the sheet,
+  then the deepest row boundary past 78%, and only then the old ink search.
+  MEASURED IN THE CLONE, WHICH IS THE WHOLE TRICK: html2canvas rasterises a
+  COPY in its own iframe, and that copy does not lay out to the same height as
+  the live page — 5621.8 CSS px on screen against 5755 in the capture on this
+  quote, 2.4%, which by the foot of the document is a whole row of colour
+  swatches. Scaling screen coordinates by the canvas's WIDTH ratio therefore
+  drifts further out of place the further down you go: the same fault as the
+  clipped PDF of 2026-10-13, a capture whose canvas comes from one measurement
+  and whose layout comes from another. So `_pdfBreakRows` runs from
+  html2canvas's own `onclone`, on the cloned document, where the only
+  conversion left is the capture scale. Not reachable → `_qpPdfBreaks` stays
+  null and the ink search carries on as before.
+  AND IT ENDED ON A BLANK PAGE, carrying one stray border line. A final strip
+  under 30% of a sheet whose sampled rows are over seven-eighths blank is
+  dropped. Sampled ROWS, not an ink total: one full-width rule would swamp a
+  count.
+  Page 4 of the fixture still reads 68% full, and that is the honest trade —
+  the review section is 203mm tall, so breaking before it is the only clean
+  place. The owner's "bunch it up a bit more" (2026-10-13) was about EVERY
+  section buying a sheet of air, not about one page in five.
+  NOT A BUG, and worth saying so because it looks like one: the review page's
+  aerial comes out as a slanted parallelogram with white wedges in two
+  corners. That is the canvas view reproduced exactly — the office rotated the
+  photo, the map frame on that page is wider than the rotated picture covers,
+  and `_qpRoofMapSvg` has reproduced the office's own framing on purpose since
+  2026-09-24. Measured against page 2's map of the same roof, which is fine.
+- A NUMBER TYPED INTO A CUSTOM LINE GOES IN THE ORDER IT IS TYPED (2026-10-19,
+  the owner: "I start typing a 5, and then it jumps to the front, so when I
+  type in a 5 and then a 0, it shows up as a 05 … 0005"). `_qCustomLiveRerender`
+  rebuilds the owning card 280 ms after the last keystroke and puts the focus
+  back — and it tried to put the caret back with `selectionStart` /
+  `setSelectionRange`, which CHROME DOES NOT SUPPORT ON `<input type=number>`:
+  selectionStart reads null and setSelectionRange is ignored, both measured.
+  So nothing was restored and `focus()` alone parks the caret at position 0,
+  and the next digit landed in front of the last. Re-assigning the value of a
+  focused box parks the caret at its end, which is where somebody typing a
+  price is; telling the box it is `type=text` to place the caret properly does
+  NOT survive the switch back (measured too). Only the custom lines were
+  affected — the material table's own $/unit boxes are `onchange`, so they
+  never re-render mid-word. `tests/gutterprice.mjs` types a 5 and three
+  noughts with a real keyboard, each past the beat; against the old build the
+  box reads "5".
+- THE EDIT DESCRIPTION WINDOW IS THREE TIDY GROUPS (2026-10-19, the owner:
+  "tidy up this edit description window, it's very untidy"). Each of the three
+  lists was its own `flex:1 1 auto; overflow-y:auto` box, so the modal had
+  three scrollbars fighting over one height, and `.qdesc-sub` carried no
+  horizontal padding at all — "Exclusions" and "Notes" sat hard against the
+  left edge while every input beside them was inset 14px, with the
+  explanation running on after the heading in the same line. One `.qdesc-body`
+  scrolls now; each list is a `.qdesc-grp` card with its heading, its
+  explanation on its own line under it (`.qdesc-sub span{display:block}`) and
+  its own `.qdesc-add` at its foot; the footer keeps Reset, Cancel and Save.
+  `tests/quotewording.mjs` pins the one scroller, the three groups and the
+  heading's alignment with the boxes beside it.
 
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
