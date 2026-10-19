@@ -223,6 +223,46 @@ v = await pg.evaluate(() => {
 });
 check('a settings save with the page never opened leaves it alone', v === 11, String(v));
 
+// ── (5) ONE SET OF NUMBERS, NOT FOUR ─────────────────────────────────
+// The screw, rivet and underlay arithmetic was hand-copied into the priced
+// take-off, the quote's own cost breakdown, the Job Pack's consumables card
+// and the supplier order. Settings reaching one of them would have had the
+// office reading 8 per m² on the pack beside 10 on the quote — the
+// `autosaveJob` lesson in a different coat: grep for the ghost, not the
+// symptom. Each of the three renderers is driven here with the same figures.
+v = await pg.evaluate(() => {
+  S.settings.price_book.ordering = { cons: { screwsPerM2: 12, screwsRound: 50,
+                                             rivetPack: 200, rivetPerLm: 20,
+                                             underlayWastePct: 35 } };
+  DRAW.roofs = null; DRAW.outline = null; DRAW.scaleMetresPerPx = null;
+  DRAW.lines = [ { type:'barge', measM:'5' }, { type:'ridge', measM:'9' } ];
+  const by = {}; _buildMaterialPriceRows().forEach(r => by[r.key] = r);
+  const d = { roofArea: 100, flashingsLm: 60 };
+  const txt = (html) => String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+  return {
+    takeoffRivets: by.rivets ? by.rivets.autoQty : null,
+    pack:  txt(_jpRenderConsumablesSection(d)),
+    order: (function(){
+      // _matRenderConsumables writes into #matConsumables rather than
+      // returning, so give it somewhere to write.
+      var host = document.getElementById('matConsumables');
+      if (!host){ host = document.createElement('div'); host.id = 'matConsumables'; document.body.appendChild(host); }
+      try { _matRenderConsumables(d); } catch(e){ return 'threw: ' + e.message; }
+      return txt(host.innerHTML);
+    })()
+  };
+});
+check('the priced take-off follows a rivet box typed on the page',
+  v.takeoffRivets === 200, String(v.takeoffRivets));
+// 100 m² × 12 = 1200 screws, already a multiple of 50; 60 lm ÷ 20 = 3 boxes
+// of 200 = 600 rivets; underlay covers 135 m².
+check('…and so does the Job Pack’s own consumables card',
+  /× 12 = 1200/.test(v.pack) && /135\.0 m²/.test(v.pack),
+  v.pack.slice(0, 200));
+check('…and the supplier order, which used to print 8 per m² beside it',
+  /× 12 = 1200/.test(v.order) && /auto: 600 \(200 \/ 20lm/.test(v.order) &&
+  /incl\. 35% waste/.test(v.order), v.order.slice(0, 400));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(r => !r).length;

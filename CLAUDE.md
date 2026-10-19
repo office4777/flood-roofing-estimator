@@ -3205,6 +3205,17 @@ Discipline (non-negotiable):
   (`screwsRound`, `rivetPack`, the bracket spacing), and a save made with the
   page never opened leaves the store alone (`_ordCollect` returns on no boxes)
   — the price book's own rule.
+  FOUR HAND-COPIES OF THE SAME ARITHMETIC, found by grepping for the
+  constants rather than trusting the one call site: the screw, rivet and
+  underlay formulas were written out again in the quote's own material cost
+  breakdown, the Job Pack's consumables card (`_jpRenderConsumablesSection`),
+  the supplier order (`_matRenderConsumables`) and the printed consumables
+  strip — so a page that reached only the priced take-off would have had the
+  office reading 8 per m² on the pack beside 10 on the quote, with the "incl.
+  20% waste" label hard-coded beside an area that had moved. All of them go
+  through `_ordCons()` now and `tests/matordering.mjs` drives the two
+  renderers and reads their text. The `autosaveJob` lesson in a different
+  coat: grep for the ghost, not the symptom.
   NOT WIRED, and worth saying so rather than leaving it to be found: the Job
   Pack's CUT LIST has a second allowance of its own (`_MAT_FLASHING_SPECS[]
   .waste`, 0.5 m on a ridge and 0.4 m on everything else, added per PIECE).
