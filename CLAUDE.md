@@ -3156,6 +3156,66 @@ Discipline (non-negotiable):
   its own `.qdesc-add` at its foot; the footer keeps Reset, Cancel and Save.
   `tests/quotewording.mjs` pins the one scroller, the three groups and the
   heading's alignment with the boxes beside it.
+- THE EXTERNAL BRACKET'S RATE IS ON THE GUTTER PRODUCT (2026-10-19, the owner:
+  "internal and external brackets are saying the same price, can you add in a
+  specific cost in the settings gutter profiles for the added price/lm for
+  external brackets"). The column was already there — Settings → Quote's
+  Product Options → Gutter profiles → Ext bracket $/lm — and he had typed
+  6 / 3 / 3 into it. But `_bracketExtPerLm` let the three SHIPPED products jump
+  the queue to a pair of Default item pricing boxes (`ext_bracket_box125_lm` /
+  `_marley_lm`), and those save as 0 on any account that has ever pressed Save
+  on that page. So the typed rate was honoured for a product the office had
+  added itself and ignored for the three it actually quotes, and the customer
+  was offered external brackets at no charge. TWO BOXES FOR ONE NUMBER was the
+  fault underneath, the same drift "the three pricing tabs each say what they
+  are" warns about: the row wins now for every product, the old price-book
+  keys stay readable as the fallback for a selectables list saved before the
+  column existed, and the two duplicate inputs are gone — with
+  `_pbGutKeep` giving the stored figure back on a save so a missing box cannot
+  write a 0 over what an older account still falls back to. Everything
+  downstream was already wired (`_selBracketExtDelta` → the summary,
+  `_qpCardDeltas.bracketExt` → the option card, `_profitSelectionItems`'
+  `brackets` row → the Pricing tab), so one read fixed all three.
+  `tests/matordering.mjs`.
+- SETTINGS → MATERIAL ORDERING (2026-10-19, the owner: "add in a settings tab
+  called 'Material Ordering' with a sub-tab called wastage, where is shows the
+  wastage amount applied to every flashing type … then another sub-tab called
+  'Consumables' where the user can adjust the the default calculation for how
+  many rolls of paper is requires, how many screws are required …"). Every
+  allowance in the take-off was a constant in the code, so a roofer who buys
+  9 m flashing, or runs screws at ten a square, had no way to say so.
+  `price_book.ordering` holds them — inside the price book because that is the
+  jsonb the settings save already carries (`__materials_catalog` rides there
+  too) and a new column is a migration for a page of numbers.
+  WASTAGE is per flashing type (`ORD_WASTE_KEYS`: ridge, valley, barge, apron,
+  change-of-pitch), three figures each — wastage per run, splits over, lap per
+  join — read by `_ordWaste(key)` and consumed by `_flashWaste(lens, total,
+  typeKey)`, which is the engine the priced take-off and the supplier order
+  both come through. CONSUMABLES is `_ordCons()`: underlay waste %, screws per
+  m² and the box they round up to, the rivet box and the metres of flashing it
+  covers, spare pipe flashings per size, and the gutter bracket spacing plus a
+  starting count per run.
+  EVERY DEFAULT IS WHAT THE CODE ALREADY DID, to the decimal — 0.5 / 8 / 0.1,
+  20%, 8 per m² rounded to 100, a box of 100 rivets per 60 lm, 0 spares,
+  one bracket per 500 mm and none to start — so no job reprices and no order
+  changes until somebody types in the page. A BLANK BOX IS THE STANDARD, never
+  0: `_ordNum` falls through on a cleared field, and `_ordCollect` writes only
+  what was typed, so a figure RoofMap later improves still reaches an account
+  that never touched it. A 0 where something is divided by is floored
+  (`screwsRound`, `rivetPack`, the bracket spacing), and a save made with the
+  page never opened leaves the store alone (`_ordCollect` returns on no boxes)
+  — the price book's own rule.
+  NOT WIRED, and worth saying so rather than leaving it to be found: the Job
+  Pack's CUT LIST has a second allowance of its own (`_MAT_FLASHING_SPECS[]
+  .waste`, 0.5 m on a ridge and 0.4 m on everything else, added per PIECE).
+  That is the length you cut to rather than the length you order, the two have
+  disagreed since long before this page, and unifying them moves either every
+  order or every price — so the Wastage page says in a footnote that it does
+  not set it. The owner's call. The pole shed's estimator keeps its own
+  underlay and screw rates too (`_shedEstimate`'s `R`), deliberately: a
+  different costing model, not the roofing take-off.
+  `tests/matordering.mjs` is a tripwire — against the old build the bracket
+  pins fail with the owner's own symptom and the ordering pins cannot run.
 
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 

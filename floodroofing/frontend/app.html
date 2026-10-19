@@ -4962,7 +4962,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-19T19:18:25Z';
+  window.APP_BUILT_AT = '2026-10-19T22:11:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8675,6 +8675,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default item pricing</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Ordering</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
@@ -9213,8 +9214,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>Classic stop end ($/each)</label><input type="number" id="pbGutClassicStopend" step="0.01" min="0" placeholder="7.15"></div>
         </div>
         <div class="f3" style="margin-top:6px">
-          <div><label>External bracket upcharge — box ($/lm)</label><input type="number" id="pbGutExtBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
-          <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div style="grid-column:1/-1;font-size:11px;color:var(--text2);line-height:1.5">The external-bracket upcharge is set per gutter product, on <strong>Quote&rsquo;s Product Options &rarr; Gutter profiles</strong> — one box per product rather than two for the lot.</div>
           <div><label>Marley Typhoon simple ($/lm, only if not itemised)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
         <div class="set-sub-hd"><strong>Downpipes</strong>
@@ -9497,6 +9497,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
         <div id="lpItemsList"></div>
       </div>
+    </div>
+
+    <!-- MATERIAL ORDERING — how much of everything the take-off buys -->
+    <div class="sub-panel settings-sub" id="set-ordering" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default item pricing</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
+      <nav class="tab-row" style="margin-bottom:14px">
+        <button type="button" class="tab-sm on" data-ord-tab="waste" onclick="_ordSub('waste',this)">Wastage</button>
+        <button type="button" class="tab-sm" data-ord-tab="cons" onclick="_ordSub('cons',this)">Consumables</button>
+      </nav>
+      <div id="ordPane-waste"></div>
+      <div id="ordPane-cons" style="display:none"></div>
     </div>
 
     <!-- SUPPLIERS & MATERIALS -->
@@ -13224,6 +13235,112 @@ function switchSettingsSub(id,btn){
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
   if (id === 'set-custompb') { try { _cpbRender(); } catch(e) { console.warn('custom price book render:', e); } }
+  if (id === 'set-ordering') { try { renderOrderingUI(); } catch(e) { console.warn('material ordering render:', e); } }
+}
+// Settings -> Material Ordering. Two sub-tabs, one store (price_book.ordering).
+function _ordSub(which, btn){
+  ['waste', 'cons'].forEach(function(k){
+    var p = document.getElementById('ordPane-' + k);
+    if (p) p.style.display = (k === which) ? '' : 'none';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#set-ordering [data-ord-tab]'), function(b){
+    b.classList.toggle('on', b === btn || b.getAttribute('data-ord-tab') === which);
+  });
+  try { localStorage.setItem('fr_ord_sub', which); } catch(e){}
+}
+function _ordInp(path, val, def, step, extra){
+  // The DEFAULT is the placeholder, never the value: a box showing 0.5 that
+  // the office has not touched reads as a figure somebody chose, and clearing
+  // it has to mean "back to the standard", not "no allowance at all".
+  return '<input type="number" data-ord="' + esc2(path) + '" step="' + step + '" min="0" ' +
+    'value="' + (val == null ? '' : esc2(String(val))) + '" placeholder="' + esc2(String(def)) + '"' +
+    (extra || '') + ' style="width:100%;font-size:12px;padding:5px 7px;margin:0;text-align:right">';
+}
+function renderOrderingUI(){
+  var cfg = _ordCfg(), W = cfg.waste || {}, C = cfg.cons || {};
+  var wp = document.getElementById('ordPane-waste');
+  if (wp){
+    var rows = ORD_WASTE_KEYS.map(function(t){
+      var v = W[t.key] || {};
+      return '<tr><td style="font-weight:600">' + esc2(t.label) + '</td>' +
+        '<td>' + _ordInp('waste.' + t.key + '.run',   v.run,   ORD_WASTE_DEFAULT.run,   '0.1')  + '</td>' +
+        '<td>' + _ordInp('waste.' + t.key + '.split', v.split, ORD_WASTE_DEFAULT.split, '0.1')  + '</td>' +
+        '<td>' + _ordInp('waste.' + t.key + '.lap',   v.lap,   ORD_WASTE_DEFAULT.lap,   '0.05') + '</td></tr>';
+    }).join('');
+    wp.innerHTML = '<div class="set-sec">' +
+      '<div class="set-sec-hd"><strong>Flashing wastage</strong></div>' +
+      '<div class="set-sec-sub">Each RUN of a flashing is ordered at the length drawn plus its own allowance. A run longer than the <strong>split</strong> is more than one stick, and every join costs a lap &mdash; so a 0.5 / 8 / 0.1 row orders a 6 m ridge as 6.5 m, and a 20 m one as three sticks: 20 + 0.5 + two laps = 20.7 m. Leave a box blank for the standard.</div>' +
+      '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
+        '<th>Flashing</th>' +
+        '<th style="width:120px">Wastage per run (m)</th>' +
+        '<th style="width:110px">Splits over (m)</th>' +
+        '<th style="width:110px">Lap per join (m)</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="set-sec-note" style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5">The Job Pack&rsquo;s cut list adds its own allowance to each PIECE (0.5 m on a ridge, 0.4 m on the rest) &mdash; that is the length you cut to, not the length you order, and it is not set here.</div>' +
+    '</div>';
+  }
+  var cp = document.getElementById('ordPane-cons');
+  if (cp){
+    var row = function(label, note, cells){
+      return '<tr><td style="font-weight:600">' + label +
+        '<div style="font-weight:400;font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4">' + note + '</div></td>' + cells + '</tr>';
+    };
+    cp.innerHTML = '<div class="set-sec">' +
+      '<div class="set-sec-hd"><strong>Consumables</strong></div>' +
+      '<div class="set-sec-sub">The quantities RoofMap works out for the things that are not measured off the roof. Leave a box blank for the standard.</div>' +
+      '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
+        '<th>Item</th><th style="width:130px"></th><th style="width:130px"></th>' +
+      '</tr></thead><tbody>' +
+      row('Underlay / paper', 'Roof area plus this much waste, then divided by the roll&rsquo;s own cover. The roll is picked per job on the Job Pack.',
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Waste %</label>' +
+            _ordInp('cons.underlayWastePct', C.underlayWastePct, ORD_CONS_DEFAULT.underlayWastePct, '1') + '</td><td></td>') +
+      row('Screws / fixings', 'Per square metre of roof, then rounded up to a whole box.',
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Per m&sup2;</label>' +
+            _ordInp('cons.screwsPerM2', C.screwsPerM2, ORD_CONS_DEFAULT.screwsPerM2, '0.5') + '</td>' +
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Round up to</label>' +
+            _ordInp('cons.screwsRound', C.screwsRound, ORD_CONS_DEFAULT.screwsRound, '10') + '</td>') +
+      row('Rivets', 'One box per so many metres of flashing, never less than one box.',
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Box of</label>' +
+            _ordInp('cons.rivetPack', C.rivetPack, ORD_CONS_DEFAULT.rivetPack, '10') + '</td>' +
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">per lm flashing</label>' +
+            _ordInp('cons.rivetPerLm', C.rivetPerLm, ORD_CONS_DEFAULT.rivetPerLm, '5') + '</td>') +
+      row('Pipe flashings / dektites', 'One per pipe drawn on the roof. Add spares here if you like one in the van.',
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Spare per size</label>' +
+            _ordInp('cons.dektiteSpare', C.dektiteSpare, ORD_CONS_DEFAULT.dektiteSpare, '1') + '</td><td></td>') +
+      row('Gutter brackets', 'One every so far along the run, plus this many to start each run. Applies to the itemised PVC gutters &mdash; the box gutter has its brackets in the $/lm.',
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">One every (m)</label>' +
+            _ordInp('cons.gutterBracketSpacingM', C.gutterBracketSpacingM, ORD_CONS_DEFAULT.gutterBracketSpacingM, '0.05') + '</td>' +
+          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">To start each run</label>' +
+            _ordInp('cons.gutterBracketStartPerRun', C.gutterBracketStartPerRun, ORD_CONS_DEFAULT.gutterBracketStartPerRun, '1') + '</td>') +
+      '</tbody></table>' +
+    '</div>';
+  }
+  var want = 'waste';
+  try { want = localStorage.getItem('fr_ord_sub') || 'waste'; } catch(e){}
+  _ordSub(want, document.querySelector('#set-ordering [data-ord-tab="' + want + '"]'));
+}
+// Read the page back into price_book.ordering. A box left blank DELETES its
+// key, so the standard comes back and a later change to it reaches the
+// account — the same rule the quote's own wording fields follow.
+function _ordCollect(pb){
+  var boxes = document.querySelectorAll('#set-ordering [data-ord]');
+  if (!boxes.length) return;            // the page was never opened: keep what is stored
+  var out = { waste: {}, cons: {} };
+  Array.prototype.forEach.call(boxes, function(el){
+    var path = (el.getAttribute('data-ord') || '').split('.');
+    var raw = String(el.value == null ? '' : el.value).trim();
+    if (raw === '') return;
+    var n = parseFloat(raw);
+    if (!isFinite(n) || n < 0) return;
+    if (path[0] === 'waste' && path.length === 3){
+      (out.waste[path[1]] || (out.waste[path[1]] = {}))[path[2]] = n;
+    } else if (path[0] === 'cons' && path.length === 2){
+      out.cons[path[1]] = n;
+    }
+  });
+  if (!Object.keys(out.waste).length) delete out.waste;
+  if (!Object.keys(out.cons).length)  delete out.cons;
+  if (Object.keys(out).length) pb.ordering = out; else delete pb.ordering;
 }
 // The Loom frame is only loaded when somebody presses play — nothing from a
 // third party until then.
@@ -14370,8 +14487,11 @@ function collectPriceBookFromUI(){
     classic_corner_ea:     _num('pbGutClassicCorner'),
     classic_stopend_ea:    _num('pbGutClassicStopend'),
     marley_typhoon_lm:     _num('pbGutMarleyTyphoonLm'),
-    ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
-    ext_bracket_marley_lm: _num('pbGutExtMarleyLm')
+    // Kept, not collected: the two inputs that wrote these are gone (the
+    // rate lives on the gutter product now) and reading a missing box would
+    // save a 0 over the figure an older account still falls back to.
+    ext_bracket_box125_lm: _pbGutKeep('ext_bracket_box125_lm'),
+    ext_bracket_marley_lm: _pbGutKeep('ext_bracket_marley_lm')
   };
   // back-trays: read per grade by _pbGradeCollect() above
   pb.aquaseal = {};
@@ -14388,6 +14508,7 @@ function collectPriceBookFromUI(){
       price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
     };
   }).filter(function(r){ return r.desc; });
+  try { _ordCollect(pb); } catch(e){}
   // The Custom Price Book's linked items price their defaults — over the form.
   try { _cpbApply(pb); } catch(e){}
   // Saving the price book is the moment it stops being ours and starts being
@@ -14545,8 +14666,6 @@ function renderPriceBookUI(){
   setN('pbGutClassicStopend',  g.classic_stopend_ea);
   setN('pbGutDropperEach',     g.dropper_ea);
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
-  setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
-  setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
   _renderAquasealPriceInputs();
   renderPriceBookExtras(pb.extras || []);
   // Sheets, flashings and back-trays: the grade the buttons have picked.
@@ -16331,6 +16450,70 @@ function openPriceSettings(){
   }, 0);
 }
 
+// ── MATERIAL ORDERING — the allowances, in one place ─────────────
+// (2026-10-19, the owner: "add in a settings tab called 'Material Ordering'
+// with a sub-tab called wastage, where is shows the wastage amount applied to
+// every flashing type … then another sub-tab called 'Consumables' where the
+// user can adjust the the default calculation for how many rolls of paper is
+// requires, how many screws are required …")
+//
+// Every figure below was a constant in the code, so a roofer who buys 9 m
+// flashing, or runs screws at 10 per square, had no way to say so. They live
+// in `price_book.ordering` now — inside the price book because that is the
+// jsonb the settings save already carries (the materials catalogue rides
+// there too) and a new column would be a migration for a page of numbers.
+//
+// EVERY DEFAULT IS WHAT THE CODE ALREADY DID, to the decimal, so no job
+// reprices and no order changes until somebody types in the page.
+var ORD_WASTE_DEFAULT = { run: 0.5, lap: 0.1, split: 8 };
+var ORD_WASTE_KEYS = [
+  { key:'ridge',       label:'Ridge / Hip cap' },
+  { key:'valley',      label:'Valley iron' },
+  { key:'barge',       label:'Barge flashing' },
+  { key:'apron',       label:'Apron flashing' },
+  { key:'changepitch', label:'Change-of-pitch flashing' }
+];
+var ORD_CONS_DEFAULT = {
+  underlayWastePct: 20,       // roof area + this %, then ÷ the roll's cover
+  screwsPerM2: 8,             // fixings per m² of roof
+  screwsRound: 100,           // …rounded up to a box of this many
+  rivetPack: 100,             // rivets come in boxes of this many
+  rivetPerLm: 60,             // …one box per this many lm of flashing
+  dektiteSpare: 0,            // spare boots on top of the ones drawn
+  gutterBracketSpacingM: 0.5, // one bracket every this far along a run
+  gutterBracketStartPerRun: 0 // …plus this many to start each run
+};
+function _ordCfg(){
+  try {
+    var o = ((window.S && S.settings && S.settings.price_book) || {}).ordering;
+    return (o && typeof o === 'object') ? o : {};
+  } catch(e){ return {}; }
+}
+// A blank box is "use the default", never 0 — a 0 lap or a 0 split would
+// order a roof with no allowance at all off a field somebody simply cleared.
+function _ordNum(v, def){
+  var n = parseFloat(v);
+  return (isFinite(n) && n >= 0) ? n : def;
+}
+function _ordWaste(key){
+  var w = (_ordCfg().waste || {})[key] || {};
+  return {
+    run:   _ordNum(w.run,   ORD_WASTE_DEFAULT.run),
+    lap:   _ordNum(w.lap,   ORD_WASTE_DEFAULT.lap),
+    split: Math.max(0.5, _ordNum(w.split, ORD_WASTE_DEFAULT.split))
+  };
+}
+function _ordCons(){
+  var c = _ordCfg().cons || {}, out = {};
+  Object.keys(ORD_CONS_DEFAULT).forEach(function(k){ out[k] = _ordNum(c[k], ORD_CONS_DEFAULT[k]); });
+  // A round-to or a pack of 0 would divide by nothing.
+  out.screwsRound = Math.max(1, out.screwsRound);
+  out.rivetPack   = Math.max(1, out.rivetPack);
+  out.rivetPerLm  = Math.max(0.1, out.rivetPerLm);
+  out.gutterBracketSpacingM = Math.max(0.05, out.gutterBracketSpacingM);
+  return out;
+}
+
 // ── Flashing wastage ──────────────────────────────────────────────
 // Flashings used to carry a flat 1.2x, which is wrong in both directions.
 // It under-covers a roof cut into lots of short runs, because each run needs
@@ -16347,38 +16530,50 @@ function openPriceSettings(){
 // carries nothing. 8.1m is two sticks and one join. A 60m run is eight sticks
 // and seven joins. ceil() rather than floor() is the whole difference, and it
 // matters most at the exact multiples a roofer is likely to have drawn.
+// The three numbers are per FLASHING TYPE now (Settings -> Material Ordering
+// -> Wastage); these stay as the shipped defaults and as what a caller that
+// names no type still gets.
 var FLASH_WASTE_PER_RUN_M = 0.5;
 var FLASH_LAP_M           = 0.1;
 var FLASH_STOCK_M         = 8;
-function _flashJoins(L){
+function _flashJoins(L, split){
   if (!(L > 0)) return 0;
+  var st = (split > 0) ? split : FLASH_STOCK_M;
   // The epsilon keeps a length that is 8m in every practical sense — but
   // 8.0000000001 after a pitch multiply — from buying a join it does not need.
-  return Math.max(0, Math.ceil(L / FLASH_STOCK_M - 1e-9) - 1);
+  return Math.max(0, Math.ceil(L / st - 1e-9) - 1);
 }
-function _flashWaste(lens, fallbackTotal){
-  var out = { net: 0, waste: 0, runs: 0, joins: 0, total: 0 };
+function _flashWaste(lens, fallbackTotal, typeKey){
+  var cfg = typeKey ? _ordWaste(typeKey)
+                    : { run: FLASH_WASTE_PER_RUN_M, lap: FLASH_LAP_M, split: FLASH_STOCK_M };
+  var out = { net: 0, waste: 0, runs: 0, joins: 0, total: 0, cfg: cfg };
   var arr = (lens && lens.length) ? lens
           : ((fallbackTotal > 0) ? [fallbackTotal] : []);   // pre-lineLens data
   arr.forEach(function(L){
     L = parseFloat(L) || 0;
     if (!(L > 0)) return;
-    var j = _flashJoins(L);
+    var j = _flashJoins(L, cfg.split);
     out.net += L;
     out.runs++;
     out.joins += j;
-    out.waste += FLASH_WASTE_PER_RUN_M + FLASH_LAP_M * j;
+    out.waste += cfg.run + cfg.lap * j;
   });
   out.total = out.net + out.waste;
   return out;
 }
 function _flashWasteNote(w){
   if (!w || !w.runs) return '';
-  var laps = FLASH_LAP_M * w.joins;
-  return 'incl. ' + w.waste.toFixed(1) + 'm waste — 0.5m \u00d7 ' + w.runs +
+  var cfg = w.cfg || { run: FLASH_WASTE_PER_RUN_M, lap: FLASH_LAP_M };
+  var laps = cfg.lap * w.joins;
+  return 'incl. ' + w.waste.toFixed(1) + 'm waste — ' + _ordTrim(cfg.run) + 'm \u00d7 ' + w.runs +
          ' run' + (w.runs === 1 ? '' : 's') +
          (w.joins ? ', + ' + laps.toFixed(1) + 'm over ' + w.joins +
                     ' join' + (w.joins === 1 ? '' : 's') : '');
+}
+// 0.5 rather than 0.50, 8 rather than 8.0 — a note a roofer reads.
+function _ordTrim(n){
+  n = parseFloat(n) || 0;
+  return (Math.round(n * 100) / 100).toString();
 }
 
 // Builds the rows the Material Price table renders. Each row carries
@@ -16595,17 +16790,19 @@ function _buildMaterialPriceRows(){
     var underlayVariants = [50,75,100].map(function(sz){
       return { value:String(sz), label:sz+' m²/roll', price:(pb.underlay||{})[String(sz)]||0, unit:'roll' };
     });
+    var _oc = _ordCons();
     var rollSize = pickedRoll;
-    var rolls = Math.ceil((roofArea * 1.2) / rollSize);
+    var _ulArea = roofArea * (1 + _oc.underlayWastePct / 100);
+    var rolls = Math.ceil(_ulArea / rollSize);
     rows.push({ key:'underlay', label:'Underlay / paper', autoQty:rolls, autoUnit:'roll',
                 variants:underlayVariants, defaultVariant:String(pickedRoll),
-                note:'covers ' + (roofArea*1.2).toFixed(1) + ' m² (incl. 20% waste)' });
+                note:'covers ' + _ulArea.toFixed(1) + ' m² (incl. ' + _ordTrim(_oc.underlayWastePct) + '% waste)' });
   }
 
   // Flashings — single-variant rows, each carrying its own per-run wastage.
   function flashRow(key, label, lens, qty, price){
     if (!qty) return;
-    var w = _flashWaste(lens, qty);
+    var w = _flashWaste(lens, qty, key);
     if (!(w.total > 0)) return;
     rows.push({ key:key, label:label, autoQty: w.total, autoUnit:'lm',
                 variants: [{ value:label, label:label, price:price||0, unit:'lm' }],
@@ -16621,7 +16818,7 @@ function _buildMaterialPriceRows(){
   // it here moves that one too, so the cut list and the price never disagree.
   (function(){
     if (!ridgeHip) return;
-    var w = _flashWaste((_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip);
+    var w = _flashWaste((_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, 'ridge');
     if (!(w.total > 0)) return;
     var pick = 'standard';
     try { pick = ((document.getElementById('orderRidging')||{}).value === 'wide') ? 'wide' : 'standard'; } catch(e){}
@@ -16640,22 +16837,25 @@ function _buildMaterialPriceRows(){
 
   // Screws
   if (roofArea > 0 && (pb.screws_each || 0) >= 0) {
-    var screws = Math.ceil(roofArea * 8 / 100) * 100;
+    var _sc = _ordCons();
+    var screws = Math.ceil(roofArea * _sc.screwsPerM2 / _sc.screwsRound) * _sc.screwsRound;
     rows.push({ key:'screws', label:'65mm Unitites / screws', autoQty:screws, autoUnit:'each',
                 variants:[{ value:'65mm Unitites', label:'65mm Unitites', price:pb.screws_each||0, unit:'each' }],
                 defaultVariant:'65mm Unitites',
-                note:'roofArea × 8, rounded up to 100', singleVariant:true });
+                note:'roofArea × ' + _ordTrim(_sc.screwsPerM2) + ', rounded up to ' + _ordTrim(_sc.screwsRound), singleVariant:true });
   }
 
   // Rivets
   var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0)
     + ((typeof _boxFlashTotalLm === 'function') ? _boxFlashTotalLm() : 0);
   if (totalFlashingLm > 0) {
-    var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
+    var _rv = _ordCons();
+    var rivets = Math.max(_rv.rivetPack, Math.ceil(totalFlashingLm / _rv.rivetPerLm) * _rv.rivetPack);
     rows.push({ key:'rivets', label:'Rivets', autoQty:rivets, autoUnit:'each',
                 variants:[{ value:'Rivet', label:'Rivet', price:pb.rivets_each||0, unit:'each' }],
                 defaultVariant:'Rivet',
-                note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets', singleVariant:true });
+                note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets ('+_ordTrim(_rv.rivetPack)+
+                     ' per '+_ordTrim(_rv.rivetPerLm)+' lm)', singleVariant:true });
   }
 
   // Pipe flashings — one row per pipe SIZE on the drawing, because a job
@@ -16684,9 +16884,12 @@ function _buildMaterialPriceRows(){
                     note: mm > 0 ? ('Ø' + mm + 'mm falls outside every Aquaseal band') : 'set the pipe size on the drawing' });
         return;
       }
+      // Spares are per SIZE, because a 100mm boot is no use over a 250mm vent.
+      var _spare = _ordCons().dektiteSpare;
       rows.push({ key:'aquaseal:'+mm, label: mm + 'mm pipe flashing',
-                  autoQty:qty, autoUnit:'each', variants:aqVariants, defaultVariant:pick.id,
-                  note:'Ø' + mm + 'mm → ' + pick.label });
+                  autoQty:qty + _spare, autoUnit:'each', variants:aqVariants, defaultVariant:pick.id,
+                  note:'Ø' + mm + 'mm → ' + pick.label +
+                       (_spare ? ' · ' + qty + ' drawn + ' + _ordTrim(_spare) + ' spare' : '') });
     });
   })();
 
@@ -28297,7 +28500,7 @@ function renderSelectablesUI(){
           '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('gutters', 'Gutter profiles',
-      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not. The bracket rate is the per-lm upcharge when the customer picks external brackets.',
+      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not. <strong>Ext bracket $/lm</strong> is what external brackets add per metre of gutter run on THIS product — it is the one place that rate is set, and it carries through to the Pricing tab, the job&rsquo;s profitability and the extra the customer sees beside &ldquo;External brackets&rdquo;. Leave it 0 and the two bracket choices cost the same.',
       '<th>Name</th><th style="width:96px">Scaffold +25%</th><th style="width:110px">Ext bracket $/lm</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
@@ -28718,18 +28921,40 @@ function _gutterClassicInv(){
     stopend: _gutterSupply('classic_stopend',  'classic_stopend_ea',  b.stopend), stopendDesc: b.stopendDesc
   };
 }
+// A gutter price-book figure no input on the page writes any more: give back
+// what is stored rather than a 0 read off a box that is not there.
+function _pbGutKeep(key){
+  try {
+    var v = _pbNum((((window.S && S.settings && S.settings.price_book) || {}).gutter || {})[key]);
+    return (v == null) ? 0 : v;
+  } catch(e){ return 0; }
+}
 // External-bracket upcharge ($/lm) for a gutter profile.
+//
+// THE PRODUCT'S OWN ROW IS THE PRICE (2026-10-19, the owner: "internal and
+// external brackets are saying the same price, can you add in a specific cost
+// in the settings gutter profiles for the added price/lm for external
+// brackets"). The column was already there on Settings -> Quote's Product
+// Options, and he had typed 6 / 3 / 3 into it — but the three SHIPPED products
+// jumped the queue to a pair of Default item pricing boxes
+// (`ext_bracket_box125_lm` / `_marley_lm`), which are blank on most accounts
+// and save as 0. So his typed rate was read for a product he had added
+// himself and ignored for the three he actually quotes, and the customer's
+// quote offered external brackets at no charge.
+//
+// Two boxes for one number was the fault underneath it — the same drift the
+// three pricing tabs' own rule warns about. The row wins now, for every
+// product; the old price-book keys stay readable as the fallback for a
+// selectables list saved before the column existed, so nobody's rate moves.
+// A product with no rate anywhere charges nothing, which reads correctly as
+// "brackets included".
 function _bracketExtPerLm(id){
-  // The shipped products keep their price-book overrides, so an office that has
-  // already edited those rates keeps them. Anything else takes the rate set on
-  // the product. A product with no rate charges nothing, which reads correctly
-  // as "brackets included".
-  if (id === 'box125') return _gutterPrice('ext_box125', 'ext_bracket_box125_lm', SEL_BRACKET_EXT_PER_LM.box125 || 0);
-  if (id === 'marley_typhoon' || id === 'marley_classic')
-    return _gutterPrice('ext_marley', 'ext_bracket_marley_lm', SEL_BRACKET_EXT_PER_LM[id] || 0);
   var g = _selGutterOf(id);
   var r = g ? parseFloat(g.extBracketLm) : NaN;
   if (isFinite(r) && r >= 0) return r;
+  if (id === 'box125') return _gutterPrice('ext_box125', 'ext_bracket_box125_lm', SEL_BRACKET_EXT_PER_LM.box125 || 0);
+  if (id === 'marley_typhoon' || id === 'marley_classic')
+    return _gutterPrice('ext_marley', 'ext_bracket_marley_lm', SEL_BRACKET_EXT_PER_LM[id] || 0);
   return SEL_BRACKET_EXT_PER_LM[id] || 0;
 }
 // Downpipe unit price ($ per gutter line).
@@ -28885,11 +29110,21 @@ function _gutterMaterialLines(id, lm, lines, corners){
   // first of them all along; nothing on screen ever wrote one.
   var pfx = (id === 'marley_typhoon') ? 'typhoon' : 'classic';
   if (inv && lm > 0){
-    var nBr   = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
+    // ONE BRACKET EVERY X, PLUS SOME TO START EACH RUN (2026-10-19, the
+    // owner: "how many gutter brackets are required (minimum spacing and
+    // starting amount per run (1 to start then divided gutter run by 800mm
+    // spacing)"). Both numbers are on Settings -> Material Ordering ->
+    // Consumables; they ship at the spacing this product has always used and
+    // a starting count of 0, so no quote reprices until he types in them.
+    var _gb   = _ordCons();
+    var nBr   = Math.ceil(lm / _gb.gutterBracketSpacingM)
+              + Math.round(_gb.gutterBracketStartPerRun) * Math.max(1, lines);
     var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
     var nJoin = Math.max(0, Math.ceil(lm / GUTTER_SPOUTING_LENGTH_M) - Math.max(1, lines));
     out.push({ desc: inv.gutterDesc,  qty: lm,  unit:'lm', price: inv.gutter, stash: pfx+'_spouting', pb: pfx+'_spouting_lm' });
-    out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(GUTTER_BRACKET_SPACING_M*1000)+'mm)', qty: nBr,  unit:'ea', price: inv.bracket, stash: pfx+'_bracket', pb: pfx+'_bracket_ea' });
+    out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(_gb.gutterBracketSpacingM*1000)+'mm'+
+                     (_gb.gutterBracketStartPerRun ? ' + '+_ordTrim(_gb.gutterBracketStartPerRun)+'/run' : '')+')',
+               qty: nBr,  unit:'ea', price: inv.bracket, stash: pfx+'_bracket', pb: pfx+'_bracket_ea' });
     out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet, stash: pfx+'_outlet', pb: pfx+'_outlet_ea' });
     if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner, stash: pfx+'_joiner', pb: pfx+'_joiner_ea' });
     if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner, stash: pfx+'_corner', pb: pfx+'_corner_ea' });
