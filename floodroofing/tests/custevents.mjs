@@ -88,7 +88,14 @@ const { db, port } = await startFakePostgrest({
     // 3303's shape: a question
     job('j-q', quote({ ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
       share: { token: 'tok-q', status: 'sent', sentAt: ago(1), sentTo: 'dot@example.com', events: [] } })),
-    // an acceptance from before any of this existed, for the hourly net
+    // An acceptance from BEFORE the floor: its email went out the old way and
+    // must not be sent again. acceptOfficeAt is a new stamp, so without the
+    // floor every acceptance in the window reads as "never told".
+    job('j-ancient', quote({ ref: '3100', client: 'Ancient Job',
+      accepted: { name: 'Ancient Job', at: ago(9), total: 9000 },
+      share: { token: 'tok-anc', status: 'accepted', sentAt: ago(12), acceptedAt: ago(9),
+               sentTo: 'ancient@example.com', sentTotal: 9000, events: [] } })),
+    // an acceptance the office was never told about, for the hourly net
     job('j-old', quote({ ref: '3200', client: 'Older Job',
       accepted: { name: 'Older Job', at: ago(2), total: 31000 },
       share: { token: 'tok-old', status: 'accepted', sentAt: ago(9), acceptedAt: ago(2),
@@ -131,6 +138,9 @@ process.env.GAS_MAIL_TOKEN = 'tok';
 process.env.EMAIL_FROM = 'RoofMap <support@roofmap.co.nz>';
 process.env.ADMIN_TOKEN = 'ce-test-token';
 process.env.ACCEPT_OFFICE_GRACE_MS = '300';     // the real wait is 90 s
+// The floor sits BETWEEN the two fixtures above, so one run pins both
+// directions: j-old (2 days) is owed, j-ancient (9 days) is history.
+process.env.ACCEPT_OFFICE_FROM = new Date(Date.now() - 3 * 86400000).toISOString();
 process.env.PLAN_CACHE_MS = '0';
 process.env.BILLING_ENABLED = 'false';
 const PORT = process.env.TEST_PORT || '34971';
@@ -244,6 +254,12 @@ await settle();
 check('the sweep finds an acceptance the office was never told about',
   to('office@flood.nz').length === 1 && /3200/.test(to('office@flood.nz')[0].subject || ''),
   JSON.stringify({ sw, subjects: to('office@flood.nz').map(m => m.subject) }));
+// THE ONE THAT WOULD HAVE EMBARRASSED US: every acceptance already in the
+// window has no stamp either, so the first sweep would have sent a fortnight
+// of duplicates. Anything older than the floor is history, not news.
+check('…and leaves every acceptance from before the fix alone',
+  !to('office@flood.nz').some(m => /3100/.test(m.subject || '')) && (sw.floored || 0) >= 1,
+  JSON.stringify({ floored: sw.floored, subjects: to('office@flood.nz').map(m => m.subject) }));
 sent.length = 0;
 await (await post('/admin/office-owed/run?token=ce-test-token', {})).json().catch(() => ({}));
 await settle();

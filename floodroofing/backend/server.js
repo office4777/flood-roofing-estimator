@@ -7327,8 +7327,15 @@ async function _reminderTick(){
 // covers the ordinary case; this covers a server restart inside that window, a
 // mail provider that was refusing at the time, and any accept recorded before
 // this existed. Claim-then-send on a fresh copy, the reminder sweep's own rule.
+// NOTHING OLDER THAN THE DAY THIS SHIPPED. `acceptOfficeAt` is a new stamp, so
+// on the first run EVERY acceptance in the window reads as "never told" -
+// including the ones whose email went out perfectly well from the customer's
+// browser. Without this floor the first sweep would have sent the office a
+// fortnight of duplicate "Quote accepted" emails, which is a worse first
+// impression of the fix than the bug it is fixing.
+const ACCEPT_OFFICE_FROM = Date.parse(process.env.ACCEPT_OFFICE_FROM || '2026-10-20T00:00:00Z');
 async function _officeOwedSweep(){
-  const out = { checked: 0, sent: 0, skipped: 0, errors: 0 };
+  const out = { checked: 0, sent: 0, skipped: 0, errors: 0, floored: 0 };
   if (!EMAIL_ENABLED) return out;
   const q = await supabase.from('jobs')
     .select('id, user_id, company_id, client_name, site_address, ' +
@@ -7351,6 +7358,7 @@ async function _officeOwedSweep(){
     if (sh.acceptOfficeAt && !_fgOwed) continue;
     const at = Date.parse(sh.acceptedAt || '');
     if (!isFinite(at)) continue;
+    if (isFinite(ACCEPT_OFFICE_FROM) && at < ACCEPT_OFFICE_FROM) { out.floored++; continue; }
     const age = Date.now() - at;
     if (age < ACCEPT_OFFICE_GRACE_MS) continue;          // the timer still has it
     if (age > 14 * 86400000) continue;                   // too old to be news

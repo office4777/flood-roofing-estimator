@@ -3298,9 +3298,15 @@ Discipline (non-negotiable):
   callers: that route (with the PDF, when it arrives), `_acceptOfficeSoon`
   (a 90 s timer — `ACCEPT_OFFICE_GRACE_MS` — long enough for the PDF to land,
   short enough that a roofer hears about a yes while the kettle is on), and
-  `_officeOwedSweep` hourly (a restart inside that window, a provider that was
-  refusing, or an accept from before this existed; `POST
-  /admin/office-owed/run`). `share.acceptOfficeAt` is the claim that keeps it
+  `_officeOwedSweep` hourly (a restart inside that window, or a provider that
+  was refusing; `POST /admin/office-owed/run`), FLOORED at
+  `ACCEPT_OFFICE_FROM` (default 2026-10-20, the ship date). That floor is not
+  a nicety: `acceptOfficeAt` is a NEW stamp, so on the first run every
+  acceptance in the 14-day window reads as "never told" — including the ones
+  whose email went out perfectly well from the customer's browser — and the
+  sweep would have sent the office a fortnight of duplicate "Quote accepted"
+  emails. A worse first impression of the fix than the bug it fixes. Pinned in
+  both directions by two fixtures either side of the floor. `share.acceptOfficeAt` is the claim that keeps it
   to ONE email, written by `_shareStamp`, which uses the cheap `jsonb_set`
   path when there is a pg pool and `_saveQuoteBack` when there is not —
   `_saveShareBack` returns SILENTLY with no direct pool, and a claim that is
