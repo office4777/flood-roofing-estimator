@@ -3039,6 +3039,43 @@ Discipline (non-negotiable):
   `qd-grid2` two-column row is gone. Same fault and same fix as the
   three-column "Roofing" grid of 2026-09-20. `tests/gutterlook.mjs`.
 
+- THE RIDGE FOLLOWS THE BUILDING, NOT THE SCREEN (feedback report 65,
+  2026-10-18: "diagonal straight gable not good, ridge should keep with the
+  angle of the roof (2nd roof) not try stay horizontal"). The straight-gable
+  builder works in SCREEN axes — bounding box, ridge along its midline, each
+  wall sorted into gutter or barge by whether dx or dy is bigger — which is
+  right for a building square to the picture and has been for a year. On one
+  traced at an angle the midline runs corner to corner ACROSS the roof: his
+  8.3 x 6.2 m shed at 44° came out with a horizontal ridge, SIX BARGES AND NO
+  GUTTER, and (measured on the old build) NO SHEET GROUPS AT ALL, so it
+  ordered no steel either. Not a cosmetic fault.
+  THE FIX IS A CHANGE OF FRAME, NOT A CHANGE OF BUILDER: `_roofFrameAngle`
+  (the longest wall's direction reduced to (-45°, 45°], the same reference
+  `_outlineIsRectilinear` measures against, so "rectilinear" and "which way it
+  faces" cannot disagree), `_roofFrameRot`, `_roofFrameCentre`. The outline is
+  rotated onto its own walls, the SAME code runs, the lines are rotated back.
+  A roof square to the picture rotates by nothing and is byte-identical —
+  which is what makes this safe on a path this file records as broken twice.
+  Under 2° is hand wobble and is left alone.
+  AFTER THE DOG-LEG CHECK, DELIBERATELY: a true dog-leg is not rectilinear in
+  ANY frame, so report 60 keeps its own branch ahead of this one; a dog-leg
+  with a shallow bend would otherwise read as "rectilinear in the weighted
+  mean frame" and be stolen from it.
+  `DRAW.roofBaseHoriz` is decided in the frame too — the screen bounding box
+  of a roof at 44° is very nearly square whatever shape the building is (his
+  measured 202 x 201 px), so the ridge direction was a coin toss on exactly
+  the roofs that need it most. A roof ALREADY SAVED keeps the stored value
+  (the ridge direction is a decision, not a measurement); Rotate roof 90° is
+  the way to turn an older one, and re-picking the shape rebuilds it.
+  THE STEP GABLE HAD THE IDENTICAL FAULT and has the identical wrapper: an L
+  at 30° gave horizontal ridges and TEN gutters, half across the walls.
+  MONO, DUTCH AND HIP WERE ALWAYS RIGHT and are pinned so: the straight
+  skeleton and the mono's direction classifier do not care which way the
+  picture is turned. The sheet engine needed nothing — once the lines are
+  right it counts 22 at 3.18 m on his roof, and the 37-shape gate is
+  unchanged. `tests/report65.mjs` is a real tripwire: against the old build
+  the ten fault pins fail and all four safety pins pass.
+
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
 The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen

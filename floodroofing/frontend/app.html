@@ -4946,7 +4946,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-18T22:58:58Z';
+  window.APP_BUILT_AT = '2026-10-19T17:48:51Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -76901,11 +76901,77 @@ function _hipEndConvert(){
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast(h.to === 'hip' ? 'That end is a hip end now' : 'That end is a gable end now'); } catch(e){}
 }
-function _buildGableRoofLinesBase(outline, flipAxis) {
+// THE RIDGE FOLLOWS THE BUILDING, NOT THE SCREEN (feedback report 65,
+// 2026-10-18: "diagonal straight gable not good, ridge should keep with the
+// angle of the roof (2nd roof) not try stay horizontal").
+//
+// The straight-gable builder works in SCREEN axes: it takes the bounding
+// box, lays the ridge along its midline and sorts every wall into gutter or
+// barge by whether dx or dy is the bigger. On a building square to the
+// picture that is right, and it has been right for a year. On one traced at
+// an angle — a shed off the boundary, a garage on a corner site — the
+// midline of the bounding box runs corner to corner ACROSS the roof. His
+// second roof, an 8.3 x 6.2 m rectangle lying at 44 degrees, came out with a
+// horizontal ridge, SIX barges and NO GUTTER AT ALL: not an odd-looking
+// line but a roof with nowhere for the water to go, no gutter length in the
+// take-off and no gutter on the quote.
+//
+// THE FIX IS A CHANGE OF FRAME, NOT A CHANGE OF BUILDER: rotate the outline
+// onto its own walls, run exactly the same code, rotate the lines back. A
+// roof already square to the picture rotates by nothing and comes out
+// byte-identical — which is what makes this safe on a path this file records
+// as broken twice.
+//
+// The frame is the LONGEST wall's direction reduced to (-45°, 45°], which is
+// the same reference `_outlineIsRectilinear` measures against, so "this
+// outline is rectilinear" and "this is which way it faces" cannot disagree.
+function _roofFrameAngle(outline){
+  if (!outline || outline.length < 4) return 0;
+  var bestL = -1, th = 0, n = outline.length;
+  for (var i = 0; i < n; i++){
+    var a = outline[i], b = outline[(i + 1) % n];
+    var L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L > bestL){ bestL = L; th = Math.atan2(b[1] - a[1], b[0] - a[0]); }
+  }
+  if (!(bestL > 0)) return 0;
+  var q = Math.PI / 2;
+  var a2 = th - Math.round(th / q) * q;
+  // Under two degrees is hand wobble on a square trace. Leaving that alone
+  // keeps every roof already drawn exactly as it is.
+  return (Math.abs(a2) * 180 / Math.PI < 2) ? 0 : a2;
+}
+function _roofFrameRot(pts, ang, cx, cy){
+  var c = Math.cos(ang), s = Math.sin(ang);
+  return (pts || []).map(function(p){
+    var x = p[0] - cx, y = p[1] - cy;
+    return [cx + x * c - y * s, cy + x * s + y * c];
+  });
+}
+function _roofFrameCentre(outline){
+  var cx = 0, cy = 0, n = (outline || []).length || 1;
+  (outline || []).forEach(function(p){ cx += p[0]; cy += p[1]; });
+  return [cx / n, cy / n];
+}
+function _buildGableRoofLinesBase(outline, flipAxis, _inFrame) {
   // A dog-leg (a building that bends part-way along) is its own shape.
   if (outline && outline.length >= 6 && !_outlineIsRectilinear(outline, 20)){
     var _dl = buildDoglegGableLines(outline);
     if (_dl) return _dl;
+  }
+  // A building traced at an angle is built in its own frame. AFTER the
+  // dog-leg check, deliberately: a true dog-leg is not rectilinear in ANY
+  // frame, so it must keep its own branch ahead of this one.
+  if (!_inFrame && outline && outline.length >= 4 && _outlineIsRectilinear(outline, 20)){
+    var _fa = _roofFrameAngle(outline);
+    if (_fa){
+      var _c = _roofFrameCentre(outline);
+      var _ls = _buildGableRoofLinesBase(_roofFrameRot(outline, -_fa, _c[0], _c[1]), flipAxis, true) || [];
+      return _ls.map(function(l){
+        var c2 = Object.assign({}, l);
+        c2.pts = _roofFrameRot(l.pts, _fa, _c[0], _c[1]);
+        return c2;
+      });
+    }
   }
   // ── Rectilinear "straight gable" mode ─────────────────────────────
   // The user-facing intent of the Straight Gable button is: one ridge
@@ -77149,8 +77215,27 @@ function _buildGableRoofLinesBase(outline, flipAxis) {
 // the same stretch, which is the flashing against that wall. The ridge
 // direction is the drawing's decision (DRAW.roofBaseHoriz), flipped by
 // "Rotate roof 90°", exactly like the straight gable.
-function buildStepGableRoofLines(outline, flipAxis){
+function buildStepGableRoofLines(outline, flipAxis, _inFrame){
   if (!outline || outline.length < 3) return [];
+  // A STEP GABLE TRACED AT AN ANGLE IS BUILT IN ITS OWN FRAME TOO (report
+  // 65, 2026-10-18). This builder works in ridge-space off the SCREEN
+  // bounding box exactly as the straight gable did, so a stepped building
+  // lying at 30 degrees came out with horizontal ridges and ten gutters,
+  // half of them across the walls. The same change of frame: rotate in, run
+  // the same code, rotate the lines back. A roof square to the picture
+  // rotates by nothing and is unchanged.
+  if (!_inFrame && _outlineIsRectilinear(outline, 20)){
+    var _fa = _roofFrameAngle(outline);
+    if (_fa){
+      var _c = _roofFrameCentre(outline);
+      return (buildStepGableRoofLines(_roofFrameRot(outline, -_fa, _c[0], _c[1]), flipAxis, true) || [])
+        .map(function(l){
+          var c2 = Object.assign({}, l);
+          c2.pts = _roofFrameRot(l.pts, _fa, _c[0], _c[1]);
+          return c2;
+        });
+    }
+  }
   var o = (typeof _roofSimplifyOutline === 'function') ? (_roofSimplifyOutline(outline, 18) || outline) : outline;
   if (!o || o.length < 3) o = outline;
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -78080,8 +78165,21 @@ function autoGenerateRoof(type, rotation) {
      only "Rotate roof 90°" turns it. */
   if (rotation === undefined || rotation === null){
     try {
+      // WHICH WAY THE LONG AXIS RUNS IS MEASURED IN THE BUILDING'S OWN
+      // FRAME (report 65, 2026-10-18). The screen bounding box of a roof
+      // traced at 44 degrees is very nearly square whatever shape the
+      // building is — his 8.3 x 6.2 m shed measured 202 x 201 px — so this
+      // was a coin toss on exactly the roofs that need it most.
+      var _fo = DRAW.outline;
+      try {
+        var _fa0 = _roofFrameAngle(DRAW.outline);
+        if (_fa0){
+          var _fc = _roofFrameCentre(DRAW.outline);
+          _fo = _roofFrameRot(DRAW.outline, -_fa0, _fc[0], _fc[1]);
+        }
+      } catch(e){}
       var _bx0=Infinity,_by0=Infinity,_bx1=-Infinity,_by1=-Infinity;
-      DRAW.outline.forEach(function(p){
+      _fo.forEach(function(p){
         if(p[0]<_bx0)_bx0=p[0]; if(p[0]>_bx1)_bx1=p[0];
         if(p[1]<_by0)_by0=p[1]; if(p[1]>_by1)_by1=p[1];
       });
