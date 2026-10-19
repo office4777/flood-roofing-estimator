@@ -53,6 +53,7 @@ const { db, port } = await startFakePostgrest({
   user_settings: [
     { user_id: 'u1', company_id: 'c1', updated_at: ago(1),
       branding: { company_name: 'Flood Roofing Ltd', email: 'office@flood.nz', phone: '09 430 0000' },
+      jms_keys: { fergus: 'fergus-test-key' },
       quote_defaults: { email: { accept_to: 'office@flood.nz', copy_all: 'boss@flood.nz' } } },
     { user_id: 'u2', company_id: 'c2', updated_at: ago(1),
       branding: { company_name: 'Off Co', email: 'office@off.nz' },
@@ -72,6 +73,15 @@ const { db, port } = await startFakePostgrest({
     // a decline on a company that switched the email off
     job('j-decoff', Object.assign(quote({ ref: '3321',
       share: { token: 'tok-decoff', status: 'sent', sentAt: ago(1), sentTo: 'x@example.com', events: [] } }))),
+    // a Fergus-linked job, for the accepted PDF and the job description
+    job('j-fg', quote({ ref: '3310', client: 'Fergus Linked',
+      proposalOptions: { steelGrade: 'maxam', profile: 'corrugate', steelThickness: '40',
+                         colour: 'Mist Green', gutterType: 'box125', gutterBracket: 'external',
+                         downpipes: 'yes', disposal: 'dispose' },
+      share: { token: 'tok-fg', status: 'sent', sentAt: ago(1), sentTo: 'fg@example.com',
+               sentTotal: 40000, events: [],
+               fergus: { jobId: 'FJ-77', rev: 1, title: 'Quote 3310' },
+               priced: { v: 1, gstRate: 15 } } })),
     // 3303's shape: a question
     job('j-q', quote({ ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
       share: { token: 'tok-q', status: 'sent', sentAt: ago(1), sentTo: 'dot@example.com', events: [] } })),
@@ -85,6 +95,31 @@ const { db, port } = await startFakePostgrest({
 db.jobs.find(j => j.id === 'j-decoff').company_id = 'c2';
 db.jobs.find(j => j.id === 'j-decoff').user_id = 'u2';
 
+// Fergus is reached two ways and both need a seam: the job read and the
+// description write go through httpsRequest (__TEST_HTTPS), and the attachment
+// upload uses global fetch directly, because it is multipart.
+const fergus = { desc: [], files: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
+globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
+  if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
+  if (method === 'GET' && /^\/jobs\/FJ-77$/.test(path))
+    return Promise.resolve({ status: 200, body: JSON.stringify({ data: fergus.job }) });
+  if (method === 'PATCH' && /^\/jobs\/FJ-77$/.test(path)){
+    fergus.desc.push(String((body || {}).description || ''));
+    fergus.job.description = String((body || {}).description || '');
+    return Promise.resolve({ status: 200, body: '{"ok":true}' });
+  }
+  // the auto-version's quote create / list, which rides along on an accept
+  return Promise.resolve({ status: 200, body: JSON.stringify({ data: [] }) });
+};
+const _realFetch = globalThis.fetch;
+globalThis.fetch = (u, o) => {
+  if (String(u).indexOf('api.fergus.com') >= 0){
+    fergus.files.push({ url: String(u) });
+    return Promise.resolve(new Response(JSON.stringify({ data: { id: 'ATT-1' } }),
+      { status: 201, headers: { 'content-type': 'application/json' } }));
+  }
+  return _realFetch(u, o);
+};
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
@@ -207,6 +242,51 @@ await (await post('/admin/office-owed/run?token=ce-test-token', {})).json().catc
 await settle();
 check('…and a second pass sends nothing, because the first claimed it',
   to('office@flood.nz').length === 0, JSON.stringify(to('office@flood.nz').map(m => m.subject)));
+
+// ── THE FERGUS JOB LEARNS WHAT THEY CHOSE ────────────────────────────
+// "can it auto automatically upload the accepted quote as it's pdf to the job
+// in fergus, can it also add the customers choices ... as the job description
+// in fergus automatically". Both halves existed as routes only the OFFICE's
+// browser could call, and a customer accepting has no login.
+sent.length = 0; fergus.desc.length = 0; fergus.files.length = 0;
+await post('/q/tok-fg/event?job=j-fg', { type: 'accepted', name: 'Fergus Linked', total: 40000 });
+await post('/q/tok-fg/accept-email?job=j-fg', {
+  pdfBase64: Buffer.from('%PDF-1.4 accepted').toString('base64'),
+  filename: 'Quote 3310 - Roofing - Fergus Linked.pdf' });
+await settle(1200);
+check('the accepted quote PDF is uploaded to the Fergus job',
+  fergus.files.length === 1 && /attachments/.test(fergus.files[0].url),
+  JSON.stringify(fergus.files));
+check('…and the share records it, so it cannot be uploaded twice',
+  !!shareOf('j-fg').fergusAcceptFileAt, JSON.stringify(shareOf('j-fg').fergusAccept || {}));
+const desc = fergus.desc[fergus.desc.length - 1] || '';
+check('the job description carries every choice the customer made',
+  /Steel grade: Colorsteel MAXAM/.test(desc) && /Roof profile: Corrugate/.test(desc) &&
+  /Steel gauge: 0\.40 gauge/.test(desc) && /Colour: Mist Green/.test(desc) &&
+  /Guttering: 125mm Colorsteel box gutter/.test(desc) && /Gutter brackets: External/.test(desc) &&
+  /Downpipes: Included/.test(desc) && /Existing material: We dispose of it/.test(desc),
+  desc.slice(0, 500));
+check('…with the total and who accepted it, above RoofMap\u2019s own marked block',
+  /\$40,000\.00/.test(desc) && /Accepted by Fergus Linked/.test(desc) &&
+  /Customer rang about a leak\./.test(desc),
+  desc.slice(0, 220));
+check('and the customer\u2019s own words are kept, not overwritten',
+  desc.indexOf('Customer rang about a leak.') < desc.indexOf('Steel grade'),
+  desc.slice(0, 120));
+
+// Done once. A second pass must not write it again or attach a second copy.
+fergus.files.length = 0; const _descWas = fergus.desc.length;
+await post('/q/tok-fg/accept-email?job=j-fg', {
+  pdfBase64: Buffer.from('%PDF-1.4 accepted').toString('base64'), filename: 'again.pdf' });
+await settle(1200);
+check('a second call attaches nothing more and rewrites nothing',
+  fergus.files.length === 0 && fergus.desc.length === _descWas,
+  JSON.stringify({ files: fergus.files.length, desc: fergus.desc.length, was: _descWas }));
+
+// A job with no Fergus link is simply left alone.
+check('a job that is not linked to Fergus is untouched',
+  !shareOf('j-acc').fergusAcceptDescAt && !shareOf('j-acc').fergusAcceptFileAt,
+  JSON.stringify({ d: shareOf('j-acc').fergusAcceptDescAt, f: shareOf('j-acc').fergusAcceptFileAt }));
 
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;

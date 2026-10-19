@@ -5345,8 +5345,11 @@ async function _acceptOfficeCatchUp(jobId){
       .eq('id', jobId).single();
     if (r.error || !r.data || !r.data.quote) return false;
     const job = r.data, quote = r.data.quote, sh = quote.share || {};
-    if (sh.acceptOfficeAt) return false;              // already told
     if ((sh.status || '') !== 'accepted') return false;
+    // The description is written whether or not the email is still owed: the
+    // browser may have sent the email and nothing else.
+    _fergusOnAccept(jobId, null).catch(function(){});
+    if (sh.acceptOfficeAt) return false;              // already told
     await _acceptOfficeNotify(job, quote, null);
     return true;
   } catch (e) {
@@ -5375,9 +5378,13 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
       });
     }
     const r = await _acceptOfficeNotify(job, quote, attachment);
-    if (r && r.code === 'NO_RECIPIENT') return res.json({ ok: false, code: 'NO_RECIPIENT' });
-    if (r && r.off) return res.json({ ok: true, off: true });
+    // The Fergus half rides on this call because this is where the PDF is -
+    // after the answer, so a slow Fergus never holds up the customer's page.
+    const _fg = () => { _fergusOnAccept(job.id, attachment).catch(function(){}); };
+    if (r && r.code === 'NO_RECIPIENT') { res.json({ ok: false, code: 'NO_RECIPIENT' }); return _fg(); }
+    if (r && r.off) { res.json({ ok: true, off: true }); return _fg(); }
     res.json({ ok: true });
+    _fg();
   } catch (e) {
     console.error('accept-email failed:', e.message);
     res.status(502).json({ error: 'Email send failed: ' + e.message });
@@ -7221,7 +7228,12 @@ async function _officeOwedSweep(){
     // Only an accept, and only one that has an acceptedAt to judge the age by.
     // A decline or a question is sent on the event and is not re-tried here:
     // re-sending a week-old question would read as a new one.
-    if (st !== 'accepted' || sh.acceptOfficeAt) continue;
+    if (st !== 'accepted') continue;
+    // The email may be done and the FERGUS description still owed - that half
+    // is retried too, but only on a job that is actually linked, or every
+    // acceptance would cost a read an hour for a fortnight for nothing.
+    const _fgOwed = !!(sh.fergus && sh.fergus.jobId) && !sh.fergusAcceptDescAt;
+    if (sh.acceptOfficeAt && !_fgOwed) continue;
     const at = Date.parse(sh.acceptedAt || '');
     if (!isFinite(at)) continue;
     const age = Date.now() - at;
@@ -9254,7 +9266,11 @@ function _fergusJobSummaryText(quote, extra){
   if (quote.ref) lines.push('Quote ' + quote.ref);
   if (extra.total != null) lines.push('Total (incl. GST): ' + _money(extra.total));
   if (extra.acceptedBy) lines.push('Accepted by ' + extra.acceptedBy + (extra.acceptedAt ? ' \u2014 ' + extra.acceptedAt : ''));
-  const sel = _quoteSelectionLines(quote);
+  // The office's push writes the quote's own selections; an ACCEPTANCE writes
+  // the fuller list - the office's own options, the extra roofs they took and
+  // the priced options - because that is the question the crew is reading the
+  // job to answer.
+  const sel = extra.full ? _quoteChoiceLines(quote) : _quoteSelectionLines(quote);
   if (sel.length){ lines.push(''); sel.forEach(x => lines.push('  \u2022 ' + x)); }
   if (extra.note) { lines.push('', String(extra.note).slice(0, 400)); }
   lines.push('', 'Updated from RoofMap ' + new Date().toISOString().slice(0, 10));
@@ -9526,6 +9542,78 @@ async function _fergusAutoVersionNow(jobId){
   if (quote.share.events.length > 80) quote.share.events = quote.share.events.slice(-80);
   await _saveQuoteBack(job, quote);
   return plan.auto;
+}
+// THE FERGUS JOB LEARNS WHAT THEY CHOSE, AND KEEPS THE PDF (2026-10-19, the
+// owner: "can it auto automatically upload the accepted quote as it's pdf to
+// the job in fergus, can it also add the customers choices ... as the job
+// description in fergus automatically").
+// Both halves already existed and NEITHER was wired to an acceptance: the
+// description push and the attachment upload are requireAuth routes the
+// OFFICE's browser calls, and a customer accepting has no login. So the server
+// does it, with the company's own key, off the back of the accept. It matters
+// because the description written at the office's push is the quote AS PUSHED -
+// the roofer's recommended picks - so after an acceptance it is out of date on
+// the one question the crew opens the job to answer.
+// IT RE-READS THE JOB ITSELF rather than trusting the copy it was handed:
+// _fergusAutoVersionNow is on a debounce and writes the same share, so a claim
+// decided from a stale copy is a claim that can be made twice.
+async function _fergusOnAccept(jobId, attachment){
+  try {
+    if (!jobId) return null;
+    const r = await supabase.from('jobs')
+      .select('id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote')
+      .eq('id', jobId).single();
+    if (r.error || !r.data || !r.data.quote) return null;
+    const job = r.data, quote = r.data.quote;
+    const plan = ((quote || {}).share || {}).fergus;
+    if (!plan || !plan.jobId) return null;              // not a Fergus-linked job
+    const sh = quote.share || {}, acc = quote.accepted || {};
+    if ((sh.status || '') !== 'accepted') return null;
+    const needDesc = !sh.fergusAcceptDescAt;
+    const needFile = !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
+    if (!needDesc && !needFile) return null;
+    const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
+    if (!fergusKey) return null;
+    const out = {};
+    if (needDesc){
+      const summary = _fergusJobSummaryText(quote, {
+        full: true, total: acc.total,
+        acceptedBy: acc.name || job.client_name || quote.client || '',
+        acceptedAt: acc.at ? _nzWhen(acc.at) : '',
+        note: 'Accepted online through RoofMap. Accept the quote in Fergus by hand.',
+      });
+      out.desc = await _fergusUpdateJobDescription(fergusKey, plan.jobId, summary);
+      if (out.desc && out.desc.ok) sh.fergusAcceptDescAt = new Date().toISOString();
+    }
+    if (needFile){
+      let buf = null;
+      try { buf = Buffer.from(String(attachment.base64 || ''), 'base64'); } catch (e) {}
+      if (buf && buf.length && buf.length <= 25 * 1024 * 1024){
+        const field = process.env.FERGUS_FILES_FIELD || 'file';
+        const et = process.env.FERGUS_ATTACH_ENTITY_TYPE || 'job';
+        const a = await _fergusAttachmentAttempt(et, plan.jobId, buf, 'application/pdf',
+          attachment.filename || 'Accepted quote.pdf', field, fergusKey);
+        out.file = { ok: !!(a && a.ok && a.looksCreated), status: a && a.status, url: (a && a.url) || '' };
+        if (out.file.ok) sh.fergusAcceptFileAt = new Date().toISOString();
+      } else {
+        out.file = { ok: false, status: 0, reason: 'EMPTY_OR_TOO_LARGE' };
+      }
+    }
+    // Kept with the quote, never only in a log: "why is the description still
+    // the old one" is then answered off the saved job, which is the discipline
+    // the publish and mark-sent attempts already follow.
+    sh.fergusAccept = { at: new Date().toISOString(),
+      desc: out.desc ? { ok: !!out.desc.ok, path: out.desc.path || '', unchanged: !!out.desc.unchanged,
+                         attempts: (out.desc.attempts || []).slice(-4) } : undefined,
+      file: out.file };
+    quote.share = sh;
+    if (_pgPool()) await _saveShareBack(job, sh); else await _saveQuoteBack(job, quote);
+    return out;
+  } catch (e) {
+    try { recordError('server', new Error('fergus on-accept failed: ' + (e && e.message || e)),
+      { route: '/q/:token/event', company: '' }); } catch (e2) {}
+    return null;
+  }
 }
 function _fergusAutoVersionSoon(job, quote){
   try {

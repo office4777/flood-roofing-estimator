@@ -3317,9 +3317,40 @@ Discipline (non-negotiable):
   does not claim to have found it — it makes the next one say so.
   `tests/custevents.mjs` is a real tripwire: against the old build 12 of 23
   pins fail and every safety pin passes.
-  STILL OPEN AND ASKED FOR: the accepted quote's PDF uploaded to the Fergus
-  job, the customer's choices written as the Fergus job description, and the
-  office's Gmail reply to a question kept in RoofMap as correspondence.
+  STILL OPEN AND ASKED FOR: the office's Gmail reply to a customer's question
+  kept in RoofMap as correspondence.
+- AN ACCEPTANCE REACHES THE FERGUS JOB (2026-10-19, the owner: "can it auto
+  automatically upload the accepted quote as it's pdf to the job in fergus,
+  can it also add the customers choices … as the job description in fergus
+  automatically"). BOTH HALVES ALREADY EXISTED and neither was wired to an
+  acceptance: `/fergus-job/description` and `/fergus-files/upload` are
+  `requireAuth` routes the OFFICE's browser calls, and a customer accepting has
+  no login. `_fergusOnAccept(jobId, attachment)` is the server doing it with
+  the company's own key (`_fergusKeyFor({companyId, user})`, no `req`), reached
+  from `/q/:token/accept-email` (where the customer's browser has just handed
+  over the PDF, so that is the only place the file can come from) and from
+  `_acceptOfficeCatchUp`, which writes the DESCRIPTION whether or not the email
+  is still owed. The hourly `_officeOwedSweep` retries the description half too,
+  but only on a share that actually carries `fergus.jobId` — otherwise every
+  acceptance would cost a read an hour for a fortnight for nothing.
+  WHY IT MATTERS, beyond the ask: the description written at the office's push
+  is the quote AS PUSHED, the roofer's recommended picks, so after an
+  acceptance it is out of date on the one question the crew opens the job to
+  answer. `_fergusJobSummaryText` takes `extra.full` now, which swaps
+  `_quoteSelectionLines` for `_quoteChoiceLines` — the office's own options,
+  the extra roofs they took and the priced options as well — and
+  `_fergusUpdateJobDescription` already keeps the customer's own words above
+  its marked block.
+  IT RE-READS THE JOB ITSELF rather than trusting the copy it is handed:
+  `_fergusAutoVersionNow` is on a 45 s debounce and writes the same share, so a
+  claim decided from a stale copy is a claim that can be made twice — and a
+  second attachment on a Fergus job is not something anybody can undo from
+  here. `share.fergusAcceptDescAt` / `fergusAcceptFileAt` are the claims and
+  `share.fergusAccept` keeps what Fergus answered, the publish and mark-sent
+  discipline: read it off the saved job rather than guessing.
+  The attachment upload uses global `fetch` directly (multipart), NOT the
+  `__TEST_HTTPS` seam, so `tests/custevents.mjs` stubs both — the seam for the
+  job read and the description PATCH, a `fetch` wrapper for the upload.
 
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
