@@ -133,6 +133,14 @@ Discipline (non-negotiable):
    builds here have taken up to 18 minutes. Waiting longer costs a slow
    workflow on a slow day; giving up early costs the whole point of the check.
 
+   A PROMOTE RUN'S `head_sha` IS NOT THE COMMIT IT PROMOTED (2026-10-19, and
+   it cost a wrong conclusion). The promote is a `workflow_run` event, so the
+   API reports main's tip at trigger time, not the SHA the run checked out and
+   verified. Two ships pushed minutes apart therefore look like one. Read the
+   LOG instead: the backend step prints "Waiting for … /health to report build
+   <sha>", then either "Live after Ns" (verified), or one of its two forgiving
+   warnings, or the hard error. That line is the only statement of which
+   commit a promote actually put live.
    Neither `production` containing the commit nor a 201 from the Vercel deploy
    hook is proof. Both were true on three ships that never went live.
    If that step goes red, the FIRST thing to check is the Vercel project's
