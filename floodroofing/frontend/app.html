@@ -4962,7 +4962,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-19T22:16:52Z';
+  window.APP_BUILT_AT = '2026-10-19T22:53:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -13307,11 +13307,8 @@ function renderOrderingUI(){
       row('Pipe flashings / dektites', 'One per pipe drawn on the roof. Add spares here if you like one in the van.',
           '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">Spare per size</label>' +
             _ordInp('cons.dektiteSpare', C.dektiteSpare, ORD_CONS_DEFAULT.dektiteSpare, '1') + '</td><td></td>') +
-      row('Gutter brackets', 'One every so far along the run, plus this many to start each run. Applies to the itemised PVC gutters &mdash; the box gutter has its brackets in the $/lm.',
-          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">One every (m)</label>' +
-            _ordInp('cons.gutterBracketSpacingM', C.gutterBracketSpacingM, ORD_CONS_DEFAULT.gutterBracketSpacingM, '0.05') + '</td>' +
-          '<td><label style="font-size:10.5px;color:var(--text2);display:block;margin-bottom:2px">To start each run</label>' +
-            _ordInp('cons.gutterBracketStartPerRun', C.gutterBracketStartPerRun, ORD_CONS_DEFAULT.gutterBracketStartPerRun, '1') + '</td>') +
+      row('Gutter brackets', 'Set per gutter product on <strong>Quote&rsquo;s Product Options &rarr; Gutter profiles</strong> &mdash; the spacing, the number to start each run and what an internal and an external bracket cost each. A box gutter is bracketed every 800 mm and a PVC spouting every 450, so one shared figure could not be right for both.',
+          '<td colspan="2"></td>') +
       '</tbody></table>' +
     '</div>';
   }
@@ -16482,9 +16479,7 @@ var ORD_CONS_DEFAULT = {
   screwsRound: 100,           // …rounded up to a box of this many
   rivetPack: 100,             // rivets come in boxes of this many
   rivetPerLm: 60,             // …one box per this many lm of flashing
-  dektiteSpare: 0,            // spare boots on top of the ones drawn
-  gutterBracketSpacingM: 0.5, // one bracket every this far along a run
-  gutterBracketStartPerRun: 0 // …plus this many to start each run
+  dektiteSpare: 0             // spare boots on top of the ones drawn
 };
 function _ordCfg(){
   try {
@@ -16513,7 +16508,6 @@ function _ordCons(){
   out.screwsRound = Math.max(1, out.screwsRound);
   out.rivetPack   = Math.max(1, out.rivetPack);
   out.rivetPerLm  = Math.max(0.1, out.rivetPerLm);
-  out.gutterBracketSpacingM = Math.max(0.05, out.gutterBracketSpacingM);
   return out;
 }
 
@@ -28357,6 +28351,15 @@ function _selEdit(kind, i, field, val){
     // The table shows and takes a PERCENTAGE (100 = double the price); the
     // row stores the factor. Typing 100 used to store 100 = +10,000%.
     var np = parseFloat(val); row.pct = isFinite(np) ? np / 100 : 0;
+  } else if (field === 'bracketSpacingMm' || field === 'bracketStartPerRun' ||
+             field === 'bracketIntEa'     || field === 'bracketExtEa') {
+    // A CLEARED BOX GOES BACK TO THE STANDARD, never to 0: emptying the
+    // spacing must not bracket the gutter at nothing, and emptying a price
+    // must not say the bracket is free. The key is deleted, so the product's
+    // own rule answers again.
+    var nb = parseFloat(val);
+    if (String(val == null ? '' : val).trim() === '' || !isFinite(nb) || nb < 0) delete row[field];
+    else row[field] = nb;
   } else if (field === 'extBracketLm' || field === 'coverMm' || field === 'rate') {
     var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
   } else if (field === 'scaffoldUplift' || field === 'base') {
@@ -28503,13 +28506,21 @@ function renderSelectablesUI(){
           '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('gutters', 'Gutter profiles',
-      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not. <strong>Ext bracket $/lm</strong> is what external brackets add per metre of gutter run on THIS product — it is the one place that rate is set, and it carries through to the Pricing tab, the job&rsquo;s profitability and the extra the customer sees beside &ldquo;External brackets&rdquo;. Leave it 0 and the two bracket choices cost the same.',
-      '<th>Name</th><th style="width:96px">Scaffold +25%</th><th style="width:110px">Ext bracket $/lm</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
+      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not.<br><strong>Brackets.</strong> One every <em>spacing</em>, plus <em>per run</em> to start each run — a box gutter is bracketed every 800 mm, a PVC spouting every 450. Price an <strong>internal</strong> and an <strong>external</strong> bracket each and the quote works the &ldquo;External brackets&rdquo; extra out by itself, at the real difference times the real count. Where you cannot (a box gutter&rsquo;s brackets are inside its $/lm, so there is no internal cost to subtract), leave those two blank and type the flat <strong>Ext $/lm</strong> instead. Every box here is blank for &ldquo;use the standard&rdquo;, and the internal price falls back to Default item pricing.',
+      '<th>Name</th><th style="width:86px">Scaffold +25%</th><th style="width:82px">Bracket every (mm)</th><th style="width:66px">+ per run</th><th style="width:80px">Internal $/ea</th><th style="width:80px">External $/ea</th><th style="width:76px">Ext $/lm</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
+        // The DEFAULT is the placeholder, never the value: one source of
+        // truth (GUTTER_BRACKET_DEFAULTS) and a box that reads "800" in grey
+        // until the office types its own.
+        var _bc = _gutterBracketCfg(r.id);
         return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
           '<td style="text-align:center"><input type="checkbox" ' + (r.scaffoldUplift === false ? '' : 'checked') +
             ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
-          '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0"') + '</td>' +
+          '<td>' + inp('gutters', i, 'bracketSpacingMm', (r.bracketSpacingMm == null ? '' : r.bracketSpacingMm), String(Math.round(_bc.spacingMm)), ' type="number" step="10" min="1" title="One bracket every this many millimetres along the run"') + '</td>' +
+          '<td>' + inp('gutters', i, 'bracketStartPerRun', (r.bracketStartPerRun == null ? '' : r.bracketStartPerRun), String(_bc.startPerRun), ' type="number" step="1" min="0" title="Brackets to start each gutter run, on top of the spacing"') + '</td>' +
+          '<td>' + inp('gutters', i, 'bracketIntEa', (r.bracketIntEa == null ? '' : r.bracketIntEa), 'standard', ' type="number" step="0.01" min="0" title="What one internal bracket costs. Blank uses Default item pricing."') + '</td>' +
+          '<td>' + inp('gutters', i, 'bracketExtEa', (r.bracketExtEa == null ? '' : r.bracketExtEa), '\u2014', ' type="number" step="0.01" min="0" title="What one external bracket costs. Fill this in and the quote works the upgrade out from the difference."') + '</td>' +
+          '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0" title="Flat $ per metre of run for the external-bracket upgrade. Used when the two per-each prices above cannot be filled in."') + '</td>' +
           '<td style="text-align:center">' +
             (r.img ? '<img src="' + esc(r.img) + '" alt="" style="max-width:52px;max-height:30px;display:block;margin:0 auto 3px;border-radius:4px">' : '') +
             '<button type="button" onclick="_qpfPicPick(\'' + esc(r.id) + '\',\'gutters\')" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit">' +
@@ -28932,6 +28943,77 @@ function _pbGutKeep(key){
     return (v == null) ? 0 : v;
   } catch(e){ return 0; }
 }
+// This product's bracket rule: how far apart, how many to start a run, and
+// what an internal and an external one cost each. A BLANK BOX IS THE STANDARD,
+// never 0 - the price book's own rule - so a row that says nothing is priced
+// and counted exactly as it was before the columns existed.
+function _gutterBracketCfg(id){
+  var g = (typeof _selGutterOf === 'function' && _selGutterOf(id)) || {};
+  var d = GUTTER_BRACKET_DEFAULTS[id] || { spacingMm: GUTTER_BRACKET_SPACING_M * 1000, startPerRun: 1 };
+  var mm = parseFloat(g.bracketSpacingMm), st = parseFloat(g.bracketStartPerRun),
+      ie = parseFloat(g.bracketIntEa),     xe = parseFloat(g.bracketExtEa);
+  return {
+    spacingMm:   (isFinite(mm) && mm > 0) ? mm : d.spacingMm,
+    spacingM:    Math.max(0.05, ((isFinite(mm) && mm > 0) ? mm : d.spacingMm) / 1000),
+    startPerRun: Math.max(0, Math.round((isFinite(st) && st >= 0) ? st : d.startPerRun)),
+    intEa:       (isFinite(ie) && ie > 0) ? ie : null,
+    extEa:       (isFinite(xe) && xe > 0) ? xe : null,
+    itemised:    (id === 'marley_typhoon' || id === 'marley_classic')
+  };
+}
+// One every so far along the run, plus so many to start each run - never
+// fewer than one run's worth, the way the droppers are counted.
+function _gutterBracketCount(id, lm, lines){
+  lm = parseFloat(lm) || 0; if (lm <= 0) return 0;
+  var c = _gutterBracketCfg(id);
+  return Math.ceil(lm / c.spacingM) + c.startPerRun * Math.max(1, parseInt(lines, 10) || 1);
+}
+// What ONE standard (internal) bracket costs on this product. The order
+// matters and is not the usual one: a figure typed on THIS job's gutter card
+// wins, then the Gutter profiles row, and only then the price book.
+// `gutterUnitPrices` sits BELOW the row deliberately - it is a snapshot of the
+// book rebuilt on every recalc, so reading it first would let the book quietly
+// beat the row on the very next keystroke (the gutterPriceTyped trap). It is
+// still read, because the customer's own copy has no price book at all.
+function _gutterBracketIntEa(id){
+  var c = _gutterBracketCfg(id);
+  var stash = (id === 'marley_typhoon') ? 'typhoon_bracket'
+            : (id === 'marley_classic') ? 'classic_bracket' : null;
+  var q = (window.S && S.quote) || {};
+  if (stash){
+    var t = _gutterTypedPrice(stash);                  if (t != null && t > 0) return t;
+  }
+  if (c.intEa != null) return c.intEa;
+  if (stash){
+    var s = _pbNum((q.gutterUnitPrices || {})[stash]); if (s != null && s > 0) return s;
+    var p = _pbNum(_pbGutterCfg()[stash + '_ea']);     if (p != null && p > 0) return p;
+    var b = (GUTTER_MATERIAL_PRICES[id] || {}).bracket;
+    if (b != null) return b;
+  }
+  return 0;
+}
+// WHAT EXTERNAL BRACKETS ADD, and the two honest ways of working it out
+// (2026-10-19, the owner: "add in the cost on internal brackets and external
+// brackets so the quote options automatically knows the difference to display
+// in the quotes gutter option").
+//   1. Both brackets priced each -> the real difference times the real count.
+//      On an itemised product the internal price always resolves (the book
+//      carries it), so an external price alone is enough.
+//   2. Otherwise the flat Ext bracket $/lm, which is today's behaviour and the
+//      ONLY honest model where the brackets are inside the gutter's own $/lm:
+//      the box gutter's $21/lm includes them, so there is no "internal
+//      bracket cost" to subtract and the office is pricing the UPGRADE.
+// A difference of nothing or less is nothing - an external bracket cheaper
+// than an internal one is a slip in a box, not a discount to offer.
+function _bracketExtTotal(id, lm, lines){
+  lm = parseFloat(lm) || 0; if (lm <= 0) return 0;
+  var c = _gutterBracketCfg(id);
+  if (c.extEa != null && (c.itemised || c.intEa != null)){
+    var d = c.extEa - _gutterBracketIntEa(id);
+    return (d > 0) ? d * _gutterBracketCount(id, lm, lines) : 0;
+  }
+  return _bracketExtPerLm(id) * lm;
+}
 // External-bracket upcharge ($/lm) for a gutter profile.
 //
 // THE PRODUCT'S OWN ROW IS THE PRICE (2026-10-19, the owner: "internal and
@@ -29004,7 +29086,22 @@ var GUTTER_MATERIAL_PRICES = {
     stopend:  7.15, stopendDesc: 'Marley Classic stop ends (LH/RH)'
   }
 };
-var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm (Typhoon)
+var GUTTER_BRACKET_SPACING_M  = 0.5;   // the fallback for a product with no rule
+// A GUTTER'S BRACKETS ARE THE GUTTER'S BUSINESS (2026-10-19, the owner: "i
+// want seperate gutter spacing per gutter type, (by default 125mm box gutter
+// should have a default of 800mm + 1 per run, then Marley tpyhoon and classic
+// should have default of 450mm spacing + 1 per run)"). The spacing and the
+// starting count were one pair on Settings -> Material Ordering -> Consumables
+// for every product, which cannot be right: a steel box gutter is bracketed
+// every 800 mm and a PVC spouting every 450. They are per row on Quote's
+// Product Options -> Gutter profiles now, and this is what a row that does not
+// say falls back to - so a selectables list saved before the column existed
+// gets its own product's rule rather than a shared number.
+var GUTTER_BRACKET_DEFAULTS = {
+  box125:         { spacingMm: 800, startPerRun: 1 },
+  marley_typhoon: { spacingMm: 450, startPerRun: 1 },
+  marley_classic: { spacingMm: 450, startPerRun: 1 }
+};
 // Steel and Classic gutters (2026-09-22): one bracket every 800 mm and one
 // dropper every 8 m (never fewer than one per run), priced from Settings →
 // Price book (gutter bracket / dropper $/each).
@@ -29116,18 +29213,23 @@ function _gutterMaterialLines(id, lm, lines, corners){
     // ONE BRACKET EVERY X, PLUS SOME TO START EACH RUN (2026-10-19, the
     // owner: "how many gutter brackets are required (minimum spacing and
     // starting amount per run (1 to start then divided gutter run by 800mm
-    // spacing)"). Both numbers are on Settings -> Material Ordering ->
-    // Consumables; they ship at the spacing this product has always used and
-    // a starting count of 0, so no quote reprices until he types in them.
-    var _gb   = _ordCons();
-    var nBr   = Math.ceil(lm / _gb.gutterBracketSpacingM)
-              + Math.round(_gb.gutterBracketStartPerRun) * Math.max(1, lines);
+    // spacing)"). Both numbers are THIS PRODUCT'S, on Quote's Product Options
+    // -> Gutter profiles, because 800 mm is the steel box gutter's rule and
+    // 450 mm is the PVC spoutings'.
+    var _gb   = _gutterBracketCfg(id);
+    var nBr   = _gutterBracketCount(id, lm, lines);
     var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
     var nJoin = Math.max(0, Math.ceil(lm / GUTTER_SPOUTING_LENGTH_M) - Math.max(1, lines));
     out.push({ desc: inv.gutterDesc,  qty: lm,  unit:'lm', price: inv.gutter, stash: pfx+'_spouting', pb: pfx+'_spouting_lm' });
-    out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(_gb.gutterBracketSpacingM*1000)+'mm'+
-                     (_gb.gutterBracketStartPerRun ? ' + '+_ordTrim(_gb.gutterBracketStartPerRun)+'/run' : '')+')',
-               qty: nBr,  unit:'ea', price: inv.bracket, stash: pfx+'_bracket', pb: pfx+'_bracket_ea' });
+    // Once the office prices the two brackets apart, the row the quote is
+    // BUILT on is the internal one - the shipped Typhoon wording says
+    // "external brackets" because that is the only bracket it ever had a
+    // price for, and leaving it would have the base quote naming the upgrade.
+    var _bd = inv.bracketDesc;
+    if (_gb.extEa != null) _bd = _bd.replace(/\b(internal|external)\s+brackets\b/i, 'internal brackets');
+    out.push({ desc: _bd + ' (1 / '+Math.round(_gb.spacingMm)+'mm'+
+                     (_gb.startPerRun ? ' + '+_ordTrim(_gb.startPerRun)+'/run' : '')+')',
+               qty: nBr,  unit:'ea', price: _gutterBracketIntEa(id), stash: pfx+'_bracket', pb: pfx+'_bracket_ea' });
     out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet, stash: pfx+'_outlet', pb: pfx+'_outlet_ea' });
     if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner, stash: pfx+'_joiner', pb: pfx+'_joiner_ea' });
     if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner, stash: pfx+'_corner', pb: pfx+'_corner_ea' });
@@ -29592,9 +29694,7 @@ function _selBracketExtDelta(){
   if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
   var p = (window.S && S.quote && S.quote.proposalOptions) || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
-  var rate = _bracketExtPerLm(p.gutterType);
-  if (!rate) return 0;
-  return rate * _selGutterLm();
+  return _bracketExtTotal(p.gutterType, _selGutterLm(), _selGutterLineCount());
 }
 function _selGutterDelta(gutterId){
   if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
@@ -29745,6 +29845,9 @@ function _qpBuildPriced(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   var lm = _selGutterLm();
+  // The bracket count needs the number of gutter RUNS as well as the
+  // metres: the per-run starting brackets are counted per run.
+  var lines = _selGutterLineCount();
   var out = {
     v: 1,
     gstRate: (q.gstRate || 0),
@@ -29803,7 +29906,7 @@ function _qpBuildPriced(){
     out.gutter[gt.id] = _gutterExcluded() ? 0 : _gutterTotalCharge(gt.id, lm);
     out.gutterLabel[gt.id] = gt.name || gt.id;
     out.gutterUplift[gt.id] = (gt.scaffoldUplift !== false);
-    out.bracketExt[gt.id] = _gutterExcluded() ? 0 : (_bracketExtPerLm(gt.id) * lm);
+    out.bracketExt[gt.id] = _gutterExcluded() ? 0 : _bracketExtTotal(gt.id, lm, lines);
   });
   // Downpipes are priced per gutter LINE and do not vary by product, but they
   // are only charged once a gutter is on — mirrored by the reader.

@@ -147,44 +147,181 @@ v = await pg.evaluate(() => {
   };
   out.def = q(null);
   out.typed = q({ cons: { underlayWastePct: 10, screwsPerM2: 10, screwsRound: 250,
-                          dektiteSpare: 2, gutterBracketSpacingM: 0.8, gutterBracketStartPerRun: 1 } });
+                          dektiteSpare: 2 } });
   // A box cleared is the standard back, never "none at all" — a 0 lap or a 0
   // roll cover would order a roof with no allowance off an empty field.
   out.blanked = q({ cons: { screwsPerM2: '', rivetPack: null } });
   // Nonsense cannot divide by nothing.
-  out.guard = q({ cons: { screwsRound: 0, rivetPack: 0, gutterBracketSpacingM: 0 } });
+  out.guard = q({ cons: { screwsRound: 0, rivetPack: 0 } });
   return out;
 });
 check('the consumable defaults are the formulas the code already ran',
   v.def.underlayWastePct === 20 && v.def.screwsPerM2 === 8 && v.def.screwsRound === 100 &&
-  v.def.rivetPack === 100 && v.def.rivetPerLm === 60 && v.def.dektiteSpare === 0 &&
-  v.def.gutterBracketSpacingM === 0.5 && v.def.gutterBracketStartPerRun === 0,
+  v.def.rivetPack === 100 && v.def.rivetPerLm === 60 && v.def.dektiteSpare === 0,
+  JSON.stringify(v.def));
+// The bracket pair left this page on 2026-10-19 — it belongs to the gutter
+// product, not to every product at once.
+check('…and the gutter-bracket pair is no longer one shared figure here',
+  v.def.gutterBracketSpacingM === undefined && v.def.gutterBracketStartPerRun === undefined,
   JSON.stringify(v.def));
 check('…each one takes the figure typed against it',
   v.typed.screwsPerM2 === 10 && v.typed.screwsRound === 250 && v.typed.underlayWastePct === 10 &&
-  v.typed.dektiteSpare === 2 && v.typed.gutterBracketSpacingM === 0.8 &&
-  v.typed.gutterBracketStartPerRun === 1, JSON.stringify(v.typed));
+  v.typed.dektiteSpare === 2, JSON.stringify(v.typed));
 check('…a box cleared goes back to the standard, not to nothing',
   v.blanked.screwsPerM2 === 8 && v.blanked.rivetPack === 100, JSON.stringify(v.blanked));
 check('…and a 0 where something must be divided by cannot get through',
-  v.guard.screwsRound >= 1 && v.guard.rivetPack >= 1 && v.guard.gutterBracketSpacingM > 0,
-  JSON.stringify(v.guard));
+  v.guard.screwsRound >= 1 && v.guard.rivetPack >= 1, JSON.stringify(v.guard));
 
-// Gutter brackets: the spacing and the per-run starting count, on the real
-// itemised gutter lines.
+// ── (3b) EVERY GUTTER IS BRACKETED ITS OWN WAY ───────────────────────
+// The owner, 2026-10-19: "i want seperate gutter spacing per gutter type, (by
+// default 125mm box gutter should have a default of 800mm + 1 per run, then
+// Marley tpyhoon and classic should have default of 450mm spacing + 1 per
+// run)". One shared figure could not be right for a steel box gutter and a
+// PVC spouting at once.
 v = await pg.evaluate(() => {
-  const n = (ord) => {
-    if (ord) S.settings.price_book.ordering = ord; else delete S.settings.price_book.ordering;
-    const row = _gutterMaterialLines('marley_typhoon', 40, 2, 0)
-      .filter(r => /bracket/i.test(r.desc))[0];
-    return row ? { qty: row.qty, desc: row.desc } : null;
+  delete S.settings.price_book.ordering;
+  const set = (id, field, val) => {
+    const i = _selGuttersAll().findIndex(g => g.id === id);
+    _selEdit('gutters', i, field, val);
   };
-  return { def: n(null), typed: n({ cons: { gutterBracketSpacingM: 0.8, gutterBracketStartPerRun: 1 } }) };
+  const out = {
+    // 40 lm over 2 runs, from the SHIPPED rule for each product.
+    boxCount:     _gutterBracketCount('box125', 40, 2),
+    typhoonCount: _gutterBracketCount('marley_typhoon', 40, 2),
+    classicCount: _gutterBracketCount('marley_classic', 40, 2),
+    boxCfg:       _gutterBracketCfg('box125'),
+    typhoonCfg:   _gutterBracketCfg('marley_typhoon'),
+    // The itemised row the office reads is the same count.
+    row: (function(){
+      const r = _gutterMaterialLines('marley_typhoon', 40, 2, 0).filter(x => /bracket/i.test(x.desc))[0];
+      return r ? { qty: r.qty, desc: r.desc } : null;
+    })()
+  };
+  // Typed on the row — and only that row moves.
+  set('marley_typhoon', 'bracketSpacingMm', 800);
+  set('marley_typhoon', 'bracketStartPerRun', 0);
+  out.typedCount   = _gutterBracketCount('marley_typhoon', 40, 2);
+  out.classicUnmoved = _gutterBracketCount('marley_classic', 40, 2);
+  out.typedRow = (function(){
+    const r = _gutterMaterialLines('marley_typhoon', 40, 2, 0).filter(x => /bracket/i.test(x.desc))[0];
+    return r ? r.desc : null;
+  })();
+  // Cleared goes back to the product's own rule, never to nothing.
+  set('marley_typhoon', 'bracketSpacingMm', '');
+  set('marley_typhoon', 'bracketStartPerRun', '');
+  out.clearedCount = _gutterBracketCount('marley_typhoon', 40, 2);
+  out.clearedKeys  = (function(){
+    const g = _selGuttersAll().find(x => x.id === 'marley_typhoon');
+    return ('bracketSpacingMm' in g) || ('bracketStartPerRun' in g);
+  })();
+  return out;
 });
-check('gutter brackets stay at one per 500 mm until somebody says otherwise',
-  v.def && v.def.qty === 80, JSON.stringify(v.def));
-check('…then one every 800 mm with one to start each run reads 50 + 2',
-  v.typed && v.typed.qty === 52 && /800mm \+ 1\/run/.test(v.typed.desc), JSON.stringify(v.typed));
+check('the box gutter is bracketed every 800 mm, the PVC spoutings every 450',
+  v.boxCfg.spacingMm === 800 && v.typhoonCfg.spacingMm === 450 &&
+  v.boxCfg.startPerRun === 1 && v.typhoonCfg.startPerRun === 1,
+  JSON.stringify({ box: v.boxCfg, typhoon: v.typhoonCfg }));
+// 40 ÷ 0.8 = 50, + 1 per run × 2 = 52.   40 ÷ 0.45 = 88.89 → 89, + 2 = 91.
+check('…so 40 lm over two runs is 52 brackets on the box and 91 on a spouting',
+  v.boxCount === 52 && v.typhoonCount === 91 && v.classicCount === 91,
+  JSON.stringify({ box: v.boxCount, typhoon: v.typhoonCount, classic: v.classicCount }));
+check('…and the itemised row the office reads is that same count, and says so',
+  v.row && v.row.qty === 91 && /450mm \+ 1\/run/.test(v.row.desc), JSON.stringify(v.row));
+check('a spacing typed on one product moves that product alone',
+  v.typedCount === 50 && v.classicUnmoved === 91 && /800mm/.test(v.typedRow) &&
+  !/\/run/.test(v.typedRow),
+  JSON.stringify({ typed: v.typedCount, classic: v.classicUnmoved, desc: v.typedRow }));
+check('…and a box cleared goes back to the product’s own rule, not to nothing',
+  v.clearedCount === 91 && v.clearedKeys === false,
+  JSON.stringify({ count: v.clearedCount, keptKeys: v.clearedKeys }));
+
+// ── (3c) THE QUOTE WORKS THE BRACKET UPGRADE OUT BY ITSELF ───────────
+// "add in the cost on internal brackets and external brackets so the quote
+// options automatically knows the difference to display in the quotes gutter
+// option" — the real difference times the real count, where both are priced.
+v = await pg.evaluate(() => {
+  delete S.settings.price_book.ordering;
+  const set = (id, field, val) => {
+    const i = _selGuttersAll().findIndex(g => g.id === id);
+    _selEdit('gutters', i, field, val);
+  };
+  const pick = (id) => { S.quote.proposalOptions.gutterType = id; };
+  window._selGutterLm = () => 40;
+  window._selGutterLineCount = () => 2;
+  const out = {};
+  // An itemised product: the internal price resolves from the book, so an
+  // external price alone is enough. 5.56 shipped, 8.00 external → 2.44 × 91.
+  set('marley_typhoon', 'bracketExtEa', 8);
+  pick('marley_typhoon');
+  out.intShipped = _gutterBracketIntEa('marley_typhoon');
+  out.extOnly    = _bracketExtTotal('marley_typhoon', 40, 2);
+  out.extOnlyDelta = _selBracketExtDelta();
+  out.extOnlyCard  = _qpCardDeltas().bracketExt;
+  // Both priced: $3.00 apart, 91 brackets.
+  set('marley_typhoon', 'bracketIntEa', 5);
+  out.intTyped = _gutterBracketIntEa('marley_typhoon');
+  out.both     = _bracketExtTotal('marley_typhoon', 40, 2);
+  out.bothCard = _qpCardDeltas().bracketExt;
+  // The base material row is priced at the INTERNAL bracket and renamed, so
+  // the quote is not built on the upgrade it is offering.
+  out.baseRow = (function(){
+    const r = _gutterMaterialLines('marley_typhoon', 40, 2, 0).filter(x => /bracket/i.test(x.desc))[0];
+    return r ? { price: r.price, desc: r.desc } : null;
+  })();
+  // External cheaper than internal is a slip in a box, not a discount.
+  set('marley_typhoon', 'bracketExtEa', 4);
+  out.cheaper = _bracketExtTotal('marley_typhoon', 40, 2);
+  // A BOX GUTTER'S BRACKETS ARE INSIDE ITS $/lm, so there is no internal cost
+  // to subtract: an external price alone must NOT be used, and the flat
+  // $/lm answers instead.
+  set('marley_typhoon', 'bracketExtEa', ''); set('marley_typhoon', 'bracketIntEa', '');
+  set('box125', 'extBracketLm', 6);
+  set('box125', 'bracketExtEa', 8);
+  pick('box125');
+  out.boxExtOnly = _bracketExtTotal('box125', 40, 2);
+  // …until the office prices the included bracket too: $6 apart × 52.
+  set('box125', 'bracketIntEa', 2);
+  out.boxBoth = _bracketExtTotal('box125', 40, 2);
+  out.boxBothCard = _qpCardDeltas().bracketExt;
+  return out;
+});
+check('an itemised gutter needs only the external price — the book has the internal',
+  v.intShipped === 5.56 && Math.abs(v.extOnly - 2.44 * 91) < 0.01 &&
+  Math.abs(v.extOnlyDelta - v.extOnly) < 0.01 && Math.abs(v.extOnlyCard - v.extOnly) < 0.01,
+  JSON.stringify({ int: v.intShipped, total: v.extOnly, delta: v.extOnlyDelta, card: v.extOnlyCard }));
+check('…and pricing both brackets is $3.00 × 91 = $273.00, on the card as well',
+  v.intTyped === 5 && Math.abs(v.both - 273) < 0.005 && Math.abs(v.bothCard - 273) < 0.005,
+  JSON.stringify({ int: v.intTyped, total: v.both, card: v.bothCard }));
+check('…the quote itself is built on the INTERNAL bracket, and the row says so',
+  v.baseRow && v.baseRow.price === 5 && /internal brackets/i.test(v.baseRow.desc),
+  JSON.stringify(v.baseRow));
+check('an external bracket cheaper than an internal one offers nothing, not a discount',
+  v.cheaper === 0, String(v.cheaper));
+check('a box gutter keeps the flat $/lm until its own brackets are priced too',
+  v.boxExtOnly === 240, String(v.boxExtOnly));
+check('…then it is $6.00 × 52 = $312.00',
+  Math.abs(v.boxBoth - 312) < 0.005 && Math.abs(v.boxBothCard - 312) < 0.005,
+  JSON.stringify({ total: v.boxBoth, card: v.boxBothCard }));
+
+// The four boxes are on the Gutter profiles table where he was told to look.
+v = await pg.evaluate(() => {
+  gotoTab('settings'); switchSettingsSub('set-products');
+  renderSelectablesUI();
+  const tbl = [...document.querySelectorAll('#selectablesUI table')]
+    .find(t => /Bracket every/i.test(t.textContent));
+  if (!tbl) return { found: false };
+  const row = tbl.querySelector('tbody tr');
+  const f = (n) => row.querySelector('[onchange*="' + n + '"]');
+  return { found: true,
+           cols: tbl.querySelectorAll('thead th').length,
+           spacing: !!f('bracketSpacingMm'), start: !!f('bracketStartPerRun'),
+           int: !!f('bracketIntEa'), ext: !!f('bracketExtEa'),
+           flat: !!f('extBracketLm'),
+           // the DEFAULT is the placeholder, so the box reads 800 in grey
+           ph: f('bracketSpacingMm') && f('bracketSpacingMm').placeholder };
+});
+check('the bracket boxes are on Gutter profiles, with the default as the placeholder',
+  v.found && v.spacing && v.start && v.int && v.ext && v.flat && v.ph === '800',
+  JSON.stringify(v));
 
 // ── (4) THE PAGE ─────────────────────────────────────────────────────
 v = await pg.evaluate(() => {

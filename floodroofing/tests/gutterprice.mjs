@@ -91,9 +91,12 @@ check('the gutter is no longer counted in the ROOFING material table', !kit.roof
 
 // ── MARLEY CLASSIC, itemised like Typhoon (2026-09-30) ──
 const classic = await opg.evaluate(() => _gutterMaterialLines('marley_classic', 30, 2, 2).map(r => r.desc.replace(/\s*\(.*\)$/, '') + ':' + r.qty + ':' + r.price));
-check('Marley Classic is priced item by item — spouting, brackets every 500 mm, outlets, joiners, angles, stop ends',
+// BRACKETS EVERY 450 mm PLUS ONE PER RUN since 2026-10-19 (the owner's own
+// defaults, now per gutter product on Quote's Product Options): 30 lm over two
+// runs is ceil(30 / 0.45) = 67, + 1 per run = 69. It was a flat 60 at 500 mm.
+check('Marley Classic is priced item by item — spouting, brackets every 450 mm + 1 per run, outlets, joiners, angles, stop ends',
   classic.some(x => /^Marley Classic spouting \(supply\):30:20$/.test(x) || /^Marley Classic spouting:30:20$/.test(x)) &&
-  classic.some(x => /^Marley Classic internal brackets:60:4\.7$/.test(x)) &&
+  classic.some(x => /^Marley Classic internal brackets:69:4\.7$/.test(x)) &&
   classic.some(x => /^Marley Classic 80mm dropper outlets:2:/.test(x)) &&
   classic.some(x => /^Marley Classic angles:2:33\.48$/.test(x) || /^Marley Classic angles \(int\/ext\):2:33\.48$/.test(x)) &&
   classic.some(x => /^Marley Classic stop ends:4:7\.15$/.test(x) || /^Marley Classic stop ends \(LH\/RH\):4:7\.15$/.test(x)), JSON.stringify(classic));

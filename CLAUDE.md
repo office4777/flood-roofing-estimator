@@ -3176,7 +3176,50 @@ Discipline (non-negotiable):
   downstream was already wired (`_selBracketExtDelta` → the summary,
   `_qpCardDeltas.bracketExt` → the option card, `_profitSelectionItems`'
   `brackets` row → the Pricing tab), so one read fixed all three.
-  `tests/matordering.mjs`.
+  AND THE QUOTE WORKS THE UPGRADE OUT BY ITSELF (2026-10-19, same morning: "i
+  want seperate gutter spacing per gutter type, (by default 125mm box gutter
+  should have a default of 800mm + 1 per run, then Marley tpyhoon and classic
+  should have default of 450mm spacing + 1 per run) also add in the cost on
+  internal brackets and external brackets so the quote options automatically
+  knows the difference"). A GUTTER'S BRACKETS ARE THE GUTTER'S BUSINESS:
+  `bracketSpacingMm`, `bracketStartPerRun`, `bracketIntEa` and `bracketExtEa`
+  are columns on each `selectables.gutters` row, read through
+  `_gutterBracketCfg(id)` / `_gutterBracketCount(id, lm, lines)` (= `ceil(lm /
+  spacing) + startPerRun × max(1, runs)`), and `GUTTER_BRACKET_DEFAULTS` is
+  what a row that does not say falls back to — 800 mm + 1/run on the box
+  gutter, 450 mm + 1/run on both Marleys. A BLANK BOX IS THE STANDARD, never
+  0: `_selEdit` DELETES the key rather than storing a 0, or emptying the
+  spacing would bracket a gutter at nothing and emptying a price would call a
+  bracket free. The default is the box's PLACEHOLDER, not its value, so there
+  is one source of truth and the table still reads "800" in grey.
+  `_bracketExtTotal(id, lm, lines)` holds the two honest models, in this
+  order: both brackets priced each → the real difference × the real count
+  (on an ITEMISED product the internal price always resolves from the book, so
+  an external price alone is enough); otherwise the flat `Ext $/lm`, which is
+  the ONLY honest answer where the brackets are inside the gutter's own $/lm
+  — the box gutter's $21/lm includes them, so there is no internal cost to
+  subtract and an external price ALONE is deliberately ignored there. A
+  difference of nothing or less is nothing: an external bracket cheaper than
+  an internal one is a slip in a box, not a discount to offer.
+  `_gutterBracketIntEa(id)` reads a figure typed on THIS job's card first,
+  then the row, and only then `gutterUnitPrices` and the price book — the row
+  ABOVE the snapshot on purpose, because that snapshot is rebuilt from the
+  book on every recalc and would otherwise beat the row on the next keystroke
+  (the `gutterPriceTyped` trap); the snapshot is still read, because the
+  customer's copy has no price book. Once the pair is priced the itemised row
+  is renamed to "internal brackets" — the shipped Typhoon wording says
+  external because that is the only bracket it ever had a price for, and
+  leaving it would have the quote built on the upgrade it is offering.
+  `_qpBuildPriced` had no `lines` local and now takes one; the per-run
+  brackets are counted per RUN, so the metres alone cannot answer.
+  THIS MOVED LIVE PRICES, and only these: Typhoon and Classic went from a flat
+  500 mm to 450 mm + 1 per run, so 30 m over two runs is 69 brackets where it
+  was 60. `pricegold` was regenerated and the moved set VERIFIED FIRST —
+  `marley_typhoon` and `marley_classic` only, and only where the office has
+  not overridden the gutter's total. No box-gutter quote moves, and a sent or
+  accepted quote is frozen. Check the moved set before regenerating that
+  baseline; the key's 5th field is the gutter.
+  `tests/matordering.mjs`, `tests/gutterprice.mjs`.
 - SETTINGS → MATERIAL ORDERING (2026-10-19, the owner: "add in a settings tab
   called 'Material Ordering' with a sub-tab called wastage, where is shows the
   wastage amount applied to every flashing type … then another sub-tab called
@@ -3193,16 +3236,19 @@ Discipline (non-negotiable):
   typeKey)`, which is the engine the priced take-off and the supplier order
   both come through. CONSUMABLES is `_ordCons()`: underlay waste %, screws per
   m² and the box they round up to, the rivet box and the metres of flashing it
-  covers, spare pipe flashings per size, and the gutter bracket spacing plus a
-  starting count per run.
+  covers, and spare pipe flashings per size. The gutter bracket spacing and
+  starting count were here for one day and moved onto the gutter PRODUCT on
+  2026-10-19 (see the external-bracket bullet) — one shared figure cannot be
+  right for a steel box gutter at 800 mm and a PVC spouting at 450; the row
+  left on the page says where they went.
   EVERY DEFAULT IS WHAT THE CODE ALREADY DID, to the decimal — 0.5 / 8 / 0.1,
-  20%, 8 per m² rounded to 100, a box of 100 rivets per 60 lm, 0 spares,
-  one bracket per 500 mm and none to start — so no job reprices and no order
+  20%, 8 per m² rounded to 100, a box of 100 rivets per 60 lm and 0 spares
+  — so no job reprices and no order
   changes until somebody types in the page. A BLANK BOX IS THE STANDARD, never
   0: `_ordNum` falls through on a cleared field, and `_ordCollect` writes only
   what was typed, so a figure RoofMap later improves still reaches an account
   that never touched it. A 0 where something is divided by is floored
-  (`screwsRound`, `rivetPack`, the bracket spacing), and a save made with the
+  (`screwsRound`, `rivetPack`), and a save made with the
   page never opened leaves the store alone (`_ordCollect` returns on no boxes)
   — the price book's own rule.
   FOUR HAND-COPIES OF THE SAME ARITHMETIC, found by grepping for the
