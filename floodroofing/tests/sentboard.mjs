@@ -192,6 +192,60 @@ v = await office.evaluate(async () => {
 });
 check('a second send leaves it on the board, once', /Dot Bolous/.test(v.listText) && v.feedLen === 1, JSON.stringify(v));
 
+// ── THE QUESTION, AND THE REPLY THAT IS KEPT (2026-10-19) ────────────
+// The owner: "i should get an email saying that on job #3303 that dot bolous
+// asked a question, show the question and let me reply to them directly ...
+// also keep history of that reply inside roofmap so i can see the
+// correspondence". Driven end to end against the real server here: the
+// customer asks through /q/:token/event, the board offers Reply, and the
+// reply goes through POST /jobs/:id/messages and comes back in the thread.
+await fetch(API + '/q/' + TOKEN + '/event?job=' + JOB, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ type: 'queried', message: 'Can you start before Christmas?' }) });
+await sleep(900);
+v = await office.evaluate(async () => {
+  gotoTab('select');
+  await new Promise(r => setTimeout(r, 300));
+  await fetchQuoteActivity();
+  _hbSelect('questions');
+  await new Promise(r => setTimeout(r, 250));
+  const host = document.getElementById('homeBoard');
+  return { html: host ? host.innerHTML : '', text: host ? host.textContent.slice(0, 400) : '' };
+});
+check('the Home board shows the question and offers a Reply on the row',
+  /Can you start before Christmas/.test(v.text) && /_convoOpen\(/.test(v.html),
+  v.text.slice(0, 200));
+
+v = await office.evaluate(async (jobId) => {
+  _convoOpen(jobId, 'Dot Bolous', '3303');
+  for (let i = 0; i < 40; i++){
+    const b = document.getElementById('convoBody');
+    if (b && /Christmas/.test(b.textContent || '')) break;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  const b = document.getElementById('convoBody');
+  return { shown: document.getElementById('jobConvoModal').style.display, body: (b && b.textContent) || '' };
+}, JOB);
+check('…and the window opens on the customer’s own words',
+  v.shown === 'flex' && /Can you start before Christmas/.test(v.body), JSON.stringify(v));
+
+v = await office.evaluate(async () => {
+  document.getElementById('convoReply').value = 'Yes — we have a gap the week of the 8th.';
+  await _convoSend();
+  for (let i = 0; i < 40; i++){
+    const b = document.getElementById('convoBody');
+    if (b && /week of the 8th/.test(b.textContent || '')) break;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  const b = document.getElementById('convoBody'), m = document.getElementById('convoMsg');
+  return { body: (b && b.textContent) || '', msg: (m && m.textContent) || '',
+           box: document.getElementById('convoReply').value };
+});
+check('a reply typed on the job is sent and kept beside the question',
+  /week of the 8th/.test(v.body) && /Can you start before Christmas/.test(v.body) &&
+  /Sent to the customer and kept here/.test(v.msg) && v.box === '',
+  JSON.stringify(v));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 await b.close();

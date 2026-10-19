@@ -3317,8 +3317,48 @@ Discipline (non-negotiable):
   does not claim to have found it — it makes the next one say so.
   `tests/custevents.mjs` is a real tripwire: against the old build 12 of 23
   pins fail and every safety pin passes.
-  STILL OPEN AND ASKED FOR: the office's Gmail reply to a customer's question
-  kept in RoofMap as correspondence.
+- THE CORRESPONDENCE ON A JOB (2026-10-19, the owner: "i should get an email
+  saying that on job #3303 that dot bolous asked a question, show the question
+  and let me reply to them directly in Gmail, also keep history of that reply
+  inside roofmap so i can see the correspondence"). He asked for both halves
+  and chose both: reply in RoofMap now, the Gmail half when the mailbox is
+  connected.
+  `job_messages` is its OWN table, not a field on the quote, for three reasons
+  worth keeping: the quote is rewritten wholesale by every save; the customer
+  is SERVED the quote, and `_customerQuoteView`'s strip list only applies once
+  a quote carries sell prices, so an older one would have leaked the office's
+  words; and `msg_id` / `in_reply_to` are what a Gmail reply pulled in later
+  threads onto. `_jobMessageAdd` never throws into a caller — losing a line of
+  history must not cost the email that carries it.
+  EVERY MESSAGE CARRIES A MESSAGE-ID WE CHOSE (`_newMessageId`,
+  `<rm-q<job>-<rand>@roofmap.co.nz>`), because that is the only thread handle
+  an emailed conversation has. `_questionNotify` stamps one on the outgoing
+  notification and stores it beside the question, so the office's own Gmail
+  reply quotes it in In-Reply-To and can be matched to the job whenever the
+  mailbox is connected — nothing more is needed on that side than reading it.
+  `_dispatchMail` takes `messageId` and `inReplyTo` and passes them to Resend
+  as headers; the GOOGLE RELAY cannot set one at all, which is exactly why the
+  id is STORED rather than only put on the wire.
+  `GET /jobs/:id/messages` and `POST /jobs/:id/messages` are both scoped
+  through `_jobForCaller` BEFORE anything is read or written — a thread names a
+  customer and quotes their words. The reply is emailed to `share.sentTo`, in
+  the same subject and thread as the question, from the company's name with
+  replies coming back to the office. THE HISTORY IS KEPT EVEN WHEN THE EMAIL
+  FAILS and says so on the row (`via: 'not-sent'`, shown in red): a reply the
+  office typed is the record of what they meant to say, and losing it because a
+  provider was down is the worse of the two failures.
+  The office opens it from the Question row on the Home board — where he sees
+  one — with `event.stopPropagation()` on the button, or the row's own onclick
+  opens the job underneath it. `tests/custevents.mjs` (37) pins the server,
+  `tests/sentboard.mjs` (16) drives the whole round trip against the real
+  server: the customer asks through `/q/:token/event`, the board offers Reply,
+  the reply goes out and comes back in the thread.
+  STILL TO DO, and it needs him: pulling his GMAIL reply back in. The pieces
+  are there (`mail_threads.job_id`, `mail_messages.in_reply_to`, the
+  `_inboxSweep`), but the Inbox is `requirePlan('inbox', …, 'Business')` and
+  needs office@floodroofing.co.nz connected in Settings. Match an inbound
+  message to a job by `in_reply_to` against `job_messages.msg_id` and write it
+  in with `who: 'customer'`, `via: 'gmail'`.
 - AN ACCEPTANCE REACHES THE FERGUS JOB (2026-10-19, the owner: "can it auto
   automatically upload the accepted quote as it's pdf to the job in fergus,
   can it also add the customers choices … as the job description in fergus

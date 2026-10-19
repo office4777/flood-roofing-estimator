@@ -4962,7 +4962,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-19T23:03:28Z';
+  window.APP_BUILT_AT = '2026-10-19T23:18:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5598,6 +5598,27 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <!-- Above the job details window (9998/9999): History is opened from a button
      inside it, and at 8998/8999 it opened behind the window that launched it. -->
 <div id="jobHistOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:10048" onclick="_jobHistoryClose()"></div>
+<!-- THE CORRESPONDENCE ON A JOB (2026-10-19, the owner: "i should get an
+     email saying that on job #3303 that dot bolous asked a question, show the
+     question and let me reply to them directly ... also keep history of that
+     reply inside roofmap so i can see the correspondence"). Opened from the
+     Question row on the Home board, which is where he sees one. -->
+<div id="jobConvoBack" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.38);z-index:10050" onclick="_convoClose()"></div>
+<div id="jobConvoModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:620px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:10051;overflow:hidden;flex-direction:column">
+  <div style="background:#92400e;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
+    <strong style="flex:1;font-size:14px">Correspondence</strong>
+    <span id="convoWho" style="font-size:12px;opacity:.92"></span>
+    <button onclick="_convoClose()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">&#10005;</button>
+  </div>
+  <div id="convoBody" style="padding:14px 18px;overflow-y:auto;font-size:12.5px;flex:1 1 auto;min-height:120px"></div>
+  <div style="border-top:1px solid var(--border);padding:12px 18px;background:#fbfcfe">
+    <textarea id="convoReply" rows="4" placeholder="Write your reply&hellip; it is emailed to the customer and kept here." style="width:100%;font-size:13px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;resize:vertical"></textarea>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:9px">
+      <span id="convoMsg" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
+      <button id="convoSendBtn" onclick="_convoSend()" style="background:#0099cc;border:none;color:#fff;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:700">Send reply</button>
+    </div>
+  </div>
+</div>
 <div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:10049;overflow:hidden;flex-direction:column">
   <div style="background:#ea580c;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
     <strong style="flex:1;font-size:14px">Job history</strong>
@@ -19751,6 +19772,85 @@ function _jobHistoryOpen(){
         : '<div style="color:var(--text2);font-size:11.5px">None sent yet.</div>');
   });
 }
+// THE CORRESPONDENCE WINDOW. The thread comes from the server (job_messages),
+// so it is the same history whichever device opens it, and a reply typed here
+// is emailed to the customer AND kept - see POST /jobs/:id/messages.
+var _CONVO = { jobId: '', client: '', ref: '' };
+function _convoOpen(jobId, client, ref){
+  if (!jobId) return;
+  _CONVO = { jobId: String(jobId), client: client || '', ref: ref || '' };
+  var w = document.getElementById('convoWho');
+  if (w) w.textContent = (client || '') + (ref ? (' · ' + ref) : '');
+  var r = document.getElementById('convoReply'); if (r) r.value = '';
+  var m = document.getElementById('convoMsg'); if (m) m.textContent = '';
+  var b = document.getElementById('convoBody');
+  if (b) b.innerHTML = '<div style="color:var(--text2);padding:8px 0">Loading…</div>';
+  var el = document.getElementById('jobConvoModal'), bk = document.getElementById('jobConvoBack');
+  if (bk) bk.style.display = 'block';
+  if (el) el.style.display = 'flex';
+  _convoLoad();
+}
+function _convoClose(){
+  var el = document.getElementById('jobConvoModal'), bk = document.getElementById('jobConvoBack');
+  if (el) el.style.display = 'none';
+  if (bk) bk.style.display = 'none';
+}
+async function _convoLoad(){
+  var b = document.getElementById('convoBody'); if (!b || !_CONVO.jobId) return;
+  try {
+    var out = await api('GET', '/jobs/' + encodeURIComponent(_CONVO.jobId) + '/messages');
+    _convoRender((out && out.messages) || []);
+  } catch(e){
+    // A failed read is an error, never an empty thread: "no messages" and
+    // "we could not read them" look identical and mean opposite things.
+    b.innerHTML = '<div style="color:#b91c1c">The correspondence could not be read just now — ' +
+      esc2(String((e && e.message) || e)) + '</div>';
+  }
+}
+function _convoRender(list){
+  var b = document.getElementById('convoBody'); if (!b) return;
+  if (!list.length){
+    b.innerHTML = '<div style="color:var(--text2);padding:8px 0">Nothing yet. A question a customer asks on their quote appears here, and so does every reply.</div>';
+    return;
+  }
+  b.innerHTML = list.map(function(m){
+    var own = (m.who === 'office');
+    var when = '';
+    try { when = new Date(m.at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }); } catch(e){}
+    return '<div style="margin:0 0 11px;padding:9px 12px;border-radius:10px;' +
+      (own ? 'background:#eaf6fb;border:1px solid #cce8f3;margin-left:38px' : 'background:#fffbeb;border:1px solid #fde68a;margin-right:38px') + '">' +
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">' +
+        esc2(own ? (m.author || 'You') : (m.author || _CONVO.client || 'Customer')) +
+        (when ? (' · ' + esc2(when)) : '') +
+        (m.via === 'not-sent' ? ' · <span style="color:#b91c1c;font-weight:700">not emailed</span>' : '') +
+      '</div>' +
+      '<div style="white-space:pre-wrap">' + esc2(m.body || '') + '</div></div>';
+  }).join('');
+  b.scrollTop = b.scrollHeight;
+}
+async function _convoSend(){
+  var r = document.getElementById('convoReply'), msg = document.getElementById('convoMsg'),
+      btn = document.getElementById('convoSendBtn');
+  if (!r || !_CONVO.jobId) return;
+  var body = String(r.value || '').trim();
+  if (!body){ if (msg) msg.textContent = 'Write something first.'; return; }
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  if (msg){ msg.style.color = 'var(--text2)'; msg.textContent = ''; }
+  try {
+    var out = await api('POST', '/jobs/' + encodeURIComponent(_CONVO.jobId) + '/messages', { body: body });
+    r.value = '';
+    if (msg){
+      // Said plainly either way: a reply kept but not emailed is not a send.
+      msg.style.color = (out && out.sent) ? '#15803d' : '#b45309';
+      msg.textContent = (out && out.sent) ? '✓ Sent to the customer and kept here'
+        : 'Kept here, but the email did not go out' + ((out && out.error) ? (' — ' + out.error) : '');
+    }
+    await _convoLoad();
+  } catch(e){
+    if (msg){ msg.style.color = '#b91c1c'; msg.textContent = String((e && e.message) || e); }
+  }
+  if (btn){ btn.disabled = false; btn.textContent = 'Send reply'; }
+}
 function _jobHistoryClose(){
   var o = document.getElementById('jobHistOverlay'), m = document.getElementById('jobHistModal');
   if (o) o.style.display = 'none';
@@ -22335,7 +22435,12 @@ function _renderHomeBoard(){
   });
   var questions = feed.filter(function(f){ return f.status === 'queried'; }).map(function(f){
     return feedRow(f, 'Question', '#fef3c7', '#92400e',
-      (f.query && f.query.message) ? '<div class="hb-row-sub" style="color:#92400e">“' + esc2(String(f.query.message).slice(0, 120)) + '”</div>' : '');
+      ((f.query && f.query.message) ? '<div class="hb-row-sub" style="color:#92400e">“' + esc2(String(f.query.message).slice(0, 120)) + '”</div>' : '') +
+      // Answering is the whole point of the row, so the way to do it is ON it.
+      // stopPropagation, or the row's own onclick opens the job underneath.
+      '<div class="hb-row-sub"><button onclick="event.stopPropagation();_convoOpen(\'' + f.jobId + '\',\'' +
+        esc2(String(f.client || '').replace(/'/g, '')) + '\',\'' + esc2(String(f.ref || '').replace(/'/g, '')) +
+        '\')" style="background:#92400e;border:none;color:#fff;border-radius:6px;padding:4px 11px;cursor:pointer;font-size:11.5px;font-weight:700;margin-top:3px">✉ Reply</button></div>');
   });
   var declined = feed.filter(function(f){ return f.status === 'declined'; }).map(function(f){
     return feedRow(f, 'Declined', '#fee2e2', '#b91c1c', '');

@@ -763,7 +763,7 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, attachmen
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress }) {
+async function _resendSendMail({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
   // Their name, a verified address — Resend will not send from a domain
@@ -777,6 +777,9 @@ async function _resendSendMail({ to, cc, subject, text, html, attachment, attach
     : EMAIL_FROM;
   const payload = { from: from, to: _split(to), subject, text };
   if (replyTo || EMAIL_REPLYTO) payload.reply_to = _split(replyTo || EMAIL_REPLYTO);
+  if (messageId) payload.headers = Object.assign({}, payload.headers, { 'Message-ID': messageId });
+  if (inReplyTo) payload.headers = Object.assign({}, payload.headers,
+    { 'In-Reply-To': inReplyTo, 'References': inReplyTo });
   if (html) payload.html = html;
   if (cc) payload.cc = _split(cc);
   const _f = _mailFiles(attachment, attachments);
@@ -938,7 +941,15 @@ function _mailFiles(attachment, attachments){
     return true;
   });
 }
-async function _dispatchMailInner({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, platform }) {
+// A MESSAGE-ID WE CHOSE, not one the provider invented. It is the only thread
+// handle an emailed conversation has: a reply carries it in In-Reply-To, so
+// storing it beside the question is what lets the office's own Gmail reply be
+// matched to this job later, whether or not the mailbox is connected yet.
+function _newMessageId(tag){
+  const r = crypto.randomBytes(8).toString('hex');
+  return '<rm-' + String(tag || 'm').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 40) + '-' + r + '@roofmap.co.nz>';
+}
+async function _dispatchMailInner({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, platform, messageId, inReplyTo }) {
   const _files = _mailFiles(attachment, attachments);
   attachment = _files[0] || null;
   attachments = _files;
@@ -956,7 +967,7 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, att
   // to exactly yesterday's behaviour instead of silence.
   if (RESEND_ENABLED) {
     try {
-      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress });
+      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo });
     } catch (e) {
       // A stale key or an unverified domain must not take the platform's mail
       // down while a working relay is configured. Degrade, and page about it —
@@ -3823,6 +3834,81 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
 // Those go here: a few KB merged into the stored share, instead of the whole
 // multi-MB quote again. Keys the office's copy does not carry (the customer's
 // opens and events) are kept.
+// THE CORRESPONDENCE ON A JOB, read and written (2026-10-19, the owner: "let
+// me reply to them directly in Gmail, also keep history of that reply inside
+// roofmap so i can see the correspondence"). The office can reply from here
+// and the reply is kept; a reply sent from Gmail instead is matched back by
+// In-Reply-To once the mailbox is connected, which is why every message
+// carries the Message-ID we chose for it.
+// The job is checked against the caller's company BEFORE anything is read or
+// written: a message thread names a customer and quotes their words.
+async function _jobForCaller(req, id){
+  const sel = 'id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote';
+  let q = supabase.from('jobs').select(sel).eq('id', id);
+  const { data, error } = await q.limit(1);
+  if (error) throw new Error(error.message);
+  const job = data && data[0];
+  if (!job) return null;
+  const mine = String(job.user_id || '') === String(req.user.id);
+  const sameCo = req.companyId && job.company_id && String(job.company_id) === String(req.companyId);
+  return (mine || sameCo) ? job : null;
+}
+app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
+  try {
+    const job = await _jobForCaller(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const { data, error } = await supabase.from('job_messages')
+      .select('id, who, author, body, at, via')
+      .eq('job_id', job.id).order('at', { ascending: true }).limit(200);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, messages: data || [] });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+app.post('/jobs/:id/messages', requireAuth, rateLimit(30, 60000), async (req, res) => {
+  try {
+    const body = String((req.body || {}).body || '').trim();
+    if (!body) return res.status(400).json({ error: 'A message is required' });
+    const job = await _jobForCaller(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const quote = _quoteOf(job) || {};
+    const sh = quote.share || {};
+    const toCust = _emailList(sh.sentTo || quote.email || '')[0];
+    if (!toCust) return res.status(400).json({ error: 'There is no customer email address on this job to reply to.', code: 'NO_CUSTOMER_EMAIL' });
+    let st = null; try { st = await _settingsRowForJob(job); } catch (e) {}
+    const em = _emailCfgOfRow(st);
+    const br = ((st || {}).branding) || {};
+    const ref = quote.ref ? String(quote.ref) : '';
+    // The thread the customer sees is the question email they already have,
+    // so the subject matches it and the reply quotes its Message-ID.
+    const last = await supabase.from('job_messages').select('msg_id, who, at')
+      .eq('job_id', job.id).order('at', { ascending: false }).limit(5)
+      .then(r => ((r.data || []).find(m => m.who === 'customer' && m.msg_id) || null))
+      .catch(() => null);
+    const mine = _newMessageId('r' + String(job.id).slice(0, 8));
+    const subject = 'Re: Your quote' + (ref ? (' ' + ref) : '') +
+      (br.company_name ? (' \u2014 ' + String(br.company_name).trim()) : '');
+    const author = String((req.user && (req.user.name || req.user.email)) || br.company_name || '').slice(0, 200);
+    const sig = br.company_name ? ('\n\nKind regards,\n' + String(br.company_name).trim() +
+      (br.phone ? ('\n' + br.phone) : '') + (br.email ? ('\n' + br.email) : '')) : '';
+    let mailOk = false, mailErr = '';
+    try {
+      const out = await _dispatchMail({ to: toCust,
+        cc: _emailCopies(st, em.question_cc, _emailList(toCust)),
+        subject, text: body + sig, messageId: mine,
+        inReplyTo: (last && last.msg_id) || undefined,
+        fromName: String(br.company_name || '').trim() || undefined,
+        replyTo: _emailList(em.question_to).join(', ') || _emailList(em.reply_to)[0] || br.email || undefined });
+      mailOk = !(out && out.held);
+    } catch (e) { mailErr = String((e && e.message) || e).slice(0, 200); }
+    // THE HISTORY IS KEPT EVEN WHEN THE EMAIL FAILS, and says so: a reply the
+    // office typed is the record of what they meant to say, and losing it
+    // because a mail provider was down is the worse of the two failures.
+    const row = await _jobMessageAdd(job, { who: 'office', author, body,
+      msgId: mine, inReplyTo: (last && last.msg_id) || '', via: mailOk ? 'roofmap' : 'not-sent' });
+    try { _quoteFeedInvalidate(req.companyId); } catch (e) {}
+    res.json({ ok: true, sent: mailOk, error: mailErr || undefined, message: row || undefined });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
 app.put('/jobs/:id/quote-share', requireAuth, async (req, res) => {
   try { _quoteFeedInvalidate(req.companyId); } catch (e) {}
   const share = req.body && req.body.share;
@@ -5142,6 +5228,27 @@ async function _officeNotifyTo(job, quote){
 // question only flipped a status — so it waited until somebody happened to
 // look at the Home tab, which on a busy week is the next day. The ball is in
 // the office's court by definition, and nothing was telling them.
+// One row per message, either way. Never throws into a caller: losing a line
+// of history must not cost the email that carries it.
+async function _jobMessageAdd(job, m){
+  try {
+    if (!job || !job.id) return null;
+    const row = {
+      id: crypto.randomUUID(), company_id: job.company_id || null, user_id: job.user_id || null,
+      job_id: job.id, who: (m.who === 'office' ? 'office' : 'customer'),
+      author: String(m.author || '').slice(0, 200), body: String(m.body || '').slice(0, 8000),
+      msg_id: String(m.msgId || '').slice(0, 300), in_reply_to: String(m.inReplyTo || '').slice(0, 300),
+      via: String(m.via || '').slice(0, 40),
+      at: m.at || new Date().toISOString(), created_at: new Date().toISOString(),
+    };
+    await supabase.from('job_messages').insert(row);
+    return row;
+  } catch (e) {
+    try { recordError('server', new Error('job message insert failed: ' + (e && e.message || e)),
+      { route: '/jobs/:id/messages', company: (job && job.company_id) || '' }); } catch (e2) {}
+    return null;
+  }
+}
 async function _declineNotify(job, quote){
   try {
     if (!job) return;
@@ -5193,6 +5300,7 @@ function _notifyNoRecipient(job, kind){
     { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e) {}
 }
 async function _questionNotify(job, quote, message){
+  let _qMsgId = '';
   try {
     if (!job) return;
     const ref = (quote && quote.ref) ? String(quote.ref) : '';
@@ -5223,8 +5331,11 @@ async function _questionNotify(job, quote, message){
         // of telling the office a customer is waiting on an answer.
         let _att; try { _att = await _termsFilesFor(st, 'question', job.company_id); } catch (e) { _att = undefined; }
         if (to) {
+          // Our own Message-ID: the office's Gmail reply quotes it in
+          // In-Reply-To, which is how that reply is matched back to this job.
+          _qMsgId = _newMessageId('q' + String(job.id || '').slice(0, 8));
           await _dispatchMail({ to, cc: _emailCopies(st, em.question_cc, _emailList(to)), subject, text: body,
-            attachments: _att,
+            attachments: _att, messageId: _qMsgId,
             fromName: String((((st || {}).branding) || {}).company_name || '').trim() || undefined,
             replyTo: cust || undefined });
           await _shareStamp(job, quote, 'queryOfficeAt');
@@ -5233,6 +5344,11 @@ async function _questionNotify(job, quote, message){
         }
       }
     }
+    // The first line of the correspondence on this job, whatever happens to
+    // the email. The question is the customer's words, so it is kept even
+    // when there is nobody to notify.
+    await _jobMessageAdd(job, { who: 'customer', author: who, body: String(message || ''),
+      msgId: _qMsgId, via: 'quote-link' });
     // And on somebody's list, so it survives an unread inbox.
     if (job.company_id) {
       await supabase.from('comms_tasks').insert({
@@ -12417,6 +12533,16 @@ const _MIGRATION_SQL = [
   "create unique index if not exists idx_mail_messages_mid on public.mail_messages (account_id, msg_id) where msg_id <> ''",
   "alter table public.mail_messages enable row level security",
   "alter table public.mail_threads add column if not exists ai_draft text",
+  // THE CORRESPONDENCE ON A JOB (2026-10-19, the owner: "let me reply to them
+  // directly in Gmail, also keep history of that reply inside roofmap so i can
+  // see the correspondence"). Its OWN table rather than a field on the quote,
+  // for three reasons: the quote is rewritten wholesale by every save, the
+  // customer is served the quote (and the strip list only applies once a quote
+  // carries sell prices, so an older one would leak the office's words), and
+  // msg_id / in_reply_to are what a Gmail reply pulled in later threads onto.
+  "create table if not exists public.job_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, who text not null default 'customer', author text not null default '', body text not null default '', msg_id text not null default '', in_reply_to text not null default '', via text not null default '', at timestamptz not null default now(), created_at timestamptz not null default now())",
+  "create index if not exists idx_job_messages_job on public.job_messages (company_id, job_id, at)",
+  "alter table public.job_messages enable row level security",
   "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
   "alter table public.comms_tasks enable row level security",

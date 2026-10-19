@@ -22,8 +22,11 @@ import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
+import { createRequire } from 'node:module';
 const _ROOT = _j(_d(_f(import.meta.url)), '..');
 import { startFakePostgrest } from './fakepgrst.mjs';
+const require = createRequire(_j(_ROOT, 'backend') + '/');
+const jwt = require('jsonwebtoken');
 const results = [];
 function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  '+n+(d?('  — '+d):'')); }
 
@@ -59,7 +62,7 @@ const { db, port } = await startFakePostgrest({
       branding: { company_name: 'Off Co', email: 'office@off.nz' },
       quote_defaults: { email: { accept_to: 'office@off.nz', decline_on: false } } },
   ],
-  comms_tasks: [],
+  comms_tasks: [], job_messages: [],
   jobs: [
     // 3305's shape: accepted, and the browser never called accept-email.
     job('j-acc', quote()),
@@ -140,6 +143,10 @@ console.log = log; console.warn = warn; console.error = err;
 await new Promise(r => setTimeout(r, 700));
 const BASE = 'http://127.0.0.1:' + PORT;
 const post = (p, b) => fetch(BASE + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b || {}) });
+const TOK = jwt.sign({ id: 'u1', email: 'owner@flood.nz', cid: 'c1' }, 'test-secret');
+const auth = (m, p, b) => fetch(BASE + p, { method: m,
+  headers: { 'content-type': 'application/json', authorization: 'Bearer ' + TOK },
+  body: b === undefined ? undefined : JSON.stringify(b) });
 const settle = (ms) => new Promise(r => setTimeout(r, ms || 900));
 const to = (addr) => sent.filter(m => String(m.to || '').split(/,\s*/).includes(addr));
 // A tripwire has to survive its own first failure, or it proves one pin and
@@ -242,6 +249,44 @@ await (await post('/admin/office-owed/run?token=ce-test-token', {})).json().catc
 await settle();
 check('…and a second pass sends nothing, because the first claimed it',
   to('office@flood.nz').length === 0, JSON.stringify(to('office@flood.nz').map(m => m.subject)));
+
+// ── THE CORRESPONDENCE ON A JOB ──────────────────────────────────────
+// "i should get an email saying that on job #3303 that dot bolous asked a
+// question, show the question and let me reply to them directly ... also keep
+// history of that reply inside roofmap so i can see the correspondence".
+let conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+check('the customer\u2019s question is the first line of the job\u2019s correspondence',
+  (conv.messages || []).length === 1 && conv.messages[0].who === 'customer' &&
+  /Can you start before Christmas\?/.test(conv.messages[0].body || ''),
+  JSON.stringify(conv));
+check('\u2026and a Message-ID was chosen for it, which is what a Gmail reply threads onto',
+  (db.job_messages || []).some(m => m.job_id === 'j-q' && /^<rm-q.*@roofmap\.co\.nz>$/.test(m.msg_id || '')),
+  JSON.stringify((db.job_messages || []).map(m => m.msg_id)));
+
+sent.length = 0;
+let rep1 = await (await auth('POST', '/jobs/j-q/messages',
+  { body: 'Yes — we have a gap the week of the 8th.' })).json();
+await settle();
+check('a reply typed in RoofMap is emailed to the customer',
+  rep1.ok && rep1.sent === true && to('dot@example.com').length === 1 &&
+  /week of the 8th/.test((to('dot@example.com')[0] || {}).text || ''),
+  JSON.stringify({ r: rep1, subj: (to('dot@example.com')[0] || {}).subject }));
+check('\u2026quoting the question\u2019s Message-ID, so it lands in the same thread in their inbox',
+  (db.job_messages || []).some(m => m.who === 'office' && /^<rm-q/.test(m.in_reply_to || '')),
+  JSON.stringify((db.job_messages || []).map(m => ({ w: m.who, irt: m.in_reply_to }))));
+conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+check('\u2026and it is kept, so the office can see the correspondence',
+  (conv.messages || []).length === 2 && conv.messages[1].who === 'office' &&
+  /week of the 8th/.test(conv.messages[1].body || ''),
+  JSON.stringify((conv.messages || []).map(m => m.who)));
+
+// A job in another company is not readable, and an empty reply is refused.
+const TOK2 = jwt.sign({ id: 'u2', email: 'owner@off.nz', cid: 'c2' }, 'test-secret');
+const other = await fetch(BASE + '/jobs/j-q/messages', { headers: { authorization: 'Bearer ' + TOK2 } });
+check('another company cannot read the thread \u2014 it names a customer and quotes their words',
+  other.status === 404, 'status ' + other.status);
+check('an empty reply is refused rather than emailed',
+  (await auth('POST', '/jobs/j-q/messages', { body: '   ' })).status === 400);
 
 // ── THE FERGUS JOB LEARNS WHAT THEY CHOSE ────────────────────────────
 // "can it auto automatically upload the accepted quote as it's pdf to the job
