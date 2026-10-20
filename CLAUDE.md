@@ -1937,6 +1937,20 @@ Discipline (non-negotiable):
   the header says so. Named for the quote's ref so two jobs do not
   overwrite each other.
   `tests/pbdefaults.mjs`.
+- A 5 MB PAGE IS NOT A 30-SECOND LOAD, EXCEPT ON A BUSY RUNNER (2026-10-20):
+  `roofmenu` died at 30.4 s on a main run with nothing but `TimeoutError`, and
+  a red main SKIPS THE PROMOTE, so one slow `file://` load of app.html held a
+  whole ship. Playwright's default NAVIGATION timeout is exactly 30 s and no
+  suite had ever raised it; the re-run went green, which is the signature.
+  `tests/_navtimeout.cjs` is preloaded into every suite by `run.mjs`
+  (`NODE_OPTIONS=--require`, so `playwright` is patched before a suite's own
+  import binds a name) and arms each context and page with 90 s
+  (`TEST_NAV_TIMEOUT_MS` to change it). ONLY the navigation timeout: waiting
+  longer for a page costs nothing on a green run, while waiting longer for a
+  button that will never appear only makes a real failure slower to find.
+  That is one lever instead of ~200 `goto` calls across 100 suites, which is
+  200 chances to fumble an edit. Proved by measurement, not assertion: with
+  the preload at 3000 and 8000 ms a hanging server times out at 3003 and 8003.
 - ONE BUTTON PER GUTTER YOU SELL (2026-10-20, the owner: "the default pricings
   'Guttering & spouting' section should show each of the gutter options listed
   in the 'quotes product options' show them as buttons to select to switch

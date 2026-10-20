@@ -94,7 +94,10 @@ function run(name){
     const started = Date.now();
     const p = spawn(process.execPath, [join(HERE, name + '.mjs')], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: Object.assign({}, process.env, { TEST_PORT: String(_nextPort++) }),
+      env: Object.assign({}, process.env, { TEST_PORT: String(_nextPort++),
+        // Every suite gets a longer PAGE-LOAD timeout; see _navtimeout.cjs.
+        NODE_OPTIONS: ((process.env.NODE_OPTIONS || '') + ' --require ' +
+                       JSON.stringify(join(HERE, '_navtimeout.cjs'))).trim() }),
     });
     let out = '';
     p.stdout.on('data', d => { out += d; });
