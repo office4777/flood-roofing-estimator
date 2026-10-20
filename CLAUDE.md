@@ -1080,10 +1080,20 @@ Discipline (non-negotiable):
   the Quote tab. The left menu is on every tab, so this is. ALWAYS shown,
   including on a job never saved, which is the job that needs it most;
   `saveCurrentJob` carries its own guards and `_saveClick` says what happened.
-  STILL TO ASK SCOTT: "snap grid kept at maximum zoom" was in the same list and
-  is not clear enough to act on — the snap grid is already screen-constant at
-  every zoom (`g = gridSize / tr.s`), so whether he wants it to stay coarse or
-  to get FINER as he zooms in changes the fix completely. Not guessed at.
+  ANSWERED, 2026-10-20: "snap grid kept at maximum zoom" was in that list and
+  was too vague to act on — the grid is already screen-constant at every zoom.
+  Scott clarified: "to clarify I'm thinking it's the contrast of the grid, the
+  thin light blue lines could be darker contrast to allow better snap /
+  alignment with structure edges". He is right, and the cause was not the
+  colour: the snap grid was painted BEFORE the aerial, so the photo went
+  straight over it. On the one job where a grid earns its keep — lining an
+  outline edge up with a wall — there was nothing to line up with. It is
+  painted AFTER the picture now, in mid-slate, and its ink follows what is
+  behind it (0.42 over a photo, 0.17 on a blank page: measured line-against-
+  ground contrast 1 → 14 over an aerial, and barely moved on white, where the
+  old pale grid was right). Screen-constant at every zoom, exactly as before.
+  The ALIGNMENT grid stays orange and stays louder — that one is only up while
+  the rotate slider is being dragged and is meant to be shouted.
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`

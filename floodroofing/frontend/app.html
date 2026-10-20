@@ -5073,7 +5073,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T22:12:22Z';
+  window.APP_BUILT_AT = '2026-10-20T22:18:38Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -59328,16 +59328,6 @@ function redrawAll() {
     ctx.strokeRect(2,2,W-4,H-4);
   }
 
-  // Grid — skipped when the Materials roof-map mirror asks for a
-  // clean white background (window._matRoofMapHideGrid).
-  var snapEl=document.getElementById('snapGrid');
-  if(snapEl&&snapEl.checked && !window._matRoofMapHideGrid){
-    var g=parseInt(document.getElementById('gridSize').value)||20;
-    ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=0.5;
-    for(var gx=0;gx<=W;gx+=g){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
-    for(var gy=0;gy<=H;gy+=g){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
-  }
-
   // Background sketch — drawn at correct aspect ratio, zoom+pan applied.
   // Skipped when the Materials roof-map mirror is being captured for
   // the Detailed view (window._matRoofMapHideBg) — that surface wants
@@ -59384,6 +59374,37 @@ function redrawAll() {
     ctx.restore();
     ctx.globalAlpha=1;
     }
+  }
+
+  // ── SNAP GRID ─────────────────────────────────────────────────────
+  // DRAWN OVER THE PICTURE, NOT UNDER IT (2026-10-20, Scott at
+  // info@wellingtonroof.co.nz, relayed by the owner: "to clarify I'm thinking
+  // it's the contrast of the grid, the thin light blue lines could be darker
+  // contrast to allow better snap / alignment with structure edges"). It was
+  // painted BEFORE the aerial and in #e8e8e8 at half a pixel — so on the one
+  // job where a grid earns its keep, lining an outline edge up with a wall,
+  // the photo painted straight over it and there was nothing to line up with.
+  // A grid you cannot see is not a grid.
+  //
+  // Mid-slate at low alpha reads on both a white page and a green-and-grey
+  // aerial without becoming the loudest thing on the canvas; the alignment
+  // grid stays ORANGE and stays louder, because that one is only up while the
+  // rotate slider is being dragged and is meant to be shouted. Screen-constant
+  // at every zoom, exactly as before — only where it is painted has changed.
+  var snapEl=document.getElementById('snapGrid');
+  if(snapEl&&snapEl.checked && !window._matRoofMapHideGrid){
+    var g=parseInt(document.getElementById('gridSize').value)||20;
+    // A grid has to beat whatever is behind it, and no more. Over a photo
+    // that takes real ink; on a blank white canvas the same ink is a loud
+    // cage around a drawing nobody asked to put in one.
+    var _sbEl=document.getElementById('showBg');
+    var _onPic=!!(DRAW.bgImg && _sbEl && _sbEl.checked && !window._matRoofMapHideBg &&
+                  parseFloat((document.getElementById('bgOpacity')||{}).value || 0.35) > 0.05);
+    ctx.save();
+    ctx.strokeStyle='rgba(51,65,85,'+(_onPic?0.42:0.17)+')'; ctx.lineWidth=1;
+    for(var gx=0;gx<=W;gx+=g){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+    for(var gy=0;gy<=H;gy+=g){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+    ctx.restore();
   }
 
   // ── ALIGNMENT GRID — shown while dragging the rotation slider ──────
