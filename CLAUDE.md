@@ -3940,6 +3940,24 @@ On ANY machine, run `git config core.hooksPath .githooks` once or
 
 **Open — needs the owner (Aron). None of these can be checked from a cloud
 session, and none has been confirmed done since the date beside it.**
+- 2026-10-20, NEW AND LIVE: RAILWAY HAS STOPPED PICKING UP `production`.
+  `2fed101`'s promote went red twice on the backend step — `/health` still
+  reported `896e17b` after 10 minutes, and again on a re-run 20 minutes later.
+  The FRONTEND verified both times ("Live after 40s"), so roofmap.co.nz is on
+  `2fed101`. It did not matter for that commit — `git diff 896e17b..2fed101 --
+  floodroofing/backend/` is EMPTY, so the API is running byte-identical server
+  code and the check is comparing SHAs, not behaviour — but Railway DID deploy
+  `896e17b` ninety minutes earlier, so this is not a path filter, it is the
+  service not taking the push. THE NEXT BACKEND SHIP IS A REAL HALF-SHIP UNTIL
+  IT IS FIXED. Railway → the service → Deployments: read the newest deploy's
+  build log if it errored, or deploy the commit if the service has been
+  switched to manual. A cloud session CANNOT check this — the container's
+  proxy refuses outbound to the Railway host (403 on CONNECT) — so the promote
+  log is the only read on it.
+  AND BE ACCURATE ABOUT A RED BACKEND STEP ON A FRONTEND-ONLY SHIP: diff the
+  backend between the promoted SHA and the one `/health` reports before saying
+  anything is half-shipped. An empty diff means the same server code under a
+  different name.
 - 2026-10-02: his own quotes leave as "Flood Roofing <…@roofmap.co.nz>" with
   replies to office@. To send as office@floodroofing.co.nz the Resend entries
   for floodroofing.co.nz must stop reading FAILED — the records go in
