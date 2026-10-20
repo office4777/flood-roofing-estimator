@@ -1,4 +1,4 @@
-// SETTINGS → MATERIAL ORDERING, and the external-bracket rate beside it
+// SETTINGS → MATERIAL CALCULATIONS, and the external-bracket rate beside it
 // (2026-10-19, the owner).
 //
 // (1) "internal and external brackets are saying the same price, can you add
@@ -327,8 +327,14 @@ check('the bracket boxes are on Gutter profiles, with the default as the placeho
 v = await pg.evaluate(() => {
   gotoTab('settings'); switchSettingsSub('set-ordering');
   const panel = document.getElementById('set-ordering');
-  const out = { tabs: [...panel.querySelectorAll('[data-ord-tab]')].map(x => x.textContent.trim()),
+  const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
+  const out = { tabs: panel.querySelectorAll('[data-ord-tab]').length,
+                heads: [...panel.querySelectorAll('.set-sec-hd strong')].map(x => x.textContent.trim()),
+                wasteOn: vis(document.getElementById('ordPane-waste')),
+                consOn: vis(document.getElementById('ordPane-cons')),
                 rows: panel.querySelectorAll('#ordPane-waste tbody tr').length,
+                wasteBoxes: panel.querySelectorAll('#ordPane-waste [data-ord]').length,
+                consBoxes: panel.querySelectorAll('#ordPane-cons [data-ord]').length,
                 boxes: panel.querySelectorAll('[data-ord]').length };
   // Type on the page and read it back through the real save path.
   delete S.settings.price_book.ordering;
@@ -342,8 +348,17 @@ v = await pg.evaluate(() => {
   out.keys = Object.keys(out.stored.waste || {});
   return out;
 });
-check('the page carries a Wastage and a Consumables tab', 
-  v.tabs.length === 2 && /Wastage/i.test(v.tabs[0]) && /Consumables/i.test(v.tabs[1]), JSON.stringify(v.tabs));
+// 2026-10-20: the two sub-tab buttons are gone and both sections stand on the
+// one page, each under its own header — so neither can be the hidden one, and
+// the collector below reads every box whichever the office scrolled to last.
+check('both sections are on the one page with no tabs to switch between them',
+  v.tabs === 0 && v.wasteOn && v.consOn, JSON.stringify(v));
+check('…each under its own header',
+  v.heads.length === 2 && /wastage/i.test(v.heads[0]) && /consumables/i.test(v.heads[1]),
+  JSON.stringify(v.heads));
+check('…with boxes on both of them at once',
+  v.wasteBoxes >= 15 && v.consBoxes >= 5,
+  JSON.stringify({ waste: v.wasteBoxes, cons: v.consBoxes }));
 check('…a row per flashing type and a box for every allowance',
   v.rows === 5 && v.boxes >= 20, JSON.stringify({ rows: v.rows, boxes: v.boxes }));
 check('…what is typed on it is what the take-off reads',

@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T07:05:59Z';
+  window.APP_BUILT_AT = '2026-10-20T07:47:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8753,7 +8753,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default Items</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Ordering</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Calculations</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
@@ -9612,15 +9612,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       </div>
     </div>
 
-    <!-- MATERIAL ORDERING — how much of everything the take-off buys -->
+    <!-- MATERIAL CALCULATIONS — how much of everything the take-off buys -->
     <div class="sub-panel settings-sub" id="set-ordering" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default Items</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
-      <nav class="tab-row" style="margin-bottom:14px">
-        <button type="button" class="tab-sm on" data-ord-tab="waste" onclick="_ordSub('waste',this)">Wastage</button>
-        <button type="button" class="tab-sm" data-ord-tab="cons" onclick="_ordSub('cons',this)">Consumables</button>
-      </nav>
       <div id="ordPane-waste"></div>
-      <div id="ordPane-cons" style="display:none"></div>
+      <div id="ordPane-cons"></div>
     </div>
 
     <!-- SUPPLIERS & MATERIALS -->
@@ -13349,19 +13345,14 @@ function switchSettingsSub(id,btn){
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
   if (id === 'set-custompb') { try { _cpbRender(); } catch(e) { console.warn('custom price book render:', e); } }
-  if (id === 'set-ordering') { try { renderOrderingUI(); } catch(e) { console.warn('material ordering render:', e); } }
+  if (id === 'set-ordering') { try { renderOrderingUI(); } catch(e) { console.warn('material calculations render:', e); } }
 }
-// Settings -> Material Ordering. Two sub-tabs, one store (price_book.ordering).
-function _ordSub(which, btn){
-  ['waste', 'cons'].forEach(function(k){
-    var p = document.getElementById('ordPane-' + k);
-    if (p) p.style.display = (k === which) ? '' : 'none';
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('#set-ordering [data-ord-tab]'), function(b){
-    b.classList.toggle('on', b === btn || b.getAttribute('data-ord-tab') === which);
-  });
-  try { localStorage.setItem('fr_ord_sub', which); } catch(e){}
-}
+// Settings -> Material Calculations. ONE page, one store (price_book.ordering).
+// Wastage and Consumables were two sub-tabs until 2026-10-20 (the owner:
+// "remove the two buttons that switch between wastage and consumables and put
+// them all in the one line (with seperate headers)") — each is a tile with its
+// own header now, so neither can be hidden and _ordCollect reads every box
+// whichever one the office was last looking at.
 function _ordInp(path, val, def, step, extra){
   // The DEFAULT is the placeholder, never the value: a box showing 0.5 that
   // the office has not touched reads as a figure somebody chose, and clearing
@@ -13426,9 +13417,6 @@ function renderOrderingUI(){
       '</tbody></table>' +
     '</div>';
   }
-  var want = 'waste';
-  try { want = localStorage.getItem('fr_ord_sub') || 'waste'; } catch(e){}
-  _ordSub(want, document.querySelector('#set-ordering [data-ord-tab="' + want + '"]'));
 }
 // Read the page back into price_book.ordering. A box left blank DELETES its
 // key, so the standard comes back and a later change to it reaches the
@@ -16248,7 +16236,7 @@ function computeMaterialsCost(){
     flashLine('Boxed penetration flashings', _boxFlashTotalLm(), _boxFlashLmPrice());
   }
 
-  // Screws — per m², rounded up to a box (Material Ordering -> Consumables)
+  // Screws — per m², rounded up to a box (Material Calculations -> Consumables)
   if (roofArea > 0 && pb.screws_each > 0) {
     var _scc = _ordCons();
     var screws = Math.ceil(roofArea * _scc.screwsPerM2 / _scc.screwsRound) * _scc.screwsRound;
@@ -16757,7 +16745,7 @@ function openPriceSettings(){
   }, 0);
 }
 
-// ── MATERIAL ORDERING — the allowances, in one place ─────────────
+// ── MATERIAL CALCULATIONS — the allowances, in one place ──────────
 // (2026-10-19, the owner: "add in a settings tab called 'Material Ordering'
 // with a sub-tab called wastage, where is shows the wastage amount applied to
 // every flashing type … then another sub-tab called 'Consumables' where the
@@ -16834,7 +16822,7 @@ function _ordCons(){
 // carries nothing. 8.1m is two sticks and one join. A 60m run is eight sticks
 // and seven joins. ceil() rather than floor() is the whole difference, and it
 // matters most at the exact multiples a roofer is likely to have drawn.
-// The three numbers are per FLASHING TYPE now (Settings -> Material Ordering
+// The three numbers are per FLASHING TYPE now (Settings -> Material Calcs
 // -> Wastage); these stay as the shipped defaults and as what a caller that
 // names no type still gets.
 var FLASH_WASTE_PER_RUN_M = 0.5;
@@ -29496,7 +29484,7 @@ var GUTTER_BRACKET_SPACING_M  = 0.5;   // the fallback for a product with no rul
 // want seperate gutter spacing per gutter type, (by default 125mm box gutter
 // should have a default of 800mm + 1 per run, then Marley tpyhoon and classic
 // should have default of 450mm spacing + 1 per run)"). The spacing and the
-// starting count were one pair on Settings -> Material Ordering -> Consumables
+// starting count were one pair on Settings -> Material Calculations -> Cons.
 // for every product, which cannot be right: a steel box gutter is bracketed
 // every 800 mm and a PVC spouting every 450. They are per row on Quote's
 // Product Options -> Gutter profiles now, and this is what a row that does not
@@ -67712,7 +67700,7 @@ function _jpRenderConsumablesSection(d){
   }
   // ONE SET OF ALLOWANCES (2026-10-19): these were four hand-copies of the
   // same arithmetic — here, the supplier order, the Job Pack's own strip and
-  // the priced take-off — so Settings -> Material Ordering reached one of them
+  // the priced take-off — so Settings -> Material Calcs reached one of them
   // and the office would have read 8 per m² on the pack beside 10 on the
   // quote. Every one of them goes through _ordCons() now.
   var _oc = _ordCons();

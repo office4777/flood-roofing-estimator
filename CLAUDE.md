@@ -3418,7 +3418,7 @@ Discipline (non-negotiable):
   accepted quote is frozen. Check the moved set before regenerating that
   baseline; the key's 5th field is the gutter.
   `tests/matordering.mjs`, `tests/gutterprice.mjs`.
-- SETTINGS → MATERIAL ORDERING (2026-10-19, the owner: "add in a settings tab
+- SETTINGS → MATERIAL CALCULATIONS (2026-10-19, the owner: "add in a settings tab
   called 'Material Ordering' with a sub-tab called wastage, where is shows the
   wastage amount applied to every flashing type … then another sub-tab called
   'Consumables' where the user can adjust the the default calculation for how
@@ -3471,6 +3471,18 @@ Discipline (non-negotiable):
   different costing model, not the roofing take-off.
   `tests/matordering.mjs` is a tripwire — against the old build the bracket
   pins fail with the owner's own symptom and the ordering pins cannot run.
+  RENAMED AND FLATTENED 2026-10-20 (the owner: "Change wording of 'materials
+  ordering' to 'material calculations' and remove the two buttons that switch
+  between wastage and consumables and put them all in the one line (with
+  seperate headers)"). The tab reads MATERIAL CALCULATIONS and the two sub-tab
+  buttons are gone: Wastage and Consumables are two `.set-sec` tiles down the
+  one page, each under its own navy band, so neither can be the hidden one.
+  `_ordSub` and `localStorage.fr_ord_sub` went with them. The panel's id stays
+  `set-ordering` and the store stays `price_book.ordering` — renaming either
+  would strand every account's typed figures for a change of wording. The
+  signup question's "Auto-calculated material ordering" is NOT this page and is
+  left alone (`INTERESTS` in server.js, pinned by `tests/signup.mjs` and
+  `register.mjs`), and so is the setup guide's own "Material ordering" step.
 
 - THE OFFICE HEARS EVERY ANSWER FROM THE SERVER (2026-10-19, the owner on
   three live jobs: "i didn't get an email to say job #3320 was declined, i
