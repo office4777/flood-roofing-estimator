@@ -2665,6 +2665,36 @@ Discipline (non-negotiable):
   THE GUARD'S REAL JOB IS UNTOUCHED and pinned beside it: a drawing that
   vanishes with NOBODY asking is still blocked, still put back, and still
   reported. `tests/lkgguard.mjs`.
+- CUSTOM SCALE: TWO POINTS, ANYWHERE (2026-10-20, the owner: "change 'set
+  scale' to 'Scale a Line' and add another button called 'Custom Scale' where
+  the user can enter any custom start point and an end point to set the scale,
+  which is really useful on a pdf plan"). The old button said "Set scale" and
+  did not say what it wanted — a WALL: `onCanvasClick`'s calibrate branch
+  refuses outright without a building outline and then hit-tests
+  `_hitAnyRoofWall`. On an imported consent plan that is exactly the wrong
+  demand, because the one measured thing on the sheet is its own printed
+  dimension line and nothing is drawn yet. It reads SCALE A LINE now, which is
+  what it does.
+  `customscale` is the new tool: two clicks anywhere, no outline, then the SAME
+  `#calPopup` and the SAME `confirmCalibrate`, so there is one piece of scale
+  arithmetic and the two cannot drift. `getXY` still snaps level and plumb
+  (Shift frees it), which is what a printed dimension usually is; two points
+  landing in one place (a double-click) are refused with a sentence rather than
+  a scale of infinity.
+  THE POPUP NAMES THE TOOL THAT OPENED IT (`_calPopWords`): "Real length of
+  this wall" over two points picked off a dimension line is the same wrong
+  word the button was renamed to lose. Three sets: wall, custom, and `edit`
+  for re-opening an existing reference by clicking it.
+  IT STAYS ON SCREEN ONCE A SCALE EXISTS, unlike Scale a Line. Correcting a
+  scale normally means clicking a measurement (2026-09-24), and a plan with no
+  roof drawn on it has none to click — hiding both would leave a wrong scale
+  with no way back. NOT ON THE SITE BAR: that row is a stated nine-button
+  budget at 360px (`tests/sitebars.mjs` is mostly width checks, after
+  "Calibrate Undo" once ran together as one word) and this is the widest label
+  that would be on it; scaling an imported plan is desk work. One line in the
+  tablet toolbar to change if he asks.
+  `tests/roofmeasure.mjs` (33) is a tripwire: against the old build 7 of the
+  new pins fail and every safety pin passes.
 - A TAPE ON A PLAN SETS THE SCALE (2026-10-14, the owner on an imported A3
   consent plan: "can't you just base the scale of this physical bar? ignore
   the A3 it shouldn't matter? or am i wrong?").

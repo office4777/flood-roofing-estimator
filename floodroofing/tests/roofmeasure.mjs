@@ -182,6 +182,137 @@ check('\u2026and the tape then reads back what was typed',
 check('\u2026and millimetres typed by mistake are read as millimetres',
   Math.abs(tape.mmSlip - 31.56 / 963) < 1e-6, String(tape.mmSlip));
 
+// ── CUSTOM SCALE (2026-10-20, the owner: "change 'set scale' to 'Scale a
+// Line' and add another button called 'Custom Scale' where the user can enter
+// any custom start point and an end point to set the scale, which is really
+// useful on a pdf plan"). Scale a Line hit-tests a WALL and refuses outright
+// with no outline drawn — which is exactly the state an imported consent plan
+// is in, where the only measured thing on the sheet is its own dimension line.
+const csBtns = await pg.evaluate(() => {
+  const a = document.getElementById('btn-calibrate'), b = document.getElementById('btn-customscale');
+  const ta = document.getElementById('ttbCal'), tb = document.getElementById('ttbCustomCal');
+  return { a: a ? a.textContent.trim() : '', b: b ? b.textContent.trim() : '',
+           ta: ta ? ta.textContent.trim() : '', tb: !!tb,
+           oldWord: /Set scale/.test(document.body.innerText) };
+});
+check('the scale buttons read Scale a Line and Custom Scale, and "Set scale" is gone',
+  /Scale a Line/.test(csBtns.a) && /Custom Scale/.test(csBtns.b) &&
+  /Scale a Line/.test(csBtns.ta) && !csBtns.oldWord, JSON.stringify(csBtns));
+// Custom Scale is NOT on the site bar: that row is a stated nine-button
+// budget at 360px (tests/sitebars.mjs) and this is the widest label that
+// would be on it. Scaling an imported plan is desk work; on site, Scale a
+// Line is there and any measurement corrects the scale.
+check('\u2026and the site bar is left at the nine buttons it is sized for', csBtns.tb === false, String(csBtns.tb));
+
+// Nothing drawn at all: Scale a Line sends them off to draw an outline,
+// Custom Scale stays put, because it needs nothing.
+const csPick = await pg.evaluate(() => {
+  clearAll(true);
+  DRAW.scaleMetresPerPx = 0;
+  setTool('calibrate');
+  const afterWall = DRAW.tool;
+  setTool('customscale');
+  const el = document.getElementById('calInstrPopup');
+  return { afterWall, afterCustom: DRAW.tool,
+           instr: el ? el.style.display : '',
+           says: (document.getElementById('calInstrBody') || {}).textContent || '' };
+});
+check('with nothing drawn, Scale a Line sends them to the outline tool and Custom Scale does not',
+  csPick.afterWall === 'outline' && csPick.afterCustom === 'customscale', JSON.stringify(csPick));
+check('\u2026and it says what to click', csPick.instr === 'block' && /start point/.test(csPick.says), csPick.says.slice(0, 60));
+
+// Two clicks anywhere, then the real distance. The pixel span is read BACK
+// off the app rather than assumed: getXY snaps, and what matters is that the
+// scale is the typed distance over the span it actually picked.
+// NOT through client(): that re-fits the drawing first, and with nothing
+// drawn at all the fit leaves a transform these two points fall outside of.
+// Scroll, settle, then map with the transform as it actually stands.
+// Two things sit OVER the canvas by the time this runs and swallow a click:
+// the roof-setup popup that finishCurrent() raises to ask shape + sheet
+// (#_rsModal, a real modal), and the roof settings panel that reveals itself
+// a second after a roof lands. Clear both, the way the Photos panel is
+// folded at the top of this file.
+await pg.evaluate(() => {
+  const m = document.getElementById('_rsModal'); if (m) m.remove();
+  const rtp = document.getElementById('roofTypePanel'); if (rtp) rtp.style.display = 'none';
+});
+await pg.evaluate(() => document.getElementById('roofCanvas').scrollIntoView({ block: 'center' }));
+await pg.waitForTimeout(250);
+const [cs1, cs2] = await pg.evaluate(() => {
+  const m2 = document.getElementById('_rsModal'); if (m2) m2.remove();
+  const r2 = document.getElementById('roofTypePanel'); if (r2) r2.style.display = 'none';
+  const cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
+  const t = getImgTransform(), dpr = window.devicePixelRatio || 1;
+  return [[250, 400], [650, 400]].map(p => [
+    r.left + (p[0] * t.s + t.ix) * (r.width / (cv.width / dpr)),
+    r.top  + (p[1] * t.s + t.iy) * (r.height / (cv.height / dpr))]);
+});
+await pg.mouse.click(cs1[0], cs1[1]); await pg.waitForTimeout(120);
+const csMid = await pg.evaluate(() => ({ pts: DRAW.currentPts.length, popup: document.getElementById('calPopup').style.display }));
+check('the first click places a point and asks nothing yet', csMid.pts === 1 && csMid.popup !== 'block', JSON.stringify(csMid));
+await pg.mouse.move(cs2[0], cs2[1], { steps: 4 }); await pg.waitForTimeout(120);
+await pg.mouse.click(cs2[0], cs2[1]); await pg.waitForTimeout(250);
+const csOpen = await pg.evaluate(() => ({
+  popup: document.getElementById('calPopup').style.display,
+  info: document.getElementById('calPixelInfo').textContent,
+  px: DRAW.calibratePixels, pts: (DRAW.calibratePts || []).length,
+  left: DRAW.currentPts.length
+}));
+check('the second click opens the popup on the two points it picked',
+  csOpen.popup === 'block' && Math.abs(csOpen.px - 400) <= 4 && csOpen.pts === 2 && csOpen.left === 0,
+  JSON.stringify(csOpen));
+check('\u2026and the popup talks about two points, not a wall',
+  /two points/i.test(csOpen.info) && !/wall/i.test(csOpen.info), csOpen.info);
+// The popup is shared with Scale a Line, so its heading and the box's own
+// label have to say which tool opened it \u2014 "Real length of this wall" over
+// two points on a dimension line is the word the button was renamed to lose.
+const csWords2 = await pg.evaluate(() => ({
+  title: (document.getElementById('calPopTitle') || {}).textContent || '',
+  label: (document.getElementById('calRealLabel') || {}).textContent || ''
+}));
+check('\u2026and so does its heading and the box beside it',
+  /Custom Scale/.test(csWords2.title) && /between the two points/.test(csWords2.label),
+  JSON.stringify(csWords2));
+
+const csSet = await pg.evaluate(() => {
+  const px = DRAW.calibratePixels;
+  document.getElementById('calRealInput').value = '31.56';
+  confirmCalibrate();
+  return { px, mpp: DRAW.scaleMetresPerPx, want: 31.56 / px, byHand: !DRAW.scaleAuto,
+           // the popup stays up to report what it worked out — existing behaviour
+           shown: document.getElementById('calScaleInfo').style.display };
+});
+check('typing the real distance sets the scale off exactly the span it picked',
+  Math.abs(csSet.mpp - csSet.want) < 1e-9 && csSet.byHand && csSet.shown === 'block',
+  JSON.stringify(csSet));
+
+// A double-click lands both points in one place; that is a misclick, not a
+// scale of infinity.
+const csDouble = await pg.evaluate(() => {
+  const was = DRAW.scaleMetresPerPx;
+  setTool('customscale');
+  DRAW.currentPts = [[400, 400]];
+  onCanvasClick({ clientX: 0, clientY: 0, detail: 1, shiftKey: true,
+                  preventDefault(){}, stopPropagation(){} });
+  return { was, now: DRAW.scaleMetresPerPx, left: DRAW.currentPts.length };
+});
+check('two points in the same place are refused, and the scale does not move',
+  Math.abs(csDouble.now - csDouble.was) < 1e-12, JSON.stringify(csDouble));
+
+// Correcting a scale means clicking a measurement \u2014 and a plan with no roof
+// drawn on it has none, so this one button has to stay.
+const csStays = await pg.evaluate(() => {
+  DRAW.scaleMetresPerPx = 0.03; _scaleStateShow();
+  const vis = (id) => { const e = document.getElementById(id); return e ? e.style.display !== 'none' : null; };
+  return { wall: vis('btn-calibrate'), custom: vis('btn-customscale'),
+           line: (document.getElementById('scaleState') || {}).textContent || '' };
+});
+check('a scale hides Scale a Line and leaves Custom Scale, the only way back on a bare plan',
+  csStays.wall === false && csStays.custom === true, JSON.stringify(csStays));
+const csWords = await pg.evaluate(() => { DRAW.scaleMetresPerPx = 0; _scaleStateShow(); return (document.getElementById('scaleState') || {}).textContent || ''; });
+check('\u2026and with no scale the line names both buttons',
+  /Scale a Line/.test(csWords) && /Custom Scale/.test(csWords), csWords);
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

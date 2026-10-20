@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T07:47:50Z';
+  window.APP_BUILT_AT = '2026-10-20T17:59:01Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5468,7 +5468,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
   <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico" data-ico="outline">🏠</span>Outline</button>
   <button class="ttb-btn" id="ttbLines"   onclick="toggleRoofLinesMenu(event)"><span class="ttb-ico" data-ico="lines">＋</span>Lines</button>
-  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Set scale</button>
+  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Scale a Line</button>
   <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico" data-ico="undo">↺</span>Undo</button>
   <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
   <button class="ttb-btn" id="ttbMarkup" onclick="_siteNotesToggle()"><span class="ttb-ico" data-ico="markup">✎</span>Markup</button>
@@ -6141,7 +6141,20 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
              aerial) there are no measurements to click, so this shows then. -->
         <button id="btn-squarecorner" onclick="setTool('squarecorner')" class="tool-btn" title="Square one corner at a time — the map shows just the outline and its corners; click a corner to make it a true right angle. The rest of the building does not move."><span class="rt-emo">◻ </span>Square corner</button>
         <button onclick="setTool('tape')" id="btn-tape" class="tool-btn" title="Measure anything on the roof: click where it starts, click where it ends. Drag it, turn it, drag its ends; click it for the delete button.">📐 Measuring tape</button>
-        <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Set scale</button>
+        <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;display:none">📏 Scale a Line</button>
+        <!-- CUSTOM SCALE (2026-10-20, the owner: "add another button called
+             'Custom Scale' where the user can enter any custom start point and
+             an end point to set the scale, which is really useful on a pdf
+             plan"). Scale a Line needs a WALL of a building outline, so on an
+             imported consent plan - where the thing you want to scale off is
+             the plan's own printed dimension line and nothing is drawn yet -
+             it refuses outright. This takes two clicks anywhere and goes
+             through the SAME popup and the same confirmCalibrate, so there is
+             only ever one piece of scale arithmetic. It stays on screen once a
+             scale exists, unlike Scale a Line: correcting a scale normally
+             means clicking a measurement, and a plan with no roof drawn on it
+             has none to click. -->
+        <button onclick="setTool('customscale')" id="btn-customscale" onmouseenter="showTip('btn-customscale',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb">📐 Custom Scale</button>
         <!-- THE RIGHT-HAND SIDE OF THE TOOLBAR, ONE GROUP (2026-10-18, the
              owner: "move the Edits buttons to underneath the Scale from the
              aerial / Undo / Redo / Clear so that we remove one row and it
@@ -6417,11 +6430,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
       <!-- Calibrate scale popup -->
       <div id="calPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;padding:24px 28px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:320px">
-        <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:#0a1628">📐 Set scale</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:#0a1628" id="calPopTitle">📐 Set scale</div>
         <div id="calPixelInfo" style="font-size:12px;color:#666;margin-bottom:14px;background:#f5f5f3;padding:8px 12px;border-radius:6px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
           <div>
-            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Real length of this wall</label>
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px" id="calRealLabel">Real length of this wall</label>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" id="calRealInput" placeholder="e.g. 15.7" step="0.01" min="0.01"
                 style="flex:1;font-size:15px;padding:9px 11px;border:2px solid #0099cc;border-radius:8px;outline:none;font-family:inherit"
@@ -6473,8 +6486,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div style="display:flex;align-items:flex-start;gap:10px">
           <span style="font-size:18px;line-height:1.1">📐</span>
           <div style="flex:1">
-            <div style="font-weight:700;margin-bottom:3px">Calibrate scale</div>
-            <div style="color:#cbd5e1">Click any <strong style="color:#fff">one wall of your building outline</strong>, then type that wall's real length. It sets the exact size &amp; scale for the whole plan.</div>
+            <div style="font-weight:700;margin-bottom:3px" id="calInstrTitle">Scale a Line</div>
+            <div style="color:#cbd5e1" id="calInstrBody">Click any <strong style="color:#fff">one wall of your building outline</strong>, then type that wall's real length. It sets the exact size &amp; scale for the whole plan.</div>
           </div>
           <button onclick="_hideCalInstruction()" title="Got it" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:6px;width:24px;height:24px;font-size:14px;line-height:1;cursor:pointer;flex-shrink:0">✕</button>
         </div>
@@ -50114,7 +50127,8 @@ var STEP_INFO = {
   valley:       {icon:'🟠', title:'Draw valley line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
   barge:        {icon:'🔵', title:'Draw barge line', hint:'Click start then end of a barge (rake) edge. Splits into two lengths where a ridge connects to it.', btn:'Done ↵'},
   addmeas:      {icon:'📏', title:'Add measurements', hint:'Click any line to enter its length. Valley auto-fills connected valleys. Barge splits at ridge junctions.', btn:'Done ↵'},
-  calibrate:    {icon:'📐', title:'Calibrate scale', hint:'Click one wall of your building outline, then enter its real length to set the scale for the whole plan.', btn:'Set scale ↵'},
+  calibrate:    {icon:'📐', title:'Scale a Line', hint:'Click one wall of your building outline, then enter its real length to set the scale for the whole plan.', btn:'Set scale ↵'},
+  customscale:  {icon:'📐', title:'Custom Scale', hint:'Click a start point then an end point — anywhere — and type the real distance between them. On a PDF plan, run it along the longest dimension line on the sheet.', btn:'Set scale ↵'},
   gutter:       {icon:'🟣', title:'Draw gutter line', hint:'Click start then end of gutter run. Press Enter/Finish to save.', btn:'Done ↵'},
   hip:          {icon:'🟢', title:'Draw hip line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
   apron:        {icon:'🩷', title:'Draw apron flashing', hint:'Click start then end of apron flashing. Press Enter/Finish to save.', btn:'Done ↵'},
@@ -50178,10 +50192,12 @@ function setTool(t) {
   if(cv) cv.style.cursor=cur;
   if(wrap) wrap.style.cursor=cur;
   if(t!=='select') { PAN.active=false; }
-  if(t!=='calibrate') { try { _hideCalInstruction(); } catch(e){} }
+  if(t!=='calibrate' && t!=='customscale') { try { _hideCalInstruction(); } catch(e){} }
+  if(t!=='customscale') { try { DRAW.currentPts = []; } catch(e){} }
   redrawAll();
   // Calibrate: show the "click one wall" instruction popup.
-  if (t === 'calibrate') { try { _onCalibrateToolSelected(); } catch(e){} }
+  if (t === 'calibrate')   { try { _onCalibrateToolSelected(); } catch(e){} }
+  if (t === 'customscale') { try { _onCustomScaleToolSelected(); } catch(e){} }
 }
 
 // ── "Add items/details" dropdown ──────────────────────────────────
@@ -56350,6 +56366,33 @@ function onCanvasClick(e) {
     showCalibratePopup(DRAW.calibratePixels);
     return;
   }
+  // CUSTOM SCALE: a start point and an end point, anywhere. No outline is
+  // required and no wall is hit-tested \u2014 on an imported plan the thing worth
+  // scaling off is the drawing's own dimension line, which is not a wall and
+  // may be the only measured thing on the sheet. getXY still snaps level and
+  // plumb (Shift frees it), which is what a printed dimension usually is.
+  if(DRAW.tool==='customscale') {
+    DRAW.currentPts.push(xy);
+    if (DRAW.currentPts.length < 2){ redrawAll(); return; }
+    var _us = DRAW.currentPts[0], _ue = DRAW.currentPts[1];
+    var _udx = _ue[0]-_us[0], _udy = _ue[1]-_us[1];
+    var _upx = Math.sqrt(_udx*_udx + _udy*_udy);
+    DRAW.currentPts = [];
+    // confirmCalibrate refuses a span under 6px, but saying so HERE keeps the
+    // two points on screen in the user's head rather than popping a box that
+    // then complains \u2014 a double-click lands both points in one place.
+    if (!(_upx > 5)){
+      redrawAll();
+      alert('Those two points are in the same place. Click the start of the distance, then the end of it.');
+      return;
+    }
+    DRAW.calibratePts    = [_us.slice(), _ue.slice()];
+    DRAW.calibratePixels = _upx;
+    try { _hideCalInstruction(); } catch(e){}
+    redrawAll();
+    showCalibratePopup(_upx, 'custom');
+    return;
+  }
   if(['ridge','valley','gutter','hip','backtray','barge','unknown'].indexOf(DRAW.tool)>=0) {
     DRAW.currentPts.push(xy);
     if(DRAW.currentPts.length>=2) finishCurrent();
@@ -58534,10 +58577,13 @@ function _scaleStateShow(){
   var el = document.getElementById('scaleState');
   if (!el) return;
   var m = DRAW.scaleMetresPerPx;
-  // Set scale shows only while there is no scale — with one, a click on any
-  // measurement corrects it (2026-09-24).
+  // Scale a Line shows only while there is no scale — with one, a click on any
+  // measurement corrects it (2026-09-24). CUSTOM SCALE STAYS (2026-10-20):
+  // that correction needs a measurement to click, and an imported plan with
+  // no roof drawn on it has none, so hiding both would leave a wrong scale
+  // with no way back.
   try { ['btn-calibrate', 'ttbCal'].forEach(function(id){ var _cb = document.getElementById(id); if (_cb) _cb.style.display = (m > 0) ? 'none' : ''; }); } catch(e){}
-  if (!(m > 0)){ el.textContent = 'No scale set \u2014 click Set scale, then a wall you know the length of'; el.style.color = '#b45309'; return; }
+  if (!(m > 0)){ el.textContent = 'No scale set \u2014 click Scale a Line and pick a wall you know, or Custom Scale and pick two points'; el.style.color = '#b45309'; return; }
   if (DRAW.scaleAuto){
     el.textContent = 'Scale from the aerial: ' + m.toFixed(3) + ' m/px \u2014 click any measurement to correct it';
     el.style.color = 'var(--text2)';
@@ -61544,7 +61590,19 @@ function _restoreCalMeasType(){
 }
 
 // ── New calibration: click ONE building-outline wall ──────────────
-function _showCalInstruction(){ var el = document.getElementById('calInstrPopup'); if (el) el.style.display = 'block'; }
+var CAL_INSTR = {
+  wall:   { title: 'Scale a Line',
+            body:  'Click any <strong style="color:#fff">one wall of your building outline</strong>, then type that wall\'s real length. It sets the exact size &amp; scale for the whole plan.' },
+  custom: { title: 'Custom Scale',
+            body:  'Click a <strong style="color:#fff">start point</strong>, then an <strong style="color:#fff">end point</strong> \u2014 anywhere on the picture. Type the real distance between them and it sets the scale for the whole plan. On a PDF plan, lay it along a dimension line: the longest one on the sheet is the most accurate thing to scale off. Hold Shift to place a point without snapping.' }
+};
+function _showCalInstruction(kind){
+  var el = document.getElementById('calInstrPopup'); if (!el) return;
+  var c = CAL_INSTR[kind] || CAL_INSTR.wall;
+  var t = document.getElementById('calInstrTitle'); if (t) t.textContent = c.title;
+  var b = document.getElementById('calInstrBody');  if (b) b.innerHTML = c.body;
+  el.style.display = 'block';
+}
 function _hideCalInstruction(){ var el = document.getElementById('calInstrPopup'); if (el) el.style.display = 'none'; }
 // Called when the Calibrate tool is selected — needs an outline to click.
 function _onCalibrateToolSelected(){
@@ -61554,7 +61612,14 @@ function _onCalibrateToolSelected(){
     try { setTool('outline'); } catch(e){}
     return;
   }
-  _showCalInstruction();
+  _showCalInstruction('wall');
+}
+// Custom Scale needs NOTHING drawn \u2014 that is the whole point of it. Two
+// clicks anywhere set the reference; the popup and confirmCalibrate are the
+// wall tool's own, so the two cannot disagree about what a scale is.
+function _onCustomScaleToolSelected(){
+  DRAW.currentPts = [];
+  _showCalInstruction('custom');
 }
 // Nearest building-outline edge to a point (image coords) — or -1.
 function _hitOutlineEdge(px, py){
@@ -61594,9 +61659,21 @@ function _hitAnyRoofWall(px, py){
   }
   return best;
 }
-function showCalibratePopup(pixelDist) {
+function _calPopWords(kind){
+  var t = document.getElementById('calPopTitle'), l = document.getElementById('calRealLabel');
+  if (t) t.textContent = (kind === 'custom') ? '\ud83d\udcd0 Custom Scale'
+                       : (kind === 'edit')   ? '\ud83d\udcd0 Set scale'
+                                             : '\ud83d\udcd0 Scale a Line';
+  if (l) l.textContent = (kind === 'custom') ? 'Real distance between the two points'
+                       : (kind === 'edit')   ? 'Real length of this reference'
+                                             : 'Real length of this wall';
+}
+function showCalibratePopup(pixelDist, kind) {
+  _calPopWords(kind);
   var info = pixelDist
-    ? 'Wall selected (' + Math.round(pixelDist) + ' px). Enter this wall’s real length below:'
+    ? ((kind === 'custom')
+        ? 'Two points picked (' + Math.round(pixelDist) + ' px apart). Enter the real distance between them below:'
+        : 'Wall selected (' + Math.round(pixelDist) + ' px). Enter this wall’s real length below:')
     : 'Click one wall of your building outline, then enter its real length below.';
   document.getElementById('calPixelInfo').textContent = info;
   document.getElementById('calRealInput').value = '';
@@ -61734,8 +61811,9 @@ function editCalibrate() {
       : planM;
     existing = realM.toFixed(3);
   }
+  _calPopWords('edit');
   document.getElementById('calPixelInfo').textContent =
-    'Edit calibration — current line: ' + Math.round(DRAW.calibratePixels) +
+    'Edit the scale — current reference: ' + Math.round(DRAW.calibratePixels) +
     ' pixels. Update the real-world length below.';
   document.getElementById('calRealInput').value = existing;
   document.getElementById('calPitchInput').value = pitchVal || '';
@@ -63396,7 +63474,8 @@ var TOOLTIPS = {
   'btn-info':         'Add Info: click to place a numbered note marker. Add details in the right-hand panel.',
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
-  'btn-calibrate':    'Calibrate scale: click two points on a known distance (e.g. a wall edge), enter the real measurement. All drawn lines will then auto-calculate their real length.',
+  'btn-calibrate':    'Scale a Line: click one wall of your building outline and type its real length. Every drawn line then works out its own real length.',
+  'btn-customscale':  'Custom Scale: click a start point and an end point anywhere on the picture, then type the real distance between them. Nothing needs to be drawn first — on a PDF plan, run it along the longest dimension line on the sheet.',
   'btn-addmeas':      'Add Measurements: click any drawn line to enter its length in metres. Totals are calculated automatically.',
   'btn-mode-scaled':  'Scaled edits: a measurement you type MOVES the drawing to match, so the whole plan stays true to the scale — the area, the sheets and every other length follow it.',
   'btn-mode-visual':  'Visual edits: a measurement you type changes only what is printed on that one item. Nothing else on the map moves — the outline, the other lengths and the sheet runs all stay exactly where they are.',

@@ -9,7 +9,7 @@
 // Pinned: the panel is one row with the shape, Rotate 90°, Snap square, the
 // pitch, the sheet, Make main roof and Delete roof, and no "Suggested" line;
 // the toolbar has no Measure and — once there is a scale — no Calibrate
-// (a Set scale shows only before there is one); Make main roof swaps the
+// (Scale a Line shows only before there is one); Make main roof swaps the
 // roof into first place and every setting kept by roof number goes with it;
 // Delete roof takes its own settings with it and leaves the others on the
 // roofs they belong to.
@@ -79,7 +79,9 @@ const bar = await pg.evaluate(() => {
 });
 check('the toolbar has no Measure button and, with a scale, no Calibrate; the Sheet picker has left it', !bar.measure && !bar.cal && !bar.sheetOnBar, JSON.stringify(bar));
 check('…the scale line says a click on any measurement corrects it', /click any measurement/.test(bar.state), bar.state);
-check('…and only while there is NO scale does a "Set scale" button show', bar.noScaleCal && /Set scale/.test(bar.noScaleLabel), JSON.stringify(bar));
+// Renamed 2026-10-20: "Set scale" said nothing about what it wants, and it
+// wants a WALL. Custom Scale, beside it, takes any two points and stays.
+check('…and only while there is NO scale does the "Scale a Line" button show', bar.noScaleCal && /Scale a Line/.test(bar.noScaleLabel), JSON.stringify(bar));
 
 // ── Make main roof: the roof and everything kept by its number go together ──
 const mk = await pg.evaluate(() => {
