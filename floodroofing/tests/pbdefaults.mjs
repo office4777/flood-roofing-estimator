@@ -55,21 +55,36 @@ await pg.evaluate(() => {
 });
 await pg.waitForTimeout(600);
 
-// ── the underlay default ──────────────────────────────────────────
+// ── the underlay list (2026-10-20, the owner: "remove the m2 options for
+// paper, instead when i '+add underlay' is asks for the name, $ and m2, then
+// in the 'underlay' section it just lists the underlays I've add and asked me
+// which one is my default like the 'steel grades' has"). A roll size is a
+// fact about the paper, not a choice beside it. ────────────────────
 const picker = await pg.evaluate(() => {
-  refreshDefaultUnderlayPicker('');
-  const sel = document.getElementById('pbDefaultUnderlay');
-  return { there: !!sel, opts: sel ? Array.from(sel.options).map(o => o.value) : [] };
+  renderCatalogList('underlays');
+  const box = document.getElementById('catalogUnderlays');
+  const rows = Array.from(box.querySelectorAll('[data-row="cat-underlays"]'));
+  return {
+    rows: rows.length,
+    names: rows.map(r => (r.querySelector('input[data-field="name"]')||{}).value),
+    fields: rows.length ? ['name','price','m2','isdefault']
+      .filter(f => !!rows[0].querySelector('[data-field="'+f+'"]')) : [],
+    oldSelect: !!document.getElementById('pbDefaultUnderlay'),
+    oldBoxes: ['pbUnderlay50','pbUnderlay75','pbUnderlay100'].filter(i => !!document.getElementById(i)),
+  };
 });
-check('Underlay has a "Default product for this job" picker, like Roofing sheets',
-  picker.there, 'no #pbDefaultUnderlay');
-check('…listing the underlays the company actually offers, and nothing else',
-  picker.opts.length === 3 && picker.opts[0] === '' &&
-  picker.opts.includes('Thermakraft 215') && picker.opts.includes('Bitumen building paper'),
-  JSON.stringify(picker.opts));
+check('THE ASK: every paper is listed with its own price and roll size',
+  picker.rows === 2 && picker.fields.join(',') === 'name,price,m2,isdefault',
+  JSON.stringify(picker));
+check('…and one of them is ticked as the default, the way a steel grade is',
+  picker.fields.includes('isdefault'), JSON.stringify(picker.fields));
+check('…so the three roll-size price boxes are gone',
+  picker.oldBoxes.length === 0 && picker.oldSelect === false, JSON.stringify(picker));
 
 const saved = await pg.evaluate(async () => {
-  document.getElementById('pbDefaultUnderlay').value = 'Thermakraft 215';
+  const rows = Array.from(document.querySelectorAll('#catalogUnderlays [data-row="cat-underlays"]'));
+  const row = rows.filter(r => (r.querySelector('input[data-field="name"]')||{}).value === 'Thermakraft 215')[0];
+  row.querySelector('input[data-field="isdefault"]').checked = true;
   collectPriceBookFromUI();
   const stored = S.settings.price_book.defaultUnderlayProduct;
   await saveSettings(true);
@@ -102,13 +117,26 @@ const unset = await pg.evaluate(() => {
 });
 check('…and with no default set nothing is put in the box', unset === '', JSON.stringify(unset));
 
-const gone = await pg.evaluate(() => {
-  refreshDefaultUnderlayPicker('A paper no longer on the list');
-  const sel = document.getElementById('pbDefaultUnderlay');
-  return { val: sel.value, txt: Array.from(sel.options).map(o => o.text).join(' | ') };
+// A paper carries the figures a job is priced from, so they have to come
+// back off the row — and a row still being typed must not wipe them.
+const figures = await pg.evaluate(() => {
+  S.settings.materials_catalog.underlays =
+    [{ name:'Thermakraft 215', price:310, m2:75 }, { name:'Bitumen building paper' }];
+  S.settings.price_book.underlay = { '50':256.75, '75':385.13, '100':513.50 };
+  S.settings.price_book.defaultUnderlayProduct = 'Thermakraft 215';
+  renderCatalogList('underlays');
+  const typedBack = Array.from(document.querySelectorAll('#catalogUnderlays [data-row="cat-underlays"]'))
+    .map(r => ['name','price','m2'].map(f => (r.querySelector('[data-field="'+f+'"]')||{}).value).join('|'));
+  return { typedBack, products: _underlayProducts(), pick: _underlayPick() };
 });
-check('a default whose product has been removed is still shown, marked, not silently dropped',
-  gone.val === 'A paper no longer on the list' && /not in list/.test(gone.txt), gone.txt);
+check('a paper shows the price and roll size the office typed for it',
+  figures.typedBack[0] === 'Thermakraft 215|310|75', JSON.stringify(figures.typedBack));
+check('…and one typed before this page asked for them still prices off the old roll map',
+  figures.products[1].name === 'Bitumen building paper' && figures.products[1].price === 385.13,
+  JSON.stringify(figures.products));
+check('…with the ticked paper the one a job starts on',
+  figures.pick.name === 'Thermakraft 215' && figures.pick.m2 === 75 && figures.pick.price === 310,
+  JSON.stringify(figures.pick));
 
 // ── the price sheet as a spreadsheet ──────────────────────────────
 const csv = await pg.evaluate(async () => {
@@ -120,7 +148,7 @@ const csv = await pg.evaluate(async () => {
   return { name: window.__dl, text, type: window.__dlBlob && window.__dlBlob.type };
 });
 const lines = (csv.text || '').split('\n');
-check('Default item pricing offers the sheet as a CSV, beside Copy my price book',
+check('Default Items offers the sheet as a CSV, beside Copy my price book',
   !!csv.name && /\.csv$/i.test(csv.name) && /csv/.test(csv.type || ''), JSON.stringify({ name: csv.name, type: csv.type }));
 check('…with a header row a spreadsheet understands',
   lines[0] === 'Steel grade,Item,Unit,Price (ex GST)', lines[0]);
@@ -141,32 +169,40 @@ check('…and every field with a comma in it is quoted, so the columns do not sh
 const empty = await pg.evaluate(() => {
   S.settings.materials_catalog.underlays = [];
   renderCatalogList('underlays');
-  refreshDefaultUnderlayPicker('');
-  const sel = document.getElementById('pbDefaultUnderlay');
-  return { text: (sel.options[0] || {}).text || '', n: sel.options.length, disabled: sel.disabled };
+  return { text: (document.getElementById('catalogUnderlays').textContent || ''),
+           products: _underlayProducts() };
 });
-check('with no underlay products yet the picker SAYS so instead of looking broken',
-  /add an underlay/i.test(empty.text) && empty.n === 1 && empty.disabled === true,
-  JSON.stringify(empty));
+check('with no papers on the list yet the section SAYS so instead of looking broken',
+  /no papers yet/i.test(empty.text), empty.text.slice(0, 70));
+// A FRESH ACCOUNT MUST STILL ORDER PAPER: the list ships empty, so with
+// nothing on it the three roll sizes stand in exactly as they always did.
+check('…and a job still prices underlay, off the roll sizes, until one is added',
+  empty.products.length === 3 && empty.products.every(p => p.legacy) &&
+  empty.products[0].m2 === 50 && empty.products[0].price === 256.75,
+  JSON.stringify(empty.products));
 
 const typed = await pg.evaluate(() => {
   addCatalogItem('underlays');                    // the "+ Add underlay" button
-  const row = document.querySelector('#catalogUnderlays [data-row="cat-underlays"] input[data-field="name"]');
-  row.value = 'Thermakraft 215';
-  row.dispatchEvent(new Event('input', { bubbles: true }));   // typing it in
-  const sel = document.getElementById('pbDefaultUnderlay');
-  return { opts: Array.from(sel.options).map(o => o.value), disabled: sel.disabled };
+  const row = document.querySelector('#catalogUnderlays [data-row="cat-underlays"]');
+  const nm = row.querySelector('input[data-field="name"]');
+  nm.value = 'Thermakraft 215'; nm.dispatchEvent(new Event('input', { bubbles: true }));
+  const pr = row.querySelector('input[data-field="price"]');
+  pr.value = '310'; pr.dispatchEvent(new Event('input', { bubbles: true }));
+  const m2 = row.querySelector('input[data-field="m2"]');
+  m2.value = '75'; m2.dispatchEvent(new Event('input', { bubbles: true }));
+  return { products: _underlayProducts(), stored: S.settings.materials_catalog.underlays };
 });
-check('…typing a product into the list offers it in the picker at once, with no reload',
-  typed.opts.indexOf('Thermakraft 215') >= 0 && typed.disabled === false, JSON.stringify(typed));
+check('…typing a paper in takes at once, price and roll size with it',
+  typed.products.length === 1 && typed.products[0].name === 'Thermakraft 215' &&
+  typed.products[0].price === 310 && typed.products[0].m2 === 75,
+  JSON.stringify(typed.products));
 
 const removed = await pg.evaluate(() => {
-  const x = document.querySelector('#catalogUnderlays [data-row="cat-underlays"] button');
-  x.click();
-  const sel = document.getElementById('pbDefaultUnderlay');
-  return { opts: Array.from(sel.options).map(o => o.value), n: sel.options.length };
+  document.querySelector('#catalogUnderlays [data-row="cat-underlays"] button').click();
+  return { products: _underlayProducts(), stored: S.settings.materials_catalog.underlays };
 });
-check('…and taking it off the list takes it out of the picker', removed.n === 1, JSON.stringify(removed));
+check('…and taking it off the list takes it out of the pricing',
+  removed.stored.length === 0, JSON.stringify(removed.stored));
 
 // ── THE PRICING SHEET AS A CSV (2026-10-12) ───────────────────────
 // "the intention was for a Quote Pricing sheet to be available as Download
@@ -239,6 +275,82 @@ check('every row the same width, so the columns do not shift in a spreadsheet',
 check('…and a description with a comma in it is quoted rather than splitting a row',
   !pcsv.text || plines.filter(l => /"/.test(l)).every(l => (l.match(/"/g) || []).length % 2 === 0),
   (plines.find(l => /"/.test(l)) || '').slice(0, 100));
+
+// ── THE PAPER IS WHAT THE JOB IS PRICED ON ───────────────────────
+// Each paper is a variant of its own on the take-off, at its own $/roll and
+// counted on its own roll size — so swapping the paper moves BOTH the rate
+// and the number of rolls. A row's quantity used to belong to the row, which
+// would have left a 100 m² paper ordering a 50 m² paper's roll count.
+const rows = await pg.evaluate(() => {
+  S.settings.materials_catalog.underlays =
+    [{ name:'DriStud RU24', price:256.75, m2:50 }, { name:'Wide roll', price:400, m2:100 }];
+  S.settings.price_book.defaultUnderlayProduct = 'DriStud RU24';
+  try { localStorage.removeItem('fr_underlay_product'); } catch(e){}
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[120,140],[560,140],[560,460],[120,460]];
+  finishCurrent(); DRAW.scaleMetresPerPx = 0.03; autoGenerateRoof('hip');
+  const r = _buildMaterialPriceRows().filter(x => x.key === 'underlay')[0];
+  return { def: r.defaultVariant, autoQty: r.autoQty,
+           variants: r.variants.map(v => ({ v: v.value, p: v.price, q: v.qty, u: v.unit })) };
+});
+check('the take-off offers one row per paper, each at its own price',
+  rows.variants.length === 2 && rows.variants[0].p === 256.75 && rows.variants[1].p === 400,
+  JSON.stringify(rows.variants));
+check('…and counts the rolls on THAT paper\u2019s roll size',
+  rows.variants[0].q === Math.ceil(rows.variants[1].q * 2) ||
+  (rows.variants[0].q > rows.variants[1].q && rows.variants[1].q > 0),
+  JSON.stringify(rows.variants));
+check('…starting on the one the office ticked',
+  rows.def === 'DriStud RU24' && rows.autoQty === rows.variants[0].q,
+  JSON.stringify({ def: rows.def, qty: rows.autoQty }));
+// The table is where the office sees it, and the quantity has to follow the
+// product they pick rather than sit at the row's default.
+const swap = await pg.evaluate(() => {
+  const r = _buildMaterialPriceRows().filter(x => x.key === 'underlay')[0];
+  const pick = n => _matRowQtyRaw(r, r.variants.filter(v => v.value === n)[0], {});
+  return { a: pick('DriStud RU24'), b: pick('Wide roll'),
+           typed: _matRowQtyRaw(r, r.variants[1], { qty: 9 }) };
+});
+check('picking the other paper changes the number of rolls, not just the rate',
+  swap.a !== swap.b && swap.b > 0, JSON.stringify(swap));
+check('…and a quantity the office typed still beats both', swap.typed === 9, String(swap.typed));
+
+// ── A BACK-TRAY IS PRICED BY THE METRE (the same message: "make the price
+// /lm and have the quote/pricing work out the cost as the length times by
+// the cost"). It is, and the labels now say so rather than leaving it to a
+// sentence above the grid.
+const bt = await pg.evaluate(() => {
+  S.settings.price_book.backtray_prices = { '270mm Corrugate back-tray': 120 };
+  renderPriceBookUI();
+  const lbls = Array.from(document.querySelectorAll('#pbBackTrayList label')).map(e => e.textContent);
+  return { lbls: lbls.slice(0, 2),
+           lm: _backTrayLmPrice('270mm Corrugate back-tray'),
+           each2: _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 2 }),
+           each05: _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 0.5 }),
+           noLen: _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 0 }) };
+});
+check('a back-tray rate is $/lm, and every box says so',
+  bt.lbls.every(l => /\(\$\/lm\)$/.test(l)), JSON.stringify(bt.lbls));
+check('…and a tray costs its own length \u00d7 that rate',
+  bt.lm === 120 && bt.each2 === 240 && bt.each05 === 60, JSON.stringify(bt));
+check('…while a tray whose length the drawing cannot give yet prices at nothing',
+  bt.noLen === 0, String(bt.noLen));
+
+// ── the tab's three lists are three sections now ─────────────────
+const secs = await pg.evaluate(() => {
+  gotoTab('settings'); switchSettingsSub('set-defaultpricing');
+  return { hds: Array.from(document.querySelectorAll('#set-defaultpricing .set-sec-hd strong'))
+                   .map(e => e.textContent.replace(/[^A-Za-z \-&]/g, '').trim()),
+           title: (document.querySelector('#set-defaultpricing .card-hd') || {}).textContent || '' };
+});
+check('THE ASK: roofing sheets, flashings and back-trays are three sections',
+  ['Roofing sheets','Flashings','Back-trays'].every(h => secs.hds.includes(h)) &&
+  !secs.hds.some(h => /Roofing sheets, flashings/.test(h)),
+  secs.hds.join(' | '));
+check('…under one steel-grade picker, so they are still one grade\u2019s prices',
+  secs.hds.indexOf('Steel grade') >= 0 &&
+  secs.hds.indexOf('Steel grade') < secs.hds.indexOf('Roofing sheets'), secs.hds.join(' | '));
+check('…and the tab is called Default Items', /Default Items/.test(secs.title), secs.title);
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

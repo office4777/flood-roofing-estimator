@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T02:13:16Z';
+  window.APP_BUILT_AT = '2026-10-20T06:42:39Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8752,7 +8752,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default item pricing</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default Items</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Ordering</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
@@ -9128,7 +9128,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         products they were sent with</strong> — removing something here only affects new quotes.
       </p>
       <p style="font-size:11.5px;color:var(--text2);margin:0 0 12px">This tab is the CHOICES. What each one costs is under
-        <strong>Default item pricing</strong>; your supplier's own list is <strong>Custom Price Book</strong>.</p>
+        <strong>Default Items</strong>; your supplier's own list is <strong>Custom Price Book</strong>.</p>
       <div id="selectablesUI"></div>
       <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
 
@@ -9139,7 +9139,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          Quote’s Product Options, where nobody looking for a price found it
          (2026-09-30). It is its own Pricing sub-tab now.  -->
     <div class="sub-panel settings-sub" id="set-defaultpricing" style="margin-top:14px">
-      <div class="card-hd"><span class="card-dot"></span>Default item pricing</div>
+      <div class="card-hd"><span class="card-dot"></span>Default Items</div>
       <p style="font-size:12px;color:var(--text2);margin-bottom:6px">Every item RoofMap works out off the roof by itself — sheets, flashings, underlay, fixings, gutter, downpipes — and what you pay for it. These prices cost the <strong>Job Pack</strong> and become the <strong>Materials</strong> line on every quote.</p>
       <p style="font-size:11.5px;color:var(--text2);margin-bottom:14px">This tab is the PRICES. <strong>Quote’s Product Options</strong> is the list of things a customer may choose between; <strong>Custom Price Book</strong> is your supplier’s own list, which can take over the price of any item here.</p>
 
@@ -9168,16 +9168,26 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
            percentage on the list until it has prices of its own. -->
       <div id="pbGradeBlock" class="set-sec">
         <div class="set-sec-hd">
-          <strong>Roofing sheets, flashings &amp; back-trays</strong>
-          <span class="set-sec-note">— pick a grade, then type its prices</span>
+          <strong>Steel grade</strong>
+          <span class="set-sec-note">— pick one; the three sections below are its prices</span>
         </div>
         <div id="pbGradeTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 6px"></div>
-        <div id="pbGradeNote" style="font-size:11.5px;color:var(--text2);margin-bottom:12px"></div>
-        <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:12.5px">Roofing sheets</strong>
-          <span style="font-size:11px;color:var(--text2)">— add a row per product variant</span>
-          <button type="button" onclick="addPriceBookSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add sheet variant</button>
+        <div id="pbGradeNote" style="font-size:11.5px;color:var(--text2);margin-bottom:2px"></div>
+      </div>
+
+      <!-- THREE HEADINGS, THREE TILES (2026-10-20, the owner: "seperate the
+           header title 'Roofing sheets, flashings & back-trays' and divide the
+           info into seperate sections with seperate header"). One band over
+           three unrelated lists is the same fault the settings tiles were
+           built to fix: by the second sub-heading you cannot tell which
+           section a field belongs to. -->
+      <div class="set-sec">
+        <div class="set-sec-hd">
+          <strong>Roofing sheets</strong>
+          <span class="set-sec-note">— a row per product variant, at the grade picked above</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <button type="button" onclick="addPriceBookSheet()" class="tool-btn" style="font-size:11px">+ Add sheet variant</button>
         </div>
         <div id="pbSheetsList"></div>
         <div style="margin-top:10px">
@@ -9187,9 +9197,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         </div>
       </div>
 
-        <div style="margin-bottom:16px">
-          <div style="margin-bottom:8px"><strong style="font-size:12.5px">Flashings</strong>
-            <span style="font-size:11px;color:var(--text2);margin-left:6px">— $/lm</span></div>
+      <div class="set-sec">
+          <div class="set-sec-hd"><strong>Flashings</strong>
+            <span class="set-sec-note">— $/lm, at the grade picked above</span></div>
           <div class="f3">
             <div><label>Ridge / Hip cap ($/lm)</label><input type="number" id="pbRidgeLm" step="0.01" min="0" placeholder="0.00"></div>
             <div><label>Valley flashing ($/lm)</label><input type="number" id="pbValleyLm" step="0.01" min="0" placeholder="0.00"></div>
@@ -9203,36 +9213,30 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div class="f3" style="margin-top:6px">
             <div><label>Wide-cover ridging ($/lm)</label><input type="number" id="pbRidgeWideLm" step="0.01" min="0" placeholder="0.00"></div>
           </div>
-        </div>
-        <div>
-          <div style="margin-bottom:6px"><strong style="font-size:12.5px">Back-trays</strong>
-            <span style="font-size:11px;color:var(--text2);margin-left:6px">— $/lm; trays are folded to each pipe's own tray length, so this is a rate per metre, not per tray. Leave blank for $0.</span></div>
-          <div id="pbBackTrayList" class="f3"></div>
-        </div>
       </div>
 
-      <!-- Underlay: the products offered, then what a roll costs -->
+      <div class="set-sec">
+          <div class="set-sec-hd"><strong>Back-trays</strong>
+            <span class="set-sec-note">— $/lm, at the grade picked above</span></div>
+          <p style="font-size:11.5px;color:var(--text2);margin:0 0 8px">Every tray is priced <strong>by the metre</strong>, not by the tray: a tray is folded to the length the pipe it sits behind actually needs, so the quote and the Job Pack work each one out as its own length × this rate. Leave a box blank for $0.</p>
+          <div id="pbBackTrayList" class="f3"></div>
+      </div>
+
+      <!-- A PAPER IS ONE PRODUCT, NOT THREE ROLL SIZES (2026-10-20, the owner:
+           "remove the m2 options for paper, instead when i '+add underlay' is
+           asks for the name, $ and m2, then in the 'underlay' section it just
+           lists the underlays I've add and asked me which one is my default
+           like the 'steel grades' has"). A roll size is a fact about the
+           paper, not a choice beside it — the office buys DriStud RU24, and
+           its roll is 50 m² whatever anyone types in a box below. -->
       <div class="set-sec">
       <div class="set-sec-hd"><strong>Underlay</strong>
-        <span class="set-sec-note">— the papers you offer, and what a roll costs</span></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Underlay products offered on a material order</strong>
-          <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper — offered on the Order Material tab</span>
-          <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
+        <span class="set-sec-note">— the papers you offer, what each costs and the roll it comes on</span></div>
+        <p style="font-size:11.5px;color:var(--text2);margin:0 0 10px">Each paper carries its own price and roll size, so a job works out how many rolls of <em>that</em> paper it needs. Tick the one you use most: a new job's material order starts there, and the office only picks another when it is not the usual.</p>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="font-size:11px">+ Add underlay</button>
         </div>
         <div id="catalogUnderlays"></div>
-        <div style="margin-top:10px">
-          <label style="font-size:11px">Default product for this job</label>
-          <select id="pbDefaultUnderlay" style="max-width:340px"></select>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">A new job's material order starts with this one, so the office only picks a paper when it is not the usual. Leave it unset to type the paper each time.</div>
-        </div>
-        <div style="margin:14px 0 6px"><strong style="font-size:11.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">What a roll costs</strong>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px">— by roll size</span></div>
-        <div class="f3">
-          <div><label>50 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay50" step="0.01" min="0" placeholder="0.00"></div></div>
-          <div><label>75 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay75" step="0.01" min="0" placeholder="0.00"></div></div>
-          <div><label>100 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay100" step="0.01" min="0" placeholder="0.00"></div></div>
-        </div>
       </div>
 
       <!-- Fixings: the screw and rivet rates, whatever the steel -->
@@ -9591,7 +9595,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
     <!-- MATERIAL ORDERING — how much of everything the take-off buys -->
     <div class="sub-panel settings-sub" id="set-ordering" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default item pricing</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default Items</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
       <nav class="tab-row" style="margin-bottom:14px">
         <button type="button" class="tab-sm on" data-ord-tab="waste" onclick="_ordSub('waste',this)">Wastage</button>
         <button type="button" class="tab-sm" data-ord-tab="cons" onclick="_ordSub('cons',this)">Consumables</button>
@@ -14546,12 +14550,20 @@ function collectPriceBookFromUI(){
   // the base grade's is the book itself, any other's goes under by_grade.
   _pbGradeCollect();
   if (!(pb.sheets || []).length) pb.sheets = defaultSettings().price_book.sheets;
-  pb.underlay = {
-    '50':  _num('pbUnderlay50'),
-    '75':  _num('pbUnderlay75'),
-    '100': _num('pbUnderlay100')
-  };
-  pb.defaultUnderlayProduct = (document.getElementById('pbDefaultUnderlay')||{}).value || '';
+  // The three roll-size boxes are gone (a paper carries its own price and
+  // roll now), but the map they wrote is KEPT: it is what a paper typed
+  // before this page changed still falls back to, and what a Custom Price
+  // Book line linked to `underlay.75` still writes into. A blank box must
+  // never wipe a price somebody is still being charged.
+  if (!pb.underlay) pb.underlay = {};
+  // Ticked on the list above, never a separate dropdown.
+  if (document.querySelector('#catalogUnderlays [data-field="isdefault"]')){
+    var _ulRows = _collectUnderlayRows();
+    var _ulDef = '';
+    _ulRows.forEach(function(o){ if (o.__default && o.name) _ulDef = o.name; delete o.__default; });
+    pb.defaultUnderlayProduct = _ulDef;
+    try { _ensureCatalog().underlays = _ulRows.filter(function(o){ return o.name; }); } catch(e){}
+  }
   pb.gutter_lm      = _num('pbGutterLm');
   pb.screws_each    = _num('pbScrewsEach');
   pb.rivets_each    = _num('pbRivetsEach');
@@ -14728,9 +14740,6 @@ function renderPriceBookUI(){
   var pb = S.settings.price_book;
   function setN(id, v){ var el=document.getElementById(id); if (el) el.value = (v == null || v === 0) ? '' : v; }
   try { refreshDefaultUnderlayPicker(pb.defaultUnderlayProduct || ''); } catch(e){}
-  setN('pbUnderlay50',  (pb.underlay||{})['50']);
-  setN('pbUnderlay75',  (pb.underlay||{})['75']);
-  setN('pbUnderlay100', (pb.underlay||{})['100']);
   setN('pbGutterLm',      pb.gutter_lm);
   setN('pbScrewsEach',    pb.screws_each);
   setN('pbRivetsEach',    pb.rivets_each);
@@ -14789,7 +14798,7 @@ function _renderBackTrayPriceInputs(map, placeholders){
   box.innerHTML = names.map(function(nm){
     var v = parseFloat(m[nm]); v = (isFinite(v) && v > 0) ? v : '';
     var p = parseFloat(ph[nm]); p = (isFinite(p) && p > 0) ? ('base ' + p) : '0.00';
-    return '<div><label style="font-size:11px">'+esc(nm)+'</label>'+
+    return '<div><label style="font-size:11px">'+esc(nm)+' ($/lm)</label>'+
       '<input type="number" step="0.01" min="0" data-bt-name="'+esc(nm)+'" value="'+v+'" placeholder="'+p+'"></div>';
   }).join('');
 }
@@ -14831,6 +14840,76 @@ function onPriceBookSheetChange(){
 function _pbUnderlayNames(){
   try { return ((S.settings.materials_catalog || {}).underlays || [])
     .map(function(u){ return (u && u.name) || ''; }).filter(Boolean); } catch(e){ return []; }
+}
+// ONE PAPER, ONE PRICE, ONE ROLL (2026-10-20). A product carries its own
+// `price` and `m2`; a product typed before this page asked for them falls
+// back to the per-roll-size map the price book has always held, so nothing
+// already quoted moves and a Custom Price Book line linked to `underlay.75`
+// still feeds it. With NO papers on the list at all the three roll sizes
+// stand in, exactly as they did — a fresh account must still order paper.
+var UNDERLAY_LEGACY_SIZES = [50, 75, 100];
+function _underlayLegacySize(){
+  var n = 0;
+  try { n = parseInt(localStorage.getItem('fr_underlay_roll_size') || '', 10); } catch(e){}
+  return (UNDERLAY_LEGACY_SIZES.indexOf(n) >= 0) ? n : 75;
+}
+function _underlayProducts(){
+  var out = [], legacy = {};
+  try { legacy = ((S.settings || {}).price_book || {}).underlay || {}; } catch(e){}
+  var cat = [];
+  try { cat = ((S.settings || {}).materials_catalog || {}).underlays || []; } catch(e){}
+  cat.forEach(function(it){
+    var name = String((it && it.name != null) ? it.name : it || '').trim();
+    if (!name) return;
+    var m2 = parseFloat(it && it.m2); if (!(m2 > 0)) m2 = 0;
+    var price = parseFloat(it && it.price); if (!(price > 0)) price = 0;
+    if (!m2) m2 = _underlayLegacySize();
+    if (!price) price = parseFloat(legacy[String(m2)]) || 0;
+    out.push({ name: name, price: price, m2: m2 });
+  });
+  if (!out.length){
+    UNDERLAY_LEGACY_SIZES.forEach(function(sz){
+      out.push({ name: sz + ' m²/roll', price: parseFloat(legacy[String(sz)]) || 0,
+                 m2: sz, legacy: true });
+    });
+  }
+  return out;
+}
+// The paper THIS device is working with: what the office picked on the Job
+// Pack, else the default on the list, else the first one.
+function _underlayPick(){
+  var list = _underlayProducts();
+  if (!list.length) return null;
+  var want = '';
+  try { want = String(localStorage.getItem('fr_underlay_product') || '').trim(); } catch(e){}
+  if (!want){ try { want = String(((S.settings || {}).price_book || {}).defaultUnderlayProduct || '').trim(); } catch(e){} }
+  if (!want && list[0] && list[0].legacy) want = _underlayLegacySize() + ' m²/roll';
+  var hit = want ? list.filter(function(p){ return p.name === want; })[0] : null;
+  return hit || list[0];
+}
+function _underlayRollM2(){
+  var p = _underlayPick();
+  return (p && p.m2 > 0) ? p.m2 : _underlayLegacySize();
+}
+// The paper picker on the Job Pack. With papers on the office's own list it
+// picks one BY NAME (which carries its price and its roll size); with none
+// it is the old roll-size box, so an account that has not filled Settings in
+// is exactly where it was.
+function _underlayPickerHtml(rollSize){
+  var list = _underlayProducts();
+  var legacy = !list.length || list[0].legacy;
+  if (legacy){
+    return '<select onchange="try{localStorage.setItem(\'fr_underlay_roll_size\',this.value);localStorage.removeItem(\'fr_underlay_product\');}catch(e){};renderMaterialsCutLists()">'+
+      UNDERLAY_LEGACY_SIZES.map(function(sz){
+        return '<option value="'+sz+'"'+(sz === rollSize ? ' selected' : '')+'>'+sz+' m²</option>'; }).join('')+
+      '</select>';
+  }
+  var cur = (_underlayPick() || {}).name || '';
+  return '<select onchange="try{localStorage.setItem(\'fr_underlay_product\',this.value);}catch(e){};renderMaterialsCutLists()">'+
+    list.map(function(p){
+      return '<option value="'+esc(p.name)+'"'+(p.name === cur ? ' selected' : '')+'>'+
+        esc(p.name) + ' · ' + _ordTrim(p.m2) + ' m²</option>'; }).join('')+
+    '</select>';
 }
 function refreshDefaultUnderlayPicker(current){
   var sel = document.getElementById('pbDefaultUnderlay'); if (!sel) return;
@@ -15350,7 +15429,7 @@ function _cpbRender(){
     }).join('');
   };
   host.innerHTML =
-    '<p class="cpb-intro"><b>This tab is your supplier’s own list</b>, kept as they wrote it — codes, descriptions and your real cost. <b>Default item pricing</b> is RoofMap’s own list of the things it measures off the roof; link a line here to one of those and it is priced from your supplier from then on.</p>' +
+    '<p class="cpb-intro"><b>This tab is your supplier’s own list</b>, kept as they wrote it — codes, descriptions and your real cost. <b>Default Items</b> is RoofMap’s own list of the things it measures off the roof; link a line here to one of those and it is priced from your supplier from then on.</p>' +
     '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade. Every change saves by itself, and earlier versions are kept.</p>' +
     '<div class="cpb-bar">' +
       '<label class="qa-btn qa-btn-primary cpb-upload">⬆ Upload price list (CSV or PDF)<input type="file" id="cpbFile" accept=".csv,.txt,.pdf,text/csv,application/pdf" onchange="_cpbFile(this)" hidden></label>' +
@@ -16008,18 +16087,18 @@ function computeMaterialsCost(){
     }
   }
 
-  // Underlay — uses the currently-selected roll size (same key the
-  // Materials tab uses).
+  // Underlay — the paper this job is on, at its own price and roll size.
   if (roofArea > 0) {
-    var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-    if (![50,75,100].includes(rollSize)) rollSize = 75;
-    var rollPrice = (pb.underlay && pb.underlay[String(rollSize)]) || 0;
+    var _ulP = _underlayPick() || { name:'', price:0, m2:_underlayLegacySize() };
+    var rollSize = _ulP.m2 > 0 ? _ulP.m2 : _underlayLegacySize();
+    var rollPrice = _ulP.price || 0;
     var _ulPct = _ordCons().underlayWastePct, _ulM2 = roofArea * (1 + _ulPct / 100);
     var rolls = Math.ceil(_ulM2 / rollSize);
     if (rollPrice > 0 && rolls > 0) {
       var underlayCost = rolls * rollPrice;
       out.breakdown.push({
-        desc: 'Underlay — ' + rollSize + ' m²/roll',
+        desc: 'Underlay — ' + ((_ulP.legacy || !_ulP.name) ? (_ordTrim(rollSize) + ' m²/roll')
+                                 : (_ulP.name + ' (' + _ordTrim(rollSize) + ' m²/roll)')),
         qty: rolls, unit: 'roll', price: rollPrice, lineTotal: underlayCost,
         note: 'covers ' + _ulM2.toFixed(1) + ' m² (incl. ' + _ordTrim(_ulPct) + '% waste)'
       });
@@ -16102,6 +16181,19 @@ function _matOvKey(key, idx){
 // rush"). It beats the price book for this row on this job only; every
 // reader of a row's price goes through here (the table, the materials total,
 // the job bar, the Fergus lines).
+// THE QUANTITY MAY BELONG TO THE VARIANT, not to the row (2026-10-20): a
+// 100 m² paper is fewer rolls than a 50 m² one for the same roof, so the
+// count has to follow the product picked rather than sit at whatever the
+// row's default was. A quantity the office TYPED still beats both. Four
+// readers come through here — the table, the materials total, the pricing
+// CSV and the Fergus push — because four hand-copies of this is exactly how
+// the consumables formulas drifted apart.
+function _matRowQtyRaw(r, picked, ov){
+  ov = ov || {};
+  if (ov.qty != null && ov.qty !== '') return parseFloat(ov.qty);
+  if (picked && picked.qty != null) return picked.qty;
+  return r ? r.autoQty : 0;
+}
 function _matOvPrice(ov, bookPrice){
   var v = ov && ov.price;
   if (v == null || v === '') return bookPrice;
@@ -16185,7 +16277,7 @@ function _unpricedItems(){
       var picked = (r.variants || []).filter(function(v){ return v.value === variantValue; })[0] || (r.variants || [])[0];
       var price = _matOvPrice(ov, picked ? picked.price : 0);
       var unit = (picked && picked.unit) || r.autoUnit || '';
-      var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      var qtyRaw = _matRowQtyRaw(r, picked, ov);
       var qty = 0;
       try { qty = _matOrderQty(qtyRaw, unit); } catch(e){ qty = parseFloat(qtyRaw) || 0; }
       if (price > 0 || !(qty > 0)) return;
@@ -16533,7 +16625,7 @@ function restoreDeletedMatRows(){
 }
 function openPriceSettings(){
   gotoTab('settings');
-  // Click the Default item pricing sub-tab so the user lands directly in it
+  // Click the Default Items sub-tab so the user lands directly in it
   setTimeout(function(){
     var btn = document.querySelector('button[onclick*="set-defaultpricing"]');
     if (btn) btn.click();
@@ -16870,19 +16962,23 @@ function _buildMaterialPriceRows(){
     }
   }
 
-  // Underlay — variant = roll size; auto qty = ceil(roofArea + waste / rollSize)
+  // Underlay — a variant per PAPER on the office's own list, each priced at
+  // its own $/roll and counted on its own roll size, so swapping the paper
+  // moves both the rate and the number of rolls (2026-10-20).
   if (roofArea > 0) {
-    var pickedRoll = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-    if (![50,75,100].includes(pickedRoll)) pickedRoll = 75;
-    var underlayVariants = [50,75,100].map(function(sz){
-      return { value:String(sz), label:sz+' m²/roll', price:(pb.underlay||{})[String(sz)]||0, unit:'roll' };
-    });
     var _oc = _ordCons();
-    var rollSize = pickedRoll;
     var _ulArea = roofArea * (1 + _oc.underlayWastePct / 100);
-    var rolls = Math.ceil(_ulArea / rollSize);
-    rows.push({ key:'underlay', label:'Underlay / paper', autoQty:rolls, autoUnit:'roll',
-                variants:underlayVariants, defaultVariant:String(pickedRoll),
+    var _ulList = _underlayProducts();
+    var _ulRolls = function(m2){ return (m2 > 0) ? Math.ceil(_ulArea / m2) : 0; };
+    var underlayVariants = _ulList.map(function(p){
+      return { value: p.name, unit: 'roll', price: p.price || 0, qty: _ulRolls(p.m2),
+               label: p.legacy ? p.name : (p.name + ' — ' + _ordTrim(p.m2) + ' m²/roll') };
+    });
+    var _ulDef = _underlayPick();
+    rows.push({ key:'underlay', label:'Underlay / paper',
+                autoQty: _ulRolls(_ulDef ? _ulDef.m2 : 0), autoUnit:'roll',
+                variants: underlayVariants,
+                defaultVariant: _ulDef ? _ulDef.name : (underlayVariants[0] || {}).value,
                 note:'covers ' + _ulArea.toFixed(1) + ' m² (incl. ' + _ordTrim(_oc.underlayWastePct) + '% waste)' });
   }
 
@@ -17036,7 +17132,10 @@ function _buildMaterialPriceRows(){
 function _cpbPathForVariant(row, v){
   var k = String(row.key || '');
   if (k === 'sheets') return 'sheet:' + v.value;
-  if (k === 'underlay') return 'underlay.' + v.value;
+  // A paper's price lives on its own row in Settings now, so there is no
+  // price-book field to link it to or to save a typed figure into. The three
+  // roll sizes still have one, for an account that has not listed its papers.
+  if (k === 'underlay') return /^\d+$/.test(String(v.value || '')) ? ('underlay.' + v.value) : '';
   if (k === 'ridge') return (v && v.value === 'wide') ? 'ridge_wide_lm' : 'ridge_lm';
   if (/^(valley|barge|apron|changepitch)$/.test(k)) return k + '_lm';
   if (k === 'screws') return 'screws_each';
@@ -17183,7 +17282,7 @@ function renderMaterialPriceTable(){
     var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
     var price = _matOvPrice(ov, picked ? picked.price : 0);
     var unit  = picked ? picked.unit : r.autoUnit;
-    var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var qtyRaw = _matRowQtyRaw(r, picked, ov);
     var qty   = _matOrderQty(qtyRaw, unit, r.decimalQty);
     var lineTotal = (qty||0) * (price||0);
     total += lineTotal;
@@ -17439,7 +17538,7 @@ function _materialsTotalFromRows(rows, idx){
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
     var unit = picked ? picked.unit : r.autoUnit;
-    var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var qtyRaw = _matRowQtyRaw(r, picked, ov);
     var qty = _matOrderQty(qtyRaw, unit, r.decimalQty);
     var price = _matOvPrice(ov, picked ? picked.price : 0);
     total += (qty || 0) * (price || 0);
@@ -28660,7 +28759,7 @@ function renderSelectablesUI(){
           '<td>' + inp('grades', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('profiles', 'Roof profiles',
-      'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere. <strong>Own price</strong> is for a profile that does not come at your standard sheet rate — leave it blank and Corrugate, 5-Rib and anything else share the price in Default item pricing; set it and that profile is priced at its own rate, on the quote, in the Pricing tab and as the extra the customer sees.',
+      'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere. <strong>Own price</strong> is for a profile that does not come at your standard sheet rate — leave it blank and Corrugate, 5-Rib and anything else share the price in Default Items; set it and that profile is priced at its own rate, on the quote, in the Pricing tab and as the extra the customer sees.',
       '<th>Name</th><th style="width:96px">Cover (mm)</th><th style="width:96px">Locks gauge</th><th style="width:92px">Own price $</th><th style="width:76px">per</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('profiles', i, 'name', r.name, 'Profile name') + '</td>' +
@@ -28682,7 +28781,7 @@ function renderSelectablesUI(){
           '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('gutters', 'Gutter profiles',
-      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not.<br><strong>Brackets.</strong> One every <em>spacing</em>, plus <em>per run</em> to start each run — a box gutter is bracketed every 800 mm, a PVC spouting every 450. Price an <strong>internal</strong> and an <strong>external</strong> bracket each and the quote works the &ldquo;External brackets&rdquo; extra out by itself, at the real difference times the real count. Where you cannot (a box gutter&rsquo;s brackets are inside its $/lm, so there is no internal cost to subtract), leave those two blank and type the flat <strong>Ext $/lm</strong> instead. Every box here is blank for &ldquo;use the standard&rdquo;, and the internal price falls back to Default item pricing.',
+      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not.<br><strong>Brackets.</strong> One every <em>spacing</em>, plus <em>per run</em> to start each run — a box gutter is bracketed every 800 mm, a PVC spouting every 450. Price an <strong>internal</strong> and an <strong>external</strong> bracket each and the quote works the &ldquo;External brackets&rdquo; extra out by itself, at the real difference times the real count. Where you cannot (a box gutter&rsquo;s brackets are inside its $/lm, so there is no internal cost to subtract), leave those two blank and type the flat <strong>Ext $/lm</strong> instead. Every box here is blank for &ldquo;use the standard&rdquo;, and the internal price falls back to Default Items.',
       '<th>Name</th><th style="width:86px">Scaffold +25%</th><th style="width:82px">Bracket every (mm)</th><th style="width:66px">+ per run</th><th style="width:80px">Internal $/ea</th><th style="width:80px">External $/ea</th><th style="width:76px">Ext $/lm</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         // The DEFAULT is the placeholder, never the value: one source of
@@ -28694,7 +28793,7 @@ function renderSelectablesUI(){
             ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
           '<td>' + inp('gutters', i, 'bracketSpacingMm', (r.bracketSpacingMm == null ? '' : r.bracketSpacingMm), String(Math.round(_bc.spacingMm)), ' type="number" step="10" min="1" title="One bracket every this many millimetres along the run"') + '</td>' +
           '<td>' + inp('gutters', i, 'bracketStartPerRun', (r.bracketStartPerRun == null ? '' : r.bracketStartPerRun), String(_bc.startPerRun), ' type="number" step="1" min="0" title="Brackets to start each gutter run, on top of the spacing"') + '</td>' +
-          '<td>' + inp('gutters', i, 'bracketIntEa', (r.bracketIntEa == null ? '' : r.bracketIntEa), 'standard', ' type="number" step="0.01" min="0" title="What one internal bracket costs. Blank uses Default item pricing."') + '</td>' +
+          '<td>' + inp('gutters', i, 'bracketIntEa', (r.bracketIntEa == null ? '' : r.bracketIntEa), 'standard', ' type="number" step="0.01" min="0" title="What one internal bracket costs. Blank uses Default Items."') + '</td>' +
           '<td>' + inp('gutters', i, 'bracketExtEa', (r.bracketExtEa == null ? '' : r.bracketExtEa), '\u2014', ' type="number" step="0.01" min="0" title="What one external bracket costs. Fill this in and the quote works the upgrade out from the difference."') + '</td>' +
           '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0" title="Flat $ per metre of run for the external-bracket upgrade. Used when the two per-each prices above cannot be filled in."') + '</td>' +
           '<td style="text-align:center">' +
@@ -29197,7 +29296,7 @@ function _bracketExtTotal(id, lm, lines){
 // in the settings gutter profiles for the added price/lm for external
 // brackets"). The column was already there on Settings -> Quote's Product
 // Options, and he had typed 6 / 3 / 3 into it — but the three SHIPPED products
-// jumped the queue to a pair of Default item pricing boxes
+// jumped the queue to a pair of Default Items boxes
 // (`ext_bracket_box125_lm` / `_marley_lm`), which are blank on most accounts
 // and save as 0. So his typed rate was read for a product he had added
 // himself and ignored for the three he actually quotes, and the customer's
@@ -30420,7 +30519,7 @@ function _selProfileCoverMm(id){
 // A PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate and
 // 5-rib share the same standard roofing sheet price, but then a profile like
 // RI-925 has it's own more expensive price"). Blank = the standard roofing
-// sheet rate from Default item pricing, which is every profile that existed
+// sheet rate from Default Items, which is every profile that existed
 // before this and why no quote already written moves. A rate set here
 // REPLACES that rate for the sheets row — and with it the basis, because a
 // tray priced by the metre is not priced by the square.
@@ -45309,19 +45408,48 @@ function renderCatalogList(key){
     list = DEFAULT_FLASHINGS.map(function(f){return { name:f.name };});
     cat.flashings = list;
   }
+  if (key === 'underlays') return _renderUnderlayRows(box, list);
   if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No items yet — add one.</div>'; return; }
   box.innerHTML = list.map(function(it){
     var name = String(it.name||'').replace(/"/g,'&quot;');
-    var hook = (key === 'underlays') ? ' oninput="onCatalogUnderlayChange()"' : '';
-    var gone = (key === 'underlays') ? 'this.parentNode.remove();onCatalogUnderlayChange();' : 'this.parentNode.remove()';
     return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-row="cat-'+key+'">'+
-      '<input type="text" data-field="name" value="'+name+'" placeholder="Name" style="flex:1;margin:0"'+hook+'>'+
-      '<button type="button" onclick="'+gone+'" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
+      '<input type="text" data-field="name" value="'+name+'" placeholder="Name" style="flex:1;margin:0">'+
+      '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
+  }).join('');
+}
+// The underlay list is a little table rather than a row of name boxes: a
+// paper has a price and a roll size of its own, and ONE of them is the
+// default — ticked, the way a steel grade's base is ticked.
+function _renderUnderlayRows(box, list){
+  var def = '';
+  try { def = String((S.settings.price_book || {}).defaultUnderlayProduct || '').trim(); } catch(e){}
+  var q = function(v){ return String(v == null ? '' : v).replace(/"/g,'&quot;'); };
+  var num = function(v){ var n = parseFloat(v); return (isFinite(n) && n > 0) ? n : ''; };
+  var hd = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
+      '<div style="flex:1;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">Name</div>'+
+      '<div style="width:110px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">$ per roll</div>'+
+      '<div style="width:110px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">m² per roll</div>'+
+      '<div style="width:62px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);text-align:center">Default</div>'+
+      '<div style="width:28px"></div></div>';
+  if (!list.length){
+    box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No papers yet — add one, and give it its price and roll size.</div>';
+    return;
+  }
+  box.innerHTML = hd + list.map(function(it, i){
+    var nm = String((it && it.name) || '');
+    var on = (nm && nm === def) ? ' checked' : '';
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-row="cat-underlays">'+
+      '<input type="text" data-field="name" value="'+q(nm)+'" placeholder="e.g. DriStud RU24" style="flex:1;margin:0" oninput="onCatalogUnderlayChange()">'+
+      '<input type="number" data-field="price" step="0.01" min="0" value="'+q(num(it && it.price))+'" placeholder="0.00" style="width:110px;margin:0" oninput="onCatalogUnderlayChange()">'+
+      '<input type="number" data-field="m2" step="0.1" min="0" value="'+q(num(it && it.m2))+'" placeholder="50" style="width:110px;margin:0" oninput="onCatalogUnderlayChange()">'+
+      '<div style="width:62px;text-align:center"><input type="radio" name="ulDefaultPick" data-field="isdefault" value="'+i+'"'+on+' onchange="onCatalogUnderlayChange()" style="margin:0"></div>'+
+      '<button type="button" onclick="this.closest(\'[data-row=cat-underlays]\').remove();onCatalogUnderlayChange();" class="tool-btn" style="width:28px;font-size:11px;color:#b91c1c">×</button></div>';
   }).join('');
 }
 function addCatalogItem(key){
-  var list = collectListEditor(_catalogContainerId(key), ['name']);
-  list.push({name:''});
+  var list = (key === 'underlays') ? _collectUnderlayRows()
+                                   : collectListEditor(_catalogContainerId(key), ['name']);
+  list.push(key === 'underlays' ? { name:'', price:'', m2:'' } : { name:'' });
   _ensureCatalog()[key] = list;
   renderCatalogList(key);
   if (key === 'underlays') onCatalogUnderlayChange();
@@ -45337,11 +45465,35 @@ function addCatalogItem(key){
 // picker has read its rows straight off the page since it was built; this
 // one does the same now, and an empty list says what to do instead of
 // looking broken.
+// Read the rows off the page. It must carry the PRICE and the ROLL SIZE
+// with the name — the version before this rebuilt the list as `{name}`
+// alone, so anything else on a row was thrown away on the next keystroke.
+function _collectUnderlayRows(){
+  var rows = Array.prototype.slice.call(
+    document.querySelectorAll('#catalogUnderlays > [data-row="cat-underlays"]'));
+  return rows.map(function(r){
+    var g = function(f){ var el = r.querySelector('input[data-field="'+f+'"]'); return el ? el.value : ''; };
+    var p = parseFloat(g('price')), m = parseFloat(g('m2'));
+    var o = { name: String(g('name') || '').trim() };
+    if (isFinite(p) && p > 0) o.price = p;
+    if (isFinite(m) && m > 0) o.m2 = m;
+    var d = r.querySelector('input[data-field="isdefault"]');
+    if (d && d.checked) o.__default = true;
+    return o;
+  });
+}
 function onCatalogUnderlayChange(){
-  var rows = Array.from(document.querySelectorAll('#catalogUnderlays > [data-row="cat-underlays"]'));
-  var names = rows.map(function(r){ return ((r.querySelector('input[data-field="name"]')||{}).value || '').trim(); }).filter(Boolean);
-  try { _ensureCatalog().underlays = names.map(function(n){ return { name: n }; }); } catch(e){}
-  refreshDefaultUnderlayPicker((document.getElementById('pbDefaultUnderlay')||{}).value || '');
+  var list = _collectUnderlayRows();
+  var def = '';
+  list.forEach(function(o){ if (o.__default && o.name) def = o.name; delete o.__default; });
+  try { _ensureCatalog().underlays = list.filter(function(o){ return o.name; }); } catch(e){}
+  try {
+    if (!S.settings.price_book) S.settings.price_book = defaultSettings().price_book;
+    // The tick stays on its row while the name is being typed, so a rename
+    // carries the default with it rather than dropping it mid-word.
+    S.settings.price_book.defaultUnderlayProduct = def;
+  } catch(e){}
+  try { refreshDefaultUnderlayPicker(def); } catch(e){}
 }
 
 // — Wire the new section into existing settings lifecycle —
@@ -52425,7 +52577,7 @@ var SETUP_STEPS = [
 
   { key:'pricebook', title:'Your price book — read this one',
     body:'__PB_DISCLAIMER__',
-    go:{ tab:'settings', sub:'set-defaultpricing' }, cta:'Open the price book', where:'Default item pricing' },
+    go:{ tab:'settings', sub:'set-defaultpricing' }, cta:'Open the price book', where:'Default Items' },
 
   { key:'brand', title:'Make the quotes yours',
     // The branding wizard collects the same fields on first run. If it has
@@ -67412,8 +67564,7 @@ function _matUnderlayM2For(typeName){
 // _matDektitesGet directly. Empty input = back to auto-calculated.
 function _jpRenderConsumablesSection(d){
   d = d || _matDrawTotals();
-  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-  if ([50, 75, 100].indexOf(rollSize) < 0) rollSize = 75;
+  var rollSize = _underlayRollM2();
   function qtyIn(key, autoVal, width){
     var ov = _matConsOverrideGet(key);
     var v = ov != null ? ov : autoVal;
@@ -70448,8 +70599,7 @@ function _matRenderConsumables(d) {
   var out = document.getElementById('matConsumables');
   if (!out) return;
   d = d || _matDrawTotals();
-  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-  if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
+  var rollSize = _underlayRollM2();
 
   // Editable-qty input — single tile pattern: big number, click to
   // type a different total. Reset link clears the override.
@@ -70497,9 +70647,7 @@ function _matRenderConsumables(d) {
   var underlayM2 = d.roofArea * (1 + _oc.underlayWastePct / 100);
   var rollsAuto = d.roofArea > 0 ? Math.ceil(underlayM2 / rollSize) : 0;
   var underlaySub = underlayM2.toFixed(1)+' m² (incl. '+_ordTrim(_oc.underlayWastePct)+'% waste) · roll size '+
-    '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
-    [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
-    '</select> · auto: '+rollsAuto+' rolls';
+    _underlayPickerHtml(rollSize) + ' · auto: '+rollsAuto+' rolls';
   html += consSection('#10b981', 'Underlay', 'Roof paper / breather wrap',
     consRow('Underlay / paper',
       qtyInput('fr_underlay_rolls_override', rollsAuto) + ' rolls' + resetLink('fr_underlay_rolls_override'),
@@ -71860,7 +72008,7 @@ function _readFergusMaterialItems(){
       var ov = ovs[_matOvKey(r.key, 0)] || {};
       var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
       var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
-      var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      var qtyRaw = _matRowQtyRaw(r, picked, ov);
       // The same rounding the pricing panel and the quote total use. Sending
       // the RAW quantity put 149.21 m² of sheet on the Fergus quote where the
       // job is priced on 142 — every line drifted, and the pushed total came
@@ -73115,8 +73263,7 @@ function _matBuildPrintOrderDetails(mount) {
 
   // Consumables strip — each qty honours the user's override from the
   // on-screen tiles; falls back to the auto calc when no override.
-  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-  if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
+  var rollSize = _underlayRollM2();
   var _oc = _ordCons();
   var rollsAuto = d.roofArea > 0 ? Math.ceil(d.roofArea * (1 + _oc.underlayWastePct / 100) / rollSize) : 0;
   var screwsAuto = d.roofArea > 0 ? Math.ceil(d.roofArea * _oc.screwsPerM2 / _oc.screwsRound) * _oc.screwsRound : 0;

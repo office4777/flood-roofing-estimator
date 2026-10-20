@@ -1937,6 +1937,46 @@ Discipline (non-negotiable):
   the header says so. Named for the quote's ref so two jobs do not
   overwrite each other.
   `tests/pbdefaults.mjs`.
+- A PAPER IS ONE PRODUCT, NOT THREE ROLL SIZES (2026-10-20, the owner: "remove
+  the m2 options for paper, instead when i '+add underlay' is asks for the
+  name, $ and m2, then in the 'underlay' section it just lists the underlays
+  I've add and asked me which one is my default like the 'steel grades' has").
+  A roll size is a FACT ABOUT THE PAPER, not a choice beside it: the office
+  buys DriStud RU24 and its roll is 50 m² whatever is typed in a box below, so
+  the three 50/75/100 price boxes priced a paper nobody had said they used.
+  A catalog row is `{name, price, m2}` now (`materials_catalog.underlays`),
+  rendered as a little table with a DEFAULT radio — the steel grades' base
+  column, which is what he asked it to look like — and the old
+  `#pbDefaultUnderlay` dropdown is gone with the boxes.
+  NOTHING ALREADY PRICED MOVES, and that is what the shape is for.
+  `_underlayProducts()` fills a row's blank price or roll size from
+  `price_book.underlay` (the old per-roll-size map, which the settings save
+  KEEPS rather than clearing — it is also what a Custom Price Book line linked
+  to `underlay.75` still writes into), and with NO papers on the list at all
+  the three roll sizes stand in as products, exactly as they did. A fresh
+  account ships that list empty, so without the fallback every one of them
+  would have stopped ordering paper.
+  `_underlayPick()` is the paper this device is working on (the Job Pack's own
+  picker, else the ticked default, else the first) and `_underlayRollM2()` its
+  roll — the quote's material breakdown, the priced take-off, the Job Pack's
+  consumables card and the printed strip all read those two, so the rolls on
+  the pack and the rolls on the quote cannot disagree.
+  A VARIANT MAY CARRY ITS OWN QUANTITY (`_matRowQtyRaw`): a 100 m² paper is
+  fewer rolls than a 50 m² one for the same roof, so the count has to follow
+  the product picked rather than sit at the row's default. FOUR readers took
+  `ov.qty ?? r.autoQty` by hand — the table, the materials total, the pricing
+  CSV and the Fergus push — and four hand-copies is how the consumables
+  formulas drifted; they go through the one helper now. A typed override still
+  beats both. `_cpbPathForVariant` answers '' for a named paper (its price
+  lives on its own row, so there is no price-book field to link or save into)
+  and still answers `underlay.<n>` for a legacy roll size.
+  THE BACK-TRAYS were already length × $/lm (`_backTrayEachPrice`); what was
+  missing was the page saying so, so every box is labelled ($/lm) and the
+  section says it in a line of its own.
+  AND THE TAB IS "DEFAULT ITEMS" (same message), with its one
+  "Roofing sheets, flashings & back-trays" band split into a Steel grade
+  picker over three tiles — one band over three unrelated lists is the fault
+  the settings tiles were built to fix. `tests/pbdefaults.mjs` (45).
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type

@@ -47,8 +47,8 @@ const nav = await pg.evaluate(() => {
 });
 check('Guides is a Settings tab of its own', nav.guides && nav.btns.includes('Guides'), nav.btns.join(' | '));
 check('the Products tab is called Quote’s Product Options', nav.btns.includes("Quote's Product Options"));
-check('…and the price book is its own tab, called Default item pricing',
-  nav.btns.includes('Default item pricing') && !nav.btns.includes('Price book') && !nav.pricebookPanel, nav.btns.join(' | '));
+check('…and the price book is its own tab, called Default Items',
+  nav.btns.includes('Default Items') && !nav.btns.includes('Price book') && !nav.pricebookPanel, nav.btns.join(' | '));
 check('Suppliers & materials is just Suppliers', nav.btns.includes('Suppliers') && !nav.btns.some(t => /materials/i.test(t)));
 
 const guides = await pg.evaluate(() => {
@@ -75,7 +75,7 @@ const alias = await pg.evaluate(() => {
            notInProducts: !document.querySelector('#set-products #pbSheetsList'),
            supl: !!document.querySelector('#set-supl #supplierList') && !!document.querySelector('#set-supl #catalogFlashings') && !document.querySelector('#set-supl #catalogUnderlays') && !document.getElementById('catalogProducts') };
 });
-check('opening "set-pricebook" lands on Default item pricing', alias.on && alias.title === 'Default item pricing', alias.title);
+check('opening "set-pricebook" lands on Default Items', alias.on && alias.title === 'Default Items', alias.title);
 check('…which carries the price book: sheets, the grade buttons and the back-trays', alias.pb);
 check('…and the underlay and screw lists that came over from Suppliers', alias.lists);
 check('…and it is gone from Quote’s Product Options', alias.notInProducts);

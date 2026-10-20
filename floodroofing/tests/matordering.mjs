@@ -5,7 +5,7 @@
 //     in a specific cost in the settings gutter profiles for the added
 //     price/lm for external brackets". The column was already on Quote's
 //     Product Options and he had typed 6 / 3 / 3 into it — but the three
-//     SHIPPED products read a pair of Default item pricing boxes instead,
+//     SHIPPED products read a pair of Default Items boxes instead,
 //     which save as 0 on any account that has pressed Save there. So his rate
 //     was honoured for a product he had added himself and ignored for the
 //     three he quotes, and the customer was offered external brackets free.
@@ -83,7 +83,7 @@ v = await pg.evaluate(() => ({
     return S.settings.price_book.gutter.ext_bracket_marley_lm;
   })()
 }));
-check('the duplicate Default item pricing boxes are gone — one number, one place', v.gone);
+check('the duplicate Default Items boxes are gone — one number, one place', v.gone);
 check('…and saving does not wipe the figure an older account still reads',
   v.kept === 4.25, String(v.kept));
 
