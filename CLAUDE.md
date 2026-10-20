@@ -3120,6 +3120,66 @@ Discipline (non-negotiable):
   nothing can share with either. Do NOT chase it by lowering the slicer's
   section threshold — that splits the two drawings across sheets, which is
   worse. `tests/poleshed.mjs` (201): 8 of the 9 new pins fail on the old build.
+- HTML2CANVAS DOES NOT HONOUR `object-fit` (2026-10-20, the owner on the pole
+  shed's PDF, second attempt: "pdf still looks terrible compared to the app,
+  ratio is all distorted and cover page is nearly all empty"). He was being
+  literal: a test render with a circle on it came out an ELLIPSE. The capture
+  draws every `<img>` stretched to its box, which is why
+  `_inlineCoverImagesForPdf` exists at all — it pre-draws each picture at its
+  on-screen crop and swaps the bitmap in. But it SKIPPED a `data:` src as
+  "already inline", and every picture that matters is a data URL: the WebShed
+  plans, the shed's cover render, every condition photo. So the one class of
+  image it was written to rescue was the one class it never touched, and a 16:9
+  render was squashed into a 3:1 band on every PDF the app has ever made —
+  roofing quotes too. A data URL is skipped only where `object-fit` has nothing
+  to say; the baked bitmap is marked `object-fit:fill` **!important** (an inline
+  style loses to an `!important` rule, and the print layers set `object-fit` on
+  these very images, so without the flag the crop was fitted a second time);
+  a `contain` bake fills the box with the nearest painted background first,
+  because a JPEG has no alpha and the bars would otherwise come out BLACK; and
+  the bake runs at the CAPTURE SCALE, or a picture is quietly halved in
+  resolution on its way through.
+  A SHEET MILLIMETRE IS 5.24 CSS PIXELS, NOT 3.78. The modern capture lays out
+  at `QP_PDF_MODERN_W` (1100px) across a 210mm sheet, so a rule written in CSS
+  `mm` inside it names a length 26% shorter than the millimetres it says — the
+  first pass at this gave the shed's drawings a "104mm" band that came out 75mm
+  on the paper. `QP_PDF_PX_PER_MM` and `QP_PDF_SHEET_PX` (1508px = the 288mm a
+  sheet has once `QP_PDF_FOOT_MM` is taken off) are what anything sized against
+  the sheet is worked out from.
+  A BOX IS NOT A SHAPE. The first fix only said `contain`, which letterboxes a
+  drawing inside whatever box it is given — and the box was a fixed band, so the
+  floor plan printed small with white down both sides and a white strip under
+  it. Each drawing now takes the full width of its card and whatever height its
+  own shape asks for (`.ps-draw-img`, capped at 660px ≈ 126mm so the two still
+  land on one sheet), and `.ps-draw-wrap` hugs it so a portrait elevation is
+  mounted rather than floating in a white field with its label off to one side.
+  The selector carries `.qd-sec` and `:not(.qd-logo)` to out-specify the
+  catch-all `.qd-sec img{max-height:80mm}` rule, which otherwise wins on
+  specificity whatever the pole-shed rules say — that cap is also what held the
+  cover band's render down to 302px while the band itself was 905.
+  A COVER IS A PAGE, NOT A PARAGRAPH. The shed's cover is a 330px band and a
+  title block, about 150mm of a 288mm sheet, and the slicer starts the next
+  chapter on a fresh sheet — so the rest of sheet 1 was white. `_psPdfFitCover`
+  grows the band (shed only, `PS_PDF_HERO_MIN/MAX`, restored the moment the
+  capture is over) until the next chapter starts 18px short of the sheet. The
+  render is CONTAINED on its navy ground rather than cropped to a shape nobody
+  chose — the drawings' rule applied to the picture the customer sees first —
+  and the office's own drag/zoom still moves it inside the band.
+  A CHAPTER BAND BLEEDS ABOVE ITS OWN SECTION (23px), so `_pdfBreakRows` cutting
+  at the section's top edge landed INSIDE the band: a navy sliver with its cyan
+  rule stranded at the foot of three sheets out of four. `push` takes the
+  topmost painted edge (the band's own top) and lifts by 1 rather than 8 when it
+  finds one — there is no white gap to aim for, because the band is painted over
+  the last 8px of the card above it, and lifting further clipped that card's
+  bottom border onto the next sheet. Raising the lift is NOT the fix; the bleed
+  is whatever the band's margin says. `.ps-spec-row` and `.ps-draw-wrap` joined
+  the row candidates at the same time.
+  Measured, not reasoned: the whole pipeline runs in a scratch harness with
+  html2canvas and jsPDF off `npm pack` (the CDN is blocked here) against a
+  static server (a `file://` origin taints the canvas and `rowInk` throws), and
+  the PDF goes through `pdftoppm`. Sheets went from 90/64/76/56% full with
+  stretched pictures to 91/96/97/73% with true ones. `tests/poleshed.mjs` (213)
+  — against the old build the eight fault pins fail and the safety pins pass.
 - A CROSSED-OUT ROOF IS CROSSED OUT, NOT THE HOUSE BESIDE IT (feedback report
   66, 2026-10-19: "quotes red cross is confusing, it crosses out part of the
   main roof which looks wrong, it should be a smaller cross in the middle of

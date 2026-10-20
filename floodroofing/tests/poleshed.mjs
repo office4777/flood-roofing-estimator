@@ -1493,19 +1493,32 @@ check('a shed with nothing measured reads blank, not an invented figure',
 // them for the first time in that file. Driven here against the real markup
 // with the pdf layer on, because every one of these is a CSS rule reaching (or
 // failing to reach) a class the renderer has to put there.
-const pdfLook = await pg.evaluate(() => {
+const pdfLook = await pg.evaluate(async () => {
   S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
   S.quote.condPhotos = S.quote.condPhotos || [];
   // a floor plan in slot 1, nothing in slot 2, so both branches render
-  S.quote.condPhotos[1] = { src: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' };
+  // 4:1, and it has to LOAD — the drawing's printed height is its own shape,
+  // which a broken 1px gif measures as zero whatever the rules say.
+  S.quote.condPhotos[1] = { src: 'data:image/svg+xml;base64,' + btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">' +
+    '<rect width="400" height="100" fill="#09c"/></svg>') };
   delete S.quote.condPhotos[2];
   // job 3287's own shape: some measures typed, some blank
   S.quote.psWidth = ''; S.quote.psLength = ''; S.quote.psHeight = '';
   S.quote.psRoofType = 'Mono-pitch (flat)';
   const host = document.createElement('div');
   host.id = '__pdfProbe';
-  host.innerHTML = _psModernSections().map(x => x.html()).join('');
+  // WRAPPED THE WAY _qdRender WRAPS THEM. The rules under test are written
+  // `html.pdf-modern .qd-sec img.ps-draw-img` — deliberately, to out-specify
+  // the catch-all photo rule — so a probe that drops the sections into a bare
+  // <div> is testing nothing: every one of these pins passed on the build
+  // that shipped the fault.
+  host.innerHTML = _psModernSections().map(x =>
+    '<section class="qd-sec qd-sec-' + x.key + '" data-qd-sec="' + x.key + '">' +
+    x.html() + '</section>').join('');
   document.body.appendChild(host);
+  await Promise.all([...host.querySelectorAll('img')].map(i => new Promise(r => {
+    if (i.complete && i.naturalWidth) return r(); i.onload = r; i.onerror = r; })));
   const on = () => document.documentElement.classList.add('pdf-modern');
   const off = () => document.documentElement.classList.remove('pdf-modern');
   const vis = (sel) => { const e = host.querySelector(sel);
@@ -1520,6 +1533,7 @@ const pdfLook = await pg.evaluate(() => {
   on();
   const img = host.querySelector('.ps-draw-img');
   const col = host.querySelector('.ps-draw-col');
+  const wrp = host.querySelector('.ps-draw-wrap');
   out.pdf = {
     emptySpec: vis('.ps-spec-empty'), tap: vis('.ps-tap-note'),
     acceptCard: vis('.ps-accept-card'), ofPages: vis('.ed-ofpages'),
@@ -1527,6 +1541,14 @@ const pdfLook = await pg.evaluate(() => {
     fit: img ? getComputedStyle(img).objectFit : null,
     imgCap: img ? getComputedStyle(img).maxHeight : null,
     colH: col ? getComputedStyle(col).height : null,
+    imgW: img ? Math.round(img.getBoundingClientRect().width) : null,
+    imgH: img ? Math.round(img.getBoundingClientRect().height) : null,
+    imgNat: img ? (img.naturalWidth + 'x' + img.naturalHeight) : null,
+    cardW: (function(){ const d = host.querySelector('.ps-draw-col');
+      return d ? Math.round(d.getBoundingClientRect().width) : null; })(),
+    wrapW: wrp ? Math.round(wrp.getBoundingClientRect().width) : null,
+    slotH: (function(){ const d = host.querySelector('.ps-draw-col > div');
+      return d ? getComputedStyle(d).height : null; })(),
     acceptGrid: (function(){ const g = host.querySelector('.ps-accept-grid');
       return g ? getComputedStyle(g).display : null; })(),
   };
@@ -1537,8 +1559,26 @@ const pdfLook = await pg.evaluate(() => {
   return out;
 });
 check('the shed’s floor plan prints WHOLE — a plan is read, not cropped',
-  pdfLook.pdf.fit === 'contain' && pdfLook.pdf.imgCap === 'none',
+  pdfLook.pdf.fit === 'contain' && pdfLook.pdf.imgCap === '660px',
   JSON.stringify({ fit: pdfLook.pdf.fit, cap: pdfLook.pdf.imgCap }));
+// A BOX IS NOT A SHAPE (2026-10-20, the owner on the first attempt at this:
+// "ratio is all distorted"). `contain` alone letterboxes a drawing inside
+// whatever box it is given, and the box was a fixed band — so the plan printed
+// small, with white down both sides and a white strip beneath it. The height
+// has to follow the drawing's own shape, and the 80mm catch-all photo cap must
+// not be what decides it.
+check('…and it takes the height ITS OWN SHAPE asks for, not a band’s',
+  pdfLook.pdf.imgNat === '400x100' && pdfLook.pdf.imgH > 0 &&
+  Math.abs((pdfLook.pdf.imgW / pdfLook.pdf.imgH) - 4) < 0.08 &&
+  pdfLook.pdf.imgCap !== '80mm',
+  JSON.stringify(pdfLook.pdf));
+check('…and it is not shrunk into a corner of the card either',
+  pdfLook.pdf.cardW > 100 && pdfLook.pdf.imgW >= Math.min(400, pdfLook.pdf.cardW) - 2,
+  JSON.stringify({ img: pdfLook.pdf.imgW, card: pdfLook.pdf.cardW }));
+check('…and the frame hugs the drawing rather than standing a box around it',
+  pdfLook.pdf.wrapW > 0 && Math.abs(pdfLook.pdf.wrapW - pdfLook.pdf.imgW) <= 4 &&
+  pdfLook.pdf.wrapW < pdfLook.pdf.cardW,
+  JSON.stringify({ wrap: pdfLook.pdf.wrapW, img: pdfLook.pdf.imgW, card: pdfLook.pdf.cardW }));
 check('…and the 820px A4 column stops holding the drawings open',
   !!pdfLook.pdf.colH && pdfLook.pdf.colH !== '820px', String(pdfLook.pdf.colH));
 check('a spec row nobody filled in is not printed, and the filled ones are',
@@ -1558,11 +1598,115 @@ check('"of 5 pages" does not argue with the sheet number at the foot',
 check('on screen the quote is untouched — every one of these is print-only',
   pdfLook.screen.tap === true && pdfLook.screen.acceptCard === true &&
   pdfLook.screen.drawEmpty === true, JSON.stringify(pdfLook.screen));
-check('a chapter band is a page-break candidate, so no navy sliver is left behind',
-  await pg.evaluate(() => {
-    const src = String(_pdfBreakRows);
-    return /ed-heading-band/.test(src) && /push\(out\.sec, el, 8\)/.test(src);
-  }), 'ed-heading-band in the row selectors');
+// A CHAPTER BAND BLEEDS ABOVE ITS OWN SECTION, and a cut measured from the
+// section's top edge therefore lands INSIDE the band — a navy sliver with its
+// cyan rule stranded at the foot of three sheets out of four. Driven, not
+// grepped: the pin this replaced asserted the literal `push(out.sec, el, 8)`
+// and failed on the refactor that fixed the bug it was guarding.
+const brk = await pg.evaluate(() => {
+  const t = document.createElement('div');
+  t.setAttribute('style', 'position:absolute;left:-10000px;top:0;width:600px');
+  t.innerHTML =
+    '<div style="height:200px"></div>' +
+    '<section data-qd-sec="x" style="height:300px;border:1px solid #ccc">' +
+      '<div class="ed-heading-band" style="margin-top:-23px;height:40px"></div>' +
+    '</section>';
+  document.body.appendChild(t);
+  const sec = t.querySelector('[data-qd-sec]'), band = t.querySelector('.ed-heading-band');
+  const tr = t.getBoundingClientRect();
+  const out = _pdfBreakRows(t, 1);
+  const r = { sec: out.sec.slice(), row: out.row.slice(),
+              secTop: Math.round(sec.getBoundingClientRect().top - tr.top),
+              bandTop: Math.round(band.getBoundingClientRect().top - tr.top) };
+  t.remove();
+  return r;
+});
+check('a chapter band that bleeds above its section does not get sliced',
+  brk.bandTop < brk.secTop && brk.sec.length === 1 && brk.sec[0] <= brk.bandTop,
+  JSON.stringify(brk));
+check('…and the cut does not climb into the card above it either',
+  brk.sec[0] >= brk.bandTop - 4, JSON.stringify(brk));
+check('a spec row is a place a sheet may end',
+  await pg.evaluate(() => /\.ps-spec-row/.test(String(_pdfBreakRows))), 'row selectors');
+
+// HTML2CANVAS DOES NOT HONOUR object-fit (2026-10-20, the owner: "ratio is all
+// distorted" — and a circle on a test render came out an ellipse). That is why
+// _inlineCoverImagesForPdf bakes the crop in. But it SKIPPED a data: src as
+// "already inline", and every picture that matters is a data URL: the WebShed
+// plans, the cover render, every condition photo. So the one class of image it
+// was written to rescue was the one class it never touched.
+const bake = await pg.evaluate(async () => {
+  const src = 'data:image/svg+xml;base64,' + btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">' +
+    '<rect width="400" height="100" fill="#09c"/></svg>');
+  const host = document.createElement('div');
+  host.setAttribute('style', 'position:absolute;left:-10000px;top:0;width:300px;background:#0a1628');
+  host.innerHTML = '<img id="__bk" src="' + src + '" ' +
+    'style="width:300px;height:300px;object-fit:cover;display:block">';
+  document.body.appendChild(host);
+  const img = host.querySelector('#__bk');
+  await new Promise(r => { if (img.complete && img.naturalWidth) return r();
+    img.onload = r; img.onerror = r; });
+  const before = img.getAttribute('src');
+  const undo = _inlineCoverImagesForPdf(host, 2);
+  const after = img.getAttribute('src');
+  const fit = img.style.getPropertyValue('object-fit');
+  const prio = img.style.getPropertyPriority('object-fit');
+  undo();
+  const back = img.getAttribute('src') === before;
+  host.remove();
+  return { changed: after !== before, jpeg: /^data:image\/jpe?g/.test(after || ''),
+           fit: fit, prio: prio, restored: back };
+});
+check('a data-URL picture has its crop baked in for the capture',
+  bake.changed && bake.jpeg, JSON.stringify(bake));
+check('…marked !important, or the print rules fit it a second time',
+  bake.fit === 'fill' && bake.prio === 'important', JSON.stringify(bake));
+check('…and it is put back exactly as it was afterwards',
+  bake.restored, JSON.stringify(bake));
+
+// A COVER IS A PAGE, NOT A PARAGRAPH (the same message: "cover page is nearly
+// all empty"). The band grows until the next chapter starts at the foot of
+// sheet one — and a sheet millimetre here is 5.24 CSS px, not the 3.78 a CSS
+// `mm` means, which is what made the first attempt's "104mm" band 75mm of paper.
+const cov = await pg.evaluate(() => {
+  const was = S.quote.quoteKind;
+  S.quote.quoteKind = 'poleshed';
+  const host = document.createElement('div');
+  host.setAttribute('style', 'position:absolute;left:-10000px;top:0;width:1100px');
+  host.innerHTML =
+    '<section data-qd-sec="cover" style="border:1px solid #ccc">' +
+      '<figure data-cp-hero="1" style="margin:0;height:330px"></figure>' +
+      '<div style="height:400px"></div>' +
+    '</section>' +
+    '<section data-qd-sec="psplans" style="height:900px;border:1px solid #ccc"></section>';
+  document.body.appendChild(host);
+  const root = host;
+  const hero = host.querySelector('figure[data-cp-hero]');
+  const next = host.querySelector('[data-qd-sec="psplans"]');
+  const top = () => Math.round(next.getBoundingClientRect().top - host.getBoundingClientRect().top);
+  const before = top();
+  const undo = _psPdfFitCover(root);
+  const after = top(), grown = Math.round(hero.getBoundingClientRect().height);
+  undo();
+  const backTo = Math.round(hero.getBoundingClientRect().height);
+  S.quote.quoteKind = 'roofing';
+  const onRoof = _psPdfFitCover(root);
+  const roofTop = top();
+  onRoof();
+  host.remove(); S.quote.quoteKind = was;
+  return { before, after, grown, backTo, roofTop, sheet: QP_PDF_SHEET_PX,
+           perMm: +QP_PDF_PX_PER_MM.toFixed(3) };
+});
+check('a sheet millimetre is worked out from the capture, not from a CSS mm',
+  cov.sheet === 1508 && Math.abs(cov.perMm - 5.238) < 0.01, JSON.stringify(cov));
+check('THE ASK: the shed’s cover band grows until the cover fills its sheet',
+  cov.before < cov.sheet * 0.65 && cov.after > cov.sheet * 0.85 && cov.after <= cov.sheet,
+  JSON.stringify(cov));
+check('…the band is put back the moment the capture is over',
+  cov.backTo === 330, JSON.stringify(cov));
+check('…and a roofing quote’s cover is not touched at all',
+  cov.roofTop === cov.before, JSON.stringify(cov));
 
 await ctx.close();
 

@@ -4648,17 +4648,40 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
      The shed's sections are the A4's own blocks, so the modern print rules
      written for a re-roof met them for the first time here, and four of them
      landed badly. */
-  /* THE DRAWINGS ARE DRAWINGS. `img{max-height:80mm; object-fit:cover}` above
+  /* THE DRAWINGS ARE DRAWINGS. `img{max-height:80mm; object-fit:cover}` below
      is right for a condition photo — cropping one loses nothing. On the shed's
      floor plan and elevations it sliced the bottom off BOTH: the word "Right"
-     cut in half, a dimension line gone with it. A plan is read, not looked at. */
-  html:is(.print-modern,.pdf-modern) .ps-draw-img{ object-fit:contain!important; max-height:none!important; }
-  /* …and the column holding them is 820px because an A4 page is that tall. On
-     a sheet sliced out of one long capture it is just a box taller than its
-     contents, so the drawings sat small with dead space under them. */
+     cut in half, a dimension line gone with it. A plan is read, not looked at.
+     A BOX IS NOT A SHAPE (2026-10-20, the owner on the second attempt: "ratio
+     is all distorted"). The first fix only said `contain`, which letterboxes a
+     drawing inside whatever box it is given — and the box was a fixed band, so
+     a landscape floor plan printed small with white down both sides and a
+     white strip under it. Each drawing now takes the full width of its card
+     and WHATEVER HEIGHT ITS OWN SHAPE ASKS FOR, capped so the two of them
+     still land on one sheet (660px ≈ 126mm of paper; see QP_PDF_PX_PER_MM —
+     a CSS `mm` inside this capture is NOT a millimetre on the sheet, which is
+     what made the first attempt's `104mm` band 75mm of paper).
+     The selector carries .qd-sec and :not(.qd-logo) to out-specify the
+     catch-all `img` rule below it, which otherwise wins on specificity and
+     caps the drawing at 80mm whatever this says. */
+  html:is(.print-modern,.pdf-modern) .qd-sec img.ps-draw-img:not(.qd-logo){
+    width:auto!important; height:auto!important; max-width:100%!important;
+    max-height:660px!important; object-fit:contain!important;
+    margin:0 auto!important; display:block!important; }
   html:is(.print-modern,.pdf-modern) .ps-draw-col{ height:auto!important; }
-  html:is(.print-modern,.pdf-modern) .ps-draw-col > div{ flex:none!important; height:104mm!important; }
+  html:is(.print-modern,.pdf-modern) .ps-draw-col > div{ flex:none!important; height:auto!important; }
+  /* The frame hugs the drawing rather than standing a full-width box around
+     it, so a portrait elevation is mounted on the sheet instead of floating
+     in a white field with its label stranded off to one side. */
+  html:is(.print-modern,.pdf-modern) .ps-draw-wrap{
+    height:auto!important; width:fit-content!important; max-width:100%!important;
+    margin:0 auto!important; }
   html:is(.print-modern,.pdf-modern) .ps-draw-empty{ display:none!important; }
+  /* The cover band grows to fill the sheet (_psPdfFitCover), so the render
+     inside it is contained on its navy ground rather than cropped to a shape
+     nobody chose. */
+  html:is(.print-modern,.pdf-modern) .qd-sec figure[data-cp-hero] > img:not(.qd-logo){
+    object-fit:contain!important; max-height:none!important; height:100%!important; }
   /* A spec row nobody filled in: see specRow. Four blank rules under four
      labels is what "untidy" looked like on Your Shed Details. */
   html:is(.print-modern,.pdf-modern) .ps-spec-empty{ display:none!important; }
@@ -4996,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T01:16:41Z';
+  window.APP_BUILT_AT = '2026-10-20T02:13:16Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27672,7 +27695,7 @@ function _psDesignSlot(idx, label){
       '<button type="button" class="no-print" onclick="_qpCondPhotoPick('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">⬆ PC</button>';
   };
   if (cp && cp.src){
-    return '<div style="position:relative;height:100%;background:#fff;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
+    return '<div class="ps-draw-wrap" style="position:relative;height:100%;background:#fff;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
       '<img class="ps-draw-img" src="'+esc2(cp.src)+'" style="width:100%;height:100%;object-fit:contain;display:block">'+
       '<div style="position:absolute;top:7px;left:9px;font-family:var(--ed-sans);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ed-ink-2);background:rgba(255,255,255,.8);padding:2px 7px;border-radius:3px">'+esc2(label)+'</div>'+
       '<div class="no-print" style="position:absolute;top:7px;right:7px;display:flex;gap:5px">'+
@@ -71222,21 +71245,38 @@ function _pdfBreakRows(target, scale){
     var tr = target.getBoundingClientRect();
     if (!(tr.width > 0)) return out;
     var k = +scale || 1;
-    var push = function(list, el, lift){
+    var push = function(list, el, lift, over){
       var r = el.getBoundingClientRect();
       if (!(r.height > 2)) return;
-      // Cut a few pixels ABOVE the block's own top edge, so the new sheet
-      // opens with a hairline of white rather than on the card's border.
-      var y = Math.round((r.top - tr.top - lift) * k);
+      // A CHAPTER BAND BLEEDS ABOVE ITS OWN SECTION (2026-10-20): the shed's
+      // .ed-heading-band sits 23px higher than the <section> that holds it, so
+      // a cut measured from the section's own top edge landed INSIDE the band
+      // — a navy sliver with its cyan rule stranded at the foot of three
+      // sheets out of four. Lifting by a bigger number is not the fix (the
+      // bleed is whatever the band's margin says); the topmost painted edge is.
+      var top = r.top;
+      if (over){
+        var o = over.getBoundingClientRect();
+        if (o.height > 2 && o.top < top){
+          // The band is painted OVER the last few pixels of the card above it,
+          // so there is no white gap to aim for: its own top edge IS the seam,
+          // and lifting any further would clip the previous card's last row.
+          top = o.top; lift = 1;
+        }
+      }
+      // Cut a few pixels ABOVE that edge, so the new sheet opens with a
+      // hairline of white rather than on the card's border.
+      var y = Math.round((top - tr.top - lift) * k);
       if (y > 8) list.push(y);
     };
     // Lift 8 rather than 5: a section's chapter band sits at its very top, and
     // a cut five pixels above the border still clipped the band's 3px accent
     // rule onto the sheet before - a navy sliver floating under the cover on
     // three sheets out of four (2026-10-20).
-    Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){ push(out.sec, el, 8); });
+    Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){
+      push(out.sec, el, 8, el.querySelector('.ed-heading-band')); });
     Array.prototype.forEach.call(
-      target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, .ed-heading-band, figure, h2, h3'),
+      target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, .ed-heading-band, .ps-spec-row, .ps-draw-wrap, figure, h2, h3'),
       function(el){ push(out.row, el, 6); });
     var tidy = function(a){ a.sort(function(x, y){ return x - y; }); return a; };
     tidy(out.sec); tidy(out.row);
@@ -71331,37 +71371,68 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH, opts){
 // canvas (honouring its on-screen cover/contain crop) and swap in that data
 // URL for the capture, then restore. Cross-origin images that would taint the
 // canvas are left untouched. Returns a restore fn.
-function _inlineCoverImagesForPdf(root){
+// HTML2CANVAS DOES NOT HONOUR object-fit (2026-10-20, the owner on the pole
+// shed's PDF: "ratio is all distorted" — and it was, literally: a circle on a
+// test render came out an ellipse). It draws an <img> stretched to its box,
+// which is why this function exists at all. But it SKIPPED a `data:` src as
+// "already inline" — and every picture that matters here is a data URL: the
+// WebShed plans, the cover render, every condition photo. So the one class of
+// image this was written to rescue was the one class it never touched, and a
+// 16:9 shed render was squashed into a 3:1 band on every PDF the app has ever
+// made. A data URL is skipped only where object-fit has nothing to say.
+// `scale` is the capture scale: the bitmap is baked at that density so a
+// picture is not quietly halved in resolution on its way through here.
+function _inlineCoverImagesForPdf(root, scale){
   var restores = [];
+  var k = Math.max(1, +scale || 1);
+  // A `contain` bake leaves the box's corners transparent, and a JPEG has no
+  // alpha — so they would come out BLACK on whatever the picture is sitting on.
+  // The nearest painted background behind it is what belongs there.
+  var backdrop = function(el){
+    for (var n = el; n && n.nodeType === 1; n = n.parentElement){
+      var bg = getComputedStyle(n).backgroundColor || '';
+      if (bg && !/transparent/.test(bg) && !/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(bg)) return bg;
+    }
+    return '#ffffff';
+  };
   var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
   imgs.forEach(function(img){
     try {
       if (!img.complete || !img.naturalWidth || !img.naturalHeight) return;
       var src = img.getAttribute('src') || '';
-      if (src.indexOf('data:') === 0) return;   // already inline
+      var fit = getComputedStyle(img).objectFit || 'fill';
+      var shaped = (fit === 'cover' || fit === 'contain');
+      if (src.indexOf('data:') === 0 && !shaped) return;   // already inline, nothing to correct
       var r = img.getBoundingClientRect();
       var w = Math.round(r.width), h = Math.round(r.height);
       if (w < 2 || h < 2) return;
-      var fit = getComputedStyle(img).objectFit || 'fill';
       var iw = img.naturalWidth, ih = img.naturalHeight;
-      var scale = (fit === 'contain') ? Math.min(w/iw, h/ih)
-                : (fit === 'cover')   ? Math.max(w/iw, h/ih)
-                : 1;   // fill / none → let drawImage stretch to the box
-      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      var scl = (fit === 'contain') ? Math.min(w/iw, h/ih)
+              : (fit === 'cover')   ? Math.max(w/iw, h/ih)
+              : 1;   // fill / none → let drawImage stretch to the box
+      var c = document.createElement('canvas'); c.width = Math.round(w*k); c.height = Math.round(h*k);
       var ctx = c.getContext('2d');
-      if (fit === 'cover' || fit === 'contain'){
-        var dw = iw*scale, dh = ih*scale;
+      ctx.scale(k, k);
+      if (fit === 'contain'){ ctx.fillStyle = backdrop(img); ctx.fillRect(0, 0, w, h); }
+      if (shaped){
+        var dw = iw*scl, dh = ih*scl;
         ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
       } else {
         ctx.drawImage(img, 0, 0, w, h);
       }
       var url = c.toDataURL('image/jpeg', 0.92);   // throws if the img tainted the canvas
       restores.push({ img: img, src: src, fit: img.style.objectFit });
-      img.src = url; img.style.objectFit = 'fill';
+      img.src = url;
+      // IMPORTANT, because the print layers set object-fit on these very
+      // images and an inline style loses to an !important rule — the crop is
+      // already baked into the bitmap, so fitting it again would re-letterbox
+      // a picture that is now exactly the shape of its box.
+      img.style.setProperty('object-fit', 'fill', 'important');
     } catch(e){ /* tainted / cross-origin — leave the original img as-is */ }
   });
   return function(){ restores.forEach(function(x){ img_restore(x); }); };
-  function img_restore(x){ try { x.img.src = x.src; x.img.style.objectFit = x.fit || ''; } catch(e){} }
+  function img_restore(x){ try { x.img.src = x.src; x.img.style.removeProperty('object-fit');
+    if (x.fit) x.img.style.objectFit = x.fit; } catch(e){} }
 }
 // A MODERN QUOTE, CAPTURED AS A DOCUMENT. The screen may be showing the phone
 // book, the computer layout or an office preview frame; all of them come off
@@ -71377,6 +71448,56 @@ var QP_PDF_MODERN_W = 1100;
 // full 297mm and "3 of 5" was stamped at 292mm — on top of the Marley Classic
 // row on one sheet and the "valid for 30 days" line on the next.
 var QP_PDF_FOOT_MM = 9;
+// ONE SHEET MILLIMETRE IS 5.24 CSS PIXELS HERE, NOT 3.78. The capture is laid
+// out at QP_PDF_MODERN_W across a sheet 210mm wide, so a rule written in CSS
+// `mm` inside it names a length 26% shorter than the millimetres it says —
+// which is how the first pass at the shed's PDF gave its drawings a "104mm"
+// band that came out 75mm on the paper. Anything sized against the SHEET is
+// worked out from these two.
+var QP_PDF_PX_PER_MM = QP_PDF_MODERN_W / 210;                              // 5.238
+var QP_PDF_SHEET_PX  = Math.floor((297 - QP_PDF_FOOT_MM) * QP_PDF_PX_PER_MM); // 1508
+// A COVER IS A PAGE, NOT A PARAGRAPH (2026-10-20, the owner: "cover page is
+// nearly all empty"). The shed's cover is a 330px band and a title block —
+// about 150mm of a 288mm sheet — and because the slicer starts the next
+// chapter on a fresh sheet, the rest of sheet 1 was white. The band is the
+// one part of a cover that is SUPPOSED to be big, so on paper it grows until
+// the cover fills its sheet.
+// NOTHING IS CROPPED TO DO IT. The band is navy and the render is CONTAINED
+// in it (see the print rule), so growing the band shows the whole shed with
+// navy above and below rather than inventing a crop the office never chose —
+// the drawings' rule, applied to the picture the customer sees first. The
+// office's own drag/zoom still moves the render inside the band.
+var PS_PDF_HERO_MIN = 330;
+var PS_PDF_HERO_MAX = Math.round(QP_PDF_SHEET_PX * 0.60);
+function _psPdfFitCover(root){
+  var undo = function(){};
+  try {
+    if (!root || typeof _psIsShed !== 'function' || !_psIsShed()) return undo;
+    var wrap = root.querySelector('.qd-wrap') || root;
+    var cov  = root.querySelector('[data-qd-sec="cover"]');
+    var hero = cov && cov.querySelector('figure[data-cp-hero]');
+    if (!cov || !hero) return undo;
+    // Where the next chapter starts is what the slicer will cut at, so that
+    // is the figure to aim at — not the cover's own height, which leaves out
+    // the gap between the two cards.
+    var next = cov.nextElementSibling;
+    while (next && !next.hasAttribute('data-qd-sec')) next = next.nextElementSibling;
+    var wt   = wrap.getBoundingClientRect().top;
+    var have = next ? (next.getBoundingClientRect().top - wt)
+                    : (cov.getBoundingClientRect().bottom - wt);
+    var h0 = hero.getBoundingClientRect().height;
+    if (!(h0 > 0) || !(have > 0)) return undo;
+    // 18px short of the sheet, so the boundary the slicer wants is inside the
+    // first sheet rather than a hair past it (it would then cut at the hard
+    // step instead, through the top of the plans).
+    var want = Math.round(Math.max(PS_PDF_HERO_MIN,
+                 Math.min(PS_PDF_HERO_MAX, h0 + (QP_PDF_SHEET_PX - 18 - have))));
+    if (Math.abs(want - h0) < 8) return undo;
+    var prev = hero.style.height;
+    hero.style.height = want + 'px';
+    return function(){ try { hero.style.height = prev; } catch(e){} };
+  } catch(e){ return undo; }
+}
 async function _buildModernQuotePdf(opts, capScale){
   var htmlEl = document.documentElement, root = document.getElementById('qpRoot');
   var wasPrinting = !!window.__PRINTING_QUOTE, wasModern = !!window.__PRINTING_MODERN;
@@ -71387,9 +71508,10 @@ async function _buildModernQuotePdf(opts, capScale){
   var wasClassicPh = htmlEl.classList.contains('qp-classic-phone');
   var prevW = root ? root.style.width : '', prevZoom = root ? root.style.zoom : '';
   var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-  var veil = null, restoreImgs = function(){};
+  var veil = null, restoreImgs = function(){}, restoreCover = function(){};
   var done = function(){
     try { restoreImgs(); } catch(e){}
+    try { restoreCover(); } catch(e){}
     htmlEl.classList.remove('pdf-modern', 'pdf-rendering');
     window.__PRINTING_MODERN = wasModern; window.__PRINTING_QUOTE = wasPrinting;
     htmlEl.classList.toggle('qp-book', wasBook); htmlEl.classList.toggle('qp-desk', wasDesk);
@@ -71434,7 +71556,12 @@ async function _buildModernQuotePdf(opts, capScale){
   } catch(e){}
   window.scrollTo(0, 0);
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
-  try { restoreImgs = _inlineCoverImagesForPdf(root); } catch(e){}
+  // Grow the shed's cover band BEFORE the pictures are baked — the bake reads
+  // each image's box, so a band resized after it would hold a bitmap cut for
+  // the old one.
+  try { restoreCover = _psPdfFitCover(root); } catch(e){}
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  try { restoreImgs = _inlineCoverImagesForPdf(root, capScale); } catch(e){}
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
 
   var target = root.querySelector('.qd-wrap') || root;
@@ -71582,7 +71709,7 @@ async function _buildQuotePdf(opts){
   // Inline every loaded image as a cover-cropped data URL so html2canvas can't
   // drop the cover hero / photos. Restored right after capture.
   var _restoreImgs = function(){};
-  try { _restoreImgs = _inlineCoverImagesForPdf(root); } catch(e){}
+  try { _restoreImgs = _inlineCoverImagesForPdf(root, _capScale); } catch(e){}
   // Scale any page taller than one A4 sheet down to fit, so each captures as
   // exactly one page (no slicing into half-empty extra sheets).
   try { _qpFitPrintPages(); } catch(e){}
