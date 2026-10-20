@@ -26,10 +26,14 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (~19 min, ~186 suites four at a time, plus the sheet-layout gate on a full
-  run; `JOBS=1` for one at a time), or one by name:
-  `node floodroofing/tests/run.mjs inboxui`. A NEW suite must be added to
-  the list in `run.mjs` or it never runs. Pipe the runner through `tail` and
+  (273 as of 2026-10-20 — 58 in its `API` list, 215 in `UI` — four at a time,
+  plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
+  one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
+  `run.mjs api` is the exact command CI's Backend job runs, 58 suites in
+  about 38 seconds, and it is what to run before ANY server ship. A NEW
+  suite must be added to the `API` or `UI` list in `run.mjs` or it never
+  runs — and every suite on disk is in one of them today, which is worth
+  re-checking rather than assuming. Pipe the runner through `tail` and
   you get tail's exit code, not the runner's — use `set -o pipefail`.
   Run the full gate in the background and never `pkill -f tests/run.mjs`
   from the same shell (it kills its own command).
@@ -400,8 +404,10 @@ Discipline (non-negotiable):
 - THE GUTTER IS GUTTER MATERIAL, NOT ROOFING MATERIAL (2026-09-22): the
   roofing material table no longer carries a Gutter row. A steel or
   Classic gutter is itemised on the Guttering & Downpipes card like the
-  Typhoon kit: the spouting $/lm, a bracket every 800 mm
-  (`GUTTER_STEEL_BRACKET_SPACING_M`) and a dropper every 8 m, never fewer
+  Typhoon kit: the spouting $/lm, a bracket at the product's own spacing
+  (800 mm on a steel gutter — per-product since 2026-10-19, see THE EXTERNAL
+  BRACKET'S RATE; `GUTTER_STEEL_BRACKET_SPACING_M` is dead) and a dropper
+  every 8 m, never fewer
   than one per run (`GUTTER_DROPPER_SPACING_M`), priced from Settings →
   Price book `gutter.bracket_ea` / `gutter.dropper_ea` (defaults $4.20 and
   $16.50 until the owner sets his). The customer's gutter delta reads the
@@ -729,7 +735,8 @@ Discipline (non-negotiable):
   `tools/stamp-build.mjs --staged`; each machine runs
   `git config core.hooksPath .githooks` once. `tests/buildstamp.mjs` fails a
   stamp more than 30 min behind app.html's last commit (skipped on shallow
-  clones and an uncommitted app.html).
+  clones and an uncommitted app.html). The bug report records
+  `build <APP_BUILT_AT>` too (`tests/fbcontext.mjs`).
 - SETTINGS → EMAIL (2026-10-02, `tests/emailsettings.mjs` server,
   `emailtpl`/`tenantbrand`/`maildomainui` app): a Fergus-style list
   (`EMX_ITEMS`, `#emxList`, `_emxShow`, remembered in `localStorage.fr_emx`)
@@ -767,8 +774,6 @@ Discipline (non-negotiable):
   in a yellow box (`_tplEmailHtml`). The blank-save guard keeps `copy_all`
   too. The app's quote/order windows show the master copy in their CC
   (`_emailMergeCopies`).
-- THE "UPDATED …" LINE (2026-10-02): see the bullet below; also the bug
-  report records `build <APP_BUILT_AT>` (`tests/fbcontext.mjs`).
 - THE WEBSHED IMPORT READS THE SHED (2026-10-12, the owner: "i want the
   uploaded imported webshed pdf to auto show the data in the quote ... it's
   missing the width, the length, height, number of bays"). It always was.
@@ -1101,11 +1106,11 @@ Discipline (non-negotiable):
   "Folders & defaults".
 - THE THREE PRICING TABS EACH SAY WHAT THEY ARE (2026-09-30): Quote's
   Product Options is the CHOICES (grades, profiles, gutters a customer picks
-  between), Default item pricing (`set-defaultpricing`) is the PRICES of
+  between), Default Items (`set-defaultpricing`) is the PRICES of
   everything RoofMap measures off the roof, Custom Price Book is the
   supplier's own list that can take over any of those prices. Each opens
   with one line naming the other two — keep those three lines in step when
-  anything moves between the tabs. Default item pricing runs in one order:
+  anything moves between the tabs. Default Items runs in one order:
   supplier upload, roofing by grade, underlay (products + $/roll together),
   fixings (screws + rivets + the screw products), guttering and downpipes,
   pipe penetrations, one-off items, backup last. `#pbExtrasList` is "One-off
@@ -1145,8 +1150,9 @@ Discipline (non-negotiable):
   owner prices it). The pick starts from the job's `#orderRidging` choice and
   `_onMatOverride` writes it back there, so the cut list and the price never
   disagree.
-- DEFAULT ITEM PRICING is its own Settings → Pricing sub-tab
-  (`set-defaultpricing`, 2026-09-30): the price book block moved out of the
+- DEFAULT ITEMS is its own Settings → Pricing sub-tab (named "Default item
+  pricing" until 2026-10-20; `set-defaultpricing`, 2026-09-30): the price
+  book block moved out of the
   bottom of Quote's Product Options, where nobody looking for a price found
   it. `set-pricebook` (the wizard, old links, the suites) is an alias for it
   now, and it is what `openPriceSettings()` opens; Quote's Product Options
@@ -1890,23 +1896,14 @@ Discipline (non-negotiable):
   key and showed "No subscription found" after a reload.
 - THE UNDERLAY HAS A DEFAULT PRODUCT, AND THE PRICE SHEET DOWNLOADS AS CSV
   (2026-10-11, info@wellingtonroof.co.nz). `price_book.defaultUnderlayProduct`
-  + `#pbDefaultUnderlay` on Default item pricing, filled from
-  `materials_catalog.underlays` by `refreshDefaultUnderlayPicker`; a product
-  since removed from that list is still shown marked "(not in list)" rather
-  than silently dropped. `populateOrderDropdowns` puts it in `#orderUnderlay`
-  ONLY when that box is empty — a job that has chosen its paper is never
-  overwritten, which is the rule the whole thing rests on.
-  THE PICKER FOLLOWS ITS LIST (2026-10-12, same roofer: "the Underlay Pick a
-  default does not offer a selection, is there an update to roll out, or have
-  I missed a step here?"). Neither — `materials_catalog.underlays` ships
-  EMPTY, so there was nothing to pick, and the box said nothing about why;
-  worse, the picker was only ever filled by a full render of the price book,
-  so typing a product in and even SAVING left it empty until the page was
-  reopened. `onCatalogUnderlayChange` now reads the rows straight off the
-  page on every add, keystroke and delete — the way `onPriceBookSheetChange`
-  has fed the sheet picker since it was built — and an empty list renders a
-  disabled "add an underlay product above first" rather than a bare, broken-
-  looking dropdown.
+  names the office's default paper and `populateOrderDropdowns` puts it in
+  `#orderUnderlay` ONLY when that box is empty — a job that has chosen its
+  paper is never overwritten, which is the rule the whole thing rests on.
+  The `#pbDefaultUnderlay` DROPDOWN that used to set it is gone (2026-10-20):
+  the key is now a Default radio on the papers table — see A PAPER IS ONE
+  PRODUCT, which supersedes this half. `refreshDefaultUnderlayPicker` is dead
+  code that early-returns on the missing element; four call sites still reach
+  it.
   `_pbExportCsv` (beside Copy my price book) writes one row per item RoofMap
   prices off the roof: Steel grade, Item, Unit, Price. It walks
   `PB_CSV_TARGETS` + the sheet variants per grade, and a grade with no prices
@@ -2126,7 +2123,9 @@ Discipline (non-negotiable):
   TRIED AND REVERTED on 2026-10-11, and the reason is worth keeping. Making
   `_runFromOutline` treat a change-of-pitch line as an edge (it is a six-line
   loop beside the outline-edge one) does break the hip path's sheets
-  correctly, and `_cpBandSpecs` can add the bands. But on a HIP the band does
+  correctly, and a band-spec pass (`_cpBandSpecs` in that reverted branch —
+  it is NOT in the tree, do not grep for it) can add the bands. But on a HIP
+  the band does
   not stop where the line does: the line runs along the two long sides only,
   and the corners and the hip ends beyond its ends are then covered by
   nothing. A 25.4 x 11.2 m hip at 25/10 degrees ordered 300 m2 for a 307 m2
@@ -3360,7 +3359,7 @@ Discipline (non-negotiable):
   external brackets"). The column was already there — Settings → Quote's
   Product Options → Gutter profiles → Ext bracket $/lm — and he had typed
   6 / 3 / 3 into it. But `_bracketExtPerLm` let the three SHIPPED products jump
-  the queue to a pair of Default item pricing boxes (`ext_bracket_box125_lm` /
+  the queue to a pair of Default Items boxes (`ext_bracket_box125_lm` /
   `_marley_lm`), and those save as 0 on any account that has ever pressed Save
   on that page. So the typed rate was honoured for a product the office had
   added itself and ignored for the three it actually quotes, and the customer
@@ -3626,6 +3625,21 @@ Discipline (non-negotiable):
   `__TEST_HTTPS` seam, so `tests/custevents.mjs` stubs both — the seam for the
   job read and the description PATCH, a `fetch` wrapper for the upload.
 
+- THE NEXT JOB NEVER WEARS THE LAST ONE'S QUOTE (2026-10-12, the owner:
+  Phyllis's job open, chose another job, "Job 3287 already exists" against
+  Beth Williamson's). `restoreFromJob` does `Object.assign(S, snap.state)`,
+  which only overwrites the keys the INCOMING job HAS — so a job saved with
+  no `quote` block kept the last job's whole quote: client, totals and its
+  `ref`. The server derives a job's number from `draw_state.state.quote.ref`
+  (and the jobs list reads `job_no` straight off it), so every autosave then
+  tried to CREATE a second record under the PREVIOUS job's number and was
+  refused with DUPLICATE_JOB_NO, over and over. The refusal was right; the
+  carry-over was the bug. `S.quote` is reset to `defaultQuote()` immediately
+  BEFORE that assign — exactly like the picture, the files, the struck-off
+  flashings and every other leak already fixed on those lines — so a job
+  carrying a quote gets its own back on the next line and one carrying none
+  starts clean. `tests/jobbgleak.mjs`.
+
 ## A CUSTOMER'S ACCEPTANCE IS THE SERVER'S TO KEEP (2026-10-02, job 3288)
 
 The customer accepted at 3:20 pm NZ on 1 October; at 3:28 pm an office screen
@@ -3698,21 +3712,6 @@ opened, put the ACCEPTED VERSION on screen (`_qvView('accepted')`, 28231 —
 existing, tested machinery that locks the job and swaps in the frozen quote)
 rather than the working draft, and leave the pricing functions alone.
 
-FIXED 2026-10-12 — the other half of that evening: switching jobs left the
-PREVIOUS job's quote in place. `restoreFromJob` does `Object.assign(S,
-snap.state)`, which only overwrites the keys the INCOMING job HAS, so a job
-saved with no `quote` block kept the last job's whole quote — client, totals
-and its `ref`. The server derives a job's number from
-`draw_state.state.quote.ref` (and the jobs list reads `job_no` straight off
-it), so every autosave then tried to CREATE a second record under the
-previous job's number and was refused with DUPLICATE_JOB_NO, over and over.
-The refusal was right; the carry-over was the bug. `S.quote` is now reset to
-`defaultQuote()` immediately BEFORE that assign — exactly like the picture,
-the files, the struck-off flashings and every other leak already fixed on
-those lines — so a job carrying a quote gets its own back on the next line
-and one carrying none starts clean rather than wearing another client's.
-(The owner, 2026-10-12: Phyllis's job open, chose another job, "Job 3287
-already exists" against Beth Williamson's.) `tests/jobbgleak.mjs`.
 
 ## Four things that have been broken twice
 
@@ -3870,221 +3869,110 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Open at last handover — 2026-10-02 (late morning NZ)
+## Where things stand — 2026-10-20
 
-Delete or rewrite this section as it is dealt with; a stale list here is
-worse than none.
+Rewrite this section as it is dealt with; a stale list here is worse than
+none. Everything below the handover line has been read and either folded
+into Conventions or dropped as spent.
 
-**Where things stand.** Main carries everything below and is promoted and
-verified live (`/health.build` = main's SHA). Nothing uncommitted. Working
-branch `claude/pricing-totals-photos` (kept equal to main). The sidebar's
-"Updated h:mm d/m" line shows which build a screen is on — ask the owner
-for it before believing "it's still broken" (an un-reloaded tab runs the
-old build).
+**Live now.** main = production = `896e17b`, verified from the promote's own
+log (frontend byte-for-byte, backend `/health.build`). Nothing uncommitted.
+The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
+for it before believing "it's still broken", because the service worker
+serves the old build until the tab is reloaded.
 
-**Starting on ANOTHER computer (the owner is away from this laptop until
-about mid/late October 2026 and continues elsewhere):**
-- `git fetch && git checkout claude/pricing-totals-photos` (equal to main
-  at handover) — or branch a new `claude/...` off main.
-- `git config core.hooksPath .githooks` once (the build-stamp hook), then
-  `npm install` at the repo root AND in `floodroofing/backend` (as CI
-  does), then `npx playwright install chromium` for the browser suites; `floodroofing/docs/VSCODE.md` is the editor setup.
-- `gh auth login` (GitHub CLI) to watch Tests/promote runs.
-- NOT on the other machine: `C:/Users/OEM/pgtools` (the read-only prod
-  query tool and the Singapore cutover script) and
-  `C:\Users\OEM\roofmap-migrate.env` (the secrets) live only on this
-  laptop, and the auto-memory notes are per machine (their content is in
-  this file). Without them there is no direct production database access —
-  diagnose from feedback reports, `/health`, and the owner. Do not recreate
-  the secrets file anywhere; the cutover waits until he is back here.
+**Where the work happens now.** Most sessions run in a CLOUD LINUX CONTAINER
+(claude.ai/code), not on the owner's Windows laptop. In the container:
+- There is NO `gh` CLI — GitHub goes through the `mcp__github__*` tools.
+- There is NO production database access, and no `C:/Users/OEM/pgtools`.
+  Diagnose from feedback reports, the promote log and the owner. The
+  read-only query tool (`q.cjs`), the Singapore cutover script and
+  `C:\Users\OEM\roofmap-migrate.env` exist ONLY on that laptop; do not
+  recreate the secrets file anywhere, and the cutover waits until he is
+  back at it.
+- Outbound HTTPS is proxied and some hosts are refused, so a live
+  `curl https://…/health` may simply fail — that is the proxy, not the site.
+- Playwright and Chromium are installed; `npm install` at the repo root and
+  in `floodroofing/backend` is what CI does.
+On ANY machine, run `git config core.hooksPath .githooks` once or
+`tests/buildstamp.mjs` fails the ship. NZ time:
+`node -e "console.log(new Date().toLocaleString('en-NZ',{timeZone:'Pacific/Auckland'}))"`.
 
-**How to work (2026-10-01 onward — keep doing it):**
-- Run the AFFECTED suites locally (`node floodroofing/tests/run.mjs <name>`
-  — ONE name per call; it ignores the rest), commit, `git push origin
-  HEAD:main` (and the same SHA to the branch). Main's Tests run (browser
-  suites sharded 4 ways) is the gate; watch it, then the promote, then
-  `/health.build`. A red run ships nothing — read the failing suite with
-  `gh run view <id> --log-failed | grep FAIL`, fix forward. Two CI-only
-  timing flakes were fixed today (onboarding's two start events, report61's
-  select-then-convert); if another suite fails ONLY on CI, look for a test
-  that splits one action across two `evaluate` calls.
-- `gh` is `/c/Program Files/GitHub CLI/gh.exe`. NZ time: `node -e
-  "console.log(new Date().toLocaleString('en-NZ',{timeZone:'Pacific/Auckland'}))"`
-  (`TZ=… date` lies in Git Bash). The laptop cannot run the full gate to
-  exit 0 (signup, dupjobui, restoredrill fail on Windows' timezone).
-- THE COMMIT HOOK: `.githooks/pre-commit` stamps `window.APP_BUILT_AT` in
-  app.html whenever app.html is committed. This laptop already has
-  `git config core.hooksPath .githooks`; ANY OTHER MACHINE must run that
-  once, or `tests/buildstamp.mjs` fails the ship.
-- Scripted edits to app.html: Python in a FILE in the scratchpad (bash
-  heredocs mangle `\u`, `\n` and quotes), assert every replacement's
-  count, `node floodroofing/tools/check-app-syntax.mjs` → `blocks 6 bad 0`.
-- Read-only production queries: `node C:/Users/OEM/pgtools/q.cjs old "<sql>"`
-  (prod DB is still the Mumbai one). Never print secrets; secrets live only
-  in `C:\Users\OEM\roofmap-migrate.env`. The Singapore DB move waits on
-  the owner's "ready" and runs ONLY through `node
-  C:/Users/OEM/pgtools/cutover.cjs <step>`; don't change JWT_SECRET,
-  MAIL_CRED_KEY or ADMIN_TOKEN on Railway during it.
-- The owner's messages sometimes say "see attached" with nothing attached,
-  or "2 more things" with one — say so rather than guess.
+**Open — needs the owner (Aron). None of these can be checked from a cloud
+session, and none has been confirmed done since the date beside it.**
+- 2026-10-02: his own quotes leave as "Flood Roofing <…@roofmap.co.nz>" with
+  replies to office@. To send as office@floodroofing.co.nz the Resend entries
+  for floodroofing.co.nz must stop reading FAILED — the records go in
+  Cloudflare, then Check now in Settings → Email.
+- 2026-10-02: job 3288's acceptance (3:20 pm NZ 1 Oct, wiped by a stale
+  screen before the guard existed) can only be put back from his acceptance
+  email. Its first Sent copy is gone too.
+- 2026-09-19: Measure is SOLD but the Stripe prices may still be missing —
+  `STRIPE_PRICE_MEASURE` / `_ANNUAL` on Railway. Until they are set a
+  customer picking Measure gets a plain error naming the variable;
+  `/subscription.offered` says whether it is set.
+- 2026-09-19 and still worth doing: rotate the Fergus API token and the
+  Railway `ADMIN_TOKEN` — both were readable in shared screenshots.
+- Housekeeping, his: SMS/uptime alarm on `/health`; run the restore drill
+  once (`tools/restore-check.mjs`); paste the real price book so it can
+  become the shipped default; four aerial screenshots for the demo
+  slideshow (Mapbox is unreachable from the build environment, so those
+  slides are placeholders).
+- UNANSWERED: should a Custom Price Book line's mark-up REPLACE the job's
+  material mark-up for that item? And Nearmap stays OFF until privacy.html
+  v1.2 names it + 30 days' notice.
 
-**Shipped 2026-10-01/02 (all live), watch the first days through it** —
-each has its Conventions bullet: the getting-started coach every sign-in
-until "Don't show this again"; the help bubble's real-person support desk
-(`/admin/support/page`); Photos closed by default; Job Pack panels push the
-pages; the outline snap back at 20° + parallel line-up + Shift tip; the
-dog-leg gable (report 60); gable↔hip end conversion (reports 61, 64);
-Measure plan on the pricing page; the editable quote summary; office
-options' pick/recommended; Save as template; Fergus last-sent per job; a
-deleted page drops its price; the acceptance guard (`_keepCustomerState`,
-job 3288) and the fresh-products-before-send check; re-send a sent quote,
-close the email window freely, delete saved drafts; `tests/sendexact.mjs`
-(the customer sees exactly what was sent); EVERY SEND KEPT (Sent quote 1,
-2 …); the "Updated …" line; CUSTOM OPTIONS on the quote (+ Insert custom
-option, edit / save / delete, saved options); options and the gutter write
-What's included / excluded; a duplicate keeps its options at once on a
-device whose products are behind; SETTINGS → EMAIL rebuilt with the
-master copy and the customer's acceptance confirmation.
+**Two platform sweeps, in one shape** (nowhere else in this file): the trial
+drip (`_trialDripSweep`, days 1/3/7/12, `subscriptions.trial_drip`, hourly,
+`TRIAL_DRIP_ENABLED=false` stops it), the gone-quiet alert to support@
+(`_quietTrialSweep`, 3 silent days, once per trial, `quiet_alert_at`, daily)
+and the trial-ended email all keep a DB watermark in `platform_state`, MARK
+FIRST then send, and have an admin `POST /admin/*/run` to force a pass.
+`tests/trialdrip.mjs` pins the timing; the analytics page carries "Why
+trials cancelled" from `cancel_feedback`. All three also bail on
+`_platformMailboxSendable` — see the UNPROMPTED PLATFORM EMAIL bullet.
 
-**Open — needs the owner (Aron):**
-- Job 3288's acceptance (accepted 3:20 pm NZ 1 Oct, wiped by a stale screen
-  before the guard existed) can only be put back from his acceptance email
-  (name, time, total). Its first Sent copy is gone too (the job's history
-  holds only the 7:48 am 2 Oct send).
-- His own quotes now leave as "Flood Roofing <…@roofmap.co.nz>" with
-  replies to office@. To send as office@floodroofing.co.nz: the Resend
-  entries for floodroofing.co.nz read FAILED and Settings → Email shows
-  office@floodroofing.co.nz "Waiting for DNS" — the records go in
-  Cloudflare (floodroofing.co.nz's DNS), then Check now.
-- The two OPEN AND URGENT items above (an accepted quote's figures move;
-  the previous job's quote carried into the next) are still open.
-- Older, still his: the missing "1 × 2.78 m" sheet measure (ask for that
-  job's feedback report); check Break up ridge's flashings on the real
-  zig-zag roof; UNANSWERED — should a Custom Price Book line's mark-up
-  REPLACE the job's material mark-up for that item; his price book CSVs in
-  `C:\Users\OEM\Downloads` (floodroofingpricebook.csv,
-  floodroofinggutterpricebook.csv, the Bills CSV); Nearmap stays off until
-  privacy.html v1.2 + 30 days' notice; the "Waiting on the owner" lists
-  below.
+**The first-roof walkthrough** (2026-09-16): an account the server marks
+`ui_flags.first_roof = 'offer'` lands on Map Roof with the practice job open
+— John Smith, 23 Don Buck Road, Massey (`FIRST_ROOF` in app.html, opened
+like the sample with `S.demoKind = 'test'`) — and the tour engine runs
+`_firstRoofSteps()` as kind `firstroof`: steps complete on `until()`, Next
+does `onNext` or skips, `wait: true` parks the card until its popup exists.
+The `ONB` arbiter allows one layer at a time; the branding wizard is summoned
+by `_brandingBeforeSend(then)` at the first real send, never at sign-in; the
+setup guide and 29-step tour are opt-in. `tests/onboarding.mjs` drives it
+with imagery blocked. The practice address flies to hard-coded coordinates
+(`FIRST_ROOF.lat/lon`, approximate). Measurement: `app_time` carries
+`screen`, `screen_left` is sent on hide/close, and `walkthrough` /
+`onboarding_path` / `roof_source` / `help_requested` / `output_created` are
+allow-listed in `_usageProps` (server.js). Privacy policy v1.1 discloses it.
 
-### Older handover notes (history — check before relying on them)
+**One diagnostic worth keeping:** if a 5xx email names `/quote-activity`, it
+is an office that never had a good read in that server's lifetime — look at
+the query, not the cache (`tests/quotefeedcache.mjs`).
 
-**Shipped 2026-09-22 (promotes 178–182, all verified live), watch the
-first day through it:** the database stall of 10:18–10:38 am NZ (autosave
-and the send's publish queued multi-MB row rewrites until the statement
-timeout cancelled them) is answered by ONE WRITE TO THE JOB AT A TIME and
-autosave held during a send (Conventions); the send records the sent
-quote BEFORE Fergus and says so when either step fails; a duplicate job
-number that is the same job attaches or opens by itself; exclusions on
-the proposal; the gutter is gutter material only, with brackets every
-800 mm and droppers every 8 m on steel gutters; the grade / profile /
-thickness sections carry edit and delete buttons with "Insert … page"
-placeholders; the grade and gauge percentages are worked on the raw
-material cost. If a send is still slow, the green status line under the
-Send button now says where the time went (link vs email) — ask for a
-screenshot of that. If a 5xx names `/jobs/:id` with "statement timeout"
-again, look for a SECOND writer on the row (another device on the same
-job), not the queue.
-
-**Waiting on the owner (Aron), added 2026-09-22:**
-- Settings → Price book: set the real Gutter bracket ($/each) and Dropper
-  ($/each) — they start at $4.20 and $16.50 as placeholders and every box
-  gutter quote carries them.
-- Quote's Product Options: retype the increase on the grade added on
-  2026-09-22 (it was stored as 100 = +10,000% before the fix).
-- Job 3245: press Push to Fergus, then Save job; if Viewing has no "Sent
-  quote", pick Save this draft.
-
-**Shipped 2026-09-19 (four promotes, all verified live), watch the first
-customer links through it:** the customer quote on a computer is the
-one-page layout with the summary rail (`tests/quotedesk.mjs`); the
-six-line description with the office's Edit description; the roofer's own
-pick is the customer's Recommended choice (stamped at send as
-`recommended`); the phone book gained Undecided colour, Ask a question?
-up top, the scroll pill and a proposal page that fits. Also: trial emails
-HELD until roofmap.co.nz is verified in Resend (still waiting on the
-owner); drafts never carry an acceptance and Undo acceptance saves; the
-Quote tab bar is one selector + one sentence; the phone's acceptance PDF
-captured the book's page before today. If a customer reports a locked or
-odd quote, ask which device and whether they reloaded — the service worker
-serves the old build until they do.
-
-**Recently shipped 2026-09-18, watch for fallout:** the job pack's roof
-pick now follows the quote by default (a job whose extra roofs are still
-optional packs the main roof only until the customer adds them — the pills
-say so and "Follow the quote instead" is the way back); Settings has a
-Guides tab (with the Loom run-through), "Quote's Product Options" carries
-the price book with per-grade prices, and "Suppliers" is just suppliers and
-flashing types. The practice roof stand-in is the owner's own aerial
-(`brand/practice-aerial.jpg`, 1 px = 63.92 mm); the server's practice job
-picture still wins when it exists.
-
-**Waiting on the owner (Aron):**
-- Measure is SOLD since 2026-09-19 ($79, founding $55.30): the pricing
-  page shows four cards (four across, page-scoped grid rule), the JSON-LD
-  carries its Offer, the intro reads "$79, $149, $299 or $549", and the
-  app's billing screen and plan-gate list it like the others. What is still
-  the owner's: create the Stripe prices and set `STRIPE_PRICE_MEASURE` (and
-  `_ANNUAL`) on Railway — until then a customer who picks Measure gets the
-  server's plain error naming that variable, and `/subscription.offered`
-  says whether it is set.
-- Rotate the Fergus API token and the Railway `ADMIN_TOKEN` — both were
-  readable in screenshots shared during a session.
-- Four aerial screenshots for the demo slideshow (Mapbox is unreachable from
-  the build environment, so those slides are placeholders): aerial found,
-  mid-trace, outline finished, roof lines generated.
-- Ring Sharon about the steel grade on quote 3206 before that roof is
-  ordered — the acceptance email and the PDF disagreed about which grade was
-  standard.
-- SMS/uptime alarm on `/health`; run the restore drill once
-  (`tools/restore-check.mjs`); add the crews then paste the schedule import;
-  paste the real price book so it can become the shipped default.
-- Send the customer email about the report 50–52 fixes (drafted 2026-09-14)
-  with the "please reload the app" line kept in.
-
-**Trial emails, shipped 2026-09-17 — watch the first fortnight:** the drip
-(`_trialDripSweep`: days 1/3/7/12, `subscriptions.trial_drip`, hourly,
-`TRIAL_DRIP_ENABLED=false` to stop it), the gone-quiet alert to support@
-(`_quietTrialSweep`: 3 silent days, once per trial, `quiet_alert_at`,
-daily) and the trial-ended email all share one shape: DB watermark in
-`platform_state`, mark first then send, admin `POST /admin/*/run` to force
-a pass. `tests/trialdrip.mjs` pins the timing. The analytics page carries
-"Why trials cancelled" from `cancel_feedback`. A preview of every email is
-generated by the scratch script described in the 2026-09-17 session (drive
-the admin endpoints against `fakepgrst` and capture the relay).
-
-**Onboarding, shipped 2026-09-16 — watch the first real accounts through it:**
-a new account (server says `ui_flags.first_roof = 'offer'`: no jobs, never
-answered) lands on Map Roof with the practice job open — John Smith,
-23 Don Buck Road, Massey (`FIRST_ROOF` in app.html, opened like the sample
-with `S.demoKind = 'test'`) — and the tour engine runs `_firstRoofSteps()`
-as kind `firstroof`: steps complete on `until()`, Next does `onNext` or
-skips, `wait: true` parks the card until its popup exists. The `ONB`
-arbiter allows one layer at a time; the branding wizard is summoned by
-`_brandingBeforeSend(then)` at the first real send, never at sign-in; the
-setup guide and 29-step tour are opt-in. `tests/onboarding.mjs` drives the
-whole walkthrough with imagery blocked (the labelled fallback picture).
-The practice address flies to hard-coded coordinates (`FIRST_ROOF.lat/lon`,
-approximate — check the aerial actually shows 23 Don Buck Road and adjust).
-Measurement: `app_time` carries `screen`, `screen_left` is sent on hide/
-close, `walkthrough`/`onboarding_path`/`roof_source`/`help_requested`/
-`output_created` are allow-listed in `_usageProps` (server.js); the daily
-report shows where the minutes went, where each person left and how far
-the practice job got. Privacy policy v1.1 discloses it — the policy's own
-30-day-notice clause means the owner owes subscribers an email about it.
-
-**Being reworked:** the sheet layout diagram is hidden (see Conventions).
-Bringing it back means a layout that matches the owner's counting rule
-sheet-for-sheet: longest sheets first, that area squared off, then each wing
-worked out separately — the calc check already draws that; the tiler does not.
-
-**Recently shipped, watch for fallout:** the ridge-claim takeoff for
-hip-and-valley roofs with two or more ridges (`_ridgeClaimSections`, pinned
-by `tests/sheetclaim.mjs` on the owner's hand counts: T = 71, staircase =
-69, double L = 73); the cut-list freeze; `/quote-activity` serving its last
-good feed after a statement timeout (`tests/quotefeedcache.mjs`). If a
-5xx email names `/quote-activity` again it is an office that never had a
-good read in that server's lifetime — look at the query, not the cache.
+**Audited 2026-10-20, and how to do it again.** This file is read into every
+session, so a wrong line here costs more than a missing one. Three mechanical
+checks, each a few seconds, and all three were run:
+1. EVERY backticked identifier against the tree. 854 named, 0 genuinely dead
+   — the only misses were things the text says are gone, API words
+   (`workflow_run`, `head_sha`) and `fr3_xeroMonthly`, which is built at
+   runtime as `'fr3_' + 'xeroMonthly'` and so cannot be grepped. Do not
+   "fix" that one.
+2. EVERY `tests/*.mjs` named here against the directory AND against
+   `run.mjs`'s two lists. 110 named, all present, all wired. 165 more suites
+   exist that this file never mentions — that is the long tail, not a fault.
+3. REPEATED 12-WORD PHRASES, to find a rule written out twice. Exactly one
+   hit, and it is a deliberate callback. The Conventions section is long
+   because the product is, not because it repeats itself — there is no big
+   safe cut in it, so do not go looking for one.
+What the audit DID find was all in the stale parts: a tab renamed in the code
+and not here (four places), a bullet describing a dropdown another bullet said
+had been deleted, two bullets for one "Updated …" line, a FIXED item sitting
+under a heading that says OPEN AND URGENT, a dead constant quoted as live, a
+suite count 47% low, and a 223-line handover describing a Windows laptop this
+work no longer runs on. Stale sections rot; the lessons do not. Audit the
+dated sections first.
 
 **Product thinking, agreed but not built:** the trial's first twenty minutes
 should walk a new roofer to their OWN first quote — address, trace, quote, in
