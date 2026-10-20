@@ -1937,6 +1937,45 @@ Discipline (non-negotiable):
   the header says so. Named for the quote's ref so two jobs do not
   overwrite each other.
   `tests/pbdefaults.mjs`.
+- ONE BUTTON PER GUTTER YOU SELL (2026-10-20, the owner: "the default pricings
+  'Guttering & spouting' section should show each of the gutter options listed
+  in the 'quotes product options' show them as buttons to select to switch
+  between the gutter types at the top ... one button for each and any different
+  gutter entered in the 'gutter profiles' list"). `#pbGutTabs` is one chip per
+  row of `selectables.gutters` (`_pbGutTabsRender`, `_pbGutSelect`,
+  `window.__pbGut`), and only the picked product's `[data-gut-pane]` is on
+  screen — three blocks stacked down the page put the one he wanted in the
+  middle of two he does not sell.
+  A GUTTER THE OFFICE ADDED HAD NO PRICE BOXES ANYWHERE, so its supply quoted
+  at $0 and the shortfall only showed as a quote that came out low.
+  `_gutterMaterialLines` has read `<id>_lm` for a non-itemised product since
+  custom gutters were allowed, but nothing ever WROTE that key and
+  `_gutterMaterialPerLm` only knew the three shipped ids. `_pbGutGenericRender`
+  draws a pane per unlisted product with a `[data-gut-pb]` box, the collector
+  reads them, and `_gutterMaterialPerLm` falls through to `<id>_lm` for any id.
+  `collectPriceBookFromUI` now starts `pb.gutter` from what is STORED and
+  overwrites the known ids, so a save made on a page showing one pane cannot
+  wipe the rates behind the others.
+  THE BRACKET BOXES ARE ON BOTH SURFACES, ONE NUMBER (the same message: "why
+  does the Gutter section ... still not show the external and the internal
+  bracket prices ... the 125mm box gutter is missing it's brackets pricing").
+  `_pbGutBracketsHtml` renders spacing / per-run / internal $/ea / external
+  $/ea / flat ext $/lm inside each pane, and `_pbGutBracketEdit` writes the
+  GUTTER'S OWN ROW through `_selEdit` — the accreditation-logos rule, two
+  surfaces onto one store, never two boxes for one number (which is the fault
+  the external rate was stuck behind for a fortnight).
+  PRICING THE TWO BRACKETS ON A NON-ITEMISED PRODUCT DOES NOT MOVE THE BASE,
+  and that is deliberate: the box gutter's $/lm already includes its brackets,
+  so `_gutterMaterialLines` still charges no bracket line there and
+  `_bracketExtTotal` uses the pair only to work the UPGRADE out. The pane says
+  so in words.
+  AND HIS "BOTH SAY INCLUDED" WAS A CACHED PAGE, not a live bug: the Gutter
+  profiles table in his screenshot is the five-column shape from before
+  2026-10-19, with that day's wording absent. Driven on the current build the
+  upgrade reads +$314.64 on a 45.6 m run at his own 6 $/lm. An ACCEPTED quote
+  keeps the figures it was sent with, so a rate typed after the send never
+  reaches it — tell him to reload before judging, and that the frozen copy is
+  frozen on purpose. `tests/gutterprice.mjs` (59).
 - A PAPER IS ONE PRODUCT, NOT THREE ROLL SIZES (2026-10-20, the owner: "remove
   the m2 options for paper, instead when i '+add underlay' is asks for the
   name, $ and m2, then in the 'underlay' section it just lists the underlays

@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T06:42:39Z';
+  window.APP_BUILT_AT = '2026-10-20T07:05:59Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -9264,8 +9264,20 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>Gutter ($/lm, generic)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
           <div></div><div></div>
         </div>
-        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon is itemised off the supplier invoice (spouting + fittings). The box &amp; Classic profiles use a single all-in $/lm. Leave a field blank if you don't supply that item.</div>
+        <!-- ONE BUTTON PER GUTTER YOU SELL (2026-10-20, the owner: "the
+             default pricings 'Guttering & spouting' section should show each
+             of the gutter options listed in the 'quotes product options' show
+             them as buttons to select to switch between the gutter types at
+             the top ... one button for each and any different gutter entered
+             in the 'gutter profiles' list"). Three blocks stacked down the
+             page meant a gutter the office ADDED had no price boxes at all —
+             it quoted at $0 — and the one they were looking for was somewhere
+             in the middle of two they do not sell. -->
+        <div id="pbGutTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px"></div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon and Marley Classic are itemised off the supplier invoice (spouting + fittings); the box gutter uses a single all-in $/lm. Leave a field blank if you don't supply that item. <strong>Brackets are priced on every one of them</strong>, so the quote can work the external-bracket upgrade out from the real difference.</div>
+        <div data-gut-pane="marley_typhoon">
         <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Typhoon — itemised</div>
+        <div data-gut-brackets="marley_typhoon"></div>
         <div class="f3">
           <div><label>Typhoon spouting ($/lm)</label><input type="number" id="pbGutTyphoonSpouting" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Typhoon bracket ($/each)</label><input type="number" id="pbGutTyphoonBracket" step="0.01" min="0" placeholder="0.00"></div>
@@ -9279,14 +9291,20 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div class="f3" style="margin-top:6px">
           <div><label>Typhoon expansion joiner ($/each)</label><input type="number" id="pbGutTyphoonExpJoiner" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Typhoon weld solvent ($/tube)</label><input type="number" id="pbGutTyphoonWeldSolvent" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div>
+          <div><label>Marley Typhoon simple ($/lm, only if not itemised)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">125mm Colorsteel box gutter</div>
+        </div>
+        <div data-gut-pane="box125">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">125mm Colorsteel box gutter</div>
+        <div data-gut-brackets="box125"></div>
         <div class="f3">
           <div><label>125mm Colorsteel box gutter, brackets included ($/lm)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="21.00"></div>
           <div><label>80mm dropper ($/each, one every 8m)</label><input type="number" id="pbGutDropperEach" step="0.01" min="0" placeholder="16.50"></div>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Marley Classic — itemised <span style="font-weight:400;color:var(--text2)">(starting figures are NZ retail less GST — put your trade prices in)</span></div>
+        </div>
+        <div data-gut-pane="marley_classic">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Classic — itemised <span style="font-weight:400;color:var(--text2)">(starting figures are NZ retail less GST — put your trade prices in)</span></div>
+        <div data-gut-brackets="marley_classic"></div>
         <div class="f3">
           <div><label>Classic spouting ($/lm)</label><input type="number" id="pbGutClassicSpouting" step="0.01" min="0" placeholder="20.00"></div>
           <div><label>Classic bracket ($/each, one every 500mm)</label><input type="number" id="pbGutClassicBracket" step="0.01" min="0" placeholder="4.70"></div>
@@ -9295,10 +9313,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <div><label>Classic angle, int/ext ($/each)</label><input type="number" id="pbGutClassicCorner" step="0.01" min="0" placeholder="33.48"></div>
           <div><label>Classic stop end ($/each)</label><input type="number" id="pbGutClassicStopend" step="0.01" min="0" placeholder="7.15"></div>
         </div>
-        <div class="f3" style="margin-top:6px">
-          <div style="grid-column:1/-1;font-size:11px;color:var(--text2);line-height:1.5">The external-bracket upcharge is set per gutter product, on <strong>Quote&rsquo;s Product Options &rarr; Gutter profiles</strong> — one box per product rather than two for the lot.</div>
-          <div><label>Marley Typhoon simple ($/lm, only if not itemised)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
+        <!-- Every other gutter the office has added: a $/lm and its brackets,
+             rendered from the list rather than written into the page, because
+             there is no way to know in advance what they sell. -->
+        <div id="pbGutGeneric"></div>
         <div class="set-sub-hd"><strong>Downpipes</strong>
           <span class="set-sec-note">— one downpipe per gutter line</span></div>
         <div class="f3">
@@ -13312,6 +13331,7 @@ function switchSettingsSub(id,btn){
     try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){}
     try { renderPriceBookUI(); } catch(e){}
     try { _pbGradeTabsRender(); } catch(e){}
+    try { _pbGutTabsRender(); } catch(e){}
   }
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
   var panel = document.getElementById(id);
@@ -14475,6 +14495,99 @@ function _gradeDeltasSnapshot(){
 }
 
 // ── the Settings screen: one button per grade, one set of inputs ──
+// ── Guttering & spouting: one pane per product ────────────────────────────
+// (2026-10-20, the owner: "show each of the gutter options listed in the
+// 'quotes product options' ... as buttons to select to switch between the
+// gutter types at the top ... one button for each and any different gutter
+// entered in the 'gutter profiles' list".)
+var PB_GUT_SHIPPED = ['marley_typhoon', 'box125', 'marley_classic'];
+function _pbGutList(){ try { return _selGuttersAll() || []; } catch(e){ return []; } }
+function _pbGutActive(){
+  var list = _pbGutList();
+  var want = window.__pbGut || '';
+  if (want && list.some(function(g){ return g.id === want; })) return want;
+  return (list[0] || {}).id || '';
+}
+function _pbGutSelect(id){ window.__pbGut = id; _pbGutTabsRender(); }
+function _pbGutTabsRender(){
+  var box = document.getElementById('pbGutTabs'); if (!box) return;
+  var list = _pbGutList(), active = _pbGutActive();
+  box.innerHTML = list.map(function(g){
+    var on = g.id === active;
+    return '<button type="button" data-pb-gut="' + esc(g.id) + '" onclick="_pbGutSelect(\'' + esc(g.id) + '\')" ' +
+      'style="padding:7px 14px;border-radius:20px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;border:1.5px solid ' +
+      (on ? '#0a1628;background:#0a1628;color:#fff' : 'var(--border);background:#fff;color:#0a1628') + '">' +
+      esc(g.name || g.id) + '</button>';
+  }).join('') || '<span style="font-size:12px;color:var(--text2)">Add a gutter on Quote\u2019s Product Options first.</span>';
+  _pbGutGenericRender();
+  // Only the picked product's boxes are on screen, so there is no doubt about
+  // which gutter a figure belongs to.
+  Array.prototype.forEach.call(document.querySelectorAll('#set-defaultpricing [data-gut-pane]'), function(p){
+    p.style.display = (p.getAttribute('data-gut-pane') === active) ? '' : 'none';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#set-defaultpricing [data-gut-brackets]'), function(p){
+    p.innerHTML = _pbGutBracketsHtml(p.getAttribute('data-gut-brackets'));
+  });
+}
+// THE SAME FIELDS AS Quote's Product Options -> Gutter profiles, not a second
+// copy of them: these four write the gutter's own row, so there is one number
+// per bracket however you reach it. Two boxes for one number is the fault the
+// external-bracket rate was stuck behind for a fortnight.
+function _pbGutBracketsHtml(id){
+  var c = {}; try { c = _gutterBracketCfg(id) || {}; } catch(e){}
+  var g = null; try { g = _selGutterOf(id); } catch(e){}
+  if (!g) return '';
+  var v = function(f){ return (g[f] == null) ? '' : String(g[f]); };
+  var inp = function(f, ph, step, title){
+    return '<div><label>' + ph.label + '</label>' +
+      '<input type="number" step="' + step + '" min="0" value="' + esc(v(f)) + '" placeholder="' + esc(ph.ph) + '"' +
+      ' title="' + esc(title) + '"' +
+      ' onchange="_pbGutBracketEdit(\'' + esc(id) + '\',\'' + f + '\',this.value)"></div>';
+  };
+  return '<div style="font-size:11px;color:var(--text2);margin:0 0 6px">Brackets — one every <em>spacing</em>, plus <em>per run</em> to start each run. Price an internal and an external one and the quote works the &ldquo;External brackets&rdquo; upgrade out by itself, at the real difference × the real count. Where the $/lm below already includes the brackets (the box gutter), these two change the UPGRADE only — the base price does not move. These are the same boxes as Quote\u2019s Product Options → Gutter profiles, so there is one number per bracket however you reach it.</div>' +
+    '<div class="f3" style="margin-bottom:12px">' +
+    inp('bracketSpacingMm',   { label:'Bracket every (mm)', ph:String(Math.round(c.spacingMm || 500)) }, '10', 'One bracket every this many millimetres along the run') +
+    inp('bracketStartPerRun', { label:'+ per run',          ph:String(c.startPerRun == null ? 1 : c.startPerRun) }, '1', 'Brackets to start each gutter run, on top of the spacing') +
+    '<div></div>' +
+    inp('bracketIntEa',       { label:'Internal bracket ($/each)', ph:'standard' }, '0.01', 'What one internal bracket costs') +
+    inp('bracketExtEa',       { label:'External bracket ($/each)', ph:'—' }, '0.01', 'What one external bracket costs — fill this in and the upgrade is worked out from the difference') +
+    '<div><label>Or a flat external upcharge ($/lm)</label>' +
+      '<input type="number" step="0.5" min="0" value="' + esc(g.extBracketLm == null ? '' : String(g.extBracketLm)) + '" placeholder="0"' +
+      ' title="Used where the two per-each prices cannot be filled in \u2014 a box gutter\u2019s brackets are inside its $/lm, so there is no internal cost to subtract"' +
+      ' onchange="_pbGutBracketEdit(\'' + esc(id) + '\',\'extBracketLm\',this.value)"></div>' +
+    '</div>';
+}
+// Writes the product's OWN row, through the same validated path the Products
+// table uses (a cleared box goes back to the standard, never to 0).
+function _pbGutBracketEdit(id, field, val){
+  try {
+    var list = (_selWorking().gutters || []);
+    for (var i = 0; i < list.length; i++){
+      if (list[i] && list[i].id === id){ _selEdit('gutters', i, field, val); return; }
+    }
+  } catch(e){}
+}
+// A gutter the office added has no block written into the page, so it gets a
+// plain one: its $/lm (which `_gutterMaterialLines` already reads as
+// `<id>_lm`) and the same bracket boxes. Before this it had no price boxes
+// anywhere and quoted at $0.
+function _pbGutGenericRender(){
+  var box = document.getElementById('pbGutGeneric'); if (!box) return;
+  var pbG = {}; try { pbG = _pbGutterCfg() || {}; } catch(e){}
+  var rows = _pbGutList().filter(function(g){ return PB_GUT_SHIPPED.indexOf(g.id) < 0; });
+  box.innerHTML = rows.map(function(g){
+    var key = g.id + '_lm';
+    var val = pbG[key]; val = (val == null || val === 0) ? '' : String(val);
+    return '<div data-gut-pane="' + esc(g.id) + '">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">' + esc(g.name || g.id) + '</div>' +
+      '<div data-gut-brackets="' + esc(g.id) + '"></div>' +
+      '<div class="f3">' +
+        '<div><label>' + esc(g.name || 'Gutter') + ' ($/lm, supply)</label>' +
+        '<input type="number" step="0.01" min="0" data-gut-pb="' + esc(key) + '" value="' + esc(val) + '" placeholder="0.00"></div>' +
+        '<div style="grid-column:2/-1;font-size:11px;color:var(--text2);line-height:1.5;align-self:end">Droppers are counted one every 8 m (never fewer than one a run) and priced from the <strong>80mm dropper</strong> box on the box-gutter tab.</div>' +
+      '</div></div>';
+  }).join('');
+}
 function _pbGradeTabsRender(){
   var box = document.getElementById('pbGradeTabs'); if (!box) return;
   var active = _pbActiveGrade();
@@ -14568,7 +14681,11 @@ function collectPriceBookFromUI(){
   pb.screws_each    = _num('pbScrewsEach');
   pb.rivets_each    = _num('pbRivetsEach');
   pb.downpipe_ea    = _num('pbDownpipeEach');
-  pb.gutter = {
+  // START FROM WHAT IS STORED, so a rate this page has no box for — a gutter
+  // the office added, whose $/lm is rendered into #pbGutGeneric, or a key an
+  // older build wrote — is not wiped by a save made on a page that never
+  // showed it. The known ids are overwritten below exactly as before.
+  pb.gutter = Object.assign({}, pb.gutter || {}, {
     typhoon_spouting_lm:   _num('pbGutTyphoonSpouting'),
     typhoon_bracket_ea:    _num('pbGutTyphoonBracket'),
     typhoon_outlet_ea:     _num('pbGutTyphoonOutlet'),
@@ -14591,7 +14708,14 @@ function collectPriceBookFromUI(){
     // save a 0 over the figure an older account still falls back to.
     ext_bracket_box125_lm: _pbGutKeep('ext_bracket_box125_lm'),
     ext_bracket_marley_lm: _pbGutKeep('ext_bracket_marley_lm')
-  };
+  });
+  // Every gutter the office added carries its own $/lm, rendered from the
+  // list rather than written into the page.
+  Array.prototype.forEach.call(document.querySelectorAll('#pbGutGeneric [data-gut-pb]'), function(el){
+    var k = el.getAttribute('data-gut-pb'); if (!k) return;
+    var v = parseFloat(el.value);
+    pb.gutter[k] = (isFinite(v) && v >= 0) ? v : 0;
+  });
   // back-trays: read per grade by _pbGradeCollect() above
   pb.aquaseal = {};
   Array.from(document.querySelectorAll('#pbAquasealList [data-aq-id]')).forEach(function(inp){
@@ -14767,6 +14891,7 @@ function renderPriceBookUI(){
   // Sheets, flashings and back-trays: the grade the buttons have picked.
   _pbGradeFill();
   _pbGradeTabsRender();
+  try { _pbGutTabsRender(); } catch(e){}
   try { _cpbMarkLinkedInputs(); } catch(e){}
 }
 // Render the pipe-flashing $/each inputs — one per stock Aquaseal size,
@@ -29183,7 +29308,12 @@ function _gutterMaterialPerLm(id){
   if (id === 'box125')        return _gutterSupply('perlm_box125',        'box125_lm',        SEL_GUTTER_MATERIAL_PER_LM.box125);
   if (id === 'marley_classic')return _gutterSupply('perlm_marley_classic','marley_classic_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_classic);
   if (id === 'marley_typhoon')return _gutterSupply('perlm_marley_typhoon','marley_typhoon_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_typhoon);
-  return SEL_GUTTER_MATERIAL_PER_LM[id] || 0;
+  // A GUTTER THE OFFICE ADDED HAS A RATE TOO (2026-10-20). `_gutterMaterialLines`
+  // has read `<id>_lm` for it since the day custom products were allowed, but
+  // nothing on any page ever wrote that key — so a product somebody added
+  // priced its supply at $0 and the shortfall only showed up as a quote that
+  // came out low. Its box is on Default Items → Guttering, under its own tab.
+  return _gutterSupply('perlm_' + id, id + '_lm', SEL_GUTTER_MATERIAL_PER_LM[id] || 0);
 }
 // Itemised Typhoon invoice — descriptions stay fixed; prices come from settings.
 function _gutterTyphoonInv(){

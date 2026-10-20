@@ -265,6 +265,99 @@ check('\u2026and emptying the box goes back to the price book',
   typed.cleared === typed.before && typed.clearedTyped == null,
   JSON.stringify({ cleared: typed.cleared, before: typed.before }));
 
+const _gutterBaseBefore = await opg.evaluate(() =>
+  _gutterMaterialLines('box125', 40, 2, 0).reduce((a, r) => a + r.lineTotal, 0));
+// ── ONE BUTTON PER GUTTER YOU SELL (2026-10-20, the owner: "the default
+// pricings 'Guttering & spouting' section should show each of the gutter
+// options listed in the 'quotes product options' show them as buttons to
+// select to switch between the gutter types at the top ... one button for
+// each and any different gutter entered in the 'gutter profiles' list").
+// Three blocks stacked down the page meant a gutter the office ADDED had no
+// price boxes anywhere, so it quoted its supply at $0.
+const gtab = await opg.evaluate(() => {
+  _selAdd('gutters');
+  const i = _selWorking().gutters.length - 1;
+  _selEdit('gutters', i, 'name', 'Colorsteel 150mm quad');
+  const id = _selWorking().gutters[i].id;
+  gotoTab('settings'); switchSettingsSub('set-defaultpricing');
+  const tabs = Array.from(document.querySelectorAll('#pbGutTabs button'));
+  _pbGutSelect(id);
+  const panes = Array.from(document.querySelectorAll('#set-defaultpricing [data-gut-pane]'))
+    .map(p => ({ id: p.getAttribute('data-gut-pane'), shown: p.style.display !== 'none' }));
+  const pane = document.querySelector('#pbGutGeneric [data-gut-pane="' + id + '"]');
+  return { id,
+    btns: tabs.map(b => b.textContent.trim()),
+    panes,
+    ownPane: !!pane,
+    lmKey: pane ? (pane.querySelector('[data-gut-pb]') || {}).getAttribute('data-gut-pb') : null,
+    brackets: pane ? pane.querySelectorAll('[data-gut-brackets] input').length : 0 };
+});
+check('THE ASK: one button per gutter on Guttering & spouting',
+  gtab.btns.length === 4 && gtab.btns.includes('Colorsteel 150mm quad') &&
+  gtab.btns.includes('125mm Colorsteel Box Gutter'), JSON.stringify(gtab.btns));
+check('…and only the one picked is on screen, so a figure cannot land on the wrong gutter',
+  gtab.panes.filter(p => p.shown).length === 1 &&
+  gtab.panes.filter(p => p.shown)[0].id === gtab.id, JSON.stringify(gtab.panes));
+check('…a gutter the office added gets its own $/lm box at last',
+  gtab.ownPane && gtab.lmKey === gtab.id + '_lm', JSON.stringify({ pane: gtab.ownPane, key: gtab.lmKey }));
+check('…and its brackets are priced there too', gtab.brackets === 5, String(gtab.brackets));
+
+// It has to SAVE, and saving on a page that shows one pane must not wipe the
+// rates behind the others.
+const gsave = await opg.evaluate(() => {
+  const id = _selWorking().gutters[_selWorking().gutters.length - 1].id;
+  const pane = document.querySelector('#pbGutGeneric [data-gut-pane="' + id + '"]');
+  pane.querySelector('[data-gut-pb]').value = '27.5';
+  collectPriceBookFromUI();
+  return { id, lm: S.settings.price_book.gutter[id + '_lm'],
+           box: S.settings.price_book.gutter.box125_lm,
+           typhoon: S.settings.price_book.gutter.typhoon_spouting_lm };
+});
+check('…typing its rate saves against that product',
+  gsave.lm === 27.5, JSON.stringify(gsave));
+check('…without wiping the rates of the gutters whose pane was hidden',
+  gsave.box > 0 && gsave.typhoon > 0, JSON.stringify(gsave));
+
+const gprice = await opg.evaluate(() => {
+  const id = _selWorking().gutters[_selWorking().gutters.length - 1].id;
+  const lines = _gutterMaterialLines(id, 40, 2, 0);
+  return { id, lines, supply: (lines[0] || {}).price };
+});
+check('…and the quote prices its supply at that rate instead of $0',
+  gprice.supply === 27.5 && gprice.lines[0].lineTotal === 1100, JSON.stringify(gprice.lines[0]));
+
+// ── THE BRACKET BOXES ARE WHERE HE LOOKED FOR THEM (the same message: "why
+// does the Gutter section ... still not show the external and the internal
+// bracket prices ... the 125mm box gutter is missing it's brackets pricing").
+// They are the gutter row's own fields, reached from a second surface — one
+// number per bracket, not two boxes for one number.
+const gbrk = await opg.evaluate(() => {
+  _pbGutSelect('box125');
+  const pane = document.querySelector('#set-defaultpricing [data-gut-pane="box125"]');
+  const labels = Array.from(pane.querySelectorAll('[data-gut-brackets] label')).map(e => e.textContent);
+  _pbGutBracketEdit('box125', 'bracketIntEa', '4.20');
+  _pbGutBracketEdit('box125', 'bracketExtEa', '7.90');
+  const row = _selGutterOf('box125');
+  const cfg = _gutterBracketCfg('box125');
+  const lm = 40, lines = 2;
+  return { labels, row: { i: row.bracketIntEa, x: row.bracketExtEa }, cfg,
+           count: _gutterBracketCount('box125', lm, lines),
+           upgrade: _bracketExtTotal('box125', lm, lines),
+           base: _gutterMaterialLines('box125', lm, lines, 0).reduce((a, r) => a + r.lineTotal, 0) };
+});
+check('the box gutter has an internal AND an external bracket price on its own tab',
+  gbrk.labels.some(l => /Internal bracket/.test(l)) &&
+  gbrk.labels.some(l => /External bracket/.test(l)), JSON.stringify(gbrk.labels));
+check('…and they write the gutter product itself, not a second store',
+  gbrk.row.i === 4.2 && gbrk.row.x === 7.9 && gbrk.cfg.intEa === 4.2 && gbrk.cfg.extEa === 7.9,
+  JSON.stringify(gbrk.row));
+check('…so the upgrade is the real difference \u00d7 the real count, never "Included"',
+  gbrk.count === Math.ceil(40 / 0.8) + 2 &&
+  Math.abs(gbrk.upgrade - (7.9 - 4.2) * gbrk.count) < 0.01,
+  JSON.stringify({ count: gbrk.count, up: gbrk.upgrade }));
+check('…and pricing them does NOT move the base, whose $/lm already includes them',
+  gbrk.base === _gutterBaseBefore, JSON.stringify({ now: gbrk.base, before: _gutterBaseBefore }));
+
 await octx.close();
 
 // ── PER-ROOF BREAKDOWN — a gutter figure against every roof ────────
