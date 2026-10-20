@@ -115,7 +115,17 @@ Discipline (non-negotiable):
 4. The pipeline lands about 5–7 minutes after the push to main (Tests CI,
    sharded, ~4 min; promote ~1–2 min). Watch the promote for that SHA
    rather than waiting a fixed time.
-5. **A ship is not done until the promote workflow is green.** It verifies
+5. **A ship is not done until the promote workflow is green** — WHEN there
+   is one. `tests.yml` triggers only on `floodroofing/frontend/**`,
+   `backend/**`, `tests/**`, `package.json` and its own file, and the
+   promote is a `workflow_run` ON Tests — so a commit touching only
+   CLAUDE.md, `docs/`, `tools/` or `hub/` runs NO Tests and therefore NO
+   promote, and production stays where it was. That is right (nothing in
+   such a commit reaches a user) but it means waiting for a promote that
+   will never come. Check that a Tests run exists for the SHA before
+   watching for its promote; if a docs-only commit really must go live,
+   it has to ride with a code change or be dispatched by hand.
+   When there IS a promote, it verifies
    both halves, and both are the proof:
    - the FRONTEND, by fetching roofmap.co.nz/app and comparing it byte-for-byte
      with app.html at the promoted commit;
