@@ -315,6 +315,72 @@ check('…and shown on the bar beside that button with the menu shut',
 check('the Edits buttons no longer have a row of their own — they ride with the toolbar',
   bar2.editsInToolbar && bar2.hasModeBtns && bar2.editsAfterCal, JSON.stringify(bar2));
 
+// ── THE ZOOM BOX (2026-10-20, the owner, mid-job on Relocate Background
+// Image: "the plus/minus zoom jumps too much between clicks, it should also
+// let me enter an exact number (the 311% text should be editable), also as you
+// can see the number doesn't change of the zoom when in 'moving picture only'
+// mode"). Three faults in one control, and the first two were there long
+// before the relocate mode: a flat ±0.1 step is a tenth of the picture at
+// 100% and a twenty-fifth at 250%, and there was no way to type a figure at
+// all.
+const zm = await pg.evaluate(async () => {
+  const lbl = () => document.getElementById('zoomLabel').textContent;
+  const cap = () => (document.getElementById('zoomCaption') || {}).textContent;
+  gotoTab('roof');
+  const out = {};
+  DRAW.zoom = 3.11; _zoomLabelSync();
+  out.start = lbl();
+  adjustZoom(0.1); out.up1 = lbl();
+  adjustZoom(0.1); out.up2 = lbl();
+  adjustZoom(-0.1); out.back = lbl();
+  // a small zoom steps by a small amount, which a flat step cannot do
+  DRAW.zoom = 0.5; _zoomLabelSync(); adjustZoom(0.1); out.lowUp = Math.round(DRAW.zoom * 100);
+  out.editable = document.getElementById('zoomLabel').getAttribute('contenteditable') === 'true';
+  out.capOff = cap();
+  // and in relocate mode it is the PICTURE's size that moves
+  const img = await new Promise(res => { const c = document.createElement('canvas');
+    c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#8a8'; x.fillRect(0, 0, 600, 400);
+    const im = new Image(); im.onload = () => res(im); im.src = c.toDataURL(); });
+  _applyCanvasBg(img, null);
+  DRAW.outline = [[50,50],[250,50],[250,200],[50,200]]; DRAW.outlineDone = true;
+  DRAW.scaleMetresPerPx = 0.05;
+  DRAW.zoom = 2; _zoomLabelSync();
+  _bgRelocateToggle();
+  out.capOn = cap(); out.picStart = lbl(); out.viewWas = DRAW.zoom;
+  adjustZoom(-0.1); out.picDown = lbl(); out.picScale = Math.round(_bgAdj().scale * 100);
+  out.viewNow = DRAW.zoom;
+  return out;
+});
+// 311 → 336 → 363: 8% of whatever it is now, which reads the same at every size.
+check('the zoom steps by a PROPORTION, so one click is the same size move at 311% as at 50%',
+  zm.start === '311%' && zm.up1 === '336%' && zm.up2 === '363%' && zm.back === '336%' && zm.lowUp === 54,
+  JSON.stringify(zm));
+check('…and the figure itself can be typed in', zm.editable && zm.capOff === 'Zoom:', JSON.stringify(zm));
+check('…and while the picture is being relocated the box shows the PICTURE\u2019s size, and says so',
+  zm.capOn === 'Picture size:' && zm.picStart === '100%' && zm.picDown === '93%' && zm.picScale === 93,
+  JSON.stringify(zm));
+check('…without the view\u2019s own zoom moving an inch', zm.viewWas === 2 && zm.viewNow === 2, JSON.stringify(zm));
+
+// typed with a real keyboard, because the commit is a blur/Enter handler
+await pg.evaluate(() => { try { _bgRelocateToggle(); } catch(e){} });
+await pg.click('#zoomLabel');
+await pg.keyboard.press('Control+A');
+await pg.keyboard.type('180%');
+await pg.keyboard.press('Enter');
+await pg.waitForTimeout(250);
+const typed = await pg.evaluate(() => ({ lbl: document.getElementById('zoomLabel').textContent,
+  view: Math.round(DRAW.zoom * 100) }));
+check('an exact zoom typed into the box is the zoom', typed.lbl === '180%' && typed.view === 180, JSON.stringify(typed));
+// nonsense keeps what was there rather than zooming to nothing
+await pg.click('#zoomLabel');
+await pg.keyboard.press('Control+A');
+await pg.keyboard.type('abc');
+await pg.keyboard.press('Enter');
+await pg.waitForTimeout(250);
+const junk = await pg.evaluate(() => ({ lbl: document.getElementById('zoomLabel').textContent,
+  view: Math.round(DRAW.zoom * 100) }));
+check('…and a figure that is not one leaves the zoom where it was', junk.lbl === '180%' && junk.view === 180, JSON.stringify(junk));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;

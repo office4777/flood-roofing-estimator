@@ -174,8 +174,10 @@ check('Relocate Background Image is off to start with, with its own button and a
   bgr.offByDefault && bgr.btn && bgr.barHiddenFirst, JSON.stringify(bgr));
 check('…switching it on shows the bar and takes the drawing tools away (the drawing is held still)',
   bgr.on && bgr.barShown && bgr.tool === 'select' && bgr.toolRefused, JSON.stringify(bgr));
-check('…the zoom buttons resize the PICTURE, not the view',
-  Math.abs(bgr.scaleOf - 1.2) < 1e-9 && bgr.viewZoomUnmoved, JSON.stringify(bgr));
+// A PROPORTIONAL step (2026-10-20): 8% of whatever the picture is now, not a
+// flat 0.1 — which on a picture taken down to 40% moved it a quarter a click.
+check('…the zoom buttons resize the PICTURE by a proportion, and never the view',
+  Math.abs(bgr.scaleOf - 1.08) < 1e-6 && bgr.viewZoomUnmoved, JSON.stringify(bgr));
 check('…a press in the middle of the canvas reaches the canvas', bgr.hit === 'roofCanvas', JSON.stringify(bgr));
 
 // a real drag, with a real mouse
@@ -191,7 +193,12 @@ const bgr2 = await pg.evaluate(() => {
            off: JSON.stringify(IMG_OFFSET), zoom: DRAW.zoom,
            label: (document.getElementById('bgRelocateState') || {}).textContent || '' };
 });
-check('…dragging moves the picture', Math.abs(bgr2.dx - 70) <= 2 && Math.abs(bgr2.dy - 40) <= 2 && /Picture moved/.test(bgr2.label), JSON.stringify(bgr2));
+// IN IMAGE PIXELS, not screen pixels: a 70×40 drag on a picture drawn at
+// roughly half size is about 35×20 of the photo itself. What matters is that
+// it moved, that the strip says so, and that the ratio follows the view scale.
+check('…dragging moves the picture, and the strip says where it has got to',
+  bgr2.dx > 4 && bgr2.dy > 2 && Math.abs(bgr2.dx / bgr2.dy - 70 / 40) < 0.35 &&
+  /Picture moved [1-9]/.test(bgr2.label), JSON.stringify(bgr2));
 check('…and the roof, the view and above all the SCALE do not move',
   bgr2.outline === bgr.before.outline && bgr2.scaleM === bgr.before.scale &&
   bgr2.off === bgr.before.off && bgr2.zoom === bgr.before.zoom,
@@ -225,6 +232,70 @@ check('…where the picture sits is saved with the job and comes back with it',
   bgr3.saved === JSON.stringify({ dx: 120, dy: 60, scale: 1.2 }) && bgr3.back === bgr3.saved, JSON.stringify(bgr3));
 check('…and the mode is left behind by a job open, so the next job draws normally',
   bgr3.offAfterOpen && bgr3.barAfterOpen && bgr3.toolBack, JSON.stringify(bgr3));
+
+// ── THE QUOTE'S MAP SHOWS THE PICTURE WHERE THE CANVAS DOES (2026-10-20, the
+// owner within the hour of this shipping: "now the quote aerial is way off!").
+// The nudge was kept in SCREEN pixels — what a drag hands you — and that is
+// wrong twice: the picture slid out from under the roof the moment the office
+// ZOOMED after lining it up, and the quote's roof map, which works entirely in
+// image pixels, could not use the figure at all. Measured on BOTH renderers
+// rather than eyeballed: one image pixel, one drawing coordinate, two maps.
+const align = await pg.evaluate(async () => {
+  gotoTab('roof');
+  const img = await new Promise(res => { const c = document.createElement('canvas');
+    c.width = 800; c.height = 600; const x = c.getContext('2d'); x.fillStyle = '#8a8'; x.fillRect(0, 0, 800, 600);
+    const im = new Image(); im.onload = () => res(im); im.src = c.toDataURL(); });
+  _applyCanvasBg(img, null);
+  DRAW.outline = [[100,100],[400,100],[400,350],[100,350]]; DRAW.outlineDone = true;
+  DRAW.scaleMetresPerPx = 0.05; autoGenerateRoof('hip');
+  if (!S.quote) S.quote = defaultQuote();
+  document.getElementById('showBg').checked = true;
+  // where IMAGE pixel (200,150) lands, in DRAWING coordinates, on the canvas
+  const onCanvas = () => {
+    const t = getImgTransform(), b = _bgAdj();
+    const cv = document.getElementById('roofCanvas'), dpr = window.devicePixelRatio || 1;
+    const W = cv.width / dpr, H = cv.height / dpr;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const k = Math.min(W / iw, H / ih) * DRAW.zoom;
+    const dispW = iw * k * b.scale, dispH = ih * k * b.scale;
+    const ix = (W - dispW) / 2 + IMG_OFFSET.x + b.dx * k;
+    const iy = (H - dispH) / 2 + IMG_OFFSET.y + b.dy * k;
+    return { x: +(((ix + 200 * k * b.scale) - t.ix) / t.s).toFixed(2),
+             y: +(((iy + 150 * k * b.scale) - t.iy) / t.s).toFixed(2) };
+  };
+  const inQuote = () => {
+    _qpStashRoofGeom(true);
+    const g = S.quote.roofMapGeom;
+    const m = /<image x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"/
+      .exec(_qpRoofMapSvg({ showBg: true }));
+    if (!m || !g) return null;
+    return { x: +(+m[1] + 200 * (+m[3] / g.bgW)).toFixed(2),
+             y: +(+m[2] + 150 * (+m[4] / g.bgH)).toFixed(2) };
+  };
+  const out = {};
+  out.plainCanvas = onCanvas(); out.plainQuote = inQuote();
+  _bgRelocateToggle();
+  _bgAdj().dx = 120; _bgAdj().dy = -60; _bgAdj().scale = 1.25;
+  redrawAll();
+  out.movedCanvas = onCanvas(); out.movedQuote = inQuote();
+  out.stored = JSON.stringify(S.quote.roofMapGeom.bgAdj);
+  // the office zooms the VIEW after lining the picture up: nothing may shift
+  DRAW.zoom = 2.5; redrawAll();
+  out.zoomCanvas = onCanvas(); out.zoomQuote = inQuote();
+  _bgRelocateToggle();
+  return out;
+});
+const same = (a, c) => !!(a && c && Math.abs(a.x - c.x) < 0.6 && Math.abs(a.y - c.y) < 0.6);
+check('with the picture where it was put, the canvas and the quote’s map agree about it',
+  same(align.plainCanvas, align.plainQuote), JSON.stringify(align));
+check('…and they still agree once the picture has been moved and resized under the roof',
+  same(align.movedCanvas, align.movedQuote) &&
+  !same(align.plainCanvas, align.movedCanvas) &&
+  /"dx":120/.test(align.stored),
+  JSON.stringify(align));
+check('…and zooming the VIEW afterwards does not slide the picture out from under the roof',
+  same(align.zoomCanvas, align.movedCanvas) && same(align.zoomQuote, align.movedQuote),
+  JSON.stringify(align));
 
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();

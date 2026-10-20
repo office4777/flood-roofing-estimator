@@ -2069,8 +2069,57 @@ Discipline (non-negotiable):
   ASYNCHRONOUS load in `_BG_ADJUST_PENDING` — a module-level var, NOT a
   property of DRAW, because `restoreFromJob` rebuilds DRAW and anything parked
   there is gone by the time the image arrives. A new picture starts where it is
-  put. `tests/bgclear.mjs` (20) is a tripwire: against the old build the seven
-  new pins fail on `BG_RELOCATE is not defined`.
+  put.
+  THE NUDGE IS IN IMAGE PIXELS, NOT SCREEN PIXELS (the owner, within the hour
+  of it shipping: "now the quote aerial is way off!"). It was stored in screen
+  pixels, which is what a drag hands you, and that is wrong twice. The picture
+  slid out from under the roof the moment the office ZOOMED after lining it up
+  — the same screen offset is a different amount of ground at every zoom — and
+  the QUOTE'S OWN ROOF MAP, which works entirely in image pixels, could not use
+  the figure at all: `_qpRoofMapSvg` drew the photo at 0,0 where it had always
+  drawn it while the canvas showed it 1156px away. `_panOrigin` / `_panApply`
+  convert through `getImgTransform().s`, the canvas paint multiplies by it, and
+  `roofMapGeom.bgAdj` carries it to the quote (carried forward like the frame
+  and the rotation when a render has no live picture to read).
+  AND THE CANVAS SIZES THE PHOTO ABOUT ITS CENTRE, not its top-left — `dispW`
+  changes and `ix` re-centres — so an image pixel q lands at the drawing
+  coordinate `bgW*(1-scale)/2 + dx + q*scale`. The SVG places it the same way,
+  and rotates about the photo's centre moved by the nudge. Measured against the
+  canvas rather than reasoned about: the first version anchored top-left and
+  was 100px out at 125%.
+  `tests/bgclear.mjs` (23) is a tripwire on both halves: seven pins fail on the
+  pre-relocate build with `BG_RELOCATE is not defined`, and three more take one
+  image pixel through BOTH renderers and require the same drawing coordinate
+  out of each, before the move, after it, and at a different view zoom.
+- A ZOOM STEP IS A PROPORTION (2026-10-20, the owner mid-job: "the plus/minus
+  zoom jumps too much between clicks, it should also let me enter an exact
+  number (the 311% text should be editable), also as you can see the number
+  doesn't change of the zoom when in 'moving picture only' mode"). Three faults
+  in one small control, two of them older than the relocate mode.
+  `ZOOM_STEP` is 1.08 and `_zoomStep(cur, dir)` multiplies: a flat ±0.1 is a
+  tenth of the picture at 100% and a twenty-fifth at 250%, and on the PICTURE's
+  own size — which starts at 1 and is often taken down to 0.4 — one click moved
+  it a quarter (his screenshots: 40% to 50%). `adjustZoom` takes the sign of
+  its argument and nothing else now, so its two callers are unchanged.
+  `#zoomLabel` IS A SPAN, contenteditable, and stays one: a dozen places in
+  app.html set that element's `textContent`, and every one of them would stop
+  showing anything the day it became an `<input>`. `_zoomLabelFocus` /
+  `_zoomLabelKey` / `_zoomLabelCommit` take a typed figure (with or without the
+  %), clamp it, and a figure that is not one leaves the zoom where it was.
+  `#roofZoomStepper` is exempt from the job-lock typing guard — zoom only
+  LOOKS, which is why `adjustZoom` was already in `_LOCK_OK_CALLS`.
+  EVERY READOUT GOES THROUGH `_zoomLabelSync()`. Eight places used to write
+  that element's text by hand from `DRAW.zoom` (Fit, the pinch gesture,
+  Ctrl+wheel, a picture being placed, a job being restored…), which is how a
+  box that is sometimes showing the picture's size instead goes wrong: press
+  Fit while relocating and it would read the view's zoom under a caption
+  saying "Picture size:". Ctrl+wheel takes the proportional step too, so one
+  control does not feel coarser than the other at the same zoom.
+  AND THE BOX SHOWS WHAT IS MOVING: while the picture is being relocated,
+  `_zoomLabelSync` puts the PICTURE's size in it and the caption beside it
+  (`#zoomCaption`) reads "Picture size:" instead of "Zoom:" — the view's own
+  zoom is not moving, so showing it was showing a number that never changed.
+  `tests/canvassetup.mjs` (43).
 - A PRICING EXPORT IS THE TAB IT WAS TAKEN FROM (2026-10-20, Scott at
   info@wellingtonroof.co.nz, relayed by the owner: "when the Roof 2 Option is
   included, the Quote Total and Main Roof totals are the same, but the Roof 2
@@ -2090,6 +2139,73 @@ Discipline (non-negotiable):
   whole quote's TOTAL / gross profit / GP% at the foot so the one figure a
   reader goes looking for is not missing. A single-roof job is unchanged — one
   pricing tab means the scope IS the total. `tests/profititems.mjs` (20).
+- A MODERN POLE SHED LOOKS LIKE A MODERN ROOFING QUOTE (2026-10-20, the owner:
+  "the classic is ok but the modern needs alot of work, i want it to look more
+  like the style and look as the roofing modern quotes, because at the moment
+  the look of the modern pole shed quote looks like a cross between the classic
+  and modern roofing quote"). He is describing exactly what it was. Since
+  2026-10-12 the shed's modern sections WRAPPED the A4's own blocks — one
+  source of truth for what a shed is, which was right then and is still right
+  about the FACTS, but it carried the A4's chapter bands, its `--ed-*`
+  typography, its two-column grids and its navy money card into a layout built
+  out of white `.qb-*` cards. Hence the cross-breed.
+  SO THE FACTS STAY SHARED AND THE PRESENTATION FORKS, which is how the roofing
+  quote has always worked: `_qbGrade` reads `_selGrades()` and the A4 reads the
+  same list, and neither renders the other's markup. Every `_psm*` function
+  reads the shed's own helpers — `_psGet`, `_psSpecGet`, `_psPlans`,
+  `_psAddons`, `_poleShedMoney`, `_paletteForGradeId` — so the two styles
+  cannot drift about what the shed IS, while each looks like itself. CLASSIC IS
+  UNTOUCHED, and so is every roofing quote.
+  AND IT IS A DECISION PER SECTION, like the roofing quote: the shed's one
+  "Choose Your Options" page became six sections (`psplan`, `psgrade`,
+  `psthickness`, `pscolour`, `psroller`, `psaddons`), each a full-width band of
+  `.qb-opt` rows with a Recommended badge on the roofer's own pick and the
+  price difference at the right. `psplan` only where there is more than one
+  plan, `pscolour` not on Zincalume, `psaddons` not when there are none and the
+  quote is the customer's — the roofing quote's own rule, and the numbering
+  closes up behind each. The nav, the scroll-spy, the rail, the phone book's
+  page turning and the PDF slicer's break rows all come free, because they are
+  keyed on the classes the roofing quote uses.
+  THE REVIEW SECTION IS KEYED `review`, NOT `psreview`: the rail's "Review
+  quote" button and the narrow screen's bottom bar both scroll to `#qd-review`,
+  so a shed with its own key had a Review button that went nowhere.
+  THE COVER'S HERO IS STILL SLOT `PS_HERO_SLOT` — the same picture the A4 uses,
+  so the two can never show different sheds — presented in the roofing cover's
+  `.qb-hero` frame and keeping the slot's drag / wheel / zoom handlers, which
+  are found by `.qp-cond-photo[data-cp-idx]`. It stays a `<figure data-cp-hero>`
+  because `_psPdfFitCover` grows exactly that element to fill the PDF's first
+  sheet. Its headline reads `S.quote.psSubtitle` STRAIGHT OFF THE QUOTE rather
+  than through `_psGet`, which falls back to `POLESHED_DEFAULTS` — that default
+  is "Colorsteel option", a spec line, and it was the cover's title.
+  THE DELTAS READ GST-INCLUSIVE on the option cards (`_psmDelta` = `_qbIncl`),
+  like every roofing card and like the total in the rail beside them. The A4
+  prints them ex GST with "+GST" beside; nothing in the arithmetic moved.
+  `_psPlanSwitchHtmlCust` is untouched and keeps its own wording.
+  `_qbOptionPage` says "Recommended for your SHED" on a shed — the one word
+  that gives a shared renderer away.
+  THE ADD-ONS ARE THE ONE MULTI-PICK LIST, so the row is a tick box and the
+  office's pencil sits OUTSIDE the button that ticks it: a button inside a
+  button is not valid markup and the browser breaks the inner one out of its
+  parent (the plan rename pencil's lesson). `.ps-ao-hit` is named in the PDF
+  layer's "hide every button" exception, or every add-on would print as an
+  empty box.
+  THE OFFICE KEEPS EVERYTHING IT HAD: the spec rows are still contenteditable
+  `[data-qfield]`, the consent switch is a segmented control, the WebShed
+  import and `_psPlanBarHtml` sit above the drawings, and the wording lists and
+  the subtotal override live in `.ps-office` boxes that say "Office only". None
+  of it reaches paper — `.no-print` only fires under `@media print`, which an
+  html2canvas capture is NOT, so `.ps-office`, `.ps-ao-tools`, `.ps-draw-tools`,
+  `.ps-seg` and `.ps-draw-hole` are named in the `pdf-modern` layer.
+  DEAD CSS WAS DELETED, NOT LEFT TO MATCH NOTHING: the phone overrides written
+  against the A4's grids (`[style*="grid-template-columns:1fr 1fr"]`, `.ed-h1`,
+  `.ed-heading-band`, the 36px gutters) and the print rules for `.ps-draw-col`,
+  `.ps-draw-empty`, `.ps-tap-note`, `.ps-accept-card` and `.ed-ofpages` all went
+  with the blocks they were written for. `.ps-draw-img`, `.ps-draw-wrap` and
+  `.ps-spec-empty` are reused ON PURPOSE so the 2026-10-20 PDF sizing work
+  keeps paying off. `tests/poleshed.mjs` (213).
+  STILL THE OWNER'S CALL: the A4/classic shed is unchanged, which he said was
+  fine — but the two now differ in more than typography, so if he wants the
+  classic brought closer, that is its own job.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type
@@ -3993,24 +4109,21 @@ On ANY machine, run `git config core.hooksPath .githooks` once or
 
 **Open — needs the owner (Aron). None of these can be checked from a cloud
 session, and none has been confirmed done since the date beside it.**
-- 2026-10-20, NEW AND LIVE: RAILWAY HAS STOPPED PICKING UP `production`.
-  `2fed101`'s promote went red twice on the backend step — `/health` still
-  reported `896e17b` after 10 minutes, and again on a re-run 20 minutes later.
-  The FRONTEND verified both times ("Live after 40s"), so roofmap.co.nz is on
-  `2fed101`. It did not matter for that commit — `git diff 896e17b..2fed101 --
-  floodroofing/backend/` is EMPTY, so the API is running byte-identical server
-  code and the check is comparing SHAs, not behaviour — but Railway DID deploy
-  `896e17b` ninety minutes earlier, so this is not a path filter, it is the
-  service not taking the push. THE NEXT BACKEND SHIP IS A REAL HALF-SHIP UNTIL
-  IT IS FIXED. Railway → the service → Deployments: read the newest deploy's
-  build log if it errored, or deploy the commit if the service has been
-  switched to manual. A cloud session CANNOT check this — the container's
-  proxy refuses outbound to the Railway host (403 on CONNECT) — so the promote
-  log is the only read on it.
-  AND BE ACCURATE ABOUT A RED BACKEND STEP ON A FRONTEND-ONLY SHIP: diff the
-  backend between the promoted SHA and the one `/health` reports before saying
-  anything is half-shipped. An empty diff means the same server code under a
-  different name.
+- 2026-10-20, RESOLVED THE SAME DAY and kept for the lesson: Railway appeared
+  to have STOPPED taking `production`. `2fed101`'s promote went red on the
+  backend step twice — `/health` still reported `896e17b` after 10 and then 20
+  minutes — while the frontend verified both times. It did not matter for that
+  commit (`git diff 896e17b..2fed101 -- floodroofing/backend/` is EMPTY, so the
+  API was running byte-identical server code and the check compares SHAs, not
+  behaviour), and the NEXT ship cleared it by itself: `6e02634`'s promote read
+  `133d453` on two checks and then "Live after 60s". So it was a slow or queued
+  Railway deploy, not a service switched to manual.
+  THE LESSON: on a frontend-only ship, diff the backend between the promoted
+  SHA and the one `/health` reports BEFORE saying anything is half-shipped — an
+  empty diff means the same server code under a different name — and give
+  Railway another ship before touching its settings. A cloud session cannot
+  check Railway directly: the container's proxy refuses outbound to that host
+  (403 on CONNECT), so the promote log is the only read on it.
 - 2026-10-02: his own quotes leave as "Flood Roofing <…@roofmap.co.nz>" with
   replies to office@. To send as office@floodroofing.co.nz the Resend entries
   for floodroofing.co.nz must stop reading FAILED — the records go in

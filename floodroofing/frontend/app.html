@@ -1360,39 +1360,27 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 .ps-cswitch.on .ps-cswitch-amt{ color:#6b7a8c; font-weight:600; }
 @media print { .ps-cswitch-wrap{ display:none } }
 
-/* ── THE SHED'S PAGES ON A PHONE (2026-10-13, the owner: "the quotes mobile
-   version is hard to read and not made properly"). The shed sections are the
-   A4's own blocks — that is deliberate, so the two styles cannot drift about
-   what the shed is — but the A4 is a two-column document 760px wide, and
-   inside a phone-width page its grids kept their two columns and ran off the
-   right edge: a 132px label beside a ~60px value, "Mono-pitch (flat)" set one
-   word per line, and the second column's headings cut off the screen. These
-   rules are scoped to .ps-body (the shed's sections only) under the phone
-   layers, so the computer layout and every roofing quote are untouched. */
+/* ── THE SHED'S PAGES ON A PHONE. These began (2026-10-13, the owner: "the
+   quotes mobile version is hard to read and not made properly") as a set of
+   overrides on the A4 BLOCKS the shed's modern sections used to wrap: its
+   two-column grids, its 132px spec labels, its chapter band, its 36px page
+   gutters. The rebuild of 2026-10-20 took those blocks out — the sections are
+   .qb-* cards now, which were phone-native from the day the book was built —
+   so every one of those overrides was deleted rather than left to match
+   nothing. What is left is what a SHED still needs and a re-roof does not. */
 .qp-book .ps-body, .qp-phone-preview .ps-body{ max-width:100%; overflow-x:hidden; }
-.qp-book .ps-body [style*="grid-template-columns:1fr 1fr"],
-.qp-phone-preview .ps-body [style*="grid-template-columns:1fr 1fr"]{
-  grid-template-columns:1fr !important; gap:12px !important; }
-.qp-book .ps-body ul[style*="columns:2"],
-.qp-phone-preview .ps-body ul[style*="columns:2"]{ columns:1 !important; }
-/* label above value: on a phone the value is what they are reading */
-.qp-book .ps-body .ps-spec-row,
-.qp-phone-preview .ps-body .ps-spec-row{ display:block !important; padding:6px 0 !important; }
-.qp-book .ps-body .ps-spec-lbl,
-.qp-phone-preview .ps-body .ps-spec-lbl{ flex:none !important; padding-top:0 !important; margin-bottom:1px; }
-.qp-book .ps-body .ps-spec-val,
-.qp-phone-preview .ps-body .ps-spec-val{ font-size:14px !important; }
-/* the A4's generous page gutters are most of a phone's width */
-.qp-book .ps-body > div > [style*="padding:24px 36px"],
-.qp-phone-preview .ps-body > div > [style*="padding:24px 36px"]{ padding:16px 14px 6px !important; }
-.qp-book .ps-body .ed-h1, .qp-phone-preview .ps-body .ed-h1{ font-size:28px !important; }
-/* the chapter band: a three-line title and an oversized logo cost a third of
-   the screen before a word of the shed is read */
-.qp-book .ps-body .ed-heading-band .ed-h1,
-.qp-phone-preview .ps-body .ed-heading-band .ed-h1{ font-size:21px !important; line-height:1.15 !important; }
-.qp-book .ps-body .ed-heading-band img,
-.qp-phone-preview .ps-body .ed-heading-band img{ max-height:26px !important; width:auto !important; }
 .qp-book .ps-body img, .qp-phone-preview .ps-body img{ max-width:100%; height:auto; }
+/* A spec row is label-and-value across the page on a computer; on a phone the
+   value is what they are reading, so it goes under its own label with room
+   around it rather than being squeezed into whatever the label leaves. */
+.qp-book .ps-spec .ps-spec-row,
+.qp-phone-preview .ps-spec .ps-spec-row{ display:block; padding:9px 12px; }
+.qp-book .ps-spec .ps-spec-lbl,
+.qp-phone-preview .ps-spec .ps-spec-lbl{ display:block; }
+.qp-book .ps-spec .ps-spec-val,
+.qp-phone-preview .ps-spec .ps-spec-val{ display:block; text-align:left; font-size:14.5px; margin-top:2px; }
+.qp-book .ps-draws .ps-draw-img,
+.qp-phone-preview .ps-draws .ps-draw-img{ max-height:300px; }
 /* The frozen roof map, with what the roof being priced comes to beside it. */
 .pr-map-row{ display:flex; align-items:center; gap:12px; }
 .pr-map-svg{ flex:1 1 auto; min-width:0; }
@@ -4343,6 +4331,69 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .qb-down{ font-size:14.5px; font-weight:800; color:#1a7f4e; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-lock{ font-size:9.5px; font-style:normal; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8a5a12; background:#fdf6e8; padding:2px 7px; border-radius:5px; margin-left:6px; vertical-align:middle; }
 .qb-opt-static{ cursor:default; }
+/* A MODERN POLE SHED LOOKS LIKE A MODERN ROOFING QUOTE (2026-10-20, the
+   owner: "the modern pole shed quote looks like a cross between the classic
+   and modern roofing quote and it's not great"). The shed's modern sections
+   are built in the .qb-* idiom now, so almost all of this is the roofing
+   quote's own CSS; what is below is only what a shed has and a re-roof does
+   not — the render on the cover, the spec list, the drawings and the
+   multi-pick add-ons. */
+.ps-hero{ margin:0; }
+/* A shed RENDER is clean artwork, not a site photo: the cover's standard veil
+   is sized to carry white type over a busy roof shot and buries it. Enough to
+   read the heading, and no more. */
+/* A shed RENDER is a picture of the whole building, so it wants the shape a
+   render is drawn at — .qd-hero's 21:8 letterbox (right for an aerial roof
+   shot) crops the walls off it. Written to out-specify that rule. */
+.qd-hero.ps-hero, .qb-hero.ps-hero{ aspect-ratio:16/9; max-height:360px; min-height:200px; }
+.ps-hero .qb-hero-veil{ background:linear-gradient(180deg,rgba(10,22,40,.04) 0%,rgba(10,22,40,.20) 42%,rgba(10,22,40,.72) 100%); }
+/* With the veil that light, white type can land on a pale render — a shadow
+   carries it either way without darkening the shed. */
+.ps-hero .qb-hero-txt h1, .ps-hero .qb-hero-txt p, .ps-hero .qb-kicker{ text-shadow:0 1px 10px rgba(10,22,40,.55); }
+.ps-hero .qb-kicker{ color:#8fd8f5; }
+.ps-opt-row svg{ color:#0099e0; }
+.ps-opt-row span{ color:#42556b; }
+.ps-chips{ display:flex; flex-wrap:wrap; gap:7px; margin:0 0 16px; }
+.ps-chip{ display:inline-block; padding:5px 12px; border:1px solid #e2e8f0; border-radius:20px; background:#f7f9fb; font-size:11.5px; font-weight:600; color:#33475f; white-space:nowrap; }
+.ps-spec{ border:1px solid #e6ebf1; border-radius:13px; overflow:hidden; margin-bottom:14px; }
+.ps-spec .ps-spec-row{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:10px 13px; border-bottom:1px solid #eef2f6; }
+.ps-spec .ps-spec-row:last-child{ border-bottom:none; }
+.ps-spec .ps-spec-lbl{ flex:0 0 auto; font-size:12.5px; color:#6b7a8c; }
+.ps-spec .ps-spec-val{ flex:1 1 auto; font-size:13.5px; font-weight:600; color:#0a1628; text-align:right; word-break:break-word; }
+.ps-spec .ps-spec-val:empty::before{ content:'—'; color:#b4c0cc; font-weight:400; }
+.ps-draws{ display:grid; gap:14px; margin-bottom:4px; }
+.ps-draws .ps-draw-wrap{ position:relative; border:1px solid #e6ebf1; border-radius:13px; overflow:hidden; background:#f7f9fb; }
+.ps-draws .ps-draw-img{ display:block; width:100%; max-height:420px; object-fit:contain; background:#fff; }
+.ps-draws .ps-draw-cap{ position:absolute; top:9px; left:11px; padding:3px 9px; border-radius:6px; background:rgba(255,255,255,.88); font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#5b6b7d; }
+.ps-draws .ps-draw-tools{ position:absolute; top:8px; right:8px; display:flex; gap:5px; }
+.ps-draws .ps-draw-tools button{ height:27px; padding:0 9px; border:none; border-radius:7px; background:rgba(10,22,40,.76); color:#fff; font:600 11px/1 inherit; font-family:inherit; cursor:pointer; }
+.ps-draw-hole{ border:1.5px dashed #c9d3de; border-radius:13px; background:#f7f9fb; padding:22px 16px; text-align:center; }
+.ps-draw-hole .ps-draw-cap{ position:static; background:none; padding:0; display:block; margin-bottom:7px; }
+/* The add-ons are the one list on a shed where more than one can be on at a
+   time, so the row is a tick box and not a radio — and the office's pencil
+   sits OUTSIDE the button that ticks it. A button inside a button is not
+   valid markup and the browser breaks the inner one out of its parent. */
+.ps-ao{ padding-right:9px; }
+.ps-ao-hit{ display:flex; align-items:flex-start; gap:11px; flex:1 1 auto; min-width:0; border:none; background:none; padding:0; margin:0; font-family:inherit; font-size:inherit; color:inherit; text-align:left; cursor:pointer; }
+.ps-ao-hit:disabled{ cursor:default; }
+.ps-ao-tools{ flex:0 0 auto; display:flex; gap:5px; align-items:center; margin-left:10px; }
+.ps-ao-tool{ width:28px; height:28px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; color:#5b6b7d; cursor:pointer; font:600 12px/1 inherit; font-family:inherit; }
+.ps-ao-tool-del{ color:#b91c1c; }
+.qb-tick.sq{ border-radius:6px; }
+.ps-office{ margin:12px 0 0; padding:11px 12px; border:1px dashed #c9d3de; border-radius:11px; background:#fbfcfd; }
+.ps-office-hd{ display:block; font-size:10px; letter-spacing:.13em; text-transform:uppercase; font-weight:700; color:#8a97a6; margin-bottom:6px; }
+.ps-office .qp-editable{ font-size:13px; line-height:1.55; color:#33475f; white-space:pre-wrap; min-height:1.4em; outline:none; }
+.ps-dep{ display:flex; justify-content:space-between; gap:12px; padding:11px 13px; border:1px solid #e6ebf1; border-radius:13px; background:#f7f9fb; font-size:13px; margin-top:10px; }
+.ps-dep b{ font-weight:700; font-variant-numeric:tabular-nums; }
+.ps-consent{ margin:0 0 16px; padding:12px 14px; border-left:3px solid #0099e0; border-radius:0 11px 11px 0; background:#f4fafd; }
+.ps-consent p{ margin:0 0 7px; font-size:13.5px; line-height:1.5; color:#26374b; }
+.ps-consent ul{ margin:0; padding:0; list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:2px 18px; }
+.ps-consent li{ font-size:12.5px; color:#42556b; }
+.ps-consent li::before{ content:'\2022'; color:#0099e0; font-weight:700; margin-right:7px; }
+.ps-seg{ display:inline-flex; border:1.5px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:14px; }
+.ps-seg button{ padding:7px 14px; border:none; background:#fff; color:#42556b; font:600 12px/1 inherit; font-family:inherit; cursor:pointer; }
+.ps-seg button.on{ background:#0099e0; color:#fff; }
+@media (max-width:620px){ .ps-consent ul{ grid-template-columns:1fr; } }
 /* profile drawing */
 .qb-fig{ margin:0 0 16px; padding:14px 12px 10px; background:#f7f9fb; border-radius:13px; }
 .qb-fig svg{ display:block; }
@@ -4583,7 +4634,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qb-hero-hint, html:is(.print-modern,.pdf-modern) .qb-ask, html:is(.print-modern,.pdf-modern) .qe-inline,
   html:is(.print-modern,.pdf-modern) .qd-parked, html:is(.print-modern,.pdf-modern) #qbAcceptName, html:is(.print-modern,.pdf-modern) #qbAcceptTerms,
   html:is(.print-modern,.pdf-modern) .qd-accept, html:is(.print-modern,.pdf-modern) .qb-accept, html:is(.print-modern,.pdf-modern) .qb-sign, html:is(.print-modern,.pdf-modern) .qb-actions,
-  html:is(.print-modern,.pdf-modern) button:not(.qb-opt):not(.qb-sw):not(.qb-undecided){display:none!important}
+  /* .ps-ao-hit is the add-on row's hit area and it CARRIES the add-on's name
+     and price — the blanket rule would print every add-on as an empty box. */
+  html:is(.print-modern,.pdf-modern) button:not(.qb-opt):not(.qb-sw):not(.qb-undecided):not(.ps-ao-hit){display:none!important}
   /* THE PRICE BOX IS NOT REPEATED AT THE TOP (2026-10-13, the owner, on the
      first PDF that carried it: "remove the pricing box from the top of the
      quote, keep the price just at the bottom of the pdf"). It was pulled to
@@ -4668,15 +4721,18 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     width:auto!important; height:auto!important; max-width:100%!important;
     max-height:660px!important; object-fit:contain!important;
     margin:0 auto!important; display:block!important; }
-  html:is(.print-modern,.pdf-modern) .ps-draw-col{ height:auto!important; }
-  html:is(.print-modern,.pdf-modern) .ps-draw-col > div{ flex:none!important; height:auto!important; }
+  /* The shed's OFFICE furniture: the "office only" wording boxes, the add-on
+     pencils, the drawing tools, the consent switch and the dashed "add this
+     drawing" hole. .no-print covers them under @media print, which an
+     html2canvas capture is NOT — so they are named here. */
+  html:is(.print-modern,.pdf-modern) :is(.ps-office,.ps-ao-tools,.ps-draw-tools,.ps-seg,.ps-draw-hole){ display:none!important; }
   /* The frame hugs the drawing rather than standing a full-width box around
      it, so a portrait elevation is mounted on the sheet instead of floating
      in a white field with its label stranded off to one side. */
   html:is(.print-modern,.pdf-modern) .ps-draw-wrap{
     height:auto!important; width:fit-content!important; max-width:100%!important;
     margin:0 auto!important; }
-  html:is(.print-modern,.pdf-modern) .ps-draw-empty{ display:none!important; }
+
   /* The cover band grows to fill the sheet (_psPdfFitCover), so the render
      inside it is contained on its navy ground rather than cropped to a shape
      nobody chose. */
@@ -4690,16 +4746,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
      switcher's BUTTONS were already dropped by the button rule above, which
      left its "Choose your plan" heading standing over nothing on the cover —
      the cover's own meta grid names the plan option anyway. */
-  html:is(.print-modern,.pdf-modern) .ps-tap-note,
   html:is(.print-modern,.pdf-modern) .ps-cswitch-wrap{ display:none!important; }
-  /* The acceptance card is a name box, a tick box and a button: a form, on a
-     sheet of paper. The money block takes the full width instead, which is
-     what the page is for. They accept on the link in their email. */
-  html:is(.print-modern,.pdf-modern) .ps-accept-card{ display:none!important; }
-  html:is(.print-modern,.pdf-modern) .ps-accept-grid{ display:block!important; }
-  /* "1 of 5 pages" is the A4 document's chapter count. Beside the sheet
-     number stamped at the foot ("2 of 4") it reads as a contradiction. */
-  html:is(.print-modern,.pdf-modern) .ed-ofpages{ display:none!important; }
+  /* The acceptance FORM and the A4's "1 of 5 pages" chapter count were both
+     named here while the shed's modern sections were the A4's own blocks. They
+     are not any more (2026-10-20, the rebuild): the review section's accept
+     block is .qb-sign / .qb-accept / .qb-actions, already hidden by the rule
+     at the top of this layer, and there is no chapter band left to count. The
+     A4 still has both and still prints them — but the A4 is captured by
+     .print-quote, never by this layer, so a rule here could not reach it. */
   html:is(.print-modern,.pdf-modern) .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
   html:is(.print-modern,.pdf-modern) body, html:is(.print-modern,.pdf-modern) #customerView, html:is(.print-modern,.pdf-modern) .report-preview,
   html:is(.print-modern,.pdf-modern) #qpRoot, html:is(.print-modern,.pdf-modern) .qd{background:#fff!important}
@@ -5019,7 +5073,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T21:41:47Z';
+  window.APP_BUILT_AT = '2026-10-20T22:12:22Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6207,9 +6261,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div id="roofViewRow" style="display:flex;gap:12px;align-items:center;margin:0 .75rem .4rem;font-size:12px;color:var(--text2);flex-wrap:wrap">
         <button type="button" id="phoneClearBtn" onclick="clearAll()" style="display:none;padding:7px 13px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer"><span class="rt-emo">🗑 </span>Clear</button>
         <div id="roofZoomStepper" style="display:flex;align-items:center;gap:4px">
-          Zoom:
+          <span id="zoomCaption">Zoom:</span>
           <button id="zoomOutBtn" onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
-          <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
+          <!-- TYPE AN EXACT ZOOM (2026-10-20, the owner: "it should also let me
+               enter an exact number (the 311% text should be editable)"). It
+               stays a SPAN, contenteditable: a dozen places in this file set
+               this element's textContent, and every one of them would stop
+               showing anything the day it became an <input>. -->
+          <span id="zoomLabel" contenteditable="true" spellcheck="false" inputmode="decimal"
+                onfocus="_zoomLabelFocus()" onblur="_zoomLabelCommit()" onkeydown="_zoomLabelKey(event)"
+                title="Type an exact zoom and press Enter"
+                style="min-width:44px;text-align:center;padding:1px 4px;border:1px solid transparent;border-radius:4px;outline:none;cursor:text">100%</span>
           <button id="zoomInBtn" onclick="adjustZoom(0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">+</button>
           <button onclick="resetZoom()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">Fit</button>
         </div>
@@ -19800,7 +19862,9 @@ document.addEventListener('beforeinput', function(e){
   var t = e.target; if (!t || !t.closest) return;
   // …and the windows that never change the quote by typing in them (the email
   // to the customer, Save as template, Edit summary — which saves on its own).
-  if (t.closest('#aerialModal, #jobLockModal, #quoteEmailModal, #qtSaveModal')) return;
+  // …and the zoom box, which is inside #tab-roof but changes nothing about the
+  // job: zoom only LOOKS, which is why adjustZoom is already in _LOCK_OK_CALLS.
+  if (t.closest('#aerialModal, #jobLockModal, #quoteEmailModal, #qtSaveModal, #roofZoomStepper')) return;
   if (t.closest(_LOCK_SCOPE)){ e.preventDefault(); e.stopImmediatePropagation(); _lockPrompt(); }
 }, true);
 // A pick in a drop-down or a tick in a box is a change too (a quote
@@ -24657,7 +24721,7 @@ function drawAILines(result) {
   // Zeroes the angle, the slider and the readout together — this used to set
   // all three by hand here and was one of the three copies that could drift.
   try { _setFineRotate(0); } catch(e){ IMG_FINE_ROTATION = 0; }
-  var zoomEl=document.getElementById('zoomLabel'); if(zoomEl) zoomEl.textContent='100%';
+  try { _zoomLabelSync(); } catch(e){}
 
   function pct(p) {
     var x=Math.max(0,Math.min(100,parseFloat(p[0])||0));
@@ -34427,8 +34491,9 @@ function _qbOptionPage(o){
         '<span class="qb-opt-txt">'+
           // The roofer's quoted choice is their recommendation. A homeowner
           // does not know which steel grade or thickness to pick; saying so
-          // in words gives them somewhere safe to land.
-          (it.isDefault ? '<span class="qb-rec">Recommended for your roof</span>' : '')+
+          // in words gives them somewhere safe to land. It is their SHED on a
+          // pole-shed quote — the one word that gives a shared renderer away.
+          (it.isDefault ? '<span class="qb-rec">Recommended for your '+(_psIsShed() ? 'shed' : 'roof')+'</span>' : '')+
           '<b>'+esc2(it.label)+'</b>'+
           (it.desc ? '<span class="qb-opt-desc">'+esc2(it.desc)+'</span>' : '')+
           (it.warranty ? '<span class="qb-opt-warr">'+it.warranty+'</span>' : '')+
@@ -38729,8 +38794,24 @@ function _qpStashRoofGeom(showBg){
   }
   var R2 = function(v){ return +(+v).toFixed(1); };
   if (bg && !_carried && !_keepFrame) DRAW._viewTouched = false;   // captured — until the next deliberate change
+  // WHERE THE OFFICE PUT THE PICTURE (2026-10-20). Relocate Background Image
+  // moves the photo under a roof that is already drawn, so the quote's map —
+  // which draws the photo at 0,0 and the roofs in image pixels — showed the
+  // house in one place and the roof in another the moment it was used. The
+  // nudge rides with the geometry and is applied where the photo is placed.
+  // Carried, like the frame and the rotation, when this render has no live
+  // picture to read.
+  var bgAdj = null;
+  try {
+    if (_carried || _keepFrame) bgAdj = (_prevG && _prevG.bgAdj) || null;
+    else if (DRAW.bgAdjust && !_bgAdjIdentity()) {
+      var _ba2 = _bgAdj();
+      bgAdj = { dx:+(+_ba2.dx).toFixed(1), dy:+(+_ba2.dy).toFixed(1), scale:+(+_ba2.scale).toFixed(4) };
+    }
+  } catch(e){ bgAdj = null; }
   S.quote.roofMapGeom = {
     bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
+    bgAdj: bgAdj,
     roofs: roofs.map(function(r){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
@@ -38866,8 +38947,27 @@ function _qpRoofMapSvg(opts){
     // The roofs are NOT rotated, here or on the canvas: the photo moves under
     // them, which is the whole point of squaring an aerial up to the walls.
     var _rot = +g.rot || 0;
-    var _rt = _rot ? ' transform="rotate(' + _rot + ' ' + (g.bgW/2) + ' ' + (g.bgH/2) + ')"' : '';
-    svg+='<image x="0" y="0" width="'+g.bgW+'" height="'+g.bgH+'" opacity="0.55" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+    // …and where the office MOVED it to, if they did (Relocate Background
+    // Image). dx/dy are image pixels and scale sizes the photo about its own
+    // top-left, exactly as the canvas paints it; the rotation is then about
+    // the centre of the photo WHERE IT NOW SITS.
+    // THE CANVAS SIZES THE PHOTO ABOUT ITS CENTRE, not its top-left: dispW
+    // changes and ix re-centres, so an image pixel q lands at the drawing
+    // coordinate bgW*(1-scale)/2 + dx + q*scale. Place it the same way here or
+    // the two pictures of the same house agree only at scale 1. Measured
+    // against the canvas rather than reasoned about — the first version
+    // anchored top-left and was 100px out at 125%.
+    var _ba = g.bgAdj || null;
+    var _bs = (_ba && +_ba.scale > 0) ? +_ba.scale : 1;
+    var _bw = g.bgW * _bs, _bh = g.bgH * _bs;
+    var _bx = (_ba ? (+_ba.dx || 0) : 0) + g.bgW * (1 - _bs) / 2;
+    var _by = (_ba ? (+_ba.dy || 0) : 0) + g.bgH * (1 - _bs) / 2;
+    // …and it rotates about the centre of the photo where it now sits, which
+    // is the picture's own centre moved by the nudge.
+    var _rcx = g.bgW / 2 + (_ba ? (+_ba.dx || 0) : 0);
+    var _rcy = g.bgH / 2 + (_ba ? (+_ba.dy || 0) : 0);
+    var _rt = _rot ? ' transform="rotate(' + _rot + ' ' + _rcx + ' ' + _rcy + ')"' : '';
+    svg+='<image x="'+_bx+'" y="'+_by+'" width="'+_bw+'" height="'+_bh+'" opacity="0.55" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
   }
   g.roofs.forEach(function(r){
     // Included → blue + faint green tick. Not included (excluded, or a separate
@@ -41189,6 +41289,457 @@ function _psParts(){
   Promise.resolve().then(function(){ _PS_PARTS = null; });
   return _PS_PARTS;
 }
+// ══════════════════════════════════════════════════════════════════════
+// THE MODERN POLE SHED QUOTE (2026-10-20, the owner: "i need you to put alot
+// of work into the pole modern quote, the classic is ok but the modern needs
+// alot of work, i want it to look more like the style and look as the roofing
+// modern quotes, because at the moment the look of the modern pole shed quote
+// looks like a cross between the classic and modern roofing quote").
+//
+// He is describing exactly what it was. Since 2026-10-12 the shed's modern
+// sections WRAPPED the A4's own blocks — one source of truth for what a shed
+// is, which was the right call then and is still right about the FACTS, but it
+// carried the A4's chapter bands, its --ed-* typography, its two-column grids
+// and its navy money card into a layout built out of white .qb-* cards. Hence
+// the cross-breed.
+//
+// So the facts stay shared and the PRESENTATION forks, which is how the
+// roofing quote has always worked: _qbGrade reads _selGrades() and the A4
+// reads the same list, and neither renders the other's markup. Every function
+// below reads the shed's own helpers — _psGet, _psSpecGet, _psPlans,
+// _psAddons, _poleShedMoney, _paletteForGradeId — so the two styles cannot
+// drift about what the shed IS, while each looks like itself.
+//
+// AND IT IS A DECISION PER SECTION, like the roofing quote: the shed's one
+// "Choose Your Options" page became six sections (the shed, the grade, the
+// thickness, the colour, the roller door, the add-ons), each a full-width
+// band with .qb-opt rows, a Recommended badge on the roofer's own pick and
+// the price difference at the right. The nav, the scroll-spy, the rail, the
+// phone book's page turning and the PDF slicer's break rows all come for free
+// — they are keyed on the same classes the roofing quote uses.
+// ══════════════════════════════════════════════════════════════════════
+function _psmBody(inner){ return '<div class="qb-body ps-body">' + inner + '</div>'; }
+// The office is the only one who sees a control; the customer and paper get
+// the quote. (__PRINTING_QUOTE covers the A4 capture, which never reaches
+// these functions, and the modern PDF sets __CUSTOMER_MODE for a send copy.)
+function _psmOffice(){ return !(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE); }
+// The roofer's own pick IS the recommendation, exactly as on a roofing quote:
+// live in the office so the preview shows what would go out, and the stamped
+// `recommended` on the customer's copy. The shed's picks live on S.quote
+// itself rather than in proposalOptions, so _qbRecPick cannot answer for them.
+function _psmRec(field, fb){
+  var q = S.quote || {};
+  if (window.__CUSTOMER_MODE && q.recommended && q.recommended[field] != null && q.recommended[field] !== '')
+    return q.recommended[field];
+  var v = q[field];
+  return (v == null || v === '') ? fb : v;
+}
+// A shed's own deltas are ex GST (they are summed into _poleShedMoney().sub,
+// which GST is then added to). The modern option cards read GST-INCLUSIVE,
+// like every roofing card and like the total in the rail beside them, so the
+// figure on a card and the figure the total moves by are the same figure.
+function _psmDelta(exGst){ return _qbIncl(parseFloat(exGst) || 0); }
+// One option section, through the roofing quote's own page builder.
+function _psmOptPage(o){
+  o.secKey = o.key;            // the office can reword any section (2026-10-18)
+  return _qbOptionPage(o);
+}
+// Thin one-argument setters: _qbOptionPage calls o.set('<id>'), and the
+// shed's own setter takes a field as well.
+function _setPsGrade(v){ _setPsSel('psSelGrade', v); }
+function _setPsThickness(v){ _setPsSel('psSelThickness', v); }
+function _setPsRoller(v){ _setPsSel('psSelRoller', v); }
+function _setPsColour(v){ _setPsSel('psSelColour', v); }
+function _setPsPlanId(v){ try { _setPsPlan(parseInt(v, 10) || 0); } catch(e){} }
+
+// ── the cover ─────────────────────────────────────────────────────────
+// The hero is the shed's RENDER, which lives in condition-photo slot
+// PS_HERO_SLOT — the same picture the A4 cover uses, so the two can never
+// show different sheds. It is presented in the roofing cover's own .qb-hero
+// frame and keeps the slot's drag / wheel / zoom handlers, which are found by
+// .qp-cond-photo[data-cp-idx]; the frame stays a <figure data-cp-hero> because
+// _psPdfFitCover grows exactly that element to fill the PDF's first sheet.
+function _psmCover(){
+  var q = S.quote || {};
+  var H = (typeof PS_HERO_SLOT === 'number') ? PS_HERO_SLOT : 6;
+  var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(H) : null;
+  var src = (cp && cp.src) ? cp.src : (typeof resolveSlotSrc === 'function' ? resolveSlotSrc('cover_hero') : null);
+  var off = _psmOffice();
+  var ox = (cp && +cp.offX) || 0, oy = (cp && +cp.offY) || 0, zm = (cp && +cp.zoom) || 1;
+  // _psGet falls back to POLESHED_DEFAULTS, which is 'Colorsteel option' — a
+  // spec line, not a headline. The office's OWN subtitle is read straight off
+  // the quote so a default can be told from something they typed.
+  var own = String((q.psSubtitle == null) ? '' : q.psSubtitle).trim();
+  var surname = String(q.client || '').trim().split(/\s+/).slice(-1)[0] || '';
+  var title = own || (surname ? surname + ' Pole Shed' : 'Your new pole shed');
+  var hero = '<figure class="qb-hero qd-hero ps-hero qp-cond-photo'+(src ? ' qp-cond-filled qb-hero-own' : '')+'"'+
+      ' data-cp-idx="'+H+'" data-cp-hero="1"'+
+      ((src && off) ? ' onwheel="_qpCondPhotoWheel(event,'+H+')" onmousedown="_qpCondPhotoDragStart(event,'+H+')"' : '')+'>'+
+    (src
+      ? '<img class="qb-hero-img" src="'+esc2(src)+'" alt="" draggable="false" style="transform:translate('+ox+'px,'+oy+'px) scale('+zm+')">'
+      : '')+
+    '<div class="qb-hero-veil"></div>'+
+    '<div class="qb-hero-txt">'+
+      '<span class="qb-kicker">Pole shed quote &amp; proposal</span>'+
+      '<h1>'+esc2(title)+'</h1>'+
+      (q.addr ? '<p>'+esc2(q.addr)+'</p>' : '')+
+    '</div>'+
+    (off
+      ? '<div class="qb-hero-tools no-print">'+
+          '<button type="button" onclick="event.stopPropagation();_qpCondPhotoFromFergus('+H+')" title="Put the shed render on the cover">\uD83D\uDCF7 Shed render</button>'+
+          (src
+            ? '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+H+',-0.1)" title="Zoom out">\u2212</button>'+
+              '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+H+',0.1)" title="Zoom in">+</button>'+
+              '<button type="button" onclick="event.stopPropagation();_qpCondPhotoReset('+H+')" title="Back to the middle">\u21ba</button>'+
+              '<button type="button" onclick="event.stopPropagation();_qpCondPhotoClear('+H+')" title="Take the render off">\u00d7</button>'
+            : '')+
+        '</div>'+
+        (src ? '<div class="qb-hero-hint no-print">Drag to move \u00b7 scroll to zoom</div>' : '')
+      : '')+
+    _accredStripHtml('cover')+
+  '</figure>';
+  var w = String(_psSpecGet('psWidth') || '').trim(), l = String(_psSpecGet('psLength') || '').trim();
+  var ba = String(_psSpecGet('psBayAmount') || '').trim();
+  var chips = [
+    (w && l) ? (w + ' \u00d7 ' + l) : (w || l),
+    _psGet('psRoofType'),
+    ba ? (ba + ' bays') : '',
+    String(_psSpecGet('psHeight') || '').trim() ? ('Height ' + _psSpecGet('psHeight')) : ''
+  ].filter(Boolean).map(function(t){ return '<span class="ps-chip">'+esc2(t)+'</span>'; }).join('');
+  var link = String(_psGet('psDesignLink') || '').trim();
+  var intro = String(_psGet('psIntro') || '').trim();
+  return hero +
+    '<div class="qb-body ps-body qd-cover-body">'+
+      '<div>'+
+        (chips ? '<div class="ps-chips">'+chips+'</div>' : '')+
+        (intro ? '<p class="qb-para">'+esc2(intro)+'</p>'
+               : '<div class="qb-cta-note">Your shed, your options and the price are all on this page. Choose as you go \u2014 the total updates with you \u2014 then review and accept at the bottom.</div>')+
+        (_psPlans().length > 1 ? _psPlanSwitchHtmlCust('cover') : '')+
+        (link
+          ? '<a class="qb-cta" href="'+esc2(link)+'" target="_blank" rel="noopener">See your shed in 3D'+
+              '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>'
+          : '')+
+        (off
+          ? '<div class="ps-office no-print">'+
+              '<span class="ps-office-hd">Office only \u00b7 opening words</span>'+
+              '<div class="qp-editable" contenteditable="true" data-qfield="psIntro" data-multiline="1" spellcheck="true">'+esc2(_psGet('psIntro'))+'</div>'+
+              '<span class="ps-office-hd" style="margin-top:9px">Office only \u00b7 cover heading</span>'+
+              '<div class="qp-editable" contenteditable="true" data-qfield="psSubtitle" spellcheck="false">'+esc2(_psGet('psSubtitle'))+'</div>'+
+              '<span class="ps-office-hd" style="margin-top:9px">Office only \u00b7 WebShed 3D link</span>'+
+              '<div class="qp-editable" contenteditable="true" data-qfield="psDesignLink" spellcheck="false">'+esc2(_psGet('psDesignLink'))+'</div>'+
+            '</div>'
+          : '')+
+      '</div>'+
+      _qbCoverMeta()+
+    '</div>';
+}
+
+// ── the drawings ──────────────────────────────────────────────────────
+// A plan is READ, not looked at: each drawing takes the full width and
+// whatever height its own shape asks for (object-fit:contain), which is the
+// lesson of the 2026-10-20 PDF work. The classes are the A4's on purpose, so
+// the print rules written for them keep paying off.
+function _psmDrawSlot(idx, label){
+  var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(idx) : null;
+  var off = _psmOffice();
+  if (cp && cp.src){
+    return '<div class="ps-draw-wrap">'+
+      '<img class="ps-draw-img" src="'+esc2(cp.src)+'" alt="'+esc2(label)+'" loading="lazy">'+
+      '<span class="ps-draw-cap">'+esc2(label)+'</span>'+
+      (off ? '<div class="ps-draw-tools no-print">'+
+          '<button type="button" onclick="_rotateSlotImage('+idx+')" title="Rotate 90\u00b0">\u27f3</button>'+
+          '<button type="button" onclick="_qpCondPhotoFromFergus('+idx+')" title="Change this drawing">Change</button>'+
+          '<button type="button" onclick="_qpCondPhotoClear('+idx+')" title="Take this drawing off">\u2715</button>'+
+        '</div>' : '')+
+    '</div>';
+  }
+  if (!off) return '';          // a dashed hole is not a plan (2026-10-20)
+  return '<div class="ps-draw-hole no-print">'+
+      '<span class="ps-draw-cap">'+esc2(label)+'</span>'+
+      '<p class="qb-para" style="margin:0 0 10px">Import the WebShed PDF above, or add this drawing.</p>'+
+      '<button type="button" class="ps-ao-tool" style="width:auto;padding:0 12px;height:30px" onclick="_qpCondPhotoFromFergus('+idx+')">\uD83D\uDCF7 Fergus</button> '+
+      '<button type="button" class="ps-ao-tool" style="width:auto;padding:0 12px;height:30px" onclick="_qpCondPhotoPick('+idx+')">\u2b06 Upload</button>'+
+    '</div>';
+}
+function _psmPlans(){
+  var off = _psmOffice();
+  var slots = _psmDrawSlot(1, 'Floor plan') + _psmDrawSlot(2, 'Elevations');
+  return _psmBody(
+    '<span class="qb-eyebrow">Your design</span>'+
+    '<h2 class="qb-h2">Plans &amp; elevations</h2>'+
+    _qSecPara('psplans', 'This is the shed as it is drawn \u2014 the floor plan and the elevations straight from the design. Everything on the pages that follow is built to these drawings.')+
+    (off
+      ? '<div class="no-print" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 14px">'+
+          '<button type="button" class="qb-cta" style="margin:0" onclick="document.getElementById(\'webshedPdfInput\').click()">\uD83D\uDCC4 Import WebShed PDF</button>'+
+          '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
+          '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
+          '<button type="button" class="ps-ao-tool" style="width:auto;padding:0 13px;height:32px" onclick="_psPlanAddAnother()">\u2795 Add another plan option</button>'+
+          '<span id="webshedPdfStatus" style="font-size:11.5px;color:#6b7a8c"></span>'+
+        '</div>'+ _psPlanBarHtml()
+      : '')+
+    (slots ? '<div class="ps-draws">'+slots+'</div>' : '<p class="qb-para">Your shed drawings will be sent with this quote.</p>')
+  );
+}
+
+// ── what the shed is ──────────────────────────────────────────────────
+function _psmSpecRow(label, field){
+  var v = String(_psSpecGet(field) == null ? '' : _psSpecGet(field)).trim();
+  var off = _psmOffice();
+  // An empty row is an invitation to type in the office and nothing at all on
+  // the customer's copy or on paper — four blank rows in a row read as a
+  // broken quote (job 3287). .ps-spec-empty is what the print layer drops.
+  if (!v && !off) return '';
+  return '<div class="ps-spec-row'+(v ? '' : ' ps-spec-empty')+'">'+
+      '<span class="ps-spec-lbl">'+esc2(label)+'</span>'+
+      (off
+        ? '<span class="ps-spec-val qp-editable" contenteditable="true" data-qfield="'+field+'" spellcheck="false">'+esc2(v)+'</span>'
+        : '<span class="ps-spec-val">'+esc2(v)+'</span>')+
+    '</div>';
+}
+function _psmDetails(){
+  var consented = (S.quote && S.quote.psConsent === 'consented');
+  var off = _psmOffice();
+  var items = ['Zoned as \u201cRural\u201d','No bigger than 110m\u00b2','No clear-span over 6m','No higher than 4m','Wind-zone no greater than \u201cHigh\u201d'];
+  var structure = [['Roof type','psRoofType'],['Roof pitch','psRoofPitch'],['Width','psWidth'],
+                   ['Length','psLength'],['Height','psHeight'],['Bays','psBays'],['Bay amount','psBayAmount'],['Doors','psDoors']]
+    .map(function(r){ return _psmSpecRow(r[0], r[1]); }).join('');
+  var build = [['Roof sheeting','psRoofSheet'],['Wall sheeting','psWallSheet'],['Guttering','psGutter'],
+               ['Floor','psFloor'],['Centre poles','psCenterPoles'],['Extras','psExtras']]
+    .map(function(r){ return _psmSpecRow(r[0], r[1]); }).join('');
+  return _psmBody(
+    '<span class="qb-eyebrow">The specification</span>'+
+    '<h2 class="qb-h2">Your shed in detail</h2>'+
+    _qSecPara('psdetails', 'Every measurement and material in the shed, as it has been priced. If anything here is not what you expected, say so before you accept and we will put it right.')+
+    (off
+      ? '<div class="ps-seg no-print">'+
+          ['exemption','consented'].map(function(c){
+            var on = (c === 'consented') === consented;
+            return '<button type="button" class="'+(on ? 'on' : '')+'" onclick="_setPsConsent(\''+c+'\')">'+(c === 'consented' ? 'Consented' : 'Consent-exempt')+'</button>';
+          }).join('')+
+        '</div>'
+      : '')+
+    '<div class="ps-consent">'+
+      '<p>'+(consented
+        ? 'This shed will require a building consent. If you would prefer to build without one, it must meet all of the exemption criteria below:'
+        : 'This shed may not require a building consent if it meets all of the exemption criteria below:')+'</p>'+
+      '<ul>'+items.map(function(t){ return '<li>'+esc2(t)+'</li>'; }).join('')+'</ul>'+
+    '</div>'+
+    (structure ? '<h3 class="qb-h3">Main structure</h3><div class="ps-spec">'+structure+'</div>' : '')+
+    (build ? '<h3 class="qb-h3">Sheeting &amp; build</h3><div class="ps-spec">'+build+'</div>' : '')
+  );
+}
+
+// ── the choices ───────────────────────────────────────────────────────
+// THE SHED ITSELF, where there is more than one to choose from. First of the
+// option sections because it is the biggest choice on the quote: picking one
+// swaps the drawings the customer is looking at as well as the price.
+function _psmPlanPick(){
+  var plans = _psPlans(), cur = _psPlanIdx();
+  var items = plans.map(function(p, i){
+    return { id:String(i), label:_psPlanLabel(i), desc:_psPlanSize(i) || '',
+             delta:_psmDelta(_psPlanDeltaAt(i)), isDefault:(i === cur),
+             after:_psPlanPencilHtml(i, 'modern') };
+  });
+  return _psmOptPage({ key:'psplan', eyebrow:'Choose your shed', title:'Plan option',
+    group:'psPlan', set:'_setPsPlanId', current:String(cur), items:items,
+    blurb:'More than one shed has been drawn for you. The plans and elevations above change with your choice, and so does the price.' });
+}
+function _psmGrade(){
+  var A = POLESHED_ADDONS;
+  var cur = (S.quote && S.quote.psSelGrade) || 'colorsteel';
+  var rec = _psmRec('psSelGrade', 'colorsteel');
+  var items = [
+    { id:'colorsteel', label:'Colorsteel\u00ae', delta:0, isDefault:(rec === 'colorsteel'),
+      desc:'Prepainted steel in the full colour range \u2014 the finish most sheds are built in.',
+      warranty:'<b>Up to 30 years</b> perforation warranty, zone dependent.' },
+    { id:'zincalume', label:'Plain silver Zincalume\u00ae', delta:_psmDelta(-A.zincalumeSave), isDefault:(rec === 'zincalume'),
+      desc:'Unpainted aluminium/zinc \u2014 the workhorse finish, and the lowest cost.',
+      warranty:'<b>20 year</b> non-perforation warranty.' }
+  ];
+  return _psmOptPage({ key:'psgrade', eyebrow:'Choose your steel', title:'Steel grade',
+    group:'psSelGrade', set:'_setPsGrade', current:cur, items:items,
+    blurb:'The coating on the steel is what decides how long the shed lasts and how it looks. Both are sheds we are happy to put our name to \u2014 the difference is the finish.' });
+}
+function _psmThickness(){
+  var A = POLESHED_ADDONS;
+  var cur = (S.quote && S.quote.psSelThickness) || '0.40';
+  var rec = _psmRec('psSelThickness', '0.40');
+  var items = [
+    { id:'0.40', label:'0.40 gauge', delta:0, isDefault:(rec === '0.40'),
+      desc:'The standard gauge for a shed of this size.' },
+    { id:'0.55', label:'0.55 gauge', delta:_psmDelta(A.thick055), isDefault:(rec === '0.55'),
+      desc:'Heavier steel \u2014 noticeably better dent resistance, worth it on a shed that will be worked around.' }
+  ];
+  return _psmOptPage({ key:'psthickness', eyebrow:'How heavy', title:'Steel thickness',
+    group:'psSelThickness', set:'_setPsThickness', current:cur, items:items,
+    blurb:'Both gauges are well inside what the shed needs structurally. The heavier one is about how the sheets stand up to knocks over the years.' });
+}
+function _psmColour(){
+  var q = S.quote || {};
+  var grade = q.psSelGrade || 'colorsteel';
+  var cur = q.psSelColour || '';
+  var pal = [];
+  try { pal = _paletteForGradeId(grade) || []; } catch(e){}
+  var swatches = pal.map(function(c){
+    var on = (c.name === cur);
+    return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-ps-colour="'+esc2(c.name)+'"'+
+      (_qbLocked() ? ' disabled' : ' onclick="_setPsColour(\''+esc2(String(c.name).replace(/'/g, "\\'"))+'\')"')+'>'+
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(String(c.name).replace(/\u00ae/g, ''))+'</i></button>';
+  }).join('');
+  return _psmBody(
+    '<span class="qb-eyebrow">The look of it</span>'+
+    '<h2 class="qb-h2">Roof &amp; wall colour</h2>'+
+    _qSecPara('pscolour', 'Every colour here is a standard stocked Colorsteel colour, so none of them changes your price. The final shade is confirmed off the colour chip card before anything is ordered.')+
+    '<div class="qb-chosen">'+(cur
+      ? 'Chosen: <b>'+esc2(cur)+'</b>'
+      : '<em>No colour chosen yet \u2014 tap one below.</em>')+'</div>'+
+    '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your builder will confirm the colour range with you.</p>')+'</div>'
+  );
+}
+function _psmRoller(){
+  var cur = (S.quote && S.quote.psSelRoller) || 'colorsteel';
+  var rec = _psmRec('psSelRoller', 'colorsteel');
+  var items = [
+    { id:'colorsteel', label:'Colorsteel\u00ae \u2014 matches the shed', delta:0, isDefault:(rec === 'colorsteel'),
+      desc:'The door is finished in the same colour as the walls, so it reads as part of the building.' },
+    { id:'zincalume', label:'Plain Zincalume\u00ae', delta:0, isDefault:(rec === 'zincalume'),
+      desc:'Unpainted silver. Neither finish changes the price.' }
+  ];
+  return _psmOptPage({ key:'psroller', eyebrow:'The doors', title:'Roller door finish',
+    group:'psSelRoller', set:'_setPsRoller', current:cur, items:items,
+    blurb:'Both finishes cost the same; it is purely how you want the shed to look.' });
+}
+// The ONE list on a shed where more than one can be on at once, so the rows
+// are tick boxes rather than a radio group — and the office's pencil sits
+// outside the button that ticks them.
+function _psmAddons(){
+  var list = _psAddons(), edit = _psAddonEditable();
+  var rows = list.map(function(a){
+    var on = !!a.on;
+    var tick = on ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+    return '<div class="qb-opt ps-ao'+(on ? ' on' : '')+'" data-ps-addon="'+esc2(a.id)+'">'+
+        '<button type="button" class="ps-ao-hit"'+(_qbLocked() ? ' disabled' : ' onclick="_psAddonToggle(\''+esc2(a.id)+'\')"')+'>'+
+          '<span class="qb-tick sq">'+tick+'</span>'+
+          '<span class="qb-opt-txt"><b>'+esc2(a.label)+'</b>'+
+            (a.summary && a.summary !== a.label ? '<span class="qb-opt-desc">'+esc2(a.summary)+'</span>' : '')+
+          '</span>'+
+          '<span class="qb-opt-price">'+(on
+            ? '<span class="qb-up">+'+_qbMoney(_psmDelta(a.price))+'</span>'
+            : '<span class="qb-inc">+'+_qbMoney(_psmDelta(a.price))+'</span>')+'</span>'+
+        '</button>'+
+        (edit
+          ? '<span class="ps-ao-tools no-print">'+
+              '<button type="button" class="ps-ao-tool" title="Rename this add-on or change its price" onclick="_psAddonEdit(\''+esc2(a.id)+'\')">\u270e</button>'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-del" title="Take this add-on off the quote" onclick="_psAddonDelete(\''+esc2(a.id)+'\')">\u2715</button>'+
+            '</span>'
+          : '')+
+      '</div>';
+  }).join('');
+  return _psmBody(
+    '<span class="qb-eyebrow">Anything else</span>'+
+    '<h2 class="qb-h2">Add-ons</h2>'+
+    (edit ? '<button type="button" class="ps-ao-tool no-print" style="width:auto;padding:0 13px;height:32px;float:right;margin:-44px 0 0" onclick="_psAddonAdd()">+ Add an add-on</button>' : '')+
+    _qSecPara('psaddons', 'Tick anything you would like added. Each one shows what it adds to the total, and the total on this page follows you as you choose.')+
+    (rows ? '<div class="qb-opts">'+rows+'</div>'
+          : '<p class="qb-para">'+(edit ? 'No add-ons on this quote \u2014 use + Add an add-on to offer one.' : 'No optional add-ons on this quote.')+'</p>')
+  );
+}
+
+// ── what is and is not in it ──────────────────────────────────────────
+function _psmLines(field){
+  return String(_psGet(field) || '').split('\n')
+    .map(function(x){ return x.replace(/^[\u2022\-\s]+/, '').trim(); })
+    .filter(Boolean);
+}
+function _psmList(field, kind){
+  var lines = _psmLines(field);
+  if (!lines.length) return '';
+  var tick = '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var cross = '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  // An "available as an option" line is NOT in the price, so it must not carry
+  // the green tick that means "included"; it gets a neutral plus.
+  var plus = '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  var mark = (kind === 'excl' || kind === 'note') ? cross : (kind === 'opt' ? plus : tick);
+  var cls = (kind === 'excl') ? ' qb-excl-row' : (kind === 'note' ? ' qb-note-row' : (kind === 'opt' ? ' ps-opt-row' : ''));
+  return '<div class="qb-incl'+(kind === 'note' ? ' qb-note-list' : '')+'">'+
+    lines.map(function(t){ return '<div class="qb-incl-row'+cls+'">'+mark+'<span>'+esc2(t)+'</span></div>'; }).join('')+'</div>';
+}
+function _psmOfficeBox(label, field){
+  if (!_psmOffice()) return '';
+  return '<div class="ps-office no-print">'+
+      '<span class="ps-office-hd">Office only \u00b7 '+esc2(label)+' \u00b7 one per line</span>'+
+      '<div class="qp-editable" contenteditable="true" data-qfield="'+field+'" data-multiline="1" spellcheck="true">'+esc2(_psGet(field))+'</div>'+
+    '</div>';
+}
+function _psmIncluded(){
+  var inc = _psmList('psInclusions', 'incl');
+  var exc = _psmList('psExclusions', 'excl');
+  var opt = _psmList('psOptions', 'opt');
+  var notes = String(_psGet('psSpecialNotes') || '').trim();
+  return _psmBody(
+    '<span class="qb-eyebrow">The fine print, in plain words</span>'+
+    '<h2 class="qb-h2">What\u2019s included</h2>'+
+    _qSecPara('psincluded', 'Everything below is part of the price on this quote. What is excluded is listed beside it, so there are no surprises on the day.')+
+    (inc ? '<div class="qb-incl-hd">What\u2019s included</div>'+inc : '')+
+    _psmOfficeBox('Inclusions', 'psInclusions')+
+    (exc ? '<div class="qb-incl-hd qb-excl-hd">What\u2019s excluded</div>'+exc : '')+
+    _psmOfficeBox('Exclusions', 'psExclusions')+
+    (opt ? '<h3 class="qb-h3">Available as options</h3>'+opt : '')+
+    _psmOfficeBox('Options', 'psOptions')+
+    (notes ? '<h3 class="qb-h3">Please note</h3><p class="qb-para">'+esc2(notes)+'</p>' : '')+
+    _psmOfficeBox('Special notes', 'psSpecialNotes')
+  );
+}
+
+// ── the total, and the way to say yes ─────────────────────────────────
+function _psmReview(){
+  var q = S.quote || {}, M = _poleShedMoney();
+  var total = _qbTotal();
+  var sub = total / (1 + _qbRate());
+  var rows = [];
+  try { rows = _custBarRows(); } catch(e){}
+  var body = rows.filter(function(r){ return r.kind !== 'total'; }).map(function(r){
+    return '<div class="qb-sum-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'">'+
+      '<span>'+esc2(r.label)+'</span><b>'+esc2(r.value)+'</b></div>';
+  }).join('');
+  var picks = _qbPicksList();
+  var accepted = q.accepted;
+  var off = _psmOffice();
+  return _psmBody(
+    (accepted
+      ? _qbAcceptedBlock(accepted)+'<h3 class="qb-h3" style="margin-top:22px">Your accepted quote</h3>'
+      : '<span class="qb-eyebrow">Ready when you are</span><h2 class="qb-h2">Your shed quote</h2>')+
+    _qeInlineBtn('summary')+
+    '<div class="qb-total qb-tot3">'+_qbTotalLines(sub, total)+'</div>'+
+    '<div class="ps-dep"><span>'+M.depositPct+'% deposit on acceptance</span><b>'+_qbMoney(M.deposit)+'</b></div>'+
+    '<p class="qb-note">A '+M.depositPct+'% deposit invoice is issued on acceptance and is payable within 7 days \u2014 once it is paid your spot in the build queue is locked in. The balance is due within 7 days of completion.</p>'+
+    (off
+      ? '<div class="ps-office no-print">'+
+          '<span class="ps-office-hd">Office only \u00b7 type a subtotal to override the Pricing drawer (excl. GST)</span>'+
+          '<div class="qp-editable" contenteditable="true" data-qfield="psSubtotal" spellcheck="false">'+(M.sub > 0 ? fmtMoney(M.sub) : '')+'</div>'+
+        '</div>'
+      : '')+
+    '<h3 class="qb-h3">What is in it</h3>'+
+    '<div class="qb-sum">'+body+'</div>'+
+    (picks ? '<h3 class="qb-h3">What you chose</h3><div class="qb-picks">'+picks+'</div>' : '')+
+    (accepted
+      ? ''
+      : '<div class="qb-sign">'+
+          '<label class="qb-sign-lbl" for="qbAcceptName">Your full name</label>'+
+          '<input type="text" id="qbAcceptName" class="qb-sign-name" autocomplete="name" placeholder="Type your full name" value="'+esc2((q.client || '').trim())+'">'+
+          '<label class="qb-sign-terms"><input type="checkbox" id="qbAcceptTerms"><span>I accept this quote and the <strong>terms &amp; conditions</strong>.</span></label>'+
+        '</div>'+
+        '<button type="button" class="qb-accept" onclick="acceptQuoteDigitally()">Accept this quote</button>'+
+        '<div class="qb-actions">'+
+          '<button type="button" onclick="customerQuery()">Ask a question</button>'+
+          '<button type="button" onclick="printCustomerQuote()">Download PDF</button>'+
+          '<button type="button" onclick="customerDecline()">Decline</button>'+
+        '</div>')+
+    _accredStripHtml('foot')+
+    '<p class="qb-fine">'+esc2((S.settings && S.settings.branding && S.settings.branding.company_name) || '')+
+      (q.validUntil ? ' \u00b7 This quote is valid for '+esc2(q.validUntil) : '')+'</p>'
+  );
+}
 // A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12). It was not:
 // _qdSectionsRaw and _qbPages are written entirely around a roofing quote,
 // and nothing asked what kind of quote this was — so a shed set to Modern
@@ -41197,14 +41748,26 @@ function _psParts(){
 // a brand-new shed quote came out as a re-roof quote, and that is what the
 // customer's link would have shown them.
 function _psModernSections(){
-  var P = _psParts();
-  var body = function(html){ return function(){ return '<div class="qb-body ps-body">' + (html || '') + '</div>'; }; };
-  var list = [{ key:'cover', label:'Your quote', html:body(P.cover) }];
-  list.push({ key:'psplans',   label:'Plans',      html:body(P.designElev) });
-  list.push({ key:'psdetails', label:'Your shed',  html:body(P.spec) });
-  list.push({ key:'psoptions', label:'Options',    html:body(P.selections) });
-  list.push({ key:'psincluded',label:"What's included", html:body(P.inclusions) });
-  list.push({ key:'psreview',  label:'Review',     html:body(P.accept) });
+  var q = S.quote || {};
+  var list = [{ key:'cover',     label:'Your quote',  html:_psmCover }];
+  list.push({ key:'psplans',     label:'Your design', html:_psmPlans });
+  list.push({ key:'psdetails',   label:'Your shed',   html:_psmDetails });
+  // A plan option section only where there is a plan to choose: one plan is
+  // just "the shed", and a section offering it reads as a missing choice.
+  try { if (_psPlans().length > 1) list.push({ key:'psplan', label:'Plan option', html:_psmPlanPick }); } catch(e){}
+  list.push({ key:'psgrade',     label:'Steel grade', html:_psmGrade });
+  list.push({ key:'psthickness', label:'Thickness',   html:_psmThickness });
+  // Zincalume is unpainted — there is no colour to choose, so no section.
+  if ((q.psSelGrade || 'colorsteel') !== 'zincalume')
+    list.push({ key:'pscolour',  label:'Colour',      html:_psmColour });
+  list.push({ key:'psroller',    label:'Roller door', html:_psmRoller });
+  // And a customer is never shown an empty Add-ons band.
+  try { if (_psAddons().length || _psAddonEditable()) list.push({ key:'psaddons', label:'Add-ons', html:_psmAddons }); } catch(e){}
+  list.push({ key:'psincluded',  label:"What's included", html:_psmIncluded });
+  // KEYED 'review', not 'psreview': the rail's "Review quote" button and the
+  // narrow screen's bottom bar both scroll to #qd-review, so a shed with its
+  // own key had a Review button that went nowhere.
+  list.push({ key:'review',      label:'Review',      html:_psmReview });
   return list;
 }
 // The customer's quote is locked once they've accepted it — selections are
@@ -50839,6 +51402,16 @@ var IMG_OFFSET = { x: 0, y: 0 };
 // to the roof outline ... by default have this un-clicked so by default it
 // acts like it currently does now").
 //
+// THE NUDGE IS IN IMAGE PIXELS, NOT SCREEN PIXELS (2026-10-20, within the
+// hour of shipping it: "now the quote aerial is way off!"). It was stored in
+// screen pixels, which is what a drag hands you — and that is wrong twice.
+// The picture then slid out from under the roof the moment the office ZOOMED
+// after lining it up (the same screen offset is a different amount of ground
+// at every zoom), and the quote's own roof map, which works entirely in image
+// pixels, could not use the figure at all: it drew the photo where it had
+// always drawn it while the canvas showed it somewhere else. In image pixels
+// it means one thing everywhere, and every renderer can apply it.
+//
 // IMG_OFFSET and DRAW.zoom move the whole COORDINATE SYSTEM — the drawing is
 // stored in image pixels, so panning moves the picture and the roof lines
 // together, which is right while you are tracing and useless when you have
@@ -50864,10 +51437,20 @@ function _bgAdjIdentity(){
   var a = _bgAdj();
   return !a.dx && !a.dy && Math.abs(a.scale - 1) < 1e-9;
 }
-// What a drag moves: the view as always, or the picture alone.
-function _panOrigin(){ return BG_RELOCATE ? { x:_bgAdj().dx, y:_bgAdj().dy } : { x:IMG_OFFSET.x, y:IMG_OFFSET.y }; }
+// What a drag moves: the view as always, or the picture alone. A drag is in
+// SCREEN pixels either way; IMG_OFFSET is screen pixels, bgAdjust is image
+// pixels, so the picture's own nudge is converted on the way in and out.
+function _bgAdjPxPerImg(){
+  try { var t = getImgTransform(); if (t && t.s > 0) return t.s; } catch(e){}
+  return 1;
+}
+function _panOrigin(){
+  if (!BG_RELOCATE) return { x:IMG_OFFSET.x, y:IMG_OFFSET.y };
+  var a = _bgAdj(), k = _bgAdjPxPerImg();
+  return { x:a.dx * k, y:a.dy * k };
+}
 function _panApply(x, y){
-  if (BG_RELOCATE){ var a = _bgAdj(); a.dx = x; a.dy = y; }
+  if (BG_RELOCATE){ var a = _bgAdj(), k = _bgAdjPxPerImg() || 1; a.dx = x / k; a.dy = y / k; }
   else { IMG_OFFSET.x = x; IMG_OFFSET.y = y; }
 }
 var IMG_FINE_ROTATION = 0; // fine angle -45 to +45 degrees
@@ -52263,6 +52846,9 @@ function onCanvasMouseUp(e) {
   PAN.active = false;
   var cv = document.getElementById('roofCanvas');
   cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+  // The strip says where the picture has got to, so it has to be told when a
+  // drag has just moved it — the +/- already report themselves.
+  if (BG_RELOCATE){ try { _bgRelocateSync(); _scheduleAutosave(); } catch(e){} }
 }
 
 // Global mousemove — pan moves the background image inside fixed canvas
@@ -52337,6 +52923,7 @@ document.addEventListener('mouseup', function(e) {
     PAN.active = false;
     var cv = document.getElementById('roofCanvas');
     if(cv) cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    if (BG_RELOCATE){ try { _bgRelocateSync(); _scheduleAutosave(); } catch(e){} }
   }
 });
 
@@ -52521,8 +53108,7 @@ document.addEventListener('mouseup', function(e) {
           IMG_OFFSET.x += (c1[0] - P.pinch.w[0] * t1.s) - t1.ix;
           IMG_OFFSET.y += (c1[1] - P.pinch.w[1] * t1.s) - t1.iy;
         }
-        var zl = document.getElementById('zoomLabel');
-        if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+        try { _zoomLabelSync(); } catch(e){}
         redrawAll();
         return;
       }
@@ -58777,8 +59363,12 @@ function redrawAll() {
     var dispW=iw*fitScale*DRAW.zoom*_bga.scale;
     var dispH=ih*fitScale*DRAW.zoom*_bga.scale;
     // Center + pan offset (IMG_OFFSET in canvas pixels) + the picture's own
-    var ix=(W-dispW)/2 + IMG_OFFSET.x + _bga.dx;
-    var iy=(H-dispH)/2 + IMG_OFFSET.y + _bga.dy;
+    // dx/dy are IMAGE pixels, so they scale with the view like everything
+    // else drawn on the picture — line the roof up once and it stays lined up
+    // at every zoom.
+    var _bgk=fitScale*DRAW.zoom;
+    var ix=(W-dispW)/2 + IMG_OFFSET.x + _bga.dx*_bgk;
+    var iy=(H-dispH)/2 + IMG_OFFSET.y + _bga.dy*_bgk;
     ctx.save();
     ctx.globalAlpha=op;
     var rot=IMG_ROTATION + IMG_FINE_ROTATION;
@@ -68785,7 +69375,7 @@ function renderMatRoofMap(){
   if (_fitted){
     DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py;
     if (_pw) src.width = _pw; if (_ph) src.height = _ph;
-    var _zl = document.getElementById('zoomLabel'); if (_zl) _zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+    try { _zoomLabelSync(); } catch(e){}
   }
   try { redrawAll(); } catch(e){}
   // Letter tags ONLY appear on the Materials canvas — the user asked to
@@ -75690,6 +76280,7 @@ function _bgRelocateToggle(){
     DRAW._bgRelocPrevTool = null;
   }
   _bgRelocateSync();
+  try { _zoomLabelSync(); } catch(e){}
   try { redrawAll(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
 }
@@ -75702,6 +76293,7 @@ function _bgRelocateOff(){
   // calling setTool mid-restore would run another tool's instructions over it.
   try { DRAW._bgRelocPrevTool = null; } catch(e){}
   try { _bgRelocateSync(); } catch(e){}
+  try { _zoomLabelSync(); } catch(e){}
 }
 function _bgRelocateReset(){
   DRAW.bgAdjust = { dx:0, dy:0, scale:1 };
@@ -75724,24 +76316,85 @@ function _bgRelocateSync(){
   if (!BG_RELOCATE){ strip.style.display = 'none'; return; }
   var a = _bgAdj();
   strip.style.display = 'flex';
+  try { _zoomLabelSync(); } catch(e){}
   var lbl = document.getElementById('bgRelocateState');
   if (lbl) lbl.textContent = _bgAdjIdentity()
     ? 'Drag the picture to move it · − / + resize it · your roof stays put'
     : ('Picture moved ' + Math.round(a.dx) + ', ' + Math.round(a.dy) + ' px · size ' + Math.round(a.scale * 100) + '%');
 }
+// A ZOOM STEP IS A PROPORTION, NOT A FIXED AMOUNT (2026-10-20, the owner on
+// Relocate Background Image: "the plus/minus zoom jumps too much between
+// clicks"). A flat ±0.1 is a tenth of the picture at 100% and a twenty-fifth
+// at 250% — and on the picture's own size, which starts at 1 and is often
+// taken down to 0.4, one click moved it a QUARTER (his screenshots: 40% to
+// 50%). 8% of whatever it is now reads the same at every size, which is how
+// every other zoom control a roofer uses behaves.
+var ZOOM_STEP = 1.08;
+function _zoomStep(cur, dir){
+  var v = (dir > 0) ? cur * ZOOM_STEP : cur / ZOOM_STEP;
+  // Never a step so small it looks broken at the bottom of the range.
+  if (Math.abs(v - cur) < 0.01) v = cur + (dir > 0 ? 0.01 : -0.01);
+  return v;
+}
+// What the Zoom box is showing: the view, or — while the picture is being
+// relocated — the PICTURE's size, because that is the only number moving
+// (the owner: "the number doesn't change of the zoom when in 'moving picture
+// only' mode"). The caption beside it says which, so the figure is never
+// ambiguous.
+function _zoomLabelSync(){
+  var el = document.getElementById('zoomLabel');
+  var cap = document.getElementById('zoomCaption');
+  var pic = !!(BG_RELOCATE && DRAW.bgImg);
+  if (cap) cap.textContent = pic ? 'Picture size:' : 'Zoom:';
+  if (!el) return;
+  if (document.activeElement === el) return;   // never under their caret
+  var v = pic ? _bgAdj().scale : DRAW.zoom;
+  el.textContent = Math.round((+v || 1) * 100) + '%';
+}
+function _zoomLabelFocus(){
+  var el = document.getElementById('zoomLabel'); if (!el) return;
+  el.style.borderColor = '#0099cc';
+  el.textContent = String(Math.round(parseFloat(el.textContent) || 100));
+  try {
+    var r = document.createRange(); r.selectNodeContents(el);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  } catch(e){}
+}
+function _zoomLabelKey(e){
+  if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+  else if (e.key === 'Escape'){ e.preventDefault(); _zoomLabelSync(); e.target.blur(); }
+}
+function _zoomLabelCommit(){
+  var el = document.getElementById('zoomLabel'); if (!el) return;
+  el.style.borderColor = 'transparent';
+  var n = parseFloat(String(el.textContent).replace(/[^0-9.]/g, ''));
+  if (!isFinite(n) || n <= 0){ _zoomLabelSync(); return; }   // nonsense keeps what was there
+  var f = Math.max(0.1, Math.min(5, n / 100));
+  if (BG_RELOCATE && DRAW.bgImg){
+    _bgAdj().scale = Math.max(0.2, f);
+    try { _bgRelocateSync(); } catch(e){}
+  } else {
+    DRAW._viewTouched = true;
+    DRAW.zoom = f;
+  }
+  _zoomLabelSync();
+  redrawAll();
+}
 function adjustZoom(delta) {
   DRAW._viewTouched = true;
+  var dir = (delta < 0) ? -1 : 1;
   // In relocate mode the +/- size the PICTURE, not the view: the roof it is
   // being lined up under must not move while it is being matched.
   if (BG_RELOCATE && DRAW.bgImg){
     var _ba = _bgAdj();
-    _ba.scale = Math.max(0.2, Math.min(5, _ba.scale + delta));
+    _ba.scale = Math.max(0.2, Math.min(5, _zoomStep(_ba.scale, dir)));
     try { _bgRelocateSync(); } catch(e){}
+    _zoomLabelSync();
     redrawAll();
     return;
   }
-  DRAW.zoom = Math.max(0.1, Math.min(5, DRAW.zoom + delta));
-  document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
+  DRAW.zoom = Math.max(0.1, Math.min(5, _zoomStep(DRAW.zoom, dir)));
+  _zoomLabelSync();
   redrawAll();
   try { _ccOn('zoom'); } catch(e){}
 }
@@ -75794,7 +76447,7 @@ function _applyPendingView(){
     IMG_OFFSET.x = 0; IMG_OFFSET.y = 0;
     var t = getImgTransform();
     if (t){ var at = imgToCanvas([+v.cx, +v.cy], t); IMG_OFFSET.x = W / 2 - at[0]; IMG_OFFSET.y = H / 2 - at[1]; }
-    var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+    try { _zoomLabelSync(); } catch(e){}
     try { redrawAll(); } catch(e){}
     return true;
   }
@@ -75845,7 +76498,7 @@ function fitDrawingToCanvas(){
     IMG_OFFSET.x += (W / 2 - sc[0]);
     IMG_OFFSET.y += (H / 2 - sc[1]);
   }
-  var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+  try { _zoomLabelSync(); } catch(e){}
   redrawAll();
   return true;
 }
@@ -75909,11 +76562,11 @@ function resetZoom() {
   DRAW.zoom = 1.0;
   IMG_OFFSET.x = 0;
   IMG_OFFSET.y = 0;
-  var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = '100%';
+  try { _zoomLabelSync(); } catch(e){}
   redrawAll();
 }
 function applyZoom() {
-  document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
+  try { _zoomLabelSync(); } catch(e){}
   redrawAll();
 }
 function onCanvasWheel(e) {
@@ -75922,12 +76575,10 @@ function onCanvasWheel(e) {
   if (e.ctrlKey) {
     e.preventDefault();
     DRAW._viewTouched = true;
-    var stepC = e.deltaY > 0 ? -0.1 : 0.1;
-    DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepC));
-    try {
-      var zlC = document.getElementById('zoomLabel');
-      if (zlC) zlC.textContent = Math.round(DRAW.zoom * 100) + '%';
-    } catch(err){}
+    // The same proportional step as the +/- buttons, so one control does not
+    // feel coarser than the other at the same zoom.
+    DRAW.zoom = Math.max(0.1, Math.min(5, _zoomStep(DRAW.zoom || 1, e.deltaY > 0 ? -1 : 1)));
+    try { _zoomLabelSync(); } catch(err){}
     try { redrawAll(); } catch(err){}
     return;
   }

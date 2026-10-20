@@ -287,11 +287,21 @@ check('a shed in CLASSIC style is still the A4 document, unchanged',
   styles.classic.a4 === 6 && styles.classic.qd === 0 && /Your Shed Details/i.test(styles.classic.txt),
   JSON.stringify({ a4: styles.classic.a4, qd: styles.classic.qd }));
 check('a shed in MODERN style renders the SHED, not a roofing quote',
-  styles.modern.qd > 0 && /Your Shed Details/i.test(styles.modern.txt),
+  styles.modern.qd > 0 && /Your shed in detail/i.test(styles.modern.txt) && /Pole shed quote/i.test(styles.modern.txt),
   styles.modern.txt.slice(0, 110));
+// A DECISION PER SECTION (2026-10-20): the shed's one "Choose Your Options"
+// page became six sections of its own, in the roofing quote's idiom. The plan
+// option and the add-ons are conditional, so this fixture (one plan, the three
+// built-in add-ons) gets psaddons and not psplan.
 check('…its sections are the shed\'s own, with not one roofing section among them',
   JSON.stringify(styles.modern.keys) ===
-    JSON.stringify(['cover','psplans','psdetails','psoptions','psincluded','psreview']),
+    JSON.stringify(['cover','psplans','psdetails','psgrade','psthickness','pscolour','psroller','psaddons','psincluded','review']),
+  JSON.stringify(styles.modern.keys));
+// The REVIEW section is keyed 'review', not 'psreview': the rail's "Review
+// quote" button and the narrow screen's bottom bar both scroll to #qd-review,
+// so a shed with its own key had a Review button that went nowhere.
+check('…and the Review button has somewhere to go',
+  styles.modern.keys.indexOf('review') === styles.modern.keys.length - 1,
   JSON.stringify(styles.modern.keys));
 check('…and the phone book turns the same shed sections',
   /Your quote/i.test(styles.phone) && /Pole Shed|Project quote/i.test(styles.phone),
@@ -1526,31 +1536,26 @@ const pdfLook = await pg.evaluate(async () => {
   const out = {};
   off();
   out.screen = {
-    emptySpec: vis('.ps-spec-empty'), tap: vis('.ps-tap-note'),
-    acceptCard: vis('.ps-accept-card'), ofPages: vis('.ed-ofpages'),
-    drawEmpty: vis('.ps-draw-empty'),
+    emptySpec: vis('.ps-spec-empty'), office: vis('.ps-office'),
+    aoTools: vis('.ps-ao-tools'), drawTools: vis('.ps-draw-tools'),
+    accept: vis('.qb-sign'), aoHit: vis('.ps-ao-hit'),
   };
   on();
   const img = host.querySelector('.ps-draw-img');
-  const col = host.querySelector('.ps-draw-col');
+  const col = host.querySelector('.ps-draws');
   const wrp = host.querySelector('.ps-draw-wrap');
   out.pdf = {
-    emptySpec: vis('.ps-spec-empty'), tap: vis('.ps-tap-note'),
-    acceptCard: vis('.ps-accept-card'), ofPages: vis('.ed-ofpages'),
-    drawEmpty: vis('.ps-draw-empty'), planSwitch: vis('.ps-cswitch-wrap'),
+    emptySpec: vis('.ps-spec-empty'), office: vis('.ps-office'),
+    aoTools: vis('.ps-ao-tools'), drawTools: vis('.ps-draw-tools'),
+    accept: vis('.qb-sign'), aoHit: vis('.ps-ao-hit'),
+    drawHole: vis('.ps-draw-hole'), planSwitch: vis('.ps-cswitch-wrap'),
     fit: img ? getComputedStyle(img).objectFit : null,
     imgCap: img ? getComputedStyle(img).maxHeight : null,
-    colH: col ? getComputedStyle(col).height : null,
     imgW: img ? Math.round(img.getBoundingClientRect().width) : null,
     imgH: img ? Math.round(img.getBoundingClientRect().height) : null,
     imgNat: img ? (img.naturalWidth + 'x' + img.naturalHeight) : null,
-    cardW: (function(){ const d = host.querySelector('.ps-draw-col');
-      return d ? Math.round(d.getBoundingClientRect().width) : null; })(),
+    cardW: col ? Math.round(col.getBoundingClientRect().width) : null,
     wrapW: wrp ? Math.round(wrp.getBoundingClientRect().width) : null,
-    slotH: (function(){ const d = host.querySelector('.ps-draw-col > div');
-      return d ? getComputedStyle(d).height : null; })(),
-    acceptGrid: (function(){ const g = host.querySelector('.ps-accept-grid');
-      return g ? getComputedStyle(g).display : null; })(),
   };
   out.keptSpec = [...host.querySelectorAll('.ps-spec-row:not(.ps-spec-empty) .ps-spec-val')]
     .map(e => e.textContent.trim()).filter(Boolean).length;
@@ -1579,25 +1584,31 @@ check('…and the frame hugs the drawing rather than standing a box around it',
   pdfLook.pdf.wrapW > 0 && Math.abs(pdfLook.pdf.wrapW - pdfLook.pdf.imgW) <= 4 &&
   pdfLook.pdf.wrapW < pdfLook.pdf.cardW,
   JSON.stringify({ wrap: pdfLook.pdf.wrapW, img: pdfLook.pdf.imgW, card: pdfLook.pdf.cardW }));
-check('…and the 820px A4 column stops holding the drawings open',
-  !!pdfLook.pdf.colH && pdfLook.pdf.colH !== '820px', String(pdfLook.pdf.colH));
 check('a spec row nobody filled in is not printed, and the filled ones are',
   pdfLook.pdf.emptySpec === false && pdfLook.emptyCount >= 1 && pdfLook.keptSpec >= 1,
   JSON.stringify({ hidden: pdfLook.pdf.emptySpec, blank: pdfLook.emptyCount, kept: pdfLook.keptSpec }));
 check('…but the office still sees it on screen, to type into',
   pdfLook.screen.emptySpec === true, String(pdfLook.screen.emptySpec));
-check('the acceptance form, the tap note and an empty drawing box stay off paper',
-  pdfLook.pdf.acceptCard === false && pdfLook.pdf.tap === false &&
-  pdfLook.pdf.drawEmpty === false && pdfLook.pdf.acceptGrid === 'block',
+// THE OFFICE'S OWN FURNITURE STAYS OFF PAPER (2026-10-20, the rebuild). The
+// modern shed carries controls the A4 never had — "office only" wording boxes,
+// a pencil per add-on, drawing tools — and .no-print only fires under @media
+// print, which an html2canvas capture is NOT. They are named in the pdf layer.
+check('the acceptance form, the office\'s own boxes and every tool stay off paper',
+  pdfLook.pdf.accept === false && pdfLook.pdf.office === false &&
+  pdfLook.pdf.aoTools === false && pdfLook.pdf.drawTools === false &&
+  pdfLook.pdf.drawHole !== true,
   JSON.stringify(pdfLook.pdf));
+// …but the add-on row's hit area IS a button, and it carries the add-on's name
+// and its price. The blanket "hide every button" rule would print it empty.
+check('…while the add-on rows still print what they say',
+  pdfLook.pdf.aoHit === true, String(pdfLook.pdf.aoHit));
 check('…and the orphan "Choose your plan" heading goes with its buttons',
   pdfLook.pdf.planSwitch !== true, String(pdfLook.pdf.planSwitch));
-check('"of 5 pages" does not argue with the sheet number at the foot',
-  pdfLook.pdf.ofPages === false && pdfLook.screen.ofPages === true,
-  JSON.stringify({ pdf: pdfLook.pdf.ofPages, screen: pdfLook.screen.ofPages }));
-check('on screen the quote is untouched — every one of these is print-only',
-  pdfLook.screen.tap === true && pdfLook.screen.acceptCard === true &&
-  pdfLook.screen.drawEmpty === true, JSON.stringify(pdfLook.screen));
+check('on screen the office keeps every one of them — all of this is print-only',
+  pdfLook.screen.emptySpec === true && pdfLook.screen.office === true &&
+  pdfLook.screen.aoTools === true && pdfLook.screen.drawTools === true &&
+  pdfLook.screen.accept === true && pdfLook.screen.aoHit === true,
+  JSON.stringify(pdfLook.screen));
 // A CHAPTER BAND BLEEDS ABOVE ITS OWN SECTION, and a cut measured from the
 // section's top edge therefore lands INSIDE the band — a navy sliver with its
 // cyan rule stranded at the foot of three sheets out of four. Driven, not
