@@ -1487,6 +1487,83 @@ check('a shed with nothing measured reads blank, not an invented figure',
   measures.noEst.w === '' && measures.noEst.l === '' && measures.noEst.h === '',
   JSON.stringify(measures.noEst));
 
+// ── THE SHED'S OWN PDF (2026-10-20, the owner on quote 3287: "tidy up the
+// pole shed modern quote pdf, needs to look alot tidier"). The shed's sections
+// are the A4's own blocks, so the modern print rules written for a re-roof met
+// them for the first time in that file. Driven here against the real markup
+// with the pdf layer on, because every one of these is a CSS rule reaching (or
+// failing to reach) a class the renderer has to put there.
+const pdfLook = await pg.evaluate(() => {
+  S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
+  S.quote.condPhotos = S.quote.condPhotos || [];
+  // a floor plan in slot 1, nothing in slot 2, so both branches render
+  S.quote.condPhotos[1] = { src: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' };
+  delete S.quote.condPhotos[2];
+  // job 3287's own shape: some measures typed, some blank
+  S.quote.psWidth = ''; S.quote.psLength = ''; S.quote.psHeight = '';
+  S.quote.psRoofType = 'Mono-pitch (flat)';
+  const host = document.createElement('div');
+  host.id = '__pdfProbe';
+  host.innerHTML = _psModernSections().map(x => x.html()).join('');
+  document.body.appendChild(host);
+  const on = () => document.documentElement.classList.add('pdf-modern');
+  const off = () => document.documentElement.classList.remove('pdf-modern');
+  const vis = (sel) => { const e = host.querySelector(sel);
+    return e ? getComputedStyle(e).display !== 'none' : null; };
+  const out = {};
+  off();
+  out.screen = {
+    emptySpec: vis('.ps-spec-empty'), tap: vis('.ps-tap-note'),
+    acceptCard: vis('.ps-accept-card'), ofPages: vis('.ed-ofpages'),
+    drawEmpty: vis('.ps-draw-empty'),
+  };
+  on();
+  const img = host.querySelector('.ps-draw-img');
+  const col = host.querySelector('.ps-draw-col');
+  out.pdf = {
+    emptySpec: vis('.ps-spec-empty'), tap: vis('.ps-tap-note'),
+    acceptCard: vis('.ps-accept-card'), ofPages: vis('.ed-ofpages'),
+    drawEmpty: vis('.ps-draw-empty'), planSwitch: vis('.ps-cswitch-wrap'),
+    fit: img ? getComputedStyle(img).objectFit : null,
+    imgCap: img ? getComputedStyle(img).maxHeight : null,
+    colH: col ? getComputedStyle(col).height : null,
+    acceptGrid: (function(){ const g = host.querySelector('.ps-accept-grid');
+      return g ? getComputedStyle(g).display : null; })(),
+  };
+  out.keptSpec = [...host.querySelectorAll('.ps-spec-row:not(.ps-spec-empty) .ps-spec-val')]
+    .map(e => e.textContent.trim()).filter(Boolean).length;
+  out.emptyCount = host.querySelectorAll('.ps-spec-empty').length;
+  off(); host.remove();
+  return out;
+});
+check('the shed’s floor plan prints WHOLE — a plan is read, not cropped',
+  pdfLook.pdf.fit === 'contain' && pdfLook.pdf.imgCap === 'none',
+  JSON.stringify({ fit: pdfLook.pdf.fit, cap: pdfLook.pdf.imgCap }));
+check('…and the 820px A4 column stops holding the drawings open',
+  !!pdfLook.pdf.colH && pdfLook.pdf.colH !== '820px', String(pdfLook.pdf.colH));
+check('a spec row nobody filled in is not printed, and the filled ones are',
+  pdfLook.pdf.emptySpec === false && pdfLook.emptyCount >= 1 && pdfLook.keptSpec >= 1,
+  JSON.stringify({ hidden: pdfLook.pdf.emptySpec, blank: pdfLook.emptyCount, kept: pdfLook.keptSpec }));
+check('…but the office still sees it on screen, to type into',
+  pdfLook.screen.emptySpec === true, String(pdfLook.screen.emptySpec));
+check('the acceptance form, the tap note and an empty drawing box stay off paper',
+  pdfLook.pdf.acceptCard === false && pdfLook.pdf.tap === false &&
+  pdfLook.pdf.drawEmpty === false && pdfLook.pdf.acceptGrid === 'block',
+  JSON.stringify(pdfLook.pdf));
+check('…and the orphan "Choose your plan" heading goes with its buttons',
+  pdfLook.pdf.planSwitch !== true, String(pdfLook.pdf.planSwitch));
+check('"of 5 pages" does not argue with the sheet number at the foot',
+  pdfLook.pdf.ofPages === false && pdfLook.screen.ofPages === true,
+  JSON.stringify({ pdf: pdfLook.pdf.ofPages, screen: pdfLook.screen.ofPages }));
+check('on screen the quote is untouched — every one of these is print-only',
+  pdfLook.screen.tap === true && pdfLook.screen.acceptCard === true &&
+  pdfLook.screen.drawEmpty === true, JSON.stringify(pdfLook.screen));
+check('a chapter band is a page-break candidate, so no navy sliver is left behind',
+  await pg.evaluate(() => {
+    const src = String(_pdfBreakRows);
+    return /ed-heading-band/.test(src) && /push\(out\.sec, el, 8\)/.test(src);
+  }), 'ed-heading-band in the row selectors');
+
 await ctx.close();
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');

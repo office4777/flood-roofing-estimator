@@ -3083,6 +3083,43 @@ Discipline (non-negotiable):
   right it counts 22 at 3.18 m on his roof, and the 37-shape gate is
   unchanged. `tests/report65.mjs` is a real tripwire: against the old build
   the ten fault pins fail and all four safety pins pass.
+- A POLE SHED'S PDF IS NOT A ROOFING QUOTE'S (2026-10-20, the owner on quote
+  3287: "tidy up the pole shed modern quote pdf, needs to look alot tidier do
+  this ASAP"). The shed's modern sections ARE the A4's own blocks — deliberate,
+  so the two styles cannot drift — so the modern PRINT rules, every one of them
+  written against a re-roof, met those blocks for the first time in that file.
+  Four landed badly and all four are print-only fixes; the screen is untouched.
+  THE DRAWINGS WERE CROPPED. `.qd-sec img{max-height:80mm; object-fit:cover}` is
+  right for a condition photo — cropping one loses nothing — and it sliced the
+  bottom off the floor plan AND the elevations: "Right" cut in half, a dimension
+  line gone with it. A plan is READ, not looked at. `.ps-draw-img` prints
+  `contain` with no cap, and `.ps-draw-col`'s `height:820px` (an A4 page's worth,
+  meaningless on a sheet sliced out of one long capture) goes to auto with 104mm
+  a drawing.
+  A SPEC ROW NOBODY FILLED IN PRINTED AS A LABEL WITH A RULE UNDER IT. Job
+  3287's Width, Length, Height and Bays are blank because that plan's WebShed
+  PDF never named a size and its estimator carries none either — so four empty
+  rows in a row, which is most of what "untidy" was. `specRow` marks an empty
+  row `ps-spec-empty` and print drops it; the office still sees it, to type in.
+  THE ACCEPTANCE FORM WAS ON THE PAPER: a name box, a tick box and a button.
+  `.ps-accept-card` is dropped and `.ps-accept-grid` becomes a block, so the
+  money takes the full width — which is what that page is for. They accept on
+  the link in their email. "Tap to change a selection" and an empty dashed
+  drawing box go the same way, and so does the plan switcher's wrap: its
+  BUTTONS were already dropped by the button rule, leaving "Choose your plan"
+  standing over nothing on the cover (the cover's meta grid names the plan).
+  "of 5 pages" is the A4 document's chapter count and read as a contradiction
+  beside the sheet number stamped at the foot ("2 of 4"); `.ed-ofpages` is
+  print-hidden.
+  AND A CHAPTER BAND IS NO LONGER SLICED. `_pdfBreakRows` lifts a section
+  boundary 8px rather than 5 and counts `.ed-heading-band` among its row
+  candidates, so a sheet stops opening — or closing — on a navy sliver, which
+  it did on three sheets out of four.
+  NOT FIXED, and it is inherent rather than a bug: the cover sheet is about 60%
+  full. The cover is short and the Plans chapter is nearly a whole sheet, so
+  nothing can share with either. Do NOT chase it by lowering the slicer's
+  section threshold — that splits the two drawings across sheets, which is
+  worse. `tests/poleshed.mjs` (201): 8 of the 9 new pins fail on the old build.
 - A CROSSED-OUT ROOF IS CROSSED OUT, NOT THE HOUSE BESIDE IT (feedback report
   66, 2026-10-19: "quotes red cross is confusing, it crosses out part of the
   main roof which looks wrong, it should be a smaller cross in the middle of

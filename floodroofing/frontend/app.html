@@ -4643,6 +4643,40 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qd-sec .qb-picks, html:is(.print-modern,.pdf-modern) .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
   html:is(.print-modern,.pdf-modern) .qd-sec h2, html:is(.print-modern,.pdf-modern) .qd-sec h3, html:is(.print-modern,.pdf-modern) .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
   html:is(.print-modern,.pdf-modern) .qd-hero{aspect-ratio:auto!important; width:100%!important; height:46mm!important; min-height:0!important; max-height:none!important}
+  /* A POLE SHED'S PDF IS NOT A ROOFING QUOTE'S (2026-10-20, the owner on quote
+     3287: "tidy up the pole shed modern quote pdf, needs to look alot tidier").
+     The shed's sections are the A4's own blocks, so the modern print rules
+     written for a re-roof met them for the first time here, and four of them
+     landed badly. */
+  /* THE DRAWINGS ARE DRAWINGS. `img{max-height:80mm; object-fit:cover}` above
+     is right for a condition photo — cropping one loses nothing. On the shed's
+     floor plan and elevations it sliced the bottom off BOTH: the word "Right"
+     cut in half, a dimension line gone with it. A plan is read, not looked at. */
+  html:is(.print-modern,.pdf-modern) .ps-draw-img{ object-fit:contain!important; max-height:none!important; }
+  /* …and the column holding them is 820px because an A4 page is that tall. On
+     a sheet sliced out of one long capture it is just a box taller than its
+     contents, so the drawings sat small with dead space under them. */
+  html:is(.print-modern,.pdf-modern) .ps-draw-col{ height:auto!important; }
+  html:is(.print-modern,.pdf-modern) .ps-draw-col > div{ flex:none!important; height:104mm!important; }
+  html:is(.print-modern,.pdf-modern) .ps-draw-empty{ display:none!important; }
+  /* A spec row nobody filled in: see specRow. Four blank rules under four
+     labels is what "untidy" looked like on Your Shed Details. */
+  html:is(.print-modern,.pdf-modern) .ps-spec-empty{ display:none!important; }
+  html:is(.print-modern,.pdf-modern) .ps-spec-lbl{ flex-basis:100px!important; }
+  /* Furniture that only means anything to a finger or a mouse. The plan
+     switcher's BUTTONS were already dropped by the button rule above, which
+     left its "Choose your plan" heading standing over nothing on the cover —
+     the cover's own meta grid names the plan option anyway. */
+  html:is(.print-modern,.pdf-modern) .ps-tap-note,
+  html:is(.print-modern,.pdf-modern) .ps-cswitch-wrap{ display:none!important; }
+  /* The acceptance card is a name box, a tick box and a button: a form, on a
+     sheet of paper. The money block takes the full width instead, which is
+     what the page is for. They accept on the link in their email. */
+  html:is(.print-modern,.pdf-modern) .ps-accept-card{ display:none!important; }
+  html:is(.print-modern,.pdf-modern) .ps-accept-grid{ display:block!important; }
+  /* "1 of 5 pages" is the A4 document's chapter count. Beside the sheet
+     number stamped at the foot ("2 of 4") it reads as a contradiction. */
+  html:is(.print-modern,.pdf-modern) .ed-ofpages{ display:none!important; }
   html:is(.print-modern,.pdf-modern) .qd-sec img:not(.qd-logo){max-height:80mm!important; object-fit:cover}
   html:is(.print-modern,.pdf-modern) body, html:is(.print-modern,.pdf-modern) #customerView, html:is(.print-modern,.pdf-modern) .report-preview,
   html:is(.print-modern,.pdf-modern) #qpRoot, html:is(.print-modern,.pdf-modern) .qd{background:#fff!important}
@@ -4962,7 +4996,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-19T23:18:50Z';
+  window.APP_BUILT_AT = '2026-10-20T01:16:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27639,7 +27673,7 @@ function _psDesignSlot(idx, label){
   };
   if (cp && cp.src){
     return '<div style="position:relative;height:100%;background:#fff;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
-      '<img src="'+esc2(cp.src)+'" style="width:100%;height:100%;object-fit:contain;display:block">'+
+      '<img class="ps-draw-img" src="'+esc2(cp.src)+'" style="width:100%;height:100%;object-fit:contain;display:block">'+
       '<div style="position:absolute;top:7px;left:9px;font-family:var(--ed-sans);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ed-ink-2);background:rgba(255,255,255,.8);padding:2px 7px;border-radius:3px">'+esc2(label)+'</div>'+
       '<div class="no-print" style="position:absolute;top:7px;right:7px;display:flex;gap:5px">'+
         '<button type="button" onclick="_rotateSlotImage('+idx+')" title="Rotate 90°" style="padding:4px 8px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">⟳</button>'+
@@ -27648,7 +27682,9 @@ function _psDesignSlot(idx, label){
       '</div>'+
     '</div>';
   }
-  return '<div style="height:100%;background:var(--ed-paper-2);border:1px dashed var(--ed-line);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:14px">'+
+  // An empty drawing box is an "add this" affordance, like the condition
+  // slots: a dashed hole on a customer's PDF is not a plan.
+  return '<div class="ps-draw-empty" style="height:100%;background:var(--ed-paper-2);border:1px dashed var(--ed-line);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:14px">'+
     '<div class="ed-eyebrow">'+esc2(label)+'</div>'+
     '<div class="ed-serif no-print" style="font-style:italic;font-size:12px;color:var(--ed-text2)">Import the WebShed PDF above, or add this drawing</div>'+
     '<div class="no-print" style="display:flex;gap:7px">'+btns()+'</div>'+
@@ -39047,7 +39083,7 @@ function edHeading(num, eyebrow, title, opts){
         // Big chapter/page number with a small "of N pages" beside it.
         '<div class="ed-number" style="flex-shrink:0;color:'+accent+';line-height:1;display:flex;align-items:baseline;gap:8px;white-space:nowrap">'+
           '<span style="font-size:'+(ch?'78px':'30px')+';font-weight:'+(ch?'800':'400')+'">'+esc2(bigNum)+'</span>'+
-          (ch ? '<span style="font-family:var(--ed-sans);font-size:12px;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.7)">of '+chapters.length+' pages</span>' : '')+
+          (ch ? '<span class="ed-ofpages" style="font-family:var(--ed-sans);font-size:12px;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.7)">of '+chapters.length+' pages</span>' : '')+
         '</div>'+
         '<div style="flex:1">'+
           (eyebrowText ? '<div class="ed-eyebrow" style="color:'+accent+';font-size:9.5px;letter-spacing:.16em">'+esc2(eyebrowText)+'</div>' : '')+
@@ -40290,7 +40326,7 @@ function _buildPoleShedSelections(){
   var priceImpact = '';
 
   return edHeading('3','Choose your options','Choose Your Options',{chapter:POLESHED_CHAPTERS[2],chapters:POLESHED_CHAPTERS})+
-    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
+    '<div class="ed-body ps-tap-note" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
     (planPanel ? '<div style="margin-bottom:14px">'+planPanel+'</div>' : '')+
     gradePanel + thickPanel + colourPanel + rollerPanel + extrasPanel + priceImpact;
 }
@@ -40598,7 +40634,13 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   };
   // definition-list spec row
   var specRow = function(label, field){
-    return '<div class="ps-spec-row" style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
+    // ON SCREEN an empty row is an invitation to type in it; on PAPER it is a
+    // label with a rule under it and nothing to say, and four of them in a row
+    // read as a broken quote (2026-10-20, job 3287: Width, Length, Height and
+    // Bays all blank because that plan's WebShed PDF never named a size). The
+    // row is marked so the print layers can drop it; the office still sees it.
+    var _v = String(_psSpecGet(field) == null ? '' : _psSpecGet(field)).trim();
+    return '<div class="ps-spec-row'+(_v ? '' : ' ps-spec-empty')+'" style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
       '<div class="ps-spec-lbl" style="flex:0 0 132px;font-family:var(--ed-sans);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ed-text2);padding-top:2px">'+esc2(label)+'</div>'+
       '<div class="ed-serif qp-editable ps-spec-val" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psSpecGet(field))+'</div>'+
     '</div>';
@@ -40767,7 +40809,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
     _psPlanBarHtml()+
-    '<div style="display:flex;flex-direction:column;gap:14px;height:820px">'+
+    '<div class="ps-draw-col" style="display:flex;flex-direction:column;gap:14px;height:820px">'+
       '<div style="flex:1;min-height:0">'+_psDesignSlot(1,'Floor plan')+'</div>'+
       '<div style="flex:1;min-height:0">'+_psDesignSlot(2,'Elevations')+'</div>'+
     '</div>';
@@ -40808,7 +40850,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
   // ── Acceptance ───────────────────────────────────────────────────
   var accept =
     edHeading('5','Ready to go ahead?','Accept Your Quote',{chapter:POLESHED_CHAPTERS[4],chapters:POLESHED_CHAPTERS})+
-    '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
+    '<div class="ps-accept-grid" style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
       '<div>'+
         '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
           // The office types the subtotal straight onto this row (an OVERRIDE of
@@ -40822,7 +40864,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
         '</div>'+
         '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.6">A '+M.depositPct+'% deposit invoice is issued on acceptance and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due within 7 days of completion.</div>'+
       '</div>'+
-      '<div style="border:1px solid var(--ed-line);border-radius:8px;padding:16px;background:var(--ed-paper-2)">'+
+      '<div class="ps-accept-card" style="border:1px solid var(--ed-line);border-radius:8px;padding:16px;background:var(--ed-paper-2)">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Accept this quote</div>'+
         '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(q.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;margin-bottom:10px;box-sizing:border-box">'+
         '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the terms above.</label>'+
@@ -71188,10 +71230,14 @@ function _pdfBreakRows(target, scale){
       var y = Math.round((r.top - tr.top - lift) * k);
       if (y > 8) list.push(y);
     };
-    Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){ push(out.sec, el, 5); });
+    // Lift 8 rather than 5: a section's chapter band sits at its very top, and
+    // a cut five pixels above the border still clipped the band's 3px accent
+    // rule onto the sheet before - a navy sliver floating under the cover on
+    // three sheets out of four (2026-10-20).
+    Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){ push(out.sec, el, 8); });
     Array.prototype.forEach.call(
-      target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, figure, h2, h3'),
-      function(el){ push(out.row, el, 3); });
+      target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, .ed-heading-band, figure, h2, h3'),
+      function(el){ push(out.row, el, 6); });
     var tidy = function(a){ a.sort(function(x, y){ return x - y; }); return a; };
     tidy(out.sec); tidy(out.row);
   } catch(e){}
