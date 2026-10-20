@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T17:59:01Z';
+  window.APP_BUILT_AT = '2026-10-20T21:18:44Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -45710,7 +45710,29 @@ function onCatalogUnderlayChange(){
     _origCollect();
     var cat = _ensureCatalog();
     cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
-    cat.underlays = collectListEditor('catalogUnderlays', ['name']);
+    // ONE COLLECTOR FOR THE PAPERS (2026-10-20, the owner: "the underlay item
+    // i added won't let me set it at 50m2 or set it's price (it keeps deleting
+    // what i enter) and the quote is still trying to say 75m2"). A paper grew
+    // a price and a roll size on 2026-10-20 and _collectUnderlayRows reads all
+    // three — but THIS generic collector also writes cat.underlays, and it
+    // kept ['name'] alone. So every save wrote the row back as a bare name,
+    // _underlayProducts then filled the blanks from the legacy per-roll-size
+    // map (75 m², and whatever that map held — nothing on most accounts), and
+    // the quote priced his DriStud RU24 at $0.00 over "75 m²/roll". Two
+    // collectors for one list, which is the fault this file keeps warning
+    // about in other words.
+    // A save made with the editor NOT rendered leaves the stored list alone
+    // rather than wiping it — collectListEditor returns [] for a missing box,
+    // and [] here would have deleted every paper the office had typed.
+    if (document.querySelector('#catalogUnderlays [data-field="m2"]')){
+      var _ulSave = _collectUnderlayRows(), _ulSaveDef = '';
+      _ulSave.forEach(function(o){ if (o.__default && o.name) _ulSaveDef = o.name; delete o.__default; });
+      cat.underlays = _ulSave.filter(function(o){ return o.name; });
+      try {
+        if (!S.settings.price_book) S.settings.price_book = defaultSettings().price_book;
+        S.settings.price_book.defaultUnderlayProduct = _ulSaveDef;
+      } catch(e){}
+    }
     cat.screws    = collectListEditor('catalogScrews', ['name']);
     cat.flashings = collectListEditor('catalogFlashings', ['name']);
     // savedFlashings is updated in place by Save to library / Delete

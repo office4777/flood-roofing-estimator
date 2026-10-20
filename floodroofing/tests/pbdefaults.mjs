@@ -352,6 +352,40 @@ check('…under one steel-grade picker, so they are still one grade\u2019s price
   secs.hds.indexOf('Steel grade') < secs.hds.indexOf('Roofing sheets'), secs.hds.join(' | '));
 check('…and the tab is called Default Items', /Default Items/.test(secs.title), secs.title);
 
+// ── A SAVE KEEPS ALL THREE FIELDS (2026-10-20, the owner: "the underlay item
+// i added won't let me set it at 50m2 or set it's price (it keeps deleting
+// what i enter) and the quote is still trying to say 75m2"). collectSettings-
+// FromUI had its OWN collector for this list keeping ['name'] alone, so every
+// save threw the price and the roll size away and _underlayProducts then
+// filled the blanks from the legacy 75 m² map — a $0.00 paper on his quote.
+const ulSave = await pg.evaluate(() => {
+  S.settings.materials_catalog.underlays = [];
+  renderCatalogList('underlays');
+  addCatalogItem('underlays');
+  const row = document.querySelector('#catalogUnderlays [data-row="cat-underlays"]');
+  const set = (f, v) => { const el = row.querySelector('input[data-field="' + f + '"]');
+                          el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+  set('name', 'DriStud RU24'); set('price', '150'); set('m2', '50');
+  const d = row.querySelector('input[data-field="isdefault"]');
+  if (d){ d.checked = true; d.dispatchEvent(new Event('change', { bubbles: true })); }
+  collectSettingsFromUI();                       // what a save actually gathers
+  const kept = JSON.parse(JSON.stringify(S.settings.materials_catalog.underlays));
+  const pick = _underlayPick(), roll = _underlayRollM2();
+  // …and a save made from a tab where the editor is not rendered must leave
+  // the list alone rather than wipe it (collectListEditor returns [] there).
+  document.getElementById('catalogUnderlays').innerHTML = '';
+  collectSettingsFromUI();
+  return { kept, pick, roll, afterBlind: S.settings.materials_catalog.underlays };
+});
+check('a save keeps the paper\u2019s price and roll size, not just its name',
+  ulSave.kept.length === 1 && ulSave.kept[0].price === 150 && ulSave.kept[0].m2 === 50,
+  JSON.stringify(ulSave.kept));
+check('\u2026so the job prices that paper at its own roll, never the legacy 75',
+  ulSave.roll === 50 && ulSave.pick && ulSave.pick.price === 150,
+  JSON.stringify({ roll: ulSave.roll, pick: ulSave.pick }));
+check('\u2026and a save from a tab without the editor does not wipe the list',
+  (ulSave.afterBlind || []).length === 1, JSON.stringify(ulSave.afterBlind));
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;
