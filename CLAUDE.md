@@ -2037,6 +2037,59 @@ Discipline (non-negotiable):
   "Roofing sheets, flashings & back-trays" band split into a Steel grade
   picker over three tiles — one band over three unrelated lists is the fault
   the settings tiles were built to fix. `tests/pbdefaults.mjs` (45).
+- RELOCATE BACKGROUND IMAGE (2026-10-20, the owner: "if i've drawn a
+  building/roof outline and want to swap the back ground image ... i want to be
+  able to reposition the background image seperate to the roof outline"). He is
+  right that there was no way: `IMG_OFFSET` and `DRAW.zoom` move the whole
+  COORDINATE SYSTEM — the drawing is stored in IMAGE pixels, so panning and
+  zooming move the picture and the roof lines together, which is exactly right
+  while tracing and useless once the picture underneath has been swapped.
+  `DRAW.bgAdjust = {dx, dy, scale}` is a second offset and size applied ONLY
+  where the picture is painted. The outline does not move and, above all,
+  `DRAW.scaleMetresPerPx` does not either: the scale belongs to the DRAWING,
+  not to whatever photo happens to be behind it, so a relocate can never
+  silently reprice a job.
+  `BG_RELOCATE` is a MODE, not a setting — off on load, the button says so
+  (`#btnBgRelocate`, far right of the Edits row as asked), and the blue strip
+  under it (`#bgRelocateBar`) reports where the picture has got to, with "↺ Put
+  it back" and Done. `_panOrigin()` / `_panApply()` are the one seam the drag
+  goes through, and `adjustZoom` sizes the PICTURE (0.2–5) while the mode is on.
+  THE DRAWING IS HELD STILL, which is the bargain: the mode's branch is the
+  FIRST thing in `onCanvasMouseDown`, ahead of every hit-test, or a press
+  inside the outline would land on a corner, a junction or a gablet handle and
+  drag the roof; `setTool` refuses anything but `select` and says why, BEFORE
+  `finishCurrent()` can commit something half-drawn.
+  `_bgRelocateOff()` is called from `_releaseJobContent()` — the one list every
+  job-change path goes through — because leaving a drawing-locking mode on
+  across a job switch would refuse the next job's first corner with a message
+  about a picture nobody had swapped. It does NOT put the tool back there: a
+  job being laid out has its own tool, and calling `setTool` mid-restore runs
+  another tool's instructions over it.
+  `bgAdjust` rides in the draw block and is held across the picture's
+  ASYNCHRONOUS load in `_BG_ADJUST_PENDING` — a module-level var, NOT a
+  property of DRAW, because `restoreFromJob` rebuilds DRAW and anything parked
+  there is gone by the time the image arrives. A new picture starts where it is
+  put. `tests/bgclear.mjs` (20) is a tripwire: against the old build the seven
+  new pins fail on `BG_RELOCATE is not defined`.
+- A PRICING EXPORT IS THE TAB IT WAS TAKEN FROM (2026-10-20, Scott at
+  info@wellingtonroof.co.nz, relayed by the owner: "when the Roof 2 Option is
+  included, the Quote Total and Main Roof totals are the same, but the Roof 2
+  total shows correctly ... CSV exports appear to be a mix of Total, Main and
+  Roof 2 data"). Both halves were one fault. `_profitFigures(view)` adds
+  `_profitSelectionItems()` to every view, and an OPTIONAL ROOF is one of those
+  items — so the main roof's view carried the other roof's whole price and read
+  identical to the quote total, while the roof's own tab, which does not take
+  that path, was right all along. A selection that IS another roof is counted
+  on `'total'` only, and on that view its cost and hours are the roof's own
+  (`one(it.roofIdx)`), so the margin is honest rather than revenue with no cost
+  under it. A grade, a gutter or a bracket is still the main roof's, as it was.
+  AND `saveScopePricingAsCsv` ALWAYS ASKED FOR `'total'`, whichever tab was on
+  screen, while every other row in the file came from the tab — which is the
+  "mix" exactly. `_scopePricingRows` reads the tab's own scope now, says in its
+  first rows which roof the sheet covers, and on a roof's sheet appends the
+  whole quote's TOTAL / gross profit / GP% at the foot so the one figure a
+  reader goes looking for is not missing. A single-roof job is unchanged — one
+  pricing tab means the scope IS the total. `tests/profititems.mjs` (20).
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type

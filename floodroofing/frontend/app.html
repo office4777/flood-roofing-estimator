@@ -5019,7 +5019,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T21:18:44Z';
+  window.APP_BUILT_AT = '2026-10-20T21:41:47Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6185,6 +6185,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <button type="button" id="btnNotToScale" onclick="openNotToScale()"
                 onmouseenter="showTip('btn-nottoscale',event,500)" onmouseleave="hideTip()"
                 style="display:none;align-items:center;gap:5px;padding:5px 11px;font-size:11.5px;font-family:inherit;border:1px solid #f59e0b;border-radius:7px;background:#fffbeb;color:#b45309;font-weight:800;cursor:pointer">⚠ No longer to Scale</button>
+        <!-- RELOCATE BACKGROUND IMAGE — far right, off by default, so the
+             canvas behaves exactly as it always has until it is pressed. -->
+        <button type="button" id="btnBgRelocate" onclick="_bgRelocateToggle()"
+                onmouseenter="showTip('btn-bgrelocate',event,500)" onmouseleave="hideTip()"
+                style="margin-left:auto;padding:5px 11px;font-size:11.5px;font-family:inherit;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-weight:600;cursor:pointer;white-space:nowrap">🖼 Relocate Background Image</button>
+          </div>
+          <div id="bgRelocateBar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px;padding:7px 11px;border:1px solid #b9c7d8;border-top:3px solid #0099cc;border-radius:9px;background:#eef3f9">
+            <span style="font-size:11.5px;font-weight:800;color:#0a1628;white-space:nowrap">🖼 Moving the picture only</span>
+            <span id="bgRelocateState" style="font-size:11.5px;color:#475569"></span>
+            <button type="button" onclick="_bgRelocateReset()" class="tool-btn" style="margin-left:auto;font-size:11px">↺ Put it back</button>
+            <button type="button" onclick="_bgRelocateToggle()" style="padding:5px 12px;font-size:11.5px;font-family:inherit;border:none;border-radius:7px;background:#0a1628;color:#fff;font-weight:800;cursor:pointer">Done</button>
           </div>
         </div>
       </div>
@@ -19298,6 +19309,8 @@ function snapshotCurrentJob(){
             matBackTrayOff:DRAW.matBackTrayOff||{}, matBackTrayQty:DRAW.matBackTrayQty||{},
             matBackTrayLen:DRAW.matBackTrayLen||{}, matBackTrayExtras:DRAW.matBackTrayExtras||[],
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step, scaleAuto:DRAW.scaleAuto, geoScale:DRAW.geoScale,
+            // Where the office nudged the picture to sit under the roof.
+            bgAdjust:DRAW.bgAdjust||null,
             editMode:DRAW.editMode||'scaled', offScale:DRAW.offScale||null,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             // The office's cut-list and sheet edits travel with the job. They
@@ -19395,6 +19408,10 @@ function _releaseJobContent(){
   try { S._qvViewing = null; S._qvWork = null; } catch(e){}
   // And it is not the sample until somebody says so.
   try { S.isSampleJob = false; } catch(e){}
+  // Relocate Background Image is a MODE, not a setting: it locks the drawing
+  // tools, so leaving it on across a job switch would refuse the next job's
+  // first corner with a message about a picture nobody has swapped.
+  try { _bgRelocateOff(); } catch(e){}
 }
 function restoreFromJob(j){
   if (!j) return;
@@ -19550,6 +19567,8 @@ function restoreFromJob(j){
     // original, so it stays a preview).
     DRAW.bgImg = null;
     DRAW._pendingView = (snap.draw.view && isFinite(+snap.draw.view.zoom)) ? snap.draw.view : null;
+    DRAW.bgAdjust = (snap.draw.bgAdjust && typeof snap.draw.bgAdjust === 'object') ? snap.draw.bgAdjust : null;
+    _BG_ADJUST_PENDING = DRAW.bgAdjust;      // survives the async picture load
     DRAW._lastLiveView = null;
     DRAW._bgLoading = false;
     if (snap.draw.bg){
@@ -19562,7 +19581,7 @@ function restoreFromJob(j){
         _bimg.src = snap.draw.bg;
       })();
     } else {
-      DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+      DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0; DRAW.bgAdjust = null;
       try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; } catch(e){ IMG_FINE_ROTATION = 0; }
     }
     try { _syncGableRidgeUI(); } catch(e){}
@@ -23942,7 +23961,7 @@ function clearRoofImg(){
   // it was set for go. The lines never depended on the picture.
   try {
     DRAW.bgImg = null;
-    DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+    DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0; DRAW.bgAdjust = null;
     try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; } catch(e){ IMG_FINE_ROTATION = 0; }
     window._aerialLoadedAddr = null;
     redrawAll();
@@ -26547,6 +26566,17 @@ function _profitFigures(view){
       // An optional roof the customer has taken: its own hours, take-off and
       // scaffold are what it costs; the quote's price for it is the revenue.
       if (it.key === 'roof' && it.roofIdx >= 1){
+        // AN OPTIONAL ROOF BELONGS TO THE TOTAL, NOT TO THE MAIN ROOF
+        // (2026-10-20, info@wellingtonroof.co.nz: "when the Roof 2 Option is
+        // included, the Quote Total and Main Roof totals are the same, but
+        // the Roof 2 total shows correctly"). He was right and it is one
+        // line: the quote's selections ride on the main roof's view because
+        // a grade or a gutter IS the main roof's price — but a roof the
+        // customer added has a tile of its own, so counting it here made
+        // Main Roof read the whole job and the two pills identical.
+        // Now Total = Main Roof + every optional roof taken, which is what
+        // the three pills say they are.
+        if (view !== 'total') return;
         try { var x = one(it.roofIdx); it.cost = x.labourCost + x.mat + x.scCost; it.hrs = x.hrs; } catch(e){}
       }
       items.push(it);
@@ -50162,6 +50192,14 @@ var STEP_INFO = {
 };
 
 function setTool(t) {
+  // While the picture is being relocated the drawing is LOCKED — that is the
+  // whole bargain of the mode — so a drawing tool is refused and says why,
+  // BEFORE finishCurrent() commits anything half-drawn.
+  if (BG_RELOCATE && t !== 'select'){
+    try { _bgRelocateSync(); } catch(e){}
+    alert('Relocate Background Image is on, so the drawing is held still.\n\nPress Done on the blue bar to go back to drawing.');
+    return;
+  }
   finishCurrent();
   // Auto-start a new roof when the user re-selects the Building Outline
   // tool after the current roof's outline is already finished.  This
@@ -50795,6 +50833,43 @@ var PAN = { active: false, startX: 0, startY: 0, originX: 0, originY: 0, totalMo
 var IMG_FINE_ROTATION = 0;
 // Image offset — how many canvas-pixels to shift the background image
 var IMG_OFFSET = { x: 0, y: 0 };
+// RELOCATE BACKGROUND IMAGE (2026-10-20, the owner: "if i've drawn a
+// building/roof outline and want to swap the back ground image in the
+// canvas ... i want to be able to reposition the background image seperate
+// to the roof outline ... by default have this un-clicked so by default it
+// acts like it currently does now").
+//
+// IMG_OFFSET and DRAW.zoom move the whole COORDINATE SYSTEM — the drawing is
+// stored in image pixels, so panning moves the picture and the roof lines
+// together, which is right while you are tracing and useless when you have
+// swapped the picture underneath a roof you already drew. DRAW.bgAdjust is a
+// second offset and scale applied ONLY where the picture is painted, so the
+// outline does not move and, above all, DRAW.scaleMetresPerPx does not
+// either: the scale belongs to the drawing, not to whatever photo is behind
+// it. A mode, not a setting — off on load, and the button says so.
+var BG_RELOCATE = false;
+// The nudge a job being reopened is carrying, held across the picture's
+// asynchronous load. NOT a property of DRAW: restoreFromJob rebuilds DRAW,
+// so anything parked there is gone by the time the image arrives.
+var _BG_ADJUST_PENDING;
+function _bgAdj(){
+  if (!DRAW.bgAdjust || typeof DRAW.bgAdjust !== 'object') DRAW.bgAdjust = { dx:0, dy:0, scale:1 };
+  var a = DRAW.bgAdjust;
+  if (!isFinite(+a.dx)) a.dx = 0;
+  if (!isFinite(+a.dy)) a.dy = 0;
+  if (!(+a.scale > 0)) a.scale = 1;
+  return a;
+}
+function _bgAdjIdentity(){
+  var a = _bgAdj();
+  return !a.dx && !a.dy && Math.abs(a.scale - 1) < 1e-9;
+}
+// What a drag moves: the view as always, or the picture alone.
+function _panOrigin(){ return BG_RELOCATE ? { x:_bgAdj().dx, y:_bgAdj().dy } : { x:IMG_OFFSET.x, y:IMG_OFFSET.y }; }
+function _panApply(x, y){
+  if (BG_RELOCATE){ var a = _bgAdj(); a.dx = x; a.dy = y; }
+  else { IMG_OFFSET.x = x; IMG_OFFSET.y = y; }
+}
 var IMG_FINE_ROTATION = 0; // fine angle -45 to +45 degrees
 
 var DRAG_EP = null;
@@ -51675,13 +51750,25 @@ function _drawRidgeSnapDots(){
 }
 
 function onCanvasMouseDown(e) {
+  // Relocating the picture: every press moves the PICTURE, before any of the
+  // drawing's own hit-tests get a look. A press inside the outline would
+  // otherwise land on a corner, a junction or a gablet handle and drag the
+  // roof — exactly what this mode exists to prevent.
+  if (BG_RELOCATE){
+    PAN.active = true; PAN.totalMoved = 0;
+    PAN.startX = e.clientX; PAN.startY = e.clientY;
+    var _pob = _panOrigin(); PAN.originX = _pob.x; PAN.originY = _pob.y;
+    var _bcv = document.getElementById('roofCanvas'); if (_bcv) _bcv.style.cursor = 'grabbing';
+    try { e.preventDefault(); } catch(_){}
+    return;
+  }
   // Locked: every press is a pan, whichever tool is selected. Nothing on the
   // drawing can move, so the roofer can shift the picture around and read it
   // without unlocking the job.
   if (_jobLockActive()){
     PAN.active = true; PAN.totalMoved = 0;
     PAN.startX = e.clientX; PAN.startY = e.clientY;
-    PAN.originX = IMG_OFFSET.x; PAN.originY = IMG_OFFSET.y;
+    var _po0 = _panOrigin(); PAN.originX = _po0.x; PAN.originY = _po0.y;
     var _lcv = document.getElementById('roofCanvas'); if (_lcv) _lcv.style.cursor = 'grabbing';
     e.preventDefault();
     return;
@@ -52030,8 +52117,7 @@ function onCanvasMouseDown(e) {
   PAN.totalMoved = 0;
   PAN.startX = e.clientX;
   PAN.startY = e.clientY;
-  PAN.originX = IMG_OFFSET.x;
-  PAN.originY = IMG_OFFSET.y;
+  var _po1 = _panOrigin(); PAN.originX = _po1.x; PAN.originY = _po1.y;
   document.getElementById('roofCanvas').style.cursor = 'grabbing';
   try { _ccOn('canvasdown'); } catch(e){}
   e.preventDefault();
@@ -52187,8 +52273,7 @@ document.addEventListener('mousemove', function(e) {
   var dy = e.clientY - PAN.startY;
   PAN.totalMoved = (PAN.totalMoved||0) + Math.abs(dx) + Math.abs(dy);
   DRAW._viewTouched = true;
-  IMG_OFFSET.x = PAN.originX + dx;
-  IMG_OFFSET.y = PAN.originY + dy;
+  _panApply(PAN.originX + dx, PAN.originY + dy);
   redrawAll();
 });
 document.addEventListener('mouseup', function(e) {
@@ -52337,8 +52422,7 @@ document.addEventListener('mouseup', function(e) {
       var dx = e.clientX - PAN.startX, dy = e.clientY - PAN.startY;
       PAN.totalMoved = (PAN.totalMoved || 0) + Math.abs(dx) + Math.abs(dy);
       DRAW._viewTouched = true;
-      IMG_OFFSET.x = PAN.originX + dx;
-      IMG_OFFSET.y = PAN.originY + dy;
+      _panApply(PAN.originX + dx, PAN.originY + dy);
       redrawAll();
     }
     function endTouchDragNoClick(){
@@ -57804,7 +57888,7 @@ function clearAll(silent) {
   // The view goes back to square with it: leaving a pan, a zoom or a rotation
   // behind from the last photo puts the next one on at the wrong angle.
   DRAW.bgImg = null;
-  DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0;
+  DRAW.zoom = 1; IMG_OFFSET = { x:0, y:0 }; IMG_ROTATION = 0; DRAW.bgAdjust = null;
   try { if (typeof _setFineRotate === 'function') _setFineRotate(0); else IMG_FINE_ROTATION = 0; }
   catch(e){ IMG_FINE_ROTATION = 0; }
   try { if (window.S) S.img64 = null; } catch(e){}
@@ -58686,11 +58770,15 @@ function redrawAll() {
     var iw=DRAW.bgImg.naturalWidth, ih=DRAW.bgImg.naturalHeight;
     // fitScale: at zoom=1.0 image fits inside 900x600 with correct ratio
     var fitScale=Math.min(W/iw, H/ih);
-    var dispW=iw*fitScale*DRAW.zoom;
-    var dispH=ih*fitScale*DRAW.zoom;
-    // Center + pan offset (IMG_OFFSET in canvas pixels)
-    var ix=(W-dispW)/2 + IMG_OFFSET.x;
-    var iy=(H-dispH)/2 + IMG_OFFSET.y;
+    // bgAdjust is the PICTURE's own nudge and size (Relocate background
+    // image). It is applied here and nowhere else, so the drawing and the
+    // scale are untouched by it.
+    var _bga = _bgAdj();
+    var dispW=iw*fitScale*DRAW.zoom*_bga.scale;
+    var dispH=ih*fitScale*DRAW.zoom*_bga.scale;
+    // Center + pan offset (IMG_OFFSET in canvas pixels) + the picture's own
+    var ix=(W-dispW)/2 + IMG_OFFSET.x + _bga.dx;
+    var iy=(H-dispH)/2 + IMG_OFFSET.y + _bga.dy;
     ctx.save();
     ctx.globalAlpha=op;
     var rot=IMG_ROTATION + IMG_FINE_ROTATION;
@@ -63497,6 +63585,7 @@ var TOOLTIPS = {
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
   'btn-calibrate':    'Scale a Line: click one wall of your building outline and type its real length. Every drawn line then works out its own real length.',
+  'btn-bgrelocate':   'Relocate Background Image: hold the roof you have drawn still and move or resize the picture behind it \u2014 for when you swap the aerial or the plan after tracing. Off by default; your measurements and the scale never change.',
   'btn-customscale':  'Custom Scale: click a start point and an end point anywhere on the picture, then type the real distance between them. Nothing needs to be drawn first — on a PDF plan, run it along the longest dimension line on the sheet.',
   'btn-addmeas':      'Add Measurements: click any drawn line to enter its length in metres. Totals are calculated automatically.',
   'btn-mode-scaled':  'Scaled edits: a measurement you type MOVES the drawing to match, so the whole plan stays true to the scale — the area, the sheets and every other length follow it.',
@@ -70980,10 +71069,23 @@ function _scopePricingRows(){
   var idx = 0; try { idx = _pricingRoofIdx() || 0; } catch(e){}
 
   // ── THE JOB ───────────────────────────────────────────────────
-  var g = _profitFigures('total');
+  // ONE ROOF ALL THE WAY DOWN (2026-10-20, info@wellingtonroof.co.nz: "CSV
+  // exports appear to be a mix of Total, Main and Roof 2 data. Helpful if
+  // these can be correctly aligned when selected"). The cards above read the
+  // pricing drawer's ROOF TAB (idx) while the profitability list and the
+  // totals read 'total' whatever that tab said — so a Roof 2 export put
+  // Roof 2's labour and materials beside the whole job's margin and per-m2
+  // rates. Every section reads the same roof now, the file says which, and
+  // the quote's own total is appended as its own block so the whole-job
+  // figures are still in there to read.
+  var _tabN = 1; try { _tabN = _pricingRoofTabIdxs().length; } catch(e){}
+  var scope = (_tabN > 1) ? idx : 'total';
+  var g = _profitFigures(scope);
+  var scopeName = (scope === 'total') ? 'the whole quote' : _pricingRoofName(idx);
   try {
     put('Job', 'Quote', (S.quote && S.quote.ref) ? String(S.quote.ref) : '');
     put('Job', 'Client', (S.quote && S.quote.clientName) || '');
+    put('Job', 'This sheet covers', scopeName);
     put('Job', 'Roof area', 'along the pitch', num(g.area, 1), 'm²');
     put('Job', 'Pitch', '', num(DRAW && DRAW.calPitch, 1), '°');
   } catch(e){}
@@ -71118,6 +71220,18 @@ function _scopePricingRows(){
     put('Per square metre', 'Roof area', '', num(area, 1), 'm²');
     put('Per square metre', 'Revenue per m²', '', null, null, null, rev / area);
     put('Per square metre', 'Cost per m²', '', null, null, null, cost / area);
+  }
+  // …and the whole quote underneath it, so a one-roof sheet is never the
+  // only figure in the file.
+  if (scope !== 'total'){
+    try {
+      var gt = _profitFigures('total');
+      var tRev = parseFloat(gt.revenue) || 0, tCost = parseFloat(gt.cost) || 0;
+      gap();
+      put('Quote total', 'TOTAL \u2014 every roof on this quote', '', null, null, null, tRev, tCost, gt.hrsAll);
+      put('Quote total', 'Gross profit', '', null, null, null, tRev - tCost);
+      rows.push(['Quote total', 'Gross profit %', '', '', '', '', tRev ? ((tRev - tCost) / tRev * 100).toFixed(1) + '%' : '', '', '']);
+    } catch(e){}
   }
   return rows;
 }
@@ -74494,6 +74608,18 @@ async function _fergusPickPhoto(f){
 // the office left it with.
 function _applyCanvasBg(img, view){
   DRAW.bgImg = img;
+  // A NEW picture starts where it is put: bgAdjust belongs to the picture it
+  // was nudged for, so carrying it onto the next one would drop the new photo
+  // off at the last one's offset. A job being REOPENED hands its own nudge
+  // forward in _bgAdjustPending (the picture loads asynchronously, so "a view
+  // came with it" does not say which case this is — a job saved from a canvas
+  // nobody looked at carries no view at all).
+  if (_BG_ADJUST_PENDING !== undefined){
+    DRAW.bgAdjust = _BG_ADJUST_PENDING;
+    _BG_ADJUST_PENDING = undefined;
+  } else {
+    DRAW.bgAdjust = null;
+  }
   try { var _rr0 = document.getElementById('roofResults'); if (_rr0 && _rr0.style.display === 'none') _rr0.style.display = ''; } catch(e){}
   DRAW.zoom = (view && isFinite(+view.zoom) && +view.zoom > 0) ? +view.zoom : 1;
   IMG_OFFSET = { x: (view && +view.offX) || 0, y: (view && +view.offY) || 0 };
@@ -75545,8 +75671,75 @@ function renderFlashingsBreakdown() {
 
 // ── ROOF SHEET PLAN ──────────────────────────────────────────────
 
+// The mode, the button and the strip under it. The drawing is LOCKED while
+// it is on — the point is to move the picture under a roof that is already
+// right — so the drawing tools are refused and say why rather than quietly
+// dropping a corner on a canvas somebody is dragging.
+function _bgRelocateToggle(){
+  if (!DRAW.bgImg && !BG_RELOCATE){
+    alert('There is no background picture to move yet.\n\nUpload one, or capture an aerial, then press this to line it up under your roof.');
+    return;
+  }
+  BG_RELOCATE = !BG_RELOCATE;
+  if (BG_RELOCATE){
+    // A drag has to be a drag, not a corner: the select tool is the one
+    // that pans (onCanvasMouseDown returns for any other tool).
+    try { DRAW._bgRelocPrevTool = DRAW.tool; setTool('select'); } catch(e){}
+  } else {
+    try { if (DRAW._bgRelocPrevTool) setTool(DRAW._bgRelocPrevTool); } catch(e){}
+    DRAW._bgRelocPrevTool = null;
+  }
+  _bgRelocateSync();
+  try { redrawAll(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+// Leave the mode (a job switch, a new job). Silent, and it never touches
+// DRAW.bgAdjust — where the picture sits belongs to the job, the MODE does not.
+function _bgRelocateOff(){
+  if (!BG_RELOCATE) return;
+  BG_RELOCATE = false;
+  // The tool is NOT put back here: a job being laid out has its own tool, and
+  // calling setTool mid-restore would run another tool's instructions over it.
+  try { DRAW._bgRelocPrevTool = null; } catch(e){}
+  try { _bgRelocateSync(); } catch(e){}
+}
+function _bgRelocateReset(){
+  DRAW.bgAdjust = { dx:0, dy:0, scale:1 };
+  _bgRelocateSync();
+  try { redrawAll(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _bgRelocateSync(){
+  var b = document.getElementById('btnBgRelocate');
+  if (b){
+    var on = !!BG_RELOCATE;
+    b.style.background = on ? '#0a1628' : '#fff';
+    b.style.color      = on ? '#fff'    : '#475569';
+    b.style.borderColor= on ? '#0a1628' : '#cbd5e1';
+    b.style.fontWeight = on ? '800'     : '600';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  var strip = document.getElementById('bgRelocateBar');
+  if (!strip) return;
+  if (!BG_RELOCATE){ strip.style.display = 'none'; return; }
+  var a = _bgAdj();
+  strip.style.display = 'flex';
+  var lbl = document.getElementById('bgRelocateState');
+  if (lbl) lbl.textContent = _bgAdjIdentity()
+    ? 'Drag the picture to move it · − / + resize it · your roof stays put'
+    : ('Picture moved ' + Math.round(a.dx) + ', ' + Math.round(a.dy) + ' px · size ' + Math.round(a.scale * 100) + '%');
+}
 function adjustZoom(delta) {
   DRAW._viewTouched = true;
+  // In relocate mode the +/- size the PICTURE, not the view: the roof it is
+  // being lined up under must not move while it is being matched.
+  if (BG_RELOCATE && DRAW.bgImg){
+    var _ba = _bgAdj();
+    _ba.scale = Math.max(0.2, Math.min(5, _ba.scale + delta));
+    try { _bgRelocateSync(); } catch(e){}
+    redrawAll();
+    return;
+  }
   DRAW.zoom = Math.max(0.1, Math.min(5, DRAW.zoom + delta));
   document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
   redrawAll();

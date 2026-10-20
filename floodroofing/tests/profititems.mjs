@@ -111,6 +111,77 @@ check('the profitability total is the quote’s subtotal, to the cent', near(agr
 check('…each heading figure says excl. GST, and the panel says every price is', /excl\. GST/.test(agree.roofHead) && agree.note, agree.roofHead);
 check('…and the gutter heading is the gutter card’s own bottom line', agree.gutHead.indexOf(agree.card) === 0, agree.gutHead + ' vs ' + agree.card);
 
+// ── AN OPTIONAL ROOF IS THE TOTAL'S, NOT THE MAIN ROOF'S (2026-10-20,
+// info@wellingtonroof.co.nz: "when the Roof 2 Option is included, the Quote
+// Total and Main Roof totals are the same, but the Roof 2 total shows
+// correctly"). The quote's selections ride on the main roof's view because a
+// grade or a gutter IS the main roof's price — but a roof the customer added
+// has a pill of its own, so counting it on the main roof made the first two
+// pills read the same number.
+const views = await pg.evaluate(async () => {
+  gotoTab('roof');
+  const mk = (pts) => { setTool('outline'); DRAW.currentPts = pts; finishCurrent(); };
+  clearAll(true);
+  mk([[200,200],[800,200],[800,600],[200,600]]); DRAW.scaleMetresPerPx = 0.03;
+  let m = document.getElementById('_rsModal'); if (m) m.remove();
+  autoGenerateRoof('gable');
+  _addAndSwitchToNewRoof();
+  mk([[900,200],[1300,200],[1300,500],[900,500]]);
+  await new Promise(r => setTimeout(r, 250));
+  m = document.getElementById('_rsModal'); if (m) m.remove();
+  autoGenerateRoof('gable');
+  _setRoofMode(1, 'separate');
+  gotoTab('scope');
+  refreshQuoteProposal();
+  // the customer takes it
+  S.quote.proposalOptions = S.quote.proposalOptions || {};
+  S.quote.proposalOptions.extraRoofsSel = { 0: true };
+  refreshQuoteProposal();
+  const t = _profitFigures('total'), main = _profitFigures(0), r2 = _profitFigures(1);
+  const roofRow = (t.items || []).filter(i => i.key === 'roof')[0] || null;
+  return { tabs: _pricingRoofTabIdxs().length,
+           tRev: t.revenue, mRev: main.revenue, r2Rev: r2.revenue,
+           roofRow: roofRow && { label: roofRow.label, revenue: roofRow.revenue },
+           mainHasRoofRow: (main.items || []).some(i => i.key === 'roof'),
+           r2HasRoofRow:  (r2.items  || []).some(i => i.key === 'roof') };
+});
+const near2 = (a, b, t) => Math.abs(a - b) <= (t == null ? 0.01 : t);
+check('with an optional roof taken, Quote total and Main Roof are no longer the same figure',
+  views.tabs > 1 && views.roofRow && views.roofRow.revenue > 0 &&
+  !near2(views.tRev, views.mRev, 0.01), JSON.stringify(views));
+check('\u2026the total is the main roof plus that roof\u2019s own row, to the cent',
+  near2(views.tRev, views.mRev + views.roofRow.revenue, 0.01),
+  JSON.stringify({ total: views.tRev, main: views.mRev, roof: views.roofRow.revenue }));
+check('\u2026and neither the main roof\u2019s view nor the extra roof\u2019s carries the roof row',
+  !views.mainHasRoofRow && !views.r2HasRoofRow, JSON.stringify(views));
+
+// ── THE CSV COVERS ONE ROOF AND SAYS WHICH ── (his second bullet: "CSV
+// exports appear to be a mix of Total, Main and Roof 2 data").
+const csv = await pg.evaluate(() => {
+  const read = () => {
+    const rows = _scopePricingRows();
+    const sec = (n) => rows.filter(r => r[0] === n);
+    const covers = (rows.filter(r => r[1] === 'This sheet covers')[0] || [])[2] || '';
+    const tot = sec('Totals').filter(r => r[1] === 'TOTAL')[0] || [];
+    return { covers, total: parseFloat(tot[6] || 0),
+             quoteTotal: parseFloat(((sec('Quote total')[0]) || [])[6] || 0) };
+  };
+  _setPricingRoof(1);                       // the drawer on Roof 2
+  const two = read();
+  _setPricingRoof(0);
+  const one = read();
+  return { two, one, figs: { r2: _profitFigures(1).revenue, main: _profitFigures(0).revenue,
+                             total: _profitFigures('total').revenue } };
+});
+check('the CSV names the roof it covers, and its TOTAL is that roof\u2019s own figure',
+  /Roof 2|Roof\s*2/i.test(csv.two.covers) && near2(csv.two.total, csv.figs.r2, 0.02),
+  JSON.stringify(csv.two));
+check('\u2026the whole quote still goes in underneath it',
+  near2(csv.two.quoteTotal, csv.figs.total, 0.02), JSON.stringify(csv.two));
+check('\u2026and on the main roof it is the main roof, not the whole job',
+  near2(csv.one.total, csv.figs.main, 0.02) && !near2(csv.one.total, csv.figs.total, 0.02),
+  JSON.stringify({ csv: csv.one, figs: csv.figs }));
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

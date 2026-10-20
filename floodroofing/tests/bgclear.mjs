@@ -123,6 +123,109 @@ check('the modern quote’s roof plans each carry a Background picture switch, s
 check('…one click takes the picture off every plan, says so, and is saved with the quote', q.flag === false && q.imgsOff === 0 && /hidden/.test(q.label1) && q.offCls && q.saves >= 1, JSON.stringify(q));
 check('…the customer gets no switch and no picture', q.custSwitch === 0 && q.custImgs === 0, JSON.stringify(q));
 check('…and a second click puts it back', q.back);
+// ── RELOCATE BACKGROUND IMAGE (2026-10-20, the owner: swap the aerial or the
+// plan after tracing, then line the new picture up under the roof you have
+// already drawn) ──
+// The whole bargain: the PICTURE moves and nothing else does. Above all
+// DRAW.scaleMetresPerPx must not move — the scale belongs to the drawing, not
+// to whatever photo happens to be behind it.
+const bgr = await pg.evaluate(async () => {
+  gotoTab('roof'); await new Promise(r => setTimeout(r, 400));
+  try { _fergusPanelClose(); } catch(e){}
+  // the roof-setup popup and the roof settings panel both sit over the canvas
+  // and swallow a real press
+  const kill = () => { const m = document.getElementById('_rsModal'); if (m) m.remove();
+                       const rt = document.getElementById('roofTypePanel'); if (rt) rt.style.display = 'none'; };
+  kill();
+  const img = await new Promise(res => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#88aa88'; x.fillRect(0, 0, 600, 400); const im = new Image(); im.onload = () => res(im); im.src = c.toDataURL(); });
+  _applyCanvasBg(img, { zoom: 1, offX: 0, offY: 0, rot: 0 });
+  await new Promise(r => setTimeout(r, 400));
+  kill();
+  const out = {};
+  out.offByDefault = BG_RELOCATE === false;
+  out.btn = !!document.getElementById('btnBgRelocate');
+  out.barHiddenFirst = (document.getElementById('bgRelocateBar') || {}).style.display === 'none';
+  // what must not move
+  out.before = { outline: JSON.stringify(DRAW.outline[0]), scale: DRAW.scaleMetresPerPx,
+                 off: JSON.stringify(IMG_OFFSET), zoom: DRAW.zoom };
+  document.getElementById('btnBgRelocate').click();
+  await new Promise(r => setTimeout(r, 250));
+  kill();
+  out.on = BG_RELOCATE === true;
+  out.barShown = (document.getElementById('bgRelocateBar') || {}).style.display === 'flex';
+  out.tool = DRAW.tool;
+  // a drawing tool is refused while the picture is being moved
+  setTool('outline');
+  out.toolRefused = DRAW.tool === 'select';
+  // the +/- size the PICTURE
+  adjustZoom(0.2);
+  out.scaleOf = _bgAdj().scale;
+  out.viewZoomUnmoved = DRAW.zoom === out.before.zoom;
+  const cv = document.getElementById('roofCanvas');
+  document.getElementById('canvasWrap').scrollIntoView({ block: 'center' });
+  await new Promise(r => setTimeout(r, 250));
+  const r = cv.getBoundingClientRect();
+  out.press = { x: Math.round(r.left + r.width / 2),
+                y: Math.round(Math.max(r.top + 60, Math.min(r.top + r.height / 2, Math.min(r.bottom - 60, window.innerHeight - 120)))) };
+  out.hit = (document.elementFromPoint(out.press.x, out.press.y) || {}).id;
+  return out;
+});
+check('Relocate Background Image is off to start with, with its own button and a hidden bar',
+  bgr.offByDefault && bgr.btn && bgr.barHiddenFirst, JSON.stringify(bgr));
+check('…switching it on shows the bar and takes the drawing tools away (the drawing is held still)',
+  bgr.on && bgr.barShown && bgr.tool === 'select' && bgr.toolRefused, JSON.stringify(bgr));
+check('…the zoom buttons resize the PICTURE, not the view',
+  Math.abs(bgr.scaleOf - 1.2) < 1e-9 && bgr.viewZoomUnmoved, JSON.stringify(bgr));
+check('…a press in the middle of the canvas reaches the canvas', bgr.hit === 'roofCanvas', JSON.stringify(bgr));
+
+// a real drag, with a real mouse
+await pg.mouse.move(bgr.press.x, bgr.press.y);
+await pg.mouse.down();
+await pg.mouse.move(bgr.press.x + 70, bgr.press.y + 40, { steps: 8 });
+await pg.mouse.up();
+await pg.waitForTimeout(250);
+const bgr2 = await pg.evaluate(() => {
+  const a = _bgAdj();
+  return { dx: Math.round(a.dx), dy: Math.round(a.dy), scale: a.scale,
+           outline: JSON.stringify(DRAW.outline[0]), scaleM: DRAW.scaleMetresPerPx,
+           off: JSON.stringify(IMG_OFFSET), zoom: DRAW.zoom,
+           label: (document.getElementById('bgRelocateState') || {}).textContent || '' };
+});
+check('…dragging moves the picture', Math.abs(bgr2.dx - 70) <= 2 && Math.abs(bgr2.dy - 40) <= 2 && /Picture moved/.test(bgr2.label), JSON.stringify(bgr2));
+check('…and the roof, the view and above all the SCALE do not move',
+  bgr2.outline === bgr.before.outline && bgr2.scaleM === bgr.before.scale &&
+  bgr2.off === bgr.before.off && bgr2.zoom === bgr.before.zoom,
+  JSON.stringify({ was: bgr.before, now: bgr2 }));
+
+const bgr3 = await pg.evaluate(async () => {
+  const out = {};
+  // Put it back
+  _bgRelocateReset();
+  out.reset = JSON.stringify(_bgAdj());
+  // saved with the job and brought back with it
+  _bgAdj().dx = 120; _bgAdj().dy = 60; _bgAdj().scale = 1.2;
+  const snap = snapshotCurrentJob();
+  out.saved = JSON.stringify(snap.draw && snap.draw.bgAdjust);
+  DRAW.bgAdjust = null;
+  restoreFromJob({ id: 'bgr1', draw_state: snap });
+  await new Promise(r => setTimeout(r, 900));
+  out.back = JSON.stringify(_bgAdj());
+  // a MODE, not a setting: opening a job leaves it off, so the next job's
+  // first corner is not refused
+  out.offAfterOpen = BG_RELOCATE === false;
+  out.barAfterOpen = (document.getElementById('bgRelocateBar') || {}).style.display === 'none';
+  // Done puts the drawing tools back
+  setTool('outline');
+  out.toolBack = DRAW.tool === 'outline';
+  setTool('select');
+  return out;
+});
+check('…“Put it back” returns the picture to where it was', bgr3.reset === JSON.stringify({ dx: 0, dy: 0, scale: 1 }), JSON.stringify(bgr3));
+check('…where the picture sits is saved with the job and comes back with it',
+  bgr3.saved === JSON.stringify({ dx: 120, dy: 60, scale: 1.2 }) && bgr3.back === bgr3.saved, JSON.stringify(bgr3));
+check('…and the mode is left behind by a job open, so the next job draws normally',
+  bgr3.offAfterOpen && bgr3.barAfterOpen && bgr3.toolBack, JSON.stringify(bgr3));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;
