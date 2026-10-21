@@ -4289,12 +4289,16 @@ each after the full 10 minutes). That is NOT a half-ship in substance:
 running byte-identical server code under an older name — the same shape as
 2026-10-20 below. THE CAUSE IS KNOWN (the owner's screenshot, 2026-10-22
 morning NZ): Railway's Deployments tab shows "Limited Access — Deploys have
-been paused temporarily", an ACCOUNT-level pause (billing or a usage limit),
+been paused temporarily", and the banner across the whole Railway dashboard
+read "Dashboard and API unavailable, builds paused. We've found the cause and
+are working on a fix" — a RAILWAY PLATFORM INCIDENT, not his account (billing
+checked: card on file, invoices paid, $1.55 of the $20 included usage) and
 not a failed build — there is no deploy entry for either commit at all, and
 the running service is healthy (booted 7:58 pm NZ, migrations 161/0, the
 sweeps ran, a Stripe checkout completed). So a red backend step with
 `/health` stuck on an older build and NO new entry in Deployments means
-LOOK AT THE RAILWAY WORKSPACE BILLING, not the code or the service settings.
+LOOK AT RAILWAY'S OWN STATUS BANNER / status.railway.com first, then the
+workspace billing — not the code or the service settings.
 Once the pause lifts, `production` already carries the commit and Railway
 should deploy it by itself; redeploy by hand if it does not. A cloud session
 cannot see any of this (the proxy refuses that host). Until the pause lifts
