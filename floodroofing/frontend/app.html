@@ -5087,7 +5087,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-21T06:53:27Z';
+  window.APP_BUILT_AT = '2026-10-21T07:44:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -7172,7 +7172,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
   <!-- 4. Roof sheet plan (visual layout — unchanged). -->
   <div class="card jp-legacy" id="roofSheetPlanCard">
-    <div class="card-hd jp-legacy"><span class="card-dot"></span>Sheet layout — block cut plan
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Sheet layout — the puzzle
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="sheetPlanRestoreBtn" onclick="restoreAllSheets()" style="display:none;padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">↺ Restore all</button>
         <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
@@ -65786,8 +65786,8 @@ function _jpMapApplyZoom(){
 // The order here is the order they are offered in, calc check first.
 // The sheet LAYOUT diagram was hidden from 2026-09-14 (the owner's call: its
 // own face-finder, colours and numbering disagreed with the cut list) until
-// 2026-10-21, when it was rebuilt as the block-cut plan off the counted
-// sections (_sheetLayoutBuild / _renderSheetLayoutCanvas in sheet-plan.js).
+// 2026-10-21, when it was rebuilt as the puzzle off the roof's own
+// roof geometry (_sheetPuzzleBuild / _renderSheetPuzzleCanvas in sheet-plan.js).
 // The flag stays as the one switch that withdraws the picture everywhere
 // (panel, page types, prints) should it ever be needed again.
 var SHEET_LAYOUT_HIDDEN = false;
@@ -66076,78 +66076,16 @@ function _jpCaptureCalcCheckCombined(vis, opts){
   });
   try { return _renderCalcCheckCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
 }
-// Sheet layout across roofs: each roof's plan is its own canvas in the
-// live output, so stack the ticked ones under a shared heading and finish
-// with ONE order tally covering the lot (same colour + length collapsed).
+// Sheet layout across roofs: the ticked roofs in ONE frame — they share
+// the drawing's coordinates, so the puzzle shows them where they stand.
 function _jpCaptureSheetPlanCombined(vis, opts){
-  var all = (window._lastSheetSections || []);
-  var lenCol = (typeof _ccLenColours === 'function') ? _ccLenColours(all) : {};
-  var parts = [];
-  vis.forEach(function(i){
-    var nm = _nthName(i + 1);
-    var secs = all.filter(function(s){ return s.roof === nm; });
-    if (!secs.length) return;
-    var cv = null;
-    try { cv = _renderSheetLayoutCanvas(secs, opts); } catch(e){ cv = null; }
-    if (!cv || !cv.width) return;
-    var byRoof = (window._lastSheetCountsByRoof && window._lastSheetCountsByRoof[i]) || null;
-    parts.push({ name: (DRAW.roofs[i] && DRAW.roofs[i].name) || nm, cv: cv, groups: (byRoof && byRoof.groups) || [] });
-  });
-  if (!parts.length) return null;
-  // Merge the per-roof tallies by ordered length.
-  var byKey = {}, order = [];
-  parts.forEach(function(pt){
-    pt.groups.forEach(function(g){
-      var k = String(g.orderedMm);
-      if (!byKey[k]) { byKey[k] = { color: lenCol[g.orderedMm] || g.color, orderedMm:g.orderedMm, count:0 }; order.push(k); }
-      byKey[k].count += g.count || 0;
-    });
-  });
-  order.sort(function(x, y){ return byKey[y].orderedMm - byKey[x].orderedMm; });
-  var groups = order.map(function(k){ return byKey[k]; });
-  var scale = opts && opts.thumb ? 1 : 2;
-  var pad = 14*scale, hdrH = 30*scale, gap = 10*scale, rowH = 22*scale, legHdrH = 26*scale;
-  var W = 0;
-  parts.forEach(function(pt){ if (pt.cv.width > W) W = pt.cv.width; });
-  W = Math.max(320, W);
-  var H = pad;
-  parts.forEach(function(pt){
-    pt.drawW = W;
-    pt.drawH = Math.round(pt.cv.height * (W / pt.cv.width));
-    H += hdrH + pt.drawH + gap;
-  });
-  if (groups.length) H += legHdrH + groups.length * rowH + pad;
-  H += pad;
-  var off = document.createElement('canvas');
-  off.width = W; off.height = H;
-  var ctx = off.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  var y = pad;
-  parts.forEach(function(pt){
-    ctx.fillStyle = '#eef6fd';
-    _roundRect(ctx, pad, y, W - pad * 2, hdrH - 8*scale, 6*scale); ctx.fill();
-    ctx.fillStyle = '#0a1628';
-    ctx.font = '800 ' + (15*scale) + 'px Inter, -apple-system, sans-serif';
-    ctx.fillText(pt.name, pad + 10*scale, y + 3*scale);
-    y += hdrH;
-    try { ctx.drawImage(pt.cv, 0, 0, pt.cv.width, pt.cv.height, 0, y, pt.drawW, pt.drawH); } catch(e){}
-    y += pt.drawH + gap;
-  });
-  if (groups.length) {
-    ctx.fillStyle = '#0a1628';
-    ctx.font = '700 ' + (14*scale) + 'px Inter, -apple-system, sans-serif';
-    ctx.fillText('SHEETS TO ORDER — ALL ROOFS SHOWN', pad, y);
-    ctx.font = '500 ' + (13*scale) + 'px Inter, -apple-system, sans-serif';
-    groups.forEach(function(g, i){
-      var ry = y + legHdrH + i * rowH;
-      ctx.fillStyle = g.color || '#0a1628';
-      ctx.fillRect(pad, ry + 4*scale, 14*scale, 14*scale);
-      ctx.fillStyle = '#0a1628';
-      ctx.fillText(g.count + ' × @ ' + g.orderedMm + 'mm (' + (g.orderedMm/1000).toFixed(2) + 'm)', pad + 22*scale, ry + 2*scale);
-    });
-  }
-  try { return off.toDataURL('image/png'); } catch(e){ return null; }
+  if (!vis || !vis.length) return null;
+  var o = Object.assign({}, opts || {}, { roofIdxs: vis.slice() });
+  try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
+  var cv = null;
+  try { cv = _renderSheetPuzzleCanvas(o); } catch(e){ cv = null; }
+  if (!cv || !cv.width) return null;
+  return cv.toDataURL('image/png');
 }
 // Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
 // [{color, count, orderedMm}] array. Reads the input elements that
@@ -66316,15 +66254,13 @@ function _jpCaptureBasic(roofIdx, opts){
   }
 }
 function _jpCaptureSheetPlan(opts, roofIdx){
-  // The block-cut plan, drawn from the counted sections exactly as the calc
-  // check is (see _jpCaptureCalcCheck); a roof index narrows it to that
-  // roof's sections.
-  var secs = (window._lastSheetSections || []);
-  if (typeof roofIdx === 'number' && roofIdx >= 0){
-    var nm = _nthName(roofIdx + 1);
-    secs = secs.filter(function(s){ return s.roof === nm; });
-  }
-  try { return _renderSheetLayoutCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
+  // The puzzle (sheet-plan.js, _renderSheetPuzzleCanvas), drawn from the
+  // roof geometry itself; a roof index narrows it to that roof.
+  var o = Object.assign({}, opts || {});
+  try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
+  if (typeof roofIdx === 'number' && roofIdx >= 0) o.roofIdxs = [roofIdx];
+  else if (!(DRAW.roofs && DRAW.roofs.length)) o.roofIdxs = [-1];
+  try { return _renderSheetPuzzleCanvas(o).toDataURL('image/png'); } catch(e){ return null; }
 }
 // Flashing reference map — same clean-canvas capture as the Detailed
 // map but with the A/B/C letter overlays force-drawn on top regardless
@@ -67545,7 +67481,7 @@ function _jpRenderCalcCheck(content, page, idx){
 }
 function _jpRenderSheetPlan(content, page, idx){
   // The same picture the Maps panel places, as a page of its own: the
-  // roofs the pack covers, stacked, each with its block cut schedule.
+  // roofs the pack covers, in one frame, each face divided at sheet cover.
   content.innerHTML =
     '<div class="jp-block-title">Sheet layout</div>' +
     '<div class="jp-sl-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden"></div>';

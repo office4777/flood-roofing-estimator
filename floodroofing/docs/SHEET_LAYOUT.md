@@ -1,13 +1,15 @@
 # The sheet layout — block cutting, and how RoofMap does it
 
 Written 2026-10-21, when the Sheet layout picture came back after five weeks
-hidden. Half of this is what AppliCad Roof Wizard does (researched that day
+hidden, and rewritten the same day when the owner threw the first rebuild
+out. Half of this is what AppliCad Roof Wizard does (researched that day
 from its help pages, the 2017 Block-Cutting tutorial and the AU/NZ
 manufacturers' estimating guides; the applicad.com hosts themselves are
 refused by the cloud container's proxy, so it was read through search
 extracts — quotes are snippet-level, nothing was read end to end). The other
-half is how `_sheetLayoutBuild` / `_renderSheetLayoutCanvas` in
-`frontend/sheet-plan.js` map onto it, and where they deliberately do not.
+half is how `_sheetPuzzleBuild` / `_renderSheetPuzzleCanvas` in
+`frontend/sheet-plan.js` draw the roof, and what is deliberately NOT done
+yet.
 
 ## 1. What the trade actually orders (the rule everything rests on)
 
@@ -51,80 +53,118 @@ COP: 40–70 mm by pitch, 150 mm max on corrugate). RoofMap's ordered length
 is the full run as drawn (`SHEET_LENGTH_INSET_M` = 0); the overhang is the
 office's to add in the Material calculations page if they want it.
 
-## 3. How RoofMap draws it
+## 3. How RoofMap draws it — the puzzle first, the fill later
 
-`_sheetLayoutBuild(sections)` reads **the same sections** the Sheet calc
-check and the SHEETS TO ORDER legend read (`window._lastSheetSections`), so
-the three cannot disagree about a count, a length or a colour. The old
-picture had its own face-finder, its own colours and its own numbering, and
-the owner withdrew it on 2026-09-14 because all three disagreed with the cut
-list on every L and T in the fixtures.
+The first rebuild (the morning of 2026-10-21, commit `fcaab9a`) drew the
+picture FROM THE ENGINE'S SECTIONS — the same columns the calc check tiles —
+and cut each column at the roof lines. The owner looked at it and said:
 
-1. **Columns** — `_ccColumnsFor(secs)` tiles each section's columns with the
-   calc check's own anchoring (the main from its obU0, a wing flush to the
-   edge farthest from the main); `_ccNumberColumns` numbers them (each
-   ordered length from 1, main before wing, the two slopes carrying
-   through). Both helpers are shared with `_renderCalcCheckCanvas`, so
-   sheet 12 is sheet 12 on either picture.
-2. **Blocks** — every (section, slope) is a block lettered A, B, C … in
-   numbering order: Auto-Block 2's "two blocks per ridge".
-3. **Pieces** — each column is read along seven rays across its width. A
-   sheet stands on its eave, so a column whose foot is on a real eave (an
-   outline edge running along the ridge) is read UP from there to the first
-   roof line — hip, valley, ridge, apron, change of pitch — or the roof's
-   edge. Where the eave is phantom (the foot lands inside another block's
-   footprint — the main's slope under a wing) the column is read DOWN from
-   its ridge. A column standing on neither but inside the roof (the engine
-   counts it — a T's bar over its stem) is drawn where the engine puts it.
-   Outside the roof altogether it is a rounded-up sheet nothing can place,
-   and the footer says so. The cut edge is kept as a polyline, so a hip
-   entering a column part-way reads as the kink it is.
-4. **Lengths** — a piece's cut length is its LONG edge (what the sheet must
-   be cut to); its offcut is the sheet less its SHORT edge (the trapezoid a
-   diagonal cut leaves). Even a sheet ordered full leaves a triangle when a
-   hip clips its corner.
-5. **Hip ends** — a hip springing from the ridge (or from the ridge level,
-   on a pyramid with no ridge line) and falling to an eave corner makes a
-   half end-face: the triangle between that hip, the end eave and the ridge
-   level, one per slope. It is tiled with strips parallel to the ridge; the
-   k-th strip from the apex is the mirrored offcut of the k-th column from
-   that end on the same slope, and the piece records whether that offcut is
-   long enough (`fits`). Equal pitches match exactly; the schedule says
-   "short" when they do not. A hip to another ridge's end is a junction and
-   makes no end face; an L's main therefore has only its lower half at the
-   wing end. An end already sheeted by another section (a dutch gablet) is
-   left to it.
-6. **Valley spares** — the engine's "+1 of the longest length per valley
-   wing" is drawn as a hatched spare after the last column where it lands on
-   the roof, and listed either way.
+> "Boy oh boy it's very wrong! Don't try to use my sheet calculation method,
+> alot of it's wrong anyway so start fresh, i want a full new build, start by
+> dividing the roof inside sheet width without filling any colour yet, lets
+> make the puzzle then fill it afterwards, remember every sheet must run
+> perpendicular to the gutter/ridge lines and they are allow to run 45deg to
+> a hip or valley only, sheet must never run parralell to the gutter or
+> ridge, sheets (colours) must also never run past any roof line (also for
+> later when we start to fill the puzzle with sheets, sheets must always be
+> ordered with a square cut edge, the sheet gets cut at the hips or valleys
+> and the offcut must be spun to he used somewhere, it can never be flipped
+> over)"
 
-What stays uncovered on the picture is deliberate: the triangle under a
-valley on an L (the engine's +1 valley spare is for exactly that), and the
-odd faces of hand-drawn skeletons that the engine squares off. The picture
-tells the truth about where the counted sheets go; it never invents a sheet
-the count does not have.
+So the picture is built from the roof's own geometry and reads NOTHING from
+the counting pass. Two steps, and only the first is built:
 
-`_renderSheetLayoutCanvas(sections, {thumb})` draws it in the calc check's
-frame: order-group chips, the roof with every piece coloured by ordered
-length, hatched end pieces named "↺12" for the sheet they are cut from, the
-roof lines in the map's colours, a block letter per block, and a BLOCK CUT
-SCHEDULE under it — one line per block: `A main · lower slope — 14 × 5.39 m:
-1–10 full · 11 cut 4.21 (↺ 1.18) · …`. The Maps panel, the Sheet layout page
-type, the combined all-roofs capture and the hidden legacy card all render
-from it (`_jpCaptureSheetPlan`, `_jpCaptureSheetPlanCombined`,
-`_jpRenderSheetPlan`).
+### Step 1 — the puzzle (`_sheetPuzzleBuild`, built)
+
+1. **Faces.** The outline's edges and the drawn roof lines that CUT the roof
+   (ridge, hip, valley, apron, change of pitch; a gutter or barge lies on the
+   outline and cuts nothing, and so does a line drawn along a wall) are
+   split wherever they cross or where one ends on another, their ends are
+   noded (within `tol`, a fifth of a sheet cover capped at 8 px), and the
+   planar graph is walked face by face (sorted neighbours, next edge
+   clockwise). The outer loop is the biggest and is dropped; dangling edges
+   fold out as back-and-forth spikes; anything left with no area is dropped;
+   a face has to sit inside the outline. The west slope of an L's wing and
+   its main come out as ONE face, because they are one plane — the picture
+   says so and the sheets run straight through, which is right.
+2. **Which way the sheets run.** Each face takes a REFERENCE edge: its
+   longest gutter; a face with no gutter (the band above a change of pitch)
+   its ridge; failing that an apron or the change-of-pitch line, which are
+   level lines too. The sheets run along the inward normal of that edge —
+   square to the gutter and the ridge by construction, never parallel to
+   either, and at 45° to an equal-pitch hip or valley because that is where
+   those lines lie. The picture draws an arrow per face so this can be
+   checked by eye.
+3. **Strips.** The face is divided into strips one sheet cover wide
+   (`#sheetWidth`, 762 mm by default) along the reference, starting flush
+   at the face's barge where it has one (a gable end is where the first full
+   sheet goes; a barge at the far end lays the strips from that end). Each
+   strip is the convex rectangle clipped against the face polygon
+   (`_ccClipToConvex`), so a piece is exactly the shape the roof lines cut
+   it to and NEVER runs past one. The last strip of a face is whatever is
+   left (18 m ÷ 0.762 = 23.6: 23 full strips and a 0.47 m closer).
+4. **Lengths.** A piece's LONG edge (its extent up the slope) is the length
+   it must be cut from, its SHORT edge is the other strip edge (0 for a
+   triangle's tip), both at the pitch (`1/cos`, the lower pitch for the band
+   below a change of pitch). The width is recorded too, for the fill.
+
+What it does not do: colour, number or group anything. A piece is a white
+shape with its long length written up it, a face is F1, F2 … in reading
+order with its arrow, and the footer lists each face's pieces, gutter length
+and longest piece. That is the whole of step 1, and it is what the owner
+asked to see before anything was filled in.
+
+### Step 2 — the fill (NOT built; the owner's rules, so they are not lost)
+
+- Every sheet is ORDERED with a square cut edge (the gutter end, and the
+  ridge end on a full strip).
+- The sheet is cut at the hips and valleys — the diagonal is the only cut
+  that is not square.
+- The offcut is SPUN to be used somewhere else: rotated 180° in the plane of
+  the roof. It is NEVER flipped over (a mirror image), because a roofing
+  sheet has a top face and a lap side.
+- Hence on an equal-pitch hip the offcut of the k-th sheet from a hip, spun,
+  is the k-th piece of the OPPOSITE slope's hip end at the same corner (not
+  the same slope's — that would need a flip). Colour (= order group) and
+  sheet number come with this step.
+
+The pieces already carry what the fill needs: face, strip index, width,
+long and short edge, whether the strip edge is a tip, and which roof line
+each face edge is.
+
+`_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it in the calc
+check's 960-wide frame (1× for the side card, 2× for the page and the PDF).
+The Maps panel, the Sheet layout page type and the combined all-roofs
+capture all render from it (`_jpCaptureSheetPlan`,
+`_jpCaptureSheetPlanCombined` — every ticked roof in ONE frame now, since
+they share the drawing's coordinates — and `_jpRenderSheetPlan`). The live
+card passes `roofIdxs:[-1]` and the ORIGINAL lines, because the counting
+pass borrows `DRAW.lines` while it works. `window._lastSheetPuzzle` is the
+last build, for the suite. `tests/sheetlayout.mjs` (66) pins the rules face
+by face on the plain hip, the gable, a change of pitch, the Big-L, the dutch
+and the owner's hand-counted fixtures: every face off a gutter, square to
+gutter and ridge, 45° to hip and valley, no piece across a roof line, the
+roof covered exactly once, every strip one cover wide but the last.
+
+The first rebuild's block-cut code is gone from the tree; `fcaab9a` is the
+commit that carried it, and the picture before that (the per-roof-type
+cascade) is saved in `docs/legacy-sheet-layout-draw.js`, last live at
+`b81e5c5`. `_ccColumnsFor` / `_ccNumberColumns` stay in sheet-plan.js
+because the calc check tiles its columns through them.
 
 ## 4. Open, and the owner's to call
 
-- **The valley flip.** Block-Cut routes a main's valley-cut offcuts onto the
-  wing's own valley cuts (and vice versa). The engine covers the imbalance
-  with one spare sheet per valley wing rather than pairing pieces; the
-  picture shows each side's cut lengths and leaves the pairing to the crew.
-- **Lay direction.** AppliCad starts "from the longest gable line on the roof
-  plane … laying away from a gable end" and marks the lap side. The numbering
-  here starts at the calc check's anchor; a lay-direction arrow per block is
-  a small addition if the crews want one.
-- **Gen-Panels' per-strip list** (every strip at its own length, nothing
-  reused) is the worst-case figure some suppliers quote against. The pieces
-  carry every length needed to print it; nothing does yet.
-- **Overhang into the gutter** is not added to the ordered length.
+- **The fill** (step 2 above) — colour, numbering, offcut pairing, the
+  order groups. Waits on the owner approving the puzzle.
+- **Lay direction.** AppliCad starts "from the longest gable line on the
+  roof plane … laying away from a gable end" and marks the lap side. The
+  strips start at a barge where there is one, else at the face's left/top
+  end; the arrow shows the up-slope direction only.
+- **Valleys.** The engine's +1 spare per valley wing is a COUNT rule; the
+  puzzle shows the valley triangle as the piece it is. Whether the fill
+  pairs valley offcuts across the two wings (Block-Cut's valley flip) or
+  keeps the spare is the owner's call.
+- **Overhang into the gutter** is not added to any length.
+- **The T gable** (a plain gable on a T outline) is drawn faithfully from
+  the lines the gable builder gives it, which are the builder's problem, not
+  the puzzle's.

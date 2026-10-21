@@ -132,13 +132,14 @@ check('the last roof cannot be unticked, so the panel never goes empty',
 await pg.evaluate(() => _jpSetAllRoofs(true));
 await pg.waitForTimeout(1200);
 
-// ── the combined sheet layout stacks the ticked roofs ─────────────
+// ── the combined sheet layout puts every ticked roof in one frame ──
 const sp = await pg.evaluate(() => {
   const url = _jpCaptureCombined('sheetplan', {});
   if (!url) return null;
+  const pz = window._lastSheetPuzzle;
   return new Promise(res => {
     const im = new Image();
-    im.onload = () => res({ w: im.width, h: im.height, ok: /^data:image\/png/.test(url) });
+    im.onload = () => res({ w: im.width, h: im.height, ok: /^data:image\/png/.test(url), roofs: pz.roofs.length, faces: pz.faces.length });
     im.onerror = () => res(null);
     im.src = url;
   });
@@ -146,16 +147,17 @@ const sp = await pg.evaluate(() => {
 const one = await pg.evaluate(() => {
   const url = _jpCaptureSheetPlan({}, 0);
   if (!url) return null;
+  const pz = window._lastSheetPuzzle;
   return new Promise(res => {
     const im = new Image();
-    im.onload = () => res({ w: im.width, h: im.height });
+    im.onload = () => res({ w: im.width, h: im.height, roofs: pz.roofs.length, faces: pz.faces.length });
     im.onerror = () => res(null);
     im.src = url;
   });
 });
 check('the combined sheet layout renders', !!(sp && sp.ok), JSON.stringify(sp));
-check('…and is taller than one roof on its own — it stacks them',
-  !!(sp && one && sp.h > one.h), JSON.stringify(sp) + ' vs ' + JSON.stringify(one));
+check('…and covers more roofs and faces than one roof on its own',
+  !!(sp && one && one.roofs === 1 && sp.roofs > 1 && sp.faces > one.faces), JSON.stringify(sp) + ' vs ' + JSON.stringify(one));
 
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close();

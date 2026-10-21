@@ -2397,46 +2397,47 @@ Discipline (non-negotiable):
   roof counts its OWN gutter ÷ sheet cover, rounded up from a tenth of a
   sheet (10 m / 0.762 = 13.12 → 14; 13.05 → 13). Overlapping roofs never
   change each other's count. Every count site goes through `_sheetsAcross`.
-- THE SHEET LAYOUT IS THE BLOCK-CUT PLAN (2026-10-21, the owner: "let's fix
-  the RoofMap sheet layout diagram (previously removed from the app because
-  it was all broken) — deep dive into AppliCad Roof Wizard's block cutting").
-  Hidden from 2026-09-14 because its own face-finder, colours and numbering
-  disagreed with the cut list on every L and T in the fixtures, the picture
-  is now built from the SAME sections the Sheet calc check and the SHEETS TO
-  ORDER legend read (`_sheetLayoutBuild` / `_renderSheetLayoutCanvas` at the
-  foot of sheet-plan.js), so the three cannot disagree about a count, a
-  length or a colour. `docs/SHEET_LAYOUT.md` is the write-up: what AppliCad's
-  Auto-Block 2 / Block-Cut do, and how this maps onto them. The short form:
-  every (section, slope) is a BLOCK ordered at one length (AppliCad's "two
-  blocks per ridge"), lettered A, B, C …; each column is read along seven
-  rays from its EAVE up to the first roof line (hip, valley, ridge, apron,
-  change of pitch), or from its ridge down where the eave is phantom (the
-  main's slope under a wing), so a sheet's piece is the shape the lines cut
-  it to; its cut length is its LONG edge and its offcut the sheet less its
-  SHORT edge; and a hip end is tiled with strips parallel to the ridge, the
-  k-th from the apex being the mirrored offcut of the k-th column from that
-  end — one half per slope, so an L's main has only its lower half at the
-  wing end. `_ccColumnsFor` and `_ccNumberColumns` are SHARED with the calc
-  check, so sheet 12 is sheet 12 on both pictures. The engine is UNTOUCHED
-  (the 37-shape gate and every count pin are byte-identical); the cascade
-  canvas it used to draw is no longer shown, and the click-to-delete edit
-  mode that lived on it is gone (`restoreAllSheets` stays for a job saved
-  with deletions). THE OLD DRAWING CODE IS SAVED, at the owner's ask: the
-  deleted functions are in `docs/legacy-sheet-layout-draw.js` (not loaded
-  by anything) and the last build that drew the old picture is commit
-  `b81e5c5`; the per-roof-type face/strip/pairing machinery that fed it is
-  still live in sheet-plan.js because the counts come off it. The git proxy
-  here refuses tag pushes, so there is no tag — use the SHA. `SHEET_LAYOUT_HIDDEN` is false and stays as the one switch
-  that would withdraw the picture again. What stays blank on the picture is
-  deliberate: the triangle under an L's valley (the +1 valley spare is for
-  exactly that) and the odd faces of a hand-drawn skeleton the engine squares
-  off — the picture never invents a sheet the count does not have.
-  `tests/sheetlayout.mjs` (34) pins the plain hip to the textbook (48 pieces
-  for 48 sheets, 32 end pieces each named for its donor, every offcut long
-  enough), the Big-L's junction (one end on the upper slope, both on the
-  lower), coverage and no doubling on the owner's hand-counted shapes, the
-  five-roof stack and the page type. `tools/sheet-shots.mjs` is still the
-  way to LOOK before the gate.
+- THE SHEET LAYOUT IS THE PUZZLE (2026-10-21, the owner, after the morning's
+  block-cut rebuild: "Boy oh boy it's very wrong! Don't try to use my sheet
+  calculation method, alot of it's wrong anyway so start fresh, i want a full
+  new build, start by dividing the roof inside sheet width without filling
+  any colour yet, lets make the puzzle then fill it afterwards"). The picture
+  reads NOTHING from the counting pass (`window._lastSheetSections` is the
+  calc check's and the legend's; the earlier rebuild drew from it and that is
+  what he threw out). `_sheetPuzzleBuild` at the foot of sheet-plan.js takes
+  the roof's own outline and lines, cuts them into FACES (a planar
+  arrangement — ridge, hip, valley, apron and change of pitch split the roof
+  where they cross or meet; gutters, barges and a line along a wall cut
+  nothing), and divides each face into strips one sheet cover wide, SQUARE TO
+  ITS GUTTER (no gutter → its ridge → an apron / change of pitch), each strip
+  clipped to the face so no piece ever runs past a roof line. HIS RULES, in
+  his words, and the suite pins each: sheets perpendicular to gutter and
+  ridge, never parallel; 45° to a hip or valley only; nothing past a roof
+  line. NOT FILLED YET — no colour, no number, no order group; the rules for
+  the fill are written at the top of that code and in `docs/SHEET_LAYOUT.md`
+  so they are not lost (ordered with a square cut edge, cut at hips and
+  valleys, the offcut SPUN — rotated in the plane — never flipped over).
+  `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: white pieces
+  with the long length up each, F1… per face with an arrow the way the sheets
+  run, the roof lines in the map's colours, a footer per face. The live card
+  passes `roofIdxs:[-1]` and `__origDrawLines` (DRAW.lines is the counting
+  pass's borrowed copy at that point); the captures pass roof indices, and
+  the all-roofs picture is ONE frame now, not a stack. An L's wing and main
+  west slopes come out as ONE face because they are one plane — right, and
+  the sheets run straight through. `_ccColumnsFor` / `_ccNumberColumns` stay
+  in sheet-plan.js for the calc check and are not used by the puzzle. The
+  engine is untouched (37-shape gate and every count pin byte-identical).
+  History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
+  (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
+  proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (66): plain
+  hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m),
+  gable 23 full strips and a 0.47 m closer from the barge, a change of pitch
+  as its own band at the lower pitch, Big-L 6 faces / 110, dutch stopping at
+  its apron, the hand-counted fixtures covered exactly once, five roofs in one
+  frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
+  THE T GABLE (a plain gable on a T outline) draws oddly because the gable
+  BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
