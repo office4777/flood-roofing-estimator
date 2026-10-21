@@ -2490,12 +2490,33 @@ Discipline (non-negotiable):
   pool — same hand, the offcut containing the piece square end to square
   end, the NEAREST fit first — or ordered as an extra sheet of its own.
   WHERE THE STRIPS START is what makes the offcuts match and is decided in
-  the builder: flush at a barge; a hip end from its APEX; a face with hips
-  at both ends from BOTH corners with the closer in the middle (Block-Cut's
-  mirror split), which is why the 18 × 12 m hip closes at 48 sheets with
-  nothing over. The footer carries the tally per length, the blocks, how
-  many end pieces came from offcuts, how many sheets were extra and how
-  many offcuts are left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE
+  the builder — THE RECTANGLE IS THE TEMPLATE (2026-10-22, the owner on the
+  Big-L: "imagine the L-shape and a rectangle (always picturing the larger
+  area with the longest sheets as the rectangle) and run the exact same
+  logic as the plain hip … like a cookie cutter"; and on the plain hip's
+  mid-face closer: "must always be full width sheets so it should force all
+  sheets across to the edges which would make a larger offcut"): flush at a
+  barge; a hip END (one top vertex, a hip each side, one of them reaching
+  the gutter — so an L's west face, the main's hip end with the wing's
+  slope on the same plane, counts; a peak where a wider wing's ridge pokes
+  through a lower ridge does NOT, which is what the T caught) from its
+  APEX; a slope between two hips as ONE RUN of full-width sheets along the
+  whole side of its rectangle (`_pzVirtualSpan` follows the gutter through
+  the roof: 18 m under an L's wing where the wall shows 12), from a REAL
+  corner of its gutter, parallel slopes voting on the side so a shared hip
+  end is fed from both alike, the remainder a LAPPED full sheet at the far
+  hip corner (`widthMm` shows 0.47, `lapMm` 0.29) — which is the mirror
+  split's corner sheet by another name, so the 18 × 12 m hip still closes
+  at 48 with two slivers over. A sheet cut at both ends (valley at the
+  foot, hip at the head) gives TWO offcuts of opposite hand; the pool is
+  matched best-pair-first across the whole roof, not longest-piece-first,
+  so a corner's offcut feeds the hip end beside it; a sliver under a third
+  of a sheet is a scrap off the nearest offcut and costs no sheet; extras
+  are ordered each at its own length (the Big-L: 78 sheets, 45 × 7.73 where
+  it was 51 — 18 m less steel — and six extras, five of them the north-slope
+  sheets the wing ate). The footer carries the tally per length, the
+  blocks, how many end pieces came from offcuts, how many sheets were extra
+  and how many offcuts are left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE
   DIFFERENT NUMBERS (the Big-L: 78 against 66) and nothing reconciles them
   — which one is the order is his call, not yet asked.
   `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: one tint per
@@ -2512,13 +2533,17 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (87): plain
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (94): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
-  filled as 2 × 24 with all 32 end pieces from offcuts of the opposite
-  slope, gable 23 full strips and a 0.47 m closer from the barge, a change
-  of pitch as its own band at the lower pitch, Big-L 6 faces / 111 and four
-  blocks, dutch stopping at its apron, every fed piece the hand of its donor,
-  the hand-counted fixtures covered exactly once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
+  laid as one run from the west with the lapped corner sheet, filled as
+  2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23
+  full strips and a 0.47 m closer from the barge, a change of pitch as its
+  own band at the lower pitch, Big-L 6 faces / 112 laid the template way
+  (the north slope along 18 m from the east, the west face from the main's
+  apex and fed from the south corner, both hip ends wholly from offcuts, six
+  extras each at its own length), dutch stopping at its apron, every fed
+  piece the hand of its offcut, the hand-counted fixtures covered exactly
+  once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first

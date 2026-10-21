@@ -101,8 +101,11 @@ the counting pass. Two steps, and only the first is built:
    sheet goes; a barge at the far end lays the strips from that end). Each
    strip is the convex rectangle clipped against the face polygon
    (`_ccClipToConvex`), so a piece is exactly the shape the roof lines cut
-   it to and NEVER runs past one. The last strip of a face is whatever is
-   left (18 m ÷ 0.762 = 23.6: 23 full strips and a 0.47 m closer).
+   it to and NEVER runs past one. Every sheet is a full sheet: where a run
+   does not divide (18 m ÷ 0.762 = 23.6) the remainder is a full-width sheet
+   at the far corner that LAPS its neighbour (0.47 m showing, 0.29 under),
+   never a sheet ripped narrow — each piece records what shows (`widthMm`)
+   and the lap (`lapMm`); its cut geometry comes from the whole sheet.
 4. **Lengths.** A piece's LONG edge (its extent up the slope) is the length
    it must be cut from, its SHORT edge is the other strip edge (0 for a
    triangle's tip), both at the pitch (`1/cos`, the lower pitch for the band
@@ -131,23 +134,52 @@ Block-Cut, mapped onto the puzzle:
    longer than that level's sheets — it is then that block's hip or valley
    cut. Rounding is per block, never grouped first (AppliCad's own warning).
 2. **Where the strips start** is decided in the builder, because it is what
-   makes the offcuts match: flush at a barge (a gable end is where the first
-   full sheet goes); a hip END face (gutter + two hips, no level line) from
-   its APEX, so each half's k-th strip from the apex is the exact spun
-   offcut of the k-th sheet from the corner on the slope opposite; a face
-   with a hip at BOTH ends from both corners towards the middle, the narrow
-   closer in the middle — Block-Cut's "split a plane … mirror" done for you,
-   and the reason the 18 × 12 m hip closes at 48 sheets with nothing over.
+   makes the offcuts match, and since 2026-10-22 it is the plain hip's rule
+   run on the RECTANGLE a face belongs to (the owner: "imagine the L-shape
+   and a rectangle … run the exact same logic as the plain hip … the Big
+   L's outline and lines like a cookie cutter"):
+   - flush at a barge (a gable end is where the first full sheet goes);
+   - a hip END — one vertex at the top with a hip each side, at least one
+     running down to the gutter — from its APEX, so each half's k-th strip
+     from the apex is the exact spun offcut of the k-th sheet from the
+     corner on the slope opposite. That holds even when a wing's ridge
+     stands on the same plane: an L's west face is the main's hip end AND
+     the wing's slope, and is anchored at the main's apex (a corner cell
+     under half a sheet becomes a flush full sheet lapping inward);
+   - a slope between two hips: ONE run of full-width sheets along the whole
+     side of its rectangle — the gutter followed through the roof
+     (`_pzVirtualSpan`), so an L's main slope is laid along the 18 m, not
+     the 12 m the wall shows — starting at a REAL corner of its gutter
+     (parallel slopes vote so the hip end they share is fed from both sides
+     alike), the remainder landing at the far hip corner as a lapped full
+     sheet. The owner on the old mirror split's narrow mid-face closer:
+     "must always be full width sheets … force all sheets across to the
+     edges which would make a larger offcut." The lapped corner sheet IS
+     the mirror split's corner sheet, so the far hip end still gets its
+     exact offcuts and the 18 × 12 m hip still closes at 48.
 3. **Offcuts.** A block sheet cut once leaves a trapezoid: short side
    (ordered length − the piece's long edge), long side (ordered − the
    piece's short edge), the diagonal's slope read off the cut edge itself,
    and a HAND — looking from the square end to the diagonal, is the long
    side on the left or the right. A sheet whose top is part ridge, part hip
    leaves only the triangle the hip spans, not a full-width trapezoid. It
-   goes into the pool under its donor's number.
+   goes into the pool under its donor's number. A sheet cut at BOTH ends
+   (an L's north slope beside the wing: the valley at its foot, the hip at
+   its head) hangs where it would on the plain rectangle — square top at
+   the ridge level, square foot at the gutter line — and gives TWO offcuts
+   of opposite hand, the one above the hip being exactly the plain hip's.
 4. **Ends.** A hip-end face, and any strip of a block face longer than its
    block's sheets (an L's main hip end standing on the same plane as the
-   wing's west slope), is sheeted from the pool, biggest piece first: same
+   wing's west slope), is sheeted from the pool — every feasible pair scored
+   (surplus plus half the distance across the roof) and the best pair on the
+   whole roof settled first, so a corner's offcut goes to the hip end beside
+   it rather than being carried across to a piece that merely asked first;
+   a corner sliver under a third of a sheet is a SCRAP trimmed off the
+   nearest offcut without consuming it; what nothing fits is ordered as an
+   extra at its OWN length (the Big-L: 7.73, 6.89, 6.05, 5.21, 4.37, 3.52 —
+   the north-slope sheets the wing ate, whose offcuts would have fed the
+   west end's lower half, and one near-square strip where the wing ridge
+   meets the hip). The fit is: same
    hand — a spin keeps it, only a flip would change it — and the offcut must
    CONTAIN the piece with their square ends together (its short side ≥ the
    piece's short side, its long side ≥ the piece's long side; a steeper or
