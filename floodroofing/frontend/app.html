@@ -3993,6 +3993,14 @@ html:is(.print-modern,.pdf-modern) .qe-edit{ background:none!important; box-shad
 .emx-hint{ font-size:11.5px; color:var(--text2); margin-top:4px; line-height:1.45; }
 .emx-top2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
 .emx-from{ font-size:12.5px; color:#334155; padding:8px 0; line-height:1.45; }
+/* The sending mailbox: a box you type in and the domain you cannot, set
+   flush so the two read as the one address they are. */
+.emx-sender{ display:flex; align-items:stretch; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#fff; }
+.emx-sender:focus-within{ border-color:#0099cc; box-shadow:0 0 0 2px rgba(0,153,204,.15); }
+.emx-sender input{ flex:1 1 auto; min-width:0; margin:0; border:0; border-radius:0; box-shadow:none; font-family:ui-monospace,Menlo,Consolas,monospace; }
+.emx-sender input:focus{ box-shadow:none; }
+.emx-sender span{ display:flex; align-items:center; padding:0 10px; background:#f1f5f9; border-left:1px solid var(--border);
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--text2); white-space:nowrap; }
 .emx{ display:grid; grid-template-columns:260px 1fr; gap:0; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#fff; }
 .emx-list{ background:#f6f8fb; border-right:1px solid var(--border); padding:6px 0; }
 .emx-g{ font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#64748b; padding:12px 14px 4px; }
@@ -5087,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-21T07:44:27Z';
+  window.APP_BUILT_AT = '2026-10-21T21:05:56Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -9514,7 +9522,13 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div class="emx-hint">Every email RoofMap sends for your business &mdash; quotes, follow-ups, acceptances, questions, invoices, orders and schedule updates &mdash; is copied here, on top of the copies set on each email below. Separate several addresses with a comma.</div>
         <div class="emx-top2">
           <div class="emx-f"><label for="emReplyTo">Customer replies go to</label><input type="text" id="emReplyTo" placeholder="Your Branding email" autocomplete="off"><div class="emx-hint">Where a customer&rsquo;s reply lands. Any email below can send its replies somewhere else.</div></div>
-          <div class="emx-f"><label>Sent from</label><div class="emx-from" id="emFromInfo"></div></div>
+          <div class="emx-f"><label for="emSenderLocal">Sent from</label>
+            <div class="emx-sender" id="emSenderWrap" style="display:none">
+              <input type="text" id="emSenderLocal" placeholder="yourbusiness" autocomplete="off" spellcheck="false"
+                     onchange="_emSenderTidy()" aria-label="The mailbox name your quotes are sent from">
+              <span id="emSenderDom"></span>
+            </div>
+            <div class="emx-from" id="emFromInfo"></div></div>
         </div>
       </div>
       <div class="emx">
@@ -32036,14 +32050,60 @@ async function removeTeamDomain(id, host){
 // ── Send from your own email address (Business) ────────────────────
 // The server registered the domain with the mail provider on their behalf;
 // this screen just shows the DNS records to add and re-asks until verified.
-var _MAILDOM = { loaded: false, enabled: false, allowed: false, domain: null };
+var _MAILDOM = { loaded: false, enabled: false, allowed: false, domain: null, tenant: null };
 async function _mailDomainLoad(){
   if (!document.getElementById('emDomainBody')) return;
   try {
     var r = await api('GET', '/email/domain');
-    _MAILDOM = { loaded: true, enabled: !!r.enabled, allowed: !!r.allowed, domain: r.domain || null };
-  } catch(e){ _MAILDOM = { loaded: true, enabled: false, allowed: false, domain: null }; }
+    _MAILDOM = { loaded: true, enabled: !!r.enabled, allowed: !!r.allowed, domain: r.domain || null, tenant: r.tenant || null };
+  } catch(e){ _MAILDOM = { loaded: true, enabled: false, allowed: false, domain: null, tenant: null }; }
   _mailDomainRender();
+  try { _emSenderRender(); } catch(e){}
+}
+// WHAT THE CUSTOMER WILL SEE IN THEIR INBOX, on the page where it is set
+// (2026-10-21, the owner: "i want other users to enter their own
+// xxxxx@quotes.roofmap.co.nz (defaults to their business name)").
+//
+// The box is the mailbox NAME only; the domain is ours and is shown beside
+// it, unerasable, because an address half-typed into a free-text field is a
+// From line nobody can send from. Blank is not empty — it is the business's
+// own trading name, which is what every account has been sending from, so
+// the default rides in the PLACEHOLDER and an untouched box stores nothing.
+function _emSenderTidy(){
+  var el = document.getElementById('emSenderLocal'); if (!el) return;
+  // Taken literally, only cleaned: the server's own _tenantLocalClean.
+  var v = String(el.value || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 30);
+  el.value = (v.length >= 2) ? v : '';
+  _emSenderRender();
+}
+function _emSenderRender(){
+  var br = (S.settings && S.settings.branding) || {};
+  var t  = _MAILDOM.tenant || null;
+  var own = (_MAILDOM.domain && _MAILDOM.domain.status === 'verified') ? _MAILDOM.domain : null;
+  var wrap = document.getElementById('emSenderWrap');
+  var el   = document.getElementById('emSenderLocal');
+  var dom  = document.getElementById('emSenderDom');
+  var fi   = document.getElementById('emFromInfo');
+  var name = br.company_name || (t && t.name) || '';
+  // The box is only a control where there IS a shared subdomain to sit on.
+  if (wrap) wrap.style.display = (t && t.domain && !own) ? '' : 'none';
+  if (dom && t && t.domain) dom.textContent = '@' + t.domain;
+  if (el && t) el.placeholder = t.derived || 'yourbusiness';
+  if (!fi) return;
+  if (own){
+    fi.innerHTML = '<b>' + esc2(name || 'Your business name') + '</b> &lt;' + esc2(own.from_email || '') +
+      '&gt; &mdash; your own verified address.';
+    return;
+  }
+  if (t && t.domain){
+    var local = (el && String(el.value || '').trim()) || t.derived || '';
+    fi.innerHTML = local
+      ? ('Your quotes go out as <b>' + esc2(name || 'Your business name') + '</b> &lt;<span style="font-family:ui-monospace,Menlo,Consolas,monospace">' +
+         esc2(local + '@' + t.domain) + '</span>&gt;, with replies coming back to you. Leave the box empty to use your business name.')
+      : ('Fill in your business name under Branding and your quotes go out as <b>yourbusiness@' + esc2(t.domain) + '</b>.');
+    return;
+  }
+  fi.innerHTML = '<b>' + esc2(name || 'Your business name') + '</b> &lt;sent by RoofMap&gt; &mdash; or from your own address once it is verified at the bottom of this page.';
 }
 function _mailDomainRender(){
   var box = document.getElementById('emDomainBody'); if (!box) return;
@@ -44873,6 +44933,7 @@ var EMX_FIELDS = [
   ['emAcceptOfficeOn','accept_office_on','on'], ['emAcceptOfficeCc','accept_office_cc'],
   ['emQuestionOn','question_on','on'], ['emQuestionTo','question_to'], ['emQuestionCc','question_cc'],
   ['emDeclineOn','decline_on','on'], ['emDeclineTo','decline_to'], ['emDeclineCc','decline_cc'],
+  ['emSenderLocal','sender_local'],
   ['emInvoiceCc','invoice_cc'], ['emInvoiceReplyTo','invoice_reply_to'],
   ['emOrderReplyTo','order_reply_to'], ['emSchedCc','sched_cc'], ['emSchedReplyTo','sched_reply_to']
 ];
@@ -44906,8 +44967,7 @@ function _emxFill(em){
   try {
     var br = (S.settings && S.settings.branding) || {};
     var rt = document.getElementById('emReplyTo'); if (rt) rt.placeholder = br.email ? br.email + ' (your Branding email)' : 'Your Branding email';
-    var fi = document.getElementById('emFromInfo');
-    if (fi) fi.innerHTML = '<b>' + esc2(br.company_name || 'Your business name') + '</b> &lt;sent by RoofMap&gt; &mdash; or from your own address once it is verified at the bottom of this page.';
+    _emSenderRender();
   } catch(e){}
   // the schedule wording lives with its own Save button; it sits in the Schedule updates pane
   try { var sh = document.getElementById('emxSchedHost'), sec = document.getElementById('schedTplSection'); if (sh && sec && sec.parentNode !== sh) sh.appendChild(sec); } catch(e){}

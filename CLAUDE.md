@@ -2269,6 +2269,71 @@ Discipline (non-negotiable):
   are the stale-pin lesson again: the suite asserted a shed offered no profile
   section, no guttering row and an exact picks list — all three were pinning
   the absence of what he has now asked for.
+- A QUOTE LEAVES AS THE ROOFER, OR IT SAYS WHY (2026-10-21, the owner with two
+  emails side by side: quote 3320 on 18 Oct went out as `Flood Roofing
+  <floodroofing@quotes.roofmap.co.nz>`, reply-to office@floodroofing.co.nz,
+  signed by quotes.roofmap.co.nz — and quote 3305 the next day went out as
+  `RoofMap <support@roofmap.co.nz>`. "why did my quote get sent through
+  support@roofmap.co.nz?")
+  BOTH HALVES FAILED TOGETHER, which is what names the cause. The From NAME
+  and the From ADDRESS come from one place — `_tenantMailIdentity` over the
+  settings row — so a quote wearing neither is not two bugs, it is that read.
+  And no commit between those two sends touches the path at all (checked:
+  only ec4621f landed between them, and it is the jobs list and the version
+  naming). NOT A REGRESSION IN THE CODE, therefore: a read that failed.
+  `/email/send-order` called `_companySettingsRow(req)` — `select('*')` — to
+  find a company name and a reply-to. On THIS table that drags the logo, the
+  cover hero, four accreditation logos, every profile and gutter picture and
+  the whole custom price book across the wire, on the hot path of every quote.
+  The Fergus proxy was narrowed for exactly this reason on 2026-09-23; the
+  mail path never was. And it sat inside `try { ... } catch (e) {}`, so a slow
+  or failed read left the identity at `{null, null}` and the quote went out
+  from the PLATFORM address, nameless, with no reply-to, and nothing anywhere
+  said so. `_mailIdentityOf` reads three jsonb paths instead
+  (`cname:branding->>company_name`, `bemail:branding->>email`,
+  `emcfg:quote_defaults->email`), PostgREST extracting them server-side the
+  way the jobs list does for the job number; `_mailIdentityRow` builds the
+  small stand-in row the route's own helpers (`_emailCopies`,
+  `_termsWantedFor`, `_tenantMailIdentity`) read, which is the whole of what
+  the fat read was for.
+  NOT CACHED, and that was a round. A 60 s TTL went in first and broke the
+  terms switch and the CC list — `termsoftrade` caught it — because this one
+  read also carries `quote_defaults.email`, which the old fat read fetched
+  fresh every send: turning the terms on and sending straight away got a
+  quote without them. Narrowing the read is what makes a per-send read
+  affordable; caching it was paying for the cost the narrowing had already
+  removed, in staleness.
+  A FAILURE IS NOW LOUD AND STILL SENDS. One retry after 120 ms (what takes
+  this path out is a moment, not a condition), then the COMPANY RECORD'S own
+  name (`_companyNameOf`) so the customer still sees their roofer, and a
+  `recordError('mail-identity', …)` naming the company and what the envelope
+  fell back to. The quote still goes — "a person who pressed a button and got
+  nothing is worse off" — but it can never again go wrong in silence.
+  THE OFFICE MAY NAME ITS OWN MAILBOX on the shared subdomain (the same
+  message: "i want other users to enter their own xxxxx@quotes.roofmap.co.nz
+  (defaults to their business name)"). `quote_defaults.email.sender_local`,
+  Settings → Email → Sent from: a box for the mailbox NAME with the domain
+  shown beside it and unerasable, because an address half-typed into a free
+  text field is a From line nobody can send from. A BLANK BOX IS THE
+  STANDARD: no key means `_tenantLocalPart(company_name)`, so every account
+  that never opens that box keeps the address it has been sending from, and
+  the default rides in the PLACEHOLDER. `_tenantLocalClean` takes a TYPED
+  name literally (lowercase, alphanumeric, 2–30) where `_tenantLocalPart`
+  drops the legal suffix — "Kauri Roofing Ltd" defaults to kauriroofing, but
+  somebody who types kauriroofingltd means it. Cleaned on the way out as well
+  as in, so a row from an older build can never put a space or an @ in a From
+  line. `GET /email/domain` reports `tenant {domain, name, derived, local,
+  typed, address}` so the page shows the address its mail actually wears.
+  UNIQUENESS IS NOT ENFORCED, deliberately and worth knowing: two businesses
+  both trading as Flood Roofing would derive the same mailbox. The address is
+  IDENTITY, not a mailbox — replies follow Reply-To — so a collision is
+  cosmetic rather than a leak, and checking it at send time would be a query
+  per quote to prevent something nobody has hit. Revisit if it ever happens.
+  `tests/sendername.mjs` (16, in run.mjs's API list) is the tripwire: it
+  drives the real server against a fake Resend with TENANT_MAIL_DOMAIN set
+  and pins the actual From line, the typed mailbox, the blank-is-the-default
+  rule, and — with `db.__fail500 = 'user_settings'` — that a failed read still
+  sends, wears the company's name and is reported.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type

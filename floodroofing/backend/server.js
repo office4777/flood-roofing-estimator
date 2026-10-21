@@ -665,7 +665,22 @@ function _resendFromAddress(addr){
 // none and the caller keeps the platform default. Company-scoped so one
 // business can never ride another's verification: the map is keyed by the
 // company that verified the domain, not by whatever address a caller typed.
-function _tenantSendAddress(companyId, companyName, replyTo){
+// THE OFFICE MAY NAME ITS OWN MAILBOX on the shared subdomain (2026-10-21,
+// the owner: "i want other users to enter their own xxxxx@quotes.roofmap.co.nz
+// (defaults to their business name)"). Settings -> Email -> Sent from. A BLANK
+// BOX IS THE STANDARD, never an empty mailbox: no key means the name they
+// trade under, so every business that never opens that box keeps exactly the
+// address it has been sending from. Cleaned on the way OUT as well as on the
+// way in, so a row written by an older build can never put a space or an @
+// into a From line.
+function _tenantLocalClean(v){
+  const s = String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 30);
+  return s.length >= 2 ? s : '';
+}
+function _tenantSenderLocal(emailCfg, companyName){
+  return _tenantLocalClean((emailCfg || {}).sender_local) || _tenantLocalPart(companyName);
+}
+function _tenantSendAddress(companyId, companyName, replyTo, senderLocal){
   if (!RESEND_ENABLED) return null;
   if (companyId) {
     _refreshMailDomains();   // fire and forget; this call reads what we have
@@ -679,10 +694,113 @@ function _tenantSendAddress(companyId, companyName, replyTo){
   // at least reaches a monitored inbox. (A company's OWN verified domain
   // above needs no such guard — that address is their real office mailbox.)
   if (TENANT_MAIL_DOMAIN && replyTo) {
-    const lp = _tenantLocalPart(companyName);
+    const lp = _tenantLocalClean(senderLocal) || _tenantLocalPart(companyName);
     if (lp) return lp + '@' + TENANT_MAIL_DOMAIN;
   }
   return null;
+}
+// ── THE IDENTITY READ IS SMALL, AND IT NEVER FAILS QUIETLY ─────────
+// (2026-10-21.) Sending a quote needs exactly three things off the settings
+// row: the business's name, where replies go, and its email config. The
+// send route read `select('*')` to get them — and on THIS table that drags
+// the logo, the cover hero, four accreditation logos, every profile and
+// gutter picture and the whole custom price book across the wire to find a
+// company name. Megabytes, on the hot path of every quote.
+//
+// Which would only be waste, except the read is wrapped in a catch that
+// swallows: when it is slow or fails, the identity falls back to {null,
+// null} and the quote goes out from the PLATFORM address with no business
+// name and no reply-to, and nothing anywhere says so. Quote 3320 went out
+// perfectly on 18 Oct as `Flood Roofing <floodroofing@quotes.roofmap.co.nz>`
+// and 3305 went out the next day as `RoofMap <support@roofmap.co.nz>`, with
+// no commit between them touching this path at all.
+//
+// So: jsonb paths only, which PostgREST extracts server-side exactly as the
+// jobs list does for the job number, and a FAILURE is reported and falls
+// back to the company record's own name rather than quietly posting as us.
+//
+// NOT CACHED, and that was a round: a minute's TTL went in first and broke
+// the terms switch and the CC list, because this one read also carries
+// `quote_defaults.email` and the old fat read was fresh every send. Turning
+// the terms on and sending straight away got a quote without them. The read
+// is three jsonb values and no pictures, which is what makes a per-send read
+// affordable — caching it was solving the cost the narrowing had already
+// removed, and buying staleness with the savings.
+const _MAIL_ID_TTL_MS = 60 * 1000;
+const _MAIL_ID_COLS = 'user_id,company_id,updated_at,' +
+  'cname:branding->>company_name,bemail:branding->>email,emcfg:quote_defaults->email';
+// The company record still knows what they are called when their settings
+// row cannot be read — the "a failed read is an ERROR, never an empty
+// result" rule, applied to the one field a customer actually sees.
+const _companyNameCache = new Map();
+async function _companyNameOf(companyId){
+  if (!companyId) return null;
+  const hit = _companyNameCache.get(String(companyId));
+  if (hit && Date.now() - hit.at < _MAIL_ID_TTL_MS) return hit.name;
+  let name = null;
+  try {
+    const { data } = await supabase.from('companies').select('name').eq('id', companyId).maybeSingle();
+    name = (data && String(data.name || '').trim()) || null;
+  } catch (e) { name = null; }
+  _companyNameCache.set(String(companyId), { at: Date.now(), name });
+  return name;
+}
+// Newest sibling fills a blank, owner's row leads — _pickCompanySettingsRow
+// and _mergeCompanySettings' rules, on the three fields this read carries.
+function _mailIdPick(rows, ownerUserId){
+  if (!rows || !rows.length) return null;
+  const owned = ownerUserId && rows.find(r => String(r.user_id) === String(ownerUserId));
+  const primary = owned || rows.slice().sort(_bySettingsRecency)[0];
+  const others = rows.filter(r => r !== primary).sort(_bySettingsRecency);
+  const pick = (f) => {
+    if (!_settingsValueEmpty(primary[f])) return primary[f];
+    const d = others.find(r => !_settingsValueEmpty(r[f]));
+    return d ? d[f] : null;
+  };
+  return { name: pick('cname'), email: pick('bemail'), em: pick('emcfg') || {} };
+}
+async function _mailIdentityOf(companyId, userId){
+  let v = null, why = '';
+  // ONE RETRY BEFORE GIVING UP ON THEIR ADDRESS. What takes this path out is
+  // a moment, not a condition — a statement timeout, a connection recycled
+  // under load — and the cost of being wrong is a customer receiving their
+  // quote from a company they have never heard of. A second attempt is one
+  // small query; the fallback below is the real safety net, not the plan.
+  for (let attempt = 0; attempt < 2 && !v; attempt++){
+  if (attempt) await new Promise(r => setTimeout(r, 120));
+  try {
+    let rows = null;
+    if (companyId){
+      const r = await supabase.from('user_settings').select(_MAIL_ID_COLS).eq('company_id', companyId);
+      if (r.error) throw new Error(r.error.message || 'read failed');
+      rows = r.data;
+    }
+    if ((!rows || !rows.length) && userId){
+      const r = await supabase.from('user_settings').select(_MAIL_ID_COLS).eq('user_id', userId);
+      if (r.error) throw new Error(r.error.message || 'read failed');
+      // A legacy row stamped with a DIFFERENT company is not theirs to read.
+      rows = (r.data || []).filter(x => !(companyId && x.company_id && String(x.company_id) !== String(companyId)));
+    }
+    v = _mailIdPick(rows, companyId ? await _companyOwnerUserId(companyId) : null);
+    if (v) v.ok = true;
+  } catch (e) { v = null; why = (e && e.message) || String(e); }
+  }
+  if (v) return v;
+  const fallback = { name: await _companyNameOf(companyId), email: null, em: {}, ok: false };
+  try {
+    recordError('mail-identity', new Error('settings read failed for company ' + (companyId || '-') +
+      (why ? (': ' + why) : '') + ' - the email goes out as ' +
+      (fallback.name ? (fallback.name + ' on the platform address') : 'RoofMap') + ' with no reply-to'),
+      { companyId: companyId || null });
+  } catch (e) {}
+  return fallback;
+}
+// The small stand-in row the send route's own helpers read. They want
+// branding.company_name, branding.email and quote_defaults.email and
+// nothing else, so this is the whole of what the fat read was for.
+function _mailIdentityRow(id){
+  return { branding: { company_name: (id && id.name) || '', email: (id && id.email) || '' },
+           quote_defaults: { email: (id && id.em) || {} } };
 }
 // Google Workspace relay (Apps Script web app that sends as office@ via
 // Gmail). The fallback when Resend is not configured: it sends from the real
@@ -11275,12 +11393,28 @@ async function _mailDomainRowFull(d){
 
 app.get('/email/domain', requireAuth, async (req, res) => {
   const allowed = !!_limitsFor(await _planOf(req.companyId)).maildomain;
-  if (!req.companyId) return res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null });
+  // The shared subdomain the quote is ACTUALLY going out from today, so the
+  // office can read its own From line off the page instead of off a sent
+  // email. `local` is what the box should hold, `derived` what a blank one
+  // falls back to, and the two together are the whole of the control.
+  let tenant = null;
+  try {
+    if (TENANT_MAIL_DOMAIN && RESEND_ENABLED){
+      const id = await _mailIdentityOf(req.companyId, req.user && req.user.id);
+      const derived = _tenantLocalPart(id.name);
+      const local = _tenantSenderLocal(id.em, id.name);
+      tenant = { domain: TENANT_MAIL_DOMAIN, name: id.name || '', derived: derived,
+                 local: local, typed: _tenantLocalClean((id.em || {}).sender_local) || '',
+                 address: local ? (local + '@' + TENANT_MAIL_DOMAIN) : null };
+    }
+  } catch (e) { tenant = null; }
+  if (!req.companyId) return res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null, tenant: tenant });
   try {
     const { data } = await supabase.from('company_mail_domains').select('*')
       .eq('company_id', req.companyId).maybeSingle();
-    res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: data ? await _mailDomainRowFull(data) : null });
-  } catch (e) { res.json({ enabled: RESEND_ENABLED, allowed: allowed, domain: null }); }
+    res.json({ enabled: RESEND_ENABLED, allowed: allowed, tenant: tenant,
+               domain: data ? await _mailDomainRowFull(data) : null });
+  } catch (e) { res.json({ enabled: RESEND_ENABLED, allowed: allowed, tenant: tenant, domain: null }); }
 });
 
 // The roofer rarely does their own DNS — but they all know SOMEBODY who
@@ -11458,19 +11592,27 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     // customer — so it goes out under their name with replies pointed at them,
     // not at us. A tenant who has not filled in Branding keeps the platform
     // identity rather than sending something nameless.
-    let _who = { fromName: null, replyTo: null }, _stRow = null;
+    //
+    // Through _mailIdentityOf, which reads three jsonb paths rather than the
+    // whole settings row and reports rather than swallowing a failure. A
+    // quote that goes out nameless from the platform address is the worst
+    // shape this route has, because nothing on the office's screen says it
+    // happened — see the block above _mailIdentityOf.
     const _kind = (req.body && (req.body.kind === 'quote' || req.body.kind === 'order')) ? req.body.kind : null;
-    try { _stRow = await _companySettingsRow(req); _who = _tenantMailIdentity(_stRow, _kind); } catch (e) {}
+    const _id = await _mailIdentityOf(req.companyId, req.user && req.user.id);
+    const _stRow = _mailIdentityRow(_id);
+    const _who = _tenantMailIdentity(_stRow, _kind);
     // The master copy (Settings → Email), never on a practice send.
     let _cc = cc;
-    if (!(req.body && req.body.test === true) && _stRow) _cc = _emailCopies(_stRow, cc, _emailList(to));
+    if (!(req.body && req.body.test === true)) _cc = _emailCopies(_stRow, cc, _emailList(to));
     let _terms = null;
     if (!(req.body && req.body.test === true) && _termsWantedFor(_stRow, _kind, _wantTerms))
       _terms = await _termsAttachment(req.companyId);
     const mail = { to, cc: _cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
                    attachments: _terms ? [_terms] : undefined,
                    attachment, fromName: _who.fromName, replyTo: _who.replyTo,
-                   fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo) };
+                   fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo,
+                                                   _tenantSenderLocal(_id.em, _who.fromName)) };
     // The Google Apps Script relay can take 10-20s to wake + send, which made
     // the office wait on the "Send" button. When the caller opts into
     // background mode, dispatch the send without blocking the response: this
