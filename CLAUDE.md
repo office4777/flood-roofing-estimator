@@ -4299,11 +4299,30 @@ sweeps ran, a Stripe checkout completed). So a red backend step with
 `/health` stuck on an older build and NO new entry in Deployments means
 LOOK AT RAILWAY'S OWN STATUS BANNER / status.railway.com first, then the
 workspace billing — not the code or the service settings.
+CONFIRMED BY status.railway.com (the owner pasted it, 10:10 am NZ 22 Oct):
+"Earlier today an issue affecting multiple systems led us to pause builds
+across the platform" — Investigating from 07:24 UTC 21 Oct (8:24 pm NZ),
+builds paused in ALL regions, dashboard/API/CLI down for hours, OAuth
+sessions invalidated as mitigation, and builds coming back IN STAGES:
+Enterprise first (from ~20:30 UTC), then Pro, then Hobby, then Free/Trial —
+RoofMap's workspace is not Enterprise, so it waits its turn. Nothing on our
+side is wrong and nothing on our side can hurry it.
 Once the pause lifts, `production` already carries the commit and Railway
 should deploy it by itself; redeploy by hand if it does not. A cloud session
 cannot see any of this (the proxy refuses that host). Until the pause lifts
 do not report a server change as live on the strength of the promote's
-frontend half. main is one DOCS-ONLY commit ahead
+frontend half.
+AND THE NEXT SHIP MADE THE HALF-SHIP REAL: `c54ac58` (A QUOTE LEAVES AS THE
+ROOFER, another session, 21:05 UTC) changes server.js as well as app.html —
+`_mailIdentityOf`, `sender_local`, `GET /email/domain` answering `tenant`.
+Its promote (run 39676725083) will verify the FRONTEND and go red on the
+backend, and this time the diff is not empty: Vercel serves the new Settings
+→ Email "Sent from" box against an API that does not answer `tenant` yet.
+Checked, and benign: `_MAILDOM.tenant` falls to null and the box renders
+nothing, so the page degrades to what it was. The quote-sending fix itself
+(the narrowed identity read) is NOT live until `/health` reads `c54ac58` or
+later — a quote sent before then can still go out nameless. Check `/health`
+before telling him that one is fixed. main is one DOCS-ONLY commit ahead
 (this one). Nothing uncommitted.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
