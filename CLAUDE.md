@@ -4305,11 +4305,12 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `8ada6e1` (the sheet layout filled the Roof Wizard
-way), verified byte-for-byte by promote run 39567915486's own log. BACKEND
-`/health` still reports `fcaab9a` after TWO promotes in a row (86bde0a's run
-39564578119 and 8ada6e1's run 39567915486 both went red on the backend step,
-each after the full 10 minutes). That is NOT a half-ship in substance:
+**Live now.** FRONTEND = `12f46b4` (the sheet layout laid with the rectangle
+as the template, 2026-10-22 10:27 am NZ), verified by promote run
+39685318185's own log ("The site is serving 12f46b4"); `c54ac58` and
+`8ada6e1` verified the same way before it. BACKEND `/health` still reports
+`fcaab9a` after FOUR promotes in a row (86bde0a, 8ada6e1, c54ac58, 12f46b4
+each went red on the backend step after the full 10 minutes). That is NOT a half-ship in substance:
 `git diff fcaab9a..8ada6e1 -- floodroofing/backend/` is EMPTY, so the API is
 running byte-identical server code under an older name — the same shape as
 2026-10-20 below. THE CAUSE IS KNOWN (the owner's screenshot, 2026-10-22
