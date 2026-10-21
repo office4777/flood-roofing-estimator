@@ -4222,12 +4222,19 @@ way), verified byte-for-byte by promote run 39567915486's own log. BACKEND
 each after the full 10 minutes). That is NOT a half-ship in substance:
 `git diff fcaab9a..8ada6e1 -- floodroofing/backend/` is EMPTY, so the API is
 running byte-identical server code under an older name — the same shape as
-2026-10-20 below. But two ships in a row not taken is more than a slow
-deploy, and it has been put to the owner: look at Railway → Deployments for
-a failed or stuck deploy of `production`. A cloud session cannot (the proxy
-refuses that host). The NEXT backend-touching ship will show whether Railway
-is deploying at all; until then do not report a server change as live on the
-strength of the promote's frontend half. main is one DOCS-ONLY commit ahead
+2026-10-20 below. THE CAUSE IS KNOWN (the owner's screenshot, 2026-10-22
+morning NZ): Railway's Deployments tab shows "Limited Access — Deploys have
+been paused temporarily", an ACCOUNT-level pause (billing or a usage limit),
+not a failed build — there is no deploy entry for either commit at all, and
+the running service is healthy (booted 7:58 pm NZ, migrations 161/0, the
+sweeps ran, a Stripe checkout completed). So a red backend step with
+`/health` stuck on an older build and NO new entry in Deployments means
+LOOK AT THE RAILWAY WORKSPACE BILLING, not the code or the service settings.
+Once the pause lifts, `production` already carries the commit and Railway
+should deploy it by itself; redeploy by hand if it does not. A cloud session
+cannot see any of this (the proxy refuses that host). Until the pause lifts
+do not report a server change as live on the strength of the promote's
+frontend half. main is one DOCS-ONLY commit ahead
 (this one). Nothing uncommitted.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
