@@ -874,21 +874,23 @@ Discipline (non-negotiable):
   that is what the customer's link would have shown. (Job 3287's screenshot
   is exactly this: Pole Shed in the job details, the roofing nav on the
   Quote tab.) Both renderers now branch on `quoteKind` to
-  `_psModernSections()` — cover, psplans, psdetails, psoptions, psincluded,
-  psreview. ONE SOURCE OF TRUTH: `_buildPoleShedPages(…, wantParts)` returns
-  its content blocks instead of the assembled A4, `_psParts()` fetches them,
-  and the modern sections wrap those same blocks — so the two styles cannot
-  drift about what the shed is. Classic still renders the six A4 pages
+  `_psModernSections()`. SUPERSEDED IN BOTH HALVES, and the history matters
+  only as the reason the code looks as it does: the section list is now the
+  one in A MODERN POLE SHED LOOKS LIKE A MODERN ROOFING QUOTE (2026-10-20)
+  plus `psprofile` and `psgutter` (2026-10-21) — read that bullet, not this
+  one, for what renders. And the modern sections no longer WRAP the A4's
+  blocks: `_buildPoleShedPages(…, wantParts)` / `_psParts()` still exist and
+  the CLASSIC document still uses them, but every `_psm*` function reads the
+  shed's own helpers instead, so the facts stay shared while the presentation
+  forks. Classic still renders the six A4 pages
   unchanged and a roofing quote is untouched; `tests/poleshed.mjs` pins the
   section KEYS rather than page text, because the shed's own wording
   legitimately contains phrases like "Steel grade" and "Old roof".
   THE PHONE HALF OF THAT IS DONE (2026-10-13): the A4's two-column grids
   collapse, spec rows stack label-above-value and the chapter band is cut down,
-  all scoped to `.ps-body` — see the customer-total bullet. STILL TO DO on the
-  COMPUTER: the sections carry the A4's typography inside the modern cards.
-  They read correctly and the Style switch works, but they do not yet use the
-  modern card/rail idiom the roofing quote does — the owner should see them
-  before that is finished.
+  all scoped to `.ps-body` — see the customer-total bullet. THE COMPUTER HALF
+  WAS DONE ON 2026-10-20 (the cross-breed bullet above): the sections are
+  `.qb-*` cards now, not the A4's typography inside them.
 - TWO SHEDS ON ONE QUOTE (2026-10-12, the owner: "a 2nd import webshed pdf
   button called 'Add another plan option' ... switch between the two options
   should change the photos imported in the quote so the customer can see the
@@ -4158,14 +4160,18 @@ server.js — no library, deliberately). The report carries the API key's
 LENGTH and never the key; keep it that way, `tests/jmsdiag.mjs` pins it. Ask
 the owner for that PDF before guessing at a Fergus fault.
 
-## Where things stand — 2026-10-20
+## Where things stand — 2026-10-21
 
 Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** main = production = `f5c3454`, verified from the promote's own
-log (frontend byte-for-byte, backend `/health.build`). Nothing uncommitted.
+**Live now.** production = `f5c3454`, verified from promote run 39536895935's
+own log (frontend byte-for-byte, backend "Live after 60s"). main is one
+DOCS-ONLY commit ahead of it, which is right and not a half-ship: a commit
+touching only CLAUDE.md runs no Tests and therefore no promote, so compare
+production against the last commit that touched `frontend/` or `backend/`
+before concluding anything is unshipped. Nothing uncommitted.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
 serves the old build until the tab is reloaded.
@@ -4225,6 +4231,21 @@ session, and none has been confirmed done since the date beside it.**
 - UNANSWERED: should a Custom Price Book line's mark-up REPLACE the job's
   material mark-up for that item? And Nearmap stays OFF until privacy.html
   v1.2 names it + 30 days' notice.
+- ASKED 2026-10-21, no answer yet — three questions already put to him, so do
+  not ask again, just pick them up if he answers:
+  1. THE STEP-DOWN GABLE'S APRON. He settled the junction BARGE (it runs
+     ridge to ridge) and the same geometry says the APRON on the narrower
+     block should also start at the lower ridge rather than running the whole
+     shared stretch. He confirmed only the barge, and an apron is what keeps
+     water out, so it was not changed on reasoning alone.
+  2. SOAKER TRAYS, Scott's ask relayed by the owner — NOT STARTED, and it
+     cannot be until he says how they are priced: per penetration, per metre,
+     or a fixed each; and whether a soaker REPLACES the back-tray a
+     penetration already brings or sits beside it. Both answers change the
+     take-off row, not just a price.
+  3. THE SHED'S MODERN COVER still carries a navy strip above the render —
+     the deliberate trade in THE PICTURE'S OWN SHAPE IS THE FLOOR. The
+     alternative is a 56%-full cover sheet. Offered; he has not said.
 
 **Two platform sweeps, in one shape** (nowhere else in this file): the trial
 drip (`_trialDripSweep`, days 1/3/7/12, `subscriptions.trial_drip`, hourly,
