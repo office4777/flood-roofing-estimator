@@ -4196,9 +4196,10 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** production = `f5c3454`, verified from promote run 39536895935's
-own log (frontend byte-for-byte, backend "Live after 60s"). main is one
-DOCS-ONLY commit ahead of it, which is right and not a half-ship: a commit
+**Live now.** production = `fcaab9a` (the sheet layout's return), verified
+from promote run 39558705158's own log (frontend "Live after 40s", backend
+"Live after 60s"). main is one DOCS-ONLY commit ahead of it (`ed78791`, the
+saved legacy drawing code), which is right and not a half-ship: a commit
 touching only CLAUDE.md runs no Tests and therefore no promote, so compare
 production against the last commit that touched `frontend/` or `backend/`
 before concluding anything is unshipped. Nothing uncommitted.
