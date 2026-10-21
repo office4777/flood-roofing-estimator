@@ -4215,13 +4215,20 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** production = `fcaab9a` (the sheet layout's return), verified
-from promote run 39558705158's own log (frontend "Live after 40s", backend
-"Live after 60s"). main is one DOCS-ONLY commit ahead of it (`ed78791`, the
-saved legacy drawing code), which is right and not a half-ship: a commit
-touching only CLAUDE.md runs no Tests and therefore no promote, so compare
-production against the last commit that touched `frontend/` or `backend/`
-before concluding anything is unshipped. Nothing uncommitted.
+**Live now.** FRONTEND = `8ada6e1` (the sheet layout filled the Roof Wizard
+way), verified byte-for-byte by promote run 39567915486's own log. BACKEND
+`/health` still reports `fcaab9a` after TWO promotes in a row (86bde0a's run
+39564578119 and 8ada6e1's run 39567915486 both went red on the backend step,
+each after the full 10 minutes). That is NOT a half-ship in substance:
+`git diff fcaab9a..8ada6e1 -- floodroofing/backend/` is EMPTY, so the API is
+running byte-identical server code under an older name — the same shape as
+2026-10-20 below. But two ships in a row not taken is more than a slow
+deploy, and it has been put to the owner: look at Railway → Deployments for
+a failed or stuck deploy of `production`. A cloud session cannot (the proxy
+refuses that host). The NEXT backend-touching ship will show whether Railway
+is deploying at all; until then do not report a server change as live on the
+strength of the promote's frontend half. main is one DOCS-ONLY commit ahead
+(this one). Nothing uncommitted.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
 serves the old build until the tab is reloaded.
