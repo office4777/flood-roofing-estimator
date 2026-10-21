@@ -65,10 +65,10 @@ check('…and the select-all box is there, ticked', v.allChip === true, String(v
 
 // ── one combined diagram per kind, listed first ───────────────────
 check('there is ONE combined diagram per map kind',
-  v.keys.filter(k => /:all$/.test(k)).sort().join(',') === 'calccheck:all',
+  v.keys.filter(k => /:all$/.test(k)).sort().join(',') === 'calccheck:all,sheetplan:all',
   v.keys.filter(k => /:all$/.test(k)).join(','));
 check('…listed above the per-roof ones',
-  /:all$/.test(v.keys[0]) && !/:all$/.test(v.keys[1]),
+  /:all$/.test(v.keys[0]) && /:all$/.test(v.keys[1]) && !/:all$/.test(v.keys[2]),
   v.keys.slice(0,4).join(' | '));
 check('…labelled "All roofs" while every roof is on',
   v.subs[0] === 'All roofs', v.subs[0]);

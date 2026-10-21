@@ -26,7 +26,7 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (273 as of 2026-10-20 — 58 in its `API` list, 215 in `UI` — four at a time,
+  (274 as of 2026-10-21 — 58 in its `API` list, 216 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
   `run.mjs api` is the exact command CI's Backend job runs, 58 suites in
@@ -2397,16 +2397,41 @@ Discipline (non-negotiable):
   roof counts its OWN gutter ÷ sheet cover, rounded up from a tenth of a
   sheet (10 m / 0.762 = 13.12 → 14; 13.05 → 13). Overlapping roofs never
   change each other's count. Every count site goes through `_sheetsAcross`.
-- The sheet LAYOUT diagram (the tiled cut-plan picture) is HIDDEN from
-  users since 2026-09-14 — the owner judged it not right yet. One flag,
-  `SHEET_LAYOUT_HIDDEN` in app.html, takes it out of the Maps panel kinds,
-  the page types, placed pictures and the legacy print sections; a saved
-  page of that type shows a note. The engine still runs underneath, so the
-  counts, the cut list, the Sheet calc check and the sheet-layout gate are
-  unchanged. Flip the flag to false to bring it back everywhere, and put
-  `sheetplan` back into `tests/jpmaps.mjs` and `tests/jpallroofs.mjs` when
-  you do. Do not offer the layout diagram to users again without the owner
-  looking at screenshots of it first (`tools/sheet-shots.mjs`).
+- THE SHEET LAYOUT IS THE BLOCK-CUT PLAN (2026-10-21, the owner: "let's fix
+  the RoofMap sheet layout diagram (previously removed from the app because
+  it was all broken) — deep dive into AppliCad Roof Wizard's block cutting").
+  Hidden from 2026-09-14 because its own face-finder, colours and numbering
+  disagreed with the cut list on every L and T in the fixtures, the picture
+  is now built from the SAME sections the Sheet calc check and the SHEETS TO
+  ORDER legend read (`_sheetLayoutBuild` / `_renderSheetLayoutCanvas` at the
+  foot of sheet-plan.js), so the three cannot disagree about a count, a
+  length or a colour. `docs/SHEET_LAYOUT.md` is the write-up: what AppliCad's
+  Auto-Block 2 / Block-Cut do, and how this maps onto them. The short form:
+  every (section, slope) is a BLOCK ordered at one length (AppliCad's "two
+  blocks per ridge"), lettered A, B, C …; each column is read along seven
+  rays from its EAVE up to the first roof line (hip, valley, ridge, apron,
+  change of pitch), or from its ridge down where the eave is phantom (the
+  main's slope under a wing), so a sheet's piece is the shape the lines cut
+  it to; its cut length is its LONG edge and its offcut the sheet less its
+  SHORT edge; and a hip end is tiled with strips parallel to the ridge, the
+  k-th from the apex being the mirrored offcut of the k-th column from that
+  end — one half per slope, so an L's main has only its lower half at the
+  wing end. `_ccColumnsFor` and `_ccNumberColumns` are SHARED with the calc
+  check, so sheet 12 is sheet 12 on both pictures. The engine is UNTOUCHED
+  (the 37-shape gate and every count pin are byte-identical); the cascade
+  canvas it used to draw is no longer shown, and the click-to-delete edit
+  mode that lived on it is gone (`restoreAllSheets` stays for a job saved
+  with deletions). `SHEET_LAYOUT_HIDDEN` is false and stays as the one switch
+  that would withdraw the picture again. What stays blank on the picture is
+  deliberate: the triangle under an L's valley (the +1 valley spare is for
+  exactly that) and the odd faces of a hand-drawn skeleton the engine squares
+  off — the picture never invents a sheet the count does not have.
+  `tests/sheetlayout.mjs` (34) pins the plain hip to the textbook (48 pieces
+  for 48 sheets, 32 end pieces each named for its donor, every offcut long
+  enough), the Big-L's junction (one end on the upper slope, both on the
+  lower), coverage and no doubling on the owner's hand-counted shapes, the
+  five-roof stack and the page type. `tools/sheet-shots.mjs` is still the
+  way to LOOK before the gate.
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
