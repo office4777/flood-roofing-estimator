@@ -4350,15 +4350,25 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `12f46b4` (the sheet layout laid with the rectangle
-as the template, 2026-10-22 10:27 am NZ), verified by promote run
-39685318185's own log ("The site is serving 12f46b4"); `c54ac58` and
-`8ada6e1` verified the same way before it. BACKEND `/health` still reports
-`fcaab9a` after FOUR promotes in a row (86bde0a, 8ada6e1, c54ac58, 12f46b4
-each went red on the backend step after the full 10 minutes). That is NOT a half-ship in substance:
-`git diff fcaab9a..8ada6e1 -- floodroofing/backend/` is EMPTY, so the API is
-running byte-identical server code under an older name — the same shape as
-2026-10-20 below. THE CAUSE IS KNOWN (the owner's screenshot, 2026-10-22
+**Live now.** FRONTEND = `4947a46` (the plain hip over the rectangle and
+the cookie cutter, 2026-10-22 12:48 pm NZ). THE PROOF IS VERCEL'S OWN RECORD
+this time, not the promote log: two READY production deployments carry
+`githubCommitSha` 4947a46 (`list_deployments` with `target: production`),
+and they have to be the proof because this ship changed `sheet-plan.js` and
+NOT `app.html` — the promote's frontend step compares app.html alone, so it
+passed in one second on a file byte-identical to 12f46b4's and would have
+said "serving" whether or not the new sheet-plan.js was up. A ship that
+touches only sheet-plan.js / sw.js / help-bot.js is verified by Vercel's
+deployment list or by fetching the file itself (this container's proxy
+refuses roofmap.co.nz, so the list is the read available here). Before it,
+`12f46b4` was verified by promote run 39685318185's own log ("The site is
+serving 12f46b4"), `c54ac58` and `8ada6e1` the same way. BACKEND `/health`
+still reports `fcaab9a` after FIVE promotes in a row (86bde0a, 8ada6e1,
+c54ac58, 12f46b4, 4947a46 each red on the backend step after the full 10
+minutes). That is NOT a half-ship in substance for the sheet-layout
+commits: `git diff fcaab9a..8ada6e1 -- floodroofing/backend/` is EMPTY, so
+the API is running byte-identical server code under an older name — the
+same shape as 2026-10-20 below. THE CAUSE IS KNOWN (the owner's screenshot, 2026-10-22
 morning NZ): Railway's Deployments tab shows "Limited Access — Deploys have
 been paused temporarily", and the banner across the whole Railway dashboard
 read "Dashboard and API unavailable, builds paused. We've found the cause and
@@ -4394,7 +4404,8 @@ nothing, so the page degrades to what it was. The quote-sending fix itself
 (the narrowed identity read) is NOT live until `/health` reads `c54ac58` or
 later — a quote sent before then can still go out nameless. Check `/health`
 before telling him that one is fixed. main is one DOCS-ONLY commit ahead
-(this one). Nothing uncommitted.
+(this one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 110 and the
+Big-L is 64 sheets; the owner has the picture and the artifact page.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
 serves the old build until the tab is reloaded.
