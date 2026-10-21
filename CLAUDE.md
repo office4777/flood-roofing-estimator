@@ -2490,35 +2490,77 @@ Discipline (non-negotiable):
   pool — same hand, the offcut containing the piece square end to square
   end, the NEAREST fit first — or ordered as an extra sheet of its own.
   WHERE THE STRIPS START is what makes the offcuts match and is decided in
-  the builder — THE RECTANGLE IS THE TEMPLATE (2026-10-22, the owner on the
-  Big-L: "imagine the L-shape and a rectangle (always picturing the larger
-  area with the longest sheets as the rectangle) and run the exact same
-  logic as the plain hip … like a cookie cutter"; and on the plain hip's
-  mid-face closer: "must always be full width sheets so it should force all
-  sheets across to the edges which would make a larger offcut"): flush at a
-  barge; a hip END (one top vertex, a hip each side, one of them reaching
-  the gutter — so an L's west face, the main's hip end with the wing's
-  slope on the same plane, counts; a peak where a wider wing's ridge pokes
-  through a lower ridge does NOT, which is what the T caught) from its
-  APEX; a slope between two hips as ONE RUN of full-width sheets along the
-  whole side of its rectangle (`_pzVirtualSpan` follows the gutter through
-  the roof: 18 m under an L's wing where the wall shows 12), from a REAL
-  corner of its gutter, parallel slopes voting on the side so a shared hip
-  end is fed from both alike, the remainder a LAPPED full sheet at the far
-  hip corner (`widthMm` shows 0.47, `lapMm` 0.29) — which is the mirror
-  split's corner sheet by another name, so the 18 × 12 m hip still closes
-  at 48 with two slivers over. A sheet cut at both ends (valley at the
-  foot, hip at the head) gives TWO offcuts of opposite hand; the pool is
-  matched best-pair-first across the whole roof, not longest-piece-first,
-  so a corner's offcut feeds the hip end beside it; a sliver under a third
-  of a sheet is a scrap off the nearest offcut and costs no sheet; extras
-  are ordered each at its own length (the Big-L: 78 sheets, 45 × 7.73 where
-  it was 51 — 18 m less steel — and six extras, five of them the north-slope
-  sheets the wing ate). The footer carries the tally per length, the
-  blocks, how many end pieces came from offcuts, how many sheets were extra
-  and how many offcuts are left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE
-  DIFFERENT NUMBERS (the Big-L: 78 against 66) and nothing reconciles them
-  — which one is the order is his call, not yet asked.
+  the builder — THE PLAIN HIP OVER THE RECTANGLE, THEN THE COOKIE CUTTER
+  (2026-10-22, the owner on the Big-L, first in words — "imagine the L-shape
+  and a rectangle (always picturing the larger area with the longest sheets
+  as the rectangle) and run the exact same logic as the plain hip … using
+  the offcuts in the same locations … like a cookie cutter" — and then,
+  when the first build missed it ("You haven't really followed the
+  instructions … It's quite different"), in three sketches over the plain
+  hip: the yellow main rectangle laid exactly as the plain hip; the red
+  north-west corner, cut off by the valley, pushed 6 m north onto the
+  wing's small north face; the purple top strips of the west end pushed up
+  with it onto the top of the wing's west slope): flush at a barge; a hip
+  END (one top vertex, a hip each side, one of them reaching the gutter)
+  from its APEX; a slope between two hips as ONE RUN of full-width sheets
+  along the whole side of its rectangle (`_pzVirtualSpan` follows the
+  gutter through the roof: 18 m under an L's wing where the wall shows 12)
+  from the WORLD-LOW corner, the plain hip's own, agreed across every
+  parallel slope of the roof, unless no parallel slope has a real corner
+  there (a T's stem runs from its free end); the remainder a LAPPED full
+  sheet at the far hip corner (`widthMm` shows 0.47, `lapMm` 0.29), so the
+  18 × 12 m hip still closes at 48 with two slivers over. THE COOKIE
+  CUTTER: a hip end that faces the same way as a slope, stands in front of
+  that slope's gutter line inside its rectangle, and is at least a sheet
+  narrower on each side (`lay = 'grid'`, `f.template`) takes the SLOPE'S
+  columns instead of its apex. Column for column, the slope's valley-cut
+  piece and the end's hip-cut piece tile along one sheet (the valley and
+  the wing's hip are parallel 45° lines exactly the wing's length apart,
+  so the two pieces add up to the plain hip's own column sheet): the top
+  piece is the sheet, joins the slope's block and leaves the offcut above
+  the hip in the plain hip's own place; the piece under it is its FOOT,
+  carried along the column (`✂C5`, `strungTo`, drawn in the block's tint
+  with a dashed edge) and costs nothing; a column with only the end's piece
+  is the plain hip's corner sheet slid north whole (`viaTemplate`, ordered
+  in the slope's block). The step-0 chain test in `_sheetPuzzleFill`
+  (`tiles`: same column, square at the eave, the lower piece's top cut
+  meeting the upper's bottom cut edge for edge in each face's own eave
+  coordinates) is the proof; where it fails nothing is strung. A T's bar,
+  5.2 m deep beside a 6 m stem, is NOT sliced from the stem — within a
+  sheet of each other, the plain hip's own offcuts fit its ends exactly
+  and that is the T he called 95% right. WHICH CUT STRIPS ARE THE
+  RECTANGLE'S SHEETS: on a slope, those at its real corners (their offcuts
+  feed the hip ends); the strips beyond its own gutter under the main (a
+  wing slope's valley end) try the POOL first and fall back on the block —
+  "the orange sheets at the hip are full length and cut into a triangle by
+  the hip, then the offcuts get placed on the same face at the valley … so
+  the number of orange sheets = the length of that gutter divided by sheet
+  width" (8 on the Big-L's wing, was 12); on a hip end that also carries
+  a run of full sheets (the L's west face) every cut strip is an end piece
+  from the pool with the block as fallback, which is how the purple strips
+  come from D6–D9. THE MATCH: where an offcut BELONGS comes first (`home`:
+  its sheet is cut by a hip or valley of the face being fed, or lies on
+  that face — 600 for a hip end's claim, 300 for a pool-first valley
+  piece's, so a slope's valley pieces never starve the end beside it),
+  then the fit's surplus, then 0.04 mm per mm of distance; distance alone
+  was tried and is the wrong guide, because an end's strips travel the
+  whole end face past sheets of the other end that lie nearer. A fallback
+  adds its offcut to the pool and the open needs get a second pass, or a
+  bar end's corner piece misses the offcut it had. A sliver under a third
+  of a sheet each way (`expLongPx`, the exposed length, not the lapped
+  sheet's) is a scrap off the nearest offcut, on a block face too; extras
+  are ordered each at its own length. THE BIG-L COMES TO 64 (was 78, the
+  engine's legend says 66): 48 × 7.73, 15 × 3.32 and one 3.52 extra for
+  the strip where the wing's ridge meets the main's hip, which no plain-hip
+  offcut is shaped for; the west end's south half from C9 down to C1 (the
+  wing's whole sheets and the valley-cut heads among them), its north half
+  from D1–D5, its top from D6–D9; the east end from D16–D24 and C24–C16;
+  the T 78 (was 80) with every end piece from offcuts. The footer carries
+  the tally per length, the blocks, the feet carried, how many end pieces
+  came from offcuts, how many sheets were extra and how many offcuts are
+  left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE DIFFERENT NUMBERS
+  (the Big-L: 64 against 66) and nothing reconciles them — which one is
+  the order is his call, not yet asked.
   `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: one tint per
   block with the sheet's number (A12) up each piece, a hatched piece for one
   cut from an offcut (↺A12), F1… per face with an arrow the way the sheets
@@ -2533,17 +2575,20 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (94): plain
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (110): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23
   full strips and a 0.47 m closer from the barge, a change of pitch as its
-  own band at the lower pitch, Big-L 6 faces / 112 laid the template way
-  (the north slope along 18 m from the east, the west face from the main's
-  apex and fed from the south corner, both hip ends wholly from offcuts, six
-  extras each at its own length), dutch stopping at its apron, every fed
-  piece the hand of its offcut, the hand-counted fixtures covered exactly
-  once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
+  own band at the lower pitch, Big-L 6 faces / 113 laid the plain hip's way
+  (both main slopes from the west along 18 m; the wing's end on the north
+  slope's columns as C1–C4 whole and ✂C5–✂C8 feet, each foot tiling with
+  its sheet's valley cut edge for edge; the west and east ends' exact
+  label sequences; the wing's slope 8 with its valley from its own
+  offcuts; 48 × 7.73 + 15 × 3.32 + one 3.52 extra), the T keeping its
+  apex-laid bar ends at 78, dutch stopping at its apron, every fed piece
+  the hand of its offcut (a foot is not spun), the hand-counted fixtures
+  covered exactly once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first
