@@ -2421,7 +2421,12 @@ Discipline (non-negotiable):
   (the 37-shape gate and every count pin are byte-identical); the cascade
   canvas it used to draw is no longer shown, and the click-to-delete edit
   mode that lived on it is gone (`restoreAllSheets` stays for a job saved
-  with deletions). `SHEET_LAYOUT_HIDDEN` is false and stays as the one switch
+  with deletions). THE OLD DRAWING CODE IS SAVED, at the owner's ask: the
+  deleted functions are in `docs/legacy-sheet-layout-draw.js` (not loaded
+  by anything) and the last build that drew the old picture is commit
+  `b81e5c5`; the per-roof-type face/strip/pairing machinery that fed it is
+  still live in sheet-plan.js because the counts come off it. The git proxy
+  here refuses tag pushes, so there is no tag — use the SHA. `SHEET_LAYOUT_HIDDEN` is false and stays as the one switch
   that would withdraw the picture again. What stays blank on the picture is
   deliberate: the triangle under an L's valley (the +1 valley spare is for
   exactly that) and the odd faces of a hand-drawn skeleton the engine squares
