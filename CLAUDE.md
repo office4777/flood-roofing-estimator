@@ -2216,6 +2216,57 @@ Discipline (non-negotiable):
   STILL THE OWNER'S CALL: the A4/classic shed is unchanged, which he said was
   fine — but the two now differ in more than typography, so if he wants the
   classic brought closer, that is its own job.
+- A SHED PICKS ITS PROFILE, AND ITS GUTTER COMES COMPLETE (2026-10-21, the
+  owner: "add the profile selection and gutter selection for the pole shed
+  like the roofing quote has, however the pole shed only option should be
+  125mm box gutter with downpipe compulsory with gutter selected"). Two new
+  sections on the shed's modern quote, `psprofile` after `psgrade` and
+  `psgutter` after the colour, both in the `.qb-opt` idiom the roofing quote
+  uses, so the nav, the scroll-spy, the rail and the phone book's page turning
+  all come free.
+  THE PROFILE LIST IS THE COMPANY'S OWN — `_selProfiles()`, the same products
+  Settings → Quote's Product Options maintains and the roofing quote offers.
+  A business that sells RI-925 sells it on a shed too, and a second list of
+  shed profiles is a second place to forget one. `_psProfileCost(id)` prices
+  it off the SHED'S own measurements (`_psCladArea()` = the estimator's roof
+  area + wall area, which is what it already worked out to price the
+  cladding), at the profile's own `rate`/`rateUnit`; an `lm` rate divides the
+  area by the sheet's cover, the figure an lm rate is quoted against.
+  BLANK IS THE WHOLE COMPATIBILITY STORY, exactly as it is on the roofing
+  quote: no rate means `_psProfileCost` is null, every delta is 0,
+  `_psProfileDeltasSnapshot()` returns null and `_poleShedSelItems` pushes no
+  row — so every shed quoted before today reads to the cent as it did, and
+  nothing migrates. `_psBaseProfile()` (`q.psBaseProfile`, stamped at recalc)
+  is the profile the shed was PRICED at, so the quoted one reads "Included"
+  and the others read the real difference either way round. The deltas are
+  FROZEN onto the quote as `psProfileDeltas` because the customer's copy has
+  no price book AND no estimator — the FR-14015 lesson twice over.
+  A SECTION OFFERING ONE OPTION IS NOT A DECISION: `_psmProfile` returns `''`
+  with fewer than two profiles, and `_psPicksAuto` leaves the row out with it,
+  so the two cannot disagree about whether there was a choice.
+  THE GUTTER IS ONE PRODUCT AND IT IS ALREADY IN THE PRICE. `PS_GUTTER_ID` =
+  `box125`; there is no brackets-and-downpipes section the way a re-roof has
+  one, because the downpipes are not a second decision. The shed's take-off
+  carries "Box gutter + downpipes" as a priced line (guttering IS part of the
+  main price, 2026-10-13), so the gutter reads Included and the only money is
+  DECLINING it: `_psGutterAllowance()` credits what that line actually
+  charged — `_shedMaterialRows()` filtered to the gutter rows through
+  `_materialsTotalFromRows`, so the typed quantity, the typed $/unit, the
+  buffer and the mark-up all come with it. Not the rate card's guess, or
+  declining the gutter would take off a different figure from the one it put
+  on; a row the office DELETED credits nothing, because nothing was charged.
+  Frozen as `psGutterAllow` for the same reason as the profile deltas.
+  A PROFILE ROLLED IN ONE GAUGE DECIDES THE GAUGE (`_psProfileLock`, the
+  roofing quote's `_setProposalOption_profile` rule): `_setPsProfile` forces
+  `psSelThickness`, the thickness section becomes one static "Locked for
+  5-Rib" card naming the profile, and the PROFILE'S card carries the upgrade
+  — the card is the all-in cost of the choice, which is `_qbProfile`'s own
+  semantics. The money is still counted ONCE, on the thickness row of
+  `_poleShedSelItems`, which is the one engine `_poleShedSelDelta` sums.
+  `tests/poleshed.mjs` (222). THREE PINS THAT HAD TO MOVE WITH IT, and they
+  are the stale-pin lesson again: the suite asserted a shed offered no profile
+  section, no guttering row and an exact picks list — all three were pinning
+  the absence of what he has now asked for.
 - SETTINGS SECTIONS ARE TILES (2026-10-08, the owner on the pricing settings
   pages: "These pages are hard to seperate the different sections, make it
   easier to tell the different sections, maybe more of a boarder/tile type
@@ -3491,6 +3542,25 @@ Discipline (non-negotiable):
   the PDF goes through `pdftoppm`. Sheets went from 90/64/76/56% full with
   stretched pictures to 91/96/97/73% with true ones. `tests/poleshed.mjs` (213)
   — against the old build the eight fault pins fail and the safety pins pass.
+  THE PICTURE'S OWN SHAPE IS THE FLOOR, THE SHEET IS THE CEILING (2026-10-21).
+  The 2026-10-20 band grew to fill sheet one and the render was `contain`ed
+  inside it, which stops a squash but buys it with navy bars: a 16:9 render in
+  a band two-thirds of a sheet tall is a picture with a third of a sheet of
+  nothing above it. `_psPdfFitCover` now takes `max(PS_PDF_HERO_MIN, the
+  render's own aspect at the band's width, min(PS_PDF_HERO_MAX, what it takes
+  to reach the foot of the sheet))` — so the band is never SHORTER than the
+  render's shape (no bars, no crop, no squash) and otherwise as tall as the
+  sheet allows. On the test shed that is a 905px band carrying a 584px render
+  with a navy header above it and the title block below, and a cover sheet
+  78% full instead of 56%. A FIX TRIED AND DROPPED: iterating the fit three
+  times does nothing, because the `PS_PDF_HERO_MAX` clamp is what binds.
+  AND A DRAWING IS NEVER SLICED (`breaks.keep`): `_pdfBreakRows` records each
+  `.ps-draw-wrap` as a SPAN, not a boundary, and `_pdfAddSlicedCanvas` — as
+  its LAST step, after the section and row searches have already chosen a cut
+  — pulls the cut back to the top of any span the cut would land inside,
+  provided the whole span fits on a sheet. Promoting `.ps-draw-wrap` to a
+  section boundary instead was tried and cost a whole extra sheet: every
+  drawing then started its own 58%-full page.
 - A CROSSED-OUT ROOF IS CROSSED OUT, NOT THE HOUSE BESIDE IT (feedback report
   66, 2026-10-19: "quotes red cross is confusing, it crosses out part of the
   main roof which looks wrong, it should be a smaller cross in the middle of

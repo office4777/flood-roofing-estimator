@@ -124,6 +124,16 @@ const slice = await pg.evaluate(() => {
   out.plain = run(doc, { footMm: 9 });
   out.withSec = run(doc, { footMm: 9, breaks: { sec: [2620, 5420], row: [] } });
 
+  // A DRAWING IS NEVER SLICED (2026-10-21): a `keep` span the cut would land
+  // inside pulls the cut back to the span's top. Solid ink, so the ink
+  // search finds nothing and the hard step is what the span has to beat.
+  const solid7 = mkCanvas(7000, [[0, 7000]]);
+  out.keepOff = run(solid7, { footMm: 9 });
+  out.keepOn  = run(solid7, { footMm: 9, breaks: { sec: [], row: [], keep: [[2900, 3400]] } });
+  // A span taller than a sheet cannot be kept whole, so it is left alone
+  // rather than pulling the cut back to a place that makes no progress.
+  out.keepHuge = run(solid7, { footMm: 9, breaks: { sec: [], row: [], keep: [[200, 6800]] } });
+
   // A trailing sheet carrying one stray rule and nothing else is dropped.
   const tail = mkCanvas(6400, [[0, 6000], [6180, 6184]]);
   out.tail = run(tail, { footMm: 9 });
@@ -145,6 +155,14 @@ check('a named section boundary is where the cut goes',
 check('…and the second sheet breaks at the next one, not at the hard step',
   Math.abs((slice.withSec.mm[0] + slice.withSec.mm[1]) * MM - 5420) < 2,
   JSON.stringify({ cutPx: +((slice.withSec.mm[0] + slice.withSec.mm[1]) * MM).toFixed(0), want: 5420 }));
+check('A DRAWING IS NEVER SLICED: the cut is pulled back to the top of its span',
+  Math.abs(slice.keepOff.mm[0] * MM - 3017) < 3 &&
+  Math.abs(slice.keepOn.mm[0] * MM - 2900) < 3,
+  JSON.stringify({ off: +(slice.keepOff.mm[0] * MM).toFixed(0),
+                   on: +(slice.keepOn.mm[0] * MM).toFixed(0) }));
+check('...a span taller than a sheet is left alone, or the cut makes no progress',
+  Math.abs(slice.keepHuge.mm[0] * MM - 3017) < 3,
+  JSON.stringify({ px: +(slice.keepHuge.mm[0] * MM).toFixed(0) }));
 check('a final sheet with nothing on it but a stray rule is dropped',
   slice.tail.pages === 2, JSON.stringify(slice.tail));
 check('…but a final sheet with real content on it is kept',

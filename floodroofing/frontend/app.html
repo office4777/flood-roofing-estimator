@@ -4695,7 +4695,21 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qd-sec .qb-total, html:is(.print-modern,.pdf-modern) .qd-sec .qb-fig, html:is(.print-modern,.pdf-modern) .qd-sec .qb-plan,
   html:is(.print-modern,.pdf-modern) .qd-sec .qb-picks, html:is(.print-modern,.pdf-modern) .qd-sec .qb-incl-row{break-inside:avoid; page-break-inside:avoid}
   html:is(.print-modern,.pdf-modern) .qd-sec h2, html:is(.print-modern,.pdf-modern) .qd-sec h3, html:is(.print-modern,.pdf-modern) .qd-sec .qb-eyebrow{break-after:avoid; page-break-after:avoid}
-  html:is(.print-modern,.pdf-modern) .qd-hero{aspect-ratio:auto!important; width:100%!important; height:46mm!important; min-height:0!important; max-height:none!important}
+  /* :not(.ps-hero) — A SHED'S COVER IS NOT A ROOFING AERIAL (2026-10-21).
+     This rule did two things to it, both wrong. `46mm` is a CSS millimetre,
+     3.78px, and a sheet millimetre inside this 1100px capture is 5.24px
+     (QP_PDF_PX_PER_MM) — so the band printed 33mm tall, not 46 — and at
+     1038px wide that is a SIX-TO-ONE letterbox with a 16:9 shed render
+     squeezed into it. And `!important` beat the inline height
+     `_psPdfFitCover` sets, so the cover could never grow to fill its sheet
+     and sheet 1 came out 80% full with the render in a strip at the top. */
+  html:is(.print-modern,.pdf-modern) .qd-hero:not(.ps-hero){aspect-ratio:auto!important; width:100%!important; height:46mm!important; min-height:0!important; max-height:none!important}
+  /* The shed's own band, in CAPTURE pixels so it means what it says on the
+     sheet: 16:9, the shape a shed render is drawn at, and tall enough to be
+     looked at. _psPdfFitCover then grows it to fill sheet one. */
+  html:is(.print-modern,.pdf-modern) .qd-hero.ps-hero{
+    aspect-ratio:auto!important; width:100%!important;
+    height:619px!important; min-height:0!important; max-height:none!important}
   /* A POLE SHED'S PDF IS NOT A ROOFING QUOTE'S (2026-10-20, the owner on quote
      3287: "tidy up the pole shed modern quote pdf, needs to look alot tidier").
      The shed's sections are the A4's own blocks, so the modern print rules
@@ -5073,7 +5087,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-20T22:18:38Z';
+  window.APP_BUILT_AT = '2026-10-21T03:04:14Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -34526,6 +34540,15 @@ function _qbRecFields(){ return ['steelGrade','profile','steelThickness','colour
 function _qbRecSnapshot(){
   var p = (S.quote && S.quote.proposalOptions) || {}, o = {};
   _qbRecFields().forEach(function(f){ if (p[f] != null && p[f] !== '') o[f] = p[f]; });
+  // A SHED'S PICKS LIVE ON THE QUOTE ITSELF, not in proposalOptions, so the
+  // loop above cannot reach them — and without them `_psmRec` falls back to
+  // the customer's OWN current pick in customer mode, which makes
+  // "Recommended" follow whatever they last tapped instead of naming the
+  // roofer's choice. Stamped at the send like every other recommendation.
+  try {
+    ['psSelGrade','psSelProfile','psSelThickness','psSelColour','psSelRoller','psSelGutter']
+      .forEach(function(f){ if (S.quote && S.quote[f] != null && S.quote[f] !== '') o[f] = S.quote[f]; });
+  } catch(e){}
   return o;
 }
 function _qbRecPick(field, fallback){
@@ -35314,7 +35337,14 @@ function _psPicksAuto(){
   } catch(e){}
   var grade = q.psSelGrade || 'colorsteel';
   out.push(['Steel grade', (grade === 'zincalume') ? 'Plain silver Zincalume\u00ae' : 'Colorsteel\u00ae', 'psgrade']);
+  try {
+    if (_psProfiles().length > 1){
+      var _p = _selProfileOf(_psProfileDefault());
+      if (_p) out.push(['Roof profile', _p.name || _p.id, 'psprofile']);
+    }
+  } catch(e){}
   out.push(['Steel thickness', ((q.psSelThickness || '0.40') === '0.55') ? '0.55 gauge' : '0.40 gauge', 'psthickness']);
+  out.push(['Guttering', (_psGutterPicked() === 'none') ? 'No guttering' : (PS_GUTTER_LABEL + ' \u2014 downpipes included'), 'psgutter']);
   // Zincalume is unpainted, so it has no colour to list rather than a blank.
   if (grade === 'zincalume') out.push(['Roof & wall colour', 'Plain silver \u2014 unpainted', 'pscolour']);
   else if (q.psSelColour) out.push(['Roof & wall colour', q.psSelColour, 'pscolour']);
@@ -38015,6 +38045,15 @@ function _syncQuoteBaseLineItems(){
       // $0 over job 3287's $64,585 on the open.
       var _sv = Math.round(quoteSubtotal() * 100) / 100;
       if (_shedMaterialRows().length && _sv > 0) S.quote.psSubtotal = _sv;
+      // The profile the shed is PRICED at, each profile's real difference
+      // from it, and what the gutter line is actually worth. The customer's
+      // copy has no price book and no estimator, so an un-frozen figure
+      // would read $0 on their screen while the office showed one.
+      if (!S.quote.accepted){
+        try { if (!S.quote.psBaseProfile && _psProfileDefault()) S.quote.psBaseProfile = _psProfileDefault(); } catch(e){}
+        try { var _ppd = _psProfileDeltasSnapshot(); if (_ppd) S.quote.psProfileDeltas = _ppd; else delete S.quote.psProfileDeltas; } catch(e){}
+        try { var _pga = _psGutterAllowance(); if (_pga > 0) S.quote.psGutterAllow = _pga; else delete S.quote.psGutterAllow; } catch(e){}
+      }
     }
   } catch(e){}
   // Project per-area custom lines into lineItems (re-built each sync so
@@ -40121,6 +40160,22 @@ function _poleShedSelItems(){
   var A = POLESHED_ADDONS, out = [];
   if (S.quote.psSelGrade === 'zincalume') out.push({ label:'Plain silver Zincalume\u00ae', delta: -A.zincalumeSave });
   if (S.quote.psSelThickness === '0.55')  out.push({ label:'0.55 gauge \u2014 heavier steel', delta: A.thick055 });
+  // The profile, where the office has priced its profiles — nothing at all
+  // where they have not, so no shed quoted before today moves.
+  try {
+    var _pd = _psProfileDelta(_psProfileDefault());
+    if (Math.abs(_pd) > 0.005){
+      var _pn = ''; try { _pn = (_selProfileOf(_psProfileDefault()) || {}).name || ''; } catch(e){}
+      out.push({ label: _pn || 'Roof profile', delta: _pd });
+    }
+  } catch(e){}
+  // …and the gutter, which is IN the price, so only declining it is a row.
+  try {
+    if (_psGutterPicked() === 'none'){
+      var _gc = _psGutterAllowance();
+      if (_gc > 0.005) out.push({ label:'No guttering', delta: -_gc });
+    }
+  } catch(e){}
   _psAddons().forEach(function(a){
     if (a && a.on) out.push({ label: a.summary || a.label, delta: (+a.price || 0) });
   });
@@ -41351,6 +41406,130 @@ function _setPsThickness(v){ _setPsSel('psSelThickness', v); }
 function _setPsRoller(v){ _setPsSel('psSelRoller', v); }
 function _setPsColour(v){ _setPsSel('psSelColour', v); }
 function _setPsPlanId(v){ try { _setPsPlan(parseInt(v, 10) || 0); } catch(e){} }
+function _setPsProfile(v){
+  // A profile rolled in one gauge only DECIDES the gauge — the roofing
+  // quote's own rule (_setProposalOption_profile), so the two cannot
+  // disagree about what picking 5-Rib means. Set the field directly and
+  // let the one _setPsSel below do the single re-render.
+  try { var _lk = _psProfileLock(v); if (_lk && S.quote) S.quote.psSelThickness = _lk; } catch(e){}
+  _setPsSel('psSelProfile', v);
+}
+function _setPsGutter(v){ _setPsSel('psSelGutter', v); }
+
+// ── THE SHED'S PROFILE AND ITS GUTTER (2026-10-21, the owner: "add the
+// profile selection and gutter selection for the pole shed like the roofing
+// quote has, however the pole shed only option should be 125mm box gutter
+// with downpipe compulsory with gutter selected").
+//
+// THE PROFILE LIST IS THE COMPANY'S OWN, `_selProfiles()` — the same products
+// the roofing quote offers and the same list the office maintains in Settings
+// → Quote's Product Options. A business that sells RI-925 sells it on a shed
+// too, and a second list of shed profiles is a second place to forget one.
+function _psProfiles(){ try { return _selProfiles() || []; } catch(e){ return []; } }
+// '' = the profile leaves the gauge open; otherwise the shed thickness id
+// ('0.40' / '0.55') it forces. The roofing product list stores '40' / '55'.
+function _psProfileLock(id){
+  var lk = ''; try { lk = _selProfileLocksGauge(id) || ''; } catch(e){}
+  return (lk === '55') ? '0.55' : ((lk === '40') ? '0.40' : '');
+}
+function _psProfileDefault(){
+  var q = S.quote || {};
+  if (q.psSelProfile) return q.psSelProfile;
+  var l = _psProfiles();
+  return (l[0] && l[0].id) || '';
+}
+// The profile the shed was PRICED at — the grade and the roofing profile's own
+// rule, so the quoted profile reads "Included" and the others read the real
+// difference either way round.
+function _psBaseProfile(){
+  var q = S.quote || {};
+  if (q.psBaseProfile) return q.psBaseProfile;
+  return _psProfileDefault();
+}
+// How much steel the shed is clad in. The estimator worked both areas out to
+// price the cladding, so this is the shed's own measurement and not a guess;
+// with no estimator there is no area and every delta is 0.
+function _psCladArea(){
+  try {
+    var e = (S.quote && S.quote.shedEst) ? _shedEstimate(S.quote.shedEst) : null;
+    if (!e) return null;
+    var m2 = (+e.roofArea || 0) + (+e.wallArea || 0);
+    return (m2 > 0) ? { m2: m2, roof: (+e.roofArea || 0) } : null;
+  } catch(e){ return null; }
+}
+// What one profile costs to clad this shed in, at the office's own rate.
+// Null where they have not priced it — which is the whole compatibility
+// story: no rate anywhere means no difference anywhere, so every shed quoted
+// before today reads exactly as it did.
+function _psProfileCost(id){
+  var r = null; try { r = _selProfileRate(id); } catch(e){}
+  if (!r) return null;
+  var a = _psCladArea(); if (!a) return null;
+  if (r.unit === 'lm'){
+    // Priced by the metre of sheet: the run is the area over the sheet's own
+    // cover, which is the figure a lm rate is quoted against.
+    var cover = 0; try { cover = _selProfileCoverMm(id); } catch(e){}
+    if (!(cover > 0)) return null;
+    return r.rate * (a.m2 / (cover / 1000));
+  }
+  return r.rate * a.m2;
+}
+function _psProfileDelta(id){
+  var q = S.quote || {};
+  // The customer's copy has no price book and no estimator, so it reads the
+  // map frozen onto the quote — the FR-14015 lesson. Live figures in the
+  // office, so the preview shows what would go out.
+  if ((window.__CUSTOMER_MODE || S._qvViewing || _qpAcceptedLock()) && q.psProfileDeltas)
+    return +q.psProfileDeltas[id] || 0;
+  var mine = _psProfileCost(id), base = _psProfileCost(_psBaseProfile());
+  if (mine == null || base == null) return 0;
+  return mine - base;
+}
+function _psProfileDeltasSnapshot(){
+  var out = {}, any = false;
+  _psProfiles().forEach(function(pr){
+    if (!pr || !pr.id) return;
+    var mine = _psProfileCost(pr.id), base = _psProfileCost(_psBaseProfile());
+    var d = (mine == null || base == null) ? 0 : (mine - base);
+    out[pr.id] = Math.round(d * 100) / 100;
+    if (d) any = true;
+  });
+  return any ? out : null;
+}
+// THE SHED SELLS ONE GUTTER, and its downpipes are not a second decision:
+// "the pole shed only option should be 125mm box gutter with downpipe
+// compulsory with gutter selected". So there is no brackets-and-downpipes
+// section the way a re-roof has one — the gutter comes complete or not at all.
+var PS_GUTTER_ID = 'box125';
+var PS_GUTTER_LABEL = '125mm Colorsteel box gutter';
+function _psGutterPicked(){
+  var q = S.quote || {};
+  return (q.psSelGutter === 'none') ? 'none' : PS_GUTTER_ID;
+}
+// What leaving it off is worth. The shed's take-off already carries "Box
+// gutter + downpipes" as a priced line — guttering IS part of the main price
+// (the owner, 2026-10-13) — so the gutter reads Included and declining it is
+// a CREDIT of whatever that line actually costs, overrides and all, rather
+// than of the rate card's guess.
+function _psGutterAllowance(){
+  var q = S.quote || {};
+  if ((window.__CUSTOMER_MODE || S._qvViewing || _qpAcceptedLock()) && q.psGutterAllow != null)
+    return +q.psGutterAllow || 0;
+  var v = 0;
+  try {
+    // Through _materialsTotalFromRows, not a fourth hand-copy of the same
+    // arithmetic: the credit has to be the money the base price actually
+    // charged for that line — its typed quantity, its typed $/unit, the
+    // buffer and the mark-up — or declining the gutter takes off a different
+    // figure from the one it put on. A row the office DELETED credits
+    // nothing, because nothing was charged.
+    var g = (_shedMaterialRows() || []).filter(function(r){
+      return r && /gutter/i.test(String(r.label || ''));
+    });
+    if (g.length) v = _materialsTotalFromRows(g, 0);
+  } catch(e){}
+  return Math.round((v > 0 ? v : 0) * 100) / 100;
+}
 
 // ── the cover ─────────────────────────────────────────────────────────
 // The hero is the shed's RENDER, which lives in condition-photo slot
@@ -41560,8 +41739,70 @@ function _psmGrade(){
     group:'psSelGrade', set:'_setPsGrade', current:cur, items:items,
     blurb:'The coating on the steel is what decides how long the shed lasts and how it looks. Both are sheds we are happy to put our name to \u2014 the difference is the finish.' });
 }
+function _psmProfile(){
+  var cur = _psProfileDefault();
+  var rec = _psmRec('psSelProfile', cur);
+  // THE CARD IS THE ALL-IN COST OF THE CHOICE, the roofing card's own
+  // semantics (_qbProfile): a profile that forces 0.55 carries that upgrade
+  // on its own card, because picking it is what spends the money. The
+  // SUMMARY still splits the two rows, and _poleShedSelItems counts the
+  // gauge once, on the thickness row.
+  var baseLk = _psProfileLock(_psBaseProfile());
+  var items = _psProfiles().map(function(pr){
+    var lk = _psProfileLock(pr.id);
+    var gauge = ((lk === '0.55') ? POLESHED_ADDONS.thick055 : 0) -
+                ((baseLk === '0.55') ? POLESHED_ADDONS.thick055 : 0);
+    return { id:pr.id, label:pr.name || pr.id, isDefault:(pr.id === rec),
+             delta:_psmDelta(_psProfileDelta(pr.id) + gauge),
+             desc: pr.desc || _QB_PROFILE_COPY[pr.id] || '' };
+  });
+  // A company with one profile on its list has nothing to choose between, and
+  // a section offering one option reads as a decision somebody forgot to
+  // finish — the plan option's rule.
+  if (items.length < 2) return '';
+  return _psmOptPage({ key:'psprofile', eyebrow:'The shape of the sheet', title:'Roof profile',
+    group:'psSelProfile', set:'_setPsProfile', current:cur, items:items,
+    figure:_qbProfileFigure(cur),
+    blurb:'The profile is the shape rolled into the steel. It changes how the shed looks and how the sheet carries a span.' });
+}
+// ONE GUTTER, DOWNPIPES WITH IT (2026-10-21, the owner). The shed's take-off
+// already carries the gutter, so it is INCLUDED and the only real decision is
+// whether to have it at all; declining it credits what the take-off charged.
+function _psmGutter(){
+  var cur = _psGutterPicked();
+  var rec = _psmRec('psSelGutter', PS_GUTTER_ID) === 'none' ? 'none' : PS_GUTTER_ID;
+  var credit = _psGutterAllowance();
+  var items = [
+    { id:PS_GUTTER_ID, label:PS_GUTTER_LABEL, delta:0, isDefault:(rec === PS_GUTTER_ID),
+      desc:'Continuous box gutter in the colour of the shed, with downpipes run to the ground — the downpipes come with it, they are not a separate decision.' },
+    { id:'none', label:'No guttering', delta:_psmDelta(-credit), isDefault:(rec === 'none'),
+      desc:'The shed is built without spouting or downpipes. Water comes straight off the roof edge.' }
+  ];
+  var fig = ''; try { fig = _qbGutterFigure(PS_GUTTER_ID) || ''; } catch(e){}
+  return _psmOptPage({ key:'psgutter', eyebrow:'Where the water goes', title:'Guttering',
+    group:'psSelGutter', set:'_setPsGutter', current:cur, items:items, figure:fig,
+    blurb:'Guttering is priced into this shed. A box gutter keeps the run of the roof clean and takes the water away from the doors and the pad.' });
+}
 function _psmThickness(){
   var A = POLESHED_ADDONS;
+  // Nothing to choose when the profile is rolled in one gauge only. Say
+  // which profile decided it and where to go to change it, rather than
+  // showing two radios one of which cannot be picked.
+  var _lk = _psProfileLock(_psProfileDefault());
+  if (_lk){
+    var _pn = ''; try { _pn = (_selProfileOf(_psProfileDefault()) || {}).name || 'that profile'; } catch(e){ _pn = 'that profile'; }
+    return _psmBody(
+      '<span class="qb-eyebrow">How heavy</span>'+
+      '<h2 class="qb-h2">Steel thickness</h2>'+
+      '<p class="qb-para">You have chosen '+esc2(_pn)+', which is rolled in '+esc2(_lk)+' gauge only. There is nothing to choose here, and it is counted in the price on the previous page.</p>'+
+      '<div class="qb-opts"><div class="qb-opt on qb-opt-static">'+
+        '<span class="qb-tick"><svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
+        '<span class="qb-opt-txt"><b>'+esc2(_lk)+' gauge <em class="qb-lock">Locked for '+esc2(_pn)+'</em></b>'+
+          '<span class="qb-opt-desc">Pick a different profile on the previous page if you would rather choose the gauge yourself.</span></span>'+
+        '<span class="qb-opt-price"><span class="qb-inc">Included</span></span>'+
+      '</div></div>'
+    );
+  }
   var cur = (S.quote && S.quote.psSelThickness) || '0.40';
   var rec = _psmRec('psSelThickness', '0.40');
   var items = [
@@ -41756,10 +41997,15 @@ function _psModernSections(){
   // just "the shed", and a section offering it reads as a missing choice.
   try { if (_psPlans().length > 1) list.push({ key:'psplan', label:'Plan option', html:_psmPlanPick }); } catch(e){}
   list.push({ key:'psgrade',     label:'Steel grade', html:_psmGrade });
+  // Grade, profile, thickness, colour — the roofing quote's own order, so a
+  // roofer reads the two quotes the same way round. The profile section drops
+  // out where the company sells only one.
+  try { if (_psProfiles().length > 1) list.push({ key:'psprofile', label:'Profile', html:_psmProfile }); } catch(e){}
   list.push({ key:'psthickness', label:'Thickness',   html:_psmThickness });
   // Zincalume is unpainted — there is no colour to choose, so no section.
   if ((q.psSelGrade || 'colorsteel') !== 'zincalume')
     list.push({ key:'pscolour',  label:'Colour',      html:_psmColour });
+  list.push({ key:'psgutter',    label:'Guttering',   html:_psmGutter });
   list.push({ key:'psroller',    label:'Roller door', html:_psmRoller });
   // And a customer is never shown an empty Add-ons band.
   try { if (_psAddons().length || _psAddonEditable()) list.push({ key:'psaddons', label:'Add-ons', html:_psmAddons }); } catch(e){}
@@ -72332,7 +72578,7 @@ function _custBusyBanner(show, msg){
 // layout comes from another. So this runs from html2canvas's `onclone`, on the
 // cloned document, where the only conversion left is the capture scale.
 function _pdfBreakRows(target, scale){
-  var out = { sec: [], row: [] };
+  var out = { sec: [], row: [], keep: [] };
   try {
     var tr = target.getBoundingClientRect();
     if (!(tr.width > 0)) return out;
@@ -72367,6 +72613,18 @@ function _pdfBreakRows(target, scale){
     // three sheets out of four (2026-10-20).
     Array.prototype.forEach.call(target.querySelectorAll('[data-qd-sec]'), function(el){
       push(out.sec, el, 8, el.querySelector('.ed-heading-band')); });
+    // A SHED DRAWING IS NEVER CUT IN HALF (2026-10-21). It is the tallest
+    // thing in the quote and the one thing nobody can read half of — a floor
+    // plan that began at 75% of a sheet was sliced across two of them. Its
+    // SPAN is recorded, not just its top edge: promoting it to a section
+    // boundary was tried first and cost a whole extra sheet, because every
+    // drawing then took a 58%-full page of its own. The slicer only reaches
+    // for this when a cut would land INSIDE one.
+    Array.prototype.forEach.call(target.querySelectorAll('.ps-draw-wrap'), function(el){
+      var r = el.getBoundingClientRect();
+      if (r.height > 2) out.keep.push([Math.round((r.top - tr.top - 6) * k),
+                                       Math.round((r.bottom - tr.top) * k)]);
+    });
     Array.prototype.forEach.call(
       target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, .ed-heading-band, .ps-spec-row, .ps-draw-wrap, figure, h2, h3'),
       function(el){ push(out.row, el, 6); });
@@ -72386,7 +72644,8 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH, opts){
   opts = opts || {};
   var footMm = Math.max(0, +opts.footMm || 0);
   var usableH = Math.max(20, pageH - footMm);
-  var breaks = opts.breaks || { sec: [], row: [] };
+  var breaks = opts.breaks || { sec: [], row: [], keep: [] };
+  var keep = breaks.keep || [];
   var pxPerMm = canvas.width / pageW;
   var hardStep = Math.floor(usableH * pxPerMm);
   var cctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -72439,6 +72698,28 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH, opts){
           if (ink < bestInk) { bestInk = ink; bestY = sy; }
         }
         cutY = bestY;
+      }
+      // …AND NEVER THROUGH THE MIDDLE OF A BLOCK THAT MUST STAY WHOLE — a
+      // shed's floor plan or its elevations (2026-10-21). Last, so it
+      // overrides whatever the boundary search or the ink search settled on.
+      // Only where the block STARTS on this sheet and would fit on a sheet of
+      // its own: one taller than the paper has to be sliced whatever we do,
+      // and sliding the cut up then would leave a sheet with nothing on it.
+      // Promoting these to section boundaries was tried first and cost a whole
+      // extra sheet — every drawing took a 58%-full page of its own.
+      for (var ki = 0; ki < keep.length; ki++){
+        var kt = keep[ki][0], kb = keep[ki][1];
+        if (kt > sliceTop + 8 && kt < cutY && kb > cutY && (kb - kt) <= hardStep){
+          cutY = kt;
+          // Carrying the drawing over leaves this sheet short either way, so
+          // spend the rest of it on a clean start rather than on the chapter
+          // heading that would otherwise be orphaned above the page break.
+          // Local to this case: a quote with no such block never reaches it,
+          // so the roofing PDF's own break points do not move.
+          var secUp = pick(breaks.sec, Math.max(sliceTop, kt - hardStep * 0.25), kt);
+          if (secUp !== null) cutY = secUp;
+          break;
+        }
       }
     }
     var sliceH = cutY - sliceTop;
@@ -72565,29 +72846,58 @@ function _psPdfFitCover(root){
   var undo = function(){};
   try {
     if (!root || typeof _psIsShed !== 'function' || !_psIsShed()) return undo;
-    var wrap = root.querySelector('.qd-wrap') || root;
     var cov  = root.querySelector('[data-qd-sec="cover"]');
     var hero = cov && cov.querySelector('figure[data-cp-hero]');
     if (!cov || !hero) return undo;
-    // Where the next chapter starts is what the slicer will cut at, so that
-    // is the figure to aim at — not the cover's own height, which leaves out
-    // the gap between the two cards.
+    var img = hero.querySelector('img');
+    var w = hero.getBoundingClientRect().width;
+    var h0 = hero.getBoundingClientRect().height;
+    if (!(w > 0) || !(h0 > 0)) return undo;
+    // THE BAND TAKES THE RENDER'S OWN SHAPE (2026-10-21). It used to be
+    // stretched to fill sheet one, and that is the wrong thing to optimise:
+    // a 16:9 shed render inside a band sized to the paper is a picture with
+    // 160px of navy above and below it, and sized to a fixed 46mm band it
+    // was a SIX-TO-ONE letterbox. Give the band the picture's own aspect and
+    // the render fills it edge to edge — no bars, no crop, no squash.
+    //
+    // Sheet one is then about half full, and that is a cover page doing its
+    // job rather than a fault: the Plans chapter is nearly a whole sheet, so
+    // nothing can share with it whatever the cover does (see the 2026-10-20
+    // note). Do NOT go back to stretching this to the sheet — that trade is
+    // a worse picture for a fuller page, and the picture is the cover.
+    // THE PICTURE'S OWN SHAPE IS THE FLOOR, THE SHEET IS THE CEILING.
+    // Sized to the paper alone it was a 6:1 letterbox with a 16:9 render
+    // squeezed into it; sized to the picture alone the cover sheet came out
+    // barely half full, which is the "cover page is nearly all empty" of
+    // 2026-10-20 all over again. So: never shorter than the render's own
+    // aspect — that is what stops it being squashed — and otherwise as tall
+    // as it takes to carry the cover to the foot of sheet one. The render
+    // sits in the middle of the band on the navy ground it is already on,
+    // which reads as a cover panel rather than as a stretched photograph.
+    var ideal = h0;
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0){
+      ideal = Math.round(w * (img.naturalHeight / img.naturalWidth));
+    }
+    var wrap = root.querySelector('.qd-wrap') || root;
     var next = cov.nextElementSibling;
     while (next && !next.hasAttribute('data-qd-sec')) next = next.nextElementSibling;
-    var wt   = wrap.getBoundingClientRect().top;
+    var wt = wrap.getBoundingClientRect().top;
     var have = next ? (next.getBoundingClientRect().top - wt)
                     : (cov.getBoundingClientRect().bottom - wt);
-    var h0 = hero.getBoundingClientRect().height;
-    if (!(h0 > 0) || !(have > 0)) return undo;
     // 18px short of the sheet, so the boundary the slicer wants is inside the
-    // first sheet rather than a hair past it (it would then cut at the hard
-    // step instead, through the top of the plans).
-    var want = Math.round(Math.max(PS_PDF_HERO_MIN,
-                 Math.min(PS_PDF_HERO_MAX, h0 + (QP_PDF_SHEET_PX - 18 - have))));
+    // first sheet rather than a hair past it.
+    var fill = (have > 0) ? (h0 + (QP_PDF_SHEET_PX - 18 - have)) : h0;
+    var want = Math.round(Math.max(PS_PDF_HERO_MIN, ideal,
+                 Math.min(PS_PDF_HERO_MAX, fill)));
     if (Math.abs(want - h0) < 8) return undo;
-    var prev = hero.style.height;
-    hero.style.height = want + 'px';
-    return function(){ try { hero.style.height = prev; } catch(e){} };
+    var prev = hero.style.getPropertyValue('height');
+    var prevP = hero.style.getPropertyPriority('height');
+    // IMPORTANT, because the print layer sets this element's height with an
+    // !important of its own and a plain inline style loses to it — which is
+    // how this function once ran, logged the height it wanted, and changed
+    // nothing at all.
+    hero.style.setProperty('height', want + 'px', 'important');
+    return function(){ try { hero.style.setProperty('height', prev, prevP); } catch(e){} };
   } catch(e){ return undo; }
 }
 async function _buildModernQuotePdf(opts, capScale){

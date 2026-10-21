@@ -292,10 +292,12 @@ check('a shed in MODERN style renders the SHED, not a roofing quote',
 // A DECISION PER SECTION (2026-10-20): the shed's one "Choose Your Options"
 // page became six sections of its own, in the roofing quote's idiom. The plan
 // option and the add-ons are conditional, so this fixture (one plan, the three
-// built-in add-ons) gets psaddons and not psplan.
+// built-in add-ons) gets psaddons and not psplan; psprofile joined them on
+// 2026-10-21 and psgutter with it, and both are the SHED'S own sections -
+// one gutter with its downpipes, never the re-roof's brackets page.
 check('…its sections are the shed\'s own, with not one roofing section among them',
   JSON.stringify(styles.modern.keys) ===
-    JSON.stringify(['cover','psplans','psdetails','psgrade','psthickness','pscolour','psroller','psaddons','psincluded','review']),
+    JSON.stringify(['cover','psplans','psdetails','psgrade','psprofile','psthickness','pscolour','psgutter','psroller','psaddons','psincluded','review']),
   JSON.stringify(styles.modern.keys));
 // The REVIEW section is keyed 'review', not 'psreview': the rail's "Review
 // quote" button and the narrow screen's bottom bar both scroll to #qd-review,
@@ -1376,12 +1378,18 @@ const shedWords = await pg.evaluate(() => {
 });
 check('A SHED\u2019S PRICE BOX SAYS NOTHING ABOUT OLD ROOFING',
   !shedWords.picks.join(' ').toLowerCase().includes('old roofing'), JSON.stringify(shedWords.picks));
-check('\u2026nor about a roof profile, guttering or downpipes \u2014 a shed offers none',
-  !/roof profile|guttering|downpipe|gutter brackets/i.test(shedWords.picks.join(' ')),
+// The shed took a profile row and a gutter row on 2026-10-21, and its gutter
+// comes complete: no brackets page, no downpipes decision, and still nothing
+// at all about old roofing - a new shed has none to take away.
+check('\u2026nor about gutter brackets or a downpipe choice \u2014 the gutter comes complete',
+  !/downpipe choice|gutter brackets/i.test(shedWords.picks.join(' ')) &&
+  /Guttering = 125mm Colorsteel box gutter \u2014 downpipes included/.test(shedWords.picks.join(' | ')),
   JSON.stringify(shedWords.picks));
 check('it lists the SHED\u2019S own picks instead',
   shedWords.picks.join(' | ') ===
-  'Plan option = 3-Bay Shed | Steel grade = Colorsteel\u00ae | Steel thickness = 0.40 gauge | '
+  'Plan option = 3-Bay Shed | Steel grade = Colorsteel\u00ae | Roof profile = Corrugate | '
+  + 'Steel thickness = 0.40 gauge | '
+  + 'Guttering = 125mm Colorsteel box gutter \u2014 downpipes included | '
   + 'Roof & wall colour = Ironsand | Roller door finish = Colorsteel\u00ae \u2014 matches the shed | '
   + 'Add sliding door = Included',
   JSON.stringify(shedWords.picks));
@@ -1718,6 +1726,106 @@ check('…the band is put back the moment the capture is over',
   cov.backTo === 330, JSON.stringify(cov));
 check('…and a roofing quote’s cover is not touched at all',
   cov.roofTop === cov.before, JSON.stringify(cov));
+
+// ── THE SHED'S PROFILE AND ITS GUTTER (2026-10-21, the owner: "add the
+// profile selection and gutter selection for the pole shed like the roofing
+// quote has, however the pole shed only option should be 125mm box gutter
+// with downpipe compulsory with gutter selected").
+//
+// THE COMPATIBILITY STORY IS PINNED FIRST, because it is the whole of the
+// risk: a company that has not priced its profiles must read exactly as it
+// did, and the gutter is already IN the shed's price, so only declining it
+// is money.
+({ ctx, pg } = await open('Flood Roofing'));
+const pgut = await pg.evaluate(async () => {
+  const R = {};
+  const setup = () => {
+    S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.gstRate = 15;
+    S.quote.style = 'modern'; S.quote.psSubtotal = 64585;
+    S.quote.shedEst = { W:7.2, L:12.6, hiEave:3.48, loEave:2.9, poles:8, roller:3, pa:1, days:6 };
+  };
+  setup();
+  R.keys = _psModernSections().map(x => x.key);
+  // Nothing priced: every profile reads the same, so no shed quoted before
+  // today moves by a cent.
+  R.unpricedDeltas = (_selProfiles() || []).map(p => _psProfileDelta(p.id));
+  R.unpricedSnap = _psProfileDeltasSnapshot();
+  R.unpricedItems = _poleShedSelItems().map(i => i.label);
+  const total0 = _custBarTotalValue();
+  // Now the office prices two profiles.
+  const sel = _selectables();
+  (sel.profiles || []).forEach((p, i) => { p.rate = (i === 0 ? 18 : 24); p.rateUnit = 'm2'; });
+  S.quote.psBaseProfile = (sel.profiles[0] || {}).id;
+  R.area = Math.round((_psCladArea() || {}).m2 || 0);
+  R.baseDelta = _psProfileDelta(sel.profiles[0].id);
+  R.otherDelta = Math.round(_psProfileDelta(sel.profiles[1].id) * 100) / 100;
+  R.costGap = Math.round((_psProfileCost(sel.profiles[1].id) - _psProfileCost(sel.profiles[0].id)) * 100) / 100;
+  // The gutter: in the price, so it reads Included and declining it credits
+  // what the take-off actually charged for that line.
+  R.gutterDefault = _psGutterPicked();
+  R.allow = _psGutterAllowance();
+  // Settle the base FIRST: _setPsSel re-renders and the render re-derives the
+  // shed's price from the drawer, so a baseline read before any render is a
+  // different base and the comparison would span the change, not the gutter.
+  _setPsGutter('box125');
+  const totalGut = _custBarTotalValue();
+  _setPsGutter('none');
+  R.noGutItems = _poleShedSelItems().map(i => i.label + ' ' + i.delta.toFixed(2));
+  R.dropped = Math.round((totalGut - _custBarTotalValue()) * 100) / 100;
+  R.inclAllow = Math.round(_qbIncl(R.allow) * 100) / 100;
+  _setPsGutter('box125');
+  R.backToGut = Math.round((_custBarTotalValue() - totalGut) * 100) / 100;
+  // A gauge the profile forces is the profile's decision, counted once.
+  R.lock = _psProfileLock('5rib');
+  _setPsProfile('5rib');
+  R.thickAfter = S.quote.psSelThickness;
+  R.thickTxt = _psmThickness().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  R.lockItems = _poleShedSelItems().map(i => i.label + ' ' + i.delta.toFixed(2));
+  // Frozen for the customer, who has no price book and no estimator.
+  const snap = _psProfileDeltasSnapshot();
+  S.quote.psProfileDeltas = snap; S.quote.psGutterAllow = R.allow;
+  window.__CUSTOMER_MODE = true;
+  (sel.profiles || []).forEach(p => { delete p.rate; });
+  R.frozenProfile = Math.round(_psProfileDelta(sel.profiles[1].id) * 100) / 100;
+  S.quote.shedEst = null;
+  R.frozenAllow = _psGutterAllowance();
+  window.__CUSTOMER_MODE = false;
+  R.total0 = total0;
+  return R;
+});
+check('THE ASK: the shed quote carries its own profile and gutter sections',
+  pgut.keys.indexOf('psprofile') > pgut.keys.indexOf('psgrade') &&
+  pgut.keys.indexOf('psgutter') > pgut.keys.indexOf('psprofile') &&
+  pgut.keys.indexOf('psgutter') < pgut.keys.indexOf('psroller'),
+  pgut.keys.join(','));
+check('…a company that has not priced its profiles reads exactly as it did',
+  pgut.unpricedDeltas.every(d => d === 0) && pgut.unpricedSnap === null &&
+  pgut.unpricedItems.length === 0,
+  JSON.stringify({ d: pgut.unpricedDeltas, s: pgut.unpricedSnap, i: pgut.unpricedItems }));
+check('…the profile difference is the real cost of cladding THIS shed',
+  pgut.area > 0 && pgut.baseDelta === 0 &&
+  Math.abs(pgut.otherDelta - pgut.costGap) < 0.01 && pgut.otherDelta > 0,
+  JSON.stringify({ a: pgut.area, b: pgut.baseDelta, o: pgut.otherDelta, g: pgut.costGap }));
+check('THE ASK: 125mm box gutter is the pick, and the downpipes come with it',
+  pgut.gutterDefault === 'box125' && !/downpipe/i.test(pgut.keys.join(',')),
+  pgut.gutterDefault);
+check('…guttering is IN the price, so only declining it is money',
+  pgut.allow > 0 && pgut.noGutItems.length === 1 &&
+  /No guttering/.test(pgut.noGutItems[0]) &&
+  Math.abs(pgut.dropped - pgut.inclAllow) < 0.02,
+  JSON.stringify({ a: pgut.allow, i: pgut.noGutItems, d: pgut.dropped, x: pgut.inclAllow }));
+check('…and taking it back puts the same figure back',
+  Math.abs(pgut.backToGut) < 0.01, String(pgut.backToGut));
+check('a profile rolled in one gauge DECIDES the gauge, and says so',
+  pgut.lock === '0.55' && pgut.thickAfter === '0.55' &&
+  /Locked for/.test(pgut.thickTxt) && /nothing to choose/.test(pgut.thickTxt),
+  JSON.stringify({ l: pgut.lock, t: pgut.thickAfter }));
+check('…and that gauge is charged once, on the thickness row',
+  pgut.lockItems.filter(x => /gauge/.test(x)).length === 1,
+  pgut.lockItems.join(' | '));
+check('the customer reads the FROZEN figures — no price book, no estimator',
+  pgut.frozenProfile === pgut.otherDelta && pgut.frozenAllow === pgut.allow,
+  JSON.stringify({ p: pgut.frozenProfile, o: pgut.otherDelta, a: pgut.frozenAllow }));
 
 await ctx.close();
 
