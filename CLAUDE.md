@@ -4164,7 +4164,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** main = production = `896e17b`, verified from the promote's own
+**Live now.** main = production = `f5c3454`, verified from the promote's own
 log (frontend byte-for-byte, backend `/health.build`). Nothing uncommitted.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
