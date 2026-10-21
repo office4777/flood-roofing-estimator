@@ -7,8 +7,13 @@
 // (colours) must also never run past any roof line").
 // _sheetPuzzleBuild (sheet-plan.js) reads the roof's OWN outline and lines
 // — nothing from the counting pass — cuts them into faces and divides each
-// face into strips one cover wide, square to its gutter. These pins hold
-// the picture to those rules on the shapes the owner counts by hand.
+// face into strips one cover wide, square to its gutter. THE FILL
+// (_sheetPuzzleFill, the owner the same afternoon: "Try to use roof wizards
+// logic and methods") is AppliCad Roof Wizard's block cutting: a block is
+// ordered at one length, its hip- and valley-cut sheets leave offcuts, and
+// the hip ends are cut from those offcuts spun round — same hand, never
+// flipped. These pins hold the picture to those rules on the shapes the
+// owner counts by hand.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -60,10 +65,13 @@ async function lay(g){
     const cover = pz.coverPx;
     const outlines = pz.roofs.map(R => R.outline);
     const faces = pz.faces.map(f => ({ id:f.id, roofIdx:f.roofIdx, ref:f.ref.kind, refLen:f.ref.len, t:f.t, d:f.d, strips:f.strips,
-      pieces:f.pieces.length, hasGutter:f.hasGutter, hasBarge:f.hasBarge, hasCp:f.hasCp, pf:f.pf, fromEnd:f.fromEnd,
-      edges:f.edges.map(e => ({ kind:e.kind, len:e.len, a:e.a, b:e.b })), areaPx:f.areaPx }));
+      pieces:f.pieces.length, hasGutter:f.hasGutter, hasBarge:f.hasBarge, hasCp:f.hasCp, pf:f.pf, fromEnd:f.fromEnd, lay:f.lay,
+      endFace:!!f.endFace, c:f.c, edges:f.edges.map(e => ({ kind:e.kind, len:e.len, a:e.a, b:e.b })), areaPx:f.areaPx }));
     const pieces = pz.pieces.map(p => ({ face:p.face.id, k:p.k, widthPx:p.widthPx, longPx:p.longPx, shortPx:p.shortPx, tip:p.tip,
-      longMm:p.longMm, shortMm:p.shortMm, widthMm:p.widthMm, areaPx:p.areaPx, color:p.color, num:p.num, poly:p.poly }));
+      longMm:p.longMm, shortMm:p.shortMm, widthMm:p.widthMm, areaPx:p.areaPx, poly:p.poly, c:_ccCentroid(p.poly),
+      full:p.full, cutTop:p.cutTop, cutBot:p.cutBot, hand:p.hand, label:p.label, from:p.from || null, ordered:!!p.ordered,
+      block:p.block ? p.block.letter : null }));
+    const blocks = (pz.blocks || []).map(b => ({ letter:b.letter, face:b.face.id, Lmm:b.Lmm, count:b.count, extra:b.extra, cutCount:b.cutCount, feeds:b.feeds }));
     // Coverage / overlap: sample a grid over the roof.
     const bb = pz.bbox; let inRoof = 0, covered = 0, doubled = 0;
     const step = Math.max(3, cover / 5);
@@ -93,7 +101,8 @@ async function lay(g){
     });
     const roofArea = outlines.reduce((s, o) => s + _ccPolyArea(o), 0);
     const pieceArea = pz.pieces.reduce((s, p) => s + p.areaPx, 0);
-    return { faces, pieces, cover: covered / Math.max(1, inRoof), overlap: doubled / Math.max(1, inRoof), straddles,
+    return { faces, pieces, blocks, tally: pz.tally, fed: pz.fedPieces, extras: pz.extraSheets, unused: pz.unusedOffcuts,
+             cover: covered / Math.max(1, inRoof), overlap: doubled / Math.max(1, inRoof), straddles,
              roofArea, pieceArea, coverPx: cover, coverMm: pz.coverMm, scaleM: pz.scaleM, nRoofs: pz.roofs.length };
   }, g);
 }
@@ -112,9 +121,14 @@ function rules(name, r, opts){
   check('…no piece runs past a roof line', r.straddles === 0, r.straddles + ' straddle');
   check('…the pieces cover the roof once (cover ' + r.cover.toFixed(3) + ', doubled ' + r.overlap.toFixed(3) + ')',
     r.cover >= (opts.minCover || 0.995) && r.overlap <= 0.002 && Math.abs(r.pieceArea - r.roofArea) / r.roofArea < 0.005);
-  check('…every strip is one cover wide (the last of a face may be narrower)',
-    r.faces.every(f => { const ps = r.pieces.filter(p => p.face === f.id); const full = ps.filter(p => Math.abs(p.widthPx - r.coverPx) < 0.05).length; return full >= ps.length - 1; }));
-  check('…and nothing is filled: no colour, no sheet number', r.pieces.every(p => p.color === undefined && p.num === undefined));
+  check('…every strip is one cover wide (the closer may be narrower: at the far end, in the middle of a face laid from both corners, at both corners of a hip end laid from its apex)',
+    r.faces.every(f => { const ps = r.pieces.filter(p => p.face === f.id); const full = ps.filter(p => Math.abs(p.widthPx - r.coverPx) < 0.05).length; return full >= ps.length - (f.lay === 'apex' ? 2 : 1); }));
+  // The fill's own rules, on every shape.
+  check('…every piece is a numbered sheet of a block or cut from a named sheet\'s offcut',
+    r.pieces.every(p => p.block && p.label && (p.ordered ? /^[A-Z]+\d+$/.test(p.label) : (p.from && r.pieces.some(q => q.ordered && q.label === p.from)))));
+  check('…an offcut is spun, never flipped: every fed piece has the hand of the sheet it came from',
+    r.pieces.filter(p => !p.ordered && p.hand).every(p => { const d = r.pieces.find(q => q.ordered && q.label === p.from); return d && d.hand === p.hand; }));
+  check('…and the tally is the blocks added up', r.tally.reduce((s, x) => s + x.count, 0) === r.blocks.reduce((s, b) => s + b.count, 0));
 }
 
 // ── The plain hip the owner counts by hand ────────────────────────
@@ -125,10 +139,29 @@ check('…the long faces 24 strips each (18 / 0.762 = 23.6 → 24) and the hip e
   r.pieces.length + ' pieces: ' + r.faces.map(f => f.pieces).join(','));
 check('…a full strip up a long face is the rafter at the pitch: 6 m run / cos 25° = 6.62 m',
   r.pieces.filter(p => p.longMm === 6620).length >= 16, [...new Set(r.pieces.map(p => p.longMm))].sort((a, b) => b - a).slice(0, 3).join(','));
-check('…a strip cut by a hip is a trapezoid or a triangle, its short edge shorter than its long edge: 66 of 80 (the strips start flush at one end, so the far hip clips a ninth strip by 0.19 m)',
-  r.pieces.filter(p => p.shortPx < p.longPx - 0.5).length === 66 && r.pieces.filter(p => p.tip).length > 0,
+check('…a strip cut by a hip is a trapezoid or a triangle, its short edge shorter than its long edge: 64 of 80 (eight a side at every hip, the long faces laid from both corners)',
+  r.pieces.filter(p => p.shortPx < p.longPx - 0.5).length === 64 && r.pieces.filter(p => p.tip).length > 0,
   r.pieces.filter(p => p.shortPx < p.longPx - 0.5).length + ' cut, ' + r.pieces.filter(p => p.tip).length + ' tips');
 rules('the hip', r);
+check('…FILLED: two blocks of 24 at 6.63 m (6.62 rounded up to 10 mm), nothing extra — the textbook 48',
+  r.blocks.length === 2 && r.blocks.every(b => b.count === 24 && b.Lmm === 6630 && !b.extra) && r.extras === 0, JSON.stringify(r.blocks));
+check('…every one of the 32 hip-end pieces is cut from an offcut, and no offcut is left over', r.fed === 32 && r.unused === 0, r.fed + ' fed, ' + r.unused + ' unused');
+check('…the long faces are laid from both corners with the 0.47 m closer in the middle (Block-Cut\'s mirror split), so both hip ends get exact offcuts',
+  r.faces.filter(f => f.pieces === 24).every(f => { const ps = r.pieces.filter(p => p.face === f.id).sort((a, b) => a.k - b.k); return f.lay === 'both' && Math.abs(ps[12].widthMm - 474) <= 2 && ps.filter(p => Math.abs(p.widthPx - r.coverPx) < 0.05).length === 23; }),
+  r.faces.map(f => f.lay).join(','));
+check('…a hip end is laid from its apex, and the half nearest the FRONT slope is cut from the BACK slope\'s sheets (a spin crosses over; a flip would not)',
+  (() => {
+    const longs = r.faces.filter(f => f.pieces === 24), ends = r.faces.filter(f => f.pieces === 16);
+    if (!ends.every(f => f.lay === 'apex')) return false;
+    return ends.every(e => r.pieces.filter(p => p.face === e.id && !p.ordered).every(p => {
+      // the long face nearest this piece's centroid, by the gutter it stands on
+      const near = longs.slice().sort((a, b) => Math.hypot(a.c[0]-p.c[0], a.c[1]-p.c[1]) - Math.hypot(b.c[0]-p.c[0], b.c[1]-p.c[1]))[0];
+      const donorFace = r.pieces.find(q => q.ordered && q.label === p.from).face;
+      return donorFace !== near.id;
+    }));
+  })());
+check('…and a corner sheet\'s offcut is the apex strip opposite: ↺A1 is 6.62 m long, the sheet 0.84',
+  (() => { const a1 = r.pieces.find(p => p.label === 'A1'); const fed = r.pieces.find(p => p.from === 'A1'); return a1 && fed && a1.longMm === 841 && fed.longMm === 6620 && fed.shortMm === 5779; })());
 
 // ── A gable starts its strips at the barge ───────────────────────
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'gable' });
@@ -139,6 +172,7 @@ check('…laid from one barge: 23 full strips then a 0.47 m closer against the o
   JSON.stringify(r.pieces.filter(p => p.face === 1).map(p => p.widthMm).slice(-2)));
 check('…every piece the full rafter, square at both ends', r.pieces.every(p => p.longMm === 6620 && p.shortMm === 6620));
 rules('the gable', r);
+check('…FILLED: two blocks of 24, nothing cut, nothing fed', r.blocks.length === 2 && r.blocks.every(b => b.count === 24 && b.cutCount === 0) && r.fed === 0 && r.extras === 0);
 
 // ── A change of pitch is its own band at its own pitch ────────────
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, lowPitch: 10, outline: RECT(900, 600), autoType: 'gable',
@@ -154,16 +188,23 @@ check('…and the upper band, with no gutter of its own, runs square to its ridg
 // ── The Big-L ─────────────────────────────────────────────────────
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: L(300, 300, 900, 700), autoType: 'hip' });
 check('the Big-L is six faces (the west slope of wing and main is ONE plane)', r.faces.length === 6, r.faces.length);
-check('…110 pieces: 27 off the 20 m west gutter, 24 and 20 off the main\'s, 19 off the east, 8 and 12 off the wing\'s',
-  r.pieces.length === 110 && r.faces.map(f => f.pieces).sort((a, b) => b - a).join(',') === '27,24,20,19,12,8',
+check('…111 pieces: 27 off the 20 m west gutter, 24 and 20 off the main\'s, 20 off the east (laid from its apex, a sliver at each corner), 8 and 12 off the wing\'s',
+  r.pieces.length === 111 && r.faces.map(f => f.pieces).sort((a, b) => b - a).join(',') === '27,24,20,20,12,8',
   r.pieces.length + ': ' + r.faces.map(f => f.pieces).join(','));
 rules('the Big-L', r);
+check('…FILLED the way Auto-Block 2 blocks a ridge side: the wing\'s two slopes at 3.3 m, the main\'s two at 7.73 m, and the main\'s west hip end — the part of the shared west face longer than the wing\'s sheets — fed from offcuts or ordered on its own',
+  r.blocks.filter(b => !b.extra).length === 4 && r.blocks.filter(b => !b.extra && b.Lmm === 7730).length === 2 && r.blocks.filter(b => !b.extra && b.Lmm < 3400).length === 2,
+  JSON.stringify(r.blocks));
+check('…the wing\'s hip end and the main\'s east hip end are cut entirely from offcuts',
+  r.faces.filter(f => f.endFace).every(f => r.pieces.filter(p => p.face === f.id).every(p => !p.ordered)), r.fed + ' fed');
 
 // ── The dutch gable stops at its gablet ───────────────────────────
 r = await lay(JSON.parse(JSON.stringify({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'dutch' })));
 check('a dutch gable is four faces, the long ones ending at the gablet\'s apron',
   r.faces.length === 4 && r.faces.filter(f => f.pieces === 24).every(f => f.edges.some(e => e.kind === 'apron')), r.faces.map(f => f.pieces + ':' + f.edges.map(e => e.kind[0]).join('')).join(' '));
 rules('the dutch', r);
+check('…FILLED as four blocks (the gablet ends have full sheets against the apron, so they are blocks too): 48 at 6.63 m + 32 at 3.32 m',
+  r.blocks.length === 4 && r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '48x6630,32x3320' && r.extras === 0, JSON.stringify(r.tally));
 
 // ── The owner's hand-counted hip-and-valley shapes ────────────────
 for (const [name, g] of [['double L', fx('doublel')], ['report 50', fx('report50')], ['tee', fx('tee')], ['report 58', fx('report58')]]){
@@ -173,6 +214,9 @@ for (const [name, g] of [['double L', fx('doublel')], ['report 50', fx('report50
   check('…no piece runs past a roof line', r.straddles === 0, r.straddles + ' straddle');
   check('…and the pieces cover the roof once (cover ' + r.cover.toFixed(3) + ', doubled ' + r.overlap.toFixed(3) + ')',
     r.cover >= 0.99 && r.overlap <= 0.005 && Math.abs(r.pieceArea - r.roofArea) / r.roofArea < 0.01);
+  check('…filled: every piece a block sheet or a named offcut of the same hand, the tally adding up (' + r.tally.map(x => x.count + ' × ' + (x.Lmm/1000).toFixed(2)).join(', ') + ')',
+    r.pieces.every(p => p.block && p.label) && r.pieces.filter(p => !p.ordered && p.hand).every(p => { const d = r.pieces.find(q => q.ordered && q.label === p.from); return d && d.hand === p.hand; }) &&
+    r.tally.reduce((s, x) => s + x.count, 0) === r.blocks.reduce((s, b) => s + b.count, 0));
 }
 
 // ── Five roofs ────────────────────────────────────────────────────

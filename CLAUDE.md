@@ -2413,13 +2413,30 @@ Discipline (non-negotiable):
   clipped to the face so no piece ever runs past a roof line. HIS RULES, in
   his words, and the suite pins each: sheets perpendicular to gutter and
   ridge, never parallel; 45° to a hip or valley only; nothing past a roof
-  line. NOT FILLED YET — no colour, no number, no order group; the rules for
-  the fill are written at the top of that code and in `docs/SHEET_LAYOUT.md`
-  so they are not lost (ordered with a square cut edge, cut at hips and
-  valleys, the offcut SPUN — rotated in the plane — never flipped over).
-  `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: white pieces
-  with the long length up each, F1… per face with an arrow the way the sheets
-  run, the roof lines in the map's colours, a footer per face. The live card
+  line. THE FILL IS ROOF WIZARD'S BLOCK CUTTING (the same afternoon: "Try to
+  use roof wizards logic and methods"; `_sheetPuzzleFill`): a face with a
+  full strip is ordered as BLOCKS at one length each (the longest piece,
+  rounded up to 10 mm; grouped by the level the full strips top out at, a
+  cut strip joining the longer neighbour only when it is no longer than
+  that block's sheets); every cut sheet's offcut goes into a pool with its
+  HAND (long side left or right, looking from the square end to the
+  diagonal — a spin keeps it, a flip reverses it, and a sheet is never
+  flipped); a hip END, and any strip longer than its block, is cut from the
+  pool — same hand, the offcut containing the piece square end to square
+  end, the NEAREST fit first — or ordered as an extra sheet of its own.
+  WHERE THE STRIPS START is what makes the offcuts match and is decided in
+  the builder: flush at a barge; a hip end from its APEX; a face with hips
+  at both ends from BOTH corners with the closer in the middle (Block-Cut's
+  mirror split), which is why the 18 × 12 m hip closes at 48 sheets with
+  nothing over. The footer carries the tally per length, the blocks, how
+  many end pieces came from offcuts, how many sheets were extra and how
+  many offcuts are left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE
+  DIFFERENT NUMBERS (the Big-L: 78 against 66) and nothing reconciles them
+  — which one is the order is his call, not yet asked.
+  `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: one tint per
+  block with the sheet's number (A12) up each piece, a hatched piece for one
+  cut from an offcut (↺A12), F1… per face with an arrow the way the sheets
+  run, the roof lines in the map's colours, the tally and block schedule. The live card
   passes `roofIdxs:[-1]` and `__origDrawLines` (DRAW.lines is the counting
   pass's borrowed copy at that point); the captures pass roof indices, and
   the all-roofs picture is ONE frame now, not a stack. An L's wing and main
@@ -2430,12 +2447,13 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (66): plain
-  hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m),
-  gable 23 full strips and a 0.47 m closer from the barge, a change of pitch
-  as its own band at the lower pitch, Big-L 6 faces / 110, dutch stopping at
-  its apron, the hand-counted fixtures covered exactly once, five roofs in one
-  frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (87): plain
+  hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
+  filled as 2 × 24 with all 32 end pieces from offcuts of the opposite
+  slope, gable 23 full strips and a 0.47 m closer from the barge, a change
+  of pitch as its own band at the lower pitch, Big-L 6 faces / 111 and four
+  blocks, dutch stopping at its apron, every fed piece the hand of its donor,
+  the hand-counted fixtures covered exactly once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first

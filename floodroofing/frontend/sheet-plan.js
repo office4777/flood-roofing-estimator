@@ -6997,10 +6997,23 @@ function _sheetPuzzleBuild(opts){
       var ds = f.poly.map(function(p){ return p[0]*dx + p[1]*dy; });
       var tMin = Math.min.apply(null, ts), tMax = Math.max.apply(null, ts);
       var dMin = Math.min.apply(null, ds), dMax = Math.max.apply(null, ds);
-      // Strips start flush at a barge where the face has one (a gable end
-      // is where the first full sheet goes); a barge at the far end lays
-      // the strips from that end instead.
-      var fromEnd = false;
+      // WHERE THE STRIPS START (Roof Wizard lays "away from a gable end",
+      // and Block-Cut's mirror split is the trade's trick for a hip end):
+      //  • a barge: flush at it, the first full sheet goes against the
+      //    gable (a barge at the far end lays from that end);
+      //  • a hip END face (no level line but its gutter — two hips meeting
+      //    at an apex): the strips are anchored at the APEX, so each half's
+      //    k-th strip from the apex is the exact spun offcut of the k-th
+      //    sheet from the corner on the slope opposite;
+      //  • a face with a hip at BOTH ends: laid from both corners towards
+      //    the middle, the narrow closer in the middle — then both hip ends
+      //    get the exact offcuts, which is what makes the count close
+      //    (18 x 12 m: 48 sheets and nothing extra);
+      //  • otherwise from the face's near end.
+      var fromEnd = false, lay = 'start', anchorT = tMin;
+      var isLevel = function(e){ var ex = (e.b[0]-e.a[0])/(e.len||1), ey = (e.b[1]-e.a[1])/(e.len||1); return Math.abs(ex*tx + ey*ty) > 0.9994; };
+      var hasLevel = f.edges.some(function(e){ return e !== pick && e.len > tol && isLevel(e); });
+      var hipAt = function(tv){ return f.edges.some(function(e){ if (e.kind !== 'hip' && e.kind !== 'valley') return false; var ta = e.a[0]*tx + e.a[1]*ty, tb = e.b[0]*tx + e.b[1]*ty; return Math.abs(ta - tv) < tol || Math.abs(tb - tv) < tol; }); };
       if (f.hasBarge){
         var bt = null;
         f.edges.forEach(function(e){
@@ -7008,17 +7021,32 @@ function _sheetPuzzleBuild(opts){
           var tm = ((e.a[0]+e.b[0])/2)*tx + ((e.a[1]+e.b[1])/2)*ty;
           if (bt === null || Math.abs(tm - tMin) < Math.abs(bt - tMin)) bt = tm;
         });
-        if (bt !== null && Math.abs(bt - tMax) < Math.abs(bt - tMin)) fromEnd = true;
+        if (bt !== null && Math.abs(bt - tMax) < Math.abs(bt - tMin)){ fromEnd = true; anchorT = tMax; }
+        lay = 'barge';
+      } else if (!hasLevel){
+        lay = 'apex';
+        var apexI = 0; ds.forEach(function(v, i){ if (v > ds[apexI]) apexI = i; });
+        anchorT = ts[apexI];
+      } else if (hipAt(tMin) && hipAt(tMax)){
+        lay = 'both';
       }
-      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd;
+      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex');
       f.pf = (f.hasCp && f.hasGutter) ? pfLow : pf;
       f.pieces = [];
-      var span = tMax - tMin, nStrips = Math.max(1, Math.ceil(span / coverPx - 1e-6));
+      var span = tMax - tMin, bounds = [];
+      if (lay === 'both'){
+        var nTot = span / coverPx, nL = Math.ceil(nTot / 2 - 1e-9), nR = Math.max(0, Math.floor(nTot - nL + 1e-9));
+        for (var bi = 0; bi <= nL; bi++) bounds.push(tMin + bi*coverPx);
+        for (var bj = nR; bj >= 0; bj--){ var tv = tMax - bj*coverPx; if (tv > bounds[bounds.length-1] + 0.5) bounds.push(tv); }
+      } else {
+        var first = anchorT - Math.ceil((anchorT - tMin) / coverPx - 1e-6) * coverPx;
+        for (var tb2 = first; tb2 < tMax - 0.5; tb2 += coverPx) bounds.push(Math.max(tb2, tMin));
+        bounds.push(tMax);
+      }
+      var nStrips = bounds.length - 1;
       f.strips = nStrips;
       for (var k = 0; k < nStrips; k++){
-        var sA = fromEnd ? tMax - (k+1)*coverPx : tMin + k*coverPx;
-        var sB = sA + coverPx;
-        var lo = Math.max(sA, tMin - 0.01), hi = Math.min(sB, tMax + 0.01);
+        var lo = Math.max(bounds[k], tMin - 0.01), hi = Math.min(bounds[k+1], tMax + 0.01);
         if (hi - lo < 0.5) continue;
         var dA = dMin - 2, dB = dMax + 2;
         var rect = [
@@ -7030,16 +7058,50 @@ function _sheetPuzzleBuild(opts){
         var pds = pc.map(function(p){ return p[0]*dx + p[1]*dy; });
         var pA = Math.min.apply(null, pts), pB = Math.max.apply(null, pts);
         var lMin = Math.min.apply(null, pds), lMax = Math.max.apply(null, pds);
-        function edgeRun(at){
+        function edgeExt(at){
           var m = null, M = null;
           pc.forEach(function(p, i){ if (Math.abs(pts[i] - at) < 0.6){ if (m === null || pds[i] < m) m = pds[i]; if (M === null || pds[i] > M) M = pds[i]; } });
-          return (m === null) ? 0 : (M - m);
+          return (m === null) ? null : [m, M];
         }
-        var runA = edgeRun(pA), runB = edgeRun(pB);
+        var eA = edgeExt(pA), eB = edgeExt(pB);
+        var runA = eA ? eA[1] - eA[0] : 0, runB = eB ? eB[1] - eB[0] : 0;
+        // Which ends are square (the sheet's ordered edge) and which are cut.
+        // A cut at the TOP is a hip (or the ridge end of a ridge-topped
+        // strip is square); a cut at the BOTTOM is a valley reaching the
+        // gutter end. Both ends known square = a full rectangle.
+        var topSq = !!(eA && eB && Math.abs(eA[1] - lMax) < 0.6 && Math.abs(eB[1] - lMax) < 0.6);
+        var botSq = !!(eA && eB && Math.abs(eA[0] - lMin) < 0.6 && Math.abs(eB[0] - lMin) < 0.6);
+        var cutTop = !topSq, cutBot = !botSq;
+        // Handedness of a one-cut piece: look from the square end towards
+        // the diagonal; is the long side on the left or the right? A spin
+        // (180° in the plane) keeps it; a flip reverses it — and a sheet is
+        // never flipped, so only like feeds like.
+        var hand = 0, diagTan = 0;
+        if (cutTop !== cutBot){
+          var look = cutTop ? [dx, dy] : [-dx, -dy];
+          var toLong = (runB >= runA) ? [tx, ty] : [-tx, -ty];
+          var cr = look[0]*toLong[1] - look[1]*toLong[0];
+          hand = cr > 0 ? 1 : -1;
+          // The diagonal's slope, read off the cut edge itself (the longest
+          // edge that runs neither along the strip nor across it) — a sheet
+          // whose top is part ridge, part hip has a steeper hip than the
+          // difference of its two edges says.
+          var bestL = 0;
+          for (var ei = 0; ei < pc.length; ei++){
+            var q1 = pc[ei], q2 = pc[(ei+1)%pc.length];
+            var ex = q2[0]-q1[0], ey = q2[1]-q1[1], eL = Math.hypot(ex, ey);
+            if (eL < 0.6) continue;
+            var at = Math.abs(ex*tx + ey*ty)/eL, ad = Math.abs(ex*dx + ey*dy)/eL;
+            if (at < 0.02 || ad < 0.02) continue;
+            if (eL > bestL){ bestL = eL; diagTan = ad/at; }
+          }
+          if (!bestL) diagTan = (pB - pA) > 0.1 ? Math.abs(runA - runB) / (pB - pA) : 0;
+        }
         var piece = {
           face: f, k: k, poly: pc, tA: pA, tB: pB,
           widthPx: pB - pA, longPx: lMax - lMin, shortPx: Math.min(runA, runB),
           tip: Math.min(runA, runB) < 0.6, areaPx: _ccPolyArea(pc),
+          cutTop: cutTop, cutBot: cutBot, full: !cutTop && !cutBot, hand: hand, diagTan: diagTan,
           // The sheet-length figures: along the slope, so at the pitch.
           longMm: Math.round((lMax - lMin) * scaleM * f.pf * 1000),
           shortMm: Math.round(Math.min(runA, runB) * scaleM * f.pf * 1000),
@@ -7066,21 +7128,194 @@ function _sheetPuzzleBuild(opts){
     bb[0] = Math.min(bb[0], p[0]); bb[1] = Math.min(bb[1], p[1]); bb[2] = Math.max(bb[2], p[0]); bb[3] = Math.max(bb[3], p[1]);
   }); });
   var res = { roofs: roofs, faces: faces, pieces: pieces, coverPx: coverPx, coverMm: coverMm, scaleM: scaleM, bbox: bb, tol: tol };
+  if (!opts.noFill){ try { _sheetPuzzleFill(res); } catch(e){ try { console.warn('sheet fill:', e); } catch(e2){} } }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
+}
+
+// ── THE FILL — Roof Wizard's block cutting ────────────────────────────
+// _sheetPuzzleFill(pz) stamps every piece with the sheet it is cut from,
+// the way AppliCad Roof Wizard's Auto-Block 2 / Block-Cut do it:
+//  • BLOCKS. A face that has at least one FULL strip (square at both ends)
+//    is ordered as blocks, every sheet in a block at ONE length — the
+//    longest piece in it, rounded up to 10 mm. "Each ridge gets two blocks,
+//    one on each side, extending as far as the roof geometry allows": the
+//    full strips of a face are grouped by the level they top out at (the
+//    wing's ridge against the main's on an L's shared west slope), and a
+//    cut strip between two levels joins the LONGER neighbour, so its offcut
+//    is the bigger one. Rounding is per block, never grouped first.
+//  • OFFCUTS. A block sheet cut by a hip or a valley leaves a trapezoid —
+//    the ordered length less the piece — with a handedness (long side left
+//    or right, looking from the square end to the diagonal). It goes into
+//    the pool with its donor's number.
+//  • ENDS. A face with no full strip (a hip end's triangle) is sheeted from
+//    the pool: best fit, SAME handedness, same diagonal, the offcut's short
+//    side no shorter than the piece's. A spin keeps the hand, a flip
+//    reverses it, and a sheet is never flipped — which is why a hip end's
+//    half nearest the FRONT slope is cut from the BACK slope's offcuts. A
+//    piece nothing fits is ordered as an extra sheet of its own (its face's
+//    extras block), and its offcut goes back into the pool.
+//  Result on pz: blocks[], tally[] (count per ordered length), and on each
+//  piece: block, num, label ('A12'), from (the donor label on an end
+//  piece), ordered (true when it is a sheet of its own).
+var _PZ_ROUND_MM = 10;
+function _pzLetter(i){ var s = ''; i = i + 1; while (i > 0){ var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
+function _sheetPuzzleFill(pz){
+  var scaleM = pz.scaleM, blocks = [], pool = [];
+  function mmOf(px, f){ return px * scaleM * f.pf * 1000; }
+  function roundUp(mm){ return Math.ceil(mm / _PZ_ROUND_MM - 1e-9) * _PZ_ROUND_MM; }
+  function newBlock(f, extra){
+    var b = { letter: _pzLetter(blocks.length), face: f, pieces: [], Lmm: 0, extra: !!extra, cutCount: 0, feeds: 0 };
+    blocks.push(b); f.blocks = f.blocks || []; f.blocks.push(b);
+    return b;
+  }
+  function addToBlock(b, pc){
+    b.pieces.push(pc); pc.block = b; pc.ordered = true;
+    var need = roundUp(mmOf(pc.longPx, pc.face));
+    if (need > b.Lmm) b.Lmm = need;
+  }
+  // 1. Blocks on the faces that have a full strip.
+  var endFaces = [];
+  pz.faces.forEach(function(f){
+    var ps = f.pieces.slice().sort(function(p, q){ return p.k - q.k; });
+    var fulls = ps.filter(function(p){ return p.full; });
+    if (!fulls.length){ f.endPieces = null; endFaces.push(f); return; }
+    // Level runs of the full strips.
+    var runs = [];
+    fulls.forEach(function(p){
+      var lv = mmOf(p.longPx, f), cur = runs[runs.length - 1];
+      if (cur && Math.abs(cur.level - lv) <= Math.max(60, cur.level * 0.04)){ cur.pieces.push(p); cur.k1 = p.k; }
+      else runs.push({ level: lv, pieces: [p], k0: p.k, k1: p.k });
+    });
+    runs.forEach(function(r){ r.block = newBlock(f, false); });
+    // Every strip joins a run: a full one its own; a cut one the longer of
+    // its neighbours (before and after it in lay order) PROVIDED it is no
+    // longer than that run's sheets — it is then that block's hip or
+    // valley cut. A cut strip longer than every run beside it is not a cut
+    // sheet of any block: it is a hip END standing on the same plane (an
+    // L's main hip end under the wing's west slope), and it is sheeted
+    // from the pool like an end face.
+    f.endPieces = [];
+    ps.forEach(function(p){
+      var r = null;
+      if (p.full){ runs.some(function(x){ if (x.pieces.indexOf(p) >= 0){ r = x; return true; } return false; }); }
+      else {
+        var before = null, after = null, within = null;
+        runs.forEach(function(x){
+          if (x.k0 <= p.k && p.k <= x.k1) within = x;   // a cut strip inside a run (a short valley or apron mid-face)
+          if (x.k1 < p.k && (!before || x.k1 > before.k1)) before = x;
+          if (x.k0 > p.k && (!after || x.k0 < after.k0)) after = x;
+        });
+        r = within || ((before && after) ? (after.level > before.level ? after : before) : (before || after));
+        var lv = mmOf(p.longPx, f);
+        if (lv > r.level + Math.max(60, r.level * 0.04)){ f.endPieces.push(p); return; }
+        r.block.cutCount++;
+      }
+      addToBlock(r.block, p);
+    });
+    if (f.endPieces.length) endFaces.push(f);
+  });
+  // 2. Number the block sheets and pour the offcuts into the pool.
+  function offcutOf(pc){
+    var b = pc.block, L = b.Lmm / 1000 / scaleM / pc.face.pf;   // ordered length back in plan px of ITS face
+    if (pc.cutTop !== pc.cutBot){
+      var a = Math.max(0, L - pc.longPx), bb = Math.max(0, L - pc.shortPx), w = pc.widthPx;
+      // A sheet whose top reaches the ordered length on one side leaves a
+      // TRIANGLE, only as wide as the diagonal spans — not a full-width
+      // trapezoid.
+      if (a < 0.6 && pc.diagTan > 0.01) w = Math.min(w, bb / pc.diagTan);
+      if (bb < 0.6) return null;
+      return { a: a, b: bb, w: w, hand: pc.hand, tan: pc.diagTan, donor: pc.label, block: b, pf: pc.face.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly) };
+    }
+    if (pc.full && L - pc.longPx > 0.6) return { a: L - pc.longPx, b: L - pc.longPx, w: pc.widthPx, hand: 0, tan: 0, donor: pc.label, block: b, pf: pc.face.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly) };
+    return null;   // cut at both ends: nothing square enough to re-use
+  }
+  blocks.forEach(function(b){
+    b.pieces.sort(function(p, q){ return p.k - q.k; });
+    b.pieces.forEach(function(pc, i){ pc.num = i + 1; pc.label = b.letter + pc.num; var oc = offcutOf(pc); if (oc) pool.push(oc); });
+  });
+  // 3. The end faces take from the pool, biggest piece first.
+  var needs = [];
+  endFaces.forEach(function(f){ (f.endPieces || f.pieces).forEach(function(p){ needs.push(p); }); });
+  needs.sort(function(p, q){ return mmOf(q.longPx, q.face) - mmOf(p.longPx, p.face); });
+  var extrasOf = new Map();
+  needs.forEach(function(pc){
+    var f = pc.face, oneCut = pc.cutTop !== pc.cutBot;
+    // Sizes compared along the slope (mm), so two pitches compare fairly.
+    var needA = mmOf(oneCut ? pc.shortPx : pc.longPx, f), needB = mmOf(pc.longPx, f), needW = pc.widthPx, needC = _ccCentroid(pc.poly);
+    var best = null;
+    pool.forEach(function(oc){
+      if (oc.w < needW - 0.6) return;
+      var ocA = oc.a * scaleM * oc.pf * 1000, ocB = oc.b * scaleM * oc.pf * 1000;
+      if (oneCut){
+        // Same hand (a spin keeps it, only a flip would change it), and the
+        // offcut must CONTAIN the piece with their square ends together:
+        // its short side no shorter than the piece's short side and its long
+        // side no shorter than the piece's long side — so a steeper or a
+        // shallower diagonal still serves when the trapezoid is big enough.
+        if (oc.hand !== pc.hand) return;
+        if (ocB < needB - 1) return;
+      } else if (pc.cutTop && pc.cutBot){
+        // Two diagonals (the apex strip): needs a square piece as long as it is.
+        if (ocA < needB - 1) return;
+      }
+      if (ocA < needA - 1) return;
+      // Best fit, and NEAREST: the offcut from the sheet cut at this very
+      // hip (Auto-Block 2's "corresponding and matching off-cut triangle")
+      // beats one of the same size carried across the roof. Surplus and
+      // distance both in mm along the roof; the other roof's offcuts last.
+      var surplus = ocA - needA, dist = Math.hypot(oc.c[0] - needC[0], oc.c[1] - needC[1]) * scaleM * 1000;
+      var score = surplus + 0.5 * dist + (oc.roofIdx === pc.roofIdx ? 0 : 1e6);
+      if (!best || score < best.score) best = { oc: oc, score: score };
+    });
+    if (best){
+      pool.splice(pool.indexOf(best.oc), 1);
+      pc.from = best.oc.donor; pc.block = best.oc.block; pc.ordered = false; pc.label = '↺' + best.oc.donor;
+      best.oc.block.feeds++;
+      return;
+    }
+    var xb = extrasOf.get(f);
+    if (!xb){ xb = newBlock(f, true); extrasOf.set(f, xb); }
+    addToBlock(xb, pc);
+    pc.num = xb.pieces.length; pc.label = xb.letter + pc.num;
+    if (pc.cutTop || pc.cutBot) xb.cutCount++;
+    var oc = offcutOf(pc); if (oc) pool.push(oc);
+  });
+  // 4. The tally: sheets to order per length.
+  var byLen = {};
+  blocks.forEach(function(b){
+    b.count = b.pieces.length;
+    byLen[b.Lmm] = (byLen[b.Lmm] || 0) + b.count;
+  });
+  pz.blocks = blocks;
+  pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
+  pz.endFaces = endFaces;
+  pz.unusedOffcuts = pool.length;
+  pz.fedPieces = needs.filter(function(p){ return !p.ordered; }).length;
+  pz.extraSheets = blocks.filter(function(b){ return b.extra; }).reduce(function(s, b){ return s + b.count; }, 0);
+  return pz;
 }
 
 // ── The picture ───────────────────────────────────────────────────────
 // _renderSheetPuzzleCanvas(opts) → <canvas>. opts.thumb draws at 1× for
 // the side panel; otherwise 2× for the page and the PDF. opts.roofIdxs /
-// opts.lines go to the builder. No colour: the puzzle is the pieces,
-// outlined, with the roof lines over them in the map's colours.
+// opts.lines go to the builder. One colour per BLOCK (Roof Wizard's
+// colour-coded placement drawing), the sheet's number on every piece, a
+// hatched piece for one cut from an offcut (↺A12 = sheet A12's offcut,
+// spun), the roof lines over them in the map's colours, and the order
+// tally with a block schedule under it.
 var _PZ_LINE_COLOURS = { ridge:'#dc2626', valley:'#2563eb', hip:'#16a34a', apron:'#e11d48', changepitch:'#0284c7', barge:'#0891b2', gutter:'#7c3aed' };
+var _PZ_BLOCK_COLOURS = ['#f97316','#2563eb','#a855f7','#16a34a','#0891b2','#db2777','#ca8a04','#64748b','#dc2626','#0d9488','#7c3aed','#84cc16'];
+function _pzTint(hex, a){
+  var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+function _pzM(mm){ return (mm/1000).toFixed(2); }
 function _renderSheetPuzzleCanvas(opts){
   opts = opts || {};
   var pz = _sheetPuzzleBuild(opts);
   var scale = opts.thumb ? 1 : 2;
-  var W = 960, padX = 40, padTop = 78, padBot = 26;
+  var W = 960, padX = 40, padBot = 26;
   function emptyCard(msg){
     var H0 = 120;
     var cv0 = document.createElement('canvas'); cv0.width = W*scale; cv0.height = H0*scale;
@@ -7095,23 +7330,52 @@ function _renderSheetPuzzleCanvas(opts){
   }
   if (!pz.roofs.length || !pz.bbox) return emptyCard('Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.');
   if (!pz.faces.length) return emptyCard('No roof faces yet — add the ridge, hips or valleys (or Auto-generate the roof), then Refresh.');
+  var blocks = pz.blocks || [];
+  blocks.forEach(function(b, i){ b.color = _PZ_BLOCK_COLOURS[i % _PZ_BLOCK_COLOURS.length]; });
+  // Legend chips: one per block, then the offcut chip.
+  var mctx = document.createElement('canvas').getContext('2d');
+  mctx.font = '700 12px Inter, sans-serif';
+  var chips = [], cx = padX, crow = 0, chipGap = 16, legendTop = 64;
+  function chip(text, color, hatch){
+    var w = 18 + mctx.measureText(text).width + chipGap;
+    if (cx + w > W - padX && cx > padX){ cx = padX; crow++; }
+    chips.push({ text: text, color: color, x: cx, row: crow, hatch: !!hatch });
+    cx += w;
+  }
+  blocks.forEach(function(b){ chip(b.letter + '  ' + b.count + ' × ' + _pzM(b.Lmm) + ' m' + (b.extra ? ' (extra)' : ''), b.color); });
+  if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', '#94a3b8', true);
+  var padTop = legendTop + (crow + 1) * 19 + 10;
   var bb = pz.bbox, bw = Math.max(1, bb[2]-bb[0]), bh = Math.max(1, bb[3]-bb[1]);
-  var drawW = W - padX*2;
-  var fit = drawW / bw;
-  var drawH = bh * fit;
-  var maxH = 1000;
+  var drawW = W - padX*2, fit = drawW / bw, drawH = bh * fit, maxH = 1000;
   if (drawH > maxH){ fit = maxH / bh; drawH = maxH; }
   var ox = padX + (drawW - bw*fit)/2, oy = padTop;
-  // Footer: one line per face, two columns.
-  var faceLines = pz.faces.map(function(f){
-    var refName = f.ref ? (f.ref.kind === 'gutter' ? 'gutter' : f.ref.kind) : '';
-    var longest = 0; f.pieces.forEach(function(p){ if (p.longMm > longest) longest = p.longMm; });
-    var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    return 'F' + f.id + '  ' + roofTag + f.pieces.length + (f.pieces.length === 1 ? ' piece' : ' pieces') +
-      ' off the ' + refName + ' (' + (f.ref.len * pz.scaleM).toFixed(2) + ' m) · longest ' + (longest/1000).toFixed(2) + ' m';
+  // Footer lines: the tally, then one line per block and per end face.
+  var foot = [];
+  var tallyTxt = pz.tally.map(function(t){ return t.count + ' × ' + _pzM(t.Lmm) + ' m'; }).join(' · ');
+  var totalSheets = pz.tally.reduce(function(s, t){ return s + t.count; }, 0);
+  foot.push({ bold: true, text: 'ORDER  ' + totalSheets + ' sheets: ' + tallyTxt +
+    (pz.fedPieces ? ' · ' + pz.fedPieces + ' end piece' + (pz.fedPieces === 1 ? '' : 's') + ' cut from offcuts' : '') +
+    (pz.extraSheets ? ' · ' + pz.extraSheets + ' extra for pieces no offcut fitted' : '') +
+    (pz.unusedOffcuts ? ' · ' + pz.unusedOffcuts + ' offcut' + (pz.unusedOffcuts === 1 ? '' : 's') + ' left over' : '') });
+  blocks.forEach(function(b){
+    var f = b.face, roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
+    var t = b.letter + '  ' + roofTag + 'F' + f.id + ' off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind +
+      ' · ' + b.count + ' × ' + _pzM(b.Lmm) + ' m' + (b.extra ? ', ordered for pieces no offcut fitted' : '');
+    if (b.cutCount) t += ' · ' + b.cutCount + ' cut at the hips / valleys';
+    if (b.feeds) t += ' · offcuts cover ' + b.feeds + ' end piece' + (b.feeds === 1 ? '' : 's');
+    foot.push({ text: t, color: b.color });
   });
-  var cols = 2, rowH = 15, footRows = Math.ceil(faceLines.length / cols);
-  var footH = 30 + footRows * rowH;
+  (pz.endFaces || []).forEach(function(f){
+    var all = f.endPieces || f.pieces, fed = all.filter(function(p){ return !p.ordered; }), donors = {};
+    fed.forEach(function(p){ if (p.block) donors[p.block.letter] = 1; });
+    var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
+    var what = f.endPieces ? (all.length + (all.length === 1 ? ' piece' : ' pieces') + ' longer than the block’s sheets: ') : ('hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');
+    var t = 'F' + f.id + '  ' + roofTag + what +
+      (fed.length ? fed.length + ' from offcuts (' + Object.keys(donors).sort().join(', ') + ')' : 'none from offcuts') +
+      (all.length - fed.length ? ', ' + (all.length - fed.length) + ' ordered' : '');
+    foot.push({ text: t });
+  });
+  var rowH = 15, footH = 24 + foot.length * rowH;
   var H = Math.round(padTop + drawH + padBot + footH);
   var cv = document.createElement('canvas'); cv.width = W*scale; cv.height = H*scale;
   var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
@@ -7121,42 +7385,71 @@ function _renderSheetPuzzleCanvas(opts){
   // Title.
   ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
-  ctx.fillText('SHEET LAYOUT — the puzzle', padX, 18);
-  ctx.fillStyle = '#6b7280'; ctx.font = '500 12px Inter, -apple-system, sans-serif';
-  ctx.fillText('Each roof face divided at sheet cover (' + (pz.coverMm/1000).toFixed(3) + ' m), every strip square to its gutter and stopping at the roof lines. ' +
-    pz.pieces.length + ' pieces over ' + pz.faces.length + ' face' + (pz.faces.length === 1 ? '' : 's') + '. Not filled yet.', padX, 42);
+  ctx.fillText('SHEET LAYOUT', padX, 18);
+  ctx.fillStyle = '#6b7280'; ctx.font = '500 11.5px Inter, -apple-system, sans-serif';
+  ctx.fillText('Each face divided at sheet cover (' + (pz.coverMm/1000).toFixed(3) + ' m), square to its gutter. A block (A, B …) is ordered at one length and cut to the roof lines; the hip ends are cut from the offcuts, spun round — never flipped.', padX, 42);
+  ctx.textBaseline = 'middle';
+  chips.forEach(function(c){
+    var y = legendTop + c.row * 19;
+    if (c.hatch){
+      ctx.save(); ctx.fillStyle = '#fff'; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill(); ctx.clip();
+      ctx.strokeStyle = c.color; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (var hh = -12; hh < 24; hh += 4){ ctx.moveTo(c.x + hh, y); ctx.lineTo(c.x + hh + 12, y + 12); }
+      ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = c.color; ctx.lineWidth = 1; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.stroke();
+    } else { ctx.fillStyle = c.color; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill(); }
+    ctx.fillStyle = '#0a1628'; ctx.font = '700 12px Inter, sans-serif';
+    ctx.fillText(c.text, c.x + 18, y + 6.5);
+  });
+  ctx.textBaseline = 'top';
   // Roof ground.
   pz.roofs.forEach(function(R){ path(R.outline.map(toC)); ctx.fillStyle = '#f8fafc'; ctx.fill(); });
-  // Pieces: white, thin grey edges.
+  // Pieces.
   ctx.lineJoin = 'round';
   pz.pieces.forEach(function(pc){
-    var P = pc.poly.map(toC);
-    path(P); ctx.fillStyle = '#ffffff'; ctx.fill();
-    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 0.8; ctx.stroke();
+    var P = pc.poly.map(toC), col = (pc.block && pc.block.color) || '#94a3b8';
+    path(P);
+    if (pc.ordered){ ctx.fillStyle = _pzTint(col, 0.30); ctx.fill(); }
+    else {
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.save(); path(P); ctx.clip();
+      ctx.strokeStyle = _pzTint(col, 0.65); ctx.lineWidth = 1.1; ctx.beginPath();
+      var xs = P.map(function(p){ return p[0]; }), ys = P.map(function(p){ return p[1]; });
+      var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+      for (var hx = x0 - (y1 - y0); hx < x1; hx += 6){ ctx.moveTo(hx, y0); ctx.lineTo(hx + (y1 - y0), y1); }
+      ctx.stroke(); ctx.restore();
+    }
+    path(P);   // the clip left the hatch as the current path
+    ctx.strokeStyle = pc.ordered ? _pzTint(col, 0.9) : '#94a3b8'; ctx.lineWidth = 0.8; ctx.stroke();
   });
-  // Piece lengths, written up the strip where there is room.
+  // Labels: the sheet number up every piece with room, the length under it.
   var cwC = pz.coverPx * fit;
-  if (cwC >= 11){
-    ctx.fillStyle = '#475569'; ctx.font = '600 ' + (cwC >= 16 ? 9 : 8) + 'px Inter, sans-serif';
+  if (cwC >= 10){
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var fs = cwC >= 16 ? 9 : 8;
     pz.pieces.forEach(function(pc){
       var longC = pc.longPx * fit;
-      if (longC < 26 || pc.widthPx * fit < 9) return;
+      if (longC < 22 || pc.widthPx * fit < 8) return;
       var c = _ccCentroid(pc.poly), f = pc.face;
       var ang = Math.atan2(f.d[1], f.d[0]);
-      // Keep the text reading upwards-ish.
       if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
-      // The label must FIT inside its piece (a corner triangle's does not),
-      // and keep clear of the face's own label.
-      var hw = 13 / fit, hh = 5.5 / fit, ca = Math.cos(ang), sa = Math.sin(ang), fits = true;
+      var txt = pc.label || '';
+      var withLen = longC >= 44 && cwC >= 14;
+      var hw = (withLen ? 24 : 12) / fit, hh = 5.5 / fit, ca = Math.cos(ang), sa = Math.sin(ang), fits = true;
       [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].forEach(function(q){
         if (!_spPointInPoly(c[0] + q[0]*ca - q[1]*sa, c[1] + q[0]*sa + q[1]*ca, pc.poly)) fits = false;
       });
+      if (!fits){ withLen = false; hw = 12 / fit; fits = true;
+        [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].forEach(function(q){
+          if (!_spPointInPoly(c[0] + q[0]*ca - q[1]*sa, c[1] + q[0]*sa + q[1]*ca, pc.poly)) fits = false;
+        });
+      }
       if (!fits) return;
       if (f.c && Math.hypot(f.c[0]-c[0], f.c[1]-c[1]) * fit < 30) return;
       var cc = toC(c);
       ctx.save(); ctx.translate(cc[0], cc[1]); ctx.rotate(ang);
-      ctx.fillText((pc.longMm/1000).toFixed(2), 0, 0);
+      ctx.fillStyle = '#0a1628'; ctx.font = '800 ' + fs + 'px Inter, sans-serif';
+      ctx.fillText(withLen ? (txt + '  ' + _pzM(pc.longMm)) : txt, 0, 0);
       ctx.restore();
     });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -7171,11 +7464,10 @@ function _renderSheetPuzzleCanvas(opts){
       ctx.stroke();
     });
   });
-  // Face labels and a direction arrow: F3 with an arrow the way the sheets run.
+  // Face labels and a direction arrow the way the sheets run.
   pz.faces.forEach(function(f){
     var c = f.c;
     if (!_spPointInPoly(c[0], c[1], f.poly)){
-      // Fall back to the biggest piece's centroid.
       var big = null; f.pieces.forEach(function(p){ if (!big || p.areaPx > big.areaPx) big = p; });
       if (big) c = _ccCentroid(big.poly);
     }
@@ -7185,10 +7477,10 @@ function _renderSheetPuzzleCanvas(opts){
     ctx.translate(cc[0], cc[1]);
     ctx.fillStyle = '#ffffff';
     _roundRect(ctx, -17, -9, 34, 18, 5); ctx.fill();
+    ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 0.8; ctx.stroke();
     ctx.fillStyle = '#0a1628'; ctx.font = '800 11px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('F' + f.id, 0, 0.5);
-    // Arrow from the gutter side upward, drawn beside the label.
     ctx.rotate(Math.atan2(f.d[1], f.d[0]));
     ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.4; ctx.fillStyle = '#0a1628';
     ctx.beginPath(); ctx.moveTo(-aw, 14); ctx.lineTo(aw - 4, 14); ctx.stroke();
@@ -7198,15 +7490,11 @@ function _renderSheetPuzzleCanvas(opts){
   // Footer.
   var fy = padTop + drawH + padBot;
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#0a1628'; ctx.font = '800 11px Inter, sans-serif';
-  ctx.fillText('FACES', padX, fy);
-  ctx.fillStyle = '#6b7280'; ctx.font = '500 11px Inter, sans-serif';
-  ctx.fillText('arrow = the way the sheets run (square to that face’s gutter). Lengths are along the slope.', padX + 52, fy);
-  ctx.fillStyle = '#334155'; ctx.font = '500 11px Inter, sans-serif';
-  var colW = (W - padX*2) / cols;
-  faceLines.forEach(function(t, i){
-    var col = Math.floor(i / footRows), row = i % footRows;
-    ctx.fillText(t, padX + col*colW, fy + 18 + row*rowH);
+  foot.forEach(function(l, i){
+    var y = fy + i * rowH + (i ? 8 : 0);
+    if (l.color){ ctx.fillStyle = l.color; _roundRect(ctx, padX, y + 2, 10, 10, 2); ctx.fill(); }
+    ctx.fillStyle = l.bold ? '#0a1628' : '#334155'; ctx.font = (l.bold ? '800' : '500') + ' 11px Inter, sans-serif';
+    ctx.fillText(l.text, padX + (l.color ? 16 : 0), y);
   });
   cv._sheetPuzzle = pz;
   return cv;

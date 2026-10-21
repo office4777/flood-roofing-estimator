@@ -114,23 +114,63 @@ order with its arrow, and the footer lists each face's pieces, gutter length
 and longest piece. That is the whole of step 1, and it is what the owner
 asked to see before anything was filled in.
 
-### Step 2 — the fill (NOT built; the owner's rules, so they are not lost)
+### Step 2 — the fill (`_sheetPuzzleFill`, built the same afternoon: "Try to use roof wizards logic and methods")
 
-- Every sheet is ORDERED with a square cut edge (the gutter end, and the
-  ridge end on a full strip).
-- The sheet is cut at the hips and valleys — the diagonal is the only cut
-  that is not square.
-- The offcut is SPUN to be used somewhere else: rotated 180° in the plane of
-  the roof. It is NEVER flipped over (a mirror image), because a roofing
-  sheet has a top face and a lap side.
-- Hence on an equal-pitch hip the offcut of the k-th sheet from a hip, spun,
-  is the k-th piece of the OPPOSITE slope's hip end at the same corner (not
-  the same slope's — that would need a flip). Colour (= order group) and
-  sheet number come with this step.
+The owner's rules for it, in his words: every sheet is ORDERED with a square
+cut edge; the sheet is cut at the hips and valleys; the offcut is SPUN to be
+used somewhere else — rotated in the plane of the roof, never flipped over
+(a roofing sheet has a top face and a lap side). Roof Wizard's Auto-Block 2 /
+Block-Cut, mapped onto the puzzle:
 
-The pieces already carry what the fill needs: face, strip index, width,
-long and short edge, whether the strip edge is a tip, and which roof line
-each face edge is.
+1. **Blocks (Auto-Block 2).** A face with at least one FULL strip (square at
+   both ends) is ordered as blocks, every sheet in a block at ONE length —
+   the longest piece in it, rounded up to 10 mm (`_PZ_ROUND_MM`; Roof
+   Wizard's "Round-Off Sheets to Next (mm)"). "Each ridge gets two blocks,
+   one on each side": the full strips are grouped by the level they top out
+   at, and a cut strip joins the longer neighbouring level PROVIDED it is no
+   longer than that level's sheets — it is then that block's hip or valley
+   cut. Rounding is per block, never grouped first (AppliCad's own warning).
+2. **Where the strips start** is decided in the builder, because it is what
+   makes the offcuts match: flush at a barge (a gable end is where the first
+   full sheet goes); a hip END face (gutter + two hips, no level line) from
+   its APEX, so each half's k-th strip from the apex is the exact spun
+   offcut of the k-th sheet from the corner on the slope opposite; a face
+   with a hip at BOTH ends from both corners towards the middle, the narrow
+   closer in the middle — Block-Cut's "split a plane … mirror" done for you,
+   and the reason the 18 × 12 m hip closes at 48 sheets with nothing over.
+3. **Offcuts.** A block sheet cut once leaves a trapezoid: short side
+   (ordered length − the piece's long edge), long side (ordered − the
+   piece's short edge), the diagonal's slope read off the cut edge itself,
+   and a HAND — looking from the square end to the diagonal, is the long
+   side on the left or the right. A sheet whose top is part ridge, part hip
+   leaves only the triangle the hip spans, not a full-width trapezoid. It
+   goes into the pool under its donor's number.
+4. **Ends.** A hip-end face, and any strip of a block face longer than its
+   block's sheets (an L's main hip end standing on the same plane as the
+   wing's west slope), is sheeted from the pool, biggest piece first: same
+   hand — a spin keeps it, only a flip would change it — and the offcut must
+   CONTAIN the piece with their square ends together (its short side ≥ the
+   piece's short side, its long side ≥ the piece's long side; a steeper or
+   shallower diagonal still serves when the trapezoid is big enough). Among
+   the fits, the NEAREST wins (surplus + half the distance, in mm): the
+   sheet cut at this very hip, which is Auto-Block 2's "corresponding and
+   matching off-cut triangle". So a hip end's half nearest the FRONT slope
+   is cut from the BACK slope's sheets, and vice versa — the crossing is
+   what "never flipped" forces. A piece nothing fits is ordered on its own
+   (its face's extras block, lettered on) and its offcut joins the pool.
+5. **Tally (Tally-Blocks).** Sheets to order per length, the blocks under
+   it, how many end pieces the offcuts covered, how many sheets were ordered
+   extra because no offcut fitted, and how many offcuts are left over.
+
+On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
+hip-end pieces from offcuts, nothing left over; the gable 2 × 24, nothing
+cut; the dutch four blocks (the gablet ends have full sheets against the
+apron, so they are blocks, and the long faces' hip offcuts go unused); the
+Big-L 78 (the main's west hip end sits under the wing's west slope, and its
+seven long pieces have no matching offcut — 7 ordered on their own, 29
+offcuts over). The picture says all of this in its footer; a count the
+engine's SHEETS TO ORDER legend gives is a different number worked a
+different way, and the two are not reconciled — that is the owner's call.
 
 `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it in the calc
 check's 960-wide frame (1× for the side card, 2× for the page and the PDF).
@@ -140,7 +180,7 @@ capture all render from it (`_jpCaptureSheetPlan`,
 they share the drawing's coordinates — and `_jpRenderSheetPlan`). The live
 card passes `roofIdxs:[-1]` and the ORIGINAL lines, because the counting
 pass borrows `DRAW.lines` while it works. `window._lastSheetPuzzle` is the
-last build, for the suite. `tests/sheetlayout.mjs` (66) pins the rules face
+last build, for the suite. `tests/sheetlayout.mjs` (87) pins the rules face
 by face on the plain hip, the gable, a change of pitch, the Big-L, the dutch
 and the owner's hand-counted fixtures: every face off a gutter, square to
 gutter and ridge, 45° to hip and valley, no piece across a roof line, the
@@ -154,8 +194,9 @@ because the calc check tiles its columns through them.
 
 ## 4. Open, and the owner's to call
 
-- **The fill** (step 2 above) — colour, numbering, offcut pairing, the
-  order groups. Waits on the owner approving the puzzle.
+- **Which count is the order** — the engine's legend (`_lastSheetCounts`,
+  the cut list, the Fergus push) or the puzzle's tally. They differ on
+  every L and T; the puzzle is honest about what the offcuts cannot cover.
 - **Lay direction.** AppliCad starts "from the longest gable line on the
   roof plane … laying away from a gable end" and marks the lap side. The
   strips start at a barge where there is one, else at the face's left/top
