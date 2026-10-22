@@ -23,8 +23,16 @@ function mount(app, deps){
   // OFF here (the server is where a "no" is cheap and safe); the app hides
   // the picker on the same key. TENDERING_ALL=true opens it for every
   // account on a dev server and nowhere else.
+  // Who has it: named logins first (TENDERING_USERS; the owner asked on
+  // 2026-10-23 for his three Flood Roofing logins only, so it is a list of
+  // PEOPLE, not the company — the rest of that business does not see it),
+  // then a business switched on whole (branding.ai_tendering_enabled).
+  const TENDER_USERS = String(process.env.TENDERING_USERS || 'office@floodroofing.co.nz, aron@floodroofing.co.nz, ethan@floodroofing.co.nz')
+    .split(/[\s,]+/).map(function(x){ return x.trim().toLowerCase(); }).filter(Boolean);
   async function enabledFor(req){
     if (process.env.TENDERING_ALL === 'true') return true;
+    const em = String((req.user && req.user.email) || '').toLowerCase();
+    if (em && TENDER_USERS.indexOf(em) >= 0) return true;
     try {
       const row = await settingsRow(req, 'branding,company_id,user_id');
       return !!(row && row.branding && row.branding.ai_tendering_enabled);

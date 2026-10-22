@@ -24,6 +24,7 @@ const calls = [];
 const TENDER = { id: 'tn-1', company_id: 'c1', user_id: 'u1', job_id: null, name: 'Tender', status: 'new', settings: {}, sheet_index: null, files: [], pages: [], tasks: [], ai: true };
 let progressTicks = 0;
 let flagOn = true;
+let liveOn = null;   // the server's per-login answer, when it differs from the business flag
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async r => {
   const req = r.request();
   const u = new URL(req.url());
@@ -62,7 +63,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
     return j({ ok: true, page: pgx, sheet_index: TENDER.sheet_index });
   }
   if (p === '/tender/tn-1/run') { TENDER.status = 'queued'; progressTicks = 0; return j({ ok: true, task: { id: 't-2', status: 'queued' } }); }
-  if (/^\/tender\/enabled/.test(p)) return j({ enabled: flagOn, ai: true });
+  if (/^\/tender\/enabled/.test(p)) return j({ enabled: liveOn == null ? flagOn : liveOn, ai: true });
   return j([]);
 });
 function finish(){
@@ -149,6 +150,15 @@ check('a retyped title is sent', put2 && put2.body.title === 'ROOF PLAN - PROPOS
 flagOn = false;
 r = await pg.evaluate(() => { window.__TENDERING_ON = false; openJobDetailsModal('new'); const b = document.getElementById('jtBtn_tender'); const r = { shown: b.style.display !== 'none', pending: window._pendingJobType }; closeJobDetailsModal(); _setJobType('tender'); r.kindAfter = S.quote.quoteKind; _tenderNavSync(); r.nav = document.getElementById('navTenderBtn').style.display; r.tab = document.body.getAttribute('data-tab'); return r; });
 check('with the flag off the type is not offered and cannot be set', !r.shown && r.kindAfter === 'roofing' && r.nav === 'none' && r.tab !== 'tender', JSON.stringify(r));
+// A login let in by name: the business flag is off, the server says yes for this person.
+liveOn = true;
+r = await pg.evaluate(async () => { window.__TENDERING_ON = null; if (S.settings && S.settings.branding) S.settings.branding.ai_tendering_enabled = false;
+  await window._tenderEnabledCheck(); openJobDetailsModal('new'); const b = document.getElementById('jtBtn_tender');
+  const out = { avail: _tenderingAvailable(), shown: b.style.display !== 'none', kept: JSON.parse(localStorage.getItem('fr_tender_on') || 'null') }; closeJobDetailsModal(); return out; });
+check('a login the server names gets the type with its business switched off, and the answer is kept for a reload', r.avail && r.shown && r.kept && r.kept.on === true && r.kept.who === 'sam@floodroofing.co.nz', JSON.stringify(r));
+liveOn = false;
+r = await pg.evaluate(async () => { await window._tenderEnabledCheck(); return { avail: _tenderingAvailable(), kept: JSON.parse(localStorage.getItem('fr_tender_on') || 'null') }; });
+check('…and a login the server says no to does not', !r.avail && r.kept.on === false, JSON.stringify(r));
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 await b.close();

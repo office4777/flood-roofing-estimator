@@ -80,3 +80,10 @@ and the app disagreed (RECON.md §11). Later phases append here.
 - **Not done in Phase 1** (Phase 2's): the roofing-spec extraction, blocks
   and citations. The Whangaroa fixture sets are still awaited; the suites run
   on synthetic A1 sheets written by `tests/_tenderpdf.mjs`.
+- **2026-10-23 — Who sees it, live**: Aron asked for it "on for me only" —
+  office@, aron@ and ethan@floodroofing.co.nz. So the gate is first a list of
+  LOGINS (`TENDERING_USERS` on Railway, defaulting to those three), then a
+  business switched on whole (`branding.ai_tendering_enabled`, the admin
+  route). The app asks `GET /tender/enabled` after sign-in and keeps the
+  answer per login (`fr_tender_on`); the server refuses every tender route
+  to anybody else, so it is not merely hidden.

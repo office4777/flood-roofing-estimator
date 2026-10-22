@@ -246,6 +246,17 @@ check('the admin switch turns a company on', r.ok && r3.body.enabled === true, J
 r = await fetch(BASE + '/admin/tendering/enable', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ company_id: 'c3' }) }).then(x => x.status);
 check('…and is not there without the admin token', r === 404);
 
+// ── named logins (the owner's own, 2026-10-23): the person, not the business ──
+const TE = jwt.sign({ id: 'u4', email: 'Ethan@floodroofing.co.nz', cid: 'c4' }, 'test-secret');
+const TS = jwt.sign({ id: 'u5', email: 'sam@floodroofing.co.nz', cid: 'c4' }, 'test-secret');
+const re4 = await call(TE, 'GET', '/tender/enabled'), rs4 = await call(TS, 'GET', '/tender/enabled');
+check('a login named on the list has it, whatever its case, with the business still off', re4.body.enabled === true, JSON.stringify(re4.body));
+check('…and a colleague in the same business who is not named does not', rs4.body.enabled === false, JSON.stringify(rs4.body));
+r = await call(TS, 'POST', '/tender', { name: 'Not for me' });
+check('…and is refused at the door, not just hidden', r.status === 403 && r.body.code === 'TENDERING_OFF', JSON.stringify(r));
+r = await call(TE, 'POST', '/tender', { name: 'Ethan\'s tender' });
+check('the named login can start a tender', r.status === 200 && !!r.body.id, JSON.stringify(r));
+
 STORE.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

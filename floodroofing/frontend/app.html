@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-22T22:35:31Z';
+  window.APP_BUILT_AT = '2026-10-22T23:38:45Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5187,7 +5187,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       if(!r.ok) throw new Error(d.error||'Could not accept the invitation');
       try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
-      localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+      localStorage.setItem('fr_user',JSON.stringify(d.user||{})); try{ window.__tenderingLive = null; if (window._tenderEnabledCheck) setTimeout(window._tenderEnabledCheck, 1500); }catch(e){}
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
       try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
@@ -5245,7 +5245,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         if(!r.ok) throw new Error(d.error||'This confirmation link is no longer valid.');
         try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
-        localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+        localStorage.setItem('fr_user',JSON.stringify(d.user||{})); try{ window.__tenderingLive = null; if (window._tenderEnabledCheck) setTimeout(window._tenderEnabledCheck, 1500); }catch(e){}
         if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
         try { window._navPlanSync && window._navPlanSync(); } catch(e){}
         document.getElementById('login-screen').style.display='none';
@@ -5335,7 +5335,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       if(!r.ok) throw new Error(d.error||'Could not reset your password');
       try { window._frWipeBusinessLocal(); } catch(_e){}
       localStorage.setItem('fr_token',d.token);
-      localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+      localStorage.setItem('fr_user',JSON.stringify(d.user||{})); try{ window.__tenderingLive = null; if (window._tenderEnabledCheck) setTimeout(window._tenderEnabledCheck, 1500); }catch(e){}
       if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
       try { window._navPlanSync && window._navPlanSync(); } catch(e){}
       document.getElementById('login-screen').style.display='none';
@@ -37223,6 +37223,10 @@ function _poleShedsKnown(){ return !!_poleShedGateBranding(); }
 // that has not got it would open a tab that can do nothing.
 function _tenderingAvailable(){
   try { if (window.__TENDERING_ON != null) return !!window.__TENDERING_ON; } catch(e){}
+  // The server's own answer for THIS login (GET /tender/enabled, asked by
+  // tender.js after sign-in) — it covers a person let in by name as well as
+  // a business switched on whole, so it outranks the branding flag.
+  try { if (window.__tenderingLive != null) return !!window.__tenderingLive; } catch(e){}
   var br = (window.S && S.settings && S.settings.branding) || null;
   if (br && br.ai_tendering_enabled != null) return !!br.ai_tendering_enabled;
   try {

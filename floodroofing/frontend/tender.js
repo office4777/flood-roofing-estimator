@@ -305,4 +305,29 @@
     }
     if (!busy() && T.poll) { clearInterval(T.poll); T.poll = null; }
   }
+
+  // Is it on for whoever is signed in? Asked once a little after load (the
+  // app's api() and settings are up by then) and again on a sign-in. The
+  // last answer is kept per login so a reload shows the type straight away.
+  function _who(){ try { return String((JSON.parse(localStorage.getItem('fr_user') || 'null') || {}).email || '').toLowerCase(); } catch (e) { return ''; } }
+  function _applyLive(on){
+    window.__tenderingLive = !!on;
+    try { if (typeof _syncJobTypeToggle === 'function') _syncJobTypeToggle(); } catch (e) {}
+    try { if (typeof _qkMenuRender === 'function') _qkMenuRender(); } catch (e) {}
+    try { if (typeof _tenderNavSync === 'function') _tenderNavSync(); } catch (e) {}
+  }
+  window._tenderEnabledCheck = async function(){
+    var who = _who();
+    if (!who || !localStorage.getItem('fr_token') || typeof api !== 'function') return;
+    try {
+      var r = await api('GET', '/tender/enabled');
+      try { localStorage.setItem('fr_tender_on', JSON.stringify({ who: who, on: !!(r && r.enabled) })); } catch (e) {}
+      _applyLive(r && r.enabled);
+    } catch (e) {}   // unknown stays as it was: hidden unless an earlier answer said yes
+  };
+  try {
+    var kept = JSON.parse(localStorage.getItem('fr_tender_on') || 'null');
+    if (kept && kept.who && kept.who === _who()) window.__tenderingLive = !!kept.on;
+  } catch (e) {}
+  setTimeout(function(){ window._tenderEnabledCheck(); }, 3000);
 })();
