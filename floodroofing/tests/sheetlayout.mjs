@@ -90,14 +90,18 @@ async function lay(g){
     pz.pieces.forEach(p => {
       cutLines.forEach(([a, b]) => {
         const dx = b[0]-a[0], dy = b[1]-a[1], L = Math.hypot(dx, dy) || 1;
-        let pos = 0, neg = 0;
+        let pos = 0, neg = 0, uLo = 1, uHi = 0;
         p.poly.forEach(q => {
           const u = ((q[0]-a[0])*dx + (q[1]-a[1])*dy) / (L*L);
           if (u < 0.01 || u > 0.99) return;   // strictly within the line: a vertex at the line's END belongs to the next line
           const s = ((q[0]-a[0])*dy - (q[1]-a[1])*dx) / L;
           if (s > 0.8) pos++; else if (s < -0.8) neg++;
+          uLo = Math.min(uLo, u); uHi = Math.max(uHi, u);
         });
-        if (pos && neg) straddles++;
+        // Vertices either side are not enough: a piece bounded by two valleys
+        // meeting at a ridge's END has vertices either side of that ridge and
+        // never crosses it. The line itself has to pass through the piece.
+        if (pos && neg && [0.25, 0.5, 0.75].some(f => { const u = uLo + (uHi - uLo) * f; return _spPointInPoly(a[0] + dx*u, a[1] + dy*u, p.poly); })) straddles++;
       });
     });
     const roofArea = outlines.reduce((s, o) => s + _ccPolyArea(o), 0);
@@ -262,6 +266,79 @@ check('…the stem\'s slopes run from the free end; their valley pieces under th
   r.blocks.filter(b => !b.extra && b.Lmm === 3320).map(b => b.count).join(',') === '16,16', JSON.stringify(r.blocks));
 check('…78 sheets, the only extras the two bar columns between the valleys that are longer than the bar\'s sheets', r.tally.reduce((s2, t) => s2 + t.count, 0) === 78 && r.extras === 2, JSON.stringify(r.tally) + ' extras ' + r.extras);
 rules('the T', r);
+
+// ── THE SAME LOGIC ON EVERY L (the owner, 2026-10-22: "used same logic/mechanics
+// on different sizes and orientations of the l-shape making sure the logic hold,
+// also the same logic should transfer to a both with a wing off the top and the
+// buttom of the main plain hip") ──────────────────────────────────────────────
+const gridFaces = r2 => r2.faces.filter(f => f.lay === 'grid');
+const labels = (r2, f) => r2.pieces.filter(p => p.face === f.id).sort((a, b) => a.k - b.k).map(p => p.label);
+const tallyOf = r2 => r2.tally.map(t => t.count + 'x' + t.Lmm).join(',');
+const strip = l => l.replace(/^[↺✂]/, '').replace(/^[A-Z]/, '');   // the sequence without its block letter
+for (const [name, outline] of [
+  ['the Big-L MIRRORED (wing at the east end)', [[140,440],[740,440],[740,140],[1040,140],[1040,1140],[140,1140]]],
+  ['the Big-L TURNED (wing off the south-east)', [[140,140],[1140,140],[1140,1040],[440,1040],[440,440],[140,440]]],
+  ['the Big-L with its wing off the BOTTOM', [[140,140],[1040,140],[1040,840],[440,840],[440,1140],[140,1140]]]]){
+  r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline, autoType: 'hip' });
+  const g = gridFaces(r)[0];
+  check(name + ' is the Big-L to the sheet: 48 × 7.73, 15 × 3.32 and the one 3.52 junction strip, six offcuts over',
+    tallyOf(r) === '48x7730,1x3520,15x3320' && r.extras === 1 && r.unused === 6, tallyOf(r) + ' extras ' + r.extras + ' unused ' + r.unused);
+  check('…the wing\'s end is cut from the slope\'s columns: the run starts at the wing\'s end, so its four whole sheets are the block\'s FIRST four and the four feet follow — the sequence of the original L whichever way it faces',
+    !!g && g.template !== null && labels(r, g).map(strip).join(',') === '1,2,3,4,5,6,7,8' && labels(r, g).slice(0, 4).every(l => /^[A-Z]\d$/.test(l)) && labels(r, g).slice(4).every(l => l[0] === '✂'),
+    g ? JSON.stringify(labels(r, g)) : 'no grid face: ' + r.faces.map(f => f.lay).join(','));
+  rules(name, r);
+}
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[340,140],[340,540],[1340,540],[1340,1140],[140,1140]], autoType: 'hip' });
+check('a 24 × 12 m L with a 4 × 8 m wing: the same cut — three whole sheets, two feet and one piece from an offcut on the wing\'s end; 64 × 6.63, 23 × 2.21 and one junction strip',
+  tallyOf(r) === '64x6630,1x2420,23x2210' && r.extras === 1 && gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).map(l => l[0] === '✂' ? 'foot' : l[0] === '↺' ? 'offcut' : 'whole').join(',') === 'whole,whole,whole,foot,foot,offcut',
+  tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gridFaces(r).map(f => labels(r, f))));
+rules('the 24 × 12 L', r);
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[640,140],[640,390],[1040,390],[1040,1090],[140,1090]], autoType: 'hip' });
+check('a 10 m wide wing on an 18 × 14 main is still two sheets narrower than the main, so it is still cut from the slope\'s columns: seven whole sheets and six feet',
+  gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).filter(l => /^[A-Z]\d+$/.test(l)).length === 7 && labels(r, gridFaces(r)[0]).filter(l => l[0] === '✂').length === 6 && r.extras === 1,
+  JSON.stringify(gridFaces(r).map(f => labels(r, f))) + ' extras ' + r.extras);
+rules('the wide-wing L', r);
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[790,140],[790,440],[1040,440],[1040,1140],[140,1140]], autoType: 'hip' });
+check('a 13 m wing on a 14 m main is within a sheet of it, so there is nothing to slice: its end keeps the apex lay (the T\'s rule)',
+  gridFaces(r).length === 0 && r.faces.filter(f => f.lay === 'apex').length >= 2, r.faces.map(f => f.lay).join(','));
+rules('the too-wide wing', r);
+// Wings off the top AND the bottom at the same end: both are cut from their
+// slope's columns, both runs start at the wings' end, and the west face —
+// now the main's hip end between two wing slopes — still anchors at its apex.
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,140],[440,440],[1040,440],[1040,1140],[440,1140],[440,1440],[140,1440]], autoType: 'hip' });
+check('wings off the top and the bottom of the main at the west end: BOTH wing ends are cut from their slope\'s columns, four whole sheets and four feet each',
+  gridFaces(r).length === 2 && gridFaces(r).every(f => labels(r, f).map(strip).join(',') === '1,2,3,4,5,6,7,8' && labels(r, f).slice(4).every(l => l[0] === '✂')),
+  JSON.stringify(gridFaces(r).map(f => labels(r, f))));
+check('…the main\'s west hip end sits between the two wing slopes on the one 26 m face and is still laid from its apex (its two hips stop at the wings\' ridges, half the depth down, which is a hip end and not a bump)',
+  (() => { const W = r.faces.find(f => Math.abs(f.tg1 - f.tg0) * r.scaleM > 25); return !!W && W.lay === 'apex'; })(), JSON.stringify(r.faces.map(f => [f.lay, +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1)])));
+check('…80 sheets — the Big-L\'s 48 × 7.73 with 30 × 3.32 for the four wing slopes and two junction strips, one per wing',
+  tallyOf(r) === '48x7730,2x3520,30x3320' && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+rules('the two-wing L', r);
+// A wing standing in the MIDDLE of each slope (a cross): the slope's gutter is
+// two pieces either side of the wing and both its ends are real corners, so
+// the run starts at one and laps the other, exactly as the plain hip does;
+// the wing's end is all feet, and its clipped corner stubs are cut from
+// offcuts, never ordered as sheets of their own.
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[440,140],[740,140],[740,440],[1040,440],[1040,1140],[740,1140],[740,1440],[440,1440],[440,1140],[140,1140],[140,440],[440,440]], autoType: 'hip' });
+check('a cross — a wing in the middle of each slope — cuts both wing ends from the slopes\' columns: seven feet each, the two corner stubs from offcuts, and no sheet ordered for a stub',
+  gridFaces(r).length === 2 && gridFaces(r).every(f => labels(r, f).filter(l => l[0] === '✂').length === 7 && labels(r, f).filter(l => l[0] === '↺').length === 2 && !labels(r, f).some(l => /^[A-Z]\d+$/.test(l))),
+  JSON.stringify(gridFaces(r).map(f => labels(r, f))));
+check('…its slopes run the plain hip\'s way, flush at one real corner and lapped at the other, though the wall under the wing is in two pieces',
+  r.faces.filter(f => f.lay === 'run' && Math.abs(f.T1 - f.T0) * r.scaleM > 17).filter(f => Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).length === 2 &&
+  r.faces.filter(f => f.lay === 'run' && Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).every(f => r.pieces.some(p => p.face === f.id && p.lapped && p.ordered)),
+  JSON.stringify(r.faces.filter(f => f.lay === 'run').map(f => [+(Math.abs(f.T1 - f.T0) * r.scaleM).toFixed(1), +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1), r.pieces.filter(p => p.face === f.id && p.lapped).length])));
+check('…81 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,33x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
+rules('the cross', r);
+// Wings at OPPOSITE ends (a Z): no end to start from, so the runs fall back to
+// the world-low corner; the far wing's corner column is then the plain hip's
+// lapped corner sheet, a whole sheet whose offcut is a whole sheet's width.
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,140],[440,440],[1040,440],[1040,1440],[740,1440],[740,1140],[140,1140]], autoType: 'hip' });
+check('a Z — a wing off the top at the west and off the bottom at the east — cuts both wing ends from the slopes\' columns, the east wing\'s corner column a lapped whole sheet',
+  gridFaces(r).length === 2 && gridFaces(r).some(f => labels(r, f).map(strip).join(',') === '1,2,3,4,5,6,7,8') && gridFaces(r).some(f => r.pieces.some(p => p.face === f.id && p.via && p.lapped)),
+  JSON.stringify(gridFaces(r).map(f => labels(r, f).map(l => l + (r.pieces.find(p => p.face === f.id && p.label === l) || {}).lapMm))));
+check('…81 sheets: the east wing takes a hand of offcuts the main\'s east end would have had on the plain hip, so that end costs one extra sheet beside the junction strip',
+  r.tally.reduce((s2, t) => s2 + t.count, 0) === 81 && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+rules('the Z', r);
 
 // ── The dutch gable stops at its gablet ───────────────────────────
 r = await lay(JSON.parse(JSON.stringify({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'dutch' })));

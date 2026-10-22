@@ -2501,13 +2501,16 @@ Discipline (non-negotiable):
   north-west corner, cut off by the valley, pushed 6 m north onto the
   wing's small north face; the purple top strips of the west end pushed up
   with it onto the top of the wing's west slope): flush at a barge; a hip
-  END (one top vertex, a hip each side, one of them reaching the gutter)
-  from its APEX; a slope between two hips as ONE RUN of full-width sheets
+  END (one top vertex, a hip each side, one of them reaching the gutter
+  or dropping half the face's depth) from its APEX; a slope between two hips as ONE RUN of full-width sheets
   along the whole side of its rectangle (`_pzVirtualSpan` follows the
   gutter through the roof: 18 m under an L's wing where the wall shows 12)
-  from the WORLD-LOW corner, the plain hip's own, agreed across every
-  parallel slope of the roof, unless no parallel slope has a real corner
-  there (a T's stem runs from its free end); the remainder a LAPPED full
+  from the END A CUT WING STANDS AT (decided after adoption, so the
+  mirrored L is the L to the sheet), else from the WORLD-LOW corner, the
+  plain hip's own, agreed across every parallel slope of the roof, unless
+  no parallel slope has a real corner there (a T's stem runs from its
+  free end); a face's gutter is every gutter edge on its line (a cross's
+  slope has a wing in the middle and a real corner either side); the remainder a LAPPED full
   sheet at the far hip corner (`widthMm` shows 0.47, `lapMm` 0.29), so the
   18 × 12 m hip still closes at 48 with two slivers over. THE COOKIE
   CUTTER: a hip end that faces the same way as a slope, stands in front of
@@ -2522,7 +2525,10 @@ Discipline (non-negotiable):
   carried along the column (`✂C5`, `strungTo`, drawn in the block's tint
   with a dashed edge) and costs nothing; a column with only the end's piece
   is the plain hip's corner sheet slid north whole (`viaTemplate`, ordered
-  in the slope's block). The step-0 chain test in `_sheetPuzzleFill`
+  in the slope's block) — unless its column is clipped at the wing's own
+  corner (a cross's stub: cut from an offcut, never a whole sheet); a wing
+  at the rectangle's far END takes the lapped corner sheet on its corner
+  column (`f.endLo/endHi`), a corner mid-rectangle is never lapped. The step-0 chain test in `_sheetPuzzleFill`
   (`tiles`: same column, square at the eave, the lower piece's top cut
   meeting the upper's bottom cut edge for edge in each face's own eave
   coordinates) is the proof; where it fails nothing is strung. A T's bar,
@@ -2555,7 +2561,17 @@ Discipline (non-negotiable):
   offcut is shaped for; the west end's south half from C9 down to C1 (the
   wing's whole sheets and the valley-cut heads among them), its north half
   from D1–D5, its top from D6–D9; the east end from D16–D24 and C24–C16;
-  the T 78 (was 80) with every end piece from offcuts. The footer carries
+  the T 78 (was 80) with every end piece from offcuts. EVERY L HOLDS
+  (2026-10-22, the owner: "used same logic/mechanics on different sizes
+  and orientations of the l-shape … also … a both with a wing off the top
+  and the buttom"): mirrored, turned and wing-off-the-bottom are 64 to
+  the sheet with the same `1,2,3,4,✂5,✂6,✂7,✂8` wing; a 24 × 12 L with a
+  4 × 8 wing, a 10 m wing (cut) and a 13 m wing (within a sheet, keeps
+  its apex); wings off the top AND bottom at one end both cut, 80 + two
+  junction strips; a cross (wing mid-slope both sides) 81 and nothing
+  extra; a Z (wings at opposite ends) 81 with one honest extra, the east
+  wing having taken a hand of offcuts the plain hip's east end would have
+  had. `docs/SHEET_LAYOUT.md` has the detail. The footer carries
   the tally per length, the blocks, the feet carried, how many end pieces
   came from offcuts, how many sheets were extra and how many offcuts are
   left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE DIFFERENT NUMBERS
@@ -2575,7 +2591,7 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (110): plain
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (208): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23

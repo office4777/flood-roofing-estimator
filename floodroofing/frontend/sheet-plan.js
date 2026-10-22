@@ -7006,7 +7006,16 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
       var ta = o + sgG*j*c, tb = o + sgG*(j+1)*c;
       var ge0 = Math.max(Math.min(ta, tb), tMin), ge1 = Math.min(Math.max(ta, tb), tMax);
       if (ge1 - ge0 < 0.5) continue;
-      cells.push({ e0: ge0, e1: ge1, s0: ge0, s1: ge1, k: j });
+      var gs0 = ge0, gs1 = ge1;
+      // A partial column at the wing's own real gutter corner, where that
+      // corner is an END of the rectangle, is the plain hip's flush corner
+      // sheet: a full sheet lapping inward, so its offcut is a full sheet's
+      // width and feeds the hip end exactly.
+      if (ge1 - ge0 < c - 0.5 && tMax - tMin >= c){
+        if (Math.min(ta, tb) < tMin - 0.5 && lapLo && f.endLo){ gs0 = tMin; gs1 = tMin + c; }
+        else if (Math.max(ta, tb) > tMax + 0.5 && lapHi && f.endHi){ gs0 = tMax - c; gs1 = tMax; }
+      }
+      cells.push({ e0: ge0, e1: ge1, s0: gs0, s1: gs1, k: j });
     }
   } else {
     run(f.fromEnd ? tMax : tMin, f.fromEnd ? tMin : tMax, f.fromEnd ? lapLo : lapHi);
@@ -7186,8 +7195,14 @@ function _sheetPuzzleBuild(opts){
       // peak where a wider wing's ridge pokes through a lower ridge has two
       // short hips that stop at that ridge — a bump on a slope, not an end.)
       var dRefOf = function(i){ return ds[(i + np) % np]; };
+      // ... or descending at least half the face's depth: a hip end whose
+      // two hips both stop at wing ridges standing on the same plane (wings
+      // off both the top and the bottom of the main at one end) is still
+      // the main's hip end, while the bump a wider wing's ridge makes on a
+      // lower slope drops a fraction of the depth and is not.
+      var drop = Math.max(ds[apexI] - dRefOf(apexI + 1), ds[apexI] - dRefOf(apexI - 1));
       var isApex = nAtMax === 1 && isHipKind(f.edges[apexI]) && isHipKind(f.edges[(apexI - 1 + np) % np]) &&
-        (dRefOf(apexI + 1) < dMin + tol || dRefOf(apexI - 1) < dMin + tol);
+        (dRefOf(apexI + 1) < dMin + tol || dRefOf(apexI - 1) < dMin + tol || drop >= 0.5 * (dMax - dMin));
       if (f.hasBarge){
         var bt = null;
         f.edges.forEach(function(e){
@@ -7205,8 +7220,20 @@ function _sheetPuzzleBuild(opts){
       }
       f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex');
       f.anchorT = anchorT; f.dMin = dMin; f.dMax = dMax;
-      f.tg0 = Math.min(pick.a[0]*tx + pick.a[1]*ty, pick.b[0]*tx + pick.b[1]*ty);
-      f.tg1 = Math.max(pick.a[0]*tx + pick.a[1]*ty, pick.b[0]*tx + pick.b[1]*ty);
+      // The face's own gutter line: EVERY gutter edge on the reference
+      // line, not the longest alone — a slope with a wing standing in the
+      // middle of it has a gutter either side of the wing, and both ends
+      // are real corners of the rectangle.
+      var gd = (pick.a[0]+pick.b[0])/2*dx + (pick.a[1]+pick.b[1])/2*dy;
+      var tgLo = Infinity, tgHi = -Infinity;
+      f.edges.forEach(function(e){
+        if (e.kind !== pick.kind || e.len <= tol) return;
+        var ed = (e.a[0]+e.b[0])/2*dx + (e.a[1]+e.b[1])/2*dy;
+        if (Math.abs(ed - gd) > tol) return;
+        tgLo = Math.min(tgLo, e.a[0]*tx + e.a[1]*ty, e.b[0]*tx + e.b[1]*ty);
+        tgHi = Math.max(tgHi, e.a[0]*tx + e.a[1]*ty, e.b[0]*tx + e.b[1]*ty);
+      });
+      f.tg0 = tgLo; f.tg1 = tgHi;
       // The rectangle's side: the gutter line followed through the roof.
       var vs = (lay === 'run') ? _pzVirtualSpan(R, f, tMin, tMax, probe) : [tMin, tMax];
       f.T0 = vs[0]; f.T1 = vs[1];
@@ -7214,25 +7241,6 @@ function _sheetPuzzleBuild(opts){
       f.pf = (f.hasCp && f.hasGutter) ? pfLow : pf;
       f.pieces = [];
       pend.push(f);
-    });
-    // WHICH CORNER A RUN STARTS FROM — where the plain hip starts: the
-    // world-low corner of the rectangle, agreed across every parallel slope
-    // of the roof (both long slopes divided from the same corner, so the hip
-    // end between them is fed from both sides with the same exact offcuts),
-    // unless no parallel slope has a real corner there — a T's stem has
-    // both its slopes under the bar at one end, and runs from the free end.
-    var axes = {};
-    function axisKey(f){ var ax = f.t, sg = (ax[0] > 0.01 || (Math.abs(ax[0]) <= 0.01 && ax[1] > 0)) ? 1 : -1; return { key: Math.round(ax[0]*sg*100) + ',' + Math.round(ax[1]*sg*100), s: sg }; }
-    pend.forEach(function(f){
-      if (f.lay !== 'run') return;
-      var ak = axisKey(f), a = axes[ak.key] || (axes[ak.key] = { lo: false, hi: false });
-      if (ak.s > 0 ? f.realLo : f.realHi) a.lo = true;
-      if (ak.s > 0 ? f.realHi : f.realLo) a.hi = true;
-    });
-    pend.forEach(function(f){
-      if (f.lay !== 'run') return;
-      var ak = axisKey(f), a = axes[ak.key], fromLo = a.lo || !a.hi;
-      f.runFromT0 = fromLo ? (ak.s > 0) : (ak.s < 0);
     });
     // THE COOKIE CUTTER (2026-10-22, the owner: "if you think of the Big L
     // roof outline and lines like a cookie cutter, it should slice the plain
@@ -7271,11 +7279,55 @@ function _sheetPuzzleBuild(opts){
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
       if (fT1 < T.T0 - tol || fT0 > T.T1 + tol) return;                    // beside the rectangle, not in it
+      f.lay = 'grid'; f.tSign = sgn; f.template = T; f.gridGroup = T; T.gridGroup = T; T.tSign = 1;
+      T.adopters = (T.adopters || []).concat([f]);
+      // The wing's outer corner lies on the rectangle's side: a REAL corner
+      // of the rectangle, so the run starts there as the plain hip would
+      // (wings off both the top and the bottom of one end used to send
+      // both slopes off from the far end, and the plain hip's flush corner
+      // sheet became a clipped remainder whose offcut fed nothing).
+      var gA = sgn > 0 ? f.tg0 : -f.tg1, gB = sgn > 0 ? f.tg1 : -f.tg0;
+      if (Math.abs(gA - T.T0) < tol || Math.abs(gB - T.T0) < tol){ T.realLo = true; T.adoptLo = true; }
+      if (Math.abs(gA - T.T1) < tol || Math.abs(gB - T.T1) < tol){ T.realHi = true; T.adoptHi = true; }
+      // Which of the wing's own corners sit at an END of the rectangle (a
+      // corner mid-rectangle is the hip's foot on the slope, never lapped).
+      var atEnd = function(v){ return Math.abs(v - T.T0) < tol || Math.abs(v - T.T1) < tol; };
+      f.endLo = atEnd(sgn > 0 ? gA : gB); f.endHi = atEnd(sgn > 0 ? gB : gA);
+    });
+    // WHICH CORNER A RUN STARTS FROM — where the plain hip starts: the
+    // world-low corner of the rectangle, agreed across every parallel slope
+    // of the roof (both long slopes divided from the same corner, so the hip
+    // end between them is fed from both sides with the same exact offcuts),
+    // unless no parallel slope has a real corner there — a T's stem has
+    // both its slopes under the bar at one end, and runs from the free end.
+    var axes = {};
+    function axisKey(f){ var ax = f.t, sg = (ax[0] > 0.01 || (Math.abs(ax[0]) <= 0.01 && ax[1] > 0)) ? 1 : -1; return { key: Math.round(ax[0]*sg*100) + ',' + Math.round(ax[1]*sg*100), s: sg }; }
+    pend.forEach(function(f){
+      if (f.lay !== 'run') return;
+      var ak = axisKey(f), a = axes[ak.key] || (axes[ak.key] = { lo: false, hi: false, aLo: false, aHi: false });
+      if (ak.s > 0 ? f.realLo : f.realHi) a.lo = true;
+      if (ak.s > 0 ? f.realHi : f.realLo) a.hi = true;
+      if (ak.s > 0 ? f.adoptLo : f.adoptHi) a.aLo = true;
+      if (ak.s > 0 ? f.adoptHi : f.adoptLo) a.aHi = true;
+    });
+    // A wing cut by the cookie cutter sits at one end of the rectangle: the
+    // run starts THERE, so its columns are flush at the wing's corner and
+    // its whole sheets and feet are the plain hip's own, exact — the far
+    // end takes the lapped remainder as it always does. A wing at both
+    // ends, or none, falls back to the world-low corner.
+    pend.forEach(function(f){
+      if (f.lay !== 'run') return;
+      var ak = axisKey(f), a = axes[ak.key];
+      var fromLo = (a.aLo !== a.aHi) ? a.aLo : (a.lo || !a.hi);
+      f.runFromT0 = fromLo ? (ak.s > 0) : (ak.s < 0);
+    });
+    // The adopters take the template's columns, numbered from its start.
+    pend.forEach(function(f){
+      if (f.lay !== 'grid') return;
+      var T = f.template, sgn = f.tSign;
       var o = (T.lay === 'run') ? (T.runFromT0 ? T.T0 : T.T1) : (T.fromEnd ? T.t1 : T.t0);
       var sg = (T.lay === 'run') ? (T.runFromT0 ? 1 : -1) : (T.fromEnd ? -1 : 1);
-      f.lay = 'grid'; f.tSign = sgn; f.template = T; f.gridGroup = T; T.gridGroup = T; T.tSign = 1;
       f.grid = { o: o * sgn, sg: sg * sgn };
-      T.adopters = (T.adopters || []).concat([f]);
     });
     pend.forEach(function(f){
       _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces);
@@ -7328,6 +7380,10 @@ function _sheetPuzzleBuild(opts){
 //  piece: block, num, label ('A12'), from (the donor label on an end
 //  piece), ordered (true when it is a sheet of its own).
 var _PZ_ROUND_MM = 10;
+// An offcut may be this much shorter than the piece and still be the fit:
+// the roof lines come off the skeleton in pixels (half a pixel is 10 mm at
+// the scale the app draws at), and a corner a lap short is under the lap.
+var _PZ_FIT_MM = 25;
 function _pzLetter(i){ var s = ''; i = i + 1; while (i > 0){ var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
 function _sheetPuzzleFill(pz){
   var scaleM = pz.scaleM, blocks = [], pool = [];
@@ -7370,11 +7426,11 @@ function _sheetPuzzleFill(pz){
     return Math.abs(L[0][1] - H[0][0]) < e && Math.abs(L[1][1] - H[1][0]) < e;
   }
   groups.forEach(function(fs, T){
-    if (!T.pieces.some(function(p){ return p.full; })){ fs.forEach(function(f){ if (f !== T){ f.lay = 'apex'; f.template = null; } }); return; }
+    if (!T.hasGutter || !T.pieces.length){ fs.forEach(function(f){ if (f !== T){ f.lay = 'apex'; f.template = null; } }); return; }
     var cols = {};
     fs.forEach(function(f){ f.pieces.forEach(function(p){ (cols[p.k] = cols[p.k] || []).push(p); }); });
     Object.keys(cols).forEach(function(k){
-      var ps = cols[k].slice().sort(function(p, q){ return (p.dBot - p.face.dMin) - (q.dBot - q.face.dMin); });
+      var ps = cols[k].slice().sort(function(p, q){ var d = (p.dBot - p.face.dMin) - (q.dBot - q.face.dMin); if (Math.abs(d) > 0.5) return d; return (p.face === T ? 1 : 0) - (q.face === T ? 1 : 0); });
       var base = ps[0];
       if (base.cutBot || base.dBot - base.face.dMin > pz.tol) return;
       var chain = [base];
@@ -7386,7 +7442,11 @@ function _sheetPuzzleFill(pz){
         var E = endsOf(head), hf = head.face.pf;
         head.sheetLongPx = Math.max(E[0][1], E[1][1]); head.sheetShortPx = Math.min(E[0][1], E[1][1]);
       }
-      if (head.face !== T) head.viaTemplate = T;
+      // A wing piece on the rectangle's column is the plain hip's own sheet
+      // slid along (ordered in the slope's block) — unless its column is
+      // clipped at the wing's corner: that stub is cut from an offcut, not a
+      // whole sheet of its own.
+      if (head.face !== T && (head.sheetPx || head.widthPx) >= pz.coverPx - pz.tol) head.viaTemplate = T;
     });
   });
   // 1. Blocks on the faces that have a full strip.
@@ -7396,7 +7456,16 @@ function _sheetPuzzleFill(pz){
     if (f.adopters) f.adopters.forEach(function(a){ a.pieces.forEach(function(p){ if (p.viaTemplate === f) ps.push(p); }); });
     ps.sort(function(p, q){ return p.k - q.k; });
     var fulls = ps.filter(function(p){ return p.full; });
-    if (!fulls.length){ f.endPieces = null; if (ps.length) endFaces.push(f); return; }
+    f.ownNeeds = ps;
+    // A SLOPE WITH NO FULL STRIP IS STILL THE RECTANGLE'S SLOPE: a wing
+    // wide enough to eat every column that reaches the ridge (a 10 m wing
+    // on an 18 m main, a cross with a wing each side) leaves the plain
+    // hip's sheets exactly where they were — full rafters cut at the
+    // valley and the hip — so the block is ordered at the rectangle's
+    // depth and every strip is one of its cut sheets. Only a hip END with
+    // no full strip is sheeted from the pool outright.
+    var rectBlock = !fulls.length && (f.lay === 'run' || f.lay === 'barge') && f.hasGutter && ps.length;
+    if (!fulls.length && !rectBlock){ f.endPieces = null; if (ps.length) endFaces.push(f); return; }
     // Level runs of the full strips.
     var runs = [];
     fulls.forEach(function(p){
@@ -7404,7 +7473,11 @@ function _sheetPuzzleFill(pz){
       if (cur && Math.abs(cur.level - lv) <= Math.max(60, cur.level * 0.04)){ cur.pieces.push(p); cur.k1 = p.k; }
       else runs.push({ level: lv, pieces: [p], k0: p.k, k1: p.k });
     });
-    runs.forEach(function(r){ r.block = newBlock(f, false); });
+    if (rectBlock){
+      var ks = ps.map(function(p){ return p.k; });
+      runs.push({ level: mmOf(f.dMax - f.dMin, f), pieces: [], k0: Math.min.apply(null, ks), k1: Math.max.apply(null, ks), rect: true });
+    }
+    runs.forEach(function(r){ r.block = newBlock(f, false); if (r.rect) r.block.Lmm = roundUp(r.level); });
     // Every strip joins a run: a full one its own; a cut one the longer of
     // its neighbours (before and after it in lay order) PROVIDED it is no
     // longer than that run's sheets — it is then that block's hip or
@@ -7429,7 +7502,7 @@ function _sheetPuzzleFill(pz){
         // A sliver — under a third of a sheet each way — is a scrap off the
         // nearest offcut, never a sheet of its own (the 50 mm the junction
         // of a valley and a hip leaves at the end of a column).
-        if (p.widthPx < pz.coverPx * 0.34 && mmOf(p.expLongPx, p.face) < pz.coverMm * 0.34 && !isRect){ f.endPieces.push(p); return; }
+        if (p.widthPx < pz.coverPx * 0.34 && mmOf(p.expLongPx, p.face) < pz.coverMm * 0.34 && !p.chainBelow){ if (p.viaTemplate){ p.viaTemplate = null; p.face.endPieces = p.face.endPieces || []; p.face.endPieces.push(p); if (endFaces.indexOf(p.face) < 0) endFaces.push(p.face); } else f.endPieces.push(p); return; }
         if (lv > r.level + Math.max(60, r.level * 0.04) && !isRect){ f.endPieces.push(p); return; }
         // WHICH CUT STRIPS ARE THE RECTANGLE'S OWN SHEETS. On a slope, the
         // sheets cut at its real corners are (their offcuts feed the hip
@@ -7523,7 +7596,7 @@ function _sheetPuzzleFill(pz){
   // triangle") goes to the end beside it and is never carried across the
   // roof to a piece that merely asked first.
   var needs = [];
-  endFaces.forEach(function(f){ (f.endPieces || f.pieces).forEach(function(p){ needs.push(p); }); });
+  endFaces.forEach(function(f){ (f.endPieces || f.ownNeeds || f.pieces).forEach(function(p){ if (needs.indexOf(p) < 0 && !p.strungTo && !p.viaTemplate) needs.push(p); }); });
   needs.sort(function(p, q){ return mmOf(q.longPx, q.face) - mmOf(p.longPx, p.face); });
   var extrasOf = new Map();
   function fitScore(pc, oc){
@@ -7538,12 +7611,12 @@ function _sheetPuzzleFill(pz){
       // side no shorter than the piece's long side — so a steeper or a
       // shallower diagonal still serves when the trapezoid is big enough.
       if (oc.hand !== pc.hand) return null;
-      if (ocB < needB - 1) return null;
+      if (ocB < needB - _PZ_FIT_MM) return null;
     } else if (pc.cutTop && pc.cutBot){
       // Two diagonals (the apex strip): needs a square piece as long as it is.
-      if (ocA < needB - 1) return null;
+      if (ocA < needB - _PZ_FIT_MM) return null;
     }
-    if (ocA < needA - 1) return null;
+    if (ocA < needA - _PZ_FIT_MM) return null;
     var needC = _ccCentroid(pc.poly);
     var surplus = ocA - needA, dist = Math.hypot(oc.c[0] - needC[0], oc.c[1] - needC[1]) * scaleM * 1000;
     // WHERE AN OFFCUT BELONGS comes first, the fit second, the distance
@@ -7578,7 +7651,7 @@ function _sheetPuzzleFill(pz){
       var sc = null;
       pool.forEach(function(oc){
         var ocB = oc.b * scaleM * oc.pf * 1000;
-        if (ocB < needB - 1 || oc.w < needW - 0.6) return;
+        if (ocB < needB - _PZ_FIT_MM || oc.w < needW - 0.6) return;
         var d = Math.hypot(oc.c[0] - needC[0], oc.c[1] - needC[1]) + (oc.roofIdx === pc.roofIdx ? 0 : 1e6);
         if (!sc || d < sc.d) sc = { oc: oc, d: d };
       });
@@ -7726,7 +7799,7 @@ function _renderSheetPuzzleCanvas(opts){
       via.length + ' whole sheet' + (via.length === 1 ? '' : 's') + (feet.length ? ' and the feet of ' + feet.length + ' more' : '') + (own ? ', ' + own + ' from offcuts or extra' : '') });
   });
   (pz.endFaces || []).forEach(function(f){
-    var all = f.endPieces || f.pieces, scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), donors = {};
+    var all = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return !p.strung && !p.viaTemplate; }), scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), donors = {};
     fed.forEach(function(p){ if (p.block) donors[p.block.letter] = 1; });
     var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
     var what = f.endPieces ? (all.length + (all.length === 1 ? ' piece' : ' pieces') + ' beside the block’s run: ') : ('hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');

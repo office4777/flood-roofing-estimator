@@ -149,13 +149,20 @@ Block-Cut, mapped onto the puzzle:
    - a slope between two hips: ONE run of full-width sheets along the whole
      side of its rectangle — the gutter followed through the roof
      (`_pzVirtualSpan`), so an L's main slope is laid along the 18 m, not
-     the 12 m the wall shows — from the WORLD-LOW corner, the plain hip's
-     own, agreed across every parallel slope of the roof (so the hip end
-     between two slopes is fed from both sides with the same exact
-     offcuts), unless no parallel slope has a real corner there (a T's
-     stem has both slopes under the bar at one end and runs from the free
-     end); the remainder lands at the far hip corner as a lapped full
-     sheet. The owner on the old mirror split's narrow mid-face closer:
+     the 12 m the wall shows — from the END THE WING IS AT when the cookie
+     cutter has cut a wing there (`T.adoptLo/adoptHi`, decided after
+     adoption), so the wing's whole sheets and feet are the plain hip's
+     own exact columns whichever end it stands at (the mirrored L is the
+     L to the sheet); with wings at both ends or neither, from the
+     WORLD-LOW corner, the plain hip's own — agreed across every parallel
+     slope of the roof (so the hip end between two slopes is fed from
+     both sides with the same exact offcuts), unless no parallel slope
+     has a real corner there (a T's stem has both slopes under the bar at
+     one end and runs from the free end); the remainder lands at the far
+     hip corner as a lapped full sheet. A face's gutter is EVERY gutter
+     edge on its reference line, not the longest (a cross has a wing
+     standing in the middle of each slope, and the wall either side of it
+     is one gutter with two real corners). The owner on the old mirror split's narrow mid-face closer:
      "must always be full width sheets … force all sheets across to the
      edges which would make a larger offcut." The lapped corner sheet IS
      the mirror split's corner sheet, so the far hip end still gets its
@@ -193,9 +200,38 @@ Block-Cut, mapped onto the puzzle:
    own; the piece under it is its FOOT (`✂C5`, `strungTo`), carried along
    the column, drawn in the block's tint with a dashed edge, and costs
    nothing. A column with only the end's piece is the plain hip's corner
-   sheet slid north whole (`viaTemplate`), ordered in the slope's block.
-   Where the chain test fails nothing is strung and the sheet gives its two
-   offcuts as before.
+   sheet slid north whole (`viaTemplate`), ordered in the slope's block —
+   unless the column is CLIPPED at the wing's own corner (a cross's wing
+   stub, 0.57 m wide): that stub is cut from an offcut, never a whole
+   sheet. A wing standing at the far END of the rectangle (a Z's east
+   wing) takes the plain hip's lapped corner sheet on its own corner
+   column (`f.endLo/endHi`: the wing's corner is at the rectangle's end),
+   so its offcut is a whole sheet's width; a wing corner mid-rectangle is
+   the hip's foot on the slope and is never lapped. Where the chain test
+   fails nothing is strung and the sheet gives its two offcuts as before.
+   The fit tolerance is `_PZ_FIT_MM` (25 mm): the roof lines come off the
+   skeleton in pixels, and a corner a lap short is under the lap.
+   EVERY L, AND THE TWO-WING ROOF (2026-10-22, the owner: "used same
+   logic/mechanics on different sizes and orientations of the l-shape
+   making sure the logic hold, also the same logic should transfer to a
+   both with a wing off the top and the buttom of the main plain hip"),
+   pinned in `tests/sheetlayout.mjs`: the Big-L mirrored, turned and with
+   its wing off the bottom are each 48 × 7.73 + 15 × 3.32 + the one 3.52
+   junction strip, the wing's end `1,2,3,4,✂5,✂6,✂7,✂8` whichever letter
+   the block carries; a 24 × 12 L with a 4 × 8 wing cuts three whole
+   sheets and two feet; a 10 m wing on a 14 m main is still cut (seven
+   whole, six feet) and a 13 m one is within a sheet and keeps its apex;
+   wings off the top AND the bottom at the west end cut both (four whole,
+   four feet each), the main's west hip end between the two wing slopes
+   still anchored at its apex (its hips stop at the wings' ridges half
+   the depth down — `isApex`'s half-depth rule — which is a hip end and
+   not the bump a wider wing's ridge makes), 48 × 7.73 + 30 × 3.32 + two
+   junction strips; a cross (a wing mid-slope both sides) cuts both wing
+   ends as seven feet and two stubs from offcuts, 81 sheets and nothing
+   extra; a Z (wings at opposite ends) cuts both, the east wing's corner
+   column lapped, 81 sheets with ONE extra beside the junction strip —
+   the east wing takes a hand of offcuts the main's east end would have
+   had on the plain hip, and that is the geometry, not a miss.
 4. **Ends.** Which cut strips are the rectangle's own sheets and which come
    from the pool: on a slope, the strips cut at its REAL corners are block
    sheets (their offcuts feed the hip ends); the strips beyond its own
