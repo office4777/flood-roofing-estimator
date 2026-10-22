@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-22T21:03:20Z';
+  window.APP_BUILT_AT = '2026-10-22T22:35:31Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5597,6 +5597,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
        the way work gets off the phone, so it sits right under Map Roof. -->
   <button class="nav-btn" id="navOfflineSavesBtn" onclick="_openOfflineSaves()"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 2.5h7L13 5v8.5H3.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 2.5v4h5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 13.5v-3.5h5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Offline saves<span id="navOfflineSavesN"></span></button>
   <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
+  <!-- AI TENDERING (Phase 1, 2026-10-23): shown only on a tender job, by _tenderNavSync. -->
+  <button class="nav-btn" id="navTenderBtn" onclick="gotoTab('tender')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2" width="11" height="12" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M5 5.5h6M5 8h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>AI Tendering</button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" id="navScheduleBtn" onclick="gotoTab('schedule')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5H14 M5 1.5v3 M11 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.5 9.5h3 M4.5 11.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Schedule</button>
   <!-- Email and Notifications are off the left menu. Notifications was the
@@ -7541,6 +7543,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
      calls don't blow up — the panel just stays inactive. -->
 <div class="panel" id="tab-fergus"></div>
 
+<!-- TAB: AI TENDERING — the plan-set reader (tender.js renders into #tenderRoot). -->
+<div class="panel" id="tab-tender"><div id="tenderRoot" style="max-width:1180px;margin:0 auto;padding:4px 0 40px"></div></div>
+
 <!-- TAB: SCHEDULE — the forward-workflow board (Business tier). -->
 <div class="panel" id="tab-schedule">
   <!-- Locked teaser below Business — the server enforces; this just sells. -->
@@ -8691,6 +8696,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
         <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
+        <button type="button" id="jtBtn_tender" onclick="_setJobType('tender')" style="display:none;padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">📐 AI Tendering</button>
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:5px">Chooses which quote draft this job uses — you can switch it later on the Quote tab.</div>
     </div>
@@ -10001,6 +10007,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} try{ _scaleStateShow(); }catch(e){} }
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} try{ _fbPreviewShow(_fbPreviewKind); }catch(e){ console.warn('feedback preview:', e); } }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
+  if(t==='tender'){ try{ if (typeof _tenderTabOpen === 'function') _tenderTabOpen(); }catch(e){ console.warn('tender:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
   if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
   // The Notifications panel floats over whatever tab is open — switching
@@ -19554,7 +19561,7 @@ function restoreFromJob(j){
     // job that HAS a quote; an older one carries no quoteKind at all and the
     // readers then fell through to window._pendingJobType, which is how the
     // last job's Pole Shed followed the office onto the next client's job.
-    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : 'roofing'; } catch(e){}
+    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : 'roofing'; } catch(e){}
     try { _clearPendingJobType(); } catch(e){}
     try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
@@ -22620,24 +22627,37 @@ else _installNextButtons();
 // survives until the quote is (re)built, and applied to S.quote.quoteKind
 // immediately when a quote already exists.
 function _setJobType(k){
-  window._pendingJobType = (k === 'poleshed') ? 'poleshed' : 'roofing';
+  window._pendingJobType = _quoteKindNorm(k);
   if (S.quote) S.quote.quoteKind = window._pendingJobType;
   _syncJobTypeToggle();
   try { _syncQuoteKindToggle(); } catch(e){}
+}
+// The three kinds a quote can be. 'tender' only where AI Tendering is on
+// for the business (unknown = off, the opposite of the pole-shed gate: a
+// tender job on an account without the feature has no tab to open).
+function _quoteKindNorm(k){
+  if (k === 'poleshed') return 'poleshed';
+  if (k === 'tender' && _tenderingAvailable()) return 'tender';
+  return 'roofing';
 }
 function _syncJobTypeToggle(){
   // Same gate as the Quote tab's draft switch: no point offering a job type
   // whose quote this account can never open.
   var avail = _poleShedsAvailable();
   var wrap = document.getElementById('jtTypeToggle');
-  if (wrap) wrap.style.display = avail ? '' : 'none';
+  var tnd = _tenderingAvailable();
+  if (wrap) wrap.style.display = (avail || tnd) ? '' : 'none';
   // Only once we KNOW the account does not sell them.
   if (_poleShedsKnown() && !avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
+  if (!tnd && window._pendingJobType === 'tender') window._pendingJobType = 'roofing';
   var ps = avail && (window._pendingJobType === 'poleshed');
-  ['roofing','poleshed'].forEach(function(k){
+  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : 'roofing');
+  var psb = document.getElementById('jtBtn_poleshed'); if (psb) psb.style.display = avail ? '' : 'none';
+  var tnb = document.getElementById('jtBtn_tender'); if (tnb) tnb.style.display = tnd ? '' : 'none';
+  ['roofing','poleshed','tender'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
     if (!b) return;
-    var on = (k === 'poleshed') === ps;
+    var on = (k === cur);
     b.style.background = on ? '#0a1628' : 'transparent';
     b.style.color = on ? '#fff' : 'var(--text2)';
     b.style.fontWeight = on ? '700' : '500';
@@ -22728,7 +22748,7 @@ function openJobDetailsModal(mode){
   if (title)   title.textContent   = (window._jobDetailsMode === 'edit') ? 'Edit job details' : 'New job — details';
   if (primary) primary.textContent = (window._jobDetailsMode === 'edit') ? 'Save details' : 'Start → Map Roof';
   // Reflect the current job's type (edit) or default to roofing (new).
-  window._pendingJobType = (window._jobDetailsMode === 'edit' && S.quote && S.quote.quoteKind === 'poleshed') ? 'poleshed' : 'roofing';
+  window._pendingJobType = (window._jobDetailsMode === 'edit' && S.quote) ? _quoteKindNorm(S.quote.quoteKind) : 'roofing';
   _syncJobTypeToggle();
   // New job → offer the next job number from Settings (editable).
   var jn = document.getElementById('jobNo');
@@ -22746,7 +22766,7 @@ function jobDetailsPrimary(){
   // if this is a brand-new job so quoteKind sticks).
   try {
     if (!S.quote && typeof defaultQuote === 'function') S.quote = defaultQuote();
-    if (S.quote) S.quote.quoteKind = (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing';
+    if (S.quote) S.quote.quoteKind = _quoteKindNorm(window._pendingJobType);
     _syncQuoteKindToggle();
   } catch(e){}
   // The job number becomes the quote reference (a linked Fergus job's own
@@ -22768,7 +22788,8 @@ function jobDetailsPrimary(){
     try { fetchRecentDrafts(); } catch(e){}
   } else {
     closeJobDetailsModal();
-    gotoTab('roof');
+    // A tender starts on the plan set, not on a roof nobody has drawn yet.
+    gotoTab((S.quote && S.quote.quoteKind === 'tender') ? 'tender' : 'roof');
   }
 }
 
@@ -28433,7 +28454,7 @@ function _defaultQuoteInner(){
   return {
     ref: (((document.getElementById('jobNo')||{}).value)||'').trim() || ('FR-' + (Date.now().toString().slice(-5))),
     // Roofing (default) or pole-shed draft — honours the New Job modal's pick.
-    quoteKind: (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing',
+    quoteKind: _quoteKindNorm(window._pendingJobType),
     date: todayStr,
     validUntil: validityDays,
     client: (document.getElementById('jobClient')||{}).value || '',
@@ -37196,6 +37217,30 @@ function _poleShedGateBranding(){
   return null;
 }
 function _poleShedsKnown(){ return !!_poleShedGateBranding(); }
+// AI TENDERING (Phase 1): on only where branding.ai_tendering_enabled is
+// true — live settings, else the device's last good copy. Unknown is OFF:
+// the feature needs the server's side as well, so offering it to a business
+// that has not got it would open a tab that can do nothing.
+function _tenderingAvailable(){
+  try { if (window.__TENDERING_ON != null) return !!window.__TENDERING_ON; } catch(e){}
+  var br = (window.S && S.settings && S.settings.branding) || null;
+  if (br && br.ai_tendering_enabled != null) return !!br.ai_tendering_enabled;
+  try {
+    var cached = JSON.parse(localStorage.getItem('fr_settings') || 'null');
+    var cb = (cached && cached.branding) || null;
+    if (cb && cb.ai_tendering_enabled != null) return !!cb.ai_tendering_enabled;
+  } catch(e){}
+  return false;
+}
+// The AI Tendering menu entry shows on a tender job and nowhere else; the
+// Job Pack and Quote stay (P5/P6 fill them from the tender).
+function _tenderNavSync(){
+  var b = document.getElementById('navTenderBtn'); if (!b) return;
+  var on = !!(window.S && S.quote && S.quote.quoteKind === 'tender' && _tenderingAvailable());
+  b.style.display = on ? '' : 'none';
+  if (!on && document.body.getAttribute('data-tab') === 'tender') { try { gotoTab('roof'); } catch(e){} }
+  if (on && typeof window._tenderTabSync === 'function') { try { window._tenderTabSync(); } catch(e){} }
+}
 function _poleShedsAvailable(){
   var br = _poleShedGateBranding();
   // Unknown: OFFER it. Hiding the switch costs a Flood Roofing job the one
@@ -40110,7 +40155,7 @@ function _psGet(field){
 }
 function _setQuoteKind(k){
   if (!S.quote) return;
-  S.quote.quoteKind = (k === 'poleshed') ? 'poleshed' : 'roofing';
+  S.quote.quoteKind = _quoteKindNorm(k);
   _syncQuoteKindToggle();
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
@@ -40134,6 +40179,9 @@ function _qkMenuRender(){
   // flight, this line turned job 3287's shed quote into a roofing one.
   if (_poleShedsKnown() && !avail && S.quote && S.quote.quoteKind === 'poleshed') S.quote.quoteKind = 'roofing';
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
+  var tnd = _tenderingAvailable();
+  var isT = tnd && S.quote && S.quote.quoteKind === 'tender';
+  try { _tenderNavSync(); } catch(e){}
   var close = "this.closest('details').removeAttribute('open');";
   var item = function(call, label, sub, on, id){
     return '<button type="button"' + (id ? ' id="' + id + '"' : '') + ' class="' + (on ? 'qk-on' : '') + '" onclick="' + close + call + '">' + (on ? '\u2713 ' : '') + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
@@ -40149,10 +40197,11 @@ function _qkMenuRender(){
         return item("setMainScope('" + k + "');_qkMenuRender()", esc2(pr.label || k), esc2(pr.subtitle || ''), curScope === k, 'qkScope_' + k);
       }).join('');
     } catch(e){}
-    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:' + (avail ? 'block' : 'none') + '">' +
+    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:' + ((avail || tnd) ? 'block' : 'none') + '">' +
       '<div class="qa-more-lbl">Job type</div>' +
-      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps, 'qkBtn_roofing') +
-      item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') +
+      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT, 'qkBtn_roofing') +
+      (avail ? item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') : '') +
+      (tnd ? item("_setQuoteKind('tender')", 'AI Tendering', 'Price a roof off a plan set', isT, 'qkBtn_tender') : '') +
       '</div>';
   }
   if (more) more.style.display = '';
@@ -82434,6 +82483,7 @@ document.addEventListener('mousedown',function(e){
 </body>
 <script src="sheet-plan.js"></script>
 <script src="help-bot.js"></script>
+<script src="tender.js"></script>
 <script>
 /* ── INSTALLABLE APP ─────────────────────────────────────────────
    Registers the service worker that lets RoofMap open (and keep working)

@@ -12956,6 +12956,22 @@ const _MIGRATION_SQL = [
   "create table if not exists public.day_plans (key text primary key, doc jsonb, rev int not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now())",
   "create index if not exists day_plans_updated_idx on public.day_plans (updated_at)",
   "alter table public.day_plans enable row level security",
+  // ── AI TENDERING (2026-10-23, Phase 1) — its own tables, every one
+  // carrying company_id AND user_id from day one (_scopeCompany filters on
+  // both). The plan files themselves live in the private `tender-docs`
+  // storage bucket; these rows hold what was read off them.
+  "create table if not exists public.tender_jobs (id uuid primary key, company_id uuid, user_id uuid, job_id uuid, name text, status text, settings jsonb default '{}'::jsonb, sheet_index jsonb, created_at timestamptz default now(), updated_at timestamptz default now())",
+  "create index if not exists idx_tender_jobs_company on public.tender_jobs (company_id, updated_at desc)",
+  "create index if not exists idx_tender_jobs_job on public.tender_jobs (job_id)",
+  "create table if not exists public.tender_files (id uuid primary key, tender_id uuid, company_id uuid, user_id uuid, name text, size bigint, mime text, storage_path text, status text, pages int default 0, error text default '', meta jsonb default '{}'::jsonb, created_at timestamptz default now())",
+  "create index if not exists idx_tender_files_tender on public.tender_files (tender_id)",
+  "create table if not exists public.tender_pages (id uuid primary key, tender_id uuid, file_id uuid, company_id uuid, user_id uuid, page_no int, width real, height real, rotation int default 0, sheet_id text default '', title text default '', revision text default '', scale text default '', sheet_date text default '', cls text default 'other', cls_conf real, cls_source text default '', text text default '', text_chars int default 0, tb_text text default '', image_path text default '', thumb_path text default '', tb_path text default '', words_path text default '', meta jsonb default '{}'::jsonb, created_at timestamptz default now())",
+  "create index if not exists idx_tender_pages_tender on public.tender_pages (tender_id, page_no)",
+  "create index if not exists idx_tender_pages_file on public.tender_pages (file_id)",
+  "create table if not exists public.tender_tasks (id uuid primary key, tender_id uuid, company_id uuid, user_id uuid, type text, status text, attempts int default 0, error text default '', progress jsonb default '{}'::jsonb, heartbeat_at timestamptz, created_at timestamptz default now(), started_at timestamptz, done_at timestamptz)",
+  "create index if not exists idx_tender_tasks_queue on public.tender_tasks (status, created_at)",
+  "create table if not exists public.tender_ai_runs (id uuid primary key, tender_id uuid, company_id uuid, user_id uuid, page_id uuid, pass text, model text, prompt_version text, in_tokens int default 0, out_tokens int default 0, cache_read int default 0, cache_write int default 0, cost_usd numeric(10,5) default 0, ms int default 0, ok boolean default false, error text default '', created_at timestamptz default now())",
+  "create index if not exists idx_tender_ai_runs_tender on public.tender_ai_runs (tender_id, created_at)",
 ];
 
 // A DATABASE BLIP AT BOOT IS NOT WORTH THE PROCESS (2026-09-30). On the
@@ -13242,6 +13258,7 @@ const USAGE_EVENTS = [
   'order_sent',       // material ordered — the far end of the workflow
   'waitlist_submit',  // a roofer asked for a setup call — the top of the funnel
   'ai_call',          // one AI request, so a free trial's daily cap can be counted
+  'tender_created',   // an AI Tendering plan set was started
   // The daily activity report (daily.js): who did what yesterday.
   'login',            // a password sign-in, or the emailed confirmation link
   'canvas_used',      // drew on the canvas (once per half hour per person)
@@ -13380,6 +13397,26 @@ const METRICS = require('./metrics').createMetrics({
   buildSha: BUILD_SHA,
   warn: function(m){ console.warn(m); },
 });
+
+// ══════════════════════════════════════════════════════════════════
+// AI TENDERING (Phase 1, 2026-10-23) — the plan-set reader. Everything
+// lives in ./tender/*; this is the one place it meets the server. The
+// worker polls tender_tasks in this process (see tender/worker.js).
+// ══════════════════════════════════════════════════════════════════
+const TENDER = (function(){
+  try {
+    const storage = require('./tender/storage').create(supabase);
+    const ai = require('./tender/ai');
+    const worker = require('./tender/worker').createWorker({ supabase, storage, ai, recordError, dispatchMail: _dispatchMail, warn: function(m){ console.warn(m); } });
+    require('./tender/routes').mount(app, { supabase, storage, worker, ai, requireAuth, requireSubscription,
+      scopeCompany: _scopeCompany, settingsRow: _companySettingsRow, adminOk: _adminOk, recordError, recordUsage, rateLimit });
+    return { storage, worker, ai };
+  } catch (e) {
+    recordError('tender-boot', e, { route: 'boot' });
+    console.warn('[tender] not mounted: ' + e.message);
+    return null;
+  }
+})();
 
 // The daily activity report: 3am NZ (DAILY_REPORT_HOUR), to support@. ?date=YYYY-MM-DD for a
 // particular day; the preview shows it in a browser; send fires it now.
@@ -14315,6 +14352,7 @@ app.listen(PORT, () => {
   _reloadVerifiedDomains().catch(function(){});
   _reloadMailDomains().catch(function(){});
   _ensureSchema().catch(function(){});
+  try { if (TENDER) TENDER.worker.start(); } catch(e){}
   // One-time landing for the legacy env key. _fergusKeyFor no longer reads
   // FERGUS_API_KEY at all, so the company that used to ride it (the one named
   // by FERGUS_COMPANY_ID) would come up disconnected on this deploy. Copy the

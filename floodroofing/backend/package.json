@@ -11,6 +11,8 @@
     "node": ">=20 <23"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "@napi-rs/canvas": "^0.1.65",
     "@supabase/supabase-js": "^2.38.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
@@ -21,6 +23,7 @@
     "mailparser": "^3.9.17",
     "node-fetch": "^2.7.0",
     "nodemailer": "^6.9.13",
+    "pdfjs-dist": "^4.10.38",
     "pg": "^8.11.5",
     "stripe": "^14.0.0"
   }

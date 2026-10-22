@@ -25,6 +25,7 @@ var PRECACHE = [
   '/app',
   '/sheet-plan.js',
   '/help-bot.js',
+  '/tender.js',
   '/manifest.webmanifest',
   '/demo-job.json',
   '/brand/roofmap_icon.png',
