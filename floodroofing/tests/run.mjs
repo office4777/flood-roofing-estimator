@@ -40,6 +40,7 @@ const API = [
 ];
 // The real app.html, driven by Playwright.
 const UI = [
+  'typesnap',
   'quickwins', 'mydayui',
   'tenantbrand', 'ownbrand', 'heroslot', 'poleshed', 'orderdelivery', 'quotetpl', 'pbflags', 'billingready', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui', 'versionui',

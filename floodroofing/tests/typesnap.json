@@ -1,0 +1,1049 @@
+{
+ "roof_demo": {
+  "materialRows": [
+   {
+    "key": "sheets",
+    "label": "Roofing sheets",
+    "qty": 164.89,
+    "unit": "m²",
+    "price": 34,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "underlay",
+    "label": "Underlay / paper",
+    "qty": 3,
+    "unit": "roll",
+    "price": 150,
+    "variants": 3,
+    "decimalQty": false
+   },
+   {
+    "key": "ridge",
+    "label": "Ridge / Hip cap",
+    "qty": 44.65,
+    "unit": "lm",
+    "price": 22,
+    "variants": 2,
+    "decimalQty": false
+   },
+   {
+    "key": "valley",
+    "label": "Valley iron",
+    "qty": 5.84,
+    "unit": "lm",
+    "price": 26,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "screws",
+    "label": "65mm Unitites / screws",
+    "qty": 1400,
+    "unit": "each",
+    "price": 0.35,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "rivets",
+    "label": "Rivets",
+    "qty": 100,
+    "unit": "each",
+    "price": 0.15,
+    "variants": 1,
+    "decimalQty": false
+   }
+  ],
+  "materialsTotal": 8285.55,
+  "labour": {
+   "S_labour": 8640,
+   "S_materials": 8285.55,
+   "q": {
+    "leadHrs": 32,
+    "leadCost": 45,
+    "leadPrice": 180,
+    "appHrs": 32,
+    "appCost": 25,
+    "appPrice": 90,
+    "extras": []
+   }
+  },
+  "scaffold": {
+   "price": 2500,
+   "cost": 2000,
+   "type": "edge"
+  },
+  "lineItems": [
+   {
+    "desc": "Labour",
+    "qty": 1,
+    "unit": 8640,
+    "amount": null,
+    "_base": "labour"
+   },
+   {
+    "desc": "Scaffolding",
+    "qty": 1,
+    "unit": 2500,
+    "amount": null,
+    "_base": "scaffold"
+   },
+   {
+    "desc": "Materials",
+    "qty": 1,
+    "unit": 8285.55,
+    "amount": null,
+    "_base": "materials"
+   }
+  ],
+  "quoteSubtotal": 19425.55,
+  "money": {
+   "rate": 0.15,
+   "baseSub": 19425.55,
+   "deltaSum": 0,
+   "sub": 19425.55,
+   "gst": 2913.83,
+   "tot": 22339.38,
+   "dep": 11169.69,
+   "baseTot": 22339.38
+  },
+  "customerTotal": 22339.38,
+  "customerRows": [
+   {
+    "k": null,
+    "label": "Re-roof — main scope of work",
+    "short": "Re-roof",
+    "value": "$19,464.38"
+   },
+   {
+    "k": null,
+    "label": "Scaffolding — edge protection",
+    "short": "Scaffolding",
+    "value": "$2,875.00"
+   },
+   {
+    "k": null,
+    "label": "Your total",
+    "short": null,
+    "value": "$22,339.38"
+   }
+  ],
+  "profit": {
+   "revenue": 19425.55,
+   "cost": 12525.55,
+   "hrs": 64,
+   "hrsAll": 64,
+   "area": 164.9,
+   "items": [
+    {
+     "label": "Scaffolding",
+     "revenue": 2500,
+     "cost": 2000
+    },
+    {
+     "label": "Roofing",
+     "revenue": 16925.55,
+     "cost": 10525.55
+    }
+   ]
+  },
+  "priced": {
+   "base": 19425.55,
+   "keys": [
+    "base",
+    "bracketExt",
+    "downpipes",
+    "extraRoof",
+    "extraRoofLabel",
+    "extraRoofSplit",
+    "extras",
+    "gaugeUpgrade",
+    "grade",
+    "gradeLabel",
+    "gstRate",
+    "gutter",
+    "gutterExcluded",
+    "gutterLabel",
+    "gutterOverride",
+    "gutterUplift",
+    "profile",
+    "profileLabel",
+    "profileLocks",
+    "scaffoldUplift",
+    "v"
+   ]
+  },
+  "sheets": {
+   "total": 55,
+   "groups": [
+    "14x3.84",
+    "41x4.25"
+   ]
+  },
+  "sections": [
+   "MAIN 20/side@4.25+1",
+   "wing 7/side@3.84"
+  ],
+  "cutList": [
+   {
+    "roofIdx": null,
+    "title": "Roof sheets",
+    "rows": [
+     {
+      "len": 4110,
+      "qty": 41
+     },
+     {
+      "len": 3710,
+      "qty": 14
+     }
+    ]
+   }
+  ],
+  "deskSections": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "review"
+  ],
+  "bookPages": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "summary"
+  ],
+  "deskText": "Flood Roofing Quote SAMPLE · M. & R. Whitiora Your quote Your roof Proposal Steel grade Profile Thickness Colour Guttering Old roof Review ROOFING QUOTE & PROPOSAL Whitiora Residence 24 Kauri Road, Kerikeri 📷 Swap photo + Logo Your roof, our proposal and your options are all on this page. Choose as you go — the total on the right updates with you — then review and accept at the bottom. Quote SAMPLE Date 1/10/2026 Expires 31/10/2026 Prepared by You Phone 09 123 4567 Email office@example.co.nz YOUR ROOF TODAY Existing Roof Condition FIXING TYPE Lead-head Nails Twist Shank Nails Tek Screws Edit wording Delete this page from this quote Click to write a short description of the roof’s condition, or pick a fixing type above to drop one in. Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC WHAT WE WILL DO Re-Roof Proposal WHAT’S INCLUDED Edge-Protection / Scaffolding Remove existing Roofing Install New Synthetic Underlay Install New Colorsteel® MAXAM Roofing Sheets Install all associated Flashings Tidy site and issue Warranty sign-off WHAT’S EXCLUDED New guttering YOUR ROOF PLAN Main Roof 164.9 m² − + ↺ CHOOSE YOUR STEEL Steel grade Delete this page from this quote The coating on the steel is what decides how long the roof lasts. Every grade here is a roof we are happy to put our name to — the difference is how many years it buys you. Recommended for your roof Colorsteel® MAXAM NZ Steel’s newest coating — the best corrosion resistance on the market. Up to 50 years perforation warranty in mild zones. INCLUDED Armorsteel ColorZen Proven mid-tier prepainted steel with a broad colour range. 30 year warranty in mild environments. −$1,252.30 ColorCote® Pacific Coilcoaters’ premium prepainted steel — excellent finish. Up to 30 years perforation, zone dependent. −$635.23 Zincalume® (unpainted) Natural silver alloy — the workhorse finish, unpainted. 20 year non-perforation warranty. −$2,967.41 THE SHAPE OF THE SHEET Roof profile Delete this page from this quote The profile is the shape rolled into the steel. It changes how the roof looks from the street and how the sheet carries a load. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. Recommended for your roof Corrugate The classic corrugated profile — proven, versatile and the standard choice for most homes. INCLUDED 5-Rib Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade. +$1,996.42 THE STEEL ITSELF Steel thickness Delete this page from this quote How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail. Recommended for your roof 0.40 gauge The standard residential thickness, used on the bulk of New Zealand re-roofs. INCLUDED 0.55 gauge Heavier steel — better against hail and falling branches, and a little stiffer underfoot. +$1,996.42 THE LOOK OF IT Roof colour Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered. Undecided — I’ll choose later We will confirm the colour with you before anything is ordered. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. No colour chosen yet — tap one below, or Undecided above. Ironsand® FlaxPod® Lignite® Karaka® Grey Friars® Sandstone Grey® Windsor Grey® Titania® New Denim Blue® Permanent Green® Mist Green® Ebony® WHILE THE SCAFFOLD IS UP Guttering Delete this page from this quote The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call. Recommended for your roof No new guttering Your existing spouting stays exactly as it is. INCLUDED 125mm Colorsteel Box Gutter Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish. Includes the platform scaffold upgrade ($718.75). +$5,433.14 Marley Typhoon (PVC) Higher-capacity PVC profile — handles heavy downpours; UV-stabilised. Includes the platform scaffold upgrade ($718.75). +$6,029.46 Marley Classic (PVC) Classic half-round PVC profile — clean look, easy maintenance. Includes the platform scaffold upgrade ($718.75). +$5,911.36 New guttering also upgrades the site to a full platform scaffold so the gutter line can be installed safely. That is already in the figures above. Upgrade to platform scaffolding isn’t required for the gutter install (a low roof) Untick to keep the +25% platform upgrade when the customer adds guttering. WHEN THE OLD ROOF COMES OFF The old roofing Delete this page from this quote Some people want the old sheets for a shed or a fence. Either way it costs you nothing — the scrap value covers the time it takes us to cart it away. Recommended for your roof We take it away We strip the old roofing and flashings and cart the lot off site. INCLUDED Leave it with me We stack the old sheets and flashings on site for you to keep. INCLUDED Either choice is included at no change to your price. READY WHEN YOU ARE Your quote Sub-total $19,839.83 + GST $2,975.97 TOTAL INCL. GST $22,815.80 What is in it Re-roof — main scope of work $19,940.80 Scaffolding — edge protection $2,875.00 What you chose Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away THE ROOFS IN THIS QUOTE Main Roof 164.9 m² − + ↺ YOUR FULL NAME I accept this quote and the terms & conditions. Accept this quote Ask a question Download PDF Decline + Logo Flood Roofing · This quote is valid for 30 days Sub-total $19,839.83 + GST $2,975.97 TOTAL INCL. GST $22,815.80 Re-roof $19,940.80 Scaffolding $2,875.00 YOUR CHOICES Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away Review quote Ask a question Download PDF"
+ },
+ "roof_report41": {
+  "materialRows": [
+   {
+    "key": "sheets",
+    "label": "Roofing sheets",
+    "qty": 84.05,
+    "unit": "m²",
+    "price": 34,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "underlay",
+    "label": "Underlay / paper",
+    "qty": 2,
+    "unit": "roll",
+    "price": 150,
+    "variants": 3,
+    "decimalQty": false
+   },
+   {
+    "key": "ridge",
+    "label": "Ridge / Hip cap",
+    "qty": 9.18,
+    "unit": "lm",
+    "price": 22,
+    "variants": 2,
+    "decimalQty": false
+   },
+   {
+    "key": "barge",
+    "label": "Barge flashing",
+    "qty": 21.56,
+    "unit": "lm",
+    "price": 20,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "screws",
+    "label": "65mm Unitites / screws",
+    "qty": 700,
+    "unit": "each",
+    "price": 0.35,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "rivets",
+    "label": "Rivets",
+    "qty": 100,
+    "unit": "each",
+    "price": 0.15,
+    "variants": 1,
+    "decimalQty": false
+   }
+  ],
+  "materialsTotal": 4626.09,
+  "labour": {
+   "S_labour": 3780,
+   "S_materials": 4626.09,
+   "q": {
+    "leadHrs": 14,
+    "leadCost": 45,
+    "leadPrice": 180,
+    "appHrs": 14,
+    "appCost": 25,
+    "appPrice": 90,
+    "extras": []
+   }
+  },
+  "scaffold": {
+   "price": 2500,
+   "cost": 2000,
+   "type": "edge"
+  },
+  "lineItems": [
+   {
+    "desc": "Labour",
+    "qty": 1,
+    "unit": 3780,
+    "amount": null,
+    "_base": "labour"
+   },
+   {
+    "desc": "Materials",
+    "qty": 1,
+    "unit": 4626.09,
+    "amount": null,
+    "_base": "materials"
+   },
+   {
+    "desc": "Scaffolding",
+    "qty": 1,
+    "unit": 2500,
+    "amount": null,
+    "_base": "scaffold"
+   }
+  ],
+  "quoteSubtotal": 10906.09,
+  "money": {
+   "rate": 0.15,
+   "baseSub": 10906.09,
+   "deltaSum": 0,
+   "sub": 10906.09,
+   "gst": 1635.91,
+   "tot": 12542,
+   "dep": 6271,
+   "baseTot": 12542
+  },
+  "customerTotal": 12542,
+  "customerRows": [
+   {
+    "k": null,
+    "label": "Re-roof — main scope of work",
+    "short": "Re-roof",
+    "value": "$9,667.00"
+   },
+   {
+    "k": null,
+    "label": "Scaffolding — edge protection",
+    "short": "Scaffolding",
+    "value": "$2,875.00"
+   },
+   {
+    "k": null,
+    "label": "Your total",
+    "short": null,
+    "value": "$12,542.00"
+   }
+  ],
+  "profit": {
+   "revenue": 10906.09,
+   "cost": 7606.09,
+   "hrs": 28,
+   "hrsAll": 28,
+   "area": 84.1,
+   "items": [
+    {
+     "label": "Scaffolding",
+     "revenue": 2500,
+     "cost": 2000
+    },
+    {
+     "label": "Roofing",
+     "revenue": 8406.09,
+     "cost": 5606.09
+    }
+   ]
+  },
+  "priced": {
+   "base": 10906.09,
+   "keys": [
+    "base",
+    "bracketExt",
+    "downpipes",
+    "extraRoof",
+    "extraRoofLabel",
+    "extraRoofSplit",
+    "extras",
+    "gaugeUpgrade",
+    "grade",
+    "gradeLabel",
+    "gstRate",
+    "gutter",
+    "gutterExcluded",
+    "gutterLabel",
+    "gutterOverride",
+    "gutterUplift",
+    "profile",
+    "profileLabel",
+    "profileLocks",
+    "scaffoldUplift",
+    "v"
+   ]
+  },
+  "sheets": {
+   "total": 64,
+   "groups": [
+    "12x5.90",
+    "12x3.89",
+    "10x2.93",
+    "11x2.95",
+    "14x3.28",
+    "5x2.10"
+   ]
+  },
+  "sections": [
+   "MAIN 12/side@5.90",
+   "MAIN 12/side@3.89",
+   "MAIN 5/side@2.93",
+   "MAIN 11/side@2.95",
+   "MAIN 14/side@3.28",
+   "MAIN 5/side@2.10"
+  ],
+  "cutList": [
+   {
+    "roofIdx": 0,
+    "title": "Main Roof sheets",
+    "rows": [
+     {
+      "len": 5900,
+      "qty": 12
+     },
+     {
+      "len": 3880,
+      "qty": 12
+     }
+    ]
+   },
+   {
+    "roofIdx": 1,
+    "title": "Roof 2 sheets",
+    "rows": [
+     {
+      "len": 2930,
+      "qty": 10
+     }
+    ]
+   },
+   {
+    "roofIdx": 2,
+    "title": "Roof 3 sheets",
+    "rows": [
+     {
+      "len": 2950,
+      "qty": 11
+     }
+    ]
+   },
+   {
+    "roofIdx": 3,
+    "title": "Roof 4 sheets",
+    "rows": [
+     {
+      "len": 3280,
+      "qty": 14
+     }
+    ]
+   },
+   {
+    "roofIdx": 4,
+    "title": "Roof 5 sheets",
+    "rows": [
+     {
+      "len": 2100,
+      "qty": 5
+     }
+    ]
+   }
+  ],
+  "deskSections": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "review"
+  ],
+  "bookPages": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "summary"
+  ],
+  "deskText": "Flood Roofing Quote SAMPLE · M. & R. Whitiora Your quote Your roof Proposal Steel grade Profile Thickness Colour Guttering Old roof Review ROOFING QUOTE & PROPOSAL Whitiora Residence 24 Kauri Road, Kerikeri 📷 Swap photo + Logo Your roof, our proposal and your options are all on this page. Choose as you go — the total on the right updates with you — then review and accept at the bottom. Quote SAMPLE Date 1/10/2026 Expires 31/10/2026 Prepared by Sam Tui Phone 09 123 4567 Email office@example.co.nz YOUR ROOF TODAY Existing Roof Condition FIXING TYPE Lead-head Nails Twist Shank Nails Tek Screws Edit wording Delete this page from this quote Click to write a short description of the roof’s condition, or pick a fixing type above to drop one in. Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC WHAT WE WILL DO Re-Roof Proposal WHAT’S INCLUDED Edge-Protection / Scaffolding Remove existing Roofing Install New Synthetic Underlay Install New Colorsteel® MAXAM Roofing Sheets Install all associated Flashings Tidy site and issue Warranty sign-off WHAT’S EXCLUDED New guttering YOUR ROOF PLAN Main Roof 84.1 m² Roof 2 Optional — tap to add Roof 3 Optional — tap to add Roof 4 Optional — tap to add Roof 5 Optional — tap to add − + ↺ ✓ Included ✗ Not included — tap to add Main roof only Rename Delete + Include Roof 2 Rename Delete + Include Roof 3 Rename Delete + Include Roof 4 Rename Delete + Include Roof 5 Rename Delete Tap to choose which roofs to include — the plan and your price update instantly. HOW EACH ROOF IS QUOTED Main Roof Always included Roof 2 Part of main Separate Exclude Gutters With house Own gutters Roof 3 Part of main Separate Exclude Gutters With house Own gutters Roof 4 Part of main Separate Exclude Gutters With house Own gutters Roof 5 Part of main Separate Exclude Gutters With house Own gutters CHOOSE YOUR STEEL Steel grade Delete this page from this quote The coating on the steel is what decides how long the roof lasts. Every grade here is a roof we are happy to put our name to — the difference is how many years it buys you. Recommended for your roof Colorsteel® MAXAM NZ Steel’s newest coating — the best corrosion resistance on the market. Up to 50 years perforation warranty in mild zones. INCLUDED Armorsteel ColorZen Proven mid-tier prepainted steel with a broad colour range. 30 year warranty in mild environments. −$665.91 ColorCote® Pacific Coilcoaters’ premium prepainted steel — excellent finish. Up to 30 years perforation, zone dependent. −$337.78 Zincalume® (unpainted) Natural silver alloy — the workhorse finish, unpainted. 20 year non-perforation warranty. −$1,577.91 THE SHAPE OF THE SHEET Roof profile Delete this page from this quote The profile is the shape rolled into the steel. It changes how the roof looks from the street and how the sheet carries a load. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. Recommended for your roof Corrugate The classic corrugated profile — proven, versatile and the standard choice for most homes. INCLUDED 5-Rib Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade. +$1,061.59 THE STEEL ITSELF Steel thickness Delete this page from this quote How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail. Recommended for your roof 0.40 gauge The standard residential thickness, used on the bulk of New Zealand re-roofs. INCLUDED 0.55 gauge Heavier steel — better against hail and falling branches, and a little stiffer underfoot. +$1,061.59 THE LOOK OF IT Roof colour Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered. Undecided — I’ll choose later We will confirm the colour with you before anything is ordered. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. No colour chosen yet — tap one below, or Undecided above. Ironsand® FlaxPod® Lignite® Karaka® Grey Friars® Sandstone Grey® Windsor Grey® Titania® New Denim Blue® Permanent Green® Mist Green® Ebony® WHILE THE SCAFFOLD IS UP Guttering Delete this page from this quote The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call. Recommended for your roof No new guttering Your existing spouting stays exactly as it is. INCLUDED 125mm Colorsteel Box Gutter Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish. Includes the platform scaffold upgrade ($718.75). +$4,518.65 Marley Typhoon (PVC) Higher-capacity PVC profile — handles heavy downpours; UV-stabilised. Includes the platform scaffold upgrade ($718.75). +$4,931.77 Marley Classic (PVC) Classic half-round PVC profile — clean look, easy maintenance. Includes the platform scaffold upgrade ($718.75). +$4,809.57 New guttering also upgrades the site to a full platform scaffold so the gutter line can be installed safely. That is already in the figures above. Upgrade to platform scaffolding isn’t required for the gutter install (a low roof) Untick to keep the +25% platform upgrade when the customer adds guttering. WHEN THE OLD ROOF COMES OFF The old roofing Delete this page from this quote Some people want the old sheets for a shed or a fence. Either way it costs you nothing — the scrap value covers the time it takes us to cart it away. Recommended for your roof We take it away We strip the old roofing and flashings and cart the lot off site. INCLUDED Leave it with me We stack the old sheets and flashings on site for you to keep. INCLUDED Either choice is included at no change to your price. READY WHEN YOU ARE Your quote Sub-total $10,906.09 + GST $1,635.91 TOTAL INCL. GST $12,542.00 What is in it Re-roof — main scope of work $9,667.00 Scaffolding — edge protection $2,875.00 What you chose Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away THE ROOFS IN THIS QUOTE Main Roof 84.1 m² Roof 2 Not included Roof 3 Not included Roof 4 Not included Roof 5 Not included − + ↺ ✓ Included ✗ Not included YOUR FULL NAME I accept this quote and the terms & conditions. Accept this quote Ask a question Download PDF Decline + Logo Flood Roofing · This quote is valid for 30 days Sub-total $10,906.09 + GST $1,635.91 TOTAL INCL. GST $12,542.00 Re-roof $9,667.00 Scaffolding $2,875.00 YOUR CHOICES Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away Review quote Ask a question Download PDF"
+ },
+ "roof_tee": {
+  "materialRows": [
+   {
+    "key": "sheets",
+    "label": "Roofing sheets",
+    "qty": 160.49,
+    "unit": "m²",
+    "price": 34,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "underlay",
+    "label": "Underlay / paper",
+    "qty": 3,
+    "unit": "roll",
+    "price": 150,
+    "variants": 3,
+    "decimalQty": false
+   },
+   {
+    "key": "ridge",
+    "label": "Ridge / Hip cap",
+    "qty": 51.28,
+    "unit": "lm",
+    "price": 22,
+    "variants": 2,
+    "decimalQty": false
+   },
+   {
+    "key": "valley",
+    "label": "Valley iron",
+    "qty": 8.64,
+    "unit": "lm",
+    "price": 26,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "screws",
+    "label": "65mm Unitites / screws",
+    "qty": 1300,
+    "unit": "each",
+    "price": 0.35,
+    "variants": 1,
+    "decimalQty": false
+   },
+   {
+    "key": "rivets",
+    "label": "Rivets",
+    "qty": 100,
+    "unit": "each",
+    "price": 0.15,
+    "variants": 1,
+    "decimalQty": false
+   }
+  ],
+  "materialsTotal": 8729.59,
+  "labour": {
+   "S_labour": 9450,
+   "S_materials": 8729.59,
+   "q": {
+    "leadHrs": 35,
+    "leadCost": 45,
+    "leadPrice": 180,
+    "appHrs": 35,
+    "appCost": 25,
+    "appPrice": 90,
+    "extras": []
+   }
+  },
+  "scaffold": {
+   "price": 2500,
+   "cost": 2000,
+   "type": "edge"
+  },
+  "lineItems": [
+   {
+    "desc": "Labour",
+    "qty": 1,
+    "unit": 9450,
+    "amount": null,
+    "_base": "labour"
+   },
+   {
+    "desc": "Materials",
+    "qty": 1,
+    "unit": 8729.59,
+    "amount": null,
+    "_base": "materials"
+   },
+   {
+    "desc": "Scaffolding",
+    "qty": 1,
+    "unit": 2500,
+    "amount": null,
+    "_base": "scaffold"
+   }
+  ],
+  "quoteSubtotal": 20679.59,
+  "money": {
+   "rate": 0.15,
+   "baseSub": 20679.59,
+   "deltaSum": 0,
+   "sub": 20679.59,
+   "gst": 3101.94,
+   "tot": 23781.53,
+   "dep": 11890.76,
+   "baseTot": 23781.53
+  },
+  "customerTotal": 23781.53,
+  "customerRows": [
+   {
+    "k": null,
+    "label": "Re-roof — main scope of work",
+    "short": "Re-roof",
+    "value": "$20,906.53"
+   },
+   {
+    "k": null,
+    "label": "Scaffolding — edge protection",
+    "short": "Scaffolding",
+    "value": "$2,875.00"
+   },
+   {
+    "k": null,
+    "label": "Your total",
+    "short": null,
+    "value": "$23,781.53"
+   }
+  ],
+  "profit": {
+   "revenue": 20679.6,
+   "cost": 13179.6,
+   "hrs": 70,
+   "hrsAll": 70,
+   "area": 160.5,
+   "items": [
+    {
+     "label": "Scaffolding",
+     "revenue": 2500,
+     "cost": 2000
+    },
+    {
+     "label": "Roofing",
+     "revenue": 18179.6,
+     "cost": 11179.6
+    }
+   ]
+  },
+  "priced": {
+   "base": 20679.59,
+   "keys": [
+    "base",
+    "bracketExt",
+    "downpipes",
+    "extraRoof",
+    "extraRoofLabel",
+    "extraRoofSplit",
+    "extras",
+    "gaugeUpgrade",
+    "grade",
+    "gradeLabel",
+    "gstRate",
+    "gutter",
+    "gutterExcluded",
+    "gutterLabel",
+    "gutterOverride",
+    "gutterUplift",
+    "profile",
+    "profileLabel",
+    "profileLocks",
+    "scaffoldUplift",
+    "v"
+   ]
+  },
+  "sheets": {
+   "total": 71,
+   "groups": [
+    "32x2.80",
+    "39x3.24"
+   ]
+  },
+  "sections": [
+   "MAIN 19/side@3.24+1",
+   "wing 8/side@2.80",
+   "wing 8/side@2.80"
+  ],
+  "cutList": [
+   {
+    "roofIdx": null,
+    "title": "Roof sheets",
+    "rows": [
+     {
+      "len": 3240,
+      "qty": 39
+     },
+     {
+      "len": 2800,
+      "qty": 32
+     }
+    ]
+   }
+  ],
+  "deskSections": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "review"
+  ],
+  "bookPages": [
+   "cover",
+   "condition",
+   "proposal",
+   "grade",
+   "profile",
+   "thickness",
+   "colour",
+   "gutter",
+   "disposal",
+   "summary"
+  ],
+  "deskText": "Flood Roofing Quote SAMPLE · M. & R. Whitiora Your quote Your roof Proposal Steel grade Profile Thickness Colour Guttering Old roof Review ROOFING QUOTE & PROPOSAL Whitiora Residence 24 Kauri Road, Kerikeri 📷 Swap photo + Logo Your roof, our proposal and your options are all on this page. Choose as you go — the total on the right updates with you — then review and accept at the bottom. Quote SAMPLE Date 1/10/2026 Expires 31/10/2026 Prepared by Sam Tui Phone 09 123 4567 Email office@example.co.nz YOUR ROOF TODAY Existing Roof Condition FIXING TYPE Lead-head Nails Twist Shank Nails Tek Screws Edit wording Delete this page from this quote Click to write a short description of the roof’s condition, or pick a fixing type above to drop one in. Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC Add site photo 📷 Upload from Fergus ⬆ Upload from PC WHAT WE WILL DO Re-Roof Proposal WHAT’S INCLUDED Edge-Protection / Scaffolding Remove existing Roofing Install New Synthetic Underlay Install New Colorsteel® MAXAM Roofing Sheets Install all associated Flashings Tidy site and issue Warranty sign-off WHAT’S EXCLUDED New guttering YOUR ROOF PLAN Roof 1 160.5 m² − + ↺ CHOOSE YOUR STEEL Steel grade Delete this page from this quote The coating on the steel is what decides how long the roof lasts. Every grade here is a roof we are happy to put our name to — the difference is how many years it buys you. Recommended for your roof Colorsteel® MAXAM NZ Steel’s newest coating — the best corrosion resistance on the market. Up to 50 years perforation warranty in mild zones. INCLUDED Armorsteel ColorZen Proven mid-tier prepainted steel with a broad colour range. 30 year warranty in mild environments. −$1,256.59 ColorCote® Pacific Coilcoaters’ premium prepainted steel — excellent finish. Up to 30 years perforation, zone dependent. −$637.40 Zincalume® (unpainted) Natural silver alloy — the workhorse finish, unpainted. 20 year non-perforation warranty. −$2,977.56 THE SHAPE OF THE SHEET Roof profile Delete this page from this quote The profile is the shape rolled into the steel. It changes how the roof looks from the street and how the sheet carries a load. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. Recommended for your roof Corrugate The classic corrugated profile — proven, versatile and the standard choice for most homes. INCLUDED 5-Rib Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade. +$2,003.25 THE STEEL ITSELF Steel thickness Delete this page from this quote How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail. Recommended for your roof 0.40 gauge The standard residential thickness, used on the bulk of New Zealand re-roofs. INCLUDED 0.55 gauge Heavier steel — better against hail and falling branches, and a little stiffer underfoot. +$2,003.25 THE LOOK OF IT Roof colour Every colour here is a standard stocked colour, so none of them changes your price. Not sure yet? That is fine — you can accept the quote undecided and choose before the steel is ordered. Undecided — I’ll choose later We will confirm the colour with you before anything is ordered. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. No colour chosen yet — tap one below, or Undecided above. Ironsand® FlaxPod® Lignite® Karaka® Grey Friars® Sandstone Grey® Windsor Grey® Titania® New Denim Blue® Permanent Green® Mist Green® Ebony® WHILE THE SCAFFOLD IS UP Guttering Delete this page from this quote The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call. Recommended for your roof No new guttering Your existing spouting stays exactly as it is. INCLUDED 125mm Colorsteel Box Gutter Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish. Includes the platform scaffold upgrade ($718.75). +$5,780.76 Marley Typhoon (PVC) Higher-capacity PVC profile — handles heavy downpours; UV-stabilised. Includes the platform scaffold upgrade ($718.75). +$6,573.65 Marley Classic (PVC) Classic half-round PVC profile — clean look, easy maintenance. Includes the platform scaffold upgrade ($718.75). +$6,428.29 New guttering also upgrades the site to a full platform scaffold so the gutter line can be installed safely. That is already in the figures above. Upgrade to platform scaffolding isn’t required for the gutter install (a low roof) Untick to keep the +25% platform upgrade when the customer adds guttering. WHEN THE OLD ROOF COMES OFF The old roofing Delete this page from this quote Some people want the old sheets for a shed or a fence. Either way it costs you nothing — the scrap value covers the time it takes us to cart it away. Recommended for your roof We take it away We strip the old roofing and flashings and cart the lot off site. INCLUDED Leave it with me We stack the old sheets and flashings on site for you to keep. INCLUDED Either choice is included at no change to your price. READY WHEN YOU ARE Your quote Sub-total $20,679.59 + GST $3,101.94 TOTAL INCL. GST $23,781.53 What is in it Re-roof — main scope of work $20,906.53 Scaffolding — edge protection $2,875.00 What you chose Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away THE ROOFS IN THIS QUOTE Roof 1 160.5 m² − + ↺ YOUR FULL NAME I accept this quote and the terms & conditions. Accept this quote Ask a question Download PDF Decline + Logo Flood Roofing · This quote is valid for 30 days Sub-total $20,679.59 + GST $3,101.94 TOTAL INCL. GST $23,781.53 Re-roof $20,906.53 Scaffolding $2,875.00 YOUR CHOICES Steel grade Colorsteel® MAXAM Roof profile Corrugate Steel thickness 0.40 gauge Guttering No new guttering The old roofing We take it away Review quote Ask a question Download PDF"
+ },
+ "poleshed": {
+  "materialRows": [
+   {
+    "key": "shed_building_poles_h5",
+    "label": "Building poles (H5)",
+    "qty": 69.36,
+    "unit": "m",
+    "price": 27.6,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_wall_timber_girts_lintels_trim",
+    "label": "Wall timber — girts / lintels / trim",
+    "qty": 172.61,
+    "unit": "m",
+    "price": 24.7,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_roof_timber_rafters_beams",
+    "label": "Roof timber — rafters / beams",
+    "qty": 139.44,
+    "unit": "m²",
+    "price": 31.7,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_concrete_footings_posts_slab",
+    "label": "Concrete (footings / posts / slab)",
+    "qty": 25.08,
+    "unit": "m³",
+    "price": 295,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_sand",
+    "label": "Sand",
+    "qty": 1,
+    "unit": "lot",
+    "price": 185,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_reinforcing_mesh",
+    "label": "Reinforcing mesh",
+    "qty": 19,
+    "unit": "sheet",
+    "price": 72.73,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_reinforcing_steel_provisional",
+    "label": "Reinforcing steel (provisional)",
+    "qty": 134.4,
+    "unit": "m²",
+    "price": 3,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_framing_hardware",
+    "label": "Framing hardware",
+    "qty": 1,
+    "unit": "lot",
+    "price": 3950.4,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_foundation_hardware",
+    "label": "Foundation hardware",
+    "qty": 1,
+    "unit": "lot",
+    "price": 1137.6,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_roof_cladding_0_40_colorsteel",
+    "label": "Roof cladding (0.40 Colorsteel)",
+    "qty": 139.44,
+    "unit": "m²",
+    "price": 20,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_wall_cladding_0_40_colorsteel",
+    "label": "Wall cladding (0.40 Colorsteel)",
+    "qty": 156.81,
+    "unit": "m²",
+    "price": 18,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_flashings_0_55",
+    "label": "Flashings (0.55)",
+    "qty": 91,
+    "unit": "m",
+    "price": 18,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_box_gutter_downpipes",
+    "label": "Box gutter + downpipes",
+    "qty": 1,
+    "unit": "lot",
+    "price": 650,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_roof_underlay",
+    "label": "Roof underlay",
+    "qty": 3,
+    "unit": "roll",
+    "price": 180,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_roofing_screws_fixings",
+    "label": "Roofing screws / fixings",
+    "qty": 139.44,
+    "unit": "m²",
+    "price": 3.2,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_roller_doors_supply_install",
+    "label": "Roller doors (supply & install)",
+    "qty": 2,
+    "unit": "ea",
+    "price": 2200,
+    "variants": 1,
+    "decimalQty": true
+   },
+   {
+    "key": "shed_p_a_doors_supply_install",
+    "label": "P.A. doors (supply & install)",
+    "qty": 1,
+    "unit": "ea",
+    "price": 1800,
+    "variants": 1,
+    "decimalQty": true
+   }
+  ],
+  "materialsTotal": 42147.23,
+  "labour": {
+   "S_labour": 32400,
+   "S_materials": 42147.23,
+   "q": {
+    "leadHrs": 120,
+    "leadCost": 45,
+    "leadPrice": 180,
+    "appHrs": 120,
+    "appCost": 25,
+    "appPrice": 90,
+    "extras": []
+   }
+  },
+  "scaffold": {
+   "price": 2500,
+   "cost": 2000,
+   "type": "edge"
+  },
+  "lineItems": [
+   {
+    "desc": "Labour",
+    "qty": 1,
+    "unit": 32400,
+    "amount": null,
+    "_base": "labour"
+   },
+   {
+    "desc": "Materials",
+    "qty": 1,
+    "unit": 42147.23,
+    "amount": null,
+    "_base": "materials"
+   },
+   {
+    "desc": "Scaffolding",
+    "qty": 1,
+    "unit": 2500,
+    "amount": null,
+    "_base": "scaffold"
+   }
+  ],
+  "quoteSubtotal": 77047.23,
+  "money": {
+   "rate": 0.15,
+   "baseSub": 77047.23,
+   "deltaSum": 0,
+   "sub": 77047.23,
+   "gst": 11557.08,
+   "tot": 88604.31,
+   "dep": 44302.16,
+   "baseTot": 88604.31
+  },
+  "customerTotal": 88604.31,
+  "customerRows": [
+   {
+    "k": null,
+    "label": "Pole shed — main scope of work",
+    "short": "Pole shed",
+    "value": "$88,604.31"
+   },
+   {
+    "k": null,
+    "label": "Your total",
+    "short": null,
+    "value": "$88,604.31"
+   }
+  ],
+  "profit": {
+   "revenue": 77047.23,
+   "cost": 52547.23,
+   "hrs": 240,
+   "hrsAll": 240,
+   "area": 0,
+   "items": [
+    {
+     "label": "Scaffolding",
+     "revenue": 2500,
+     "cost": 2000
+    },
+    {
+     "label": "Roofing",
+     "revenue": 74547.23,
+     "cost": 50547.23
+    }
+   ]
+  },
+  "priced": {
+   "base": 77047.23,
+   "keys": [
+    "base",
+    "bracketExt",
+    "downpipes",
+    "extraRoof",
+    "extraRoofLabel",
+    "extraRoofSplit",
+    "extras",
+    "gaugeUpgrade",
+    "grade",
+    "gradeLabel",
+    "gstRate",
+    "gutter",
+    "gutterExcluded",
+    "gutterLabel",
+    "gutterOverride",
+    "gutterUplift",
+    "profile",
+    "profileLabel",
+    "profileLocks",
+    "scaffoldUplift",
+    "v"
+   ]
+  },
+  "sheets": {
+   "total": 0,
+   "groups": []
+  },
+  "sections": [],
+  "cutList": [
+   {
+    "roofIdx": null,
+    "title": "Roof sheets",
+    "rows": []
+   }
+  ],
+  "deskSections": [
+   "cover",
+   "psplans",
+   "psdetails",
+   "psgrade",
+   "psprofile",
+   "psthickness",
+   "pscolour",
+   "psgutter",
+   "psroller",
+   "psaddons",
+   "psincluded",
+   "review"
+  ],
+  "bookPages": [
+   "cover",
+   "psplans",
+   "psdetails",
+   "psgrade",
+   "psprofile",
+   "psthickness",
+   "pscolour",
+   "psgutter",
+   "psroller",
+   "psaddons",
+   "psincluded",
+   "review"
+  ],
+  "deskText": "Flood Roofing Quote 00002 · M. & R. Whitiora Your quote Your design Your shed Steel grade Profile Thickness Colour Guttering Roller door Add-ons What's included Review POLE SHED QUOTE & PROPOSAL Whitiora Pole Shed 24 Kauri Road, Kerikeri 📷 Shed render + Logo 8 × 16.8 Mono-pitch (flat) 3 bays Height 3.48 Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you. The total price is shown at the bottom of the quote. Payment terms: a deposit invoice is issued on acceptance of the quote and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work. Our lead-time is usually 5–8 weeks from quote acceptance to job start. OFFICE ONLY · OPENING WORDS Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you. The total price is shown at the bottom of the quote. Payment terms: a deposit invoice is issued on acceptance of the quote and is payable within 7 days of acceptance — once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work. Our lead-time is usually 5–8 weeks from quote acceptance to job start. OFFICE ONLY · COVER HEADING Colorsteel option OFFICE ONLY · WEBSHED 3D LINK Quote 00002 Date 1/10/2026 Expires 31/10/2026 Prepared by Sam Tui Phone 09 123 4567 Email office@example.co.nz YOUR DESIGN Plans & elevations This is the shed as it is drawn — the floor plan and the elevations straight from the design. Everything on the pages that follow is built to these drawings. 📄 Import WebShed PDF ➕ Add another plan option FLOOR PLAN Import the WebShed PDF above, or add this drawing. 📷 Fergus ⬆ Upload ELEVATIONS Import the WebShed PDF above, or add this drawing. 📷 Fergus ⬆ Upload THE SPECIFICATION Your shed in detail Every measurement and material in the shed, as it has been priced. If anything here is not what you expected, say so before you accept and we will put it right. Consent-exempt Consented This shed may not require a building consent if it meets all of the exemption criteria below: Zoned as “Rural” No bigger than 110m² No clear-span over 6m No higher than 4m Wind-zone no greater than “High” Main structure Roof type Mono-pitch (flat) Roof pitch 3° Width 8 Length 16.8 Height 3.48 Bays 3 @ 5.6m Bay amount 3 Doors 2x Roller Door, 1x P.A. Door Sheeting & build Roof sheeting Five Rib or Corrugate Colorsteel over roofing underlay + Clearlite in each bay Wall sheeting Five Rib or Corrugate Colorsteel, no underlay Guttering 125mm Colorsteel box gutter with 1x downpipe Floor 100mm 25MPa concrete over steel mesh over Gap40 base metal Centre poles No Extras No CHOOSE YOUR STEEL Steel grade The coating on the steel is what decides how long the shed lasts and how it looks. Both are sheds we are happy to put our name to — the difference is the finish. Recommended for your shed Colorsteel® Prepainted steel in the full colour range — the finish most sheds are built in. Up to 30 years perforation warranty, zone dependent. INCLUDED Plain silver Zincalume® Unpainted aluminium/zinc — the workhorse finish, and the lowest cost. 20 year non-perforation warranty. −$2,127.50 THE SHAPE OF THE SHEET Roof profile The profile is the shape rolled into the steel. It changes how the shed looks and how the sheet carries a span. 76.2mm pitch 19mm high 762mm cover Corrugate — cross-section at true proportion, to the Roofing Industries profile sheet. Recommended for your shed Corrugate The classic corrugated profile — proven, versatile and the standard choice for most homes. INCLUDED 5-Rib Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade. +$1,748.00 HOW HEAVY Steel thickness Both gauges are well inside what the shed needs structurally. The heavier one is about how the sheets stand up to knocks over the years. Recommended for your shed 0.40 gauge The standard gauge for a shed of this size. INCLUDED 0.55 gauge Heavier steel — noticeably better dent resistance, worth it on a shed that will be worked around. +$1,748.00 THE LOOK OF IT Roof & wall colour Every colour here is a standard stocked Colorsteel colour, so none of them changes your price. The final shade is confirmed off the colour chip card before anything is ordered. No colour chosen yet — tap one below. Ironsand FlaxPod Lignite Karaka Grey Friars Sandstone Grey Windsor Grey Titania New Denim Blue Permanent Green Mist Green Ebony WHERE THE WATER GOES Guttering Guttering is priced into this shed. A box gutter keeps the run of the roof clean and takes the water away from the doors and the pad. Recommended for your shed 125mm Colorsteel box gutter Continuous box gutter in the colour of the shed, with downpipes run to the ground — the downpipes come with it, they are not a separate decision. INCLUDED No guttering The shed is built without spouting or downpipes. Water comes straight off the roof edge. −$784.87 THE DOORS Roller door finish Both finishes cost the same; it is purely how you want the shed to look. Recommended for your shed Colorsteel® — matches the shed The door is finished in the same colour as the walls, so it reads as part of the building. INCLUDED Plain Zincalume® Unpainted silver. Neither finish changes the price. INCLUDED ANYTHING ELSE Add-ons + Add an add-on Tick anything you would like added. Each one shows what it adds to the total, and the total on this page follows you as you choose. Wall underlay / building paper +$1,667.50 ✎ ✕ Add sliding door Sliding door +$4,427.50 ✎ ✕ Add standard double window Standard double window +$3,392.50 ✎ ✕ THE FINE PRINT, IN PLAIN WORDS What’s included Everything below is part of the price on this quote. What is excluded is listed beside it, so there are no surprises on the day. WHAT’S INCLUDED Supply all of the materials required. Our Skid Steer to bore the holes. Concrete in the poles. Prep for concrete, install boxing and lay reinforcing mesh. BDC Concrete to lay the floor. Build the shed to the above measurements. Install roofing, wall cladding, flashings and gutters. GM Doors to supply and install roller doors. Leave site clean and tidy. OFFICE ONLY · INCLUSIONS · ONE PER LINE Supply all of the materials required. Our Skid Steer to bore the holes. Concrete in the poles. Prep for concrete, install boxing and lay reinforcing mesh. BDC Concrete to lay the floor. Build the shed to the above measurements. Install roofing, wall cladding, flashings and gutters. GM Doors to supply and install roller doors. Leave site clean and tidy. WHAT’S EXCLUDED Site prep and earthworks (can be done as an extra). Building consent. Site survey. OFFICE ONLY · EXCLUSIONS · ONE PER LINE Site prep and earthworks (can be done as an extra). Building consent. Site survey. Available as options Extra concrete at $100 + GST per m². Use plain silver Zincalume to save $1,850 + GST. Upgrade to thicker 0.55g Colorsteel, add $1,520 + GST. Add P.A. Door $1,800 + GST (includes installation). Add Roller Door $3,800 + GST (includes installation). Add 1800×800 Window $1,600 + GST (includes installation). OFFICE ONLY · OPTIONS · ONE PER LINE Extra concrete at $100 + GST per m². Use plain silver Zincalume to save $1,850 + GST. Upgrade to thicker 0.55g Colorsteel, add $1,520 + GST. Add P.A. Door $1,800 + GST (includes installation). Add Roller Door $3,800 + GST (includes installation). Add 1800×800 Window $1,600 + GST (includes installation). Please note Flood Roofing doesn't supply kitsets; we source all products through our building supply partners to skip the 'kitset middleman'. Price based on a flat section with no earthworks required. Owner acknowledges all responsibility for building consent requirements as instructed by Flood Roofing. OFFICE ONLY · SPECIAL NOTES · ONE PER LINE Flood Roofing doesn't supply kitsets; we source all products through our building supply partners to skip the 'kitset middleman'. Price based on a flat section with no earthworks required. Owner acknowledges all responsibility for building consent requirements as instructed by Flood Roofing. READY WHEN YOU ARE Your shed quote Sub-total $77,047.23 + GST $11,557.08 TOTAL INCL. GST $88,604.31 50% deposit on acceptance $44,302.16 A 50% deposit invoice is issued on acceptance and is payable within 7 days — once it is paid your spot in the build queue is locked in. The balance is due within 7 days of completion. OFFICE ONLY · TYPE A SUBTOTAL TO OVERRIDE THE PRICING DRAWER (EXCL. GST) $77,047.23 What is in it Pole shed — main scope of work $88,604.31 What you chose Steel grade Colorsteel® Roof profile Corrugate Steel thickness 0.40 gauge Guttering 125mm Colorsteel box gutter — downpipes included Roller door finish Colorsteel® — matches the shed YOUR FULL NAME I accept this quote and the terms & conditions. Accept this quote Ask a question Download PDF Decline + Logo Flood Roofing · This quote is valid for 30 days Sub-total $77,047.23 + GST $11,557.08 TOTAL INCL. GST $88,604.31 Pole shed $88,604.31 YOUR CHOICES Steel grade Colorsteel® Roof profile Corrugate Steel thickness 0.40 gauge Guttering 125mm Colorsteel box gutter — downpipes included Roller door finish Colorsteel® — matches the shed Review quote Ask a question Download PDF"
+ }
+}
