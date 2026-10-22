@@ -4542,7 +4542,12 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `b1b3200` (password-reset and invite links open
+**Live now.** FRONTEND = `5507b98` (a dutch gablet is ordered whole across
+its gutter and its hip offcuts feed the slopes' corners — plain dutch 68,
+dutch L 82, dutch T 90; 2026-10-23 8:25 am NZ; sheet-plan.js only, so the
+proof is Vercel's two READY production deployments carrying that SHA;
+Tests run 39837442876 green first time, slow only because two shards took
+9+ minutes to download Chromium). Before it `b1b3200` (password-reset and invite links open
 the app, not the landing page — the vercel.json rewrite is what makes links
 already in inboxes work; 2026-10-22 9:33 pm NZ; app.html untouched, so the
 proof is Vercel's two READY production deployments carrying that SHA, Tests
