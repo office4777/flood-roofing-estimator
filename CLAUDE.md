@@ -26,10 +26,10 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (274 as of 2026-10-21 — 58 in its `API` list, 216 in `UI` — four at a time,
+  (276 as of 2026-10-23 — 60 in its `API` list, 216 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
-  `run.mjs api` is the exact command CI's Backend job runs, 58 suites in
+  `run.mjs api` is the exact command CI's Backend job runs, 60 suites in
   about 38 seconds, and it is what to run before ANY server ship. A NEW
   suite must be added to the `API` or `UI` list in `run.mjs` or it never
   runs — and every suite on disk is in one of them today, which is worth
@@ -4253,12 +4253,38 @@ Discipline (non-negotiable):
   `tests/sendername.mjs` pins the From line against a fake Resend (4 of its
   new pins fail on the old route, reading support@roofmap.co.nz),
   `custevents.mjs` the CC and the quoted question, `sentboard.mjs` the window.
-  STILL TO DO, and it needs him: pulling his GMAIL reply back in. The pieces
-  are there (`mail_threads.job_id`, `mail_messages.in_reply_to`, the
-  `_inboxSweep`), but the Inbox is `requirePlan('inbox', …, 'Business')` and
-  needs office@floodroofing.co.nz connected in Settings. Match an inbound
-  message to a job by `in_reply_to` against `job_messages.msg_id` and write it
-  in with `who: 'customer'`, `via: 'gmail'`.
+  ANSWERED FROM GMAIL, AND FOLLOWED BACK (2026-10-23, the owner: "the user
+  should be able to reply to the question in their email (mine being Gmail)
+  to the customers email address ... if the customer wishes to reply it'll
+  reply as an email, those email communications should also appear in RoofMap
+  inside the jobs communications"). The question email to the office carries
+  the job's details (quote, customer with email and phone, address, sent
+  total), the question word for word, Reply-To = the customer and "Reply to
+  this email to answer Dot directly", so a plain Reply in Gmail answers them
+  from office@. `_jobLinkMail(acct, msgs, folder)` runs in every inbox sync
+  (`_inboxSyncAccount`, every 3 min) on the INBOX and — new — the mailbox's
+  SENT folder (`fetchNew(conn, pass, lastUid, 'SENT')`, the special-use
+  \Sent box, `last_uid.SENT`): a message whose In-Reply-To / References name
+  a `job_messages.msg_id` of the account's company joins that job's thread
+  (SENT or from the account's own address = office, else customer;
+  `via: 'email'`; the quoted history under it cut off by `_mailQuotedCut`), its
+  own id stored so the chain carries on. Resend may rewrite a Message-ID, so a
+  "Re:" message to or from a job's `share.sentTo` with that job's quote number
+  in the subject is matched too — only on a job that has a customer question.
+  Never another company's job, never twice (dedupe on msg_id per job). The
+  inbox thread gets the `job_id`. IT NEEDS THE MAILBOX CONNECTED: the Inbox is
+  `requirePlan('inbox', …, 'Business')` and office@floodroofing.co.nz must be
+  connected in Settings → Inbox; `GET /jobs/:id/messages` answers
+  `inbox: {connected, emails}` and the window says which. `tests/jobmail.mjs`
+  (19, in the API list) plays the whole round trip.
+  THE WINDOW IS "HISTORY & COMMUNICATIONS" (the old Job history,
+  `#jobHistModal`): Communications first (`#jobHistComms`, the thread through
+  `_convoRender(list, target, client)`, `_jhcLoad`, a reply box `_jhcSend`),
+  then the Job timeline. THE LEFT MENU (the same message) reads Save job,
+  Change job, the lock strip, then `#navJobHistBtn` "🗂 History &
+  Communications" (shown with the job's other buttons by `_jobLockRender`,
+  a count of the thread's messages once it has been read).
+  `tests/jobhistory.mjs` pins the order and the window.
 - AN ACCEPTANCE REACHES THE FERGUS JOB (2026-10-19, the owner: "can it auto
   automatically upload the accepted quote as it's pdf to the job in fergus,
   can it also add the customers choices … as the job description in fergus

@@ -3985,7 +3985,16 @@ app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
     // read the thread without them rather than lose it.
     if (error && /mail_(from|to|cc)/.test(String(error.message || ''))) ({ data, error } = await read('id, who, author, body, at, via'));
     if (error) throw new Error(error.message);
-    res.json({ ok: true, messages: data || [] });
+    // Whether a mailbox is connected, so the window can say where Gmail
+    // replies come from - or that they will not appear until one is.
+    let inbox = null;
+    try {
+      const { data: acc } = await supabase.from('mail_accounts').select('email, status, company_id')
+        .eq('company_id', job.company_id).limit(10);
+      const mine = (acc || []).filter(a => String(a.company_id) === String(job.company_id));
+      inbox = { connected: mine.length > 0, emails: mine.map(a => a.email).filter(Boolean) };
+    } catch (e) {}
+    res.json({ ok: true, messages: data || [], inbox: inbox || undefined });
   } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
 });
 app.post('/jobs/:id/messages', requireAuth, rateLimit(30, 60000), async (req, res) => {
@@ -5470,12 +5479,28 @@ async function _questionNotify(job, quote, message){
     if (!job) return;
     const ref = (quote && quote.ref) ? String(quote.ref) : '';
     const who = (job.client_name || (quote && quote.client) || 'A customer');
+    // ANSWER IT FROM YOUR OWN INBOX (2026-10-23, the owner: "the email should
+    // contain the job details, the customers questions, and the user should be
+    // able to reply to the question in their email (mine being Gmail) to the
+    // customers email address"). The email's Reply-To is the customer, so a
+    // plain Reply in Gmail goes straight to them from the office's own
+    // address; its Message-ID is ours, so that reply - and anything the
+    // customer writes back - is matched to this job by the inbox sync
+    // (_jobLinkMail) and shows under History & Communications.
+    const custEmail = _emailList(((quote || {}).share || {}).sentTo || (quote || {}).email || '')[0] || '';
+    const first = String(who).trim().split(/\s+/)[0] || 'them';
+    const total = ((quote || {}).share || {}).sentTotal;
     const lines = [
-      who + ' has asked a question about their quote.', '',
-      ref ? ('Quote reference: ' + ref) : '',
-      job.site_address ? ('Address: ' + job.site_address) : '',
-      '', 'What they asked:', '  ' + String(message || '(no message)').slice(0, 2000),
-      '', 'Open the job in RoofMap to reply.',
+      who + ' has asked a question about their quote' + (ref ? (' ' + ref) : '') + '.', '',
+      'Their question:', '  "' + String(message || '(no message)').slice(0, 2000) + '"', '',
+      'Job details',
+      ref ? ('  Quote: ' + ref) : null,
+      '  Customer: ' + who + (custEmail ? (' <' + custEmail + '>') : '') + ((quote && quote.phone) ? (' \u00b7 ' + quote.phone) : ''),
+      (job.site_address || (quote && quote.addr)) ? ('  Address: ' + (job.site_address || quote.addr)) : null,
+      (isFinite(Number(total)) && Number(total) > 0) ? ('  Quote total: ' + _money(Number(total)) + ' incl. GST') : null,
+      '',
+      custEmail ? ('Reply to this email to answer ' + first + ' directly - your reply goes to ' + custEmail +
+        ' and is kept on the job in RoofMap under History & Communications.') : 'Open the job in RoofMap to reply.',
     ].filter(l => l !== null);
     if (EMAIL_ENABLED) {
       const st = await _settingsRowForJob(job);
@@ -7704,14 +7729,24 @@ const _mailFetcherReal = {
     await c.connect();
     try { await c.logout(); } catch (e) {}
   },
-  async fetchNew(conn, pass, lastUid){
+  async fetchNew(conn, pass, lastUid, box){
     const { simpleParser } = require('mailparser');
     const c = _imapClient(conn, pass);
     await c.connect();
     const out = [];
     let maxUid = lastUid || 0;
     try {
-      const lock = await c.getMailboxLock('INBOX');
+      // 'SENT' is the provider's Sent folder, found by its special-use flag
+      // ("[Gmail]/Sent Mail" on Gmail), read only to find the office's own
+      // replies to a job's emails (_jobLinkMail).
+      let path = 'INBOX';
+      if (box === 'SENT'){
+        const boxes = await c.list();
+        const sent = boxes.find(b => b.specialUse === '\\Sent') || boxes.find(b => /sent/i.test(b.path));
+        if (!sent) return { messages: [], lastUid: lastUid || 0 };
+        path = sent.path;
+      }
+      const lock = await c.getMailboxLock(path);
       try {
         // A brand-new account starts from the most recent ~60 messages, not
         // years of history; every later sweep continues from last_uid.
@@ -7905,6 +7940,92 @@ async function _inboxIngest(acct, msgs){
   }
   return added;
 }
+// ── A JOB'S EMAIL, FOLLOWED BACK INTO THE JOB (2026-10-23) ──
+// The owner: "the user should be able to reply to the question in their email
+// (mine being Gmail) to the customers email address ... and if the customer
+// wishes to reply it'll reply as an email, those email communications should
+// also appear in RoofMap inside the jobs communications". Every email RoofMap
+// sends about a job's question carries a Message-ID we chose and stored on
+// job_messages; Gmail quotes it in In-Reply-To / References on a reply, and so
+// does every reply to THAT reply. So a message in the connected inbox (the
+// customer writing back) or its Sent folder (the office answering from Gmail)
+// whose thread headers name one of those ids belongs to that job's thread,
+// and is copied onto it - with its own id, so the chain carries on from it.
+// Resend may rewrite a Message-ID on the way out, so a reply that names none
+// is matched the plain way too: to or from the customer's own address on a
+// job that has a question, with that job's quote number in the subject.
+function _mailQuotedCut(text){
+  // The reply, not the whole history under it: cut at the "On ... wrote:"
+  // line, a forwarded/original-message rule, or the first quoted line.
+  let t = String(text || '').replace(/\r\n/g, '\n');
+  const marks = [/\n\s*On [^\n]{4,200}wrote:\s*\n/i, /\n-{2,}\s*Original Message\s*-{2,}/i,
+                 /\n\s*From:\s[^\n]+\n\s*(Sent|Date):/i, /\n>/];
+  let cut = t.length;
+  for (const re of marks){ const m = re.exec('\n' + t); if (m && m.index < cut) cut = Math.max(0, m.index - 1); }
+  return t.slice(0, cut).trim() || t.trim();
+}
+async function _jobLinkMail(acct, msgs, folder){
+  let linked = 0;
+  if (!acct || !acct.company_id || !msgs || !msgs.length) return 0;
+  const own = String(acct.email || acct.username || '').toLowerCase();
+  for (const m of msgs){
+    try {
+      if (!m || !m.msg_id) continue;
+      const ids = [m.in_reply_to].concat(String(m.refs || '').split(/\s+/))
+        .map(x => String(x || '').trim()).filter(Boolean).slice(-12);
+      let parent = null;
+      for (const id of ids.reverse()){
+        const { data } = await supabase.from('job_messages').select('id, job_id, company_id, user_id, msg_id')
+          .eq('company_id', acct.company_id).eq('msg_id', id).limit(1);
+        const hit = (data || []).find(r => r.msg_id === id && String(r.company_id) === String(acct.company_id));
+        if (hit){ parent = hit; break; }
+      }
+      const from = String(m.from_addr || '').toLowerCase();
+      const parties = [from].concat(m.to_addrs || [], m.cc_addrs || []).map(a => String(a || '').toLowerCase()).filter(Boolean);
+      let job = null;
+      if (parent){
+        const { data } = await supabase.from('jobs').select('id, user_id, company_id, client_name')
+          .eq('id', parent.job_id).eq('company_id', acct.company_id).limit(1);
+        job = (data || [])[0] || null;
+      } else if (/^\s*re:/i.test(m.subject || '')){
+        // The plain way: the customer's address and the quote number.
+        for (const addr of parties){
+          if (!addr || addr === own) continue;
+          const { data } = await supabase.from('jobs').select('id, user_id, company_id, client_name, ref:draw_state->state->quote->>ref, sentTo:draw_state->state->quote->share->>sentTo')
+            .eq('company_id', acct.company_id).eq('draw_state->state->quote->share->>sentTo', addr).limit(5);
+          const cand = (data || []).find(j => j.ref && String(m.subject || '').indexOf(String(j.ref)) >= 0 &&
+            String(j.sentTo || '').toLowerCase() === addr && String(j.company_id) === String(acct.company_id));
+          if (cand){
+            const { data: q } = await supabase.from('job_messages').select('id, job_id, who').eq('job_id', cand.id).limit(50);
+            if ((q || []).some(r => r.job_id === cand.id && r.who === 'customer')){ job = cand; break; }
+          }
+        }
+      }
+      if (!job) continue;
+      const { data: dup } = await supabase.from('job_messages').select('id, job_id, msg_id').eq('job_id', job.id).eq('msg_id', m.msg_id).limit(1);
+      if ((dup || []).some(r => r.job_id === job.id && r.msg_id === m.msg_id)) continue;
+      const office = folder === 'SENT' || (own && from === own);
+      await _jobMessageAdd(job, { who: office ? 'office' : 'customer',
+        author: String(m.from_name || m.from_addr || '').slice(0, 200),
+        body: _mailQuotedCut(m.body_text || String(m.body_html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ')),
+        msgId: m.msg_id, inReplyTo: m.in_reply_to || '', via: 'email',
+        mailFrom: (m.from_name ? (m.from_name + ' <' + m.from_addr + '>') : (m.from_addr || '')),
+        mailTo: (m.to_addrs || []).join(', '), mailCc: (m.cc_addrs || []).join(', '),
+        at: m.date || undefined });
+      // The Inbox's own thread learns which job it is, if nobody said yet.
+      try {
+        const key = _mailThreadKey(m);
+        await supabase.from('mail_threads').update({ job_id: job.id })
+          .eq('account_id', acct.id).eq('thread_key', key).is('job_id', null);
+      } catch (e) {}
+      try { _quoteFeedInvalidate(acct.company_id); } catch (e) {}
+      linked++;
+    } catch (e) {
+      try { recordError('server', new Error('job mail link failed: ' + ((e && e.message) || e)), { route: '_jobLinkMail', company: acct.company_id || '' }); } catch (e2) {}
+    }
+  }
+  return linked;
+}
 async function _inboxSyncAccount(acct){
   try {
     const pass = _mailDec(acct.cred_enc);
@@ -7912,9 +8033,19 @@ async function _inboxSyncAccount(acct){
     const conn = { host: acct.imap_host, port: acct.imap_port, user: acct.username || acct.email };
     const r = await f.fetchNew(conn, pass, (acct.last_uid && acct.last_uid.INBOX) || 0);
     const added = await _inboxIngest(acct, r.messages);
+    await _jobLinkMail(acct, r.messages, 'INBOX');
+    // The office's own answers from Gmail: the Sent folder, read only for
+    // replies to a job's emails. A provider with no Sent folder, or a fetch
+    // that fails, costs this half and nothing else.
+    let sentUid = (acct.last_uid && acct.last_uid.SENT) || 0;
+    try {
+      const rs = await f.fetchNew(conn, pass, sentUid, 'SENT');
+      if (rs && rs.messages) await _jobLinkMail(acct, rs.messages, 'SENT');
+      if (rs && rs.lastUid) sentUid = rs.lastUid;
+    } catch (e) {}
     await supabase.from('mail_accounts').update({
       status: 'ok', last_error: '', last_sync: new Date().toISOString(),
-      last_uid: Object.assign({}, acct.last_uid || {}, { INBOX: r.lastUid || ((acct.last_uid || {}).INBOX || 0) }),
+      last_uid: Object.assign({}, acct.last_uid || {}, { INBOX: r.lastUid || ((acct.last_uid || {}).INBOX || 0), SENT: sentUid }),
     }).eq('id', acct.id);
     return added;
   } catch (e) {

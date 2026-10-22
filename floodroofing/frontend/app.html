@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-22T20:38:01Z';
+  window.APP_BUILT_AT = '2026-10-22T21:03:20Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5657,6 +5657,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <button type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
             title="Save this job now"
             style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:var(--fr-dark,#0a1628);color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
+    <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
+         into the job details window on 2026-09-29 and swapping jobs is a thing
+         you do from anywhere, not something to open a window to reach. -->
+    <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
@@ -5665,11 +5670,13 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          details window stays; both are drawn by _jobLockRender. -->
     <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
             style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
-    <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
-         into the job details window on 2026-09-29 and swapping jobs is a thing
-         you do from anywhere, not something to open a window to reach. -->
-    <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+    <!-- HISTORY & COMMUNICATIONS (2026-10-23, the owner: "put this button as a
+         more accessible button in the left menu ... under the 'locked - quote
+         sent' button, then move the 'change job' button up to just underneath
+         the 'save job'"). The job's timeline and every email with the customer
+         about it, one tap from any tab. Shown with the job's other buttons. -->
+    <button type="button" id="navJobHistBtn" class="lock-ok" onclick="_jobHistoryOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -5752,9 +5759,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     </div>
   </div>
 </div>
-<div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:10049;overflow:hidden;flex-direction:column">
+<div id="jobHistModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:640px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:10049;overflow:hidden;flex-direction:column">
   <div style="background:#ea580c;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
-    <strong style="flex:1;font-size:14px">Job history</strong>
+    <strong style="flex:1;font-size:14px">History &amp; Communications</strong>
     <span id="jobHistWho" style="font-size:12px;opacity:.9"></span>
     <button onclick="_jobHistoryClose()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
   </div>
@@ -8654,7 +8661,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     <button type="button" id="navVersionBtn" class="lock-ok" onclick="_versionMenuToggle(event)"
             style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:7px 8px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⑂ Version</button>
     <div id="navJobBtns" style="display:none;gap:6px;margin-top:6px">
-      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History</button>
+      <button type="button" onclick="_jobHistoryOpen()" style="flex:1;padding:7px 8px;border:none;border-radius:8px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">History &amp; Communications</button>
     </div>
     <!-- A saved job opens LOCKED: nothing on the canvas or the quote can be
          changed until it is unlocked here, and once unlocked every change
@@ -19763,6 +19770,8 @@ function _jobLockRender(){
   // already looking at.
   var cb = document.getElementById('navJobChangeBtn');
   if (cb) cb.style.display = show ? 'block' : 'none';
+  var hb = document.getElementById('navJobHistBtn');
+  if (hb) hb.style.display = show ? 'block' : 'none';
   var sb = document.getElementById('navJobLockSide');
   if (sb){
     sb.style.display = show ? 'block' : 'none';
@@ -20147,11 +20156,27 @@ function _jobHistoryOpen(){
       '<div style="text-align:right;flex-shrink:0;font-size:11.5px;color:' + (when ? '#0a1628' : 'var(--text2)') + '">' +
         (when ? esc3(when) : 'not yet') + '</div></div>';
   };
-  body.innerHTML = _jobHistRows().map(function(r){ return row(r.icon, r.label, r.at, r.note); }).join('') +
+  var sec = function(t){ return '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--text2);margin:0 0 6px">' + t + '</div>'; };
+  // COMMUNICATIONS FIRST (2026-10-23): every email with the customer about
+  // this job - their questions on the quote link, replies sent from here, and
+  // replies sent or received in the office's own mailbox (the inbox sync
+  // follows them back by their thread headers) - with a reply box under it.
+  var jid = (window.S && S.currentJobId) || '';
+  var comms = '<div id="jobHistComms" style="margin:0 0 16px;padding:0 0 12px;border-bottom:2px solid var(--border)">' + sec('Communications') +
+    (jid
+      ? ('<div id="jhcThread" style="max-height:38vh;overflow-y:auto;padding:2px 0"><div style="color:var(--text2)">Loading…</div></div>' +
+         '<div id="jhcHint" style="font-size:11px;color:var(--text2);margin:2px 0 8px"></div>' +
+         '<textarea id="jhcReply" class="lock-ok" placeholder="Write a reply… it is emailed to the customer, with their question, and kept here." style="width:100%;box-sizing:border-box;min-height:70px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12.5px;resize:vertical"></textarea>' +
+         '<div style="display:flex;align-items:center;gap:10px;margin-top:6px"><span id="jhcMsg" style="flex:1;font-size:11.5px;color:var(--text2)"></span>' +
+         '<button type="button" id="jhcSendBtn" class="lock-ok" onclick="_jhcSend()" style="background:#0099cc;border:none;color:#fff;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:12.5px;font-weight:700">Send reply</button></div>')
+      : '<div style="color:var(--text2);font-size:11.5px">Save the job first — its emails with the customer are kept on the saved job.</div>') +
+    '</div>';
+  body.innerHTML = comms + sec('Job timeline') + _jobHistRows().map(function(r){ return row(r.icon, r.label, r.at, r.note); }).join('') +
     '<div id="jobHistMail" style="margin-top:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--text2);margin-bottom:4px">Updates emailed from the schedule</div>' +
     '<div style="color:var(--text2);font-size:11.5px">Looking…</div></div>';
   document.getElementById('jobHistOverlay').style.display = 'block';
   document.getElementById('jobHistModal').style.display = 'flex';
+  if (jid) _jhcLoad();
   Promise.resolve(_jobHistEmails()).then(function(list){
     var el = document.getElementById('jobHistMail');
     if (!el) return;
@@ -20196,8 +20221,9 @@ async function _convoLoad(){
       esc2(String((e && e.message) || e)) + '</div>';
   }
 }
-function _convoRender(list){
-  var b = document.getElementById('convoBody'); if (!b) return;
+function _convoRender(list, target, client){
+  var b = target || document.getElementById('convoBody'); if (!b) return;
+  var who0 = (client !== undefined) ? client : _CONVO.client;
   if (!list.length){
     b.innerHTML = '<div style="color:var(--text2);padding:8px 0">Nothing yet. A question a customer asks on their quote appears here, and so does every reply.</div>';
     return;
@@ -20209,7 +20235,8 @@ function _convoRender(list){
     return '<div style="margin:0 0 11px;padding:9px 12px;border-radius:10px;' +
       (own ? 'background:#eaf6fb;border:1px solid #cce8f3;margin-left:38px' : 'background:#fffbeb;border:1px solid #fde68a;margin-right:38px') + '">' +
       '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">' +
-        esc2(own ? (m.author || 'You') : (m.author || _CONVO.client || 'Customer')) +
+        esc2(own ? (m.author || 'You') : (m.author || who0 || 'Customer')) +
+        (m.via === 'email' ? ' · <span title="Found in the connected mailbox">by email</span>' : '') +
         (when ? (' · ' + esc2(when)) : '') +
         (m.via === 'not-sent' ? ' · <span style="color:#b91c1c;font-weight:700">not emailed</span>' : '') +
       '</div>' +
@@ -20242,6 +20269,48 @@ async function _convoSend(){
         : 'Kept here, but the email did not go out' + ((out && out.error) ? (' — ' + out.error) : '');
     }
     await _convoLoad();
+  } catch(e){
+    if (msg){ msg.style.color = '#b91c1c'; msg.textContent = String((e && e.message) || e); }
+  }
+  if (btn){ btn.disabled = false; btn.textContent = 'Send reply'; }
+}
+// The same thread inside History & Communications, for the job on screen.
+async function _jhcLoad(){
+  var el = document.getElementById('jhcThread'), hint = document.getElementById('jhcHint');
+  var jid = (window.S && S.currentJobId) || ''; if (!el || !jid) return;
+  try {
+    var out = await api('GET', '/jobs/' + encodeURIComponent(jid) + '/messages');
+    var list = (out && out.messages) || [];
+    _convoRender(list, el, (S.quote && S.quote.client) || '');
+    if (!list.length) el.innerHTML = '<div style="color:var(--text2);padding:4px 0">Nothing yet. A question the customer asks on their quote lands here, and so does every reply — from here or from your own email.</div>';
+    var c = document.getElementById('navJobHistCount');
+    if (c){ c.textContent = String(list.length); c.style.display = list.length ? 'inline-block' : 'none'; }
+    if (hint){
+      var ib = out && out.inbox;
+      hint.textContent = (ib && ib.connected)
+        ? ('Emails about this job to or from ' + ((ib.emails || []).join(', ') || 'your mailbox') + ' appear here by themselves — reply from here or from your own email.')
+        : 'To see replies you send from your own email (Gmail) here too, connect that mailbox in Settings → Inbox.';
+    }
+  } catch(e){
+    el.innerHTML = '<div style="color:#b91c1c">The communications could not be read just now — ' + esc2(String((e && e.message) || e)) + '</div>';
+  }
+}
+async function _jhcSend(){
+  var r = document.getElementById('jhcReply'), msg = document.getElementById('jhcMsg'), btn = document.getElementById('jhcSendBtn');
+  var jid = (window.S && S.currentJobId) || ''; if (!r || !jid) return;
+  var body = String(r.value || '').trim();
+  if (!body){ if (msg) msg.textContent = 'Write something first.'; return; }
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  if (msg){ msg.style.color = 'var(--text2)'; msg.textContent = ''; }
+  try {
+    var out = await api('POST', '/jobs/' + encodeURIComponent(jid) + '/messages', { body: body });
+    r.value = '';
+    if (msg){
+      msg.style.color = (out && out.sent) ? '#15803d' : '#b45309';
+      msg.textContent = (out && out.sent) ? ('✓ Emailed to ' + (out.to || 'the customer') + (out.cc ? (', copy to ' + out.cc) : '') + ' — kept here')
+        : 'Kept here, but the email did not go out' + ((out && out.error) ? (' — ' + out.error) : '');
+    }
+    await _jhcLoad();
   } catch(e){
     if (msg){ msg.style.color = '#b91c1c'; msg.textContent = String((e && e.message) || e); }
   }

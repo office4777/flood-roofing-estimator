@@ -36,6 +36,11 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
   const u = r.request().url();
   const j = (x) => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(x)});
   if (/\/schedule(\?|$)/.test(u)) return j(sched);
+  if (/\/jobs\/j1\/messages/.test(u)) return j({ ok:true, inbox:{ connected:true, emails:['office@floodroofing.co.nz'] }, messages:[
+    { id:'m1', who:'customer', author:'Sharon Thomson', body:'Is the guttering included?', at:'2026-09-03T01:00:00Z', via:'quote-link' },
+    { id:'m2', who:'office', author:'office@floodroofing.co.nz', body:'Yes, new box gutter throughout.', at:'2026-09-03T02:00:00Z', via:'roofmap',
+      mail_to:'s@t.nz', mail_cc:'office@floodroofing.co.nz', mail_from:'Flood Roofing <floodroofing@quotes.roofmap.co.nz>' },
+    { id:'m3', who:'customer', author:'Sharon Thomson', body:'Great, go ahead.', at:'2026-09-03T03:00:00Z', via:'email' } ] });
   if (/\/settings/.test(u)) return j({ user_id:'u1', branding:{ company_name:'Flood Roofing LTD' },
     quote_defaults:{}, jms_keys:{} });
   return r.fulfill({status:200,contentType:'application/json',body:'[]'});
@@ -140,8 +145,23 @@ check('there is a Change job button in the left menu and a History button', !!v.
 check('…Change job in blue, History in orange',
   /rgb\(0, *153, *204\)/.test(v.chgBg) && /#ea580c[^>]*>\s*History/.test(v.html), v.chgBg + ' | ' + v.html.slice(0, 80));
 
+// ── the left menu's order (2026-10-23, the owner: "put the new 'History &
+// Communications' button under the 'locked - quote sent' button, then move the
+// 'change job' button up to just underneath the 'save job'") ──
+v = await pg.evaluate(() => {
+  S.currentJobId = 'j1'; S.jobLocked = true;
+  try { _jobLockRender(); } catch(e){}
+  const ids = ['navJobSaveBtn', 'navJobChangeBtn', 'navJobLockSide', 'navJobHistBtn'];
+  const els = ids.map(id => document.getElementById(id));
+  const inOrder = els.every((e, i) => e && (i === 0 || (els[i-1].compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)));
+  return { inOrder, shown: getComputedStyle(els[3]).display !== 'none', txt: (els[3] || {}).textContent || '' };
+});
+check('the left menu reads Save job, Change job, the lock, then History & Communications',
+  v.inOrder, JSON.stringify(v));
+check('…and History & Communications is a button of its own there, shown with the job',
+  v.shown && /History & Communications/.test(v.txt), JSON.stringify(v));
 // ── the history window ──
-await pg.evaluate(() => _jobHistoryOpen());
+await pg.evaluate(() => { S.currentJobId = 'j1'; _jobHistoryOpen(); });
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => ({
   open: getComputedStyle(document.getElementById('jobHistModal')).display !== 'none',
@@ -149,6 +169,16 @@ v = await pg.evaluate(() => ({
   txt: document.getElementById('jobHistBody').textContent,
 }));
 check('History opens a window of its own', v.open && /Job 3206/.test(v.who), v.who);
+const w = await pg.evaluate(() => ({ title: document.querySelector('#jobHistModal strong').textContent,
+  comms: (document.getElementById('jobHistComms') || {}).textContent || '',
+  reply: !!document.getElementById('jhcReply'),
+  first: (document.getElementById('jobHistBody').firstElementChild || {}).id || '' }));
+check('…called History & Communications', w.title === 'History & Communications', w.title);
+check('…with the job\u2019s emails first: the question, the reply and where it went, the customer\u2019s email back',
+  w.first === 'jobHistComms' && /Is the guttering included\?/.test(w.comms) && /new box gutter/.test(w.comms) &&
+  /Emailed to s@t\.nz/.test(w.comms) && /Great, go ahead\./.test(w.comms) && /by email/.test(w.comms), w.comms.slice(0, 260));
+check('…a box to reply from, and a line saying the mailbox\u2019s emails come in by themselves',
+  w.reply && /appear here by themselves/.test(w.comms), w.comms.slice(-200));
 check('…the enquiry date', /Enquiry/.test(v.txt) && /1 Aug/.test(v.txt), v.txt.slice(0, 90));
 check('…the date the quote was sent', /Quote sent/.test(v.txt) && /10 Aug/.test(v.txt));
 check('…the date it was accepted', /Quote accepted/.test(v.txt) && /4 Sep/.test(v.txt));
