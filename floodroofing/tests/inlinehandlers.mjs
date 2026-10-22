@@ -10,7 +10,7 @@
 //
 // So: read every on…="…" in app.html, take the bare function calls out of it,
 // and require each one to be defined somewhere the app actually loads —
-// app.html itself, sheet-plan.js or help-bot.js. No browser needed.
+// app.html itself, sheet-plan.js, help-bot.js or tender.js. No browser needed.
 //
 // Resolved from this file, so the suite runs from any checkout.
 import { fileURLToPath as _f } from 'node:url';
@@ -28,7 +28,7 @@ const app = read('app.html');
 const localScripts = [...app.matchAll(/<script[^>]+src="([^"]+)"/g)]
   .map(m => m[1]).filter(s => !/^https?:/.test(s));
 check('the local scripts app.html loads are the ones checked here',
-  localScripts.length === 2 && localScripts.includes('sheet-plan.js') && localScripts.includes('help-bot.js'),
+  localScripts.length === 3 && localScripts.includes('sheet-plan.js') && localScripts.includes('help-bot.js') && localScripts.includes('tender.js'),
   localScripts.join(', '));
 const js = app + localScripts.map(read).join('\n');
 
