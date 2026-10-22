@@ -4587,7 +4587,18 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `5507b98` (a dutch gablet is ordered whole across
+**Live now.** FRONTEND AND BACKEND = `d3cef74` (a customer's question
+answered from Gmail and followed back onto the job, the History &
+Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
+run 39856153437: "The site is serving" and "Live after 40s" on the backend —
+RAILWAY IS DEPLOYING AGAIN since 9:19 am NZ). Before it `cc65eb6` (a reply to a
+customer's question leaves as the roofer, copies the user in and quotes the
+question, 9:53 am NZ). HELD ON THE SESSION BRANCH, NOT LIVE: the dutch corners
+laid as complements (plain dutch 64, no offcut left over), bigger sheet numbers
+and the face badges taken off — the owner asked to see pictures before any
+sheet-layout change goes live (2026-10-23: "send me the sheet layout diagram
+picture for me to confirm before you go ahead and push it live"), has the
+pictures, and has not yet said go. Before that, FRONTEND = `5507b98` (a dutch gablet is ordered whole across
 its gutter and its hip offcuts feed the slopes' corners — plain dutch 68,
 dutch L 82, dutch T 90; 2026-10-23 8:25 am NZ; sheet-plan.js only, so the
 proof is Vercel's two READY production deployments carrying that SHA;
