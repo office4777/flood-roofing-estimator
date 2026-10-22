@@ -2721,43 +2721,23 @@ Discipline (non-negotiable):
   one hip fits the slope corner at the gablet's OTHER hip: the north
   slope's west corner is fed from the west gablet's south half, the plain
   hip's own pairing run the other way — never carried to the far end of
-  the house. THE CORNERS ARE LAID AS COMPLEMENTS (2026-10-23, the owner:
-  "all offcuts of the short sheets aren't being used so it's not as
-  efficient as it can be"): the gablet's two hip halves are laid from their
-  CORNERS in (a full sheet at the corner, the narrow strip against the
-  gablet's wall) and the slope's corner beside it from the WALL out
-  (`f.walls`, each with the side its gablet is on; a full sheet against the
-  wall, the narrow strip at the corner). The two grids are each other's
-  complement across the hip — a gablet sheet's offcut is exactly the
-  slope's piece the same distance from the wall, because the gablet's
-  sheet is the end's depth rounded up — so every hip-cut short sheet is
-  used whole. Laid from the house corner, the slope's strip beside the wall
-  straddled it (a 6.62 m sheet for a 3.3 m piece). The run between two
-  walls starts at one and laps its closer on the other; a slope with one
-  wall laps at its plain hip corner as an ordinary run does. A strip
-  clipped exactly along a face's own edge picked up a zero-width spike up
-  that edge (`_pzDespike` drops it). Each gablet corner on a slope is its
-  OWN series in `seriesFeed` (the T's bar has one under each gablet; the
-  junction strip leading the hand used to make both gablets home to both
-  ends). The plain dutch is 64 (32 × 6.63 + 32 × 3.32), NOT ONE OFFCUT
-  LEFT OVER — 20 m less steel than the 68 before and 80 m less than the
-  72 before that. The cookie cutter applies to a gablet (the dutch L's wing gablet takes
+  the house. The plain dutch is 68 (34 × 6.63 + 34 × 3.32, 16 a gablet end
+  and one for each east corner, where no offcut is wide enough), 60 m less
+  steel than the 72 that went before. The cookie cutter applies to a gablet (the dutch L's wing gablet takes
   the north slope's 7.73 sheets slid up whole, C1–C6, feet of C7–C8), which
   needed two things: a slid-up sheet whose piece is a FULL strip of the end
   is still the rectangle's cut sheet, not a full strip of the template's
   block (it made a block of 1.66 shorts); and a RECTANGULAR offcut (hand 0,
   the 6 m left over each) fits either hand in `fitScore` — those feed the
   main's west hip end's valley side where six extras stood. The dutch L is
-  81 (40 × 7.73, 20 × 3.87, 20 × 3.32, one 1.79 valley stub; a 7.73 pushed
-  in at the west apex); the north slope is the wing gablet's template and
-  keeps its old lay, the south slope is laid from the east gablet's wall. AND THE COOKIE CUTTER'S DEPTH TEST
+  82 (41 × 7.73, 20 × 3.87, 20 × 3.32, one 1.79 valley stub; a 7.73 pushed
+  in at the west apex now the east gablet's offcuts stay at the east), 19 m
+  less steel than the 79 that fed the gablet from the slopes. AND THE COOKIE CUTTER'S DEPTH TEST
   MEASURES THE HIP END, not the gablet face: a gablet is shallower by the
   gablet's height, so the dutch T's bar ends read a sheet narrower than the
   stem and were sliced from it (ten 3.32 sheets for 1.43 strips); on
   `hipApexD` the bar keeps its centre line as the hip T keeps its apex —
-  87 with its gablets ordered whole (27 × 3.32, 3.23, 35 × 2.87, 8 × 1.66,
-  16 × 1.44), no gablet's offcut left over; the six that are come off the
-  stem's valley sheets and the junction strips. TWO FILL RULES WIDENED WITH IT, and they moved the HIP T: the push
+  90 with its gablets ordered whole. TWO FILL RULES WIDENED WITH IT, and they moved the HIP T: the push
   follows a run fed from the pool at large as well as one the series fed
   (a valley stub at the end of such a run was an extra at its own length);
   and a two-cut triangle EXACTLY half a cover wide (a stem slope's clipped
@@ -2766,14 +2746,7 @@ Discipline (non-negotiable):
   frees the offcut that had been feeding it, so the hip T's bar end comes
   wholly off offcuts with nothing pushed: 74, not 75; the 13 m wing 72, not
   73. Every other hip shape byte-identical, dumped and diffed.
-  THE SHEET NUMBER IS THE BIG TEXT (2026-10-23, the owner: "can you make
-  the number of sheet bigger? So, for example, A7 ... And keep the
-  measurements ... small like it is"): the label is sized to the strip, up
-  to 16px, shrinking only as far as it must to stay in its piece; the
-  length beside it stays 8–9px. A label that would land on a face's badge
-  or arrow (`badgeOf`, drawn after the labels) slides along its strip to
-  where it reads largest instead of being dropped — A8/A9 under F1 used to
-  vanish. `docs/SHEET_LAYOUT.md` has the lay. `tests/sheetlayout.mjs` (246): plain
+  `docs/SHEET_LAYOUT.md` has the lay. `tests/sheetlayout.mjs` (244): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23
@@ -4656,9 +4629,9 @@ nothing, so the page degrades to what it was. The quote-sending fix itself
 (the narrowed identity read) is NOT live until `/health` reads `c54ac58` or
 later — a quote sent before then can still go out nameless. Check `/health`
 before telling him that one is fixed (it still read fcaab9a on 4947a46's
-promote at 12:58 pm NZ 22 Oct). Nothing uncommitted. `tests/sheetlayout.mjs` is at 246; the Big-L is
+promote at 12:58 pm NZ 22 Oct). Nothing uncommitted. `tests/sheetlayout.mjs` is at 244; the Big-L is
 64 sheets in every orientation, the 10 m wing 62 laid exactly as the owner
-marked it, the dutch 64 / dutch L 81 / dutch T 87 with each gablet ordered
+marked it, the dutch 68 / dutch L 82 / dutch T 90 with each gablet ordered
 whole across its gutter and its hip offcuts feeding the slopes' corners (his
 correction, 2026-10-22 evening), and he has the pictures. TOLD HIM WITH THAT
 SHIP: a gablet's offcut lands on the slope corner across the END (the north

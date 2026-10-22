@@ -338,9 +338,8 @@ Block-Cut, mapped onto the puzzle:
 
 On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
 hip-end pieces from offcuts, two slivers over; the gable 2 × 24, nothing
-cut; the dutch 64 (32 × 6.63 + 32 × 3.32 — see THE DUTCH GABLE below: each
-gablet end ordered whole, its offcuts on the slopes' corners, none left
-over); the
+cut; the dutch 68 (34 × 6.63 + 34 × 3.32 — see THE DUTCH GABLE below: each
+gablet end ordered whole, its offcuts on the slopes' corners); the
 Big-L 64 — 48 × 7.73 and 16 × 3.32, the 16th the B sheet heading the top
 run where a 3.52 extra stood before the straight-cut rule, nothing pushed;
 the wing's end wholly out of the north slope's sheets (C1–C4 whole, the feet
@@ -386,26 +385,10 @@ than they are (`fallbackOf`, after the late match), else the slope's own
 sheet. A sheet is never flipped, so a gablet strip cut at one hip feeds the
 slope corner at the gablet's OTHER hip — the north slope's west corner from
 the west gablet's south half, the plain hip's pairing run the other way —
-and nothing is carried to the far end of the house. THE CORNERS ARE LAID AS
-COMPLEMENTS (2026-10-23, the owner: "all offcuts of the short sheets aren't
-being used so it's not as efficient as it can be"). With the gablet laid from
-its centre and the slope from the house corner, the slope's strip beside the
-gablet's wall straddled it (a 6.62 m sheet ordered for a 3.3 m piece, two a
-roof) and the gablet's corner offcuts were a fraction too narrow — 14 left
-over on the plain dutch. Now each gablet half is laid from its CORNER in (a
-full sheet at the corner, the narrow strip against the wall), and the
-slope's corner from the WALL out (`f.walls`; a full sheet against the wall,
-the narrow strip at the corner). The grids are complements across the hip:
-a gablet strip at distance a' from the corner and a slope strip at a from it
-pair when a + a' + width ≤ the gablet sheet's plan depth, which is the end's
-depth rounded up — so the k-th gablet sheet's offcut is exactly the slope's
-k-th piece from the wall, the narrow strip included. The run between two
-walls starts at one and laps its closer on the other; a slope with one wall
-laps at its plain hip corner as a run always has. `_pzDespike` drops the
-zero-width spike a strip picks up when it is clipped exactly along a face's
-own edge, and `seriesFeed` keeps each gablet corner its own series (the T's
-bar has one under each gablet). The plain dutch is 64: 32 × 6.63 and 32 ×
-3.32, not one offcut left over — 20 m less steel than the 68 before. THE
+and nothing is carried to the far end of the house. The plain dutch is 68:
+34 × 6.63 and 34 × 3.32 (16 a gablet end, plus C17 and C18 for the two east
+corners, whose 3.04 m strips no gablet offcut is wide enough for), 60 m
+less steel than the 72 it replaced. THE
 COOKIE CUTTER APPLIES TO A GABLET: on the
 dutch L the wing's north gablet sits on the main's north slope's columns,
 its strips under the apron are that slope's 7.73 m sheets slid up whole
@@ -417,7 +400,7 @@ shorts); and the 6 m left over such a sheet is a RECTANGLE with no hand
 (`hand: 0`), which `fitScore` refused against every one-cut piece — it
 serves either side now, and those rectangles feed the main's west hip
 end's valley side (↺C9–↺C7, ↺C4, ↺C3–↺C1 up to the apex) where six extras
-stood. The dutch L is 81 (82 before the corners were laid as complements): 40 × 7.73, 20 × 3.87 for the east gablet (ordered
+stood. The dutch L is 82: 41 × 7.73, 20 × 3.87 for the east gablet (ordered
 whole, its offcuts on the main slopes' east corners), 20 × 3.32 and one
 1.79 m valley stub; the west apex takes a pushed 7.73 now the east gablet's
 offcuts stay at the east — 19 m less steel than the 79 before. AND THE DEPTH TEST MEASURES
@@ -428,10 +411,9 @@ ends (1.3 m run under the apron, 2.6 m to where their hips would meet)
 read as a sheet narrower than the 3 m stem and were sliced from it: ten
 3.32 m sheets slid across for 1.43 m strips with 1.89 m waste on each and
 nowhere to use it. The test uses `f.hipApexD` and the bar keeps its centre
-line like the hip T keeps its apex; the dutch T is 87 (27 × 3.32, 3.23,
-35 × 2.87, 16 × 1.44 and 8 × 1.66 for its three gablets ordered whole, the
-two junction strips the only extras; 90 before the corners were laid as
-complements), no gablet's offcut left over. TWO FILL RULES WIDENED
+line like the hip T keeps its apex; the dutch T is 90 (29 × 3.32, 3.16,
+36 × 2.87, 16 × 1.44 and 8 × 1.66 for its three gablets ordered whole, the
+two junction strips the only extras). TWO FILL RULES WIDENED
 WITH IT, and they are the one place a HIP shape moved: the push follows a
 run fed from the pool at large as well as one the series fed (a valley
 stub at the end of a pool-fed run was ordered as an extra at its own
