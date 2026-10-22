@@ -7571,7 +7571,7 @@ function _sheetPuzzleFill(pz){
       var ww = w;
       if (a < 0.6 && tan > 0.01) ww = Math.min(ww, bb / tan);
       if (bb < 0.6) return null;
-      return { a: a, b: bb, w: ww, hand: hand, tan: tan, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: tch || {} };
+      return { a: a, b: bb, w: ww, hand: hand, tan: tan, donor: pc.label, k: pc.k, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: tch || {} };
     };
     var tch = pc.touch || {};
     // The head of a cookie-cutter chain: the sheet's foot is the pieces
@@ -7579,7 +7579,7 @@ function _sheetPuzzleFill(pz){
     // offcut — the same one the plain hip would have left there.
     if (pc.chainBelow){
       var cl = pc.sheetLongPx, cs = pc.sheetShortPx, topRel = Math.max(L, cl);
-      if (!pc.cutTop) return (topRel - cl > 0.6) ? [{ a: topRel - cl, b: topRel - cl, w: w, hand: 0, tan: 0, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
+      if (!pc.cutTop) return (topRel - cl > 0.6) ? [{ a: topRel - cl, b: topRel - cl, w: w, hand: 0, tan: 0, donor: pc.label, k: pc.k, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
       if (!pc.endsA || !pc.endsB) return [];
       var cA = topRel - (pc.endsA[1] - f.dMin), cB = topRel - (pc.endsB[1] - f.dMin);
       if (Math.max(cA, cB) <= 0.6) return [];
@@ -7590,7 +7590,7 @@ function _sheetPuzzleFill(pz){
       return oC ? [oC] : [];
     }
     if (pc.cutTop !== pc.cutBot){ tch = (pc.cutTop ? pc.touchTop : pc.touchBot) || tch; return [mk(Math.max(0, L - pc.longPx), Math.max(0, L - (pc.cutShortPx || pc.shortPx)), pc.hand, pc.diagTan)]; }
-    if (pc.full) return (L - pc.longPx > 0.6) ? [{ a: L - pc.longPx, b: L - pc.longPx, w: w, hand: 0, tan: 0, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
+    if (pc.full) return (L - pc.longPx > 0.6) ? [{ a: L - pc.longPx, b: L - pc.longPx, w: w, hand: 0, tan: 0, donor: pc.label, k: pc.k, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
     // Cut at BOTH ends — a hip above and a valley at the gutter (an L's
     // main slope beside the wing). The sheet hangs where it would on the
     // plain rectangle: its square top at the ridge level, its square foot
@@ -7770,18 +7770,36 @@ function _sheetPuzzleFill(pz){
         var ocs = pool.filter(function(oc){ return oc.hand === hand && oc.roofIdx === seq[0].roofIdx && homeOf(f, oc); })
           .sort(function(x, y){ var o = (x.face === f ? 0 : 1) - (y.face === f ? 0 : 1); if (o) return o; return (y.b * y.pf - x.b * x.pf) || (y.a * y.pf - x.a * x.pf); });
         if (!ocs.length) return;
-        var j = 0;
+        // A SERIES IS ONE RUN OF SHEETS: once C21 has fed a strip, the next
+        // strip takes C20 — the sheet beside it in its block — whenever C20
+        // fits, before any bigger offcut from elsewhere. By size alone the
+        // Z's D20 (the east wing's own sheet, cut by the wing's hip and so
+        // at home on the end face) elbowed in between C21 and C20 (the
+        // owner, 2026-10-22: "on the Z shape the green D20 is out of
+        // place"); it now waits for the strip the C run cannot fill — the
+        // one under the wing's sheets, beside the wing it came off.
+        var rem = ocs.slice(), prev = null;
         for (var i = 0; i < seq.length; i++){
-          var p = seq[i];
-          // An offcut that fits nothing from here on (a stub, a triangle
-          // narrower than a sheet) is passed over.
-          while (j < ocs.length && !fitsOc(p, ocs[j])){
-            var later = false;
-            for (var m = i + 1; m < seq.length && !later; m++){ if (fitsOc(seq[m], ocs[j])) later = true; }
-            if (later) break;
-            j++;
+          var p = seq[i], pick = -1, q;
+          if (prev){
+            for (q = 0; q < rem.length; q++){
+              var oc = rem[q];
+              if (oc.block === prev.block && Math.abs(oc.k - prev.k) === 1 && fitsOc(p, oc) && (pick < 0 || oc.b * oc.pf < rem[pick].b * rem[pick].pf)) pick = q;
+            }
           }
-          if (j < ocs.length && fitsOc(p, ocs[j])){ feed(p, ocs[j]); p.series = true; j++; }
+          if (pick < 0){
+            // Biggest first. An offcut that fits nothing from here on (a
+            // stub, a triangle narrower than a sheet) is passed over; one
+            // that fits a LATER strip waits for it and this strip stays open.
+            while (rem.length && !fitsOc(p, rem[0])){
+              var later = false;
+              for (var m = i + 1; m < seq.length && !later; m++){ if (fitsOc(seq[m], rem[0])) later = true; }
+              if (later) break;
+              rem.shift();
+            }
+            if (rem.length && fitsOc(p, rem[0])) pick = 0;
+          }
+          if (pick >= 0){ var got = rem.splice(pick, 1)[0]; feed(p, got); p.series = true; prev = got; }
         }
         groups_.push({ f: f, seq: seq });
       });

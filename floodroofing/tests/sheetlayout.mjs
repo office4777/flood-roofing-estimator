@@ -367,6 +367,19 @@ check('…81 sheets: the west end\'s junction strip cut straight and fed from D6
     !!wingS && own.length === 4 && wl.filter(p => !p.ordered && !p.scrap && p.cutBot).map(p => p.from).join(',') === own.join(','),
     JSON.stringify(wl.map(p => p.label)));
 }
+// And, 2026-10-22, on the same roof: "on the Z shape the green D20 is out of
+// place" — the east wing's own sheet, cut by the wing's hip and so at home on
+// the end face, sorted in by size between C21 and C20. A series is one run of
+// sheets: C21 then C20 then C19, and D20 waits for the strip the C run cannot
+// fill, under the wing's own sheets.
+{
+  const east = r.faces.find(f => f.lay === 'apex' && r.pieces.some(p => p.face === f.id && p.ordered && /^E\d/.test(p.label)));
+  const lab = east ? seq(east).map(p => p.label) : [];
+  const south = lab.filter(l => /^↺[CD]\d/.test(l)).slice(lab.filter(l => /^↺[CD]\d/.test(l)).indexOf('↺C24'));
+  check('…the east end\'s south half is the C run unbroken — C24 down to C19 on the junction strip — then the wing\'s seven sheets, then D20 (the wing\'s own sheet\'s offcut) on the strip under them and C18 to C16 below it',
+    !!east && lab.indexOf('↺C24', 1) > 0 && lab.slice(lab.indexOf('↺C24', 1), lab.indexOf('↺C24', 1) + 6).join(',') === '↺C24,↺C23,↺C22,↺C21,↺C20,↺C19' && lab.indexOf('E1') === lab.indexOf('↺C19') + 1 && lab.slice(lab.indexOf('E7') + 1, lab.indexOf('E7') + 5).join(',') === '↺D20,↺C18,↺C17,↺C16',
+    JSON.stringify(lab));
+}
 rules('the Z', r);
 
 // ── The dutch gable stops at its gablet ───────────────────────────

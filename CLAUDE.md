@@ -2561,7 +2561,13 @@ Discipline (non-negotiable):
   that cut it — the top offcut carries the edge at the sheet's head, the
   bottom one the edge at its foot (`touchTop`/`touchBot`); a VALLEY makes
   no home, which is what sent the main's valley offcuts onto the Z's wing
-  while its own F5–F8 sat in the pool. What the series leaves open takes
+  while its own F5–F8 sat in the pool. A SERIES IS ONE RUN OF SHEETS
+  (2026-10-22, the owner on the Z: "the green D20 is out of place"): after
+  C21 the next strip takes C20, the sheet beside it in its block, whenever
+  it fits, before a bigger offcut from elsewhere — the wing's own D20 is at
+  home on the end face and by size alone landed between C21 and C20; it
+  waits now for the strip the C run cannot fill, under the wing's sheets.
+  What the series leaves open takes
   the pool at large (`matchPool`: home 600/300, then surplus, then 0.04 mm
   per mm of distance — distance alone was tried and is the wrong guide).
   THE PUSH (`pushPass`): a piece still open whose run of strips is
@@ -2629,7 +2635,7 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (212): plain
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (213): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23
@@ -4464,7 +4470,7 @@ nothing, so the page degrades to what it was. The quote-sending fix itself
 later — a quote sent before then can still go out nameless. Check `/health`
 before telling him that one is fixed (it still read fcaab9a on 4947a46's
 promote at 12:58 pm NZ 22 Oct). main is one DOCS-ONLY commit ahead (this
-one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 212; the Big-L is
+one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 213; the Big-L is
 64 sheets in every orientation, the 10 m wing 62 laid exactly as the owner
 marked it, and he has the pictures. TWO THINGS PUT TO HIM WITH THAT SHIP,
 unanswered: the Big-L's 3.52 junction extra is now a 7.73 pushed in at the

@@ -274,7 +274,14 @@ Block-Cut, mapped onto the puzzle:
    face across the valley has its own hip-cut sheets — the Z's wing took
    the main's valley offcuts while its own F5–F8, the exact fit, sat in
    the pool. An offcut that fits nothing further along (a stub) is passed
-   over. What the series leaves open goes to the pool at large: every
+   over. A SERIES IS ONE RUN OF SHEETS (2026-10-22, the owner on the Z:
+   "the green D20 is out of place"): once C21 has fed a strip the next
+   strip takes C20 — the sheet beside it in its block — whenever C20
+   fits, before any bigger offcut from elsewhere. By size alone the east
+   wing's own D20 (cut by the wing's hip, so at home on the end face)
+   elbowed in between C21 and C20; it now waits for the strip the C run
+   cannot fill, under the wing's own sheets, beside the wing it came off.
+   What the series leaves open goes to the pool at large: every
    feasible pair scored — home first (600 for a hip end's claim, 300 for
    a pool-first valley piece's), then the fit's surplus, then 0.04 mm per
    mm of distance — and the best pair on the whole roof settled first
