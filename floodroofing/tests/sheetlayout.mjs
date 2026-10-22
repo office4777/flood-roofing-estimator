@@ -397,20 +397,27 @@ rules('the dutch', r);
     r.faces.map(f => f.id + ':' + f.lay + (f.gablet ? '/gablet' : '')).join(' '));
   const west = ends.find(f => f.c[0] < 500), east = ends.find(f => f.c[0] > 500);
   const lw = seqOf(r, west).map(p => p.label), le = seqOf(r, east).map(p => p.label);
-  // The owner, the same evening: "the short sheets at each dutch gable ends
-  // should be cut at the hip and used on the other side of the hip on the
-  // same end". Each side of an end is its own short sheets: the two
-  // longer hip-cut strips are ordered and cut, and what is left above the
-  // hip, spun, is the shorter strip at the corner of the same side — the
-  // slopes' long offcuts stay out of the end altogether.
-  check('…each gablet end feeds itself from its own short sheets, side by side: ↺C2, ↺C1 | C1–C12 | ↺C12, ↺C11 on the east end',
-    le.join(',') === '↺C2,↺C1,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12,↺C12,↺C11', le.join(','));
-  check('…and ↺B2, ↺B1 | B1–B12 | ↺B12, ↺B11 on the west; nothing comes off the slopes and nothing is pushed',
-    lw.join(',') === '↺B2,↺B1,B1,B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12,↺B12,↺B11' && seqOf(r, west).concat(seqOf(r, east)).every(p => !p.pushed && (p.ordered || /^↺[BC]/.test(p.label))), lw.join(','));
-  check('…the corner strips are cut from the sheets two in from them on the same side (B1 → ↺B1 at k=1, B2 → ↺B2 at k=0), the hip\'s own pairing',
-    (() => { const w = seqOf(r, west); return w[2].label === 'B1' && w[1].label === '↺B1' && w[3].label === 'B2' && w[0].label === '↺B2' && w[13].label === 'B12' && w[14].label === '↺B12' && w[12].label === 'B11' && w[15].label === '↺B11'; })(), lw.join(','));
-  check('…72 sheets: 48 × 6.63 m + 24 × 3.32 m (12 a gablet end), nothing extra, nothing pushed, the slopes\' corner offcuts left over',
-    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '48x6630,24x3320' && r.extras === 0 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  // The owner, putting the first try right: "the number of those short
+  // sheets (blue and purple looking at the plain rectangle) should be full
+  // sheets the whole length of that gutter line, then the offcuts cut at
+  // the hips should be used in the orange and green areas on the other
+  // side of the hip". Every strip across a gablet's gutter is one of its
+  // own short sheets; the slopes' corner strips take what they leave above
+  // their hips. A sheet is never flipped, so a gablet strip cut at one hip
+  // fits the slope corner at the gablet's OTHER hip — across the end, the
+  // plain hip's own pairing — and stays at its own end of the house.
+  check('…each gablet end is ordered whole: B1–B16 on the west and C1–C16 on the east, all sixteen across its gutter, none fed',
+    lw.join(',') === Array.from({length:16}, (_, i) => 'B' + (i + 1)).join(',') && le.join(',') === Array.from({length:16}, (_, i) => 'C' + (i + 1)).join(',') && seqOf(r, west).concat(seqOf(r, east)).every(p => p.ordered), lw.join(',') + ' | ' + le.join(','));
+  const north = slopes.slice().sort((f, g) => f.c[1] - g.c[1])[0], south = slopes.slice().sort((f, g) => g.c[1] - f.c[1])[0];
+  const ln = seqOf(r, north).map(p => p.label), ls = seqOf(r, south).map(p => p.label);
+  check('…the north slope\'s corners take the gablets\' offcuts at their own end: ↺B4, ↺B3, ↺B2 at the west (off the west gablet\'s south half), ↺C15, ↺C14, ↺C16 at the east with C17 — one more 3.32 m gablet sheet — where no offcut is wide enough',
+    ln.slice(0, 3).join(',') === '↺B4,↺B3,↺B2' && ln.slice(-4).join(',') === 'C17,↺C15,↺C14,↺C16', ln.join(','));
+  check('…and the south slope\'s the same way round: ↺B13, ↺B14, ↺B15 at the west, C18, ↺C2, ↺C3, ↺C1 at the east',
+    ls.slice(0, 3).join(',') === '↺B13,↺B14,↺B15' && ls.slice(-4).join(',') === 'C18,↺C2,↺C3,↺C1', ls.join(','));
+  check('…every fed corner piece is the hand of the offcut it came from, and no offcut crosses to the far end of the house',
+    seqOf(r, north).concat(seqOf(r, south)).filter(p => !p.ordered).every(p => p.fromHand === p.hand && ((p.c[0] < 590) === /^↺B/.test(p.label))), ln.join(',') + ' | ' + ls.join(','));
+  check('…68 sheets: 34 × 6.63 m + 34 × 3.32 m (16 a gablet end and the two east corners), nothing extra, nothing pushed — 60 m less steel than the 72 that fed the ends from the slopes',
+    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '34x6630,34x3320' && r.extras === 0 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 // The dutch L: the Big-L's outline with gablets on its two FREE ends (the
 // wing's north end and the main's east end); the main's west end, whose
@@ -426,13 +433,14 @@ rules('the dutch L', r);
     wingEnd.lay === 'grid' && wingEnd.template === north.id && seqOf(r, wingEnd).map(p => p.label + (p.via ? '^' : '') + (p.strung ? '~' : '')).join(',') === 'C1^,C2^,C3^,C4^,C5^,C6^,✂C7~,✂C8~',
     seqOf(r, wingEnd).map(p => p.label + (p.via ? '^' : '') + (p.strung ? '~' : '')).join(','));
   const lw = seqOf(r, west).map(p => p.label);
-  check('…and the 6 m left over each slid-up sheet (a RECTANGLE, no hand) feeds the west hip end\'s valley side — ↺C9–↺C7, ↺C4, then ↺C3–↺C1 up to the apex, with the south slope\'s east corner offcuts (free now the east gablet feeds itself) in between — and nothing is ordered there',
-    lw.slice(1, 10).join(',') === '↺C9,↺C8,↺C7,↺C4,↺E22,↺E21,↺C3,↺C2,↺C1' && lw.slice(10, 16).join(',') === '↺E1,↺E2,↺E3,↺E4,↺E5,↺E6' && seqOf(r, west).every(p => !p.ordered || /^B/.test(p.label)), lw.join(','));
+  check('…and the 6 m left over each slid-up sheet (a RECTANGLE, no hand) still feeds the west hip end\'s valley side — ↺C9–↺C7, then ↺C5–↺C1 — with one 7.73 m sheet pushed in at the apex now the east gablet\'s offcuts stay at the east',
+    lw.slice(1, 10).join(',') === '↺C9,↺C8,↺C7,↺C5,↺C4,↺C3,↺C2,↺C1,F1' && lw.slice(10, 16).join(',') === '↺E1,↺E2,↺E3,↺E4,↺E5,↺E6', lw.join(','));
   const le = seqOf(r, eastEnd).map(p => p.label);
-  check('…the east gablet feeds itself from its own 3.87 m sheets (D1, D2 cut for ↺D2, ↺D1; D13, D14 for ↺D14, ↺D13), its two corner triangles off the slopes\' lapped corner sheets, nothing pushed',
-    le.join(',') === '↺C24,↺D2,↺D1,D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12,D13,D14,↺D14,↺D13,↺E24' && seqOf(r, eastEnd).every(p => !p.pushed), le.join(','));
-  check('…79 sheets: 48 × 7.73 m, 14 × 3.87 m for the east gablet, 17 × 3.32 m for the wing, nothing extra, nothing pushed',
-    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '48x7730,14x3870,17x3320' && r.extras === 0 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  const n6 = r.faces.filter(f => f.lay === 'run').sort((f, g) => g.c[1] - f.c[1])[0], ls6 = seqOf(r, n6).map(p => p.label);
+  check('…the east gablet is ordered whole, D1–D20 (3.87 m), and its hip offcuts are the main slopes\' east corners: ↺D1–↺D4 on the south slope, ↺D20–↺D17 on the north',
+    le.join(',') === Array.from({length:20}, (_, i) => 'D' + (i + 1)).join(',') && ls6.slice(-4).join(',') === '↺D1,↺D2,↺D3,↺D4' && seqOf(r, north).map(p => p.label).slice(-4).join(',') === '↺D20,↺D19,↺D18,↺D17', le.join(',') + ' | ' + ls6.join(','));
+  check('…82 sheets: 41 × 7.73 m, 20 × 3.87 m for the east gablet, 20 × 3.32 m, one 1.79 m valley stub; 19 m less steel than the 79 that fed the gablet from the slopes',
+    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '41x7730,20x3870,20x3320,1x1790' && r.extras === 1 && r.pushed === 3, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 // The dutch T: gablets on all three free ends. The bar is within a sheet of
 // the stem MEASURED TO WHERE ITS HIPS WOULD MEET, so its ends keep their
@@ -444,10 +452,10 @@ rules('the dutch T', r);
   check('…three gablets, every one laid from its centre line and none cut from the stem\'s columns',
     gab.length === 3 && gab.every(f => f.lay === 'apex' && f.template === null), r.faces.map(f => f.id + ':' + f.lay + (f.gablet ? '/gablet' : '') + (f.template ? '@' + f.template : '')).join(' '));
   const eastEnd = gab.slice().sort((f, g) => g.c[0] - f.c[0])[0], le = seqOf(r, eastEnd).map(p => p.label);
-  check('…the bar\'s east end feeds itself from its own 1.44 m shorts: ↺C1, C1–C6, ↺C6 (C1 and C6 cut at the hips for the two corner triangles)',
-    le.join(',') === '↺C1,C1,C2,C3,C4,C5,C6,↺C6', le.join(','));
-  check('…88 sheets: the three gablets 12 × 1.44 m and 6 × 1.66 m of their own, the slopes\' blocks shorter by the offcuts the gablets no longer take, one valley stub pushed, the only extras the two junction strips',
-    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '27x3320,1x3160,40x2870,6x1660,12x1440' && r.extras === 2 && r.pushed === 1, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  check('…the bar\'s east end is ordered whole, C1–C8 at 1.44 m, none fed',
+    le.join(',') === 'C1,C2,C3,C4,C5,C6,C7,C8' && seqOf(r, eastEnd).every(p => p.ordered), le.join(','));
+  check('…90 sheets: the three gablets 16 × 1.44 m and 8 × 1.66 m whole, the slopes\' blocks shorter by the corners the gablets now feed, the only extras the two junction strips',
+    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '29x3320,1x3160,36x2870,8x1660,16x1440' && r.extras === 2 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 
 // ── The owner's hand-counted hip-and-valley shapes ────────────────

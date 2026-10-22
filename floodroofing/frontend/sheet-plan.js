@@ -7533,6 +7533,8 @@ function _sheetPuzzleFill(pz){
     });
   });
   // 1. Blocks on the faces that have a full strip.
+  var gabletHips = {};
+  pz.faces.forEach(function(f){ if (f.gablet && f.lay === 'apex') f.edges.forEach(function(e){ if (e.kind === 'hip') gabletHips[_pzEdgeKey(e)] = f; }); });
   var endFaces = [];
   pz.faces.forEach(function(f){
     var ps = f.pieces.filter(function(p){ return !p.strungTo && !p.viaTemplate; });
@@ -7575,40 +7577,23 @@ function _sheetPuzzleFill(pz){
     // L's main hip end under the wing's west slope), and it is sheeted
     // from the pool like an end face.
     f.endPieces = [];
-    // A DUTCH GABLET FEEDS ITSELF (2026-10-22, the owner: "the short sheets
-    // at each dutch gable ends should be cut at the hip and used on the
-    // other side of the hip on the same end"). Its hip-cut strips are its
-    // OWN short sheets, cut at the hip, the offcut spun onto a shorter
-    // strip of the same end — the slopes' long offcuts stay out of it. On
-    // each side, longest first: a strip is ordered as a sheet of the end's
-    // block and what is left above its hip (long side where the strip was
-    // short) is spun 180°, which puts that long side back toward the
-    // centre of the end — the shape of a shorter strip on the SAME side.
-    // Carrying it across to the other hip would need the sheet turned
-    // over, which a sheet never is; so each side feeds its own corner.
+    // A DUTCH GABLET IS ORDERED WHOLE AND FEEDS THE SLOPES (2026-10-22, the
+    // owner, putting right the first try: "the number of those short sheets
+    // (blue and purple looking at the plain rectangle) should be full
+    // sheets the whole length of that gutter line, then the offcuts cut at
+    // the hips should be used in the orange and green areas on the other
+    // side of the hip"). Every strip across a gablet end's gutter is one of
+    // its short sheets — the hip-cut ones included — and what each leaves
+    // above its hip goes over the hip onto the slope beside it, where the
+    // slope's corner strips (pool-first, below) take them: the plain hip's
+    // own pairing, run from the end to the slope instead of the other way.
     if (f.gablet && f.lay === 'apex' && runs.length === 1){
-      var gbRun = runs[0], gbBlock = gbRun.block, gbL = gbRun.level / 1000 / scaleM / f.pf, gbFit = _PZ_FIT_MM / 1000 / scaleM / f.pf;
-      var gbCut = ps.filter(function(p){ return !p.full && p.hand && p.cutTop !== p.cutBot; }).sort(function(p, q){ return q.longPx - p.longPx; });
-      gbCut.forEach(function(p){
-        if (p.gabletFrom) return;
-        var ocL = gbL - (p.cutShortPx || p.shortPx), ocS = gbL - p.longPx, mate = null;
-        for (var qi = 0; qi < gbCut.length && ocL >= 0.6; qi++){
-          var q = gbCut[qi];
-          if (q === p || q.gabletFrom || q.gabletOrdered || q.hand !== p.hand) continue;
-          if (q.longPx <= ocL + gbFit && (q.cutShortPx || q.shortPx) <= ocS + gbFit && q.widthPx <= p.widthPx + 0.6){ mate = q; break; }
-        }
-        // A strip that is all but a full sheet is a sheet; one whose offcut
-        // feeds another is a sheet; a corner triangle that feeds nothing is
-        // not worth a sheet of its own and takes the pool like any end
-        // piece, the block as its fallback.
-        if (!mate && p.longPx < gbL - gbFit){ p.poolFirst = gbBlock; f.endPieces.push(p); p.gabletFrom = null; return; }
-        gbBlock.cutCount++; p.gabletOrdered = true; addToBlock(gbBlock, p);
-        if (mate){ mate.gabletFrom = p; f.endPieces.push(mate); }
-      });
+      var gbBlock = runs[0].block;
+      ps.forEach(function(p){ if (p.full || p.viaTemplate || p.strungTo) return; gbBlock.cutCount++; p.gabletOrdered = true; addToBlock(gbBlock, p); });
     }
     ps.forEach(function(p){
       var r = null;
-      if (p.gabletFrom || p.gabletOrdered || p.poolFirst) return;
+      if (p.gabletOrdered || p.poolFirst) return;
       if (p.full && !p.viaTemplate){ runs.some(function(x){ if (x.pieces.indexOf(p) >= 0){ r = x; return true; } return false; }); }
       else {
         var before = null, after = null, within = null;
@@ -7638,6 +7623,10 @@ function _sheetPuzzleFill(pz){
         // pushed up, from the same offcuts), with the block as the fallback.
         var beyondGutter = (p.tB < f.tg0 + pz.tol*0.5) || (p.tA > f.tg1 - pz.tol*0.5);
         if (!isRect && (f.lay === 'apex' || beyondGutter)){ p.poolFirst = r.block; f.endPieces.push(p); return; }
+        // A slope's corner strip cut by a GABLET's hip is fed by the gablet's
+        // own short sheets across that hip; its block is the fallback.
+        var gk = (!isRect && p.cutTop && !p.cutBot) ? Object.keys(p.touchTop || {}).filter(function(k){ return gabletHips[k]; })[0] : null;
+        if (gk){ p.poolFirst = r.block; p.gabletFace = gabletHips[gk]; f.endPieces.push(p); return; }
         r.block.cutCount++;
       }
       addToBlock(r.block, p);
@@ -7763,7 +7752,7 @@ function _sheetPuzzleFill(pz){
     // the whole end face, past sheets of the other end that happen to lie
     // nearer. Among offcuts equally at home, an offcut travels a metre to
     // save 40 mm.
-    var home = homeOf(f, oc) ? (pc.poolFirst ? 300 : 600) : 0;
+    var home = (homeFor(pc, oc) || (pc.gabletFace && oc.face === f)) ? (pc.poolFirst ? 300 : 600) : 0;
     return surplus + 0.04 * dist - home + (oc.roofIdx === pc.roofIdx ? 0 : 1e9);
   }
   // WHERE AN OFFCUT IS AT HOME: on its own face (a wing's valley pieces are
@@ -7779,6 +7768,13 @@ function _sheetPuzzleFill(pz){
     for (var ei = 0; ei < fe.length; ei++){ if (fe[ei].kind === 'hip' && oc.touch[_pzEdgeKey(fe[ei])]) return true; }
     return false;
   }
+  // A slope's corner strip under a dutch gablet is fed from THAT gablet's
+  // short sheets and no other: the same end of the house. A sheet is never
+  // flipped, so the offcut a gablet strip leaves at one hip fits the slope
+  // corner at the gablet's OTHER hip — across the end, the plain hip's own
+  // pairing run the other way — and without this the hand alone would
+  // carry it to the far end of the building.
+  function homeFor(pc, oc){ return pc.gabletFace ? oc.face === pc.gabletFace : homeOf(pc.face, oc); }
   var open = needs.slice();
   function feed(pc, oc){
     pool.splice(pool.indexOf(oc), 1);
@@ -7832,8 +7828,20 @@ function _sheetPuzzleFill(pz){
   // just as short.
   var pushOf = new Map(), pushCount = 0, groups_ = [];
   function fitsOc(pc, oc){ var sc = fitScore(pc, oc); return sc !== null && sc < 1e8; }
+  // A gablet-fed slope corner nothing fitted is one more of that gablet's
+  // short sheets when it is no longer than they are (a 3.04 m corner strip
+  // under a 3.32 m gablet), not a long sheet cut to a third of itself or an
+  // odd length of its own.
+  function fallbackOf(pc){
+    if (pc.gabletFace){
+      var lv = mmOf(pc.sheetLongPx || pc.longPx, pc.face), gb = null;
+      blocks.forEach(function(b){ if (!gb && b.face === pc.gabletFace && !b.extra) gb = b; });
+      if (gb && lv <= gb.Lmm + _PZ_FIT_MM) return gb;
+    }
+    return pc.poolFirst;
+  }
   function orderPushed(pc){
-    var f = pc.face, lv = mmOf(pc.sheetLongPx || pc.longPx, f), pb = pc.poolFirst, b;
+    var f = pc.face, lv = mmOf(pc.sheetLongPx || pc.longPx, f), pb = fallbackOf(pc), b;
     open.splice(open.indexOf(pc), 1);
     if (pb && lv <= pb.Lmm + Math.max(60, pb.Lmm * 0.04)){ b = pb; addToBlock(b, pc); }
     else {
@@ -7854,7 +7862,7 @@ function _sheetPuzzleFill(pz){
         if (!seq.length) return;
         // The face's own offcuts lead the series (a wing's valley from its
         // own hip-cut sheets), then the hips' offcuts, biggest first.
-        var ocs = pool.filter(function(oc){ return oc.hand === hand && oc.roofIdx === seq[0].roofIdx && homeOf(f, oc); })
+        var ocs = pool.filter(function(oc){ return oc.hand === hand && oc.roofIdx === seq[0].roofIdx && homeFor(seq[0], oc); })
           .sort(function(x, y){ var o = (x.face === f ? 0 : 1) - (y.face === f ? 0 : 1); if (o) return o; return (y.b * y.pf - x.b * x.pf) || (y.a * y.pf - x.a * x.pf); });
         if (!ocs.length) return;
         // A SERIES IS ONE RUN OF SHEETS: once C21 has fed a strip, the next
@@ -7934,14 +7942,6 @@ function _sheetPuzzleFill(pz){
       feed(best.pc, best.oc);
     }
   }
-  // The gablet's own pairs first: each mated strip takes the offcut of the
-  // sheet it was paired with in the end's own block.
-  open.slice().forEach(function(pc){
-    if (!pc.gabletFrom) return;
-    var oc = null;
-    pool.forEach(function(o){ if (!oc && o.donor === pc.gabletFrom.label && o.face === pc.face) oc = o; });
-    if (oc){ feed(pc, oc); pc.series = true; }
-  });
   trimScraps();
   seriesFeed();
   matchPool();
@@ -7954,7 +7954,7 @@ function _sheetPuzzleFill(pz){
   // sheet, which was not a sheet until now).
   var late = 0;
   open.slice().forEach(function(pc){
-    if (!pc.poolFirst) return;
+    if (!pc.poolFirst || pc.gabletFace) return;
     var pb = pc.poolFirst;
     // A stub under half the block's length (a wing's corner column clipped
     // at the wing's own corner) is not a sheet of the block: it is ordered
@@ -7966,6 +7966,19 @@ function _sheetPuzzleFill(pz){
     offcutOf(pc).forEach(function(oc){ pool.push(oc); late++; });
   });
   if (late && open.length) matchPool();
+  // A gablet-fed corner still open after that is one more of its gablet's
+  // short sheets (or its slope's sheet when it is longer than they are).
+  var lateG = 0;
+  open.slice().forEach(function(pc){
+    if (!pc.gabletFace) return;
+    var pb = fallbackOf(pc);
+    if (mmOf(pc.sheetLongPx || pc.longPx, pc.face) < pb.Lmm * 0.5) return;
+    open.splice(open.indexOf(pc), 1);
+    addToBlock(pb, pc); pb.cutCount++;
+    pc.num = pb.pieces.length; pc.label = pb.letter + pc.num;
+    offcutOf(pc).forEach(function(oc){ pool.push(oc); lateG++; });
+  });
+  if (lateG && open.length) matchPool();
   // A hip end's piece still open after every offcut has been tried pushes
   // a full sheet in at its apex.
   pushPass(false);
