@@ -338,8 +338,9 @@ Block-Cut, mapped onto the puzzle:
 
 On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
 hip-end pieces from offcuts, two slivers over; the gable 2 × 24, nothing
-cut; the dutch four blocks (the gablet ends have full sheets against the
-apron, so they are blocks, and the long faces' hip offcuts go unused); the
+cut; the dutch 62 (48 × 6.63 + 14 × 3.32 — see THE DUTCH GABLE below; it
+was 32 × 3.32 while every gablet strip was a block sheet and the long
+faces' hip offcuts went unused); the
 Big-L 64 — 48 × 7.73 and 16 × 3.32, the 16th the B sheet heading the top
 run where a 3.52 extra stood before the straight-cut rule, nothing pushed;
 the wing's end wholly out of the north slope's sheets (C1–C4 whole, the feet
@@ -355,6 +356,49 @@ valley-cut sheets. The picture says all of this in its footer; a count the
 engine's SHEETS TO ORDER legend gives is a different number worked a
 different way, and the two are not reconciled — that is the owner's call.
 
+**THE DUTCH GABLE** (2026-10-22, the owner: "do the dutch gable now, aswell
+as a dutch gable T & L shape") is a hip end with its apex cut off: the
+gablet's apron runs level across the top of the end face, a hip each side
+of it down to the gutter. The builder laid that face as a RUN from one
+corner (a level edge other than the gutter, two vertices at the top), so
+every strip was a sheet of the end's own block and the slopes' corner
+offcuts sat in the pool — 36 unused on the plain dutch. `isGablet` in
+`_sheetPuzzleBuild` reads the top as a CHAIN of apron/barge edges (the
+builder draws the apron in two halves meeting under the ridge's end) with
+a hip kind either side reaching the gutter, and lays the face from the
+chain's midpoint exactly as a hip end is laid from its apex (`lay =
+'apex'`, `f.gablet`, `f.hipApexD` = where the two hips would meet). Each
+half's k-th hip-cut strip from the centre is then the k-th corner sheet's
+offcut from the slope opposite, and only the full strips under the apron
+are ordered: the plain dutch's east end reads ↺D20–↺D24 | C1–C6 |
+↺A24–↺A20, its west end — one offcut fewer a side, its corners flush
+rather than lapped — pushes a sheet in at the head of each half (↺A4–↺A1,
+B7, B1–B6, B8, ↺D1–↺D4). THE COOKIE CUTTER APPLIES TO A GABLET: on the
+dutch L the wing's north gablet sits on the main's north slope's columns,
+its strips under the apron are that slope's 7.73 m sheets slid up whole
+(C1–C6, `viaTemplate`) and its hip-cut strips the feet of C7 and C8. Two
+things had to give for that: a slid-up sheet whose piece happens to be a
+FULL strip of the end face is still the rectangle's cut sheet (it counted
+as a full strip of the template's block and made a block of five 1.66 m
+shorts); and the 6 m left over such a sheet is a RECTANGLE with no hand
+(`hand: 0`), which `fitScore` refused against every one-cut piece — it
+serves either side now, and those six rectangles feed the main's west hip
+end's valley side (↺C5–↺C1 up to the apex) where six extras stood. The
+dutch L is 79: 48 × 7.73, 9 × 3.87 for the east gablet, 20 × 3.32 for the
+wing, a 3.52 and a 1.79 extra, three pushed. AND THE DEPTH TEST MEASURES
+THE HIP END, NOT THE GABLET FACE: the cookie cutter takes a hip end "at
+least a sheet narrower than the slope", and a gablet face is shallower
+than the end it is cut from by the gablet's height — so the dutch T's bar
+ends (1.3 m run under the apron, 2.6 m to where their hips would meet)
+read as a sheet narrower than the 3 m stem and were sliced from it: ten
+3.32 m sheets slid across for 1.43 m strips with 1.89 m waste on each and
+nowhere to use it. The test uses `f.hipApexD` and the bar keeps its centre
+line like the hip T keeps its apex; the dutch T is 84 (31 × 3.32, 42 ×
+2.87, 6 × 1.44 and 4 × 1.66 for its three gablets, two extras, four
+pushed). Every hip shape is byte-identical before and after (dumped and
+diffed, not assumed): a hip end has no level top edge, and `fitScore`'s
+rectangle rule only ever sees a hand-0 offcut where one exists.
+
 `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it in the calc
 check's 960-wide frame (1× for the side card, 2× for the page and the PDF).
 The Maps panel, the Sheet layout page type and the combined all-roofs
@@ -363,11 +407,13 @@ capture all render from it (`_jpCaptureSheetPlan`,
 they share the drawing's coordinates — and `_jpRenderSheetPlan`). The live
 card passes `roofIdxs:[-1]` and the ORIGINAL lines, because the counting
 pass borrows `DRAW.lines` while it works. `window._lastSheetPuzzle` is the
-last build, for the suite. `tests/sheetlayout.mjs` (212) pins the rules face
+last build, for the suite. `tests/sheetlayout.mjs` (242) pins the rules face
 by face on the plain hip, the gable, a change of pitch, the Big-L (the exact
 label sequence of both hip ends, the cookie cutter's feet tiling with their
-sheets), the T (its bar ends keep their apex), the dutch and the owner's
-hand-counted fixtures: every face off a gutter, square to
+sheets), the T (its bar ends keep their apex), the dutch, the dutch L and
+the dutch T (each gablet from its centre line, the L's wing gablet on the
+north slope's columns, the T's bar ends never sliced from the stem) and the
+owner's hand-counted fixtures: every face off a gutter, square to
 gutter and ridge, 45° to hip and valley, no piece across a roof line, the
 roof covered exactly once, every strip one cover wide but the last.
 

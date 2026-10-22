@@ -7240,6 +7240,52 @@ function _sheetPuzzleBuild(opts){
       var drop = Math.max(ds[apexI] - dRefOf(apexI + 1), ds[apexI] - dRefOf(apexI - 1));
       var isApex = nAtMax === 1 && isHipKind(f.edges[apexI]) && isHipKind(f.edges[(apexI - 1 + np) % np]) &&
         (dRefOf(apexI + 1) < dMin + tol || dRefOf(apexI - 1) < dMin + tol || drop >= 0.5 * (dMax - dMin));
+      // A DUTCH GABLE'S END IS A HIP END WITH ITS APEX CUT OFF (2026-10-22,
+      // the owner: "do the dutch gable now, aswell as a dutch gable T & L
+      // shape"). The gablet's apron runs level across the top of the end
+      // face, a hip each side of it down to the gutter — the plain hip's
+      // end face with the top metre taken away. It was laid as a RUN from
+      // one corner, which made every one of its strips a sheet of its own
+      // block and left the slopes' corner offcuts in the pool (36 over on
+      // the plain dutch, nothing fed). It is laid from the gablet's centre
+      // line now, exactly as the plain hip lays its end from the apex, so
+      // each half's k-th strip from the centre is the k-th corner sheet's
+      // offcut from the slope opposite; the strips under the apron are full
+      // sheets and stay the end's own block.
+      // The top is a CHAIN of level edges (the builder draws the apron in
+      // two halves meeting under the ridge's end), every one an apron or a
+      // barge — never a ridge, which is a slope's top and not an end's.
+      var isGablet = false, gabletT = 0, hipApexD = 0;
+      if (!isApex && nAtMax >= 2){
+        var atMax = function(i){ return dRefOf(i) > ds[apexI] - tol*0.5; };
+        for (var gi = 0; gi < np && !isGablet; gi++){
+          if (!atMax(gi) || atMax(gi - 1)) continue;
+          var gEnd = gi, okTop = true, nTop = 0;
+          while (atMax(gEnd + 1) && nTop < np){
+            var eTop = f.edges[gEnd % np];
+            if (!eTop || (eTop.kind !== 'apron' && eTop.kind !== 'barge')) okTop = false;
+            gEnd++; nTop++;
+          }
+          if (!okTop || !nTop) continue;
+          var eL = f.edges[(gi - 1 + np) % np], eR = f.edges[gEnd % np];
+          if (!isHipKind(eL) || !isHipKind(eR)) continue;
+          var dropG = Math.max(dRefOf(gi) - dRefOf(gi - 1), dRefOf(gEnd) - dRefOf(gEnd + 1));
+          if (dRefOf(gi - 1) < dMin + tol || dRefOf(gEnd + 1) < dMin + tol || dropG >= 0.5 * (dMax - dMin)){
+            isGablet = true; gabletT = (ts[gi % np] + ts[gEnd % np]) / 2;
+            // Where the two hips WOULD meet: the depth of the hip end this
+            // gablet is cut from, which is what the cookie cutter's "a sheet
+            // narrower than the slope" test has to measure — a T's bar is
+            // within a sheet of its stem whether or not its apex is clipped.
+            var ax = eL.b[0]-eL.a[0], ay = eL.b[1]-eL.a[1], bx = eR.b[0]-eR.a[0], by = eR.b[1]-eR.a[1];
+            var den = ax*by - ay*bx;
+            if (Math.abs(den) > 1e-9){
+              var u = ((eR.a[0]-eL.a[0])*by - (eR.a[1]-eL.a[1])*bx) / den;
+              var px = eL.a[0] + ax*u, py = eL.a[1] + ay*u;
+              hipApexD = px*dx + py*dy;
+            }
+          }
+        }
+      }
       if (f.hasBarge){
         var bt = null;
         f.edges.forEach(function(e){
@@ -7249,13 +7295,13 @@ function _sheetPuzzleBuild(opts){
         });
         if (bt !== null && Math.abs(bt - tMax) < Math.abs(bt - tMin)){ fromEnd = true; anchorT = tMax; }
         lay = 'barge';
-      } else if (isApex || !hasLevel){
+      } else if (isApex || isGablet || !hasLevel){
         lay = 'apex';
-        anchorT = ts[apexI];
+        anchorT = isGablet ? gabletT : ts[apexI];
       } else if (hipAt(tMin) && hipAt(tMax)){
         lay = 'run';
       }
-      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex');
+      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex'); f.gablet = isGablet; f.hipApexD = isGablet && hipApexD > dMax ? hipApexD : dMax;
       f.anchorT = anchorT; f.dMin = dMin; f.dMax = dMax;
       // The face's own gutter line: EVERY gutter edge on the reference
       // line, not the longest alone — a slope with a wing standing in the
@@ -7312,7 +7358,7 @@ function _sheetPuzzleBuild(opts){
       var T = tmplOf[dKey(f)];
       if (!T || T === f) return;
       if (f.dMax > T.dMin + tol) return;                                   // not in front of the slope's gutter line
-      if ((T.dMax - T.dMin) - (f.dMax - f.dMin) < coverPx) return;         // not a sheet narrower each side: the plain hip's own offcuts already fit it
+      if ((T.dMax - T.dMin) - ((f.hipApexD || f.dMax) - f.dMin) < coverPx) return;   // not a sheet narrower each side (a gablet measured to where its hips would meet): the plain hip's own offcuts already fit it
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
       if (fT1 < T.T0 - tol || fT0 > T.T1 + tol) return;                    // beside the rectangle, not in it
@@ -7492,7 +7538,13 @@ function _sheetPuzzleFill(pz){
     var ps = f.pieces.filter(function(p){ return !p.strungTo && !p.viaTemplate; });
     if (f.adopters) f.adopters.forEach(function(a){ a.pieces.forEach(function(p){ if (p.viaTemplate === f) ps.push(p); }); });
     ps.sort(function(p, q){ return p.k - q.k; });
-    var fulls = ps.filter(function(p){ return p.full; });
+    // A sheet slid up a column onto a wing's end (viaTemplate) is the
+    // rectangle's own cut sheet whatever shape its piece is: under a dutch
+    // gablet's apron that piece is a FULL strip of the end face, and
+    // counting it as a full strip here made a block of 1.66 m shorts out
+    // of five 7.73 m sheets whose 6 m offcuts the west hip end was waiting
+    // for (six extras ordered there instead).
+    var fulls = ps.filter(function(p){ return p.full && !p.viaTemplate; });
     f.ownNeeds = ps;
     // A SLOPE WITH NO FULL STRIP IS STILL THE RECTANGLE'S SLOPE: a wing
     // wide enough to eat every column that reaches the ridge (a 10 m wing
@@ -7525,7 +7577,7 @@ function _sheetPuzzleFill(pz){
     f.endPieces = [];
     ps.forEach(function(p){
       var r = null;
-      if (p.full){ runs.some(function(x){ if (x.pieces.indexOf(p) >= 0){ r = x; return true; } return false; }); }
+      if (p.full && !p.viaTemplate){ runs.some(function(x){ if (x.pieces.indexOf(p) >= 0){ r = x; return true; } return false; }); }
       else {
         var before = null, after = null, within = null;
         runs.forEach(function(x){
@@ -7651,7 +7703,10 @@ function _sheetPuzzleFill(pz){
       // its short side no shorter than the piece's short side and its long
       // side no shorter than the piece's long side — so a steeper or a
       // shallower diagonal still serves when the trapezoid is big enough.
-      if (oc.hand !== pc.hand) return null;
+      // A RECTANGULAR offcut (hand 0: the 6 m left over a dutch gablet's
+      // full strip when the rectangle's sheet is slid up onto it) has no
+      // hand and serves either side.
+      if (oc.hand && oc.hand !== pc.hand) return null;
       if (ocB < needB - _PZ_FIT_MM) return null;
     } else if (pc.cutTop && pc.cutBot){
       // Two diagonals (the apex strip): needs a square piece as long as it is.
