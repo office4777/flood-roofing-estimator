@@ -4366,14 +4366,16 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `4947a46` (the plain hip over the rectangle and
-the cookie cutter, 2026-10-22 12:48 pm NZ). THE PROOF IS VERCEL'S OWN RECORD
-this time, not the promote log: two READY production deployments carry
-`githubCommitSha` 4947a46 (`list_deployments` with `target: production`),
-and they have to be the proof because this ship changed `sheet-plan.js` and
-NOT `app.html` — the promote's frontend step compares app.html alone, so it
-passed in one second on a file byte-identical to 12f46b4's and would have
-said "serving" whether or not the new sheet-plan.js was up. A ship that
+**Live now.** FRONTEND = `ad51cd1` (the cookie cutter on every L and the
+two-wing roof, 2026-10-22 1:37 pm NZ; Tests run 39700393231 green). THE
+PROOF IS VERCEL'S OWN RECORD, not the promote log: two READY production
+deployments carry `githubCommitSha` ad51cd1 (`list_deployments` with
+`target: production`), and they have to be the proof because this ship, like
+`4947a46` before it (12:48 pm NZ, verified the same way), changed
+`sheet-plan.js` and NOT `app.html` — the promote's frontend step compares
+app.html alone, so it passed in one second on a file byte-identical to
+12f46b4's and would have said "serving" whether or not the new sheet-plan.js
+was up. A ship that
 touches only sheet-plan.js / sw.js / help-bot.js is verified by Vercel's
 deployment list or by fetching the file itself (this container's proxy
 refuses roofmap.co.nz, so the list is the read available here). Before it,
@@ -4419,9 +4421,11 @@ Checked, and benign: `_MAILDOM.tenant` falls to null and the box renders
 nothing, so the page degrades to what it was. The quote-sending fix itself
 (the narrowed identity read) is NOT live until `/health` reads `c54ac58` or
 later — a quote sent before then can still go out nameless. Check `/health`
-before telling him that one is fixed. main is one DOCS-ONLY commit ahead
-(this one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 110 and the
-Big-L is 64 sheets; the owner has the picture and the artifact page.
+before telling him that one is fixed (it still read fcaab9a on 4947a46's
+promote at 12:58 pm NZ 22 Oct). main is one DOCS-ONLY commit ahead (this
+one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 208; the Big-L is
+64 sheets in every orientation and the owner has the pictures of all nine
+shapes.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
 serves the old build until the tab is reloaded.
