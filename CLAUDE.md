@@ -4519,9 +4519,15 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = see the ship after this one — the dutch gable in
-the sheet layout (sheet-plan.js only, so verify it on Vercel's deployment
-list, not the promote log) — else `194d4b4` (feedback 67, 68, 69: the pictured
+**Live now.** FRONTEND = `8a7f392` (the dutch gablet feeds itself from its
+own short sheets, the hip T at 74; 2026-10-22 8:57 pm NZ; sheet-plan.js
+only, so the proof is Vercel's two READY production deployments carrying
+that SHA; Tests run 39742137745 went green on its second attempt after
+`quotebook` and `scheduleui` flaked on shard 1 — both pass locally on the
+same tree, 92/92 and 83/83, and the diff cannot reach them; one re-run of
+the failed shard, not two). Before it `d031790` (the dutch gable, L and T
+laid from the gablet's centre line, 8:26 pm NZ; Tests run 39740487454 green,
+two READY deployments). Before it `194d4b4` (feedback 67, 68, 69: the pictured
 roof-shape picker, the CSV's own sheet per view, the base lines known by a
 key, 2026-10-22 4:32 pm NZ; Tests run 39715968496 green; promote run
 39716321601's log says "The site is serving 194d4b4", backend step red on
@@ -4589,10 +4595,14 @@ nothing, so the page degrades to what it was. The quote-sending fix itself
 (the narrowed identity read) is NOT live until `/health` reads `c54ac58` or
 later — a quote sent before then can still go out nameless. Check `/health`
 before telling him that one is fixed (it still read fcaab9a on 4947a46's
-promote at 12:58 pm NZ 22 Oct). main is one DOCS-ONLY commit ahead (this
-one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 213; the Big-L is
+promote at 12:58 pm NZ 22 Oct). Nothing uncommitted. `tests/sheetlayout.mjs` is at 243; the Big-L is
 64 sheets in every orientation, the 10 m wing 62 laid exactly as the owner
-marked it, and he has the pictures. TWO THINGS PUT TO HIM WITH THAT SHIP,
+marked it, the dutch 72 / dutch L 79 / dutch T 88 with each gablet fed from
+its own short sheets, and he has the pictures. PUT TO HIM WITH THE GABLET
+SHIP (2026-10-22 8:40 pm NZ), unanswered: the offcut from a south hip cut
+only fits the SAME side's corner once spun; carrying it across to the north
+hip would need the sheet turned over, which the layout never does — if he
+meant that a short offcut may be flipped on a gablet, allow it there. TWO THINGS PUT TO HIM WITH THAT SHIP,
 unanswered: the Big-L's 3.52 junction extra is now a 7.73 pushed in at the
 apex by his own push rule (same 64, four metres more steel) — say if he
 would rather keep the short extra there; and the T went from 78 to 75 under
