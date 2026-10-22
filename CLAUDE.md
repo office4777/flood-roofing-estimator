@@ -4410,9 +4410,13 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `204b94b` (the sheet layout's offcut series and
-the pushed-in sheet, 2026-10-22 2:47 pm NZ; Tests run 39707359742 green;
-two READY production deployments carry it on Vercel). Before it `ad51cd1`
+**Live now.** FRONTEND = `a7764b7` (the sheet layout's one-run series,
+the Z's D20 under the wing, 2026-10-22 3:35 pm NZ; Tests run 39711708182
+green; two READY production deployments carry it on Vercel). Before it
+`2f9a59d` (the junction strip's straight cut, D1's offcut at the apex,
+3:23 pm NZ; Tests run 39710701159, two READY deployments), and before that
+`204b94b` (the offcut series and the pushed-in sheet, 2:47 pm NZ; Tests run
+39707359742). Before it `ad51cd1`
 (the cookie cutter on every L and the two-wing roof, 1:37 pm NZ; Tests run
 39700393231). THE
 PROOF IS VERCEL'S OWN RECORD, not the promote log: READY production
