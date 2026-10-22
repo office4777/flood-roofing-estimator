@@ -87,3 +87,11 @@ and the app disagreed (RECON.md §11). Later phases append here.
   route). The app asks `GET /tender/enabled` after sign-in and keeps the
   answer per login (`fr_tender_on`); the server refuses every tender route
   to anybody else, so it is not merely hidden.
+- **2026-10-23 — Privacy policy before anyone outside Flood Roofing.**
+  privacy.html says AI reads only roof images and supplier price lists, and
+  lists every usage milestone it records (`tests/legal.mjs` counts both). AI
+  Tendering sends plan-set pages to Anthropic, so before it is switched on
+  for ANY other business the policy needs a new version naming it (and the
+  30 days' notice the policy promises for a change). Until then it is on for
+  the owner's own three logins only, which is his own data, and records no
+  usage milestone (`tender_created` was dropped from USAGE_EVENTS).

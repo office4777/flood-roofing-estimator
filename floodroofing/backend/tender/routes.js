@@ -80,7 +80,8 @@ function mount(app, deps){
         status: 'new', settings: {}, sheet_index: null, created_at: now(), updated_at: now() };
       const { error } = await supabase.from('tender_jobs').insert(row);
       if (error) throw new Error(error.message);
-      try { recordUsage('tender_created', req, {}); } catch (e) {}
+      // No usage milestone: the privacy policy lists every one it records
+      // (tests/legal.mjs counts them), and this is not one of them yet.
       res.json(row);
     } catch (e) { oops(res, e, 'POST /tender'); }
   });

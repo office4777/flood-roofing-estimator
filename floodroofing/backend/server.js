@@ -13258,7 +13258,6 @@ const USAGE_EVENTS = [
   'order_sent',       // material ordered — the far end of the workflow
   'waitlist_submit',  // a roofer asked for a setup call — the top of the funnel
   'ai_call',          // one AI request, so a free trial's daily cap can be counted
-  'tender_created',   // an AI Tendering plan set was started
   // The daily activity report (daily.js): who did what yesterday.
   'login',            // a password sign-in, or the emailed confirmation link
   'canvas_used',      // drew on the canvas (once per half hour per person)

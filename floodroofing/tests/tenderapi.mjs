@@ -110,7 +110,7 @@ check('create a tender', r.status === 200 && r.body.id && r.body.status === 'new
 const TID = r.body.id;
 r = await call(T1, 'POST', '/tender', { name: 'again', job_id: 'job-1' });
 check('one tender per RoofMap job', r.body.id === TID);
-check('usage event recorded', (db.usage_events || []).some(e => e.name === 'tender_created'));
+check('no usage milestone the privacy policy does not name', !(db.usage_events || []).some(e => /tender/.test(e.name || '')));
 
 // ── upload handshake ────────────────────────────────────────────────
 r = await call(T1, 'POST', '/tender/' + TID + '/files/sign', { name: 'photo.jpg', size: 1000, mime: 'image/jpeg' });
