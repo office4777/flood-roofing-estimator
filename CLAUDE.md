@@ -2577,25 +2577,38 @@ Discipline (non-negotiable):
   (under half a sheet wide, under a sheet long) — that triangle used to
   take D8's whole offcut, which is why B7 was ordered. A pool-first stub
   under half its block's length is an extra at its own length, never cut
-  from a 7.73 m sheet. THE BIG-L COMES TO 64 (was 78, the engine's legend
-  says 66): 49 × 7.73 and 15 × 3.32, the 49th pushed in at the west apex
-  where the 3.52 extra for the junction strip stood; the west end's south
-  half from C9 down to C1 (the wing's whole sheets and the valley-cut heads
-  among them), its north half E1 then D1–D5, its top from D6–D9; the east
-  end from D16–D24 and C24–C16; the 10 m wing 62 (49 × 7.73 + 13 × 5.52,
-  was 63) laid exactly as he marked it; the T 75 (78 before, 80 before
-  that), its stem slopes' short valley strips off the bar's own valley-cut
-  sheets. EVERY L HOLDS (2026-10-22, the owner: "used same logic/mechanics
-  on different sizes and orientations of the l-shape … also … a both with
-  a wing off the top and the buttom"): mirrored, turned and
-  wing-off-the-bottom are 64 to the sheet with the same
-  `1,2,3,4,✂5,✂6,✂7,✂8` wing; a 24 × 12 L with a 4 × 8 wing, a 10 m wing
-  (cut) and a 13 m wing (within a sheet, keeps its apex); wings off the
-  top AND bottom at one end both cut, 80 with a sheet pushed in at each
-  apex; a cross (wing mid-slope both sides) 81 and nothing extra; a Z
-  (wings at opposite ends) 81 with a push at each apex (the east wing
-  having taken a hand of offcuts the plain hip's east end would have had)
-  and its corner stub a 1.16 m extra. `docs/SHEET_LAYOUT.md` has the
+  from a 7.73 m sheet. THE STRAIGHT CUT (2026-10-22, the owner: "Does E1
+  actually have to be a full sheet or can it be the offcut to D1? …
+  offcut D2 wouldn't work there because it going straight along the
+  ridge a little, in real life the offcut to green D1 should be a
+  straight cut"): the strip where a wing's ridge dies into the main's hip
+  is bounded by the hip then a short LEVEL run along the ridge, so its
+  short side read longer than the hip alone makes it and no offcut was
+  that shape — which is what forced the pushed-in sheet at the apex. A
+  roofer cuts it ONCE along the hip and the ridge cap covers the run, so
+  the builder gives such a piece `cutShortPx` (the diagonal continued,
+  only where the level run is on a RIDGE) and the fit and the offcut are
+  worked from it; the piece still draws at the roof's shape. THE BIG-L
+  COMES TO 64 (was 78, the engine's legend says 66): 48 × 7.73 and
+  16 × 3.32, the 16th the B sheet heading the top run where the 3.52
+  extra for the junction strip stood, nothing pushed; the west end's
+  south half from C9 down to C1 (the wing's whole sheets and the
+  valley-cut heads among them), its north half D1–D6 (D6 on the junction
+  strip), its top from D7–D9; the east end from D16–D24 and C24–C16; the
+  10 m wing 62 (48 × 7.73 + 14 × 5.52, was 63): D1's offcut at the apex,
+  D3 on the junction strip, a seventh B beside B6, D4–D9 outward from it,
+  exactly as he marked it; the T 75 (78 before, 80 before that), its stem
+  slopes' short valley strips off the bar's own valley-cut sheets. EVERY
+  L HOLDS (2026-10-22, the owner: "used same logic/mechanics on different
+  sizes and orientations of the l-shape … also … a both with a wing off
+  the top and the buttom"): mirrored, turned and wing-off-the-bottom are
+  64 to the sheet with the same `1,2,3,4,✂5,✂6,✂7,✂8` wing; a 24 × 12 L
+  with a 4 × 8 wing, a 10 m wing (cut) and a 13 m wing (within a sheet,
+  keeps its apex); wings off the top AND bottom at one end both cut, 80
+  with nothing pushed; a cross (wing mid-slope both sides) 81 and nothing
+  extra; a Z (wings at opposite ends) 81 with a push at the east apex
+  (the east wing having taken a hand of offcuts the plain hip's east end
+  would have had) and its corner stub a 1.16 m extra. `docs/SHEET_LAYOUT.md` has the
   detail. The footer carries
   the tally per length, the blocks, the feet carried, how many end pieces
   came from offcuts, how many sheets were extra and how many offcuts are

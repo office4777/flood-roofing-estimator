@@ -7075,6 +7075,28 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
       }
       if (!bestL) diagTan = (pB - pA) > 0.1 ? Math.abs(runA - runB) / (pB - pA) : 0;
     }
+    // ONE STRAIGHT CUT (the owner, 2026-10-22, on the strip where a wing's
+    // ridge dies into the main's hip: "in real life the offcut to green D1
+    // should be a straight cut, not have extra length to go along the ridge
+    // like that"). That strip's cut end is the hip's diagonal for part of
+    // its width and then level along the ridge — a diagonal cut AND a
+    // square cut, which is not how a sheet is cut. It is cut ONCE along the
+    // diagonal, continued across the whole width, so its short side is the
+    // diagonal's own (6.04 / 5.20, the plain hip's) and the plain hip's
+    // offcut fits it. Only where the level part lies on a RIDGE (the ridge
+    // cap covers the run-past); a level part at the LONG side is the
+    // sheet's own square end and needs nothing.
+    var cutShortPx = Math.min(runA, runB);
+    if (cutTop !== cutBot && diagTan > 0.05 && eA && eB){
+      var straight = Math.max(0, (lMax - lMin) - eW * diagTan);
+      if (cutShortPx > straight + 0.6){
+        var shortT = (runA <= runB) ? pA : pB, shortE = (runA <= runB) ? eA : eB;
+        var lvl = cutTop ? shortE[1] : shortE[0];
+        var lp = [tx*shortT + dx*lvl, ty*shortT + dy*lvl];
+        var onRidge = f.edges.some(function(e){ return e.kind === 'ridge' && _pzPtSeg(lp, e.a, e.b).d <= tol; });
+        if (onRidge) cutShortPx = straight;
+      }
+    }
     // The two ends of a sheet cut at both ends (a hip above, a valley at the
     // gutter), each side, for its two offcuts.
     var tops = null, bots = null;
@@ -7082,12 +7104,13 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     var piece = {
       face: f, k: k, poly: pcE, polySheet: pc, tA: pA, tB: pB,
       widthPx: eW, expLongPx: eLong, sheetPx: pB - pA, lapPx: Math.max(0, (pB - pA) - eW), lapped: lapped,
-      longPx: lMax - lMin, shortPx: Math.min(runA, runB),
+      longPx: lMax - lMin, shortPx: Math.min(runA, runB), cutShortPx: cutShortPx,
       tip: Math.min(runA, runB) < 0.6, areaPx: _ccPolyArea(pcE),
       cutTop: cutTop, cutBot: cutBot, full: !cutTop && !cutBot, hand: hand, diagTan: diagTan,
       tops: tops, bots: bots, dTop: lMax, dBot: lMin, endsA: eA, endsB: eB,
       longMm: Math.round((lMax - lMin) * scaleM * f.pf * 1000),
       shortMm: Math.round(Math.min(runA, runB) * scaleM * f.pf * 1000),
+      cutShortMm: Math.round(cutShortPx * scaleM * f.pf * 1000),
       widthMm: Math.round(eW * scaleM * 1000),
       lapMm: Math.round(Math.max(0, (pB - pA) - eW) * scaleM * 1000),
       roofIdx: idx,
@@ -7566,7 +7589,7 @@ function _sheetPuzzleFill(pz){
       var oC = mk(Math.max(0, Math.min(cA, cB)), Math.max(cA, cB), hC, Math.abs(cA - cB) / Math.max(0.6, w));
       return oC ? [oC] : [];
     }
-    if (pc.cutTop !== pc.cutBot){ tch = (pc.cutTop ? pc.touchTop : pc.touchBot) || tch; return [mk(Math.max(0, L - pc.longPx), Math.max(0, L - pc.shortPx), pc.hand, pc.diagTan)]; }
+    if (pc.cutTop !== pc.cutBot){ tch = (pc.cutTop ? pc.touchTop : pc.touchBot) || tch; return [mk(Math.max(0, L - pc.longPx), Math.max(0, L - (pc.cutShortPx || pc.shortPx)), pc.hand, pc.diagTan)]; }
     if (pc.full) return (L - pc.longPx > 0.6) ? [{ a: L - pc.longPx, b: L - pc.longPx, w: w, hand: 0, tan: 0, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
     // Cut at BOTH ends — a hip above and a valley at the gutter (an L's
     // main slope beside the wing). The sheet hangs where it would on the
@@ -7619,7 +7642,7 @@ function _sheetPuzzleFill(pz){
   var extrasOf = new Map();
   function fitScore(pc, oc){
     var f = pc.face, oneCut = pc.cutTop !== pc.cutBot;
-    var needA = mmOf(pc.chainBelow ? pc.sheetShortPx : (oneCut ? pc.shortPx : pc.longPx), f), needB = mmOf(pc.sheetLongPx || pc.longPx, f), needW = pc.widthPx;
+    var needA = mmOf(pc.chainBelow ? pc.sheetShortPx : (oneCut ? (pc.cutShortPx || pc.shortPx) : pc.longPx), f), needB = mmOf(pc.sheetLongPx || pc.longPx, f), needW = pc.widthPx;
     if (oc.w < needW - 0.6) return null;
     var ocA = oc.a * scaleM * oc.pf * 1000, ocB = oc.b * scaleM * oc.pf * 1000;
     if (oneCut){

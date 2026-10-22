@@ -219,9 +219,10 @@ Block-Cut, mapped onto the puzzle:
    making sure the logic hold, also the same logic should transfer to a
    both with a wing off the top and the buttom of the main plain hip"),
    pinned in `tests/sheetlayout.mjs`: the Big-L mirrored, turned and with
-   its wing off the bottom are each 49 × 7.73 + 15 × 3.32 (the 49th the
-   full sheet pushed in at the west apex for the junction strip — see
-   THE SERIES below), the wing's end `1,2,3,4,✂5,✂6,✂7,✂8` whichever
+   its wing off the bottom are each 48 × 7.73 + 16 × 3.32 (the 16th the
+   B sheet heading the top run, the owner's "7th B next to B6"; the
+   junction strip is cut straight and takes D6 — see THE STRAIGHT CUT
+   below), the wing's end `1,2,3,4,✂5,✂6,✂7,✂8` whichever
    letter the block carries; a 24 × 12 L with a 4 × 8 wing cuts three
    whole sheets and two feet; a 10 m wing on a 14 m main is still cut
    (seven whole, six feet) and a 13 m one is within a sheet and keeps its
@@ -229,14 +230,14 @@ Block-Cut, mapped onto the puzzle:
    whole, four feet each), the main's west hip end between the two wing
    slopes still anchored at its apex (its hips stop at the wings' ridges
    half the depth down — `isApex`'s half-depth rule — which is a hip end
-   and not the bump a wider wing's ridge makes), 50 × 7.73 + 30 × 3.32
-   with a sheet pushed in at each apex; a cross (a wing mid-slope both
+   and not the bump a wider wing's ridge makes), 48 × 7.73 + 32 × 3.32
+   with nothing pushed in; a cross (a wing mid-slope both
    sides) cuts both wing ends as seven feet and two stubs from offcuts, 81
    sheets and nothing extra; a Z (wings at opposite ends) cuts both, the
-   east wing's corner column lapped, 81 sheets: a sheet pushed in at each
-   apex (the east end's because the east wing takes a hand of the offcuts
-   that end would have had on the plain hip — the geometry, not a miss)
-   and the east wing's clipped corner stub ordered at its own 1.16 m.
+   east wing's corner column lapped, 81 sheets: a sheet pushed in at the
+   east apex (because the east wing takes a hand of the offcuts that end
+   would have had on the plain hip — the geometry, not a miss) and the
+   east wing's clipped corner stub ordered at its own 1.16 m.
 4. **Ends.** Which cut strips are the rectangle's own sheets and which come
    from the pool: on a slope, the strips cut at its REAL corners are block
    sheets (their offcuts feed the hip ends); the strips beyond its own
@@ -305,6 +306,24 @@ Block-Cut, mapped onto the puzzle:
    its offcut joins the pool, and the needs still open get a second pass
    (a bar end's corner piece off the bar's own valley-cut sheet). What
    nothing fits after that is ordered as an extra at its OWN length.
+   THE STRAIGHT CUT (2026-10-22, the owner on the 10 m wing: "Does E1
+   actually have to be a full sheet or can it be the offcut to D1? And
+   offcut D2 wouldn't work there because it going straight along the
+   ridge a little, in real life the offcut to green D1 should be a
+   straight cut, not have extra length to go along the ridge like that").
+   The strip where a wing's ridge dies into the main's hip is bounded by
+   the hip and then a short LEVEL run along that ridge, so its short side
+   read longer than the hip alone would make it — 5.52 against 5.20 on
+   the 10 m wing, 3.31 against 2.68 on the Big-L — and no plain-hip offcut
+   was that shape, which is what forced a full sheet to be pushed in at
+   the apex. A roofer cuts that sheet ONCE, along the hip, and the ridge
+   capping covers the few hundred millimetres of the ridge run. So the
+   builder gives such a piece `cutShortPx` — the diagonal continued across
+   the whole width — where the level run is on a RIDGE (never a gutter or
+   a barge: a sheet must reach those), and the fit and the offcut are
+   worked from it; the piece still draws and measures at the roof's own
+   shape. The push stays, for the roofs that still need it (a Z's east
+   end, a T's bar end).
 5. **Tally (Tally-Blocks).** Sheets to order per length, the blocks under
    it, how many end pieces the offcuts covered, how many full sheets were
    pushed in, how many sheets were ordered extra because no offcut fitted,
@@ -314,15 +333,16 @@ On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
 hip-end pieces from offcuts, two slivers over; the gable 2 × 24, nothing
 cut; the dutch four blocks (the gablet ends have full sheets against the
 apron, so they are blocks, and the long faces' hip offcuts go unused); the
-Big-L 64 — 49 × 7.73 and 15 × 3.32, the 49th pushed in at the west apex
-where a 3.52 extra stood before the push rule; the wing's end wholly out of
-the north slope's sheets (C1–C4 whole, the feet of C5–C8); the west end's
-south half from C9 down to C1, its north half E1 then D1–D5 (D5 on the
-junction strip), its top from D6–D9; the east end from D16–D24 and
+Big-L 64 — 48 × 7.73 and 16 × 3.32, the 16th the B sheet heading the top
+run where a 3.52 extra stood before the straight-cut rule, nothing pushed;
+the wing's end wholly out of the north slope's sheets (C1–C4 whole, the feet
+of C5–C8); the west end's south half from C9 down to C1, its north half
+D1–D6 (D6 on the junction strip, cut straight), its top from D7–D9; the east end from D16–D24 and
 C24–C16; the wing's slope 8 with its valley from its own four hip offcuts;
 six offcuts over — where the apex-laid wing cost 78 and the engine's legend
-says 66; the 10 m wing 62 (49 × 7.73 + 13 × 5.52, was 63) laid exactly as
-the owner marked it; the T 75 (78 before 2026-10-22's offcut rules, 80
+says 66; the 10 m wing 62 (48 × 7.73 + 14 × 5.52, was 63): D1's offcut at the
+apex, D3 on the junction strip, a seventh B beside B6 and D4–D9 outward
+from it, exactly as the owner marked it; the T 75 (78 before 2026-10-22's offcut rules, 80
 before that), its stem slopes' shortest valley strips off the bar's own
 valley-cut sheets. The picture says all of this in its footer; a count the
 engine's SHEETS TO ORDER legend gives is a different number worked a
