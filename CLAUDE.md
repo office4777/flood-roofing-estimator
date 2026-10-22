@@ -4538,7 +4538,13 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `8a7f392` (the dutch gablet feeds itself from its
+**Live now.** FRONTEND = `b1b3200` (password-reset and invite links open
+the app, not the landing page — the vercel.json rewrite is what makes links
+already in inboxes work; 2026-10-22 9:33 pm NZ; app.html untouched, so the
+proof is Vercel's two READY production deployments carrying that SHA, Tests
+run 39747212752 green first time). Its server half (`/app?reset=` links,
+`_mailIdentityOf` from c54ac58) waits on Railway with everything since
+`fcaab9a`. Before it `8a7f392` (the dutch gablet feeds itself from its
 own short sheets, the hip T at 74; 2026-10-22 8:57 pm NZ; sheet-plan.js
 only, so the proof is Vercel's two READY production deployments carrying
 that SHA; Tests run 39742137745 went green on its second attempt after
