@@ -4391,12 +4391,15 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `ad51cd1` (the cookie cutter on every L and the
-two-wing roof, 2026-10-22 1:37 pm NZ; Tests run 39700393231 green). THE
-PROOF IS VERCEL'S OWN RECORD, not the promote log: two READY production
-deployments carry `githubCommitSha` ad51cd1 (`list_deployments` with
-`target: production`), and they have to be the proof because this ship, like
-`4947a46` before it (12:48 pm NZ, verified the same way), changed
+**Live now.** FRONTEND = `204b94b` (the sheet layout's offcut series and
+the pushed-in sheet, 2026-10-22 2:47 pm NZ; Tests run 39707359742 green;
+two READY production deployments carry it on Vercel). Before it `ad51cd1`
+(the cookie cutter on every L and the two-wing roof, 1:37 pm NZ; Tests run
+39700393231). THE
+PROOF IS VERCEL'S OWN RECORD, not the promote log: READY production
+deployments carrying the `githubCommitSha` (`list_deployments` with
+`target: production`), and they have to be the proof because these ships,
+like `4947a46` before them (12:48 pm NZ, verified the same way), changed
 `sheet-plan.js` and NOT `app.html` — the promote's frontend step compares
 app.html alone, so it passed in one second on a file byte-identical to
 12f46b4's and would have said "serving" whether or not the new sheet-plan.js
@@ -4448,9 +4451,13 @@ nothing, so the page degrades to what it was. The quote-sending fix itself
 later — a quote sent before then can still go out nameless. Check `/health`
 before telling him that one is fixed (it still read fcaab9a on 4947a46's
 promote at 12:58 pm NZ 22 Oct). main is one DOCS-ONLY commit ahead (this
-one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 208; the Big-L is
-64 sheets in every orientation and the owner has the pictures of all nine
-shapes.
+one). Nothing uncommitted. `tests/sheetlayout.mjs` is at 212; the Big-L is
+64 sheets in every orientation, the 10 m wing 62 laid exactly as the owner
+marked it, and he has the pictures. TWO THINGS PUT TO HIM WITH THAT SHIP,
+unanswered: the Big-L's 3.52 junction extra is now a 7.73 pushed in at the
+apex by his own push rule (same 64, four metres more steel) — say if he
+would rather keep the short extra there; and the T went from 78 to 75 under
+the same rules after he had called it 95% right.
 The sidebar's "Updated h:mm d/m" line says which build a screen is on — ask
 for it before believing "it's still broken", because the service worker
 serves the old build until the tab is reloaded.
