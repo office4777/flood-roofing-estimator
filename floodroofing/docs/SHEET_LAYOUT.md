@@ -338,9 +338,8 @@ Block-Cut, mapped onto the puzzle:
 
 On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
 hip-end pieces from offcuts, two slivers over; the gable 2 × 24, nothing
-cut; the dutch 62 (48 × 6.63 + 14 × 3.32 — see THE DUTCH GABLE below; it
-was 32 × 3.32 while every gablet strip was a block sheet and the long
-faces' hip offcuts went unused); the
+cut; the dutch 72 (48 × 6.63 + 24 × 3.32 — see THE DUTCH GABLE below: each
+gablet end feeds itself from its own short sheets); the
 Big-L 64 — 48 × 7.73 and 16 × 3.32, the 16th the B sheet heading the top
 run where a 3.52 extra stood before the straight-cut rule, nothing pushed;
 the wing's end wholly out of the north slope's sheets (C1–C4 whole, the feet
@@ -350,7 +349,7 @@ C24–C16; the wing's slope 8 with its valley from its own four hip offcuts;
 six offcuts over — where the apex-laid wing cost 78 and the engine's legend
 says 66; the 10 m wing 62 (48 × 7.73 + 14 × 5.52, was 63): D1's offcut at the
 apex, D3 on the junction strip, a seventh B beside B6 and D4–D9 outward
-from it, exactly as the owner marked it; the T 75 (78 before 2026-10-22's offcut rules, 80
+from it, exactly as the owner marked it; the T 74 (75 until that evening's scrap rule below, 78 before 2026-10-22's offcut rules, 80
 before that), its stem slopes' shortest valley strips off the bar's own
 valley-cut sheets. The picture says all of this in its footer; a count the
 engine's SHEETS TO ORDER legend gives is a different number worked a
@@ -369,11 +368,25 @@ a hip kind either side reaching the gutter, and lays the face from the
 chain's midpoint exactly as a hip end is laid from its apex (`lay =
 'apex'`, `f.gablet`, `f.hipApexD` = where the two hips would meet). Each
 half's k-th hip-cut strip from the centre is then the k-th corner sheet's
-offcut from the slope opposite, and only the full strips under the apron
-are ordered: the plain dutch's east end reads ↺D20–↺D24 | C1–C6 |
-↺A24–↺A20, its west end — one offcut fewer a side, its corners flush
-rather than lapped — pushes a sheet in at the head of each half (↺A4–↺A1,
-B7, B1–B6, B8, ↺D1–↺D4). THE COOKIE CUTTER APPLIES TO A GABLET: on the
+offcut from the slope opposite — which is how it shipped at 8:26 pm, and
+the owner answered within the hour: "the short sheets at each dutch gable
+ends should be cut at the hip and used on the other side of the hip on the
+same end opposite corner". A GABLET FEEDS ITSELF. Each side's hip-cut
+strips are the end's OWN short sheets: longest first, a strip is ordered
+as a sheet of the end's block and cut at the hip, and what is left above
+the hip — long where the strip was short — is spun 180°, which puts that
+long side back toward the centre of the end: the shape of the shorter
+strip at the corner of the SAME side. Carrying it across to the other hip
+would need the sheet turned over, which a sheet never is, so the pairing
+is within a side (B1 → ↺B1, B2 → ↺B2 on the plain dutch's west end; the
+owner's "other side of the hip" is the other end of the sheet). A strip
+all but a full sheet is a sheet; a corner triangle whose offcut would feed
+nothing is not worth a sheet and takes the pool like any end piece, the
+block as fallback. The slopes' long offcuts stay out of a gablet
+altogether: the plain dutch's west end reads ↺B2, ↺B1 | B1–B12 | ↺B12,
+↺B11 and the roof is 72 (12 a gablet end, 22 offcuts over) — ten more
+than feeding the ends from the slopes' offcuts gave, and his call. THE
+COOKIE CUTTER APPLIES TO A GABLET: on the
 dutch L the wing's north gablet sits on the main's north slope's columns,
 its strips under the apron are that slope's 7.73 m sheets slid up whole
 (C1–C6, `viaTemplate`) and its hip-cut strips the feet of C7 and C8. Two
@@ -382,10 +395,11 @@ FULL strip of the end face is still the rectangle's cut sheet (it counted
 as a full strip of the template's block and made a block of five 1.66 m
 shorts); and the 6 m left over such a sheet is a RECTANGLE with no hand
 (`hand: 0`), which `fitScore` refused against every one-cut piece — it
-serves either side now, and those six rectangles feed the main's west hip
-end's valley side (↺C5–↺C1 up to the apex) where six extras stood. The
-dutch L is 79: 48 × 7.73, 9 × 3.87 for the east gablet, 20 × 3.32 for the
-wing, a 3.52 and a 1.79 extra, three pushed. AND THE DEPTH TEST MEASURES
+serves either side now, and those rectangles feed the main's west hip
+end's valley side (↺C9–↺C7, ↺C4, ↺C3–↺C1 up to the apex) where six extras
+stood. The dutch L is 79: 48 × 7.73, 14 × 3.87 for the east gablet (which
+feeds itself: D1, D2 cut for ↺D2, ↺D1), 17 × 3.32 for the wing, nothing
+extra, nothing pushed. AND THE DEPTH TEST MEASURES
 THE HIP END, NOT THE GABLET FACE: the cookie cutter takes a hip end "at
 least a sheet narrower than the slope", and a gablet face is shallower
 than the end it is cut from by the gablet's height — so the dutch T's bar
@@ -393,11 +407,22 @@ ends (1.3 m run under the apron, 2.6 m to where their hips would meet)
 read as a sheet narrower than the 3 m stem and were sliced from it: ten
 3.32 m sheets slid across for 1.43 m strips with 1.89 m waste on each and
 nowhere to use it. The test uses `f.hipApexD` and the bar keeps its centre
-line like the hip T keeps its apex; the dutch T is 84 (31 × 3.32, 42 ×
-2.87, 6 × 1.44 and 4 × 1.66 for its three gablets, two extras, four
-pushed). Every hip shape is byte-identical before and after (dumped and
-diffed, not assumed): a hip end has no level top edge, and `fitScore`'s
-rectangle rule only ever sees a hand-0 offcut where one exists.
+line like the hip T keeps its apex; the dutch T is 88 (27 × 3.32, 40 ×
+2.87, 12 × 1.44 and 6 × 1.66 for its three self-fed gablets, the slopes'
+blocks shorter by the offcuts the gablets no longer take, one valley stub
+pushed, the two junction strips the only extras). TWO FILL RULES WIDENED
+WITH IT, and they are the one place a HIP shape moved: the push follows a
+run fed from the pool at large as well as one the series fed (a valley
+stub at the end of a pool-fed run was ordered as an extra at its own
+length), and a two-cut triangle EXACTLY half a cover wide — a stem slope's
+clipped last column, 0.82 m — is a scrap trimmed off any offcut, where a
+`<` had kept it out by a hair and it was an extra sheet. That scrap frees
+the offcut that had been feeding it, and on the hip T the bar's east end
+then comes wholly off offcuts with nothing pushed: 74, not 75 (↺D15, ↺C7,
+↺C8, ↺C9, ↺A22, ↺A21, ↺A20, ↺E14); the 13 m wing 72, not 73. Every other
+hip shape is byte-identical before and after (dumped and diffed, not
+assumed): a hip end has no level top edge, and `fitScore`'s rectangle rule
+only ever sees a hand-0 offcut where one exists.
 
 `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it in the calc
 check's 960-wide frame (1× for the side card, 2× for the page and the PDF).
@@ -407,7 +432,7 @@ capture all render from it (`_jpCaptureSheetPlan`,
 they share the drawing's coordinates — and `_jpRenderSheetPlan`). The live
 card passes `roofIdxs:[-1]` and the ORIGINAL lines, because the counting
 pass borrows `DRAW.lines` while it works. `window._lastSheetPuzzle` is the
-last build, for the suite. `tests/sheetlayout.mjs` (242) pins the rules face
+last build, for the suite. `tests/sheetlayout.mjs` (243) pins the rules face
 by face on the plain hip, the gable, a change of pitch, the Big-L (the exact
 label sequence of both hip ends, the cookie cutter's feet tiling with their
 sheets), the T (its bar ends keep their apex), the dutch, the dutch L and

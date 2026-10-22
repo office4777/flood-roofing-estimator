@@ -7575,8 +7575,40 @@ function _sheetPuzzleFill(pz){
     // L's main hip end under the wing's west slope), and it is sheeted
     // from the pool like an end face.
     f.endPieces = [];
+    // A DUTCH GABLET FEEDS ITSELF (2026-10-22, the owner: "the short sheets
+    // at each dutch gable ends should be cut at the hip and used on the
+    // other side of the hip on the same end"). Its hip-cut strips are its
+    // OWN short sheets, cut at the hip, the offcut spun onto a shorter
+    // strip of the same end — the slopes' long offcuts stay out of it. On
+    // each side, longest first: a strip is ordered as a sheet of the end's
+    // block and what is left above its hip (long side where the strip was
+    // short) is spun 180°, which puts that long side back toward the
+    // centre of the end — the shape of a shorter strip on the SAME side.
+    // Carrying it across to the other hip would need the sheet turned
+    // over, which a sheet never is; so each side feeds its own corner.
+    if (f.gablet && f.lay === 'apex' && runs.length === 1){
+      var gbRun = runs[0], gbBlock = gbRun.block, gbL = gbRun.level / 1000 / scaleM / f.pf, gbFit = _PZ_FIT_MM / 1000 / scaleM / f.pf;
+      var gbCut = ps.filter(function(p){ return !p.full && p.hand && p.cutTop !== p.cutBot; }).sort(function(p, q){ return q.longPx - p.longPx; });
+      gbCut.forEach(function(p){
+        if (p.gabletFrom) return;
+        var ocL = gbL - (p.cutShortPx || p.shortPx), ocS = gbL - p.longPx, mate = null;
+        for (var qi = 0; qi < gbCut.length && ocL >= 0.6; qi++){
+          var q = gbCut[qi];
+          if (q === p || q.gabletFrom || q.gabletOrdered || q.hand !== p.hand) continue;
+          if (q.longPx <= ocL + gbFit && (q.cutShortPx || q.shortPx) <= ocS + gbFit && q.widthPx <= p.widthPx + 0.6){ mate = q; break; }
+        }
+        // A strip that is all but a full sheet is a sheet; one whose offcut
+        // feeds another is a sheet; a corner triangle that feeds nothing is
+        // not worth a sheet of its own and takes the pool like any end
+        // piece, the block as its fallback.
+        if (!mate && p.longPx < gbL - gbFit){ p.poolFirst = gbBlock; f.endPieces.push(p); p.gabletFrom = null; return; }
+        gbBlock.cutCount++; p.gabletOrdered = true; addToBlock(gbBlock, p);
+        if (mate){ mate.gabletFrom = p; f.endPieces.push(mate); }
+      });
+    }
     ps.forEach(function(p){
       var r = null;
+      if (p.gabletFrom || p.gabletOrdered || p.poolFirst) return;
       if (p.full && !p.viaTemplate){ runs.some(function(x){ if (x.pieces.indexOf(p) >= 0){ r = x; return true; } return false; }); }
       else {
         var before = null, after = null, within = null;
@@ -7762,7 +7794,7 @@ function _sheetPuzzleFill(pz){
     // nearest and costs nobody a sheet; the offcut stays in the pool.
     var lenMm = mmOf(pc.expLongPx, pc.face);
     if (lenMm < pz.coverMm * 1.5 && pc.widthPx < pz.coverPx * 0.34) return true;
-    return !!(pc.cutTop && pc.cutBot && !pc.chainBelow && pc.widthPx < pz.coverPx * 0.5 && lenMm < pz.coverMm);
+    return !!(pc.cutTop && pc.cutBot && !pc.chainBelow && pc.widthPx <= pz.coverPx * 0.5 + 0.6 && lenMm < pz.coverMm * 1.1);
   }
   function trimScraps(){
     open.slice().forEach(function(pc){
@@ -7869,9 +7901,13 @@ function _sheetPuzzleFill(pz){
         // The head of this piece's run of neighbouring strips; the strips
         // between must all be fed by the series, each able to take the
         // offcut of the one before it.
+        // (Fed by the series or from the pool at large: a run the pool fed
+        // offcut by offcut is as much a run as one the series fed, and a
+        // stub at its end is pushed the same way.)
+        var fedOc = function(x){ return !!x.oc && !x.ordered; };
         var h = i;
-        while (h > 0 && Math.abs(seq[h-1].k - seq[h].k) === 1 && seq[h-1].series) h--;
-        if (h === i || !seq[h].series) continue;
+        while (h > 0 && Math.abs(seq[h-1].k - seq[h].k) === 1 && fedOc(seq[h-1])) h--;
+        if (h === i || !fedOc(seq[h])) continue;
         var ok = true;
         for (var m = h + 1; m <= i && ok; m++){ if (!fitsOc(seq[m], seq[m-1].oc)) ok = false; }
         if (!ok) continue;
@@ -7898,6 +7934,14 @@ function _sheetPuzzleFill(pz){
       feed(best.pc, best.oc);
     }
   }
+  // The gablet's own pairs first: each mated strip takes the offcut of the
+  // sheet it was paired with in the end's own block.
+  open.slice().forEach(function(pc){
+    if (!pc.gabletFrom) return;
+    var oc = null;
+    pool.forEach(function(o){ if (!oc && o.donor === pc.gabletFrom.label && o.face === pc.face) oc = o; });
+    if (oc){ feed(pc, oc); pc.series = true; }
+  });
   trimScraps();
   seriesFeed();
   matchPool();
