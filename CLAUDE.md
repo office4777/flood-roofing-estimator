@@ -2688,8 +2688,10 @@ Discipline (non-negotiable):
   the order is his call, not yet asked.
   `_renderSheetPuzzleCanvas({thumb, roofIdxs, lines})` draws it: one tint per
   block with the sheet's number (A12) up each piece, a hatched piece for one
-  cut from an offcut (↺A12), F1… per face with an arrow the way the sheets
-  run, the roof lines in the map's colours, the tally and block schedule. The live card
+  cut from an offcut (↺A12), the roof lines in the map's colours, the tally
+  and block schedule (the F1… face badges and their arrows were taken off
+  on 2026-10-23, the owner: "it's pushing the sheet label out of line and
+  making it look messy" — the footer names a face by its block, "Beside A:"). The live card
   passes `roofIdxs:[-1]` and `__origDrawLines` (DRAW.lines is the counting
   pass's borrowed copy at that point); the captures pass roof indices, and
   the all-roofs picture is ONE frame now, not a stack. An L's wing and main
@@ -2770,10 +2772,10 @@ Discipline (non-negotiable):
   the number of sheet bigger? So, for example, A7 ... And keep the
   measurements ... small like it is"): the label is sized to the strip, up
   to 16px, shrinking only as far as it must to stay in its piece; the
-  length beside it stays 8–9px. A label that would land on a face's badge
-  or arrow (`badgeOf`, drawn after the labels) slides along its strip to
-  where it reads largest instead of being dropped — A8/A9 under F1 used to
-  vanish. `docs/SHEET_LAYOUT.md` has the lay. `tests/sheetlayout.mjs` (246): plain
+  length beside it stays 8–9px. Every label sits at its piece's middle, so
+  the numbers run in one line down a slope; one that does not fit there (a
+  hip-cut triangle) slides along its strip to where it reads largest
+  instead of being dropped. `docs/SHEET_LAYOUT.md` has the lay. `tests/sheetlayout.mjs` (246): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23

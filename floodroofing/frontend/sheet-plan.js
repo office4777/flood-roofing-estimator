@@ -8166,7 +8166,7 @@ function _renderSheetPuzzleCanvas(opts){
     (pz.unusedOffcuts ? ' · ' + pz.unusedOffcuts + ' offcut' + (pz.unusedOffcuts === 1 ? '' : 's') + ' left over' : '') });
   blocks.forEach(function(b){
     var f = b.face, roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    var t = b.letter + '  ' + roofTag + 'F' + f.id + ' off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind +
+    var t = b.letter + '  ' + roofTag + 'off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind +
       ' · ' + lenText(b) + (b.extra === 'push' ? ', pushed in at the head of a run so every offcut moves one strip outward' : b.extra ? ', ordered for pieces no offcut fitted' : '');
     if (b.cutCount) t += ' · ' + b.cutCount + ' cut at the hips / valleys';
     if (b.carries) t += ' · ' + b.carries + (b.carries === 1 ? ' foot' : ' feet') + ' carried along the column';
@@ -8179,21 +8179,25 @@ function _renderSheetPuzzleCanvas(opts){
     var own = f.pieces.length - via.length - feet.length, letters = {};
     via.concat(feet).forEach(function(p){ if (p.block) letters[p.block.letter] = 1; });
     var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    foot.push({ text: 'F' + f.id + '  ' + roofTag + 'hip end on F' + f.template.id + '’s columns, cut from its sheets (' + Object.keys(letters).sort().join(', ') + '): ' +
+    foot.push({ text: roofTag + 'Hip end on the columns of ' + Object.keys(letters).sort().join(', ') + ', cut from its sheets: ' +
       via.length + ' whole sheet' + (via.length === 1 ? '' : 's') + (feet.length ? ' and the feet of ' + feet.length + ' more' : '') + (own ? ', ' + own + ' from offcuts or extra' : '') });
   });
   (pz.endFaces || []).forEach(function(f){
     var all = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return !p.strung && !p.viaTemplate; }), scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), pushed = all.filter(function(p){ return p.pushed; }), donors = {};
     fed.forEach(function(p){ if (p.block) donors[p.block.letter] = 1; });
     var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    var what = f.endPieces ? (all.length + (all.length === 1 ? ' piece' : ' pieces') + ' beside the block’s run: ') : ('hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');
+    // Named by the block they sit beside, not by a face number: the picture
+    // no longer carries the F1 badges (2026-10-23, the owner: "remove the
+    // face label ... it's pushing the sheet label out of line").
+    var own = (f.blocks || []).filter(function(b){ return !b.extra; }).map(function(b){ return b.letter; });
+    var what = f.endPieces ? ((own.length ? ('Beside ' + own.join(', ') + ': ') : '') + all.length + (all.length === 1 ? ' piece' : ' pieces') + ' at the end of the run: ') : ('Hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');
     var parts = [];
     if (fed.length) parts.push(fed.length + ' from offcuts (' + Object.keys(donors).sort().join(', ') + ')');
     if (scraps.length) parts.push(scraps.length + (scraps.length === 1 ? ' sliver' : ' slivers') + ' trimmed off an offcut');
     if (pushed.length) parts.push(pushed.length + ' full sheet' + (pushed.length === 1 ? '' : 's') + ' pushed in');
     var ord = all.length - fed.length - scraps.length - pushed.length;
     if (ord) parts.push(ord + ' ordered');
-    foot.push({ text: 'F' + f.id + '  ' + roofTag + what + (parts.length ? parts.join(', ') : 'none from offcuts') });
+    foot.push({ text: roofTag + what + (parts.length ? parts.join(', ') : 'none from offcuts') });
   });
   var rowH = 15, footH = 24 + foot.length * rowH;
   var H = Math.round(padTop + drawH + padBot + footH);
@@ -8251,24 +8255,6 @@ function _renderSheetPuzzleCanvas(opts){
   // and shrinks only as far as it must to stay inside its piece; the length
   // stays at the 8-9px it always was.
   var cwC = pz.coverPx * fit;
-  // Where each face's badge (F1) and its arrow sit, in canvas pixels: drawn
-  // after the labels, so a label has to keep clear of them.
-  function badgeOf(f){
-    var c = f.c;
-    if (!_spPointInPoly(c[0], c[1], f.poly)){
-      var big = null; f.pieces.forEach(function(p){ if (!big || p.areaPx > big.areaPx) big = p; });
-      if (big) c = _ccCentroid(big.poly);
-    }
-    return { c: c, cc: toC(c), aw: Math.min(26, Math.max(12, (f.ref.len * fit) * 0.12)), ang: Math.atan2(f.d[1], f.d[0]) };
-  }
-  var badgePts = [];
-  pz.faces.forEach(function(f){
-    var bg = badgeOf(f), ca0 = Math.cos(bg.ang), sa0 = Math.sin(bg.ang);
-    for (var bx = -17; bx <= 17; bx += 5.6) for (var by = -9; by <= 9; by += 4.5) badgePts.push([bg.cc[0] + bx, bg.cc[1] + by]);
-    for (var ax = -bg.aw; ax <= bg.aw + 0.1; ax += bg.aw / 4) for (var ay = 11; ay <= 17; ay += 3){
-      badgePts.push([bg.cc[0] + ax*ca0 - ay*sa0, bg.cc[1] + ax*sa0 + ay*ca0]);
-    }
-  });
   if (cwC >= 10){
     ctx.textBaseline = 'middle';
     var fsM = cwC >= 16 ? 9 : 8;
@@ -8290,28 +8276,20 @@ function _renderSheetPuzzleCanvas(opts){
         return ok;
       };
       ctx.font = fontM; var wM = ctx.measureText(len).width;
-      // A label clear of every face badge and arrow (drawn over the labels).
-      var clearOfBadges = function(q, wC, hC){
-        var qc = toC(q), hw = wC / 2 + 3, hh = hC / 2 + 3;
-        for (var i = 0; i < badgePts.length; i++){
-          var vx = badgePts[i][0] - qc[0], vy = badgePts[i][1] - qc[1];
-          if (Math.abs(vx*ca + vy*sa) < hw && Math.abs(-vx*sa + vy*ca) < hh) return false;
-        }
-        return true;
-      };
       var pickAt = function(q){
         for (var n = fsTop; n >= 8; n--){
           ctx.font = fontL(n); var wL = ctx.measureText(txt).width;
           var wAll = wL + 5 + wM + 2;
-          if (boxFitsAt(q[0], q[1], wAll, n * 0.92) && clearOfBadges(q, wAll, n * 0.92)) return { n: n, wL: wL, withLen: true, c: q };
-          if (boxFitsAt(q[0], q[1], wL + 2, n * 0.92) && clearOfBadges(q, wL + 2, n * 0.92)) return { n: n, wL: wL, withLen: false, c: q };
+          if (boxFitsAt(q[0], q[1], wAll, n * 0.92)) return { n: n, wL: wL, withLen: true, c: q };
+          if (boxFitsAt(q[0], q[1], wL + 2, n * 0.92)) return { n: n, wL: wL, withLen: false, c: q };
         }
         return null;
       };
-      // The label sits in the middle of its piece; one that would land on a
-      // face's badge or arrow slides along the strip, clear of it, to
-      // wherever it reads largest — the owner reads every sheet's number
-      // off this picture, so a label is moved before it is ever dropped.
+      // The label sits in the middle of its piece, all in one line down the
+      // roof (the owner, 2026-10-23: the F1 badges were "pushing the sheet
+      // label out of line and making it look messy", so they are gone). A
+      // piece too narrow at its middle — a hip-cut triangle — slides its
+      // label along the strip to where it reads largest.
       var pick = pickAt(c);
       if (!pick || pick.n < fsTop){
         [24, 40, 56, 72, 90, 110, 130].forEach(function(o){
@@ -8343,23 +8321,6 @@ function _renderSheetPuzzleCanvas(opts){
       ctx.lineWidth = (e.kind === 'gutter' || e.kind === 'barge') ? 2.4 : 2;
       ctx.stroke();
     });
-  });
-  // Face labels and a direction arrow the way the sheets run.
-  pz.faces.forEach(function(f){
-    var bg = badgeOf(f), cc = bg.cc, aw = bg.aw;
-    ctx.save();
-    ctx.translate(cc[0], cc[1]);
-    ctx.fillStyle = '#ffffff';
-    _roundRect(ctx, -17, -9, 34, 18, 5); ctx.fill();
-    ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 0.8; ctx.stroke();
-    ctx.fillStyle = '#0a1628'; ctx.font = '800 11px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('F' + f.id, 0, 0.5);
-    ctx.rotate(Math.atan2(f.d[1], f.d[0]));
-    ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.4; ctx.fillStyle = '#0a1628';
-    ctx.beginPath(); ctx.moveTo(-aw, 14); ctx.lineTo(aw - 4, 14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(aw, 14); ctx.lineTo(aw - 6, 11); ctx.lineTo(aw - 6, 17); ctx.closePath(); ctx.fill();
-    ctx.restore();
   });
   // Footer.
   var fy = padTop + drawH + padBot;
