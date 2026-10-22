@@ -84,7 +84,7 @@ check('…nor remove anyone', r.status === 403, String(r.status));
 // ── invite ──
 r = await api('POST', '/team/invites', { email: 'Matt@FloodRoofing.co.NZ' }, aaron);
 check('the owner can invite by email', r.status === 200 && !!r.body.link, JSON.stringify(r.body && r.body.invite));
-check('…and gets the link back even when email is not configured', /\/\?invite=/.test(r.body.link || ''), r.body.link);
+check('…and gets the link back even when email is not configured — pointing at /app, where the token is read, not the landing page (2026-10-22)', /\/app\?invite=/.test(r.body.link || ''), r.body.link);
 check('…with only a HASH of the token stored, never the token itself',
   db.company_invites.length === 1 && !!db.company_invites[0].token_hash &&
   !(r.body.link || '').includes(db.company_invites[0].token_hash), db.company_invites[0].token_hash.slice(0, 16) + '…');

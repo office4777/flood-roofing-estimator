@@ -284,6 +284,26 @@
     },
     {
       "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "reset"
+        }
+      ],
+      "destination": "/app.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "invite"
+        }
+      ],
+      "destination": "/app.html"
+    },
+    {
+      "source": "/",
       "destination": "/landing.html"
     },
     {

@@ -116,6 +116,14 @@ check('…and each bucket remembers its own window, so a long one is not pruned 
   /\{ start: now, n: 0, w: windowMs \}/.test(src));
 check('trust proxy is set to exactly one hop, not blanket-true',
   /app\.set\('trust proxy', 1\)/.test(src));
+// An emailed token has to land where the app reads it. The root is the
+// marketing landing page, so a reset or invite link on "/" opened the home
+// page with the token ignored (2026-10-22, tyler@tgmroofing.co.nz: "This
+// keeps just taking me back to the home page"). Both links point at /app.
+check('the password-reset link points at /app, where the token is read, never the landing page',
+  src.includes("PUBLIC_APP_URL + '/app?reset='") && !src.includes("PUBLIC_APP_URL + '/?reset='"));
+check('…and so does the team invite link',
+  src.includes("PUBLIC_APP_URL + '/app?invite='") && !src.includes("PUBLIC_APP_URL + '/?invite='"));
 
 // ── the pages a person looks at are served by Vercel, not from here ──
 const vercel = JSON.parse(await readFile(_j(_ROOT, 'frontend', 'vercel.json'), 'utf8'));

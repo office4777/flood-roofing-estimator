@@ -4269,6 +4269,25 @@ Discipline (non-negotiable):
   `__TEST_HTTPS` seam, so `tests/custevents.mjs` stubs both — the seam for the
   job read and the description PATCH, a `fetch` wrapper for the upload.
 
+- AN EMAILED TOKEN LANDS ON /app, NEVER THE ROOT (2026-10-22, a customer's
+  reply to his own reset email, forwarded by the owner — tyler@tgmroofing
+  .co.nz: "This keeps just taking me back to the home page"). `/auth/forgot`
+  linked `/?reset=<token>` and the team invite `/?invite=<token>`, and the
+  root has served the LANDING PAGE since the app moved to `/app` — Vercel's
+  rewrite sent `/` to app.html only when the query carried `q` (the customer
+  quote link), so a reset or invite token opened the marketing home page,
+  whose own forwarder read `?q` alone, and the app that reads `_p.get('reset')`
+  never loaded. Every password reset and every team invite had been dead
+  since that move; the verify link was fine because it already said `/app?`.
+  THREE PLACES, and all three are needed: server.js sends `/app?reset=` and
+  `/app?invite=` (the shape `verify` always used); `vercel.json` rewrites
+  `/?reset=` and `/?invite=` to app.html AHEAD of the plain `/` rule, exactly
+  as `/?q=` is, so a link already in somebody's inbox works the moment Vercel
+  deploys — the server half waits on Railway and a reset link only lives 30
+  minutes; and `landing.html`'s head forwarder names `reset` and `invite`
+  beside `q`, for a landing page a browser has cached. `tests/seo.mjs` pins
+  the three rewrites in order and the forwarder, `tests/security.mjs` the two
+  links in the server source, `tests/teamapi.mjs` the invite link's shape.
 - THE NEXT JOB NEVER WEARS THE LAST ONE'S QUOTE (2026-10-12, the owner:
   Phyllis's job open, chose another job, "Job 3287 already exists" against
   Beth Williamson's). `restoreFromJob` does `Object.assign(S, snap.state)`,

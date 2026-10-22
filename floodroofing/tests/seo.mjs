@@ -252,6 +252,22 @@ check('…and a plain "/" is rewritten to the landing page',
 const aliasRw = (vercelCfg.rewrites || []).find(r => r.source === '/index.html');
 check('…while /index.html still resolves, for anyone who has the app installed',
   !!aliasRw && aliasRw.destination === '/app.html', JSON.stringify(aliasRw));
+// AN EMAILED TOKEN ON THE ROOT GOES TO THE APP (2026-10-22, a customer's
+// reply to his own reset email: "This keeps just taking me back to the home
+// page"). The reset and invite emails linked /?reset= and /?invite=, and the
+// root has been the landing page since the app moved to /app — so the token
+// landed on the marketing page, which read only ?q. Every token the root can
+// carry must be routed to the app BEFORE the plain "/" rule, and the landing
+// page must forward it too, for a copy already sitting in a browser cache.
+for (const key of ['q', 'reset', 'invite']){
+  const rw = (vercelCfg.rewrites || []).find(r => r.source === '/' && r.has && r.has.some(h => h.type === 'query' && h.key === key));
+  const idx = (vercelCfg.rewrites || []).indexOf(rw), rootIdx = (vercelCfg.rewrites || []).indexOf(rootRw);
+  check('…and /?' + key + '= is rewritten to the app, ahead of the plain "/" rule',
+    !!rw && rw.destination === '/app.html' && idx >= 0 && idx < rootIdx, JSON.stringify(rw) + ' at ' + idx + ' vs root ' + rootIdx);
+}
+const landingSrc = await readFile(_j(DIR, 'landing.html'), 'utf8');
+check('…and the landing page itself forwards ?q, ?reset and ?invite to the app, first thing in its head',
+  /p\.get\('q'\)\s*\|\|\s*p\.get\('reset'\)\s*\|\|\s*p\.get\('invite'\)/.test(landingSrc) && landingSrc.indexOf("p.get('reset')") < landingSrc.indexOf('<body'));
 // Vercel validates vercel.json against a strict schema and REFUSES the whole
 // build on an unknown key — no partial deploy, no fallback to the last config.
 // A "comment" key added to a headers rule to explain a cache time did exactly

@@ -1847,7 +1847,7 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
     const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
     if (error) return res.status(500).json({ error: error.message });
-    const link = PUBLIC_APP_URL + '/?invite=' + encodeURIComponent(raw);
+    const link = PUBLIC_APP_URL + '/app?invite=' + encodeURIComponent(raw);   // /app, not the landing page — see /auth/forgot
     const { data: co } = await supabase.from('companies').select('name').eq('id', req.companyId).maybeSingle();
     const coName = (co && co.name) || 'your team';
     const who = req.user.email || 'a colleague';
@@ -2986,7 +2986,7 @@ app.post('/auth/verify/resend', rateLimit(5, 900000), rateLimit(3, 900000, _emai
 
 // ── Password reset ─────────────────────────────────────────────────
 // POST /auth/forgot { email } → emails a signed, 30-minute reset link
-// (https://<frontend>/?reset=<token>). Always answers ok so the endpoint
+// (https://<frontend>/app?reset=<token>). Always answers ok so the endpoint
 // can't be used to probe which emails have accounts. Uses the same mail
 // transports as order emails (Resend / GAS / SMTP).
 app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
@@ -3008,7 +3008,12 @@ app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
     }
     if (!userId) { console.log('[auth] reset requested for unknown email (no mail sent)'); return; }
     const t = jwt.sign({ id: userId, email, purpose: 'pwreset' }, JWT_SECRET, { expiresIn: '30m' });
-    const link = PUBLIC_APP_URL + '/?reset=' + encodeURIComponent(t);
+    // /app, not the bare root: "/" is the marketing landing page since the
+    // app moved to /app, and a token on the landing page is a token nobody
+    // reads (2026-10-22, tyler@tgmroofing.co.nz: "This keeps just taking me
+    // back to the home page"). vercel.json and landing.html forward /?reset=
+    // as well, for links already in inboxes.
+    const link = PUBLIC_APP_URL + '/app?reset=' + encodeURIComponent(t);
     await _dispatchMail({
       to: email,
       subject: 'Reset your RoofMap password',
