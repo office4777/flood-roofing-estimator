@@ -4474,8 +4474,13 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `a7764b7` (the sheet layout's one-run series,
-the Z's D20 under the wing, 2026-10-22 3:35 pm NZ; Tests run 39711708182
+**Live now.** FRONTEND = `194d4b4` (feedback 67, 68, 69: the pictured
+roof-shape picker, the CSV's own sheet per view, the base lines known by a
+key, 2026-10-22 4:32 pm NZ; Tests run 39715968496 green; promote run
+39716321601's log says "The site is serving 194d4b4", backend step red on
+Railway's pause as before; two READY production deployments on Vercel).
+Before it `a7764b7` (the sheet layout's one-run series,
+the Z's D20 under the wing, 3:35 pm NZ; Tests run 39711708182
 green; two READY production deployments carry it on Vercel). Before it
 `2f9a59d` (the junction strip's straight cut, D1's offcut at the apex,
 3:23 pm NZ; Tests run 39710701159, two READY deployments), and before that
