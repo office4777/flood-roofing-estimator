@@ -168,7 +168,7 @@ const csv = await pg.evaluate(() => {
   };
   _setPricingRoof(1);                       // the drawer on Roof 2
   const two = read();
-  _setPricingRoof(0);
+  _setPricingRoof(0); _setProfitView(0);    // the main roof's own pill
   const one = read();
   return { two, one, figs: { r2: _profitFigures(1).revenue, main: _profitFigures(0).revenue,
                              total: _profitFigures('total').revenue } };
@@ -181,6 +181,74 @@ check('\u2026the whole quote still goes in underneath it',
 check('\u2026and on the main roof it is the main roof, not the whole job',
   near2(csv.one.total, csv.figs.main, 0.02) && !near2(csv.one.total, csv.figs.total, 0.02),
   JSON.stringify({ csv: csv.one, figs: csv.figs }));
+
+// ── THE TOTAL IS A SHEET OF ITS OWN, AND EVERY SHEET CARRIES ITS OWN ROOF
+// AREA AND GUTTER (2026-10-22, feedback report 68, info@wellingtonroof.co.nz:
+// "With Multiple Roofs the Quote Total and Main Roof return same the same
+// results for Main Roof. Quote Total should be for sum all Roof area 200.6 m²
+// as shown in Job Pack All Roofs view. Each CSV export view (Total / Main /
+// R2/R3) shows the same Total Guttering length for total job"). The CSV
+// followed the roof tab alone, so with the Quote Total pill lit it exported
+// the main roof; the total's area was the main roof's; and the gutter rows
+// were the whole quote's on every sheet.
+const sheets = await pg.evaluate(async () => {
+  _setProposalOption_gutter('box125'); await new Promise(r => setTimeout(r, 900));
+  const read = () => {
+    const rows = _scopePricingRows();
+    const row = (sec, item) => rows.filter(r => r[0] === sec && r[1] === item)[0] || [];
+    return { covers: row('Job', 'This sheet covers')[2] || '', area: parseFloat(row('Job', 'Roof area')[3] || 0),
+             gutterLm: parseFloat(row('Guttering', 'Gutter')[3] || 0), gutterNote: row('Guttering', 'Gutter')[2] || '',
+             gutterTotal: parseFloat(row('Guttering', 'Guttering total')[6] || 0),
+             total: parseFloat(row('Totals', 'TOTAL')[6] || 0) };
+  };
+  _setPricingRoof(0); _setProfitView('total'); const tot = read();
+  _setProfitView(0); const main = read();
+  _setPricingRoof(1); _setProfitView(1); const r2 = read();
+  const areas = [_labourCalcAutoQty(0).roof, _labourCalcAutoQty(1).roof];
+  const glm = [_roofMeasForIdx(0).gutterLm, _roofMeasForIdx(1).gutterLm];
+  const out = { tot, main, r2, areas, glm, selLm: _selGutterLm(), figTotal: _profitFigures('total').revenue, figArea: _profitFigures('total').area, cardTotal: window._gdCardTotal };
+  _setProposalOption_gutter('none'); _setProfitView('total'); _setPricingRoof(0); await new Promise(r => setTimeout(r, 400));
+  return out;
+});
+check('with the Quote Total pill lit on the main tab the CSV is the whole quote: its TOTAL is the total\u2019s figure and its roof area is every roof\u2019s, not the main roof\u2019s',
+  /whole quote/.test(sheets.tot.covers) && near2(sheets.tot.total, sheets.figTotal, 0.02) && near2(sheets.tot.area, sheets.areas[0] + sheets.areas[1], 0.15) && sheets.areas[1] > 0 && near2(sheets.figArea, sheets.areas[0] + sheets.areas[1], 0.15),
+  JSON.stringify({ tot: sheets.tot, areas: sheets.areas, figArea: sheets.figArea }));
+check('\u2026its gutter is the whole quote\u2019s metres and the card\u2019s own bottom line',
+  near2(sheets.tot.gutterLm, sheets.selLm, 0.01) && near2(sheets.tot.gutterTotal, sheets.cardTotal, 0.02) && sheets.selLm > 0, JSON.stringify(sheets.tot));
+check('the main roof\u2019s sheet carries the main roof\u2019s own gutter metres and says where the whole figure is',
+  near2(sheets.main.gutterLm, sheets.glm[0], 0.01) && !near2(sheets.main.gutterLm, sheets.selLm, 0.01) && /Quote Total sheet/.test(sheets.main.gutterNote) && near2(sheets.main.area, sheets.areas[0], 0.15),
+  JSON.stringify({ main: sheets.main, glm: sheets.glm }));
+check('\u2026and Roof 2\u2019s sheet carries Roof 2\u2019s, with a guttering total that is its own share, less than the whole',
+  near2(sheets.r2.gutterLm, sheets.glm[1], 0.01) && sheets.glm[1] > 0 && sheets.r2.gutterTotal > 0 && sheets.r2.gutterTotal < sheets.cardTotal && near2(sheets.r2.area, sheets.areas[1], 0.15),
+  JSON.stringify({ r2: sheets.r2, glm: sheets.glm, card: sheets.cardTotal }));
+
+// ── A RENAMED BASE LINE IS STILL THE BASE LINE (2026-10-22, feedback
+// report 69, the same roofer: "Total 33,069.63 is double counting
+// Scaffolding; 1st as single line item and 2nd again in item#3 Other lines
+// in Quote"). The sync found its own Scaffolding line by its words, so
+// rewording it for the customer added a second one and the first turned up
+// under "Other lines on the quote".
+const ren = await pg.evaluate(async () => {
+  gotoTab('quote'); await new Promise(r => setTimeout(r, 300));
+  const before = { n: S.quote.lineItems.length, sub: quoteSubtotal(), other: (_profitFigures('total').items.filter(i => i.key === 'lines')[0] || {}).revenue || 0 };
+  const i = S.quote.lineItems.findIndex(l => l._base === 'scaffold' || l.desc === 'Scaffolding');
+  updateQuoteLine(i, 'desc', 'Scaffold hire \u2014 edge protection');
+  calcLabour(); await new Promise(r => setTimeout(r, 700));
+  const after = { n: S.quote.lineItems.length, sub: quoteSubtotal(), other: (_profitFigures('total').items.filter(i => i.key === 'lines')[0] || {}).revenue || 0,
+                  descs: S.quote.lineItems.map(l => l.desc), base: S.quote.lineItems.filter(l => l._base === 'scaffold').length, scaff: _scaffoldEff(S.quote.scaffold).price };
+  // and a job saved by the old build, carrying the pair, heals on its next sync
+  const sp = _scaffoldEff(S.quote.scaffold).price;
+  S.quote.lineItems = [{ desc:'Scaffolding', qty:1, unit:sp }, { desc:'Scaffold hire - edge protection', qty:1, unit:sp },
+                       { desc:'Materials', qty:1, unit:1 }, { desc:'Labour', qty:1, unit:1 }, { desc:'Scaffolding extra week', qty:1, unit:400 }];
+  _syncQuoteBaseLineItems();
+  const healed = S.quote.lineItems.map(l => (l._base || '-') + ':' + l.desc);
+  return { before, after, healed, i };
+});
+check('rewording the Scaffolding line keeps it the one scaffold line: the same count, the same subtotal, nothing under Other lines',
+  ren.i >= 0 && ren.after.n === ren.before.n && near2(ren.after.sub, ren.before.sub, 0.01) && ren.after.other === 0 && ren.after.base === 1 && ren.after.descs.indexOf('Scaffolding') < 0 && ren.after.scaff > 0,
+  JSON.stringify(ren));
+check('\u2026and a quote already carrying the pair heals: the reworded line is kept as the base line, the sync\u2019s own duplicate dropped, a custom "Scaffolding extra week" at its own price left alone',
+  ren.healed.join('|') === 'scaffold:Scaffold hire - edge protection|materials:Materials|labour:Labour|-:Scaffolding extra week', JSON.stringify(ren.healed));
 
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

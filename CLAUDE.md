@@ -2132,6 +2132,70 @@ Discipline (non-negotiable):
   (`#zoomCaption`) reads "Picture size:" instead of "Zoom:" — the view's own
   zoom is not moving, so showing it was showing a number that never changed.
   `tests/canvassetup.mjs` (43).
+- THE THREE BASE LINES ARE KNOWN BY A KEY, NOT BY THEIR WORDS (2026-10-22,
+  feedback report 69, info@wellingtonroof.co.nz: "Total 33,069.63 is double
+  counting Scaffolding; 1st as single line item and 2nd again in item#3 Other
+  lines in Quote"). The quote's lines card lets the office retype any line's
+  description, and `_syncQuoteBaseLineItems` found its own Labour / Materials
+  / Scaffolding lines by `desc === 'Scaffolding'` — so the moment the office
+  reworded one for the customer the sync could not find it, added a fresh one
+  at the top, and the quote carried the scaffold TWICE: once under the
+  office's words (which `_profitFigures` then listed as "Other lines on the
+  quote") and once under its own. Reproduced with one `updateQuoteLine` and a
+  `calcLabour`. `_base: 'labour'|'materials'|'scaffold'` is the key now,
+  stamped on the line the first time the sync sees it, so a renamed line stays
+  the base line and keeps being priced; `_profitFigures` and
+  `_qpScaffoldInLines` read the key. A QUOTE ALREADY CARRYING THE PAIR HEALS
+  on its next sync: the office's reworded line (its words start with the
+  stem — scaffold / labour / material — and it carries the base figure) is
+  kept as the base line and the duplicate with the sync's own exact name is
+  dropped; a custom "Scaffolding extra week" at its own price is never taken
+  for the base line. `tests/profititems.mjs`.
+- THE TOTAL IS A SHEET OF ITS OWN, AND EVERY SHEET CARRIES ITS OWN ROOF AREA
+  AND GUTTER (2026-10-22, feedback report 68, the same roofer: "With Multiple
+  Roofs the Quote Total and Main Roof return same the same results for Main
+  Roof. Quote Total should be for sum all Roof area 200.6 m² as shown in Job
+  Pack All Roofs view. Each CSV export view (Total / Main / R2/R3) shows the
+  same Total Guttering length for total job"). Three faults in
+  `_scopePricingRows` and one in `_profitFigures`, all reproduced on a
+  three-roof job first. The CSV's scope was the roof TAB alone, so with the
+  profitability panel's Quote Total pill lit it still exported the main roof
+  — the two sheets were the same sheet. The pill decides now: Quote Total on
+  the main tab prints the whole quote (the labour, materials and scaffolding
+  cards are the Main Roof's, the only cards there are, and "This sheet
+  covers" says so; each optional roof the customer took is its own row under
+  Job profitability); a roof's pill, or the drawer on an extra roof's tab,
+  prints that roof. `_profitFigures('total').area` adds every optional roof
+  the total counts (it was the main roof's alone, so the per-m² figures were
+  worked on a third of the roof). And the Guttering section is the sheet's
+  own: the Quote Total sheet prints the quote's gutter (priced ONCE, over
+  every roof it covers — the card's own bottom line); a roof's sheet prints
+  the metres on that roof and the roofs folded into it, the material at that
+  length, its own downpipes, no platform uplift, a total marked "this roof's
+  share", and names where the whole figure is. `tests/profititems.mjs` (26).
+- EACH SHAPE IS A PICTURE OF THIS OUTLINE (2026-10-22, feedback report 67: a
+  gable with a step-down AND a valley junction, "it made it very strange and
+  complicated and wrong … instead of a list of roof types to select, can it
+  instead show all possible roof types as boxed pictures with the roof type
+  name under … each boxed roof picture should show the roof map as the
+  outline is drawn but with roof type lines drawn in"). `_roofSetupPopup`'s
+  six shape buttons are a 3 × 2 grid of pictures now: `_roofPreviewSvg(type,
+  outline)` draws the outline in the gutter colour and that shape's lines in
+  the map's own colours (`LINE_COLORS`), the name under each, SUGGESTED still
+  on the footprint's own guess, the old hint as the button's title. The
+  pictures come from `_roofPreviewLines`, which runs THE SAME BUILDERS the
+  button then runs (`_roofLinesForType`, the dispatch lifted out of
+  `autoGenerateRoof`) with the orientation the build would decide
+  (`_roofOrientForOutline`, lifted out of the same function) — and moves
+  NOTHING on the roof: every DRAW field the builders read is set for the call
+  and put back, the drawing's own lines are never touched, a builder that
+  throws gives an empty picture. `tests/canvassetup.mjs` pins six pictures,
+  the colours, the roof untouched, and that the picture picked is the roof
+  built, type for type. The `#_rsTypes` and `data-rstype` hooks the tour
+  and nine suites click are unchanged. The report's own roof — whether the
+  gable-hv builder draws that step-down-with-a-valley right — is NOT this
+  fix and was not reproduced; he wrote that he "had to delete and add custom
+  lines", and the picker is what he asked for instead.
 - A PRICING EXPORT IS THE TAB IT WAS TAKEN FROM (2026-10-20, Scott at
   info@wellingtonroof.co.nz, relayed by the owner: "when the Roof 2 Option is
   included, the Quote Total and Main Roof totals are the same, but the Roof 2

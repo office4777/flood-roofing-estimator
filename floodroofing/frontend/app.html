@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-21T21:05:56Z';
+  window.APP_BUILT_AT = '2026-10-22T03:16:46Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26630,7 +26630,13 @@ function _profitFigures(view){
         // Now Total = Main Roof + every optional roof taken, which is what
         // the three pills say they are.
         if (view !== 'total') return;
-        try { var x = one(it.roofIdx); it.cost = x.labourCost + x.mat + x.scCost; it.hrs = x.hrs; } catch(e){}
+        // THE TOTAL'S AREA IS EVERY ROOF THE TOTAL COUNTS (2026-10-22,
+        // feedback report 68, the same roofer: "Quote Total should be for
+        // sum all Roof area 200.6 m² as shown in Job Pack All Roofs view").
+        // The revenue took the optional roof in; the area under it stayed
+        // the main roof's, so the per-m² figures were worked on a third of
+        // the roof and the Total and Main Roof sheets read the same area.
+        try { var x = one(it.roofIdx); it.cost = x.labourCost + x.mat + x.scCost; it.hrs = x.hrs; out.area = f(out.area) + f(x.area); } catch(e){}
       }
       items.push(it);
     }); } catch(e){ console.warn('profit selections', e); }
@@ -26639,7 +26645,7 @@ function _profitFigures(view){
     try {
       var other = 0;
       (S.quote.lineItems || []).forEach(function(li){
-        if (li && (li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding')) return;
+        if (li && (li._base || li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding')) return;
         other += (parseFloat(li && li.qty) || 0) * (parseFloat(li && li.unit) || 0);
       });
       if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: other, hrs: 0, sub:'typed on the quote · at cost' });
@@ -36063,7 +36069,7 @@ function _custBarTotalValue(){
 function _qpScaffoldInLines(list){
   return (list || []).reduce(function(s, li){
     if (!li) return s;
-    if (!(/scaffold/i.test(String(li.desc || '')) || li._area === 'scaffold')) return s;
+    if (!(/scaffold/i.test(String(li.desc || '')) || li._area === 'scaffold' || li._base === 'scaffold')) return s;
     return s + (parseFloat(li.qty) || 0) * (parseFloat(li.unit) || 0);
   }, 0);
 }
@@ -38038,9 +38044,40 @@ function _syncQuoteBaseLineItems(){
       // priced as a SEPARATE extra still carries its own (below).
     }
   }
-  [['Labour', _baseLab], ['Materials', _baseMat], ['Scaffolding', scaffP]].forEach(function(pair){
-    var key = pair[0], val = +(parseFloat(pair[1])||0).toFixed(2);
-    var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
+  // THE THREE BASE LINES ARE KNOWN BY A KEY, NOT BY THEIR WORDS (2026-10-22,
+  // feedback report 69, info@wellingtonroof.co.nz: "Total 33,069.63 is double
+  // counting Scaffolding; 1st as single line item and 2nd again in item#3
+  // Other lines in Quote"). The quote's lines card lets the office retype
+  // any line's description, and this sync found its own three lines by
+  // desc === 'Scaffolding' — so the moment "Scaffolding" was reworded for
+  // the customer the sync could not find it, added a fresh one at the top,
+  // and the quote carried the scaffold twice: once under the office's words
+  // (which the profitability list then called "Other lines on the quote")
+  // and once under its own. `_base` is the key now, stamped on the line the
+  // first time it is seen, so a renamed line stays the base line and keeps
+  // being priced. A quote already carrying the pair is healed on its next
+  // sync: the office's reworded line is kept and the duplicate with the
+  // sync's own exact name — same figure, no key — is dropped. The exact
+  // name wins over a prefix (a custom "Scaffolding extra week" at its own
+  // price is never taken for the base line) unless both carry the base
+  // figure, which is the double-count's own signature.
+  [['Labour', _baseLab, 'labour', /^labou?r/i], ['Materials', _baseMat, 'materials', /^material/i], ['Scaffolding', scaffP, 'scaffold', /^scaffold/i]].forEach(function(pair){
+    var key = pair[0], val = +(parseFloat(pair[1])||0).toFixed(2), bkey = pair[2], stem = pair[3];
+    var items = S.quote.lineItems, same = function(x){ return +(parseFloat(x.unit)||0).toFixed(2) === val; };
+    var isCustom = function(x){ return !!(x && x._custom); };
+    var exact = items.filter(function(x){ return x && !isCustom(x) && !x._base && String(x.desc || '').trim() === key; });
+    var reworded = items.filter(function(x){ return x && !isCustom(x) && !x._base && String(x.desc || '').trim() !== key &&
+                                                stem.test(String(x.desc || '').trim()) && same(x); });
+    var li = items.find(function(x){ return x && x._base === bkey; });
+    if (!li && exact.length && reworded.length && same(exact[0])) li = reworded[0];
+    if (!li) li = exact[0] || null;
+    if (li && !li._base){ li._base = bkey; updated = true; }
+    // The sync's own duplicate: its exact name, the base figure, no key.
+    if (li) items.forEach(function(x){
+      if (x !== li && !isCustom(x) && !x._base && String(x.desc || '').trim() === key && same(x)){
+        S.quote.lineItems = items = items.filter(function(y){ return y !== x; }); updated = true;
+      }
+    });
     if (!(val > 0)) {
       // Value dropped to 0 (e.g. scaffold cleared) — remove a stale line.
       if (li) { S.quote.lineItems = S.quote.lineItems.filter(function(x){ return x !== li; }); updated = true; }
@@ -38049,7 +38086,7 @@ function _syncQuoteBaseLineItems(){
     if (li) {
       if (+(parseFloat(li.unit)||0).toFixed(2) !== val) { li.unit = val; updated = true; }
     } else {
-      S.quote.lineItems.unshift({ desc: key, qty: 1, unit: val });
+      S.quote.lineItems.unshift({ desc: key, qty: 1, unit: val, _base: bkey });
       updated = true;
     }
   });
@@ -71848,14 +71885,33 @@ function _scopePricingRows(){
   // the quote's own total is appended as its own block so the whole-job
   // figures are still in there to read.
   var _tabN = 1; try { _tabN = _pricingRoofTabIdxs().length; } catch(e){}
-  var scope = (_tabN > 1) ? idx : 'total';
+  // THE TOTAL IS A SHEET OF ITS OWN (2026-10-22, feedback report 68, the
+  // same roofer: "With Multiple Roofs the Quote Total and Main Roof return
+  // same the same results"). The scope used to be the roof TAB alone, so
+  // with the profitability panel's Quote Total pill lit the file still
+  // exported the main roof — the two sheets were the same sheet. The pill
+  // decides now: Quote Total prints the whole quote's area, profitability
+  // and totals (the labour, materials and scaffolding cards are the main
+  // roof's, the only cards there are, and the sheet says so; each optional
+  // roof the customer took is a row of its own under Job profitability),
+  // a roof's pill prints that roof.
+  // Which sheet: the profitability pill names a roof → that roof; the pill
+  // says Quote Total → the roof TAB when the drawer is on an extra roof (its
+  // cards are what is on screen), else the whole quote.
+  var pv = 'total'; try { pv = _profitView(); } catch(e){}
+  var scope = 'total';
+  if (_tabN > 1){
+    if (pv !== 'total'){ idx = pv; scope = pv; }
+    else scope = (idx === 0) ? 'total' : idx;
+  }
+  if (scope === 'total') idx = 0;
   var g = _profitFigures(scope);
-  var scopeName = (scope === 'total') ? 'the whole quote' : _pricingRoofName(idx);
+  var scopeName = (scope === 'total') ? ((_tabN > 1) ? 'the whole quote \u2014 every roof; the cards below are the Main Roof\u2019s' : 'the whole quote') : _pricingRoofName(idx);
   try {
     put('Job', 'Quote', (S.quote && S.quote.ref) ? String(S.quote.ref) : '');
     put('Job', 'Client', (S.quote && S.quote.clientName) || '');
     put('Job', 'This sheet covers', scopeName);
-    put('Job', 'Roof area', 'along the pitch', num(g.area, 1), 'm²');
+    put('Job', 'Roof area', (scope === 'total' && _tabN > 1) ? 'along the pitch, every roof on the quote' : 'along the pitch', num(g.area, 1), 'm²');
     put('Job', 'Pitch', '', num(DRAW && DRAW.calPitch, 1), '°');
   } catch(e){}
 
@@ -71942,13 +71998,33 @@ function _scopePricingRows(){
     } else {
       var gt = _gutterPricingType(), gname = (window.GUTTER_TYPE_NAMES || {})[gt] || gt;
       var glm = _selGutterLm(), glines = _selGutterLineCount(), gcorners = _selGutterCorners();
-      put('Guttering', 'Gutter', gname + (_gutterOnQuote() ? '' : ' — not on the quote'), num(glm, 2), 'lm');
+      // A ROOF'S SHEET CARRIES ITS OWN GUTTER (2026-10-22, feedback report
+      // 68, the same roofer: "Each CSV export view (Total / Main / R2/R3)
+      // shows the same Total Guttering length for total job"). The gutter
+      // is priced ONCE on the quote, over every roof it covers, and that is
+      // what the Quote Total sheet prints; a roof's sheet prints the metres
+      // on that roof (and the roofs folded into it), its material at that
+      // length, its own downpipes, and says where the whole figure is.
+      var gOwn = (scope !== 'total');
+      var gWhole = glm;
+      if (gOwn){
+        try {
+          var _gg = _pricingRoofGroup(idx), _lm = 0, _ln = 0, _co = 0;
+          _gg.forEach(function(gi){
+            _lm += parseFloat((_roofMeasForIdx(gi) || {}).gutterLm) || 0;
+            try { _ln += ((DRAW.roofs && DRAW.roofs[gi] && DRAW.roofs[gi].lines) || DRAW.lines || []).filter(function(l){ return l && l.type === 'gutter'; }).length; } catch(e){}
+            try { var _rg = (((S.quote || {}).roofMapGeom || {}).roofs || []).filter(function(r){ return r && r.idx === gi; })[0]; if (_rg) _co += _gutterCornersInSegments(_rg.gutters || []); } catch(e){}
+          });
+          glm = _lm; glines = Math.max(1, _ln); gcorners = _co || ((glm > 0) ? 4 : 0);
+        } catch(e){}
+      }
+      put('Guttering', 'Gutter', gname + (_gutterOnQuote() ? '' : ' — not on the quote') + (gOwn ? ' \u2014 on ' + _pricingRoofName(idx) + (Math.abs(gWhole - glm) > 0.005 ? ' (the quote prices ' + num(gWhole, 2) + ' lm over every roof it covers; see the Quote Total sheet)' : '') : ''), num(glm, 2), 'lm');
       var gBase = 0;
       (_gutterMaterialLines(gt, glm, glines, gcorners) || []).forEach(function(r2){
         gBase += (r2.lineTotal || 0);
         put('Guttering', r2.desc, '', _matOrderQty(r2.qty, r2.unit), r2.unit, r2.price, r2.lineTotal);
       });
-      var gCustom = _gutterCustomBase();
+      var gCustom = gOwn ? 0 : _gutterCustomBase();
       if (gCustom) { put('Guttering', 'Custom lines on this card', '', null, null, null, gCustom); gBase += gCustom; }
       var gBuf = _gutterMatQtyBufferPct(gt), gMk = _gutterMatMarkupPct(gt);
       var gBuffered = gBase * (1 + gBuf / 100);
@@ -71959,11 +72035,15 @@ function _scopePricingRows(){
       put('Guttering', 'Labour', byLm ? ('by the lineal metre at $' + money(_gutterLmRate()) + '/lm') : 'by the hour',
           byLm ? num(glm, 2) : null, byLm ? 'lm' : null, byLm ? _gutterLmRate() : null,
           _gutterLabourCharge(glm), null, (gls.leadHrs || 0) + (gls.appHrs || 0));
-      var scUp = 0.25 * ((typeof _selScaffoldBasePrice === 'function' ? parseFloat(_selScaffoldBasePrice()) : 0) || 0);
+      var scUp = gOwn ? 0 : 0.25 * ((typeof _selScaffoldBasePrice === 'function' ? parseFloat(_selScaffoldBasePrice()) : 0) || 0);
       if (scUp) put('Guttering', 'Platform scaffolding upgrade', '25% of the scaffold', null, null, null, scUp);
-      if (((S.quote || {}).proposalOptions || {}).downpipes === 'yes')
-        put('Guttering', 'Downpipes', '', glines, 'ea', _downpipeUnitPrice(), _downpipeUnitPrice() * glines);
-      put('Guttering', 'Guttering total', '', null, null, null, window._gdCardTotal);
+      var gDown = 0;
+      if (((S.quote || {}).proposalOptions || {}).downpipes === 'yes'){
+        gDown = _downpipeUnitPrice() * glines;
+        put('Guttering', 'Downpipes', '', glines, 'ea', _downpipeUnitPrice(), gDown);
+      }
+      put('Guttering', 'Guttering total', gOwn ? 'this roof\u2019s share' : '', null, null, null,
+          gOwn ? (gBuffered * (1 + gMk / 100) + _gutterLabourCharge(glm) + gDown) : window._gdCardTotal);
     }
   } catch(e){ try { console.warn('pricing csv gutter', e); } catch(_){} }
 
@@ -80286,20 +80366,30 @@ function _roofSetupPopup(opts){
     'display:flex;align-items:center;justify-content:center;padding:16px';
   var card = document.createElement('div');
   card.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.32);' +
-    'max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:20px 20px 16px;' +
+    'max-width:640px;width:100%;max-height:92vh;overflow:auto;padding:20px 20px 16px;' +
     'font-family:Inter,-apple-system,sans-serif';
 
+  // EACH SHAPE IS A PICTURE OF THIS ROOF (2026-10-22, feedback report 67:
+  // "show all possible roof types as boxed pictures with the roof type name
+  // under so the user can easily and quickly see which type to select, each
+  // boxed roof picture should show the roof map as the outline is drawn but
+  // with roof type lines drawn in"). A name and a line of words is a guess
+  // on an L with a step and a valley; the footprint with the lines on it is
+  // the answer. Drawn once when the popup opens (the pictures do not change
+  // with the pick), the pick only moves the ring.
+  var _pics = {};
+  try { ROOF_TYPE_CHOICES.forEach(function(c){ _pics[c.type] = _roofPreviewSvg(c.type, DRAW.outline, 180, 118); }); } catch(e){}
   function typeBtn(c){
     var on = (c.type === pickedType);
-    return '<button type="button" data-rstype="' + c.type + '" ' +
-      'style="display:block;width:100%;text-align:left;margin:0 0 6px;padding:9px 12px;cursor:pointer;' +
-      'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:9px;' +
-      'background:' + (on ? '#f0f9ff' : '#fff') + '">' +
-      '<span style="font-size:13.5px;font-weight:' + (on ? '800' : '600') + ';color:#0a1628">' + esc(c.label) + '</span>' +
+    return '<button type="button" data-rstype="' + c.type + '" title="' + esc(c.hint) + '" ' +
+      'style="display:block;width:100%;text-align:center;margin:0;padding:6px 6px 7px;cursor:pointer;' +
+      'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:10px;' +
+      'background:' + (on ? '#f0f9ff' : '#fff') + ';box-shadow:' + (on ? '0 0 0 2px #bae6fd' : 'none') + '">' +
+      '<span class="rs-pic" style="display:block;border-radius:6px;overflow:hidden;background:#fff">' + (_pics[c.type] || '') + '</span>' +
+      '<span style="display:block;font-size:12.5px;font-weight:' + (on ? '800' : '700') + ';color:#0a1628;margin-top:4px;line-height:1.2">' + esc(c.label) + '</span>' +
       (c.type === (sug && sug.type)
-        ? '<span style="margin-left:7px;font-size:10px;font-weight:800;color:#0369a1;background:#e0f2fe;border-radius:20px;padding:2px 7px">SUGGESTED</span>'
+        ? '<span style="display:inline-block;margin-top:3px;font-size:9.5px;font-weight:800;color:#0369a1;background:#e0f2fe;border-radius:20px;padding:1px 7px">SUGGESTED</span>'
         : '') +
-      '<span style="display:block;font-size:11px;color:#64748b;margin-top:2px">' + esc(c.hint) + '</span>' +
       '</button>';
   }
   function sheetBtn(t){
@@ -80328,8 +80418,8 @@ function _roofSetupPopup(opts){
       esc(opts.message || 'Pick the shape and the roof lines are drawn for you. You can change both later.') +
       (sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
     '</div>' +
-    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape</div>' +
-    '<div id="_rsTypes"></div>' +
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape \u2014 each box is this outline with that shape\u2019s lines</div>' +
+    '<div id="_rsTypes" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"></div>' +
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Main sheet material</div>' +
     '<div id="_rsSheets" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
     '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
@@ -80387,6 +80477,113 @@ function _roofSetupPopup(opts){
   setTimeout(function(){ try { card.querySelector('#_rsOk').focus(); } catch(e){} }, 30);
 }
 
+// WHICH WAY THE ROOF FACES, decided from the outline alone — once, the
+// moment a shape is picked (autoGenerateRoof with no rotation), and again
+// for every picture in the outline popup, which must agree with the roof
+// the button then builds.
+// WHICH WAY THE LONG AXIS RUNS IS MEASURED IN THE BUILDING'S OWN FRAME
+// (report 65, 2026-10-18). The screen bounding box of a roof traced at 44
+// degrees is very nearly square whatever shape the building is — his 8.3 x
+// 6.2 m shed measured 202 x 201 px — so this was a coin toss on exactly the
+// roofs that need it most.
+function _roofOrientForOutline(outline){
+  var _fo = outline;
+  try {
+    var _fa0 = _roofFrameAngle(outline);
+    if (_fa0){
+      var _fc = _roofFrameCentre(outline);
+      _fo = _roofFrameRot(outline, -_fa0, _fc[0], _fc[1]);
+    }
+  } catch(e){}
+  var _bx0=Infinity,_by0=Infinity,_bx1=-Infinity,_by1=-Infinity;
+  _fo.forEach(function(p){
+    if(p[0]<_bx0)_bx0=p[0]; if(p[0]>_bx1)_bx1=p[0];
+    if(p[1]<_by0)_by0=p[1]; if(p[1]>_by1)_by1=p[1];
+  });
+  var baseHoriz = (_bx1-_bx0) >= (_by1-_by0);
+  var _mn = outline.length, _mBest = 0, _mI = 0;
+  for (var _mk = 0; _mk < _mn; _mk++){
+    var _ma = outline[_mk], _mb = outline[(_mk+1)%_mn];
+    var _ml = Math.hypot(_mb[0]-_ma[0], _mb[1]-_ma[1]);
+    if (_ml > _mBest){ _mBest = _ml; _mI = _mk; }
+  }
+  var _mA = outline[_mI], _mB = outline[(_mI+1)%_mn];
+  var _mcx = 0, _mcy = 0;
+  outline.forEach(function(p){ _mcx += p[0]; _mcy += p[1]; });
+  _mcx /= _mn; _mcy /= _mn;
+  var _mex = _mB[0]-_mA[0], _mey = _mB[1]-_mA[1], _meL = Math.hypot(_mex,_mey) || 1;
+  var _mnx = -_mey/_meL, _mny = _mex/_meL;
+  var _mmx = (_mA[0]+_mB[0])/2, _mmy = (_mA[1]+_mB[1])/2;
+  if (_mnx*(_mmx-_mcx) + _mny*(_mmy-_mcy) < 0){ _mnx = -_mnx; _mny = -_mny; }
+  return { baseHoriz: baseHoriz, monoBaseDeg: Math.atan2(_mny, _mnx) * 180 / Math.PI };
+}
+// The lines one shape draws on an outline — the builders, and nothing else.
+// Hip+valley-corner gable: hip/valley skeleton with the OUTER hip ends
+// converted to rake barges — the L corner keeps its hip + valley junction
+// while the ends are true gables. (The Straight Gable instead runs one
+// through-ridge and longer sheets across the corner.)
+function _roofLinesForType(type, outline, rot){
+  var rotSteps = Math.round(((rot || 0) % 360 + 360) % 360 / 90) % 4;
+  if (type === 'hip')       return buildHipValleyLines(outline);
+  if (type === 'gable')     return buildGableRoofLines(outline, rotSteps % 2 === 1);
+  if (type === 'stepgable') return buildStepGableRoofLines(outline, rotSteps % 2 === 1);
+  if (type === 'gable-hv')  return buildGableRoofLines_legacy(outline);
+  if (type === 'dutch')     return buildDutchGableRoofLines(outline);
+  if (type === 'mono')      return buildMonoPitchRoofLines(outline, rot || 0);
+  return [];
+}
+// A PICTURE OF EACH SHAPE ON THIS OUTLINE (2026-10-22, feedback report 67:
+// "instead of a list of roof types to select, can it instead show all
+// possible roof types as boxed pictures with the roof type name under so
+// the user can easily and quickly see which type to select, each boxed
+// roof picture should show the roof map as the outline is drawn but with
+// roof type lines drawn in"). The same builders the button runs, on the
+// same outline, with the orientation the build would decide — and NOTHING
+// on the roof moves: the fields the builders read off DRAW are set for the
+// call and put back, the drawing's own lines are never touched, and a
+// builder that throws on this footprint gives an empty picture rather than
+// an error in the popup.
+function _roofPreviewLines(type, outline){
+  outline = outline || DRAW.outline;
+  if (!outline || outline.length < 3) return [];
+  var keep = { lines: DRAW.lines, roofBaseHoriz: DRAW.roofBaseHoriz, monoBaseDeg: DRAW.monoBaseDeg,
+               ridgeBreaks: DRAW.ridgeBreaks, hipEnds: DRAW.hipEnds, roofType: DRAW.roofType, rotation: DRAW.rotation,
+               keepHip: DRAW._keepHipEnds, gableEnds: DRAW.gableEnds, gableHipEndEdges: DRAW.gableHipEndEdges };
+  var out = [];
+  try {
+    var o = _roofOrientForOutline(outline);
+    DRAW.roofBaseHoriz = o.baseHoriz; DRAW.monoBaseDeg = o.monoBaseDeg;
+    DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW._keepHipEnds = false; DRAW.rotation = 0;
+    DRAW.lines = (DRAW.lines || []).slice();
+    out = _roofLinesForType(type, outline, 0) || [];
+  } catch(e){ out = []; }
+  DRAW.lines = keep.lines; DRAW.roofBaseHoriz = keep.roofBaseHoriz; DRAW.monoBaseDeg = keep.monoBaseDeg;
+  DRAW.ridgeBreaks = keep.ridgeBreaks; DRAW.hipEnds = keep.hipEnds; DRAW.roofType = keep.roofType; DRAW.rotation = keep.rotation;
+  DRAW._keepHipEnds = keep.keepHip; DRAW.gableEnds = keep.gableEnds; DRAW.gableHipEndEdges = keep.gableHipEndEdges;
+  return out.filter(function(l){ return l && l.pts && l.pts.length === 2; });
+}
+// The outline in grey and the shape's lines in the map's own colours, fitted
+// into a small box. The outline's edges stand in for the gutters the build
+// lays on them afterwards.
+function _roofPreviewSvg(type, outline, w, h){
+  outline = outline || DRAW.outline; w = w || 180; h = h || 118;
+  if (!outline || outline.length < 3) return '';
+  var lines = _roofPreviewLines(type, outline);
+  var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  outline.forEach(function(p){ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; });
+  var pad = 10, sc = Math.min((w - 2*pad) / Math.max(1, x1 - x0), (h - 2*pad) / Math.max(1, y1 - y0));
+  var ox = (w - (x1 - x0) * sc) / 2, oy = (h - (y1 - y0) * sc) / 2;
+  var X = function(p){ return (ox + (p[0] - x0) * sc).toFixed(1); }, Y = function(p){ return (oy + (p[1] - y0) * sc).toFixed(1); };
+  var cols = (typeof LINE_COLORS !== 'undefined') ? LINE_COLORS : {};
+  var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true" style="display:block;max-width:100%;height:auto">';
+  svg += '<polygon points="' + outline.map(function(p){ return X(p) + ',' + Y(p); }).join(' ') + '" fill="#f8fafc" stroke="' + (cols.gutter || '#7c3aed') + '" stroke-width="1.6" stroke-linejoin="round"/>';
+  lines.forEach(function(l){
+    var c = cols[l.type] || cols.unknown || '#94a3b8';
+    svg += '<line x1="' + X(l.pts[0]) + '" y1="' + Y(l.pts[0]) + '" x2="' + X(l.pts[1]) + '" y2="' + Y(l.pts[1]) + '" stroke="' + c + '" stroke-width="' + (l.type === 'ridge' ? 2.6 : 2) + '" stroke-linecap="round"/>';
+  });
+  return svg + '</svg>';
+}
+
 // Best-guess roof type for the current outline.
 function suggestRoofType(){
   var o = DRAW.outline;
@@ -80434,57 +80631,15 @@ function autoGenerateRoof(type, rotation) {
      only "Rotate roof 90°" turns it. */
   if (rotation === undefined || rotation === null){
     try {
-      // WHICH WAY THE LONG AXIS RUNS IS MEASURED IN THE BUILDING'S OWN
-      // FRAME (report 65, 2026-10-18). The screen bounding box of a roof
-      // traced at 44 degrees is very nearly square whatever shape the
-      // building is — his 8.3 x 6.2 m shed measured 202 x 201 px — so this
-      // was a coin toss on exactly the roofs that need it most.
-      var _fo = DRAW.outline;
-      try {
-        var _fa0 = _roofFrameAngle(DRAW.outline);
-        if (_fa0){
-          var _fc = _roofFrameCentre(DRAW.outline);
-          _fo = _roofFrameRot(DRAW.outline, -_fa0, _fc[0], _fc[1]);
-        }
-      } catch(e){}
-      var _bx0=Infinity,_by0=Infinity,_bx1=-Infinity,_by1=-Infinity;
-      _fo.forEach(function(p){
-        if(p[0]<_bx0)_bx0=p[0]; if(p[0]>_bx1)_bx1=p[0];
-        if(p[1]<_by0)_by0=p[1]; if(p[1]>_by1)_by1=p[1];
-      });
-      DRAW.roofBaseHoriz = (_bx1-_bx0) >= (_by1-_by0);
-      var _mn = DRAW.outline.length, _mBest = 0, _mI = 0;
-      for (var _mk = 0; _mk < _mn; _mk++){
-        var _ma = DRAW.outline[_mk], _mb = DRAW.outline[(_mk+1)%_mn];
-        var _ml = Math.hypot(_mb[0]-_ma[0], _mb[1]-_ma[1]);
-        if (_ml > _mBest){ _mBest = _ml; _mI = _mk; }
-      }
-      var _mA = DRAW.outline[_mI], _mB = DRAW.outline[(_mI+1)%_mn];
-      var _mcx = 0, _mcy = 0;
-      DRAW.outline.forEach(function(p){ _mcx += p[0]; _mcy += p[1]; });
-      _mcx /= _mn; _mcy /= _mn;
-      var _mex = _mB[0]-_mA[0], _mey = _mB[1]-_mA[1], _meL = Math.hypot(_mex,_mey) || 1;
-      var _mnx = -_mey/_meL, _mny = _mex/_meL;
-      var _mmx = (_mA[0]+_mB[0])/2, _mmy = (_mA[1]+_mB[1])/2;
-      if (_mnx*(_mmx-_mcx) + _mny*(_mmy-_mcy) < 0){ _mnx = -_mnx; _mny = -_mny; }
-      DRAW.monoBaseDeg = Math.atan2(_mny, _mnx) * 180 / Math.PI;   // which way the high side faces
+      var _or = _roofOrientForOutline(DRAW.outline);
+      DRAW.roofBaseHoriz = _or.baseHoriz;
+      DRAW.monoBaseDeg = _or.monoBaseDeg;   // which way the high side faces
     } catch(e){}
   }
   _clearBuiltRoofLines();
-  var lines=[];
   var rot = ((rotation || 0) % 360 + 360) % 360;
   var rotSteps = Math.round(rot / 90) % 4;
-  if(type==='hip')        lines=buildHipValleyLines(DRAW.outline);
-  else if(type==='gable') lines=buildGableRoofLines(DRAW.outline, rotSteps % 2 === 1);
-  else if(type==='stepgable') lines=buildStepGableRoofLines(DRAW.outline, rotSteps % 2 === 1);
-  // Hip+valley-corner gable: hip/valley skeleton with the OUTER hip
-  // ends converted to rake barges — the L corner keeps its hip +
-  // valley junction while the ends are true gables.  (The Straight
-  // Gable instead runs one through-ridge and longer sheets across the
-  // corner.)
-  else if(type==='gable-hv') lines=buildGableRoofLines_legacy(DRAW.outline);
-  else if(type==='dutch') lines=buildDutchGableRoofLines(DRAW.outline);
-  else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline, rot);
+  var lines = _roofLinesForType(type, DRAW.outline, rot);
   if (rotSteps && type !== 'mono' && type !== 'gable' && type !== 'stepgable') {
     var cx = 0, cy = 0;
     DRAW.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
