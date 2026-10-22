@@ -243,7 +243,9 @@ v = await office.evaluate(async () => {
 });
 check('a reply typed on the job is sent and kept beside the question',
   /week of the 8th/.test(v.body) && /Can you start before Christmas/.test(v.body) &&
-  /Sent to the customer and kept here/.test(v.msg) && v.box === '',
+  /Emailed to \S+@\S+.*kept here/.test(v.msg) && v.box === '' &&
+  // and the thread says where it went (2026-10-23, the owner: "i can't see it sent or where and how it was sent")
+  /Emailed to \S+@/.test(v.body) && /Copy to \S+@/.test(v.body),
   JSON.stringify(v));
 
 check('no page errors', errs.length === 0, errs.join(' | '));

@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-22T03:16:46Z';
+  window.APP_BUILT_AT = '2026-10-22T20:38:01Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -20213,7 +20213,14 @@ function _convoRender(list){
         (when ? (' · ' + esc2(when)) : '') +
         (m.via === 'not-sent' ? ' · <span style="color:#b91c1c;font-weight:700">not emailed</span>' : '') +
       '</div>' +
-      '<div style="white-space:pre-wrap">' + esc2(m.body || '') + '</div></div>';
+      '<div style="white-space:pre-wrap">' + esc2(m.body || '') + '</div>' +
+      // Where a reply actually went: the window used to say "sent" and nothing
+      // else, so nobody could tell it had left as RoofMap's own address.
+      ((own && m.mail_to) ? ('<div style="margin-top:6px;padding-top:5px;border-top:1px dashed #cce8f3;font-size:11px;color:var(--text2);line-height:1.5">' +
+        'Emailed to ' + esc2(m.mail_to) +
+        (m.mail_cc ? ('<br>Copy to ' + esc2(m.mail_cc)) : '') +
+        (m.mail_from ? ('<br>From ' + esc2(m.mail_from)) : '') + '</div>') : '') +
+      '</div>';
   }).join('');
   b.scrollTop = b.scrollHeight;
 }
@@ -20231,7 +20238,7 @@ async function _convoSend(){
     if (msg){
       // Said plainly either way: a reply kept but not emailed is not a send.
       msg.style.color = (out && out.sent) ? '#15803d' : '#b45309';
-      msg.textContent = (out && out.sent) ? '✓ Sent to the customer and kept here'
+      msg.textContent = (out && out.sent) ? ('✓ Emailed to ' + (out.to || 'the customer') + (out.cc ? (', copy to ' + out.cc) : '') + ' — kept here')
         : 'Kept here, but the email did not go out' + ((out && out.error) ? (' — ' + out.error) : '');
     }
     await _convoLoad();

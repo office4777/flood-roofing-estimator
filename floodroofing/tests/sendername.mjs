@@ -153,6 +153,43 @@ check('Settings → Email is told the address its mail actually wears',
 check('…and that an untouched box is showing a default, not a stored value',
   dom.tenant && dom.tenant.typed === '', JSON.stringify(dom.tenant && dom.tenant.typed));
 
+// ── A REPLY TO A CUSTOMER'S QUESTION LEAVES AS THE ROOFER TOO (2026-10-23,
+// job 3303: the reply went out as "Flood Roofing" <support@roofmap.co.nz>,
+// because the route never passed a From address and Resend fell back to the
+// platform's. The owner: "it should CC the users email in"). ──
+db.jobs.push({ id: 'j3303', user_id: 'u1', company_id: 'c1', client_name: 'Dot Bolous', site_address: '23 Gilbert Mair Rise',
+  created_at: ago(3), updated_at: ago(0),
+  draw_state: { state: { quote: { ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
+    share: { token: 'tok-3303', status: 'queried', sentTo: 'dot@example.com' } } }, form: {} } });
+db.job_messages = [{ id: 'm1', company_id: 'c1', user_id: 'u1', job_id: 'j3303', who: 'customer', author: 'Dot Bolous',
+  body: 'Please clarify. Is the reroof quote for the entire house?', msg_id: '<rm-q-1@roofmap.co.nz>', in_reply_to: '',
+  via: 'quote-link', mail_from: '', mail_to: '', mail_cc: '', at: ago(1), created_at: ago(1) }];
+function tokenAs(uid, cid, email){
+  const b = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const h = b({ alg: 'HS256', typ: 'JWT' }), p = b({ sub: uid, id: uid, cid: cid, email: email, exp: Math.floor(Date.now()/1000) + 3600 });
+  return h + '.' + p + '.' + jwt.createHmac('sha256', 'test-secret').update(h + '.' + p).digest('base64url');
+}
+posted.length = 0;
+r = await fetch(BASE + '/jobs/j3303/messages', { method: 'POST',
+  headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tokenAs('u1', 'c1', 'aron@floodroofing.co.nz') },
+  body: JSON.stringify({ body: 'Hi Dot, yes the Re-Roof price is for the whole house.' }) });
+const rj = await r.json().catch(() => ({}));
+await settle();
+m = posted[0] || {};
+check('THE REGRESSION: a reply to a customer\u2019s question leaves as the business, from its own mailbox',
+  /^"Flood Roofing" <floodroofing@quotes\.roofmap\.co\.nz>$/.test(m.from || ''), m.from);
+check('\u2026to the customer, with the person who wrote it copied in',
+  (m.to || []).join(',') === 'dot@example.com' && (m.cc || []).indexOf('aron@floodroofing.co.nz') >= 0, JSON.stringify({ to: m.to, cc: m.cc }));
+check('\u2026replies coming back to the roofer, in the same thread as her question',
+  (m.reply_to || []).join(',') === 'office@floodroofing.co.nz' && ((m.headers || {})['In-Reply-To'] === '<rm-q-1@roofmap.co.nz>'),
+  JSON.stringify({ rt: m.reply_to, h: m.headers }));
+check('\u2026showing her question above the answer',
+  /Please clarify[\s\S]*Our answer:[\s\S]*whole house/.test(m.text || '') && /Please clarify/.test(m.html || ''), (m.text || '').slice(0, 160));
+check('\u2026and the office is told the address it actually went from',
+  rj.from === 'Flood Roofing <floodroofing@quotes.roofmap.co.nz>' &&
+  !!(db.job_messages || []).find(x => x.who === 'office' && x.mail_from === rj.from && x.mail_to === 'dot@example.com'),
+  JSON.stringify({ from: rj.from }));
+
 // ── the narrowing itself: no pictures on the hot path ──────────────
 const src = (await import('node:fs')).readFileSync(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 const route = src.slice(src.indexOf("app.post('/email/send-order'"), src.indexOf("app.post('/email/send-order'") + 4000);

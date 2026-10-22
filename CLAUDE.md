@@ -4234,6 +4234,25 @@ Discipline (non-negotiable):
   `tests/sentboard.mjs` (16) drives the whole round trip against the real
   server: the customer asks through `/q/:token/event`, the board offers Reply,
   the reply goes out and comes back in the thread.
+  THE REPLY LEAVES AS THE ROOFER, COPIES IN WHOEVER WROTE IT, AND QUOTES
+  THE QUESTION (2026-10-23, the owner on job 3303: "i can't see it sent or
+  where and how it was sent, it should CC the users email in ... showing the
+  customers question and the users answer"). His reply to Dot went out as
+  `"Flood Roofing" <support@roofmap.co.nz>`: the route passed `fromName` and
+  no `fromAddress`, so Resend fell back to the PLATFORM address — quote
+  3305's fault on a second route — with nobody copied in and the answer on
+  its own. It now reads its identity through `_mailIdentityOf` (the quote
+  send's narrow, loud read), sends from `_tenantSendAddress` with the
+  office's `sender_local`, CCs the person who pressed Send (`req.user.email`)
+  beside `question_cc` and `copy_all`, and puts the customer's latest
+  question above the answer ("Your question" / "Our answer", text and HTML).
+  `job_messages.mail_from` / `mail_to` / `mail_cc` (boot migration; the GET
+  falls back to the old columns if they are not there yet) keep where it
+  went, and the window prints "Emailed to … / Copy to … / From …" under each
+  reply. A reply sent before this carries none of that and shows none.
+  `tests/sendername.mjs` pins the From line against a fake Resend (4 of its
+  new pins fail on the old route, reading support@roofmap.co.nz),
+  `custevents.mjs` the CC and the quoted question, `sentboard.mjs` the window.
   STILL TO DO, and it needs him: pulling his GMAIL reply back in. The pieces
   are there (`mail_threads.job_id`, `mail_messages.in_reply_to`, the
   `_inboxSweep`), but the Inbox is `requirePlan('inbox', …, 'Business')` and

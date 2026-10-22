@@ -290,7 +290,27 @@ check('a reply typed in RoofMap is emailed to the customer',
 check('\u2026quoting the question\u2019s Message-ID, so it lands in the same thread in their inbox',
   (db.job_messages || []).some(m => m.who === 'office' && /^<rm-q/.test(m.in_reply_to || '')),
   JSON.stringify((db.job_messages || []).map(m => ({ w: m.who, irt: m.in_reply_to }))));
+// THE REPLY COPIES IN WHOEVER WROTE IT AND SHOWS WHAT IT ANSWERS (2026-10-23,
+// the owner on job 3303: "it should CC the users email in to the question
+// reply and send the reply as an email to the customer showing the customers
+// question and the users answer").
+{
+  const m = to('dot@example.com')[0] || {};
+  const ccs = String(m.cc || '').toLowerCase();
+  check('\u2026copying in the person who wrote it (owner@flood.nz), beside the Settings \u2192 Email copy to everything',
+    /owner@flood\.nz/.test(ccs) && /boss@flood\.nz/.test(ccs) && !/dot@example\.com/.test(ccs), JSON.stringify(m.cc));
+  check('\u2026and the email shows the customer\u2019s own question above the answer, in the text and the HTML',
+    /Your question[\s\S]*Can you start before Christmas\?[\s\S]*Our answer:[\s\S]*week of the 8th/.test(m.text || '') &&
+    /Can you start before Christmas\?/.test(m.html || '') && /Our answer/.test(m.html || '') &&
+    (m.html || '').indexOf('Christmas') < (m.html || '').indexOf('week of the 8th'),
+    JSON.stringify({ text: (m.text || '').slice(0, 200), html: !!m.html }));
+  check('\u2026and the reply says where it went: the customer, and who was copied in',
+    rep1.to === 'dot@example.com' && /owner@flood\.nz/.test(rep1.cc || ''), JSON.stringify({ to: rep1.to, cc: rep1.cc }));
+}
 conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+check('\u2026and the thread keeps who it was emailed to and copied to, so the window can say so',
+  !!(conv.messages || []).find(m => m.who === 'office' && m.mail_to === 'dot@example.com' && /owner@flood\.nz/.test(m.mail_cc || '')),
+  JSON.stringify((conv.messages || []).map(m => [m.who, m.mail_to, m.mail_cc])));
 check('\u2026and it is kept, so the office can see the correspondence',
   (conv.messages || []).length === 2 && conv.messages[1].who === 'office' &&
   /week of the 8th/.test(conv.messages[1].body || ''),

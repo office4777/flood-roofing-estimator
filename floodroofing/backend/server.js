@@ -3978,9 +3978,12 @@ app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
     // checked after the read: a thread names a customer and quotes their words.
     const job = await _jobForCaller(req, req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
-    const { data, error } = await supabase.from('job_messages')
-      .select('id, who, author, body, at, via')
+    const read = (cols) => supabase.from('job_messages').select(cols)
       .eq('job_id', job.id).order('at', { ascending: true }).limit(200);
+    let { data, error } = await read('id, who, author, body, at, via, mail_from, mail_to, mail_cc');
+    // A database the boot migration has not reached yet has no mail_* columns:
+    // read the thread without them rather than lose it.
+    if (error && /mail_(from|to|cc)/.test(String(error.message || ''))) ({ data, error } = await read('id, who, author, body, at, via'));
     if (error) throw new Error(error.message);
     res.json({ ok: true, messages: data || [] });
   } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
@@ -3996,39 +3999,77 @@ app.post('/jobs/:id/messages', requireAuth, rateLimit(30, 60000), async (req, re
     const sh = quote.share || {};
     const toCust = _emailList(sh.sentTo || quote.email || '')[0];
     if (!toCust) return res.status(400).json({ error: 'There is no customer email address on this job to reply to.', code: 'NO_CUSTOMER_EMAIL' });
+    // THE REPLY LEAVES AS THE ROOFER, COPIES IN WHOEVER WROTE IT, AND SHOWS
+    // WHAT IT ANSWERS (2026-10-23, the owner on job 3303: "i can't see it
+    // sent or where and how it was sent, it should CC the users email in to
+    // the question reply and send the reply as an email to the customer
+    // showing the customers question and the users answer"). It went out as
+    // `"Flood Roofing" <support@roofmap.co.nz>` — no fromAddress was ever
+    // passed, so Resend fell back to the PLATFORM address, the same fault as
+    // quote 3305 — with nobody copied in and the answer on its own, so the
+    // customer read a reply to a question the email never showed. Now: the
+    // identity read the quote send uses (_mailIdentityOf, three jsonb paths,
+    // loud on failure), the company's own sending address
+    // (_tenantSendAddress with the office's sender_local), the person who
+    // pressed Send in CC beside the Settings → Email copies, and the
+    // customer's own question quoted above the answer. Who it went to, from
+    // and copied to is kept on the row, so the window can say so.
     let st = null; try { st = await _settingsRowForJob(job); } catch (e) {}
-    const em = _emailCfgOfRow(st);
-    const br = ((st || {}).branding) || {};
+    const _id = await _mailIdentityOf(job.company_id, job.user_id);
+    const _stRow = _mailIdentityRow(_id);
+    const em = _emailCfgOfRow(_stRow);
+    const br = Object.assign({}, ((st || {}).branding) || {}, { company_name: _id.name || (((st || {}).branding) || {}).company_name || '' });
+    const coName = String(br.company_name || '').trim();
     const ref = quote.ref ? String(quote.ref) : '';
     // The thread the customer sees is the question email they already have,
     // so the subject matches it and the reply quotes its Message-ID.
-    const last = await supabase.from('job_messages').select('msg_id, who, at')
-      .eq('job_id', job.id).order('at', { ascending: false }).limit(5)
-      .then(r => ((r.data || []).find(m => m.who === 'customer' && m.msg_id) || null))
-      .catch(() => null);
+    const recent = await supabase.from('job_messages').select('msg_id, who, at, body')
+      .eq('job_id', job.id).order('at', { ascending: false }).limit(10)
+      .then(r => (r.data || []))
+      .catch(() => []);
+    const last = recent.find(m => m.who === 'customer' && m.msg_id) || null;
+    const asked = recent.find(m => m.who === 'customer' && String(m.body || '').trim()) || null;
     const mine = _newMessageId('r' + String(job.id).slice(0, 8));
-    const subject = 'Re: Your quote' + (ref ? (' ' + ref) : '') +
-      (br.company_name ? (' \u2014 ' + String(br.company_name).trim()) : '');
-    const author = String((req.user && (req.user.name || req.user.email)) || br.company_name || '').slice(0, 200);
-    const sig = br.company_name ? ('\n\nKind regards,\n' + String(br.company_name).trim() +
-      (br.phone ? ('\n' + br.phone) : '') + (br.email ? ('\n' + br.email) : '')) : '';
-    let mailOk = false, mailErr = '';
+    const subject = 'Re: Your quote' + (ref ? (' ' + ref) : '') + (coName ? (' — ' + coName) : '');
+    const author = String((req.user && (req.user.name || req.user.email)) || coName || '').slice(0, 200);
+    const userEmail = _emailList((req.user && req.user.email) || '')[0] || '';
+    const _who = _tenantMailIdentity(_stRow, 'question');
+    const replyTo = _who.replyTo || _emailList(em.question_to)[0] || userEmail || undefined;
+    const fromAddress = _tenantSendAddress(job.company_id, coName, replyTo, _tenantSenderLocal(_id.em, coName)) || undefined;
+    const cc = _emailCopies(_stRow, [userEmail].concat(_emailList(em.question_cc)).filter(Boolean).join(', '), _emailList(toCust));
+    const sigLines = coName ? ['Kind regards,', coName].concat(br.phone ? [String(br.phone)] : [], br.email ? [String(br.email)] : []) : [];
+    let askedWhen = '';
+    try { if (asked && asked.at) askedWhen = _nzWhen(asked.at); } catch (e) {}
+    const askedText = asked ? String(asked.body || '').trim() : '';
+    const text = (askedText ? ('Your question' + (askedWhen ? (' (' + askedWhen + ')') : '') + ':\n' +
+        askedText.split('\n').map(l => '> ' + l).join('\n') + '\n\nOur answer:\n') : '') +
+      body + (sigLines.length ? ('\n\n' + sigLines.join('\n')) : '');
+    const para = (t) => _esc(t).replace(/\n/g, '<br>');
+    const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:600px">' +
+      (askedText ? ('<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#5f6b7a;margin:0 0 4px">Your question' +
+          (askedWhen ? (' &middot; ' + _esc(askedWhen)) : '') + '</div>' +
+        '<div style="margin:0 0 16px;padding:10px 14px;background:#fffbeb;border-left:4px solid #f0c24a;border-radius:6px">' + para(askedText) + '</div>' +
+        '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#5f6b7a;margin:0 0 4px">Our answer</div>') : '') +
+      '<div style="margin:0 0 16px">' + para(body) + '</div>' +
+      (sigLines.length ? ('<div style="color:#334155">' + sigLines.map(_esc).join('<br>') + '</div>') : '') +
+      '</div>';
+    let mailOk = false, mailErr = '', sentFrom = '';
     try {
-      const out = await _dispatchMail({ to: toCust,
-        cc: _emailCopies(st, em.question_cc, _emailList(toCust)),
-        subject, text: body + sig, messageId: mine,
+      const out = await _dispatchMail({ to: toCust, cc, subject, text, html, messageId: mine,
         inReplyTo: (last && last.msg_id) || undefined,
-        fromName: String(br.company_name || '').trim() || undefined,
-        replyTo: _emailList(em.question_to).join(', ') || _emailList(em.reply_to)[0] || br.email || undefined });
+        fromName: coName || undefined, replyTo, fromAddress });
       mailOk = !(out && out.held);
+      sentFrom = (coName ? (coName + ' <') : '') + (_resendFromAddress(fromAddress) || _mailFromAddress() || '') + (coName ? '>' : '');
     } catch (e) { mailErr = String((e && e.message) || e).slice(0, 200); }
     // THE HISTORY IS KEPT EVEN WHEN THE EMAIL FAILS, and says so: a reply the
     // office typed is the record of what they meant to say, and losing it
     // because a mail provider was down is the worse of the two failures.
     const row = await _jobMessageAdd(job, { who: 'office', author, body,
-      msgId: mine, inReplyTo: (last && last.msg_id) || '', via: mailOk ? 'roofmap' : 'not-sent' });
+      msgId: mine, inReplyTo: (last && last.msg_id) || '', via: mailOk ? 'roofmap' : 'not-sent',
+      mailFrom: mailOk ? sentFrom : '', mailTo: toCust, mailCc: cc || '' });
     try { _quoteFeedInvalidate(req.companyId); } catch (e) {}
-    res.json({ ok: true, sent: mailOk, error: mailErr || undefined, message: row || undefined });
+    res.json({ ok: true, sent: mailOk, error: mailErr || undefined, message: row || undefined,
+      to: toCust, cc: cc || '', from: mailOk ? sentFrom : '' });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 app.put('/jobs/:id/quote-share', requireAuth, async (req, res) => {
@@ -5361,6 +5402,8 @@ async function _jobMessageAdd(job, m){
       author: String(m.author || '').slice(0, 200), body: String(m.body || '').slice(0, 8000),
       msg_id: String(m.msgId || '').slice(0, 300), in_reply_to: String(m.inReplyTo || '').slice(0, 300),
       via: String(m.via || '').slice(0, 40),
+      mail_from: String(m.mailFrom || '').slice(0, 300), mail_to: String(m.mailTo || '').slice(0, 500),
+      mail_cc: String(m.mailCc || '').slice(0, 1000),
       at: m.at || new Date().toISOString(), created_at: new Date().toISOString(),
     };
     await supabase.from('job_messages').insert(row);
@@ -12696,6 +12739,11 @@ const _MIGRATION_SQL = [
   // msg_id / in_reply_to are what a Gmail reply pulled in later threads onto.
   "create table if not exists public.job_messages (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, who text not null default 'customer', author text not null default '', body text not null default '', msg_id text not null default '', in_reply_to text not null default '', via text not null default '', at timestamptz not null default now(), created_at timestamptz not null default now())",
   "create index if not exists idx_job_messages_job on public.job_messages (company_id, job_id, at)",
+  // Who a reply was emailed to, from and copied to (2026-10-23) - so the
+  // correspondence window can say where it went rather than "sent".
+  "alter table public.job_messages add column if not exists mail_from text not null default ''",
+  "alter table public.job_messages add column if not exists mail_to text not null default ''",
+  "alter table public.job_messages add column if not exists mail_cc text not null default ''",
   "alter table public.job_messages enable row level security",
   "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
