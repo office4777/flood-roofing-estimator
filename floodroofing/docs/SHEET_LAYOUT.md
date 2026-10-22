@@ -189,8 +189,11 @@ Block-Cut, mapped onto the puzzle:
    and a HAND — looking from the square end to the diagonal, is the long
    side on the left or the right. A sheet whose top is part ridge, part hip
    leaves only the triangle the hip spans, not a full-width trapezoid. It
-   goes into the pool under its donor's number, with its face and the hips
-   and valleys it is cut by (`touch`). A sheet cut at BOTH ends (an L's
+   goes into the pool under its donor's number, with its face and the hip
+   or valley that CUT IT — the top offcut carries the edge at the sheet's
+   head, the bottom offcut the edge at its foot (`touchTop` / `touchBot`;
+   a sheet cut by a hip above and a valley below leaves two offcuts that
+   belong in two places). A sheet cut at BOTH ends (an L's
    north slope beside the wing: the valley at its foot, the hip at its
    head) is one sheet in two places when the fill's step 0 finds the end's
    piece under it in the same column (`tiles`: square at the eave, the
@@ -216,22 +219,24 @@ Block-Cut, mapped onto the puzzle:
    making sure the logic hold, also the same logic should transfer to a
    both with a wing off the top and the buttom of the main plain hip"),
    pinned in `tests/sheetlayout.mjs`: the Big-L mirrored, turned and with
-   its wing off the bottom are each 48 × 7.73 + 15 × 3.32 + the one 3.52
-   junction strip, the wing's end `1,2,3,4,✂5,✂6,✂7,✂8` whichever letter
-   the block carries; a 24 × 12 L with a 4 × 8 wing cuts three whole
-   sheets and two feet; a 10 m wing on a 14 m main is still cut (seven
-   whole, six feet) and a 13 m one is within a sheet and keeps its apex;
-   wings off the top AND the bottom at the west end cut both (four whole,
-   four feet each), the main's west hip end between the two wing slopes
-   still anchored at its apex (its hips stop at the wings' ridges half
-   the depth down — `isApex`'s half-depth rule — which is a hip end and
-   not the bump a wider wing's ridge makes), 48 × 7.73 + 30 × 3.32 + two
-   junction strips; a cross (a wing mid-slope both sides) cuts both wing
-   ends as seven feet and two stubs from offcuts, 81 sheets and nothing
-   extra; a Z (wings at opposite ends) cuts both, the east wing's corner
-   column lapped, 81 sheets with ONE extra beside the junction strip —
-   the east wing takes a hand of offcuts the main's east end would have
-   had on the plain hip, and that is the geometry, not a miss.
+   its wing off the bottom are each 49 × 7.73 + 15 × 3.32 (the 49th the
+   full sheet pushed in at the west apex for the junction strip — see
+   THE SERIES below), the wing's end `1,2,3,4,✂5,✂6,✂7,✂8` whichever
+   letter the block carries; a 24 × 12 L with a 4 × 8 wing cuts three
+   whole sheets and two feet; a 10 m wing on a 14 m main is still cut
+   (seven whole, six feet) and a 13 m one is within a sheet and keeps its
+   apex; wings off the top AND the bottom at the west end cut both (four
+   whole, four feet each), the main's west hip end between the two wing
+   slopes still anchored at its apex (its hips stop at the wings' ridges
+   half the depth down — `isApex`'s half-depth rule — which is a hip end
+   and not the bump a wider wing's ridge makes), 50 × 7.73 + 30 × 3.32
+   with a sheet pushed in at each apex; a cross (a wing mid-slope both
+   sides) cuts both wing ends as seven feet and two stubs from offcuts, 81
+   sheets and nothing extra; a Z (wings at opposite ends) cuts both, the
+   east wing's corner column lapped, 81 sheets: a sheet pushed in at each
+   apex (the east end's because the east wing takes a hand of the offcuts
+   that end would have had on the plain hip — the geometry, not a miss)
+   and the east wing's clipped corner stub ordered at its own 1.16 m.
 4. **Ends.** Which cut strips are the rectangle's own sheets and which come
    from the pool: on a slope, the strips cut at its REAL corners are block
    sheets (their offcuts feed the hip ends); the strips beyond its own
@@ -247,41 +252,79 @@ Block-Cut, mapped onto the puzzle:
    face is sheeted from the pool outright. The fit is: same hand — a spin
    keeps it, only a flip would change it — and the offcut must CONTAIN the
    piece with their square ends together (its short side ≥ the piece's
-   short side, its long side ≥ the piece's long side). Every feasible pair
-   is scored and the best pair on the whole roof settled first. THE SCORE:
-   where the offcut BELONGS comes first (`home`: its sheet is cut by a hip
-   or valley of the face being fed, or lies on that face — 600 for a hip
-   end's claim, 300 for a pool-first valley piece's, so a slope's valley
-   pieces never starve the end beside it, which has no other source), then
-   the fit's surplus, then 0.04 mm per mm of distance. Distance alone was
-   the first version and is the wrong guide: an end's strips travel the
-   whole end face, past sheets of the OTHER end that happen to lie nearer.
-   So a hip end's half nearest the FRONT slope is cut from the BACK slope's
-   sheets, and vice versa — the crossing is what "never flipped" forces,
-   and it is Auto-Block 2's "corresponding and matching off-cut triangle".
-   A corner sliver under a third of a sheet each way (the EXPOSED length,
-   not the lapped sheet's) is a SCRAP trimmed off the nearest offcut
-   without consuming it, on a block face too. A pool-first strip nothing
-   fitted joins its block and its offcut joins the pool, and the needs
-   still open get a second pass (a bar end's corner piece off the bar's own
-   valley-cut sheet). What nothing fits after that is ordered as an extra
-   at its OWN length (the Big-L: one 3.52 m strip where the wing's ridge
-   meets the main's hip, which no plain-hip offcut is shaped for).
+   short side, its long side ≥ the piece's long side).
+   THE SERIES (2026-10-22, the owner on the 10 m wing: "the blue B7 sheet
+   should be a green offcut, if the green offcuts couldn't make it all the
+   way to the end then a 7th Blue B sheet should be used next to B6 to
+   push the green offcuts outwards … orange offcuts A5 & A6 in the bottom
+   left corner should have been purple offcuts to the sheets C8 & C9,
+   again if the offcuts are too short … add another full sheet in the
+   middle of the apex to push all the offcuts down one making them
+   longer"; and on the Z: "the green offcuts D18, D17, D16, they should
+   actually be the offcuts to the red sheets F5, F6, F7, and F8"). Each
+   SIDE of an end face — the hand tells the two halves of a hip end apart,
+   and a slope's valley run is a side too — is fed IN ORDER
+   (`seriesFeed`): its pieces longest first (the apex outward), its HOME
+   offcuts biggest first, one to one, the plain hip's own pairing. WHERE
+   AN OFFCUT IS AT HOME (`homeOf`): on its own face (a wing's valley
+   pieces are its own hip-cut sheets' offcuts, and the face's own lead the
+   series), or on the face across the HIP that cut it. A VALLEY makes no
+   home: the sheet beyond a valley belongs to the slope it is on, and the
+   face across the valley has its own hip-cut sheets — the Z's wing took
+   the main's valley offcuts while its own F5–F8, the exact fit, sat in
+   the pool. An offcut that fits nothing further along (a stub) is passed
+   over. What the series leaves open goes to the pool at large: every
+   feasible pair scored — home first (600 for a hip end's claim, 300 for
+   a pool-first valley piece's), then the fit's surplus, then 0.04 mm per
+   mm of distance — and the best pair on the whole roof settled first
+   (`matchPool`). THE PUSH (`pushPass`): a piece still open after that,
+   whose run of neighbouring strips is fed by the series up to it, gets ONE
+   full sheet ordered at the HEAD of that run — the apex of a hip end
+   (`extra: 'push'` block, "pushed in"), or beside the last full strip at a
+   junction, the owner's "7th B sheet next to B6" (the pool-first block's
+   own sheet) — and every offcut between the head and the open piece moves
+   one strip outward, onto a shorter piece, so the piece lands. A sheet
+   ordered mid-series would leave the next piece just as short. A
+   pool-first strip pushes BEFORE it falls back on its block (or the B
+   sheet lands at the far end, not next to B6); a hip end's piece pushes
+   only after the late pass below has had its go, because a bar end's
+   0.31 m corner sliver is fed from a valley strip's offcut that is not a
+   sheet until then — and a push for THAT would have cost the T two sheets
+   an end. So a hip end's half nearest the FRONT slope is cut from the
+   BACK slope's sheets, and vice versa — the crossing is what "never
+   flipped" forces, and it is Auto-Block 2's "corresponding and matching
+   off-cut triangle".
+   A corner sliver under a third of a sheet wide and no longer than a sheet
+   and a half (the EXPOSED length, not the lapped sheet's), or the triangle
+   where a valley meets a hip (cut at both ends, under half a sheet wide and
+   under a sheet long), is a SCRAP trimmed off the nearest offcut without
+   consuming it, on a block face too — before that triangle took D8's whole
+   offcut and B7 had to be ordered. A pool-first strip nothing fitted joins
+   its block (unless it is under half the block's length — a wing's corner
+   stub is ordered at its own length, never cut from a 7.73 m sheet) and
+   its offcut joins the pool, and the needs still open get a second pass
+   (a bar end's corner piece off the bar's own valley-cut sheet). What
+   nothing fits after that is ordered as an extra at its OWN length.
 5. **Tally (Tally-Blocks).** Sheets to order per length, the blocks under
-   it, how many end pieces the offcuts covered, how many sheets were ordered
-   extra because no offcut fitted, and how many offcuts are left over.
+   it, how many end pieces the offcuts covered, how many full sheets were
+   pushed in, how many sheets were ordered extra because no offcut fitted,
+   and how many offcuts are left over.
 
 On the shapes in the suite: the 18 × 12 m hip is 2 × 24 at 6.63 m, all 32
 hip-end pieces from offcuts, two slivers over; the gable 2 × 24, nothing
 cut; the dutch four blocks (the gablet ends have full sheets against the
 apron, so they are blocks, and the long faces' hip offcuts go unused); the
-Big-L 64 — 48 × 7.73, 15 × 3.32 and one 3.52 extra; the wing's end wholly
-out of the north slope's sheets (C1–C4 whole, the feet of C5–C8); the west
-end's south half from C9 down to C1, its north half from D1–D5, its top from
-D6–D9; the east end from D16–D24 and C24–C16; the wing's slope 8 with its
-valley from its own four hip offcuts; six offcuts over — where the apex-laid
-wing cost 78 and the engine's legend says 66; the T 78 (was 80), every end
-piece from offcuts. The picture says all of this in its footer; a count the
+Big-L 64 — 49 × 7.73 and 15 × 3.32, the 49th pushed in at the west apex
+where a 3.52 extra stood before the push rule; the wing's end wholly out of
+the north slope's sheets (C1–C4 whole, the feet of C5–C8); the west end's
+south half from C9 down to C1, its north half E1 then D1–D5 (D5 on the
+junction strip), its top from D6–D9; the east end from D16–D24 and
+C24–C16; the wing's slope 8 with its valley from its own four hip offcuts;
+six offcuts over — where the apex-laid wing cost 78 and the engine's legend
+says 66; the 10 m wing 62 (49 × 7.73 + 13 × 5.52, was 63) laid exactly as
+the owner marked it; the T 75 (78 before 2026-10-22's offcut rules, 80
+before that), its stem slopes' shortest valley strips off the bar's own
+valley-cut sheets. The picture says all of this in its footer; a count the
 engine's SHEETS TO ORDER legend gives is a different number worked a
 different way, and the two are not reconciled — that is the owner's call.
 
@@ -293,7 +336,7 @@ capture all render from it (`_jpCaptureSheetPlan`,
 they share the drawing's coordinates — and `_jpRenderSheetPlan`). The live
 card passes `roofIdxs:[-1]` and the ORIGINAL lines, because the counting
 pass borrows `DRAW.lines` while it works. `window._lastSheetPuzzle` is the
-last build, for the suite. `tests/sheetlayout.mjs` (110) pins the rules face
+last build, for the suite. `tests/sheetlayout.mjs` (212) pins the rules face
 by face on the plain hip, the gable, a change of pitch, the Big-L (the exact
 label sequence of both hip ends, the cookie cutter's feet tiling with their
 sheets), the T (its bar ends keep their apex), the dutch and the owner's

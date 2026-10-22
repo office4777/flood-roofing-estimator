@@ -2544,34 +2544,59 @@ Discipline (non-negotiable):
   width" (8 on the Big-L's wing, was 12); on a hip end that also carries
   a run of full sheets (the L's west face) every cut strip is an end piece
   from the pool with the block as fallback, which is how the purple strips
-  come from D6–D9. THE MATCH: where an offcut BELONGS comes first (`home`:
-  its sheet is cut by a hip or valley of the face being fed, or lies on
-  that face — 600 for a hip end's claim, 300 for a pool-first valley
-  piece's, so a slope's valley pieces never starve the end beside it),
-  then the fit's surplus, then 0.04 mm per mm of distance; distance alone
-  was tried and is the wrong guide, because an end's strips travel the
-  whole end face past sheets of the other end that lie nearer. A fallback
-  adds its offcut to the pool and the open needs get a second pass, or a
-  bar end's corner piece misses the offcut it had. A sliver under a third
-  of a sheet each way (`expLongPx`, the exposed length, not the lapped
-  sheet's) is a scrap off the nearest offcut, on a block face too; extras
-  are ordered each at its own length. THE BIG-L COMES TO 64 (was 78, the
-  engine's legend says 66): 48 × 7.73, 15 × 3.32 and one 3.52 extra for
-  the strip where the wing's ridge meets the main's hip, which no plain-hip
-  offcut is shaped for; the west end's south half from C9 down to C1 (the
-  wing's whole sheets and the valley-cut heads among them), its north half
-  from D1–D5, its top from D6–D9; the east end from D16–D24 and C24–C16;
-  the T 78 (was 80) with every end piece from offcuts. EVERY L HOLDS
-  (2026-10-22, the owner: "used same logic/mechanics on different sizes
-  and orientations of the l-shape … also … a both with a wing off the top
-  and the buttom"): mirrored, turned and wing-off-the-bottom are 64 to
-  the sheet with the same `1,2,3,4,✂5,✂6,✂7,✂8` wing; a 24 × 12 L with a
-  4 × 8 wing, a 10 m wing (cut) and a 13 m wing (within a sheet, keeps
-  its apex); wings off the top AND bottom at one end both cut, 80 + two
-  junction strips; a cross (wing mid-slope both sides) 81 and nothing
-  extra; a Z (wings at opposite ends) 81 with one honest extra, the east
-  wing having taken a hand of offcuts the plain hip's east end would have
-  had. `docs/SHEET_LAYOUT.md` has the detail. The footer carries
+  come from D6–D9. THE SERIES (2026-10-22, the owner on the 10 m wing:
+  "the blue B7 sheet should be a green offcut, if the green offcuts
+  couldn't make it all the way to the end then a 7th Blue B sheet should
+  be used next to B6 to push the green offcuts outwards … orange offcuts
+  A5 & A6 in the bottom left corner should have been purple offcuts to the
+  sheets C8 & C9, again if the offcuts are too short … add another full
+  sheet in the middle of the apex to push all the offcuts down one making
+  them longer"; on the Z: "the green offcuts D18, D17, D16, they should
+  actually be the offcuts to the red sheets F5, F6, F7, and F8"): each
+  SIDE of an end face (the hand tells a hip end's halves apart; a slope's
+  valley run is a side) is fed IN ORDER (`seriesFeed`), longest piece from
+  biggest home offcut, the plain hip's own pairing. WHERE AN OFFCUT IS AT
+  HOME (`homeOf`): its own face (a wing's valley from its own hip-cut
+  sheets, and the face's own lead the series) or the face across the HIP
+  that cut it — the top offcut carries the edge at the sheet's head, the
+  bottom one the edge at its foot (`touchTop`/`touchBot`); a VALLEY makes
+  no home, which is what sent the main's valley offcuts onto the Z's wing
+  while its own F5–F8 sat in the pool. What the series leaves open takes
+  the pool at large (`matchPool`: home 600/300, then surplus, then 0.04 mm
+  per mm of distance — distance alone was tried and is the wrong guide).
+  THE PUSH (`pushPass`): a piece still open whose run of strips is
+  series-fed up to it gets ONE full sheet ordered at the run's HEAD — the
+  apex (an `extra: 'push'` block, "pushed in") or next to the last full
+  strip (the pool-first block's own sheet, the 7th B next to B6) — and
+  every offcut between moves one strip outward. A pool-first strip pushes
+  before it falls back on its block; a hip end's piece only after the late
+  pass, because a bar end's 0.31 m sliver is fed by a valley strip that is
+  not a sheet until then (a push for it cost the T two sheets an end, the
+  first time). Scraps: a sliver under a third of a sheet wide and under a
+  sheet and a half long, or the two-cut triangle where a valley meets a hip
+  (under half a sheet wide, under a sheet long) — that triangle used to
+  take D8's whole offcut, which is why B7 was ordered. A pool-first stub
+  under half its block's length is an extra at its own length, never cut
+  from a 7.73 m sheet. THE BIG-L COMES TO 64 (was 78, the engine's legend
+  says 66): 49 × 7.73 and 15 × 3.32, the 49th pushed in at the west apex
+  where the 3.52 extra for the junction strip stood; the west end's south
+  half from C9 down to C1 (the wing's whole sheets and the valley-cut heads
+  among them), its north half E1 then D1–D5, its top from D6–D9; the east
+  end from D16–D24 and C24–C16; the 10 m wing 62 (49 × 7.73 + 13 × 5.52,
+  was 63) laid exactly as he marked it; the T 75 (78 before, 80 before
+  that), its stem slopes' short valley strips off the bar's own valley-cut
+  sheets. EVERY L HOLDS (2026-10-22, the owner: "used same logic/mechanics
+  on different sizes and orientations of the l-shape … also … a both with
+  a wing off the top and the buttom"): mirrored, turned and
+  wing-off-the-bottom are 64 to the sheet with the same
+  `1,2,3,4,✂5,✂6,✂7,✂8` wing; a 24 × 12 L with a 4 × 8 wing, a 10 m wing
+  (cut) and a 13 m wing (within a sheet, keeps its apex); wings off the
+  top AND bottom at one end both cut, 80 with a sheet pushed in at each
+  apex; a cross (wing mid-slope both sides) 81 and nothing extra; a Z
+  (wings at opposite ends) 81 with a push at each apex (the east wing
+  having taken a hand of offcuts the plain hip's east end would have had)
+  and its corner stub a 1.16 m extra. `docs/SHEET_LAYOUT.md` has the
+  detail. The footer carries
   the tally per length, the blocks, the feet carried, how many end pieces
   came from offcuts, how many sheets were extra and how many offcuts are
   left. THE PUZZLE'S TALLY AND THE ENGINE'S LEGEND ARE DIFFERENT NUMBERS
@@ -2591,7 +2616,7 @@ Discipline (non-negotiable):
   History: the cascade picture is saved in `docs/legacy-sheet-layout-draw.js`
   (last live `b81e5c5`); the block-cut rebuild is `fcaab9a` only. The git
   proxy refuses tag pushes — use the SHAs. `SHEET_LAYOUT_HIDDEN` stays as the
-  one switch that withdraws the picture. `tests/sheetlayout.mjs` (208): plain
+  one switch that withdraws the picture. `tests/sheetlayout.mjs` (212): plain
   hip 4 faces / 80 pieces (24+24+16+16; a full strip 6 m / cos 25° = 6.62 m)
   laid as one run from the west with the lapped corner sheet, filled as
   2 × 24 with all 32 end pieces from offcuts of the opposite slope, gable 23

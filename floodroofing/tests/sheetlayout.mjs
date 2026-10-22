@@ -70,7 +70,7 @@ async function lay(g){
     const pieces = pz.pieces.map(p => ({ face:p.face.id, k:p.k, widthPx:p.widthPx, longPx:p.longPx, shortPx:p.shortPx, tip:p.tip,
       longMm:p.longMm, shortMm:p.shortMm, widthMm:p.widthMm, areaPx:p.areaPx, poly:p.poly, c:_ccCentroid(p.poly),
       full:p.full, cutTop:p.cutTop, cutBot:p.cutBot, hand:p.hand, label:p.label, from:p.from || null, ordered:!!p.ordered, lapMm:p.lapMm, lapped:!!p.lapped, scrap:!!p.scrap, fromHand:(p.fromHand === undefined ? null : p.fromHand),
-      block:p.block ? p.block.letter : null, strung:!!p.strung, via:!!p.viaTemplate, chain:p.chainBelow ? p.chainBelow.length : 0,
+      block:p.block ? p.block.letter : null, pushed:!!p.pushed, series:!!p.series, strung:!!p.strung, via:!!p.viaTemplate, chain:p.chainBelow ? p.chainBelow.length : 0,
       ends:(p.endsA && p.endsB) ? [p.endsA, p.endsB].map(e => e.map(v => Math.round((v - p.face.dMin) * pz.scaleM * 1000))) : null }));
     const blocks = (pz.blocks || []).map(b => ({ letter:b.letter, face:b.face.id, Lmm:b.Lmm, count:b.count, extra:b.extra, cutCount:b.cutCount, feeds:b.feeds }));
     // Coverage / overlap: sample a grid over the roof.
@@ -106,7 +106,7 @@ async function lay(g){
     });
     const roofArea = outlines.reduce((s, o) => s + _ccPolyArea(o), 0);
     const pieceArea = pz.pieces.reduce((s, p) => s + p.areaPx, 0);
-    return { faces, pieces, blocks, tally: pz.tally, fed: pz.fedPieces, extras: pz.extraSheets, unused: pz.unusedOffcuts, unusedMaxMm: pz.unusedMaxMm,
+    return { faces, pieces, blocks, tally: pz.tally, fed: pz.fedPieces, extras: pz.extraSheets, pushed: pz.pushSheets, unused: pz.unusedOffcuts, unusedMaxMm: pz.unusedMaxMm,
              cover: covered / Math.max(1, inRoof), overlap: doubled / Math.max(1, inRoof), straddles,
              roofArea, pieceArea, coverPx: cover, coverMm: pz.coverMm, scaleM: pz.scaleM, nRoofs: pz.roofs.length };
   }, g);
@@ -229,9 +229,10 @@ check('…and each foot tiles with its sheet\'s top edge for edge: in its column
       return head && head.chain === 1 && head.cutTop && head.cutBot && ft.cutTop && !ft.cutBot && ft.ends && head.ends &&
         Math.abs(ft.ends[0][1] - head.ends[0][0]) <= 20 && Math.abs(ft.ends[1][1] - head.ends[1][0]) <= 20; }); })(),
   JSON.stringify(seq(bl.wingN).filter(p => p.strung).map(ft => { const h = r.pieces.find(p => p.face === bl.N.id && p.k === ft.k && p.ordered); return [ft.label, ft.ends, h && h.ends]; })));
-check('…the west face (the main\'s hip end and the wing\'s slope on one plane) is fed in the plain hip\'s own places: its south half from the north slope\'s nine west sheets (C1 at the apex, the wing\'s whole sheets and the valley-cut heads among them), its north half from the south slope\'s D1 to D5, then the wing\'s seven full sheets, and the top — the plain hip\'s top strips pushed up 6 m — from D6 to D9',
+check('…the west face (the main\'s hip end and the wing\'s slope on one plane) is fed in the plain hip\'s own places: its south half from the north slope\'s nine west sheets (C1 at the apex, the wing\'s whole sheets and the valley-cut heads among them), its north half from the south slope\'s D1 to D5 — with ONE full sheet pushed in at the apex (the owner, 2026-10-22: "add another full sheet in the middle of the apex to push all the offcuts down one making them longer"), so D5 lands on the junction strip no plain-hip offcut was shaped for — then the wing\'s seven full sheets, and the top — the plain hip\'s top strips pushed up 6 m — from D6 to D9',
   (() => { const ps = seq(bl.W); if (!ps || bl.W.lay !== 'apex') return false; const mid = ps.slice(1, -1).map(p => p.label).join(',');
-    return ps[0].scrap && ps[ps.length - 1].scrap && mid === '↺C9,↺C8,↺C7,↺C6,↺C5,↺C4,↺C3,↺C2,↺C1,↺D1,↺D2,↺D3,↺D4,↺D5,E1,B1,B2,B3,B4,B5,B6,B7,↺D6,↺D7,↺D8,↺D9'; })(),
+    const push = ps.find(p => p.pushed);
+    return ps[0].scrap && ps[ps.length - 1].scrap && mid === '↺C9,↺C8,↺C7,↺C6,↺C5,↺C4,↺C3,↺C2,↺C1,E1,↺D1,↺D2,↺D3,↺D4,↺D5,B1,B2,B3,B4,B5,B6,B7,↺D6,↺D7,↺D8,↺D9' && !!push && push.label === 'E1' && push.longMm === 7724; })(),
   (() => { const f = bl.W; return f ? f.lay + ' ' + JSON.stringify(seq(f).map(p => p.label + ':' + p.longMm)) : 'no 28-piece face'; })());
 check('…the main\'s east end is fed exactly as on the plain hip — all 20 from the two slopes\' east-corner sheets, D16 to D24 on the north half and C24 to C16 on the south',
   (() => { const ps = seq(bl.E); if (!ps || bl.E.lay !== 'apex') return false; const mid = ps.slice(1, -1).map(p => p.label).join(',');
@@ -241,9 +242,9 @@ check('…the wing\'s slope is its own plain hip: 8 sheets, the 6 m gutter divid
   (() => { const ps = seq(bl.wingE); if (!ps) return false; const A = r.blocks.find(b => b.face === bl.wingE.id && !b.extra);
     return A && A.count === 8 && ps.filter(p => p.ordered).length === 8 && ps.filter(p => !p.ordered).map(p => p.label).sort().join(',') === '↺A1,↺A2,↺A3,↺A4' && ps.filter(p => !p.ordered).every(p => p.from && p.from[0] === A.letter); })(),
   (() => { const f = bl.wingE; return f ? JSON.stringify(seq(f).map(p => p.label)) : 'no 12-piece face'; })());
-check('…so the order is 64 sheets where the apex-laid wing cost 78: 48 × 7.73 m, 15 × 3.32 m, and ONE extra 3.52 m for the junction strip where the wing\'s ridge meets the main\'s hip (the one strip no plain-hip offcut is shaped for); six offcuts left over',
-  r.tally.map(t => t.count + 'x' + t.Lmm).join(',') === '48x7730,1x3520,15x3320' && r.extras === 1 && r.unused === 6,
-  JSON.stringify(r.tally) + ' extras ' + r.extras + ' unused ' + r.unused);
+check('…so the order is 64 sheets where the apex-laid wing cost 78: 49 × 7.73 m and 15 × 3.32 m — the 49th the full sheet pushed in at the west apex, where a 3.52 m extra for the junction strip stood before the push rule; nothing extra and six offcuts left over',
+  r.tally.map(t => t.count + 'x' + t.Lmm).join(',') === '49x7730,15x3320' && r.extras === 0 && r.pushed === 1 && r.unused === 6,
+  JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed + ' unused ' + r.unused);
 check('…a north-slope sheet cut by the valley at its foot AND the hip at its head is ONE sheet in two places: its foot on the wing\'s end, its offcut above the hip on the west end just as on the plain hip',
   seq(bl.N).filter(p => p.cutTop && p.cutBot && p.ordered && p.chain === 1).length === 4 &&
   seq(bl.N).filter(p => p.chain === 1).every(p => r.pieces.some(q => q.strung && q.from === p.label && q.face === bl.wingN.id) && r.pieces.some(q => !q.strung && !q.scrap && q.from === p.label && q.face === bl.W.id)),
@@ -260,11 +261,11 @@ check('…and the blocks: the main\'s two slopes 24 each at 7.73 m, the wing\'s 
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[ox,oy],[ox+900,oy],[ox+900,oy+260],[ox+600,oy+260],[ox+600,oy+720],[ox+300,oy+720],[ox+300,oy+260],[ox,oy+260]], autoType: 'hip' });
 check('a T with hips is eight faces', r.faces.length === 8, r.faces.length);
 check('…its bar is 5.2 m deep beside a stem 6 m wide — within a sheet of each other — so the bar\'s ends keep their apex and are fed from the sheets their own hips cut, the plain hip\'s way (the owner, 2026-10-22: the T "looks about 95% correct too so don\'t change much"); the cookie cutter is for a wing a sheet narrower each side',
-  r.faces.filter(f => f.lay === 'grid').length === 0 && r.faces.filter(f => f.lay === 'apex').length === 3 && r.faces.filter(f => f.lay === 'apex').every(f => r.pieces.filter(p => p.face === f.id).every(p => !p.ordered)),
-  r.faces.map(f => f.lay).join(',') + ' ' + JSON.stringify(r.faces.filter(f => f.lay === 'apex').map(f => r.pieces.filter(p => p.face === f.id && p.ordered).length)));
-check('…the stem\'s slopes run from the free end; their valley pieces under the bar try the pool first and, with the stem\'s hip end claiming its own hips\' offcuts, fall back on the block — 16 each, as before',
-  r.blocks.filter(b => !b.extra && b.Lmm === 3320).map(b => b.count).join(',') === '16,16', JSON.stringify(r.blocks));
-check('…78 sheets, the only extras the two bar columns between the valleys that are longer than the bar\'s sheets', r.tally.reduce((s2, t) => s2 + t.count, 0) === 78 && r.extras === 2, JSON.stringify(r.tally) + ' extras ' + r.extras);
+  r.faces.filter(f => f.lay === 'grid').length === 0 && r.faces.filter(f => f.lay === 'apex').length === 3 && r.faces.filter(f => f.lay === 'apex').every(f => r.pieces.filter(p => p.face === f.id).every(p => !p.ordered || p.pushed)) && r.pushed <= 1,
+  r.faces.map(f => f.lay).join(',') + ' ' + JSON.stringify(r.faces.filter(f => f.lay === 'apex').map(f => r.pieces.filter(p => p.face === f.id && p.ordered).length)) + ' pushed ' + r.pushed);
+check('…the stem\'s slopes run from the free end; their valley pieces under the bar try the pool first — the bar\'s own valley-cut sheets feed the shorter ones once they are sheets (2026-10-22: a strip under half the block\'s length is never a block sheet) — so the two stem slopes are 15 each where they were 16',
+  r.blocks.filter(b => !b.extra && b.Lmm === 3320).map(b => b.count).join(',') === '15,15', JSON.stringify(r.blocks));
+check('…75 sheets (78 before the offcut rules of 2026-10-22), the only extras the two bar columns between the valleys that are longer than the bar\'s sheets', r.tally.reduce((s2, t) => s2 + t.count, 0) === 75 && r.extras === 2, JSON.stringify(r.tally) + ' extras ' + r.extras);
 rules('the T', r);
 
 // ── THE SAME LOGIC ON EVERY L (the owner, 2026-10-22: "used same logic/mechanics
@@ -281,22 +282,40 @@ for (const [name, outline] of [
   ['the Big-L with its wing off the BOTTOM', [[140,140],[1040,140],[1040,840],[440,840],[440,1140],[140,1140]]]]){
   r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline, autoType: 'hip' });
   const g = gridFaces(r)[0];
-  check(name + ' is the Big-L to the sheet: 48 × 7.73, 15 × 3.32 and the one 3.52 junction strip, six offcuts over',
-    tallyOf(r) === '48x7730,1x3520,15x3320' && r.extras === 1 && r.unused === 6, tallyOf(r) + ' extras ' + r.extras + ' unused ' + r.unused);
+  check(name + ' is the Big-L to the sheet: 49 × 7.73 (one pushed in at the west apex) and 15 × 3.32, nothing extra, six offcuts over',
+    tallyOf(r) === '49x7730,15x3320' && r.extras === 0 && r.pushed === 1 && r.unused === 6, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed + ' unused ' + r.unused);
   check('…the wing\'s end is cut from the slope\'s columns: the run starts at the wing\'s end, so its four whole sheets are the block\'s FIRST four and the four feet follow — the sequence of the original L whichever way it faces',
     !!g && g.template !== null && labels(r, g).map(strip).join(',') === '1,2,3,4,5,6,7,8' && labels(r, g).slice(0, 4).every(l => /^[A-Z]\d$/.test(l)) && labels(r, g).slice(4).every(l => l[0] === '✂'),
     g ? JSON.stringify(labels(r, g)) : 'no grid face: ' + r.faces.map(f => f.lay).join(','));
   rules(name, r);
 }
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[340,140],[340,540],[1340,540],[1340,1140],[140,1140]], autoType: 'hip' });
-check('a 24 × 12 m L with a 4 × 8 m wing: the same cut — three whole sheets, two feet and one piece from an offcut on the wing\'s end; 64 × 6.63, 23 × 2.21 and one junction strip',
-  tallyOf(r) === '64x6630,1x2420,23x2210' && r.extras === 1 && gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).map(l => l[0] === '✂' ? 'foot' : l[0] === '↺' ? 'offcut' : 'whole').join(',') === 'whole,whole,whole,foot,foot,offcut',
-  tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gridFaces(r).map(f => labels(r, f))));
+check('a 24 × 12 m L with a 4 × 8 m wing: the same cut — three whole sheets, two feet and one piece from an offcut on the wing\'s end; 65 × 6.63 (one pushed in at the apex for the junction strip) and 22 × 2.21 (one of them pushed in beside the wing run\'s last full strip), where it was 64 + 23 + a 2.42 extra',
+  tallyOf(r) === '65x6630,22x2210' && r.extras === 0 && r.pushed === 2 && gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).map(l => l[0] === '✂' ? 'foot' : l[0] === '↺' ? 'offcut' : 'whole').join(',') === 'whole,whole,whole,foot,foot,offcut',
+  tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed + ' ' + JSON.stringify(gridFaces(r).map(f => labels(r, f))));
 rules('the 24 × 12 L', r);
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[640,140],[640,390],[1040,390],[1040,1090],[140,1090]], autoType: 'hip' });
 check('a 10 m wide wing on an 18 × 14 main is still two sheets narrower than the main, so it is still cut from the slope\'s columns: seven whole sheets and six feet',
-  gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).filter(l => /^[A-Z]\d+$/.test(l)).length === 7 && labels(r, gridFaces(r)[0]).filter(l => l[0] === '✂').length === 6 && r.extras === 1,
+  gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).filter(l => /^[A-Z]\d+$/.test(l)).length === 7 && labels(r, gridFaces(r)[0]).filter(l => l[0] === '✂').length === 6 && r.extras === 0,
   JSON.stringify(gridFaces(r).map(f => labels(r, f))) + ' extras ' + r.extras);
+// The owner's corrections on this roof (2026-10-22): "the blue B7 sheet should
+// be a green offcut … orange offcuts A5 & A6 in the bottom left corner should
+// have been purple offcuts to the sheets C8 & C9 … add another full sheet in
+// the middle of the apex to push all the offcuts down one making them longer".
+{
+  const W = r.faces.find(f => f.lay === 'apex' && Math.abs(f.tg1 - f.tg0) * r.scaleM > 18.9);
+  const ps = W ? r.pieces.filter(p => p.face === W.id).sort((a, b) => a.k - b.k) : [];
+  const lab = ps.map(p => p.label);
+  check('…the west face: C9 and C8\'s offcuts (the north slope\'s sheets cut by the main\'s hip) on the two bottom-left corner pieces, then C7 up to C1 at the apex; ONE full 7.73 sheet pushed in at the apex and the south slope\'s D1 to D9 each a strip further out, D8 on the piece that was the blue B7 — no B7 at all',
+    !!W && lab.slice(1, 10).join(',') === '↺C9,↺C8,↺C7,↺C6,↺C5,↺C4,↺C3,↺C2,↺C1' && lab[10] === 'E1' && ps[10].pushed && ps[10].longMm === 7724 && lab.slice(11, 13).join(',') === '↺D1,↺D2' && lab.slice(13, 19).join(',') === 'B1,B2,B3,B4,B5,B6' && lab.slice(19).join(',') === '↺D3,↺D4,↺D5,↺D6,↺D7,↺D8,↺D9' && !lab.some(l => l === 'B7'),
+    JSON.stringify(lab));
+  const wingE = r.faces.find(f => f.lay === 'run' && Math.abs(f.tg1 - f.tg0) * r.scaleM < 6 && Math.abs(f.T1 - f.T0) * r.scaleM > 18);
+  const wl = wingE ? r.pieces.filter(p => p.face === wingE.id).sort((a, b) => a.k - b.k).map(p => p.label) : [];
+  check('…and the wing\'s east slope takes its valley pieces from its OWN hip-cut sheets A1 to A6, not from C8 and C9 — an offcut belongs to the face across the HIP that cut it, never the face across a valley',
+    !!wingE && wl.slice(7, 13).join(',') === '↺A1,↺A2,↺A3,↺A4,↺A5,↺A6', JSON.stringify(wl));
+  check('…62 sheets where the first cut of this roof ordered 63: 49 × 7.73, 7 + 6 × 5.52, nothing extra',
+    tallyOf(r) === '49x7730,13x5520' && r.extras === 0 && r.pushed === 1, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+}
 rules('the wide-wing L', r);
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[790,140],[790,440],[1040,440],[1040,1140],[140,1140]], autoType: 'hip' });
 check('a 13 m wing on a 14 m main is within a sheet of it, so there is nothing to slice: its end keeps the apex lay (the T\'s rule)',
@@ -311,8 +330,8 @@ check('wings off the top and the bottom of the main at the west end: BOTH wing e
   JSON.stringify(gridFaces(r).map(f => labels(r, f))));
 check('…the main\'s west hip end sits between the two wing slopes on the one 26 m face and is still laid from its apex (its two hips stop at the wings\' ridges, half the depth down, which is a hip end and not a bump)',
   (() => { const W = r.faces.find(f => Math.abs(f.tg1 - f.tg0) * r.scaleM > 25); return !!W && W.lay === 'apex'; })(), JSON.stringify(r.faces.map(f => [f.lay, +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1)])));
-check('…80 sheets — the Big-L\'s 48 × 7.73 with 30 × 3.32 for the four wing slopes and two junction strips, one per wing',
-  tallyOf(r) === '48x7730,2x3520,30x3320' && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+check('…80 sheets — the Big-L\'s 48 × 7.73 with 30 × 3.32 for the four wing slopes and, for the two junction strips (one per wing), two full sheets pushed in at the hip ends\' apexes',
+  tallyOf(r) === '50x7730,30x3320' && r.extras === 0 && r.pushed === 2, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 rules('the two-wing L', r);
 // A wing standing in the MIDDLE of each slope (a cross): the slope's gutter is
 // two pieces either side of the wing and both its ends are real corners, so
@@ -336,8 +355,18 @@ r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,1
 check('a Z — a wing off the top at the west and off the bottom at the east — cuts both wing ends from the slopes\' columns, the east wing\'s corner column a lapped whole sheet',
   gridFaces(r).length === 2 && gridFaces(r).some(f => labels(r, f).map(strip).join(',') === '1,2,3,4,5,6,7,8') && gridFaces(r).some(f => r.pieces.some(p => p.face === f.id && p.via && p.lapped)),
   JSON.stringify(gridFaces(r).map(f => labels(r, f).map(l => l + (r.pieces.find(p => p.face === f.id && p.label === l) || {}).lapMm))));
-check('…81 sheets: the east wing takes a hand of offcuts the main\'s east end would have had on the plain hip, so that end costs one extra sheet beside the junction strip',
-  r.tally.reduce((s2, t) => s2 + t.count, 0) === 81 && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+check('…81 sheets: a full sheet pushed in at each hip end\'s apex (the west end\'s junction strip; the east end\'s, where the east wing takes a hand of the offcuts that end would have had on the plain hip), and the east wing\'s clipped corner stub ordered at its own 1.16 m rather than cut from a 7.73 m sheet',
+  r.tally.reduce((s2, t) => s2 + t.count, 0) === 81 && r.extras === 1 && r.pushed === 2 && tallyOf(r).endsWith(',1x1160'), tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+// The owner, 2026-10-22, on this roof: "the green offcuts D18, D17, D16, they
+// should actually be the offcuts to the red sheets F5, F6, F7, and F8".
+{
+  const wingS = r.faces.find(f => f.lay === 'run' && f.T0 < -1400 && Math.abs(f.tg1 - f.tg0) * r.scaleM < 6.1);
+  const wl = wingS ? r.pieces.filter(p => p.face === wingS.id).sort((a, b) => a.k - b.k) : [];
+  const own = wl.filter(p => p.ordered && p.cutTop && !p.cutBot).map(p => p.label);
+  check('…the east wing\'s slope: its four valley pieces are the offcuts of its own four hip-cut sheets, strip for strip (the 3.0 m valley piece from the 1.05 m hip sheet\'s offcut, the stub from the 3.31 m sheet\'s)',
+    !!wingS && own.length === 4 && wl.filter(p => !p.ordered && !p.scrap && p.cutBot).map(p => p.from).join(',') === own.join(','),
+    JSON.stringify(wl.map(p => p.label)));
+}
 rules('the Z', r);
 
 // ── The dutch gable stops at its gablet ───────────────────────────
@@ -357,7 +386,7 @@ for (const [name, g] of [['double L', fx('doublel')], ['report 50', fx('report50
   check('…and the pieces cover the roof once (cover ' + r.cover.toFixed(3) + ', doubled ' + r.overlap.toFixed(3) + ')',
     r.cover >= 0.99 && r.overlap <= 0.005 && Math.abs(r.pieceArea - r.roofArea) / r.roofArea < 0.01);
   check('…filled: every piece a block sheet or a named offcut of the same hand, the tally adding up (' + r.tally.map(x => x.count + ' × ' + (x.Lmm/1000).toFixed(2)).join(', ') + ')',
-    r.pieces.every(p => p.block && p.label) && r.pieces.filter(p => !p.ordered && !p.strung && !p.scrap && p.hand).every(p => { const d = r.pieces.find(q => q.ordered && q.label === p.from); return d && d.hand === p.hand; }) &&
+    r.pieces.every(p => p.block && p.label) && r.pieces.filter(p => !p.ordered && !p.strung && !p.scrap && p.hand).every(p => { const d = r.pieces.find(q => q.ordered && q.label === p.from); return d && (p.fromHand !== null ? p.fromHand === p.hand : d.hand === p.hand); }) &&
     r.tally.reduce((s, x) => s + x.count, 0) === r.blocks.reduce((s, b) => s + b.count, 0));
 }
 

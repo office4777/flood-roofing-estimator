@@ -7094,10 +7094,24 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     };
     // Which hips / valleys of its face the sheet is cut by — the offcut's
     // "home": the plain hip feeds an end from the sheets its own hips cut.
-    piece.touch = {};
+    // Split by END: the edge that cut the sheet's top is the top offcut's
+    // home, the one at its foot the bottom offcut's — a sheet cut by a hip
+    // above and a valley below leaves two offcuts that belong in two places.
+    piece.touch = {}; piece.touchTop = {}; piece.touchBot = {};
+    var dMid = (lMax + lMin) / 2;
     f.edges.forEach(function(e){
       if (e.kind !== 'hip' && e.kind !== 'valley') return;
-      if (pc.some(function(v){ return _pzPtSeg(v, e.a, e.b).d <= tol; })) piece.touch[_pzEdgeKey(e)] = 1;
+      var up = false, dn = false;
+      pc.forEach(function(v){
+        if (_pzPtSeg(v, e.a, e.b).d > tol) return;
+        var vd = v[0]*dx + v[1]*dy;
+        if (vd >= dMid) up = true; else dn = true;
+      });
+      if (!up && !dn) return;
+      var key = _pzEdgeKey(e);
+      piece.touch[key] = 1;
+      if (up) piece.touchTop[key] = 1;
+      if (dn) piece.touchBot[key] = 1;
     });
     f.strips++;
     f.pieces.push(piece); pieces.push(piece);
@@ -7390,7 +7404,7 @@ function _sheetPuzzleFill(pz){
   function mmOf(px, f){ return px * scaleM * f.pf * 1000; }
   function roundUp(mm){ return Math.ceil(mm / _PZ_ROUND_MM - 1e-9) * _PZ_ROUND_MM; }
   function newBlock(f, extra){
-    var b = { letter: _pzLetter(blocks.length), face: f, pieces: [], Lmm: 0, extra: !!extra, cutCount: 0, feeds: 0 };
+    var b = { letter: _pzLetter(blocks.length), face: f, pieces: [], Lmm: 0, extra: extra === 'push' ? 'push' : !!extra, cutCount: 0, feeds: 0 };
     blocks.push(b); f.blocks = f.blocks || []; f.blocks.push(b);
     return b;
   }
@@ -7534,8 +7548,9 @@ function _sheetPuzzleFill(pz){
       var ww = w;
       if (a < 0.6 && tan > 0.01) ww = Math.min(ww, bb / tan);
       if (bb < 0.6) return null;
-      return { a: a, b: bb, w: ww, hand: hand, tan: tan, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} };
+      return { a: a, b: bb, w: ww, hand: hand, tan: tan, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: tch || {} };
     };
+    var tch = pc.touch || {};
     // The head of a cookie-cutter chain: the sheet's foot is the pieces
     // carried along the column, so only the part above its top cut is an
     // offcut — the same one the plain hip would have left there.
@@ -7547,10 +7562,11 @@ function _sheetPuzzleFill(pz){
       if (Math.max(cA, cB) <= 0.6) return [];
       var toLongC = (cB >= cA) ? [tx, ty] : [-tx, -ty], lookC = [-dx, -dy];
       var hC = (lookC[0]*toLongC[1] - lookC[1]*toLongC[0]) > 0 ? 1 : -1;
+      tch = pc.touchTop || tch;
       var oC = mk(Math.max(0, Math.min(cA, cB)), Math.max(cA, cB), hC, Math.abs(cA - cB) / Math.max(0.6, w));
       return oC ? [oC] : [];
     }
-    if (pc.cutTop !== pc.cutBot) return [mk(Math.max(0, L - pc.longPx), Math.max(0, L - pc.shortPx), pc.hand, pc.diagTan)];
+    if (pc.cutTop !== pc.cutBot){ tch = (pc.cutTop ? pc.touchTop : pc.touchBot) || tch; return [mk(Math.max(0, L - pc.longPx), Math.max(0, L - pc.shortPx), pc.hand, pc.diagTan)]; }
     if (pc.full) return (L - pc.longPx > 0.6) ? [{ a: L - pc.longPx, b: L - pc.longPx, w: w, hand: 0, tan: 0, donor: pc.label, block: b, pf: f.pf, roofIdx: pc.roofIdx, c: _ccCentroid(pc.poly), face: f, touch: pc.touch || {} }] : [];
     // Cut at BOTH ends — a hip above and a valley at the gutter (an L's
     // main slope beside the wing). The sheet hangs where it would on the
@@ -7567,6 +7583,7 @@ function _sheetPuzzleFill(pz){
     // Above the hip: runs top - tops[side]; its square end is the sheet's
     // top, so look DOWN from it to the diagonal.
     var rA = top - pc.tops[0], rB = top - pc.tops[1];
+    tch = pc.touchTop || tch;
     if (Math.max(rA, rB) > 0.6){
       var toLong = (rB >= rA) ? [tx, ty] : [-tx, -ty], look = [-dx, -dy];
       var h = (look[0]*toLong[1] - look[1]*toLong[0]) > 0 ? 1 : -1;
@@ -7576,6 +7593,7 @@ function _sheetPuzzleFill(pz){
     // Below the valley: runs bots[side] - bot; square end is the sheet's
     // foot, look UP.
     var sA = pc.bots[0] - bot, sB = pc.bots[1] - bot;
+    tch = pc.touchBot || tch;
     if (Math.max(sA, sB) > 0.6){
       var toLong2 = (sB >= sA) ? [tx, ty] : [-tx, -ty], look2 = [dx, dy];
       var h2 = (look2[0]*toLong2[1] - look2[1]*toLong2[0]) > 0 ? 1 : -1;
@@ -7635,19 +7653,43 @@ function _sheetPuzzleFill(pz){
     // the whole end face, past sheets of the other end that happen to lie
     // nearer. Among offcuts equally at home, an offcut travels a metre to
     // save 40 mm.
-    var home = 0, homeW = pc.poolFirst ? 300 : 600;
-    if (oc.face === f) home = homeW;
-    else { var fe = f.edges; for (var ei = 0; ei < fe.length && !home; ei++){ var ek = fe[ei].kind; if ((ek === 'hip' || ek === 'valley') && oc.touch[_pzEdgeKey(fe[ei])]) home = homeW; } }
+    var home = homeOf(f, oc) ? (pc.poolFirst ? 300 : 600) : 0;
     return surplus + 0.04 * dist - home + (oc.roofIdx === pc.roofIdx ? 0 : 1e9);
   }
+  // WHERE AN OFFCUT IS AT HOME: on its own face (a wing's valley pieces are
+  // its own hip-cut sheets' offcuts, the owner's rule), or on the face across
+  // the HIP that cut it (the plain hip feeds an end from the sheets its own
+  // hips cut). A VALLEY makes no home: the sheet beyond a valley belongs to
+  // the slope it is on, and the face across the valley has its own hip-cut
+  // sheets to feed its valley pieces — the Z's wing took the main's valley
+  // offcuts while its own F5–F8 offcuts, the exact fit, sat in the pool.
+  function homeOf(f, oc){
+    if (oc.face === f) return true;
+    var fe = f.edges;
+    for (var ei = 0; ei < fe.length; ei++){ if (fe[ei].kind === 'hip' && oc.touch[_pzEdgeKey(fe[ei])]) return true; }
+    return false;
+  }
   var open = needs.slice();
-  function matchPool(){
-    // Scraps first — a corner sliver under a third of a sheet each way is
-    // trimmed off whichever offcut lies nearest and costs nobody a sheet;
-    // the offcut stays in the pool.
+  function feed(pc, oc){
+    pool.splice(pool.indexOf(oc), 1);
+    open.splice(open.indexOf(pc), 1);
+    pc.from = oc.donor; pc.block = oc.block; pc.ordered = false; pc.label = '↺' + oc.donor; pc.fromHand = oc.hand; pc.oc = oc;
+    oc.block.feeds++;
+  }
+  function isScrap(pc){
+    // A corner sliver under a third of a sheet wide (and no longer than a
+    // sheet and a half — the last column of a hip end) — or the triangle
+    // left where a valley meets a hip (cut at both ends, under half a sheet
+    // wide and under a sheet long) — is trimmed off whichever offcut lies
+    // nearest and costs nobody a sheet; the offcut stays in the pool.
+    var lenMm = mmOf(pc.expLongPx, pc.face);
+    if (lenMm < pz.coverMm * 1.5 && pc.widthPx < pz.coverPx * 0.34) return true;
+    return !!(pc.cutTop && pc.cutBot && !pc.chainBelow && pc.widthPx < pz.coverPx * 0.5 && lenMm < pz.coverMm);
+  }
+  function trimScraps(){
     open.slice().forEach(function(pc){
       var needB = mmOf(pc.longPx, pc.face), needW = pc.widthPx, needC = _ccCentroid(pc.poly);
-      if (!(mmOf(pc.expLongPx, pc.face) < pz.coverMm * 0.34 && pc.widthPx < pz.coverPx * 0.34)) return;
+      if (!isScrap(pc)) return;
       var sc = null;
       pool.forEach(function(oc){
         var ocB = oc.b * scaleM * oc.pf * 1000;
@@ -7657,17 +7699,115 @@ function _sheetPuzzleFill(pz){
       });
       if (sc){ pc.from = sc.oc.donor; pc.block = sc.oc.block; pc.ordered = false; pc.scrap = true; pc.label = '↺' + sc.oc.donor; sc.oc.block.feeds++; open.splice(open.indexOf(pc), 1); }
     });
+  }
+  // 3a. THE SERIES (the owner, 2026-10-22, on the 10 m wing: "the blue B7
+  // sheet should be a green offcut, if the green offcuts couldn't make it
+  // all the way to the end then a 7th Blue B sheet should be used next to
+  // B6 to push the green offcuts outwards … orange offcuts A5 & A6 in the
+  // bottom left corner should have been purple offcuts to the sheets C8 &
+  // C9, again if the offcuts are too short … add another full sheet in the
+  // middle of the apex to push all the offcuts down one making them
+  // longer"). A hip end's pieces get shorter from the apex outward, and
+  // the sheets its hip cuts leave offcuts that get bigger the same way —
+  // the plain hip pairs them one for one, and so does this: each SIDE of a
+  // face (the hand tells the sides apart; a slope's valley run is a side
+  // too) takes its home offcuts in size order, biggest to the longest
+  // piece. A piece the next offcut is too short for is left open here; if
+  // the pool at large has nothing for it either (pushPass, below), ONE
+  // full sheet is ordered at the head of its run of strips (the apex of a
+  // hip end, or beside the last full strip at a junction: the owner's
+  // "7th B sheet next to B6") and every offcut between the head and the
+  // open piece moves one strip outward, onto a shorter piece, so the piece
+  // lands. A sheet ordered mid-series instead would leave the next piece
+  // just as short.
+  var pushOf = new Map(), pushCount = 0, groups_ = [];
+  function fitsOc(pc, oc){ var sc = fitScore(pc, oc); return sc !== null && sc < 1e8; }
+  function orderPushed(pc){
+    var f = pc.face, lv = mmOf(pc.sheetLongPx || pc.longPx, f), pb = pc.poolFirst, b;
+    open.splice(open.indexOf(pc), 1);
+    if (pb && lv <= pb.Lmm + Math.max(60, pb.Lmm * 0.04)){ b = pb; addToBlock(b, pc); }
+    else {
+      b = pushOf.get(f); if (!b){ b = newBlock(f, 'push'); pushOf.set(f, b); }
+      addToBlock(b, pc); pc.Lmm = roundUp(lv);
+    }
+    b.cutCount++; pc.num = b.pieces.length; pc.label = b.letter + pc.num; pc.pushed = true; pushCount++;
+    offcutOf(pc).forEach(function(oc){ pool.push(oc); });
+  }
+  function seriesFeed(){
+    // Hip ends first: a slope's valley run has its block to fall back on,
+    // an end has only the pool.
+    var faces = endFaces.slice().sort(function(a, b){ return (a.lay === 'apex' ? 0 : 1) - (b.lay === 'apex' ? 0 : 1); });
+    faces.forEach(function(f){
+      var ps = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return open.indexOf(p) >= 0 && p.hand; });
+      [-1, 1].forEach(function(hand){
+        var seq = ps.filter(function(p){ return p.hand === hand; }).sort(function(p, q){ return (q.longPx - p.longPx) || (p.k - q.k); });
+        if (!seq.length) return;
+        // The face's own offcuts lead the series (a wing's valley from its
+        // own hip-cut sheets), then the hips' offcuts, biggest first.
+        var ocs = pool.filter(function(oc){ return oc.hand === hand && oc.roofIdx === seq[0].roofIdx && homeOf(f, oc); })
+          .sort(function(x, y){ var o = (x.face === f ? 0 : 1) - (y.face === f ? 0 : 1); if (o) return o; return (y.b * y.pf - x.b * x.pf) || (y.a * y.pf - x.a * x.pf); });
+        if (!ocs.length) return;
+        var j = 0;
+        for (var i = 0; i < seq.length; i++){
+          var p = seq[i];
+          // An offcut that fits nothing from here on (a stub, a triangle
+          // narrower than a sheet) is passed over.
+          while (j < ocs.length && !fitsOc(p, ocs[j])){
+            var later = false;
+            for (var m = i + 1; m < seq.length && !later; m++){ if (fitsOc(seq[m], ocs[j])) later = true; }
+            if (later) break;
+            j++;
+          }
+          if (j < ocs.length && fitsOc(p, ocs[j])){ feed(p, ocs[j]); p.series = true; j++; }
+        }
+        groups_.push({ f: f, seq: seq });
+      });
+    });
+  }
+  function pushPass(poolFirstOnly){
+    groups_.forEach(function(g){
+      var seq = g.seq;
+      for (var i = 0; i < seq.length; i++){
+        var p = seq[i];
+        if (open.indexOf(p) < 0 || (poolFirstOnly && !p.poolFirst)) continue;
+        // The head of this piece's run of neighbouring strips; the strips
+        // between must all be fed by the series, each able to take the
+        // offcut of the one before it.
+        var h = i;
+        while (h > 0 && Math.abs(seq[h-1].k - seq[h].k) === 1 && seq[h-1].series) h--;
+        if (h === i || !seq[h].series) continue;
+        var ok = true;
+        for (var m = h + 1; m <= i && ok; m++){ if (!fitsOc(seq[m], seq[m-1].oc)) ok = false; }
+        if (!ok) continue;
+        var head = seq[h];
+        // Shift every offcut one strip outward, then order the head.
+        for (var m2 = i; m2 > h; m2--){
+          var q = seq[m2], src = seq[m2-1], oc = src.oc;
+          src.oc = null; src.series = false;
+          if (open.indexOf(q) < 0) open.push(q);
+          pool.push(oc); oc.block.feeds--;
+          feed(q, oc); q.series = true;
+        }
+        open.push(head);
+        orderPushed(head);
+      }
+    });
+  }
+  function matchPool(){
+    trimScraps();
     while (open.length){
       var best = null;
       open.forEach(function(pc){ pool.forEach(function(oc){ var sc = fitScore(pc, oc); if (sc !== null && (!best || sc < best.score)) best = { pc: pc, oc: oc, score: sc }; }); });
       if (!best) break;
-      pool.splice(pool.indexOf(best.oc), 1);
-      open.splice(open.indexOf(best.pc), 1);
-      best.pc.from = best.oc.donor; best.pc.block = best.oc.block; best.pc.ordered = false; best.pc.label = '↺' + best.oc.donor; best.pc.fromHand = best.oc.hand;
-      best.oc.block.feeds++;
+      feed(best.pc, best.oc);
     }
   }
+  trimScraps();
+  seriesFeed();
   matchPool();
+  // A valley strip the series left open pushes BEFORE it falls back on its
+  // block (the owner's 7th B sheet goes next to B6, not at the far end).
+  pushPass(true);
   // A pool-first strip nothing fitted is one of its block's sheets after
   // all — and its offcut goes into the pool, so the needs still open get
   // a second look (a bar end's corner piece off the bar's own valley-cut
@@ -7675,12 +7815,21 @@ function _sheetPuzzleFill(pz){
   var late = 0;
   open.slice().forEach(function(pc){
     if (!pc.poolFirst) return;
+    var pb = pc.poolFirst;
+    // A stub under half the block's length (a wing's corner column clipped
+    // at the wing's own corner) is not a sheet of the block: it is ordered
+    // at its own length with the extras rather than cut from a full sheet.
+    if (mmOf(pc.sheetLongPx || pc.longPx, pc.face) < pb.Lmm * 0.5) return;
     open.splice(open.indexOf(pc), 1);
-    var pb = pc.poolFirst; addToBlock(pb, pc); pb.cutCount++;
+    addToBlock(pb, pc); pb.cutCount++;
     pc.num = pb.pieces.length; pc.label = pb.letter + pc.num;
     offcutOf(pc).forEach(function(oc){ pool.push(oc); late++; });
   });
   if (late && open.length) matchPool();
+  // A hip end's piece still open after every offcut has been tried pushes
+  // a full sheet in at its apex.
+  pushPass(false);
+  matchPool();
   // What nothing fits is ordered as an extra sheet, each at ITS OWN length
   // (an extras block holds several lengths; a block of real sheets one).
   open.forEach(function(pc){
@@ -7713,7 +7862,8 @@ function _sheetPuzzleFill(pz){
   pz.unusedMaxMm = pool.reduce(function(m, oc){ return Math.max(m, oc.b * scaleM * oc.pf * 1000); }, 0);
   pz.fedPieces = needs.filter(function(p){ return !p.ordered; }).length;
   pz.strungPieces = strungCount;
-  pz.extraSheets = blocks.filter(function(b){ return b.extra; }).reduce(function(s, b){ return s + b.count; }, 0);
+  pz.extraSheets = blocks.filter(function(b){ return b.extra === true; }).reduce(function(s, b){ return s + b.count; }, 0);
+  pz.pushSheets = pushCount;
   return pz;
 }
 
@@ -7763,7 +7913,7 @@ function _renderSheetPuzzleCanvas(opts){
     chips.push({ text: text, color: color, x: cx, row: crow, hatch: !!hatch });
     cx += w;
   }
-  function lenText(b){ return (b.extra && b.lengths && b.lengths.length > 1) ? (b.count + ' extra: ' + b.lengths.map(_pzM).join(', ') + ' m') : (b.count + ' × ' + _pzM(b.Lmm) + ' m' + (b.extra ? ' (extra)' : '')); }
+  function lenText(b){ return (b.extra && b.lengths && b.lengths.length > 1) ? (b.count + (b.extra === 'push' ? ' pushed in: ' : ' extra: ') + b.lengths.map(_pzM).join(', ') + ' m') : (b.count + ' × ' + _pzM(b.Lmm) + ' m' + (b.extra === 'push' ? ' (pushed in)' : b.extra ? ' (extra)' : '')); }
   blocks.forEach(function(b){ chip(b.letter + '  ' + lenText(b), b.color); });
   if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', '#94a3b8', true);
   if (pz.strungPieces) chip('✂ = the foot of that sheet, cut off at the valley and carried along its own column', '#94a3b8');
@@ -7778,12 +7928,13 @@ function _renderSheetPuzzleCanvas(opts){
   var totalSheets = pz.tally.reduce(function(s, t){ return s + t.count; }, 0);
   foot.push({ bold: true, text: 'ORDER  ' + totalSheets + ' sheets: ' + tallyTxt +
     (pz.fedPieces ? ' · ' + pz.fedPieces + ' end piece' + (pz.fedPieces === 1 ? '' : 's') + ' cut from offcuts' : '') +
+    (pz.pushSheets ? ' · ' + pz.pushSheets + ' full sheet' + (pz.pushSheets === 1 ? '' : 's') + ' pushed in to move the offcuts outward' : '') +
     (pz.extraSheets ? ' · ' + pz.extraSheets + ' extra for pieces no offcut fitted' : '') +
     (pz.unusedOffcuts ? ' · ' + pz.unusedOffcuts + ' offcut' + (pz.unusedOffcuts === 1 ? '' : 's') + ' left over' : '') });
   blocks.forEach(function(b){
     var f = b.face, roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
     var t = b.letter + '  ' + roofTag + 'F' + f.id + ' off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind +
-      ' · ' + lenText(b) + (b.extra ? ', ordered for pieces no offcut fitted' : '');
+      ' · ' + lenText(b) + (b.extra === 'push' ? ', pushed in at the head of a run so every offcut moves one strip outward' : b.extra ? ', ordered for pieces no offcut fitted' : '');
     if (b.cutCount) t += ' · ' + b.cutCount + ' cut at the hips / valleys';
     if (b.carries) t += ' · ' + b.carries + (b.carries === 1 ? ' foot' : ' feet') + ' carried along the column';
     if (b.feeds) t += ' · offcuts cover ' + b.feeds + ' end piece' + (b.feeds === 1 ? '' : 's');
@@ -7799,14 +7950,15 @@ function _renderSheetPuzzleCanvas(opts){
       via.length + ' whole sheet' + (via.length === 1 ? '' : 's') + (feet.length ? ' and the feet of ' + feet.length + ' more' : '') + (own ? ', ' + own + ' from offcuts or extra' : '') });
   });
   (pz.endFaces || []).forEach(function(f){
-    var all = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return !p.strung && !p.viaTemplate; }), scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), donors = {};
+    var all = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return !p.strung && !p.viaTemplate; }), scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), pushed = all.filter(function(p){ return p.pushed; }), donors = {};
     fed.forEach(function(p){ if (p.block) donors[p.block.letter] = 1; });
     var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
     var what = f.endPieces ? (all.length + (all.length === 1 ? ' piece' : ' pieces') + ' beside the block’s run: ') : ('hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');
     var parts = [];
     if (fed.length) parts.push(fed.length + ' from offcuts (' + Object.keys(donors).sort().join(', ') + ')');
     if (scraps.length) parts.push(scraps.length + (scraps.length === 1 ? ' sliver' : ' slivers') + ' trimmed off an offcut');
-    var ord = all.length - fed.length - scraps.length;
+    if (pushed.length) parts.push(pushed.length + ' full sheet' + (pushed.length === 1 ? '' : 's') + ' pushed in');
+    var ord = all.length - fed.length - scraps.length - pushed.length;
     if (ord) parts.push(ord + ' ordered');
     foot.push({ text: 'F' + f.id + '  ' + roofTag + what + (parts.length ? parts.join(', ') : 'none from offcuts') });
   });
