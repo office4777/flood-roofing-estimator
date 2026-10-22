@@ -2768,6 +2768,26 @@ Discipline (non-negotiable):
   frees the offcut that had been feeding it, so the hip T's bar end comes
   wholly off offcuts with nothing pushed: 74, not 75; the 13 m wing 72, not
   73. Every other hip shape byte-identical, dumped and diffed.
+  THE GABLE + HIP & VALLEY T GIVES TWO SHEETS BACK (2026-10-23, the owner:
+  "The offcuts to blue B9, B10 and purple C9, C10, they're not being
+  utilized anywhere. They could be utilized in D14, D15, E15, E14"). Two
+  changes, both scoped. A top end within 50 mm of square on a strip at least
+  half a cover wide is cut SQUARE — the stem's top strip clipped 33 mm off
+  the little hip where its ridge starts, read as cut at both ends, and no
+  offcut could ever feed it. And a last pass (`swapPass`, end of
+  `_sheetPuzzleFill`): a pool-first strip that fell back on its block gives
+  its sheet back when a piece already fed can move onto an offcut lying
+  unused and hand its own offcut over (the bar's last strip ↺C10 onto D14's
+  offcut, so D15 takes C10's); slivers trimmed off the given-back sheet move
+  to the snuggest offcut left. A sheet is never flipped, so B's offcut lands
+  on the EAST stem slope and C's on the west. 74 → 72. GABLE ROOFS ONLY:
+  the pass skips any roof with a hip end or a cookie-cutter end, because on
+  the 24 × 12 L and the cross it saved a sheet each by moving pieces the
+  owner had already called perfect ("that ones perfect"). Every hip and
+  dutch picture is pixel-identical but the hip T's footer, whose "offcuts
+  left over" reads 10, not 12 — two 33 mm nicks no longer counted. B9's and
+  C9's offcuts (0.95 → 0.11 m) are still over: nothing left on that roof is
+  short enough for them.
   THE SHEET NUMBER IS THE BIG TEXT (2026-10-23, the owner: "can you make
   the number of sheet bigger? So, for example, A7 ... And keep the
   measurements ... small like it is"): the label is sized to the strip, up

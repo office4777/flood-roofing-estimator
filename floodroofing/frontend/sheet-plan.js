@@ -7090,6 +7090,16 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     var runA = eA ? eA[1] - eA[0] : 0, runB = eB ? eB[1] - eB[0] : 0;
     // Which ends are square (the sheet's ordered edge) and which are cut.
     var topSq = !!(eA && eB && Math.abs(eA[1] - lMax) < 0.6 && Math.abs(eB[1] - lMax) < 0.6);
+    // A NICK UNDER THE RIDGE CAP IS NOT A CUT (2026-10-23, the owner on the
+    // gable + hip & valley T: "The offcuts to blue B9, B10 and purple C9,
+    // C10, they're not being utilized anywhere"). The stem's top strip ends
+    // at its ridge but clips the corner of the little hip where the ridge
+    // starts: 33 mm, under the cap. Read as cut at both ends, no offcut
+    // could ever feed it and it was ordered whole. A top end within 50 mm of
+    // square on a strip at least half a cover wide is cut square; a narrow
+    // sliver keeps the strict test, because its whole width is the cut.
+    if (!topSq && eA && eB && eW >= coverPx * 0.5 &&
+        Math.max(Math.abs(eA[1] - lMax), Math.abs(eB[1] - lMax)) * scaleM * (f.pf || 1) * 1000 <= 50) topSq = true;
     var botSq = !!(eA && eB && Math.abs(eA[0] - lMin) < 0.6 && Math.abs(eB[0] - lMin) < 0.6);
     var cutTop = !topSq, cutBot = !botSq;
     // Handedness of a one-cut piece: look from the square end towards the
@@ -8042,7 +8052,8 @@ function _sheetPuzzleFill(pz){
     open.splice(open.indexOf(pc), 1);
     addToBlock(pb, pc); pb.cutCount++;
     pc.num = pb.pieces.length; pc.label = pb.letter + pc.num;
-    offcutOf(pc).forEach(function(oc){ pool.push(oc); late++; });
+    pc.lateOrdered = true; pc.ownOcs = offcutOf(pc);
+    pc.ownOcs.forEach(function(oc){ pool.push(oc); late++; });
   });
   if (late && open.length) matchPool();
   // A gablet-fed corner still open after that is one more of its gablet's
@@ -8073,6 +8084,89 @@ function _sheetPuzzleFill(pz){
     if (pc.cutTop || pc.cutBot) xb.cutCount++;
     offcutOf(pc).forEach(function(oc){ pool.push(oc); });
   });
+  // 3b. ONE SWAP SAVES A SHEET (2026-10-23, the owner on the gable + hip &
+  // valley T: "The offcuts to blue B9, B10 and purple C9, C10, they're not
+  // being utilized anywhere. They could be utilized in D14, D15, E15,
+  // E14"). The matching is greedy: the bar's last valley strip ↺C10 takes
+  // its own face's C10 offcut first — home, and it fits — so the stem's top
+  // strip D15, which only C10's offcut is long enough for, is ordered whole
+  // when the pool comes up empty for it. But ↺C10 is short enough for D14's
+  // offcut, which nothing takes. So, last of all: a pool-first strip that
+  // fell back on its block gives its sheet back when a piece already fed
+  // can move onto an offcut lying unused and hand its own offcut over. The
+  // strip's own offcuts leave the pool with its sheet, so the swap is made
+  // only when none of them feeds anything; a sliver trimmed off one of them
+  // moves to the nearest offcut left. One sheet per swap, never more steel.
+  (function swapPass(){
+    // GABLE ROOFS ONLY. The hip shapes are laid and fed the way the owner
+    // counted them by hand ("that ones perfect", of the 24 × 12 L, the
+    // moment this pass touched it), so a roof with a hip end or a cookie-
+    // cutter end is left exactly as the fill made it.
+    var hipRoof = {};
+    pz.faces.forEach(function(f){ if ((f.lay === 'apex' && !f.gablet) || f.lay === 'grid') hipRoof[f.roofIdx] = true; });
+    function nearestFor(sp, skip){
+      var needB = mmOf(sp.longPx, sp.face), needC = _ccCentroid(sp.poly), sc = null;
+      pool.forEach(function(oc){
+        if (skip.indexOf(oc) >= 0 || oc.roofIdx !== sp.roofIdx) return;
+        if (oc.b * scaleM * oc.pf * 1000 < needB - _PZ_FIT_MM || oc.w < sp.widthPx - 0.6) return;
+        // The snuggest offcut, not the nearest: a sliver cut from a scrap
+        // that would otherwise go in the bin uses it, and nothing bigger.
+        var d = oc.b * oc.pf * 1e4 + Math.hypot(oc.c[0] - needC[0], oc.c[1] - needC[1]);
+        if (!sc || d < sc.d) sc = { oc: oc, d: d };
+      });
+      return sc && sc.oc;
+    }
+    for (var round = 0; round < 40; round++){
+      var best = null;
+      needs.forEach(function(P){
+        if (!P.lateOrdered || !P.ordered || P.full || !P.block || P.block.extra) return;
+        if (hipRoof[P.roofIdx]) return;
+        var own = P.ownOcs || [];
+        if (own.some(function(oc){ return pool.indexOf(oc) < 0; })) return;
+        var scraps = pz.pieces.filter(function(q){ return q.scrap && q.from === P.label; });
+        var moves = [];
+        var taken = own.slice();
+        if (!scraps.every(function(q){ var oc = nearestFor(q, taken); if (!oc) return false; taken.push(oc); moves.push([q, oc]); return true; })) return;
+        // Straight from an offcut nothing took …
+        pool.forEach(function(u){
+          if (taken.indexOf(u) >= 0) return;
+          var sc = fitScore(P, u); if (sc === null || sc >= 1e8) return;
+          if (!best || sc < best.score) best = { P: P, X: null, u: u, give: u, score: sc, moves: moves };
+        });
+        // … or by moving a fed piece onto one.
+        needs.forEach(function(X){
+          if (X === P || X.ordered || !X.oc || X.scrap || X.strung || X.roofIdx !== P.roofIdx) return;
+          var s1 = fitScore(P, X.oc); if (s1 === null || s1 >= 1e8) return;
+          pool.forEach(function(u){
+            if (taken.indexOf(u) >= 0) return;
+            var s2 = fitScore(X, u); if (s2 === null || s2 >= 1e8) return;
+            if (!best || s1 + s2 < best.score) best = { P: P, X: X, u: u, give: X.oc, score: s1 + s2, moves: moves };
+          });
+        });
+      });
+      if (!best) break;
+      var P = best.P, b = P.block, oldLabel = P.label;
+      (P.ownOcs || []).forEach(function(oc){ var i = pool.indexOf(oc); if (i >= 0) pool.splice(i, 1); });
+      if (best.X){
+        var X = best.X; X.oc.block.feeds--;
+        pool.splice(pool.indexOf(best.u), 1);
+        X.from = best.u.donor; X.block = best.u.block; X.label = '↺' + best.u.donor; X.fromHand = best.u.hand; X.oc = best.u; best.u.block.feeds++;
+      } else pool.splice(pool.indexOf(best.u), 1);
+      var g = best.give;
+      b.pieces.splice(b.pieces.indexOf(P), 1); b.cutCount--;
+      P.ordered = false; P.from = g.donor; P.block = g.block; P.label = '↺' + g.donor; P.fromHand = g.hand; P.oc = g; P.num = null; P.swapped = true; g.block.feeds++;
+      best.moves.forEach(function(m){ var i = pool.indexOf(m[1]); if (i >= 0) pool.splice(i, 1); m[0].from = m[1].donor; m[0].block = m[1].block; m[0].label = '↺' + m[1].donor; });
+      // The block's sheets after it close up, and every reference to them follows.
+      var ren = {};
+      b.pieces.forEach(function(q, i){ var nl = b.letter + (i + 1); if (q.label !== nl){ ren[q.label] = nl; q.label = nl; } q.num = i + 1; });
+      if (Object.keys(ren).length){
+        pz.pieces.forEach(function(q){ if (q.from && ren[q.from]){ q.from = ren[q.from]; q.label = (q.strungTo ? q.label : '↺' + q.from); } });
+        pool.forEach(function(oc){ if (ren[oc.donor]) oc.donor = ren[oc.donor]; });
+        pz.pieces.forEach(function(q){ if (q.oc && ren[q.oc.donor]) q.oc.donor = ren[q.oc.donor]; });
+      }
+      void oldLabel;
+    }
+  })();
   // The feet of the cookie-cutter sheets wear their sheet's number.
   pz.pieces.forEach(function(p){
     if (!p.strungTo) return;

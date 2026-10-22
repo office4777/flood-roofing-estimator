@@ -291,7 +291,7 @@ for (const [name, outline] of [
   rules(name, r);
 }
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[340,140],[340,540],[1340,540],[1340,1140],[140,1140]], autoType: 'hip' });
-check('a 24 × 12 m L with a 4 × 8 m wing: the same cut — three whole sheets, two feet and one piece from an offcut on the wing\'s end; 64 × 6.63 and 23 × 2.21 (the junction strip cut straight and fed from D6, the top run headed by a pushed-in B sheet), where it was 64 + 23 + a 2.42 extra',
+check('a 24 × 12 m L with a 4 × 8 m wing: the same cut — three whole sheets, two feet and one piece from an offcut on the wing\'s end; 64 × 6.63 and 23 × 2.21 (the junction strip cut straight and fed from D6, the top run headed by a pushed-in B sheet), where it was 64 + 23 + a 2.42 extra — and the owner\'s "that ones perfect" (2026-10-23): no later pass may move it',
   tallyOf(r) === '64x6630,23x2210' && r.extras === 0 && r.pushed === 1 && gridFaces(r).length === 1 && labels(r, gridFaces(r)[0]).map(l => l[0] === '✂' ? 'foot' : l[0] === '↺' ? 'offcut' : 'whole').join(',') === 'whole,whole,whole,foot,foot,offcut',
   tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed + ' ' + JSON.stringify(gridFaces(r).map(f => labels(r, f))));
 rules('the 24 × 12 L', r);
@@ -349,6 +349,25 @@ check('…its slopes run the plain hip\'s way, flush at one real corner and lapp
   JSON.stringify(r.faces.filter(f => f.lay === 'run').map(f => [+(Math.abs(f.T1 - f.T0) * r.scaleM).toFixed(1), +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1), r.pieces.filter(p => p.face === f.id && p.lapped).length])));
 check('…81 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,33x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
 rules('the cross', r);
+// THE GABLE + HIP & VALLEY T (2026-10-23, the owner: "The offcuts to blue
+// B9, B10 and purple C9, C10, they're not being utilized anywhere. They could
+// be utilized in D14, D15, E15, E14"). The stem's top strip ends at its ridge
+// but clips 33 mm off the little hip where the ridge starts — under the cap,
+// so it is ONE cut, and the bar's valley-cut sheet across the stem fits it (a
+// sheet is never flipped: B's offcut lands on the EAST stem slope, C's on the
+// west). The greedy match had handed C10's offcut to the bar's own last
+// strip, which D14's offcut, lying unused, fits just as well: one swap, one
+// sheet back on each side.
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[1040,140],[1040,400],[740,400],[740,860],[440,860],[440,400],[140,400]], autoType: 'gable-hv' });
+{
+  const near = mm => r.pieces.filter(p => Math.abs(p.longMm - mm) < 30 && Math.abs(p.widthPx - r.coverPx) < 0.6).map(p => p.label).sort();
+  check('the gable + hip & valley T: 72 sheets — 29 × 3.32, 1 × 3.16, 42 × 2.87 — where it was 74', tallyOf(r) === '29x3320,1x3160,42x2870' && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+  check('…the stem\'s top strips (1.69 m) come off the bar\'s valley-cut sheets across the stem, C10 on the west and B10 on the east, never ordered', JSON.stringify(near(1690)) === '["↺B10","↺C10"]', JSON.stringify(near(1690)));
+  check('…and are one cut: the 33 mm the little hip clips off under the ridge cap is not a second', r.pieces.filter(p => Math.abs(p.longMm - 1690) < 30).every(p => !(p.cutTop && p.cutBot)));
+  check('…the bar\'s last valley strips (1.08 m) move onto the stem\'s D14 and E14 offcuts, which nothing used', JSON.stringify(near(1080)) === '["↺D14","↺E14"]', JSON.stringify(near(1080)));
+  check('…no offcut a metre long is left over', r.unusedMaxMm < 1000, r.unusedList.join(' '));
+}
+rules('the gable + hip & valley T', r);
 // Wings at OPPOSITE ends (a Z): no end to start from, so the runs fall back to
 // the world-low corner; the far wing's corner column is then the plain hip's
 // lapped corner sheet, a whole sheet whose offcut is a whole sheet's width.
