@@ -6966,6 +6966,25 @@ function _pzVirtualSpan(R, f, tMin, tMax, probe){
 // (what shows — a lapped corner sheet shows less). The piece's cut
 // geometry, hand and lengths come from the sheet; its drawn polygon and
 // the coverage from what is exposed.
+// A clip of a concave face along one of its own edges leaves a zero-width
+// spike running up that edge (a strip ending exactly on a dutch gablet's
+// wall picked up the wall to the ridge and read 6.62 m for a 3.3 m piece).
+// Drop any corner where the outline doubles straight back on itself.
+function _pzDespike(poly){
+  if (!poly || poly.length < 4) return poly;
+  var P = poly.slice(), changed = true;
+  while (changed && P.length > 3){
+    changed = false;
+    for (var i = 0; i < P.length && P.length > 3; i++){
+      var a = P[(i - 1 + P.length) % P.length], b = P[i], c = P[(i + 1) % P.length];
+      var ux = b[0]-a[0], uy = b[1]-a[1], vx = c[0]-b[0], vy = c[1]-b[1];
+      var lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (lu < 1e-6 || lv < 1e-6){ P.splice(i, 1); changed = true; break; }
+      if (Math.abs(ux*vy - uy*vx) / (lu*lv) < 1e-4 && (ux*vx + uy*vy) < 0){ P.splice(i, 1); changed = true; break; }
+    }
+  }
+  return P;
+}
 function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
   var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1], c = coverPx;
   var tMin = f.t0, tMax = f.t1, dMin = f.dMin, dMax = f.dMax, lay = f.lay;
@@ -6980,8 +6999,27 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
       cells.push({ e0: e0, e1: e1, s0: s0, s1: s1 });
     }
   }
-  if (lay === 'run'){
+  if (lay === 'run' && f.walls){
+    // A slope beside dutch gablets: each gablet's corner from its wall out
+    // (the narrow strip at the corner, never lapped); the rest from a wall,
+    // its closer lapped against the other wall — or, where the far end is a
+    // plain hip's corner, lapped there exactly as an ordinary run is.
+    var W = f.walls, lo = f.T0, hi = f.T1, loWall = false, hiWall = false;
+    if (W[0].side < 0){ run(W[0].t, f.T0, false); lo = W[0].t; loWall = true; }
+    if (W[W.length-1].side > 0){ run(W[W.length-1].t, f.T1, false); hi = W[W.length-1].t; hiWall = true; }
+    if (loWall) run(lo, hi, hiWall ? true : lapHi);
+    else if (hiWall) run(hi, lo, lapLo);
+    else run(f.runFromT0 ? f.T0 : f.T1, f.runFromT0 ? f.T1 : f.T0, f.runFromT0 ? lapHi : lapLo);
+    cells.sort(function(p, q){ return p.e0 - q.e0; });
+  } else if (lay === 'run'){
     run(f.runFromT0 ? f.T0 : f.T1, f.runFromT0 ? f.T1 : f.T0, f.runFromT0 ? lapHi : lapLo);
+  } else if (lay === 'apex' && f.gablet && f.gabletJ){
+    // A dutch gablet: each hip half from its corner in, the strips under the
+    // apron from one end of it with the closer lapped against the other.
+    run(tMin, f.gabletJ[0], false);
+    run(f.gabletJ[0], f.gabletJ[1], true);
+    run(tMax, f.gabletJ[1], false);
+    cells.sort(function(p, q){ return p.e0 - q.e0; });
   } else if (lay === 'apex'){
     var first = f.anchorT - Math.ceil((f.anchorT - tMin) / c - 1e-6) * c;
     for (var b = first; b < tMax - 0.5; b += c){
@@ -7030,10 +7068,10 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     function rectOf(lo, hi){ return [
       [tx*lo + dx*dA, ty*lo + dy*dA], [tx*hi + dx*dA, ty*hi + dy*dA],
       [tx*hi + dx*dB, ty*hi + dy*dB], [tx*lo + dx*dB, ty*lo + dy*dB] ]; }
-    var pcE = _ccClipToConvex(f.poly, rectOf(e0, e1));
+    var pcE = _pzDespike(_ccClipToConvex(f.poly, rectOf(e0, e1)));
     if (!pcE || _ccPolyArea(pcE) < 1) return;
     var lapped = (s0 < e0 - 0.3) || (s1 > e1 + 0.3);
-    var pc = lapped ? (_ccClipToConvex(f.poly, rectOf(s0, s1)) || pcE) : pcE;
+    var pc = lapped ? (_pzDespike(_ccClipToConvex(f.poly, rectOf(s0, s1))) || pcE) : pcE;
     if (_ccPolyArea(pc) < 1) pc = pcE;
     var pts = pc.map(function(p){ return p[0]*tx + p[1]*ty; });
     var pds = pc.map(function(p){ return p[0]*dx + p[1]*dy; });
@@ -7255,7 +7293,7 @@ function _sheetPuzzleBuild(opts){
       // The top is a CHAIN of level edges (the builder draws the apron in
       // two halves meeting under the ridge's end), every one an apron or a
       // barge — never a ridge, which is a slope's top and not an end's.
-      var isGablet = false, gabletT = 0, hipApexD = 0;
+      var isGablet = false, gabletT = 0, hipApexD = 0, gabletJ = null, gabletTop = [];
       if (!isApex && nAtMax >= 2){
         var atMax = function(i){ return dRefOf(i) > ds[apexI] - tol*0.5; };
         for (var gi = 0; gi < np && !isGablet; gi++){
@@ -7272,6 +7310,9 @@ function _sheetPuzzleBuild(opts){
           var dropG = Math.max(dRefOf(gi) - dRefOf(gi - 1), dRefOf(gEnd) - dRefOf(gEnd + 1));
           if (dRefOf(gi - 1) < dMin + tol || dRefOf(gEnd + 1) < dMin + tol || dropG >= 0.5 * (dMax - dMin)){
             isGablet = true; gabletT = (ts[gi % np] + ts[gEnd % np]) / 2;
+            gabletJ = [Math.min(ts[gi % np], ts[gEnd % np]), Math.max(ts[gi % np], ts[gEnd % np])];
+            gabletTop = [];
+            for (var gq = gi; gq < gEnd; gq++) gabletTop.push(f.edges[gq % np]);
             // Where the two hips WOULD meet: the depth of the hip end this
             // gablet is cut from, which is what the cookie cutter's "a sheet
             // narrower than the slope" test has to measure — a T's bar is
@@ -7301,7 +7342,7 @@ function _sheetPuzzleBuild(opts){
       } else if (hipAt(tMin) && hipAt(tMax)){
         lay = 'run';
       }
-      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex'); f.gablet = isGablet; f.hipApexD = isGablet && hipApexD > dMax ? hipApexD : dMax;
+      f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex'); f.gablet = isGablet; f.gabletJ = gabletJ; f.gabletTop = gabletTop; f.hipApexD = isGablet && hipApexD > dMax ? hipApexD : dMax;
       f.anchorT = anchorT; f.dMin = dMin; f.dMax = dMax;
       // The face's own gutter line: EVERY gutter edge on the reference
       // line, not the longest alone — a slope with a wing standing in the
@@ -7411,6 +7452,40 @@ function _sheetPuzzleBuild(opts){
       var o = (T.lay === 'run') ? (T.runFromT0 ? T.T0 : T.T1) : (T.fromEnd ? T.t1 : T.t0);
       var sg = (T.lay === 'run') ? (T.runFromT0 ? 1 : -1) : (T.fromEnd ? -1 : 1);
       f.grid = { o: o * sgn, sg: sg * sgn };
+    });
+    // A DUTCH GABLE'S CORNERS ARE LAID AS COMPLEMENTS (2026-10-22, the
+    // owner: "all offcuts of the short sheets aren't being used so it's not
+    // as efficient as it can be"). The slope's strips were divided from the
+    // house corner, so the strip beside a gablet's wall straddled the wall —
+    // a 6.62 m sheet ordered for a 3.3 m piece, two of them a roof — and
+    // the gablet's own corner offcut was a fraction too narrow for anything.
+    // Now the gablet's two hip halves are laid from their CORNERS (a full
+    // sheet at the corner, the narrow strip against the wall) and the
+    // slope's corner beside it from the WALL out (a full sheet against the
+    // wall, the narrow strip at the corner): the two grids are each other's
+    // complement across the hip, so the k-th gablet sheet's offcut is
+    // exactly the slope's k-th piece from the wall, the narrow one included,
+    // and every hip-cut short sheet is used whole. The run between two walls
+    // starts at one wall and laps its closer against the other.
+    var wallKeys = {};
+    pend.forEach(function(f){
+      if (!f.gablet || f.lay !== 'apex') return;
+      var gc = [0, 0]; f.poly.forEach(function(p){ gc[0] += p[0] / f.poly.length; gc[1] += p[1] / f.poly.length; });
+      (f.gabletTop || []).forEach(function(e){ wallKeys[_pzEdgeKey(e)] = gc; });
+    });
+    pend.forEach(function(f){
+      if (f.lay !== 'run' || f.adopters || f.gridGroup) return;
+      var ws = [];
+      f.edges.forEach(function(e){
+        if (!wallKeys[_pzEdgeKey(e)] || e.len <= tol) return;
+        var ex = (e.b[0]-e.a[0])/e.len, ey = (e.b[1]-e.a[1])/e.len;
+        if (Math.abs(ex*f.t[0] + ey*f.t[1]) > 0.02) return;   // a wall stands square to the gutter
+        var tw = e.a[0]*f.t[0] + e.a[1]*f.t[1], gc = wallKeys[_pzEdgeKey(e)];
+        // Which side of the wall the gablet (and so its corner) lies.
+        var side = (gc[0]*f.t[0] + gc[1]*f.t[1]) < tw ? -1 : 1;
+        if (tw > f.T0 + tol && tw < f.T1 - tol && !ws.some(function(w){ return Math.abs(w.t - tw) < tol; })) ws.push({ t: tw, side: side });
+      });
+      if (ws.length) f.walls = ws.sort(function(a, b){ return a.t - b.t; });
     });
     pend.forEach(function(f){
       _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces);
@@ -7857,8 +7932,12 @@ function _sheetPuzzleFill(pz){
     var faces = endFaces.slice().sort(function(a, b){ return (a.lay === 'apex' ? 0 : 1) - (b.lay === 'apex' ? 0 : 1); });
     faces.forEach(function(f){
       var ps = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return open.indexOf(p) >= 0 && p.hand; });
-      [-1, 1].forEach(function(hand){
-        var seq = ps.filter(function(p){ return p.hand === hand; }).sort(function(p, q){ return (q.longPx - p.longPx) || (p.k - q.k); });
+      // A slope under two dutch gablets (a T's bar) has a corner under
+      // each: each corner is its own series, fed from its own gablet, or
+      // the longest piece on the face decides the home for both ends.
+      var gfs = [null]; ps.forEach(function(p){ if (p.gabletFace && gfs.indexOf(p.gabletFace) < 0) gfs.push(p.gabletFace); });
+      gfs.forEach(function(gf){ [-1, 1].forEach(function(hand){
+        var seq = ps.filter(function(p){ return p.hand === hand && (p.gabletFace || null) === gf; }).sort(function(p, q){ return (q.longPx - p.longPx) || (p.k - q.k); });
         if (!seq.length) return;
         // The face's own offcuts lead the series (a wing's valley from its
         // own hip-cut sheets), then the hips' offcuts, biggest first.
@@ -7897,7 +7976,7 @@ function _sheetPuzzleFill(pz){
           if (pick >= 0){ var got = rem.splice(pick, 1)[0]; feed(p, got); p.series = true; prev = got; }
         }
         groups_.push({ f: f, seq: seq });
-      });
+      }); });
     });
   }
   function pushPass(poolFirstOnly){
@@ -8012,6 +8091,7 @@ function _sheetPuzzleFill(pz){
   pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
   pz.endFaces = endFaces;
   pz.unusedOffcuts = pool.length;
+  pz.unusedList = pool.map(function(oc){ return oc.donor + ':' + (oc.b * scaleM * oc.pf).toFixed(2) + '/' + (oc.a * scaleM * oc.pf).toFixed(2) + 'w' + (oc.w * scaleM).toFixed(2); });
   pz.unusedMaxMm = pool.reduce(function(m, oc){ return Math.max(m, oc.b * scaleM * oc.pf * 1000); }, 0);
   pz.fedPieces = needs.filter(function(p){ return !p.ordered; }).length;
   pz.strungPieces = strungCount;
@@ -8164,34 +8244,92 @@ function _renderSheetPuzzleCanvas(opts){
     if (pc.strung) ctx.setLineDash([3, 2]);
     ctx.stroke(); ctx.setLineDash([]);
   });
-  // Labels: the sheet number up every piece with room, the length under it.
+  // Labels: the sheet number up every piece with room, the length beside it.
+  // THE NUMBER IS THE THING A ROOFER LOOKS FOR (2026-10-22, the owner: "can
+  // you make the number of sheet bigger? So, for example, A7 ... And keep the
+  // measurements ... small like it is"): it is sized to the strip, up to 16px,
+  // and shrinks only as far as it must to stay inside its piece; the length
+  // stays at the 8-9px it always was.
   var cwC = pz.coverPx * fit;
+  // Where each face's badge (F1) and its arrow sit, in canvas pixels: drawn
+  // after the labels, so a label has to keep clear of them.
+  function badgeOf(f){
+    var c = f.c;
+    if (!_spPointInPoly(c[0], c[1], f.poly)){
+      var big = null; f.pieces.forEach(function(p){ if (!big || p.areaPx > big.areaPx) big = p; });
+      if (big) c = _ccCentroid(big.poly);
+    }
+    return { c: c, cc: toC(c), aw: Math.min(26, Math.max(12, (f.ref.len * fit) * 0.12)), ang: Math.atan2(f.d[1], f.d[0]) };
+  }
+  var badgePts = [];
+  pz.faces.forEach(function(f){
+    var bg = badgeOf(f), ca0 = Math.cos(bg.ang), sa0 = Math.sin(bg.ang);
+    for (var bx = -17; bx <= 17; bx += 5.6) for (var by = -9; by <= 9; by += 4.5) badgePts.push([bg.cc[0] + bx, bg.cc[1] + by]);
+    for (var ax = -bg.aw; ax <= bg.aw + 0.1; ax += bg.aw / 4) for (var ay = 11; ay <= 17; ay += 3){
+      badgePts.push([bg.cc[0] + ax*ca0 - ay*sa0, bg.cc[1] + ax*sa0 + ay*ca0]);
+    }
+  });
   if (cwC >= 10){
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    var fs = cwC >= 16 ? 9 : 8;
+    ctx.textBaseline = 'middle';
+    var fsM = cwC >= 16 ? 9 : 8;
+    var fsTop = Math.max(9, Math.min(16, Math.round(cwC * 0.62)));
+    var fontL = function(n){ return '800 ' + n + 'px Inter, sans-serif'; }, fontM = '600 ' + fsM + 'px Inter, sans-serif';
     pz.pieces.forEach(function(pc){
       var longC = pc.longPx * fit;
       if (longC < 22 || pc.widthPx * fit < 8) return;
       var c = _ccCentroid(pc.poly), f = pc.face;
       var ang = Math.atan2(f.d[1], f.d[0]);
       if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
-      var txt = pc.label || '';
-      var withLen = longC >= 44 && cwC >= 14;
-      var hw = (withLen ? 24 : 12) / fit, hh = 5.5 / fit, ca = Math.cos(ang), sa = Math.sin(ang), fits = true;
-      [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].forEach(function(q){
-        if (!_spPointInPoly(c[0] + q[0]*ca - q[1]*sa, c[1] + q[0]*sa + q[1]*ca, pc.poly)) fits = false;
-      });
-      if (!fits){ withLen = false; hw = 12 / fit; fits = true;
+      var txt = pc.label || '', len = _pzM(pc.longMm);
+      var ca = Math.cos(ang), sa = Math.sin(ang);
+      var boxFitsAt = function(cx, cy, wC, hC){
+        var hw = wC / 2 / fit, hh = hC / 2 / fit, ok = true;
         [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].forEach(function(q){
-          if (!_spPointInPoly(c[0] + q[0]*ca - q[1]*sa, c[1] + q[0]*sa + q[1]*ca, pc.poly)) fits = false;
+          if (!_spPointInPoly(cx + q[0]*ca - q[1]*sa, cy + q[0]*sa + q[1]*ca, pc.poly)) ok = false;
+        });
+        return ok;
+      };
+      ctx.font = fontM; var wM = ctx.measureText(len).width;
+      // A label clear of every face badge and arrow (drawn over the labels).
+      var clearOfBadges = function(q, wC, hC){
+        var qc = toC(q), hw = wC / 2 + 3, hh = hC / 2 + 3;
+        for (var i = 0; i < badgePts.length; i++){
+          var vx = badgePts[i][0] - qc[0], vy = badgePts[i][1] - qc[1];
+          if (Math.abs(vx*ca + vy*sa) < hw && Math.abs(-vx*sa + vy*ca) < hh) return false;
+        }
+        return true;
+      };
+      var pickAt = function(q){
+        for (var n = fsTop; n >= 8; n--){
+          ctx.font = fontL(n); var wL = ctx.measureText(txt).width;
+          var wAll = wL + 5 + wM + 2;
+          if (boxFitsAt(q[0], q[1], wAll, n * 0.92) && clearOfBadges(q, wAll, n * 0.92)) return { n: n, wL: wL, withLen: true, c: q };
+          if (boxFitsAt(q[0], q[1], wL + 2, n * 0.92) && clearOfBadges(q, wL + 2, n * 0.92)) return { n: n, wL: wL, withLen: false, c: q };
+        }
+        return null;
+      };
+      // The label sits in the middle of its piece; one that would land on a
+      // face's badge or arrow slides along the strip, clear of it, to
+      // wherever it reads largest — the owner reads every sheet's number
+      // off this picture, so a label is moved before it is ever dropped.
+      var pick = pickAt(c);
+      if (!pick || pick.n < fsTop){
+        [24, 40, 56, 72, 90, 110, 130].forEach(function(o){
+          [1, -1].forEach(function(sg){
+            var q = [c[0] + ca*sg*o/fit, c[1] + sa*sg*o/fit];
+            if (!_spPointInPoly(q[0], q[1], pc.poly)) return;
+            var pq = pickAt(q);
+            if (pq && (!pick || pq.n > pick.n + 1 || (pq.n >= pick.n && pq.withLen && !pick.withLen))) pick = pq;
+          });
         });
       }
-      if (!fits) return;
-      if (f.c && Math.hypot(f.c[0]-c[0], f.c[1]-c[1]) * fit < 30) return;
-      var cc = toC(c);
+      if (!pick) return;
+      c = pick.c;
+      var cc = toC(c), tot = pick.wL + (pick.withLen ? 5 + wM : 0);
       ctx.save(); ctx.translate(cc[0], cc[1]); ctx.rotate(ang);
-      ctx.fillStyle = '#0a1628'; ctx.font = '800 ' + fs + 'px Inter, sans-serif';
-      ctx.fillText(withLen ? (txt + '  ' + _pzM(pc.longMm)) : txt, 0, 0);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#0a1628';
+      ctx.font = fontL(pick.n); ctx.fillText(txt, -tot / 2, 0);
+      if (pick.withLen){ ctx.fillStyle = '#334155'; ctx.font = fontM; ctx.fillText(len, -tot / 2 + pick.wL + 5, 0.5); }
       ctx.restore();
     });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -8208,13 +8346,7 @@ function _renderSheetPuzzleCanvas(opts){
   });
   // Face labels and a direction arrow the way the sheets run.
   pz.faces.forEach(function(f){
-    var c = f.c;
-    if (!_spPointInPoly(c[0], c[1], f.poly)){
-      var big = null; f.pieces.forEach(function(p){ if (!big || p.areaPx > big.areaPx) big = p; });
-      if (big) c = _ccCentroid(big.poly);
-    }
-    var cc = toC(c);
-    var aw = Math.min(26, Math.max(12, (f.ref.len * fit) * 0.12));
+    var bg = badgeOf(f), cc = bg.cc, aw = bg.aw;
     ctx.save();
     ctx.translate(cc[0], cc[1]);
     ctx.fillStyle = '#ffffff';
