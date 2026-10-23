@@ -121,46 +121,39 @@ check('with a Stripe key present the expired trial is really expired',
   r.status === 200 && r.body.billing === true && r.body.live === false, JSON.stringify(r.body).slice(0,100));
 
 // ── checkout ──────────────────────────────────────────────────────
+// Business is off sale since 2026-10-23: a business not already on it is
+// refused before Stripe is asked anything.
+let _n = stripeCalls.length;
 r = await call('POST', '/billing/checkout', { plan: 'business' }, T);
+check('Business is no longer sold to a business not already on it',
+  r.status === 400 && /no longer sold/.test(r.body.error) && stripeCalls.length === _n, JSON.stringify(r.body));
+r = await call('POST', '/billing/checkout', { plan: 'team' }, T);
 check('the owner gets a Stripe Checkout URL', r.status === 200 && /checkout\.stripe\.com/.test(r.body.url), JSON.stringify(r.body));
 const cc = stripeCalls[stripeCalls.length - 1];
 check('…for the right price, stamped with the company',
-  cc && cc.path === '/v1/checkout/sessions' && cc.body.get('line_items[0][price]') === 'price_biz_549' &&
-  cc.body.get('metadata[company_id]') === CO && cc.body.get('metadata[plan]') === 'business' &&
+  cc && cc.path === '/v1/checkout/sessions' && cc.body.get('line_items[0][price]') === 'price_team_299' &&
+  cc.body.get('metadata[company_id]') === CO && cc.body.get('metadata[plan]') === 'team' &&
   cc.body.get('mode') === 'subscription' && cc.auth === 'Bearer sk_test_123',
   cc && cc.body.toString().slice(0, 140));
 check('…landing back on roofmap.co.nz either way',
   /roofmap\.co\.nz.*billing=success/.test(cc.body.get('success_url')) && /billing=cancelled/.test(cc.body.get('cancel_url')),
   cc.body.get('success_url'));
 
-// ── the founding discount ─────────────────────────────────────────
-// Stripe refuses a session carrying both allow_promotion_codes and discounts:
-// "You may only specify one of these parameters". The stand-in above answers
-// any request, so it cannot catch that — which is exactly why this is asserted
-// here rather than left to be discovered by a roofer whose checkout 500s.
-check('an early-access business gets the founding coupon applied for them',
-  cc.body.get('discounts[0][coupon]') === 'coupon_founding30', cc.body.get('discounts[0][coupon]'));
-check('…and NOT the promotion-code box, which Stripe refuses alongside it',
-  cc.body.get('allow_promotion_codes') === null,
-  'allow_promotion_codes=' + cc.body.get('allow_promotion_codes'));
-// Founding pricing for everyone who signs up before a date, off the plain
-// signup link — no waitlist, no invite, no code. And off again after it.
-// The owner here IS on the waitlist, so that route is set aside to prove
-// the date rule on its own.
-const _wl = db.waitlist[0].status; db.waitlist[0].status = 'declined';
+// ── NO FOUNDING DISCOUNT (2026-10-23) ─────────────────────────────
+// The owner is on the waitlist and EARLY_ACCESS_COUPON is still set in this
+// environment — the two things that used to put 30% off on by themselves.
+// Neither does any more; the promotion-code box is always there instead.
+check('no coupon is applied, even for an early-access business with the coupon still configured',
+  cc.body.get('discounts[0][coupon]') === null, cc.body.get('discounts[0][coupon]'));
+check('…the promotion-code box is offered instead',
+  cc.body.get('allow_promotion_codes') === 'true', 'allow_promotion_codes=' + cc.body.get('allow_promotion_codes'));
 process.env.EARLY_ACCESS_UNTIL = '2099-12-31';
-r = await call('POST', '/billing/checkout', { plan: 'business' }, T);
+r = await call('POST', '/billing/checkout', { plan: 'team' }, T);
 const ccOpen = stripeCalls[stripeCalls.length - 1];
-check('with EARLY_ACCESS_UNTIL in the future, a plain signup gets the founding coupon',
-  r.status === 200 && ccOpen.body.get('discounts[0][coupon]') === 'coupon_founding30' && ccOpen.body.get('allow_promotion_codes') === null,
+check('…and an EARLY_ACCESS_UNTIL date in the future changes nothing',
+  r.status === 200 && ccOpen.body.get('discounts[0][coupon]') === null && ccOpen.body.get('allow_promotion_codes') === 'true',
   'coupon=' + ccOpen.body.get('discounts[0][coupon]'));
-process.env.EARLY_ACCESS_UNTIL = '2000-01-01';
-r = await call('POST', '/billing/checkout', { plan: 'business' }, T);
-const ccShut = stripeCalls[stripeCalls.length - 1];
-check('…and once the date has passed, the promotion-code box comes back instead',
-  r.status === 200 && ccShut.body.get('discounts[0][coupon]') === null && ccShut.body.get('allow_promotion_codes') === 'true',
-  'coupon=' + ccShut.body.get('discounts[0][coupon]'));
-delete process.env.EARLY_ACCESS_UNTIL; db.waitlist[0].status = _wl;
+delete process.env.EARLY_ACCESS_UNTIL;
 // GST on top, worked out by Stripe Tax — the live checkout page showed $299
 // flat and no GST line until the session asked for it.
 check('checkout asks Stripe to add GST and to collect the customer\'s GST number',
@@ -181,14 +174,14 @@ r = await call('POST', '/billing/checkout', { plan: 'solo' }, TO);
 check('…and their checkout actually reached Stripe',
   stripeCalls.length === before + 1, r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
 const oc = stripeCalls[stripeCalls.length - 1];
-check('somebody who was not invited is not discounted',
+check('somebody who was not invited is not discounted either',
   r.status === 200 && oc.body.get('discounts[0][coupon]') === null, oc.body.get('discounts[0][coupon]'));
 check('…but can still type a promotion code by hand',
   oc.body.get('allow_promotion_codes') === 'true', oc.body.get('allow_promotion_codes'));
 check('exactly one of the two is ever sent',
   [cc, oc].every(c => (c.body.get('discounts[0][coupon]') === null) !== (c.body.get('allow_promotion_codes') === null)));
 
-r = await call('POST', '/billing/checkout', { plan: 'business' }, T2);
+r = await call('POST', '/billing/checkout', { plan: 'team' }, T2);
 check('a member cannot touch billing', r.status === 403 && r.body.code === 'OWNER_ONLY', r.status + '');
 r = await call('POST', '/billing/checkout', { plan: 'gold' }, T);
 check('an unknown plan is refused', r.status === 400, r.status + '');
@@ -232,9 +225,8 @@ check('yearly checkout buys the yearly price, same plan metadata',
   r.status === 200 && ac.body.get('line_items[0][price]') === 'price_team_2990' &&
   ac.body.get('metadata[plan]') === 'team',
   r.status + ' ' + (ac && ac.body.get('line_items[0][price]')));
-// Yearly is two months free INSTEAD of the founding 30% — the site says one
-// or the other, and stacking both was never the offer.
-check('…and yearly never carries the founding coupon on top of its two free months',
+// Yearly is two months free, and carries no coupon either.
+check('…and yearly carries no coupon on top of its two free months',
   ac.body.get('discounts[0][coupon]') === null && ac.body.get('allow_promotion_codes') === 'true',
   'coupon=' + ac.body.get('discounts[0][coupon]') + ' promo=' + ac.body.get('allow_promotion_codes'));
 r = await call('POST', '/billing/checkout', { plan: 'team' }, T);

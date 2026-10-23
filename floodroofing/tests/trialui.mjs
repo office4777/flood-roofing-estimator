@@ -96,9 +96,9 @@ check('…and is told it can look around first, so the ask does not read as a wa
   /Look around/.test(txt.txt) && /demo job/.test(txt.txt), txt.txt.slice(0,140));
 // seo.mjs enforces this pairing on every public page; the in-app copy makes the
 // same promise, so it has to carry the same terms.
-check('…and the 30% is never stated without its term and what follows it',
-  /30% off your first 12 months/.test(txt.txt) && /standard rate/.test(txt.txt),
-  txt.txt.slice(0,200));
+// No founding discount since 2026-10-23: the bar must not promise one.
+check('…and promises no discount, because there is none',
+  !/30%/.test(txt.txt) && !/founding/i.test(txt.txt), txt.txt.slice(0,200));
 check('…and it is a calm bar, not the red expired one',
   /tb-calm/.test(txt.cls) && !/tb-out/.test(txt.cls), txt.cls);
 await ctx.close();
@@ -137,9 +137,10 @@ await ctx.close();
   check('an ended trial is met by the plan window, not a banner alone', v.shown);
   check('…it says the trial ended and the work is safe',
     /trial has ended/i.test(v.txt) && /nothing has been deleted/i.test(v.txt), v.txt.slice(0, 120));
-  check('…it offers all four plans with their prices',
-    v.btns.length === 4 && /Measure/.test(v.btns[0]) && /Trade/.test(v.btns[1]) && /Team/.test(v.btns[2]) && /Business/.test(v.btns[3]) &&
-    /\$79/.test(v.txt) && /\$149/.test(v.txt) && /\$299/.test(v.txt) && /\$549/.test(v.txt), JSON.stringify(v.btns));
+  // Business went off sale on 2026-10-23.
+  check('…it offers the three plans with their prices, and not Business',
+    v.btns.length === 3 && /Measure/.test(v.btns[0]) && /Trade/.test(v.btns[1]) && /Team/.test(v.btns[2]) &&
+    /\$79/.test(v.txt) && /\$149/.test(v.txt) && /\$299/.test(v.txt) && !/\$549/.test(v.txt), JSON.stringify(v.btns));
   check('…and says paying is month to month and cancellable',
     /cancel any time/i.test(v.txt) && /Settings . Billing/i.test(v.txt), v.txt.slice(-220));
   // There is no way past it. An account that cannot save a job must not be
@@ -172,6 +173,56 @@ await ctx.close();
   const { ctx, pg } = await open({ status:'pending', billing:false, live:true, plan:'trial', trial:null });
   check('with billing switched off nobody is shown it either',
     await pg.evaluate(() => !document.getElementById('planGateModal')));
+  await ctx.close();
+}
+
+// ── THE ROOF TRIAL (2026-10-23): 3 real roofs or 30 days ──
+const roofTrial = (left, extra) => Object.assign({ status:'trialing', billing:true, live:true, plan:'trial',
+  trial:{ ends_at:new Date(Date.now()+24*864e5).toISOString(), days_left:24, expired:false, days:30,
+          roofs_limit:3, roofs_used:3-left, roofs_left:left, roof_jobs: left === 3 ? [] : ['job-a','job-b','job-c'].slice(0, 3-left) } }, extra || {});
+{
+  const { ctx, txt } = await open(roofTrial(3));
+  check('a roof trial shows its counter from day one, not just at the end',
+    /3 of 3 free roofs left/.test(txt.txt) && /24 days left/.test(txt.txt) && /tb-calm/.test(txt.cls), txt.txt.slice(0, 120));
+  check('…and says what counts as a roof, and that the practice job never does',
+    /outline and a scale/.test(txt.txt) && /practice job never does/.test(txt.txt), txt.txt);
+  await ctx.close();
+}
+{
+  const { ctx, txt } = await open(roofTrial(1));
+  check('one roof left turns it amber', /1 of 3 free roofs left/.test(txt.txt) && /tb-soon/.test(txt.cls), txt.txt.slice(0, 80) + ' ' + txt.cls);
+  await ctx.close();
+}
+{
+  const { ctx, pg, txt } = await open(roofTrial(0));
+  check('all three used: the bar says so, and that the three stay open',
+    /measured your 3 free roofs/.test(txt.txt) && /stay open for 24 days/.test(txt.txt), txt.txt.slice(0, 160));
+  check('…but no window is forced on them — they can still work their three roofs',
+    await pg.evaluate(() => { const m = document.getElementById('planGateModal'); return !m || m.style.display === 'none'; }));
+  // A new job, measured: the roof is not built, the plans come up instead.
+  const r = await pg.evaluate(() => {
+    S.isSampleJob = false; S.currentJobId = null; S.versionOf = null;
+    DRAW.outline = [[100,100],[400,100],[400,300],[100,300]]; DRAW.scaleMetresPerPx = 0.03; DRAW.lines = [];
+    autoGenerateRoof('gable');
+    return { lines: DRAW.lines.length, blocked: _trialRoofsBlocked() };
+  });
+  await pg.waitForTimeout(500);
+  const m = await pg.evaluate(() => { const el = document.getElementById('planGateModal');
+    return { shown: !!el && el.style.display === 'flex', txt: el ? el.textContent.replace(/\s+/g, ' ') : '',
+             back: !!document.getElementById('pgBackToRoofs') }; });
+  check('a 4th roof is stopped before it is built', r.blocked && r.lines === 0, JSON.stringify(r));
+  check('…by the plans window, naming the 3 free roofs',
+    m.shown && /measured your 3 free roofs/.test(m.txt) && /stay open until your trial ends/.test(m.txt), m.txt.slice(0, 200));
+  check('…which can be closed, because the account still works', m.back);
+  await pg.click('#pgBackToRoofs');
+  check('…and closes', await pg.evaluate(() => document.getElementById('planGateModal').style.display === 'none'));
+  // One of the three counted jobs is never stopped.
+  const ok = await pg.evaluate(() => { S.currentJobId = 'job-b'; return _trialRoofsBlocked(); });
+  check('a job that already used one of the three is never stopped', ok === false);
+  const ver = await pg.evaluate(() => { S.currentJobId = 'job-b-v2'; S.versionOf = 'job-b'; return _trialRoofsBlocked(); });
+  check('…nor a version of one', ver === false);
+  const smp = await pg.evaluate(() => { S.currentJobId = null; S.versionOf = null; S.isSampleJob = true; return _trialRoofsBlocked(); });
+  check('…nor the practice job or the sample', smp === false);
   await ctx.close();
 }
 

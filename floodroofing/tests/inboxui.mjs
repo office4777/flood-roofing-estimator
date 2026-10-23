@@ -528,7 +528,7 @@ v = await pg.evaluate(() => ({
   wrap: getComputedStyle(document.getElementById('ibxWrap')).display === 'none',
   text: document.getElementById('ibxLockedCard').textContent,
 }));
-check('a plan without the inbox sees the Business teaser', v.teaser && v.wrap && /Business/.test(v.text));
+check('a plan without the inbox sees the Team teaser (Business is off sale)', v.teaser && v.wrap && /Team/.test(v.text) && !/Business/.test(v.text));
 check('…and never asks the server for mail', !calls.some(c => c[0] === 'GET threads'), JSON.stringify(calls));
 v = await pg.evaluate(() => !document.getElementById('ichatLaunch'));
 check('…and gets no Internal chat bubble either', v === true);

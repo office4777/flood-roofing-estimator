@@ -229,8 +229,9 @@ await pg.waitForTimeout(400);
 check('a plan without the link is offered the upgrade, not dead settings',
   (await shown(pg,'jmsLockedPane')) && !(await shown(pg,'jmsLivePane')));
 const lockTxt = await pg.evaluate(() => document.getElementById('jmsLockedPane').textContent);
-check('…naming both plans that carry it, with their prices',
-  /Team/.test(lockTxt) && /Business/.test(lockTxt) && /\$299/.test(lockTxt) && /\$549/.test(lockTxt),
+// Business went off sale on 2026-10-23: Team is the one plan that carries it.
+check('…naming the plan that carries it, with its price, and not the retired one',
+  /Team/.test(lockTxt) && !/Business/.test(lockTxt) && /\$299/.test(lockTxt) && !/\$549/.test(lockTxt),
   lockTxt.replace(/\s+/g, ' ').slice(0, 80));
 await ctx.close();
 

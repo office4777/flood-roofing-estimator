@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-23T05:53:04Z';
+  window.APP_BUILT_AT = '2026-10-23T08:14:17Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -7546,14 +7546,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <!-- TAB: AI TENDERING — the plan-set reader (tender.js renders into #tenderRoot). -->
 <div class="panel" id="tab-tender"><div id="tenderRoot" style="max-width:1180px;margin:0 auto;padding:4px 0 40px"></div></div>
 
-<!-- TAB: SCHEDULE — the forward-workflow board (Business tier). -->
+<!-- TAB: SCHEDULE — the forward-workflow board (Team plan). -->
 <div class="panel" id="tab-schedule">
-  <!-- Locked teaser below Business — the server enforces; this just sells. -->
+  <!-- Locked teaser below Team — the server enforces; this just sells. -->
   <div class="card" id="schedLockedCard" style="display:none;max-width:640px;margin:40px auto;text-align:center;padding:36px 30px">
     <div style="font-size:34px;margin-bottom:8px">🗓</div>
-    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The schedule board is a Business-tier feature</div>
+    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The schedule board is a Team-plan feature</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">Pencil months of work onto one calendar, solid-book crews with a click, and keep every customer in the loop with one-tap update emails — the whole forward workflow on one screen instead of a spreadsheet.</div>
-    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Business</button>
+    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Team</button>
   </div>
 
   <div id="schedWrap" style="display:none">
@@ -7766,9 +7766,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="panel" id="tab-inbox">
   <div class="card" id="ibxLockedCard" style="display:none;max-width:640px;margin:40px auto;text-align:center;padding:36px 30px">
     <div style="font-size:34px;margin-bottom:8px">📨</div>
-    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The inbox is a Business-tier feature</div>
+    <div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:8px">The inbox is a Team-plan feature</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">Connect your real email accounts — office@ shared with the whole team, personal ones private — and read, reply and triage every customer conversation without leaving RoofMap.</div>
-    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Business</button>
+    <button onclick="_billingOpen()" style="padding:11px 26px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Upgrade to Team</button>
   </div>
 
   <div id="ibxWrap" style="display:none">
@@ -9018,20 +9018,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           </div>
           <p style="font-size:13.5px;color:var(--text2);line-height:1.6;margin:0 0 18px">
             Push a finished quote straight into Fergus as a job — client, site, materials and
-            labour already filled in — instead of typing it twice. Available from Team up.
+            labour already filled in — instead of typing it twice. Available on Team.
           </p>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
             <div style="border:1.5px solid #0099cc;border-radius:12px;padding:16px;background:#fff">
               <div style="font-size:14px;font-weight:800;color:#0a1628">Team</div>
               <div style="font-size:22px;font-weight:800;color:#0a1628;margin:4px 0 2px">$299<span style="font-size:12px;font-weight:500;color:#64748b">/month + GST</span></div>
-              <div style="font-size:11.5px;color:#64748b;line-height:1.5;margin-bottom:12px">Up to 5 people · the Fergus link · schedule board · your own web address and email</div>
+              <div style="font-size:11.5px;color:#64748b;line-height:1.5;margin-bottom:12px">Up to 5 people · the Fergus link · schedule board · team inbox, chat and tasks · your own web address, email and domain</div>
               <button type="button" onclick="switchSettingsSub('set-billing');_billingRenderSection()" style="width:100%;padding:9px 0;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">See Team</button>
-            </div>
-            <div style="border:1.5px solid var(--border);border-radius:12px;padding:16px;background:#fff">
-              <div style="font-size:14px;font-weight:800;color:#0a1628">Business</div>
-              <div style="font-size:22px;font-weight:800;color:#0a1628;margin:4px 0 2px">$549<span style="font-size:12px;font-weight:500;color:#64748b">/month + GST</span></div>
-              <div style="font-size:11.5px;color:#64748b;line-height:1.5;margin-bottom:12px">Up to 15 people · everything in Team · team inbox, chat and tasks · your own domain on quotes</div>
-              <button type="button" onclick="switchSettingsSub('set-billing');_billingRenderSection()" style="width:100%;padding:9px 0;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">See Business</button>
             </div>
           </div>
         </div>
@@ -13648,12 +13642,15 @@ async function api(method, path, body) {
     // moment to show the plans — that refusal used to surface as a bare
     // error on a save, which reads as the app being broken.
     if (err.code === 'SUBSCRIPTION_REQUIRED') { try { _planGateOpen(true); } catch(e){} }
+    if (err.code === 'TRIAL_ROOFS_USED') { try { _trialRoofsUsedOpen(); } catch(e){} }
     if (err.code === 'MAINTENANCE') { try { _maintBanner(payload); } catch(e){} }
     throw err;
   }
   if (r.status === 204) return null;
   var _j = await r.json();
   try { if (_j && _j.keptAcceptance) _keptAcceptanceNotice(); } catch(e){}
+  // A save that just used one of the trial's roofs: the counter moves now.
+  try { if (_j && _j.trialRoofCounted) setTimeout(function(){ loadSubscription(); }, 0); } catch(e){}
   return _j;
 }
 // Another tab saved Settings: take its products and price book, so this tab
@@ -23088,13 +23085,32 @@ function _planGateHtml(){
     if (!s.billing || s.live) return '';
     return '<div class="tb tb-calm"><span class="tb-x">⏳</span><span>' +
       '<strong>Pick a plan to start saving jobs.</strong> Look around as long as you like first — ' +
-      'the demo job and every tab are open. <strong>30% off your first 12 months</strong>, then the ' +
-      'standard rate, and you can cancel any time. ' + cta +
+      'the demo job and every tab are open. Month to month, and you can cancel any time. ' + cta +
+      '</span></div>';
+  }
+
+  // ── THE ROOF TRIAL (2026-10-23): 3 real roofs or 30 days ──
+  // Always on screen, not just at the end: the roofs ARE the trial, and a
+  // roofer should know before drawing one that it is one of three.
+  var d = s.trial.days_left;
+  if (s.trial.roofs_limit && !s.trial.expired){
+    var rl = s.trial.roofs_left, lim = s.trial.roofs_limit;
+    if (rl == null) return '';
+    var dw = d === 1 ? '1 day' : d + ' days';
+    if (rl <= 0){
+      return '<div class="tb tb-soon"><span class="tb-x">🏠</span><span>' +
+        '<strong>You\u2019ve measured your ' + lim + ' free roofs.</strong> They stay open for ' + dw +
+        ' \u2014 quote them, send them, order for them. Pick a plan to measure the next one. ' + cta +
+        '</span></div>';
+    }
+    var cls2 = (rl <= 1 || d <= 3) ? 'tb-soon' : 'tb-calm';
+    return '<div class="tb ' + cls2 + '" id="trialRoofsBar"><span class="tb-x">🏠</span><span>' +
+      '<strong>' + rl + ' of ' + lim + ' free roof' + (lim === 1 ? '' : 's') + ' left</strong> \u00b7 ' + dw + ' left in your free trial. ' +
+      'A roof counts once it has an outline and a scale; the practice job never does. ' + cta +
       '</span></div>';
   }
 
   // ── legacy: an account given 14 days before this changed ──
-  var d = s.trial.days_left;
   if (s.trial.expired){
     return '<div class="tb tb-out"><span class="tb-x">⏳</span><span>' +
       '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' + cta +
@@ -23123,18 +23139,42 @@ function _trialBannerHtml(){ return _planGateHtml(); }
 // Settings → Billing both still lead here.
 function _planGateNeeded(){
   var s = SUBSCRIPTION;
+  // The trial's roofs are used: the plans, but the account is still live.
+  if (window.__roofsUsedGate && s && s.billing && s.status !== 'active') return true;
   // billing off, or the account is live = nothing to sell them right now.
   return !!(s && s.billing && !s.live && s.status !== 'active');
+}
+// THE ROOF TRIAL: is the roof on screen one the trial does not cover? A job
+// already counted (or a version of one) never is; the practice job and the
+// sample never are; anything else, once all the roofs are used, is.
+function _trialRoofsBlocked(){
+  var s = SUBSCRIPTION, t = s && s.trial;
+  if (!s || !s.billing || s.status === 'active' || !t || !t.roofs_limit || t.expired) return false;
+  if (t.roofs_left == null || t.roofs_left > 0) return false;
+  if (window.S && S.isSampleJob) return false;
+  var root = String((window.S && (S.versionOf || S.currentJobId)) || '');
+  return !(root && (t.roof_jobs || []).indexOf(root) >= 0);
+}
+function _trialRoofsUsedOpen(){
+  window.__roofsUsedGate = true;
+  // Ask the server first: the counter on this screen may be a minute old.
+  loadSubscription();
 }
 function _planGateModalHtml(){
   var s = SUBSCRIPTION || {};
   var ended = !!(s.trial && s.trial.expired);
-  var head = ended ? 'Your free trial has ended' : 'Pick a plan to start saving jobs';
+  var roofsOut = !ended && !!window.__roofsUsedGate && !!(s.trial && s.trial.roofs_limit);
+  var head = ended ? 'Your free trial has ended'
+    : roofsOut ? 'You\u2019ve measured your ' + s.trial.roofs_limit + ' free roofs'
+    : 'Pick a plan to start saving jobs';
   var sub = ended
     ? 'Every job, quote and photo you made is still here — nothing has been deleted. Pick a plan and carry straight on.'
+    : roofsOut
+    ? 'Pick a plan to measure your next roof. The roofs you have measured stay open until your trial ends' +
+      (s.trial.ends_at ? ' on ' + _billingDate(s.trial.ends_at) : '') + ' \u2014 quote them, send them, order for them.'
     : 'Look around as long as you like. Saving a job of your own is the part that needs a plan.';
   var _pgOffered = (SUBSCRIPTION && SUBSCRIPTION.offered) || {};
-  var cards = PLAN_TIERS.filter(function(t){ return !t.offered || _pgOffered[t.key] || (SUBSCRIPTION && SUBSCRIPTION.plan === t.key); }).map(function(t){
+  var cards = _planTiersShown(SUBSCRIPTION).map(function(t){
     return '<div class="pg-card">' +
       '<div class="pg-name">' + t.name + '</div>' +
       '<div class="pg-price">' + t.price + '<span>/month + GST</span></div>' +
@@ -23152,6 +23192,8 @@ function _planGateModalHtml(){
     '<div class="pg-msg" id="planGateMsg"></div>' +
     // No way past this except paying — but never a locked room: signing out
     // always works, and a teammate who cannot buy has to be able to leave.
+    // With the roofs used the account is still live, so it closes as well.
+    (roofsOut ? '<button class="pg-later" id="pgBackToRoofs" onclick="_planGateDismissRoofs()">Back to my roofs</button> ' : '') +
     '<button class="pg-later" onclick="_navSignOut()">Sign out</button>' +
   '</div>';
 }
@@ -23172,6 +23214,7 @@ function _planGateOpen(force){
   // than as unpaid.
   try { document.body.style.overflow = 'hidden'; } catch(e){}
 }
+function _planGateDismissRoofs(){ window.__roofsUsedGate = false; _planGateClose(); }
 function _planGateClose(){
   var el = document.getElementById('planGateModal');
   if (el) el.style.display = 'none';
@@ -23234,11 +23277,22 @@ var PLAN_TIERS = [
   // Measuring only — sold like the rest. Choosing it without a Stripe price
   // behind it (STRIPE_PRICE_MEASURE) gets the server's plain error naming
   // the variable, which is the right person's problem to see.
-  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · no customer quotes or merchant orders' },
+  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · merchant orders · no customer quotes' },
   { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
-  { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · your own web address and email' },
-  { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
+  { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · team inbox, chat and tasks · your own address, email and domain' },
+  // OFF SALE since 2026-10-23 (Team carries everything it had). Shown only
+  // to a business already on it, so it can still see and manage its plan.
+  { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', retired: true, blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
 ];
+// The cards a business is offered: what is on sale, plus the plan it is on.
+function _planTiersShown(s){
+  var offered = (s && s.offered) || {};
+  return PLAN_TIERS.filter(function(t){
+    var mine = !!(s && s.plan === t.key);
+    if (t.retired && !mine) return false;
+    return !t.offered || offered[t.key] || mine;
+  });
+}
 function _billingSetCycle(c){ _billingCycle = c === 'annual' ? 'annual' : 'monthly'; _billingRenderSection(); }
 function _billingDate(iso){
   try { return new Date(iso).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); }
@@ -23248,8 +23302,7 @@ function _billingRenderSection(){
   var host = document.getElementById('billingBody');
   if (!host) return;
   var s = SUBSCRIPTION;
-  var offered = (s && s.offered) || {};
-  var tiers = PLAN_TIERS.filter(function(t){ return !t.offered || offered[t.key] || (s && s.plan === t.key); });
+  var tiers = _planTiersShown(s);
   var annualAvail = (s && s.annual) || {};
   var anyAnnual = tiers.some(function(t){ return !!annualAvail[t.key]; });
   if (!anyAnnual) _billingCycle = 'monthly';
@@ -23272,9 +23325,10 @@ function _billingRenderSection(){
   // paying for it. Saying nothing left them looking at three cards with no
   // way to tell which one they had.
   else if (s.plan && s.plan !== 'trial') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Nothing to pay at the moment' + (s.trial && s.trial.ends_at ? ' \u2014 covered until ' + _billingDate(s.trial.ends_at) : '') + '.</span></div>';
+  else if (s.trial && !s.trial.expired && s.trial.roofs_limit && s.trial.roofs_left != null) head = '<div style="font-size:13px"><strong>Free trial of Team \u2014 ' + s.trial.roofs_left + ' of ' + s.trial.roofs_limit + ' roofs and ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Whichever runs out first ends it. Pick a plan any time; nothing you made is lost.</span></div>';
   else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial of Team \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
   else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
-  else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
+  else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
   var canBuy = !!(s && s.billing);
   // Only a business with a Stripe customer has anything to manage.
   var hasAcct = !!(s && s.billing_account);
@@ -23287,7 +23341,7 @@ function _billingRenderSection(){
   var cycleBar = anyAnnual
     ? '<div id="billingCycleBar" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">' +
         cycleBtn('monthly', 'Monthly') + cycleBtn('annual', 'Yearly — 2 months free') +
-        (_billingCycle === 'annual' ? '<span id="billingCycleNote" style="font-size:11.5px;color:var(--text2)">Yearly is two months free instead of the founding 30% — one or the other, not both.</span>' : '') +
+        (_billingCycle === 'annual' ? '<span id="billingCycleNote" style="font-size:11.5px;color:var(--text2)">Yearly is twelve months for the price of ten.</span>' : '') +
       '</div>'
     : '';
   host.innerHTML = head + cycleBar +
@@ -23595,7 +23649,7 @@ function _aboutYouSync(){
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">' +
         '<div>' + sel('aboutVolume', 'Roofs you quote in a month', [['','Select…'],['1-2','1–2'],['3-5','3–5'],['6-10','6–10'],['10+','More than 10'],['unsure','Varies / not sure']]) + '</div>' +
         '<div>' + sel('aboutSoftware', 'What you quote on now', [['','Select…'],['spreadsheet','A spreadsheet'],['paper','Paper and a calculator'],['fergus','Fergus'],['tradify','Tradify'],['servicem8','ServiceM8'],['simpro','simPRO'],['other','Something else']]) + '</div>' +
-        '<div>' + sel('aboutPlan', 'Which plan looks right?', [['unsure','Not sure yet'],['solo','Trade — one person'],['team','Team — up to five'],['business','Business — up to fifteen']]) + '</div>' +
+        '<div>' + sel('aboutPlan', 'Which plan looks right?', [['unsure','Not sure yet'],['measure','Measure — measuring and materials'],['solo','Trade — one person'],['team','Team — up to five']]) + '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:10px">' +
         '<button type="button" onclick="_aboutYouSend(false)" style="padding:7px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">Send</button>' +
@@ -80902,6 +80956,9 @@ function suggestRoofType(){
 function _updateRoofTypeHint(){}
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
+  // THE ROOF TRIAL: the trial's roofs are used and this is not one of them.
+  // Said here, before the roof is built, rather than as a save refused later.
+  if (DRAW.scaleMetresPerPx > 0) { try { if (_trialRoofsBlocked()) { _trialRoofsUsedOpen(); return; } } catch(e){} }
   saveSnapshot();
   // A broken ridge belongs to THIS gable as it lies: picking a shape, turning
   // it or changing its type starts the ridge whole again. Sliding the ridge

@@ -52,7 +52,7 @@ const settle = () => new Promise(r => setTimeout(r, 30));
 // ── the trial IS Team: what they try is what most of them buy ──
 let r = await api('GET', '/team');
 check('a trial reports itself as such, unlocked to exactly what Team has',
-  r.body.plan.id === 'trial' && r.body.plan.slug && !r.body.plan.domain && r.body.plan.jms && r.body.plan.seats.allowed === 5,
+  r.body.plan.id === 'trial' && r.body.plan.slug && r.body.plan.domain && r.body.plan.inbox && r.body.plan.jms && r.body.plan.seats.allowed === 5,
   JSON.stringify(r.body.plan));
 r = await api('POST', '/team/slug', { slug:'acmeroofing' });
 check('…and can set its RoofMap address', r.status === 200, String(r.status));
@@ -79,7 +79,7 @@ r = await api('POST', '/team/slug', { slug:'acme2' });
 check('Solo cannot take a RoofMap address',
   r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Team', JSON.stringify(r.body));
 r = await api('POST', '/team/domains', { domain:'quote.acmeroofing.co.nz' });
-check('…nor connect its own domain', r.status === 403 && r.body.needs === 'Business', JSON.stringify(r.body));
+check('…nor connect its own domain', r.status === 403 && r.body.needs === 'Team', JSON.stringify(r.body));
 r = await api('GET', '/fergus/anything');
 check('…nor reach the job-system link, which now starts at Team',
   r.status === 403 && r.body.needs === 'Team', JSON.stringify(r.body));
@@ -97,14 +97,15 @@ setPlan('team'); await settle();
 r = await api('POST', '/team/slug', { slug:'acmeroofing' });
 check('Team can set its RoofMap address', r.status === 200, String(r.status));
 r = await api('POST', '/team/domains', { domain:'quote.acmeroofing.co.nz' });
-check('…but its own domain is still Business-only', r.status === 403 && r.body.needs === 'Business', JSON.stringify(r.body));
-// The two reasons to leave Solo: a crew to schedule, and Fergus. Firms running
-// Fergus are Team-shaped, not Business-shaped.
+// Since 2026-10-23 Team is the top plan on sale and carries the domain: the
+// plan gate lets it through (the feature's own switch may still be off).
+check('…and its own domain is a Team thing now, not a plan refusal', r.body.code !== 'PLAN_LIMIT', JSON.stringify(r.body));
+// The two reasons to leave Solo: a crew to schedule, and Fergus.
 r = await api('GET', '/team');
 check('Team gets the schedule board', r.body.plan.schedule === true, JSON.stringify(r.body.plan));
 check('…and the Fergus link', r.body.plan.jms === true, JSON.stringify(r.body.plan));
-check('…but not the team inbox, which is what Business is for',
-  r.body.plan.inbox === false, JSON.stringify(r.body.plan));
+check('…and the team inbox, which used to be Business',
+  r.body.plan.inbox === true, JSON.stringify(r.body.plan));
 for (let i = 0; i < 4; i++){
   r = await api('POST', '/team/invites', { email: 'mate' + i + '@acmeroofing.co.nz' });
   if (r.status === 200 && db.company_invites.length) db.company_invites[db.company_invites.length-1].expires_at = '2030-01-01T00:00:00Z';
@@ -181,8 +182,9 @@ check('…a quote with a customer link is refused by the server, naming Trade',
 r = await api('PUT', '/jobs/j1/quote', { quote: { total: 100 } });
 check('…while a quote kept in-house (no link) is not a plan matter', r.status !== 403, String(r.status));
 r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x' });
-check('…and a merchant order is refused, naming Trade',
-  r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Trade', r.status + ' ' + JSON.stringify(r.body));
+// "Calculate your materials" ends at the order (2026-10-23): Measure sends it.
+check('…but a merchant order is NOT a plan matter on Measure',
+  r.body.code !== 'PLAN_LIMIT', r.status + ' ' + JSON.stringify(r.body));
 setPlan('solo'); await settle();
 r = await api('PUT', '/jobs/j1/quote', { quote: { share: { token: 'abc' } } });
 check('Trade sends quotes (the gate is not in the way of a real plan)', r.status !== 403, String(r.status));

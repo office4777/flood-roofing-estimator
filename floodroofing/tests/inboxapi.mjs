@@ -18,7 +18,7 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  
 const A  = { user: 'user-a',  company: 'company-a' };   // Business — owner
 const A2 = { user: 'user-a2', company: 'company-a' };   // Business — teammate
 const B  = { user: 'user-b',  company: 'company-b' };   // Business — the rival
-const T  = { user: 'user-t',  company: 'company-t' };   // Team — priced out
+const T  = { user: 'user-t',  company: 'company-t' };   // Trade — priced out (Team carries the inbox since 2026-10-23)
 
 const { port } = await startFakePostgrest({
   profiles: [{ id: A.user, company_id: A.company }, { id: A2.user, company_id: A.company },
@@ -29,7 +29,7 @@ const { port } = await startFakePostgrest({
                   { company_id: T.company, user_id: T.user, role: 'owner' }],
   companies: [{ id: A.company, name: 'Flood Roofing', plan: 'business' },
               { id: B.company, name: 'Rival Roofing', plan: 'business' },
-              { id: T.company, name: 'Small Roofing', plan: 'team' }],
+              { id: T.company, name: 'Small Roofing', plan: 'solo' }],
   jobs: [{ id: 'job-x', user_id: A.user, company_id: A.company, client_name: 'Brian Lewis',
     site_address: '148 Horeke Road', draw_state: { state: { quote: { ref: 'FR-2996' } } } }],
   mail_accounts: [], mail_threads: [], mail_messages: [], comms_tasks: [], chat_channels: [], chat_messages: [],
@@ -125,9 +125,9 @@ const j = r => r.json();
 // ── the tier gate ─────────────────────────────────────────────────
 let r = await as(T, '/inbox/threads');
 let body = await j(r);
-check('a Team-plan business is told the inbox is Business tier',
+check('a Trade-plan business is told the inbox is a Team thing',
   r.status === 402 || r.status === 403, 'status ' + r.status);
-check('…and the refusal names Business', /Business/i.test(JSON.stringify(body)));
+check('…and the refusal names Team', /Team/i.test(JSON.stringify(body)));
 
 // ── connecting accounts ───────────────────────────────────────────
 r = await as(A, '/inbox/accounts', { method: 'POST', body: JSON.stringify({

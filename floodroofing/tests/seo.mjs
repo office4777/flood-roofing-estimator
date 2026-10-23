@@ -218,8 +218,13 @@ check('nothing on the site claims a rating it has not earned',
 const discountPages = Object.entries(seen).filter(([, p]) => /30\s*%|30 per cent/i.test(p.html));
 const undated = discountPages.filter(([, p]) =>
   !/12\s*months|twelve months/i.test(p.html));
-check('the founding discount never appears without its 12-month term',
-  discountPages.length > 0 && undated.length === 0,
+// No founding discount since 2026-10-23 — so no page may promise one. A
+// discount that comes back has to come back with its term, as before.
+check('no page promises the founding discount, now that it is gone',
+  discountPages.length === 0 && !/founding rate/i.test(everything),
+  discountPages.map(([u]) => u).join(' '));
+check('…and any discount that does appear carries its 12-month term',
+  undated.length === 0,
   undated.length ? undated.map(([u]) => u).join(' ') : discountPages.length + ' pages mention it');
 check('…and every one of them says what happens afterwards',
   discountPages.every(([, p]) => /standard rate|then the standard/i.test(p.html)),
@@ -352,7 +357,8 @@ check('…and keeps crawlers out of the 2.9 MB app',
   check('the case study is one real job with the numbers and the caveats', /job 3045/i.test(cs) && /ninety minutes/.test(cs) && /ten minutes/.test(cs) && /three in ten/.test(cs) && /five in ten/.test(cs) && /Honest caveats/.test(cs) && /exact measurements/i.test(cs));
   const sheet = await readFile(_j(DIR, 'guides-calculating-sheet-lengths.html'), 'utf8');
   check('the sheet-length guide links the manufacturer pages and states its assumptions', (sheet.match(/roof\.co\.nz\/product\//g) || []).length >= 5 && /dimond\.co\.nz/.test(sheet) && /What this guide assumes/.test(sheet));
-  check('…with the founding rate and its conditions in the pricing markup', /UnitPriceSpecification[^}]*Founding rate[^}]*209\.30[^}]*validThrough/.test(landing));
+  check('…with the standard prices, and no founding rate, in the pricing markup',
+    /"name": "Team", "price": "299"/.test(landing) && !/Founding rate/.test(landing) && !/"name": "Business"/.test(landing));
 }
 
 // ── the sitemap must equal the site ───────────────────────────────

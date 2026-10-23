@@ -61,7 +61,9 @@ v = await pg.evaluate(() => ({
 }));
 check('…and lands on Settings → Billing', v.tab === 'settings' && v.on, JSON.stringify({tab:v.tab,on:v.on}));
 check('…which says the trial has ended and shows the three plans',
-  /trial has ended/.test(v.body) && /\$149/.test(v.body) && /\$299/.test(v.body) && /\$549/.test(v.body), v.body.slice(0,80));
+  /trial has ended/.test(v.body) && /\$79/.test(v.body) && /\$149/.test(v.body) && /\$299/.test(v.body), v.body.slice(0,80));
+// Business went off sale on 2026-10-23: never offered to a business not on it.
+check('…and never offers Business, which is off sale', !/\$549/.test(v.body) && !/Choose Business/.test(v.body), '');
 check('…and that the card goes to Stripe, jobs stay', /Stripe/.test(v.body) && /jobs stay/.test(v.body));
 check('…with no yearly toggle while no yearly price exists', !/2 months free/.test(v.body), '');
 await pg.locator('#set-billing').screenshot({ path: S + '/billing_settings.png' });
@@ -148,11 +150,12 @@ check('…and that button still lands on Settings → Billing',
 // The prices are the reason this suite exists — they must survive every
 // rewording of the screen around them.
 check('…which shows the three plans at the standard prices',
-  /\$149/.test(v.body) && /\$299/.test(v.body) && /\$549/.test(v.body), v.body.slice(0,80));
+  /\$79/.test(v.body) && /\$149/.test(v.body) && /\$299/.test(v.body) && !/\$549/.test(v.body), v.body.slice(0,80));
 check('…and does not tell them a trial ended that they never had',
   !/trial has ended/i.test(v.body), v.body.slice(0,90));
-check('…and states the discount with its term and what follows it',
-  /30% off your first 12 months/.test(v.body) && /standard rate/.test(v.body), v.body.slice(0,180));
+// No founding discount since 2026-10-23: the screen must not promise one.
+check('…and promises no discount, because there is none',
+  !/30%/.test(v.body) && !/founding/i.test(v.body), v.body.slice(0,180));
 check('…and says cancelling is possible, since the pricing page promises it',
   /cancel any time/i.test(v.body), v.body.slice(0,180));
 await ctx.close();
@@ -160,7 +163,7 @@ await ctx.close();
 // ── paid yearly: two months free ──────────────────────────────────
 ({ ctx, pg, checkouts } = await boot({ status:'trialing', billing:true, live:false,
   trial:{ ends_at:'2026-08-01T00:00:00Z', days_left:0, expired:true }, plan:'trial',
-  annual:{ solo:true, team:true, business:false } }));
+  annual:{ measure:false, solo:true, team:true, business:false } }));
 await pg.click('.panel.active #trialBanner button, .panel.active #trialBannerRoof button');
 await pg.waitForTimeout(700);
 v = await pg.evaluate(() => ({
@@ -176,7 +179,7 @@ v = await pg.evaluate(() => document.getElementById('billingBody').textContent);
 check('the yearly view shows the yearly prices with two months free',
   /\$1,490/.test(v) && /\$2,990/.test(v) && /2 months free/.test(v), v.replace(/\s+/g,' ').slice(0, 120));
 check('…and a plan with no yearly price says monthly only instead of lying',
-  /\$549/.test(v) && /monthly only/.test(v) && !/\$5,490/.test(v), '');
+  /\$79/.test(v) && /monthly only/.test(v) && !/\$790/.test(v), '');
 await pg.evaluate(() => { [...document.querySelectorAll('#billingBody button')].find(b => /Choose Team/.test(b.textContent)).click(); });
 await pg.waitForTimeout(1200);
 check('Choose Team in yearly view buys the ANNUAL team plan',

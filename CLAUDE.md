@@ -26,10 +26,10 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (276 as of 2026-10-23 — 60 in its `API` list, 216 in `UI` — four at a time,
+  (281 as of 2026-10-23 — 62 in its `API` list, 219 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
-  `run.mjs api` is the exact command CI's Backend job runs, 60 suites in
+  `run.mjs api` is the exact command CI's Backend job runs, 62 suites in
   about 38 seconds, and it is what to run before ANY server ship. A NEW
   suite must be added to the `API` or `UI` list in `run.mjs` or it never
   runs — and every suite on disk is in one of them today, which is worth
@@ -173,6 +173,54 @@ Discipline (non-negotiable):
 - The public pages (`landing`, `pricing`, `fergus`, `early-access`, `signup`)
   must agree with the `PLANS` table in server.js about what each tier gets.
   `tests/sitecopy.mjs` pins it; change the table and the pages together.
+- THREE PLANS, NO FOUNDING RATE, AND A ROOF TRIAL (2026-10-23, the owner:
+  "swap the 14-day clock for '3 real roofs or 30 days, whichever comes
+  first' ... only new trial users not existing trial users, also amend the
+  pricing tiers and drop the top tier off", then "fully remove the 30% off
+  for 12months").
+  THE TIERS: Measure $79 (1 person: measuring, cut list, job pack, and now
+  MERCHANT ORDERS — `PLANS.measure.order` is true; no customer quotes), Trade
+  $149 (1 person, adds quotes, notifications, follow-up, invoicing, quote
+  analytics), Team $299 (5 people, adds Fergus, the schedule board, the
+  subdomain and own-address email, and now the team INBOX, chat and tasks,
+  the own DOMAIN and priority support). Business is OFF SALE:
+  `PLANS_ON_SALE = ['measure','solo','team']`, `/billing/checkout` refuses it
+  for a company not already on it, `PLAN_TIERS.business.retired` keeps it on
+  the billing screen only for a business on it, and `PLANS.business` stays so
+  those businesses keep their limits. `_BIGGEST_PLAN_SEATS` comes from the
+  plans on sale, so a full Team is told "Enterprise". The trial row matches
+  Team, inbox and domain included. Every `needs: 'Business'` is now 'Team'.
+  NO COUPON: checkout always sends `allow_promotion_codes` and never
+  `discounts` (`EARLY_ACCESS_COUPON` and `_earlyAccessEligible` are gone, and
+  so is the founding paragraph in the waitlist invite). A business already on
+  the coupon keeps it — that is Stripe's state. No page, the app or the terms
+  may promise a founding rate (`seo.mjs`, `trialui`, `billingui`).
+  THE ROOF TRIAL: `_newTrialRow` gives a new business `trial_roof_limit` 3
+  (`TRIAL_ROOFS`, 0 = back to 14-day trials) and `trial_ends_at` +30 days
+  (`TRIAL_ROOF_DAYS`); a row with no limit is a 14-day trial and is never
+  counted. A REAL ROOF (`_drawHasRealRoof`) is an outline of 3+ corners with
+  a scale, on any roof tab, never TEST-1, a SAMPLE ref or `isSampleJob`.
+  `trial_roofs` (company_id, user_id, job_id = the version ROOT, unique per
+  company) is the ledger; `_trialRoofGate` runs on `POST /jobs` and
+  `PUT /jobs/:id` — counts the job the first time a save carries a real roof
+  (`trialRoofCounted` in the answer), refuses a 4th with 403
+  `TRIAL_ROOFS_USED`, and re-reads the subscription fresh before refusing so
+  a business that has just paid is never stopped by a minute-old memo. A
+  failed check lets the save through. The three counted jobs keep working
+  until day 30; deleting one does not give its roof back. `/subscription`
+  `.trial` carries `days`, `roofs_limit/used/left` and `roof_jobs` (roots).
+  THE APP: `_planGateHtml` shows "N of 3 free roofs left · M days left" from
+  day one on a roof trial (amber at 1 roof or 3 days); `_trialRoofsBlocked()`
+  stops `autoGenerateRoof` on a 4th roof and opens the plans window
+  (`window.__roofsUsedGate`) with "Back to my roofs", because the account is
+  still live; `api()` opens the same window on `TRIAL_ROOFS_USED`.
+  THE EMAILS: the drip's last step is day 26 "Four days left" on a roof trial
+  (`_dripStepDay`), with the roofs left; the gone-quiet alert names roofs
+  left; the trial-ended email no longer says "14-day". THE FUNNEL is on the
+  analytics page (`trialFunnel` in analytics.js): signed up → 1st → 2nd →
+  3rd real roof → paid, by signup week over 13 weeks, from `trial_roofs` for
+  roof trials and from the jobs themselves for older signups, blocked
+  signups left out. `tests/trialroofs.mjs` (API), `trialui`, `analytics`.
 - THE SIGN-UP QUESTION is asked in TWO places — `signup.html` and the app's own
   `login-setup-view` — and they must not drift. Since 2026-10-07 it reads "What
   has drawn you here the most?" and takes ONE answer (radios; it was "What

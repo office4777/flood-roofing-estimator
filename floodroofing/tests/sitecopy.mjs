@@ -21,7 +21,10 @@ const plans = /const PLANS = \{([\s\S]*?)\n\};/.exec(server)[1];
 const row = k => /\b(\w+):\s*\{([^}]*)\}/g[Symbol.replace] && new RegExp(k + ':\\s*\\{([^}]*)\\}').exec(plans)[1];
 check('the server sells Fergus and the schedule board on Team', /jms: true/.test(row('team')) && /schedule: true/.test(row('team')));
 check('…and not on Trade', /jms: false/.test(row('solo')) && /schedule: false/.test(row('solo')));
-check('…with fifteen seats on Business and the inbox only there', /seats: 15/.test(row('business')) && /inbox: true/.test(row('business')) && /inbox: false/.test(row('team')));
+// 2026-10-23: Business is off sale and Team carries everything it had, at
+// five seats. The Business row stays for the businesses already on it.
+check('…and Team carries the inbox and the domain now, at five seats', /seats: 5/.test(row('team')) && /inbox: true/.test(row('team')) && /domain: true/.test(row('team')));
+check('…while Business is off sale but still resolves for those on it', /seats: 15/.test(row('business')) && /PLANS_ON_SALE = \['measure', 'solo', 'team'\]/.test(server));
 
 // ── the homepage says the same ───────────────────────────────────
 for (const [name, html] of [['homepage', landing], ['pricing page', pricing]]){
@@ -29,15 +32,19 @@ for (const [name, html] of [['homepage', landing], ['pricing page', pricing]]){
   check('the ' + name + ' puts Fergus and the schedule board on Team',
     /Fergus/.test(team) && /schedule board/i.test(team), name);
   check('…and does not sell either as Business-only', !/<li>[^<]*Fergus[^<]*<\/li>/.test(biz) && !/<li>[^<]*[Ss]chedule board[^<]*<\/li>/.test(biz), biz.match(/<li>[^<]*<\/li>/g)?.join(' | ').slice(0, 200));
-  check('…caps Business at fifteen, with Enterprise above', /15|fifteen/.test(biz) && !/unlimited (users|logins|people)/i.test(biz), name);
+  check('…has no Business card any more', biz === '' && !/\$549/.test(html) && !/"name": "Business"/.test(html), name);
+  check('…and sells Team with the inbox and the domain, Enterprise above five',
+    /inbox/i.test(team) && /own domain/i.test(team) && /five|5 users|5 logins/i.test(team) && !/unlimited (users|logins|people)/i.test(team), name);
   check('…and gives Trade the notifications and the follow-up', /opens|Notifications/.test(trade) && /follow-up/i.test(trade), name);
-  check('…with both prices on every card: the founding rate and what it goes to',
-    /\$104\.30[\s\S]{0,120}\$149/.test(trade) && /\$209\.30[\s\S]{0,120}\$299/.test(team) && /\$384\.30[\s\S]{0,120}\$549/.test(biz), name);
-  check('…and says yearly is instead of the 30%, not on top', /one or the other, not both/.test(html), name);
+  // No founding discount since 2026-10-23: one price per card, nothing struck through.
+  check('…with one price on every card and no founding rate anywhere',
+    /<div class="amt">\$149<\/div>/.test(trade) && /<div class="amt">\$299<\/div>/.test(team) &&
+    !/class="was"/.test(html) && !/founding/i.test(html) && !/30%/.test(html) && !/(55|104|209|384)\.30/.test(html), name);
+  check('…and states the trial as 3 real roofs or 30 days', /3 real roofs or 30 days/.test(html) && !/14 days|Fourteen days/.test(html), name);
   // Measure is sold (2026-09-19) — the homepage left it off until 2026-10-01.
   const measure = card(html, 'Measure');
-  check('…and carries the Measure plan, $55.30 going to $79, with no quotes or orders in it',
-    /\$55\.30[\s\S]{0,160}\$79/.test(measure) && /class="off">[^<]*[Qq]uotes/.test(measure) && /class="off">[^<]*orders/i.test(measure), name);
+  check('…and carries the Measure plan at $79, with merchant orders in it and no customer quotes',
+    /<div class="amt">\$79<\/div>/.test(measure) && /class="off">[^<]*[Qq]uotes/.test(measure) && /<li>Merchant orders<\/li>/.test(measure), name);
   check('…in its structured data too', /"name": "Measure", "price": "79\.00"/.test(html), name);
 }
 check('nothing on the homepage says "unlimited users" or "unlimited logins"', !/unlimited (users|logins)/i.test(landing));
@@ -51,18 +58,19 @@ check('the setup-call page hands out no access codes and speaks of no batches', 
 check('…is a request, and says when the reply comes', /Request my setup call/.test(ea) && /within one working day/.test(ea) && /<title>Request/.test(ea));
 check('…and its form no longer asks roof volume, software or plan', !/eaVolume|eaSoftware|eaPlan/.test(ea));
 check('those questions are asked inside the app instead, optionally', /aboutYouCard/.test(read('app.html')) && /app\.post\('\/auth\/about'/.test(server));
-check('the sign-up page says what the trial is and what stays after it', /14 days of Team/.test(signup) && /stay yours/.test(signup));
+check('the sign-up page says what the trial is and what stays after it', /3 real roofs or 30 days of Team/.test(signup) && /stay yours/.test(signup) && !/14 days|Fourteen/.test(signup));
 check('the trial really is Team', /trial:\s*\{[^}]*seats: 5[^}]*jms: true[^}]*schedule: true/.test(plans));
+check('…and a new trial is 3 roofs or 30 days', /parseInt\(process\.env\.TRIAL_ROOFS == null \? '3'/.test(server) && /TRIAL_ROOF_DAYS = Number\(process\.env\.TRIAL_ROOF_DAYS \|\| 30\)/.test(server));
 // Measure is sold: on the pricing page, in the JSON-LD, in the intro and
 // on the app's billing screen. The server only ever refuses the checkout
 // when STRIPE_PRICE_MEASURE is missing, and says so by name.
-check('the Measure card is on the pricing page, at $79 with the founding rate',
-  /<div class="tier" data-plan="measure">[\s\S]{0,200}<h3>Measure<\/h3>/.test(pricing) && !/tier" hidden/.test(pricing) && /\$55\.30[\s\S]{0,120}\$79/.test(card(pricing, 'Measure')));
-check('…and its Offer is in the pricing JSON-LD', /"name": "Measure", "price": "79\.00"/.test(pricing) && /"price": "55\.30"/.test(pricing));
+check('the Measure card is on the pricing page, at $79',
+  /<div class="tier" data-plan="measure">[\s\S]{0,200}<h3>Measure<\/h3>/.test(pricing) && !/tier" hidden/.test(pricing) && /<div class="amt">\$79<\/div>/.test(card(pricing, 'Measure')));
+check('…and its Offer is in the pricing JSON-LD', /"name": "Measure", "price": "79\.00"/.test(pricing) && !/"price": "55\.30"/.test(pricing));
 check('…and the app\'s billing screen lists it like the other plans', /key: 'measure',[^\n]*name: 'Measure'/.test(read('app.html')) && !/key: 'measure',[^\n]*offered: true/.test(read('app.html')));
-check('…and the server\'s Measure sends no quote and no order', /quote: false/.test(row('measure')) && /order: false/.test(row('measure')) && /seats: 1/.test(row('measure')));
-check('…while every plan that is sold does both', ['solo', 'team', 'business', 'trial'].every(k => /quote: true/.test(row(k)) && /order: true/.test(row(k))));
-check('…and the public intro names all four prices', /\$79, \$149, \$299 or \$549/.test(pricing) && /The four plans/.test(pricing) && !/three plans/.test(pricing));
+check('…and the server\'s Measure sends merchant orders but no customer quote', /quote: false/.test(row('measure')) && /order: true/.test(row('measure')) && /seats: 1/.test(row('measure')));
+check('…while every other plan does both', ['solo', 'team', 'business', 'trial'].every(k => /quote: true/.test(row(k)) && /order: true/.test(row(k))));
+check('…and the public intro names the three prices', /\$79, \$149 or \$299/.test(pricing) && /The three plans/.test(pricing) && !/four plans/.test(pricing));
 
 // ── the savings comparison ───────────────────────────────────────
 check('the savings block quotes the range its own table shows', /\$800 to \$1,300/.test(pricing) && !/past a thousand/.test(pricing));

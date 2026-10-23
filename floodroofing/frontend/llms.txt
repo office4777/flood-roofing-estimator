@@ -33,16 +33,17 @@ barge, apron, change-of-pitch, coastal zones.
 
 - Region: New Zealand only. Prices in NZD, GST at 15%, NZ profiles, NZ steel
   grades, NZ coastal corrosion zones.
-- Plans: Solo NZ$149/month, Team NZ$299/month, Business NZ$549/month, plus GST.
-  Priced per business, not per seat.
-- Early-access businesses pay 30% less for their first 12 months — NZ$104.30,
-  $209.30 and $384.30 respectively — and the standard rate after that. It is an
-  introductory discount with a stated end, not a permanent price.
-- Access at the time of writing is **early access, approved in batches**, not an
-  open self-serve trial.
-- There is no free trial. Subscriptions are month to month with no contract and no
-  minimum term; cancelling stops the next payment and takes effect at the end of the
-  month already paid for. Part months are not pro-rated.
+- Plans: Measure NZ$79/month, Trade NZ$149/month, Team NZ$299/month, plus GST.
+  Priced per business, not per seat. Measure is one person (measuring, cut lists,
+  merchant orders); Trade is one person and adds customer quotes; Team is up to
+  five people and adds Fergus, the schedule board, the team inbox and the
+  business's own domain. More than five people is Enterprise, by arrangement.
+- Free trial: a new business gets its first 3 real roofs or 30 days of the Team
+  plan free, whichever comes first, with no card. A roof counts once it has an
+  outline and a scale; the practice roof and the sample job never count.
+- Subscriptions are month to month with no contract and no minimum term;
+  cancelling stops the next payment and takes effect at the end of the month
+  already paid for. Part months are not pro-rated. Yearly billing is two months free.
 - Integrates with Fergus job management. Works without any job-management
   system at all.
 - Support: support@roofmap.co.nz. Accounts and billing: accounts@roofmap.co.nz.

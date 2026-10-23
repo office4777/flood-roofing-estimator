@@ -42,6 +42,7 @@ function createAnalytics(deps){
   const warn = deps.warn || function(){};
   const buildSha = deps.buildSha || '';
   const cancelReasons = deps.cancelReasons || {};
+  const blockedEmail = deps.blockedEmail || function(){ return false; };
 
   async function getState(key){
     const r = await supabase.from('platform_state').select('value').eq('key', key).maybeSingle();
@@ -163,7 +164,70 @@ function createAnalytics(deps){
     try { week = await days(latest.today.date, 7); } catch (e){ warn('[analytics] week read failed: ' + e.message); }
     let cancels = null;
     try { cancels = await cancelFeedback(); } catch (e){ warn('[analytics] cancel feedback read failed: ' + e.message); }
-    return { latest, series, week, cancels, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
+    let funnel = null;
+    try { funnel = await trialFunnel(); } catch (e){ warn('[analytics] trial funnel read failed: ' + e.message); }
+    return { latest, series, week, cancels, funnel, plan_price: PLAN_PRICE, plan_label: PLAN_LABEL, build: buildSha, now: new Date().toISOString() };
+  }
+
+  // THE TRIAL FUNNEL (2026-10-23, the owner: "Your most important metric now
+  // should be how many genuine roofing businesses complete a second real
+  // roof, followed by how many are willing to pay to do a third").
+  //
+  // Every business that signed up in the last FUNNEL_DAYS, by the NZ week it
+  // signed up in: how many measured a 1st, 2nd and 3rd real roof, and how many
+  // went on to pay. A REAL ROOF is a job with an outline and a scale, never the
+  // practice job or the sample — the roof trial's own rule. A business on a
+  // roof trial is counted from `trial_roofs`, which is the trial's own ledger;
+  // one from before it is counted off its jobs the same way, so the weeks
+  // before the change are comparable with the weeks after. Leaves out blocked
+  // signups always, and the owner's own accounts on the toggle (`ext`).
+  const FUNNEL_DAYS = 91;
+  async function trialFunnel(){
+    const since = new Date(Date.now() - FUNNEL_DAYS * 864e5).toISOString();
+    const [cos, links, profs, subs, roofs, jobs] = await Promise.all([
+      supabase.from('companies').select('id, name, created_at').gte('created_at', since).limit(5000),
+      supabase.from('company_users').select('company_id, user_id, role').limit(20000),
+      supabase.from('profiles').select('id, email').limit(20000),
+      supabase.from('subscriptions').select('company_id, status, trial_roof_limit').limit(20000),
+      supabase.from('trial_roofs').select('company_id, job_id').limit(50000),
+      supabase.from('jobs').select('id, company_id, version_of, ol:draw_state->draw->outline, sc:draw_state->draw->scaleMetresPerPx, ref:draw_state->state->quote->>ref').gte('created_at', since).limit(20000),
+    ]);
+    for (const r of [cos, links, profs, subs]) if (r.error) throw new Error(r.error.message);
+    const email = {}; (profs.data || []).forEach(p => { email[p.id] = p.email || ''; });
+    const owners = {}; (links.data || []).forEach(l => { if (!owners[l.company_id] || l.role === 'owner') owners[l.company_id] = email[l.user_id] || ''; });
+    const sub = {}; (subs.data || []).forEach(x => { if (x.company_id && (!sub[x.company_id] || x.status === 'active')) sub[x.company_id] = x; });
+    const ledger = {};
+    if (!roofs.error) (roofs.data || []).forEach(r => { (ledger[r.company_id] = ledger[r.company_id] || new Set()).add(String(r.job_id)); });
+    const fromJobs = {};
+    if (!jobs.error) (jobs.data || []).forEach(j => {
+      const ref = String(j.ref || '').toUpperCase();
+      if (!(Array.isArray(j.ol) && j.ol.length >= 3 && Number(j.sc) > 0) || ref === 'TEST-1' || /^SAMPLE/.test(ref)) return;
+      (fromJobs[j.company_id] = fromJobs[j.company_id] || new Set()).add(String(j.version_of || j.id));
+    });
+    const weekOf = iso => { const p = nzParts(new Date(iso)); const d = new Date(p.date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+    const blank = w => ({ week: w, signups: 0, r1: 0, r2: 0, r3: 0, paid: 0, roof_trial: 0 });
+    const all = {}, ext = {};
+    const add = (m, c, n, paid, rt) => {
+      const w = weekOf(c.created_at), b = m[w] = m[w] || blank(w);
+      b.signups++; if (n >= 1) b.r1++; if (n >= 2) b.r2++; if (n >= 3) b.r3++; if (paid) b.paid++; if (rt) b.roof_trial++;
+    };
+    let blocked = 0;
+    (cos.data || []).forEach(c => {
+      if (blockedEmail(owners[c.id])) { blocked++; return; }
+      const s = sub[c.id] || {};
+      const rt = Number(s.trial_roof_limit) > 0;
+      const set = (rt ? ledger[c.id] : null) || fromJobs[c.id] || ledger[c.id];
+      const n = set ? set.size : 0;
+      const paid = s.status === 'active';
+      add(all, c, n, paid, rt);
+      if (!isInternalCompany(c.name) && !isInternalEmail(owners[c.id])) add(ext, c, n, paid, rt);
+    });
+    const fin = m => {
+      const weeks = Object.keys(m).sort().reverse().map(k => m[k]);
+      const total = weeks.reduce((t, b) => { ['signups', 'r1', 'r2', 'r3', 'paid', 'roof_trial'].forEach(k => { t[k] += b[k]; }); return t; }, blank('total'));
+      return { weeks, total };
+    };
+    return Object.assign(fin(all), { days: FUNNEL_DAYS, blocked, ext: fin(ext) });
   }
 
   // Why trials cancelled: every reason ticked on the cancel form, counted,
@@ -281,6 +345,7 @@ function createAnalytics(deps){
     '<div class="grid2"><div class="c"><h2 id="ntH">New trials today</h2><div id="newTrials"></div></div>' +
     '<div class="c"><h2 id="trH">On a trial now</h2><div id="trials"></div></div>' +
     '<div class="c"><h2 id="pdH">Paying</h2><div id="paid"></div></div></div>' +
+    '<div class="c"><h2 id="fnH">Trial funnel — real roofs</h2><div id="funnel"></div></div>' +
     '<div class="c"><h2 id="cfH">Why trials cancelled</h2><div id="cancels"></div></div>' +
     '<p class="ft" id="ft"></p></div></div><div class="tip" id="tip"></div>' +
     '<script>' + PAGE_JS + '</script></body></html>';
@@ -404,10 +469,35 @@ function render(){
   Object.keys(T.paid).forEach(function(k){ if ((k === 'monthly' || k === 'measure') && !T.paid[k].length) return; paidHtml += '<h2 style="margin-top:8px">' + esc(P[k] || k) + ' · ' + money((DATA.plan_price || {})[k]) + '/mo — ' + T.paid[k].length + '</h2>' + list(T.paid[k]); });
   $('pdH').textContent = 'Paying — ' + s.paying_total;
   $('paid').innerHTML = paidHtml;
+  renderFunnel(DATA.funnel);
   renderCancels(DATA.cancels);
   $('ft').textContent = 'Same numbers as the morning email, taken hourly · logins and minutes count from the day they shipped · build ' + (DATA.build || '—');
 }
 var PICKED = null;   // { date, nice, summary, users } for a chosen day
+// The number the owner runs the business on: signed up → 1st real roof →
+// 2nd → 3rd → paid. Bars are a share of signups; the weeks are below.
+function renderFunnel(f){
+  f = V(f);
+  if (!f){ $('funnel').innerHTML = '<p class="m">Could not read the trial funnel.</p>'; return; }
+  var t = f.total;
+  $('fnH').textContent = 'Trial funnel — real roofs, last ' + Math.round((DATA.funnel.days || 91) / 7) + ' weeks';
+  if (!t.signups){ $('funnel').innerHTML = '<p class="m">No signups in that time.</p>'; return; }
+  var pc = function(n, of){ return of ? Math.round(100 * n / of) + '%' : '—'; };
+  var steps = [['Signed up', t.signups, ''], ['Measured a 1st real roof', t.r1, pc(t.r1, t.signups) + ' of signups'],
+    ['A 2nd real roof', t.r2, pc(t.r2, t.r1) + ' of those with one'], ['A 3rd real roof', t.r3, pc(t.r3, t.r2) + ' of those with two'],
+    ['Paid', t.paid, pc(t.paid, t.signups) + ' of signups']];
+  var bars = '<table class="wk" style="margin-bottom:10px"><tbody>' + steps.map(function(s){
+    var w = Math.round(100 * s[1] / t.signups);
+    return '<tr><td style="width:40%">' + esc(s[0]) + '</td><td class="n" style="width:60%"><span class="bar" style="width:' + w + '%"></span><span class="v">' + s[1] + (s[2] ? ' · ' + esc(s[2]) : '') + '</span></td></tr>';
+  }).join('') + '</tbody></table>';
+  var rows = f.weeks.map(function(b){
+    return '<tr><td>' + nz(b.week + 'T12:00:00Z', { day: 'numeric', month: 'short' }) + '</td><td class="n">' + b.signups + '</td><td class="n">' + b.r1 + '</td><td class="n">' + b.r2 + '</td><td class="n">' + b.r3 + '</td><td class="n">' + b.paid + '</td><td class="n">' + b.roof_trial + '</td></tr>';
+  }).join('');
+  $('funnel').innerHTML = bars +
+    '<p class="m" style="font-size:12px;margin:0 0 8px">A real roof is a job with an outline and a scale — never the practice job or the sample. Versions of one job are one roof.' +
+    (DATA.funnel.blocked ? ' ' + DATA.funnel.blocked + ' blocked signup' + (DATA.funnel.blocked === 1 ? '' : 's') + ' left out.' : '') + '</p>' +
+    '<details><summary style="cursor:pointer;font-size:12px;color:var(--mute)">By the week they signed up</summary><div class="tw"><table><thead><tr><th>Week of</th><th class="n">Signed up</th><th class="n">1st roof</th><th class="n">2nd</th><th class="n">3rd</th><th class="n">Paid</th><th class="n">On roof trial</th></tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+}
 function renderCancels(c){
   if (!c){ $('cfH').textContent = 'Why trials cancelled'; $('cancels').innerHTML = '<p class="m">Could not read the cancel feedback.</p>'; return; }
   $('cfH').textContent = 'Why trials cancelled — ' + c.total + (c.total === 1 ? ' form' : ' forms') + ' filled in';

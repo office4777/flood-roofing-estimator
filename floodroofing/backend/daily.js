@@ -263,7 +263,7 @@ function createDaily(deps){
       rep.paid[k].forEach(c => L.push('  • ' + who(c)));
     });
     L.push('');
-    L.push('MRR, paying businesses combined: ' + money(rep.mrr) + ' + GST a month (list price; a founding discount is not netted off)');
+    L.push('MRR, paying businesses combined: ' + money(rep.mrr) + ' + GST a month');
     L.push('');
     L.push('ACTIVITY YESTERDAY — ' + rep.active_count + ' of ' + rep.users.length + ' people did something');
     L.push('person | business | plan | logins | canvas | quotes | orders | feedback | minutes | where the minutes went | left at | practice job');
@@ -319,7 +319,7 @@ function createDaily(deps){
       sec('New trials yesterday — ' + rep.new_trials.length, list(rep.new_trials)) +
       sec('On a trial now — ' + rep.trials.length, rep.trials.length ? '<ul>' + rep.trials.map(c => '<li><b>' + h(c.name) + '</b> <span class="m">' + h(planWord(c)) + '</span>' + (c.owner ? ' — ' + h([c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(' · ')) : '') + '</li>').join('') + '</ul>' : '<p class="m">None.</p>') +
       Object.keys(PLAN_PRICE).map(k => sec((PLAN_LABEL[k] || k) + ' · ' + money(PLAN_PRICE[k]) + '/mo — ' + rep.paid[k].length, list(rep.paid[k]))).join('') +
-      sec('MRR, paying businesses combined', '<p class="big">' + h(money(rep.mrr)) + ' <span class="m" style="font-size:13px;font-weight:400">+ GST a month · list price, a founding discount is not netted off</span></p>') +
+      sec('MRR, paying businesses combined', '<p class="big">' + h(money(rep.mrr)) + ' <span class="m" style="font-size:13px;font-weight:400">+ GST a month</span></p>') +
       sec('Activity yesterday — ' + rep.active_count + ' of ' + rep.users.length + ' people did something',
         '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th><th>Where the minutes went</th><th>Left at</th><th>Practice job</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +
       sec('Where people closed the app', stopsHtml) +

@@ -2,7 +2,7 @@
 // with a real mouse. Painting respects the working-day calendar, a
 // pencil block solid-books with one crew click, blocks drag, over-
 // capacity days warn, the customer email goes through a review modal,
-// and a plan without the feature sees the Business teaser — not a
+// and a plan without the feature sees the Team teaser — not a
 // broken board.
 import { fileURLToPath as _f } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
@@ -655,7 +655,7 @@ v = await pg.evaluate(() => ({
   wrap: getComputedStyle(document.getElementById('schedWrap')).display === 'none',
   text: document.getElementById('schedLockedCard').textContent,
 }));
-check('a plan without the board sees the Business teaser', v.teaser && v.wrap && /Business/.test(v.text),
+check('a plan without the board sees the Team teaser (Business is off sale)', v.teaser && v.wrap && /Team/.test(v.text) && !/Business/.test(v.text),
   JSON.stringify({ teaser: v.teaser, wrap: v.wrap }));
 check('…and never even asks the server for the board',
   !calls.some(c => c[0] === 'GET /schedule'), JSON.stringify(calls));

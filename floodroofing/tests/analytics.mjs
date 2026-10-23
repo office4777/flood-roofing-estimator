@@ -48,7 +48,7 @@ const db = {
   ],
   subscriptions: [
     { user_id: 'u1', company_id: C1, status: 'active',   plan: 'team',     stripe_customer_id: 'cus_1', trial_ends_at: null },
-    { user_id: 'u2', company_id: C2, status: 'trialing', plan: null,       stripe_customer_id: null, trial_ends_at: d(-13) },
+    { user_id: 'u2', company_id: C2, status: 'trialing', plan: null,       stripe_customer_id: null, trial_ends_at: d(-29), trial_roof_limit: 3 },
     { user_id: 'u3', company_id: C3, status: 'trialing', plan: null,       stripe_customer_id: null, trial_ends_at: d(-5) },
     { user_id: 'u4', company_id: C4, status: 'active',   plan: 'business', stripe_customer_id: 'cus_4', trial_ends_at: null },
   ],
@@ -76,6 +76,20 @@ const db = {
     { user_id: 'u4', company_id: C4, name: 'login',         at: new Date(y1 + 3600e3).toISOString(), props: {} },
   ],
   platform_state: [],
+  // The trial funnel: Kaipara is on the roof trial and has used two roofs;
+  // Bay is a 14-day trial from before, counted off its jobs — one real roof
+  // (and a version of it), plus the practice job and an unscaled sketch,
+  // neither of which is a roof.
+  trial_roofs: [
+    { company_id: C2, user_id: 'u2', job_id: 'jk1', at: inY(11) },
+    { company_id: C2, user_id: 'u2', job_id: 'jk2', at: inY(12) },
+  ],
+  jobs: [
+    { id: 'jb1', company_id: C3, user_id: 'u3', version_of: null, created_at: d(8), draw_state: { state: { quote: { ref: '0001' } }, draw: { outline: [[0,0],[9,0],[9,9]], scaleMetresPerPx: 0.02 } } },
+    { id: 'jb1v', company_id: C3, user_id: 'u3', version_of: 'jb1', created_at: d(7), draw_state: { state: { quote: { ref: '0001' } }, draw: { outline: [[0,0],[9,0],[9,9]], scaleMetresPerPx: 0.02 } } },
+    { id: 'jbp', company_id: C3, user_id: 'u3', version_of: null, created_at: d(8), draw_state: { state: { quote: { ref: 'TEST-1' } }, draw: { outline: [[0,0],[9,0],[9,9]], scaleMetresPerPx: 0.02 } } },
+    { id: 'jbs', company_id: C3, user_id: 'u3', version_of: null, created_at: d(8), draw_state: { state: {}, draw: { outline: [[0,0],[9,0],[9,9]], scaleMetresPerPx: 0 } } },
+  ],
   cancel_feedback: [
     { company_id: C3, user_id: 'u3', email: 'jo@bay.co.nz', reasons: ['mapping', 'time'], detail: 'Could not get the scale right', keep: 'A video for the calibrate step', created_at: d(2) },
     { company_id: null, user_id: 'u-gone', email: 'gone@x.co.nz', reasons: ['mapping'], detail: 'Too fiddly on the phone', keep: 'An app', created_at: d(5) },
@@ -127,6 +141,14 @@ check('…newest first, with who they were and what they said',
   a.cancels.recent[0].email === 'jo@bay.co.nz' && a.cancels.recent[0].company === 'Bay Roofing' && a.cancels.recent[0].reasons.includes('Mapping the roof is too hard') && /calibrate/.test(a.cancels.recent[0].keep),
   JSON.stringify(a.cancels.recent[0]));
 check('…and a form from somebody with no profile still shows', a.cancels.recent[1].email === 'gone@x.co.nz' && a.cancels.recent[1].company === '', JSON.stringify(a.cancels.recent[1]));
+// THE TRIAL FUNNEL (2026-10-23): signed up → 1st → 2nd → 3rd real roof → paid.
+const ft = a.funnel && a.funnel.total;
+check('the page carries the trial funnel: 4 signups, 2 with a real roof, 1 with a second, 2 paying',
+  ft && ft.signups === 4 && ft.r1 === 2 && ft.r2 === 1 && ft.r3 === 0 && ft.paid === 2 && ft.roof_trial === 1, JSON.stringify(ft));
+check('…a version of one job is one roof, and the practice job and an unscaled sketch are none',
+  a.funnel.weeks.reduce((n, w) => n + w.r2, 0) === 1, JSON.stringify(a.funnel.weeks));
+check('…by the week they signed up, newest first, with the without-Flood-Roofing view beside it',
+  a.funnel.weeks.length >= 2 && a.funnel.weeks[0].week >= a.funnel.weeks[1].week && a.funnel.ext && a.funnel.ext.total.signups === 4, JSON.stringify(a.funnel.weeks.map(w => w.week)));
 
 // ── the hourly job ───────────────────────────────────────────────
 const again = await (await fetch(BASE + '/admin/analytics', { headers: H })).json();
@@ -143,6 +165,7 @@ check('the page is served with the token', pg.status === 200 && /RoofMap — liv
 check('…keeps the token in the browser and off the address bar', /localStorage\.setItem\('rm_admin_token'/.test(html) && /history\.replaceState/.test(html));
 check('…and refreshes itself every hour', /setInterval\(load, 60 \* 60e3\)/.test(html));
 check('…with a "Why trials cancelled" card', /Why trials cancelled/.test(html) && /renderCancels/.test(html));
+check('…and a "Trial funnel" card', /Trial funnel/.test(html) && /renderFunnel/.test(html));
 check('…under a policy that lets its own style and script run', /style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'; img-src 'self' data:; connect-src 'self'/.test(pg.headers.get('content-security-policy') || ''), pg.headers.get('content-security-policy'));
 check('no data answers without a token or an owner login', (await fetch(BASE + '/admin/analytics')).status === 404 &&
   (await fetch(BASE + '/admin/analytics/refresh', { method: 'POST' })).status === 404);

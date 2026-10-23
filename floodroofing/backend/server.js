@@ -1551,7 +1551,8 @@ async function _companySubscription(companyId, userId){
 // so the trial_ends_at date below was never reached. Harmless while billing
 // was off — and a permanent free account for everybody the day it goes on.
 // A trial is live until its end date and not one minute longer.
-// Fourteen days, no card. Accounts used to be created status:'pending' with
+// A free trial, no card (14 days until 2026-10-23; see THE ROOF TRIAL
+// below for what a new business gets now). Accounts used to be created status:'pending' with
 // no trial at all, which read as "not live" the moment billing was switched
 // on — the whole point of the grandfather list. A trial that exists is also
 // a trial the app can count down, which is what the plan bar does.
@@ -1568,6 +1569,109 @@ function _subscriptionLive(sub){
 function _trialRemainingMs(sub){
   if (!sub || !sub.trial_ends_at) return 0;
   return new Date(sub.trial_ends_at).getTime() - Date.now();
+}
+// ── THE ROOF TRIAL (2026-10-23) ─────────────────────────────────────
+// The owner: "3 real roofs or 30 days, whichever comes first" — for NEW
+// trials only. A clock measures how busy a roofer was that fortnight; a roof
+// measures whether RoofMap did its job, and the second real roof is the
+// number that says it did.
+//
+// A row with `trial_roof_limit` set is one; a row without is a 14-day trial
+// from before, runs out on its own date and is never counted against.
+// TRIAL_ROOFS=0 on Railway goes back to starting 14-day trials.
+const TRIAL_ROOFS = Math.max(0, parseInt(process.env.TRIAL_ROOFS == null ? '3' : process.env.TRIAL_ROOFS, 10) || 0);
+const TRIAL_ROOF_DAYS = Number(process.env.TRIAL_ROOF_DAYS || 30) || 30;
+function _trialDaysOf(sub){ return (sub && Number(sub.trial_roof_limit) > 0) ? TRIAL_ROOF_DAYS : TRIAL_DAYS; }
+function _isRoofTrial(sub){ return !!(sub && sub.status !== 'active' && Number(sub.trial_roof_limit) > 0); }
+// The row a new business starts on.
+function _newTrialRow(userId, cid){
+  const roofs = TRIAL_ROOFS > 0;
+  const row = { user_id: userId, company_id: cid || null, status: 'trialing',
+                trial_ends_at: new Date(Date.now() + (roofs ? TRIAL_ROOF_DAYS : TRIAL_DAYS) * 864e5).toISOString() };
+  if (roofs) row.trial_roof_limit = TRIAL_ROOFS;
+  return row;
+}
+// A REAL ROOF is one somebody measured: an outline of three corners or more
+// with a scale behind it, on any roof of the job. Not the practice job
+// (TEST-1) or the worked sample, which are what a trial is FOR and must
+// never cost one of the three.
+function _drawHasRealRoof(ds){
+  try {
+    if (!ds || typeof ds !== 'object') return false;
+    const st = ds.state || {}, d = ds.draw || {};
+    if (st.isSampleJob) return false;
+    const ref = String((st.quote && st.quote.ref) || (ds.form && ds.form.jobNo) || '').trim().toUpperCase();
+    if (ref === 'TEST-1' || /^SAMPLE/.test(ref)) return false;
+    const has = o => Array.isArray(o) && o.length >= 3;
+    const scaled = s => Number(s) > 0;
+    if (has(d.outline) && scaled(d.scaleMetresPerPx)) return true;
+    return Array.isArray(d.roofs) && d.roofs.some(r => r && has(r.outline) && (scaled(r.scaleMetresPerPx) || scaled(d.scaleMetresPerPx)));
+  } catch (e) { return false; }
+}
+// Which jobs have used a roof, per business. Kept a minute so an autosave
+// every couple of seconds on a job already counted costs nothing.
+const _trialRoofMemo = new Map();   // scope → { at, sub, ids:Set }
+function _trialScopeKey(companyId, userId){ return companyId ? 'c:' + companyId : 'u:' + userId; }
+async function _trialRoofIds(companyId, userId){
+  let q = supabase.from('trial_roofs').select('job_id').limit(1000);
+  q = companyId ? q.eq('company_id', companyId) : q.eq('user_id', userId);
+  const data = _mustRead(await q, 'trial roofs');
+  return new Set((data || []).map(r => String(r.job_id)));
+}
+async function _trialRoofState(companyId, userId, fresh){
+  const key = _trialScopeKey(companyId, userId);
+  const hit = _trialRoofMemo.get(key);
+  if (!fresh && hit && Date.now() - hit.at < 60000) return hit;
+  const sub = await _companySubscription(companyId, userId);
+  const ids = _isRoofTrial(sub) ? await _trialRoofIds(companyId, userId) : new Set();
+  // ids = the ROOT jobs counted (the number that matters); seen = other
+  // versions of those, remembered so their autosaves skip the lookup.
+  const st = { at: Date.now(), sub: sub, ids: ids, seen: new Set() };
+  _trialRoofMemo.set(key, st);
+  return st;
+}
+// A save carrying a real roof, on a roof trial: is it one of the counted
+// jobs, the next one, or one too many? `jobId` is null for a job that does
+// not exist yet (POST). Answers { refuse } or { count: rootId|'new' } or {}.
+// A check that cannot be made lets the save through — losing a roofer's
+// drawing is worse than one free roof too many.
+async function _trialRoofGate(req, jobId, ds){
+  if (!_drawHasRealRoof(ds)) return {};
+  try {
+    let st = await _trialRoofState(req.companyId, req.user.id);
+    if (!_isRoofTrial(st.sub)) return {};
+    let root = null;
+    if (jobId){
+      if (st.ids.has(String(jobId)) || st.seen.has(String(jobId))) return {};
+      const { data } = await _scopeCompany(supabase.from('jobs').select('id, version_of').eq('id', jobId), req).limit(1);
+      if (!data || !data[0]) return {};
+      root = _versionRootOf(data[0]);
+      if (st.ids.has(root)){ st.seen.add(String(jobId)); return {}; }
+    }
+    let limit = Number(st.sub.trial_roof_limit) || 0;
+    if (st.ids.size >= limit){
+      if (!BILLING_ENABLED) return {};
+      // Never refuse on a minute-old memory: they may have paid since.
+      st = await _trialRoofState(req.companyId, req.user.id, true);
+      if (!_isRoofTrial(st.sub)) return {};
+      if (root && st.ids.has(root)) return {};
+      limit = Number(st.sub.trial_roof_limit) || 0;
+    }
+    if (st.ids.size >= limit){
+      return { refuse: { error: 'You’ve measured your ' + limit + ' free roofs. Pick a plan to measure your next one — the roofs you have already measured stay open until your trial ends.',
+                         code: 'TRIAL_ROOFS_USED', roofs_limit: limit, roofs_used: st.ids.size } };
+    }
+    return { count: root || 'new' };
+  } catch (e) { return {}; }
+}
+async function _trialRoofRecord(req, rootId){
+  if (!rootId) return;
+  try {
+    const { error } = await supabase.from('trial_roofs').insert({ company_id: req.companyId || null, user_id: req.user.id, job_id: rootId, at: new Date().toISOString() });
+    if (error && !/duplicate|unique/i.test(error.message || '')) throw new Error(error.message);
+    const st = _trialRoofMemo.get(_trialScopeKey(req.companyId, req.user.id));
+    if (st) st.ids.add(String(rootId));
+  } catch (e) { console.warn('[trial-roofs] could not record ' + rootId + ': ' + (e && e.message)); }
 }
 async function requireSubscription(req, res, next) {
   if (!BILLING_ENABLED) return next();
@@ -1591,16 +1695,28 @@ app.get('/subscription', requireAuth, async (req, res) => {
   const sub = await _companySubscription(req.companyId, req.user.id);
   const ms = _trialRemainingMs(sub);
   const onTrial = !!(sub && sub.status !== 'active' && sub.trial_ends_at);
+  // A roof trial also says how many of its roofs are gone and WHICH jobs
+  // they went on — the app needs the second to tell a roof that is already
+  // one of the three from one that would be a fourth.
+  let roofs = null;
+  if (onTrial && _isRoofTrial(sub)){
+    let ids = null;
+    try { ids = (await _trialRoofState(req.companyId, req.user.id, true)).ids; } catch (e) {}
+    const limit = Number(sub.trial_roof_limit) || 0;
+    if (ids) roofs = { roofs_limit: limit, roofs_used: Math.min(limit, ids.size), roofs_left: Math.max(0, limit - ids.size), roof_jobs: Array.from(ids) };
+    else roofs = { roofs_limit: limit, roofs_used: null, roofs_left: null, roof_jobs: [] };
+  }
   res.json({
     status: (sub && sub.status) || 'none',
     billing: BILLING_ENABLED,        // false = the gate is open regardless
     live: !BILLING_ENABLED || _subscriptionLive(sub),
-    trial: !onTrial ? null : {
+    trial: !onTrial ? null : Object.assign({
       ends_at: sub.trial_ends_at,
       // Round UP: with 6 hours left a roofer should read "1 day", not "0".
       days_left: Math.max(0, Math.ceil(ms / 864e5)),
       expired: ms <= 0,
-    },
+      days: _trialDaysOf(sub),
+    }, roofs || {}),
     plan: await _planOf(req.companyId),
     // Is there a Stripe customer behind this account at all? A comped or
     // grandfathered business reads as "active" on a real plan while having
@@ -1638,30 +1754,36 @@ app.get('/subscription', requireAuth, async (req, res) => {
 const PLANS = {
   // The trial IS Team: what they try is what most of them buy, so paying
   // changes nothing they have grown used to. Trade would hide the Fergus
-  // link and the schedule board from exactly the firms that buy for them;
-  // Business would give away an inbox and a domain they then feel losing.
-  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false, quote: true,  order: true  },
-  // Measuring only: the aerial, the outline, the sheet counts, flashings and
-  // the cut list — for the roofer who quotes in another system and wanted
-  // just the tape measure. No customer quote and no merchant order go out
-  // from it; those are what Trade is for. It is sold only where a Stripe
+  // link and the schedule board from exactly the firms that buy for them.
+  // Since 2026-10-23 Team carries the inbox and the domain (Business is off
+  // sale), so the trial does too — it is Team, row for row.
+  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
+  // Measuring and materials: the aerial, the outline, the sheet counts,
+  // flashings, the cut list — and, since 2026-10-23, the merchant order,
+  // because "calculate your materials" ends at the order. No customer quote
+  // goes out from it; that is what Trade is for. It is sold only where a Stripe
   // price for it exists (STRIPE_PRICE_MEASURE), so it can sit here unpriced.
-  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: false },
+  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: true  },
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
   solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: true  },
   // A schedule board is meaningless at one person and hurting by three, and
-  // firms running Fergus are Team-shaped rather than Business-shaped. Both
-  // sit here so that "more than one person" is the reason to leave Solo.
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: false, quote: true,  order: true  },
+  // firms running Fergus are Team-shaped. Both sit here so that "more than
+  // one person" is the reason to leave Solo. Since 2026-10-23 it is the top
+  // plan on sale and carries everything Business did — the inbox, chat and
+  // task board, the company's own domain — at five people.
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
+  // OFF SALE since 2026-10-23. Kept so a business already on it keeps its
+  // limits; /billing/checkout refuses it for anybody not already there.
   business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
 };
-// Business is the largest plan we sell off the shelf; past it is Enterprise,
+// The plans a business can buy today. Business is not among them.
+const PLANS_ON_SALE = ['measure', 'solo', 'team'];
+// Team is the largest plan we sell off the shelf; past it is Enterprise,
 // which is a conversation rather than a button. So a company that fills its
 // seats must not be told to "upgrade" when there is nothing above them.
-const _BIGGEST_PLAN_SEATS = Math.max.apply(null, Object.keys(PLANS)
-  .filter(function (k) { return k !== 'trial'; })
+const _BIGGEST_PLAN_SEATS = Math.max.apply(null, PLANS_ON_SALE
   .map(function (k) { return PLANS[k].seats; }));
 function _seatNextStep(lim){
   return lim.seats >= _BIGGEST_PLAN_SEATS
@@ -2226,7 +2348,7 @@ app.get('/team/domains', requireAuth, async (req, res) => {
 
 // Claim a domain: register it with Vercel and hand back the record to add.
 app.post('/team/domains', requireAuth, requireOwner,
-  requirePlan('domain', 'Connecting your own domain', 'Business'), rateLimit(20, 3600000), async (req, res) => {
+  requirePlan('domain', 'Connecting your own domain', 'Team'), rateLimit(20, 3600000), async (req, res) => {
   if (!DOMAINS_ENABLED) return res.status(503).json({ error: 'Custom domains are not switched on yet.', code: 'DOMAINS_DISABLED' });
   const host = _normHost(req.body && req.body.domain);
   if (!host) return res.status(400).json({ error: 'Enter a domain like quote.yourcompany.co.nz.' });
@@ -2418,7 +2540,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   const interests = _cleanInterests((req.body || {}).interests);
   if (!interests.length) return res.status(400).json({ error: 'Pick the one thing that drew you here.' });
   const verifyFirst = _verifyRequired();
-  // Self-registration is OPEN: the product is sold as "start free, 14 days,
+  // Self-registration is OPEN: the product is sold as "start free, 3 roofs or 30 days,
   // no card", and a signup form that answers "invite-only" is not that.
   //
   // It was shut for a real reason — a stranger could mint an account and
@@ -2475,25 +2597,21 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       console.error('[auth] registration rolled back: could not create a company for ' + email);
       return res.status(500).json({ error: 'Could not finish setting up your business — nothing was saved, please try again.' });
     }
-    // No trial. Registration is invite-gated — by the time somebody reaches this
-    // line we have read their waitlist entry and decided they are a fit, so a
-    // fortnight's grace is a stranger-mechanism applied to somebody we already
-    // know. It also had a cliff in it: set up the price book, get busy on the
-    // tools, and the account died on day 15 without anybody noticing.
-    //
-    // 'pending' has no trial_ends_at, so _trialRemainingMs returns 0 and
-    // _subscriptionLive is false — the existing gate handles this with no
-    // change. requireSubscription covers POST /jobs and the integrations but
-    // NOT GET /jobs, so a pending account can log in, run the tutorial and read
-    // the worked demo job. The wall lands where it should: on keeping a roof.
-    //
-    // Accounts already mid-trial keep their trial_ends_at and run it out. This
-    // changes what new businesses get, not what existing ones were promised.
-    const subRow = { user_id: userId, company_id: cid || null, status: 'trialing',
-                     trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 864e5).toISOString() };
+    // The trial. Since 2026-10-23 a new business gets 3 real roofs or 30
+    // days, whichever comes first (_newTrialRow); a business already mid-trial
+    // keeps the 14 days it was promised. requireSubscription covers POST /jobs
+    // and the integrations but NOT GET /jobs, so a lapsed trial can still sign
+    // in and read what it made.
+    const subRow = _newTrialRow(userId, cid);
     let { error: serr } = await supabase.from('subscriptions').insert(subRow);
     if (serr && /company_id/.test(serr.message || '')) {
       delete subRow.company_id;   // column not migrated yet
+      ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
+    }
+    if (serr && /trial_roof_limit/.test(serr.message || '')) {
+      // Not migrated yet: a 14-day trial rather than no trial at all.
+      delete subRow.trial_roof_limit;
+      subRow.trial_ends_at = new Date(Date.now() + TRIAL_DAYS * 864e5).toISOString();
       ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
     if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
@@ -2551,6 +2669,7 @@ function _cleanInterests(v){
   const seen = {};
   return arr.map(x => String(x || '').trim().toLowerCase()).filter(k => INTERESTS[k] && !seen[k] && (seen[k] = 1));
 }
+function _TRIAL_WORDS(){ return TRIAL_ROOFS > 0 ? (TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS + ' days') : (TRIAL_DAYS + '-day'); }
 async function _signupAlert(o){
   if (!SIGNUP_ALERT_TO || !EMAIL_ENABLED) return;
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
@@ -2559,8 +2678,8 @@ async function _signupAlert(o){
     to: SIGNUP_ALERT_TO, fromName: 'RoofMap', replyTo: o.email,
     subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who,
     text: (o.confirmed
-      ? 'They have confirmed their email — the 14-day Team trial is under way.\n\n'
-      : 'A new business has signed up for the 14-day Team trial.\n\n') +
+      ? 'They have confirmed their email — the ' + _TRIAL_WORDS() + ' trial of Team is under way.\n\n'
+      : 'A new business has signed up for the ' + _TRIAL_WORDS() + ' trial of Team.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
       nice('Drawn here by', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
@@ -2604,7 +2723,7 @@ function _trialEndedMail(p, sub){
   const planUrl = PUBLIC_APP_URL + '/app?billing=plans';
   const cancelUrl = PUBLIC_APP_URL + '/trial-ended?t=' + encodeURIComponent(token);
   const first = String(p.name || '').split(' ')[0] || 'there';
-  const text = 'Hi ' + first + ',\n\nYour 14-day RoofMap trial has ended.\n\n' +
+  const text = 'Hi ' + first + ',\n\nYour free RoofMap trial has ended.\n\n' +
     'Everything you measured, drew and quoted is still there — pick a plan and carry on where you left off:\n' + planUrl + '\n\n' +
     'Not for you? Tell us why and we will close it off:\n' + cancelUrl + '\n\n' +
     'Either way, thanks for giving it a go. Reply to this email and it comes straight to me.\n\nAron\nRoofMap';
@@ -2613,7 +2732,7 @@ function _trialEndedMail(p, sub){
     '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
     '<h2 style="margin:8px 0 12px;font-size:22px">Your trial has ended</h2>' +
     '<p>Hi ' + _esc(first) + ',</p>' +
-    '<p>Your 14-day RoofMap trial has ended. Everything you measured, drew and quoted is still there.</p>' +
+    '<p>Your free RoofMap trial has ended. Everything you measured, drew and quoted is still there.</p>' +
     '<p style="margin:22px 0">' + btn(planUrl, 'Select a plan and continue', '#0099cc') + btn(cancelUrl, 'Cancel RoofMap', '#64748b') + '</p>' +
     '<p style="color:#475569;font-size:13.5px">Either way, thanks for giving it a go. Reply to this email and it comes straight to me.</p>' +
     '<p>Aron<br>RoofMap</p></div>';
@@ -2731,10 +2850,13 @@ const TRIAL_DRIP_STEPS = [
   { key: 'd1',  day: 1,  subject: 'Your first roof on RoofMap takes ten minutes' },
   { key: 'd3',  day: 3,  subject: 'Have you traced your own roof yet?', unlessRoof: true },
   { key: 'd7',  day: 7,  subject: 'Want a hand with RoofMap? I can call' },
-  { key: 'd12', day: 12, subject: 'Two days left on your RoofMap trial' },
+  { key: 'd12', day: 12, subject: 'Two days left on your RoofMap trial',
+    // A roof trial runs 30 days, so its last nudge is four days out.
+    roofDay: 26, roofSubject: 'Four days left on your RoofMap trial' },
 ];
+function _dripStepDay(step, sub){ return (Number(sub && sub.trial_roof_limit) > 0 && step.roofDay) ? step.roofDay : step.day; }
 const TRIAL_DRIP_LATE_DAYS = 2;
-function _dripText(step, first, appUrl){
+function _dripText(step, first, appUrl, roofs){
   const sig = '\n\nAron\nRoofMap · reply to this email and it comes straight to me';
   if (step.key === 'd1') return 'Hi ' + first + ',\n\n' +
     'Thanks for starting a RoofMap trial. The quickest way to see what it does is the practice roof: open the app, ' +
@@ -2752,24 +2874,39 @@ function _dripText(step, first, appUrl){
     'screen, I watch you quote a real roof and we sort out whatever is in the way — a scale that will not calibrate, ' +
     'a price book to set up, an order that needs your supplier on it.\n\n' +
     'Reply with a time that suits and a number, and I will ring you.' + sig;
+  if (roofs) return 'Hi ' + first + ',\n\n' +
+    'Your RoofMap trial ends in four days' + (roofs.left > 0
+      ? ', and ' + roofs.left + ' of your ' + roofs.limit + ' free roofs ' + (roofs.left === 1 ? 'is' : 'are') + ' still there to use. '
+      : '. ') +
+    'Everything you have measured, drawn and quoted stays in your account — ' +
+    'pick a plan and it carries on exactly where you left it:\n\n' + appUrl + '?billing=plans\n\n' +
+    'Not sure it earns its keep? Reply and tell me what is missing. If it is something I can build, I usually will.' + sig;
   return 'Hi ' + first + ',\n\n' +
     'Your RoofMap trial ends in two days. Everything you have measured, drawn and quoted stays in your account — ' +
     'pick a plan and it carries on exactly where you left it:\n\n' + appUrl + '?billing=plans\n\n' +
     'Not sure it earns its keep? Reply and tell me what is missing. If it is something I can build, I usually will.' + sig;
 }
-function _trialDripMail(step, p){
+function _trialDripMail(step, p, roofs){
   const first = String(p.name || '').split(' ')[0] || 'there';
-  const text = _dripText(step, first, PUBLIC_APP_URL + '/app');
+  const text = _dripText(step, first, PUBLIC_APP_URL + '/app', step.key === 'd12' ? roofs : null);
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
     text.split('\n\n').map(par => '<p>' + _esc(par).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0099cc">$1</a>') + '</p>').join('') + '</div>';
-  return { to: p.email, subject: step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
+  return { to: p.email, subject: (roofs && step.roofSubject) || step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
+}
+// What a roof trial has left, for the emails; null for a 14-day trial.
+async function _trialRoofsLeft(sub){
+  const limit = Number(sub && sub.trial_roof_limit) || 0;
+  if (!limit) return null;
+  let used = 0;
+  try { used = (await _trialRoofIds(sub.company_id, sub.user_id)).size; } catch (e) { return { limit, used: null, left: null }; }
+  return { limit, used: Math.min(limit, used), left: Math.max(0, limit - used) };
 }
 function _trialStartMs(sub){
   const ends = Date.parse(sub.trial_ends_at || '');
   const created = Date.parse(sub.created_at || '');
   // The trial's own end minus its length is the truth even after an
   // extension; created_at only when there is no end to count back from.
-  if (isFinite(ends)) return ends - TRIAL_DAYS * 864e5;
+  if (isFinite(ends)) return ends - _trialDaysOf(sub) * 864e5;
   return isFinite(created) ? created : NaN;
 }
 async function _companyHasRealRoof(sub){
@@ -2789,7 +2926,7 @@ async function _trialDripSweep(){
   if (!_platformMailboxSendable(MAIL_SUPPORT)){ out.held = true; return out; }
   const now = Date.now();
   const { data: subs, error } = await supabase.from('subscriptions')
-    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, trial_drip, created_at')
+    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, trial_drip, created_at, trial_roof_limit')
     .eq('status', 'trialing').gt('trial_ends_at', new Date(now).toISOString()).limit(500);
   if (error) throw new Error(error.message);
   for (const sub of (subs || [])){
@@ -2799,7 +2936,7 @@ async function _trialDripSweep(){
     if (!isFinite(start)){ out.skipped++; continue; }
     const dayNo = (now - start) / 864e5;
     const drip = Object.assign({}, sub.trial_drip || {});
-    const due = TRIAL_DRIP_STEPS.filter(s => !drip[s.key] && dayNo >= s.day);
+    const due = TRIAL_DRIP_STEPS.filter(s => !drip[s.key] && dayNo >= _dripStepDay(s, sub));
     if (!due.length){ out.skipped++; continue; }
     try {
       // Only the newest due step goes; older ones are marked over.
@@ -2807,7 +2944,7 @@ async function _trialDripSweep(){
       const send = due[due.length - 1];
       due.slice(0, -1).forEach(s => { drip[s.key] = 'missed ' + stamp; });
       let p = null, reason = '';
-      if (dayNo - send.day > TRIAL_DRIP_LATE_DAYS) reason = 'late';
+      if (dayNo - _dripStepDay(send, sub) > TRIAL_DRIP_LATE_DAYS) reason = 'late';
       else if (send.unlessRoof && await _companyHasRealRoof(sub)) reason = 'has-roof';
       else { p = await _trialOwnerFor(sub); if (!p) reason = 'no-owner'; }
       drip[send.key] = reason ? (reason + ' ' + stamp) : stamp;
@@ -2816,7 +2953,7 @@ async function _trialDripSweep(){
       const { error: uerr } = await supabase.from('subscriptions').update({ trial_drip: drip }).eq('id', sub.id);
       if (uerr) throw new Error(uerr.message);
       if (!p){ out.skipped++; continue; }
-      await _dispatchMail(_trialDripMail(send, p));
+      await _dispatchMail(_trialDripMail(send, p, await _trialRoofsLeft(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[trial-drip] ' + (e && e.message)); }
   }
@@ -2873,15 +3010,16 @@ async function _trialProgress(sub){
   });
   return t;
 }
-function _quietMail(p, sub, t, quietDays){
+function _quietMail(p, sub, t, quietDays, roofs){
   const daysLeft = Math.max(0, Math.ceil((Date.parse(sub.trial_ends_at) - Date.now()) / 864e5));
+  const roofsLeft = (roofs && roofs.left != null) ? ', ' + roofs.left + ' of ' + roofs.limit + ' free roofs' : '';
   const who = [p.company, p.name].filter(Boolean).join(' · ') || p.email;
   const screens = Object.keys(t.screens).sort((a, b) => t.screens[b] - t.screens[a]).map(k => (_QUIET_SCREEN[k] || k) + ' ' + Math.round(t.screens[k])).join(', ');
   const got = t.orders ? 'sent a real material order' : t.quotes ? 'sent a real quote' : t.roofs ? 'drew a real roof' :
     t.practice_orders ? 'sent the practice order' : t.practice_roofs ? 'drew the practice roof' : t.logins ? 'signed in and looked around' : 'never signed in';
   const walk = t.walk_step ? ('Walkthrough: ' + (t.walk_action === 'finished' ? 'finished' : (t.walk_action || 'left') + ' at ' + t.walk_step) + '\n') : '';
   const text = (t.last_at ? 'Nothing from them for ' + quietDays + ' days' : 'They signed up ' + quietDays + ' days ago and have never signed in') +
-    ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left on the trial. Worth a ring.\n\n' +
+    ' — ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + roofsLeft + ' left on the trial. Worth a ring.\n\n' +
     'Business: ' + (p.company || '—') + '\nName: ' + (p.name || '—') + '\nEmail: ' + p.email + '\nPhone: ' + (p.phone || '—') + '\n\n' +
     'How far they got: ' + got + '.\n' +
     'Logins ' + t.logins + ' · roofs ' + t.roofs + (t.practice_roofs ? ' (+' + t.practice_roofs + ' practice)' : '') +
@@ -2903,7 +3041,7 @@ async function _quietTrialSweep(){
   if (!_platformMailboxSendable(MAIL_SUPPORT)){ out.held = true; return out; }
   const now = Date.now();
   const { data: subs, error } = await supabase.from('subscriptions')
-    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, quiet_alert_at, created_at')
+    .select('id, user_id, company_id, status, trial_ends_at, stripe_customer_id, quiet_alert_at, created_at, trial_roof_limit')
     .eq('status', 'trialing').gt('trial_ends_at', new Date(now).toISOString()).limit(500);
   if (error) throw new Error(error.message);
   for (const sub of (subs || [])){
@@ -2922,7 +3060,7 @@ async function _quietTrialSweep(){
       if (uerr) throw new Error(uerr.message);
       let prof = p;
       try { const { data } = await supabase.from('profiles').select('id, email, name, company, phone').eq('id', p.id).maybeSingle(); if (data) prof = data; } catch (e) {}
-      await _dispatchMail(_quietMail(prof, sub, t, quietDays));
+      await _dispatchMail(_quietMail(prof, sub, t, quietDays, await _trialRoofsLeft(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[quiet-trial] ' + (e && e.message)); }
   }
@@ -3466,11 +3604,15 @@ app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
       console.warn('[jobs] duplicate-number check failed, allowing save:', e.message);
     }
   }
+  // THE ROOF TRIAL: a new job arriving with a real roof on it is a roof.
+  const g = await _trialRoofGate(req, null, draw_state);
+  if (g.refuse) return res.status(403).json(g.refuse);
   // Light columns for the same reason as the PUT: the caller wants the new id
   // and the labels, not the drawing it just uploaded sent straight back.
   const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select(JOB_LIGHT_COLS).single();
   if (error) return res.status(500).json({ error: error.message });
-  res.json(_jobLight(data));
+  if (g.count && data && data.id) await _trialRoofRecord(req, String(data.id));
+  res.json(Object.assign(_jobLight(data), g.count ? { trialRoofCounted: true } : {}));
   recordUsage('job_saved', req);
 });
 
@@ -3746,6 +3888,16 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Could not read the job to keep the customer\'s acceptance — try again.' });
   }
 
+  // THE ROOF TRIAL: a fourth real roof is the one the trial does not cover.
+  // A job already counted saves as it always did.
+  let _roofCounted = false;
+  if (patch.draw_state){
+    const g = await _trialRoofGate(req, req.params.id, patch.draw_state);
+    if (g.refuse) return res.status(403).json(g.refuse);
+    if (g.count && g.count !== 'new'){ await _trialRoofRecord(req, g.count); _roofCounted = true; }
+  }
+  const _extra = Object.assign({}, _keptAcc ? { keptAcceptance: true } : {}, _roofCounted ? { trialRoofCounted: true } : {});
+
   patch.updated_at = new Date().toISOString();
   cols.push('updated_at');
 
@@ -3778,7 +3930,7 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
         'update public.jobs set ' + sets.join(', ') + ' where ' + where +
         ' returning ' + JOB_LIGHT_COLS, p);
       if (!r.rows.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
-      res.json(Object.assign(_jobLight(r.rows[0]), _keptAcc ? { keptAcceptance: true } : {}));
+      res.json(Object.assign(_jobLight(r.rows[0]), _extra));
       return;
     } catch (e) {
       // Never lose a save to a bad pool — fall through to PostgREST, which is
@@ -3796,7 +3948,7 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   // base timestamp, it has moved. .single() used to turn a miss into a 500,
   // which reads as our fault.
   if (!data || !data.length) return base ? _moved() : res.status(404).json({ error: 'Job not found' });
-  res.json(Object.assign(_jobLight(data[0]), _keptAcc ? { keptAcceptance: true } : {}));
+  res.json(Object.assign(_jobLight(data[0]), _extra));
 });
 
 // ── Recently deleted jobs, and putting one back ─────────────────────
@@ -5735,14 +5887,6 @@ const STRIPE_PRICES_ANNUAL = {
   team:     process.env.STRIPE_PRICE_TEAM_ANNUAL     || '',
   business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || '',
 };
-// The founding offer: 30% off for the first 12 months, for the businesses who
-// came in through early access. This is the id of a Stripe coupon created with
-// duration:'repeating' and duration_in_months:12 — Stripe then rolls them back
-// to the standard rate at month 13 by itself, with nothing to remember here.
-//
-// Unset is a valid state: no coupon simply means nobody is discounted, and
-// checkout carries on exactly as it did before.
-const EARLY_ACCESS_COUPON = (process.env.EARLY_ACCESS_COUPON || '').trim();
 function _stripePlanOfPrice(priceId){
   // Both cycles resolve to the same plan — a portal switch from monthly to
   // yearly must not change what the business is entitled to.
@@ -5889,39 +6033,8 @@ async function _webhookHealthTick(){
   } catch (e) { console.error('[webhook-health] tick failed: ' + (e && e.message)); }
 }
 
-// Did this business come in through early access? The waitlist row is the
-// record of that: somebody who was invited, or who went on to join, gets the
-// founding rate. Anyone who found the pricing page on their own does not.
-//
-// Looked up on the owner's email rather than stored on the company, because
-// the waitlist row predates the company by definition — there was no account
-// when they filled the form in.
-// Anyone who came in before EARLY_ACCESS_UNTIL (an ISO date) is a founding
-// roofer — the plain signup link carries the discount, no waitlist, no
-// invite, no code. The waitlist route below still counts for those who
-// used it. Unset, only the waitlist route applies.
-function _earlyAccessOpen(){
-  const until = String(process.env.EARLY_ACCESS_UNTIL || '').trim();
-  if (!until) return false;
-  const t = Date.parse(until.length === 10 ? until + 'T23:59:59Z' : until);
-  return isFinite(t) && Date.now() <= t;
-}
-async function _earlyAccessEligible(email){
-  if (!EARLY_ACCESS_COUPON) return false;
-  if (_earlyAccessOpen()) return true;
-  const addr = String(email || '').trim().toLowerCase();
-  if (!addr) return false;
-  try {
-    const { data } = await supabase.from('waitlist')
-      .select('status').ilike('email', addr).maybeSingle();
-    return !!data && ['invited', 'joined'].indexOf(String(data.status || '')) >= 0;
-  } catch (e) {
-    // A lookup failure must not stop somebody paying. They fall through to the
-    // promotion-code box and we can apply the coupon by hand afterwards.
-    console.warn('[billing] early-access lookup failed:', e.message);
-    return false;
-  }
-}
+// (The founding coupon's eligibility check lived here — removed 2026-10-23
+// with the discount itself; see /billing/checkout.)
 
 // Billing is the owner's to touch — requireOwner's wording is about the team,
 // so this carries its own.
@@ -5938,7 +6051,11 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
   try {
     if (!(await _requireBillingOwner(req, res))) return;
     const plan = String((req.body || {}).plan || '').toLowerCase();
-    if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: measure, solo, team or business.' });
+    if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: measure, solo or team.' });
+    // Business is off sale (2026-10-23). A business already on it can still
+    // check out on it again (a lapsed card, a yearly switch); nobody else can.
+    if (PLANS_ON_SALE.indexOf(plan) < 0 && (await _planOf(req.companyId)) !== plan)
+      return res.status(400).json({ error: PLANS[plan].label + ' is no longer sold — Team now includes everything it had. Pick measure, solo or team.' });
     // Yearly = two months free; anything that isn't exactly 'annual' bills
     // monthly, so an old client that never sends the field changes nothing.
     const annual = String((req.body || {}).billing || '').toLowerCase() === 'annual';
@@ -5970,21 +6087,13 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       'automatic_tax[enabled]': 'true',
       'tax_id_collection[enabled]': 'true',
     };
-    // The founding discount, applied without anybody having to remember a code.
-    //
-    // allow_promotion_codes and discounts are MUTUALLY EXCLUSIVE at Stripe —
-    // a session carrying both comes back 400 "You may only specify one of
-    // these parameters", which _stripeCall turns into a hard failure. So this
-    // is an either/or, never both, and the test suite asserts exactly that:
-    // the local Stripe stand-in answers any request, so it cannot catch the
-    // combination the real API refuses.
-    // Monthly only: yearly already carries two months free, and the site
-    // says it is one or the other. Stacking both was never the offer.
-    if (!annual && await _earlyAccessEligible(req.user.email)) {
-      params['discounts[0][coupon]'] = EARLY_ACCESS_COUPON;
-    } else {
-      params.allow_promotion_codes = 'true';
-    }
+    // NO FOUNDING DISCOUNT (2026-10-23, the owner: "fully remove the 30% off
+    // for 12 months"). The coupon is never applied by itself any more; a code
+    // typed on Stripe's page still works, which is all promotion codes are.
+    // A business already on the coupon keeps it — that is Stripe's state, not
+    // ours. (allow_promotion_codes and discounts are mutually exclusive at
+    // Stripe, so the one left is the one that can never clash.)
+    params.allow_promotion_codes = 'true';
     if (sub && sub.stripe_customer_id) {
       params.customer = sub.stripe_customer_id;
       // Automatic tax on an existing customer needs leave to save the address
@@ -7658,7 +7767,7 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
 // (globalThis.__TEST_MAIL_FETCHER) so the suites drive ingestion without
 // a mail server; SMTP goes to a nodemailer jsonTransport when
 // __TEST_MAIL_JSON is set, so tests can pin the exact envelope.
-const _inboxGate = [requireAuth, requireSubscription, requirePlan('inbox', 'The inbox', 'Business')];
+const _inboxGate = [requireAuth, requireSubscription, requirePlan('inbox', 'The inbox', 'Team')];
 
 function _mailKeyBuf(){
   const src = process.env.MAIL_CRED_KEY || ('derived:' + (process.env.JWT_SECRET || 'dev'));
@@ -12087,7 +12196,8 @@ const WAITLIST_SOFTWARE = ['fergus', 'tradify', 'servicem8', 'simpro', 'spreadsh
 // Which tier they think fits — asked softly ("not sure" is the default) so
 // it qualifies the lead without costing a signup from somebody who hasn't
 // compared the plans yet.
-const WAITLIST_PLANS = ['solo', 'team', 'business', 'unsure'];
+// 'business' stays readable: answers given before it went off sale.
+const WAITLIST_PLANS = ['measure', 'solo', 'team', 'business', 'unsure'];
 // Where the one-click invite link in the lead alert points — this backend's
 // own public address, since the link is an API route, not a page.
 const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || 'https://flood-roofing-estimator-production.up.railway.app').replace(/\/+$/, '');
@@ -12286,11 +12396,6 @@ async function _waitlistInvite(row){
         'It takes about a minute — business name, your name, a password. There is a\n' +
         'finished sample job waiting inside so you can see a completed quote, cut list\n' +
         'and material order before you do your own.\n\n' +
-        (EARLY_ACCESS_COUPON
-          ? ('As a founding business you get 30% off for your first 12 months, then the\n' +
-             'standard rate. It comes off automatically when you subscribe — there is no\n' +
-             'code to enter.\n\n')
-          : '') +
         'Reply to this email if anything is in your way.\n\n— RoofMap\n',
       html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
         '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
@@ -12298,13 +12403,6 @@ async function _waitlistInvite(row){
         '<p style="margin:0 0 18px">Setting your business up takes about a minute — business name, your name, a password. There is a finished sample job waiting inside, so you can see a completed quote, cut list and material order before you do your own.</p>' +
         '<p style="margin:0 0 16px"><a href="' + esc(link) + '" style="display:inline-block;background:#0099cc;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">Set up your business</a></p>' +
         (code ? ('<p style="margin:0 0 18px;font-size:14px">Your access code: <strong style="font-family:ui-monospace,Consolas,monospace;background:#f4f7fa;border:1px solid #dde5ee;border-radius:6px;padding:3px 8px">' + esc(code) + '</strong></p>') : '') +
-        // No code to paste, so no code to forget — but say so, because an
-        // unmentioned discount is one somebody assumes they have missed.
-        (EARLY_ACCESS_COUPON
-          ? ('<p style="margin:0 0 18px;padding:14px 16px;background:#f4f7fa;border-left:3px solid #0099cc;border-radius:0 8px 8px 0;font-size:14px;line-height:1.6">' +
-             '<strong>Founding rate: 30% off your first 12 months</strong>, then the standard rate. ' +
-             'It comes off automatically when you subscribe — there is no code to enter.</p>')
-          : '') +
         '<p style="font-size:13px;color:#5f6b7a;margin:0">Reply to this email if anything is in your way — it reaches a person.</p>' +
         '</div>',
       fromName: 'RoofMap', fromAddress: MAIL_SALES, replyTo: MAIL_SALES,
@@ -12942,6 +13040,13 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions add column if not exists trial_ended_mail_at timestamptz",
   "alter table public.subscriptions add column if not exists trial_drip jsonb",
   "alter table public.subscriptions add column if not exists quiet_alert_at timestamptz",
+  // THE ROOF TRIAL (2026-10-23): a trial started from today is 3 real roofs
+  // or 30 days, whichever comes first. A null limit is a 14-day trial from
+  // before, and runs out exactly as it was promised.
+  "alter table public.subscriptions add column if not exists trial_roof_limit int",
+  "create table if not exists public.trial_roofs (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid not null, at timestamptz not null default now())",
+  "create unique index if not exists trial_roofs_job_idx on public.trial_roofs (company_id, job_id)",
+  "alter table public.trial_roofs enable row level security",
   "alter table public.profiles add column if not exists interests jsonb",
   "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
   // The support desk (2026-09-30): the Help bubble's "talk to a person" and
@@ -13124,8 +13229,7 @@ app.get('/admin/account', async (req, res) => {
           out.summary = 'This login has no business, and creating one just failed too — the reason is in the logs.';
           return res.status(500).json(out);
         }
-        if (!sub) await supabase.from('subscriptions').insert({ user_id: authUser.id, company_id: cid,
-          status: 'trialing', trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 864e5).toISOString() });
+        if (!sub) await supabase.from('subscriptions').insert(_newTrialRow(authUser.id, cid));
         out.repaired = true;
         out.company_id = cid;
         out.summary = 'This login had no business; one has been created and the account is now usable.';
@@ -13448,7 +13552,7 @@ app.post('/admin/daily/send', async (req, res) => {
 // token in the browser and asks /admin/analytics by header from then on.
 const ANALYTICS = require('./analytics').createAnalytics({
   supabase: supabase, daily: DAILY, buildSha: BUILD_SHA, warn: function(m){ console.warn(m); },
-  cancelReasons: CANCEL_REASONS,
+  cancelReasons: CANCEL_REASONS, blockedEmail: _blockedEmail,
 });
 // Who may read the analytics: the admin token, or a signed-in RoofMap owner
 // (ANALYTICS_OWNERS, the platform's own people) — so the page works on a
@@ -14015,7 +14119,6 @@ async function _billingReadiness(){
     // signing secret from an API key or a half-copied one.
     webhook_secret: { set: !!STRIPE_WEBHOOK_SECRET, length: STRIPE_WEBHOOK_SECRET.length,
                       looks_right: /^whsec_/.test(STRIPE_WEBHOOK_SECRET) },
-    early_access_coupon: { set: !!EARLY_ACCESS_COUPON },
     prices: [], webhook: {}, grandfather: {}, blockers: [], warnings: [],
   };
   const B = function(t){ out.blockers.push(t); };

@@ -89,12 +89,13 @@ const noCode = await register({ email: 'walkin@example.com', password: 'password
 const nc = await noCode.json();
 check('somebody with no invite code can sign themselves up',
   noCode.status === 200 && !!nc.token, 'status ' + noCode.status + ' ' + (nc.error || ''));
-check('…and lands on a real 14-day trial, not a pending account with nothing on it',
+// Since 2026-10-23 a new business gets 3 real roofs or 30 days.
+check('…and lands on a real roof trial (3 roofs, 30 days), not a pending account with nothing on it',
   (function(){
     var sub = db.subscriptions.find(function(x){ return x.user_id === (nc.user || {}).id; });
     if (!sub) return false;
     var left = new Date(sub.trial_ends_at) - Date.now();
-    return sub.status === 'trialing' && left > 13 * 864e5 && left <= 14 * 864e5;
+    return sub.status === 'trialing' && sub.trial_roof_limit === 3 && left > 29 * 864e5 && left <= 30 * 864e5;
   })(), JSON.stringify(db.subscriptions.slice(-1)));
 
 const padded = await register({
