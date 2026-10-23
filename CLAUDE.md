@@ -2820,6 +2820,22 @@ Discipline (non-negotiable):
   left over" reads 10, not 12 — two 33 mm nicks no longer counted. B9's and
   C9's offcuts (0.95 → 0.11 m) are still over: nothing left on that roof is
   short enough for them.
+  TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner on the new gable + hip &
+  valley Ls: "I feel those sheet layouts are still not utilizing all or more
+  of the offcuts"). The pieces round an L's corner are cut by a hip or a
+  valley and are longer than any offcut on the roof, so each was an extra
+  at its own length, leaving a triangle nobody used. A roofer cuts two from
+  ONE longer sheet: the cut along the first piece's diagonal is the second
+  piece's diagonal, and what is left, spun round, is the second piece, same
+  hand. The extras step now lengthens an extra's sheet a round length at a
+  time until `offcutOf` holds another open piece (`fitScore`, so hand, both
+  sides and width are checked as everywhere else), and keeps it only when
+  that is less steel than ordering the second piece alone (`pairedWith`).
+  GABLE ROOFS ONLY, the swap pass's own test (`hipRoofX`), so no hip shape
+  moves. Reports 17 / 19 / 20: 37 → 34, 34 → 31, 48 → 46 sheets, offcuts
+  left over 11 → 4, 14 → 7, 11 → 7. `rules()` now lets a face with no gutter
+  at all run off its ridge (the narrow arm's stub on these Ls); a face that
+  has a gutter still must run off it.
   THE SHEET NUMBER IS THE BIG TEXT (2026-10-23, the owner: "can you make
   the number of sheet bigger? So, for example, A7 ... And keep the
   measurements ... small like it is"): the label is sized to the strip, up

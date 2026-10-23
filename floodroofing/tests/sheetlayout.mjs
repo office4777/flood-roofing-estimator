@@ -117,7 +117,9 @@ const sum = a => a.reduce((s, x) => s + x, 0);
 // The owner's rules, checked on every face of a shape.
 function rules(name, r, opts){
   opts = opts || {};
-  check(name + ': every face runs its sheets off a gutter', r.faces.every(f => f.ref === 'gutter'),
+  // A face with no gutter at all (an L's narrow arm between its barge, the
+  // valley and the ridge) runs off its ridge — the owner's rule, not a lapse.
+  check(name + ': every face runs its sheets off a gutter (off its ridge only where it has none)', r.faces.every(f => f.ref === 'gutter' || (f.ref === 'ridge' && !f.edges.some(e => e.kind === 'gutter'))),
     r.faces.map(f => 'F' + f.id + ':' + f.ref).join(' '));
   check('…square to the gutter and the ridge, never along them',
     r.faces.every(f => f.edges.filter(e => e.kind === 'gutter' || e.kind === 'ridge').every(e => Math.abs(dot(f.d, dirOf(e))) < 0.02)));
@@ -368,6 +370,23 @@ r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[1040,
   check('…no offcut a metre long is left over', r.unusedMaxMm < 1000, r.unusedList.join(' '));
 }
 rules('the gable + hip & valley T', r);
+// TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner: "I feel those sheet
+// layouts are still not utilizing all or more of the offcuts"). The three L
+// roofs of feedback reports 17, 19 and 20, on the builder that drew them. The
+// pieces round the corner are cut by a hip or a valley and are longer than
+// any offcut on the roof, so each was an extra at its own length leaving a
+// triangle nobody used; now an extra's sheet is ordered long enough that what
+// is left above its cut, spun round, is the next open piece of the same hand.
+for (const [nm, ol, tal, ex, left, was] of [
+  ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '1x6120,1x4360,10x3710,21x3280,1x3170', 3, 4, '37 sheets, 11 offcuts left over'],
+  ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '1x4260,1x2800,10x2620,1x2360,1x1090,17x1000', 4, 7, '34 sheets, 14 left over'],
+  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '1x6710,1x6160,26x4040,18x3150', 2, 7, '48 sheets, 11 left over'],
+]){
+  r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: ol, autoType: 'gable-hv' });
+  check('the gable + hip & valley L, ' + nm + ': ' + tal + ', ' + left + ' offcuts left over (was ' + was + ')',
+    tallyOf(r) === tal && r.extras === ex && r.unused === left, tallyOf(r) + ' extras ' + r.extras + ' unused ' + r.unused);
+  rules('the gable + hip & valley L, ' + nm, r);
+}
 // Wings at OPPOSITE ends (a Z): no end to start from, so the runs fall back to
 // the world-low corner; the far wing's corner column is then the plain hip's
 // lapped corner sheet, a whole sheet whose offcut is a whole sheet's width.

@@ -469,6 +469,18 @@ cascade) is saved in `docs/legacy-sheet-layout-draw.js`, last live at
 `b81e5c5`. `_ccColumnsFor` / `_ccNumberColumns` stay in sheet-plan.js
 because the calc check tiles its columns through them.
 
+### Two extras from one sheet (gable roofs only, 2026-10-23)
+
+What nothing fits is ordered as an extra at its own length. On an L whose arms
+differ in width, the pieces round the corner are hip- or valley-cut and longer
+than any offcut on the roof, so each extra left a triangle that went in the
+bin. Now an extra's sheet is lengthened 10 mm at a time until its offcut
+(`offcutOf`) contains another open piece by `fitScore` — same hand, both sides,
+width — and the longer sheet is kept only when the extra length is less than
+the second piece would cost on its own. The first piece's diagonal is the
+second's; the remainder is spun, never flipped. Skipped on any roof with a hip
+end or a cookie-cutter end (`hipRoofX`, the swap pass's test).
+
 ### The one-swap pass (gable roofs only, 2026-10-23)
 
 THE GABLE + HIP & VALLEY T GIVES TWO SHEETS BACK (2026-10-23, the owner:

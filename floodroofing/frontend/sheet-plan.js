@@ -8075,14 +8075,51 @@ function _sheetPuzzleFill(pz){
   matchPool();
   // What nothing fits is ordered as an extra sheet, each at ITS OWN length
   // (an extras block holds several lengths; a block of real sheets one).
-  open.forEach(function(pc){
+  //
+  // TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner on the gable + hip &
+  // valley L: "I feel those sheet layouts are still not utilizing all or
+  // more of the offcuts"). The pieces around an L's corner are cut by a hip
+  // or a valley and are longer than any offcut on the roof, so each was
+  // ordered at its own length — and each left a triangle nobody wanted. A
+  // roofer cuts two of them from ONE longer sheet: the cut along the first
+  // piece's diagonal is the second piece's diagonal, and what is left above
+  // it, spun round, is the second piece, same hand. So an extra's sheet is
+  // lengthened, a round length at a time, until what is left of it contains
+  // another piece still open — and kept only when that is less steel than
+  // ordering the second piece on its own. Gable roofs only, like the swap
+  // pass below: the hip shapes are laid as the owner counted them.
+  var hipRoofX = {};
+  pz.faces.forEach(function(f){ if ((f.lay === 'apex' && !f.gablet) || f.lay === 'grid') hipRoofX[f.roofIdx] = true; });
+  var rest = open.slice();
+  rest.forEach(function(pc){
+    if (pc.oc) return;                                   // cut from an earlier extra's sheet
     var f = pc.face, xb = extrasOf.get(f);
     if (!xb){ xb = newBlock(f, true); extrasOf.set(f, xb); }
     addToBlock(xb, pc);
-    pc.Lmm = roundUp(mmOf(pc.sheetLongPx || pc.longPx, f));
+    var lv = roundUp(mmOf(pc.sheetLongPx || pc.longPx, f));
+    pc.Lmm = lv;
     pc.num = xb.pieces.length; pc.label = xb.letter + pc.num;
     if (pc.cutTop || pc.cutBot) xb.cutCount++;
-    offcutOf(pc).forEach(function(oc){ pool.push(oc); });
+    var pair = null;
+    if (!hipRoofX[pc.roofIdx] && pc.cutTop !== pc.cutBot){
+      open.forEach(function(q){
+        if (q === pc || q.oc || q.roofIdx !== pc.roofIdx || rest.indexOf(q) < rest.indexOf(pc)) return;
+        var lq = roundUp(mmOf(q.sheetLongPx || q.longPx, q.face));
+        for (var L = lv + _PZ_ROUND_MM; L - lv < lq; L += _PZ_ROUND_MM){
+          pc.Lmm = L;
+          var ocs = offcutOf(pc), hit = null;
+          ocs.forEach(function(oc){ var sc = fitScore(q, oc); if (!hit && sc !== null && sc < 1e8) hit = oc; });
+          if (hit){ var save = lq - (L - lv); if (!pair || save > pair.save) pair = { q: q, L: L, oc: hit, ocs: ocs, save: save }; break; }
+        }
+      });
+      pc.Lmm = lv;
+    }
+    var oi = open.indexOf(pc); if (oi >= 0) open.splice(oi, 1);
+    if (pair){
+      pc.Lmm = pair.L; pc.pairedWith = pair.q;
+      pair.ocs.forEach(function(oc){ pool.push(oc); });
+      feed(pair.q, pair.oc); pair.q.paired = true;
+    } else offcutOf(pc).forEach(function(oc){ pool.push(oc); });
   });
   // 3b. ONE SWAP SAVES A SHEET (2026-10-23, the owner on the gable + hip &
   // valley T: "The offcuts to blue B9, B10 and purple C9, C10, they're not
