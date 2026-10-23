@@ -4587,7 +4587,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND AND BACKEND = `d3cef74` (a customer's question
+**Live now.** FRONTEND AND BACKEND = `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
 answered from Gmail and followed back onto the job, the History &
 Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
 run 39856153437: "The site is serving" and "Live after 40s" on the backend —
