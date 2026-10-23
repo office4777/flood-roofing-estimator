@@ -469,17 +469,12 @@ cascade) is saved in `docs/legacy-sheet-layout-draw.js`, last live at
 `b81e5c5`. `_ccColumnsFor` / `_ccNumberColumns` stay in sheet-plan.js
 because the calc check tiles its columns through them.
 
-### Two extras from one sheet (gable roofs only, 2026-10-23)
+### Two extras from one sheet — tried and withdrawn (2026-10-23)
 
-What nothing fits is ordered as an extra at its own length. On an L whose arms
-differ in width, the pieces round the corner are hip- or valley-cut and longer
-than any offcut on the roof, so each extra left a triangle that went in the
-bin. Now an extra's sheet is lengthened 10 mm at a time until its offcut
-(`offcutOf`) contains another open piece by `fitScore` — same hand, both sides,
-width — and the longer sheet is kept only when the extra length is less than
-the second piece would cost on its own. The first piece's diagonal is the
-second's; the remainder is spun, never flipped. Skipped on any roof with a hip
-end or a cookie-cutter end (`hipRoofX`, the swap pass's test).
+Lengthening an extra's sheet so its remainder feeds another open piece saved
+steel on paper, but produced 6 m sheets cut into two long strips, which the
+owner rejected ("e1 should just be a full sheet with a small amount of
+wasteage"). Every extra is ordered at its own length.
 
 ### A valley tail is laid from its point, and the tails feed each other (gable roofs, 2026-10-23)
 
@@ -487,7 +482,7 @@ A face with no gutter that narrows to a single point at a valley, with a barge
 across its wide end, is laid from the point (`f.tipLay`): shortest strip first,
 only the strip at the barge part-width. Its strips then line up with the
 valley-cut sheets' offcuts from the valley opposite. The whole roof is also laid
-the old way (`opts.noTipLay`), and that is kept only if it orders fewer sheets.
+the old way (`opts.noTipLay`); fewer sheets wins, then less steel, then the point.
 On gable roofs the late step orders the pool-first strips longest first, one at
 a time, with the pool re-matched after each, so a valley-cut sheet's offcut
 exists before the shorter strip across the junction is given up as a sheet.

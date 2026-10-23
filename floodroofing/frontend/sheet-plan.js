@@ -7540,15 +7540,16 @@ function _sheetPuzzleBuild(opts){
   // laid from its point is only worth it where the valley across the way
   // has offcuts that fit it. Where it has none (an L's narrow arm meeting
   // the wide arm's west wall, with no second valley opposite), flush at the
-  // barge is the better lay — so the whole roof is laid both ways, and the
-  // barge lay is kept only where it orders FEWER SHEETS. Same count, the
-  // point: that is his rule, and the part-width strip then stands at the
-  // barge where it belongs rather than as a sliver at the valley's tip.
+  // barge is the better lay. "It should go which ever way is most efficient"
+  // (the owner, the same evening): the whole roof is laid both ways and the
+  // one ordering fewer sheets is kept, then the one ordering less steel; on
+  // an exact tie, the point.
   if (!opts.noFill && !opts.noTipLay && faces.some(function(f){ return f.tipLay; })){
     var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
+    var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt = null;
     try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true })); } catch(e){ alt = null; }
-    if (alt && alt.tally && res.tally && nSheets(alt) < nSheets(res)) res = alt;
+    if (alt && alt.tally && res.tally && (nSheets(alt) < nSheets(res) || (nSheets(alt) === nSheets(res) && steel(alt) < steel(res)))) res = alt;
   }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
@@ -8129,50 +8130,14 @@ function _sheetPuzzleFill(pz){
   // What nothing fits is ordered as an extra sheet, each at ITS OWN length
   // (an extras block holds several lengths; a block of real sheets one).
   //
-  // TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner on the gable + hip &
-  // valley L: "I feel those sheet layouts are still not utilizing all or
-  // more of the offcuts"). The pieces around an L's corner are cut by a hip
-  // or a valley and are longer than any offcut on the roof, so each was
-  // ordered at its own length — and each left a triangle nobody wanted. A
-  // roofer cuts two of them from ONE longer sheet: the cut along the first
-  // piece's diagonal is the second piece's diagonal, and what is left above
-  // it, spun round, is the second piece, same hand. So an extra's sheet is
-  // lengthened, a round length at a time, until what is left of it contains
-  // another piece still open — and kept only when that is less steel than
-  // ordering the second piece on its own. Gable roofs only, like the swap
-  // pass below: the hip shapes are laid as the owner counted them.
-  var hipRoofX = {};
-  pz.faces.forEach(function(f){ if ((f.lay === 'apex' && !f.gablet) || f.lay === 'grid') hipRoofX[f.roofIdx] = true; });
-  var rest = open.slice();
-  rest.forEach(function(pc){
-    if (pc.oc) return;                                   // cut from an earlier extra's sheet
+  open.forEach(function(pc){
     var f = pc.face, xb = extrasOf.get(f);
     if (!xb){ xb = newBlock(f, true); extrasOf.set(f, xb); }
     addToBlock(xb, pc);
-    var lv = roundUp(mmOf(pc.sheetLongPx || pc.longPx, f));
-    pc.Lmm = lv;
+    pc.Lmm = roundUp(mmOf(pc.sheetLongPx || pc.longPx, f));
     pc.num = xb.pieces.length; pc.label = xb.letter + pc.num;
     if (pc.cutTop || pc.cutBot) xb.cutCount++;
-    var pair = null;
-    if (!hipRoofX[pc.roofIdx] && pc.cutTop !== pc.cutBot){
-      open.forEach(function(q){
-        if (q === pc || q.oc || q.roofIdx !== pc.roofIdx || rest.indexOf(q) < rest.indexOf(pc)) return;
-        var lq = roundUp(mmOf(q.sheetLongPx || q.longPx, q.face));
-        for (var L = lv + _PZ_ROUND_MM; L - lv < lq; L += _PZ_ROUND_MM){
-          pc.Lmm = L;
-          var ocs = offcutOf(pc), hit = null;
-          ocs.forEach(function(oc){ var sc = fitScore(q, oc); if (!hit && sc !== null && sc < 1e8) hit = oc; });
-          if (hit){ var save = lq - (L - lv); if (!pair || save > pair.save) pair = { q: q, L: L, oc: hit, ocs: ocs, save: save }; break; }
-        }
-      });
-      pc.Lmm = lv;
-    }
-    var oi = open.indexOf(pc); if (oi >= 0) open.splice(oi, 1);
-    if (pair){
-      pc.Lmm = pair.L; pc.pairedWith = pair.q;
-      pair.ocs.forEach(function(oc){ pool.push(oc); });
-      feed(pair.q, pair.oc); pair.q.paired = true;
-    } else offcutOf(pc).forEach(function(oc){ pool.push(oc); });
+    offcutOf(pc).forEach(function(oc){ pool.push(oc); });
   });
   // 3b. ONE SWAP SAVES A SHEET (2026-10-23, the owner on the gable + hip &
   // valley T: "The offcuts to blue B9, B10 and purple C9, C10, they're not

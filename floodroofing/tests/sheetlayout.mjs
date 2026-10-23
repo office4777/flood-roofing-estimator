@@ -370,20 +370,19 @@ r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[1040,
   check('…no offcut a metre long is left over', r.unusedMaxMm < 1000, r.unusedList.join(' '));
 }
 rules('the gable + hip & valley T', r);
-// TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner: "I feel those sheet
-// layouts are still not utilizing all or more of the offcuts"). The three L
-// roofs of feedback reports 17, 19 and 20, on the builder that drew them. The
-// pieces round the corner are cut by a hip or a valley and are longer than
-// any offcut on the roof, so each was an extra at its own length leaving a
-// triangle nobody used; now an extra's sheet is ordered long enough that what
-// is left above its cut, spun round, is the next open piece of the same hand.
+// THE GABLE + HIP & VALLEY L (2026-10-23): the three L roofs of feedback
+// reports 17, 19 and 20, on the builder that drew them. The pieces round the
+// corner that no offcut fits are extras, each a sheet at its own length (the
+// owner: "e1 should just be a full sheet with a small amount of wastage" — an
+// extra's sheet lengthened so its remainder fed another piece was tried the
+// same evening and withdrawn as a cut nobody would make).
 for (const [nm, ol, tal, ex, left, was] of [
-  ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '1x6120,1x4360,10x3710,21x3280,1x3170', 3, 4, '37 sheets, 11 offcuts left over'],
-  ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '1x4260,1x2800,10x2620,1x2360,1x1090,17x1000', 4, 7, '34 sheets, 14 left over'],
-  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '1x6710,1x6380,26x4040,17x3150', 2, 5, '48 sheets, 11 left over'],
+  ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '11x3710,1x3430,22x3280,1x2440,1x1600,1x960', 6, 11, '37 sheets'],
+  ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '11x2620,1x2250,1x2150,1x1410,1x1300,2x1090,17x1000', 7, 14, '34 sheets'],
+  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '27x4040,1x3880,1x3370,18x3150', 4, 9, '48 sheets'],
 ]){
   r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: ol, autoType: 'gable-hv' });
-  check('the gable + hip & valley L, ' + nm + ': ' + tal + ', ' + left + ' offcuts left over (was ' + was + ')',
+  check('the gable + hip & valley L, ' + nm + ': ' + tal + ', ' + left + ' offcuts left over (this morning ' + was + ')',
     tallyOf(r) === tal && r.extras === ex && r.unused === left, tallyOf(r) + ' extras ' + r.extras + ' unused ' + r.unused);
   rules('the gable + hip & valley L, ' + nm, r);
   if (nm.startsWith('report 20')){
@@ -392,10 +391,12 @@ for (const [nm, ol, tal, ex, left, was] of [
     // offcut E2. Then offcuts to green sheets D10,11,12,13 should fill the
     // area of orange sheet A6, green offcut d12 and orange offcut a6 … they
     // can start in a valley area or hip area from the shortest first and only
-    // use half of the longest sheet if necessary". The wide arm's valley tail
-    // (under A5) takes D13, D12, D11 in turn; the narrow arm's tail below its
-    // hip end is laid from the valley's point, C11, C12, C13 from the point
-    // out, and only the strip at the barge — part-width — is a sheet's.
+    // use half of the longest sheet if necessary" — then "they don't have to
+    // go specifically where i said … it should go which ever way is most
+    // efficient". The wide arm's valley tail (under A5) takes D13, D12, D11 in
+    // turn; the narrow arm's tail below its hip end is laid from the valley's
+    // point, C11, C12, C13 from the point out, and only the strip at the barge
+    // — part-width — is a sheet's.
     const fA = r.pieces.filter(p => p.longMm > 900 && p.longMm < 3000 && /↺D1[123]/.test(p.label)).map(p => p.label + '@' + Math.round(p.longMm / 10) * 10).sort();
     check('…report 20: the valley tail under A5 is D13, D12 and D11\'s offcuts, not an A sheet',
       JSON.stringify(fA) === JSON.stringify(['↺D11@1010', '↺D12@1850', '↺D13@2690']), JSON.stringify(fA));
@@ -403,8 +404,10 @@ for (const [nm, ol, tal, ex, left, was] of [
     check('…report 20: the tail below the hip end is laid from the valley\'s point — C11, C12, C13 shortest first',
       ['↺C11@840', '↺C12@1680', '↺C13@2520'].every(x => tail.includes(x)), JSON.stringify(tail));
     const half = r.pieces.filter(p => Math.abs(p.longMm - 3140) < 20 && p.widthPx < r.coverPx * 0.8 && p.widthPx > r.coverPx * 0.25);
-    check('…report 20: the strip at the barge is the part-width one, cut from E2\'s sheet',
-      half.length === 1 && half[0].label === '↺E2', half.map(p => p.label + ' w' + (p.widthPx * r.scaleM).toFixed(2)).join(' '));
+    check('…report 20: the strip at the barge is the part-width one, a 3.15 m sheet of its own',
+      half.length === 1 && !/^↺/.test(half[0].label) && r.pieces.some(p => p === half[0]) && tallyOf(r).includes('18x3150'), half.map(p => p.label + ' w' + (p.widthPx * r.scaleM).toFixed(2)).join(' '));
+    check('…report 20: no extra is lengthened to feed another piece — every sheet is 4.04 m or shorter',
+      r.tally.every(t => t.Lmm <= 4040), tallyOf(r));
   }
 }
 // Wings at OPPOSITE ends (a Z): no end to start from, so the runs fall back to

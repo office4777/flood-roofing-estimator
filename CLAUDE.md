@@ -2820,41 +2820,38 @@ Discipline (non-negotiable):
   left over" reads 10, not 12 — two 33 mm nicks no longer counted. B9's and
   C9's offcuts (0.95 → 0.11 m) are still over: nothing left on that roof is
   short enough for them.
-  TWO EXTRAS FROM ONE SHEET (2026-10-23, the owner on the new gable + hip &
-  valley Ls: "I feel those sheet layouts are still not utilizing all or more
-  of the offcuts"). The pieces round an L's corner are cut by a hip or a
-  valley and are longer than any offcut on the roof, so each was an extra
-  at its own length, leaving a triangle nobody used. A roofer cuts two from
-  ONE longer sheet: the cut along the first piece's diagonal is the second
-  piece's diagonal, and what is left, spun round, is the second piece, same
-  hand. The extras step now lengthens an extra's sheet a round length at a
-  time until `offcutOf` holds another open piece (`fitScore`, so hand, both
-  sides and width are checked as everywhere else), and keeps it only when
-  that is less steel than ordering the second piece alone (`pairedWith`).
-  GABLE ROOFS ONLY, the swap pass's own test (`hipRoofX`), so no hip shape
-  moves. `rules()` now lets a face with no gutter at all run off its ridge
-  (the narrow arm's stub on these Ls); a face that has a gutter still must
-  run off it.
+  TWO EXTRAS FROM ONE SHEET WAS TRIED AND WITHDRAWN (2026-10-23): an extra's
+  sheet lengthened until its remainder, spun, fed another open piece saved
+  1–2 m of steel on the gable + hip & valley Ls, but the owner: "Offcut e2
+  doesn't make any sense, same with e1, e1 should just be a full sheet with a
+  small amount of wasteage". A 6.71 m sheet cut into a 4.04 m strip and a
+  3.36 m one is not a cut a roofer makes. Every extra is a sheet at its own
+  length again; do not bring the pairing back. `rules()` lets a face with no
+  gutter at all run off its ridge (the narrow arm's stub on these Ls); a
+  face that has a gutter still must run off it.
   AND THE TWO VALLEY TAILS FEED EACH OTHER (the owner, the same evening, on
   report 20: "purple sheets c10,11,12,13, those off cuts should fill the area
   which has purple offcuts 12, 13 and green offcut E2. Then offcuts to green
   sheets D10,11,12,13 should fill the area of orange sheet A6 … offcuts don't
   need to start on the edge/barge as a full sheet, they can start in a valley
   area or hip area from the shortest first and only use half of the longest
-  sheet if necessary"). Two changes. A FACE WITH NO GUTTER THAT NARROWS TO A
+  sheet if necessary" — then "they don't have to go specifically where i
+  said … it should go which ever way is most efficient"). Two changes. A FACE
+  WITH NO GUTTER THAT NARROWS TO A
   POINT AT A VALLEY, its barge across the wide end, is laid from the point
   (`f.tipLay` / `f.tipT`, `_pzStripsOf`): its k-th strip is the k-th
   valley-cut sheet's offcut from the valley opposite, and only the strip at
   the barge is part-width. The roof is laid BOTH ways (`opts.noTipLay`) and
-  the barge lay kept only where it orders fewer sheets — report 17's stub
-  has no valley opposite and is a sheet cheaper flush at its barge. And ON A
+  the one ordering fewer sheets kept, then less steel, the point on a tie —
+  report 17's stub has no valley opposite and stays flush at its barge. And ON A
   GABLE ROOF THE LATE STEP ORDERS THE POOL-FIRST STRIPS LONGEST FIRST, ONE AT
   A TIME, RE-MATCHING AFTER EACH (`lateOk` / `lateOrder`): both sides of the
   junction are pool-first, and ordered in one pass A6 became a sheet before
   D13's 2.83 m offcut — its exact fit — existed. Hip roofs keep the single
-  pass. Reports 17 / 19 / 20 now 34, 31, 45 sheets (were 37, 34, 48);
-  offcuts left over 4, 7, 5 (were 11, 14, 11). `unusedList` carries each
-  offcut's hand.
+  pass. Report 20: 48 → 47 sheets (A6 off D13's offcut); 17 and 19 are
+  unchanged at 37 and 34 — their corner pieces have no offcut long enough
+  and the right hand, and are honest sheets of their own. `unusedList`
+  carries each offcut's hand.
   THE SHEET NUMBER IS THE BIG TEXT (2026-10-23, the owner: "can you make
   the number of sheet bigger? So, for example, A7 ... And keep the
   measurements ... small like it is"): the label is sized to the strip, up
@@ -4703,7 +4700,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND AND BACKEND = `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). HELD ON THE SESSION BRANCH: two extras from one sheet and the two valley tails feeding each other, on gable roofs (the Ls 37 → 34, 34 → 31, 48 → 45 sheets) — pictures sent, waiting on the owner's go. Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
+**Live now.** FRONTEND AND BACKEND = `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). HELD ON THE SESSION BRANCH: an L's two valley tails feeding each other on gable roofs (report 20: 48 → 47 sheets) — picture sent, waiting on the owner's go. Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
 answered from Gmail and followed back onto the job, the History &
 Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
 run 39856153437: "The site is serving" and "Live after 40s" on the backend —
