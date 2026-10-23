@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-22T23:38:45Z';
+  window.APP_BUILT_AT = '2026-10-23T05:53:04Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -79845,7 +79845,33 @@ function buildStepGableRoofLines(outline, flipAxis, _inFrame){
           var MIN_PIECE = 0.25 / (DRAW.scaleMetresPerPx || 0.03);   // 0.25m in px
           if (b1 - b0 >= MIN_PIECE) barges.push({ type:'barge', pts:[XY(ue, b0), XY(ue, b1)] });
         }
-        else result.push({ type:'apron', pts:[XY(ue, lo), XY(ue, hi)] });
+        else {
+          // THE APRON RUNS ONLY WHERE THE WIDER ROOF STANDS ABOVE THIS ONE
+          // (feedback report 18, 2026-10-23, the owner: "the length of the
+          // apron should only the the same length as the barge on the very
+          // far right"). It was the whole shared stretch, gutter to gutter.
+          // But both roofs rise at the same pitch from their own gutters, so
+          // where they share a gutter line the two slopes are ONE plane up to
+          // the lower ridge — no wall, nothing to flash. The roof's height is
+          // its distance to the nearer of its gutters; the apron is the run
+          // where the wider block's is the greater, which on his roof is the
+          // lower block's own gutter up to its ridge: the barge's length.
+          var hOf = function(b, v){ return Math.min(v - b.v0, b.v1 - v); };
+          var bps = [lo, hi, vm, (ob.v0 + ob.v1) / 2, ob.v0, ob.v1].filter(function(v){ return v >= lo && v <= hi; })
+            .sort(function(a, c){ return a - c; });
+          var runs = [];
+          for (var bi = 0; bi + 1 < bps.length; bi++){
+            var s0 = bps[bi], s1 = bps[bi + 1];
+            if (s1 - s0 < 0.5) continue;
+            if (hOf(ob, (s0 + s1) / 2) - hOf(bk, (s0 + s1) / 2) <= 0.5) continue;
+            if (runs.length && Math.abs(runs[runs.length - 1][1] - s0) < 0.5) runs[runs.length - 1][1] = s1;
+            else runs.push([s0, s1]);
+          }
+          var MIN_AP = 0.25 / (DRAW.scaleMetresPerPx || 0.03);
+          runs.forEach(function(rn){
+            if (rn[1] - rn[0] >= MIN_AP) result.push({ type:'apron', pts:[XY(ue, rn[0]), XY(ue, rn[1])] });
+          });
+        }
       });
       pieces.forEach(function(pc){
         if (pc[1] - pc[0] < 1) return;
@@ -79860,7 +79886,142 @@ function buildStepGableRoofLines(outline, flipAxis, _inFrame){
   if (window.DRAW) DRAW.gableHipEndEdges = [];
   return result.concat(_tagGableBargesStarterFinish(barges));
 }
+// THE GABLE + HIP & VALLEY L IS TWO GABLE ROOFS JOINED AT THE CORNER
+// (feedback reports 17, 19 and 20, 2026-10-23). An L is two arms that share
+// the corner square. Where the arms are NOT the same width the NARROWER arm
+// runs straight through to a gable on the outside wall at both of its ends,
+// and the WIDER arm stops at the corner in a hip end whose face carries on in
+// the same plane as the narrower arm's far slope. Every line falls out of
+// that, and each of the three reports is one of them going missing:
+//   17 — a wide arm over a narrow one: the narrow arm's gable on the outside
+//        wall needs a valley on BOTH sides of the wide arm's hip end; only the
+//        inside corner's was drawn.
+//   19 — the same roof with the wing drawn wider than the main is deep: the
+//        skeleton threw two hips corner to corner across the wing.
+//   20 — a narrow arm over a wide one: its ridge ran straight through the
+//        wide arm to the far wall. It stops where it meets the wide arm's
+//        north slope, comes out again below the wide arm's south slope, and
+//        the wide arm's hip end between them is two small hips and a second
+//        valley.
+// Arms the same width (within a few percent) are the classic L — ridges
+// meeting over the corner, a valley from the inside corner and a hip from the
+// outside one, exactly as the old path drew an L with equal arms. Any shape
+// that is not a square-walled L returns null and keeps the old path.
+function _gableHvL(outline, _inFrame){
+  if (!outline || outline.length < 6) return null;
+  if (!_inFrame && typeof _outlineIsRectilinear === 'function' && _outlineIsRectilinear(outline, 20)){
+    var _fa = (typeof _roofFrameAngle === 'function') ? _roofFrameAngle(outline) : 0;
+    if (_fa){
+      var _c = _roofFrameCentre(outline);
+      var _rl = _gableHvL(_roofFrameRot(outline, -_fa, _c[0], _c[1]), true);
+      return _rl ? _rl.map(function(l){
+        var c2 = Object.assign({}, l);
+        c2.pts = _roofFrameRot(l.pts, _fa, _c[0], _c[1]);
+        return c2;
+      }) : null;
+    }
+  }
+  var o = (typeof _roofSimplifyOutline === 'function') ? (_roofSimplifyOutline(outline, 6) || outline) : outline;
+  if (!o || o.length !== 6) return null;
+  // The three wall lines each way, a few pixels of hand wobble being one line.
+  function lines3(vals){
+    var s = vals.slice().sort(function(a, b){ return a - b; }), g = [];
+    s.forEach(function(v){
+      var last = g[g.length - 1];
+      if (last && v - last[last.length - 1] <= 3) last.push(v); else g.push([v]);
+    });
+    return g.map(function(a){ return a.reduce(function(t, v){ return t + v; }, 0) / a.length; });
+  }
+  var X = lines3(o.map(function(p){ return p[0]; })), Y = lines3(o.map(function(p){ return p[1]; }));
+  if (X.length !== 3 || Y.length !== 3) return null;
+  function snapTo(L, v){ var b = 0; for (var k = 1; k < 3; k++) if (Math.abs(L[k] - v) < Math.abs(L[b] - v)) b = k; return b; }
+  var gi = o.map(function(p){ return [snapTo(X, p[0]), snapTo(Y, p[1])]; });
+  for (var e = 0; e < 6; e++){
+    var A = gi[e], B = gi[(e + 1) % 6];
+    if (A[0] !== B[0] && A[1] !== B[1]) return null;          // an angled wall
+  }
+  var gp = gi.map(function(g){ return [X[g[0]], Y[g[1]]]; });
+  function inside(px, py){
+    var hit = false;
+    for (var k = 0, l = 5; k < 6; l = k++){
+      var xi = gp[k][0], yi = gp[k][1], xj = gp[l][0], yj = gp[l][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) hit = !hit;
+    }
+    return hit;
+  }
+  var missing = null, count = 0;
+  for (var cy = 0; cy < 2; cy++) for (var cx = 0; cx < 2; cx++){
+    if (inside((X[cx] + X[cx + 1]) / 2, (Y[cy] + Y[cy + 1]) / 2)) count++;
+    else missing = [cx, cy];
+  }
+  if (count !== 3 || !missing) return null;
+  // Lay it out with the notch top-right: the vertical arm (V) down the left
+  // column, the horizontal arm (H) along the bottom row. A reflection each way
+  // gets any L there and the same reflection brings the lines back.
+  var fx = function(x){ return missing[0] === 1 ? x : X[0] + X[2] - x; };
+  var fy = function(y){ return missing[1] === 0 ? y : Y[0] + Y[2] - y; };
+  var x0 = X[0], x2 = X[2], x1 = fx(X[1]), y0 = Y[0], y2 = Y[2], y1 = fy(Y[1]);
+  var wV = x1 - x0, wH = y2 - y1;
+  if (wV < 4 || wH < 4) return null;
+  var hV = wV / 2, hH = wH / 2, xv = x0 + hV, yh = y1 + hH;
+  var classic = Math.abs(wV - wH) <= Math.max(4, 0.04 * Math.max(wV, wH));
+  var out = [];
+  function L(type, a, b){
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) return;
+    out.push({ type: type, pts: [[fx(a[0]), fy(a[1])], [fx(b[0]), fy(b[1])]] });
+  }
+  // A gable end is two rake barges up to its ridge. The foot nearer the
+  // origin along the end wall is the starter, the other the finish — the
+  // rule the square-walled builder has always used, so an L that came out
+  // right before reads the same now.
+  var barges = [];
+  function G(a, b, apex){
+    var A2 = [fx(a[0]), fy(a[1])], B2 = [fx(b[0]), fy(b[1])], T2 = [fx(apex[0]), fy(apex[1])];
+    var ax = Math.abs(A2[0] - B2[0]) > Math.abs(A2[1] - B2[1]) ? 0 : 1;
+    if (B2[ax] < A2[ax]){ var sw = A2; A2 = B2; B2 = sw; }
+    barges.push({ type:'barge', pts:[A2, T2.slice()], subtype:'starter' },
+                { type:'barge', pts:[B2, T2.slice()], subtype:'finish' });
+  }
+  // V's free end (the top) is a gable either way, and so is H's (the right).
+  G([x0, y0], [x1, y0], [xv, y0]);
+  G([x2, y1], [x2, y2], [x2, yh]);
+  if (classic){
+    // The same width each way, give or take a hand's wobble: the two ridges
+    // meet over the corner, a valley comes up from the inside corner and a
+    // hip from the outside one. (A few pixels apart used to fall through to
+    // the skeleton, which ran one ridge clean through to the far wall.)
+    var C = [xv, yh];
+    L('ridge', [xv, y0], C); L('ridge', C, [x2, yh]);
+    L('valley', [x1, y1], C); L('hip', [x0, y2], C);
+  } else if (wV > wH){
+    // V is the wide arm and hips at the corner; H runs through to the left wall.
+    var J = [xv, y2 - hV];
+    if (J[1] <= y0 + 2) return null;                           // V is no arm at all
+    var P1 = [x0 + hH, yh], P2 = [x1 - hH, yh];
+    L('ridge', [xv, y0], J);
+    L('hip', J, P1); L('hip', J, P2);
+    L('valley', [x0, y1], P1); L('valley', [x1, y1], P2);
+    L('ridge', [x0, yh], P1); L('ridge', P2, [x2, yh]);
+    G([x0, y1], [x0, y2], [x0, yh]);
+  } else {
+    // H is the wide arm and hips at the corner; V runs through to the bottom wall.
+    var K = [x0 + hH, yh];
+    if (K[0] >= x2 - 2) return null;                           // H is no arm at all
+    var J1 = [xv, y1 + hV], Q2 = [xv, y2 - hV];
+    L('ridge', [xv, y0], J1);
+    L('valley', [x1, y1], J1);
+    L('hip', J1, K); L('hip', K, Q2);
+    L('ridge', Q2, [xv, y2]);
+    L('valley', [x1, y2], Q2);
+    L('ridge', K, [x2, yh]);
+    G([x0, y2], [x1, y2], [xv, y2]);
+  }
+  return out.concat(barges);
+}
+
 function buildGableRoofLines_legacy(outline) {
+  var _hvL = _gableHvL(outline);
+  if (_hvL) return _hvL;
   var _rectG = buildRectilinearRoofLines(outline, true);
   if (_rectG) return _rectG;   // gable ends on every arm end, from the shape
 

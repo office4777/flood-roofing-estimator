@@ -6,7 +6,7 @@
 // right (169px), ridges the same way, the step at x=1093. His junction came
 // out carrying all of:
 //
-//   apron  583 -> 669    4.85m   the wing flashing into the wall
+//   apron  583 -> 669    4.85m   the wing flashing into the wall (2.42m since report 18)
 //   barge  583 -> 667.5  4.93m   the wider block's wall, behind that apron
 //   barge  667.5 -> 669  0.09m   a 90mm stub where the two ridges missed
 //   barge  669 -> 752    4.85m   the wall below the wing
@@ -75,8 +75,13 @@ const j = r.junction;
 const aprons = j.filter(x => x.t === 'apron');
 const barges = j.filter(x => x.t === 'barge');
 
-check('the step still flashes: the lower wing runs an apron up to the wall',
-  aprons.length === 1 && aprons[0].lo === 583 && aprons[0].hi === 669,
+// THE APRON IS SETTLED TOO (feedback report 18, 2026-10-23): it runs only
+// where the wider roof stands above the wing. The two share the gutter at 583
+// and are one plane up to the wing's ridge at 626, so the apron is 626 -> 669
+// — 2.42m, the same length as the barge behind it, not the 4.85m it ran.
+check('the step still flashes: the lower wing runs an apron up to the wall, '
+    + 'its ridge to its far gutter',
+  aprons.length === 1 && aprons[0].lo === 626 && aprons[0].hi === 669 && aprons[0].m === 2.42,
   JSON.stringify(aprons));
 check('THE SLIVER IS GONE — no 90mm stub where the two ridges miss each other',
   r.tiny.length === 0, JSON.stringify(r.tiny));
@@ -93,8 +98,8 @@ check('THE JUNCTION BARGE STOPS AT THE WING\'S RIDGE — it no longer carries '
   barges.some(x => x.lo === 626 && x.hi === 667.5), JSON.stringify(barges));
 check('…so it measures 2.42m of gable wall, not the 4.93m it ran before',
   barges.some(x => x.lo === 626 && x.m === 2.42), JSON.stringify(barges));
-check('…and nothing on this junction reaches the top gutter at 583 but the apron',
-  barges.every(x => x.lo !== 583), JSON.stringify(barges));
+check('…and nothing on this junction reaches the top gutter at 583',
+  barges.every(x => x.lo !== 583) && aprons.every(x => x.lo !== 583), JSON.stringify(j));
 check('the roof is otherwise the same shape — two ridges, four gutters',
   r.counts.ridge === 2 && r.counts.gutter === 4, JSON.stringify(r.counts));
 check('and the ORDER does not move: shortening a flashing to the wall that is '

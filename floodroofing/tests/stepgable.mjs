@@ -64,9 +64,12 @@ check('Step-down Gable is one of the roof shapes on offer', g.offered && g.choos
 check('on the L it is two gables: a ridge down the middle of each block, gutters along them, rake barges across', g.type === 'stepgable' && g.a.counts.ridge === 2 && g.a.counts.gutter === 4 && (g.a.counts.barge || 0) >= 6, JSON.stringify(g.a.counts));
 // bbox 680 wide x 655 tall → ridges run horizontal; the cut is at x=635, the
 // left block (full height, 655 wide) is the higher one, the right wing
-// (335 wide) dies into it: apron on the wing's edge at x=635 from 880 to 1215.
+// (335 wide) dies into it: apron on the wing's edge at x=635 from its own
+// gutter at 880 up to its ridge at 1048. Below that the two roofs share the
+// gutter at 1215 and are one plane — no wall, no apron (feedback report 18,
+// 2026-10-23, the owner: the apron is only "the same length as the barge").
 check('…the ridges are one per block, each down its own middle', JSON.stringify(g.a.ridges) === '[[[180,888],[635,888]],[[635,1048],[860,1048]]]', JSON.stringify(g.a.ridges));
-check('…the narrower wing runs an APRON up to the wider block\'s gable wall', JSON.stringify(g.a.aprons) === '[[[635,880],[635,1215]]]', JSON.stringify(g.a.aprons));
+check('…the narrower wing runs an APRON up to the wider block\'s gable wall', JSON.stringify(g.a.aprons) === '[[[635,880],[635,1048]]]', JSON.stringify(g.a.aprons));
 // The wider block's ridge is at y=887.5, the wing's at y=1047.5: the gable
 // wall standing above the wing is the stretch between them and nothing more.
 // Below the wing's ridge both roofs are the same plane, so there is no wall
@@ -81,7 +84,7 @@ check('…and it stops there: no barge on that junction runs down to the gutter'
   JSON.stringify(g.a.barges));
 check('no hip and no valley anywhere on it', !g.a.counts.hip && !g.a.counts.valley);
 check('Rotate roof 90° turns both ridges the other way and keeps the type', g.b.type === 'stepgable' && g.b.rotation === 90 && JSON.stringify(g.b.ridges) === '[[[408,560],[408,880]],[[520,880],[520,1215]]]', JSON.stringify(g.b));
-check('…with the apron now along the cut at y=880 under the narrower top block', JSON.stringify(g.b.aprons) === '[[[180,880],[635,880]]]', JSON.stringify(g.b.aprons));
+check('…with the apron now along the cut at y=880 under the narrower top block, its ridge to its gutter', JSON.stringify(g.b.aprons) === '[[[408,880],[635,880]]]', JSON.stringify(g.b.aprons));
 // Rotated, the blocks swap roles: the lower block (now the wider one) carries
 // the barge, from its own ridge at x=520 to the top block's at x=407.5.
 check('…and rotated, its barge is ridge to ridge the same way',

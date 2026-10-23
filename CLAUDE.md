@@ -856,12 +856,44 @@ Discipline (non-negotiable):
   bug fitted through it. Both are fixed: the pin now asserts the exact
   ridge-to-ridge extent, rotated as well.
   The order does not move — 40 sheets, measured both ways, and the
-  37-shape sheet gate is unchanged. STILL OPEN AND HIS CALL: the APRON on the
-  narrower block still runs the whole shared stretch (4.85 m). The same
-  argument says it should also start at the lower ridge, since below that the
-  two roofs are one plane — but he confirmed only the barge, and an apron is
-  what keeps water out, so it was not touched on reasoning alone. Ask him.
-  `tests/report12.mjs`, `tests/stepgable.mjs`.
+  37-shape sheet gate is unchanged. THE APRON, SETTLED 2026-10-23 (feedback
+  report 18: "the length of the apron should only the the same length as the
+  barge on the very far right"): it runs only where the WIDER block's roof
+  stands above the narrower one's, each roof's height being its distance to
+  the nearer of its own gutters. Where the two share a gutter line they are
+  one plane from that gutter up to the lower ridge, so the apron is the lower
+  block's ridge to its OTHER gutter: 4.85 m → 2.42 m on report 12's L, gutter
+  to ridge on report 18's. A low block standing in the middle of a tall one
+  shares no gutter and keeps the whole stretch. Worked from the two height
+  profiles at their breakpoints, not sampled; under 0.25 m is dropped like
+  the barge sliver. `tests/report12.mjs`, `tests/stepgable.mjs`,
+  `tests/report17.mjs`.
+- THE GABLE + HIP & VALLEY L IS TWO GABLE ROOFS JOINED AT THE CORNER
+  (2026-10-23, feedback reports 17, 19 and 20, all one roof drawn three ways:
+  "missing a valley"; "closing the shape up slightly breaks it"; "there should
+  be another small hip on the bottom side of the horizontal ridge which breaks
+  up the vertical ridge and then there should be another valley too").
+  `_gableHvL(outline)` runs first in `buildGableRoofLines_legacy` and takes
+  every square-walled six-corner L (in its own frame, like the step gable);
+  anything else returns null and keeps the old skeleton-and-patch path. ITS
+  RULE, read off his three reports and matching all three: the NARROWER arm
+  runs straight through to a gable on the outside wall at both ends; the
+  WIDER arm stops at the corner in a HIP END whose face is the same plane as
+  the narrow arm's far slope. So a wide arm over a narrow one (17, 19) is its
+  ridge to a hip end, two short hips onto the narrow ridge, and a valley each
+  side — 17 had lost the outside one, 19 threw two hips corner to corner
+  across the wing. A narrow arm over a wide one (20) is its ridge stopping at
+  the wide arm's north slope and coming out again below its south slope to
+  its own gable, the wide arm's hip end between them as two small hips, and a
+  valley each side of the narrow arm — the old path ran the ridge through to
+  the far wall. ARMS THE SAME WIDTH (within 4 %, or 4 px) are the classic
+  corner — ridges meeting, a valley in from the inside corner, a hip in from
+  the outside one — line for line what the old path drew for an equal L; an
+  L drawn a few pixels off used to fall through to the skeleton and get the
+  report-20 fault. Built in a canonical frame (notch top-right) and reflected
+  back; barges tagged starter/finish per end, nearer foot first, as
+  `buildRectilinearRoofLines` tags them. `tests/report17.mjs` (33; 21 fail on
+  the old builder, every safety pin passes on both).
 - A POLE SHED IN THE MODERN STYLE IS A POLE SHED (2026-10-12, found while
   building the shed's modern styling — it was not a styling gap but a live
   bug). `_qdSectionsRaw` (the one-page computer layout) and `_qbPages` (the
@@ -4805,19 +4837,15 @@ session, and none has been confirmed done since the date beside it.**
 - UNANSWERED: should a Custom Price Book line's mark-up REPLACE the job's
   material mark-up for that item? And Nearmap stays OFF until privacy.html
   v1.2 names it + 30 days' notice.
-- ASKED 2026-10-21, no answer yet — three questions already put to him, so do
-  not ask again, just pick them up if he answers:
-  1. THE STEP-DOWN GABLE'S APRON. He settled the junction BARGE (it runs
-     ridge to ridge) and the same geometry says the APRON on the narrower
-     block should also start at the lower ridge rather than running the whole
-     shared stretch. He confirmed only the barge, and an apron is what keeps
-     water out, so it was not changed on reasoning alone.
-  2. SOAKER TRAYS, Scott's ask relayed by the owner — NOT STARTED, and it
+- ASKED 2026-10-21, no answer yet — two questions already put to him, so do
+  not ask again, just pick them up if he answers (the third, the step-down
+  gable's apron, he answered in feedback report 18 on 2026-10-23):
+  1. SOAKER TRAYS, Scott's ask relayed by the owner — NOT STARTED, and it
      cannot be until he says how they are priced: per penetration, per metre,
      or a fixed each; and whether a soaker REPLACES the back-tray a
      penetration already brings or sits beside it. Both answers change the
      take-off row, not just a price.
-  3. THE SHED'S MODERN COVER still carries a navy strip above the render —
+  2. THE SHED'S MODERN COVER still carries a navy strip above the render —
      the deliberate trade in THE PICTURE'S OWN SHAPE IS THE FLOOR. The
      alternative is a 56%-full cover sheet. Offered; he has not said.
 
