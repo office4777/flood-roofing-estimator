@@ -7055,6 +7055,8 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
       }
       cells.push({ e0: ge0, e1: ge1, s0: gs0, s1: gs1, k: j });
     }
+  } else if (f.tipLay){
+    run(f.tipT, f.tipT === tMin ? tMax : tMin, false);
   } else {
     run(f.fromEnd ? tMax : tMin, f.fromEnd ? tMin : tMax, f.fromEnd ? lapLo : lapHi);
   }
@@ -7346,6 +7348,22 @@ function _sheetPuzzleBuild(opts){
         });
         if (bt !== null && Math.abs(bt - tMax) < Math.abs(bt - tMin)){ fromEnd = true; anchorT = tMax; }
         lay = 'barge';
+        // A VALLEY TAIL IS LAID FROM ITS POINT (2026-10-23, the owner on the
+        // gable + hip & valley L: "offcuts don't need to start on the
+        // edge/barge as a full sheet, they can start in a valley area or hip
+        // area from the shortest first and only use half of the longest sheet
+        // if necessary"). A face with no gutter that narrows to a single point
+        // at a valley, its barge across the wide end (the narrow arm's slope
+        // below the wide arm's hip end), was laid flush at the barge — so its
+        // longest strip was a full sheet longer than any offcut on the roof,
+        // and the valley offcuts across the way could not reach it. Laid from
+        // the point, its k-th strip is the k-th valley-cut sheet's offcut from
+        // the slope opposite, and only the strip at the barge is part-width.
+        if (!opts.noTipLay && !f.hasGutter && f.edges.some(function(e){ return e.kind === 'valley'; })){
+          var farT = fromEnd ? tMin : tMax;
+          var atFar = f.poly.filter(function(p){ return Math.abs(p[0]*tx + p[1]*ty - farT) < tol*0.5; });
+          if (atFar.length === 1){ f.tipLay = true; f.tipT = farT; anchorT = farT; }
+        }
       } else if (isApex || isGablet || !hasLevel){
         lay = 'apex';
         anchorT = isGablet ? gabletT : ts[apexI];
@@ -7518,6 +7536,20 @@ function _sheetPuzzleBuild(opts){
   }); });
   var res = { roofs: roofs, faces: faces, pieces: pieces, coverPx: coverPx, coverMm: coverMm, scaleM: scaleM, bbox: bb, tol: tol };
   if (!opts.noFill){ try { _sheetPuzzleFill(res); } catch(e){ try { console.warn('sheet fill:', e); } catch(e2){} } }
+  // "CAN start in a valley area … from the shortest first": a valley tail
+  // laid from its point is only worth it where the valley across the way
+  // has offcuts that fit it. Where it has none (an L's narrow arm meeting
+  // the wide arm's west wall, with no second valley opposite), flush at the
+  // barge is the better lay — so the whole roof is laid both ways, and the
+  // barge lay is kept only where it orders FEWER SHEETS. Same count, the
+  // point: that is his rule, and the part-width strip then stands at the
+  // barge where it belongs rather than as a sliver at the valley's tip.
+  if (!opts.noFill && !opts.noTipLay && faces.some(function(f){ return f.tipLay; })){
+    var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
+    var alt = null;
+    try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true })); } catch(e){ alt = null; }
+    if (alt && alt.tally && res.tally && nSheets(alt) < nSheets(res)) res = alt;
+  }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
 }
@@ -8042,20 +8074,41 @@ function _sheetPuzzleFill(pz){
   // a second look (a bar end's corner piece off the bar's own valley-cut
   // sheet, which was not a sheet until now).
   var late = 0;
-  open.slice().forEach(function(pc){
-    if (!pc.poolFirst || pc.gabletFace) return;
-    var pb = pc.poolFirst;
+  var hipRoofL = {};
+  pz.faces.forEach(function(f){ if ((f.lay === 'apex' && !f.gablet) || f.lay === 'grid') hipRoofL[f.roofIdx] = true; });
+  function lateOk(pc){
+    if (!pc.poolFirst || pc.gabletFace) return false;
     // A stub under half the block's length (a wing's corner column clipped
     // at the wing's own corner) is not a sheet of the block: it is ordered
     // at its own length with the extras rather than cut from a full sheet.
-    if (mmOf(pc.sheetLongPx || pc.longPx, pc.face) < pb.Lmm * 0.5) return;
+    return mmOf(pc.sheetLongPx || pc.longPx, pc.face) >= pc.poolFirst.Lmm * 0.5;
+  }
+  function lateOrder(pc){
+    var pb = pc.poolFirst;
     open.splice(open.indexOf(pc), 1);
     addToBlock(pb, pc); pb.cutCount++;
     pc.num = pb.pieces.length; pc.label = pb.letter + pc.num;
     pc.lateOrdered = true; pc.ownOcs = offcutOf(pc);
     pc.ownOcs.forEach(function(oc){ pool.push(oc); late++; });
-  });
+  }
+  open.slice().forEach(function(pc){ if (hipRoofL[pc.roofIdx] && lateOk(pc)) lateOrder(pc); });
   if (late && open.length) matchPool();
+  // ON A GABLE ROOF, THE LONGEST FIRST AND THE POOL LOOKED AT AGAIN AFTER
+  // EACH (2026-10-23, the owner on the gable + hip & valley L: "offcuts to
+  // green sheets D10,11,12,13 should fill the area of orange sheet A6, green
+  // offcut d12 and orange offcut a6"). Both sides of an L's junction are
+  // pool-first: the narrow arm's valley strips (D10–D13) AND the wide arm's
+  // valley tail (A6). Ordered together in one pass, A6 became a sheet in the
+  // same breath as D13 — before D13's 2.83 m offcut, an exact fit for it,
+  // existed. One at a time, longest first, the valley-cut sheets go in
+  // before the shorter strips across the way that their offcuts fit.
+  for (var lg = 0; lg < 400; lg++){
+    var cand = open.filter(function(pc){ return !hipRoofL[pc.roofIdx] && lateOk(pc); });
+    if (!cand.length) break;
+    cand.sort(function(p, q){ return mmOf(q.sheetLongPx || q.longPx, q.face) - mmOf(p.sheetLongPx || p.longPx, p.face) || (p.k - q.k); });
+    lateOrder(cand[0]);
+    if (open.length) matchPool();
+  }
   // A gablet-fed corner still open after that is one more of its gablet's
   // short sheets (or its slope's sheet when it is longer than they are).
   var lateG = 0;
@@ -8222,7 +8275,7 @@ function _sheetPuzzleFill(pz){
   pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
   pz.endFaces = endFaces;
   pz.unusedOffcuts = pool.length;
-  pz.unusedList = pool.map(function(oc){ return oc.donor + ':' + (oc.b * scaleM * oc.pf).toFixed(2) + '/' + (oc.a * scaleM * oc.pf).toFixed(2) + 'w' + (oc.w * scaleM).toFixed(2); });
+  pz.unusedList = pool.map(function(oc){ return oc.donor + ':' + (oc.b * scaleM * oc.pf).toFixed(2) + '/' + (oc.a * scaleM * oc.pf).toFixed(2) + 'w' + (oc.w * scaleM).toFixed(2) + (oc.hand ? 'h' + oc.hand : ''); });
   pz.unusedMaxMm = pool.reduce(function(m, oc){ return Math.max(m, oc.b * scaleM * oc.pf * 1000); }, 0);
   pz.fedPieces = needs.filter(function(p){ return !p.ordered; }).length;
   pz.strungPieces = strungCount;

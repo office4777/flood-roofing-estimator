@@ -481,6 +481,17 @@ the second piece would cost on its own. The first piece's diagonal is the
 second's; the remainder is spun, never flipped. Skipped on any roof with a hip
 end or a cookie-cutter end (`hipRoofX`, the swap pass's test).
 
+### A valley tail is laid from its point, and the tails feed each other (gable roofs, 2026-10-23)
+
+A face with no gutter that narrows to a single point at a valley, with a barge
+across its wide end, is laid from the point (`f.tipLay`): shortest strip first,
+only the strip at the barge part-width. Its strips then line up with the
+valley-cut sheets' offcuts from the valley opposite. The whole roof is also laid
+the old way (`opts.noTipLay`), and that is kept only if it orders fewer sheets.
+On gable roofs the late step orders the pool-first strips longest first, one at
+a time, with the pool re-matched after each, so a valley-cut sheet's offcut
+exists before the shorter strip across the junction is given up as a sheet.
+
 ### The one-swap pass (gable roofs only, 2026-10-23)
 
 THE GABLE + HIP & VALLEY T GIVES TWO SHEETS BACK (2026-10-23, the owner:

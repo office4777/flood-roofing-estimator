@@ -380,12 +380,32 @@ rules('the gable + hip & valley T', r);
 for (const [nm, ol, tal, ex, left, was] of [
   ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '1x6120,1x4360,10x3710,21x3280,1x3170', 3, 4, '37 sheets, 11 offcuts left over'],
   ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '1x4260,1x2800,10x2620,1x2360,1x1090,17x1000', 4, 7, '34 sheets, 14 left over'],
-  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '1x6710,1x6160,26x4040,18x3150', 2, 7, '48 sheets, 11 left over'],
+  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '1x6710,1x6380,26x4040,17x3150', 2, 5, '48 sheets, 11 left over'],
 ]){
   r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: ol, autoType: 'gable-hv' });
   check('the gable + hip & valley L, ' + nm + ': ' + tal + ', ' + left + ' offcuts left over (was ' + was + ')',
     tallyOf(r) === tal && r.extras === ex && r.unused === left, tallyOf(r) + ' extras ' + r.extras + ' unused ' + r.unused);
   rules('the gable + hip & valley L, ' + nm, r);
+  if (nm.startsWith('report 20')){
+    // The owner on this roof, 2026-10-23: "purple sheets c10,11,12,13, those
+    // off cuts should fill the area which has purple offcuts 12, 13 and green
+    // offcut E2. Then offcuts to green sheets D10,11,12,13 should fill the
+    // area of orange sheet A6, green offcut d12 and orange offcut a6 … they
+    // can start in a valley area or hip area from the shortest first and only
+    // use half of the longest sheet if necessary". The wide arm's valley tail
+    // (under A5) takes D13, D12, D11 in turn; the narrow arm's tail below its
+    // hip end is laid from the valley's point, C11, C12, C13 from the point
+    // out, and only the strip at the barge — part-width — is a sheet's.
+    const fA = r.pieces.filter(p => p.longMm > 900 && p.longMm < 3000 && /↺D1[123]/.test(p.label)).map(p => p.label + '@' + Math.round(p.longMm / 10) * 10).sort();
+    check('…report 20: the valley tail under A5 is D13, D12 and D11\'s offcuts, not an A sheet',
+      JSON.stringify(fA) === JSON.stringify(['↺D11@1010', '↺D12@1850', '↺D13@2690']), JSON.stringify(fA));
+    const tail = r.pieces.filter(p => /^↺C1[123]$/.test(p.label)).map(p => p.label + '@' + Math.round(p.longMm / 10) * 10);
+    check('…report 20: the tail below the hip end is laid from the valley\'s point — C11, C12, C13 shortest first',
+      ['↺C11@840', '↺C12@1680', '↺C13@2520'].every(x => tail.includes(x)), JSON.stringify(tail));
+    const half = r.pieces.filter(p => Math.abs(p.longMm - 3140) < 20 && p.widthPx < r.coverPx * 0.8 && p.widthPx > r.coverPx * 0.25);
+    check('…report 20: the strip at the barge is the part-width one, cut from E2\'s sheet',
+      half.length === 1 && half[0].label === '↺E2', half.map(p => p.label + ' w' + (p.widthPx * r.scaleM).toFixed(2)).join(' '));
+  }
 }
 // Wings at OPPOSITE ends (a Z): no end to start from, so the runs fall back to
 // the world-low corner; the far wing's corner column is then the plain hip's
