@@ -111,8 +111,9 @@ check('…with a real screenshot of the app, not an illustration',
   extra.phoneShot && extra.phoneOk);
 check('…and covers what actually matters on a roof',
   /gloves on/i.test(extra.t) && /Lock the screen/i.test(extra.t) && /No signal/i.test(extra.t));
-// Four since 2026-10-01: Measure was sold but missing from the homepage.
-check('there are four pricing tiers, Measure first', extra.tiers.length === 4 && extra.tiers[0].name === 'Measure', JSON.stringify(extra.tiers.map(x=>x.name)));
+// Three since 2026-10-23: Business is off sale (four from 2026-10-01, when
+// Measure was sold but missing from the homepage).
+check('there are three pricing tiers, Measure first, no Business', extra.tiers.length === 3 && extra.tiers[0].name === 'Measure' && !extra.tiers.some(x => x.name === 'Business'), JSON.stringify(extra.tiers.map(x=>x.name)));
 check('…each with a price and what you get for it',
   extra.tiers.every(x => /^\$\d/.test(x.amt||'') && /per month/.test(x.per||'')),
   JSON.stringify(extra.tiers.map(x=>x.amt+' '+x.per)));
