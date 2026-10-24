@@ -71,8 +71,8 @@ accordingly.
   (2026-10-25, `renderCrewStrip`, `#pl-crew`): one card a month from Jul 2024 with the crew on the tools above the Xero
   figures and Rev / NP per person. `CREW_SEED` is the owner's three weekly pay-run exports (July–June years, newest
   run first, UNDATED — each run dated by lining its hours up with the timesheet export, exact on Sep 2024 – Mar 2025): every
-  week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, the owner, Paula and Hannah left
-  out; counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
+  week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, office staff left
+  out (the owner, Paula, Hannah, Chris Mitchell, Matthew Anderson-Smith — "never on the tools"); counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
   `fr3_crewMonthly`, which wins; blank = back to the payroll figure). `tests/hubui.mjs` (63, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.

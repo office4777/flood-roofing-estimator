@@ -4186,10 +4186,10 @@ function renderXeroReport(rep,label){
 // years, newest run first and undated — each run is dated by lining the hours up with the timesheet
 // export (exact on Sep 2024 – Mar 2025), giving every week from Mon 26 Aug 2024 to Fri 16 Oct 2026.
 // A person counts in a month when they were paid at least a day's hours in it (a week's hours are
-// split across its weekdays); the owner, the office (Paula) and Hannah's 10-hour admin weeks are left
-// out. h = hours paid, ft = h over 8 hours a weekday that month. Typed numbers (fr3_crewMonthly) win.
+// split across its weekdays); office staff are left out — the owner, Paula, Hannah, Chris Mitchell
+// and Matthew Anderson-Smith (the owner, 2026-10-25: "never on the tools"). h = hours paid, ft = h over 8 hours a weekday that month. Typed numbers (fr3_crewMonthly) win.
 const CREW_FROM='Jul-2024';
-const CREW_SEED={'Aug-2024':{n:3,h:127,ft:3.2,part:'pay runs start 26 Aug'},'Sep-2024':{n:4,h:633,ft:3.8},'Oct-2024':{n:4,h:555,ft:3.0},'Nov-2024':{n:5,h:785,ft:4.7},'Dec-2024':{n:5,h:931,ft:5.3},'Jan-2025':{n:5,h:942,ft:5.1},'Feb-2025':{n:5,h:910,ft:5.7},'Mar-2025':{n:5,h:854,ft:5.1},'Apr-2025':{n:6,h:916,ft:5.2},'May-2025':{n:7,h:1071,ft:6.1},'Jun-2025':{n:8,h:1391,ft:8.3},'Jul-2025':{n:8,h:1630,ft:8.9},'Aug-2025':{n:10,h:1893,ft:11.3},'Sep-2025':{n:10,h:1808,ft:10.3},'Oct-2025':{n:10,h:1905,ft:10.4},'Nov-2025':{n:10,h:1739,ft:10.9},'Dec-2025':{n:10,h:1676,ft:9.1},'Jan-2026':{n:10,h:1798,ft:10.2},'Feb-2026':{n:10,h:1829,ft:11.4},'Mar-2026':{n:10,h:1954,ft:11.1},'Apr-2026':{n:11,h:1945,ft:11.1},'May-2026':{n:14,h:1858,ft:11.1},'Jun-2026':{n:12,h:2246,ft:12.8},'Jul-2026':{n:11,h:2271,ft:12.3},'Aug-2026':{n:11,h:1999,ft:11.9},'Sep-2026':{n:12,h:2015,ft:11.4},'Oct-2026':{n:11,h:1028,ft:10.7,part:'pay runs to 16 Oct so far'}};
+const CREW_SEED={'Aug-2024':{n:3,h:127,ft:3.2,part:'pay runs start 26 Aug'},'Sep-2024':{n:4,h:633,ft:3.8},'Oct-2024':{n:4,h:555,ft:3.0},'Nov-2024':{n:5,h:785,ft:4.7},'Dec-2024':{n:5,h:931,ft:5.3},'Jan-2025':{n:5,h:942,ft:5.1},'Feb-2025':{n:5,h:910,ft:5.7},'Mar-2025':{n:5,h:854,ft:5.1},'Apr-2025':{n:6,h:916,ft:5.2},'May-2025':{n:7,h:1071,ft:6.1},'Jun-2025':{n:8,h:1391,ft:8.3},'Jul-2025':{n:8,h:1630,ft:8.9},'Aug-2025':{n:9,h:1713,ft:10.2},'Sep-2025':{n:9,h:1610,ft:9.1},'Oct-2025':{n:9,h:1698,ft:9.2},'Nov-2025':{n:9,h:1559,ft:9.7},'Dec-2025':{n:9,h:1469,ft:8.0},'Jan-2026':{n:9,h:1600,ft:9.1},'Feb-2026':{n:9,h:1649,ft:10.3},'Mar-2026':{n:9,h:1756,ft:10.0},'Apr-2026':{n:9,h:1628,ft:9.3},'May-2026':{n:12,h:1490,ft:8.9},'Jun-2026':{n:10,h:1879,ft:10.7},'Jul-2026':{n:10,h:2075,ft:11.3},'Aug-2026':{n:10,h:1821,ft:10.8},'Sep-2026':{n:11,h:1917,ft:10.9},'Oct-2026':{n:11,h:1028,ft:10.7,part:'pay runs to 16 Oct so far'}};
 const CREW_FT_HRS=160;   // one person full-time for a month (typed months, which carry no weekday count)
 let crewMonthly=S.get('crewMonthly',{});
 function crewFor(k){
@@ -4233,7 +4233,7 @@ function renderCrewStrip(){
   }).join('');
   const rg=document.getElementById('pl-crew-range');if(rg)rg.textContent=ks[0].replace('-',' ')+' → now · swipe ↔';
   const nt=document.getElementById('pl-crew-note');
-  if(nt)nt.textContent='Crew = people paid for at least a day on the tools that month, from your weekly pay runs (26 Aug 2024 – 16 Oct 2026; you, Paula and Hannah left out). Tap a number to change it; clear it to go back to the payroll figure.';
+  if(nt)nt.textContent='Crew = people paid for at least a day on the tools that month, from your weekly pay runs (26 Aug 2024 – 16 Oct 2026; office staff left out). Tap a number to change it; clear it to go back to the payroll figure.';
   // open on the newest month the first time the strip is actually on screen (it is rendered hidden at boot)
   if(!host.__crewScrolled&&host.clientWidth>0){host.__crewScrolled=true;host.scrollLeft=host.scrollWidth;}
 }
