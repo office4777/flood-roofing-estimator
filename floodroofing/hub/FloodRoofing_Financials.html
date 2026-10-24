@@ -4182,24 +4182,26 @@ function renderXeroReport(rep,label){
     +'Live from Xero — updates only when you Sync/Pull.';
 }
 // ── Crew on the tools, per month (P&L tab) ──
-// Seeded from the payroll timesheet export the owner sent (01/07/2024 → 25/10/2026): people who
-// logged hours on site that month, office staff left out. Hours = their worked hours that month.
-// The export has no crew timesheets before Sep 2024 or after 14 Mar 2025, so every other month is
-// typed by hand (tap the number) and kept in fr3_crewMonthly, which wins over the seed.
+// Seeded from the owner's payroll exports (2026-10-25): three weekly pay-run files, July-to-June
+// years, newest run first and undated — each run is dated by lining the hours up with the timesheet
+// export (exact on Sep 2024 – Mar 2025), giving every week from Mon 26 Aug 2024 to Fri 16 Oct 2026.
+// A person counts in a month when they were paid at least a day's hours in it (a week's hours are
+// split across its weekdays); the owner, the office (Paula) and Hannah's 10-hour admin weeks are left
+// out. h = hours paid, ft = h over 8 hours a weekday that month. Typed numbers (fr3_crewMonthly) win.
 const CREW_FROM='Jul-2024';
-const CREW_SEED={'Sep-2024':{n:4,h:598},'Oct-2024':{n:4,h:485},'Nov-2024':{n:5,h:779},'Dec-2024':{n:5,h:560},'Jan-2025':{n:5,h:799},'Feb-2025':{n:5,h:829},'Mar-2025':{n:5,h:390,part:'timesheets stop 14 Mar'}};
-const CREW_FT_HRS=160;   // one person full-time for a month
+const CREW_SEED={'Aug-2024':{n:3,h:127,ft:3.2,part:'pay runs start 26 Aug'},'Sep-2024':{n:4,h:633,ft:3.8},'Oct-2024':{n:4,h:555,ft:3.0},'Nov-2024':{n:5,h:785,ft:4.7},'Dec-2024':{n:5,h:931,ft:5.3},'Jan-2025':{n:5,h:942,ft:5.1},'Feb-2025':{n:5,h:910,ft:5.7},'Mar-2025':{n:5,h:854,ft:5.1},'Apr-2025':{n:6,h:916,ft:5.2},'May-2025':{n:7,h:1071,ft:6.1},'Jun-2025':{n:8,h:1391,ft:8.3},'Jul-2025':{n:8,h:1630,ft:8.9},'Aug-2025':{n:10,h:1893,ft:11.3},'Sep-2025':{n:10,h:1808,ft:10.3},'Oct-2025':{n:10,h:1905,ft:10.4},'Nov-2025':{n:10,h:1739,ft:10.9},'Dec-2025':{n:10,h:1676,ft:9.1},'Jan-2026':{n:10,h:1798,ft:10.2},'Feb-2026':{n:10,h:1829,ft:11.4},'Mar-2026':{n:10,h:1954,ft:11.1},'Apr-2026':{n:11,h:1945,ft:11.1},'May-2026':{n:14,h:1858,ft:11.1},'Jun-2026':{n:12,h:2246,ft:12.8},'Jul-2026':{n:11,h:2271,ft:12.3},'Aug-2026':{n:11,h:1999,ft:11.9},'Sep-2026':{n:12,h:2015,ft:11.4},'Oct-2026':{n:11,h:1028,ft:10.7,part:'pay runs to 16 Oct so far'}};
+const CREW_FT_HRS=160;   // one person full-time for a month (typed months, which carry no weekday count)
 let crewMonthly=S.get('crewMonthly',{});
 function crewFor(k){
   const hand=crewMonthly[k];
   if(hand&&hand.n!=null&&hand.n!=='')return {n:num(hand.n),h:null,src:'hand'};
-  const sd=CREW_SEED[k];return sd?Object.assign({src:'timesheet'},sd):null;
+  const sd=CREW_SEED[k];return sd?Object.assign({src:'payroll'},sd):null;
 }
 function crewMonths(){const out=[];let k=CREW_FROM;const end=bcMonthNum(calMonthKey(0));
   while(bcMonthNum(k)<=end){out.push(k);const p=k.split('-');const i=FG_MONTHS.indexOf(p[0]);k=i===11?'Jan-'+(+p[1]+1):FG_MONTHS[i+1]+'-'+p[1];}
   return out;}
 function crewEdit(ev,k){if(ev)ev.stopPropagation();
-  const c=crewFor(k);const v=prompt('How many on the tools in '+k.replace('-',' ')+'? (blank = back to the timesheets)',c?String(c.n):'');
+  const c=crewFor(k);const v=prompt('How many on the tools in '+k.replace('-',' ')+'? (blank = back to the payroll figure)',c?String(c.n):'');
   if(v===null)return;const t=String(v).trim();
   if(t===''){delete crewMonthly[k];}else{const n=Math.max(0,Math.round(parseFloat(t)));if(!isFinite(n))return;crewMonthly[k]={n:n};}
   S.set('crewMonthly',crewMonthly);renderCrewStrip();}
@@ -4211,7 +4213,7 @@ function renderCrewStrip(){
     const f=xeroFig(k),c=crewFor(k);
     const crew='<div class="crew-n'+(c?' has':'')+'" onclick="crewEdit(event,\''+k+'\')" title="Tap to change">'+
       '<b>'+(c?c.n:'—')+'</b><span>'+(c?'on the tools':'tap to add crew')+
-      (c&&c.h?'<small>≈'+(c.h/CREW_FT_HRS).toFixed(1)+' full-time</small><small>'+c.h+' hrs worked</small>':'')+
+      (c&&c.h?'<small>≈'+(c.ft!=null?c.ft:c.h/CREW_FT_HRS).toFixed(1)+' full-time</small><small>'+c.h+' hrs paid</small>':'')+
       (c&&c.part?'<small>'+c.part+'</small>':'')+(c&&c.src==='hand'?'<small>typed in</small>':'')+'</span></div>';
     let body;
     if(!f||!(f.rev>0))body='<div class="nox">No Xero figures for this month'+(xeroMonthly[k]?'':' yet')+'</div>';
@@ -4231,7 +4233,7 @@ function renderCrewStrip(){
   }).join('');
   const rg=document.getElementById('pl-crew-range');if(rg)rg.textContent=ks[0].replace('-',' ')+' → now · swipe ↔';
   const nt=document.getElementById('pl-crew-note');
-  if(nt)nt.textContent='Crew = people who logged site hours that month, from your payroll timesheets (Sep 2024 – 14 Mar 2025). The other months have no crew timesheets: tap the number to type the crew in.';
+  if(nt)nt.textContent='Crew = people paid for at least a day on the tools that month, from your weekly pay runs (26 Aug 2024 – 16 Oct 2026; you, Paula and Hannah left out). Tap a number to change it; clear it to go back to the payroll figure.';
   // open on the newest month the first time the strip is actually on screen (it is rendered hidden at boot)
   if(!host.__crewScrolled&&host.clientWidth>0){host.__crewScrolled=true;host.scrollLeft=host.scrollWidth;}
 }

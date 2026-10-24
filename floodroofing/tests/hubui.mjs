@@ -192,13 +192,15 @@ const crew = await pg.evaluate(() => {
   return { first: first && first.id, n: cards.length, want: crewMonths().length, firstM: cards[0].dataset.m, lastM: cards[cards.length - 1].dataset.m,
     now: calMonthKey(0), sep: card('Sep-2024').querySelector('.crew-n').innerText, jul: card('Jul-2024').querySelector('.crew-n').innerText,
     sepRev: (card('Sep-2024').textContent.match(/Rev \/ person/) || [])[0] || '', scrolls: host.scrollWidth > host.clientWidth + 20,
-    lastSeen: last.right <= r.right + 2 && host.scrollLeft > 0 };
+    lastSeen: last.right <= r.right + 2 && host.scrollLeft > 0,
+    missing: crewMonths().filter(m => m !== 'Jul-2024' && !(crewFor(m) && crewFor(m).n > 0)) };
 });
 check('the P&L tab opens on the crew strip', crew.first === 'pl-crew-card', JSON.stringify(crew));
 check('…one card a month from Jul 2024 to this month', crew.n === crew.want && crew.firstM === 'Jul-2024' && crew.lastM === crew.now && crew.n >= 27, JSON.stringify(crew));
-check('…Sep 2024 reads 4 on the tools from the timesheets, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.7 full-time/.test(crew.sep), crew.sep);
+check('…Sep 2024 reads 4 on the tools from the pay runs, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.8 full-time/.test(crew.sep), crew.sep);
+check('…every month from Aug 2024 to now has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
 check('…and Rev / person beside it', crew.sepRev === 'Rev / person');
-check('…a month with no timesheets asks for the crew', /tap to add crew/.test(crew.jul), crew.jul);
+check('…Jul 2024, before the first pay run, asks for the crew', /tap to add crew/.test(crew.jul), crew.jul);
 check('…it swipes sideways and opens on the newest month', crew.scrolls && crew.lastSeen, JSON.stringify(crew));
 const typed = await pg.evaluate(() => {
   const k = calMonthKey(-2), f = xeroFig(k); window.prompt = () => '6'; crewEdit(null, k);
@@ -210,7 +212,7 @@ const typed = await pg.evaluate(() => {
   return { six: card.querySelector('.crew-n b').textContent === '6', crewTxt: card.querySelector('.crew-n').textContent, stored: stored && stored.n, perOk: txt.indexOf(fmtK(f.rev / 6)) >= 0, over, back: again.src + ':' + again.n };
 });
 check('typing a crew number keeps it and works the per-person figures from it', typed.six && typed.stored === 6 && typed.perOk, JSON.stringify(typed));
-check('…a typed number wins over the timesheets, and blank puts the timesheets back', typed.over === 7 && typed.back === 'timesheet:4', JSON.stringify(typed));
+check('…a typed number wins over the payroll figure, and blank puts it back', typed.over === 7 && typed.back === 'payroll:4', JSON.stringify(typed));
 check('tapping a job opens its lead and crew pickers, and picking a lead still records it', lead.open && lead.sel && lead.set, JSON.stringify(lead));
 await pg.evaluate(() => go('dash'));
 

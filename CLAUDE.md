@@ -69,9 +69,11 @@ accordingly.
   job (number + `_bcShortAddr`, then the figures) and a total closing each month; a computer keeps the table with a
   band and a subtotal per month; on a phone each month fits one screen (`_bcFitMonth`), its jobs scrolling between band and total. The P&L tab OPENS on a crew strip
   (2026-10-25, `renderCrewStrip`, `#pl-crew`): one card a month from Jul 2024 with the crew on the tools above the Xero
-  figures and Rev / NP per person. `CREW_SEED` is the owner's payroll timesheet export (people who logged site hours, office
-  staff out; that export has crew rows Sep 2024 – 14 Mar 2025 ONLY, and a Jan–Oct 2026 export came back empty); every other
-  month is typed by tapping the number (`crewEdit`, `fr3_crewMonthly`, which wins; blank = back to the seed). `tests/hubui.mjs` (62, UI list) drives both
+  figures and Rev / NP per person. `CREW_SEED` is the owner's three weekly pay-run exports (July–June years, newest
+  run first, UNDATED — each run dated by lining its hours up with the timesheet export, exact on Sep 2024 – Mar 2025): every
+  week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, the owner, Paula and Hannah left
+  out; counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
+  `fr3_crewMonthly`, which wins; blank = back to the payroll figure). `tests/hubui.mjs` (63, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
