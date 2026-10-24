@@ -14,6 +14,24 @@ Three single-file apps (open in a browser — no build step):
   Workload, Back Costing (incl. ModSpace + Lead Roofer performance), Xero P&L.
   Built for the phone.
 
+## The look (2026-10-24)
+
+The Financials app wears RoofMap's look: light by default (the moon gives dark, kept on that device as
+`fr3_look`, never team-synced), a navy header, one cyan accent, and white cards with a navy title band.
+A phone gets the bottom tab bar; a screen 1024 px or wider gets a navy sidebar and a multi-column Command
+Centre, decided by width before the first paint (`html.is-desktop`).
+
+- **Command Centre:** the forward workflow card (weeks booked, hours left, working days, active jobs and a
+  six-month trend) sits at the top and opens the active-jobs list. The tiles are stat cards (icon, figure,
+  change against the rolling average, trend line, Last / 3-avg / 6-avg). Cash at a glance is a tappable
+  list, and a dashboard month card opens that month on the P&L tab.
+- **Every other tab:** `mb()` boxes are stat cards with a coloured marker, the totals tiles are icon cards,
+  and Workload, Growth and Marketing open on the navy headline card. Every month strip leads with a headline
+  figure.
+
+`tests/hubui.mjs` drives both layouts and every tab. `tools/hub-shots.mjs` renders screenshots from the
+sample data in `tests/_hubseed.mjs`.
+
 ## Back Costing — revenue rule & colours
 
 - **Revenue** for every job = the **greater of the priced/quoted amount and the

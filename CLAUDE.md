@@ -60,6 +60,13 @@ accordingly.
   (`workflow_dispatch`) if production needs to carry it. Xero figures live in
   localStorage under `fr3_xeroMonthly`, which is how a headless screenshot
   gets seeded. The Dashboard's bar-graph panels were removed 2026-09-20.
+  THE HUB WEARS ROOFMAP'S LOOK (2026-10-24, the owner: "fully redesign ... look like roofmaps colours ...
+  phone first ... a more expansive computer version (auto detect)"). It is a re-skin only: no sync, sum or id
+  changed. Light by default (`fr3_look`, device-only); 1024 px and wider gets a sidebar (`html.is-desktop`);
+  the forward workflow is a card on the Command Centre (`fwHeroHtml`); tiles are stat cards (`.kpi.sc`,
+  `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. `tests/hubui.mjs` (44, UI list) drives both
+  layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
+  screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
   began answering 500 to `/enquiries?…sortField=createdAt…` on 9 Sept and
   `syncMarketing` swallowed it, so the nightly's "marketing" step read ✓ for
