@@ -1,0 +1,150 @@
+// THE FINANCE HUB IN ROOFMAP'S LOOK (2026-10-24, the owner: "fully redesign the app, focusing on the phone
+// version first ... look like roofmaps colours ... a more expansive computer version (make the computer/phone
+// version auto detect which device I'm view the app from) ... bring the forward workflow weeks/hours into the
+// first page/command center ... make sure everything stays clickable").
+//
+// Drives the real hub/FloodRoofing_Financials.html over file:// with the network blocked, seeded from
+// tests/_hubseed.mjs. Pins:
+//   - a phone gets the bottom bar, a computer the sidebar, and it is decided by the width alone;
+//   - light is the default, the moon still gives dark, and that choice stays on the device;
+//   - the forward workflow card reads totalRemaining() / capacity() exactly, and opens the same list the tile did;
+//   - EVERY tile on the Command Centre (KPIs, cash boxes, dashboard month cards) opens its window, with content;
+//   - every tab renders without a page error; the nightly sync's entry point is still there.
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+import { chromium } from 'playwright';
+import { hubSeedScript } from './_hubseed.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const HUB = pathToFileURL(join(ROOT, 'hub', 'FloodRoofing_Financials.html')).href;
+const results = [];
+function check(n, ok, d){ results.push(!!ok); console.log((ok ? 'PASS' : 'FAIL') + '  ' + n + (d ? ('  — ' + d) : '')); }
+
+const b = await chromium.launch();
+async function open(vp, extraInit){
+  const ctx = await b.newContext({ viewport: vp, hasTouch: vp.width < 800, isMobile: vp.width < 800 });
+  await ctx.route(u => !u.href.startsWith('file:'), r => r.abort());
+  await ctx.addInitScript(hubSeedScript());
+  if (extraInit) await ctx.addInitScript(extraInit);
+  const pg = await ctx.newPage();
+  const errs = []; pg.on('pageerror', e => errs.push(e.message));
+  await pg.goto(HUB); await pg.waitForTimeout(900);
+  return { ctx, pg, errs };
+}
+const visible = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s); if (!e) return false; const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; }, sel);
+
+// ── the phone ─────────────────────────────────────────────────────
+let { ctx, pg, errs } = await open({ width: 390, height: 844 });
+check('the phone boots with no page error', errs.length === 0, JSON.stringify(errs));
+check('a phone is not the computer layout', !(await pg.evaluate(() => document.documentElement.classList.contains('is-desktop'))));
+const nav = await pg.evaluate(() => { const r = document.getElementById('nav').getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width }; });
+check('…the tabs are a bar along the bottom, the full width', nav.top > 760 && nav.w === 390, JSON.stringify(nav));
+check('…and the sidebar\'s logo and settings button are not shown', !(await visible(pg, '.nav-brand')) && !(await visible(pg, '.nav-foot')));
+check('light like RoofMap by default', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'light'));
+const ink = await pg.evaluate(() => getComputedStyle(document.getElementById('top')).backgroundColor);
+check('…with RoofMap\'s navy header', ink === 'rgb(10, 22, 40)', ink);
+check('the page is the Command Centre', (await pg.textContent('#page-title')).trim() === 'Command Centre');
+
+// the forward workflow card — the Workload tab's own sums
+const fw = await pg.evaluate(() => {
+  const c = capacity(), rem = Math.max(0, totalRemaining());
+  return { want: Math.round(rem / c.perDay / 5 * 10) / 10, wantH: fmtH(Math.round(rem)) + ' h',
+    weeks: (document.getElementById('fwh-weeks') || {}).textContent, hours: (document.getElementById('fwh-hours') || {}).textContent,
+    top: document.getElementById('cmd-fw').getBoundingClientRect().top, kpis: document.getElementById('cmd-kpis').getBoundingClientRect().top,
+    spark: !!document.querySelector('#cmd-fw .fwh-svg'), oldTile: [...document.querySelectorAll('#cmd-kpis .kpi .kl')].some(e => /forward workflow/i.test(e.textContent)) };
+});
+check('the forward workflow card shows the weeks booked, as the Workload tab works them out', fw.weeks === String(fw.want), JSON.stringify(fw));
+check('…and the hours left', fw.hours === fw.wantH, fw.hours + ' vs ' + fw.wantH);
+check('…at the top of the Command Centre, above the tiles', fw.top < fw.kpis, fw.top + ' < ' + fw.kpis);
+check('…with the six-month trend drawn', fw.spark);
+check('…and the old tile is gone from the grid, not shown twice', !fw.oldTile);
+await pg.click('#cmd-fw .fwh-num');
+let t = await pg.evaluate(() => ({ open: document.getElementById('cmd-modal').classList.contains('open'), title: document.getElementById('cmd-modal-title').textContent, rows: document.querySelectorAll('#cmd-modal-body tr').length }));
+check('tapping the card opens the active-jobs list the tile used to open', t.open && /forward workflow/i.test(t.title) && t.rows >= 14, JSON.stringify(t));
+await pg.evaluate(() => closeCmdDetail());
+await pg.click('#cmd-fw .fwh-go');
+check('"Workload ›" goes to the Workload tab, not the list', await pg.evaluate(() => page === 'work' && !document.getElementById('cmd-modal').classList.contains('open')));
+await pg.evaluate(() => go('dash'));
+
+// every KPI tile opens its window, with something in it
+const keys = await pg.evaluate(() => [...document.querySelectorAll('#cmd-kpis .kpi-tap')].map(e => (e.getAttribute('onclick') || '').match(/openCmdDetail\('(\w+)'\)/)).filter(Boolean).map(m => m[1]));
+check('the Command Centre still has its tiles', keys.length >= 9, keys.join(','));
+let bad = [];
+for (let i = 0; i < keys.length; i++){
+  await pg.evaluate(i => { closeCmdDetail(); document.querySelectorAll('#cmd-kpis .kpi-tap')[i].scrollIntoView(); }, i);
+  await pg.locator('#cmd-kpis .kpi-tap').nth(i).locator('.kl').click();
+  const r = await pg.evaluate(() => ({ open: document.getElementById('cmd-modal').classList.contains('open'), len: document.getElementById('cmd-modal-body').textContent.trim().length }));
+  if (!r.open || r.len < 20) bad.push(keys[i] + ':' + JSON.stringify(r));
+}
+await pg.evaluate(() => closeCmdDetail());
+check('…and every one of them opens its window with content', bad.length === 0, bad.join(' '));
+
+// the Cash at a glance boxes
+const boxes = await pg.locator('#dash-summary .mb-tap').count();
+bad = [];
+for (let i = 0; i < boxes; i++){
+  await pg.locator('#dash-summary .mb-tap').nth(i).click();
+  const r = await pg.evaluate(() => ({ open: document.getElementById('cash-modal').classList.contains('open'), n: document.querySelectorAll('#cmodal-body .cash-detail').length }));
+  if (!r.open || !r.n) bad.push(i + ':' + JSON.stringify(r));
+  await pg.evaluate(() => closeCashDetail());
+}
+check('every Cash at a glance box (' + boxes + ') opens its detail', boxes === 6 && bad.length === 0, bad.join(' '));
+
+// a dashboard month card opens that month's P&L
+const mk = await pg.evaluate(() => { const c = document.querySelector('#month-strip-dash .mcard.mc-tap'); return c ? c.querySelector('.mm').firstChild.textContent : null; });
+if (mk) await pg.locator('#month-strip-dash .mcard.mc-tap').first().click();
+check('a month card on the Command Centre opens that month on the P&L tab', mk && await pg.evaluate(m => page === 'pl' && plSelected === m, mk), mk);
+await pg.evaluate(() => go('dash'));
+
+// every tab, from the bottom bar
+bad = [];
+for (const p of ['work', 'bc', 'pl', 'growth', 'marketing', 'cash', 'dash']){
+  await pg.click('#nav-' + p);
+  if (!(await pg.evaluate(p => page === p && document.getElementById('page-' + p).classList.contains('active'), p))) bad.push(p);
+}
+check('every tab opens from the bottom bar', bad.length === 0, bad.join(','));
+check('…with no page error anywhere along the way', errs.length === 0, JSON.stringify(errs));
+check('the nightly sync\'s entry point is still there', await pg.evaluate(() => typeof window.__teamHeadlessSync === 'function'));
+
+// dark is still one tap away, and stays on this device
+await pg.click('#theme-btn');
+check('the moon gives dark', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && localStorage.getItem('fr3_look') === 'dark'));
+check('…and the choice is never sent to the team (device-only key)', await pg.evaluate(() => !!TEAM_LOCAL_KEYS['fr3_look']));
+await pg.reload(); await pg.waitForTimeout(600);
+check('…it is still dark after a reload', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark'));
+await ctx.close();
+
+// an old dark setting from before is not carried into the new look
+({ ctx, pg, errs } = await open({ width: 390, height: 844 }, 'try{localStorage.setItem("fr3_theme",JSON.stringify("dark"));}catch(e){}'));
+check('a device that had the old dark default opens in the new light look', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'light'));
+await ctx.close();
+
+// ── the computer ──────────────────────────────────────────────────
+({ ctx, pg, errs } = await open({ width: 1440, height: 900 }));
+check('the computer boots with no page error', errs.length === 0, JSON.stringify(errs));
+check('1440 px wide is the computer layout', await pg.evaluate(() => document.documentElement.classList.contains('is-desktop')));
+const side = await pg.evaluate(() => { const r = document.getElementById('nav').getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; });
+check('…the tabs are a sidebar down the left, the full height', side.left === 0 && side.top === 0 && side.w > 200 && side.w < 260 && side.h === 900, JSON.stringify(side));
+check('…with the logo at the top and Sync & settings at the foot', (await visible(pg, '.nav-brand')) && (await visible(pg, '.nav-foot button')));
+check('…and the logo is the hub\'s own', await pg.evaluate(() => document.querySelector('.nav-brand img').src === document.querySelector('.brand-logo').src));
+const lay = await pg.evaluate(() => {
+  const app = document.getElementById('app').getBoundingClientRect(), f = document.getElementById('cmd-fw').getBoundingClientRect(),
+    a = document.querySelector('.d-alerts').getBoundingClientRect(), k = document.querySelector('#cmd-kpis .kpi').getBoundingClientRect();
+  return { app: app.width, fw: f.width, fwTop: f.top, alLeft: a.left, alTop: a.top, fwRight: f.right, kpiW: k.width };
+});
+check('the Command Centre spreads out: the workflow card takes two thirds with the flags beside it', lay.fw > lay.app * 0.55 && lay.alLeft > lay.fwRight && Math.abs(lay.alTop - lay.fwTop) < 2, JSON.stringify(lay));
+check('…and the tiles run four across', lay.kpiW < lay.app / 3.5, JSON.stringify(lay));
+check('…and Last Month starts open beside Cash at a glance', await pg.evaluate(() => { const d = document.querySelector('.d-last details.acc'); return !!(d && d.open); }));
+await pg.click('#nav-pl');
+check('a sidebar tab opens its page', await pg.evaluate(() => page === 'pl'));
+await pg.evaluate(() => go('dash'));
+await pg.locator('#cmd-kpis .kpi-tap').first().click();
+const panel = await pg.evaluate(() => { const r = document.querySelector('#cmd-modal .cmodal-card').getBoundingClientRect(); return { w: r.width, left: r.left }; });
+check('a tile\'s window is a centred panel, not a full-height sheet', panel.w <= 1000 && panel.left > 200, JSON.stringify(panel));
+await pg.setViewportSize({ width: 800, height: 900 }); await pg.waitForTimeout(150);
+check('narrow the window and it becomes the phone layout by itself', await pg.evaluate(() => !document.documentElement.classList.contains('is-desktop')));
+await ctx.close();
+await b.close();
+
+console.log('\n' + results.filter(Boolean).length + '/' + results.length + ' passed');
+process.exit(results.every(Boolean) ? 0 : 1);
