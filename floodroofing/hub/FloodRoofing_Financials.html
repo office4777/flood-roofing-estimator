@@ -1148,10 +1148,12 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 #bc-tbl tr.bc-mhead td{background:var(--band);color:#fff;font-weight:800;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 10px;}
 #bc-tbl tr.bc-mhead td span{font-weight:600;color:#a9c4d6;text-transform:none;letter-spacing:0;margin-left:6px;}
 #bc-tbl tr.bc-msub td{background:var(--soft-acc);border-top:1.5px solid var(--primary);font-weight:800;}
-.bcm-month{margin:0 0 14px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);}
-.bcm-mhead{display:flex;justify-content:space-between;align-items:center;background:var(--band);color:#fff;padding:9px 13px;font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;}
+.bcm-month{margin:0 0 14px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);display:flex;flex-direction:column;max-height:var(--bcm-room,620px);scroll-margin-top:var(--bcm-top,110px);}
+.bcm-mhead,.bcm-sub{flex:none;}
+.bcm-jobs{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.bcm-mhead{display:flex;justify-content:space-between;align-items:center;background:var(--band);color:#fff;padding:8px 12px;font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;}
 .bcm-mhead span{font-weight:600;color:#a9c4d6;text-transform:none;letter-spacing:0;}
-.bcm-job{position:relative;padding:10px 13px 10px 15px;border-bottom:1px solid var(--border);cursor:pointer;}
+.bcm-job{position:relative;padding:7px 12px 7px 14px;border-bottom:1px solid var(--border);cursor:pointer;}
 .bcm-job::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;}
 .bcm-job.np-pos::before{background:var(--success);}.bcm-job.np-neg::before{background:var(--danger);}
 .bcm-job:active{background:var(--soft-acc);}
@@ -1160,10 +1162,10 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 .bcm-addr{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:600;}
 .bcm-go{flex:none;color:var(--faint);font-weight:800;font-size:1.05rem;line-height:1;transition:transform .15s;}
 .bcm-job.open .bcm-go{transform:rotate(90deg);color:var(--primary);}
-.bcm-l2{display:flex;gap:6px;margin-top:5px;}
+.bcm-l2{display:flex;gap:6px;margin-top:3px;}
 .bcm-f{flex:1;min-width:0;display:flex;flex-direction:column;}
 .bcm-f i{font-style:normal;font-size:.54rem;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;}
-.bcm-f b{font-size:.84rem;font-weight:800;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.bcm-f b{font-size:.8rem;font-weight:800;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .bcm-f b.pos{color:var(--success);}.bcm-f b.neg{color:var(--danger);}
 .bcm-more{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);cursor:default;}
 .bcm-job.open .bcm-more{display:block;}
@@ -1171,7 +1173,7 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 .bcm-pick{margin:7px 0 2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
 .bcm-pick .lr-sel{max-width:none;font-size:.72rem;padding:4px 6px;}
 .bcm-job.jx-off .bcm-l1,.bcm-job.jx-off .bcm-l2{opacity:.5;text-decoration:line-through;}
-.bcm-sub{padding:10px 13px;background:var(--soft-acc);border-top:1.5px solid var(--primary);}
+.bcm-sub{padding:8px 12px;background:var(--soft-acc);border-top:1.5px solid var(--primary);}
 .bcm-sub .bcm-l1 b{text-transform:uppercase;font-size:.72rem;letter-spacing:.06em;}
 .bcm-sub .bcm-addr{color:var(--muted);font-weight:600;text-align:right;}
 .bcm-grand{border:1.5px solid var(--primary);border-radius:14px;}
@@ -3805,6 +3807,19 @@ function compareBcSources(){
     }
   }
 }
+// One month on one phone screen (2026-10-25, the owner: "can you fit the jobs and the job month total on one
+// phone screen? And let me scroll up and down to scroll to the next jobs that can't fit"). The month's band and
+// its total stay put; the jobs between them scroll. The room is the screen less the header and the tab bar,
+// measured rather than guessed, because the header grows a sync bar while a sync runs.
+function _bcFitMonth(){
+  try{
+    const top=document.getElementById('top'),nav=document.getElementById('nav');
+    const vh=Math.min(window.innerHeight||9999,document.documentElement.clientHeight||9999,(window.visualViewport&&window.visualViewport.height)||9999);
+    const room=(vh<9999?vh:700)-(top?top.offsetHeight:0)-(nav&&!document.documentElement.classList.contains('is-desktop')?nav.offsetHeight:0)-20;
+    document.documentElement.style.setProperty('--bcm-room',Math.max(320,Math.round(room))+'px');
+    if(!window.__bcFitWired){window.__bcFitWired=true;window.addEventListener('resize',()=>_bcFitMonth(),{passive:true});}
+  }catch(e){}
+}
 // A job's address, short: the first part of the Fergus site address, else of the job's own name.
 function _bcShortAddr(r){
   let a=String(r._site||'');
@@ -3897,8 +3912,9 @@ function renderBC(){
         '</div></div>';};
     const sub=(t,lbl,cls)=>'<div class="bcm-sub'+(cls?' '+cls:'')+'"><div class="bcm-l1"><b>'+lbl+'</b><span class="bcm-addr">'+t.n+' job'+(t.n===1?'':'s')+'</span></div><div class="bcm-l2">'+figs(t)+'</div></div>';
     lst.innerHTML=rows.length?groups.map(m=>{const t=_bcTot(allByM[m],ovRate);
-      return '<div class="bcm-month"><div class="bcm-mhead">'+esc(mLbl(m))+'<span>'+t.n+' job'+(t.n===1?'':'s')+'</span></div>'+byM[m].map(job).join('')+sub(t,esc(mLbl(m).split(' ')[0])+' total')+'</div>';}).join('')+
+      return '<div class="bcm-month"><div class="bcm-mhead">'+esc(mLbl(m))+'<span>'+t.n+' job'+(t.n===1?'':'s')+'</span></div><div class="bcm-jobs">'+byM[m].map(job).join('')+'</div>'+sub(t,esc(mLbl(m).split(' ')[0])+' total')+'</div>';}).join('')+
       sub(_bcTot(rows,ovRate),'Total','bcm-grand'):'<div class="empty">No jobs match.</div>';
+    _bcFitMonth();
   }
   // Totals & tiles exclude crossed-out jobs (still shown struck above). GP/hr divides by rate hours
   // (priced hours for sub-contract jobs), while the Actual-hrs column keeps the real logged hours.

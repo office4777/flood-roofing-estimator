@@ -169,6 +169,18 @@ const lead = await pg.evaluate(() => {
   sel.value = sel.options[1].value; sel.dispatchEvent(new Event('change', { bubbles: true }));
   return { open, sel: true, set: Object.values(leadOverride).includes(sel.options[1].value) };
 });
+const fit = await pg.evaluate(() => {
+  const ms = [...document.querySelectorAll('#bc-list .bcm-month')];
+  const big = ms.reduce((b, m) => (m.querySelectorAll('.bcm-job').length > (b ? b.querySelectorAll('.bcm-job').length : 0) ? m : b), null);
+  big.scrollIntoView({ block: 'start' }); window.scrollBy(0, big.getBoundingClientRect().top - document.getElementById('top').getBoundingClientRect().bottom - 6);
+  const navTop = document.getElementById('nav').getBoundingClientRect().top, topBot = document.getElementById('top').getBoundingClientRect().bottom;
+  const head = big.querySelector('.bcm-mhead').getBoundingClientRect(), sub = big.querySelector('.bcm-sub').getBoundingClientRect(), jobs = big.querySelector('.bcm-jobs');
+  const before = jobs.scrollTop; jobs.scrollTop = 200; const scrolled = jobs.scrollTop > before;
+  return { n: big.querySelectorAll('.bcm-job').length, headTop: Math.round(head.top), topBot: Math.round(topBot), subBottom: Math.round(sub.bottom), navTop: Math.round(navTop),
+    scrollable: jobs.scrollHeight > jobs.clientHeight + 4, scrolled };
+});
+check('a busy month fits on one phone screen: its band at the top, its total above the tab bar', fit.n > 10 && fit.headTop >= fit.topBot - 2 && fit.subBottom <= fit.navTop, JSON.stringify(fit));
+check('…and its jobs scroll between the two', fit.scrollable && fit.scrolled, JSON.stringify(fit));
 check('tapping a job opens its lead and crew pickers, and picking a lead still records it', lead.open && lead.sel && lead.set, JSON.stringify(lead));
 await pg.evaluate(() => go('dash'));
 
