@@ -1139,6 +1139,44 @@ html.is-desktop #page-growth.active,html.is-desktop #page-marketing.active{displ
 html.is-desktop #page-growth>.hero-card,html.is-desktop #page-marketing>.hero-card{grid-column:1/-1;}
 html.is-desktop #page-growth>*:last-child,html.is-desktop #page-marketing>*:last-child{grid-column:1/-1;}
 html.is-desktop #page-growth .mg,html.is-desktop #page-marketing .mg{grid-template-columns:repeat(3,minmax(0,1fr));}
+
+/* ═════ ALL BACK COSTING, BY MONTH (2026-10-24) ═════ the table on a computer gets a band and a subtotal per
+   month; a phone gets a two-line list instead (job number + short address, then the figures; tap for the rest) */
+#bc-list{display:block;margin-top:4px;}
+html.is-desktop #bc-list{display:none;}
+html:not(.is-desktop) .bc-tbl-wrap{display:none;}
+#bc-tbl tr.bc-mhead td{background:var(--band);color:#fff;font-weight:800;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 10px;}
+#bc-tbl tr.bc-mhead td span{font-weight:600;color:#a9c4d6;text-transform:none;letter-spacing:0;margin-left:6px;}
+#bc-tbl tr.bc-msub td{background:var(--soft-acc);border-top:1.5px solid var(--primary);font-weight:800;}
+.bcm-month{margin:0 0 14px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);}
+.bcm-mhead{display:flex;justify-content:space-between;align-items:center;background:var(--band);color:#fff;padding:9px 13px;font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;}
+.bcm-mhead span{font-weight:600;color:#a9c4d6;text-transform:none;letter-spacing:0;}
+.bcm-job{position:relative;padding:10px 13px 10px 15px;border-bottom:1px solid var(--border);cursor:pointer;}
+.bcm-job::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;}
+.bcm-job.np-pos::before{background:var(--success);}.bcm-job.np-neg::before{background:var(--danger);}
+.bcm-job:active{background:var(--soft-acc);}
+.bcm-l1{display:flex;align-items:baseline;gap:7px;min-width:0;font-size:.86rem;}
+.bcm-l1 b{font-weight:800;color:var(--text);flex:none;font-variant-numeric:tabular-nums;}
+.bcm-addr{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:600;}
+.bcm-go{flex:none;color:var(--faint);font-weight:800;font-size:1.05rem;line-height:1;transition:transform .15s;}
+.bcm-job.open .bcm-go{transform:rotate(90deg);color:var(--primary);}
+.bcm-l2{display:flex;gap:6px;margin-top:5px;}
+.bcm-f{flex:1;min-width:0;display:flex;flex-direction:column;}
+.bcm-f i{font-style:normal;font-size:.54rem;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;}
+.bcm-f b{font-size:.84rem;font-weight:800;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.bcm-f b.pos{color:var(--success);}.bcm-f b.neg{color:var(--danger);}
+.bcm-more{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);cursor:default;}
+.bcm-job.open .bcm-more{display:block;}
+.bcm-name{font-size:.72rem;color:var(--muted);line-height:1.4;}
+.bcm-pick{margin:7px 0 2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.bcm-pick .lr-sel{max-width:none;font-size:.72rem;padding:4px 6px;}
+.bcm-job.jx-off .bcm-l1,.bcm-job.jx-off .bcm-l2{opacity:.5;text-decoration:line-through;}
+.bcm-sub{padding:10px 13px;background:var(--soft-acc);border-top:1.5px solid var(--primary);}
+.bcm-sub .bcm-l1 b{text-transform:uppercase;font-size:.72rem;letter-spacing:.06em;}
+.bcm-sub .bcm-addr{color:var(--muted);font-weight:600;text-align:right;}
+.bcm-grand{border:1.5px solid var(--primary);border-radius:14px;}
+.bcm-list .empty{padding:20px 6px;}
+#bc-tbl th.c-job,#bc-tbl td.c-job{text-align:left;white-space:normal;min-width:220px;}
 </style>
 </head>
 <body>
@@ -1255,6 +1293,31 @@ html.is-desktop #page-growth .mg,html.is-desktop #page-marketing .mg{grid-templa
 
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
+    <div class="card">
+      <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div class="row2" style="margin-bottom:9px;">
+        <select class="sel" id="bc-year" onchange="renderBC()"></select>
+        <select class="sel" id="bc-type" onchange="renderBC()"></select>
+      </div>
+      <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
+      <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
+      <div class="bc-cols-bar">
+        <button type="button" class="bc-cols-btn" onclick="toggleBcColsPanel()">▦ Columns</button>
+        <span class="bc-cols-quick"><a onclick="bcColsPreset('all')">Show all</a> · <a onclick="bcColsPreset('roofer')">Roofer view</a></span>
+      </div>
+      <div id="bc-cols-panel" class="bc-cols-panel" style="display:none;"></div>
+      <div class="tbl-wrap bc-tbl-wrap" style="max-height:65vh;overflow:auto;">
+        <table class="tb" id="bc-tbl">
+          <thead><tr><th class="c-month">Month</th><th class="c-job">Job</th><th class="c-src">Src</th><th class="c-sales">Sales</th><th class="c-cogs">COGS</th><th class="c-gp">GP</th><th class="c-gpm">GPM</th><th class="c-gphr">GP/Hr</th><th class="c-np">NP</th><th class="c-nphr">NP/Hr</th><th class="c-prh">Pr h</th><th class="c-acth">Act h</th></tr></thead>
+          <tbody id="bc-body"></tbody>
+          <tfoot id="bc-foot"></tfoot>
+        </table>
+      </div>
+      <div class="bcm-list" id="bc-list"></div>
+      <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
+      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Hours come from each job's <b>full Fergus labour history</b>, so run a <b>Master refresh</b> (or <b>P&L → Reload full labour history</b>) once to backfill older jobs; after that they show automatically. You can still tap <b>+ crew</b> under a job to add someone by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
+    </div>
+
     <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div><div style="font-weight:800;letter-spacing:-.01em;">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours.</div></div>
       <button class="mtg-btn" onclick="openBcReview()" title="Run through the month's finished jobs">Start review</button>
@@ -1283,30 +1346,6 @@ html.is-desktop #page-growth .mg,html.is-desktop #page-marketing .mg{grid-templa
       </div>
       <div class="note" id="lr-note"></div>
     </div>
-    <div class="card">
-      <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <div class="row2" style="margin-bottom:9px;">
-        <select class="sel" id="bc-year" onchange="renderBC()"></select>
-        <select class="sel" id="bc-type" onchange="renderBC()"></select>
-      </div>
-      <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
-      <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
-      <div class="bc-cols-bar">
-        <button type="button" class="bc-cols-btn" onclick="toggleBcColsPanel()">▦ Columns</button>
-        <span class="bc-cols-quick"><a onclick="bcColsPreset('all')">Show all</a> · <a onclick="bcColsPreset('roofer')">Roofer view</a></span>
-      </div>
-      <div id="bc-cols-panel" class="bc-cols-panel" style="display:none;"></div>
-      <div class="tbl-wrap" style="max-height:65vh;overflow:auto;">
-        <table class="tb" id="bc-tbl">
-          <thead><tr><th class="c-month">Month</th><th class="c-job">Job</th><th class="c-src">Src</th><th class="c-sales">Sales</th><th class="c-cogs">COGS</th><th class="c-gp">GP</th><th class="c-gpm">GPM</th><th class="c-gphr">GP/Hr</th><th class="c-np">NP</th><th class="c-nphr">NP/Hr</th><th class="c-prh">Pr h</th><th class="c-acth">Act h</th></tr></thead>
-          <tbody id="bc-body"></tbody>
-          <tfoot id="bc-foot"></tfoot>
-        </table>
-      </div>
-      <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
-      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Hours come from each job's <b>full Fergus labour history</b>, so run a <b>Master refresh</b> (or <b>P&L → Reload full labour history</b>) once to backfill older jobs; after that they show automatically. You can still tap <b>+ crew</b> under a job to add someone by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
-    </div>
-
     <div class="card">
       <div class="ct">Monthly trend <span id="bct-range" class="period-sub" style="margin-left:auto;">12-month</span></div>
       <div class="chips">
@@ -3766,6 +3805,21 @@ function compareBcSources(){
     }
   }
 }
+// A job's address, short: the first part of the Fergus site address, else of the job's own name.
+function _bcShortAddr(r){
+  let a=String(r._site||'');
+  if(!a){const j=String(r.job||'');const i=j.indexOf(' — ');a=i>=0?j.slice(i+3):j;}
+  a=a.split(',')[0].trim();
+  return a.length>32?a.slice(0,31)+'…':a;
+}
+// Totals over a set of back-costing rows, crossed-out jobs left out — the foot's TOTAL arithmetic exactly
+// (GP/hr over rate hours, NP = GP − overhead × actual hours).
+function _bcTot(list,ovRate){
+  const inc=(list||[]).filter(r=>!isExcl(r));
+  const sales=inc.reduce((s,r)=>s+num(r.sales),0),gp=inc.reduce((s,r)=>s+num(r.gp),0),h=inc.reduce((s,r)=>s+num(r.h_actual),0);
+  const ph=inc.reduce((s,r)=>s+num(r.h_priced),0),rh=inc.reduce((s,r)=>s+bcRateHrs(r),0);
+  return {n:inc.length,sales,gp,h,ph,rh,np:gp-ovRate*h};
+}
 function renderBC(){
   fillBCFilters();
   renderBcTrend();
@@ -3803,13 +3857,49 @@ function renderBC(){
     return true;
   }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
   document.getElementById('bc-count').textContent='· '+rows.length+(roofView?(' jobs '+ld+' was on (lead or ≥10% of hours)'):(' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')))+' · NP @ '+fmt$(ovRate)+'/h overhead';
-  document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
+  // Grouped by month, newest first (2026-10-24, the owner: "make each job two lines (in the mobile version) ...
+  // then at the bottom of the month show the combined total before starting the next month"). The 400 cap is on
+  // the rows shown; a month's total is always worked over ALL of its rows, the way the foot's TOTAL is.
+  const shown=rows.slice(0,400),groups=[],byM={};
+  shown.forEach(r=>{const m=r.month||'—';if(!byM[m]){byM[m]=[];groups.push(m);}byM[m].push(r);});
+  const allByM={};rows.forEach(r=>{const m=r.month||'—';(allByM[m]=allByM[m]||[]).push(r);});
+  const tRow=r=>{
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced),rh=bcRateHrs(r);
     const gphr=rh>0?gp/rh:null;const np=gp-ovRate*h;const nphr=rh>0?(gp/rh-ovRate):null;   // GP/hr & NP/hr over priced hours for a sub-contract job
     const rs=' style="background:'+(np>=0?'rgba(74,222,128,.16)':'rgba(255,107,107,.16)')+';"';   // green if NP positive, red if negative
     let badge='';if(roofView){const sh=rooferShareOn(r,ld);if(sh.tot>0)badge=' <span class="rf-share'+(effLead(r)===ld?' lead':'')+'">'+(effLead(r)===ld?'lead · ':'')+(Math.round(sh.hrs*10)/10)+'h · '+Math.round(sh.share*100)+'%</span>';else if(effLead(r)===ld)badge=' <span class="rf-share lead">lead</span>';}
     return '<tr'+exTR(r)+rs+'><td class="c-month">'+esc(r.month||'')+'</td><td class="c-job">'+esc((r.job||'').slice(0,40))+badge+'<br>'+leadSelect(r)+crewSelect(r)+'</td><td class="c-src">'+bcSrc(r)+'</td><td class="c-sales">'+fmtK(r.sales)+'</td><td class="c-cogs">'+fmtK(num(r.sales)-gp)+'</td><td class="c-gp '+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td class="c-gpm">'+(gpm?gpm+'%':'—')+'</td><td class="c-gphr">'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="c-np '+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td class="c-nphr">'+(nphr!=null?fmt$(nphr):'—')+'</td><td class="c-prh">'+(hP?fmtH(hP):'—')+'</td><td class="c-acth">'+(h?fmtH(h):'—')+'</td></tr>';
-  }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
+  };
+  const mLbl=m=>String(m).replace('-',' ');
+  const totCells=(t,lbl)=>'<td class="c-month">'+lbl+'</td><td class="c-job"></td><td class="c-src"></td><td class="c-sales">'+fmtK(t.sales)+'</td><td class="c-cogs">'+fmtK(t.sales-t.gp)+'</td><td class="c-gp">'+fmtK(t.gp)+'</td><td class="c-gpm">'+(t.sales>0?Math.round(t.gp/t.sales*100)+'%':'—')+'</td><td class="c-gphr">'+(t.rh>0?fmt$(t.gp/t.rh):'—')+'</td><td class="c-np">'+fmtK(t.np)+'</td><td class="c-nphr">'+(t.rh>0?fmt$(t.gp/t.rh-ovRate):'—')+'</td><td class="c-prh">'+fmtH(t.ph)+'</td><td class="c-acth">'+fmtH(t.h)+'</td>';
+  document.getElementById('bc-body').innerHTML=rows.length?groups.map(m=>{const t=_bcTot(allByM[m],ovRate);
+    return '<tr class="bc-mhead"><td colspan="12">'+esc(mLbl(m))+' <span>'+t.n+' job'+(t.n===1?'':'s')+'</span></td></tr>'+
+      byM[m].map(tRow).join('')+
+      '<tr class="tot bc-msub">'+totCells(t,esc(mLbl(m).split(' ')[0])+' total ('+t.n+')')+'</tr>';}).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
+  // the phone's list: line 1 the job number and a short address, line 2 the figures; a tap opens the rest
+  const lst=document.getElementById('bc-list');
+  if(lst){
+    const vis=k=>!bcColsHidden[k];
+    const figs=(o)=>{let ks=['sales','gp','gpm','gphr','np'].filter(vis);if(ks.length<2)ks=ks.concat(['prh','acth']);
+      const F={sales:['Sales',fmtK(o.sales),''],gp:['GP',fmtK(o.gp),o.gp>=0?'pos':'neg'],gpm:['GPM',o.sales>0?Math.round(o.gp/o.sales*100)+'%':'—',''],
+        gphr:['GP/hr',o.rh>0?fmt$(o.gp/o.rh):'—',''],np:['NP',fmtK(o.np),o.np>=0?'pos':'neg'],prh:['Pr h',o.ph?fmtH(o.ph):'—',''],acth:['Act h',o.h?fmtH(o.h):'—','']};
+      return ks.map(k=>'<span class="bcm-f"><i>'+F[k][0]+'</i><b class="'+F[k][2]+'">'+F[k][1]+'</b></span>').join('');};
+    const one=r=>({sales:num(r.sales),gp:num(r.gp),h:num(r.h_actual),ph:num(r.h_priced),rh:bcRateHrs(r),np:num(r.gp)-ovRate*num(r.h_actual)});
+    const job=r=>{const o=one(r),no=String(r._jobNo||'').trim();
+      let badge='';if(roofView){const sh=rooferShareOn(r,ld);if(sh.tot>0)badge=' <span class="rf-share'+(effLead(r)===ld?' lead':'')+'">'+(effLead(r)===ld?'lead · ':'')+Math.round(sh.share*100)+'%</span>';else if(effLead(r)===ld)badge=' <span class="rf-share lead">lead</span>';}
+      return '<div class="bcm-job '+(o.np>=0?'np-pos':'np-neg')+(isExcl(r)?' jx-off':'')+'" onclick="this.classList.toggle(\'open\')">'+
+        '<div class="bcm-l1">'+(no?'<b>#'+esc(no)+'</b>':'')+'<span class="bcm-addr">'+esc(_bcShortAddr(r))+'</span>'+badge+'<span class="bcm-go">›</span></div>'+
+        '<div class="bcm-l2">'+figs(o)+'</div>'+
+        '<div class="bcm-more" onclick="event.stopPropagation()">'+
+          '<div class="bcm-name">'+esc(r.job||'')+' · '+bcSrc(r)+'</div>'+
+          '<div class="bcm-pick">'+leadSelect(r)+crewSelect(r)+'</div>'+
+          '<div class="bcm-l2 bcm-x"><span class="bcm-f"><i>COGS</i><b>'+fmtK(o.sales-o.gp)+'</b></span><span class="bcm-f"><i>NP/hr</i><b>'+(o.rh>0?fmt$(o.gp/o.rh-ovRate):'—')+'</b></span><span class="bcm-f"><i>Pr h</i><b>'+(o.ph?fmtH(o.ph):'—')+'</b></span><span class="bcm-f"><i>Act h</i><b>'+(o.h?fmtH(o.h):'—')+'</b></span></div>'+
+        '</div></div>';};
+    const sub=(t,lbl,cls)=>'<div class="bcm-sub'+(cls?' '+cls:'')+'"><div class="bcm-l1"><b>'+lbl+'</b><span class="bcm-addr">'+t.n+' job'+(t.n===1?'':'s')+'</span></div><div class="bcm-l2">'+figs(t)+'</div></div>';
+    lst.innerHTML=rows.length?groups.map(m=>{const t=_bcTot(allByM[m],ovRate);
+      return '<div class="bcm-month"><div class="bcm-mhead">'+esc(mLbl(m))+'<span>'+t.n+' job'+(t.n===1?'':'s')+'</span></div>'+byM[m].map(job).join('')+sub(t,esc(mLbl(m).split(' ')[0])+' total')+'</div>';}).join('')+
+      sub(_bcTot(rows,ovRate),'Total','bcm-grand'):'<div class="empty">No jobs match.</div>';
+  }
   // Totals & tiles exclude crossed-out jobs (still shown struck above). GP/hr divides by rate hours
   // (priced hours for sub-contract jobs), while the Actual-hrs column keeps the real logged hours.
   const inc=rows.filter(r=>!isExcl(r));

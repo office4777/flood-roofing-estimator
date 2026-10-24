@@ -133,11 +133,50 @@ check('a bank account still switches in and out of the forecast', tog === true, 
 check('…and no page error on any tab', errs.length === 0, JSON.stringify(errs));
 await pg.evaluate(() => go('dash'));
 
+// Back Cost: All Back Costing first; on a phone each job is two lines and every month ends on its total
+// (2026-10-24, the owner: "move the 'all back costing' to the top ... make each job two lines ... at the bottom
+// of the month show the combined total before starting the next month").
+await pg.evaluate(() => go('bc')); await pg.waitForTimeout(500);
+const bc = await pg.evaluate(() => {
+  const first = document.querySelector('#page-bc > .card .ct'), out = { first: first ? first.textContent.trim() : '' };
+  const vis = s => { const e = document.querySelector(s); return !!(e && e.getBoundingClientRect().height > 0); };
+  out.list = vis('#bc-list'); out.table = vis('.bc-tbl-wrap');
+  const jobs = [...document.querySelectorAll('#bc-list .bcm-job')];
+  out.jobs = jobs.length; out.twoLine = jobs.every(j => j.querySelector(':scope > .bcm-l1') && j.querySelector(':scope > .bcm-l2'));
+  const withNo = jobs.filter(j => /^#\d+/.test((j.querySelector('.bcm-l1 b') || {}).textContent || ''));
+  out.withNo = withNo.length;
+  out.firstL1 = jobs[0] ? jobs[0].querySelector('.bcm-l1').textContent.trim() : '';
+  // each month: the last thing in it is its total, and that total is the sum of its (not crossed-out) jobs
+  out.months = [...document.querySelectorAll('#bc-list .bcm-month')].map(m => {
+    const kids = [...m.children], last = kids[kids.length - 1];
+    const label = m.querySelector('.bcm-mhead').firstChild.textContent.trim().replace(' ', '-');
+    const rows = getAllBC().filter(r => (r.month || '') === label && !isExcl(r));
+    const want = rows.reduce((s, r) => s + num(r.sales), 0);
+    const shown = last.querySelector('.bcm-f b').textContent;
+    return { label, endsOnTotal: last.classList.contains('bcm-sub'), shown, want: fmtK(want) };
+  }).slice(0, 4);
+  return out;
+});
+check('All Back Costing is the first card on the Back Cost tab', /^All Back Costing/.test(bc.first), bc.first);
+check('…on a phone it is a list, not the wide table', bc.list && !bc.table, JSON.stringify({ list: bc.list, table: bc.table }));
+check('…every job is two lines: the job number and a short address, then the figures', bc.jobs > 0 && bc.twoLine && bc.withNo >= 9 && /^#3240\s*\S/.test(bc.firstL1), JSON.stringify({ jobs: bc.jobs, withNo: bc.withNo, l1: bc.firstL1 }));
+check('…and the short address is short (no town, no postcode)', !/Whangarei|Northland/.test(bc.firstL1), bc.firstL1);
+check('every month ends on its own total, before the next month starts', bc.months.length >= 2 && bc.months.every(m => m.endsOnTotal), JSON.stringify(bc.months));
+check('…and each month\'s total is that month\'s jobs added up', bc.months.every(m => m.shown === m.want), JSON.stringify(bc.months));
+const lead = await pg.evaluate(() => {
+  const j = document.querySelectorAll('#bc-list .bcm-job')[1]; j.click(); const open = j.classList.contains('open');
+  const sel = j.querySelector('.bcm-more select.lr-sel'); if (!sel) return { open, sel: false };
+  sel.value = sel.options[1].value; sel.dispatchEvent(new Event('change', { bubbles: true }));
+  return { open, sel: true, set: Object.values(leadOverride).includes(sel.options[1].value) };
+});
+check('tapping a job opens its lead and crew pickers, and picking a lead still records it', lead.open && lead.sel && lead.set, JSON.stringify(lead));
+await pg.evaluate(() => go('dash'));
+
 // dark is still one tap away, and stays on this device
 await pg.click('#theme-btn');
 check('the moon gives dark', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && localStorage.getItem('fr3_look') === 'dark'));
 check('…and the choice is never sent to the team (device-only key)', await pg.evaluate(() => !!TEAM_LOCAL_KEYS['fr3_look']));
-await pg.reload(); await pg.waitForTimeout(600);
+await pg.reload(); await pg.waitForFunction(() => document.documentElement.hasAttribute('data-theme'), null, { timeout: 15000 });
 check('…it is still dark after a reload', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark'));
 await ctx.close();
 
@@ -162,6 +201,11 @@ const lay = await pg.evaluate(() => {
 check('the Command Centre spreads out: the workflow card takes two thirds with the flags beside it', lay.fw > lay.app * 0.55 && lay.alLeft > lay.fwRight && Math.abs(lay.alTop - lay.fwTop) < 2, JSON.stringify(lay));
 check('…and the tiles run four across', lay.kpiW < lay.app / 3.5, JSON.stringify(lay));
 check('…and Last Month starts open beside Cash at a glance', await pg.evaluate(() => { const d = document.querySelector('.d-last details.acc'); return !!(d && d.open); }));
+await pg.evaluate(() => go('bc')); await pg.waitForTimeout(400);
+const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wrap').getBoundingClientRect().height > 0,
+  list: document.getElementById('bc-list').getBoundingClientRect().height > 0,
+  heads: document.querySelectorAll('#bc-tbl tr.bc-mhead').length, subs: document.querySelectorAll('#bc-tbl tr.bc-msub').length }));
+check('on a computer Back Cost keeps the full table, with a band and a total for every month', bcd.table && !bcd.list && bcd.heads >= 2 && bcd.heads === bcd.subs, JSON.stringify(bcd));
 await pg.click('#nav-pl');
 check('a sidebar tab opens its page', await pg.evaluate(() => page === 'pl'));
 await pg.evaluate(() => go('dash'));

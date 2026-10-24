@@ -60,12 +60,23 @@ export function hubSeed(){
   const cash = { rows: [{ name: 'Accounts Receivable', val: 61240, sect: 'Current Assets' }, { name: 'Accounts Payable', val: -38810, sect: 'Current Liabilities' }],
     paidByJob: null, arByJob: ar, apByCode: null, apBills: [], apBillsTotal: 38810, accounts: null, ts: '24 Oct 8:41 am' };
 
+  // ── back costing synced from Fergus: finished jobs over the last two months ──
+  const bcFergus = [];
+  for (let i = 0; i < 9; i++){
+    const d = daysAgo(3 + i * 6), sales = Math.round(9000 + rnd() * 41000), gpm = 0.28 + rnd() * 0.2, gp = Math.round(sales * gpm);
+    const hp = Math.round(sales / 120), ha = Math.round(hp * (0.8 + rnd() * 0.5));
+    bcFergus.push({ month: mk(d), job: NAMES[(i + 3) % NAMES.length] + ' — ' + site(i + 20) + ', Northland 0110', date: iso(d).split('T')[0],
+      job_type: i % 3 ? 'Re-Roof' : 'Re-Roof & Gutter', _title: 'Re-roof', _jobNo: String(3240 + i), _site: site(i + 20) + ', Northland 0110',
+      p_lab: hp * 55, a_lab: ha * 55, p_mat: Math.round(sales * 0.35), a_mat: Math.round(sales * 0.36), sales, gp, gpm: Math.round(gpm * 1000) / 10,
+      h_actual: ha, h_priced: hp, lead_src: 'Fergus', _fergus: true, _fergus_id: String(7700 + i), _lastModified: iso(d) });
+  }
+
   // ── the start-of-month backlog snapshots behind the forward workflow trend ──
   const fwHist = {};
   [1320, 1480, 1610, 1390, 1540].forEach((h, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5 - i)); fwHist[mk(d)] = { h, d: Math.round(h / 64 * 10) / 10 }; });
 
   return {
-    fwJobs, fwHist, cashJobs, fwCfg: { teams: 4, size: 2, hrs: 8 }, fw_last_sync: '24 Oct 8:30 am',
+    fwJobs, fwHist, bcFergus, cashJobs, fwCfg: { teams: 4, size: 2, hrs: 8 }, fw_last_sync: '24 Oct 8:30 am',
     mkt, xeroMonthly, xero_last_sync: '24 Oct 8:35 am', bank, cash, theme: 'light',
   };
 }
