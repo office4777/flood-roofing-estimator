@@ -65,7 +65,8 @@ accordingly.
   changed. Light by default (`fr3_look`, device-only); 1024 px and wider gets a sidebar (`html.is-desktop`);
   the forward workflow is a card on the Command Centre (`fwHeroHtml`); tiles are stat cards (`.kpi.sc`,
   `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. Back Cost opens on its 12-Month History strip (`#bc-strip-card`, 2026-10-25, an open card,
-  no longer a closed fold) with All Back Costing (2026-10-24) the next card, grouped by month (`_bcTot`, the foot's own arithmetic): a phone gets `#bc-list`, two lines per
+  no longer a closed fold) with All Back Costing (2026-10-24) the next card, its year / type / roofer / search and job count folded
+  behind a Filter button beside Show all · Roofer view (`toggleBcFilter`, `bcFilterSync` counts what is on, 2026-10-25), grouped by month (`_bcTot`, the foot's own arithmetic): a phone gets `#bc-list`, two lines per
   job (number + `_bcShortAddr`, then the figures) and a total closing each month; a computer keeps the table with a
   band and a subtotal per month; on a phone each month fits one screen (`_bcFitMonth`), its jobs scrolling between band and total. The P&L tab OPENS on a crew strip
   (2026-10-25, `renderCrewStrip`, `#pl-crew`): one card a month from Jul 2024 with the crew on the tools above the Xero
@@ -77,7 +78,7 @@ accordingly.
   run first, UNDATED — each run dated by lining its hours up with the timesheet export, exact on Sep 2024 – Mar 2025): every
   week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, office staff left
   out (the owner, Paula, Hannah, Chris Mitchell, Matthew Anderson-Smith — "never on the tools"; Ethan from 27 Jul 2026, into project management); counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
-  `fr3_crewMonthly`, which wins; blank = back to the payroll figure). `tests/hubui.mjs` (71, UI list) drives both
+  `fr3_crewMonthly`, which wins; blank = back to the payroll figure). `tests/hubui.mjs` (74, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus

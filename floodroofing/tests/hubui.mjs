@@ -167,6 +167,22 @@ check('…every job is two lines: the job number and a short address, then the f
 check('…and the short address is short (no town, no postcode)', !/Whangarei|Northland/.test(bc.firstL1), bc.firstL1);
 check('every month ends on its own total, before the next month starts', bc.months.length >= 2 && bc.months.every(m => m.endsOnTotal), JSON.stringify(bc.months));
 check('…and each month\'s total is that month\'s jobs added up', bc.months.every(m => m.shown === m.want), JSON.stringify(bc.months));
+// The filters fold into one button beside Show all · Roofer view (2026-10-25, the owner)
+const flt = await pg.evaluate(() => {
+  const vis = s => { const e = document.querySelector(s); return !!(e && e.getBoundingClientRect().height > 0); };
+  const bar = document.querySelector('#page-bc .bc-cols-bar'), btn = document.getElementById('bc-filter-btn');
+  const out = { inBar: !!(bar && bar.contains(btn)), shut: !vis('#bc-year') && !vis('#bc-search') && !vis('#bc-count'),
+    title: document.querySelector('#page-bc > .card:nth-of-type(2) .ct').textContent.trim(), jobs0: document.querySelectorAll('#bc-list .bcm-job').length };
+  btn.click(); out.open = vis('#bc-year') && vis('#bc-type') && vis('#bc-lead') && vis('#bc-search') && /jobs/.test(document.getElementById('bc-count').textContent);
+  const ye = document.getElementById('bc-year'); ye.value = ye.options[ye.options.length - 1].value; ye.dispatchEvent(new Event('change'));
+  out.label = btn.textContent; out.lit = btn.classList.contains('on'); out.jobs1 = document.querySelectorAll('#bc-list .bcm-job').length;
+  bcFilterClear(); out.cleared = btn.textContent; out.jobs2 = document.querySelectorAll('#bc-list .bcm-job').length;
+  btn.click(); out.shutAgain = !vis('#bc-year');
+  return out;
+});
+check('All Back Costing\'s filters fold into a Filter button beside Show all · Roofer view, shut to start', flt.inBar && flt.shut && flt.title === 'All Back Costing', JSON.stringify(flt));
+check('…it opens on the year, type, roofer, search and the job count', flt.open, JSON.stringify(flt));
+check('…a filter set lights it and says how many are on, and Clear filters puts every job back', /Filter · 1/.test(flt.label) && flt.lit && flt.jobs1 < flt.jobs0 && flt.cleared === 'Filter' && flt.jobs2 === flt.jobs0 && flt.shutAgain, JSON.stringify(flt));
 const lead = await pg.evaluate(() => {
   const j = document.querySelectorAll('#bc-list .bcm-job')[1]; j.click(); const open = j.classList.contains('open');
   const sel = j.querySelector('.bcm-more select.lr-sel'); if (!sel) return { open, sel: false };

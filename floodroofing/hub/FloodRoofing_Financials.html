@@ -175,6 +175,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .bc-cols-btn{font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:9px;background:var(--card2);color:var(--fg);border:1px solid var(--border);cursor:pointer;}
 .bc-cols-btn:hover{border-color:var(--primary);}
 .bc-cols-quick{font-size:.7rem;color:var(--muted);}
+/* All Back Costing's filters fold into one button beside the column presets (2026-10-25); it says how many are on */
+.bc-filter-btn{margin-left:auto;display:inline-flex;align-items:center;gap:5px;}
+.bc-fico{width:13px;height:13px;flex:none;}
+.bc-filter-btn.on{background:var(--primary);color:#fff;border-color:var(--primary);}
+.bc-filter-panel{padding:11px 13px;margin-bottom:9px;background:var(--card2);border:1px solid var(--border);border-radius:12px;}
+.bc-filter-count{font-size:.72rem;font-weight:600;color:var(--muted);margin-bottom:9px;line-height:1.4;}
+.bc-filter-clear{display:none;margin-top:9px;font-size:.72rem;font-weight:700;color:var(--primary);cursor:pointer;}
+.bc-filter-panel.has-on .bc-filter-clear{display:inline-block;}
 .bc-cols-quick a{color:var(--primary);cursor:pointer;text-decoration:none;font-weight:700;}
 .bc-cols-quick a:hover{text-decoration:underline;}
 .bc-cols-panel{display:flex;flex-wrap:wrap;gap:8px 16px;padding:11px 13px;margin-bottom:9px;background:var(--card2);border:1px solid var(--border);border-radius:12px;}
@@ -1329,16 +1337,21 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
   <div class="page" id="page-bc">
     <div class="card" id="bc-strip-card"><div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">newest first · swipe ↔</span></div><div class="mstrip" id="bc-strip"></div></div>
     <div class="card">
-      <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <div class="row2" style="margin-bottom:9px;">
-        <select class="sel" id="bc-year" onchange="renderBC()"></select>
-        <select class="sel" id="bc-type" onchange="renderBC()"></select>
-      </div>
-      <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
-      <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
+      <div class="ct">All Back Costing</div>
       <div class="bc-cols-bar">
         <button type="button" class="bc-cols-btn" onclick="toggleBcColsPanel()">▦ Columns</button>
         <span class="bc-cols-quick"><a onclick="bcColsPreset('all')">Show all</a> · <a onclick="bcColsPreset('roofer')">Roofer view</a></span>
+        <button type="button" class="bc-cols-btn bc-filter-btn" id="bc-filter-btn" onclick="toggleBcFilter()" aria-expanded="false"><svg class="bc-fico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg><span>Filter</span></button>
+      </div>
+      <div id="bc-filter-panel" class="bc-filter-panel" style="display:none;">
+        <div class="bc-filter-count" id="bc-count"></div>
+        <div class="row2" style="margin-bottom:9px;">
+          <select class="sel" id="bc-year" onchange="renderBC()"></select>
+          <select class="sel" id="bc-type" onchange="renderBC()"></select>
+        </div>
+        <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
+        <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()">
+        <a class="bc-filter-clear" id="bc-filter-clear" onclick="bcFilterClear()">Clear filters</a>
       </div>
       <div id="bc-cols-panel" class="bc-cols-panel" style="display:none;"></div>
       <div class="tbl-wrap bc-tbl-wrap" style="max-height:65vh;overflow:auto;">
@@ -3296,6 +3309,16 @@ function renderBcColsPanel(){
   p.innerHTML=BC_COLS.map(c=>'<label class="bc-col-chk"><input type="checkbox" '+(bcColsHidden[c.k]?'':'checked')+(c.lock?' disabled':'')+' onchange="setBcCol(\''+c.k+'\',this.checked)">'+c.t+(c.lock?' 🔒':'')+'</label>').join('');
 }
 function setBcCol(k,vis){if(vis)delete bcColsHidden[k];else bcColsHidden[k]=1;S.set('bcColsHidden',bcColsHidden);applyBcCols();}
+function toggleBcFilter(){const p=document.getElementById('bc-filter-panel');if(!p)return;const show=p.style.display==='none';p.style.display=show?'':'none';
+  const b=document.getElementById('bc-filter-btn');if(b)b.setAttribute('aria-expanded',show?'true':'false');}
+// How many of All Back Costing's filters are set — read off the boxes themselves, so a roofer picked from
+// Performance by Lead Roofer counts as well as one picked here.
+function bcFilterOnCount(){const v=id=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
+  return ['bc-year','bc-type','bc-lead'].filter(id=>{const x=v(id);return x&&x!=='all';}).length+(v('bc-search').trim()?1:0);}
+function bcFilterSync(){const n=bcFilterOnCount(),b=document.getElementById('bc-filter-btn'),p=document.getElementById('bc-filter-panel');
+  if(b){const t=b.querySelector('span');if(t)t.textContent='Filter'+(n?' · '+n:'');b.classList.toggle('on',n>0);}if(p)p.classList.toggle('has-on',n>0);}
+function bcFilterClear(){['bc-year','bc-type','bc-lead'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='all';});
+  const q=document.getElementById('bc-search');if(q)q.value='';renderBC();}
 function toggleBcColsPanel(){const p=document.getElementById('bc-cols-panel');if(!p)return;const show=p.style.display==='none';p.style.display=show?'':'none';if(show)renderBcColsPanel();}
 function bcColsPreset(which){
   bcColsHidden={};
@@ -3907,7 +3930,8 @@ function renderBC(){
     if(q&&!((r.job||'').toLowerCase().includes(q)))return false;
     return true;
   }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
-  document.getElementById('bc-count').textContent='· '+rows.length+(roofView?(' jobs '+ld+' was on (lead or ≥10% of hours)'):(' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')))+' · NP @ '+fmt$(ovRate)+'/h overhead';
+  bcFilterSync();
+  document.getElementById('bc-count').textContent=rows.length+(roofView?(' jobs '+ld+' was on (lead or ≥10% of hours)'):(' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')))+' · NP @ '+fmt$(ovRate)+'/h overhead';
   // Grouped by month, newest first (2026-10-24, the owner: "make each job two lines (in the mobile version) ...
   // then at the bottom of the month show the combined total before starting the next month"). The 400 cap is on
   // the rows shown; a month's total is always worked over ALL of its rows, the way the foot's TOTAL is.
