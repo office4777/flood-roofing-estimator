@@ -64,7 +64,10 @@ accordingly.
   phone first ... a more expansive computer version (auto detect)"). It is a re-skin only: no sync, sum or id
   changed. Light by default (`fr3_look`, device-only); 1024 px and wider gets a sidebar (`html.is-desktop`);
   the forward workflow is a card on the Command Centre (`fwHeroHtml`); tiles are stat cards (`.kpi.sc`,
-  `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. `tests/hubui.mjs` (44, UI list) drives both
+  `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. Back Cost's All Back Costing (2026-10-24) is the
+  tab's first card, grouped by month (`_bcTot`, the foot's own arithmetic): a phone gets `#bc-list`, two lines per
+  job (number + `_bcShortAddr`, then the figures) and a total closing each month; a computer keeps the table with a
+  band and a subtotal per month. `tests/hubui.mjs` (52, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
