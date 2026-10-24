@@ -182,7 +182,33 @@ const fit = await pg.evaluate(() => {
 check('a busy month fits on one phone screen: its band at the top, its total above the tab bar', fit.n > 10 && fit.headTop >= fit.topBot - 2 && fit.subBottom <= fit.navTop, JSON.stringify(fit));
 check('…and its jobs scroll between the two', fit.scrollable && fit.scrolled, JSON.stringify(fit));
 
-// P&L: one card a month from Jul 2024 with the crew on the tools, swiped left/right
+// Workload: Per active job sits straight under the hero, and on a phone it is one row a job — tick, job number
+// over the short address, then the figures — with no sideways scroll (2026-10-25, the owner).
+await pg.evaluate(() => go('work')); await pg.waitForTimeout(400);
+const wk = await pg.evaluate(() => {
+  const cards = [...document.querySelectorAll('#page-work > .card')];
+  const vis = s => { const e = document.querySelector(s); return !!(e && e.getBoundingClientRect().height > 0); };
+  const rows = [...document.querySelectorAll('#work-list .wkm-row:not(.wkm-hd)')], host = document.getElementById('work-list');
+  const r0 = rows[0], j0 = fwJobs.find(j => j.id === r0.dataset.id);
+  return { second: cards[1] && cards[1].id, list: vis('#work-list'), table: vis('.wk-tbl-wrap'), n: rows.length, want: fwJobs.length,
+    no: r0.querySelector('.wkm-id b').textContent, addr: r0.querySelector('.wkm-id span').textContent, jobNo: j0 && j0.jobNo,
+    figs: [...r0.querySelectorAll('.wkm-n')].map(e => e.textContent).concat(r0.querySelector('.wk-rem').value),
+    want0: j0 ? [fmtH(j0.priced), fmtH(j0.actual), String(remVal(j0))] : [],
+    fits: host.scrollWidth <= host.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1,
+    inside: rows.every(r => r.getBoundingClientRect().right <= host.getBoundingClientRect().right + 1) };
+});
+check('Per active job is the card straight under Remaining Work', wk.second === 'work-jobs-card', wk.second);
+check('…on a phone it is a list of every active job, not the wide table', wk.list && !wk.table && wk.n === wk.want && wk.n > 0, JSON.stringify(wk));
+check('…each row: the job number over the short address, then priced, actual and remaining hours', wk.no === '#' + wk.jobNo && wk.addr && !/Whangarei|—/.test(wk.addr) && JSON.stringify(wk.figs) === JSON.stringify(wk.want0), JSON.stringify(wk));
+check('…and it all fits across a phone, no sideways scroll', wk.fits && wk.inside, JSON.stringify(wk));
+const wkTick = await pg.evaluate(() => {
+  const r = document.querySelector('#work-list .wkm-row:not(.wkm-hd)'), id = r.dataset.id, before = totalRemaining();
+  const c = r.querySelector('.wk-chk'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
+  const after = totalRemaining(), done = !!fwDone[id], dim = document.querySelector('#work-list .wkm-row[data-id="' + id + '"]').classList.contains('wk-done');
+  toggleWkDone(id, false); return { before, after, done, dim };
+});
+check('…ticking a job done on the phone drops its hours from the total', wkTick.done && wkTick.dim && wkTick.after < wkTick.before, JSON.stringify(wkTick));
+
 await pg.evaluate(() => go('pl')); await pg.waitForTimeout(400);
 const crew = await pg.evaluate(() => {
   const host = document.getElementById('pl-crew'), cards = [...host.querySelectorAll('.mcard')];
@@ -250,6 +276,10 @@ const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wr
   list: document.getElementById('bc-list').getBoundingClientRect().height > 0,
   heads: document.querySelectorAll('#bc-tbl tr.bc-mhead').length, subs: document.querySelectorAll('#bc-tbl tr.bc-msub').length }));
 check('on a computer Back Cost keeps the full table, with a band and a total for every month', bcd.table && !bcd.list && bcd.heads >= 2 && bcd.heads === bcd.subs, JSON.stringify(bcd));
+await pg.evaluate(() => go('work')); await pg.waitForTimeout(300);
+const wkd = await pg.evaluate(() => ({ table: document.querySelector('.wk-tbl-wrap').getBoundingClientRect().height > 0,
+  list: document.getElementById('work-list').getBoundingClientRect().height > 0, rows: document.querySelectorAll('#work-body tr').length }));
+check('on a computer Per active job keeps its table', wkd.table && !wkd.list && wkd.rows > 0, JSON.stringify(wkd));
 await pg.click('#nav-pl');
 check('a sidebar tab opens its page', await pg.evaluate(() => page === 'pl'));
 await pg.evaluate(() => go('dash'));

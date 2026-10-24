@@ -1188,6 +1188,27 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 .bcm-grand{border:1.5px solid var(--primary);border-radius:14px;}
 .bcm-list .empty{padding:20px 6px;}
 #bc-tbl th.c-job,#bc-tbl td.c-job{text-align:left;white-space:normal;min-width:220px;}
+
+/* ═════ PER ACTIVE JOB ON A PHONE (2026-10-25) ═════ right under the hero; one row a job, no sideways scroll:
+   tick, job number over the short address, then Priced · Actual · Remain (editable) and the cross-out */
+#work-list{display:block;margin-top:2px;}
+html.is-desktop #work-list{display:none;}
+html:not(.is-desktop) .wk-tbl-wrap{display:none;}
+#work-tbl th:nth-child(2),#work-tbl td:nth-child(2){text-align:left;}
+.wkm-row{display:grid;grid-template-columns:22px minmax(0,1fr) 40px 40px 54px 24px;gap:0 6px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);}
+.wkm-row:last-child{border-bottom:0;}
+.wkm-hd{padding:2px 2px 5px;border-bottom:1.5px solid var(--border2);font-size:.54rem;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;}
+.wkm-hd span{text-align:right;}.wkm-hd span:nth-child(2){text-align:left;}
+.wkm-row .wk-chk{width:19px;height:19px;margin:0;}
+.wkm-id{min-width:0;line-height:1.25;}
+.wkm-id b{display:block;font-size:.84rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;}
+.wkm-id span{display:block;font-size:.74rem;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wkm-n{text-align:right;font-size:.8rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.wkm-n.neg{color:var(--danger);}.wkm-n.mut{color:var(--faint);}
+.wkm-row .wk-rem{width:54px;padding:5px 5px;font-size:.8rem;}
+.wkm-row .jx-btn{justify-self:end;padding:1px 5px;}
+.wkm-row.wk-done .wkm-id,.wkm-row.wk-done .wkm-n{opacity:.5;}.wkm-row.wk-done .wkm-id b{text-decoration:line-through;}
+.wkm-row.jx-off .wkm-id,.wkm-row.jx-off .wkm-n{opacity:.5;text-decoration:line-through;}
 </style>
 </head>
 <body>
@@ -1267,6 +1288,18 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
       </div>
     </div>
 
+    <div class="card" id="work-jobs-card">
+      <div class="ct">Per active job <span id="work-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div class="tbl-wrap wk-tbl-wrap">
+        <table class="tb" id="work-tbl">
+          <thead><tr><th>✓</th><th>Job</th><th>Priced</th><th>Actual</th><th>Remain h</th><th></th></tr></thead>
+          <tbody id="work-body"><tr><td colspan="6" class="empty">No active jobs synced yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="wkm-list" id="work-list"></div>
+      <div class="note" id="work-note"></div>
+    </div>
+
     <div class="card">
       <div class="ct">Forward workload trend <span class="hbtn" onclick="showHelp('backlogsnap')" title="What's this?">?</span> <span class="period-sub" style="margin-left:auto;">start of each month</span></div>
       <div class="chips">
@@ -1290,16 +1323,6 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
       <div class="note" style="margin:0;">Active jobs sync with <b>⚙ → Refresh</b> (top-right).</div>
     </div>
 
-    <div class="card">
-      <div class="ct">Per active job <span id="work-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <div class="tbl-wrap">
-        <table class="tb" id="work-tbl">
-          <thead><tr><th>✓</th><th>Job</th><th>Priced</th><th>Actual</th><th>Remain h</th><th></th></tr></thead>
-          <tbody id="work-body"><tr><td colspan="6" class="empty">No active jobs synced yet.</td></tr></tbody>
-        </table>
-      </div>
-      <div class="note" id="work-note"></div>
-    </div>
   </div>
 
   <!-- ───────── BACK COSTING ───────── -->
@@ -2583,6 +2606,20 @@ function renderWork(){
       '<td>'+fmtH(j.actual)+(over?' <span class="neg">⚠</span>':'')+'</td>'+
       '<td><input type="number" inputmode="decimal" class="wk-rem'+(edited?' edited':'')+'" value="'+remVal(j)+'" onchange="setWkRem(\''+esc(j.id)+'\',this.value)"'+(done?' disabled':'')+'></td>'+exTD(j)+'</tr>';
   }).join(''):'<tr><td colspan="6" class="empty">No active jobs synced yet. Tap “Sync”.</td></tr>';
+  // The phone's list: the same jobs in the same order, one row each — tick, job number over the short address,
+  // then the figures. Built beside the table rather than instead of it, so the computer keeps its table.
+  const wl=document.getElementById('work-list');
+  if(wl)wl.innerHTML=rows.length?('<div class="wkm-row wkm-hd"><span></span><span>Job</span><span>Priced</span><span>Actual</span><span>Remain h</span><span></span></div>'+rows.map(j=>{
+    const over=j.actual>j.priced&&j.priced>0,done=!!fwDone[j.id],edited=fwRemOv[j.id]!=null&&fwRemOv[j.id]!=='';
+    const no=String(j.jobNo||'').trim(),k=jobNoKey(j),on=!!(k&&jobExcl[k]);
+    return '<div class="wkm-row'+(done?' wk-done':'')+(isExcl(j)?' jx-off':'')+'" data-id="'+esc(j.id)+'">'+
+      '<input type="checkbox" class="wk-chk"'+(done?' checked':'')+' onchange="toggleWkDone(\''+esc(j.id)+'\',this.checked)">'+
+      '<div class="wkm-id" title="'+esc(j.job)+'">'+(no?'<b>#'+esc(no)+'</b>':'')+'<span>'+esc(_bcShortAddr(j))+'</span></div>'+
+      '<span class="wkm-n'+(j.priced>0?'':' mut')+'"'+(j.priced>0?'':' title="No priced labour hours in Fergus"')+'>'+(j.priced>0?fmtH(j.priced):'⚠')+'</span>'+
+      '<span class="wkm-n'+(over?' neg':'')+'"'+(over?' title="Actual hours are over the priced hours"':'')+'>'+fmtH(j.actual)+'</span>'+
+      '<input type="number" inputmode="decimal" class="wk-rem'+(edited?' edited':'')+'" value="'+remVal(j)+'" onchange="setWkRem(\''+esc(j.id)+'\',this.value)"'+(done?' disabled':'')+'>'+
+      (k?'<span class="jx-btn" style="color:'+(on?'var(--success)':'var(--muted)')+';" onclick="toggleExcl(\''+k+'\')" title="'+(on?'Restore — include this job in all totals again':'Cross out — remove this job from every total, everywhere')+'">'+(on?'↺':'✕')+'</span>':'<span></span>')+
+      '</div>';}).join('')):'<div class="empty">No active jobs synced yet. Tap “Sync”.</div>';
   const last=S.get('fw_last_sync','');const excl=S.get('fw_excluded',0);
   const ws=document.getElementById('work-sync');if(ws)ws.textContent=last?('· Fergus synced '+last):'· not synced yet';
   document.getElementById('work-note').innerHTML=(last?'Fergus last synced: '+esc(last)+'. ':'Fergus not synced yet — tap Sync. ')+
