@@ -106,6 +106,33 @@ check('every tab opens from the bottom bar', bad.length === 0, bad.join(','));
 check('…with no page error anywhere along the way', errs.length === 0, JSON.stringify(errs));
 check('the nightly sync\'s entry point is still there', await pg.evaluate(() => typeof window.__teamHeadlessSync === 'function'));
 
+// every other tab carries the same look (2026-10-24, "do the same styling for all the tabs")
+const look = await pg.evaluate(() => {
+  const out = {};
+  for (const t of ['work', 'bc', 'pl', 'growth', 'marketing', 'cash']){ go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }
+  const boxes = [...document.querySelectorAll('.page .mb')].filter(e => !e.closest('.mg-list'));
+  out.boxes = boxes.length; out.unmarked = boxes.filter(e => !e.querySelector('.mb-mark')).length;
+  out.bcTiles = document.querySelectorAll('#bc-tiles .kpi.sc').length; out.plTiles = document.querySelectorAll('#pl-tiles .kpi.sc').length;
+  out.heroes = ['page-work', 'page-growth', 'page-marketing'].map(id => { const c = document.querySelector('#' + id + ' > .hero-card'); return c ? getComputedStyle(c).backgroundColor : 'none'; });
+  out.plStrip = [...document.querySelectorAll('#pl-strip .mcard')].every(c => /selectMonth\(/.test(c.getAttribute('onclick') || '')) && document.querySelectorAll('#pl-strip .mcard').length > 0;
+  out.heads = ['bc-strip', 'mkt-strip', 'mkt-wk-strip', 'pl-strip'].map(id => !!document.querySelector('#' + id + ' .mcard .mrev'));
+  return out; });
+check('every metric box on every tab has its coloured marker', look.boxes >= 20 && look.unmarked === 0, JSON.stringify(look));
+check('the Back Cost and P&L totals are stat cards', look.bcTiles === 4 && look.plTiles === 4, look.bcTiles + ' / ' + look.plTiles);
+check('Workload, Growth and Marketing open on a navy headline card', look.heroes.every(c => c === 'rgb(10, 22, 40)'), look.heroes.join(' '));
+check('every month strip leads with its headline figure', look.heads.every(Boolean), JSON.stringify(look.heads));
+check('…and a P&L month card still selects its month', look.plStrip);
+bad = [];
+for (const k of ['deposit', 'owed', 'due50', 'due10', 'due0', 'ar']){
+  const r = await pg.evaluate(k => { go('cash'); openCashDetail(k); const n = document.querySelectorAll('#cmodal-body .cash-detail').length; const open = document.getElementById('cash-modal').classList.contains('open'); closeCashDetail(); return n > 0 && open; }, k);
+  if (!r) bad.push(k);
+}
+check('every Cash detail still opens from the Cash tab', bad.length === 0, bad.join(','));
+const tog = await pg.evaluate(() => { go('cash'); const a = document.querySelector('#bank-accts .bacct'); if (!a) return null; const was = a.classList.contains('off'); a.click(); const now = document.querySelector('#bank-accts .bacct').classList.contains('off'); document.querySelector('#bank-accts .bacct').click(); return was !== now; });
+check('a bank account still switches in and out of the forecast', tog === true, String(tog));
+check('…and no page error on any tab', errs.length === 0, JSON.stringify(errs));
+await pg.evaluate(() => go('dash'));
+
 // dark is still one tap away, and stays on this device
 await pg.click('#theme-btn');
 check('the moon gives dark', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && localStorage.getItem('fr3_look') === 'dark'));

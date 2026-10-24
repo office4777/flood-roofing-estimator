@@ -1075,6 +1075,70 @@ html.is-desktop .d-cash .mg-list .mb:nth-last-child(2){border-bottom:0!important
 .mbar{flex-basis:100%;display:block;height:4px;border-radius:2px;background:var(--elev);margin-top:3px;overflow:hidden;}
 .mbar i{display:block;height:100%;border-radius:2px;background:var(--faint);}
 .mbar i.gp{background:#0d9488;}.mbar i.op{background:#8b5cf6;}.mbar i.np{background:#0099cc;}.mbar i.neg{background:var(--danger);}
+
+/* ═════ EVERY TAB IN THE COMMAND CENTRE'S STYLE (2026-10-24, the owner: "do the same styling for all the tabs") ═════ */
+/* metric boxes: a white stat card, a tinted marker in the metric's colour, the name, the figure large */
+.mb{--t:#0099cc;--tb:#e6f5fa;}
+html[data-theme="dark"] .mb{--t:#33b5e0;--tb:rgba(51,181,224,.16);}
+.mb:not(.mg-list .mb),.mb.m-rev:not(.mg-list .mb),.mb.m-gp:not(.mg-list .mb),.mb.m-opex:not(.mg-list .mb),.mb.m-np:not(.mg-list .mb),.mb.m-cogs:not(.mg-list .mb){
+  background:var(--card);border:1px solid var(--border);border-radius:16px;padding:13px 14px 12px;box-shadow:var(--shadow);}
+.mb:not(.mg-list .mb) .l,.mb.m-rev:not(.mg-list .mb) .l,.mb.m-gp:not(.mg-list .mb) .l,.mb.m-opex:not(.mg-list .mb) .l,.mb.m-np:not(.mg-list .mb) .l,.mb.m-cogs:not(.mg-list .mb) .l{
+  display:flex;align-items:center;gap:8px;color:var(--text);font-size:.72rem;font-weight:700;letter-spacing:0;text-transform:none;}
+.mb-mark{flex:none;width:26px;height:26px;border-radius:8px;background:radial-gradient(circle,var(--t) 0 4px,var(--tb) 4.5px);}
+.mg-list .mb-mark{display:none;}
+.mb:not(.mg-list .mb) .v{font-size:1.55rem;margin-top:10px;}
+.mb:not(.mg-list .mb) .s2{margin-top:4px;line-height:1.45;}
+.mb .s2 .sc-delta{display:flex;width:max-content;margin-top:6px;}
+.mb .va{margin-top:10px!important;}
+.mb .pa{font-size:1.15rem;}
+html.is-desktop .mb:not(.mg-list .mb) .v{font-size:1.75rem;}
+/* totals tiles */
+.tiles{gap:12px;}
+.kpi.sc-static{cursor:default;}
+.kpi.sc-static:hover{border-color:var(--border);box-shadow:var(--shadow);}
+.kpi.sc-static .kd{padding-top:8px;}
+.sc-rd{--t:#b91c1c;--tb:#fee2e2;}html[data-theme="dark"] .sc-rd{--t:#f87171;--tb:rgba(248,113,113,.15);}
+html.is-desktop .tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
+#pl-tiles{margin-bottom:14px;}
+/* the headline card on Workload, Growth and Marketing: the forward workflow's navy */
+.card.hero-card{position:relative;overflow:hidden;background:var(--ink);border:0!important;color:#fff;box-shadow:0 8px 24px rgba(10,22,40,.18);}
+html[data-theme="dark"] .card.hero-card{background:#0d2440;border:1px solid var(--border)!important;}
+.card.hero-card::after{content:"";position:absolute;right:-70px;top:-70px;width:220px;height:220px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,153,204,.32),transparent);pointer-events:none;}
+.card.hero-card>.ct:first-child,.card.hero-card>.ct:first-child.ct{background:transparent;box-shadow:none;margin:-2px 0 4px;padding:0;min-height:0;border-radius:0;color:#7fd0ec;}
+.card.hero-card .ct .period-sub,.card.hero-card .ct .mut{color:#9fb3c8!important;}
+.card.hero-card .hero{position:relative;z-index:1;background:transparent;}
+.card.hero-card .hero .big{color:#fff;}
+.card.hero-card .hero .unit{color:#c7d6e4;}
+.card.hero-card .hero .sub{color:#a9bccf;}
+/* every other big number: a soft panel */
+.hero{background:var(--soft-acc);border-radius:14px;padding:14px 12px 12px;margin:2px 0 6px;}
+.hero .big{font-size:2.8rem;}
+.hero .unit{color:var(--muted);}
+.hero:not(.hero-card .hero) .unit{font-size:.86rem;line-height:1.45;}
+/* breakdown rows read like the Cash at a glance list */
+.brk{padding:11px 2px;font-size:.84rem;border-bottom:1px solid var(--border);}
+.brk .mut{color:var(--text);font-weight:600;}
+.brk>span:last-child{font-weight:800;color:var(--text);text-align:right;font-variant-numeric:tabular-nums;}
+/* ModSpace job cards */
+.ms-job{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);}
+.ms-bar{background:var(--elev);height:6px;}
+.ms-tag{padding:3px 8px;}
+.ms-stl{color:var(--faint);}
+/* live bank accounts as list rows, the tick as the marker */
+#bank-accts.mg{grid-template-columns:minmax(0,1fr);gap:0;}
+.bacct{background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0;margin:0;padding:12px 2px;box-shadow:none;}
+.bacct:last-child{border-bottom:0;}
+.bacct:hover{background:var(--card2);}
+.bacct .bacct-tog{width:30px;height:30px;border-radius:9px;background:var(--success);border-color:var(--success);}
+.bacct.off .bacct-tog{background:var(--card2);border-color:var(--border2);}
+.bacct .bacct-bal{font-size:1.08rem;}
+/* month cards on every strip */
+.mstrip .mcard .ml .k{color:var(--muted);}
+/* the computer: Growth and Marketing lay their cards two across under the headline */
+html.is-desktop #page-growth.active,html.is-desktop #page-marketing.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;align-items:start;}
+html.is-desktop #page-growth>.hero-card,html.is-desktop #page-marketing>.hero-card{grid-column:1/-1;}
+html.is-desktop #page-growth>*:last-child,html.is-desktop #page-marketing>*:last-child{grid-column:1/-1;}
+html.is-desktop #page-growth .mg,html.is-desktop #page-marketing .mg{grid-template-columns:repeat(3,minmax(0,1fr));}
 </style>
 </head>
 <body>
@@ -1145,7 +1209,7 @@ html.is-desktop .d-cash .mg-list .mb:nth-last-child(2){border-bottom:0!important
 
   <!-- ───────── FORWARD WORKLOAD ───────── -->
   <div class="page" id="page-work">
-    <div class="card" style="border-left:4px solid var(--accent);">
+    <div class="card hero-card">
       <div class="ct">Remaining Work on Active Jobs <span id="work-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="hero">
         <div class="big" id="work-days">—</div>
@@ -1404,7 +1468,7 @@ html.is-desktop .d-cash .mg-list .mb:nth-last-child(2){border-bottom:0!important
 
   <!-- ───────── GROWTH STRUCTURE ───────── -->
   <div class="page" id="page-growth">
-    <div class="card" style="border-left:4px solid var(--success);">
+    <div class="card hero-card">
       <div class="ct">Profit your on-tools guys make now <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="g-np">—</div>
@@ -1452,7 +1516,7 @@ html.is-desktop .d-cash .mg-list .mb:nth-last-child(2){border-bottom:0!important
 
   <!-- ───────── MARKETING ───────── -->
   <div class="page" id="page-marketing">
-    <div class="card acc-card" style="border-left:4px solid var(--success);">
+    <div class="card hero-card">
       <div class="ct">Quote Conversion <span id="mkt-ts" class="period-sub"></span></div>
       <div class="hero">
         <div class="big" id="mkt-conv">—</div>
@@ -2684,15 +2748,17 @@ function avgFig(labels,fn){
   return {rev:k('rev'),gp:k('gp'),opex:k('opex'),np:k('np'),hP:k('hP'),hA:k('hA'),mP:k('mP'),mA:k('mA'),src:fs[0].src};
 }
 // metric box + grid for Rev/GP/Opex/NP
-function mb(label,val,sub,cls,boxcls){return '<div class="mb'+(boxcls?' '+boxcls:'')+'"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
+// A metric box (2026-10-24, every tab in the Command Centre's style): a tinted marker in the metric's colour
+// (m-rev / m-gp / m-opex / m-np / m-cogs, cyan when it has none), the name, the figure, what it means.
+function mb(label,val,sub,cls,boxcls){return '<div class="mb'+(boxcls?' '+boxcls:'')+'"><div class="l"><span class="mb-mark"></span>'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
 function pct(part,whole){return whole>0?Math.round(part/whole*100)+'%':'';}
 // % change vs last month, coloured (goodUp: is "up" good? rev/gp/np yes, costs no).
 function deltaTxt(cur,prev,goodUp){
   if(prev==null||!isFinite(prev)||Math.abs(prev)<1)return '';
   const d=Math.round((cur-prev)/Math.abs(prev)*100);
-  if(d===0)return '<span class="mut" style="font-size:.62rem;display:block;margin-top:2px;">→ 0% vs last mo</span>';
+  if(d===0)return '<span class="sc-delta flat">→ 0% <span>vs last mo</span></span>';
   const up=d>0,good=goodUp?up:!up;
-  return '<span class="'+(good?'pos':'neg')+'" style="font-size:.62rem;display:block;margin-top:2px;">'+(up?'▲':'▼')+Math.abs(d)+'% vs last mo</span>';
+  return '<span class="sc-delta '+(good?'up':'dn')+'">'+(up?'▲ ':'▼ ')+Math.abs(d)+'% <span>vs last mo</span></span>';
 }
 function metGrid(f,cogs,prev){
   if(!f)return '<div class="empty" style="grid-column:1/-1;">No data</div>';
@@ -2709,7 +2775,7 @@ function pvaBox(label,priced,actual,unit){
   const has=priced>0;const v=actual-priced;const over=v>0;
   const fmtv=unit==='h'?(x=>fmtH(x)+'h'):(x=>fmtK(x));
   const varTxt=has?((over?'+':'')+fmtv(v)+' '+(over?'over':'under')):'no priced';
-  return '<div class="mb"><div class="l">'+label+'</div>'+
+  return '<div class="mb"><div class="l"><span class="mb-mark"></span>'+label+'</div>'+
     '<div class="va" style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin:2px 0 0;">'+
       '<span class="pa">'+(has?fmtv(priced):'—')+'</span><span class="mut" style="font-size:.8rem;">→</span><span class="pa">'+fmtv(actual)+'</span></div>'+
     '<div class="s2 '+(has?(over?'neg':'pos'):'')+'">'+varTxt+'</div></div>';
@@ -2723,7 +2789,7 @@ function pvaGrid(f){
 // GP per actual labour hour for the month — the key efficiency number.
 function gphrBox(f){
   const h=num(f.hA),g=num(f.gp),v=h>0?g/h:0;
-  return '<div class="mb" style="grid-column:1/-1;"><div class="l">GP / hour <span class="mut" style="text-transform:none;letter-spacing:0;">· gross profit per actual labour hour</span></div>'+
+  return '<div class="mb m-gp" style="grid-column:1/-1;"><div class="l"><span class="mb-mark"></span>GP / hour <span class="mut" style="text-transform:none;letter-spacing:0;">· gross profit per actual labour hour</span></div>'+
     '<div class="v '+(v>=0?'pos':'neg')+'">'+(h>0?fmt$(v)+'<span class="mut" style="font-size:.7rem;font-weight:600;"> /h</span>':'—')+'</div>'+
     '<div class="s2">'+(h>0?(fmtH(h)+'h actual · '+fmtK(g)+' GP'):'no actual hours logged')+'</div></div>';
 }
@@ -3670,7 +3736,7 @@ function bcNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ')
 function bcToks(s){return bcNorm(s).split(' ').filter(Boolean);}
 function bcCmpCell(e,f,money){
   const fmt=money?fmtK:(x=>fmtH(x)+'h');const d=f-e;const pct=e!==0?Math.abs(d/e*100):(f!==0?100:0);
-  const col=pct<=2?'var(--success)':pct<=10?'#fb923c':'var(--danger)';
+  const col=pct<=2?'var(--success)':pct<=10?'#ea580c':'var(--danger)';
   return '<td style="text-align:right;"><div>'+fmt(e)+' → '+fmt(f)+'</div><div style="font-size:.6rem;color:'+col+';">Δ '+(d>=0?'+':'')+fmt(d)+(e!==0?' ('+(d>=0?'+':'')+Math.round(d/e*100)+'%)':'')+'</div></td>';
 }
 function compareBcSources(){
@@ -3757,7 +3823,13 @@ function renderBC(){
     tile('','Total Hours',fmtH(tH)+'h',(tRH>0?fmt$(tG/tRH)+' GP/hr':''))+
     tile('w','Avg / Job',fmtK(inc.length?tS/inc.length:0),'sales');
 }
-function tile(cls,l,v,s2){return '<div class="tile '+cls+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s2">'+(s2||'')+'</div></div>';}
+// A totals tile (Back Cost, P&L) as the Command Centre's stat card: s green, a cyan, w amber, d red; the icon
+// follows what the figure is. Not tappable, as before.
+function tile(cls,l,v,s2){
+  const tone={s:'gr',a:'cy',w:'am',d:'rd'}[cls]||'nv';
+  const k=String(l).toLowerCase(),ico=/profit|gp/.test(k)?'gp':(/hour/.test(k)?'clock':(/avg|per job|job/.test(k)?'tag':(/sale|rev|income/.test(k)?'rev':'gp')));
+  return '<div class="kpi sc sc-'+tone+' sc-static"><div class="sc-head"><span class="sc-ico">'+_scIco(ico)+'</span><span class="kl">'+l+'</span></div>'+
+    '<div class="sc-val"><span class="kv">'+v+'</span></div><div class="kd">'+(s2||'')+'</div></div>';}
 
 // ════════ XERO P&L ════════
 function plPeriods(){
@@ -4002,10 +4074,10 @@ function renderPLStrip(){
     const row=(lbl,val,cls)=>'<div class="ml"><span class="k">'+lbl+'</span><span class="v'+(cls?' '+cls:'')+'">'+val+'</span></div>';
     return '<div class="mcard'+(k===plSelected?' on':'')+'" onclick="selectMonth(\''+k+'\')">'+
       '<div class="mm">'+k+(k===cur?' · partial':'')+'</div>'+
-      row('Rev',fmtK(f.rev),'')+
-      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
-      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
-      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+
+      _mhead('Revenue',fmtK(f.rev))+
+      _mrow('GP',f.gp,f.rev,gpm>=0.30?'pos':'neg','gp')+
+      _mrow('Opex',f.opex,f.rev,'','op')+
+      _mrow('NP',f.np,f.rev,f.np>=0?'pos':'neg','np')+
     '</div>';
   }).join('');
 }
@@ -4029,7 +4101,7 @@ function renderWaterfall(){
   const opP=gp-oh;const pc=v=>rev>0?Math.round(v/rev*100):0;
   const bar=(v,col)=>'<div style="height:7px;border-radius:5px;background:'+col+';width:'+Math.max(1.5,Math.min(100,rev>0?Math.abs(v)/rev*100:0))+'%;margin-top:5px;"></div>';
   const r=(lbl,v,col,strong)=>'<div style="padding:9px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;font-size:.84rem;'+(strong?'font-weight:800;':'')+'color:var(--text);"><span>'+lbl+'</span><span>'+fmtK(v)+' · '+pc(v)+'%</span></div>'+bar(v,col)+'</div>';
-  host.innerHTML=r('Revenue',rev,'var(--success)',true)+r('− Materials',mat,'#fb923c')+r('− On-site labour',sw,'#a78bfa')+r('= Gross Profit',gp,'var(--primary)',true)+r('− Overheads',oh,'#fbbf24')+r('= Operating Profit',opP,opP>=0?'var(--success)':'var(--danger)',true);
+  host.innerHTML=r('Revenue',rev,'var(--success)',true)+r('− Materials',mat,'#ea580c')+r('− On-site labour',sw,'#7c3aed')+r('= Gross Profit',gp,'var(--primary)',true)+r('− Overheads',oh,'#d97706')+r('= Operating Profit',opP,opP>=0?'var(--success)':'var(--danger)',true);
   if(lblEl)lblEl.textContent=key;
   if(noteEl)noteEl.innerHTML='Materials = Cost of Goods − on-site wages · Labour = on-site wages (in COGS) · Overheads exclude income tax. Operating Profit is before income tax. From your Xero P&L for '+esc(key)+'.';
 }
@@ -4084,10 +4156,10 @@ function renderPLTrend(){
   let series=plTrend.metric==='$'
     ?[{label:'Revenue',color:'#0099cc',vals:figs.map(f=>val(f,x=>num(x.rev)))},
       {label:'Gross profit',color:'#16a34a',vals:figs.map(f=>val(f,x=>num(x.gp)))},
-      {label:'Net profit',color:'#ff8a52',vals:figs.map(f=>val(f,x=>num(x.np)))}]
+      {label:'Net profit',color:'#d97706',vals:figs.map(f=>val(f,x=>num(x.np)))}]
     :[{label:'GP %',color:'#16a34a',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.gp)/num(x.rev)*100:0))},
-      {label:'Opex %',color:'#fbbf24',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.opex)/num(x.rev)*100:0))},
-      {label:'NP %',color:'#ff8a52',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.np)/num(x.rev)*100:0))}];
+      {label:'Opex %',color:'#d97706',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.opex)/num(x.rev)*100:0))},
+      {label:'NP %',color:'#d97706',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.np)/num(x.rev)*100:0))}];
   if(plTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
   host.innerHTML=svgLine(ks,series,plTrend.metric==='%'?'%':'$');
   if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
@@ -4113,8 +4185,8 @@ function renderEarnedTrend(){
     ?[{label:'Earned (work done)',color:'#16a34a',vals:earnedRev},
       {label:'Xero (incl. deposits)',color:'#0099cc',vals:xeroRev}]
     :[{label:'Earned revenue',color:'#16a34a',vals:earnedRev},
-      {label:'Gross profit',color:'#38bdf8',vals:em.map(e=>e.rev>0?e.gp:null)},
-      {label:'Net profit',color:'#ff8a52',vals:em.map(e=>e.rev>0?e.np:null)}];
+      {label:'Gross profit',color:'#0099cc',vals:em.map(e=>e.rev>0?e.gp:null)},
+      {label:'Net profit',color:'#d97706',vals:em.map(e=>e.rev>0?e.np:null)}];
   if(eplTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
   host.innerHTML=svgLine(ks,series,'$');
   if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
@@ -4468,7 +4540,9 @@ const _SC_ICO={
   arap:'<path d="M7 20V4M3.5 7.5L7 4l3.5 3.5M17 4v16M13.5 16.5L17 20l3.5-3.5"/>',
   due:'<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 12.5v3.2l2.2 1.4"/>',
   wip:'<path d="M3 18.5h18M5 18.5V15a7 7 0 0 1 14 0v3.5M10 8.6V6h4v2.6"/>',
-  bank:'<path d="M3 9.5L12 4l9 5.5M5 10.5v7M9.7 10.5v7M14.3 10.5v7M19 10.5v7M3 20h18"/>'
+  bank:'<path d="M3 9.5L12 4l9 5.5M5 10.5v7M9.7 10.5v7M14.3 10.5v7M19 10.5v7M3 20h18"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  tag:'<path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8a1.4 1.4 0 0 1 0 2l-7 7a1.4 1.4 0 0 1-2 0z"/><circle cx="8.5" cy="8.5" r="1.5"/>'
 };
 function _scIco(k){return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">'+(_SC_ICO[k]||'')+'</svg>';}
 function _scSpark(arr){
@@ -4673,8 +4747,8 @@ function openCmdDetail(key,optMk){
     const _s=gpCardSeries(bk.keys,gpCardSrc),revV=_s.revV,gpV=_s.gpV,opV=_s.opV,npV=_s.npV;   // honours the dashboard Earned/Xero toggle; earned falls back to Xero where history is thin
     const hiIdx=bk.keys.indexOf(mk),anyOpex=opV.some(v=>v!=null);
     const chart='<div style="margin:6px 0 2px;"><div style="font-size:.68rem;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin:0 0 5px;">Revenue · GP · OPEX · Net profit — last 12 months</div>'+
-      groupBarChart(bk.labels,[{name:'Revenue',color:'#0099cc',vals:revV},{name:'Gross profit',color:'#16a34a',vals:gpV},{name:'OPEX',color:'#a78bfa',vals:opV},{name:'Net profit',color:'#ff8a52',vals:npV}],hiIdx<0?null:hiIdx,{step:50000})+
-      cmdLegend([{label:'Revenue (earned)',color:'#0099cc'},{label:'Gross profit',color:'#16a34a'},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:'#a78bfa'},{label:'Net profit',color:'#ff8a52'}])+
+      groupBarChart(bk.labels,[{name:'Revenue',color:'#0099cc',vals:revV},{name:'Gross profit',color:'#16a34a',vals:gpV},{name:'OPEX',color:'#7c3aed',vals:opV},{name:'Net profit',color:'#d97706',vals:npV}],hiIdx<0?null:hiIdx,{step:50000})+
+      cmdLegend([{label:'Revenue (earned)',color:'#0099cc'},{label:'Gross profit',color:'#16a34a'},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:'#7c3aed'},{label:'Net profit',color:'#d97706'}])+
       '<div class="note" style="margin:6px 0 0;">Revenue &amp; GP are earned from Fergus by work done that month where the labour history is complete, otherwise the month falls back to your actual Xero P&amp;L; OPEX is your Xero overhead; Net profit = GP − OPEX.</div></div>';
     body='<div class="note" style="margin:0 0 10px;">Live earned / estimated GP for every hour worked in '+esc(mk)+' — open jobs included. Each row’s <b>GP/hr</b> is that job’s profitability per hour worked <i>on it</i>; the <b>Total GP/hr</b> ('+fmt$(denH>0?est.tGp/denH:0)+') is the month’s whole-business rate = total GP ÷ <b>every</b> hour the guys were on the tools ('+fmtH(denH)+'h'+(allH>0?', from your Business Activity Report':'')+'), so it matches the dashboard card. Each open job’s <b>GP</b> is its <b>Fergus priced margin</b> (sale − priced materials − priced labour). Jobs still running are <b>EST</b>: GP/hr = that GP ÷ its <b>priced hours</b> while under them. <b style="color:var(--danger);">⚠ OVER HRS</b> = the crew has passed the priced hours, so GP/hr switches to the <b>actual</b> hours — the real (lower) rate — and, since every month shares that rate, earlier months re-value down as more hours are logged. <b>AVG</b> = a charge-up / lump-sum / no-priced-hours job with no reliable per-job margin — its hours are valued at <b>this month’s average GP/hr</b> from the priced jobs'+(nEst?' · '+nEst+' estimated':'')+'.</div>'+
       wrap('<th>Job</th><th style="text-align:right;">GP</th><th style="text-align:right;">Hrs</th><th style="text-align:right;">GP/hr</th><th></th><th></th><th></th>',rr,'No jobs logged hours in '+esc(mk)+'. If that looks wrong, load dated labour history (⚙) then Refresh.','tb-gp')+
@@ -4819,9 +4893,9 @@ function openCmdDetail(key,optMk){
       // in-bars: mini weekly close sparkline as bars, coloured by sign
       const closes=D.weekly.map(r=>num(r.close));const mx=Math.max(1,...closes.map(Math.abs));
       const bars='<div class="cfx-bars">'+D.weekly.map(r=>{const h=Math.round(Math.abs(num(r.close))/mx*46)+2;const neg=r.close<0;const d=new Date(r.ms);
-        return '<div class="cfx-bcol" '+tipAttr({t:wkl(r.ms),v:'Close '+fmtK(r.close)+' · in '+fmtK(r.inn)+' · out '+fmtK(num(r.mat)+num(r.ap)+Math.max(0,num(r.gst))+num(r.burn))})+'><div class="cfx-bwrap"><div class="cfx-bar" style="height:'+h+'px;background:'+(neg?'var(--danger)':'#38bdf8')+';"></div></div><div class="cfx-blab">'+d.getDate()+'/'+(d.getMonth()+1)+'</div></div>';}).join('')+'</div>';
+        return '<div class="cfx-bcol" '+tipAttr({t:wkl(r.ms),v:'Close '+fmtK(r.close)+' · in '+fmtK(r.inn)+' · out '+fmtK(num(r.mat)+num(r.ap)+Math.max(0,num(r.gst))+num(r.burn))})+'><div class="cfx-bwrap"><div class="cfx-bar" style="height:'+h+'px;background:'+(neg?'var(--danger)':'#0099cc')+';"></div></div><div class="cfx-blab">'+d.getDate()+'/'+(d.getMonth()+1)+'</div></div>';}).join('')+'</div>';
       // weekly table
-      const wtb=D.weekly.map(r=>'<tr'+(r.close===D.low?' class="tot"':'')+'><td>'+dds(r.ms)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(num(r.gst)>0?'#fb923c':(num(r.gst)<0?'var(--success)':'var(--muted)'))+';">'+(num(r.gst)>0?'-'+fmtK(r.gst):(num(r.gst)<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>');
+      const wtb=D.weekly.map(r=>'<tr'+(r.close===D.low?' class="tot"':'')+'><td>'+dds(r.ms)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(num(r.gst)>0?'#ea580c':(num(r.gst)<0?'var(--success)':'var(--muted)'))+';">'+(num(r.gst)>0?'-'+fmtK(r.gst):(num(r.gst)<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>');
       const wtbl='<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">GST</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody>'+wtb.join('')+'</tbody></table></div>';
       // job finals coming in — only those landing within the 13-week window
       const jobsAll=(D.jobs||[]).filter(j=>j.owing>0).sort((a,b)=>a.finPayMs-b.finPayMs);
@@ -4932,8 +5006,8 @@ function gpScrollChart(labels,series,meta,step,colW){
     lb+='<text x="'+cx.toFixed(1)+'" y="'+(pt+ih+18)+'" text-anchor="middle" font-size="12" font-weight="800" fill="var(--text)">'+esc(String(L))+'</text>';
     const m=meta[i]||{};
     if(m.has){const t=(txt,col,dy)=>'<text x="'+cx.toFixed(1)+'" y="'+(pt+ih+18+dy)+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+col+'">'+esc(txt)+'</text>';
-      lb+=t('GP '+m.gp+'%','#16a34a',16)+t('OH '+(m.hasOp?m.opex+'%':'—'),'#a78bfa',30)+t('NP '+(m.hasOp?m.np+'%':'—'),m.npv>=0?'#ff8a52':'#f87171',44)+t(fmt$(m.gpHr)+'/hr worked','#38bdf8',58)+t('GP '+fmt$(m.gpBiz)+'/bus-hr','#fbbf24',72)+t('OH '+(m.opBiz!=null?fmt$(m.opBiz)+'/bus-hr':'—'),'#a78bfa',86)+t(fmtH(m.hrs)+'h worked','var(--text)',100);}
-    const obj={l:String(L),v:series.map(s=>({n:s.name,c:s.color,t:s.vals[i]==null?'—':fmtK(s.vals[i])})).concat(m.has?[{n:'Avg GP/hr',c:'#38bdf8',t:fmt$(m.gpHr)},{n:'Hours worked',c:'#94a3b8',t:fmtH(m.hrs)+'h'}]:[])};
+      lb+=t('GP '+m.gp+'%','#16a34a',16)+t('OH '+(m.hasOp?m.opex+'%':'—'),'#7c3aed',30)+t('NP '+(m.hasOp?m.np+'%':'—'),m.npv>=0?'#d97706':'#f87171',44)+t(fmt$(m.gpHr)+'/hr worked','#0099cc',58)+t('GP '+fmt$(m.gpBiz)+'/bus-hr','#d97706',72)+t('OH '+(m.opBiz!=null?fmt$(m.opBiz)+'/bus-hr':'—'),'#7c3aed',86)+t(fmtH(m.hrs)+'h worked','var(--text)',100);}
+    const obj={l:String(L),v:series.map(s=>({n:s.name,c:s.color,t:s.vals[i]==null?'—':fmtK(s.vals[i])})).concat(m.has?[{n:'Avg GP/hr',c:'#0099cc',t:fmt$(m.gpHr)},{n:'Hours worked',c:'#94a3b8',t:fmtH(m.hrs)+'h'}]:[])};
     hit+='<rect x="'+(colW*i).toFixed(1)+'" y="'+pt+'" width="'+colW+'" height="'+(ih+pb-16)+'" fill="transparent" pointer-events="all" '+(m.mk?('onclick="openCmdDetail(\''+'gp\',\''+m.mk+'\')" style="cursor:pointer;"'):tipAttr(obj))+'/>';});
   const plot='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" preserveAspectRatio="xMinYMin meet" style="display:block;">'+g+bars+lb+hit+'</svg>';
   return '<div style="display:flex;align-items:stretch;">'+axisSvg+'<div class="gpcard-scroll" style="overflow-x:auto;overflow-y:hidden;flex:1;-webkit-overflow-scrolling:touch;">'+plot+'</div></div>';
@@ -5404,12 +5478,12 @@ function renderBCStrip(){
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
   host.innerHTML=months.map(k=>{const f=bcFig(k);const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
     return '<div class="mcard"><div class="mm">'+esc(k)+'</div>'+
-      row('Rev',fmtK(f.rev),'')+
-      row('COGS',fmtK(f.rev-f.gp)+' · '+Math.round((f.rev>0?(f.rev-f.gp)/f.rev:0)*100)+'%','')+
-      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      _mhead('Revenue',fmtK(f.rev))+
+      _mrow('COGS',f.rev-f.gp,f.rev,'','')+
+      _mrow('GP',f.gp,f.rev,gpm>=0.30?'pos':'neg','gp')+
       row('GP/hr',f.hA>0?fmt$(f.gp/f.hA):'—',f.hA>0&&f.gp>=0?'pos':'')+
-      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
-      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';}).join('');
+      _mrow('Opex',f.opex,f.rev,'','op')+
+      _mrow('NP',f.np,f.rev,f.np>=0?'pos':'neg','np')+'</div>';}).join('');
 }
 // Marketing monthly buckets (by enquiry/sent/accepted date) + history strip.
 function mktMonthly(){
@@ -5434,7 +5508,7 @@ function renderMktRoll(){
     const lbl=FG_MONTHS[parseInt(end.split('-')[1])-1]+'-'+end.split('-')[0];
     return '<div class="mcard"><div class="mm">'+lbl+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg / month</span></div>'+
-      row('Enquiries',(s.enq/n).toFixed(1),'')+
+      _mhead('Conversion',conv+'%')+row('Enquiries',(s.enq/n).toFixed(1),'')+
       row('Quotes',(s.sent/n).toFixed(1)+' · '+fmtK(s.sentVal/n),'')+
       row('Accepted',(s.acc/n).toFixed(1)+' · '+conv+'%',s.acc>0?'pos':'')+
       row('$ Won',fmtK(s.accVal/n),s.accVal>0?'pos':'')+
@@ -5450,7 +5524,7 @@ function renderMktStrip(){
   host.innerHTML=keys.map(k=>{const o=B[k];const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
     const lbl=FG_MONTHS[parseInt(k.split('-')[1])-1]+'-'+k.split('-')[0];
     return '<div class="mcard"><div class="mm">'+lbl+'</div>'+
-      row('Enquiries',String(o.enq),'')+
+      _mhead('Conversion',conv+'%')+row('Enquiries',String(o.enq),'')+
       row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
       row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
       row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+
@@ -5478,7 +5552,7 @@ function renderMktWeekStrip(){
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
   host.innerHTML=keys.map(k=>{const o=B[k]||MKT_WK0;const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
     return '<div class="mcard"><div class="mm">wk '+wkLabel(k)+'</div>'+
-      row('Enquiries',String(o.enq),'')+
+      _mhead('Conversion',conv+'%')+row('Enquiries',String(o.enq),'')+
       row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
       row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
       row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+
@@ -5496,7 +5570,7 @@ function renderMktWeekRoll(){
     const n=3,conv=s.sent>0?Math.round(s.acc/s.sent*100):0,avgW=s.acc>0?s.accVal/s.acc:0;
     return '<div class="mcard"><div class="mm">wk '+wkLabel(end)+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-wk avg / week</span></div>'+
-      row('Enquiries',(s.enq/n).toFixed(1),'')+
+      _mhead('Conversion',conv+'%')+row('Enquiries',(s.enq/n).toFixed(1),'')+
       row('Quotes',(s.sent/n).toFixed(1)+' · '+fmtK(s.sentVal/n),'')+
       row('Accepted',(s.acc/n).toFixed(1)+' · '+conv+'%',s.acc>0?'pos':'')+
       row('$ Won',fmtK(s.accVal/n),s.accVal>0?'pos':'')+
@@ -5511,6 +5585,8 @@ function monthKeyMinus(label,n){const p=String(label).split('-');const mi=FG_MON
 function openPLMonth(m){go('pl');try{selectMonth(m);}catch(e){}}
 function _mcTap(hostId,M){return /-dash$/.test(hostId)?' mc-tap" onclick="openPLMonth(\''+esc(M)+'\')':'';}
 // One line of a month card: the figure, its share of revenue, and a bar of that share.
+// A month card's headline: the strip's lead figure, large.
+function _mhead(l,v){return '<div class="mrev"><span>'+l+'</span><b>'+v+'</b></div>';}
 function _mrow(l,v,rev,cls,bar){const p=rev>0?v/rev:0;
   return '<div class="ml"><span class="k">'+l+'</span><span class="v'+(cls?' '+cls:'')+'">'+fmtK(v)+' · '+Math.round(p*100)+'%</span>'+
     '<i class="mbar"><i class="'+(bar||'')+(v<0?' neg':'')+'" style="width:'+Math.min(100,Math.round(Math.abs(p)*100))+'%"></i></i></div>';}
@@ -5525,7 +5601,7 @@ function renderMonthStrip(hostId,figFn,months,cogs){
     const tag=M===thisM?'This month · partial':(M===lastM?'Last month':'Full month');
     return '<div class="mcard'+_mcTap(hostId,M)+'"><div class="mm">'+esc(M)+(_mcTap(hostId,M)?'<span class="mc-go">›</span>':'')+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">'+tag+'</span></div>'+
-      '<div class="mrev"><span>Revenue</span><b>'+fmtK(f.rev)+'</b></div>'+
+      _mhead('Revenue',fmtK(f.rev))+
       (cogs?_mrow('COGS',f.rev-f.gp,f.rev,'',''):'')+
       _mrow('GP',f.gp,f.rev,gpm>=0.30?'pos':'neg','gp')+
       _mrow('Opex',f.opex,f.rev,'','op')+
@@ -5545,7 +5621,7 @@ function renderRollingStrip(hostId,figFn,endingMonths,cogs,n){
     const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
     return '<div class="mcard'+_mcTap(hostId,M)+'"><div class="mm">'+esc(M)+(_mcTap(hostId,M)?'<span class="mc-go">›</span>':'')+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">'+n+'-mo avg · '+esc(monthKeyMinus(M,n-1))+'→'+esc(M)+(have<n?' · '+have+' of '+n:'')+'</span></div>'+
-      '<div class="mrev"><span>Revenue</span><b>'+fmtK(f.rev)+'</b></div>'+
+      _mhead('Revenue',fmtK(f.rev))+
       (cogs?_mrow('COGS',f.rev-f.gp,f.rev,'',''):'')+
       _mrow('GP',f.gp,f.rev,gpm>=0.30?'pos':'neg','gp')+
       _mrow('Opex',f.opex,f.rev,'','op')+
@@ -5939,7 +6015,7 @@ function renderCash(){
     mb('Jobs with materials',String(matJobs.length),'checked','','m-np'));
   const dcTb=document.querySelector('#cash-depchk-tbl tbody');
   if(dcTb){const mk=(r,tag,col)=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.bought)+'</td><td style="text-align:right;">'+fmt$(r.billed)+'</td><td style="color:'+col+';font-weight:700;font-size:.7rem;">'+tag+'</td></tr>';
-    const rws=noDep.map(r=>mk(r,'not invoiced','var(--danger)')).concat(unpaidDep.map(r=>mk(r,'unpaid','#fb923c')));
+    const rws=noDep.map(r=>mk(r,'not invoiced','var(--danger)')).concat(unpaidDep.map(r=>mk(r,'unpaid','#ea580c')));
     dcTb.innerHTML=rws.length?rws.join(''):'<tr><td colspan="4" style="color:var(--success);">\u2713 Every job with materials has a deposit invoiced'+(havePaid?' &amp; paid':'')+'.</td></tr>';}
   // ===== Xero AR by job: invoices issued but awaiting payment =====
   const arByJob=(cash.arByJob)||null;
@@ -6286,7 +6362,7 @@ function renderCashflow(){
   const lowEl=document.getElementById('cfw-low');if(lowEl){lowEl.textContent=fmtK(wlow.close);lowEl.style.color=wlow.close>=0?'var(--success)':'var(--danger)';}
   const luEl=document.getElementById('cfw-low-unit');if(luEl)luEl.textContent=(wlow.close>=0?'lowest total cash · wk of ':'cash runs short · wk of ')+wlab2(wlow.ds);
   const wtb2=document.querySelector('#cfw-tbl tbody');
-  if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(r.gst>0?'#fb923c':(r.gst<0?'var(--success)':'var(--muted)'))+';">'+(r.gst>0?'-'+fmtK(r.gst):(r.gst<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
+  if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(r.gst>0?'#ea580c':(r.gst<0?'var(--success)':'var(--muted)'))+';">'+(r.gst>0?'-'+fmtK(r.gst):(r.gst<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   const cwn=document.getElementById('cfw-note');
   if(cwn)cwn.innerHTML='All accounts. In: <b>A/R</b> (invoiced, paid 3 days past due) + job finals paid '+num(cfg2.lag)+' wks after scheduled finish (GST-inclusive). Out: materials paid the 20th of the month after ordering, A/P ('+fmtK(apMat)+') at the next 20th, wages+overheads ('+fmtK(burnWk)+'/wk)'+(gstOn?(', and <b>net GST</b> to IRD ('+(gstFreq===1?'monthly':gstFreq+'-monthly')+', output − input on materials + A/P; ~'+fmtK(gstTot)+' over 13 wks · current GST '+fmtK(gstNow)+')'):'')+'. Opening '+fmtK(openCash)+'. Excludes other finance/tax.'+(recon.total>0?(' <b style="color:var(--success);">Auto-reconciled '+fmtK(recon.total)+'</b> already in the bank (paid, not yet in Xero) — not double-counted.'):'')+(apRisk?(' <b style="color:var(--danger);">⚠ Materials A/P ('+fmtK(apMat)+') exceeds materials costed to open jobs ('+fmtK(totAMat)+') — some supplier bills may not be job-costed, which can double-count materials. Cost every bill to its Fergus job.</b>'):'');
 }

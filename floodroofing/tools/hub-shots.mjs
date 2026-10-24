@@ -23,7 +23,7 @@ async function shoot(tag, vp, steps){
   await pg.goto(HUB); await pg.waitForTimeout(1500);
   for (const [name, fn, full] of steps){
     if (fn) await fn(pg);
-    await pg.waitForTimeout(400);
+    await pg.waitForTimeout(800);
     await pg.screenshot({ path: join(OUT, tag + '-' + name + '.png'), fullPage: !!full });
   }
   console.log(tag, errs.length ? 'ERRORS ' + JSON.stringify(errs) : 'no errors');
@@ -38,13 +38,16 @@ await shoot('phone', { width: 390, height: 844 }, [
   ['work', async pg => { await closeAll(pg); await pg.evaluate(() => go('work')); }, true],
   ['bc', pg => pg.evaluate(() => go('bc')), false],
   ['pl', pg => pg.evaluate(() => go('pl')), false],
-  ['dash-dark', pg => pg.evaluate(() => { go('dash'); toggleTheme(); }), false],
+  ...['work', 'bc', 'pl', 'growth', 'marketing', 'cash'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
+  ['detail-deposit', pg => pg.evaluate(() => { go('cash'); openCashDetail('deposit'); }), false],
+  ['dash-dark', pg => pg.evaluate(() => { closeCashDetail(); go('dash'); toggleTheme(); }), false],
 ]);
 await shoot('desk', { width: 1440, height: 900 }, [
   ['dash', null, false],
   ['dash-full', null, true],
   ['detail-gp', pg => pg.evaluate(() => openCmdDetail('gp')), false],
   ['work', async pg => { await closeAll(pg); await pg.evaluate(() => go('work')); }, false],
+  ...['bc', 'pl', 'growth', 'marketing', 'cash'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
 ]);
 await b.close();
 console.log('shots in', OUT);
