@@ -138,7 +138,10 @@ await pg.evaluate(() => go('dash'));
 // of the month show the combined total before starting the next month").
 await pg.evaluate(() => go('bc')); await pg.waitForTimeout(500);
 const bc = await pg.evaluate(() => {
-  const first = document.querySelector('#page-bc > .card .ct'), out = { first: first ? first.textContent.trim() : '' };
+  const cards = [...document.querySelectorAll('#page-bc > .card')], first = cards[1] && cards[1].querySelector('.ct');
+  const out = { first: first ? first.textContent.trim() : '', top: cards[0] && cards[0].id, strip: document.querySelectorAll('#bc-strip .mcard').length,
+    stripVis: document.getElementById('bc-strip').getBoundingClientRect().height > 0,
+    newest: (document.querySelector('#bc-strip .mcard .mm') || {}).textContent || '', want: dataMonths().slice(-1)[0] };
   const vis = s => { const e = document.querySelector(s); return !!(e && e.getBoundingClientRect().height > 0); };
   out.list = vis('#bc-list'); out.table = vis('.bc-tbl-wrap');
   const jobs = [...document.querySelectorAll('#bc-list .bcm-job')];
@@ -157,7 +160,8 @@ const bc = await pg.evaluate(() => {
   }).slice(0, 4);
   return out;
 });
-check('All Back Costing is the first card on the Back Cost tab', /^All Back Costing/.test(bc.first), bc.first);
+check('the 12-Month History opens the Back Cost tab, open, newest month first', bc.top === 'bc-strip-card' && bc.stripVis && bc.strip >= 12 && bc.newest === bc.want, JSON.stringify({ top: bc.top, strip: bc.strip, newest: bc.newest, want: bc.want }));
+check('…with All Back Costing straight under it', /^All Back Costing/.test(bc.first), bc.first);
 check('…on a phone it is a list, not the wide table', bc.list && !bc.table, JSON.stringify({ list: bc.list, table: bc.table }));
 check('…every job is two lines: the job number and a short address, then the figures', bc.jobs > 0 && bc.twoLine && bc.withNo >= 9 && /^#3240\s*\S/.test(bc.firstL1), JSON.stringify({ jobs: bc.jobs, withNo: bc.withNo, l1: bc.firstL1 }));
 check('…and the short address is short (no town, no postcode)', !/Whangarei|Northland/.test(bc.firstL1), bc.firstL1);
