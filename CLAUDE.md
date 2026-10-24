@@ -67,7 +67,7 @@ accordingly.
   `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. Back Cost's All Back Costing (2026-10-24) is the
   tab's first card, grouped by month (`_bcTot`, the foot's own arithmetic): a phone gets `#bc-list`, two lines per
   job (number + `_bcShortAddr`, then the figures) and a total closing each month; a computer keeps the table with a
-  band and a subtotal per month. `tests/hubui.mjs` (52, UI list) drives both
+  band and a subtotal per month; on a phone each month fits one screen (`_bcFitMonth`), its jobs scrolling between band and total. `tests/hubui.mjs` (54, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
