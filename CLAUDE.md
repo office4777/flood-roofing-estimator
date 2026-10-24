@@ -67,7 +67,11 @@ accordingly.
   `_scIco`, `_scSpark`); `mb()` carries a marker on every tab. Back Cost's All Back Costing (2026-10-24) is the
   tab's first card, grouped by month (`_bcTot`, the foot's own arithmetic): a phone gets `#bc-list`, two lines per
   job (number + `_bcShortAddr`, then the figures) and a total closing each month; a computer keeps the table with a
-  band and a subtotal per month; on a phone each month fits one screen (`_bcFitMonth`), its jobs scrolling between band and total. `tests/hubui.mjs` (54, UI list) drives both
+  band and a subtotal per month; on a phone each month fits one screen (`_bcFitMonth`), its jobs scrolling between band and total. The P&L tab OPENS on a crew strip
+  (2026-10-25, `renderCrewStrip`, `#pl-crew`): one card a month from Jul 2024 with the crew on the tools above the Xero
+  figures and Rev / NP per person. `CREW_SEED` is the owner's payroll timesheet export (people who logged site hours, office
+  staff out; that export has crew rows Sep 2024 – 14 Mar 2025 ONLY, and a Jan–Oct 2026 export came back empty); every other
+  month is typed by tapping the number (`crewEdit`, `fr3_crewMonthly`, which wins; blank = back to the seed). `tests/hubui.mjs` (62, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus

@@ -181,6 +181,36 @@ const fit = await pg.evaluate(() => {
 });
 check('a busy month fits on one phone screen: its band at the top, its total above the tab bar', fit.n > 10 && fit.headTop >= fit.topBot - 2 && fit.subBottom <= fit.navTop, JSON.stringify(fit));
 check('…and its jobs scroll between the two', fit.scrollable && fit.scrolled, JSON.stringify(fit));
+
+// P&L: one card a month from Jul 2024 with the crew on the tools, swiped left/right
+await pg.evaluate(() => go('pl')); await pg.waitForTimeout(400);
+const crew = await pg.evaluate(() => {
+  const host = document.getElementById('pl-crew'), cards = [...host.querySelectorAll('.mcard')];
+  const card = m => host.querySelector('.mcard[data-m="' + m + '"]');
+  const first = document.querySelector('#page-pl > .card');
+  const r = host.getBoundingClientRect(), last = cards[cards.length - 1].getBoundingClientRect();
+  return { first: first && first.id, n: cards.length, want: crewMonths().length, firstM: cards[0].dataset.m, lastM: cards[cards.length - 1].dataset.m,
+    now: calMonthKey(0), sep: card('Sep-2024').querySelector('.crew-n').innerText, jul: card('Jul-2024').querySelector('.crew-n').innerText,
+    sepRev: (card('Sep-2024').textContent.match(/Rev \/ person/) || [])[0] || '', scrolls: host.scrollWidth > host.clientWidth + 20,
+    lastSeen: last.right <= r.right + 2 && host.scrollLeft > 0 };
+});
+check('the P&L tab opens on the crew strip', crew.first === 'pl-crew-card', JSON.stringify(crew));
+check('…one card a month from Jul 2024 to this month', crew.n === crew.want && crew.firstM === 'Jul-2024' && crew.lastM === crew.now && crew.n >= 27, JSON.stringify(crew));
+check('…Sep 2024 reads 4 on the tools from the timesheets, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.7 full-time/.test(crew.sep), crew.sep);
+check('…and Rev / person beside it', crew.sepRev === 'Rev / person');
+check('…a month with no timesheets asks for the crew', /tap to add crew/.test(crew.jul), crew.jul);
+check('…it swipes sideways and opens on the newest month', crew.scrolls && crew.lastSeen, JSON.stringify(crew));
+const typed = await pg.evaluate(() => {
+  const k = calMonthKey(-2), f = xeroFig(k); window.prompt = () => '6'; crewEdit(null, k);
+  const card = document.querySelector('#pl-crew .mcard[data-m="' + k + '"]'), txt = card.innerText;
+  const stored = JSON.parse(localStorage.getItem('fr3_crewMonthly') || '{}')[k];
+  window.prompt = () => ''; crewEdit(null, 'Sep-2024'); const back = crewFor('Sep-2024');
+  window.prompt = () => '7'; crewEdit(null, 'Sep-2024'); const over = crewFor('Sep-2024').n;
+  window.prompt = () => ''; crewEdit(null, 'Sep-2024'); const again = crewFor('Sep-2024');
+  return { six: card.querySelector('.crew-n b').textContent === '6', crewTxt: card.querySelector('.crew-n').textContent, stored: stored && stored.n, perOk: txt.indexOf(fmtK(f.rev / 6)) >= 0, over, back: again.src + ':' + again.n };
+});
+check('typing a crew number keeps it and works the per-person figures from it', typed.six && typed.stored === 6 && typed.perOk, JSON.stringify(typed));
+check('…a typed number wins over the timesheets, and blank puts the timesheets back', typed.over === 7 && typed.back === 'timesheet:4', JSON.stringify(typed));
 check('tapping a job opens its lead and crew pickers, and picking a lead still records it', lead.open && lead.sel && lead.set, JSON.stringify(lead));
 await pg.evaluate(() => go('dash'));
 
@@ -188,7 +218,7 @@ await pg.evaluate(() => go('dash'));
 await pg.click('#theme-btn');
 check('the moon gives dark', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && localStorage.getItem('fr3_look') === 'dark'));
 check('…and the choice is never sent to the team (device-only key)', await pg.evaluate(() => !!TEAM_LOCAL_KEYS['fr3_look']));
-await pg.reload(); await pg.waitForFunction(() => document.documentElement.hasAttribute('data-theme'), null, { timeout: 15000 });
+await pg.reload(); await pg.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 15000 }).catch(() => {});
 check('…it is still dark after a reload', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark'));
 await ctx.close();
 

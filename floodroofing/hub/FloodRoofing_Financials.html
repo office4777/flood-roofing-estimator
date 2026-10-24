@@ -1132,6 +1132,15 @@ html[data-theme="dark"] .card.hero-card{background:#0d2440;border:1px solid var(
 .bacct .bacct-tog{width:30px;height:30px;border-radius:9px;background:var(--success);border-color:var(--success);}
 .bacct.off .bacct-tog{background:var(--card2);border-color:var(--border2);}
 .bacct .bacct-bal{font-size:1.08rem;}
+/* crew strip (P&L tab): one card a month from Jul 2024, the crew count on top */
+.crew-strip .mcard{flex:0 0 172px;cursor:default;}
+.crew-strip .mcard.tap{cursor:pointer;}
+.crew-n{display:flex;align-items:center;gap:9px;margin:-2px 0 9px;padding:8px 10px;border-radius:11px;background:var(--card2);border:1.5px dashed var(--border2);cursor:pointer;}
+.crew-n.has{border-style:solid;border-color:var(--primary);background:var(--card2);background:color-mix(in srgb,var(--primary) 9%,var(--card));}
+.crew-n b{font-size:1.45rem;line-height:1;color:var(--primary);min-width:22px;text-align:center;}
+.crew-n span{display:flex;flex-direction:column;font-size:.66rem;font-weight:800;color:var(--text);line-height:1.25;}
+.crew-n small{font-weight:600;color:var(--muted);font-size:.6rem;}
+.crew-strip .mcard .nox{font-size:.68rem;color:var(--muted);padding:6px 0;}
 /* month cards on every strip */
 .mstrip .mcard .ml .k{color:var(--muted);}
 /* the computer: Growth and Marketing lay their cards two across under the headline */
@@ -1441,6 +1450,11 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 
   <!-- ───────── XERO P&L ───────── -->
   <div class="page" id="page-pl">
+    <div class="card" id="pl-crew-card">
+      <div class="ct">Month by month · crew on the tools <span id="pl-crew-range" class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip crew-strip" id="pl-crew"></div>
+      <div class="note" id="pl-crew-note"></div>
+    </div>
     <div class="card" style="border-left:4px solid var(--success);">
       <div class="ct">Flood Roofing P&amp;L — earned <span class="hbtn" onclick="showHelp('earnedpl')" title="What's this?">?</span> <span id="epl-month" class="period-sub" style="margin-left:auto;"></span></div>
       <div id="epl-body"></div>
@@ -4167,6 +4181,60 @@ function renderXeroReport(rep,label){
     :('No Operating-Expenses line matched “'+esc(S.get('wageKw','wages'))+'”. Set your on-site wages account name in ⚙.<br>'))
     +'Live from Xero — updates only when you Sync/Pull.';
 }
+// ── Crew on the tools, per month (P&L tab) ──
+// Seeded from the payroll timesheet export the owner sent (01/07/2024 → 25/10/2026): people who
+// logged hours on site that month, office staff left out. Hours = their worked hours that month.
+// The export has no crew timesheets before Sep 2024 or after 14 Mar 2025, so every other month is
+// typed by hand (tap the number) and kept in fr3_crewMonthly, which wins over the seed.
+const CREW_FROM='Jul-2024';
+const CREW_SEED={'Sep-2024':{n:4,h:598},'Oct-2024':{n:4,h:485},'Nov-2024':{n:5,h:779},'Dec-2024':{n:5,h:560},'Jan-2025':{n:5,h:799},'Feb-2025':{n:5,h:829},'Mar-2025':{n:5,h:390,part:'timesheets stop 14 Mar'}};
+const CREW_FT_HRS=160;   // one person full-time for a month
+let crewMonthly=S.get('crewMonthly',{});
+function crewFor(k){
+  const hand=crewMonthly[k];
+  if(hand&&hand.n!=null&&hand.n!=='')return {n:num(hand.n),h:null,src:'hand'};
+  const sd=CREW_SEED[k];return sd?Object.assign({src:'timesheet'},sd):null;
+}
+function crewMonths(){const out=[];let k=CREW_FROM;const end=bcMonthNum(calMonthKey(0));
+  while(bcMonthNum(k)<=end){out.push(k);const p=k.split('-');const i=FG_MONTHS.indexOf(p[0]);k=i===11?'Jan-'+(+p[1]+1):FG_MONTHS[i+1]+'-'+p[1];}
+  return out;}
+function crewEdit(ev,k){if(ev)ev.stopPropagation();
+  const c=crewFor(k);const v=prompt('How many on the tools in '+k.replace('-',' ')+'? (blank = back to the timesheets)',c?String(c.n):'');
+  if(v===null)return;const t=String(v).trim();
+  if(t===''){delete crewMonthly[k];}else{const n=Math.max(0,Math.round(parseFloat(t)));if(!isFinite(n))return;crewMonthly[k]={n:n};}
+  S.set('crewMonthly',crewMonthly);renderCrewStrip();}
+function renderCrewStrip(){
+  const host=document.getElementById('pl-crew');if(!host)return;
+  const ks=crewMonths(),cur=calMonthKey(0);
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  host.innerHTML=ks.map(k=>{
+    const f=xeroFig(k),c=crewFor(k);
+    const crew='<div class="crew-n'+(c?' has':'')+'" onclick="crewEdit(event,\''+k+'\')" title="Tap to change">'+
+      '<b>'+(c?c.n:'—')+'</b><span>'+(c?'on the tools':'tap to add crew')+
+      (c&&c.h?'<small>≈'+(c.h/CREW_FT_HRS).toFixed(1)+' full-time</small><small>'+c.h+' hrs worked</small>':'')+
+      (c&&c.part?'<small>'+c.part+'</small>':'')+(c&&c.src==='hand'?'<small>typed in</small>':'')+'</span></div>';
+    let body;
+    if(!f||!(f.rev>0))body='<div class="nox">No Xero figures for this month'+(xeroMonthly[k]?'':' yet')+'</div>';
+    else{
+      const per=c&&c.n>0?c.n:0;
+      body=_mhead('Revenue',fmtK(f.rev))+
+        _mrow('GP',f.gp,f.rev,f.rev>0&&f.gp/f.rev>=0.30?'pos':'neg','gp')+
+        _mrow('Opex',f.opex,f.rev,'','op')+
+        _mrow('NP',f.np,f.rev,f.np>=0?'pos':'neg','np')+
+        (per?row('Rev / person',fmtK(f.rev/per))+row('NP / person',fmtK(f.np/per),f.np>=0?'pos':'neg'):'')+
+        (c&&c.h?row('GP / crew hr',fmtK(f.gp/c.h)):'')+
+        (num((xeroMonthly[k]||{}).siteWages)>0?row('Site wages',fmtK(num(xeroMonthly[k].siteWages))):'');
+    }
+    const tap=f&&f.rev>0;
+    return '<div class="mcard'+(tap?' tap':'')+(k===plSelected?' on':'')+'" data-m="'+k+'"'+(tap?' onclick="selectMonth(\''+k+'\')"':'')+'>'+
+      '<div class="mm">'+k.replace('-',' ')+(k===cur?' · partial':'')+'</div>'+crew+body+'</div>';
+  }).join('');
+  const rg=document.getElementById('pl-crew-range');if(rg)rg.textContent=ks[0].replace('-',' ')+' → now · swipe ↔';
+  const nt=document.getElementById('pl-crew-note');
+  if(nt)nt.textContent='Crew = people who logged site hours that month, from your payroll timesheets (Sep 2024 – 14 Mar 2025). The other months have no crew timesheets: tap the number to type the crew in.';
+  // open on the newest month the first time the strip is actually on screen (it is rendered hidden at boot)
+  if(!host.__crewScrolled&&host.clientWidth>0){host.__crewScrolled=true;host.scrollLeft=host.scrollWidth;}
+}
 // Horizontal 12-month strip: Rev / GP$+% / Opex$+% / NP$+% per month; tap a month to load its breakdown.
 function renderPLStrip(){
   const host=document.getElementById('pl-strip');if(!host)return;
@@ -4191,7 +4259,7 @@ function selectMonth(m){
   plSelected=m;
   const sel=document.getElementById('pl-period');
   if(sel){if(![...sel.options].some(o=>o.value===m))sel.insertAdjacentHTML('afterbegin','<option>'+m+'</option>');sel.value=m;}
-  renderPLStrip();
+  renderPLStrip();renderCrewStrip();
   if(xeroReports[m]){xeroLive=true;lastXeroRep=xeroReports[m];lastXeroLabel=m;renderXeroReport(xeroReports[m],m);}
   else if(fergusProxyUrl())pullXeroPL();   // have totals but not the full report → fetch it
   else renderPL();
@@ -4453,7 +4521,7 @@ function renderEarnedPL(){
 }
 function renderPL(){
   fillPLPeriods();
-  renderPLStrip();renderWaterfall();renderPLTrend();renderPlAvgJob();renderRecon();renderEarnedPL();
+  renderPLStrip();renderCrewStrip();renderWaterfall();renderPLTrend();renderPlAvgJob();renderRecon();renderEarnedPL();
   if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;

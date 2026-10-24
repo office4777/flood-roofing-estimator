@@ -41,9 +41,9 @@ export function hubSeed(){
   const mkt = { leads, quotes, ts: '24 Oct 9:12 am', nE: leads.length, nQ: quotes.length,
     nSent: quotes.filter(q => q.isSent).length, nAcc: quotes.filter(q => q.isAccepted).length, enqErr: '' };
 
-  // ── Xero monthly P&L for the last 14 months ──
+  // ── Xero monthly P&L back to Jul 2024 (the crew strip on the P&L tab starts there) ──
   const xeroMonthly = {};
-  for (let m = 1; m <= 14; m++){
+  for (let m = 1; m <= 28; m++){
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - m);
     const rev = Math.round(110000 + rnd() * 90000), gp = Math.round(rev * (0.38 + rnd() * 0.14));
     const opex = Math.round(36000 + rnd() * 9000), wages = Math.round(rev * 0.22);
