@@ -176,11 +176,11 @@ const flt = await pg.evaluate(() => {
   const vis = s => { const e = document.querySelector(s); return !!(e && e.getBoundingClientRect().height > 0); };
   const bar = document.querySelector('#page-bc .bc-cols-bar'), btn = document.getElementById('bc-filter-btn');
   const out = { inBar: !!(bar && bar.contains(btn)), shut: !vis('#bc-year') && !vis('#bc-search') && !vis('#bc-count'),
-    title: document.querySelector('#page-bc > .card:nth-of-type(2) .ct').textContent.trim(), jobs0: document.querySelectorAll('#bc-list .bcm-job').length };
+    title: document.querySelector('#page-bc > .card:nth-of-type(2) .ct').textContent.trim(), jobs0: parseInt(document.getElementById('bc-count').textContent) };
   btn.click(); out.open = vis('#bc-year') && vis('#bc-type') && vis('#bc-lead') && vis('#bc-search') && /jobs/.test(document.getElementById('bc-count').textContent);
   const ye = document.getElementById('bc-year'); ye.value = ye.options[ye.options.length - 1].value; ye.dispatchEvent(new Event('change'));
-  out.label = btn.textContent; out.lit = btn.classList.contains('on'); out.jobs1 = document.querySelectorAll('#bc-list .bcm-job').length;
-  bcFilterClear(); out.cleared = btn.textContent; out.jobs2 = document.querySelectorAll('#bc-list .bcm-job').length;
+  out.label = btn.textContent; out.lit = btn.classList.contains('on'); out.jobs1 = parseInt(document.getElementById('bc-count').textContent);
+  bcFilterClear(); out.cleared = btn.textContent; out.jobs2 = parseInt(document.getElementById('bc-count').textContent);
   btn.click(); out.shutAgain = !vis('#bc-year');
   return out;
 });
@@ -193,6 +193,20 @@ const lead = await pg.evaluate(() => {
   sel.value = sel.options[1].value; sel.dispatchEvent(new Event('change', { bubbles: true }));
   return { open, sel: true, set: Object.values(leadOverride).includes(sel.options[1].value) };
 });
+// Two months open, the rest behind "See previous month" under the last one shown (2026-10-25, the owner)
+const more = await pg.evaluate(() => {
+  const ms = () => [...document.querySelectorAll('#bc-list .bcm-month')], btn = () => document.querySelector('#bc-list .bc-more-btn');
+  const after = () => { const b = btn(), m = ms(); return !!(b && m.length && m[m.length - 1].nextElementSibling === b); };
+  const all = new Set(getAllBC().map(r => r.month || '—')).size;
+  const out = { all, start: ms().length, label: btn() ? btn().firstChild.textContent.trim() : '', after0: after(),
+    grandLast: (document.querySelector('#bc-list').lastElementChild || { classList: { contains: () => false } }).classList.contains('bcm-grand') };
+  btn().click(); out.one = ms().length; out.after1 = after();
+  let guard = 0; while (btn() && guard++ < 60) btn().click();
+  out.end = ms().length; out.gone = !btn();
+  return out;
+});
+check('All Back Costing shows the two newest months, "See previous month" under the second, the grand total last', more.all > 3 && more.start === 2 && more.label === 'See previous month' && more.after0 && more.grandLast, JSON.stringify(more));
+check('…each press opens one more month and the button stays under the last one, until every month is out', more.one === 3 && more.after1 && more.end === more.all && more.gone, JSON.stringify(more));
 const fit = await pg.evaluate(() => {
   const ms = [...document.querySelectorAll('#bc-list .bcm-month')];
   const big = ms.reduce((b, m) => (m.querySelectorAll('.bcm-job').length > (b ? b.querySelectorAll('.bcm-job').length : 0) ? m : b), null);
@@ -305,6 +319,11 @@ const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wr
   list: document.getElementById('bc-list').getBoundingClientRect().height > 0,
   heads: document.querySelectorAll('#bc-tbl tr.bc-mhead').length, subs: document.querySelectorAll('#bc-tbl tr.bc-msub').length }));
 check('on a computer Back Cost keeps the full table, with a band and a total for every month', bcd.table && !bcd.list && bcd.heads >= 2 && bcd.heads === bcd.subs, JSON.stringify(bcd));
+const bcm = await pg.evaluate(() => { _bcMonthsShown = 2; renderBC(); const b = document.getElementById('bc-body'), last = b.lastElementChild;
+  const out = { heads: b.querySelectorAll('tr.bc-mhead').length, btnLast: !!(last && last.classList.contains('bc-more-row') && last.previousElementSibling.classList.contains('bc-msub')),
+    label: last ? last.textContent.trim() : '' };
+  last.querySelector('button').click(); out.heads1 = document.querySelectorAll('#bc-body tr.bc-mhead').length; return out; });
+check('…two months there too, See previous month under the second month\'s total, a press opens the next', bcm.heads === 2 && bcm.btnLast && /^See previous month/.test(bcm.label) && bcm.heads1 === 3, JSON.stringify(bcm));
 await pg.evaluate(() => go('work')); await pg.waitForTimeout(300);
 const wkd = await pg.evaluate(() => ({ table: document.querySelector('.wk-tbl-wrap').getBoundingClientRect().height > 0,
   list: document.getElementById('work-list').getBoundingClientRect().height > 0, rows: document.querySelectorAll('#work-body tr').length }));

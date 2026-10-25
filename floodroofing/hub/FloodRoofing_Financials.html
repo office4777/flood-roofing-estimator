@@ -1194,6 +1194,11 @@ html:not(.is-desktop) .bc-tbl-wrap{display:none;}
 .bcm-sub .bcm-l1 b{text-transform:uppercase;font-size:.72rem;letter-spacing:.06em;}
 .bcm-sub .bcm-addr{color:var(--muted);font-weight:600;text-align:right;}
 .bcm-grand{border:1.5px solid var(--primary);border-radius:14px;}
+.bc-more-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:10px 0 12px;padding:12px 14px;border:1.5px solid var(--primary);border-radius:12px;background:var(--card,#fff);color:var(--primary);font:inherit;font-weight:700;font-size:15px;cursor:pointer;}
+.bc-more-btn::after{content:'⌄';font-size:18px;line-height:1;margin-top:-6px;}
+.bc-more-btn span{font-weight:500;font-size:13px;opacity:.75;}
+.bc-more-btn:active{background:var(--soft-acc);}
+tr.bc-more-row td{padding:0 8px;background:transparent;}
 .bcm-list .empty{padding:20px 6px;}
 #bc-tbl th.c-job,#bc-tbl td.c-job{text-align:left;white-space:normal;min-width:220px;}
 
@@ -3317,6 +3322,9 @@ function bcFilterOnCount(){const v=id=>{const e=document.getElementById(id);retu
   return ['bc-year','bc-type','bc-lead'].filter(id=>{const x=v(id);return x&&x!=='all';}).length+(v('bc-search').trim()?1:0);}
 function bcFilterSync(){const n=bcFilterOnCount(),b=document.getElementById('bc-filter-btn'),p=document.getElementById('bc-filter-panel');
   if(b){const t=b.querySelector('span');if(t)t.textContent='Filter'+(n?' · '+n:'');b.classList.toggle('on',n>0);}if(p)p.classList.toggle('has-on',n>0);}
+var _bcMonthsShown=2,_bcMonthsSig=null;
+function bcMoreBtn(next){return '<button type="button" class="bc-more-btn" onclick="bcMoreMonths()">See previous month <span>'+esc(next)+'</span></button>';}
+function bcMoreMonths(){_bcMonthsShown++;renderBC();}
 function bcFilterClear(){['bc-year','bc-type','bc-lead'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='all';});
   const q=document.getElementById('bc-search');if(q)q.value='';renderBC();}
 function toggleBcColsPanel(){const p=document.getElementById('bc-cols-panel');if(!p)return;const show=p.style.display==='none';p.style.display=show?'':'none';if(show)renderBcColsPanel();}
@@ -3935,8 +3943,13 @@ function renderBC(){
   // Grouped by month, newest first (2026-10-24, the owner: "make each job two lines (in the mobile version) ...
   // then at the bottom of the month show the combined total before starting the next month"). The 400 cap is on
   // the rows shown; a month's total is always worked over ALL of its rows, the way the foot's TOTAL is.
-  const shown=rows.slice(0,400),groups=[],byM={};
-  shown.forEach(r=>{const m=r.month||'—';if(!byM[m]){byM[m]=[];groups.push(m);}byM[m].push(r);});
+  const shown=rows.slice(0,400),allGroups=[],byM={};
+  shown.forEach(r=>{const m=r.month||'—';if(!byM[m]){byM[m]=[];allGroups.push(m);}byM[m].push(r);});
+  // Two months open, the rest folded behind "See previous month" under the last one shown (2026-10-25, the owner:
+  // "show two months then collapse the rest ... a button called 'see previous month' always shows under the last
+  // month"). Each press opens one more; a change of filter starts again at two.
+  const _sig=[yr,ty,ld,q].join('|');if(_sig!==_bcMonthsSig){_bcMonthsSig=_sig;_bcMonthsShown=2;}
+  const groups=allGroups.slice(0,_bcMonthsShown),moreM=allGroups[groups.length]||'';
   const allByM={};rows.forEach(r=>{const m=r.month||'—';(allByM[m]=allByM[m]||[]).push(r);});
   const tRow=r=>{
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced),rh=bcRateHrs(r);
@@ -3950,7 +3963,8 @@ function renderBC(){
   document.getElementById('bc-body').innerHTML=rows.length?groups.map(m=>{const t=_bcTot(allByM[m],ovRate);
     return '<tr class="bc-mhead"><td colspan="12">'+esc(mLbl(m))+' <span>'+t.n+' job'+(t.n===1?'':'s')+'</span></td></tr>'+
       byM[m].map(tRow).join('')+
-      '<tr class="tot bc-msub">'+totCells(t,esc(mLbl(m).split(' ')[0])+' total ('+t.n+')')+'</tr>';}).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
+      '<tr class="tot bc-msub">'+totCells(t,esc(mLbl(m).split(' ')[0])+' total ('+t.n+')')+'</tr>';}).join('')+
+    (moreM?'<tr class="bc-more-row"><td colspan="12">'+bcMoreBtn(mLbl(moreM))+'</td></tr>':''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
   // the phone's list: line 1 the job number and a short address, line 2 the figures; a tap opens the rest
   const lst=document.getElementById('bc-list');
   if(lst){
@@ -3973,6 +3987,7 @@ function renderBC(){
     const sub=(t,lbl,cls)=>'<div class="bcm-sub'+(cls?' '+cls:'')+'"><div class="bcm-l1"><b>'+lbl+'</b><span class="bcm-addr">'+t.n+' job'+(t.n===1?'':'s')+'</span></div><div class="bcm-l2">'+figs(t)+'</div></div>';
     lst.innerHTML=rows.length?groups.map(m=>{const t=_bcTot(allByM[m],ovRate);
       return '<div class="bcm-month"><div class="bcm-mhead">'+esc(mLbl(m))+'<span>'+t.n+' job'+(t.n===1?'':'s')+'</span></div><div class="bcm-jobs">'+byM[m].map(job).join('')+'</div>'+sub(t,esc(mLbl(m).split(' ')[0])+' total')+'</div>';}).join('')+
+      (moreM?bcMoreBtn(mLbl(moreM)):'')+
       sub(_bcTot(rows,ovRate),'Total','bcm-grand'):'<div class="empty">No jobs match.</div>';
     _bcFitMonth();
   }
