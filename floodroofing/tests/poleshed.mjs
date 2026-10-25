@@ -1937,6 +1937,13 @@ const ch = await pg.evaluate(() => {
   S.quote.psOptions = 'Zincalume saves $1,850 on the roof and $400 on the walls.\nExtra concrete at $100 + GST per m\u00b2.';
   out.optOwn = _psGet('psOptions');
   delete S.quote.psOptions;
+  // Every layout reads it: the computer preview, the phone book's own page, and the customer.
+  const _zin = () => /Zincalume to save \$2,000 \+ GST/.test(document.getElementById('qpRoot').textContent.replace(/\s+/g, ' '));
+  _setQuotePreviewMode('desk'); refreshQuoteProposal(); out.optDesk = _zin();
+  _setQuotePreviewMode('phone'); QB.i = _qbPages().findIndex(p => p.key === 'psincluded'); refreshQuoteProposal();
+  out.optPhone = QB.i >= 0 && _zin();
+  window.__CUSTOMER_MODE = true; refreshQuoteProposal(); out.optCust = _zin(); window.__CUSTOMER_MODE = false;
+  QB.i = 0; _setQuotePreviewMode('desk'); refreshQuoteProposal();
   // Stop offering it while it is the pick: back to the standard.
   _psChoiceOpen('psgrade');
   document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="zincalume"] .ps-ch-on').checked = false;
@@ -1969,6 +1976,8 @@ const ch = await pg.evaluate(() => {
 });
 check('THE ASK: the "Available as options" Zincalume line follows the edited price, modern and classic',
   ch.optModern && ch.optClassic, ch.optTxt);
+check('…on the computer preview, the phone book\'s page and the customer\'s own view alike',
+  ch.optDesk && ch.optPhone && ch.optCust, JSON.stringify({ desk: ch.optDesk, phone: ch.optPhone, cust: ch.optCust }));
 check('…the 0.55 gauge line follows its price too', /add \$999 \+ GST/.test(ch.opt055), ch.opt055);
 check('…back to the standard price, the line reads $1,850 again', ch.optReset);
 check('…and a line the office wrote with two figures in it is left as written',
