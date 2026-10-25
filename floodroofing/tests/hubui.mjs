@@ -266,6 +266,19 @@ check('…one card a month from Jul 2024 to this month', crew.n === crew.want &&
 check('…Sep 2024 reads 4 on the tools from the pay runs, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.8 full-time/.test(crew.sep), crew.sep);
 check('…every month from Aug 2024 to now has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
 check('…and Rev / person beside it', crew.sepRev === 'Rev / person');
+const crews = await pg.evaluate(() => { const txt = m => { const c = document.querySelector('#pl-crew .mcard[data-m="' + m + '"] .crew-c'); return c ? c.innerText.replace(/\s+/g, ' ').trim() : ''; };
+  const card = document.querySelector('#pl-crew .mcard[data-m="Sep-2026"]'), rows = [...card.querySelectorAll('.ml .k')].map(e => e.textContent);
+  const f = xeroFig('Sep-2026');
+  const out = { sep24: txt('Sep-2024'), jan26: txt('Jan-2026'), jul26: txt('Jul-2026'), sep26: txt('Sep-2026'), mar25: txt('Mar-2025'), jul24: txt('Jul-2024'),
+    rows, perCrew: f && f.rev > 0 ? card.innerText.indexOf(fmtK(f.rev / 3)) >= 0 : null,
+    names: /Ethan|Luke|Jacob|Justin/.test(document.getElementById('pl-crew').innerText) };
+  window.prompt = () => '4'; crewTeamsEdit(null, 'Sep-2026'); out.typed = crewTeamsFor('Sep-2026').c; out.keptN = crewFor('Sep-2026').n;
+  window.prompt = () => ''; crewTeamsEdit(null, 'Sep-2026'); out.back = crewTeamsFor('Sep-2026').src + ':' + crewTeamsFor('Sep-2026').c;
+  return out; });
+check('every month carries its crews (team leaders on the tools): 1 to Dec 2025, 2 from Jan 2026, 3 from May 2026', /^1 crew\b/.test(crews.sep24) && /^2 crews/.test(crews.jan26) && /^3 crews/.test(crews.sep26) && /^3 crews/.test(crews.jul26) && /3\.3 a crew/.test(crews.sep26), JSON.stringify(crews));
+check('…a month with nobody leading still reads one crew and says why, and no names reach the page', /^1 crew/.test(crews.mar25) && /no team leader/.test(crews.mar25) && !crews.names && crews.jul24 === '', JSON.stringify(crews));
+check('…with Rev / crew and NP / crew beside the per-person figures', crews.rows.includes('Rev / crew') && crews.rows.includes('NP / crew') && crews.perCrew !== false, JSON.stringify(crews));
+check('…and the crews can be typed over without touching the head count, blank puts the payroll figure back', crews.typed === 4 && crews.keptN === 10 && crews.back === 'payroll:3', JSON.stringify(crews));
 check('…Jul 2024, before the first pay run, asks for the crew', /tap to add crew/.test(crew.jul), crew.jul);
 check('…it swipes sideways and opens on the newest month', crew.scrolls && crew.lastSeen, JSON.stringify(crew));
 const typed = await pg.evaluate(() => {

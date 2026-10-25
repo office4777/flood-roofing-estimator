@@ -79,7 +79,11 @@ accordingly.
   run first, UNDATED — each run dated by lining its hours up with the timesheet export, exact on Sep 2024 – Mar 2025): every
   week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, office staff left
   out (the owner, Paula, Hannah, Chris Mitchell, Matthew Anderson-Smith — "never on the tools"; Ethan from 27 Jul 2026, into project management); counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
-  `fr3_crewMonthly`, which wins; blank = back to the payroll figure). `tests/hubui.mjs` (79, UI list) drives both
+  `fr3_crewMonthly`, which wins; blank = back to the payroll figure). Under it, CREWS (2026-10-25, `CREW_TEAMS`, `crewTeamsFor`, `crewTeamsEdit`): the
+  team leaders on the tools that month by the same rule — the owner's four leaders, the first crew handed from one to
+  the next in the week of 27 Jul 2026 so it counts once; 1 crew to Dec 2025, 2 from Jan 2026, 3 from May 2026; Mar–Apr
+  2025 had no leader paid and still reads 1, saying so — with people a crew and Rev / NP per crew; typed crews ride
+  in the same `fr3_crewMonthly` entry as `c` and never touch the head count. `tests/hubui.mjs` (83, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
