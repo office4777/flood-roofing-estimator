@@ -4353,7 +4353,26 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 /* A shed RENDER is a picture of the whole building, so it wants the shape a
    render is drawn at — .qd-hero's 21:8 letterbox (right for an aerial roof
    shot) crops the walls off it. Written to out-specify that rule. */
-.qd-hero.ps-hero, .qb-hero.ps-hero{ aspect-ratio:16/9; max-height:360px; min-height:200px; }
+.qd-hero.ps-hero, .qb-hero.ps-hero{ aspect-ratio:16/9; max-height:440px; min-height:200px; }
+/* THE COVER RUNS THE FULL WIDTH OF ITS SECTION (2026-10-25, the owner: "the
+   info and Cover photo don't stretch the full width"). A box with an
+   aspect-ratio, a max-height and NO width of its own has that max-height
+   carried across the ratio into its width — so on a wide screen the 16:9
+   render frame stopped at 440 x 16/9 and left a white strip down its right
+   (measured: a 640px photo in an 890px section). A width of its own keeps the
+   ratio deciding the HEIGHT only; the picture fills the frame (object-fit) and
+   the office's drag and zoom still choose which part shows. */
+.qd-hero, .qb-hero.ps-hero{ width:100%; }
+/* …and the words under it are one column, full width. The roofing cover's
+   two columns put one short line beside a 300px box of facts; a shed's cover
+   carries the size chips and a whole opening letter, which in that column
+   wrapped to three words a line. The facts take the width as a grid of their
+   own below the letter. */
+.qd-cover-body.ps-cover-body{ grid-template-columns:minmax(0,1fr); gap:18px; }
+.ps-cover-body .qb-meta{ grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); column-gap:26px; border-top:none; }
+.ps-cover-body .qb-meta > div:first-child, .ps-cover-body .qb-meta > div{ border-top:1px solid #e6ebf1; border-bottom:none; }
+.ps-cover-body .qb-meta{ border-bottom:1px solid #e6ebf1; }
+.ps-cover-body .ps-intro{ white-space:pre-line; }
 .ps-hero .qb-hero-veil{ background:linear-gradient(180deg,rgba(10,22,40,.04) 0%,rgba(10,22,40,.20) 42%,rgba(10,22,40,.72) 100%); }
 /* With the veil that light, white type can land on a pale render — a shadow
    carries it either way without darkening the shed. */
@@ -4386,6 +4405,7 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .ps-ao-hit:disabled{ cursor:default; }
 .ps-ao-tools{ flex:0 0 auto; display:flex; gap:5px; align-items:center; margin-left:10px; }
 .ps-ao-tool{ width:28px; height:28px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; color:#5b6b7d; cursor:pointer; font:600 12px/1 inherit; font-family:inherit; }
+.ps-ao-tool.ps-ao-tool-ed{ width:auto; padding:0 10px; }
 .ps-ao-tool-del{ color:#b91c1c; }
 .qb-tick.sq{ border-radius:6px; }
 .ps-office{ margin:12px 0 0; padding:11px 12px; border:1px dashed #c9d3de; border-radius:11px; background:#fbfcfd; }
@@ -5095,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-25T04:58:17Z';
+  window.APP_BUILT_AT = '2026-10-25T06:28:38Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -31750,7 +31770,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -33235,7 +33255,7 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 // applies, and the page numbers close up behind it.
 function _qbPages(){
   // The phone book turns the same shed sections as the computer layout.
-  if (S.quote && S.quote.quoteKind === 'poleshed') return _psModernSections();
+  if (S.quote && S.quote.quoteKind === 'poleshed') return _qModernApply(_psModernSections());
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
     { key:'cover',     label:'Your quote',    html:_qbCover }
@@ -34200,6 +34220,10 @@ function _qdescSave(){
 function _qeCommitInline(el, field){
   if (!el || !window.S || !S.quote) return;
   var v = String(el.innerText == null ? '' : el.innerText).replace(/\s+/g, ' ').trim();
+  // Clicked in and out without a change: nothing to save. The heading shows a
+  // made-up title ("Smith Pole Shed") when none was typed, and writing that
+  // back would turn a fallback into a field somebody chose.
+  if (el._qeWas != null && v === String(el._qeWas).replace(/\s+/g, ' ').trim()) return;
   var was = String(S.quote[field] == null ? '' : S.quote[field]);
   if (v === was){
     // Nothing typed. If they emptied it and put it back, or left the
@@ -34215,7 +34239,7 @@ function _qeCommitInline(el, field){
   } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
-  try { _siteToast(field === 'coverTitle' ? 'Cover title saved' : 'Roof condition saved'); } catch(e){}
+  try { _siteToast((field === 'coverTitle' || field === 'psSubtitle') ? 'Cover title saved' : 'Roof condition saved'); } catch(e){}
 }
 // One section's paragraph, written back. An emptied one deletes the key, so
 // the built-in comes back; typing the built-in word for word does the same,
@@ -34279,7 +34303,10 @@ function _qeBindModernEdits(){
       bind(el, 'This section\u2019s description', { sec: el.getAttribute('data-qe-sec') });
     });
   } catch(e){}
-  bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', 'coverTitle');
+  // A shed's heading is its own field (psSubtitle — _psmCover reads it), so
+  // binding it to the roofing coverTitle saved what was typed somewhere the
+  // shed's cover never looks.
+  bind(root.querySelector('.qb-hero-txt h1'), 'Cover title', _psIsShed() ? 'psSubtitle' : 'coverTitle');
   var cond = root.querySelector('#qd-condition .qb-para') || (root.querySelector('#qbPage[data-qb-page="condition"] .qb-para'));
   bind(cond, 'Existing roof condition — the summary the customer reads', 'conditionSummary');
   var incl = root.querySelector('.qb-incl');
@@ -35282,7 +35309,8 @@ function _qcoShell(inner){
 function _qcoInsertMenu(){
   if (!S.quote || _qcoBusy()) return;
   var saved = _qcoSaved();
-  var hidden = ((_selectables() || {}).extras || []).filter(function(g){ return g && !g.removed && _selQuoteHidden('extras', g.id); });
+  // A Settings option is a re-roof product and is never offered on a shed.
+  var hidden = _psIsShed() ? [] : ((_selectables() || {}).extras || []).filter(function(g){ return g && !g.removed && _selQuoteHidden('extras', g.id); });
   var rows = saved.map(function(o, i){
     return '<button type="button" onclick="_qcoInsertSaved('+i+')"><b>'+esc2(o.title || 'Option')+'</b><small>'+
       esc2((o.rows || []).map(function(r){ return r.name + (parseFloat(r.price) ? ' +' + fmtMoney(parseFloat(r.price)) : ''); }).join(' \u00b7 '))+'</small></button>';
@@ -35439,6 +35467,19 @@ function _qbSectionRemove(key){
   if (key === 'condition') return _qbCondRemovePage();
   if (!Array.isArray(S.quote.modernParked)) S.quote.modernParked = [];
   if (S.quote.modernParked.indexOf(key) < 0) S.quote.modernParked.push(key);
+  // A SHED'S section goes back to its standard choice as it goes, the
+  // roofing rule: nothing the customer can no longer see stays in the price.
+  // The gutter is IN a shed's price, so its standard is having it.
+  try {
+    if (_psIsShed()){
+      var _q = S.quote;
+      if (key === 'psgrade') _q.psSelGrade = 'colorsteel';
+      if (key === 'psprofile'){ var _bp = _psBaseProfile(); if (_bp){ _q.psSelProfile = _bp; var _lk = _psProfileLock(_bp); if (_lk) _q.psSelThickness = _lk; } }
+      if (key === 'psthickness' && !_psProfileLock(_psProfileDefault())) _q.psSelThickness = '0.40';
+      if (key === 'psgutter') delete _q.psSelGutter;
+      if (key === 'psroller') _q.psSelRoller = 'colorsteel';
+    }
+  } catch(e){}
   // No guttering page, no gutter in the price: a gutter the customer can no
   // longer see must not stay in their total.
   if (key === 'gutter'){ try { var _po = S.quote.proposalOptions || {}; if (_po.gutterType && _po.gutterType !== 'none') _setProposalOption_gutter('none'); } catch(e){} }
@@ -35612,25 +35653,35 @@ function _psPicksAuto(){
     if (plans.length > 1) out.push(['Plan option', _psPlanLabel(_psPlanIdx()), 'psplan']);
   } catch(e){}
   var grade = q.psSelGrade || 'colorsteel';
-  out.push(['Steel grade', (grade === 'zincalume') ? 'Plain silver Zincalume\u00ae' : 'Colorsteel\u00ae', 'psgrade']);
+  var _gone = function(k){ return _psParked(k); };
+  if (!_gone('psgrade')) out.push(['Steel grade', _psChoiceLabel('psgrade', grade), 'psgrade']);
   try {
-    if (_psProfiles().length > 1){
+    if (_psProfiles().length > 1 && !_gone('psprofile')){
       var _p = _selProfileOf(_psProfileDefault());
       if (_p) out.push(['Roof profile', _p.name || _p.id, 'psprofile']);
     }
   } catch(e){}
-  out.push(['Steel thickness', ((q.psSelThickness || '0.40') === '0.55') ? '0.55 gauge' : '0.40 gauge', 'psthickness']);
-  out.push(['Guttering', (_psGutterPicked() === 'none') ? 'No guttering' : (PS_GUTTER_LABEL + ' \u2014 downpipes included'), 'psgutter']);
+  if (!_gone('psthickness')) out.push(['Steel thickness', _psChoiceLabel('psthickness', q.psSelThickness || '0.40'), 'psthickness']);
+  if (!_gone('psgutter')) out.push(['Guttering', (_psGutterPicked() === 'none') ? _psChoiceLabel('psgutter', 'none')
+    : (_psChoiceRow('psgutter', PS_GUTTER_ID) || {}).label ? _psChoiceLabel('psgutter', PS_GUTTER_ID)
+    : (PS_GUTTER_LABEL + ' \u2014 downpipes included'), 'psgutter']);
   // Zincalume is unpainted, so it has no colour to list rather than a blank.
-  if (grade === 'zincalume') out.push(['Roof & wall colour', 'Plain silver \u2014 unpainted', 'pscolour']);
+  if (_gone('pscolour')) {}
+  else if (grade === 'zincalume') out.push(['Roof & wall colour', 'Plain silver \u2014 unpainted', 'pscolour']);
   else if (q.psSelColour) out.push(['Roof & wall colour', q.psSelColour, 'pscolour']);
-  out.push(['Roller door finish', ((q.psSelRoller || 'colorsteel') === 'zincalume')
-    ? 'Plain Zincalume\u00ae' : 'Colorsteel\u00ae \u2014 matches the shed', 'psroller']);
+  if (!_gone('psroller')) out.push(['Roller door finish', _psChoiceLabel('psroller', q.psSelRoller || 'colorsteel'), 'psroller']);
   // Only the add-ons they took: an add-on they left off is not a choice worth
   // printing, the way a quote with no gutter has no gutter line.
   try {
-    _psAddons().forEach(function(a){
+    if (!_gone('psaddons')) _psAddons().forEach(function(a){
       if (a && a.on) out.push([a.label, 'Included', 'ps:' + a.id]);
+    });
+  } catch(e){}
+  try {
+    _selExtras().forEach(function(g, gi){
+      if (!_psOwnExtra(g) || _gone('extra' + gi)) return;
+      var row = _selExtraPick(g);
+      if (row) out.push([g.title || 'Option', row.name || row.id, 'x:' + g.id]);
     });
   } catch(e){}
   return out.filter(function(r){ return r[1]; });
@@ -35716,7 +35767,9 @@ function _fergusJobSummary(){
 // _qModernApply); cover, proposal and the total are fixed. The roof
 // condition rides on the A4's page list (_qpInDoc) so the Quote tab's tick,
 // the sections card and the editor all agree.
-var QD_LABELS = { cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total' };
+var QD_LABELS = { psplans:'Plans & elevations', psdetails:'Your shed', psplan:'Plan option', psgrade:'Steel grade', psprofile:'Profile',
+  psthickness:'Thickness', pscolour:'Colour', psgutter:'Guttering', psroller:'Roller door', psaddons:'Add-ons', psincluded:"What's included",
+  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total' };
 function _qModernLabel(key){ return QD_LABELS[key] || (/^extra\d+$/.test(key) ? 'Options' : key); }
 function _qModernFixed(key, lastKey){ return key === 'cover' || key === 'proposal' || key === lastKey; }
 function _qModernApply(list){
@@ -35802,7 +35855,9 @@ function _qcoWithInsert(list){
   if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || !S.quote) return list;
   var out = list.slice();
   var at = -1;
-  ['colour'].forEach(function(k){ if (at < 0) out.forEach(function(x, i){ if (at < 0 && x.key === k) at = i; }); });
+  // On a shed, above the add-ons (else What's included) — the shed has no
+  // roof colour page to stand above, and its colour section is not the place.
+  (_psIsShed() ? ['psaddons', 'psincluded'] : ['colour']).forEach(function(k){ if (at < 0) out.forEach(function(x, i){ if (at < 0 && x.key === k) at = i; }); });
   if (at < 0) out.forEach(function(x, i){ if (at < 0 && /^extra\d+$/.test(x.key)) at = i; });
   if (at < 0) out.forEach(function(x, i){ if (at < 0 && (x.key === 'review' || x.key === 'summary')) at = i; });
   if (at < 0) at = out.length;
@@ -40458,34 +40513,54 @@ function _psAddonToggle(id){
   });
   _psAddonsWrite(list);
 }
-function _psAddonAsk(cur){
-  var name = prompt('What is this add-on called?', (cur && cur.label) || '');
-  if (name == null) return null;                      // Cancel keeps things as they are
-  name = String(name).trim();
-  if (!name) return null;                             // so does an empty box
-  var raw = prompt('What does \u201c' + name + '\u201d add to the price? (ex GST)',
-                   String((cur && cur.price) || ''));
-  if (raw == null) return null;
-  var price = parseFloat(String(raw).replace(/[^0-9.\-]/g, ''));
-  if (!isFinite(price)) price = 0;
-  return { label: name, price: price };
-}
+// THE ADD-ON EDITOR IS A WINDOW (2026-10-25, the owner: "being able to edit
+// the name and price of the add-on"). It was two browser prompts one after the
+// other — the name, then the price — with no description at all, which is
+// easy to miss and impossible to correct half-way. One window now, the
+// custom options' own (`_qcoShell`): the name, the words under it, the price.
 function _psAddonEdit(id){
   if (!_psAddonEditable()) return;
-  var list = _psAddons(), cur = list.filter(function(a){ return a.id === id; })[0];
-  if (!cur) return;
-  var got = _psAddonAsk(cur); if (!got) return;
-  _psAddonsWrite(list.map(function(a){
-    // The office's own wording wins on BOTH surfaces once they have typed it \u2014
-    // a built-in that has been renamed is no longer the built-in.
-    return (a.id === id) ? Object.assign({}, a, { label: got.label, summary: got.label, price: got.price }) : a;
-  }));
+  var cur = id ? _psAddons().filter(function(a){ return a.id === id; })[0] : null;
+  if (id && !cur) return;
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>'+(cur ? 'Edit this add-on' : 'Add an add-on')+'</b><span>For this quote. The customer ticks it on or off; its price is added to their total, excl. GST.'+
+      (cur ? '' : ' A new add-on starts off, so adding one never moves the price by itself.')+'</span></div>'+
+    '<div class="qco-bd">'+
+      '<label class="qco-l" for="psAoName">Name</label><input type="text" id="psAoName" maxlength="70" placeholder="e.g. Concrete floor" value="'+esc2(cur ? cur.label || '' : '')+'">'+
+      '<label class="qco-l" for="psAoDesc">Description <span style="text-transform:none;font-weight:400">(shown under it, optional)</span></label>'+
+      '<input type="text" id="psAoDesc" maxlength="240" value="'+esc2(cur ? (cur.desc != null ? cur.desc : ((cur.summary && cur.summary !== cur.label) ? cur.summary : '')) : '')+'">'+
+      '<label class="qco-l" for="psAoPrice">Price <span style="text-transform:none;font-weight:400">($ excl. GST)</span></label>'+
+      '<input type="text" id="psAoPrice" inputmode="decimal" value="'+esc2(cur ? String(+cur.price || 0) : '')+'" placeholder="0.00">'+
+      '<div class="qco-msg" id="psAoMsg"></div>'+
+    '</div>'+
+    '<div class="qco-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>'+
+      '<button type="button" class="qa-btn qa-btn-primary" id="psAoSave" onclick="_psAddonSave()">'+(cur ? 'Save' : 'Add to quote')+'</button></div>');
+  host._psAoId = cur ? cur.id : null;
+  setTimeout(function(){ try { document.getElementById('psAoName').focus(); } catch(e){} }, 30);
 }
-function _psAddonAdd(){
-  if (!_psAddonEditable()) return;
-  var got = _psAddonAsk(null); if (!got) return;
-  var id = 'ao' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-  _psAddonsWrite(_psAddons().concat([{ id:id, label:got.label, summary:got.label, price:got.price, on:false }]));
+function _psAddonAdd(){ _psAddonEdit(null); }
+function _psAddonSave(){
+  var host = document.getElementById('qcoModal'); if (!host || !_psAddonEditable()) return;
+  var msg = document.getElementById('psAoMsg');
+  var name = String(document.getElementById('psAoName').value || '').trim().slice(0, 70);
+  var desc = String(document.getElementById('psAoDesc').value || '').trim().slice(0, 240);
+  var price = parseFloat(String(document.getElementById('psAoPrice').value || '').replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(price)) price = 0;
+  price = Math.round(price * 100) / 100;
+  if (!name){ if (msg) msg.textContent = 'Give the add-on a name.'; return; }
+  var id = host._psAoId;
+  _qcoClose();
+  if (id){
+    _psAddonsWrite(_psAddons().map(function(a){
+      // The office's own wording wins on BOTH surfaces once they have typed it \u2014
+      // a built-in that has been renamed is no longer the built-in.
+      return (a.id === id) ? Object.assign({}, a, { label: name, summary: name, desc: desc, price: price }) : a;
+    }));
+  } else {
+    var nid = 'ao' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    _psAddonsWrite(_psAddons().concat([{ id:nid, label:name, summary:name, desc:desc, price:price, on:false }]));
+  }
+  try { _siteToast(id ? 'Add-on saved' : '\u201c' + name + '\u201d added \u2014 the customer can tick it on'); } catch(e){}
 }
 function _psAddonDelete(id){
   if (!_psAddonEditable()) return;
@@ -40496,28 +40571,48 @@ function _psAddonDelete(id){
 }
 function _poleShedSelItems(){
   if (!S.quote) return [];
-  var A = POLESHED_ADDONS, out = [];
-  if (S.quote.psSelGrade === 'zincalume') out.push({ label:'Plain silver Zincalume\u00ae', delta: -A.zincalumeSave });
-  if (S.quote.psSelThickness === '0.55')  out.push({ label:'0.55 gauge \u2014 heavier steel', delta: A.thick055 });
+  var q = S.quote, out = [];
+  // Each single-choice section through the one price helper, so the card, the
+  // summary and the total read the same figure; a section the office took
+  // out of a modern quote counts for nothing (_psParked). The summary keeps
+  // the wording every quote before 2026-10-25 printed unless the office has
+  // renamed the choice.
+  var one = function(sec, id, sumLabel){
+    // A gauge the PROFILE forces is still charged with its page taken out:
+    // the profile's card is what spent that money.
+    var forced = (sec === 'psthickness') && !!_psProfileLock(_psProfileDefault());
+    if (!id || (_psParked(sec) && !forced)) return;
+    var d = _psChoicePrice(sec, id);
+    if (Math.abs(d) <= 0.005) return;
+    var own = (_psChoiceRow(sec, id) || {}).label;
+    out.push({ label: String(own || '').trim() || sumLabel || _psChoiceLabel(sec, id), delta: d });
+  };
+  if (q.psSelGrade && q.psSelGrade !== 'colorsteel') one('psgrade', q.psSelGrade, q.psSelGrade === 'zincalume' ? 'Plain silver Zincalume\u00ae' : '');
+  if (q.psSelThickness && q.psSelThickness !== '0.40') one('psthickness', q.psSelThickness, q.psSelThickness === '0.55' ? '0.55 gauge \u2014 heavier steel' : '');
   // The profile, where the office has priced its profiles — nothing at all
   // where they have not, so no shed quoted before today moves.
   try {
-    var _pd = _psProfileDelta(_psProfileDefault());
+    var _pd = _psParked('psprofile') ? 0 : _psProfileDelta(_psProfileDefault());
     if (Math.abs(_pd) > 0.005){
       var _pn = ''; try { _pn = (_selProfileOf(_psProfileDefault()) || {}).name || ''; } catch(e){}
       out.push({ label: _pn || 'Roof profile', delta: _pd });
     }
   } catch(e){}
   // …and the gutter, which is IN the price, so only declining it is a row.
-  try {
-    if (_psGutterPicked() === 'none'){
-      var _gc = _psGutterAllowance();
-      if (_gc > 0.005) out.push({ label:'No guttering', delta: -_gc });
-    }
-  } catch(e){}
-  _psAddons().forEach(function(a){
+  try { if (_psGutterPicked() === 'none') one('psgutter', 'none', 'No guttering'); } catch(e){}
+  if (q.psSelRoller && q.psSelRoller !== 'colorsteel') one('psroller', q.psSelRoller, '');
+  if (!_psParked('psaddons')) _psAddons().forEach(function(a){
     if (a && a.on) out.push({ label: a.summary || a.label, delta: (+a.price || 0) });
   });
+  // The quote's own custom options (Insert custom option), last, the way the
+  // roofing summary lists them: additions to a finished shed.
+  try {
+    _selExtras().forEach(function(g, gi){
+      if (!_psOwnExtra(g) || _psParked('extra' + gi)) return;
+      var row = _selExtraPick(g), d = _selExtraDelta(g, row);
+      if (d) out.push({ label: (g.title || 'Option') + ' \u2014 ' + (row.name || row.id), delta: d });
+    });
+  } catch(e){}
   return out;
 }
 function _poleShedSelDelta(){
@@ -41042,10 +41137,10 @@ function _buildPoleShedSelections(){
   }
   var gradePanel = panel('Steel grade',
     opt(grade==='colorsteel','Colorsteel®','Prepainted, full colour range',"_setPsSel('psSelGrade','colorsteel')",0)+
-    opt(grade==='zincalume','Plain silver Zincalume®','Unpainted Al/Zn — lowest cost',"_setPsSel('psSelGrade','zincalume')",-A.zincalumeSave));
+    opt(grade==='zincalume','Plain silver Zincalume®','Unpainted Al/Zn — lowest cost',"_setPsSel('psSelGrade','zincalume')",_psChoicePrice('psgrade','zincalume')));
   var thickPanel = panel('Steel thickness',
     opt(thick==='0.40','0.40 gauge','Standard residential',"_setPsSel('psSelThickness','0.40')",0)+
-    opt(thick==='0.55','0.55 gauge','Heavier — better dent resistance',"_setPsSel('psSelThickness','0.55')",A.thick055));
+    opt(thick==='0.55','0.55 gauge','Heavier — better dent resistance',"_setPsSel('psSelThickness','0.55')",_psChoicePrice('psthickness','0.55')));
   var colourBody;
   if (grade === 'zincalume'){
     colourBody = '<div style="font-family:var(--ed-serif);font-style:italic;font-size:12.5px;color:var(--ed-ink)">Plain silver Zincalume — no colour required.</div>';
@@ -41736,6 +41831,11 @@ function _psmDelta(exGst){ return _qbIncl(parseFloat(exGst) || 0); }
 // One option section, through the roofing quote's own page builder.
 function _psmOptPage(o){
   o.secKey = o.key;            // the office can reword any section (2026-10-18)
+  // …edit its choices, and take it out of the quote (2026-10-25). The plan
+  // option is the one section that never goes: it is which shed this is.
+  if (PS_CHOICE_SEL[o.key]) o.tools = (o.tools || '') + _psmSecTools(o.key);
+  if (o.key !== 'psplan' && _psAddonEditable()) o.del = o.key;
+  if (PS_CHOICE_SEL[o.key]) o.title = _psChoiceTitle(o.key, o.title);
   return _qbOptionPage(o);
 }
 // Thin one-argument setters: _qbOptionPage calls o.set('<id>'), and the
@@ -41754,6 +41854,203 @@ function _setPsProfile(v){
   _setPsSel('psSelProfile', v);
 }
 function _setPsGutter(v){ _setPsSel('psSelGutter', v); }
+
+// ── THE SHED'S CHOICES ARE THE OFFICE'S TO WORD AND PRICE (2026-10-25, the
+// owner: "make the pole shed modern quote fully editable like the roofing
+// modern quote"). The grade, thickness, gutter and roller-door sections were
+// written in the code — their names, their words and their prices
+// (POLESHED_ADDONS) — so a supplier price that moved, or a choice the office
+// does not offer, meant a ship. `S.quote.psChoiceEdit[section]` =
+// `{title, rows:{<id>:{label, desc, price, off}}}` holds this quote's own
+// wording and prices; a blank field is the standard, and an edit nobody made
+// is not stored, so every shed quoted before this reads to the cent as it did.
+//
+// ONE PRICE HELPER, every reader through it: the option card, the summary
+// row, the total (_poleShedSelItems) and the classic A4 cards all ask
+// _psChoicePrice, so the price on a card and the price in the total cannot be
+// two different numbers. The FIRST choice of each section is what the shed is
+// priced at and is never charged — the custom options' rule.
+var PS_CHOICE_SEL = { psgrade:'psSelGrade', psthickness:'psSelThickness', psgutter:'psSelGutter', psroller:'psSelRoller' };
+// The built-in choices, in order, standard first. `price` is ex GST.
+function _psChoiceDefaults(sec){
+  var A = POLESHED_ADDONS;
+  if (sec === 'psgrade') return [
+    { id:'colorsteel', label:'Colorsteel\u00ae', price:0,
+      desc:'Prepainted steel in the full colour range \u2014 the finish most sheds are built in.' },
+    { id:'zincalume', label:'Plain silver Zincalume\u00ae', price:-A.zincalumeSave,
+      desc:'Unpainted aluminium/zinc \u2014 the workhorse finish, and the lowest cost.' } ];
+  if (sec === 'psthickness') return [
+    { id:'0.40', label:'0.40 gauge', price:0, desc:'The standard gauge for a shed of this size.' },
+    { id:'0.55', label:'0.55 gauge', price:A.thick055,
+      desc:'Heavier steel \u2014 noticeably better dent resistance, worth it on a shed that will be worked around.' } ];
+  if (sec === 'psgutter') return [
+    { id:PS_GUTTER_ID, label:PS_GUTTER_LABEL, price:0,
+      desc:'Continuous box gutter in the colour of the shed, with downpipes run to the ground \u2014 the downpipes come with it, they are not a separate decision.' },
+    { id:'none', label:'No guttering', price:-_psGutterAllowance(),
+      desc:'The shed is built without spouting or downpipes. Water comes straight off the roof edge.' } ];
+  if (sec === 'psroller') return [
+    { id:'colorsteel', label:'Colorsteel\u00ae \u2014 matches the shed', price:0,
+      desc:'The door is finished in the same colour as the walls, so it reads as part of the building.' },
+    { id:'zincalume', label:'Plain Zincalume\u00ae', price:0, desc:'Unpainted silver. Neither finish changes the price.' } ];
+  return [];
+}
+function _psChoiceEdit(sec){
+  var m = S.quote && S.quote.psChoiceEdit;
+  var e = (m && typeof m === 'object') ? m[sec] : null;
+  return (e && typeof e === 'object') ? e : null;
+}
+function _psChoiceRow(sec, id){
+  var e = _psChoiceEdit(sec);
+  return (e && e.rows && e.rows[id] && typeof e.rows[id] === 'object') ? e.rows[id] : null;
+}
+function _psChoiceStd(sec){ var d = _psChoiceDefaults(sec); return d.length ? d[0].id : ''; }
+// What a choice adds, ex GST. The standard choice is never charged.
+function _psChoicePrice(sec, id, def){
+  if (id === _psChoiceStd(sec)) return 0;
+  var r = _psChoiceRow(sec, id);
+  if (r && r.price !== '' && r.price != null && isFinite(+r.price)) return +r.price;
+  if (def != null) return def;
+  var d = _psChoiceDefaults(sec).filter(function(x){ return x.id === id; })[0];
+  return d ? d.price : 0;
+}
+function _psChoiceLabel(sec, id, def){
+  var r = _psChoiceRow(sec, id);
+  if (r && String(r.label || '').trim()) return String(r.label).trim();
+  if (def != null) return def;
+  var d = _psChoiceDefaults(sec).filter(function(x){ return x.id === id; })[0];
+  return d ? d.label : id;
+}
+function _psChoiceTitle(sec, def){
+  var e = _psChoiceEdit(sec);
+  return (e && String(e.title || '').trim()) ? String(e.title).trim() : def;
+}
+// The section's rows with this quote's own words, prices and hides. A hidden
+// choice that is somehow still the pick stays on screen — a customer is never
+// shown a section with nothing ticked.
+function _psChoiceItems(sec, cur, rec){
+  return _psChoiceDefaults(sec).map(function(d){
+    var r = _psChoiceRow(sec, d.id) || {};
+    return { id:d.id, label:_psChoiceLabel(sec, d.id), off:!!r.off,
+             desc: String(r.desc || '').trim() || d.desc,
+             delta:_psmDelta(_psChoicePrice(sec, d.id)), isDefault:(d.id === rec) };
+  }).filter(function(it){ return !it.off || it.id === cur; });
+}
+// "✎ Edit this section" on a shed's option section — office only, never on an
+// accepted quote (the add-ons' guard, which is the owner's rule).
+function _psmSecTools(sec){
+  if (!_psAddonEditable()) return '';
+  return '<div class="qco-tools no-print" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 8px">'+
+      '<button type="button" class="qe-inline ps-sec-edit" data-ps-sec-edit="'+esc2(sec)+'" onclick="event.stopPropagation();_psChoiceOpen(\''+esc2(sec)+'\')" title="The heading, and each choice\u2019s name, words and price \u2014 for this quote">\u270E Edit this section</button>'+
+    '</div>';
+}
+// "Delete this page from this quote" on a section that is not an option page.
+function _psmDelBtn(key){
+  if (!_psAddonEditable()) return '';
+  return '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\''+esc2(key)+'\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>';
+}
+function _psChoiceOpen(sec){
+  if (!S.quote || !_psAddonEditable()) return;
+  var defs = _psChoiceDefaults(sec); if (!defs.length) return;
+  var e = _psChoiceEdit(sec) || {};
+  var titles = { psgrade:'Steel grade', psthickness:'Steel thickness', psgutter:'Guttering', psroller:'Roller door finish' };
+  var rows = defs.map(function(d, i){
+    var r = _psChoiceRow(sec, d.id) || {};
+    // Filled with what the quote says NOW, so a word can be tweaked rather
+    // than retyped; only what differs from the standard is kept on save.
+    var pNow = Math.round(_psChoicePrice(sec, d.id) * 100) / 100;
+    return '<div class="qco-row ps-ch-row" data-ps-ch="'+esc2(d.id)+'">'+
+        '<input type="text" class="ps-ch-l" maxlength="70" value="'+esc2(_psChoiceLabel(sec, d.id))+'" placeholder="'+esc2(d.label)+'">'+
+        '<input type="text" class="ps-ch-d" maxlength="240" value="'+esc2(String(r.desc || '').trim() || d.desc)+'" placeholder="'+esc2(d.desc)+'">'+
+        (i ? '<input type="number" class="ps-ch-p" step="0.01" value="'+esc2(pNow.toFixed(2))+'" placeholder="'+esc2((Math.round(d.price * 100) / 100).toFixed(2))+'">'
+           : '<span style="font-size:11.5px;color:#5b6b80">Included</span>')+
+        (i ? '<label class="qco-rec"><input type="checkbox" class="ps-ch-on"'+(r.off ? '' : ' checked')+'> Offer</label>'
+           : '<span style="font-size:11.5px;color:#5b6b80">Always</span>')+
+        '<span></span>'+
+      '</div>';
+  }).join('');
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>Edit this section</b><span>For this quote only. Change any name, description or price; an emptied box goes back to the standard. The first choice is what the shed is priced at; each other choice adds or takes off its price, excl. GST \u2014 a minus is a saving.</span></div>'+
+    '<div class="qco-bd">'+
+      '<label class="qco-l" for="psChTitle">Heading</label><input type="text" id="psChTitle" maxlength="60" value="'+esc2(_psChoiceTitle(sec, titles[sec] || ''))+'" placeholder="'+esc2(titles[sec] || '')+'">'+
+      '<label class="qco-l">Choices</label>'+
+      '<div class="qco-row hd"><span>Choice</span><span>Description (shown under it)</span><span>Price</span><span>Show</span><span></span></div>'+
+      rows+
+      '<div class="qco-msg" id="psChMsg"></div>'+
+    '</div>'+
+    '<div class="qco-ft"><button type="button" class="qa-btn" onclick="_psChoiceReset(\''+esc2(sec)+'\')">Back to the standard</button><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>'+
+      '<button type="button" class="qa-btn qa-btn-primary" id="psChSave" onclick="_psChoiceApply(\''+esc2(sec)+'\')">Save</button></div>');
+  host._psSec = sec;
+}
+function _psChoiceWrite(sec, ed){
+  var q = S.quote; if (!q) return;
+  if (ed){
+    if (!q.psChoiceEdit || typeof q.psChoiceEdit !== 'object') q.psChoiceEdit = {};
+    q.psChoiceEdit[sec] = ed;
+  } else if (q.psChoiceEdit){
+    delete q.psChoiceEdit[sec];
+    if (!Object.keys(q.psChoiceEdit).length) delete q.psChoiceEdit;
+  }
+  // A choice the office stopped offering cannot stay the pick: it goes back to
+  // the standard one, so nothing the customer cannot see stays in the price.
+  var f = PS_CHOICE_SEL[sec];
+  if (f){
+    var cur = (sec === 'psgutter') ? _psGutterPicked() : q[f];
+    var r = cur ? _psChoiceRow(sec, cur) : null;
+    if (r && r.off){ if (sec === 'psgutter') delete q[f]; else q[f] = _psChoiceStd(sec); }
+  }
+  try { recalcQuoteTotals(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof renderProfitability === 'function') renderProfitability(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _psChoiceApply(sec){
+  var host = document.getElementById('qcoModal'); if (!host || !_psAddonEditable()) return;
+  var ed = { rows:{} }, any = false;
+  var titles = { psgrade:'Steel grade', psthickness:'Steel thickness', psgutter:'Guttering', psroller:'Roller door finish' };
+  var defs = {}; _psChoiceDefaults(sec).forEach(function(d){ defs[d.id] = d; });
+  var t = (document.getElementById('psChTitle').value || '').trim().slice(0, 60);
+  if (t && t !== titles[sec]){ ed.title = t; any = true; }
+  Array.prototype.forEach.call(host.querySelectorAll('.ps-ch-row'), function(row){
+    var id = row.getAttribute('data-ps-ch'), o = {}, d0 = defs[id] || {};
+    var l = (row.querySelector('.ps-ch-l').value || '').trim().slice(0, 70);
+    var d = (row.querySelector('.ps-ch-d').value || '').trim().slice(0, 240);
+    var pe = row.querySelector('.ps-ch-p'), on = row.querySelector('.ps-ch-on');
+    // Only what differs from the standard is kept, so a later change to the
+    // standard (a supplier price, a gutter re-measured) still reaches it.
+    if (l && l !== d0.label) o.label = l;
+    if (d && d !== d0.desc) o.desc = d;
+    if (pe && String(pe.value).trim() !== '' && isFinite(parseFloat(pe.value))){
+      var pv = Math.round(parseFloat(pe.value) * 100) / 100;
+      if (Math.abs(pv - (Math.round((+d0.price || 0) * 100) / 100)) > 0.005) o.price = pv;
+    }
+    if (on && !on.checked) o.off = true;
+    if (Object.keys(o).length){ ed.rows[id] = o; any = true; }
+  });
+  _qcoClose();
+  _psChoiceWrite(sec, any ? ed : null);
+  try { _siteToast('Section saved for this quote'); } catch(e){}
+}
+function _psChoiceReset(sec){
+  if (!_psAddonEditable()) return;
+  _qcoClose();
+  _psChoiceWrite(sec, null);
+  try { _siteToast('Section back to the standard wording and prices'); } catch(e){}
+}
+// The custom options on a shed are the quote's OWN (Insert custom option).
+// The company's Settings options are re-roof products — Paint Roof — and are
+// not offered on a shed.
+function _psOwnExtra(g){
+  if (!g) return false;
+  return _qCustomExtras().some(function(x){ return x && x.id === g.id; });
+}
+// A section the office took out of a modern quote is no price either — the
+// roofing rule — but never on an accepted quote, whose figures do not move.
+function _psParked(key){
+  var q = S.quote || {};
+  if (q.accepted) return false;
+  try { if (_quoteStyle() !== 'modern') return false; } catch(e){ return false; }
+  return Array.isArray(q.modernParked) && q.modernParked.indexOf(key) >= 0;
+}
 
 // ── THE SHED'S PROFILE AND ITS GUTTER (2026-10-21, the owner: "add the
 // profile selection and gutter selection for the pole shed like the roofing
@@ -41926,29 +42223,32 @@ function _psmCover(){
   ].filter(Boolean).map(function(t){ return '<span class="ps-chip">'+esc2(t)+'</span>'; }).join('');
   var link = String(_psGet('psDesignLink') || '').trim();
   var intro = String(_psGet('psIntro') || '').trim();
+  // THE OPENING LETTER IS EDITED WHERE IT IS READ (2026-10-25, the owner:
+  // "make sure every section description is editable"). The office used to get
+  // a second copy of it in an "Office only" box under the first, which is two
+  // places for one paragraph; the paragraph itself is the text box now, the
+  // way every section's description is. The cover heading is the h1 (bound to
+  // psSubtitle by _qeBindModernEdits), so only the 3D link keeps a box — it is
+  // an address, not something the customer reads.
+  var introHtml = off
+    ? '<div class="qb-para ps-intro qp-editable" contenteditable="true" data-qfield="psIntro" data-multiline="1" spellcheck="true" title="The opening words \u2014 click to edit, click away to save">'+esc2(intro)+'</div>'
+    : (intro ? '<p class="qb-para ps-intro">'+esc2(intro)+'</p>' : '');
   return hero +
-    '<div class="qb-body ps-body qd-cover-body">'+
-      '<div>'+
-        (chips ? '<div class="ps-chips">'+chips+'</div>' : '')+
-        (intro ? '<p class="qb-para">'+esc2(intro)+'</p>'
-               : '<div class="qb-cta-note">Your shed, your options and the price are all on this page. Choose as you go \u2014 the total updates with you \u2014 then review and accept at the bottom.</div>')+
-        (_psPlans().length > 1 ? _psPlanSwitchHtmlCust('cover') : '')+
-        (link
-          ? '<a class="qb-cta" href="'+esc2(link)+'" target="_blank" rel="noopener">See your shed in 3D'+
-              '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>'
-          : '')+
-        (off
-          ? '<div class="ps-office no-print">'+
-              '<span class="ps-office-hd">Office only \u00b7 opening words</span>'+
-              '<div class="qp-editable" contenteditable="true" data-qfield="psIntro" data-multiline="1" spellcheck="true">'+esc2(_psGet('psIntro'))+'</div>'+
-              '<span class="ps-office-hd" style="margin-top:9px">Office only \u00b7 cover heading</span>'+
-              '<div class="qp-editable" contenteditable="true" data-qfield="psSubtitle" spellcheck="false">'+esc2(_psGet('psSubtitle'))+'</div>'+
-              '<span class="ps-office-hd" style="margin-top:9px">Office only \u00b7 WebShed 3D link</span>'+
-              '<div class="qp-editable" contenteditable="true" data-qfield="psDesignLink" spellcheck="false">'+esc2(_psGet('psDesignLink'))+'</div>'+
-            '</div>'
-          : '')+
-      '</div>'+
+    '<div class="qb-body ps-body qd-cover-body ps-cover-body">'+
+      (chips ? '<div class="ps-chips">'+chips+'</div>' : '')+
+      (introHtml || '<div class="qb-cta-note">Your shed, your options and the price are all on this page. Choose as you go \u2014 the total updates with you \u2014 then review and accept at the bottom.</div>')+
+      (_psPlans().length > 1 ? _psPlanSwitchHtmlCust('cover') : '')+
+      (link
+        ? '<a class="qb-cta" href="'+esc2(link)+'" target="_blank" rel="noopener">See your shed in 3D'+
+            '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>'
+        : '')+
       _qbCoverMeta()+
+      (off
+        ? '<div class="ps-office no-print">'+
+            '<span class="ps-office-hd">Office only \u00b7 WebShed 3D link</span>'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="psDesignLink" spellcheck="false">'+esc2(_psGet('psDesignLink'))+'</div>'+
+          '</div>'
+        : '')+
     '</div>';
 }
 
@@ -41985,6 +42285,7 @@ function _psmPlans(){
   return _psmBody(
     '<span class="qb-eyebrow">Your design</span>'+
     '<h2 class="qb-h2">Plans &amp; elevations</h2>'+
+    _psmDelBtn('psplans')+
     _qSecPara('psplans', 'This is the shed as it is drawn \u2014 the floor plan and the elevations straight from the design. Everything on the pages that follow is built to these drawings.')+
     (off
       ? '<div class="no-print" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 14px">'+
@@ -42027,6 +42328,7 @@ function _psmDetails(){
   return _psmBody(
     '<span class="qb-eyebrow">The specification</span>'+
     '<h2 class="qb-h2">Your shed in detail</h2>'+
+    _psmDelBtn('psdetails')+
     _qSecPara('psdetails', 'Every measurement and material in the shed, as it has been priced. If anything here is not what you expected, say so before you accept and we will put it right.')+
     (off
       ? '<div class="ps-seg no-print">'+
@@ -42037,9 +42339,11 @@ function _psmDetails(){
         '</div>'
       : '')+
     '<div class="ps-consent">'+
-      '<p>'+(consented
-        ? 'This shed will require a building consent. If you would prefer to build without one, it must meet all of the exemption criteria below:'
-        : 'This shed may not require a building consent if it meets all of the exemption criteria below:')+'</p>'+
+      // The consent wording is a description like any other: the office
+      // rewords it where the customer reads it, one wording per answer.
+      (consented
+        ? _qSecPara('psconsented', 'This shed will require a building consent. If you would prefer to build without one, it must meet all of the exemption criteria below:')
+        : _qSecPara('psexempt', 'This shed may not require a building consent if it meets all of the exemption criteria below:'))+
       '<ul>'+items.map(function(t){ return '<li>'+esc2(t)+'</li>'; }).join('')+'</ul>'+
     '</div>'+
     (structure ? '<h3 class="qb-h3">Main structure</h3><div class="ps-spec">'+structure+'</div>' : '')+
@@ -42066,14 +42370,14 @@ function _psmGrade(){
   var A = POLESHED_ADDONS;
   var cur = (S.quote && S.quote.psSelGrade) || 'colorsteel';
   var rec = _psmRec('psSelGrade', 'colorsteel');
-  var items = [
-    { id:'colorsteel', label:'Colorsteel\u00ae', delta:0, isDefault:(rec === 'colorsteel'),
-      desc:'Prepainted steel in the full colour range \u2014 the finish most sheds are built in.',
-      warranty:'<b>Up to 30 years</b> perforation warranty, zone dependent.' },
-    { id:'zincalume', label:'Plain silver Zincalume\u00ae', delta:_psmDelta(-A.zincalumeSave), isDefault:(rec === 'zincalume'),
-      desc:'Unpainted aluminium/zinc \u2014 the workhorse finish, and the lowest cost.',
-      warranty:'<b>20 year</b> non-perforation warranty.' }
-  ];
+  var warr = { colorsteel:'<b>Up to 30 years</b> perforation warranty, zone dependent.',
+               zincalume:'<b>20 year</b> non-perforation warranty.' };
+  var items = _psChoiceItems('psgrade', cur, rec).map(function(it){
+    // The warranty is the steel's, not the office's wording — it goes with the
+    // built-in description and drops away once they have written their own.
+    if (!(_psChoiceRow('psgrade', it.id) || {}).desc) it.warranty = warr[it.id];
+    return it;
+  });
   return _psmOptPage({ key:'psgrade', eyebrow:'Choose your steel', title:'Steel grade',
     group:'psSelGrade', set:'_setPsGrade', current:cur, items:items,
     blurb:'The coating on the steel is what decides how long the shed lasts and how it looks. Both are sheds we are happy to put our name to \u2014 the difference is the finish.' });
@@ -42087,10 +42391,10 @@ function _psmProfile(){
   // SUMMARY still splits the two rows, and _poleShedSelItems counts the
   // gauge once, on the thickness row.
   var baseLk = _psProfileLock(_psBaseProfile());
+  var g55 = _psChoicePrice('psthickness', '0.55');
   var items = _psProfiles().map(function(pr){
     var lk = _psProfileLock(pr.id);
-    var gauge = ((lk === '0.55') ? POLESHED_ADDONS.thick055 : 0) -
-                ((baseLk === '0.55') ? POLESHED_ADDONS.thick055 : 0);
+    var gauge = ((lk === '0.55') ? g55 : 0) - ((baseLk === '0.55') ? g55 : 0);
     return { id:pr.id, label:pr.name || pr.id, isDefault:(pr.id === rec),
              delta:_psmDelta(_psProfileDelta(pr.id) + gauge),
              desc: pr.desc || _QB_PROFILE_COPY[pr.id] || '' };
@@ -42101,6 +42405,10 @@ function _psmProfile(){
   if (items.length < 2) return '';
   return _psmOptPage({ key:'psprofile', eyebrow:'The shape of the sheet', title:'Roof profile',
     group:'psSelProfile', set:'_setPsProfile', current:cur, items:items,
+    // The profiles are the company's own product list, so they are edited the
+    // way the roofing quote edits them: which ones this quote offers, and a
+    // profile of its own (_qselOpen).
+    edit: _psAddonEditable() ? 'profile' : '',
     figure:_qbProfileFigure(cur),
     blurb:'The profile is the shape rolled into the steel. It changes how the shed looks and how the sheet carries a span.' });
 }
@@ -42110,13 +42418,7 @@ function _psmProfile(){
 function _psmGutter(){
   var cur = _psGutterPicked();
   var rec = _psmRec('psSelGutter', PS_GUTTER_ID) === 'none' ? 'none' : PS_GUTTER_ID;
-  var credit = _psGutterAllowance();
-  var items = [
-    { id:PS_GUTTER_ID, label:PS_GUTTER_LABEL, delta:0, isDefault:(rec === PS_GUTTER_ID),
-      desc:'Continuous box gutter in the colour of the shed, with downpipes run to the ground — the downpipes come with it, they are not a separate decision.' },
-    { id:'none', label:'No guttering', delta:_psmDelta(-credit), isDefault:(rec === 'none'),
-      desc:'The shed is built without spouting or downpipes. Water comes straight off the roof edge.' }
-  ];
+  var items = _psChoiceItems('psgutter', cur, rec);
   var fig = ''; try { fig = _qbGutterFigure(PS_GUTTER_ID) || ''; } catch(e){}
   return _psmOptPage({ key:'psgutter', eyebrow:'Where the water goes', title:'Guttering',
     group:'psSelGutter', set:'_setPsGutter', current:cur, items:items, figure:fig,
@@ -42132,8 +42434,9 @@ function _psmThickness(){
     var _pn = ''; try { _pn = (_selProfileOf(_psProfileDefault()) || {}).name || 'that profile'; } catch(e){ _pn = 'that profile'; }
     return _psmBody(
       '<span class="qb-eyebrow">How heavy</span>'+
-      '<h2 class="qb-h2">Steel thickness</h2>'+
-      '<p class="qb-para">You have chosen '+esc2(_pn)+', which is rolled in '+esc2(_lk)+' gauge only. There is nothing to choose here, and it is counted in the price on the previous page.</p>'+
+      '<h2 class="qb-h2">'+esc2(_psChoiceTitle('psthickness', 'Steel thickness'))+'</h2>'+
+      _psmDelBtn('psthickness')+
+      _qSecPara('psthicklock', 'You have chosen '+_pn+', which is rolled in '+_lk+' gauge only. There is nothing to choose here, and it is counted in the price on the previous page.')+
       '<div class="qb-opts"><div class="qb-opt on qb-opt-static">'+
         '<span class="qb-tick"><svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
         '<span class="qb-opt-txt"><b>'+esc2(_lk)+' gauge <em class="qb-lock">Locked for '+esc2(_pn)+'</em></b>'+
@@ -42144,12 +42447,7 @@ function _psmThickness(){
   }
   var cur = (S.quote && S.quote.psSelThickness) || '0.40';
   var rec = _psmRec('psSelThickness', '0.40');
-  var items = [
-    { id:'0.40', label:'0.40 gauge', delta:0, isDefault:(rec === '0.40'),
-      desc:'The standard gauge for a shed of this size.' },
-    { id:'0.55', label:'0.55 gauge', delta:_psmDelta(A.thick055), isDefault:(rec === '0.55'),
-      desc:'Heavier steel \u2014 noticeably better dent resistance, worth it on a shed that will be worked around.' }
-  ];
+  var items = _psChoiceItems('psthickness', cur, rec);
   return _psmOptPage({ key:'psthickness', eyebrow:'How heavy', title:'Steel thickness',
     group:'psSelThickness', set:'_setPsThickness', current:cur, items:items,
     blurb:'Both gauges are well inside what the shed needs structurally. The heavier one is about how the sheets stand up to knocks over the years.' });
@@ -42169,6 +42467,7 @@ function _psmColour(){
   return _psmBody(
     '<span class="qb-eyebrow">The look of it</span>'+
     '<h2 class="qb-h2">Roof &amp; wall colour</h2>'+
+    _psmDelBtn('pscolour')+
     _qSecPara('pscolour', 'Every colour here is a standard stocked Colorsteel colour, so none of them changes your price. The final shade is confirmed off the colour chip card before anything is ordered.')+
     '<div class="qb-chosen">'+(cur
       ? 'Chosen: <b>'+esc2(cur)+'</b>'
@@ -42179,12 +42478,7 @@ function _psmColour(){
 function _psmRoller(){
   var cur = (S.quote && S.quote.psSelRoller) || 'colorsteel';
   var rec = _psmRec('psSelRoller', 'colorsteel');
-  var items = [
-    { id:'colorsteel', label:'Colorsteel\u00ae \u2014 matches the shed', delta:0, isDefault:(rec === 'colorsteel'),
-      desc:'The door is finished in the same colour as the walls, so it reads as part of the building.' },
-    { id:'zincalume', label:'Plain Zincalume\u00ae', delta:0, isDefault:(rec === 'zincalume'),
-      desc:'Unpainted silver. Neither finish changes the price.' }
-  ];
+  var items = _psChoiceItems('psroller', cur, rec);
   return _psmOptPage({ key:'psroller', eyebrow:'The doors', title:'Roller door finish',
     group:'psSelRoller', set:'_setPsRoller', current:cur, items:items,
     blurb:'Both finishes cost the same; it is purely how you want the shed to look.' });
@@ -42201,7 +42495,8 @@ function _psmAddons(){
         '<button type="button" class="ps-ao-hit"'+(_qbLocked() ? ' disabled' : ' onclick="_psAddonToggle(\''+esc2(a.id)+'\')"')+'>'+
           '<span class="qb-tick sq">'+tick+'</span>'+
           '<span class="qb-opt-txt"><b>'+esc2(a.label)+'</b>'+
-            (a.summary && a.summary !== a.label ? '<span class="qb-opt-desc">'+esc2(a.summary)+'</span>' : '')+
+            ((a.desc != null ? a.desc : (a.summary !== a.label ? a.summary : ''))
+              ? '<span class="qb-opt-desc">'+esc2(a.desc != null ? a.desc : a.summary)+'</span>' : '')+
           '</span>'+
           '<span class="qb-opt-price">'+(on
             ? '<span class="qb-up">+'+_qbMoney(_psmDelta(a.price))+'</span>'
@@ -42209,7 +42504,7 @@ function _psmAddons(){
         '</button>'+
         (edit
           ? '<span class="ps-ao-tools no-print">'+
-              '<button type="button" class="ps-ao-tool" title="Rename this add-on or change its price" onclick="_psAddonEdit(\''+esc2(a.id)+'\')">\u270e</button>'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-ed" title="Change this add-on\u2019s name, words or price" onclick="_psAddonEdit(\''+esc2(a.id)+'\')">\u270e Edit</button>'+
               '<button type="button" class="ps-ao-tool ps-ao-tool-del" title="Take this add-on off the quote" onclick="_psAddonDelete(\''+esc2(a.id)+'\')">\u2715</button>'+
             '</span>'
           : '')+
@@ -42218,7 +42513,9 @@ function _psmAddons(){
   return _psmBody(
     '<span class="qb-eyebrow">Anything else</span>'+
     '<h2 class="qb-h2">Add-ons</h2>'+
-    (edit ? '<button type="button" class="ps-ao-tool no-print" style="width:auto;padding:0 13px;height:32px;float:right;margin:-44px 0 0" onclick="_psAddonAdd()">+ Add an add-on</button>' : '')+
+    (edit ? '<div class="qco-tools no-print" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 8px">'+
+        '<button type="button" class="qe-inline ps-ao-add" onclick="_psAddonAdd()" title="Offer another add-on on this quote">+ Add an add-on</button>'+
+        _psmDelBtn('psaddons')+'</div>' : '')+
     _qSecPara('psaddons', 'Tick anything you would like added. Each one shows what it adds to the total, and the total on this page follows you as you choose.')+
     (rows ? '<div class="qb-opts">'+rows+'</div>'
           : '<p class="qb-para">'+(edit ? 'No add-ons on this quote \u2014 use + Add an add-on to offer one.' : 'No optional add-ons on this quote.')+'</p>')
@@ -42259,6 +42556,7 @@ function _psmIncluded(){
   return _psmBody(
     '<span class="qb-eyebrow">The fine print, in plain words</span>'+
     '<h2 class="qb-h2">What\u2019s included</h2>'+
+    _psmDelBtn('psincluded')+
     _qSecPara('psincluded', 'Everything below is part of the price on this quote. What is excluded is listed beside it, so there are no surprises on the day.')+
     (inc ? '<div class="qb-incl-hd">What\u2019s included</div>'+inc : '')+
     _psmOfficeBox('Inclusions', 'psInclusions')+
@@ -42292,7 +42590,7 @@ function _psmReview(){
     _qeInlineBtn('summary')+
     '<div class="qb-total qb-tot3">'+_qbTotalLines(sub, total)+'</div>'+
     '<div class="ps-dep"><span>'+M.depositPct+'% deposit on acceptance</span><b>'+_qbMoney(M.deposit)+'</b></div>'+
-    '<p class="qb-note">A '+M.depositPct+'% deposit invoice is issued on acceptance and is payable within 7 days \u2014 once it is paid your spot in the build queue is locked in. The balance is due within 7 days of completion.</p>'+
+    _qSecPara('psdeposit', 'A '+M.depositPct+'% deposit invoice is issued on acceptance and is payable within 7 days \u2014 once it is paid your spot in the build queue is locked in. The balance is due within 7 days of completion.')+
     (off
       ? '<div class="ps-office no-print">'+
           '<span class="ps-office-hd">Office only \u00b7 type a subtotal to override the Pricing drawer (excl. GST)</span>'+
@@ -42346,6 +42644,15 @@ function _psModernSections(){
     list.push({ key:'pscolour',  label:'Colour',      html:_psmColour });
   list.push({ key:'psgutter',    label:'Guttering',   html:_psmGutter });
   list.push({ key:'psroller',    label:'Roller door', html:_psmRoller });
+  // The quote's own custom options (2026-10-25, the owner: "being able to
+  // delete section and add a custom section"). Keyed extra<gi> by their place
+  // in _selExtras(), exactly as the roofing quote keys them, so the row
+  // setters _qbBindExtraSetters makes for that list line up with them.
+  try {
+    _selExtras().forEach(function(g, gi){
+      if (_psOwnExtra(g)) list.push({ key:'extra' + gi, label:g.title || 'Options', html:function(){ return _qbExtraGroup(g, gi); } });
+    });
+  } catch(e){}
   // And a customer is never shown an empty Add-ons band.
   try { if (_psAddons().length || _psAddonEditable()) list.push({ key:'psaddons', label:'Add-ons', html:_psmAddons }); } catch(e){}
   list.push({ key:'psincluded',  label:"What's included", html:_psmIncluded });

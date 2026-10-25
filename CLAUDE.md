@@ -2000,6 +2000,51 @@ Discipline (non-negotiable):
   (`psSubtotalManual`, the office's override of the Pricing drawer), MOVED onto
   page 5's subtotal row rather than going with the card; deleting it would have
   taken away a control nobody asked about.
+- THE MODERN SHED IS EDITABLE LIKE THE MODERN ROOFING QUOTE (2026-10-25, the
+  owner: "make the pole shed modern quote fully editable like the roofing
+  modern quote ... edit the profiles and gutter ... the name and price of the
+  ad-on ... delete section and add a custom section ... every section
+  description is editable. Also fix the first page, the info and Cover photo
+  don't stretch the full width"). `tests/poleshed.mjs` (251).
+  THE COVER: a box with an aspect-ratio, a max-height and no width of its own
+  has the max-height carried across the ratio into its WIDTH — a 640px render
+  in an 890px section. `.qd-hero` / `.qb-hero.ps-hero` carry `width:100%`; the
+  shed's cover body is ONE column (`.ps-cover-body`: chips, the opening letter,
+  the facts as a grid below). The opening letter is the text box itself
+  (`.ps-intro`, `data-qfield="psIntro"`) — no second copy in an office box —
+  and the hero's h1 binds to `psSubtitle` on a shed (it was bound to the
+  roofing `coverTitle`, which the shed's cover never reads). `_qeCommitInline`
+  writes nothing on a click in and out, so a fallback title never becomes a
+  saved one.
+  EDIT THIS SECTION on psgrade / psthickness / psgutter / psroller
+  (`_psChoiceOpen`, `S.quote.psChoiceEdit[sec] = {title, rows:{id:{label, desc,
+  price, off}}}`): the heading, each choice's name, words and price (ex GST)
+  and whether it is offered. The window opens on what the quote says now and
+  keeps only what differs from the standard (`_psChoiceDefaults`), so nothing
+  quoted before moves. ONE PRICE HELPER, `_psChoicePrice`, read by the cards,
+  `_poleShedSelItems` (the total), `_psPicksAuto` and the classic A4 cards; the
+  first choice is never charged. A choice taken off while it is the pick goes
+  back to the standard. The profile section uses the roofing quote's own
+  editor (`edit:'profile'` → `_qselOpen('profile')`). Office only, never on an
+  accepted quote (`_psAddonEditable`).
+  THE ADD-ON EDITOR IS A WINDOW (`_psAddonEdit(id|null)` → `_psAddonSave`;
+  name, `desc`, price) — the two prompts are gone, and the button reads Edit.
+  DELETE THIS PAGE on every shed section but the cover, the plan option and
+  the total (`_psmDelBtn`, `o.del` in `_psmOptPage`), through
+  `_qbSectionRemove`, which puts a shed pick back to its standard; a parked
+  section is no price (`_psParked`, modern only, never on an accepted quote) —
+  except a gauge the PROFILE forces. The phone book now takes the same
+  arrangement (`_qbPages` → `_qModernApply`). QD_LABELS name the shed keys.
+  CUSTOM SECTIONS: "+ Insert custom option" stands above the add-ons on a
+  shed; the quote's OWN custom options (`_psOwnExtra` — `customExtras` only, a
+  Settings option like Paint Roof is a re-roof product and is not offered) are
+  sections `extra<gi>` keyed as the roofing quote keys them, priced in
+  `_poleShedSelItems` and listed in the picks. Every section's paragraph is a
+  `_qSecPara`, including the locked thickness (`psthicklock`), the consent
+  wording (`psexempt` / `psconsented`) and the deposit note (`psdeposit`).
+  NOT CHANGED: the "Available as options" default wording still says
+  "save $1,850" — it is the office's text, not a price, and does not follow a
+  re-priced Zincalume.
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make

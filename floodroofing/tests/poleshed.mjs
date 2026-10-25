@@ -1101,11 +1101,11 @@ const aoEdit = await pg.evaluate(() => {
   out.afterToggle = { list: Array.isArray(S.quote.psAddons),
                       legacy: !!S.quote.psSelWallUnderlay,
                       sub: +_poleShedMoney().sub.toFixed(2) };
-  // Add one of the office's own.
-  const ask = window.prompt;
-  window.prompt = (q) => /price/i.test(q) ? '1,250.50' : 'Concrete floor';
-  _psAddonAdd();
-  window.prompt = ask;
+  // Add one of the office's own — through the add-on window (2026-10-25,
+  // which replaced the two prompts).
+  const fill = (n, d, pr) => { document.getElementById('psAoName').value = n;
+    document.getElementById('psAoDesc').value = d; document.getElementById('psAoPrice').value = pr; };
+  _psAddonAdd(); fill('Concrete floor', '100mm slab under the whole shed', '1,250.50'); _psAddonSave();
   out.added = { n: _psAddons().length,
                 last: _psAddons()[_psAddons().length - 1],
                 sub: +_poleShedMoney().sub.toFixed(2) };     // off by default
@@ -1113,18 +1113,21 @@ const aoEdit = await pg.evaluate(() => {
   _psAddonToggle(newId);
   out.onSub = +_poleShedMoney().sub.toFixed(2);
   out.onRow = _poleShedSelItems().map(r => r.label + '|' + r.delta);
-  // Re-price it.
-  const ask2 = window.prompt;
-  window.prompt = (q) => /price/i.test(q) ? '2000' : 'Concrete floor (150mm)';
+  // Re-price it. The window opens on what the add-on says now.
   _psAddonEdit(newId);
-  window.prompt = ask2;
+  out.prefill = { n: document.getElementById('psAoName').value, d: document.getElementById('psAoDesc').value,
+                  p: document.getElementById('psAoPrice').value };
+  fill('Concrete floor (150mm)', '150mm slab', '2000'); _psAddonSave();
   out.edited = { label: _psAddons().filter(a => a.id === newId)[0].label,
+                 desc: _psAddons().filter(a => a.id === newId)[0].desc,
                  sub: +_poleShedMoney().sub.toFixed(2) };
   // Cancel keeps it as it is.
-  const ask3 = window.prompt; window.prompt = () => null;
-  _psAddonEdit(newId);
-  window.prompt = ask3;
+  _psAddonEdit(newId); fill('Something else', '', '9'); _qcoClose();
   out.cancelled = _psAddons().filter(a => a.id === newId)[0].price;
+  // A name is required.
+  _psAddonEdit(newId); fill('', '', '5'); _psAddonSave();
+  out.noName = { open: !!document.getElementById('qcoModal'), msg: (document.getElementById('psAoMsg') || {}).textContent || '' };
+  _qcoClose();
   // Delete it.
   const cf = window.confirm; window.confirm = () => true;
   _psAddonDelete(newId);
@@ -1147,8 +1150,13 @@ check('\u2026starting OFF, so adding one never moves a price by itself',
 check('\u2026and ticking it charges for it', aoEdit.onSub === 56550.5, String(aoEdit.onSub));
 check('\u2026under the name the office typed',
   aoEdit.onRow.join(' ').indexOf('Concrete floor|1250.5') >= 0, JSON.stringify(aoEdit.onRow));
-check('the office can EDIT one', aoEdit.edited.label === 'Concrete floor (150mm)' &&
+check('the office can EDIT one — name, words and price, in one window',
+  aoEdit.edited.label === 'Concrete floor (150mm)' && aoEdit.edited.desc === '150mm slab' &&
   aoEdit.edited.sub === 57300, JSON.stringify(aoEdit.edited));
+check('…the window opening on what the add-on says now',
+  aoEdit.prefill.n === 'Concrete floor' && aoEdit.prefill.d === '100mm slab under the whole shed' && aoEdit.prefill.p === '1250.5',
+  JSON.stringify(aoEdit.prefill));
+check('…and an add-on with no name is not saved', aoEdit.noName.open && /name/i.test(aoEdit.noName.msg), JSON.stringify(aoEdit.noName));
 check('\u2026and Cancel keeps it exactly as it was', aoEdit.cancelled === 2000,
   String(aoEdit.cancelled));
 check('the office can DELETE one', aoEdit.deleted.n === 3);
@@ -1161,10 +1169,9 @@ const aoGuard = await pg.evaluate(() => {
   // writes the list.
   window.__CUSTOMER_MODE = true;
   const before = _psAddons().length;
-  const ask = window.prompt; window.prompt = () => 'Sneaky';
   _psAddonAdd(); _psAddonEdit('slidingDoor');
-  window.prompt = ask;
-  out.custWrote = _psAddons().length !== before ||
+  const opened = !!document.getElementById('qcoModal');
+  out.custWrote = opened || _psAddons().length !== before ||
                   _psAddons().filter(a => a.id === 'slidingDoor')[0].label === 'Sneaky';
   _psAddonToggle('doubleWindow');
   out.custPicked = !!_psAddons().filter(a => a.id === 'doubleWindow')[0].on;
@@ -1174,9 +1181,8 @@ const aoGuard = await pg.evaluate(() => {
   S.quote.share = { token:'t', status:'accepted' };
   S.quote.accepted = { name:'Phyllis', at:new Date().toISOString() };
   out.acceptedEditable = _psAddonEditable();
-  const ask2 = window.prompt; window.prompt = () => 'Changed';
   _psAddonEdit('slidingDoor');
-  window.prompt = ask2;
+  if (document.getElementById('psAoName')){ document.getElementById('psAoName').value = 'Changed'; _psAddonSave(); }
   out.acceptedLabel = _psAddons().filter(a => a.id === 'slidingDoor')[0].label;
   S.quote.share = null; S.quote.accepted = null;
   return out;
@@ -1827,6 +1833,225 @@ check('the customer reads the FROZEN figures — no price book, no estimator',
   pgut.frozenProfile === pgut.otherDelta && pgut.frozenAllow === pgut.allow,
   JSON.stringify({ p: pgut.frozenProfile, o: pgut.otherDelta, a: pgut.frozenAllow }));
 
+await ctx.close();
+
+// ── THE MODERN SHED IS EDITABLE LIKE THE MODERN ROOFING QUOTE (2026-10-25,
+// the owner: "make the pole shed modern quote fully editable like the roofing
+// modern quote ... edit the profiles and gutter ... edit the name and price of
+// the add-on ... delete section and add a custom section ... every section
+// description is editable. Also fix the first page, the info and Cover photo
+// don't stretch the full width").
+({ ctx, pg } = await open('Flood Roofing LTD'));
+await pg.setViewportSize({ width: 2400, height: 1000 });
+const ed = await pg.evaluate(() => {
+  const out = {};
+  S.quote = defaultQuote(); S.quote.quoteKind = 'poleshed'; S.quote.style = 'modern';
+  S.quote.gstRate = 15; S.quote.psSubtotal = 50000; S.quote.psSubtotalManual = true;
+  S.quote.client = 'Phyllis Smith'; S.quote.psWidth = '7.2m'; S.quote.psLength = '12.6m';
+  const c = document.createElement('canvas'); c.width = 1600; c.height = 900;
+  c.getContext('2d').fillRect(0, 0, 1600, 900);
+  _qpCondPhotoSet(PS_HERO_SLOT, { src: c.toDataURL('image/jpeg', 0.6) });
+  try { _closePricingPanel(); } catch(e){}
+  _setQuotePreviewMode('desk'); refreshQuoteProposal();
+  const w = s => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().width) : -1; };
+  out.cover = { sec: w('#qd-cover'), hero: w('#qd-cover .qb-hero'), body: w('#qd-cover .qd-cover-body'),
+                intro: w('#qd-cover .ps-intro'), meta: w('#qd-cover .qb-meta') };
+  const intro = document.querySelector('#qd-cover .ps-intro');
+  out.introEditable = !!intro && intro.getAttribute('contenteditable') === 'true' && intro.dataset.qfield === 'psIntro';
+  out.introDupBox = /opening words/i.test(document.getElementById('qd-cover').textContent);
+  // The heading writes the shed's own field, and a click in and out writes nothing.
+  const h1 = document.querySelector('#qd-cover .qb-hero-txt h1');
+  h1.dispatchEvent(new Event('focus')); h1.dispatchEvent(new Event('blur'));
+  out.untouched = S.quote.psSubtitle;
+  const h1b = document.querySelector('#qd-cover .qb-hero-txt h1');
+  h1b.dispatchEvent(new Event('focus')); h1b.innerText = 'Smith Hay Barn'; h1b.dispatchEvent(new Event('blur'));
+  out.heading = { ps: S.quote.psSubtitle, cover: S.quote.coverTitle || null,
+                  shown: document.querySelector('#qd-cover .qb-hero-txt h1').textContent };
+  // Every section but the cover and the custom options carries a description
+  // the office can click into.
+  const secs = Array.from(document.querySelectorAll('#qpRoot .qd-sec[data-qd-sec]'));
+  out.noDesc = secs.filter(e => !/^(cover|extra\d+)$/.test(e.dataset.qdSec) && !e.querySelector('[data-qe-sec]')).map(e => e.dataset.qdSec);
+  out.descBound = secs.filter(e => e.querySelector('[data-qe-sec].qe-edit')).length;
+  // Edit / Delete on every section the office can change.
+  const has = (k, sel) => !!document.querySelector('#qd-' + k + ' ' + sel);
+  out.editBtns = ['psgrade','psthickness','psgutter','psroller'].filter(k => has(k, '[data-ps-sec-edit]'));
+  out.profileBtn = has('psprofile', '[data-qe-btn="profile"]');
+  out.delBtns = ['psplans','psdetails','psgrade','psprofile','psthickness','pscolour','psgutter','psroller','psaddons','psincluded'].filter(k => has(k, '.qb-sec-del'));
+  out.planDel = has('cover', '.qb-sec-del') || has('review', '.qb-sec-del');
+  out.aoEditWord = (document.querySelector('#qd-psaddons .ps-ao-tool-ed') || {}).textContent || '';
+  return out;
+});
+check('THE ASK: the cover photo runs the full width of its section on a wide screen',
+  ed.cover.sec > 800 && Math.abs(ed.cover.hero - ed.cover.sec) <= 2, JSON.stringify(ed.cover));
+check('…and so does the information under it — one column, the facts a grid below',
+  ed.cover.intro >= ed.cover.body - 70 && ed.cover.meta >= ed.cover.body - 70, JSON.stringify(ed.cover));
+check('the opening letter is edited where it is read, with no second copy in an office box',
+  ed.introEditable && !ed.introDupBox, JSON.stringify({ e: ed.introEditable, dup: ed.introDupBox }));
+check('the cover heading writes the shed’s own heading, and a click in and out writes nothing',
+  ed.untouched === undefined && ed.heading.ps === 'Smith Hay Barn' && !ed.heading.cover && /Smith Hay Barn/.test(ed.heading.shown),
+  JSON.stringify({ u: ed.untouched, h: ed.heading }));
+check('THE ASK: every section’s description is editable', ed.noDesc.length === 0 && ed.descBound >= 10,
+  JSON.stringify({ missing: ed.noDesc, bound: ed.descBound }));
+check('every option section has Edit this section; the profiles use the roofing quote’s own editor',
+  ed.editBtns.length === 4 && ed.profileBtn, JSON.stringify(ed.editBtns));
+check('THE ASK: every section but the cover and the total can be deleted from the quote',
+  ed.delBtns.length === 10 && !ed.planDel, JSON.stringify(ed.delBtns));
+check('an add-on says Edit on its button', /Edit/.test(ed.aoEditWord), ed.aoEditWord);
+
+const ch = await pg.evaluate(() => {
+  const out = {};
+  const sub = () => +_poleShedMoney().sub.toFixed(2);
+  out.base = sub();
+  // Opening and saving without a change keeps nothing.
+  _psChoiceOpen('psgrade');
+  out.prefill = Array.from(document.querySelectorAll('#qcoModal .ps-ch-l')).map(e => e.value);
+  _psChoiceApply('psgrade');
+  out.noEdit = S.quote.psChoiceEdit === undefined;
+  // Rename, reword and re-price Zincalume, and retitle the section.
+  _psChoiceOpen('psgrade');
+  const row = document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="zincalume"]');
+  row.querySelector('.ps-ch-l').value = 'Zincalume (plain)';
+  row.querySelector('.ps-ch-d').value = 'Bare steel.';
+  row.querySelector('.ps-ch-p').value = '-2000';
+  document.getElementById('psChTitle').value = 'Steel finish';
+  _psChoiceApply('psgrade');
+  out.stored = JSON.stringify(S.quote.psChoiceEdit);
+  _setPsGrade('zincalume');
+  out.sub = sub();
+  out.items = _poleShedSelItems().map(r => r.label + '|' + r.delta);
+  out.card = (document.querySelector('#qd-psgrade [data-qb-val="zincalume"]') || {}).textContent || '';
+  out.title = (document.querySelector('#qd-psgrade .qb-h2') || {}).textContent || '';
+  out.picks = _psPicksAuto().map(r => r[0] + '=' + r[1]).join('; ');
+  // The classic A4 prices it the same.
+  S.quote.style = 'classic'; refreshQuoteProposal();
+  const _ct = document.getElementById('qpRoot').textContent.replace(/\s+/g, ' ');
+  out.classic = /Zincalume\u00ae Unpainted Al\/Zn \u2014 lowest cost\u2212\$2,000\.00/.test(_ct) && !/\u2212\$1,850\.00/.test(_ct);
+  out.classicTxt = (_ct.match(/.{0,60}(2,000|1,850).{0,40}/g) || []).join(' || ') || _ct.slice(_ct.indexOf('Zinc') - 40, _ct.indexOf('Zinc') + 120);
+  S.quote.style = 'modern'; refreshQuoteProposal();
+  // Stop offering it while it is the pick: back to the standard.
+  _psChoiceOpen('psgrade');
+  document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="zincalume"] .ps-ch-on').checked = false;
+  _psChoiceApply('psgrade');
+  out.afterHide = { pick: S.quote.psSelGrade, sub: sub(),
+    rows: Array.from(document.querySelectorAll('#qd-psgrade [data-qb-val]')).map(e => e.dataset.qbVal) };
+  // Back to the standard.
+  _psChoiceOpen('psgrade'); _psChoiceReset('psgrade');
+  out.reset = S.quote.psChoiceEdit === undefined;
+  // The thickness price reaches the total, and the gutter credit can be set.
+  _psChoiceOpen('psthickness');
+  document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="0.55"] .ps-ch-p').value = '999';
+  _psChoiceApply('psthickness'); _setPsThickness('0.55');
+  out.thick = sub() - out.base;
+  _setPsThickness('0.40');
+  _psChoiceOpen('psgutter');
+  document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="none"] .ps-ch-p').value = '-750';
+  _psChoiceApply('psgutter'); _setPsGutter('none');
+  out.gut = sub() - out.base;
+  _setPsGutter('box125');
+  // An accepted quote cannot be edited.
+  S.quote.accepted = { name:'P', at:new Date().toISOString() };
+  _psChoiceOpen('psroller');
+  out.acceptedOpened = !!document.getElementById('qcoModal');
+  try { _qcoClose(); } catch(e){}
+  delete S.quote.accepted;
+  return out;
+});
+check('the section editor opens on what the quote says now, and a save with no change keeps nothing',
+  ch.prefill[0] === 'Colorsteel®' && ch.noEdit, JSON.stringify(ch.prefill));
+check('THE ASK: a choice can be renamed, reworded and re-priced for this quote',
+  ch.sub === ch.base - 2000 && ch.items.join(' ').indexOf('Zincalume (plain)|-2000') >= 0, JSON.stringify({ s: ch.sub, i: ch.items, st: ch.stored }));
+check('…the card reads it (GST-inclusive, like every card) and the heading is the office’s',
+  /Zincalume \(plain\)/.test(ch.card) && /Bare steel/.test(ch.card) && /2,300\.00/.test(ch.card) && /Steel finish/.test(ch.title),
+  ch.card.replace(/\s+/g, ' ').slice(0, 120) + ' / ' + ch.title);
+check('…the summary’s choices name it', /Steel grade=Zincalume \(plain\)/.test(ch.picks), ch.picks);
+check('…and the classic A4 prices it the same, from the same helper', ch.classic, ch.classicTxt);
+check('a choice no longer offered stops being the pick, and its price goes with it',
+  ch.afterHide.pick === 'colorsteel' && ch.afterHide.sub === ch.base && ch.afterHide.rows.join() === 'colorsteel',
+  JSON.stringify(ch.afterHide));
+check('Back to the standard puts the section back as it was', ch.reset);
+check('the thickness and the gutter take their own prices', Math.abs(ch.thick - 999) < 0.01 && Math.abs(ch.gut + 750) < 0.01,
+  JSON.stringify({ t: ch.thick, g: ch.gut }));
+check('an accepted quote’s sections are not editable', ch.acceptedOpened === false);
+
+const del = await pg.evaluate(() => {
+  const out = {};
+  const sub = () => +_poleShedMoney().sub.toFixed(2);
+  const base = sub();
+  _setPsGrade('zincalume');
+  _qbSectionRemove('psgrade');
+  out.grade = { pick: S.quote.psSelGrade, sub: sub() - base, keys: _qdSections().map(x => x.key).join(),
+                insert: !!Array.from(document.querySelectorAll('#qpRoot .qe-insert')).find(b => /Steel grade/.test(b.textContent)),
+                book: _qbPages().map(x => x.key).join() };
+  _qbSectionInsert('psgrade');
+  out.back = _qdSections().map(x => x.key).indexOf('psgrade') >= 0;
+  // The add-ons: one ticked, the page taken out, the price follows the page.
+  _psAddonToggle('slidingDoor');
+  const withDoor = sub();
+  _qbSectionRemove('psaddons');
+  out.addons = { gone: withDoor - sub(), picks: _psPicksAuto().some(r => /sliding/i.test(r[0])) };
+  _qbSectionInsert('psaddons');
+  out.addonsBack = sub() === withDoor;
+  _psAddonToggle('slidingDoor');
+  return out;
+});
+check('THE ASK: a section can be deleted, and the shed goes back to its standard choice',
+  del.grade.pick === 'colorsteel' && del.grade.sub === 0 && del.grade.keys.indexOf('psgrade') < 0 && del.grade.insert,
+  JSON.stringify(del.grade));
+check('…the phone takes the same arrangement', del.grade.book.indexOf('psgrade') < 0, del.grade.book);
+check('…and Insert puts it back', del.back);
+check('an add-on on a page that was taken out is not charged, and comes back with the page',
+  Math.abs(del.addons.gone - 3850) < 0.01 && !del.addons.picks && del.addonsBack, JSON.stringify(del.addons));
+
+const cx = await pg.evaluate(() => {
+  const out = {};
+  const sub = () => +_poleShedMoney().sub.toFixed(2);
+  const base = sub();
+  // A re-roof product from Settings is not offered on a shed.
+  S.settings.selectables = S.settings.selectables || {};
+  S.settings.selectables.extras = [{ id:'paint', title:'Paint Roof', rows:[{ id:'no', name:'No', price:0 }, { id:'yes', name:'Yes', price:900 }] }];
+  refreshQuoteProposal();
+  out.paint = /Paint Roof/.test(document.getElementById('qpRoot').textContent);
+  out.insertBtn = !!document.querySelector('#qpRoot .qco-insert');
+  // A custom section of the office's own.
+  _qcoEdit(null);
+  document.getElementById('qcoTitle').value = 'Concrete pad';
+  _qcoReadRows();
+  const host = document.getElementById('qcoModal');
+  host._rows = [{ id:'r1', name:'No pad', desc:'', price:0 }, { id:'r2', name:'Concrete pad', desc:'Laid before the build', price:3200 }];
+  host._rec = 'r1'; _qcoPaintRows();
+  _qcoApply();
+  const keys = _qdSections().map(x => x.key);
+  out.key = keys.filter(k => /^extra\d+$/.test(k))[0] || '';
+  out.at = keys.indexOf(out.key) < keys.indexOf('psaddons');
+  out.shown = /Concrete pad/.test((document.getElementById('qd-' + out.key) || {}).textContent || '');
+  const g = _selExtras().filter(x => x.title === 'Concrete pad')[0];
+  _setProposalOption_extra(g.id, 'r2');
+  out.sub = sub() - base;
+  out.picks = _psPicksAuto().map(r => r[0] + '=' + r[1]).join('; ');
+  out.rows = _custBarRows().map(r => r.label).join(' | ');
+  // Taken off again.
+  window.confirm = () => true; _qcoDelete(g.id);
+  out.after = sub() - base;
+  return out;
+});
+check('a Settings option made for re-roofs (Paint Roof) is not offered on a shed', !cx.paint);
+check('THE ASK: + Insert custom option is on the shed', cx.insertBtn);
+check('…the custom section lands above the add-ons and shows its choices', !!cx.key && cx.at && cx.shown, JSON.stringify(cx));
+check('…its price reaches the shed’s total, the summary and the choices',
+  Math.abs(cx.sub - 3200) < 0.01 && /Concrete pad=Concrete pad/.test(cx.picks) && /Concrete pad/.test(cx.rows),
+  JSON.stringify({ s: cx.sub, p: cx.picks, r: cx.rows }));
+check('…and deleting it takes the price with it', Math.abs(cx.after) < 0.01, String(cx.after));
+
+const cust = await pg.evaluate(() => {
+  window.__CUSTOMER_MODE = true; refreshQuoteProposal();
+  const r = document.getElementById('qpRoot');
+  const out = { edit: !!r.querySelector('[data-ps-sec-edit], .qb-sec-del, .ps-ao-tools, .qco-insert, .qe-inline'),
+                introEditable: !!r.querySelector('.ps-intro[contenteditable]') };
+  window.__CUSTOMER_MODE = false; refreshQuoteProposal();
+  return out;
+});
+check('the customer sees none of it — no Edit, no Delete, nothing to type into',
+  !cust.edit && !cust.introEditable, JSON.stringify(cust));
 await ctx.close();
 
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
