@@ -97,7 +97,12 @@ accordingly.
   revenue a guy beside them. The month table (`#g-mtbl`, fits a phone) shows each month's own figure a crew, the
   head count under its crews. Growing (`growthCfg.crews`, `gSetCrews`): each crew brings the window's GP a crew and
   is a leader and an apprentice (`G_NEW_CREW` = 2 guys); the overheads (Xero opex, or the `g-ohmo` box) are held
-  flat. Typed crew numbers on the P&L strip are the ones used. `fergusProd` / `teamWork` stay — the Command Centre still reads them. `tests/hubui.mjs` (98, UI list) drives both
+  flat. Typed crew numbers on the P&L strip are the ones used. `fergusProd` / `teamWork` stay — the Command Centre still reads them. CASH AT A GLANCE OPENS FROM THE COMMAND CENTRE (2026-10-25, "it won't let me click any of
+  these"): `#cash-modal` is written inside `#page-cash`, so opened from the Command Centre it was
+  `.open` inside a hidden page and every tap did nothing. `openCashDetail` moves it onto the body
+  on first open. Total owed to you opens the three due-in lists and the AR list job by job
+  (`CASH_DETAIL_GROUPS.owed`), then the balances; on a phone the job name wraps so Due in is never
+  off the right. `tests/hubui.mjs` (101, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
@@ -2042,9 +2047,14 @@ Discipline (non-negotiable):
   `_poleShedSelItems` and listed in the picks. Every section's paragraph is a
   `_qSecPara`, including the locked thickness (`psthicklock`), the consent
   wording (`psexempt` / `psconsented`) and the deposit note (`psdeposit`).
-  NOT CHANGED: the "Available as options" default wording still says
-  "save $1,850" — it is the office's text, not a price, and does not follow a
-  re-priced Zincalume.
+  THE "AVAILABLE AS OPTIONS" LIST FOLLOWS THE PRICES (2026-10-25, the owner:
+  "Make the Zincalume options line follow the edited price"): `_psGet
+  ('psOptions')` runs every line through `_psOptionsFollow` — a line naming
+  Zincalume, or 0.55, and carrying ONE dollar figure reads
+  `_psChoicePrice('psgrade','zincalume')` / `('psthickness','0.55')`. Read
+  through, never stored, so the default keeps following; a line with two
+  figures is the office's own and is left as written. Classic, modern and the
+  office box all read `_psGet`.
 - LOOKING AT A SENT QUOTE ON A PHONE IS NOT EDITING IT (2026-10-12, job 3296:
   "i just tried to click the mobile version after i sent the quote but it
   wouldn't let me, it should letting me view the mobile version but not make
