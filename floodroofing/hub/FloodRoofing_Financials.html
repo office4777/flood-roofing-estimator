@@ -1560,16 +1560,16 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
   <!-- ───────── GROWTH STRUCTURE ───────── -->
   <div class="page" id="page-growth">
     <div class="card hero-card">
-      <div class="ct">What each guy on the tools produces <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="ct">What each crew produces <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="g-np">—</div>
-        <div class="unit" id="g-np-unit">revenue a guy on the tools, per month</div>
+        <div class="unit" id="g-np-unit">revenue a crew, per month</div>
         <div class="sub" id="g-np-sub"></div>
       </div>
     </div>
 
     <div class="card g-wide">
-      <div class="ct">Your guys on the tools <span class="period-sub" style="margin-left:auto;">P&amp;L ÷ payroll</span></div>
+      <div class="ct">Your crews <span class="period-sub" style="margin-left:auto;">P&amp;L ÷ crews on the tools</span></div>
       <div class="chips" id="g-win"></div>
       <div class="mg" id="g-now" style="margin-top:12px;"></div>
       <div class="note" id="g-now-note"></div>
@@ -1579,7 +1579,7 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
       <div class="ct">Month by month <span class="period-sub" style="margin-left:auto;">newest first</span></div>
       <div class="tbl-wrap g-mtbl">
         <table class="tb" id="g-mtbl">
-          <thead><tr><th>Month</th><th>Guys</th><th>Rev / guy</th><th>GP / guy</th><th>NP / guy</th><th>Rev / hr</th></tr></thead>
+          <thead><tr><th>Month</th><th>Crews</th><th>Rev / crew</th><th>GP / crew</th><th>NP / crew</th><th>Rev / hr</th></tr></thead>
           <tbody id="g-mbody"></tbody>
         </table>
       </div>
@@ -1589,7 +1589,7 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     <div class="card">
       <div class="ct">Grow the crew <span id="g-tradies" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="cfg" style="grid-template-columns:1fr 1fr;">
-        <div><label>Guys on the tools (scenario)</label><input type="number" id="g-guys" min="1" inputmode="numeric" placeholder="e.g. 13" oninput="saveGrowthCfg()"></div>
+        <div><label>Crews (scenario)</label><input type="number" id="g-crews" min="1" inputmode="numeric" placeholder="e.g. 6" oninput="saveGrowthCfg()"></div>
         <div><label>Overheads $/mo (blank = Xero average)</label><input type="number" id="g-ohmo" min="0" inputmode="decimal" placeholder="auto" oninput="saveGrowthCfg()"></div>
       </div>
       <div class="chips" id="g-presets" style="margin-top:12px;"></div>
@@ -1598,10 +1598,10 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     </div>
 
     <div class="card">
-      <div class="ct">If you add guys <span class="period-sub" style="margin-left:auto;">same $ a guy</span></div>
+      <div class="ct">If you add crews <span class="period-sub" style="margin-left:auto;">same $ a crew</span></div>
       <div class="tbl-wrap">
         <table class="tb" id="g-tbl">
-          <thead><tr><th>Guys</th><th>Crews</th><th>Rev/mo</th><th>GP/mo</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
+          <thead><tr><th>Crews</th><th>Guys</th><th>Rev/mo</th><th>GP/mo</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
           <tbody id="g-body"></tbody>
         </table>
       </div>
@@ -2057,7 +2057,7 @@ let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (r
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
 // actually produced the last-6-month average (4×2 = 8 on-tools). estCost/estWeeks normalise
 // the estimator (only ~6 weeks in the window). varOpex = opex that scales per on-tools head.
-let growthCfg=Object.assign({guys:'',ohMo:'',guysNow:'',hrsWk:'',win:'12'},S.get('growthCfg',{}));
+let growthCfg=Object.assign({crews:'',ohMo:'',win:'12'},S.get('growthCfg',{}));
 let lastXeroRep=null,lastXeroLabel='';   // cached last full live report → re-render P&L tab without re-pulling (only sync pulls)
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
@@ -4271,12 +4271,12 @@ function renderXeroReport(rep,label){
 const CREW_FROM='Jul-2024';
 const CREW_SEED={'Aug-2024':{n:3,h:127,ft:3.2,part:'pay runs start 26 Aug'},'Sep-2024':{n:4,h:633,ft:3.8},'Oct-2024':{n:4,h:555,ft:3.0},'Nov-2024':{n:5,h:785,ft:4.7},'Dec-2024':{n:5,h:931,ft:5.3},'Jan-2025':{n:5,h:942,ft:5.1},'Feb-2025':{n:5,h:910,ft:5.7},'Mar-2025':{n:5,h:854,ft:5.1},'Apr-2025':{n:6,h:916,ft:5.2},'May-2025':{n:7,h:1071,ft:6.1},'Jun-2025':{n:8,h:1391,ft:8.3},'Jul-2025':{n:8,h:1630,ft:8.9},'Aug-2025':{n:9,h:1713,ft:10.2},'Sep-2025':{n:9,h:1610,ft:9.1},'Oct-2025':{n:9,h:1698,ft:9.2},'Nov-2025':{n:9,h:1559,ft:9.7},'Dec-2025':{n:9,h:1469,ft:8.0},'Jan-2026':{n:9,h:1600,ft:9.1},'Feb-2026':{n:9,h:1649,ft:10.3},'Mar-2026':{n:9,h:1756,ft:10.0},'Apr-2026':{n:9,h:1628,ft:9.3},'May-2026':{n:12,h:1490,ft:8.9},'Jun-2026':{n:10,h:1879,ft:10.7},'Jul-2026':{n:10,h:2030,ft:11.0},'Aug-2026':{n:9,h:1632,ft:9.7},'Sep-2026':{n:10,h:1722,ft:9.8},'Oct-2026':{n:10,h:920,ft:9.6,part:'pay runs to 16 Oct so far'}};
 // Crews = team leaders on the tools that month, out of the same pay runs and the same "a day's hours" rule
-// (2026-10-25, the owner named his four team leaders; "the rest are all apprentices"). The first crew's leader
-// came off the tools in the week of 27 Jul 2026 and another stepped up into the SAME crew, so July reads 3, not 4.
-// No leader was paid in Mar–Apr 2025 while five were on the tools — still one crew, and the card says so.
-// Counts only, no names: the hub is a public page.
-const CREW_TEAMS={'Aug-2024':1,'Sep-2024':1,'Oct-2024':1,'Nov-2024':1,'Dec-2024':1,'Jan-2025':1,'Feb-2025':1,'Mar-2025':1,'Apr-2025':1,'May-2025':1,'Jun-2025':1,'Jul-2025':1,'Aug-2025':1,'Sep-2025':1,'Oct-2025':1,'Nov-2025':1,'Dec-2025':1,'Jan-2026':2,'Feb-2026':2,'Mar-2026':2,'Apr-2026':2,'May-2026':3,'Jun-2026':3,'Jul-2026':3,'Aug-2026':3,'Sep-2026':3,'Oct-2026':3};
-const CREW_TEAMS_NOTE={'Mar-2025':'no team leader paid','Apr-2025':'no team leader paid','May-2026':'3rd leader from late May','Jul-2026':'new leader from 27 Jul'};
+// (2026-10-25, the owner named his team leaders — four on the tools now — "the rest are all apprentices", and
+// "usually we have a two-man crew, so a leader and an apprentice"). Each leader counts in every month he was paid a
+// day's hours. The first crew's leader came off the tools in the week of 27 Jul 2026 and another stepped up into
+// the SAME crew, so July reads 4, not 5. Counts only, no names: the hub is a public page.
+const CREW_TEAMS={'Aug-2024':1,'Sep-2024':1,'Oct-2024':1,'Nov-2024':1,'Dec-2024':1,'Jan-2025':1,'Feb-2025':1,'Mar-2025':1,'Apr-2025':1,'May-2025':2,'Jun-2025':2,'Jul-2025':2,'Aug-2025':2,'Sep-2025':2,'Oct-2025':2,'Nov-2025':2,'Dec-2025':2,'Jan-2026':3,'Feb-2026':3,'Mar-2026':3,'Apr-2026':3,'May-2026':4,'Jun-2026':4,'Jul-2026':4,'Aug-2026':4,'Sep-2026':4,'Oct-2026':4};
+const CREW_TEAMS_NOTE={'May-2026':'4th leader from late May','Jul-2026':'new leader from 27 Jul'};
 const CREW_FT_HRS=160;   // one person full-time for a month (typed months, which carry no weekday count)
 let crewMonthly=S.get('crewMonthly',{});
 function crewFor(k){
@@ -5567,100 +5567,103 @@ function teamWork(){
   const weeks=Math.max(1,num(t.weeks)||1),totalHrs=num(t.totalHrs);
   return {persons:t.persons,guys:t.persons.length,totalHrs,weeks,hrsWeek:totalHrs/weeks,from:t.from,to:t.to,rolling:false};
 }
-// GROWTH — what the guys on the tools actually produce (2026-10-25, the owner: "fully recalculate the growth tab
-// to suit the actual numbers of my guys on the tools for the P&L months ... how much money they're actually
-// producing"). It was a Fergus model — back-costing $ per LOGGED hour times the hours the guys logged — which
-// read only what reached Fergus. Now it is the money the business really made (Xero's P&L: revenue, GP with the
-// on-site wages in cost of sales, overheads, NP) divided by the people who really were on the tools that month
-// (the payroll head count on the P&L crew strip, crewFor, typed months included) and the crews (crewTeamsFor).
-// Months used: complete, with a Xero revenue AND a head count, never the current month or a part month (the pay
-// runs start 26 Aug 2024). Per guy is weighted — the window's revenue over its person-months — so a big month
-// with a big crew counts as it should. Per hour is revenue over the hours PAID, months with payroll hours only.
-// Growing: each guy brings the window's GP a guy; the overheads (Xero opex, wages moved out) stay put, which is
-// why every extra guy is worth more than the average NP a guy.
+// GROWTH — what the CREWS actually produce (2026-10-25, the owner: "fully recalculate the growth tab to suit the
+// actual numbers of my guys on the tools for the P&L months", then "it's more important to work it out per crew
+// instead of per guy. Usually we have a two-man crew, so a leader and an apprentice"). It was a Fergus model —
+// back-costing $ per LOGGED hour times the hours the guys logged. Now it is the money the business really made
+// (Xero's P&L: revenue, GP with the on-site wages in cost of sales, overheads, NP) divided by the CREWS that were
+// on the tools that month (team leaders, crewTeamsFor — the P&L crew strip, typed months included), with the head
+// count (crewFor) beside it. Months used: complete, with a Xero revenue, a head count and a crew count; never the
+// current month or a part month (the pay runs start 26 Aug 2024). Per crew is weighted — the window's revenue over
+// its crew-months. Per hour is revenue over the hours PAID. Growing: each crew brings the window's GP a crew and is
+// a leader and an apprentice (G_NEW_CREW guys); the overheads stay put, which is why every extra crew is worth more
+// than the average NP a crew.
 const G_WINS=[['3','Last 3 months'],['6','Last 6 months'],['12','Last 12 months'],['all','Since Sep 2024']];
+const G_NEW_CREW=2;   // a new crew is a leader and an apprentice
 function growthMonths(){const cur=calMonthKey(0);
-  return crewMonths().filter(k=>{if(k===cur)return false;const c=crewFor(k),f=xeroFig(k);
-    return c&&c.n>0&&!c.part&&f&&f.rev>0;});}
-function growthModel(scGuys){
+  return crewMonths().filter(k=>{if(k===cur)return false;const c=crewFor(k),t=crewTeamsFor(k),f=xeroFig(k);
+    return c&&c.n>0&&!c.part&&t&&t.c>0&&f&&f.rev>0;});}
+function growthModel(scCrews){
   const all=growthMonths();if(!all.length)return null;
   const win=growthCfg.win||'12';const ks=win==='all'?all:all.slice(-num(win));
-  let rev=0,gp=0,np=0,oh=0,pm=0,cm=0,hRev=0,hrs=0;
+  let rev=0,gp=0,np=0,oh=0,pm=0,cm=0,hRev=0,hGp=0,hrs=0;
   const rows=ks.map(k=>{const f=xeroFig(k),c=crewFor(k),t=crewTeamsFor(k),x=xeroMonthly[k]||{};
     const o=x.overhead!=null?num(x.overhead):num(f.opex);
-    rev+=f.rev;gp+=f.gp;np+=f.np;oh+=o;pm+=c.n;cm+=(t&&t.c>0?t.c:0);if(c.h>0){hRev+=f.rev;hrs+=c.h;}
-    return {k,n:c.n,c:t?t.c:null,h:c.h||0,rev:f.rev,gp:f.gp,np:f.np,src:c.src};});
-  const M=ks.length,per={rev:rev/pm,gp:gp/pm,np:np/pm},guysAvg=pm/M,crewsAvg=cm/M,ohAvg=oh/M;
-  const last=rows[rows.length-1];
-  const guysNow=last.n,crewsNow=last.c||Math.max(1,Math.round(crewsAvg)),crewSize=crewsAvg>0?guysAvg/crewsAvg:guysAvg;
+    rev+=f.rev;gp+=f.gp;np+=f.np;oh+=o;pm+=c.n;cm+=t.c;if(c.h>0){hRev+=f.rev;hGp+=f.gp;hrs+=c.h;}
+    return {k,n:c.n,c:t.c,h:c.h||0,rev:f.rev,gp:f.gp,np:f.np,src:(c.src==='hand'||t.src==='hand')?'hand':'payroll'};});
+  const M=ks.length,per={rev:rev/cm,gp:gp/cm,np:np/cm},guy={rev:rev/pm,gp:gp/pm,np:np/pm};
+  const crewsAvg=cm/M,guysAvg=pm/M,ohAvg=oh/M,last=rows[rows.length-1];
+  const crewsNow=last.c,guysNow=last.n,crewSize=guysAvg/crewsAvg;
   const ohMo=num(growthCfg.ohMo)>0?num(growthCfg.ohMo):ohAvg;
-  const calc=g=>{g=Math.max(0,g);const r=g*per.rev,p=g*per.gp,n=p-ohMo;return {g,crews:crewSize>0?g/crewSize:0,rev:r,gp:p,oh:ohMo,np:n,gpm:r>0?p/r:0,npm:r>0?n/r:0};};
-  return {win,ks,rows,M,rev,gp,np,oh,pm,per,guysAvg,crewsAvg,crewSize,ohAvg,ohMo,guysNow,crewsNow,last,
-    revHr:hrs>0?hRev/hrs:null,gpHr:hrs>0&&hRev>0?(gp*hRev/rev)/hrs:null,hrs,hrsGuy:hrs>0?hrs/pm:null,
-    perCrew:crewsAvg>0?{rev:rev/cm,np:np/cm}:null,gpm:rev>0?gp/rev:0,calc,cur:calc(guysNow),scenario:calc(Math.max(1,scGuys||guysNow))};
+  const calc=c=>{c=Math.max(0,c);const r=c*per.rev,p=c*per.gp,n=p-ohMo;
+    return {c,guys:Math.max(0,guysNow+(c-crewsNow)*G_NEW_CREW),rev:r,gp:p,oh:ohMo,np:n,gpm:r>0?p/r:0,npm:r>0?n/r:0};};
+  return {win,ks,rows,M,rev,gp,np,oh,pm,cm,per,guy,crewsAvg,guysAvg,crewSize,ohAvg,ohMo,crewsNow,guysNow,last,
+    revHr:hrs>0?hRev/hrs:null,gpHr:hrs>0?hGp/hrs:null,hrs,
+    gpm:rev>0?gp/rev:0,calc,cur:calc(crewsNow),scenario:calc(Math.max(1,scCrews||crewsNow))};
 }
 function saveGrowthCfg(){
   const g=id=>document.getElementById(id);const gv=id=>(g(id)?(g(id).value||'').trim():'');
-  growthCfg=Object.assign({},growthCfg,{guys:gv('g-guys'),ohMo:gv('g-ohmo')});
+  growthCfg=Object.assign({},growthCfg,{crews:gv('g-crews'),ohMo:gv('g-ohmo')});
   S.set('growthCfg',growthCfg);renderGrowth();
 }
-function gSetGuys(n){const e=document.getElementById('g-guys');if(e)e.value=n;saveGrowthCfg();}
+function gSetCrews(n){const e=document.getElementById('g-crews');if(e)e.value=n;saveGrowthCfg();}
 function gSetWin(w){growthCfg=Object.assign({},growthCfg,{win:w});S.set('growthCfg',growthCfg);renderGrowth();}
 function renderGrowth(){
-  const m=growthModel(num(growthCfg.guys));
+  const m=growthModel(num(growthCfg.crews));
   const setTxt=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   const setHtml=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
   if(!m){
     setTxt('g-np','—');
-    setTxt('g-np-sub','Needs your Xero P&L months — Sync Xero (P&L tab) and the crew numbers on the P&L crew strip.');
+    setTxt('g-np-sub','Needs your Xero P&L months — Sync Xero (P&L tab) — and the crew numbers on the P&L crew strip.');
     setHtml('g-now','<div class="empty" style="grid-column:1/-1;">No P&amp;L months with a crew yet.</div>');
     ['g-win','g-presets','g-proj'].forEach(id=>setHtml(id,''));
     setHtml('g-mbody','<tr><td colspan="6" class="empty">No data.</td></tr>');setHtml('g-body','<tr><td colspan="6" class="empty">No data.</td></tr>');
     ['g-now-note','g-mnote','g-cmp','g-assume','g-src','g-tradies'].forEach(id=>setTxt(id,''));return;
   }
-  const mLbl=k=>k.replace('-',' '),span=mLbl(m.ks[0])+' – '+mLbl(m.ks[m.ks.length-1]);
+  const r1=v=>Math.round(v*10)/10,mLbl=k=>k.replace('-',' '),span=mLbl(m.ks[0])+' – '+mLbl(m.ks[m.ks.length-1]);
   const p=m.per,cur=m.cur,sc=m.scenario,np$=v=>'<span class="'+(v>=0?'pos':'neg')+'">'+fmtK(v)+'</span>';
-  // hero — the money a guy on the tools brings in a month
+  const crews=n=>n+' crew'+(n===1?'':'s');
+  // hero — the money a crew brings in a month
   setTxt('g-np',fmtK(p.rev));
-  setTxt('g-np-unit','revenue a guy on the tools, per month');
-  setTxt('g-np-sub','GP '+fmtK(p.gp)+' · NP '+fmtK(p.np)+' a guy'+(m.revHr?' · '+fmt$(m.revHr)+' an hour paid':'')+' · '+(Math.round(m.guysAvg*10)/10)+' guys on average · '+span);
+  setTxt('g-np-unit','revenue a crew, per month');
+  setTxt('g-np-sub','GP '+fmtK(p.gp)+' · NP '+fmtK(p.np)+' a crew · '+r1(m.crewsAvg)+' crews of '+r1(m.crewSize)+' guys on average · '+span);
   setTxt('g-src','Xero + payroll');
   setHtml('g-win',G_WINS.map(([w,l])=>'<span class="chip'+(m.win===w?' on':'')+'" onclick="gSetWin(\''+w+'\')">'+l+'</span>').join(''));
   setHtml('g-now',
-    mb('Guys on the tools',String(Math.round(m.guysAvg*10)/10),'on average · '+m.guysNow+' in '+mLbl(m.last.k),'','m-np')+
-    mb('Crews',String(Math.round(m.crewsAvg*10)/10),(Math.round(m.crewSize*10)/10)+' guys a crew','','m-opex')+
-    mb('Revenue / guy',fmtK(p.rev),'a month · '+fmtK(p.rev*12)+' a year','','m-rev')+
-    mb('GP / guy',fmtK(p.gp),Math.round(m.gpm*100)+'% GPM · a month','pos','m-gp')+
-    mb('NP / guy',fmtK(p.np),'a month, after overheads',p.np>=0?'pos':'neg','m-np')+
-    (m.revHr?mb('Revenue / hr paid',fmt$(m.revHr),'GP '+fmt$(m.gpHr)+' · '+Math.round(m.hrsGuy)+' h paid a guy a month','','m-cogs'):'')+
-    (m.perCrew?mb('Revenue / crew',fmtK(m.perCrew.rev),'NP '+fmtK(m.perCrew.np)+' a crew, a month','','m-rev'):''));
-  setTxt('g-now-note','Over '+m.M+' month'+(m.M===1?'':'s')+' ('+span+'): Xero revenue '+fmtK(m.rev)+', GP '+fmtK(m.gp)+', NP '+fmtK(m.np)+' ÷ '+m.pm+' guy-months on the tools'+(m.hrs?' and '+fmtH(m.hrs)+' hours paid':'')+'.');
+    mb('Crews',String(r1(m.crewsAvg)),'on average · '+crews(m.crewsNow)+' in '+mLbl(m.last.k),'','m-np')+
+    mb('Guys a crew',String(r1(m.crewSize)),r1(m.guysAvg)+' guys on the tools on average','','m-opex')+
+    mb('Revenue / crew',fmtK(p.rev),'a month · '+fmtK(p.rev*12)+' a year','','m-rev')+
+    mb('GP / crew',fmtK(p.gp),Math.round(m.gpm*100)+'% GPM · a month','pos','m-gp')+
+    mb('NP / crew',fmtK(p.np),'a month, after overheads',p.np>=0?'pos':'neg','m-np')+
+    (m.revHr?mb('Revenue / hr paid',fmt$(m.revHr),'GP '+fmt$(m.gpHr)+' an hour paid','','m-cogs'):'')+
+    mb('Revenue / guy',fmtK(m.guy.rev),'GP '+fmtK(m.guy.gp)+' · NP '+fmtK(m.guy.np)+' a guy, a month','','m-rev'));
+  setTxt('g-now-note','Over '+m.M+' month'+(m.M===1?'':'s')+' ('+span+'): Xero revenue '+fmtK(m.rev)+', GP '+fmtK(m.gp)+', NP '+fmtK(m.np)+' ÷ '+m.cm+' crew-months ('+m.pm+' guy-months'+(m.hrs?', '+fmtH(m.hrs)+' hours paid':'')+').');
   // month by month, newest first
-  setHtml('g-mbody',m.rows.slice().reverse().map(r=>'<tr><td>'+r.k.replace('-20',' ')+'</td><td>'+r.n+(r.c?' <small class="g-cr">'+r.c+' crew'+(r.c===1?'':'s')+'</small>':'')+(r.src==='hand'?' <small class="g-cr">typed</small>':'')+'</td><td>'+fmtK(r.rev/r.n)+'</td><td>'+fmtK(r.gp/r.n)+'</td><td>'+np$(r.np/r.n)+'</td><td>'+(r.h>0?fmt$(r.rev/r.h):'—')+'</td></tr>').join('')+
-    '<tr class="tot"><td>Average</td><td>'+(Math.round(m.guysAvg*10)/10)+'</td><td>'+fmtK(p.rev)+'</td><td>'+fmtK(p.gp)+'</td><td>'+np$(p.np)+'</td><td>'+(m.revHr?fmt$(m.revHr):'—')+'</td></tr>');
-  setTxt('g-mnote','Each month: that month’s Xero figure ÷ the guys paid on the tools that month (the P&L crew strip; a number you typed there wins). Rev / hr = revenue ÷ hours paid.');
-  // grow the crew — each guy brings the GP a guy; the overheads stay put
-  const guysSc=sc.g;
-  setTxt('g-tradies',guysSc+' guys on the tools');
-  const cs=Math.max(1,Math.round(m.crewSize));
-  const presets=[...new Set([m.guysNow,m.guysNow+2,m.guysNow+cs,m.guysNow+2*cs,m.guysNow+3*cs])].sort((a,b)=>a-b);
-  setHtml('g-presets',presets.map(n=>'<span class="chip'+(n==guysSc?' on':'')+'" onclick="gSetGuys('+n+')">'+n+' guys'+(n===m.guysNow?' · now':(n-m.guysNow)%cs===0?' · +'+((n-m.guysNow)/cs)+' crew'+((n-m.guysNow)/cs>1?'s':''):'')+'</span>').join(''));
+  setHtml('g-mbody',m.rows.slice().reverse().map(r=>'<tr><td>'+r.k.replace('-20',' ')+'</td><td>'+r.c+' <small class="g-cr">'+r.n+' guys'+(r.src==='hand'?' · typed':'')+'</small></td><td>'+fmtK(r.rev/r.c)+'</td><td>'+fmtK(r.gp/r.c)+'</td><td>'+np$(r.np/r.c)+'</td><td>'+(r.h>0?fmt$(r.rev/r.h):'—')+'</td></tr>').join('')+
+    '<tr class="tot"><td>Average</td><td>'+r1(m.crewsAvg)+'</td><td>'+fmtK(p.rev)+'</td><td>'+fmtK(p.gp)+'</td><td>'+np$(p.np)+'</td><td>'+(m.revHr?fmt$(m.revHr):'—')+'</td></tr>');
+  setTxt('g-mnote','Each month: that month’s Xero figure ÷ the crews on the tools that month (a team leader paid at least a day — the P&L crew strip; a number you typed there wins). Rev / hr = revenue ÷ hours paid.');
+  // grow — each crew brings the GP a crew; the overheads stay put
+  setTxt('g-tradies',crews(sc.c)+' · '+sc.guys+' guys');
+  const presets=[m.crewsNow,m.crewsNow+1,m.crewsNow+2,m.crewsNow+3,m.crewsNow+4];
+  setHtml('g-presets',presets.map(n=>'<span class="chip'+(n==sc.c?' on':'')+'" onclick="gSetCrews('+n+')">'+crews(n)+(n===m.crewsNow?' · now':' · +'+(n-m.crewsNow))+'</span>').join(''));
   setHtml('g-proj',
     mb('Revenue / mo',fmtK(sc.rev),fmtK(sc.rev*12)+'/yr','','m-rev')+
     mb('Gross Profit',fmtK(sc.gp),Math.round(sc.gpm*100)+'% GPM · '+fmtK(sc.gp*12)+'/yr','pos','m-gp')+
     mb('Overheads',fmtK(sc.oh),num(growthCfg.ohMo)>0?'your figure':'Xero average, held flat','','m-opex')+
     mb('Net Profit',fmtK(sc.np),Math.round(sc.npm*100)+'% margin · '+fmtK(sc.np*12)+'/yr',sc.np>=0?'pos':'neg','m-np'));
   const dNp=sc.np-cur.np;
-  setHtml('g-cmp',(guysSc===m.guysNow?'Your <b>'+m.guysNow+' guys now</b> at the same rates. Pick a bigger crew above, or type one in, to see what it adds. ':
-    'vs your <b>'+m.guysNow+' guys now</b> ('+fmtK(cur.np)+'/mo NP at the same rates): '+
-    (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. ')+'Each guy added brings about <b>'+fmtK(p.gp)+'/mo</b> GP, and the overheads do not grow with him.');
-  const guyList=[...new Set([m.guysNow,m.guysNow+1,m.guysNow+2,m.guysNow+cs,m.guysNow+2*cs,m.guysNow+3*cs,guysSc].filter(n=>n>=1))].sort((a,b)=>a-b);
-  setHtml('g-body',guyList.map(n=>{const f=m.calc(n);
-    return '<tr'+(n==guysSc?' class="tot"':'')+'><td>'+n+'</td><td>'+(Math.round(f.crews*10)/10)+'</td><td>'+fmtK(f.rev)+'</td><td class="pos">'+fmtK(f.gp)+'</td><td>'+np$(f.np)+'</td><td>'+np$(f.np*12)+'</td></tr>';}).join(''));
+  setHtml('g-cmp',(sc.c===m.crewsNow?'Your <b>'+crews(m.crewsNow)+' now</b> at the same rates. Pick more crews above, or type a number in, to see what they add. ':
+    'vs your <b>'+crews(m.crewsNow)+' now</b> ('+fmtK(cur.np)+'/mo NP at the same rates): '+
+    (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. ')+
+    'Each crew added — a leader and an apprentice — brings about <b>'+fmtK(p.gp)+'/mo</b> GP, and the overheads do not grow with it.');
+  const list=[...new Set([m.crewsNow,m.crewsNow+1,m.crewsNow+2,m.crewsNow+3,m.crewsNow+4,m.crewsNow+6,sc.c].filter(n=>n>=1))].sort((a,b)=>a-b);
+  setHtml('g-body',list.map(n=>{const f=m.calc(n);
+    return '<tr'+(n==sc.c?' class="tot"':'')+'><td>'+n+'</td><td>'+f.guys+'</td><td>'+fmtK(f.rev)+'</td><td class="pos">'+fmtK(f.gp)+'</td><td>'+np$(f.np)+'</td><td>'+np$(f.np*12)+'</td></tr>';}).join(''));
   setHtml('g-assume',
-    'Built from <b>what actually happened</b>: your <b>Xero P&amp;L</b> for each month (revenue, gross profit with the on-site wages in cost of sales, overheads, net profit) divided by the <b>guys paid on the tools</b> that month from your pay runs — office staff left out, the same numbers as the crew strip on the P&amp;L tab. '+
-    'Over <b>'+span+'</b> that is <b>'+fmtK(p.rev)+'</b> revenue, <b>'+fmtK(p.gp)+'</b> gross profit and <b>'+fmtK(p.np)+'</b> net profit a guy, a month'+(m.revHr?', or <b>'+fmt$(m.revHr)+'</b> revenue an hour paid':'')+'. '+
-    'Growing the crew: each extra guy brings the same gross profit a guy, while the overheads (<b>'+fmtK(m.ohMo)+'/mo</b>) stay where they are — more trucks, more office help or a bigger yard would need adding by hand in the overheads box. Crews are '+(Math.round(m.crewSize*10)/10)+' guys on average, each led by a team leader.');
+    'Built from <b>what actually happened</b>: your <b>Xero P&amp;L</b> for each month (revenue, gross profit with the on-site wages in cost of sales, overheads, net profit) divided by the <b>crews on the tools</b> that month — a crew is a team leader paid at least a day that month, from your pay runs, with the same numbers as the crew strip on the P&amp;L tab. '+
+    'Over <b>'+span+'</b> that is <b>'+fmtK(p.rev)+'</b> revenue, <b>'+fmtK(p.gp)+'</b> gross profit and <b>'+fmtK(p.np)+'</b> net profit a crew, a month, with crews of <b>'+r1(m.crewSize)+'</b> guys on average. '+
+    'Growing: each new crew is a leader and an apprentice and brings the same gross profit a crew, while the overheads (<b>'+fmtK(m.ohMo)+'/mo</b>) stay where they are — another ute or more office help would need adding by hand in the overheads box. '+
+    (m.crewSize>G_NEW_CREW+0.4?'Your crews have averaged more than two guys, so a two-man crew may bring in a little less than the average here.':''));
 }
 
 // ════════ MARKETING / SALES FUNNEL ════════ (ported from the v6 hub — uses the real Fergus
@@ -7480,7 +7483,7 @@ function init(){
   document.getElementById('cfg-size').value=cfg.size;
   document.getElementById('cfg-hrs').value=cfg.hrs;
   const gset=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null&&v!=='')e.value=v;};
-  gset('g-guys',growthCfg.guys);gset('g-guysnow',growthCfg.guysNow);gset('g-hrswk',growthCfg.hrsWk);gset('g-ohmo',growthCfg.ohMo);
+  gset('g-crews',growthCfg.crews);gset('g-ohmo',growthCfg.ohMo);
   const aw=document.getElementById('in-autoweekly');if(aw)aw.checked=S.get('autoWeekly','on')!=='off';
   updatePill();
   recordFwSnapshot();

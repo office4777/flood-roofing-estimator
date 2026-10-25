@@ -220,38 +220,40 @@ const fit = await pg.evaluate(() => {
 check('a busy month fits on one phone screen: its band at the top, its total above the tab bar', fit.n > 10 && fit.headTop >= fit.topBot - 2 && fit.subBottom <= fit.navTop, JSON.stringify(fit));
 check('…and its jobs scroll between the two', fit.scrollable && fit.scrolled, JSON.stringify(fit));
 
-// Growth: Xero's P&L months ÷ the payroll head count (2026-10-25, the owner: "fully recalculate the growth tab to
-// suit the actual numbers of my guys on the tools for the P&L months")
-await pg.evaluate(() => { localStorage.removeItem('fr3_growthCfg'); growthCfg = Object.assign({}, growthCfg, { win: '12', guys: '', ohMo: '' }); go('growth'); });
+// Growth: Xero's P&L months ÷ the crews on the tools (2026-10-25, the owner: "fully recalculate the growth tab to
+// suit the actual numbers of my guys on the tools for the P&L months", then "work it out per crew instead of per guy")
+await pg.evaluate(() => { localStorage.removeItem('fr3_growthCfg'); growthCfg = Object.assign({}, growthCfg, { win: '12', crews: '', ohMo: '' }); go('growth'); });
 await pg.waitForTimeout(300);
 const gr = await pg.evaluate(() => {
-  const cur = calMonthKey(0), months = crewMonths().filter(k => k !== cur && crewFor(k) && crewFor(k).n > 0 && !crewFor(k).part && xeroFig(k) && xeroFig(k).rev > 0);
+  const cur = calMonthKey(0), months = crewMonths().filter(k => k !== cur && crewFor(k) && crewFor(k).n > 0 && !crewFor(k).part && crewTeamsFor(k) && xeroFig(k) && xeroFig(k).rev > 0);
   const last12 = months.slice(-12);
   const sum = (ks, f) => ks.reduce((s, k) => s + f(k), 0);
-  const want = sum(last12, k => xeroFig(k).rev) / sum(last12, k => crewFor(k).n);
-  const wantNp = sum(last12, k => xeroFig(k).np) / sum(last12, k => crewFor(k).n);
+  const cm = sum(last12, k => crewTeamsFor(k).c);
+  const want = sum(last12, k => xeroFig(k).rev) / cm, wantNp = sum(last12, k => xeroFig(k).np) / cm;
   const body = [...document.querySelectorAll('#g-mbody tr')];
-  const out = { hero: document.getElementById('g-np').textContent, want: fmtK(want), wantNp: fmtK(wantNp), sub: document.getElementById('g-np-sub').textContent,
-    rows: body.length, n12: last12.length, first: body[0] ? body[0].cells[0].textContent : '', newest: last12[last12.length - 1].replace('-', ' '),
-    avgRow: body.length ? body[body.length - 1].textContent : '', fergus: /Fergus/.test(document.getElementById('page-growth').innerText),
-    oldInputs: !!document.getElementById('g-hrswk') || !!document.getElementById('g-guysnow') };
+  const out = { hero: document.getElementById('g-np').textContent, unit: document.getElementById('g-np-unit').textContent, want: fmtK(want), wantNp: fmtK(wantNp),
+    sub: document.getElementById('g-np-sub').textContent,
+    rows: body.length, n12: last12.length, first: body[0] ? body[0].cells[0].textContent : '', newest: last12[last12.length - 1].replace('-20', ' '),
+    firstCrews: body[0] ? body[0].cells[1].textContent : '', avgRow: body.length ? body[body.length - 1].textContent : '',
+    fergus: /Fergus/.test(document.getElementById('page-growth').innerText), oldInputs: !!document.getElementById('g-guys') || !!document.getElementById('g-hrswk') };
   gSetWin('all'); out.allFirst = [...document.querySelectorAll('#g-mbody tr')].slice(-2)[0].cells[0].textContent; out.allRows = document.querySelectorAll('#g-mbody tr').length - 1; out.allN = months.length;
   gSetWin('3'); out.threeRows = document.querySelectorAll('#g-mbody tr').length - 1; gSetWin('12');
-  // typing a crew number on the P&L strip moves the month's figure here
-  const k = last12[last12.length - 1], f = xeroFig(k); window.prompt = () => '20'; crewEdit(null, k); renderGrowth();
-  out.typed = document.querySelector('#g-mbody tr').cells[2].textContent; out.typedWant = fmtK(f.rev / 20);
-  window.prompt = () => ''; crewEdit(null, k); renderGrowth();
-  const m = growthModel(), g = m.guysNow + 3; gSetGuys(g); const proj = document.getElementById('g-proj').innerText;
-  out.projNp = proj.indexOf(fmtK(g * m.per.gp - m.ohAvg)) >= 0; out.projRev = proj.indexOf(fmtK(g * m.per.rev)) >= 0;
-  out.tblHas = [...document.querySelectorAll('#g-body tr.tot td')].map(td => td.textContent)[0] === String(g);
-  gSetGuys(''); return out; });
-check('Growth opens on what a guy on the tools brings in a month: Xero revenue ÷ the guys paid on the tools, last 12 months', gr.hero === gr.want && gr.sub.indexOf('NP ' + gr.wantNp) >= 0 && !gr.fergus && !gr.oldInputs, JSON.stringify(gr));
-check('…month by month, newest first, with an average row', gr.rows === gr.n12 + 1 && gr.first === gr.newest.replace(' 20', ' ') && /^Average/.test(gr.avgRow), JSON.stringify(gr));
+  // a crew number typed on the P&L strip moves the month's figure here
+  const k = last12[last12.length - 1], f = xeroFig(k); window.prompt = () => '8'; crewTeamsEdit(null, k); renderGrowth();
+  out.typed = document.querySelector('#g-mbody tr').cells[2].textContent; out.typedWant = fmtK(f.rev / 8);
+  window.prompt = () => ''; crewTeamsEdit(null, k); renderGrowth();
+  const m = growthModel(), c = m.crewsNow + 2; gSetCrews(c); const proj = document.getElementById('g-proj').innerText;
+  out.projNp = proj.indexOf(fmtK(c * m.per.gp - m.ohAvg)) >= 0; out.projRev = proj.indexOf(fmtK(c * m.per.rev)) >= 0;
+  const tot = [...document.querySelectorAll('#g-body tr.tot td')].map(td => td.textContent);
+  out.tblCrews = tot[0] === String(c); out.tblGuys = tot[1] === String(m.guysNow + 4); out.tradies = document.getElementById('g-tradies').textContent;
+  gSetCrews(''); return out; });
+check('Growth opens on what a CREW brings in a month: Xero revenue ÷ the crews on the tools, last 12 months', gr.hero === gr.want && /a crew/.test(gr.unit) && gr.sub.indexOf('NP ' + gr.wantNp + ' a crew') >= 0 && !gr.fergus && !gr.oldInputs, JSON.stringify(gr));
+check('…month by month, newest first, crews with the head count under them, and an average row', gr.rows === gr.n12 + 1 && gr.first === gr.newest && /^\d+\s*\d+ guys/.test(gr.firstCrews) && /^Average/.test(gr.avgRow), JSON.stringify(gr));
 check('…the window switches: Since Sep 2024 takes every full month (not Aug 2024\'s part), 3 months takes three', gr.allFirst === 'Sep 24' && gr.allRows === gr.allN && gr.threeRows === 3, JSON.stringify(gr));
 check('…a crew number typed on the P&L strip is the one used', gr.typed === gr.typedWant, JSON.stringify(gr));
 const gfit = await pg.evaluate(() => { const w = document.querySelector('.g-mtbl'); return { sw: w.scrollWidth, cw: w.clientWidth }; });
 check('…and on a phone the month table fits with no sideways scroll', gfit.sw <= gfit.cw + 1, JSON.stringify(gfit));
-check('…and growing the crew adds GP a guy while the overheads stay put', gr.projNp && gr.projRev && gr.tblHas, JSON.stringify(gr));
+check('…and adding crews adds GP a crew, each a leader and an apprentice, while the overheads stay put', gr.projNp && gr.projRev && gr.tblCrews && gr.tblGuys && /crews · \d+ guys/.test(gr.tradies), JSON.stringify(gr));
 
 // Workload: Per active job sits straight under the hero, and on a phone it is one row a job — tick, job number
 // over the short address, then the figures — with no sideways scroll (2026-10-25, the owner).
@@ -303,15 +305,15 @@ const crews = await pg.evaluate(() => { const txt = m => { const c = document.qu
   const card = document.querySelector('#pl-crew .mcard[data-m="Sep-2026"]'), rows = [...card.querySelectorAll('.ml .k')].map(e => e.textContent);
   const f = xeroFig('Sep-2026');
   const out = { sep24: txt('Sep-2024'), jan26: txt('Jan-2026'), jul26: txt('Jul-2026'), sep26: txt('Sep-2026'), mar25: txt('Mar-2025'), jul24: txt('Jul-2024'),
-    rows, perCrew: f && f.rev > 0 ? card.innerText.indexOf(fmtK(f.rev / 3)) >= 0 : null,
+    rows, perCrew: f && f.rev > 0 ? card.innerText.indexOf(fmtK(f.rev / 4)) >= 0 : null,
     names: /Ethan|Luke|Jacob|Justin/.test(document.getElementById('pl-crew').innerText) };
-  window.prompt = () => '4'; crewTeamsEdit(null, 'Sep-2026'); out.typed = crewTeamsFor('Sep-2026').c; out.keptN = crewFor('Sep-2026').n;
+  window.prompt = () => '5'; crewTeamsEdit(null, 'Sep-2026'); out.typed = crewTeamsFor('Sep-2026').c; out.keptN = crewFor('Sep-2026').n;
   window.prompt = () => ''; crewTeamsEdit(null, 'Sep-2026'); out.back = crewTeamsFor('Sep-2026').src + ':' + crewTeamsFor('Sep-2026').c;
   return out; });
-check('every month carries its crews (team leaders on the tools): 1 to Dec 2025, 2 from Jan 2026, 3 from May 2026', /^1 crew\b/.test(crews.sep24) && /^2 crews/.test(crews.jan26) && /^3 crews/.test(crews.sep26) && /^3 crews/.test(crews.jul26) && /3\.3 a crew/.test(crews.sep26), JSON.stringify(crews));
-check('…a month with nobody leading still reads one crew and says why, and no names reach the page', /^1 crew/.test(crews.mar25) && /no team leader/.test(crews.mar25) && !crews.names && crews.jul24 === '', JSON.stringify(crews));
+check('every month carries its crews (team leaders on the tools): 1 to Apr 2025, 2 from May 2025, 3 from Jan 2026, 4 from May 2026', /^1 crew\b/.test(crews.sep24) && /^1 crew\b/.test(crews.mar25) && /^3 crews/.test(crews.jan26) && /^4 crews/.test(crews.sep26) && /2\.5 a crew/.test(crews.sep26), JSON.stringify(crews));
+check('…the July 2026 handover counts one crew, not two, and no names reach the page', /^4 crews/.test(crews.jul26) && /new leader from 27 Jul/.test(crews.jul26) && !crews.names && crews.jul24 === '', JSON.stringify(crews));
 check('…with Rev / crew and NP / crew beside the per-person figures', crews.rows.includes('Rev / crew') && crews.rows.includes('NP / crew') && crews.perCrew !== false, JSON.stringify(crews));
-check('…and the crews can be typed over without touching the head count, blank puts the payroll figure back', crews.typed === 4 && crews.keptN === 10 && crews.back === 'payroll:3', JSON.stringify(crews));
+check('…and the crews can be typed over without touching the head count, blank puts the payroll figure back', crews.typed === 5 && crews.keptN === 10 && crews.back === 'payroll:4', JSON.stringify(crews));
 check('…Jul 2024, before the first pay run, asks for the crew', /tap to add crew/.test(crew.jul), crew.jul);
 check('…it swipes sideways and opens on the newest month', crew.scrolls && crew.lastSeen, JSON.stringify(crew));
 const typed = await pg.evaluate(() => {
