@@ -89,11 +89,18 @@ const boxes = await pg.locator('#dash-summary .mb-tap').count();
 bad = [];
 for (let i = 0; i < boxes; i++){
   await pg.locator('#dash-summary .mb-tap').nth(i).click();
-  const r = await pg.evaluate(() => ({ open: document.getElementById('cash-modal').classList.contains('open'), n: document.querySelectorAll('#cmodal-body .cash-detail').length }));
-  if (!r.open || !r.n) bad.push(i + ':' + JSON.stringify(r));
+  // VISIBLE, not just flagged open: the modal was written inside the Cash tab, so from here it
+  // opened inside a hidden page and the owner's taps did nothing (2026-10-25).
+  const r = await pg.evaluate(() => { const m = document.getElementById('cash-modal'); const b = m.getBoundingClientRect(); return { open: m.classList.contains('open'), shown: b.width > 0 && b.height > 0, n: document.querySelectorAll('#cmodal-body .cash-detail').length, rows: document.querySelectorAll('#cmodal-body tbody tr').length, t: document.getElementById('cmodal-title').textContent }; });
+  if (!r.open || !r.shown || !r.n) bad.push(i + ':' + JSON.stringify(r));
+  if (i >= 1 && !r.rows) bad.push(i + ' no jobs listed:' + JSON.stringify(r));
   await pg.evaluate(() => closeCashDetail());
 }
-check('every Cash at a glance box (' + boxes + ') opens its detail', boxes === 6 && bad.length === 0, bad.join(' '));
+check('every Cash at a glance box (' + boxes + ') opens its detail ON SCREEN from the Command Centre, the jobs listed', boxes === 6 && bad.length === 0, bad.join(' '));
+const owedJobs = await pg.evaluate(() => { openCashDetail('owed'); const ids = [...document.querySelectorAll('#cmodal-body table')].map(t => t.id); closeCashDetail(); return ids; });
+const fitW = await pg.evaluate(() => { openCashDetail('owed'); const r = [...document.querySelectorAll('#cmodal-body table.tb')].map(t => t.scrollWidth - t.parentElement.clientWidth); closeCashDetail(); return r; });
+check('…and on a phone every list fits the screen, the Due in figure never off the right', fitW.length >= 4 && fitW.every(d => d <= 1), JSON.stringify(fitW));
+check('Total owed to you lists every due-in job and every unpaid invoice', ['cf-due-tbl', 'cash-ar-tbl'].every(id => owedJobs.includes(id)) && owedJobs.length >= 4, owedJobs.join(','));
 
 // a dashboard month card opens that month's P&L
 const mk = await pg.evaluate(() => { const c = document.querySelector('#month-strip-dash .mcard.mc-tap'); return c ? c.querySelector('.mm').firstChild.textContent : null; });
@@ -405,6 +412,9 @@ await ctx.close();
 ({ ctx, pg, errs } = await open({ width: 1440, height: 900 }));
 check('the computer boots with no page error', errs.length === 0, JSON.stringify(errs));
 check('1440 px wide is the computer layout', await pg.evaluate(() => document.documentElement.classList.contains('is-desktop')));
+await pg.locator('#dash-summary .mb-tap').nth(4).click();
+const dCash = await pg.evaluate(() => { const c = document.querySelector('#cash-modal .cmodal-card').getBoundingClientRect(); const r = { w: c.width, rows: document.querySelectorAll('#cmodal-body tbody tr').length }; closeCashDetail(); return r; });
+check('on the computer too, a Cash at a glance line opens its jobs over the Command Centre', dCash.w > 400 && dCash.rows > 0, JSON.stringify(dCash));
 const side = await pg.evaluate(() => { const r = document.getElementById('nav').getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; });
 check('…the tabs are a sidebar down the left, the full height', side.left === 0 && side.top === 0 && side.w > 200 && side.w < 260 && side.h === 900, JSON.stringify(side));
 check('…with the logo at the top and Sync & settings at the foot', (await visible(pg, '.nav-brand')) && (await visible(pg, '.nav-foot button')));

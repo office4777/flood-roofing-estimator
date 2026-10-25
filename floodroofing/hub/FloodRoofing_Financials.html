@@ -631,6 +631,9 @@ table.tb.bcr-lines td:first-child{white-space:normal;overflow-wrap:anywhere;}
 .cash-detail{display:none;}
 #cmodal-body .cash-detail{display:block;margin-bottom:12px;}
 .cash-hidden{display:none;}
+/* On a phone the cash lists fit the screen: the job's name wraps so the Due in figure is never pushed off the right (2026-10-25) */
+html:not(.is-desktop) .cash-detail table.tb td:first-child{white-space:normal;overflow-wrap:anywhere;line-height:1.3;}
+html:not(.is-desktop) .cash-detail table.tb td,html:not(.is-desktop) .cash-detail table.tb th{padding-left:5px;padding-right:5px;}
 .calwrap{overflow:auto;max-height:64vh;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;border:1px solid var(--border);border-radius:12px;background:var(--card2);position:relative;}
 .cal-row{display:flex;align-items:stretch;width:max-content;}
 .cal-row.cal-head{position:sticky;top:0;z-index:4;}
@@ -7388,11 +7391,16 @@ function go(p,dir){
 // Tap-through popups for the 'Cash at a glance' tiles. Detail cards live hidden in the page;
 // opening a tile moves the matching card(s) into the modal, close returns them to the stash.
 const CASH_DETAIL_TITLES={deposit:'Deposit-funding gap',owed:'Total owed to you',due50:'Due in · 50–100% done',due10:'Due in · 10–50% done',due0:'Due in · not started',ar:'Xero AR — invoiced, unpaid'};
+const CASH_DETAIL_GROUPS={owed:['due50','due10','due0','ar','owed']};
 function openCashDetail(key){
   const m=document.getElementById('cash-modal'),body=document.getElementById('cmodal-body'),stash=document.getElementById('cash-stash');
   if(!m||!body||!stash)return;
+  // The modal is written inside the Cash tab, so opened from the Command Centre it sat in a hidden
+  // page and nothing showed. It lives on the body from the first open, whichever tab is in front.
+  if(m.parentNode!==document.body)document.body.appendChild(m);
   Array.from(body.children).forEach(n=>{if(n.classList&&n.classList.contains('cash-detail'))stash.appendChild(n);});
-  document.querySelectorAll('.cash-detail[data-cdetail="'+key+'"]').forEach(n=>body.appendChild(n));
+  // Total owed to you is the three due-in lists and the invoiced ones, job by job, then the balances.
+  (CASH_DETAIL_GROUPS[key]||[key]).forEach(k=>document.querySelectorAll('.cash-detail[data-cdetail="'+k+'"]').forEach(n=>body.appendChild(n)));
   const tt=document.getElementById('cmodal-title');if(tt)tt.textContent=CASH_DETAIL_TITLES[key]||'';
   m.classList.add('open');document.body.style.overflow='hidden';m.scrollTop=0;
 }

@@ -5115,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-25T06:28:38Z';
+  window.APP_BUILT_AT = '2026-10-25T07:29:45Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -40358,11 +40358,34 @@ function _psSpecGet(field, est, name){
 }
 function _psGet(field){
   var v = S.quote ? S.quote[field] : undefined;
+  var out;
   if (v == null || v === '') {
     var d = POLESHED_DEFAULTS[field];
-    return Array.isArray(d) ? d.join('\n') : (d != null ? d : '');
-  }
-  return Array.isArray(v) ? v.join('\n') : v;
+    out = Array.isArray(d) ? d.join('\n') : (d != null ? d : '');
+  } else out = Array.isArray(v) ? v.join('\n') : v;
+  return field === 'psOptions' ? _psOptionsFollow(out) : out;
+}
+// The "Available as options" list names what Zincalume saves and what 0.55 gauge adds — words
+// the office never typed a figure into twice. A line naming one of those choices and carrying ONE
+// dollar figure reads the choice's own price (`_psChoicePrice`, what Edit this section sets), so
+// the line and the option card cannot disagree. Read through, never stored: a default left alone
+// keeps following, and a line with two figures in it is the office's own and is left as written.
+function _psOptionsFollow(text){
+  if (!text) return text;
+  var fig = function(line, amt){
+    var m = line.match(/\$\s?[\d,]+(?:\.\d+)?/g);
+    if (!m || m.length !== 1 || !isFinite(amt)) return line;
+    var cents = /\.\d/.test(m[0]) || Math.round(amt) !== amt;
+    var s = '$' + Math.abs(amt).toLocaleString('en-NZ', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
+    return line.replace(m[0], s);
+  };
+  try {
+    return String(text).split('\n').map(function(line){
+      if (/zincalume/i.test(line)) return fig(line, _psChoicePrice('psgrade', 'zincalume'));
+      if (/0\.55/.test(line)) return fig(line, _psChoicePrice('psthickness', '0.55'));
+      return line;
+    }).join('\n');
+  } catch(e){ return text; }
 }
 function _setQuoteKind(k){
   if (!S.quote) return;

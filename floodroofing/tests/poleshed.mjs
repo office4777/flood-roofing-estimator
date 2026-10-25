@@ -1928,6 +1928,15 @@ const ch = await pg.evaluate(() => {
   out.classic = /Zincalume\u00ae Unpainted Al\/Zn \u2014 lowest cost\u2212\$2,000\.00/.test(_ct) && !/\u2212\$1,850\.00/.test(_ct);
   out.classicTxt = (_ct.match(/.{0,60}(2,000|1,850).{0,40}/g) || []).join(' || ') || _ct.slice(_ct.indexOf('Zinc') - 40, _ct.indexOf('Zinc') + 120);
   S.quote.style = 'modern'; refreshQuoteProposal();
+  // The "Available as options" line follows the edited price, on both layouts (2026-10-25).
+  out.optClassic = /Zincalume to save \$2,000 \+ GST/.test(_ct) && !/save \$1,850/.test(_ct);
+  const _mt = document.getElementById('qpRoot').textContent.replace(/\s+/g, ' ');
+  out.optModern = /Zincalume to save \$2,000 \+ GST/.test(_mt) && !/save \$1,850/.test(_mt);
+  out.optTxt = (_mt.match(/.{0,30}Zincalume to save.{0,20}/) || [''])[0];
+  // A line the office wrote with two figures in it is theirs and is left alone.
+  S.quote.psOptions = 'Zincalume saves $1,850 on the roof and $400 on the walls.\nExtra concrete at $100 + GST per m\u00b2.';
+  out.optOwn = _psGet('psOptions');
+  delete S.quote.psOptions;
   // Stop offering it while it is the pick: back to the standard.
   _psChoiceOpen('psgrade');
   document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="zincalume"] .ps-ch-on').checked = false;
@@ -1937,11 +1946,13 @@ const ch = await pg.evaluate(() => {
   // Back to the standard.
   _psChoiceOpen('psgrade'); _psChoiceReset('psgrade');
   out.reset = S.quote.psChoiceEdit === undefined;
+  out.optReset = /Zincalume to save \$1,850 \+ GST/.test(_psGet('psOptions'));
   // The thickness price reaches the total, and the gutter credit can be set.
   _psChoiceOpen('psthickness');
   document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="0.55"] .ps-ch-p').value = '999';
   _psChoiceApply('psthickness'); _setPsThickness('0.55');
   out.thick = sub() - out.base;
+  out.opt055 = (_psGet('psOptions').match(/.*0\.55g.*/) || [''])[0];
   _setPsThickness('0.40');
   _psChoiceOpen('psgutter');
   document.querySelector('#qcoModal .ps-ch-row[data-ps-ch="none"] .ps-ch-p').value = '-750';
@@ -1956,6 +1967,12 @@ const ch = await pg.evaluate(() => {
   delete S.quote.accepted;
   return out;
 });
+check('THE ASK: the "Available as options" Zincalume line follows the edited price, modern and classic',
+  ch.optModern && ch.optClassic, ch.optTxt);
+check('…the 0.55 gauge line follows its price too', /add \$999 \+ GST/.test(ch.opt055), ch.opt055);
+check('…back to the standard price, the line reads $1,850 again', ch.optReset);
+check('…and a line the office wrote with two figures in it is left as written',
+  /\$1,850 on the roof and \$400/.test(ch.optOwn) && /Extra concrete at \$100/.test(ch.optOwn), ch.optOwn);
 check('the section editor opens on what the quote says now, and a save with no change keeps nothing',
   ch.prefill[0] === 'Colorsteel®' && ch.noEdit, JSON.stringify(ch.prefill));
 check('THE ASK: a choice can be renamed, reworded and re-priced for this quote',
