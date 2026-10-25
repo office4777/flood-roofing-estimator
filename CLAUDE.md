@@ -82,9 +82,11 @@ accordingly.
   `fr3_crewMonthly`, which wins; blank = back to the payroll figure). Under it, CREWS (2026-10-25, `CREW_TEAMS`, `crewTeamsFor`, `crewTeamsEdit`): the
   team leaders on the tools that month by the same rule — four now (the owner: "usually we have a two-man crew, so a
   leader and an apprentice"), each counted in every month he was paid a day, the first crew handed from one leader to
-  the next in the week of 27 Jul 2026 so it counts once, and a fifth leader on the tools Sep 2024 – May 2026; 1 crew in
-  Aug 2024, 2 from Sep 2024, 3 from May 2025, 4 from Jan 2026, 5 in May 2026 (one leader starting as another left),
-  4 since — with people a crew and Rev / NP per crew; typed crews ride
+  the next in the week of 27 Jul 2026 so it counts once, and a fifth leader on the tools Sep 2024 – May 2026; plus a
+  CONTRACT leader never on the payroll, added by hand from his invoices (31 Oct 2024, Nov 2024, 28 Apr – 19 Jun 2025:
+  +1 on the tools, his invoiced hours and +1 crew in those five months, noted 'incl. a contract leader'); 1 crew in
+  Aug 2024, 2 from Sep 2024 (3 in Oct–Nov 2024), 2 in Dec 2024 – Apr 2025 (3 in Apr), 3 from May 2025 (4 in May–Jun),
+  4 from Jan 2026, 5 in May 2026 (one leader starting as another left), 4 since — with people a crew and Rev / NP per crew; typed crews ride
   in the same `fr3_crewMonthly` entry as `c` and never touch the head count.
   THE GROWTH TAB IS THE P&L OVER THE CREWS (2026-10-25, the owner: "fully recalculate the growth tab to suit the
   actual numbers of my guys on the tools for the P&L months", then "it's more important to work it out per crew
