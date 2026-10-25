@@ -1153,6 +1153,11 @@ html[data-theme="dark"] .card.hero-card{background:#0d2440;border:1px solid var(
 .crew-c b{font-size:1.15rem;line-height:1;color:var(--text);min-width:22px;text-align:center;}
 .crew-c span{display:flex;flex-direction:column;font-size:.66rem;font-weight:800;color:var(--text);line-height:1.25;}
 .crew-c small{font-weight:600;color:var(--muted);font-size:.6rem;}
+html.is-desktop #page-growth>.g-wide{grid-column:1/-1;}
+#g-mtbl small.g-cr{font-weight:600;color:var(--muted);font-size:.62rem;}
+html:not(.is-desktop) #g-mtbl th,html:not(.is-desktop) #g-mtbl td{padding:9px 4px;font-size:.74rem;}
+html:not(.is-desktop) #g-mtbl th{white-space:normal;line-height:1.2;vertical-align:bottom;}
+html:not(.is-desktop) #g-mtbl small.g-cr{display:block;font-size:.58rem;}
 .crew-strip .mcard .nox{font-size:.68rem;color:var(--muted);padding:6px 0;}
 /* month cards on every strip */
 .mstrip .mcard .ml .k{color:var(--muted);}
@@ -1555,29 +1560,37 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
   <!-- ───────── GROWTH STRUCTURE ───────── -->
   <div class="page" id="page-growth">
     <div class="card hero-card">
-      <div class="ct">Profit your on-tools guys make now <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="ct">What each guy on the tools produces <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="g-np">—</div>
-        <div class="unit" id="g-np-unit">gross profit / month (Fergus back-costing)</div>
+        <div class="unit" id="g-np-unit">revenue a guy on the tools, per month</div>
         <div class="sub" id="g-np-sub"></div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="ct">Your crew now — from Fergus</div>
-      <div class="mg" id="g-now"></div>
+    <div class="card g-wide">
+      <div class="ct">Your guys on the tools <span class="period-sub" style="margin-left:auto;">P&amp;L ÷ payroll</span></div>
+      <div class="chips" id="g-win"></div>
+      <div class="mg" id="g-now" style="margin-top:12px;"></div>
       <div class="note" id="g-now-note"></div>
-      <div class="cfg" style="grid-template-columns:1fr 1fr;margin-top:12px;">
-        <div><label>Guys on tools (blank = auto)</label><input type="number" id="g-guysnow" min="1" inputmode="numeric" placeholder="auto" oninput="saveGrowthCfg()"></div>
-        <div><label>Hours / week (blank = auto)</label><input type="number" id="g-hrswk" min="0" inputmode="decimal" placeholder="auto" oninput="saveGrowthCfg()"></div>
-        <div style="grid-column:1/-1;"><label>Office overhead $/mo (optional — for net profit)</label><input type="number" id="g-ohmo" min="0" inputmode="decimal" placeholder="0 = show gross profit" oninput="saveGrowthCfg()"></div>
+    </div>
+
+    <div class="card g-wide">
+      <div class="ct">Month by month <span class="period-sub" style="margin-left:auto;">newest first</span></div>
+      <div class="tbl-wrap g-mtbl">
+        <table class="tb" id="g-mtbl">
+          <thead><tr><th>Month</th><th>Guys</th><th>Rev / guy</th><th>GP / guy</th><th>NP / guy</th><th>Rev / hr</th></tr></thead>
+          <tbody id="g-mbody"></tbody>
+        </table>
       </div>
+      <div class="note" id="g-mnote"></div>
     </div>
 
     <div class="card">
       <div class="ct">Grow the crew <span id="g-tradies" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="cfg" style="grid-template-columns:1fr;">
-        <div><label>Guys on the tools (scenario)</label><input type="number" id="g-guys" min="1" inputmode="numeric" placeholder="e.g. 12" oninput="saveGrowthCfg()"></div>
+      <div class="cfg" style="grid-template-columns:1fr 1fr;">
+        <div><label>Guys on the tools (scenario)</label><input type="number" id="g-guys" min="1" inputmode="numeric" placeholder="e.g. 13" oninput="saveGrowthCfg()"></div>
+        <div><label>Overheads $/mo (blank = Xero average)</label><input type="number" id="g-ohmo" min="0" inputmode="decimal" placeholder="auto" oninput="saveGrowthCfg()"></div>
       </div>
       <div class="chips" id="g-presets" style="margin-top:12px;"></div>
       <div class="mg" id="g-proj" style="margin-top:14px;"></div>
@@ -1585,17 +1598,17 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     </div>
 
     <div class="card">
-      <div class="ct">If you add guys <span class="period-sub" style="margin-left:auto;">same real $/hr</span></div>
+      <div class="ct">If you add guys <span class="period-sub" style="margin-left:auto;">same $ a guy</span></div>
       <div class="tbl-wrap">
         <table class="tb" id="g-tbl">
-          <thead><tr><th>Guys</th><th>Hrs/mo</th><th>Rev/mo</th><th>GP/mo</th><th>GP/yr</th></tr></thead>
+          <thead><tr><th>Guys</th><th>Crews</th><th>Rev/mo</th><th>GP/mo</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
           <tbody id="g-body"></tbody>
         </table>
       </div>
     </div>
 
     <div class="card">
-      <div class="ct">How this is worked out <span class="period-sub" style="margin-left:auto;">Fergus only</span></div>
+      <div class="ct">How this is worked out <span class="period-sub" style="margin-left:auto;">Xero + payroll</span></div>
       <div class="note" id="g-assume"></div>
     </div>
   </div>
@@ -2044,7 +2057,7 @@ let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (r
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
 // actually produced the last-6-month average (4×2 = 8 on-tools). estCost/estWeeks normalise
 // the estimator (only ~6 weeks in the window). varOpex = opex that scales per on-tools head.
-let growthCfg=Object.assign({guys:'',ohMo:'',guysNow:'',hrsWk:''},S.get('growthCfg',{}));
+let growthCfg=Object.assign({guys:'',ohMo:'',guysNow:'',hrsWk:'',win:'12'},S.get('growthCfg',{}));
 let lastXeroRep=null,lastXeroLabel='';   // cached last full live report → re-render P&L tab without re-pulling (only sync pulls)
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
@@ -5554,75 +5567,100 @@ function teamWork(){
   const weeks=Math.max(1,num(t.weeks)||1),totalHrs=num(t.totalHrs);
   return {persons:t.persons,guys:t.persons.length,totalHrs,weeks,hrsWeek:totalHrs/weeks,from:t.from,to:t.to,rolling:false};
 }
-// Growth model — 100% Fergus. Guys = people logging on-site hours; weekly hours = what they log;
-// $/hr & GP/hr = Fergus back-costing. Scale by headcount: more guys → proportionally more hours →
-// more revenue & GP at the same real per-hour rate. Optional office overhead turns GP into NP.
+// GROWTH — what the guys on the tools actually produce (2026-10-25, the owner: "fully recalculate the growth tab
+// to suit the actual numbers of my guys on the tools for the P&L months ... how much money they're actually
+// producing"). It was a Fergus model — back-costing $ per LOGGED hour times the hours the guys logged — which
+// read only what reached Fergus. Now it is the money the business really made (Xero's P&L: revenue, GP with the
+// on-site wages in cost of sales, overheads, NP) divided by the people who really were on the tools that month
+// (the payroll head count on the P&L crew strip, crewFor, typed months included) and the crews (crewTeamsFor).
+// Months used: complete, with a Xero revenue AND a head count, never the current month or a part month (the pay
+// runs start 26 Aug 2024). Per guy is weighted — the window's revenue over its person-months — so a big month
+// with a big crew counts as it should. Per hour is revenue over the hours PAID, months with payroll hours only.
+// Growing: each guy brings the window's GP a guy; the overheads (Xero opex, wages moved out) stay put, which is
+// why every extra guy is worth more than the average NP a guy.
+const G_WINS=[['3','Last 3 months'],['6','Last 6 months'],['12','Last 12 months'],['all','Since Sep 2024']];
+function growthMonths(){const cur=calMonthKey(0);
+  return crewMonths().filter(k=>{if(k===cur)return false;const c=crewFor(k),f=xeroFig(k);
+    return c&&c.n>0&&!c.part&&f&&f.rev>0;});}
 function growthModel(scGuys){
-  const prod=fergusProd(), tw=teamWork();
-  if(!prod||!tw)return null;
-  const guysNow=Math.max(1,(num(growthCfg.guysNow)>0?num(growthCfg.guysNow):tw.guys));
-  const hrsWeek=(num(growthCfg.hrsWk)>0?num(growthCfg.hrsWk):tw.hrsWeek);
-  const hrsPerGuyWk=guysNow>0?hrsWeek/guysNow:0;
-  const oh=Math.max(0,num(growthCfg.ohMo));            // optional office overhead / mo (0 = pure back-costing GP)
-  const W2M=52/12;
-  const calc=g=>{g=Math.max(0,g);const hw=g*hrsPerGuyWk,hm=hw*W2M,rev=hm*prod.revPerHr,gp=hm*prod.gpPerHr,np=gp-oh;
-    return {g,hw,hm,rev,gp,oh,np,gpm:prod.gpm,npm:rev>0?np/rev:0};};
-  return {prod,tw,guysNow,hrsWeek,hrsPerGuyWk,oh,W2M,calc,cur:calc(guysNow),scenario:calc(Math.max(1,scGuys||guysNow))};
+  const all=growthMonths();if(!all.length)return null;
+  const win=growthCfg.win||'12';const ks=win==='all'?all:all.slice(-num(win));
+  let rev=0,gp=0,np=0,oh=0,pm=0,cm=0,hRev=0,hrs=0;
+  const rows=ks.map(k=>{const f=xeroFig(k),c=crewFor(k),t=crewTeamsFor(k),x=xeroMonthly[k]||{};
+    const o=x.overhead!=null?num(x.overhead):num(f.opex);
+    rev+=f.rev;gp+=f.gp;np+=f.np;oh+=o;pm+=c.n;cm+=(t&&t.c>0?t.c:0);if(c.h>0){hRev+=f.rev;hrs+=c.h;}
+    return {k,n:c.n,c:t?t.c:null,h:c.h||0,rev:f.rev,gp:f.gp,np:f.np,src:c.src};});
+  const M=ks.length,per={rev:rev/pm,gp:gp/pm,np:np/pm},guysAvg=pm/M,crewsAvg=cm/M,ohAvg=oh/M;
+  const last=rows[rows.length-1];
+  const guysNow=last.n,crewsNow=last.c||Math.max(1,Math.round(crewsAvg)),crewSize=crewsAvg>0?guysAvg/crewsAvg:guysAvg;
+  const ohMo=num(growthCfg.ohMo)>0?num(growthCfg.ohMo):ohAvg;
+  const calc=g=>{g=Math.max(0,g);const r=g*per.rev,p=g*per.gp,n=p-ohMo;return {g,crews:crewSize>0?g/crewSize:0,rev:r,gp:p,oh:ohMo,np:n,gpm:r>0?p/r:0,npm:r>0?n/r:0};};
+  return {win,ks,rows,M,rev,gp,np,oh,pm,per,guysAvg,crewsAvg,crewSize,ohAvg,ohMo,guysNow,crewsNow,last,
+    revHr:hrs>0?hRev/hrs:null,gpHr:hrs>0&&hRev>0?(gp*hRev/rev)/hrs:null,hrs,hrsGuy:hrs>0?hrs/pm:null,
+    perCrew:crewsAvg>0?{rev:rev/cm,np:np/cm}:null,gpm:rev>0?gp/rev:0,calc,cur:calc(guysNow),scenario:calc(Math.max(1,scGuys||guysNow))};
 }
 function saveGrowthCfg(){
   const g=id=>document.getElementById(id);const gv=id=>(g(id)?(g(id).value||'').trim():'');
-  growthCfg={guys:gv('g-guys'),ohMo:gv('g-ohmo'),guysNow:gv('g-guysnow'),hrsWk:gv('g-hrswk')};
+  growthCfg=Object.assign({},growthCfg,{guys:gv('g-guys'),ohMo:gv('g-ohmo')});
   S.set('growthCfg',growthCfg);renderGrowth();
 }
 function gSetGuys(n){const e=document.getElementById('g-guys');if(e)e.value=n;saveGrowthCfg();}
+function gSetWin(w){growthCfg=Object.assign({},growthCfg,{win:w});S.set('growthCfg',growthCfg);renderGrowth();}
 function renderGrowth(){
   const m=growthModel(num(growthCfg.guys));
   const setTxt=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   const setHtml=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
-  const hasOh=m&&m.oh>0;
   if(!m){
     setTxt('g-np','—');
-    setTxt('g-np-sub','No Fergus back-costing + time entries yet — Sync from Fergus (Back Costing tab), which loads the hours the guys log.');
-    setHtml('g-now','<div class="empty" style="grid-column:1/-1;">Sync Fergus to load who’s on the tools.</div>');
-    setHtml('g-proj','<div class="empty" style="grid-column:1/-1;">No data.</div>');
-    setHtml('g-body','<tr><td colspan="5" class="empty">No data.</td></tr>');
-    setTxt('g-now-note','');setTxt('g-cmp','');setTxt('g-assume','');
-    setTxt('g-src','');setTxt('g-tradies','');setHtml('g-presets','');return;
+    setTxt('g-np-sub','Needs your Xero P&L months — Sync Xero (P&L tab) and the crew numbers on the P&L crew strip.');
+    setHtml('g-now','<div class="empty" style="grid-column:1/-1;">No P&amp;L months with a crew yet.</div>');
+    ['g-win','g-presets','g-proj'].forEach(id=>setHtml(id,''));
+    setHtml('g-mbody','<tr><td colspan="6" class="empty">No data.</td></tr>');setHtml('g-body','<tr><td colspan="6" class="empty">No data.</td></tr>');
+    ['g-now-note','g-mnote','g-cmp','g-assume','g-src','g-tradies'].forEach(id=>setTxt(id,''));return;
   }
-  const cur=m.cur,sc=m.scenario;const guysNow=m.guysNow;
-  // hero = the profit the on-tools guys make NOW
-  setTxt('g-np',fmtK(cur.gp));
-  const heroUnit=document.getElementById('g-np-unit');if(heroUnit)heroUnit.textContent=hasOh?'net profit / month (Fergus)':'gross profit / month (Fergus back-costing)';
-  setTxt('g-np-sub',guysNow+' guys on the tools · '+Math.round(m.hrsWeek)+' h/week · '+fmt$(m.prod.gpPerHr)+'/hr GP'+(hasOh?(' · NP '+fmtK(cur.np)+'/mo'):''));
-  setTxt('g-src','⚡ Fergus only');
-  // "Your crew now" — straight from Fergus
+  const mLbl=k=>k.replace('-',' '),span=mLbl(m.ks[0])+' – '+mLbl(m.ks[m.ks.length-1]);
+  const p=m.per,cur=m.cur,sc=m.scenario,np$=v=>'<span class="'+(v>=0?'pos':'neg')+'">'+fmtK(v)+'</span>';
+  // hero — the money a guy on the tools brings in a month
+  setTxt('g-np',fmtK(p.rev));
+  setTxt('g-np-unit','revenue a guy on the tools, per month');
+  setTxt('g-np-sub','GP '+fmtK(p.gp)+' · NP '+fmtK(p.np)+' a guy'+(m.revHr?' · '+fmt$(m.revHr)+' an hour paid':'')+' · '+(Math.round(m.guysAvg*10)/10)+' guys on average · '+span);
+  setTxt('g-src','Xero + payroll');
+  setHtml('g-win',G_WINS.map(([w,l])=>'<span class="chip'+(m.win===w?' on':'')+'" onclick="gSetWin(\''+w+'\')">'+l+'</span>').join(''));
   setHtml('g-now',
-    mb('Guys on the tools',String(guysNow),'logging hours in Fergus','','m-np')+
-    mb('Hours / week',String(Math.round(m.hrsWeek)),Math.round(m.hrsPerGuyWk)+' h/guy · '+fmtH(m.tw.totalHrs)+'h over '+ (m.tw.weeks<1.4?'~1 wk':(m.tw.weeks.toFixed(1)+' wks')),'','m-rev')+
-    mb('GP / hr',fmt$(m.prod.gpPerHr),fmt$(m.prod.revPerHr)+'/hr revenue','pos','m-gp')+
-    mb('GP margin',Math.round(m.prod.gpm*100)+'%','from '+m.prod.n+' Fergus jobs','','m-cogs'));
-  setTxt('g-now-note','Guys = everyone logging on-site hours in Fergus (auto). Hours/week = what they actually logged. GP/hr = Fergus back-costing gross profit ÷ the hours they logged. Override any of these below if a sync window looks light.');
-  // scenario
+    mb('Guys on the tools',String(Math.round(m.guysAvg*10)/10),'on average · '+m.guysNow+' in '+mLbl(m.last.k),'','m-np')+
+    mb('Crews',String(Math.round(m.crewsAvg*10)/10),(Math.round(m.crewSize*10)/10)+' guys a crew','','m-opex')+
+    mb('Revenue / guy',fmtK(p.rev),'a month · '+fmtK(p.rev*12)+' a year','','m-rev')+
+    mb('GP / guy',fmtK(p.gp),Math.round(m.gpm*100)+'% GPM · a month','pos','m-gp')+
+    mb('NP / guy',fmtK(p.np),'a month, after overheads',p.np>=0?'pos':'neg','m-np')+
+    (m.revHr?mb('Revenue / hr paid',fmt$(m.revHr),'GP '+fmt$(m.gpHr)+' · '+Math.round(m.hrsGuy)+' h paid a guy a month','','m-cogs'):'')+
+    (m.perCrew?mb('Revenue / crew',fmtK(m.perCrew.rev),'NP '+fmtK(m.perCrew.np)+' a crew, a month','','m-rev'):''));
+  setTxt('g-now-note','Over '+m.M+' month'+(m.M===1?'':'s')+' ('+span+'): Xero revenue '+fmtK(m.rev)+', GP '+fmtK(m.gp)+', NP '+fmtK(m.np)+' ÷ '+m.pm+' guy-months on the tools'+(m.hrs?' and '+fmtH(m.hrs)+' hours paid':'')+'.');
+  // month by month, newest first
+  setHtml('g-mbody',m.rows.slice().reverse().map(r=>'<tr><td>'+r.k.replace('-20',' ')+'</td><td>'+r.n+(r.c?' <small class="g-cr">'+r.c+' crew'+(r.c===1?'':'s')+'</small>':'')+(r.src==='hand'?' <small class="g-cr">typed</small>':'')+'</td><td>'+fmtK(r.rev/r.n)+'</td><td>'+fmtK(r.gp/r.n)+'</td><td>'+np$(r.np/r.n)+'</td><td>'+(r.h>0?fmt$(r.rev/r.h):'—')+'</td></tr>').join('')+
+    '<tr class="tot"><td>Average</td><td>'+(Math.round(m.guysAvg*10)/10)+'</td><td>'+fmtK(p.rev)+'</td><td>'+fmtK(p.gp)+'</td><td>'+np$(p.np)+'</td><td>'+(m.revHr?fmt$(m.revHr):'—')+'</td></tr>');
+  setTxt('g-mnote','Each month: that month’s Xero figure ÷ the guys paid on the tools that month (the P&L crew strip; a number you typed there wins). Rev / hr = revenue ÷ hours paid.');
+  // grow the crew — each guy brings the GP a guy; the overheads stay put
   const guysSc=sc.g;
-  setTxt('g-tradies',guysSc+' guys on tools');
-  const presetGuys=[...new Set([guysNow,Math.max(1,guysNow+2),Math.max(1,guysNow+4),Math.max(1,guysNow+6),Math.max(1,guysNow*2)])].sort((a,b)=>a-b);
-  setHtml('g-presets',presetGuys.map(n=>'<span class="chip'+(n==guysSc?' on':'')+'" onclick="gSetGuys('+n+')">'+n+' guys</span>').join(''));
+  setTxt('g-tradies',guysSc+' guys on the tools');
+  const cs=Math.max(1,Math.round(m.crewSize));
+  const presets=[...new Set([m.guysNow,m.guysNow+2,m.guysNow+cs,m.guysNow+2*cs,m.guysNow+3*cs])].sort((a,b)=>a-b);
+  setHtml('g-presets',presets.map(n=>'<span class="chip'+(n==guysSc?' on':'')+'" onclick="gSetGuys('+n+')">'+n+' guys'+(n===m.guysNow?' · now':(n-m.guysNow)%cs===0?' · +'+((n-m.guysNow)/cs)+' crew'+((n-m.guysNow)/cs>1?'s':''):'')+'</span>').join(''));
   setHtml('g-proj',
     mb('Revenue / mo',fmtK(sc.rev),fmtK(sc.rev*12)+'/yr','','m-rev')+
     mb('Gross Profit',fmtK(sc.gp),Math.round(sc.gpm*100)+'% GPM · '+fmtK(sc.gp*12)+'/yr','pos','m-gp')+
-    (hasOh?mb('Office overhead',fmtK(sc.oh),'your figure','','m-opex'):mb('Hours / mo',String(Math.round(sc.hm)),Math.round(sc.hw)+' h/wk','','m-opex'))+
-    mb(hasOh?'Net Profit':'GP / year',hasOh?fmtK(sc.np):fmtK(sc.gp*12),hasOh?(Math.round(sc.npm*100)+'% margin · '+fmtK(sc.np*12)+'/yr'):'at this crew size',(hasOh?(sc.np>=0?'pos':'neg'):'pos'),'m-np'));
-  const dGp=sc.gp-cur.gp;
-  setHtml('g-cmp','vs your <b>'+guysNow+' guys now</b> ('+fmtK(cur.gp)+'/mo GP): '+
-    (dGp>=0?'<span class="pos">+'+fmtK(dGp)+'/mo</span>':'<span class="neg">'+fmtK(dGp)+'/mo</span>')+' → <b>'+(dGp>=0?'+':'')+fmtK(dGp*12)+'/yr</b> at '+guysSc+' guys, if each guy keeps getting through ~'+Math.round(m.hrsPerGuyWk)+' h/week at '+fmt$(m.prod.gpPerHr)+'/hr GP.');
-  // scale table by headcount
-  const guyList=[...new Set([guysNow,guysNow+1,guysNow+2,guysNow+4,guysNow+6,guysNow+8,guysNow*2,guysSc].filter(n=>n>=1))].sort((a,b)=>a-b);
-  setHtml('g-body',guyList.map(n=>{const f=m.calc(n);const active=(n==guysSc);
-    return '<tr'+(active?' class="tot"':'')+'><td>'+n+'</td><td>'+Math.round(f.hm)+'</td><td>'+fmtK(f.rev)+'</td><td class="pos">'+fmtK(f.gp)+'</td><td>'+fmtK(f.gp*12)+'</td></tr>';}).join(''));
+    mb('Overheads',fmtK(sc.oh),num(growthCfg.ohMo)>0?'your figure':'Xero average, held flat','','m-opex')+
+    mb('Net Profit',fmtK(sc.np),Math.round(sc.npm*100)+'% margin · '+fmtK(sc.np*12)+'/yr',sc.np>=0?'pos':'neg','m-np'));
+  const dNp=sc.np-cur.np;
+  setHtml('g-cmp',(guysSc===m.guysNow?'Your <b>'+m.guysNow+' guys now</b> at the same rates. Pick a bigger crew above, or type one in, to see what it adds. ':
+    'vs your <b>'+m.guysNow+' guys now</b> ('+fmtK(cur.np)+'/mo NP at the same rates): '+
+    (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. ')+'Each guy added brings about <b>'+fmtK(p.gp)+'/mo</b> GP, and the overheads do not grow with him.');
+  const guyList=[...new Set([m.guysNow,m.guysNow+1,m.guysNow+2,m.guysNow+cs,m.guysNow+2*cs,m.guysNow+3*cs,guysSc].filter(n=>n>=1))].sort((a,b)=>a-b);
+  setHtml('g-body',guyList.map(n=>{const f=m.calc(n);
+    return '<tr'+(n==guysSc?' class="tot"':'')+'><td>'+n+'</td><td>'+(Math.round(f.crews*10)/10)+'</td><td>'+fmtK(f.rev)+'</td><td class="pos">'+fmtK(f.gp)+'</td><td>'+np$(f.np)+'</td><td>'+np$(f.np*12)+'</td></tr>';}).join(''));
   setHtml('g-assume',
-    'Built <b>only from Fergus</b> — no P&amp;L, no Excel back-costing. Your guys got through <b>'+fmt$(m.prod.revPerHr)+'/hr</b> revenue and <b>'+fmt$(m.prod.gpPerHr)+'/hr</b> gross profit across <b>'+m.prod.n+' Fergus jobs</b> ('+fmtH(m.prod.hrs)+' logged hours). Right now <b>'+guysNow+' guys</b> log about <b>'+Math.round(m.hrsWeek)+' h/week</b> ('+Math.round(m.hrsPerGuyWk)+' h each). '+
-    'Growth just scales those real hours: <b>'+guysSc+' guys × '+Math.round(m.hrsPerGuyWk)+' h/week × '+fmt$(m.prod.gpPerHr)+'/hr</b>. '+
-    (hasOh?('Net profit subtracts your <b>'+fmtK(m.oh)+'/mo</b> office overhead.'):('This is <b>gross profit</b> (back-costing already nets off materials + on-site labour). Add an office-overhead figure below to see net profit — it stays 0 until you do, so nothing here uses your P&amp;L.')));
+    'Built from <b>what actually happened</b>: your <b>Xero P&amp;L</b> for each month (revenue, gross profit with the on-site wages in cost of sales, overheads, net profit) divided by the <b>guys paid on the tools</b> that month from your pay runs — office staff left out, the same numbers as the crew strip on the P&amp;L tab. '+
+    'Over <b>'+span+'</b> that is <b>'+fmtK(p.rev)+'</b> revenue, <b>'+fmtK(p.gp)+'</b> gross profit and <b>'+fmtK(p.np)+'</b> net profit a guy, a month'+(m.revHr?', or <b>'+fmt$(m.revHr)+'</b> revenue an hour paid':'')+'. '+
+    'Growing the crew: each extra guy brings the same gross profit a guy, while the overheads (<b>'+fmtK(m.ohMo)+'/mo</b>) stay where they are — more trucks, more office help or a bigger yard would need adding by hand in the overheads box. Crews are '+(Math.round(m.crewSize*10)/10)+' guys on average, each led by a team leader.');
 }
 
 // ════════ MARKETING / SALES FUNNEL ════════ (ported from the v6 hub — uses the real Fergus

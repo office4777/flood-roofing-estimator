@@ -83,7 +83,15 @@ accordingly.
   team leaders on the tools that month by the same rule — the owner's four leaders, the first crew handed from one to
   the next in the week of 27 Jul 2026 so it counts once; 1 crew to Dec 2025, 2 from Jan 2026, 3 from May 2026; Mar–Apr
   2025 had no leader paid and still reads 1, saying so — with people a crew and Rev / NP per crew; typed crews ride
-  in the same `fr3_crewMonthly` entry as `c` and never touch the head count. `tests/hubui.mjs` (83, UI list) drives both
+  in the same `fr3_crewMonthly` entry as `c` and never touch the head count.
+  THE GROWTH TAB IS THE P&L OVER THE PAYROLL (2026-10-25, the owner: "fully recalculate the growth tab to suit the
+  actual numbers of my guys on the tools for the P&L months"). It was 100% Fergus (back-costing $ per LOGGED hour x
+  the hours logged). Now `growthMonths()` = complete months with a Xero revenue AND a crew head count (never the
+  current month, never a `part` month), `growthModel` sums the window (`growthCfg.win`: 3 / 6 / 12 / all, default
+  12) and divides by the person-months: revenue, GP and NP a guy a month (weighted), revenue and GP an hour PAID,
+  revenue a crew. The month table (`#g-mtbl`, fits a phone) shows each month's own figure a guy. Growing the crew:
+  each guy brings the window's GP a guy and the overheads (Xero opex, or the `g-ohmo` box) are held flat. A typed
+  crew number on the P&L strip is the one used. `fergusProd` / `teamWork` stay — the Command Centre still reads them. `tests/hubui.mjs` (89, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
