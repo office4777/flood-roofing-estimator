@@ -57,6 +57,10 @@ check('the forward workflow card shows the weeks booked, as the Workload tab wor
 check('…and the hours left', fw.hours === fw.wantH, fw.hours + ' vs ' + fw.wantH);
 check('…at the top of the Command Centre, above the tiles', fw.top < fw.kpis, fw.top + ' < ' + fw.kpis);
 check('…with the six-month trend drawn', fw.spark);
+const byM = await pg.evaluate(() => { const g = document.querySelector('#page-dash .dgrid'), kids = [...g.children];
+  const r = s => document.querySelector(s).getBoundingClientRect();
+  return { next: kids[kids.indexOf(document.getElementById('cmd-fw')) + 1].className, fwBot: Math.round(r('#cmd-fw').bottom), moTop: Math.round(r('.d-month').top), kpis: Math.round(r('#cmd-kpis').top), cards: document.querySelectorAll('#month-strip-dash .mcard').length }; });
+check('By Month sits straight under the forward workflow, above the tiles', /\bd-month\b/.test(byM.next) && byM.moTop >= byM.fwBot && byM.moTop - byM.fwBot < 40 && byM.moTop < byM.kpis && byM.cards > 0, JSON.stringify(byM));
 check('…and the old tile is gone from the grid, not shown twice', !fw.oldTile);
 await pg.click('#cmd-fw .fwh-num');
 let t = await pg.evaluate(() => ({ open: document.getElementById('cmd-modal').classList.contains('open'), title: document.getElementById('cmd-modal-title').textContent, rows: document.querySelectorAll('#cmd-modal-body tr').length }));
@@ -292,6 +296,9 @@ const lay = await pg.evaluate(() => {
 });
 check('the Command Centre spreads out: the workflow card takes two thirds with the flags beside it', lay.fw > lay.app * 0.55 && lay.alLeft > lay.fwRight && Math.abs(lay.alTop - lay.fwTop) < 2, JSON.stringify(lay));
 check('…and the tiles run four across', lay.kpiW < lay.app / 3.5, JSON.stringify(lay));
+const byMd = await pg.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect();
+  return { fwBot: Math.round(r('#cmd-fw').bottom), moTop: Math.round(r('.d-month').top), moW: Math.round(r('.d-month').width), app: Math.round(document.getElementById('app').getBoundingClientRect().width), kpis: Math.round(r('#cmd-kpis').top) }; });
+check('…and on the computer By Month runs full width under the workflow card, above the tiles', byMd.moTop > byMd.fwBot && byMd.moTop < byMd.kpis && byMd.moW > byMd.app * 0.9, JSON.stringify(byMd));
 check('…and Last Month starts open beside Cash at a glance', await pg.evaluate(() => { const d = document.querySelector('.d-last details.acc'); return !!(d && d.open); }));
 await pg.evaluate(() => go('bc')); await pg.waitForTimeout(400);
 const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wrap').getBoundingClientRect().height > 0,

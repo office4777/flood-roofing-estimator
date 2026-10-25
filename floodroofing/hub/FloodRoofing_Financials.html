@@ -975,7 +975,7 @@ html.is-desktop #cmd-tog.cmd-tog{width:auto;}
 html.is-desktop #cmd-tog .tgcol{flex:none;}
 html.is-desktop #cmd-tog .chip{flex:none;padding:7px 16px;font-size:.74rem;}
 html.is-desktop .dgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;
-  grid-template-areas:"fw fw al" "kp kp kp" "ca ca la" "pl pl pl" "mo mo mo" "r3 r3 r3" "r6 r6 r6" "sy sy sy";}
+  grid-template-areas:"fw fw al" "mo mo mo" "kp kp kp" "ca ca la" "pl pl pl" "r3 r3 r3" "r6 r6 r6" "sy sy sy";}
 html.is-desktop .d-fw{grid-area:fw;}html.is-desktop .d-alerts{grid-area:al;}html.is-desktop .d-kpis{grid-area:kp;}
 html.is-desktop .d-cash{grid-area:ca;}html.is-desktop .d-last{grid-area:la;}html.is-desktop .d-pl{grid-area:pl;}
 html.is-desktop .d-month{grid-area:mo;}html.is-desktop .d-roll3{grid-area:r3;}html.is-desktop .d-roll6{grid-area:r6;}html.is-desktop .d-sync{grid-area:sy;}
@@ -1255,6 +1255,10 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     <div id="cmd-tog" class="cmd-tog"></div>
     <div class="dgrid">
       <div class="d-fw" id="cmd-fw"></div>
+      <div class="d-month pm-hide"><div class="card per-this">
+        <div class="ct">By Month <span id="lbl-this" class="period-sub"></span><span class="period-sub" style="margin-left:auto;"><span id="src-this"></span>tap a month for its P&amp;L</span></div>
+        <div class="mstrip" id="month-strip-dash"></div>
+      </div></div>
       <div class="d-kpis kpigrid" id="cmd-kpis"></div>
       <div class="d-alerts"><div class="dlab">Flags</div><div class="cmd-alerts" id="cmd-alerts"></div></div>
       <div class="d-cash pm-hide"><div class="card per-this">
@@ -1262,10 +1266,6 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
         <div class="mg mg-list" id="dash-summary"></div>
       </div></div>
       <div class="d-pl sect pm-hide"><span>Profit &amp; Loss</span><button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
-      <div class="d-month pm-hide"><div class="card per-this">
-        <div class="ct">By Month <span id="lbl-this" class="period-sub"></span><span class="period-sub" style="margin-left:auto;"><span id="src-this"></span>tap a month for its P&amp;L</span></div>
-        <div class="mstrip" id="month-strip-dash"></div>
-      </div></div>
       <div class="d-last pm-hide"><div class="card per-last acc-card">
         <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
         <div class="mg" id="met-last"></div>
