@@ -264,7 +264,7 @@ const wk = await pg.evaluate(() => {
   const rows = [...document.querySelectorAll('#work-list .wkm-row:not(.wkm-hd)')], host = document.getElementById('work-list');
   const r0 = rows[0], j0 = fwJobs.find(j => j.id === r0.dataset.id);
   return { second: cards[1] && cards[1].id, list: vis('#work-list'), table: vis('.wk-tbl-wrap'), n: rows.length, want: fwJobs.length,
-    no: r0.querySelector('.wkm-id b').textContent, addr: r0.querySelector('.wkm-id span').textContent, jobNo: j0 && j0.jobNo,
+    no: r0.querySelector('.wkm-id b').firstChild.textContent, addr: r0.querySelector('.wkm-id span').textContent, jobNo: j0 && j0.jobNo,
     figs: [...r0.querySelectorAll('.wkm-n')].map(e => e.textContent).concat(r0.querySelector('.wk-rem').value),
     want0: j0 ? [fmtH(j0.priced), fmtH(j0.actual), String(remVal(j0))] : [],
     fits: host.scrollWidth <= host.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -281,6 +281,27 @@ const wkTick = await pg.evaluate(() => {
   toggleWkDone(id, false); return { before, after, done, dim };
 });
 check('…ticking a job done on the phone drops its hours from the total', wkTick.done && wkTick.dim && wkTick.after < wkTick.before, JSON.stringify(wkTick));
+// A tap on a job's number opens its details under the row (2026-10-25, the owner: "let me click each of
+// those jobs to see the whole address, customer name, job title and total job revenue").
+const wkOpen = await pg.evaluate(async () => {
+  const wrap = id => document.querySelector('#work-list .wkm-row[data-id="' + id + '"]').closest('.wkm-job');
+  const j = fwJobs.find(x => x.title), old = fwJobs.find(x => !('title' in x));
+  const w = wrap(j.id), more = w.querySelector('.wkm-more'), hidden = more.getBoundingClientRect().height === 0;
+  w.querySelector('.wkm-id').click();
+  const txt = more.innerText, shown = more.getBoundingClientRect().height > 0;
+  setWkRem(j.id, String(remVal(j)));   // an edit re-draws the list — the job stays open
+  const still = wrap(j.id).classList.contains('open');
+  wrap(old.id).querySelector('.wkm-id').click(); const oldTxt = wrap(old.id).querySelector('.wkm-more').innerText;
+  wrap(j.id).querySelector('.wkm-id').click(); const shut = !wrap(j.id).classList.contains('open');
+  wrap(old.id).querySelector('.wkm-id').click();
+  const host = document.getElementById('work-list');
+  return { hidden, shown, still, shut, txt, oldTxt, client: j.client, site: j.site, title: j.title, rev: fmt$(j.sale),
+    oldClient: old.job.split(' — ')[0], oldSite: old.job.split(' — ')[1],
+    fits: host.scrollWidth <= host.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1 };
+});
+check('…a tap on a job opens the customer, the whole address, the job title and the job revenue', wkOpen.hidden && wkOpen.shown && wkOpen.txt.includes(wkOpen.client) && wkOpen.txt.includes(wkOpen.site) && wkOpen.txt.includes(wkOpen.title) && wkOpen.txt.includes(wkOpen.rev) && /excl\. GST/.test(wkOpen.txt), JSON.stringify(wkOpen));
+check('…it stays open when the list re-draws, shuts on a second tap, and still fits a phone', wkOpen.still && wkOpen.shut && wkOpen.fits, JSON.stringify(wkOpen));
+check('…a job from an older sync takes the customer and address out of its name and says the title comes with the next sync', wkOpen.oldTxt.includes(wkOpen.oldClient) && wkOpen.oldTxt.includes(wkOpen.oldSite) && /next Fergus sync/.test(wkOpen.oldTxt), JSON.stringify(wkOpen));
 
 await pg.evaluate(() => go('pl')); await pg.waitForTimeout(400);
 const crew = await pg.evaluate(() => {

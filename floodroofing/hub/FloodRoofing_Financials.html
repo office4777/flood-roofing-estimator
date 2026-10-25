@@ -1220,6 +1220,17 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
 #work-tbl th:nth-child(2),#work-tbl td:nth-child(2){text-align:left;}
 .wkm-row{display:grid;grid-template-columns:22px minmax(0,1fr) 40px 40px 54px 24px;gap:0 6px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);}
 .wkm-row:last-child{border-bottom:0;}
+.wkm-job{border-bottom:1px solid var(--border);}.wkm-job:last-child{border-bottom:0;}
+.wkm-job>.wkm-row{border-bottom:0;}
+.wkm-id[role=button]{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.wkm-go{font-style:normal;margin-left:5px;color:var(--faint);font-weight:800;display:inline-block;transition:transform .15s;}
+.wkm-job.open .wkm-go{transform:rotate(90deg);color:var(--primary);}
+.wkm-more{display:none;margin:0 2px 9px 28px;padding:9px 11px;border-radius:10px;background:var(--soft-acc);}
+.wkm-job.open .wkm-more{display:block;}
+.wkm-ln{display:flex;gap:10px;padding:3px 0;font-size:.78rem;line-height:1.35;}
+.wkm-ln i{flex:none;width:82px;font-style:normal;font-size:.62rem;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;padding-top:2px;}
+.wkm-ln>span{flex:1;min-width:0;color:var(--text);font-weight:600;overflow-wrap:anywhere;}
+.wkm-ln b{font-weight:800;font-variant-numeric:tabular-nums;}
 .wkm-hd{padding:2px 2px 5px;border-bottom:1.5px solid var(--border2);font-size:.54rem;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;}
 .wkm-hd span{text-align:right;}.wkm-hd span:nth-child(2){text-align:left;}
 .wkm-row .wk-chk{width:19px;height:19px;margin:0;}
@@ -2405,12 +2416,13 @@ async function syncWorkload(band){
         const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
         const site=fergusAddr(job.siteAddress);
         const jobName=client+(site?(' — '+site):'');
+        const title=String(job.brief||job.title||job.jobDescription||job.description||job.summary||'').trim();
         const fin=isFinishedJob(job,summary);
         // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast + earned P&L
         allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,pLab,aMat,aLab,hActual:actual,hPriced:priced,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active',fin,_lm:job.lastModified||''});
         if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
         if(priced<=0)noPriced++;
-        out.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,pLab,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
+        out.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,client,site:site||'',title,priced,actual,remaining:Math.max(0,priced-actual),pMat,pLab,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
       }
     }
     await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
@@ -2633,14 +2645,16 @@ function renderWork(){
   if(wl)wl.innerHTML=rows.length?('<div class="wkm-row wkm-hd"><span></span><span>Job</span><span>Priced</span><span>Actual</span><span>Remain h</span><span></span></div>'+rows.map(j=>{
     const over=j.actual>j.priced&&j.priced>0,done=!!fwDone[j.id],edited=fwRemOv[j.id]!=null&&fwRemOv[j.id]!=='';
     const no=String(j.jobNo||'').trim(),k=jobNoKey(j),on=!!(k&&jobExcl[k]);
-    return '<div class="wkm-row'+(done?' wk-done':'')+(isExcl(j)?' jx-off':'')+'" data-id="'+esc(j.id)+'">'+
+    const open=!!_wkOpen[j.id];
+    return '<div class="wkm-job'+(open?' open':'')+'">'+
+      '<div class="wkm-row'+(done?' wk-done':'')+(isExcl(j)?' jx-off':'')+'" data-id="'+esc(j.id)+'">'+
       '<input type="checkbox" class="wk-chk"'+(done?' checked':'')+' onchange="toggleWkDone(\''+esc(j.id)+'\',this.checked)">'+
-      '<div class="wkm-id" title="'+esc(j.job)+'">'+(no?'<b>#'+esc(no)+'</b>':'')+'<span>'+esc(_bcShortAddr(j))+'</span></div>'+
+      '<div class="wkm-id" role="button" tabindex="0" onclick="wkToggleOpen(this)" title="Tap for the job\'s details">'+(no?'<b>#'+esc(no)+'<i class="wkm-go">›</i></b>':'')+'<span>'+esc(_bcShortAddr(j))+'</span>'+(no?'':'<i class="wkm-go">›</i>')+'</div>'+
       '<span class="wkm-n'+(j.priced>0?'':' mut')+'"'+(j.priced>0?'':' title="No priced labour hours in Fergus"')+'>'+(j.priced>0?fmtH(j.priced):'⚠')+'</span>'+
       '<span class="wkm-n'+(over?' neg':'')+'"'+(over?' title="Actual hours are over the priced hours"':'')+'>'+fmtH(j.actual)+'</span>'+
       '<input type="number" inputmode="decimal" class="wk-rem'+(edited?' edited':'')+'" value="'+remVal(j)+'" onchange="setWkRem(\''+esc(j.id)+'\',this.value)"'+(done?' disabled':'')+'>'+
       (k?'<span class="jx-btn" style="color:'+(on?'var(--success)':'var(--muted)')+';" onclick="toggleExcl(\''+k+'\')" title="'+(on?'Restore — include this job in all totals again':'Cross out — remove this job from every total, everywhere')+'">'+(on?'↺':'✕')+'</span>':'<span></span>')+
-      '</div>';}).join('')):'<div class="empty">No active jobs synced yet. Tap “Sync”.</div>';
+      '</div>'+_wkMoreHtml(j)+'</div>';}).join('')):'<div class="empty">No active jobs synced yet. Tap “Sync”.</div>';
   const last=S.get('fw_last_sync','');const excl=S.get('fw_excluded',0);
   const ws=document.getElementById('work-sync');if(ws)ws.textContent=last?('· Fergus synced '+last):'· not synced yet';
   document.getElementById('work-note').innerHTML=(last?'Fergus last synced: '+esc(last)+'. ':'Fergus not synced yet — tap Sync. ')+
@@ -2648,6 +2662,26 @@ function renderWork(){
     (nDone?('<br>✓ '+nDone+' job(s) you ticked done are excluded.'):'')+(nEdit?(' ✏ '+nEdit+' job(s) have edited remaining hours.'):'')+
     (excl?('<br>✓ '+excl+' active job(s) auto-excluded as completed — fully invoiced (deposit + completion). Moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0 unless you edit Remain h.'):'');
 }
+// The Workload phone list: a tap on a job's number opens its details under the row — the customer, the
+// whole address, the job title and the job's revenue (2026-10-25, the owner: "let me click each of those
+// jobs to see the whole address, customer name, job title and total job revenue"). Which ones are open is
+// kept across re-renders (an edited Remain h re-draws the list), never saved.
+let _wkOpen={};
+function wkToggleOpen(el){const w=el.closest('.wkm-job'),r=w&&w.querySelector('.wkm-row');if(!w||!r)return;
+  const on=w.classList.toggle('open');if(on)_wkOpen[r.dataset.id]=1;else delete _wkOpen[r.dataset.id];}
+// Customer and address: the sync keeps both since 2026-10-25; a job synced before that has them only
+// inside its name ("Customer — address"), so split that until the next Fergus sync.
+function _wkParts(j){const nm=String(j.job||''),i=nm.indexOf(' — ');
+  return {client:String(j.client||(i>=0?nm.slice(0,i):nm)).trim(),site:String(j.site||(i>=0?nm.slice(i+3):'')).trim(),title:String(j.title||'').trim()};}
+function _wkMoreHtml(j){
+  const p=_wkParts(j),rev=num(j.sale),billed=num(j.billed);
+  const ln=(l,v,cls)=>'<div class="wkm-ln"><i>'+l+'</i><span'+(cls?' class="'+cls+'"':'')+'>'+v+'</span></div>';
+  return '<div class="wkm-more">'+
+    ln('Customer',p.client?esc(p.client):'<span class="mut">—</span>')+
+    ln('Address',p.site?esc(p.site):'<span class="mut">—</span>')+
+    ln('Job title',p.title?esc(p.title):'<span class="mut">'+(('title' in j)?'No title in Fergus':'Shows after the next Fergus sync')+'</span>')+
+    ln('Job revenue',rev>0?('<b>'+fmt$(rev)+'</b> <span class="mut">excl. GST'+(billed>0?' · '+fmt$(billed)+' invoiced so far':'')+'</span>'):'<span class="mut">No quoted price in Fergus</span>')+
+  '</div>';}
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 

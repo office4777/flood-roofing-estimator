@@ -20,6 +20,8 @@ export function hubSeed(){
     const priced = Math.round(40 + rnd() * 260), actual = Math.round(priced * rnd() * 0.7);
     const sale = Math.round(priced * (95 + rnd() * 40));
     const row = { id: String(9100 + i), jobNo: String(3290 + i), job: NAMES[i] + ' — ' + site(i), priced, actual,
+      // the sync keeps these since 2026-10-25; the last few rows are left as an older sync stored them
+      ...(i < 10 ? { client: NAMES[i], site: site(i), title: ['Re-roof', 'Re-roof and new spouting', 'Gutter replacement', 'Roof repair'][i % 4] } : {}),
       remaining: Math.max(0, priced - actual), pMat: Math.round(sale * 0.38), pLab: 0, aMat: Math.round(sale * 0.38 * rnd()),
       aLab: Math.round(actual * 55), sale, quoted: sale, chg: 0, billed: Math.round(sale * rnd() * 0.5), status: 'Active' };
     fwJobs.push(row);

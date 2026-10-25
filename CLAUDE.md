@@ -75,7 +75,7 @@ accordingly.
   earned vs Xero and the reconciliation) was taken off the P&L tab on 2026-10-25 at the owner's ask; `renderEarnedPL`
   returns on its missing `#epl-body`, and the Earned P&L Trend card below it stays. The Workload tab (2026-10-25) carries Per active job straight under the hero
   (`#work-jobs-card`); a phone gets `#work-list`, one row a job with no sideways scroll — tick, job number over
-  `_bcShortAddr`, priced, actual, the editable Remain h and the cross-out — and a computer keeps `#work-tbl`. `CREW_SEED` is the owner's three weekly pay-run exports (July–June years, newest
+  `_bcShortAddr`, priced, actual, the editable Remain h and the cross-out; a tap on the job number opens the customer, the whole address, the job title and the job's revenue under it (`wkToggleOpen`, `_wkMoreHtml`; the sync keeps `client`/`site`/`title` on each job, an older one is split out of its name) — and a computer keeps `#work-tbl`. `CREW_SEED` is the owner's three weekly pay-run exports (July–June years, newest
   run first, UNDATED — each run dated by lining its hours up with the timesheet export, exact on Sep 2024 – Mar 2025): every
   week 26 Aug 2024 – 16 Oct 2026, a person counted in a month when paid a day's hours in it, office staff left
   out (the owner, Paula, Hannah, Chris Mitchell, Matthew Anderson-Smith — "never on the tools"; Ethan from 27 Jul 2026, into project management); counts and hours only, no names (the hub is a public page). Tapping the number types a month in (`crewEdit`,
@@ -97,7 +97,7 @@ accordingly.
   revenue a guy beside them. The month table (`#g-mtbl`, fits a phone) shows each month's own figure a crew, the
   head count under its crews. Growing (`growthCfg.crews`, `gSetCrews`): each crew brings the window's GP a crew and
   is a leader and an apprentice (`G_NEW_CREW` = 2 guys); the overheads (Xero opex, or the `g-ohmo` box) are held
-  flat. Typed crew numbers on the P&L strip are the ones used. `fergusProd` / `teamWork` stay — the Command Centre still reads them. `tests/hubui.mjs` (89, UI list) drives both
+  flat. Typed crew numbers on the P&L strip are the ones used. `fergusProd` / `teamWork` stay — the Command Centre still reads them. `tests/hubui.mjs` (92, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
