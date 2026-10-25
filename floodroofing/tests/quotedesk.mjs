@@ -472,6 +472,7 @@ check('…and the stamp a send writes carries that pick', orec.snap.gutterType =
 // Settings → Branding carries the name the cover reads.
 const prep = await o.pg.evaluate(async () => {
   const inp = document.getElementById('brPreparedBy'); if (!inp) return { field:false };
+  refreshSettingsUI();   // the form as the Settings tab opens it — an unfilled form is never read (settingssave.mjs)
   inp.value = 'Aron Flood'; collectSettingsFromUI();
   _setQuotePreviewMode('phone'); await new Promise(r => setTimeout(r, 700));
   const dd = [...document.querySelectorAll('#qpRoot .qb-meta > div')].find(x => x.querySelector('dt').textContent === 'Prepared by');
