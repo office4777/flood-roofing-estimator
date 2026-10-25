@@ -1544,10 +1544,22 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
       <div class="mstrip" id="pl-strip"></div>
     </div>
-    <div class="card">
-      <div class="ct">Average job value <span class="hbtn" onclick="showHelp('avgjobpl')" title="What's this?">?</span> <span class="period-sub" style="margin-left:auto;">from P&amp;L</span></div>
-      <div id="pl-avgjob"></div>
+    <div class="card" id="pl-roll3-card">
+      <div class="ct">Rolling 3-month average <span class="period-sub" style="margin-left:auto;">a month · swipe ↔</span></div>
+      <div class="mstrip" id="pl-roll3"></div>
     </div>
+    <div class="card" id="pl-roll6-card">
+      <div class="ct">Rolling 6-month average <span class="period-sub" style="margin-left:auto;">a month · swipe ↔</span></div>
+      <div class="mstrip" id="pl-roll6"></div>
+    </div>
+    <div class="card" id="pl-year-card">
+      <div class="ct">P&amp;L by year <span class="period-sub" style="margin-left:auto;">Apr – Mar · swipe ↔</span></div>
+      <div class="mstrip" id="pl-years"></div>
+      <div class="note" id="pl-years-note"></div>
+    </div>
+    <details class="acc" id="pl-avgjob-acc"><summary>Average job value <span class="hbtn" onclick="event.preventDefault();showHelp('avgjobpl')" title="What's this?">?</span> <span class="period-sub">from P&amp;L</span></summary><div class="acc-body">
+      <div id="pl-avgjob"></div>
+    </div></details>
     <div class="card">
       <div class="ct">Data health — Fergus vs Xero <span class="hbtn" onclick="showHelp('datahealth')" title="What's this?">?</span> <span id="pl-recon-badge" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="pl-recon-head"></div>
@@ -4665,7 +4677,7 @@ function renderEarnedPL(){
 }
 function renderPL(){
   fillPLPeriods();
-  renderPLStrip();renderCrewStrip();renderWaterfall();renderPLTrend();renderPlAvgJob();renderRecon();renderEarnedPL();
+  renderPLStrip();renderPlRolling();renderPlYears();renderCrewStrip();renderWaterfall();renderPLTrend();renderPlAvgJob();renderRecon();renderEarnedPL();
   if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;
@@ -5936,6 +5948,44 @@ function _mhead(l,v){return '<div class="mrev"><span>'+l+'</span><b>'+v+'</b></d
 function _mrow(l,v,rev,cls,bar){const p=rev>0?v/rev:0;
   return '<div class="ml"><span class="k">'+l+'</span><span class="v'+(cls?' '+cls:'')+'">'+fmtK(v)+' · '+Math.round(p*100)+'%</span>'+
     '<i class="mbar"><i class="'+(bar||'')+(v<0?' neg':'')+'" style="width:'+Math.min(100,Math.round(Math.abs(p)*100))+'%"></i></i></div>';}
+// The P&L tab's rolling averages and its years (2026-10-25, the owner: "below the 'last 12 months' add in
+// rolling 3 month and rolling 6 month average, then per year p&l where i scroll left/right through the
+// years"). The rolling strips are the Command Centre's own cards, one a complete month back a year.
+function renderPlRolling(){
+  const endM=[];for(let i=1;i<=12;i++)endM.push(calMonthKey(-i));
+  renderRollingStrip('pl-roll3',xeroFig,endM);
+  renderRollingStrip('pl-roll6',xeroFig,endM,false,6);
+}
+// The financial year is Xero's: April to March, named for the year it ends in (FY2027 = Apr 2026 – Mar 2027).
+const PL_FY_START=3;   // April, as a month index
+function plFyOf(k){const p=String(k).split('-'),mi=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);
+  return (mi<0||isNaN(y))?null:(mi>=PL_FY_START?y+1:y);}
+function plFyMonths(fy){const out=[];for(let i=0;i<12;i++){const mi=(PL_FY_START+i)%12;out.push(FG_MONTHS[mi]+'-'+(mi>=PL_FY_START?fy-1:fy));}return out;}
+// One card a year, newest first: the year's totals (not an average), how many months Xero has for it, and
+// the average a month beside the revenue. The year still running says "to date"; one Xero only partly
+// covers says which months it has.
+function renderPlYears(){
+  const host=document.getElementById('pl-years');if(!host)return;
+  const fys=[...new Set(Object.keys(xeroMonthly).filter(k=>xeroMonthly[k]).map(plFyOf).filter(Boolean))].sort((a,b)=>b-a);
+  const note=document.getElementById('pl-years-note');
+  if(!fys.length){host.innerHTML='<div class="empty" style="padding:10px;">Pull Xero to see the years.</div>';if(note)note.textContent='';return;}
+  const cur=calMonthKey(0),curFy=plFyOf(cur);
+  host.innerHTML=fys.map(fy=>{
+    const ms=plFyMonths(fy).filter(k=>xeroFig(k));
+    const f=ms.reduce((a,k)=>{const x=xeroFig(k);a.rev+=x.rev;a.gp+=x.gp;a.opex+=x.opex;a.np+=x.np;return a;},{rev:0,gp:0,opex:0,np:0});
+    const gpm=f.rev>0?f.gp/f.rev:0,n=ms.length;
+    const span=ms.length?(ms[0].replace('-',' ')+' – '+ms[ms.length-1].replace('-',' ')):'';
+    const tag=fy===curFy?('To date · '+n+' month'+(n===1?'':'s')+(ms.includes(cur)?' (this one partial)':'')):(n<12?n+' of 12 months · '+span:'Full year');
+    return '<div class="mcard" data-fy="'+fy+'"><div class="mm">FY'+fy+'</div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">'+esc(tag)+'</span></div>'+
+      _mhead('Revenue',fmtK(f.rev))+
+      _mrow('GP',f.gp,f.rev,gpm>=0.30?'pos':'neg','gp')+
+      _mrow('Opex',f.opex,f.rev,'','op')+
+      _mrow('NP',f.np,f.rev,f.np>=0?'pos':'neg','np')+
+      '<div class="ml"><span class="k">A month</span><span class="v">'+(n?fmtK(f.rev/n)+' rev · '+fmtK(f.np/n)+' NP':'—')+'</span></div>'+
+    '</div>';}).join('');
+  if(note)note.textContent='Each year is April to March, as Xero has it — FY'+curFy+' runs Apr '+(curFy-1)+' – Mar '+curFy+'. Totals for the year; "A month" is the year divided by the months Xero has.';
+}
 function renderMonthStrip(hostId,figFn,months,cogs){
   const host=document.getElementById(hostId);if(!host)return;
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';

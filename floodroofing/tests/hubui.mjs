@@ -13,6 +13,7 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 import { hubSeedScript } from './_hubseed.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -321,6 +322,30 @@ check('the earned P&L card (earned month, work in progress, earned vs Xero, reco
 check('…one card a month from Jul 2024 to this month', crew.n === crew.want && crew.firstM === 'Jul-2024' && crew.lastM === crew.now && crew.n >= 27, JSON.stringify(crew));
 check('…Sep 2024 reads 4 on the tools from the pay runs, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.8 full-time/.test(crew.sep), crew.sep);
 check('…every month from Aug 2024 to now has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
+// Under Last 12 Months: rolling 3- and 6-month averages, then one card a financial year (Apr – Mar) to swipe
+// through; Average job value folded away (2026-10-25, the owner).
+const plx = await pg.evaluate(() => {
+  const ids = [...document.querySelectorAll('#page-pl > .card, #page-pl > details')].map(e => e.id || (e.querySelector('[id]') || {}).id);
+  const at = id => ids.indexOf(id), strip = ids.indexOf('pl-strip') >= 0 ? ids.indexOf('pl-strip') : ids.findIndex(x => x === 'pl-strip');
+  const stripCard = document.getElementById('pl-strip').closest('.card');
+  const order = [...document.getElementById('page-pl').children];
+  const pos = el => order.indexOf(el);
+  const r3 = document.querySelectorAll('#pl-roll3 .mcard'), r6 = document.querySelectorAll('#pl-roll6 .mcard');
+  const yrs = [...document.querySelectorAll('#pl-years .mcard')];
+  const fy = yrs[1] && +yrs[1].dataset.fy, ms = fy ? plFyMonths(fy).filter(k => xeroFig(k)) : [];
+  const want = ms.reduce((a, k) => a + xeroFig(k).rev, 0);
+  const acc = document.getElementById('pl-avgjob-acc'), host = document.getElementById('pl-years');
+  return { after: pos(document.getElementById('pl-roll3-card')) === pos(stripCard) + 1 && pos(document.getElementById('pl-roll6-card')) === pos(stripCard) + 2 && pos(document.getElementById('pl-year-card')) === pos(stripCard) + 3,
+    r3: r3.length, r6: r6.length, r3lbl: r3[0] && r3[0].innerText, r6lbl: r6[0] && r6[0].innerText,
+    years: yrs.map(c => c.dataset.fy), fy, rev: yrs[1] && yrs[1].querySelector('.mrev b').textContent, want: fmtK(want), first: yrs[0] && yrs[0].innerText,
+    swipe: getComputedStyle(host).overflowX, accClosed: acc && acc.tagName === 'DETAILS', accHas: !!(acc && acc.querySelector('#pl-avgjob')),
+    apr: plFyOf('Apr-2026'), mar: plFyOf('Mar-2026') };
+});
+check('Under Last 12 Months come the rolling 3-month and 6-month averages, then the P&L by year', plx.after, JSON.stringify(plx));
+check('…each rolling strip is a card a month', plx.r3 >= 6 && plx.r6 >= 6 && /3-mo avg/i.test(plx.r3lbl) && /6-mo avg/i.test(plx.r6lbl), JSON.stringify(plx));
+check('…the years run newest first, April to March, and a year is the total of its months', plx.apr === 2027 && plx.mar === 2026 && plx.years.length >= 2 && plx.years[0] > plx.years[1] && plx.rev === plx.want && /To date/i.test(plx.first), JSON.stringify(plx));
+const plSrc = readFileSync(join(ROOT, 'hub', 'FloodRoofing_Financials.html'), 'utf8');   // the suite opens every fold above, so read the page as shipped
+check('…the years swipe sideways, and Average job value is folded away', /auto|scroll/.test(plx.swipe) && plx.accClosed && plx.accHas && /<details class="acc" id="pl-avgjob-acc">/.test(plSrc), JSON.stringify(plx));
 check('…and Rev / person beside it', crew.sepRev === 'Rev / person');
 const crews = await pg.evaluate(() => { const txt = m => { const c = document.querySelector('#pl-crew .mcard[data-m="' + m + '"] .crew-c'); return c ? c.innerText.replace(/\s+/g, ' ').trim() : ''; };
   const card = document.querySelector('#pl-crew .mcard[data-m="Sep-2026"]'), rows = [...card.querySelectorAll('.ml .k')].map(e => e.textContent);
