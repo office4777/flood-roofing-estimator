@@ -1220,6 +1220,11 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
 #work-tbl th:nth-child(2),#work-tbl td:nth-child(2){text-align:left;}
 .wkm-row{display:grid;grid-template-columns:22px minmax(0,1fr) 40px 40px 54px 24px;gap:0 6px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);}
 .wkm-row:last-child{border-bottom:0;}
+.py-rr{margin:10px -6px 0;padding:9px 8px 8px;border-radius:10px;background:var(--soft-acc);}
+.py-rr .ml{flex-wrap:nowrap;gap:6px;}.py-rr .ml .v{white-space:nowrap;}
+.py-rr-hd{font-size:.6rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;}
+.py-rr .ml{border-color:rgba(0,0,0,.06);}
+.py-rr-note{margin-top:6px;font-size:.68rem;line-height:1.35;color:var(--muted);}
 .wkm-job{border-bottom:1px solid var(--border);}.wkm-job:last-child{border-bottom:0;}
 .wkm-job>.wkm-row{border-bottom:0;}
 .wkm-id[role=button]{cursor:pointer;-webkit-tap-highlight-color:transparent;}
@@ -2043,7 +2048,10 @@ function renderTeamStatus(){
 const FG_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function num(x){const n=parseFloat(x);return isNaN(n)?0:n;}
 function fmt$(n){const v=Math.round(n||0);return (v<0?'-$':'$')+Math.abs(v).toLocaleString('en-NZ');}
-function fmtK(n){const v=Math.round(n||0);return (v<0?'-$':'$')+(Math.abs(v)>=1000?(Math.abs(v)/1000).toFixed(Math.abs(v)>=100000?0:1)+'k':Math.abs(v));}
+// $ in thousands; a million and up reads in millions to three places, trailing noughts dropped — $1.064m,
+// $2.32m, $1m, never $1064k (2026-10-25, the owner: "don't say 1000k, go 1m").
+function fmtM(a){return (a/1e6).toFixed(3).replace(/\.?0+$/,'')+'m';}
+function fmtK(n){const v=Math.round(n||0),a=Math.abs(v);return (v<0?'-$':'$')+(a>=999500?fmtM(a):a>=1000?(a/1000).toFixed(a>=100000?0:1)+'k':a);}
 function fmtH(n){return (Math.round((n||0)*10)/10).toLocaleString('en-NZ');}
 function td_str(){return new Date().toISOString().split('T')[0];}
 // Sync timestamp in NZ time — the nightly runs on GitHub's UTC servers, so plain toLocaleString would
@@ -4949,7 +4957,7 @@ function renderCommand(){
   const actRev=actJobs.reduce((s,j)=>s+num(j.sale),0);
   const actBilled=actJobs.reduce((s,j)=>s+num(j.billed),0);
   // whole-thousand $ formatter (no decimals) for the revenue/GP comparison bars
-  const fmtK0=n=>{const v=Math.round(n||0);return (v<0?'-$':'$')+(Math.abs(v)>=1000?Math.round(Math.abs(v)/1000)+'k':Math.abs(v));};
+  const fmtK0=n=>{const v=Math.round(n||0),a=Math.abs(v);return (v<0?'-$':'$')+(a>=999500?fmtM(a):a>=1000?Math.round(a/1000)+'k':a);};
   host.innerHTML=
     kbar('cy','enq','Enquiries',enq,intF,noMkt?'sync Mktg':'new leads','enq')+
     kbar('in','quotes','Quotes sent',snt,intF,noMkt?'sync Mktg':'sent to customers','quotes')+
@@ -5983,8 +5991,35 @@ function renderPlYears(){
       _mrow('Opex',f.opex,f.rev,'','op')+
       _mrow('NP',f.np,f.rev,f.np>=0?'pos':'neg','np')+
       '<div class="ml"><span class="k">A month</span><span class="v">'+(n?fmtK(f.rev/n)+' rev · '+fmtK(f.np/n)+' NP':'—')+'</span></div>'+
+      (fy===curFy?plRunRateHtml(fy):'')+
     '</div>';}).join('');
   if(note)note.textContent='Each year is April to March, as Xero has it — FY'+curFy+' runs Apr '+(curFy-1)+' – Mar '+curFy+'. Totals for the year; "A month" is the year divided by the months Xero has.';
+}
+// Where the year still running is on track to land (2026-10-25, the owner: "do the run-rate for the current
+// year (where we're expected to land at the end of the year)"). The COMPLETE months so far, plus their average
+// for every month still to come — the month in progress counts as one still to come, because half a month's
+// takings would drag the pace down. Beside it the year before, so "on track" has something to be read against.
+function plRunRate(fy){
+  const cur=calMonthKey(0),all=plFyMonths(fy),curI=all.indexOf(cur);
+  const done=all.filter((k,i)=>(curI<0||i<curI)&&xeroFig(k));
+  if(!done.length)return null;
+  const t=done.reduce((a,k)=>{const x=xeroFig(k);a.rev+=x.rev;a.gp+=x.gp;a.opex+=x.opex;a.np+=x.np;return a;},{rev:0,gp:0,opex:0,np:0});
+  const n=done.length,left=12-n,proj={};['rev','gp','opex','np'].forEach(k=>{proj[k]=t[k]+t[k]/n*left;});
+  return {n,left,proj,done};
+}
+function plRunRateHtml(fy){
+  const r=plRunRate(fy);if(!r||!r.left)return '';
+  const p=r.proj,prev=plFyMonths(fy-1).filter(k=>xeroFig(k)),pr=prev.length===12?prev.reduce((s,k)=>s+xeroFig(k).rev,0):null;
+  const vs=pr>0?Math.round((p.rev/pr-1)*100):null;
+  const row=(l,v,cls)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(cls?' '+cls:'')+'">'+v+'</span></div>';
+  const pc=v=>p.rev>0?' · '+Math.round(v/p.rev*100)+'%':'';
+  return '<div class="py-rr"><div class="py-rr-hd">Run-rate · year end</div>'+
+    _mhead('Revenue',fmtK(p.rev))+
+    row('GP',fmtK(p.gp)+pc(p.gp),p.gp>=0.30*p.rev?'pos':'neg')+
+    row('Opex',fmtK(p.opex)+pc(p.opex),'')+
+    row('NP',fmtK(p.np)+pc(p.np),p.np>=0?'pos':'neg')+
+    '<div class="py-rr-note">'+r.n+' full month'+(r.n===1?'':'s')+' so far at '+fmtK(r.proj.rev/12)+' a month, '+r.left+' to go'+
+      (vs!=null?' · '+(vs>=0?'+':'')+vs+'% on FY'+(fy-1)+'’s revenue':'')+'</div></div>';
 }
 function renderMonthStrip(hostId,figFn,months,cogs){
   const host=document.getElementById(hostId);if(!host)return;

@@ -344,6 +344,18 @@ const plx = await pg.evaluate(() => {
 check('Under Last 12 Months come the rolling 3-month and 6-month averages, then the P&L by year', plx.after, JSON.stringify(plx));
 check('…each rolling strip is a card a month', plx.r3 >= 6 && plx.r6 >= 6 && /3-mo avg/i.test(plx.r3lbl) && /6-mo avg/i.test(plx.r6lbl), JSON.stringify(plx));
 check('…the years run newest first, April to March, and a year is the total of its months', plx.apr === 2027 && plx.mar === 2026 && plx.years.length >= 2 && plx.years[0] > plx.years[1] && plx.rev === plx.want && /To date/i.test(plx.first), JSON.stringify(plx));
+// Millions read as millions, and the year still running says where it is on track to land (2026-10-25, the owner).
+const rr = await pg.evaluate(() => {
+  const fmt = [fmtK(1064000), fmtK(2320000), fmtK(1000000), fmtK(999400), fmtK(3348123), fmtK(-1250000), fmtK(64500)];
+  const fy = plFyOf(calMonthKey(0)), card = document.querySelector('#pl-years .mcard[data-fy="' + fy + '"]'), box = card && card.querySelector('.py-rr');
+  const cur = calMonthKey(0), all = plFyMonths(fy), done = all.filter((k, i) => i < all.indexOf(cur) && xeroFig(k));
+  const sum = k => done.reduce((s, m) => s + xeroFig(m)[k], 0), proj = k => sum(k) / done.length * 12;
+  const others = [...document.querySelectorAll('#pl-years .mcard')].filter(c => c !== card).some(c => c.querySelector('.py-rr'));
+  return { fmt, has: !!box, txt: box && box.innerText, rev: box && box.querySelector('.mrev b').textContent, want: fmtK(proj('rev')), np: fmtK(proj('np')), n: done.length, others,
+    noK: !/\d{4,}k/.test(document.getElementById('page-pl').innerText) };
+});
+check('…a million and up reads in millions — $1.064m, $2.32m, $1m — never $1064k', JSON.stringify(rr.fmt) === JSON.stringify(['$1.064m', '$2.32m', '$1m', '$999k', '$3.348m', '-$1.25m', '$64.5k']) && rr.noK, JSON.stringify(rr));
+check('…and the year still running shows its run-rate: the full months so far, at their average for the rest', rr.has && rr.rev === rr.want && rr.txt.includes(rr.np) && new RegExp(rr.n + ' full month').test(rr.txt) && !rr.others, JSON.stringify(rr));
 const plSrc = readFileSync(join(ROOT, 'hub', 'FloodRoofing_Financials.html'), 'utf8');   // the suite opens every fold above, so read the page as shipped
 check('…the years swipe sideways, and Average job value is folded away', /auto|scroll/.test(plx.swipe) && plx.accClosed && plx.accHas && /<details class="acc" id="pl-avgjob-acc">/.test(plSrc), JSON.stringify(plx));
 check('…and Rev / person beside it', crew.sepRev === 'Rev / person');
