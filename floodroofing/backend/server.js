@@ -5808,8 +5808,8 @@ async function _acceptOfficeCatchUp(jobId){
     // browser may have sent the email and nothing else.
     _fergusOnAccept(jobId, null).catch(function(){});
     if (sh.acceptOfficeAt) return false;              // already told
-    await _acceptOfficeNotify(job, quote, null);
-    return true;
+    const nr = await _acceptOfficeNotify(job, quote, null);
+    return !!(nr && nr.ok && !nr.off);                   // switched off or nowhere to send is not "sent"
   } catch (e) {
     try { recordError('server', new Error('accept-office catch-up failed: ' + (e && e.message || e)), { route: '/q/:token/event' }); } catch (e2) {}
     return false;
@@ -7668,6 +7668,44 @@ async function _officeOwedSweep(){
   }
   return out;
 }
+// THE EMAIL SWITCHES A BUG TURNED OFF COME BACK ON (2026-10-25, job 3334). A
+// Settings save made away from the Settings tab read an unfilled form and stored
+// every "Send this email automatically" switch as false — the office's acceptance
+// email, the customer's confirmation, the question and the decline emails, all in
+// one write (the app's half of the fix is in collectSettingsFromUI). Nobody turns
+// those three off together on purpose, so a row with all three false is the bug's
+// and they are deleted (absent = on), with decline_on beside them when it is false
+// too. ONCE: the marker is written before anything is touched, so a restart halfway
+// can never run it a second time over a choice an office makes from now on.
+// The hourly office-owed sweep then sends the acceptance emails those rows held
+// back over the last fortnight - acceptOfficeAt was never stamped on them.
+const EMAIL_SWITCH_REPAIR_KEY = 'repair:email_switches:20261025';
+async function _emailSwitchRepairOnce(){
+  const out = { checked: 0, repaired: 0 };
+  try {
+    const m = await supabase.from('platform_state').select('key').eq('key', EMAIL_SWITCH_REPAIR_KEY).maybeSingle();
+    if (m.error || (m.data && m.data.key)) return out;
+    const w = await supabase.from('platform_state').upsert(
+      { key: EMAIL_SWITCH_REPAIR_KEY, value: { at: new Date().toISOString() }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (w && w.error) return out;
+    const r = await supabase.from('user_settings').select('user_id, quote_defaults');
+    if (r.error) { console.warn('[email-switch-repair] read failed: ' + r.error.message); return out; }
+    for (const row of (r.data || [])){
+      out.checked++;
+      const qd = (row && row.quote_defaults && typeof row.quote_defaults === 'object') ? row.quote_defaults : null;
+      const em = qd && qd.email && typeof qd.email === 'object' ? qd.email : null;
+      if (!em) continue;
+      if (!(em.accept_office_on === false && em.accept_cust_on === false && em.question_on === false)) continue;
+      const fixed = Object.assign({}, em);
+      delete fixed.accept_office_on; delete fixed.accept_cust_on; delete fixed.question_on;
+      if (fixed.decline_on === false) delete fixed.decline_on;
+      const u = await supabase.from('user_settings').update({ quote_defaults: Object.assign({}, qd, { email: fixed }) }).eq('user_id', row.user_id);
+      if (!u.error) out.repaired++;
+    }
+    console.log('[email-switch-repair] checked ' + out.checked + ', switched back on for ' + out.repaired);
+  } catch (e) { console.warn('[email-switch-repair] failed: ' + (e && e.message)); }
+  return out;
+}
 async function _officeOwedTick(){
   if (_maintOn()) return;
   try {
@@ -7676,6 +7714,11 @@ async function _officeOwedTick(){
       ', skipped ' + r.skipped + ', errors ' + r.errors);
   } catch (e) { console.error('[office-owed] tick failed: ' + (e && e.message)); }
 }
+app.post('/admin/email-switch-repair/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _emailSwitchRepairOnce()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/office-owed/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _officeOwedSweep()); }
@@ -14476,6 +14519,12 @@ app.listen(PORT, () => {
   if (_remKick.unref) _remKick.unref();
   setInterval(function(){ _reminderTick(); }, 3600e3).unref();
   setInterval(function(){ _officeOwedTick(); }, 3600e3).unref();
+  // The one-off repair above, then a sweep straight after it so the acceptance
+  // emails it frees go out within minutes rather than at the next hour.
+  const _esKick = setTimeout(function(){
+    _emailSwitchRepairOnce().then(function(r){ if (r && r.repaired) _officeOwedTick(); }).catch(function(){});
+  }, 45e3);
+  if (_esKick.unref) _esKick.unref();
   // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();

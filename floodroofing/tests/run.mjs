@@ -36,11 +36,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const API = [
   'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobversions', 'jobsave', 'practicejob', 'plans', 'cors', 'errmon', 'usage', 'trial', 'trialroofs', 'invoiceapi', 'stripeapi', 'billingoff', 'security', 'register', 'joininvite', 'trialend', 'trialdrip', 'platformfrom', 'platformrelay', 'sharetoken', 'acceptflow', 'crosstenant', 'joblist', 'sbretry', 'blipsafe', 'bodylimit', 'markupleak', 'revisionapi', 'mailidentity', 'platformmail', 'supportdesk', 'acceptguard', 'waitlist', 'metrics', 'flashguard', 'custompbsrv', 'quoteremind', 'quotestats', 'quotefeedcache', 'resendmail', 'maildomain', 'tenantaddr', 'ferguskey', 'teamsettings', 'scheduleapi', 'inboxapi', 'grandfather', 'jmsdiag', 'revoke', 'dayplan',
   // Static: reads app.html rather than booting anything.
-  'inlinehandlers', 'buildstamp', 'emailsettings', 'custevents', 'termsoftrade', 'sendername', 'jobmail', 'tenderapi',
+  'inlinehandlers', 'buildstamp', 'emailsettings', 'custevents', 'termsoftrade', 'sendername', 'jobmail', 'tenderapi', 'emailswitch',
 ];
 // The real app.html, driven by Playwright.
 const UI = [
-  'typesnap', 'tenderui',
+  'typesnap', 'tenderui', 'settingssave',
   'quickwins', 'mydayui', 'hubui',
   'tenantbrand', 'ownbrand', 'heroslot', 'poleshed', 'orderdelivery', 'quotetpl', 'pbflags', 'billingready', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui', 'versionui',

@@ -4381,6 +4381,47 @@ Discipline (non-negotiable):
   does not claim to have found it — it makes the next one say so.
   `tests/custevents.mjs` is a real tripwire: against the old build 12 of 23
   pins fail and every safety pin passes.
+- A SETTINGS SAVE NEVER READS AN UNFILLED FORM (2026-10-25, job 3334: "Aidan
+  accepted job 3334 but it froze and i didn't get the acceptance email"). THE
+  REAL CAUSE OF EVERY MISSING OFFICE EMAIL SINCE ~8 OCT, including 3305's and
+  3303's (which were put down to the customer's phone and "environmental"):
+  `saveSettings` → `collectSettingsFromUI` reads the WHOLE Settings form, which
+  is filled only when the Settings tab is opened (`refreshSettingsUI`), and some
+  twenty callers save Settings from elsewhere — a price saved as the default on
+  the Pricing tab, Save as template, the condition wording, a profile or gutter
+  picture, the accreditation logos. On a session that had not opened Settings
+  first, each read an EMPTY form: every "Send this email automatically" box
+  unticked → `accept_office_on`, `accept_cust_on`, `question_on`,
+  `decline_on` all saved FALSE in one write (the server's blank guard keeps the
+  ADDRESSES, not a false), the follow-up switch off, and the branding words
+  blank (which is also why the setup wizard once met the owner over his own
+  logo). Found by booting the app and saving from Map Roof — a probe, not a
+  theory. `window.__settingsUiFilled` is set at the END of `refreshSettingsUI`
+  and cleared whenever `loadSettings` replaces S.settings; the collector fills
+  an unfilled form from S.settings first (a round trip that changes nothing),
+  and reads nothing if it still cannot — unless the office is on the Settings
+  tab. `tests/settingssave.mjs` (UI; 4 of its pins fail on the old build).
+  THE ROWS ALREADY WRITTEN ARE REPAIRED ONCE: `_emailSwitchRepairOnce` (45 s
+  after boot, marker `repair:email_switches:20261025` in `platform_state`,
+  written BEFORE anything is touched; also `POST /admin/email-switch-repair/run`)
+  deletes the three switches from any row where all three read false — nobody
+  turns those off together — and `decline_on` with them; then the office-owed
+  sweep sends the acceptance emails they held back over the fortnight
+  (`acceptOfficeAt` was never stamped on them; `_acceptOfficeCatchUp` now counts
+  a switched-off notify as not sent). NOT repaired, and the owner was told to
+  check: the follow-up switch (`reminder_enabled`, false by default, so
+  unknowable) and any branding words a save blanked. `tests/emailswitch.mjs`.
+  THE CUSTOMER'S FREEZE was the background PDF copy of the acceptance: on a
+  modern quote it puts `#qpPdfVeil` over the page, and a capture that never
+  comes back (pdf libs off a CDN, a six-roof quote, a phone's canvas limit)
+  left it there for ever — the acceptance itself was already recorded. Every
+  capture registers its own undo (`_pdfAbortReg`; both builders' restores run
+  ONCE now), `_pdfAbortNow` runs it from outside, the veil offers "Continue to
+  my quote" after 8 s (`_pdfVeilEscape`, `QP_VEIL_ESCAPE_MS`), and
+  `_emailAcceptedQuoteToOffice` gives the capture 25 s (`QP_ACCEPT_PDF_MAX_MS`)
+  before abandoning it and posting accept-email without the PDF. The veil now
+  says "Your acceptance is recorded ✓" — it was "Recording your acceptance…",
+  after the fact.
 - TWO STRUCTURAL GUARDS ASSERT A SHAPE, SO A REFACTOR TRIPS THEM (2026-10-19,
   learned the expensive way: a red main skipped the promote on both ships
   behind it).

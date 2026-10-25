@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-23T08:14:17Z';
+  window.APP_BUILT_AT = '2026-10-25T04:03:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -14198,6 +14198,7 @@ async function loadSettings(){
   try {
     var s = await api('GET', '/settings');
     S.settings = mergeSettings(s);
+    window.__settingsUiFilled = false;   // the form holds the previous copy until it is filled again
     // The boot popups remember their dismissal on the account — a device
     // that has never seen them still skips them if any device closed them.
     try {
@@ -14225,12 +14226,14 @@ async function loadSettings(){
     var local = JSON.parse(localStorage.getItem('fr_settings') || 'null');
     if (local) {
       S.settings = mergeSettings(local);
+      window.__settingsUiFilled = false;
       applyBranding();
       return S.settings;
     }
   } catch(e2){}
   // 3. Absolute fallback: built-in defaults
   S.settings = defaultSettings();
+  window.__settingsUiFilled = false;
   applyBranding();
   return S.settings;
 }
@@ -14372,8 +14375,27 @@ async function saveSettings(auto){
   else _wire();
 })();
 
+// THE FORM IS ONLY READ ONCE IT HAS BEEN FILLED (2026-10-25, job 3334: the
+// customer accepted and the office heard nothing). collectSettingsFromUI reads
+// the WHOLE Settings form back into S.settings — and that form is filled only
+// when the Settings tab is opened. Twenty-odd things save Settings from
+// elsewhere (a price saved as the default from the Pricing tab, a template,
+// the condition wording, a profile picture, a logo…), and on a session that
+// had not opened Settings first each of them read an EMPTY form: every
+// "Send this email automatically" switch came back unticked and was saved as
+// OFF — the office's acceptance email, the customer's confirmation, the
+// question and the decline emails all at once — along with the follow-up
+// switch, and the branding words blanked. So: a form that has not been filled
+// is filled from S.settings first (the round trip changes nothing), and one
+// that still cannot be is not read at all, unless the office is on the
+// Settings tab typing into it.
 function collectSettingsFromUI(){
   if (!S.settings) S.settings = defaultSettings();
+  if (!window.__settingsUiFilled){
+    try { refreshSettingsUI(); } catch(e){ console.warn('settings form fill failed:', e && e.message); }
+    var _onSet = false; try { _onSet = document.body.dataset.tab === 'settings'; } catch(e){}
+    if (!window.__settingsUiFilled && !_onSet) return;
+  }
   var b = S.settings.branding;
   b.company_name = (document.getElementById('brCompanyName')||{}).value || '';
   b.tagline      = (document.getElementById('brTagline')||{}).value || '';
@@ -18671,6 +18693,7 @@ function refreshSettingsUI(){
   try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
   try { _refreshJmsLinkUI(); } catch(e){}
   try { _billingRenderSection(); } catch(e){}
+  window.__settingsUiFilled = true;   // the form now holds S.settings — it may be read back (collectSettingsFromUI)
 }
 
 function renderOptionsList(list){
@@ -32945,13 +32968,53 @@ function _postCustomerEvent(type, extra){
 // the office is emailed both the accepted details and the PDF. Best-effort: on
 // any failure we still send the text-only notification, and never surface an
 // error to the customer (their acceptance is already recorded server-side).
+// A PDF CAPTURE MAY NEVER COME BACK, AND THE CUSTOMER MUST NOT BE STUCK BEHIND IT
+// (2026-10-25, job 3334: the customer accepted on his phone and the page "froze
+// on the loading acceptance page and now I can't click any of the pages"). The
+// acceptance itself had been recorded; what held him was the veil the capture
+// puts over the page — html2canvas off a CDN, a six-roof quote, a phone's canvas
+// limit, and a capture that never resolved leaves the veil up for ever. Every
+// capture registers how to undo itself (_pdfAbortReg); _pdfAbortNow undoes it
+// from outside. The veil offers "Continue" after a few seconds, and the
+// acceptance's own background copy gives up by itself.
+var _PDF_ABORT = null;
+function _pdfAbortReg(fn){ _PDF_ABORT = fn || null; }
+function _pdfAbortNow(){
+  var f = _PDF_ABORT; _PDF_ABORT = null;
+  try { if (f) f(); } catch(e){}
+  try { var v = document.getElementById('qpPdfVeil'); if (v) v.remove(); } catch(e){}
+}
+var QP_VEIL_ESCAPE_MS = 8000;
+function _pdfVeilEscape(veil){
+  try {
+    setTimeout(function(){
+      if (!veil || !veil.parentNode) return;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'qp-veil-go';
+      b.textContent = 'Continue to my quote';
+      b.setAttribute('style', 'margin-top:10px;padding:11px 20px;border-radius:9px;border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer');
+      b.onclick = function(){ _pdfAbortNow(); };
+      veil.appendChild(b);
+    }, (window.__QP_VEIL_ESCAPE_MS != null ? window.__QP_VEIL_ESCAPE_MS : QP_VEIL_ESCAPE_MS));
+  } catch(e){}
+}
+var QP_ACCEPT_PDF_MAX_MS = 25000;
 async function _emailAcceptedQuoteToOffice(){
   if (!window.__CUSTOMER_TOKEN) return;
   var pdfBase64 = null, filename = 'Accepted quote.pdf';
   try {
     // Lower capture scale — this runs on the customer's phone, so speed beats
-    // pixel-perfect resolution for an internal record PDF.
-    var pdf = await _buildQuotePdf({ scale: 1.5, veilMsg: 'Recording your acceptance…' });
+    // pixel-perfect resolution for an internal record PDF. The acceptance is
+    // ALREADY recorded when this runs, so the veil says so; and a capture that
+    // has not come back in time is abandoned — the office still gets its email
+    // (without the PDF) and the customer gets their page back.
+    var _max = window.__QP_ACCEPT_PDF_MAX_MS != null ? window.__QP_ACCEPT_PDF_MAX_MS : QP_ACCEPT_PDF_MAX_MS;
+    var _timedOut = false;
+    var pdf = await Promise.race([
+      _buildQuotePdf({ scale: 1.5, veilMsg: 'Your acceptance is recorded \u2713', veilSub: 'Saving a copy for our records \u2014 just a moment.' }),
+      new Promise(function(r){ setTimeout(function(){ _timedOut = true; r(null); }, _max); })
+    ]);
+    if (_timedOut){ _pdfAbortNow(); pdf = null; }
     if (pdf){
       try { filename = _quotePdfFilename(); } catch(e){}
       var durl = pdf.output('datauristring');
@@ -73085,8 +73148,10 @@ async function _buildModernQuotePdf(opts, capScale){
   var wasClassicPh = htmlEl.classList.contains('qp-classic-phone');
   var prevW = root ? root.style.width : '', prevZoom = root ? root.style.zoom : '';
   var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-  var veil = null, restoreImgs = function(){}, restoreCover = function(){};
+  var veil = null, restoreImgs = function(){}, restoreCover = function(){}, doneRan = false;
   var done = function(){
+    if (doneRan) return; doneRan = true;
+    _pdfAbortReg(null);
     try { restoreImgs(); } catch(e){}
     try { restoreCover(); } catch(e){}
     htmlEl.classList.remove('pdf-modern', 'pdf-rendering');
@@ -73110,11 +73175,13 @@ async function _buildModernQuotePdf(opts, capScale){
     if (window.__CUSTOMER_MODE && (wasBook || wasDesk)){
       veil = document.createElement('div'); veil.id = 'qpPdfVeil';
       veil.setAttribute('style', 'position:fixed;inset:0;z-index:100010;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:Inter,-apple-system,sans-serif;text-align:center;padding:24px');
+      _pdfAbortReg(done);
       veil.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#0099e0;border-radius:50%;animation:qpVeilSpin .9s linear infinite"></div>'+
         '<div style="font-size:16px;font-weight:700">'+esc2(opts.veilMsg || 'Saving a copy of your quote\u2026')+'</div>'+
-        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">Just a moment \u2014 please keep this page open.</div>'+
+        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">'+esc2(opts.veilSub || 'Just a moment \u2014 please keep this page open.')+'</div>'+
         '<style>@keyframes qpVeilSpin{to{transform:rotate(360deg)}}</style>';
       document.body.appendChild(veil);
+      _pdfVeilEscape(veil);
     }
   } catch(e){ veil = null; }
   window.__PRINTING_MODERN = true; window.__PRINTING_QUOTE = false;
@@ -73211,9 +73278,10 @@ async function _buildQuotePdf(opts){
       _veil.setAttribute('style', 'position:fixed;inset:0;z-index:100010;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:Inter,-apple-system,sans-serif;text-align:center;padding:24px');
       _veil.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#0099e0;border-radius:50%;animation:qpVeilSpin .9s linear infinite"></div>'+
         '<div style="font-size:16px;font-weight:700">'+esc2(opts.veilMsg || 'Saving a copy of your quote…')+'</div>'+
-        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">Just a moment — please keep this page open.</div>'+
+        '<div style="font-size:12.5px;color:rgba(255,255,255,.65)">'+esc2(opts.veilSub || 'Just a moment — please keep this page open.')+'</div>'+
         '<style>@keyframes qpVeilSpin{to{transform:rotate(360deg)}}</style>';
       document.body.appendChild(_veil);
+      _pdfVeilEscape(_veil);
     }
   } catch(e){ _veil = null; }
   try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
@@ -73225,13 +73293,17 @@ async function _buildQuotePdf(opts){
       await Promise.race([ document.fonts.ready, new Promise(function(r){ setTimeout(r, 1500); }) ]);
     }
   } catch(e){}
+  var _pdfDoneRan = false;
   var _pdfDone = function(){
+    if (_pdfDoneRan) return; _pdfDoneRan = true;
+    _pdfAbortReg(null);
     window.__PRINTING_QUOTE = _wasPrinting;
     try { if (_veil) _veil.remove(); } catch(e){}
     if (!window.__CUSTOMER_MODE){ try { _qpPreviewClassesSync(); } catch(e){} }
     // The customer's screen goes back to the book or the computer layout.
     try { if (window.__CUSTOMER_MODE && typeof _fitCustomerView === 'function') _fitCustomerView(); } catch(e){}
   };
+  if (_veil) _pdfAbortReg(_pdfDone);
   try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); _pdfDone(); return null; }
   var html2canvas = window.html2canvas;
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
@@ -73287,6 +73359,26 @@ async function _buildQuotePdf(opts){
   // drop the cover hero / photos. Restored right after capture.
   var _restoreImgs = function(){};
   try { _restoreImgs = _inlineCoverImagesForPdf(root, _capScale); } catch(e){}
+  // Everything the capture changed on the customer's page, undone ONCE —
+  // at the end of the capture, on a failure, or by _pdfAbortNow when the
+  // capture never comes back.
+  var _a4Restored = false;
+  var _a4Restore = function(){
+    if (_a4Restored) return; _a4Restored = true;
+    try { _qpUnfitPrintPages(); } catch(e){}
+    try { _restoreImgs(); } catch(e){}
+    document.documentElement.classList.remove('pdf-rendering');
+    document.documentElement.classList.remove('qp-pdf-a4');
+    root.style.zoom = prevZoom || '';
+    if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
+    window.__PRINTING_QUOTE = false;
+    if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
+      try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
+    _pdfDone();
+    try { window.scrollTo(0, savedScrollY); } catch(e){}
+    try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
+  };
+  if (_veil) _pdfAbortReg(_a4Restore);
   // Scale any page taller than one A4 sheet down to fit, so each captures as
   // exactly one page (no slicing into half-empty extra sheets).
   try { _qpFitPrintPages(); } catch(e){}
@@ -73308,32 +73400,10 @@ async function _buildQuotePdf(opts){
     }
   } catch(err){
     console.error('Quote PDF render failed:', err);
-    try { _qpUnfitPrintPages(); } catch(e){}
-    try { _restoreImgs(); } catch(e){}
-    document.documentElement.classList.remove('pdf-rendering');
-    document.documentElement.classList.remove('qp-pdf-a4');
-    root.style.zoom = prevZoom || '';
-    if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
-    window.__PRINTING_QUOTE = false;
-    if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
-      try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
-    _pdfDone();
-    try { window.scrollTo(0, savedScrollY); } catch(e){}
-    try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
+    _a4Restore();
     return null;
   }
-  try { _qpUnfitPrintPages(); } catch(e){}
-  try { _restoreImgs(); } catch(e){}
-  document.documentElement.classList.remove('pdf-rendering');
-  document.documentElement.classList.remove('qp-pdf-a4');
-  root.style.zoom = prevZoom || '';
-  if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
-  window.__PRINTING_QUOTE = false;
-  if (_wasPhonePv){ _htmlEl.classList.add('qp-phone-preview');
-    try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){} }
-  _pdfDone();
-  try { window.scrollTo(0, savedScrollY); } catch(e){}
-  try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
+  _a4Restore();
 
   // Page numbers — "Page N of M" centred in the bottom margin.
   try {
