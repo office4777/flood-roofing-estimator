@@ -310,7 +310,7 @@ const crews = await pg.evaluate(() => { const txt = m => { const c = document.qu
   window.prompt = () => '5'; crewTeamsEdit(null, 'Sep-2026'); out.typed = crewTeamsFor('Sep-2026').c; out.keptN = crewFor('Sep-2026').n;
   window.prompt = () => ''; crewTeamsEdit(null, 'Sep-2026'); out.back = crewTeamsFor('Sep-2026').src + ':' + crewTeamsFor('Sep-2026').c;
   return out; });
-check('every month carries its crews (team leaders on the tools): 1 to Apr 2025, 2 from May 2025, 3 from Jan 2026, 4 from May 2026', /^1 crew\b/.test(crews.sep24) && /^1 crew\b/.test(crews.mar25) && /^3 crews/.test(crews.jan26) && /^4 crews/.test(crews.sep26) && /2\.5 a crew/.test(crews.sep26), JSON.stringify(crews));
+check('every month carries its crews (team leaders on the tools): 2 from Sep 2024, 3 from May 2025, 4 from Jan 2026, 4 now', /^2 crews/.test(crews.sep24) && /^2 crews/.test(crews.mar25) && /^4 crews/.test(crews.jan26) && /^4 crews/.test(crews.sep26) && /2\.5 a crew/.test(crews.sep26), JSON.stringify(crews));
 check('…the July 2026 handover counts one crew, not two, and no names reach the page', /^4 crews/.test(crews.jul26) && /new leader from 27 Jul/.test(crews.jul26) && !crews.names && crews.jul24 === '', JSON.stringify(crews));
 check('…with Rev / crew and NP / crew beside the per-person figures', crews.rows.includes('Rev / crew') && crews.rows.includes('NP / crew') && crews.perCrew !== false, JSON.stringify(crews));
 check('…and the crews can be typed over without touching the head count, blank puts the payroll figure back', crews.typed === 5 && crews.keptN === 10 && crews.back === 'payroll:4', JSON.stringify(crews));
