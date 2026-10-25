@@ -3720,6 +3720,14 @@ async function _keepCustomerState(req, jobId, inQ){
     try { console.warn('[job ' + jobId + '] kept the customer\'s acceptance: the save had not seen it'); } catch (e) {}
     return true;
   }
+  // An ACCEPTED quote's prices are the ones the customer accepted. A save that
+  // has seen the acceptance and keeps it never re-prices the customer's copy
+  // under it (an office screen re-stamped 3334's after the acceptance); Undo
+  // acceptance clears `accepted`, and that save passes untouched.
+  if (hs.status === 'accepted' && knows && inQ.accepted && is.status === 'accepted'){
+    if (hs.priced && typeof hs.priced === 'object') is.priced = hs.priced;
+    if (hs.sentTotal != null) is.sentTotal = hs.sentTotal;
+  }
   if (!knows && ['opened', 'queried', 'declined'].indexOf(hs.status) >= 0 && (!is.status || is.status === 'sent')){
     is.status = hs.status;
     if (hs.query && !is.query) is.query = hs.query;
@@ -5208,6 +5216,32 @@ function _expectedTotalFor(quote, opts){
   }
   return sub * (1 + (Number(P.gstRate) || 0) / 100);
 }
+// ── A CUSTOMER ACCEPTS THE PRICES THE QUOTE STILL CARRIES (2026-10-25, job
+// 3334) ─────────────────────────────────────────────────────────────────
+// The customer's page prices everything from `share.priced`, read when the
+// page was opened. The office re-stamps that block whenever the quote is
+// re-priced, so a page left open (or opened from an old tab) can accept a
+// price the quote no longer carries: 3334's acceptance recorded $35,252.82,
+// its extra roofs at $1,497.33 / $908.51 / $1,173.01, while the quote itself
+// read $34,231.35 with the same roofs at $1,400.21 / $819.64 / $1,084.14. The
+// page now sends a fingerprint of the block it priced from and an acceptance
+// made on a different one is refused (409 QUOTE_CHANGED); the page reloads
+// onto the current quote and the customer accepts what is on it. A page from
+// before this sends no fingerprint and is not checked. The app's twin of these
+// two functions is `_qpPricedFp` - the two must produce the same string.
+function _canonJson(v){
+  if (v === null || typeof v !== 'object') { const s = JSON.stringify(v); return s === undefined ? 'null' : s; }
+  if (Array.isArray(v)) return '[' + v.map(_canonJson).join(',') + ']';
+  return '{' + Object.keys(v).sort().filter(function (k) { return v[k] !== undefined && typeof v[k] !== 'function'; })
+    .map(function (k) { return JSON.stringify(k) + ':' + _canonJson(v[k]); }).join(',') + '}';
+}
+function _pricedFp(P){
+  if (!P || typeof P !== 'object') return '';
+  const s = _canonJson(P);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return s.length + ':' + h.toString(16);
+}
 // The customer's browser reports the total it computed, and that figure sizes a
 // deposit invoice. With a priced block we can check it exactly rather than
 // guess at a plausible band — a cent of tolerance for floating point, no more.
@@ -5373,6 +5407,14 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const share = quote.share || {};
+    if (String(type) === 'accepted' && share.status !== 'accepted') {
+      const _fpIn = String((req.body || {}).pricedFp || '');
+      const _fpNow = _pricedFp(share.priced);
+      if (_fpIn && _fpNow && _fpIn !== _fpNow) {
+        return res.status(409).json({ code: 'QUOTE_CHANGED',
+          error: 'This quote has been updated since you opened it. Please look over the latest version and accept again.' });
+      }
+    }
     if (!Array.isArray(share.events)) share.events = [];
     const now = new Date().toISOString();
     // Apply customer selections (only the safe, customer-controlled fields).
@@ -7706,6 +7748,63 @@ async function _emailSwitchRepairOnce(){
   } catch (e) { console.warn('[email-switch-repair] failed: ' + (e && e.message)); }
   return out;
 }
+// ── A RECORDED ACCEPTED TOTAL PUT RIGHT (2026-10-25, job 3334) ──────────
+// The owner: "Aidan agreed to $34,231.35, fix the accepted total". The
+// acceptance recorded the figure the customer's browser reported ($35,252.82),
+// priced from a block the quote no longer carried (see _pricedFp). Each fix
+// names the job by its number and customer, and applies ONLY while the stored
+// total is still the wrong one - so it is idempotent with no marker, never
+// touches a job it does not describe exactly, and keeps the old figure beside
+// the new one. The Fergus job's description is written again with it.
+const ACCEPTED_TOTAL_FIXES = [
+  { ref: '3334', client: 'Double Two Dairies', site: '368 dunn road', from: 35252.82, to: 34231.35,
+    why: 'Corrected by the office: the customer agreed to $34,231.35.' },
+];
+async function _acceptedTotalFixesOnce(){
+  const out = [];
+  for (const f of ACCEPTED_TOTAL_FIXES){
+    const r = { ref: f.ref, fixed: 0 };
+    out.push(r);
+    try {
+      const c = await supabase.from('jobs').select('id, client_name, site_address, job_no:draw_state->state->quote->ref')
+        .ilike('client_name', f.client);
+      if (c.error) { r.error = c.error.message; continue; }
+      for (const row of (c.data || [])){
+        if (String(row.job_no == null ? '' : row.job_no).trim() !== f.ref) continue;
+        if (String(row.site_address || '').toLowerCase().indexOf(f.site) < 0) continue;
+        const j = await supabase.from('jobs')
+          .select('id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote').eq('id', row.id).single();
+        if (j.error || !j.data || !j.data.quote) continue;
+        const quote = j.data.quote, acc = quote.accepted, sh = quote.share || {};
+        if (!acc || sh.status !== 'accepted') continue;
+        if (Math.abs(Number(acc.total) - f.from) > 0.01) continue;      // already right, or not this one
+        const at = new Date().toISOString();
+        acc.totalCorrected = { from: Number(acc.total), to: f.to, at: at, why: f.why };
+        acc.total = f.to;
+        acc.totalVerified = true;
+        const va = quote.versions && quote.versions.accepted;
+        if (va && typeof va === 'object'){
+          va.total = f.to;
+          if (va.quote && va.quote.accepted && typeof va.quote.accepted === 'object') va.quote.accepted.total = f.to;
+        }
+        delete sh.fergusAcceptDescAt;          // the description carries the total: write it again
+        quote.share = sh;
+        await _saveQuoteBack({ id: j.data.id }, quote);
+        try { _quoteFeedInvalidate(j.data.company_id || null); _quoteFeedInvalidate(null); } catch (e) {}
+        r.fixed++;
+        r.job = j.data.id;
+        console.log('[accepted-total-fix] job ' + f.ref + ': ' + f.from + ' -> ' + f.to);
+        try { await _fergusOnAccept(j.data.id, null); } catch (e) {}
+      }
+    } catch (e) { r.error = e && e.message; console.warn('[accepted-total-fix] ' + f.ref + ' failed: ' + r.error); }
+  }
+  return out;
+}
+app.post('/admin/accepted-total-fixes/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _acceptedTotalFixesOnce()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 async function _officeOwedTick(){
   if (_maintOn()) return;
   try {
@@ -14525,6 +14624,9 @@ app.listen(PORT, () => {
     _emailSwitchRepairOnce().then(function(r){ if (r && r.repaired) _officeOwedTick(); }).catch(function(){});
   }, 45e3);
   if (_esKick.unref) _esKick.unref();
+  // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
+  const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
+  if (_atKick.unref) _atKick.unref();
   // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();

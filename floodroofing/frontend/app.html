@@ -5095,7 +5095,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-25T04:03:34Z';
+  window.APP_BUILT_AT = '2026-10-25T04:58:17Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -31485,12 +31485,23 @@ function _acceptQuoteFinalize(name){
     // Customer-facing view — the acceptance MUST reach the office
     // before we congratulate the customer; a swallowed failure here
     // meant "accepted" quotes the office never heard about.
-    _postCustomerEvent('accepted', { name: name, total: S.quote.accepted.total, acceptedOptions: acceptedOptions }).then(function(r){
+    var _fp = '';
+    try { _fp = _qpPricedFp(S.quote.share && S.quote.share.priced); } catch(e){}
+    _postCustomerEvent('accepted', { name: name, total: S.quote.accepted.total, acceptedOptions: acceptedOptions, pricedFp: _fp }).then(function(r){
       if (!r.ok) {
         S.quote.accepted = null;
         refreshQuoteProposal();
         _custBusyBanner(false); _reenable();
         var _ab = (window.S && S.settings && S.settings.branding) || {};
+        if (r.code === 'QUOTE_CHANGED'){
+          // The quote was re-priced after this page opened. Accepting the old
+          // figures would record a price the quote no longer carries, so show
+          // them the current one and let them accept that.
+          alert((_ab.company_name || 'We') + ' updated this quote since you opened it.\n\n' +
+                'We\u2019ll load the latest version now \u2014 please look it over and accept again.');
+          try { (window.__QP_RELOAD || function(){ location.reload(); })(); } catch(e){}
+          return;
+        }
         alert('Sorry — your acceptance didn\'t reach ' + (_ab.company_name || 'the office') + ' (connection problem).\n\n' +
               'Please try again in a moment, or reply to the email' + (_ab.phone ? ' / phone ' + _ab.phone : '') + ' so we can record it for you.');
         return;
@@ -32577,6 +32588,12 @@ function _qaLiveBarSync(){
 // run from and a quote nobody has been sent has no such date.
 function _qStampCustomerCopy(){
   if (!S.quote) return;
+  // An ACCEPTED quote's prices are the ones the customer accepted, and nothing
+  // the office does to the job afterwards re-prices the customer's copy
+  // (2026-10-25, job 3334: re-stamped after the acceptance, its extra roofs read
+  // $1,400.21 where the customer had accepted them at $1,497.33). Undo
+  // acceptance clears `accepted`, and stamping carries on.
+  if (S.quote.accepted) return;
   try {
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
       (S.settings && S.settings.selectables) || _defaultSelectables()));
@@ -32951,6 +32968,20 @@ function _customerSelections(){
     }
   };
 }
+// The fingerprint of the prices a customer's page was opened with. The server
+// refuses an acceptance made on prices the quote no longer carries (409
+// QUOTE_CHANGED, `_pricedFp` in server.js - the two must produce the same
+// string), and the page then reloads onto the current quote.
+function _canonJson(v){
+  if (v === null || typeof v !== 'object'){ var s = JSON.stringify(v); return s === undefined ? 'null' : s; }
+  if (Array.isArray(v)) return '[' + v.map(_canonJson).join(',') + ']';
+  return '{' + Object.keys(v).sort().filter(function(k){ return v[k] !== undefined && typeof v[k] !== 'function'; })
+    .map(function(k){ return JSON.stringify(k) + ':' + _canonJson(v[k]); }).join(',') + '}';
+}
+function _qpPricedFp(P){
+  if (!P || typeof P !== 'object') return '';
+  return _fnv(_canonJson(P));
+}
 function _postCustomerEvent(type, extra){
   if (!window.__CUSTOMER_TOKEN) return Promise.resolve({ ok: true });
   var body = Object.assign({ type:type, selections:_customerSelections() }, extra||{});
@@ -32960,7 +32991,11 @@ function _postCustomerEvent(type, extra){
   var _jobQ = window.__CUSTOMER_JOB ? ('?job=' + encodeURIComponent(window.__CUSTOMER_JOB)) : '';
   return fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/event' + _jobQ,
     { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
-    .then(function(r){ return { ok: r.ok }; })
+    .then(function(r){
+      if (r.ok) return { ok: true };
+      return r.json().then(function(j){ return { ok: false, status: r.status, code: (j && j.code) || '' }; },
+                           function(){ return { ok: false, status: r.status }; });
+    })
     .catch(function(){ return { ok: false }; });
 }
 // After a customer accepts online, render the proposal to PDF (reflecting the

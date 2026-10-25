@@ -4560,6 +4560,34 @@ Discipline (non-negotiable):
   `__TEST_HTTPS` seam, so `tests/custevents.mjs` stubs both — the seam for the
   job read and the description PATCH, a `fetch` wrapper for the upload.
 
+- A CUSTOMER ACCEPTS THE PRICES THE QUOTE STILL CARRIES (2026-10-25, job 3334:
+  "Aidan agreed to $34,231.35, fix the accepted total"). The acceptance
+  recorded $35,252.82 — the figure the customer's BROWSER reported — while the
+  quote read $34,231.35. The acceptance email gave it away: it lists his extra
+  roofs at the prices his page used ($1,497.33 / $908.51 / $1,173.01 ×2,
+  `acceptedOptions` from `quote.extraRoofs`), and the quote now reads them at
+  $1,400.21 / $819.64 / $1,084.14 (`share.priced.extraRoof`). The customer's
+  page prices everything from `share.priced` as it was when the page OPENED,
+  and the office re-stamps that block on every Quote-tab autosave
+  (`_qStampCustomerCopy`) — including, until now, AFTER an acceptance. Whether
+  his page was opened before a re-price or the quote was re-priced after he
+  accepted cannot be told from here; both doors are shut:
+  the customer's accept sends `pricedFp` (`_qpPricedFp` in app.html,
+  `_pricedFp` in server.js — sorted-key JSON, FNV-1a, the two MUST give the
+  same string) and the server refuses an acceptance made on a block it no
+  longer holds (409 `QUOTE_CHANGED`; the page says so and reloads). A page
+  from before sends none and is not checked. And an accepted quote is never
+  re-priced: `_qStampCustomerCopy` returns on `S.quote.accepted`, and
+  `_keepCustomerState` keeps the stored `share.priced` and `sentTotal` on a
+  save that has seen the acceptance (Undo acceptance clears `accepted`, so it
+  passes). The LINE ITEMS can still move under an accepted quote — the OPEN
+  AND URGENT item below is unchanged.
+  3334 ITSELF: `ACCEPTED_TOTAL_FIXES` in server.js, run 50 s after boot and by
+  `POST /admin/accepted-total-fixes/run` — matched on number, customer AND
+  address, acting only while the stored total is still the wrong one (so no
+  marker), keeping `accepted.totalCorrected {from, to, at, why}`, setting the
+  frozen Accepted copy's total too, and re-writing the Fergus description.
+  The office emails already sent still say $35,252.82. `tests/acceptstale.mjs`.
 - AN EMAILED TOKEN LANDS ON /app, NEVER THE ROOT (2026-10-22, a customer's
   reply to his own reset email, forwarded by the owner — tyler@tgmroofing
   .co.nz: "This keeps just taking me back to the home page"). `/auth/forgot`
