@@ -96,6 +96,7 @@ let v = await office.evaluate(async () => {
   S.quote = defaultQuote();
   S.quote.style = 'modern'; S.quote.gstRate = 15; S.quote.client = 'Dot Bolous'; S.quote.ref = '3303'; S.quote.email = 'customer@example.co.nz';
   S.quote.lineItems = [{ desc: 'Re-roof', qty: 1, unit: 18400, price: 18400, amount: 18400 }];
+  try { buildQuote(); } catch(e){}   // the quote's own form follows it, as opening a job does (readQuoteFromInputs reads it back)
   try { recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   const ok = await saveCurrentJob({ force: true });
