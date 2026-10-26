@@ -22,6 +22,19 @@ const POLL_MS = +process.env.TENDER_POLL_MS || 4000;
 const STALE_MS = 10 * 60 * 1000;
 const TEXT_KEEP = 40000;          // chars of page text kept on the row
 const PAGE_DPI = 150, PAGE_MAX_PX = 2000, TB_DPI = 300, TB_MAX_PX = 1600, THUMB_PX = 360;
+const CLASSIFY_AT_ONCE = +process.env.TENDER_CLASSIFY_AT_ONCE || 6;
+const DRAFT_IMAGES = 14;          // pictures of pages handed to the draft
+const DRAFT_IMG_CLS = ['roof_plan', 'detail_roof', 'elevation', 'section', 'roof_framing', 'spec', 'schedule'];
+const pricebook = require('./pricebook');
+
+// Run fn over items, n at a time.
+async function pool(items, n, fn){
+  let next = 0;
+  const lanes = Array.from({ length: Math.max(1, Math.min(n, items.length)) }, async () => {
+    while (next < items.length) { const it = items[next++]; await fn(it); }
+  });
+  await Promise.all(lanes);
+}
 
 function createWorker(deps){
   const { supabase, storage, ai, recordError, dispatchMail, warn } = deps;
@@ -90,12 +103,25 @@ function createWorker(deps){
     const { data: tj } = await supabase.from('tender_jobs').select('*').eq('id', task.tender_id);
     const tender = (tj || [])[0];
     if (!tender) { const e = new Error('tender ' + task.tender_id + ' is gone'); e.permanent = true; throw e; }
-    if (task.type !== 'process') { const e = new Error('unknown task type ' + task.type); e.permanent = true; throw e; }
+    if (task.type !== 'process' && task.type !== 'draft') { const e = new Error('unknown task type ' + task.type); e.permanent = true; throw e; }
     await supabase.from('tender_jobs').update({ status: 'processing', updated_at: now() }).eq('id', tender.id);
-    await ingest(task, tender);
-    await classify(task, tender);
-    await index(task, tender);
-    await supabase.from('tender_jobs').update({ status: 'indexed', updated_at: now() }).eq('id', tender.id);
+    if (task.type === 'process') {
+      await ingest(task, tender);
+      await classify(task, tender);
+      await index(task, tender);
+    }
+    // The set is read whatever happens to the draft: a draft that fails on
+    // a reading run leaves the index standing and says why, rather than
+    // failing (and re-reading) the whole set. A draft asked for on its own
+    // is the whole task, and retries like one.
+    let drafted = false;
+    try { drafted = await draft(task, tender); }
+    catch (e) {
+      if (task.type === 'draft') throw e;
+      await progress(task, { stage: 'draft', error: String(e && e.message || e).slice(0, 400) });
+      try { recordError('tender-draft', e, { route: 'tender/draft', company: tender.company_id || '' }); } catch (e2) {}
+    }
+    await supabase.from('tender_jobs').update({ status: drafted ? 'drafted' : 'indexed', updated_at: now() }).eq('id', tender.id);
     await notify(tender, task);
   }
 
@@ -140,11 +166,13 @@ function createWorker(deps){
     const paths = {};
     try {
       const img = await pdf.render(doc, pageNo, { dpi: PAGE_DPI, maxPx: PAGE_MAX_PX });
-      await storage.upload(base + '.jpg', img.buf, 'image/jpeg'); paths.image = base + '.jpg';
       const th = await pdf.thumbnail(doc, pageNo, THUMB_PX);
-      await storage.upload(base + '.thumb.jpg', th.buf, 'image/jpeg'); paths.thumb = base + '.thumb.jpg';
       const tile = await pdf.render(doc, pageNo, { dpi: TB_DPI, maxPx: TB_MAX_PX, region: tb });
-      await storage.upload(base + '.tb.jpg', tile.buf, 'image/jpeg'); paths.tb = base + '.tb.jpg';
+      await Promise.all([
+        storage.upload(base + '.jpg', img.buf, 'image/jpeg').then(() => { paths.image = base + '.jpg'; }),
+        storage.upload(base + '.thumb.jpg', th.buf, 'image/jpeg').then(() => { paths.thumb = base + '.thumb.jpg'; }),
+        storage.upload(base + '.tb.jpg', tile.buf, 'image/jpeg').then(() => { paths.tb = base + '.tb.jpg'; }),
+      ]);
     } catch (e) {
       log('render failed on ' + f.name + ' p' + pageNo + ': ' + e.message);
     }
@@ -170,7 +198,9 @@ function createWorker(deps){
     // never asked again — their word outranks the model's.
     const todo = (pages || []).filter(p => p.cls_source !== 'ai' && p.cls_source !== 'ai-failed' && p.cls_source !== 'user');
     let i = 0;
-    for (const p of todo) {
+    // Six pages at a time: one after another, a 48-page set spent most of
+    // its ten minutes waiting on the classifier.
+    await pool(todo, CLASSIFY_AT_ONCE, async (p) => {
       i++;
       await progress(task, { stage: 'classify', pageNo: p.page_no, done: i - 1, total: todo.length });
       let img = '', tbi = '';
@@ -203,8 +233,83 @@ function createWorker(deps){
         log('classify failed on page ' + p.page_no + ': ' + runRow.error);
       }
       await supabase.from('tender_ai_runs').insert(runRow);
-    }
+    });
     await progress(task, { stage: 'classify', done: todo.length, total: todo.length });
+  }
+
+  // ── stage 4: the tender itself (2026-10-27) ───────────────────────
+  // One call over the whole set: every page's text, pictures of the pages
+  // that matter to a roofer, the company's price book and labour rates in;
+  // the spec items with quantities and costs, labour, scope, exclusions and
+  // a programme out. Prices the model matched to the price book are put
+  // back to the book's own figure here (pricebook.applyPrices).
+  async function settingsFor(tender){
+    const cols = 'price_book,labour_pricing,quote_defaults';
+    let row = null;
+    if (tender.company_id) { const { data } = await supabase.from('user_settings').select(cols).eq('company_id', tender.company_id).limit(1); row = (data || [])[0] || null; }
+    if (!row && tender.user_id) { const { data } = await supabase.from('user_settings').select(cols).eq('user_id', tender.user_id).limit(1); row = (data || [])[0] || null; }
+    return row || {};
+  }
+  function labourText(lp){
+    lp = lp || {};
+    const per = lp.per_item_hours || {};
+    return 'lead hand costs $' + (lp.lead_cost || 45) + '/hr and is charged out at $' + (lp.lead_price || 180) + '/hr; apprentice costs $' + (lp.app_cost || 25) + '/hr, charged at $' + (lp.app_price || 90) + '/hr; usual crew ' + (lp.default_workers || 2) + '.' +
+      (Object.keys(per).length ? (' Per-item hour budgets for an average house roof: ' + Object.keys(per).map(k => k + ' ' + per[k] + ' h').join('; ') + '.') : '');
+  }
+  async function draft(task, tender){
+    if (!ai.available()) { await progress(task, { stage: 'draft', skipped: 'no AI key on the server' }); return false; }
+    await progress(task, { stage: 'draft' });
+    const { data: pages } = await supabase.from('tender_pages').select('id,page_no,file_id,sheet_id,title,revision,cls,text,image_path').eq('tender_id', tender.id).order('page_no', { ascending: true });
+    const { data: files } = await supabase.from('tender_files').select('id,name,created_at').eq('tender_id', tender.id).order('created_at', { ascending: true });
+    const fileNo = {}; (files || []).forEach((f, i) => { fileNo[f.id] = i + 1; });
+    const multi = (files || []).length > 1;
+    // A sheet issued again at a later revision: the old copy is not priced
+    // from, and is not worth a picture.
+    const { data: tjr } = await supabase.from('tender_jobs').select('sheet_index').eq('id', tender.id);
+    const sup = {};
+    (((tjr || [])[0] || {}).sheet_index || {}).sheets && tjr[0].sheet_index.sheets.forEach(s => (s.superseded || []).forEach(x => { if (x.pageId) sup[x.pageId] = 1; }));
+    const list = (pages || []).slice().sort((a, b) => (fileNo[a.file_id] || 0) - (fileNo[b.file_id] || 0) || a.page_no - b.page_no).map(p => ({
+      id: p.id, pageNo: p.page_no, cls: p.cls, image_path: p.image_path,
+      label: (multi ? ('file ' + (fileNo[p.file_id] || '?') + ' ') : '') + 'p' + p.page_no + (p.sheet_id ? (' sheet ' + p.sheet_id) : '') + (p.revision ? (' rev ' + p.revision) : '') + (p.title ? (' "' + p.title + '"') : '') + ' [' + String(p.cls || 'other').replace(/_/g, ' ') + ']' + (sup[p.id] ? ' SUPERSEDED by a later revision — do not price from it' : ''),
+      superseded: !!sup[p.id],
+      text: p.text || '',
+    }));
+    // The pictures: roof plans first, then roofing details, elevations…
+    const want = list.filter(p => p.image_path && !p.superseded && DRAFT_IMG_CLS.indexOf(p.cls) >= 0)
+      .sort((a, b) => DRAFT_IMG_CLS.indexOf(a.cls) - DRAFT_IMG_CLS.indexOf(b.cls) || a.pageNo - b.pageNo).slice(0, DRAFT_IMAGES);
+    // A scanned page with no words is only readable as a picture.
+    list.filter(p => p.image_path && !p.superseded && (p.text || '').length < 80 && want.indexOf(p) < 0).slice(0, Math.max(0, DRAFT_IMAGES + 4 - want.length)).forEach(p => want.push(p));
+    await Promise.all(want.map(async (p) => { try { p.imageBase64 = (await storage.download(p.image_path)).toString('base64'); } catch (e) {} }));
+    const st = await settingsFor(tender);
+    const cat = pricebook.catalog(st);
+    const runRow = { id: crypto.randomUUID(), tender_id: tender.id, company_id: tender.company_id || null, user_id: tender.user_id || null,
+      page_id: null, pass: 'draft', model: '', prompt_version: '', in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0,
+      cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
+    let r;
+    try {
+      r = await ai.draftTender(list, { priceBook: pricebook.asText(cat), labour: labourText(st.labour_pricing) },
+        { onBeat: () => { supabase.from('tender_tasks').update({ heartbeat_at: now() }).eq('id', task && task.id || '-').then(() => {}, () => {}); } });
+    } catch (e) {
+      runRow.error = String(e && e.message || e).slice(0, 400);
+      await supabase.from('tender_ai_runs').insert(runRow);
+      throw new Error('drafting the tender failed: ' + runRow.error);
+    }
+    const u = r.usage || {};
+    Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0,
+      cache_read: u.cache_read_input_tokens || 0, cache_write: u.cache_creation_input_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
+    await supabase.from('tender_ai_runs').insert(runRow);
+    const doc = buildDoc(r.result, cat, st, { model: r.model, promptVersion: r.promptVersion, images: want.length, pages: list.length });
+    await saveDoc(tender, doc, 'AI draft');
+    await progress(task, { stage: 'draft', done: true });
+    return true;
+  }
+
+  async function saveDoc(tender, doc, why){
+    const { data: cur } = await supabase.from('tender_jobs').select('doc,doc_history').eq('id', tender.id);
+    const row = (cur || [])[0] || {};
+    const hist = Array.isArray(row.doc_history) ? row.doc_history.slice(0) : [];
+    if (row.doc) hist.unshift({ at: now(), why: why || '', doc: row.doc });
+    await supabase.from('tender_jobs').update({ doc, doc_history: hist.slice(0, 8), updated_at: now() }).eq('id', tender.id);
   }
 
   // ── stage 3: the sheet index ───────────────────────────────────────
@@ -254,7 +359,31 @@ function createWorker(deps){
   }
   function stop(){ if (timer) clearInterval(timer); timer = null; }
 
-  return { enqueue, tick, start, stop, run, ingest, classify, index, POLL_MS };
+  return { enqueue, tick, start, stop, run, ingest, classify, index, draft, saveDoc, settingsFor, POLL_MS };
 }
 
-module.exports = { createWorker };
+// The AI's answer → the document the tab edits. Prices from the book are
+// put back; the company's labour rates and scaffold figures seed the sheet.
+function buildDoc(res, cat, st, meta){
+  res = res || {};
+  const lp = (st && st.labour_pricing) || {};
+  const n = (v, d) => (v != null && v !== '' && isFinite(+v)) ? +v : d;
+  let k = 0;
+  const items = pricebook.applyPrices((res.items || []).map(it => Object.assign({}, it, { id: it.id || ('i' + (++k)) })), cat);
+  return {
+    v: 1, createdAt: new Date().toISOString(), ai: meta || {},
+    project: res.project || {}, roof: res.roof || {},
+    items, labour: (res.labour || []).map((l, i) => Object.assign({ id: 'l' + (i + 1) }, l)),
+    scaffold: res.scaffold || { needed: false, type: 'none', notes: '' },
+    scope: res.scope || [], exclusions: res.exclusions || [], assumptions: res.assumptions || [], rfis: res.rfis || [],
+    timeline: (res.timeline || []).map((t, i) => Object.assign({ id: 't' + (i + 1) }, t)), duration_days: n(res.duration_days, 0),
+    confidence_notes: res.confidence_notes || '',
+    rates: { bufferPct: 5, markupPct: 10, leadCost: n(lp.lead_cost, 45), leadPrice: n(lp.lead_price, 180), appCost: n(lp.app_cost, 25), appPrice: n(lp.app_price, 90),
+      scaffoldCost: n(lp.scaffold_cost, 2000), scaffoldPrice: n(lp.scaffold_price, 2500), platformPct: n(lp.scaffold_platform_pct, 25),
+      gstPct: n(st && st.quote_defaults && st.quote_defaults.gst_rate, 15) },
+    quote: {},
+    chat: [],
+  };
+}
+
+module.exports = { createWorker, buildDoc };

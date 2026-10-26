@@ -27,7 +27,9 @@ const { db, port } = await startFakePostgrest({
   profiles: [ { id: 'u1', company_id: 'c1', email: 'office@floodroofing.co.nz' }, { id: 'u2', company_id: 'c2', email: 'office@rival.nz' }, { id: 'u3', company_id: 'c3', email: 'a@notenders.nz' } ],
   company_users: [ { company_id: 'c1', user_id: 'u1', role: 'owner' }, { company_id: 'c2', user_id: 'u2', role: 'owner' }, { company_id: 'c3', user_id: 'u3', role: 'owner' } ],
   user_settings: [
-    { user_id: 'u1', company_id: 'c1', updated_at: ago(1), branding: { company_name: 'Flood Roofing', ai_tendering_enabled: true }, quote_defaults: {} },
+    { user_id: 'u1', company_id: 'c1', updated_at: ago(1), branding: { company_name: 'Flood Roofing', ai_tendering_enabled: true }, quote_defaults: { gst_rate: 15 },
+      price_book: { sheets: [ { product: '0.40 Colorsteel Endura Corrugate', unit: 'm2', price: 30.5 } ], ridge_lm: 22, gutter: { box125_lm: 21 }, __materials_catalog: { underlays: [ { name: 'Thermakraft 215', price: 190, m2: 50 } ] } },
+      labour_pricing: { lead_cost: 50, lead_price: 170, app_cost: 30, app_price: 95, scaffold_cost: 1800, scaffold_price: 2400, scaffold_platform_pct: 25 } },
     { user_id: 'u2', company_id: 'c2', updated_at: ago(1), branding: { company_name: 'Rival Roofing', ai_tendering_enabled: true }, quote_defaults: {} },
     { user_id: 'u3', company_id: 'c3', updated_at: ago(1), branding: { company_name: 'No Tenders Ltd' }, quote_defaults: {} },
   ],
@@ -41,8 +43,39 @@ globalThis.__TEST_TENDER_STORAGE = STORE;
 
 // The classifier: answers from the title-block text it is handed, the way
 // the model would, and keeps every request so the pins can read them.
-const AI_CALLS = [];
+const AI_CALLS = [], DRAFT_CALLS = [];
+// The tender itself (2026-10-27): a roof read off the set, one item matched
+// to the price book at a wrong price (the book's must win) and one not in
+// the book at all (the estimate must stand).
+const TENDER_ANSWER = () => ({
+  project: { name: 'Whangaroa Community Hall', address: '1 Hall Rd, Whangaroa', client: 'Northland Builders', architect: 'AO Architects', tender_closes: '', documents: 'AO-00 to AO-06 rev C' },
+  roof: { area_m2: 240, pitch: '15°', roof_type: 'gable', existing_roof: '', job_kind: 'new' },
+  items: [
+    { id: 'i1', category: 'roofing', description: '0.40 BMT Colorsteel Endura Corrugate roofing', product: 'Colorsteel Endura', profile: 'Corrugate', thickness: '0.40 BMT', material: 'Colorsteel Endura', colour: 'Grey Friars', spec_ref: 'AO-05', source_pages: 'p4', quantity: 240, unit: 'm2', qty_basis: '20 x 12 m at 15°', pb_key: 'sheet:0', unit_cost: 99, confidence: 0.9 },
+    { id: 'i2', category: 'underlay', description: 'Thermakraft 215 underlay', product: 'Thermakraft 215', profile: '', thickness: '', material: '', colour: '', spec_ref: 'AO-05', source_pages: 'p4', quantity: 6, unit: 'roll', qty_basis: '240 m² + laps', pb_key: 'underlay:Thermakraft 215', unit_cost: 150, confidence: 0.8 },
+    { id: 'i3', category: 'safety_mesh', description: 'Roof safety mesh', product: '', profile: '', thickness: '', material: 'Galvanised', colour: '', spec_ref: '', source_pages: 'p4', quantity: 240, unit: 'm2', qty_basis: 'as roof', pb_key: '', unit_cost: 4, confidence: 0.6 },
+    { id: 'i4', category: 'gutter', description: '125mm box gutter', product: '', profile: 'Box', thickness: '', material: 'Colorsteel', colour: '', spec_ref: 'AO-06', source_pages: 'p7', quantity: 40, unit: 'lm', qty_basis: '2 x 20 m', pb_key: 'gutter.box125_lm', unit_cost: 30, confidence: 0.8 },
+    { id: 'i5', category: 'wall_cladding', description: 'Corrugate wall cladding', product: '', profile: 'Corrugate', thickness: '0.40', material: 'Colorsteel', colour: '', spec_ref: '', source_pages: 'p5', quantity: 60, unit: 'm2', qty_basis: 'gable ends', pb_key: 'not-a-key', unit_cost: 32, confidence: 0.5 },
+  ],
+  labour: [ { id: 'l1', task: 'Underlay, mesh and roofing', man_hours: 48, crew: 2, notes: '' }, { id: 'l2', task: 'Flashings and gutters', man_hours: 16, crew: 2, notes: '' } ],
+  scaffold: { needed: true, type: 'edge', notes: 'single storey' },
+  scope: ['Site set-up', 'Supply and install safety mesh', 'Supply and install Thermakraft 215 underlay', 'Supply and install 0.40 Colorsteel Endura Corrugate roofing', 'Supply and install 125mm box gutter', 'Clean up and remove our rubbish'],
+  exclusions: [ { text: 'Scaffolding beyond edge protection', why: 'builder supplies' } ],
+  assumptions: ['Purlins by others'], rfis: ['Colour to be confirmed'],
+  timeline: [ { id: 't1', phase: 'Set-up', start_day: 0, days: 1, crew: 2, notes: '' }, { id: 't2', phase: 'Roofing', start_day: 1, days: 3, crew: 2, notes: '' }, { id: 't3', phase: 'Gutters & clean-up', start_day: 4, days: 1, crew: 2, notes: '' } ],
+  duration_days: 5, confidence_notes: 'Gutter length scaled from the plan.',
+});
 globalThis.__TEST_TENDER_AI = async (req) => {
+  if (req.tool === 'record_tender') {
+    DRAFT_CALLS.push(req);
+    if (/^amend/.test(req.promptVersion)) {
+      const d = JSON.parse(JSON.stringify(req.doc));
+      if (/Simplify/.test(req.text)) { d.scope = ['Supply and install the roof: mesh, underlay, roofing and gutter', 'Set up, clean up and remove our rubbish']; d.items = d.items.map(i => Object.assign({}, i, { unit_cost: i.id === 'i1' ? 77 : i.unit_cost })); d.confidence_notes = 'Simplified the scope into two bullets.'; }
+      else if (/spouting/.test(req.text)) { d.items = d.items.filter(i => i.category !== 'gutter'); d.scope = d.scope.filter(x => !/gutter/i.test(x)); d.exclusions = d.exclusions.concat([{ text: 'Spouting and downpipes', why: 'by the builder' }]); d.items.push({ id: '', category: 'flashing', description: 'Parapet capping', product: '', profile: '', thickness: '0.55', material: '', colour: '', spec_ref: '', source_pages: '', quantity: 20, unit: 'lm', qty_basis: 'asked for', pb_key: 'ridge_lm', unit_cost: 40, confidence: 1 }); d.confidence_notes = 'Took the spouting out and added the capping.'; }
+      return d;
+    }
+    return TENDER_ANSWER();
+  }
   AI_CALLS.push(req);
   const tb = (req.text.split('PAGE TEXT')[0] || '');
   const id = (/SHEET NO\s+([A-Z]{1,3}-?[0-9]{1,3})/.exec(tb) || [])[1] || '';
@@ -143,8 +176,8 @@ r = await call(T1, 'POST', '/tender/' + TID + '/files/' + FA + '/landed');
 check('landing twice does not queue twice', r.body.task && (db.tender_tasks || []).filter(t => t.tender_id === TID).length === 1);
 
 // ── the worker ──────────────────────────────────────────────────────
-const done = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return (p.body.status === 'indexed' || p.body.status === 'failed') ? p.body : null; }, 40000);
-check('the worker ran to indexed', done && done.status === 'indexed', JSON.stringify(done && (done.task || {}).error || done));
+const done = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return (p.body.status === 'drafted' || p.body.status === 'indexed' || p.body.status === 'failed') ? p.body : null; }, 40000);
+check('the worker ran through to a drafted tender', done && done.status === 'drafted', JSON.stringify(done && (done.task || {}).error || done));
 r = await call(T1, 'GET', '/tender/' + TID);
 const T = r.body;
 check('six pages recorded', T.pages.length === 6, String(T.pages.length));
@@ -162,7 +195,7 @@ check('the heuristic alone had classed the roof plan right', pg(4).heuristic && 
 // What the model was handed.
 check('the AI got one call per page with the page picture and the title-block tile', AI_CALLS.length === 6 && AI_CALLS.every(c => c.images.length === 2 && c.images[0].bytes > 1000 && c.tool === 'classify_page'), AI_CALLS.length + ' ' + JSON.stringify((AI_CALLS[0] || {}).images));
 check('the AI prompt is the versioned file', AI_CALLS[0].promptVersion === 'classify-page.v1' && AI_CALLS[0].pass === 'classify');
-const runs = (db.tender_ai_runs || []).filter(x => x.tender_id === TID);
+const runs = (db.tender_ai_runs || []).filter(x => x.tender_id === TID && x.pass === 'classify');
 check('every call is logged with model, prompt version, tokens and time', runs.length === 6 && runs.every(x => x.ok && x.prompt_version === 'classify-page.v1' && x.in_tokens > 0 && x.company_id === 'c1' && x.user_id === 'u1' && x.page_id), JSON.stringify(runs[0]));
 // The index.
 const idx = T.sheet_index;
@@ -174,9 +207,73 @@ check('index: the register was read off the cover', idx.register.length === 5 &&
 check('index: AO-06 is missing from the files', idx.missing.length === 1 && idx.missing[0].sheetId === 'AO-06' && idx.warnings.some(w => w.kind === 'missing' && /AO-06/.test(w.text)));
 check('index: the blank page is listed unnumbered', idx.unnumbered.length === 1 && idx.unnumbered[0].pageNo === 6);
 check('index: counts and the roof-relevant list', idx.counts.roof_plan === 1 && idx.roofRelevant.indexOf(ao5.pageId) >= 0 && idx.roofRelevant.indexOf(pg(2).id) < 0, JSON.stringify(idx.counts));
-check('the tender status is indexed', T.status === 'indexed');
+check('the tender status is drafted', T.status === 'drafted');
 check('the office was emailed when the set was read', (db.__mailSent || []).length >= 0);   // dispatch is stubbed; the notify path must simply not throw
 check('the task finished with its progress on it', T.tasks[0].status === 'done' && T.tasks[0].progress.stage === 'done');
+
+// ── the drafted tender (2026-10-27) ─────────────────────────────────
+{
+  const D = T.doc;
+  check('a tender document was drafted', D && D.items && D.items.length === 5 && D.scope.length === 6, JSON.stringify(D && Object.keys(D)));
+  const dc = DRAFT_CALLS[0] || {};
+  check('the draft is one call, the versioned prompt, the reasoning pass', DRAFT_CALLS.length === 1 && dc.promptVersion === 'draft-tender.v1' && dc.pass === 'reason', JSON.stringify([DRAFT_CALLS.length, dc.promptVersion, dc.pass]));
+  check('…handed every page under its label, with the page text', /=== p4 sheet AO-05 rev C "ROOF PLAN[^"]*" \[roof plan\] ===/.test(dc.text || '') && /PITCH 15 DEG/.test(dc.text || ''), (dc.text || '').slice(0, 300));
+  check('…handed the price book with the company\'s own prices', /sheet:0 \| 0\.40 Colorsteel Endura Corrugate \(roofing sheet\) \| \$30\.50 per m2/.test(dc.text || '') && /underlay:Thermakraft 215/.test(dc.text || '') && /gutter\.box125_lm/.test(dc.text || ''));
+  check('…and the labour rates', /lead hand costs \$50\/hr and is charged out at \$170\/hr/.test(dc.text || ''));
+  check('the superseded copy is marked and gets no picture', /p3 sheet AO-05 rev B[^\n]*SUPERSEDED/.test(dc.text || '') && !(dc.images || []).some(i => /p3 /.test(i.label)));
+  check('…and pictures of the roof plan and the elevation', (dc.images || []).length >= 2 && (dc.images || []).every(i => i.bytes > 1000) && /p4 sheet AO-05/.test((dc.images[0] || {}).label || ''), JSON.stringify((dc.images || []).map(i => i.label)));
+  const it = (id) => D.items.find(x => x.id === id);
+  check('a price-book match takes the book\'s price, not the AI\'s', it('i1').unit_cost === 30.5 && it('i1').cost_source === 'pricebook' && it('i1').ai_unit_cost === 99, JSON.stringify(it('i1')));
+  check('…an underlay from the papers list too', it('i2').unit_cost === 190 && it('i2').cost_source === 'pricebook');
+  check('an item not in the book keeps the AI\'s estimate and says so', it('i3').unit_cost === 4 && it('i3').cost_source === 'estimate' && it('i3').pb_key === '');
+  check('a key the book does not have is an estimate, not a match', it('i5').cost_source === 'estimate' && it('i5').pb_key === '' && it('i5').unit_cost === 32);
+  check('the labour rates are the company\'s', D.rates.leadCost === 50 && D.rates.leadPrice === 170 && D.rates.appCost === 30 && D.rates.appPrice === 95 && D.rates.scaffoldPrice === 2400 && D.rates.gstPct === 15, JSON.stringify(D.rates));
+  check('scope, exclusions, programme and the project come through', D.exclusions[0].why === 'builder supplies' && D.timeline.length === 3 && D.duration_days === 5 && D.project.client === 'Northland Builders');
+  const run = (db.tender_ai_runs || []).find(x => x.tender_id === TID && x.pass === 'draft');
+  check('the draft call is logged', run && run.ok && run.prompt_version === 'draft-tender.v1' && run.page_id === null);
+
+  // the office edits it
+  const edited = JSON.parse(JSON.stringify(D));
+  edited.items[2].unit_cost = 5; edited.items[2].cost_source = 'you'; edited.items[2].edited = true;
+  edited.quote = { title: 'Roofing Tender — Whangaroa Hall' };
+  let x = await call(T1, 'PUT', '/tender/' + TID + '/doc', { doc: edited });
+  check('the office\'s edits save', x.status === 200 && x.body.savedAt, JSON.stringify(x.body));
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…and come back', x.body.doc.items[2].unit_cost === 5 && x.body.doc.quote.title === 'Roofing Tender — Whangaroa Hall');
+  x = await call(T2, 'PUT', '/tender/' + TID + '/doc', { doc: edited });
+  check('another company cannot write the tender', x.status === 404);
+  x = await call(T1, 'PUT', '/tender/' + TID + '/doc', { doc: [] });
+  check('a tender that is not an object is refused', x.status === 400);
+
+  // Simplify: the words change, the prices do not
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'simplify' });
+  const A = x.body.doc || {};
+  check('Simplify rewrites the scope', x.status === 200 && A.scope.length === 2, JSON.stringify(x.body).slice(0, 300));
+  check('…and keeps the office\'s typed price and the book\'s price', A.items.find(i => i.id === 'i3').unit_cost === 5 && A.items.find(i => i.id === 'i1').unit_cost === 30.5 && A.items.find(i => i.id === 'i1').cost_source === 'pricebook', JSON.stringify(A.items.map(i => [i.id, i.unit_cost, i.cost_source])));
+  check('…and keeps the quote wording and the rates', A.quote.title === 'Roofing Tender — Whangaroa Hall' && A.rates.leadCost === 50);
+  check('…and the chat records it', A.chat.length === 2 && A.chat[0].who === 'you' && /Simplified/.test(A.chat[1].text));
+  check('the amend was asked of the extract pass with the amend prompt', DRAFT_CALLS[DRAFT_CALLS.length - 1].promptVersion === 'amend-tender.v1' && DRAFT_CALLS[DRAFT_CALLS.length - 1].pass === 'extract');
+  // The office's own words
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'take the spouting out, the builder is doing it, and add 20 m of parapet capping', doc: A });
+  const B = x.body.doc || {};
+  check('a chat instruction changes items, scope and exclusions together', x.status === 200 && !B.items.some(i => i.category === 'gutter') && B.exclusions.some(e => /Spouting/.test(e.text)), JSON.stringify(x.body).slice(0, 300));
+  const cap = B.items.find(i => /Parapet/.test(i.description));
+  check('…a new item gets an id and the book\'s price when it names a key', cap && cap.id && cap.unit_cost === 22 && cap.cost_source === 'pricebook', JSON.stringify(cap));
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: '   ' });
+  check('an empty instruction is refused', x.status === 400);
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('the history names the AI changes, newest first', x.body.history && /parapet capping/.test(x.body.history[0].why) && x.body.history.some(h => h.why === 'Simplify') && !('doc_history' in x.body), JSON.stringify(x.body.history));
+  x = await call(T1, 'POST', '/tender/' + TID + '/undo', {});
+  check('Undo puts the tender back to before the last AI change', x.status === 200 && x.body.doc.items.some(i => i.category === 'gutter') && x.body.doc.scope.length === 2, JSON.stringify(x.body).slice(0, 200));
+  x = await call(T2, 'POST', '/tender/' + TID + '/amend', { mode: 'simplify' });
+  check('another company cannot ask Claude to change it', x.status === 404);
+  const n0 = DRAFT_CALLS.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/draft', {});
+  check('Draft again queues a draft on its own', x.status === 200 && x.body.task && x.body.task.status === 'queued', JSON.stringify(x.body));
+  const dd = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return p.body.status === 'drafted' && p.body.task && p.body.task.status === 'done' ? p.body : null; }, 30000);
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…which drafts without reading the set again', dd && DRAFT_CALLS.length === n0 + 1 && x.body.doc.scope.length === 6 && x.body.history[0].why === 'AI draft', JSON.stringify([DRAFT_CALLS.length - n0, x.body.history && x.body.history[0]]));
+}
 
 // ── pages: picture, text, correction ────────────────────────────────
 r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind=thumb');
@@ -192,7 +289,7 @@ check('an unknown class is refused', r.status === 400);
 // A re-run does not re-ask the model about a page the office classed, nor double the pages.
 const before = AI_CALLS.length;
 r = await call(T1, 'POST', '/tender/' + TID + '/run');
-await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return p.body.status === 'indexed' && p.body.task && p.body.task.status === 'done' && p.body.task.id !== T.tasks[0].id ? p.body : null; }, 30000);
+await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return p.body.status === 'drafted' && p.body.task && p.body.task.status === 'done' && p.body.task.id !== T.tasks[0].id ? p.body : null; }, 30000);
 r = await call(T1, 'GET', '/tender/' + TID);
 check('a re-run is idempotent: still six pages, no new AI calls, the correction kept', r.body.pages.length === 6 && AI_CALLS.length === before && r.body.pages.find(p => p.page_no === 5).cls === 'section', r.body.pages.length + ' ' + (AI_CALLS.length - before));
 
@@ -202,7 +299,7 @@ r = await call(T1, 'POST', '/tender/' + TID + '/files/sign', { name: 'AO-06 deta
 await fetch(r.body.signedUrl, { method: 'PUT', headers: { 'content-type': 'application/pdf' }, body: setB });
 const FB = r.body.fileId;
 await call(T1, 'POST', '/tender/' + TID + '/files/' + FB + '/landed');
-const d2 = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return (p.body.status === 'indexed' && p.body.pages === 7) ? p.body : null; }, 30000);
+const d2 = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return (p.body.status === 'drafted' && p.body.pages === 7) ? p.body : null; }, 30000);
 r = await call(T1, 'GET', '/tender/' + TID);
 check('the second file is read and the register\'s missing sheet is found', d2 && r.body.pages.length === 7 && r.body.sheet_index.missing.length === 0 && r.body.sheet_index.sheets.find(s => s.sheetId === 'AO-06').cls === 'detail_roof', JSON.stringify(r.body.sheet_index.missing));
 check('the earlier pages were not read again', AI_CALLS.length === before + 1);

@@ -84,7 +84,7 @@ function mount(app, deps){
         if (ex && ex[0]) return res.json(ex[0]);
       }
       const row = { id: crypto.randomUUID(), company_id: req.companyId || null, user_id: req.user.id, job_id: jobId, name: name || 'Tender',
-        status: 'new', settings: {}, sheet_index: null, created_at: now(), updated_at: now() };
+        status: 'new', settings: {}, sheet_index: null, doc: null, doc_history: [], created_at: now(), updated_at: now() };
       const { error } = await supabase.from('tender_jobs').insert(row);
       if (error) throw new Error(error.message);
       // No usage milestone: the privacy policy lists every one it records
@@ -102,7 +102,13 @@ function mount(app, deps){
         supabase.from('tender_pages').select(PAGE_COLS).eq('tender_id', t.id).order('page_no', { ascending: true }),
         supabase.from('tender_tasks').select('id,type,status,attempts,error,progress,created_at,started_at,done_at,heartbeat_at').eq('tender_id', t.id).order('created_at', { ascending: false }).limit(5),
       ]);
-      res.json(Object.assign({}, t, { files: files.data || [], pages: (pages.data || []).map(_pageOut), tasks: tasks.data || [], ai: ai.available() }));
+      const pg = (pages.data || []).map(_pageOut);
+      const failed = pg.filter(p => p.cls_source === 'ai-failed');
+      const out = Object.assign({}, t, { files: files.data || [], pages: pg, tasks: tasks.data || [], ai: ai.available(),
+        aiFailed: failed.length ? { pages: failed.length, error: failed[0].aiError || '' } : null });
+      out.history = (Array.isArray(t.doc_history) ? t.doc_history : []).map(h => ({ at: h.at, why: h.why }));
+      delete out.doc_history;
+      res.json(out);
     } catch (e) { oops(res, e, 'GET /tender/:id'); }
   });
 
@@ -230,6 +236,87 @@ function mount(app, deps){
     } catch (e) { oops(res, e, 'GET /tender/:id/progress'); }
   });
 
+  // ── the tender document (2026-10-27) ─────────────────────────────
+  // The office's edits save straight onto `doc`; an AI rewrite keeps the
+  // version it replaced in doc_history so Undo can put it back.
+  app.put('/tender/:id/doc', ...gate, async (req, res) => {
+    try {
+      const t = await tenderFor(req, req.params.id);
+      if (!t) return res.status(404).json({ error: 'Tender not found' });
+      const doc = req.body && req.body.doc;
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return bad(res, 'No tender to save');
+      if (JSON.stringify(doc).length > 3000000) return bad(res, 'That tender is too large to save', 'TOO_BIG');
+      doc.savedAt = now();
+      const { error } = await supabase.from('tender_jobs').update({ doc, updated_at: now() }).eq('id', t.id);
+      if (error) throw new Error(error.message);
+      res.json({ ok: true, savedAt: doc.savedAt });
+    } catch (e) { oops(res, e, 'PUT /tender/:id/doc'); }
+  });
+
+  // Draft the tender again from the set already read (no re-reading).
+  app.post('/tender/:id/draft', ...gate, async (req, res) => {
+    try {
+      const t = await tenderFor(req, req.params.id);
+      if (!t) return res.status(404).json({ error: 'Tender not found' });
+      if (!ai.available()) return bad(res, 'The AI is not set up on the server yet.', 'NO_AI');
+      const { data: pages } = await supabase.from('tender_pages').select('id').eq('tender_id', t.id).limit(1);
+      if (!(pages || []).length) return bad(res, 'Upload a plan set first.', 'NO_FILES');
+      const task = await worker.enqueue(t, 'draft', req.user.id);
+      await supabase.from('tender_jobs').update({ status: 'queued', updated_at: now() }).eq('id', t.id);
+      res.json({ ok: true, task: { id: task.id, status: task.status } });
+    } catch (e) { oops(res, e, 'POST /tender/:id/draft'); }
+  });
+
+  // Ask Claude to change the tender: Simplify, Minimise, or the office's own words.
+  const AMEND_MODES = {
+    simplify: 'Simplify the scope of work: fewer, shorter, plainer bullets with every commitment kept. Change nothing priced.',
+    minimise: 'Minimise the scope of work to the core roofing this company must do. Move everything else to the exclusions and take its items and labour out.',
+  };
+  app.post('/tender/:id/amend', ...gate, rateLimit(30, 60000), async (req, res) => {
+    try {
+      const t = await tenderFor(req, req.params.id);
+      if (!t) return res.status(404).json({ error: 'Tender not found' });
+      if (!ai.available()) return bad(res, 'The AI is not set up on the server yet.', 'NO_AI');
+      const b = req.body || {};
+      const cur = (b.doc && typeof b.doc === 'object') ? b.doc : t.doc;
+      if (!cur) return bad(res, 'There is no tender to change yet.', 'NO_DOC');
+      const mode = AMEND_MODES[b.mode] ? b.mode : 'chat';
+      const instruction = mode === 'chat' ? String(b.instruction || '').trim().slice(0, 4000) : AMEND_MODES[mode];
+      if (!instruction) return bad(res, 'Say what to change.');
+      const forAi = {};
+      ['project', 'roof', 'items', 'labour', 'scaffold', 'scope', 'exclusions', 'assumptions', 'rfis', 'timeline', 'duration_days', 'confidence_notes'].forEach(k => { forAi[k] = cur[k]; });
+      const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'amend', model: '', prompt_version: '',
+        in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0, cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
+      let r;
+      try { r = await ai.amendTender(forAi, instruction, ''); }
+      catch (e) { runRow.error = String(e && e.message || e).slice(0, 400); await supabase.from('tender_ai_runs').insert(runRow); return res.status(502).json({ error: 'Claude could not make that change: ' + runRow.error }); }
+      const u = r.usage || {};
+      Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
+      await supabase.from('tender_ai_runs').insert(runRow);
+      const st = await worker.settingsFor(t);
+      const next = mergeAmend(cur, r.result, require('./pricebook').catalog(st));
+      next.chat = (Array.isArray(cur.chat) ? cur.chat : []).concat([
+        { who: 'you', text: mode === 'chat' ? instruction : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: now() },
+        { who: 'ai', text: String(r.result.confidence_notes || 'Done.'), at: now() },
+      ]).slice(-40);
+      await worker.saveDoc(t, next, mode === 'chat' ? ('Claude: ' + instruction.slice(0, 80)) : (mode === 'simplify' ? 'Simplify' : 'Minimise'));
+      res.json({ ok: true, doc: next });
+    } catch (e) { oops(res, e, 'POST /tender/:id/amend'); }
+  });
+
+  // Put back the version before the last AI rewrite.
+  app.post('/tender/:id/undo', ...gate, async (req, res) => {
+    try {
+      const t = await tenderFor(req, req.params.id);
+      if (!t) return res.status(404).json({ error: 'Tender not found' });
+      const hist = Array.isArray(t.doc_history) ? t.doc_history.slice(0) : [];
+      if (!hist.length) return bad(res, 'Nothing to undo.', 'NO_HISTORY');
+      const prev = hist.shift();
+      await supabase.from('tender_jobs').update({ doc: prev.doc, doc_history: hist, updated_at: now() }).eq('id', t.id);
+      res.json({ ok: true, doc: prev.doc, undid: prev.why || '', history: hist.map(h => ({ at: h.at, why: h.why })) });
+    } catch (e) { oops(res, e, 'POST /tender/:id/undo'); }
+  });
+
   // ── pages ─────────────────────────────────────────────────────────
   async function pageFor(req, res){
     const t = await tenderFor(req, req.params.id);
@@ -297,6 +384,30 @@ function mount(app, deps){
       }
       res.json({ ok: true, company_id: cid, enabled: on, rows: rows.length });
     } catch (e) { oops(res, e, 'POST /admin/tendering/enable'); }
+  });
+}
+
+// The AI's changed tender laid over the one on screen: everything the
+// office set that the AI does not own (rates, the quote's wording, the
+// chat) is kept, and an item the AI kept by id keeps the office's price.
+function mergeAmend(cur, res, cat){
+  const pricebook = require('./pricebook');
+  const old = {}; (cur.items || []).forEach(i => { old[i.id] = i; });
+  let k = (cur.items || []).length;
+  const items = (res.items || []).map(it => {
+    const o = old[it.id];
+    if (o && o.pb_key === it.pb_key && +o.unit_cost === +it.unit_cost) return Object.assign({}, o, it, { unit_cost: o.unit_cost, cost_source: o.cost_source, pb_label: o.pb_label, pb_unit: o.pb_unit, ai_unit_cost: o.ai_unit_cost });
+    if (o && o.edited && +o.unit_cost !== +it.unit_cost && it.pb_key === o.pb_key) return Object.assign({}, o, it, { unit_cost: o.unit_cost, cost_source: o.cost_source, edited: true });
+    return pricebook.applyPrices([Object.assign({}, it, { id: it.id || ('i' + (++k)) })], cat)[0];
+  });
+  return Object.assign({}, cur, {
+    project: res.project || cur.project, roof: res.roof || cur.roof, items,
+    labour: (res.labour || []).map((l, i) => Object.assign({ id: 'l' + (i + 1) }, l)),
+    scaffold: res.scaffold || cur.scaffold, scope: res.scope || [], exclusions: res.exclusions || [],
+    assumptions: res.assumptions || [], rfis: res.rfis || [],
+    timeline: (res.timeline || []).map((x, i) => Object.assign({ id: 't' + (i + 1) }, x)),
+    duration_days: res.duration_days != null ? res.duration_days : cur.duration_days,
+    confidence_notes: res.confidence_notes || '', amendedAt: new Date().toISOString(),
   });
 }
 

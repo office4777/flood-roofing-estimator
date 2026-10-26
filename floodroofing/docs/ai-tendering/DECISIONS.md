@@ -95,3 +95,25 @@ and the app disagreed (RECON.md §11). Later phases append here.
   30 days' notice the policy promises for a change). Until then it is on for
   the owner's own three logins only, which is his own data, and records no
   usage milestone (`tender_created` was dropped from USAGE_EVENTS).
+
+## The drafted tender (2026-10-27, the owner after the first real 48 MB set)
+
+"Upload the PDF plans and the AI works out everything": after the sheet index, the
+worker runs a fourth stage, `draft` — one streamed call (`reason` pass,
+`draft-tender.v1`) over every page's text (superseded copies marked, ~320k
+characters at most), pictures of up to 14 roof-relevant pages, the company's price
+book as a keyed list (`tender/pricebook.js`) and its labour rates. It answers with
+`record_tender`: the roofing spec as items (profile, BMT, grade, colour, quantity,
+unit, where on the plans), labour man-hours, scaffold, scope bullets, recommended
+exclusions with why, assumptions, RFIs, a programme. The server puts the BOOK's
+price on every item the model matched by key (the model's figure is kept as
+`ai_unit_cost`); anything unmatched is marked "AI estimate". Stored as
+`tender_jobs.doc`, edited in place (PUT /tender/:id/doc), with `doc_history` (8)
+behind every AI rewrite for Undo. Simplify / Minimise / the chat are
+POST /tender/:id/amend (`extract` pass, `amend-tender.v1`); the merge keeps the
+office's rates, quote wording and typed prices. Pricing: sell = cost × (1 + waste)
+× (1 + mark-up), labour = man-hours at the average of the lead and apprentice
+rates. The tender document is an editable A4 page printed through the browser
+(Save as PDF). A draft that fails on a reading run leaves the index standing and
+says why; "Draft the tender" tries again without re-reading the set.
+Classification now runs six pages at a time (`TENDER_CLASSIFY_AT_ONCE`).

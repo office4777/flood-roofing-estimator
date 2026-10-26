@@ -62,10 +62,36 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
     const s = TENDER.sheet_index.sheets.find(x => x.pageId === pgx.id); if (s) { s.cls = pgx.cls; s.title = pgx.title; }
     return j({ ok: true, page: pgx, sheet_index: TENDER.sheet_index });
   }
+  if (p === '/tender/tn-1/draft' && m === 'POST') { TENDER.doc = JSON.parse(JSON.stringify(SAMPLE_DOC)); TENDER.status = 'drafted'; TENDER.history = [{ at: new Date().toISOString(), why: 'AI draft' }]; return j({ ok: true, task: { id: 't-3', status: 'queued' } }); }
+  if (p === '/tender/tn-1/doc' && m === 'PUT') { TENDER.doc = body.doc; return j({ ok: true, savedAt: new Date().toISOString() }); }
+  if (p === '/tender/tn-1/amend' && m === 'POST') {
+    const d = JSON.parse(JSON.stringify(body.doc));
+    if (body.mode === 'simplify') d.scope = ['Supply and install the roof', 'Clean up'];
+    else d.exclusions = d.exclusions.concat([{ text: 'Spouting', why: 'by the builder' }]);
+    d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.mode === 'chat' ? body.instruction : 'Simplify the scope', at: '' }, { who: 'ai', text: 'Done: ' + body.mode, at: '' }]);
+    TENDER.doc = d; TENDER.history = [{ at: '', why: body.mode }].concat(TENDER.history || []);
+    return j({ ok: true, doc: d });
+  }
   if (p === '/tender/tn-1/run') { TENDER.status = 'queued'; progressTicks = 0; return j({ ok: true, task: { id: 't-2', status: 'queued' } }); }
   if (/^\/tender\/enabled/.test(p)) return j({ enabled: liveOn == null ? flagOn : liveOn, ai: true });
   return j([]);
 });
+const SAMPLE_DOC = {
+  v: 1, project: { name: 'Whangaroa Community Hall', address: '12 Hall Road, Kaeo', client: 'Northland Builders', architect: 'AO Architects', documents: 'Rev C' },
+  roof: { area_m2: 100, pitch: '15°', roof_type: 'gable', job_kind: 'new' },
+  items: [
+    { id: 'i1', category: 'roofing', description: '0.40 Colorsteel Endura Corrugate', product: 'Colorsteel Endura', profile: 'Corrugate', thickness: '0.40 BMT', material: 'Endura', colour: 'Grey Friars', spec_ref: 'AO-05', source_pages: 'p2', quantity: 100, unit: 'm2', qty_basis: '10 x 10', pb_key: 'sheet:0', unit_cost: 30, cost_source: 'pricebook', pb_label: 'Corrugate' },
+    { id: 'i2', category: 'safety_mesh', description: 'Safety mesh', product: '', profile: '', thickness: '', material: '', colour: '', spec_ref: '', source_pages: 'p2', quantity: 100, unit: 'm2', qty_basis: 'as roof', pb_key: '', unit_cost: 4, cost_source: 'estimate' },
+  ],
+  labour: [ { id: 'l1', task: 'Roofing', man_hours: 40, crew: 2, notes: '' } ],
+  scaffold: { needed: true, type: 'edge', notes: '' },
+  scope: ['Site set-up', 'Supply and install safety mesh', 'Supply and install the roofing'],
+  exclusions: [ { text: 'Purlins', why: 'by the builder' } ], assumptions: ['Access from the street'], rfis: ['Colour to confirm'],
+  timeline: [ { id: 't1', phase: 'Set-up', start_day: 0, days: 1, crew: 2 }, { id: 't2', phase: 'Roofing', start_day: 1, days: 3, crew: 2 } ],
+  duration_days: 4, confidence_notes: 'Pitch read off the section.',
+  rates: { bufferPct: 5, markupPct: 10, leadCost: 50, leadPrice: 170, appCost: 30, appPrice: 95, scaffoldCost: 1800, scaffoldPrice: 2400, platformPct: 25, gstPct: 15 },
+  quote: {}, chat: [],
+};
 function finish(){
   TENDER.status = 'indexed';
   TENDER.files.forEach(f => { f.status = 'ingested'; f.pages = 3; });
@@ -145,6 +171,62 @@ await pg.press('tr[data-page="p-2"] input.ttl', 'Tab');
 await pg.waitForTimeout(400);
 const put2 = calls.find(c => c.m === 'PUT' && /pages\/p-2$/.test(c.p));
 check('a retyped title is sent', put2 && put2.body.title === 'ROOF PLAN - PROPOSED', JSON.stringify(put2 && put2.body));
+
+// ── the tender: drafted, priced, edited, printed (2026-10-27) ──────
+r = await pg.evaluate(() => { const b = [...document.querySelectorAll('#tenderRoot button')].find(x => /Draft the tender/.test(x.textContent)); return { there: !!b, text: document.getElementById('tenderRoot').innerText }; });
+check('once the set is read the tab offers Draft the tender', r.there, r.text.slice(0, 200));
+await pg.evaluate(() => [...document.querySelectorAll('#tenderRoot button')].find(x => /Draft the tender/.test(x.textContent)).click());
+await pg.waitForTimeout(700);
+const money = (t) => { const m = /\$([\d,]+\.\d\d)/.exec(t || ''); return m ? +m[1].replace(/,/g, '') : null; };
+r = await pg.evaluate(() => {
+  const root = document.getElementById('tenderRoot');
+  const tot = [...root.querySelectorAll('.tn-totals tr')].map(tr => tr.innerText.replace(/\s+/g, ' '));
+  return { pill: (root.querySelector('.tn-pill') || {}).textContent, tot, badges: [...root.querySelectorAll('.tn-badge')].map(b => b.textContent), fold: !!root.querySelector('details.tn-fold tr[data-page]'), foldOpen: (root.querySelector('details.tn-fold') || {}).open,
+    spec: [...root.querySelectorAll('.tn-spec tbody tr')].length, page: (document.getElementById('tqPage') || {}).innerText || '', gantt: root.querySelectorAll('.tn-g-row').length };
+});
+check('the drafted tender shows: pill, spec rows, programme', /drafted/i.test(r.pill) && r.spec === 2 && r.gantt === 2, JSON.stringify([r.pill, r.spec, r.gantt]));
+check('the sheet index is folded away under the tender', r.fold && !r.foldOpen);
+check('each price says where it came from', r.badges.indexOf('Price book') >= 0 && r.badges.indexOf('AI estimate') >= 0, JSON.stringify(r.badges));
+const line = (lbl) => money((r.tot.find(t => t.indexOf(lbl) === 0) || ''));
+// 3400 cost × 1.05 × 1.10 = 3927; 40 h × (170+95)/2 = 5300; edge scaffold 2400
+check('the pricing sheet adds up: materials, labour at the company rates, scaffold', line('Materials') === 3927 && line('Labour') === 5300 && line('Scaffolding') === 2400 && line('Tender price ex GST') === 11627 && line('Total incl GST') === 13371.05, JSON.stringify(r.tot));
+check('the tender document carries the project, scope and price', /Whangaroa Community Hall/.test(r.page) && /Supply and install the roofing/.test(r.page) && /\$11,627\.00/.test(r.page) && /Purlins/.test(r.page) && /Set-up/.test(r.page), r.page.slice(0, 400));
+// change a quantity in the pricing sheet
+calls.length = 0;
+await pg.evaluate(() => { const inp = [...document.querySelectorAll('.tn-price input')][0]; inp.value = '120'; inp.dispatchEvent(new Event('change')); });
+await pg.waitForTimeout(1200);
+r = await pg.evaluate(() => [...document.querySelectorAll('.tn-totals tr')].map(tr => tr.innerText.replace(/\s+/g, ' ')));
+const putDoc = calls.filter(c => c.m === 'PUT' && /\/doc$/.test(c.p)).pop();
+check('a quantity typed in moves the price', money(r.find(t => /^Tender price ex GST/.test(t))) === 12320, JSON.stringify(r));
+check('…and the tender saves itself', putDoc && putDoc.body.doc.items[0].quantity === 120 && putDoc.body.doc.items[0].edited === true, JSON.stringify(putDoc && putDoc.body.doc.items[0]));
+r = await pg.evaluate(() => (document.getElementById('tqPage') || {}).innerText);
+check('the document follows the new price', /\$12,320\.00/.test(r));
+// Simplify
+await pg.evaluate(() => [...document.querySelectorAll('#tenderRoot button')].find(x => /Simplify/.test(x.textContent)).click());
+await pg.waitForTimeout(600);
+const am = calls.find(c => /\/amend$/.test(c.p));
+r = await pg.evaluate(() => ({ scope: [...document.querySelectorAll('.tn-card ol.tn-list textarea')].map(t => t.value), undo: [...document.querySelectorAll('#tenderRoot button')].some(b => /Undo last AI change/.test(b.textContent)) }));
+check('Simplify asks Claude with the tender on screen and shows the new scope', am && am.body.mode === 'simplify' && am.body.doc.items[0].quantity === 120 && r.scope.length === 2 && r.undo, JSON.stringify([am && am.body.mode, r]));
+// the chat
+await pg.fill('#tnChatIn', 'take the spouting out, the builder is doing it');
+await pg.press('#tnChatIn', 'Enter');
+await pg.waitForTimeout(600);
+const am2 = calls.filter(c => /\/amend$/.test(c.p)).pop();
+r = await pg.evaluate(() => ({ log: (document.getElementById('tnChatLog') || {}).innerText || '', page: document.getElementById('tqPage').innerText }));
+check('the chat sends the office\'s own words and the reply shows', am2.body.mode === 'chat' && /spouting out/.test(am2.body.instruction) && /Done: chat/.test(r.log) && /Spouting/.test(r.page), JSON.stringify([am2.body.instruction, r.log]));
+// edit the document itself
+calls.length = 0;
+await pg.evaluate(() => { const t = document.querySelector('#tqPage [data-qk="title"]'); t.focus(); t.textContent = 'Roofing Tender — Whangaroa Hall'; t.blur(); });
+await pg.evaluate(() => { const li = document.querySelector('#tqPage [data-ql="scope"][data-qi="0"]'); li.focus(); li.textContent = 'Supply and install the whole roof'; li.blur(); });
+await pg.waitForTimeout(1200);
+const putDoc2 = calls.filter(c => c.m === 'PUT' && /\/doc$/.test(c.p)).pop();
+r = await pg.evaluate(() => document.querySelector('.tn-card ol.tn-list textarea').value);
+check('words typed on the document save, and a scope line goes back into the scope', putDoc2 && putDoc2.body.doc.quote.title === 'Roofing Tender — Whangaroa Hall' && putDoc2.body.doc.scope[0] === 'Supply and install the whole roof' && r === 'Supply and install the whole roof', JSON.stringify([putDoc2 && putDoc2.body.doc.quote, r]));
+// hide a section and the PDF
+await pg.evaluate(() => _tnQSection('assumptions', 'hide'));
+r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f && f.contentDocument; return { title: dd && dd.title, text: dd && dd.body.innerText, editable: dd && dd.querySelectorAll('[contenteditable]').length, tools: dd && dd.querySelectorAll('.tq-tools').length }; });
+check('Save as PDF prints the document alone, named for the job, with nothing editable left on it', /^Tender .*Whangaroa Community Hall/.test(r.title) && /Roofing Tender — Whangaroa Hall/.test(r.text) && r.editable === 0 && r.tools === 0, JSON.stringify([r.title, r.editable, r.tools]));
+check('…and a hidden section is left off the PDF', !/Access from the street/.test(r.text) && /Supply and install the whole roof/.test(r.text));
 
 // ── the flag off: nothing offered, a tender job falls back ──────────
 flagOn = false;

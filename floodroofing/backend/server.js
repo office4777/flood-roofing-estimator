@@ -13219,6 +13219,11 @@ const _MIGRATION_SQL = [
   "create index if not exists idx_tender_tasks_queue on public.tender_tasks (status, created_at)",
   "create table if not exists public.tender_ai_runs (id uuid primary key, tender_id uuid, company_id uuid, user_id uuid, page_id uuid, pass text, model text, prompt_version text, in_tokens int default 0, out_tokens int default 0, cache_read int default 0, cache_write int default 0, cost_usd numeric(10,5) default 0, ms int default 0, ok boolean default false, error text default '', created_at timestamptz default now())",
   "create index if not exists idx_tender_ai_runs_tender on public.tender_ai_runs (tender_id, created_at)",
+  // The drafted tender (2026-10-27): the spec, quantities, pricing, scope,
+  // exclusions, labour, timeline and the quote document, and the last few
+  // versions of it so an AI rewrite can be undone.
+  "alter table public.tender_jobs add column if not exists doc jsonb",
+  "alter table public.tender_jobs add column if not exists doc_history jsonb default '[]'::jsonb",
 ];
 
 // A DATABASE BLIP AT BOOT IS NOT WORTH THE PROCESS (2026-09-30). On the
