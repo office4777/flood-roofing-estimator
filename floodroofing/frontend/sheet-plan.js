@@ -7664,6 +7664,10 @@ var _PZ_ROUND_MM = 10;
 // the scale the app draws at), and a corner a lap short is under the lap.
 var _PZ_FIT_MM = 25;
 function _pzLetter(i){ var s = ''; i = i + 1; while (i > 0){ var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
+// How far a hip cap covers a sheet's corner where a hip runs down onto a
+// lower ridge: a strip cut by the hip by no more than this past the lower
+// block's length is that block's sheet (feedback report 76).
+var _PZ_HIP_CAP_MM = 100;
 function _sheetPuzzleFill(pz){
   var scaleM = pz.scaleM, blocks = [], pool = [];
   function mmOf(px, f){ return px * scaleM * f.pf * 1000; }
@@ -7676,6 +7680,7 @@ function _sheetPuzzleFill(pz){
   function addToBlock(b, pc){
     b.pieces.push(pc); pc.block = b; pc.ordered = true;
     var need = roundUp(mmOf(pc.sheetLongPx || pc.longPx, pc.face));
+    if (pc.capMm) need = Math.min(need, roundUp(pc.capMm));   // a corner under the hip cap: the block's own length
     if (need > b.Lmm) b.Lmm = need;
   }
   // 0. THE COOKIE CUTTER. A hip end laid on a slope's columns (f.template):
@@ -7738,6 +7743,13 @@ function _sheetPuzzleFill(pz){
     });
   });
   // 1. Blocks on the faces that have a full strip.
+  // The hips that bound a wing's end cut from the main's hip END (the
+  // cookie cutter on a hip-end template), and every hip by key.
+  var adoptedHips = {}, hipKey = {};
+  pz.faces.forEach(function(f){
+    f.edges.forEach(function(e){ if (e.kind === 'hip') hipKey[_pzEdgeKey(e)] = true; });
+    if (f.lay === 'grid' && f.template && f.template.lay === 'apex') f.edges.forEach(function(e){ if (e.kind === 'hip') adoptedHips[_pzEdgeKey(e)] = f.template; });
+  });
   var gabletHips = {};
   pz.faces.forEach(function(f){ if (f.gablet && f.lay === 'apex') f.edges.forEach(function(e){ if (e.kind === 'hip') gabletHips[_pzEdgeKey(e)] = f; }); });
   var endFaces = [];
@@ -7814,6 +7826,38 @@ function _sheetPuzzleFill(pz){
         // nearest offcut, never a sheet of its own (the 50 mm the junction
         // of a valley and a hip leaves at the end of a column).
         if (p.widthPx < pz.coverPx * 0.34 && mmOf(p.expLongPx, p.face) < pz.coverMm * 0.34 && !p.chainBelow){ if (p.viaTemplate){ p.viaTemplate = null; p.face.endPieces = p.face.endPieces || []; p.face.endPieces.push(p); if (endFaces.indexOf(p.face) < 0) endFaces.push(p.face); } else f.endPieces.push(p); return; }
+        // THE MAIN'S SLOPE KEEPS ITS SHEETS WHERE THE WING'S END IS ITS END
+        // (feedback report 76, 2026-10-27, the owner: "the plain hip logic
+        // would mean there should be the same number of purple sheets as
+        // there is orange sheets ... the missing purple sheets should go
+        // where green sheets d40 ... d56 are"). Where a wing's end is cut
+        // from the main's hip end, the hip at the wing's far end is the main's
+        // own hip moved along: the strips it cuts on the slope the main and
+        // the wing share are the plain hip's hip-cut sheets, at the main's
+        // length, so their offcuts are the ones the plain hip feeds that end
+        // from. They join the face's longest run.
+        if (!isRect && p.cutTop && !p.cutBot){
+          var aKey = Object.keys(p.touchTop || {}).filter(function(k){ return adoptedHips[k]; })[0];
+          if (aKey){
+            var main = runs.reduce(function(m, x){ return (!m || x.level > m.level) ? x : m; }, null);
+            if (main && main !== r && lv <= main.level + 0.5) r = main;
+          }
+          // AND A CORNER UNDER THE HIP CAP IS NOT A REASON FOR A LONGER
+          // SHEET (the same message: "purple sheets c31 should be a green
+          // sheet because c31 wouldn't be able to utilize it's offcut
+          // properly"). The strip where a hip runs down onto a lower ridge
+          // is cut by the hip across one corner only — 82 mm on report 76 —
+          // and the rest of it is square at the lower ridge. It is a sheet
+          // of the lower block, the corner under the hip cap; a sheet of the
+          // higher block would leave an offcut nothing fits.
+          else {
+            var hk = Object.keys(p.touchTop || {}).some(function(k){ return hipKey[k]; });
+            var low = null;
+            [before, after].forEach(function(x){ if (x && x !== r && x.level < r.level && (!low || x.level > low.level)) low = x; });
+            var sh = mmOf(p.cutShortPx || p.shortPx, p.face);
+            if (hk && low && sh <= low.level + 5 && lv - low.level <= _PZ_HIP_CAP_MM && lv > low.level){ r = low; p.capMm = low.level; }
+          }
+        }
         if (lv > r.level + Math.max(60, r.level * 0.04) && !isRect){ f.endPieces.push(p); return; }
         // WHICH CUT STRIPS ARE THE RECTANGLE'S OWN SHEETS. On a slope, the
         // sheets cut at its real corners are (their offcuts feed the hip

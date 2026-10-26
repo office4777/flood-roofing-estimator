@@ -213,6 +213,86 @@ Discipline (non-negotiable):
    **Promote to Production**. Never report a change as live on the strength
    of the branch or the hook alone.
 
+## THE SHEET LAYOUT DIAGRAM — THE OWNER'S RULES (read before touching it)
+
+The owner has had to teach this logic to new sessions over and over (his
+words, 2026-10-27: "i keep having to teach a new session the logic and it
+keeps getting lost"). These are HIS rules, in the order they apply. The long
+history of how each came about is the "THE SHEET LAYOUT IS THE PUZZLE" bullet
+under Conventions, and `docs/SHEET_LAYOUT.md`; this list is what to obey.
+
+THE PROCESS, every time:
+- NEVER put a sheet-layout change live without sending him before/after
+  pictures (`node floodroofing/tools/sheet-shots.mjs <fixture> <outdir>`)
+  and getting his "go".
+- Before showing him, diff EVERY fixture's tally against the previous commit
+  (lay each `tests/fixtures-*.json` as `tests/sheetlayout.mjs` does and print
+  `_sheetPuzzleBuild({}).tally`). Any shape that moved beyond the one he asked
+  about goes in the pictures too, with the reason.
+- EVERY SHIP OF A SHEET-LAYOUT CHANGE UPDATES THIS SECTION (the owner,
+  2026-10-27: "every push live for the sheet layout diagram fixes, changes
+  should also update the claude.md file"). A new rule he teaches is written
+  here in his own words before the ship, not after.
+- `tests/sheetlayout.mjs` pins each rule on the shapes he counted. The
+  37-shape gate (`docs/ci_sheet_tests.js`) is the ENGINE's count and must stay
+  byte-identical; the puzzle never feeds it.
+
+THE GEOMETRY, never broken:
+1. Sheets run perpendicular to the gutter (to the ridge only where a face has
+   no gutter), never parallel to a gutter or ridge, 45° to a hip or valley
+   only, and never across a roof line.
+2. A sheet is never FLIPPED. An offcut may be spun, so its HAND (long side
+   left or right looking from the square end to the cut) must match the
+   piece it feeds.
+
+THE LAY:
+3. PLAIN HIP FIRST. Picture the biggest block with the longest sheets as a
+   plain rectangle and lay it exactly as a plain hip: each long slope as ONE
+   run of full-width sheets along the whole rectangle, the closer lapped at
+   the far hip corner; each hip END cut from the slopes' hip-cut offcuts, each
+   half of an end from the OPPOSITE slope's offcuts (the hand decides). Which
+   block is the rectangle: against a slope, the larger area (a T's bar, not
+   its stem); against a hip end, the longest sheets.
+4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
+   sheets where they lie, not laid afresh:
+   a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
+      73): its end takes the slope's columns. In each column the slope's
+      sheet is cut at the valley — the top piece stays on the slope, the foot
+      (✂) slides along the column onto the wing's end. The wing's triangle
+      comes out of the slope's own sheets.
+   b. A wing standing in front of the main's hip END (reports 71, 74–76): each
+      row of the end is the main's end strip — the wing's piece plus what is
+      left of the main's end between the valley and its hip — one strip fed
+      from one offcut, the foot carried.
+5. THE MAIN KEEPS ITS SHEETS. In 4b the hip at the wing's far end IS the
+   main's hip moved along, so on the slope the main and the wing share, the
+   strips that hip cuts are the MAIN's sheets at the main's length (report
+   76: "the same number of purple sheets as there is orange sheets ... the
+   missing purple sheets should go where green sheets d40 ... d56 are") —
+   their offcuts are the ones the plain hip feeds that end from. The wing's
+   own block only gets its full strips between.
+6. A HIP-CAP CORNER IS NOT A LONGER SHEET. A strip a hip crosses only at a
+   corner, where a hip runs onto a lower ridge (≤ 100 mm past the lower
+   block), is the lower block's sheet — "c31 should be a green sheet because
+   c31 wouldn't be able to utilize it's offcut properly".
+7. THE DUTCH GABLET is a hip end with its apex cut off: ordered WHOLE across
+   its gutter (hip-cut strips included), its offcuts feeding the slopes'
+   corners across its hips, the corners laid as complements (the gablet from
+   its corners in, the slope from the gablet's wall out).
+
+THE FILL:
+8. Feed each side of an end IN ORDER from its home offcuts (the same face, or
+   across the hip that cut them; a valley makes no home), one run of sheets at
+   a time (C21, then C20 beside it). Where the offcuts run short, PUSH one
+   full sheet in at the head of the run so every offcut moves one strip
+   outward, rather than ordering short extras. A valley tail may be laid from
+   its point. Slivers are scraps trimmed off an offcut.
+9. An extra is a sheet at its OWN length — never two extras cut from one
+   sheet ("e1 should just be a full sheet with a small amount of wasteage").
+10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
+    ordering FEWER SHEETS is kept, then LESS STEEL ("it should go which ever
+    way is most efficient").
+
 ## Conventions
 
 - The public pages (`landing`, `pricing`, `fergus`, `early-access`, `signup`)
@@ -3046,12 +3126,25 @@ Discipline (non-negotiable):
   own hand — fed from one offcut as the plain hip's end strip is, the foot
   carried. Against a hip end THE LONGEST SHEETS decide the rectangle, not
   the area (75/76: the wing is the longer block but 13.5 m sheets beside
-  15.3 m). The roof is laid BOTH ways (`opts.noApexTmpl`) and the pairing
-  kept unless the other orders fewer sheets or as many and less steel: 71's
-  wing carries the main's west slope on, so the rows that fed the main's
-  end in the plain hip are the wing's own sheets and the pairing cost 5 m —
-  its old lay stands. 74: 137 → 133, 75: 142 → 132, 76: 183 → 179.
-  Fixtures 71–76; `sheetlayout.mjs` 366.
+  15.3 m). AND THE MAIN'S SLOPE KEEPS ITS SHEET COUNT (report 76, the
+  owner: "the plain hip logic would mean there should be the same number of
+  purple sheets as there is orange sheets ... the missing purple sheets
+  should go where green sheets d40 ... d56 are"): on the slope the main and
+  the wing share, the strips cut by the hip at the wing's FAR end (a hip
+  bounding an end adopted onto a hip-end template, `adoptedHips`) join the
+  face's LONGEST run — the main's sheets at the main's length, whose
+  offcuts are the plain hip's own for that end. AND A HIP-CAP CORNER
+  (`_PZ_HIP_CAP_MM` = 100, the same message: "c31 should be a green
+  sheet"): a strip a hip crosses only at one corner, where the hip runs down
+  onto a lower ridge (82 mm on 76), is the LOWER block's sheet
+  (`p.capMm` keeps the block at its own length). The roof is still laid
+  BOTH ways (`opts.noApexTmpl`), fewer sheets then less steel kept. 71: 74 →
+  70 (paired now: the rows its wing's far hip cuts are the main's 8.50s),
+  74: 137 → 125, 75: 142 → 130, 76: 183 → 177 (48 orange, 48 purple),
+  and REPORT 50 (hand-counted) 41 → 38: the bottom slope carries the strips
+  its wings' far hips cut at 2.82, three short extras gone. Every other
+  fixture's tally is byte-identical (diffed against the previous commit).
+  Fixtures 71–76; `sheetlayout.mjs` 369.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first

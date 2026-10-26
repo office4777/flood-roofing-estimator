@@ -366,22 +366,42 @@ for (const [n, want] of [[72, 69], [73, 136]]){
 // hip's end strip in each column is the wing's piece plus what is left of
 // the main's end between the valley and its hip — one sheet, fed from one
 // offcut, the foot carried. The main is the block with the longest sheets.
-for (const [n, want, was] of [[74, 133, 137], [75, 132, 142], [76, 179, 183]]){
+for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 177, 183]]){
   r = await lay(fx('report' + n));
   const gf = gridFaces(r);
   check('report ' + n + ': the wing\'s end is laid on the main\'s hip-end strips and paired with them (feet carried), ' + want + ' sheets where it was ' + was,
     gf.length === 1 && tmplLay(r, gf[0]) === 'apex' && labels(r, gf[0]).filter(l => l[0] === '✂').length >= 3 && nOf(r) === want,
     tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => [tmplLay(r, f), labels(r, f)])));
   rules('report ' + n, r);
+  if (n !== 76) continue;
+  // "The plain hip logic would mean there should be the same number of
+  // purple sheets as there is orange sheets, purple sheet c31 should be a
+  // green sheet ... the missing purple sheets should go where green sheets
+  // d40 ... d56 are" (the owner on report 76, 2026-10-27).
+  const shared = r.faces.slice().sort((a, b) => b.pieces - a.pieces)[0];
+  const seq = r.pieces.filter(p => p.face === shared.id && p.ordered).sort((a, b) => a.k - b.k);
+  const runs = []; seq.forEach(p => { if (!runs.length || runs[runs.length - 1].b !== p.block) runs.push({ b: p.block, n: 0, first: p }); runs[runs.length - 1].n++; });
+  const bl = L => r.blocks.find(b => b.letter === L);
+  check('report 76: the main\'s two slopes carry the same number of sheets — 48 orange, 48 purple — the purple ones the wing\'s far hip cuts at the main\'s own length',
+    bl('A') && bl('C') && bl('A').count === 48 && bl('C').count === 48 && runs.map(x => x.b).join('') === 'CDC' && runs[2].n >= 17 && bl('C').Lmm === bl('A').Lmm,
+    JSON.stringify(runs.map(x => x.b + x.n)) + ' ' + JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + '@' + b.Lmm)));
+  check('…the strip where the main\'s hip runs down onto the wing\'s ridge (82 mm of hip across one corner) is a green sheet, the corner under the hip cap',
+    runs[1] && runs[1].b === 'D' && runs[1].first.longMm > bl('D').Lmm && runs[1].first.longMm - bl('D').Lmm <= 100, runs[1] ? runs[1].first.label + ' ' + runs[1].first.longMm + ' vs ' + bl('D').Lmm : '');
 }
-// 71: the wing carries the main's west slope on, so the rows that fed the
-// main's north end in the plain hip are the wing's own full sheets. Paired,
-// the end strips have nothing to come from (74 sheets, 553 m); the wing's
-// own slopes' offcuts feed its end (74 sheets, 548 m). Both are laid and
-// the cheaper kept.
+// Report 50 (hand-counted): the T's bottom slope runs under both wings, so
+// the strips its wings' far hips cut are the main's 2.82 sheets (rule 5),
+// and their offcuts feed the wings' ends: 38 sheets where it was 41.
+r = await lay(fx('report50'));
+check('report 50: the bottom slope carries the strips its wings\' far hips cut at the main\'s length — 38 sheets, 3 extras, where it was 41 and 6',
+  nOf(r) === 38 && r.extras === 3, tallyOf(r) + ' extras ' + r.extras);
+// 71: the wing carries the main's west slope on. The rows its far hip cuts
+// are the main's west-slope sheets (8.50, not the wing's 5.00), so their
+// offcuts feed the paired end strips as the plain hip's would: 70 sheets
+// where the wing's end fed from its own slopes took 74. The roof is still
+// laid both ways and the one ordering fewer sheets kept.
 r = await lay(fx('report71'));
-check('report 71: laid both ways, the cheaper kept — the wing\'s end from its own slopes\' offcuts, 74 sheets and under 549 m of steel',
-  gridFaces(r).length === 0 && nOf(r) === 74 && mOf(r) < 549000, tallyOf(r) + ' ' + mOf(r));
+check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 70 sheets where it was 74',
+  gridFaces(r).length === 1 && nOf(r) === 70, tallyOf(r) + ' ' + mOf(r));
 rules('report 71', r);
 // Wings off the top AND the bottom at the same end: both are cut from their
 // slope's columns, both runs start at the wings' end, and the west face —
