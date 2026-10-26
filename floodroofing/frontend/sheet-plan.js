@@ -978,7 +978,7 @@ function renderRoofSheetPlan() {
     var _selRoofs = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
     // Each roof's own counts as well as the combined ones: the Job Pack
     // lists a multi-roof job one roof at a time.
-    var byRoof = {};
+    var byRoof = {}, _pzAll = true, _pzAny = false;
     DRAW.roofs.forEach(function(r, idx){
       if (_selRoofs && _selRoofs.indexOf(idx) < 0) return;
       _loadRoofToCurrent(idx);
@@ -999,6 +999,7 @@ function renderRoofSheetPlan() {
       // Accumulate counts for combined order quantities.
       var c = window._lastSheetCounts;
       if (c) byRoof[idx] = c;
+      if (c){ if (c.fromPuzzle) _pzAny = true; else _pzAll = false; }
       if (c) {
         combined.orangeLong += c.orangeLong || 0;
         combined.blueLong   += c.blueLong   || 0;
@@ -1018,6 +1019,7 @@ function renderRoofSheetPlan() {
       }
     });
     combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
+    combined.fromPuzzle = _pzAny && _pzAll;
     window._lastSheetCounts = combined;
     window._lastSheetCountsByRoof = byRoof;
     window._lastSheetSections = combinedSections;
@@ -6608,6 +6610,23 @@ function _renderRoofSheetPlanInner() {
     _layCv.style.cssText = 'width:100%;max-width:960px;border:1px solid #ccd;border-radius:8px;display:block;background:#fff';
     outEl.appendChild(_layCv);
   }
+  // THE SHEET LAYOUT IS THE COUNT (2026-10-27, the owner: "for the sheet
+  // quantity in the job pack and the pricing, use the quantities from the
+  // new sheet layout diagram instead of the sheet calc check"). The cut list
+  // reads `groups`; they are the puzzle's tally now — one group per ordered
+  // length, extras and pushed-in sheets included — and the engine's own
+  // groups stay beside them as `engineGroups` (the calc check, the gate and
+  // the legacy counts above still read the engine). A roof the puzzle cannot
+  // lay out (no faces yet) keeps the engine's groups.
+  try {
+    var _pzT = _layCv && _layCv._sheetPuzzle && _layCv._sheetPuzzle.tally;
+    if (_pzT && _pzT.length && !window.__SHEET_COUNT_ENGINE && _pzTallyCovers(_pzT, -1)){
+      window._lastSheetCounts.engineGroups = window._lastSheetCounts.groups;
+      window._lastSheetCounts.groups = _pzGroupsOf(_pzT);
+      window._lastSheetCounts.fromPuzzle = true;
+      _pzTallyRemember(_pzRoofSig(-1, __origDrawLines), _pzT);
+    }
+  } catch(e){}
   try {
     var _rb = document.getElementById('sheetPlanRestoreBtn');
     if (_rb) _rb.style.display = (DRAW.sheetPlanDeletedIds && DRAW.sheetPlanDeletedIds.length) ? '' : 'none';
@@ -6767,6 +6786,10 @@ function _pzRoofGeom(idx, opts){
     outline = roof.outline; lines = roof.lines; pitch = roof.calPitch; low = roof.lowPitch;
     name = roof.name || _nthName(idx + 1);
   }
+  // A roof with no pitch of its own reads the job's pitch box, as the sheet
+  // engine does (2026-10-27: the sheet layout now prices the job, and a
+  // lean-to stored at 0° was laid flat — 3.50 m sheets under a 3.73 m barge).
+  if (!(+pitch > 0)) pitch = parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   outline = _pzDropRepeats(outline);
   if (outline.length < 3) return null;
   return { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
@@ -8686,4 +8709,80 @@ function _renderSheetPuzzleCanvas(opts){
   });
   cv._sheetPuzzle = pz;
   return cv;
+}
+
+// ── The sheet layout's tally, for the readers that price and list sheets ──
+// (2026-10-27: the sheet layout is the count — see _renderRoofSheetPlanInner.)
+// _sheetPuzzleTallyFor(roofIdxs) answers the puzzle's sheets for the roofs in
+// scope: { groups:[{color, orderedMm, count}], sheets, lm, m2 }, or null when
+// none of them can be laid out. Each roof is laid out on its OWN (offcuts never
+// cross from one roof to another) and remembered against a signature of its
+// geometry, so the pricing pass, which runs on every keystroke, lays a roof out
+// once until the roof changes.
+var _PZ_TALLY_CACHE = {}, _PZ_TALLY_KEYS = [];
+function _pzGroupsOf(tally){
+  return (tally || []).map(function(t){ return { color: 'layout', orderedMm: t.Lmm, count: t.count }; });
+}
+function _pzRoofSig(idx, linesOverride){
+  var o, l, p, lp;
+  if (idx < 0){ o = DRAW.outline; l = linesOverride || DRAW.lines; p = DRAW.calPitch; lp = DRAW.lowPitch; }
+  else { var r = DRAW.roofs && DRAW.roofs[idx]; if (!r) return null; o = r.outline; l = r.lines; p = r.calPitch; lp = r.lowPitch; }
+  if (!o || o.length < 3) return null;
+  var cover = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+  return JSON.stringify([o, (l || []).map(function(x){ return x && [x.type, x.pts]; }), +p || 0, +lp || 0, DRAW.scaleMetresPerPx || 0, cover]);
+}
+function _pzTallyRemember(sig, tally){
+  if (!sig) return;
+  if (!_PZ_TALLY_CACHE[sig]){ _PZ_TALLY_KEYS.push(sig); if (_PZ_TALLY_KEYS.length > 40) delete _PZ_TALLY_CACHE[_PZ_TALLY_KEYS.shift()]; }
+  _PZ_TALLY_CACHE[sig] = tally || [];
+}
+function _pzTallyOfRoof(idx){
+  // The roof on screen is read live (DRAW.*); the others from their store.
+  var live = idx < 0 || !(DRAW.roofs && DRAW.roofs.length) || idx === DRAW.activeRoofIdx;
+  var sig = _pzRoofSig(live ? -1 : idx);
+  if (!sig) return null;
+  if (_PZ_TALLY_CACHE[sig]) return _PZ_TALLY_CACHE[sig];
+  var pz = null;
+  try { pz = _sheetPuzzleBuild({ roofIdxs: [live ? -1 : idx] }); } catch(e){ pz = null; }
+  var t = (pz && pz.faces && pz.faces.length && pz.tally) ? pz.tally : [];
+  // A layout that orders less steel than the roof has area is a roof the
+  // layout cannot read yet (report 60's dog-leg gable laid 12 sheets of a
+  // 38-sheet roof) — never an order. It answers nothing, and the readers
+  // fall back to the sheet engine for that roof.
+  if (t.length && !_pzTallyCovers(t, live ? -1 : idx)) t = [];
+  _pzTallyRemember(sig, t);
+  return t;
+}
+function _pzTallyCovers(tally, idx){
+  var o, p;
+  if (idx < 0){ o = DRAW.outline; p = DRAW.calPitch; }
+  else { var r = DRAW.roofs && DRAW.roofs[idx]; if (!r) return false; o = r.outline; p = r.calPitch; }
+  if (!(+p > 0)) p = parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var sc = DRAW.scaleMetresPerPx > 0 ? DRAW.scaleMetresPerPx : 0.02;
+  if (!o || o.length < 3) return false;
+  var a = 0;
+  for (var i = 0; i < o.length; i++){ var q = o[i], n = o[(i + 1) % o.length]; a += q[0]*n[1] - n[0]*q[1]; }
+  var roofM2 = Math.abs(a) / 2 * sc * sc / Math.cos((+p || 0) * Math.PI / 180);
+  var cover = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+  var steel = 0; tally.forEach(function(g){ steel += g.count * g.Lmm / 1000 * cover / 1000; });
+  return steel >= roofM2 * 0.98;
+}
+function _sheetPuzzleTallyFor(roofIdxs){
+  var idxs = roofIdxs;
+  if (!idxs || !idxs.length) idxs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.map(function(r, i){ return i; }) : [-1];
+  // ALL OR NOTHING: one roof in scope the layout cannot read means the whole
+  // figure falls back, never a total that silently leaves a roof out.
+  var byLen = {}, ok = true;
+  idxs.forEach(function(i){
+    if (DRAW.roofs && DRAW.roofs.length && i >= 0){ var r = DRAW.roofs[i]; if (!r || !r.outline || r.outline.length < 3) return; }
+    var t = _pzTallyOfRoof(i);
+    if (!t || !t.length){ ok = false; return; }
+    t.forEach(function(g){ byLen[g.Lmm] = (byLen[g.Lmm] || 0) + g.count; });
+  });
+  if (!ok || !Object.keys(byLen).length) return null;
+  var tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(a, b){ return b.Lmm - a.Lmm; });
+  var cover = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+  var sheets = 0, lm = 0;
+  tally.forEach(function(g){ sheets += g.count; lm += g.count * g.Lmm / 1000; });
+  return { groups: _pzGroupsOf(tally), tally: tally, sheets: sheets, lm: lm, m2: lm * cover / 1000 };
 }

@@ -149,7 +149,7 @@ const safe = await pg.evaluate(([OUT, RECT, SCALE]) => {
   //    above that moved the slider would otherwise decide this count.
   lay(OUT); DRAW.calPitch = 25; DRAW.dutchGabletFrac = 0.5; autoGenerateRoof('dutch', 0);
   autoCalcLineMeasurements(); renderRoofSheetPlan();
-  const g = (window._lastSheetCounts || {}).groups || {};
+  const g = ((window._lastSheetCounts || {}).engineGroups || (window._lastSheetCounts || {}).groups) || {};
   out.sheets = Object.keys(g).map(k => g[k].orderedMm + 'x' + g[k].count).sort().join(' ');
   return out;
 }, [OUT, RECT, SCALE]);

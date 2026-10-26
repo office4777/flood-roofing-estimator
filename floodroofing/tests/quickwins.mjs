@@ -237,44 +237,48 @@ await pg.waitForTimeout(500);
   check('...and prints the number in it', table.showsNo);
 }
 
-// ── 3. The Sheet calc check is a page of the job pack ───────────────
+// ── 3. The Sheet calc check is withdrawn; the sheet layout rides on page 1 ─
+// (2026-10-27, the owner: "add the sheet layout diagram to the job pack by
+// default ... remove the sheet calc check from the app but leave it in the
+// code incase i want to bring it back".)
 {
   const r = await pg.evaluate(() => {
     const types = _jpPageTypes().map(t => t.value);
-    const defaults = _jpDefaultPages().map(p => p.type);
-    return { types, defaults };
+    const defaults = _jpDefaultPages();
+    return { types, defaults: defaults.map(p => p.type),
+      p1: (defaults[0].images || []).map(i => i.mapKey), hidden: CALC_CHECK_HIDDEN,
+      code: typeof _jpRenderCalcCheck === 'function' && typeof _jpCaptureCalcCheck === 'function' };
   });
-  check('Sheet calc check is a page type', r.types.includes('calccheck'), r.types.join(','));
-  check('a new job pack carries it', r.defaults.includes('calccheck'), r.defaults.join(','));
-  check('...after the cut lists it checks',
-    r.defaults.indexOf('calccheck') > r.defaults.indexOf('cutlists'));
+  check('the Sheet calc check is not offered as a page type', !r.types.includes('calccheck'), r.types.join(','));
+  check('…a new job pack is the header and the cut lists', r.defaults.join(',') === 'header,cutlists', r.defaults.join(','));
+  check('…and page 1 carries the Detailed map with the Sheet layout under it', r.p1.join(',') === 'detailed,sheetplan', r.p1.join(','));
+  check('…the check is withdrawn by one switch and its code is still there', r.hidden === true && r.code);
 
-  // An existing pack still on the shipped shape gets it; one the office has
-  // arranged, or one already showing the check, is left exactly as it is.
   const mig = await pg.evaluate(() => {
     const run = (pages, version) => {
       S.jobPack = { pages: JSON.parse(JSON.stringify(pages)), pagesVersion: version };
       const st = _jpState();
-      return { types: st.pages.map(p => p.type), v: st.pagesVersion };
+      return { types: st.pages.map(p => p.type), imgs: (st.pages[0].images || []).map(i => i.mapKey), v: st.pagesVersion };
     };
     return {
       untouched: run([{ type:'header', images:[] }, { type:'cutlists' }], 6),
-      arranged:  run([{ type:'header', images:[] }, { type:'notes' }, { type:'cutlists' }], 6),
-      placed:    run([{ type:'header', images:[{ id:'i1', mapKey:'calccheck:all' }] }, { type:'cutlists' }], 6),
-      already:   run([{ type:'header', images:[] }, { type:'cutlists' }, { type:'calccheck' }], 6),
-      again:     run([{ type:'header', images:[] }, { type:'cutlists' }], 7)
+      withDef:   run([{ type:'header', images:[{ id:'def_dt_1', mapKey:'detailed', x:10, y:285, w:670, h:470 }] }, { type:'cutlists' }, { type:'calccheck' }], 7),
+      moved:     run([{ type:'header', images:[{ id:'def_dt_1', mapKey:'detailed', x:10, y:285, w:400, h:300, userSized:true }] }, { type:'cutlists' }], 7),
+      again:     run([{ type:'header', images:[{ id:'def_dt_1', mapKey:'detailed' }] }, { type:'cutlists' }], 8)
     };
   });
-  check('an untouched pack gains the check',
-    mig.untouched.types.join(',') === 'header,cutlists,calccheck', mig.untouched.types.join(','));
-  check('a pack the office arranged is left alone',
-    mig.arranged.types.join(',') === 'header,notes,cutlists', mig.arranged.types.join(','));
-  check('a pack already showing the check as a picture is left alone',
-    mig.placed.types.join(',') === 'header,cutlists', mig.placed.types.join(','));
-  check('a pack that already has the page does not get a second one',
-    mig.already.types.filter(t => t === 'calccheck').length === 1);
-  check('the migration runs once', mig.again.types.join(',') === 'header,cutlists');
-  check('the pack is stamped v7', mig.untouched.v === 7, String(mig.untouched.v));
+  check('an old pack no longer gains a calc check page', mig.untouched.types.join(',') === 'header,cutlists', mig.untouched.types.join(','));
+  check('an untouched default map gets the Sheet layout under it', mig.withDef.imgs.join(',') === 'detailed,sheetplan', mig.withDef.imgs.join(','));
+  check('…a calc check page already in a pack is kept in the store (only hidden)', mig.withDef.types.join(',') === 'header,cutlists,calccheck', mig.withDef.types.join(','));
+  check('a map the office moved is left alone', mig.moved.imgs.join(',') === 'detailed', mig.moved.imgs.join(','));
+  check('the migration runs once', mig.again.imgs.join(',') === 'detailed');
+  check('the pack is stamped v8', mig.untouched.v === 8, String(mig.untouched.v));
+  const shown = await pg.evaluate(() => {
+    S.jobPack = { pages: [{ type:'header', images:[] }, { type:'cutlists' }, { type:'calccheck' }], pagesVersion: 8 };
+    renderJobPack();
+    return [...document.querySelectorAll('#jpPages .jp-page .jp-page-label')].map(e => e.textContent).join(',');
+  });
+  check('…and a stored calc check page is not shown, the pages numbered without it', shown === 'Page 1,Page 2', shown);
 
   // The page renders the SAME picture the Maps panel places, which is what
   // keeps the two from disagreeing — including the engine's own "nothing to

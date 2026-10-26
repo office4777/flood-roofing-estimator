@@ -5115,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-26T18:41:41Z';
+  window.APP_BUILT_AT = '2026-10-26T21:38:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -17221,7 +17221,24 @@ function _buildMaterialPriceRows(){
       defVar = _prLbl; defSheet = variants[0]; sheetUnit = _prOwn.unit;
       _prNote = ' — ' + _prNm + "'s own price";
     }
-    if (sheetUnit === 'm2') {
+    // THE SHEET LAYOUT IS THE QUANTITY (2026-10-27, the owner: "for the sheet
+    // quantity in the job pack and the pricing, use the quantities from the
+    // new sheet layout diagram"). The sheets the layout orders for the roofs
+    // in scope — every length, extras and pushed-in sheets included — priced
+    // by the metre run or by the m² of steel (length × cover). A roof the
+    // layout cannot read yet (no faces drawn) falls back to the estimate
+    // below, which is what priced every quote before this.
+    var _pzQ = null;
+    // (`window.__SHEET_COUNT_ENGINE` is the suites' seam onto the fallback.)
+    try { if (typeof _sheetPuzzleTallyFor === 'function' && !window.__SHEET_COUNT_ENGINE) _pzQ = _sheetPuzzleTallyFor(_matSelectedRoofIndices()); } catch(e){ _pzQ = null; }
+    var _pzNote = _pzQ ? (_pzQ.sheets + ' sheets from the sheet layout: ' +
+      _pzQ.tally.map(function(t){ return t.count + ' × ' + (t.Lmm / 1000).toFixed(2) + 'm'; }).join(' + ')) : '';
+    if (_pzQ && _pzQ.lm > 0) {
+      rows.push({ key:'sheets', label:'Roofing sheets',
+                  autoQty: sheetUnit === 'm2' ? _pzQ.m2 : _pzQ.lm, autoUnit: sheetUnit === 'm2' ? 'm²' : 'lm',
+                  variants:variants, defaultVariant:defVar, singleVariant:!!_prOwn,
+                  note:_pzNote + (sheetUnit === 'm2' ? ' (m² of steel)' : '') + _prNote });
+    } else if (sheetUnit === 'm2') {
       if (roofArea > 0) {
         rows.push({ key:'sheets', label:'Roofing sheets', autoQty:roofArea, autoUnit:'m²',
                     variants:variants, defaultVariant:defVar, singleVariant:!!_prOwn,
@@ -35115,6 +35132,11 @@ function _qbColour(){
         : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
               : '<em>No colour chosen yet — tap one below, or Undecided above.</em>')+'</div>'+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
+      // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
+      // roofing quote, allow me to delete the roof colour section"), the
+      // grade / profile / thickness button exactly — the pick goes with it
+      // (_qbPicksAuto already leaves a parked colour out).
+      ((!window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\'colour\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>' : '')+
     '</div>';
 }
 function _qbGutter(){
@@ -66312,9 +66334,27 @@ function _jpState(){
           return im && String(im.mapKey || '').split(':')[0] === 'calccheck';
         });
       });
-      if (!_hasCC && _types === 'header,cutlists') _pp.push({ type:'calccheck' });
+      if (!_hasCC && _types === 'header,cutlists' && !CALC_CHECK_HIDDEN) _pp.push({ type:'calccheck' });
     } catch(e){}
     S.jobPack.pagesVersion = 7;
+  }
+  // v7 → v8: THE SHEET LAYOUT RIDES ON PAGE 1 (2026-10-27, the owner: "add
+  // the sheet layout diagram to the job pack by default, always fit to size
+  // so both pictures can fit inside the screen"). A header page still
+  // carrying the app's own untouched Detailed map gets the Sheet layout
+  // under it, and the two are fitted together (_jpFitDefaults). A page the
+  // office has arranged — a moved or resized map, or a sheet layout already
+  // placed — is left as it is. A Sheet calc check page stays in the stored
+  // pack (CALC_CHECK_HIDDEN only stops it being shown), so bringing the
+  // check back brings every pack's page back with it.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 8) {
+    (S.jobPack.pages || []).forEach(function(p){
+      if (!p || p.type !== 'header' || !Array.isArray(p.images)) return;
+      var hasDef = p.images.some(function(im){ return im && /^(def|mig)_/.test(im.id || '') && im.mapKey === 'detailed' && !im.userSized; });
+      var hasSl = p.images.some(function(im){ return im && String(im.mapKey || '').split(':')[0] === 'sheetplan'; });
+      if (hasDef && !hasSl) p.images.push({ id:'def_sl_'+Date.now(), mapKey:'sheetplan', x:10, y:760, w:670, h:240 });
+    });
+    S.jobPack.pagesVersion = 8;
   }
   return S.jobPack;
 }
@@ -66328,13 +66368,15 @@ function _jpDefaultPages(){
   // Header strip (client + tile row) eats ~y:0..270, leaving the rest
   // of the page for the map.
   return [
+    // The Sheet layout sits under the Detailed map on page 1 (2026-10-27),
+    // the two fitted together to the page by _jpFitDefaults.
     { type:'header', images:[
-      { id:'def_dt_'+Date.now(), mapKey:'detailed', x: 10, y:285, w:670, h:470 }
+      { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:470 },
+      { id:'def_sl_'+Date.now(), mapKey:'sheetplan', x: 10, y:760, w:670, h:240 }
     ] },
-    { type:'cutlists'    },
-    // The check goes AFTER the cut lists, because that is what it checks:
-    // its own last line reads "should match the cut list above".
-    { type:'calccheck'   }
+    { type:'cutlists'    }
+    // The Sheet calc check page went after the cut lists until 2026-10-27;
+    // it is withdrawn (CALC_CHECK_HIDDEN) and the sheet layout is the count.
     // Flashings ride along inside the Cut Lists page ("Flashings — one
     // card per type", see _jpRenderCutLists) so they aren't printed
     // twice; and consumables (underlay / screws / rivets / dektites)
@@ -66348,7 +66390,7 @@ function _jpPageTypes(){
   return [
     { value:'header',      label:'Job header' },
     { value:'roofmap',     label:'Roof map' },
-    { value:'calccheck',   label:'Sheet calc check' },
+    CALC_CHECK_HIDDEN ? null : { value:'calccheck',   label:'Sheet calc check' },
     SHEET_LAYOUT_HIDDEN ? null : { value:'sheetplan',   label:'Sheet plan' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
@@ -66502,26 +66544,40 @@ function _jpMapApplyZoom(){
 // The flag stays as the one switch that withdraws the picture everywhere
 // (panel, page types, prints) should it ever be needed again.
 var SHEET_LAYOUT_HIDDEN = false;
-function _jpMapKindHidden(kind){ return SHEET_LAYOUT_HIDDEN && kind === 'sheetplan'; }
+// THE SHEET CALC CHECK IS WITHDRAWN (2026-10-27, the owner: "remove the sheet
+// calc check from the app but leave it in the code incase i want to bring it
+// back"). The sheet layout is the count now — the cut list and the pricing
+// read its tally (_sheetPuzzleTallyFor) — so the check is hidden everywhere
+// it was offered: the Maps panel, the page-type list, the default pack and
+// any calc-check page or picture already in a pack. Nothing was deleted:
+// `false` here puts every one of them back, stored pages included.
+var CALC_CHECK_HIDDEN = true;
+function _jpMapKindHidden(kind){ return (SHEET_LAYOUT_HIDDEN && kind === 'sheetplan') || (CALC_CHECK_HIDDEN && kind === 'calccheck'); }
+// The order the owner asked for (2026-10-27): "have them all default clicked
+// as showing in the list but reorder them as detailed map at the top, then
+// sheet layout below, then flashing ref below, then basic map below that".
 var JP_MAP_KINDS_ALL = [
-  { kind:'calccheck', label:'Sheet calc check', on:true  },
-  { kind:'sheetplan', label:'Sheet layout',     on:true  },
-  { kind:'detailed',  label:'Detailed map',     on:false },
-  { kind:'basic',     label:'Basic map',        on:false },
-  { kind:'flashref',  label:'Flashing ref',     on:false },
+  { kind:'detailed',  label:'Detailed map',     on:true },
+  { kind:'sheetplan', label:'Sheet layout',     on:true },
+  { kind:'flashref',  label:'Flashing ref',     on:true },
+  { kind:'basic',     label:'Basic map',        on:true },
+  { kind:'calccheck', label:'Sheet calc check', on:true },
 ];
+// v2 of the stored ticks: every map starts ticked again under the new
+// order, whatever a device had stored under the old one.
+var JP_MAP_KIND_KEY = 'fr_jp_map_kind2_';
 var JP_MAP_KINDS = JP_MAP_KINDS_ALL.filter(function(k){ return !_jpMapKindHidden(k.kind); });
 function _jpMapKindOn(kind){
   if (_jpMapKindHidden(kind)) return false;
   var d = JP_MAP_KINDS.filter(function(k){ return k.kind === kind; })[0];
   var def = d ? d.on : true;
   try {
-    var raw = localStorage.getItem('fr_jp_map_kind_' + kind);
+    var raw = localStorage.getItem(JP_MAP_KIND_KEY + kind);
     return raw == null ? def : raw === '1';
   } catch(e){ return def; }
 }
 function _jpMapKindSet(kind, on){
-  try { localStorage.setItem('fr_jp_map_kind_' + kind, on ? '1' : '0'); } catch(e){}
+  try { localStorage.setItem(JP_MAP_KIND_KEY + kind, on ? '1' : '0'); } catch(e){}
   var list = document.getElementById('jpMapPanelList');
   if (list) list.__jpHtml = null;      // force the skip-when-unchanged guard open
   try { renderJpMapPanel(); } catch(e){}
@@ -66610,7 +66666,8 @@ function renderJpMapPanel(){
   try { _jpRenderMapKindToggles(); } catch(e){}
   try { _jpRenderRoofToggles(); } catch(e){}
   var items = _jpMapPanelItems().filter(function(it){
-    return _jpMapKindOn(String(it.key).split(':')[0]);
+    var kd = String(it.key).split(':')[0];
+    return !_jpMapKindHidden(kd) && _jpMapKindOn(kd);
   });
   if (!items.length) {
     var anyOn = JP_MAP_KINDS.some(function(k){ return _jpMapKindOn(k.kind); });
@@ -66661,25 +66718,25 @@ function _jpMapPanelItems(){
       ? 'All roofs'
       : vis.map(function(i){ return (roofs[i] && roofs[i].name) || _nthName(i + 1); }).join(' + ');
     items.push({ key:'detailed:all',  label:'Detailed map',     sub:allSub });
-    items.push({ key:'basic:all',     label:'Basic map',        sub:allSub });
     items.push({ key:'sheetplan:all', label:'Sheet layout',     sub:allSub });
-    items.push({ key:'calccheck:all', label:'Sheet calc check', sub:allSub });
     items.push({ key:'flashref:all',  label:'Flashing ref map', sub:allSub });
+    items.push({ key:'basic:all',     label:'Basic map',        sub:allSub });
+    items.push({ key:'calccheck:all', label:'Sheet calc check', sub:allSub });
     vis.forEach(function(i){
       var r = roofs[i];
       var name = (r && r.name) || _nthName(i + 1);
       items.push({ key:'detailed:'+i,  label:'Detailed map',     sub:name });
-      items.push({ key:'basic:'+i,     label:'Basic map',        sub:name });
       items.push({ key:'sheetplan:'+i, label:'Sheet layout',     sub:name });
-      items.push({ key:'calccheck:'+i, label:'Sheet calc check', sub:name });
       items.push({ key:'flashref:'+i,  label:'Flashing ref map', sub:name });
+      items.push({ key:'basic:'+i,     label:'Basic map',        sub:name });
+      items.push({ key:'calccheck:'+i, label:'Sheet calc check', sub:name });
     });
   } else {
     items.push({ key:'detailed',  label:'Detailed map',     sub:'' });
-    items.push({ key:'basic',     label:'Basic map',        sub:'' });
     items.push({ key:'sheetplan', label:'Sheet layout',     sub:'' });
-    items.push({ key:'calccheck', label:'Sheet calc check', sub:'' });
     items.push({ key:'flashref',  label:'Flashing ref map', sub:'' });
+    items.push({ key:'basic',     label:'Basic map',        sub:'' });
+    items.push({ key:'calccheck', label:'Sheet calc check', sub:'' });
   }
   return items;
 }
@@ -67091,6 +67148,7 @@ function _jpHandleDrop(ev, pageIdx){
 // positioned div with drag/resize/edit/delete handles.
 function _jpMountImagesOnPage(pageEl, page, pageIdx){
   if (!page || !Array.isArray(page.images) || !page.images.length) return;
+  var defs = [];
   page.images.forEach(function(im, ii){
     if (_jpMapKindHidden(String(im.mapKey || '').split(':')[0])) return;
     var src = _jpCaptureMap(im.mapKey, {});
@@ -67119,31 +67177,52 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
     if (im._cropping) wrap.classList.add('is-cropping');
     wrap.addEventListener('mousedown', function(ev){ _jpImgMouseDown(ev, pageIdx, im.id); });
     pageEl.appendChild(wrap);
-    // Auto-fit the app-shipped default map to the page: as big as the
-    // space below the header allows, aspect ratio preserved, centred,
-    // with a safety margin so nothing runs off the printed page.  The
-    // moment the user drags or resizes it (userSized), we stop fitting
-    // and their layout sticks.
-    if (/^(def|mig)_/.test(im.id || '') && !im.userSized) {
-      var probe = new Image();
-      probe.onload = function(){
-        if (!probe.naturalWidth || !probe.naturalHeight || !wrap.isConnected) return;
-        var pageW = pageEl.clientWidth || 690, pageH = pageEl.clientHeight || 1014;
-        var margin = 16;
-        var availW = pageW - 2 * margin;
-        var availH = pageH - im.y - margin;
-        if (availW < 60 || availH < 60) return;
-        var sc = Math.min(availW / probe.naturalWidth, availH / probe.naturalHeight);
-        var w = Math.floor(probe.naturalWidth * sc), h = Math.floor(probe.naturalHeight * sc);
-        if (Math.abs(w - im.w) < 3 && Math.abs(h - im.h) < 3) return;
-        im.w = w; im.h = h;
-        im.x = Math.max(margin, Math.round((pageW - w) / 2));
-        wrap.style.left = im.x + 'px';
-        wrap.style.width = w + 'px';
-        wrap.style.height = h + 'px';
-      };
-      probe.src = src;
-    }
+    if (/^(def|mig)_/.test(im.id || '') && !im.userSized) defs.push({ im: im, wrap: wrap, src: src });
+  });
+  _jpFitDefaults(pageEl, defs);
+}
+// THE APP'S OWN PICTURES ARE FITTED TOGETHER (2026-10-27, the owner: "add the
+// sheet layout diagram to the job pack by default, always fit to size so both
+// pictures can fit inside the screen"). Every default picture still untouched
+// on a page (an id starting def_/mig_, never moved or resized — userSized) is
+// stacked under the header at ONE common width, each at its own shape, the
+// whole stack as big as the space below the header allows. One picture is
+// the old single-map fit exactly. The moment the office drags or resizes a
+// picture it is theirs and is left where they put it.
+function _jpFitDefaults(pageEl, defs){
+  if (!defs || !defs.length) return;
+  var nat = [], left = defs.length;
+  defs.forEach(function(d, k){
+    var probe = new Image();
+    probe.onload = probe.onerror = function(){
+      nat[k] = (probe.naturalWidth && probe.naturalHeight) ? { w: probe.naturalWidth, h: probe.naturalHeight } : null;
+      if (--left) return;
+      var ok = defs.filter(function(dd, i){ return nat[i] && dd.wrap.isConnected; });
+      if (!ok.length) return;
+      var shapes = defs.map(function(dd, i){ return nat[i]; });
+      var pageW = pageEl.clientWidth || 690, pageH = pageEl.clientHeight || 1014;
+      var margin = 16, gap = 14;
+      var y0 = Math.min.apply(null, ok.map(function(dd){ return +dd.im.y || 285; }));
+      var availW = pageW - 2 * margin;
+      var availH = pageH - y0 - margin - gap * (ok.length - 1);
+      if (availW < 60 || availH < 60) return;
+      var inv = 0;
+      defs.forEach(function(dd, i){ if (shapes[i] && dd.wrap.isConnected) inv += shapes[i].h / shapes[i].w; });
+      var W = Math.floor(Math.min(availW, availH / inv));
+      var y = y0;
+      defs.forEach(function(dd, i){
+        if (!shapes[i] || !dd.wrap.isConnected) return;
+        var w = W, h = Math.floor(W * shapes[i].h / shapes[i].w), im = dd.im;
+        var x = Math.max(margin, Math.round((pageW - w) / 2));
+        if (Math.abs(w - im.w) >= 3 || Math.abs(h - im.h) >= 3 || Math.abs(y - im.y) >= 3 || Math.abs(x - im.x) >= 3){
+          im.w = w; im.h = h; im.x = x; im.y = y;
+        }
+        dd.wrap.style.left = im.x + 'px'; dd.wrap.style.top = im.y + 'px';
+        dd.wrap.style.width = im.w + 'px'; dd.wrap.style.height = im.h + 'px';
+        y += h + gap;
+      });
+    };
+    probe.src = d.src;
   });
 }
 var _JP_IMG_DRAG = null;
@@ -67640,7 +67719,12 @@ function renderJobPack(){
     var _rpHtml = _jpRoofPickerHtml();
     if (_rpHtml){ var _rp = document.createElement('div'); _rp.innerHTML = _rpHtml; if (_rp.firstChild) mount.appendChild(_rp.firstChild); }
   } catch(e){ console.warn('jp roof picker:', e); }
+  var _shownN = 0;
   state.pages.forEach(function(page, i){
+    // A Sheet calc check page stays in the stored pack but is not shown
+    // while the check is withdrawn (CALC_CHECK_HIDDEN).
+    if (CALC_CHECK_HIDDEN && page && page.type === 'calccheck') return;
+    _shownN++;
     var pageEl = document.createElement('div');
     // jp-flow: the Cut Lists page prints as FLOWING content (natural height,
     // real page breaks) instead of one clipped A4 sheet — its sections space
@@ -67655,7 +67739,7 @@ function renderJobPack(){
     var tools = document.createElement('div');
     tools.className = 'jp-page-tools no-print';
     tools.innerHTML =
-      '<span class="jp-page-label">Page ' + (i + 1) + '</span>' +
+      '<span class="jp-page-label">Page ' + _shownN + '</span>' +
       '<select onchange="_jpChangeType('+i+',this.value)" title="Change what this page contains">' +
         _jpPageTypes().map(function(t){
           return '<option value="'+t.value+'"'+(t.value===page.type?' selected':'')+'>'+esc(t.label)+'</option>';
@@ -69808,7 +69892,14 @@ function _jpBuildSheetRowsAuto(sc){
   // map length already has a row is left completely untouched. Doing this
   // before the value-matcher below means it then sees one row per distinct
   // length and labels each correctly.
-  try {
+  //
+  // NEITHER RUNS ON THE SHEET LAYOUT'S TALLY (2026-10-27, `sc.fromPuzzle`):
+  // the layout already orders every strip at its own length — a bump-out's
+  // longer columns are their own block there — so peeling sheets between
+  // lengths, or relabelling a row to the nearest number the map drew, would
+  // only move the list away from the picture it now comes from.
+  var _pzRows = !!(sc && sc.fromPuzzle);
+  if (!_pzRows) try {
     var _bhits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
     var _coverMm = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
     var _coverM  = _coverMm / 1000;
@@ -69912,7 +70003,7 @@ function _jpBuildSheetRowsAuto(sc){
     }
   } catch(e){}
   var manualMap = {};
-  try {
+  if (!_pzRows) try {
     var ms = [];
     var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
     hits.forEach(function(h){

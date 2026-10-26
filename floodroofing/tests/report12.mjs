@@ -62,7 +62,7 @@ const r = await pg.evaluate(([OUTLINE, SCALE, PITCH, JUNCTION]) => {
     .map(l => ({ t: l.type, lo: Math.min(l.pts[0][1], l.pts[1][1]), hi: Math.max(l.pts[0][1], l.pts[1][1]),
                  m: +(l.measM || 0).toFixed(2) }))
     .sort((a, b) => a.lo - b.lo);
-  const gg = (window._lastSheetCounts || {}).groups || {};
+  const gg = ((window._lastSheetCounts || {}).engineGroups || (window._lastSheetCounts || {}).groups) || {};
   let tot = 0; Object.keys(gg).forEach(k => tot += gg[k].count);
   return { junction: at(JUNCTION),
            counts: (DRAW.lines || []).reduce((a, l) => { a[l.type] = (a[l.type] || 0) + 1; return a; }, {}),

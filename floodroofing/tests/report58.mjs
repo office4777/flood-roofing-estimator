@@ -38,7 +38,7 @@ const r = await pg.evaluate((g) => {
   regenerateAutoRoofLines('gable'); autoCalcLineMeasurements();
   const find = (f) => DRAW.lines.filter(f).map(l => ({ pts: l.pts.map(p => p.map(Math.round)), m: l.measM }));
   renderRoofSheetPlan();
-  const g2 = (window._lastSheetCounts || {}).groups || {};
+  const g2 = ((window._lastSheetCounts || {}).engineGroups || (window._lastSheetCounts || {}).groups) || {};
   const groups = {}; let total = 0;
   Object.keys(g2).forEach(k => { groups[g2[k].orderedMm] = (groups[g2[k].orderedMm] || 0) + g2[k].count; total += g2[k].count; });
   const secs = (window._lastSheetSections || []);

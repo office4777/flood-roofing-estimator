@@ -312,6 +312,30 @@ THE PICTURE:
     `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
 
+THE ORDER:
+12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
+    job pack and the pricing, use the quantities from the new sheet layout
+    diagram instead of the sheet calc check"). `_lastSheetCounts.groups` (the
+    cut list) is the layout's tally per roof, set in `_renderRoofSheetPlanInner`
+    (`fromPuzzle`; the engine's groups kept as `engineGroups`), and the cut
+    list's bump-out splitter and label relabeller do not run on it. The
+    pricing's sheets row is `_sheetPuzzleTallyFor(_matSelectedRoofIndices())`
+    — the metre run, or the m² of steel (length × cover) on an m² price. Each
+    roof is laid out on its own and cached against its geometry
+    (`_pzTallyOfRoof`). TWO GUARDS: a layout that orders less steel than the
+    roof's own area is never the order (`_pzTallyCovers`, the engine stands
+    in), and the pricing is all-or-nothing across the roofs in scope. A roof
+    with no pitch of its own is laid at the job's pitch box, as the engine and
+    the barges are (reports 70–76 were drawn at 0°: counts unchanged, lengths
+    now ×1/cos 15°). Suites that pin the ENGINE's count set
+    `window.__SHEET_COUNT_ENGINE` (monocount, cutlistwire, report51, report9,
+    sheetclaim). THE SHEET CALC CHECK IS WITHDRAWN (`CALC_CHECK_HIDDEN` in
+    app.html): not offered in the Maps panel or page types, a stored page not
+    shown — its code and every stored page kept; `false` brings it all back.
+    What it moved, measured: the hand-counted double-L 73 → 89 (the layout
+    orders 34 one-off extras there), the T 71 → 74, report 75 110 → 130,
+    report 71 62 → 70; typesnap's roofing quotes +2% (sheets line only).
+
 ASKED, 2026-10-27, NOT DONE — report 76's wing end: he wants the strips
 where E1 (pushed in), A47/A48 (orange offcuts) and F1 (an extra) stand fed
 from the purple hip-cut sheets' offcuts. Measured: the north half of the
@@ -3193,6 +3217,23 @@ not a saving, and 49 purple to 48 orange.
   Fixtures 71–76; `sheetlayout.mjs` 369.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
+- THE JOB PACK'S PAGE 1 CARRIES THE SHEET LAYOUT (2026-10-27, the owner: "add
+  the sheet layout diagram to the job pack by default, always fit to size so
+  both pictures can fit inside the screen ... for the display maps, have them
+  all default clicked ... detailed map at the top, then sheet layout below,
+  then flashing ref below, then basic map below that"). `_jpDefaultPages` is
+  header (Detailed map + Sheet layout, ids `def_dt_` / `def_sl_`) and cut
+  lists; the v8 migration adds the Sheet layout under an untouched default
+  Detailed map. `_jpFitDefaults` stacks every untouched default picture on a
+  page at one common width, each at its own shape, the stack as big as the
+  space under the header allows; a moved or resized picture (`userSized`) is
+  the office's. `JP_MAP_KINDS_ALL` is in the owner's order, all ticked, the
+  ticks stored under `JP_MAP_KIND_KEY` (`fr_jp_map_kind2_`) so a device's old
+  ticks do not stand. `tests/quickwins.mjs`, `jpmaps.mjs`, `jpallroofs.mjs`.
+- THE ROOF COLOUR SECTION DELETES LIKE THE OTHERS (2026-10-27, "in the roofing
+  quote, allow me to delete the roof colour section"): `_qbColour` carries
+  Delete this page (office only), `_qbSectionRemove('colour')` parks it and
+  `_qbPicksAuto` already drops its pick. `tests/quoteeditor.mjs`.
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,

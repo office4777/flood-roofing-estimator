@@ -693,6 +693,37 @@ async function labelsOf(g){
   check('…and each label is the sheet\'s number alone, no length beside it', ratios.length > 50 && rMax / rMin < 1.02, rMin.toFixed(4) + '–' + rMax.toFixed(4));
 }
 
+// THE SHEET LAYOUT IS THE COUNT (2026-10-27, the owner: "for the sheet
+// quantity in the job pack and the pricing, use the quantities from the new
+// sheet layout diagram instead of the sheet calc check").
+{
+  const cnt = async (g) => { await lay(g); return pg.evaluate(() => {
+    const pz = _sheetPuzzleTallyFor(_matSelectedRoofIndices());
+    const rows = _jpSheetRowsAll().map(sc => sc.rows.map(r => r.qty + '@' + r.len).join(' ')).join(' | ');
+    const mr = _buildMaterialPriceRows().filter(r => r.key === 'sheets')[0];
+    const cover = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+    return { pz: pz && pz.tally.map(t => t.count + '@' + t.Lmm).join(' '), lm: pz && pz.lm, m2: pz && pz.m2, cover,
+      fromPuzzle: !!(window._lastSheetCounts || {}).fromPuzzle, rows, qty: mr && mr.autoQty, unit: mr && mr.autoUnit, note: mr && mr.note };
+  }); };
+  const h = await cnt({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'hip' });
+  check('the cut list is the sheet layout\'s tally: plain hip 48 @ 6.63', h.fromPuzzle && h.rows === h.pz && h.pz === '48@6630', JSON.stringify(h));
+  check('…and the pricing\'s sheets row is the same sheets, by the m² of steel or the metre run',
+    Math.abs(h.qty - (h.unit === 'lm' ? h.lm : h.m2)) < 0.01 && Math.abs(h.m2 - h.lm * h.cover / 1000) < 0.01 && /48 sheets from the sheet layout/.test(h.note), h.qty + ' ' + h.unit + ' — ' + h.note);
+  const r = await cnt(fx('report76'));
+  check('report 76: the cut list orders the layout\'s 177 sheets', r.rows === r.pz && r.pz.split(' ').reduce((a, x) => a + +x.split('@')[0], 0) === 177, r.rows);
+  const guard = await pg.evaluate(() => ({ thin: _pzTallyCovers([{ Lmm: 1000, count: 1 }], -1), whole: _pzTallyCovers(_sheetPuzzleBuild({ roofIdxs: [-1] }).tally, -1) }));
+  check('a layout covering less steel than the roof\'s own area is never the order (the engine stands in)', guard.thin === false && guard.whole === true, JSON.stringify(guard));
+  const pit = await pg.evaluate(() => {
+    const save = DRAW.calPitch, el = document.getElementById('pitchDeg'), sv = el.value;
+    DRAW.calPitch = 0; el.value = '20';
+    const L = (_sheetPuzzleBuild({ roofIdxs: [-1] }).tally[0] || {}).Lmm;
+    DRAW.calPitch = 20; const L20 = (_sheetPuzzleBuild({ roofIdxs: [-1] }).tally[0] || {}).Lmm;
+    DRAW.calPitch = save; el.value = sv;
+    return { L, L20 };
+  });
+  check('a roof with no pitch of its own is laid at the job\'s pitch box, as the engine and the barges are', pit.L > 0 && pit.L === pit.L20, JSON.stringify(pit));
+}
+
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

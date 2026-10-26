@@ -56,7 +56,7 @@ const run = (outline, cp) => pg.evaluate(([outline, SCALE, PITCH, CP, cp, LOW]) 
   autoGenerateRoof('dutch', 0);
   if (cp) CP.forEach(l => DRAW.lines.push({ type:'changepitch', pts:[l.pts[0].slice(), l.pts[1].slice()], measM:l.measM }));
   autoCalcLineMeasurements(); renderRoofSheetPlan(); redrawAll();
-  const gg = (window._lastSheetCounts || {}).groups || {};
+  const gg = ((window._lastSheetCounts || {}).engineGroups || (window._lastSheetCounts || {}).groups) || {};
   const groups = Object.keys(gg).map(k => ({ mm: gg[k].orderedMm, n: gg[k].count }))
                        .sort((x, y) => y.mm - x.mm);
   let lm = 0, total = 0; groups.forEach(g => { lm += g.mm/1000 * g.n; total += g.n; });

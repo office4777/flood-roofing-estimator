@@ -311,9 +311,26 @@ const park = await pg.evaluate(async () => {
   _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 700));
   _qbSectionInsert('profile'); await new Promise(r => setTimeout(r, 500));
   out.back = !!document.querySelector('#qd-profile') && !document.querySelector('#qpRoot .qd-parked');
+  // THE COLOUR TOO (2026-10-27, the owner: "in the roofing quote, allow me to
+  // delete the roof colour section"): its pick goes with it, Insert puts it back.
+  S.quote.proposalOptions = Object.assign(S.quote.proposalOptions || {}, { colour: 'Ironsand' });
+  const picksHave = () => _qbPicks().some(r => r[0] === 'Colour');
+  out.colourPickBefore = picksHave();
+  _qbSectionRemove('colour'); await new Promise(r => setTimeout(r, 500));
+  out.colourGone = !document.querySelector('#qd-colour');
+  out.colourPickAfter = picksHave();
+  const cph = document.querySelector('#qpRoot .qd-parked[data-qd-parked="colour"]');
+  out.colourPlaceholder = cph ? cph.textContent.trim() : null;
+  window.__CUSTOMER_MODE = true; out.custColourDel = /qb-sec-del/.test(_qbColour()); window.__CUSTOMER_MODE = false;
+  _qbSectionInsert('colour'); await new Promise(r => setTimeout(r, 500));
+  out.colourBack = !!document.querySelector('#qd-colour');
   return out;
 });
-check('the grade, profile, thickness, guttering and old roof sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness,gutter,disposal', JSON.stringify(park.delBtns));
+check('the grade, profile, thickness, guttering and old roof sections each carry Delete this page from this quote', park.delBtns.join(',') === 'grade,profile,thickness,colour,gutter,disposal', JSON.stringify(park.delBtns));
+check('the roof colour section deletes like the others: gone, its pick off the summary, an Insert button where it was, and back again',
+  park.colourPickBefore && park.colourGone && !park.colourPickAfter && /Insert/.test(park.colourPlaceholder || '') && park.colourBack,
+  JSON.stringify({ b: park.colourPickBefore, g: park.colourGone, a: park.colourPickAfter, ph: park.colourPlaceholder, back: park.colourBack }));
+check('…and the customer never sees the colour section\'s Delete button', park.custColourDel === false);
 check('deleting the profile section leaves an Insert Profile page button between the grade and the thickness', park.parked.join(',') === 'profile' && park.profileGone && /Insert Profile page/.test(park.placeholder || '') && park.afterGrade === 'grade' && park.beforeThickness === 'thickness', JSON.stringify(park));
 check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page|+ Insert custom option' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
 check('…and Insert puts it back', park.back);

@@ -39,7 +39,7 @@ const r = await pg.evaluate((g) => {
     // sheet direction = ACROSS the ridge: the ridge direction is rdir
     rdirX: Math.abs(s.rdir[0]), rdirY: Math.abs(s.rdir[1]),
   }));
-  const groups = ((window._lastSheetCounts || {}).groups || []).map(g => ({ mm: g.orderedMm, count: g.count }));
+  const groups = (((window._lastSheetCounts || {}).engineGroups || (window._lastSheetCounts || {}).groups) || []).map(g => ({ mm: g.orderedMm, count: g.count }));
   const strips = (window.__lastAllStrips || []);
   return { secs, groups, stripCount: strips.filter(s => s.seq != null && !s.isOffcut).length,
            cookie: strips.length > 0 && strips.every(s => /^cc\|/.test(String(s._id || ''))) };

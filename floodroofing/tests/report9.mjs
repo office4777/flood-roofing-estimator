@@ -53,6 +53,11 @@ const pg = await (await b.newContext({ viewport:{ width:1400, height:950 } })).n
 const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('dialog', d => d.accept());
 await pg.route('**/api.mapbox.com/**', r => r.abort());
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => r.fulfill({ status:200, contentType:'application/json', body:'[]' }));
+// These pins hold the SHEET ENGINE's count — the calc check's, and the cut
+// list's fallback for a roof the sheet layout cannot read. Since 2026-10-27 the
+// order itself follows the sheet layout (`_sheetPuzzleTallyFor`), so this suite
+// runs on the engine through the `__SHEET_COUNT_ENGINE` seam.
+await pg.addInitScript(() => { window.__SHEET_COUNT_ENGINE = true; });
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); localStorage.setItem('fr_site_mode','off'); });
 await pg.goto('file://' + DIR + '/app.html'); await pg.waitForTimeout(2600);
 
