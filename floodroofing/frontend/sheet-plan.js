@@ -8542,13 +8542,14 @@ function _renderSheetPuzzleCanvas(opts){
     var fsM = cwC >= 16 ? 9 : 8;
     var fsTop = Math.max(9, Math.min(16, Math.round(cwC * 0.62)));
     var fontL = function(n){ return '800 ' + n + 'px Inter, sans-serif'; }, fontM = '600 ' + fsM + 'px Inter, sans-serif';
+    pz._outsideAt = {};
     pz.pieces.forEach(function(pc){
       var longC = pc.longPx * fit;
-      if (longC < 22 || pc.widthPx * fit < 8) return;
       var c = _ccCentroid(pc.poly), f = pc.face;
       var ang = Math.atan2(f.d[1], f.d[0]);
       if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
       var txt = pc.label || '', len = _pzM(pc.longMm);
+      if (!txt) return;
       var ca = Math.cos(ang), sa = Math.sin(ang);
       var boxFitsAt = function(cx, cy, wC, hC){
         var hw = wC / 2 / fit, hh = hC / 2 / fit, ok = true;
@@ -8558,8 +8559,8 @@ function _renderSheetPuzzleCanvas(opts){
         return ok;
       };
       ctx.font = fontM; var wM = ctx.measureText(len).width;
-      var pickAt = function(q){
-        for (var n = fsTop; n >= 8; n--){
+      var pickAt = function(q, lo){
+        for (var n = fsTop; n >= (lo || 8); n--){
           ctx.font = fontL(n); var wL = ctx.measureText(txt).width;
           var wAll = wL + 5 + wM + 2;
           if (boxFitsAt(q[0], q[1], wAll, n * 0.92)) return { n: n, wL: wL, withLen: true, c: q };
@@ -8567,30 +8568,102 @@ function _renderSheetPuzzleCanvas(opts){
         }
         return null;
       };
-      // The label sits in the middle of its piece, all in one line down the
-      // roof (the owner, 2026-10-23: the F1 badges were "pushing the sheet
-      // label out of line and making it look messy", so they are gone). A
-      // piece too narrow at its middle — a hip-cut triangle — slides its
-      // label along the strip to where it reads largest.
-      var pick = pickAt(c);
-      if (!pick || pick.n < fsTop){
-        [24, 40, 56, 72, 90, 110, 130].forEach(function(o){
-          [1, -1].forEach(function(sg){
-            var q = [c[0] + ca*sg*o/fit, c[1] + sa*sg*o/fit];
-            if (!_spPointInPoly(q[0], q[1], pc.poly)) return;
-            var pq = pickAt(q);
-            if (pq && (!pick || pq.n > pick.n + 1 || (pq.n >= pick.n && pq.withLen && !pick.withLen))) pick = pq;
-          });
-        });
+      // EVERY LABEL STARTS AT THE GUTTER (2026-10-27, the owner: "start all
+      // the sheet labelling near the gutter line so the labels are all inline
+      // and easy to read"). The label's near end sits a few pixels in from
+      // the piece's own gutter end — the higher of its two bottom corners, so
+      // a valley-cut foot starts clear of its cut — and every label on a face
+      // starts the same distance from that face's gutter, one line along it.
+      var atGutter = function(n, withLen){
+        if (!pc.endsA || !pc.endsB) return null;
+        ctx.font = fontL(n); var wL = ctx.measureText(txt).width, tot = wL + (withLen ? 5 + wM : 0);
+        var base = Math.max(pc.endsA[0], pc.endsB[0]);
+        var tm = (pc.tA + pc.tB) / 2, dm = base + (6 + tot / 2) / fit;
+        var q = [f.t[0]*tm + f.d[0]*dm, f.t[1]*tm + f.d[1]*dm];
+        return boxFitsAt(q[0], q[1], tot + 2, n * 0.92) ? { n: n, wL: wL, withLen: withLen, c: q } : null;
+      };
+      var pick = null;
+      if (longC >= 22 && pc.widthPx * fit >= 8){
+        for (var n0 = fsTop; n0 >= 8 && !pick; n0--) pick = atGutter(n0, true) || atGutter(n0, false);
+        // Not room for it there (a hip-cut triangle narrowing to the gutter):
+        // the middle of the piece, slid along the strip to where it reads.
+        if (!pick){
+          pick = pickAt(c);
+          if (!pick || pick.n < fsTop){
+            [24, 40, 56, 72, 90, 110, 130].forEach(function(o){
+              [1, -1].forEach(function(sg){
+                var q = [c[0] + ca*sg*o/fit, c[1] + sa*sg*o/fit];
+                if (!_spPointInPoly(q[0], q[1], pc.poly)) return;
+                var pq = pickAt(q);
+                if (pq && (!pick || pq.n > pick.n + 1 || (pq.n >= pick.n && pq.withLen && !pick.withLen))) pick = pq;
+              });
+            });
+          }
+        }
       }
-      if (!pick) return;
+      // AND THE SMALL CORNER TRIANGLES ARE LABELLED TOO, smaller (the same
+      // message: "add in smaller labels to the missing labels on the small
+      // triangle sheets in the corners"): the number alone, down to 5px,
+      // at the piece's widest point; a piece too small even for that still
+      // gets its number at 5px over its middle, on a white halo.
+      var tiny = false;
+      if (!pick){
+        // Spots across the piece, its middle first.
+        var xs = pc.poly.map(function(q){ return q[0]; }), ys = pc.poly.map(function(q){ return q[1]; });
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        var spots = [c];
+        for (var gi = 1; gi < 6; gi++) for (var gj = 1; gj < 6; gj++){
+          var sp = [x0 + (x1 - x0) * gi / 6, y0 + (y1 - y0) * gj / 6];
+          if (_spPointInPoly(sp[0], sp[1], pc.poly)) spots.push(sp);
+        }
+        spots.sort(function(a, b){ return Math.hypot(a[0]-c[0], a[1]-c[1]) - Math.hypot(b[0]-c[0], b[1]-c[1]); });
+        for (var n1 = 7; n1 >= 5 && !pick; n1--){
+          ctx.font = fontL(n1); var w1 = ctx.measureText(txt).width;
+          for (var si = 0; si < spots.length && !pick; si++) if (boxFitsAt(spots[si][0], spots[si][1], w1 + 1, n1 * 0.9)) pick = { n: n1, wL: w1, withLen: false, c: spots[si] };
+        }
+        // Too small to hold even its 5px number: the number goes over its
+        // nearest spot on a white halo — never over the edge of the roof.
+        if (!pick && (pc.longMm || 0) >= 300){
+          ctx.font = fontL(5); var w5 = ctx.measureText(txt).width, hw5 = (w5 / 2 + 1) / fit, hh5 = 3 / fit;
+          for (var sj = 0; sj < spots.length && !pick; sj++){
+            var p5 = spots[sj];
+            var R5 = pz.roofs.filter(function(Rr){ return _spPointInPoly(p5[0], p5[1], Rr.outline); })[0];
+            if (R5 && [[-hw5,-hh5],[hw5,-hh5],[hw5,hh5],[-hw5,hh5]].every(function(q){ return _spPointInPoly(p5[0] + q[0]*ca - q[1]*sa, p5[1] + q[0]*sa + q[1]*ca, R5.outline); })){ pick = { n: 5, wL: w5, withLen: false, c: p5 }; tiny = true; }
+          }
+        }
+        // A corner triangle too small to hold it at all: its number stands
+        // just outside the roof's corner, a hairline to the piece.
+        if (!pick && (pc.longMm || 0) >= 300){
+          var Rc = pz.roofs.filter(function(Rr){ return _spPointInPoly(c[0], c[1], Rr.outline); })[0];
+          if (Rc){
+            var vc = Rc.outline.reduce(function(m, q){ return Math.hypot(q[0]-c[0], q[1]-c[1]) < Math.hypot(m[0]-c[0], m[1]-c[1]) ? q : m; }, Rc.outline[0]);
+            var oc = [0, 0]; Rc.outline.forEach(function(q){ oc[0] += q[0] / Rc.outline.length; oc[1] += q[1] / Rc.outline.length; });
+            var ux = vc[0] - oc[0], uy = vc[1] - oc[1], ul = Math.hypot(ux, uy) || 1;
+            ctx.font = fontL(6); var w6 = ctx.measureText(txt).width;
+            // Two pieces at one corner (the slope's and the end's): the second
+            // label stands one line further out, never on top of the first.
+            var ck = Math.round(vc[0]) + ',' + Math.round(vc[1]);
+            var nth = (pz._outsideAt = pz._outsideAt || {})[ck] = ((pz._outsideAt[ck] || 0) + 1);
+            var off = (w6 / 2 + 8 + (nth - 1) * 9) / fit, lp = [vc[0] + ux / ul * off, vc[1] + uy / ul * off + (nth - 1) * 8 / fit * (uy >= 0 ? 1 : -1)];
+            var A6 = toC(c), B6 = toC(lp);
+            ctx.save(); ctx.strokeStyle = 'rgba(10,22,40,0.55)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(A6[0], A6[1]); ctx.lineTo(B6[0], B6[1]); ctx.stroke();
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#0a1628'; ctx.fillText(txt, B6[0], B6[1]); ctx.restore();
+            pc._lbl = { n: 6, c: lp, outside: true };
+          }
+          return;
+        }
+        if (!pick) return;   // a sliver at the very corner: nothing to read
+      }
       c = pick.c;
       var cc = toC(c), tot = pick.wL + (pick.withLen ? 5 + wM : 0);
       ctx.save(); ctx.translate(cc[0], cc[1]); ctx.rotate(ang);
-      ctx.textAlign = 'left'; ctx.fillStyle = '#0a1628';
-      ctx.font = fontL(pick.n); ctx.fillText(txt, -tot / 2, 0);
+      ctx.textAlign = 'left';
+      ctx.font = fontL(pick.n);
+      if (pick.n < 8){ ctx.lineWidth = tiny ? 2.2 : 1.6; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineJoin = 'round'; ctx.strokeText(txt, -tot / 2, 0); }
+      ctx.fillStyle = '#0a1628'; ctx.fillText(txt, -tot / 2, 0);
       if (pick.withLen){ ctx.fillStyle = '#334155'; ctx.font = fontM; ctx.fillText(len, -tot / 2 + pick.wL + 5, 0.5); }
       ctx.restore();
+      pc._lbl = { n: pick.n, c: c, half: tot / 2 / fit };
     });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }

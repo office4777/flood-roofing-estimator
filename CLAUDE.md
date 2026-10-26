@@ -293,6 +293,38 @@ THE FILL:
     ordering FEWER SHEETS is kept, then LESS STEEL ("it should go which ever
     way is most efficient").
 
+THE PICTURE:
+11. EVERY LABEL STARTS AT THE GUTTER (2026-10-27: "start all the sheet
+    labelling near the gutter line so the labels are all inline and easy to
+    read"): the number (big, up to 16px) and its length (small) start a few
+    pixels in from the piece's own gutter end — the higher of its two bottom
+    corners — so a face's labels make one line along its gutter. Only where
+    that does not fit (a triangle narrowing to the gutter) does a label move
+    to the middle of its piece. THE SMALL CORNER TRIANGLES ARE LABELLED TOO
+    ("add in smaller labels to the missing labels on the small triangle
+    sheets in the corners"): the number alone at 7–5px, at the first spot in
+    the piece where it fits, on a white halo; one too small even for that
+    has its number just outside the roof's corner on a hairline, a second at
+    the same corner one line further out. Only a sliver under 300 mm goes
+    without. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
+    `sheetlayout.mjs`.
+
+ASKED, 2026-10-27, NOT DONE — report 76's wing end: he wants the strips
+where E1 (pushed in), A47/A48 (orange offcuts) and F1 (an extra) stand fed
+from the purple hip-cut sheets' offcuts. Measured: the north half of the
+combined end from its top corner to the wing's ridge is 23 strips, the
+purple hip-cut sheets on that side (C28–C30 at the main's hip, C31–C48 at
+the wing's) give 21 offcuts; A47, A48 and E1 lie between the main's ridge
+and the wing's lower ridge, which in the plain hip is the SOUTH half of the
+main's end (orange); and the purple run is lined up from the west corner,
+so each offcut is ~130 mm short of the strip beside it and the top one (F1)
+runs out. Tried and dropped, each worse than 177: the purple run started at
+the wing's corner (F1 still short — the wing's SE hip is drawn 1 px off 45°,
+~30 mm over 7 m), the corner closer ordered as a purple sheet (F1 fed, but
+49 purple and 178 sheets), and the wing's rows cut apart from the main end's
+strips (193 — the 4.48 m strips come back as extras). The question is back
+with him.
+
 ## Conventions
 
 - The public pages (`landing`, `pricing`, `fergus`, `early-access`, `signup`)
