@@ -64,7 +64,7 @@
       '.tn-sup{font-size:11px;color:#92400e;background:#fff4d6;border-radius:6px;padding:2px 6px;white-space:nowrap}',
       '.tn-note{font-size:12.5px;color:#64748b;margin:0 0 10px}.tn-err{padding:12px 14px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;margin-bottom:14px}',
       '.tn-empty{color:#64748b;font-size:13px;padding:8px 0}',
-      '@media(max-width:760px){.tn-tbl .hide-sm{display:none}}',
+      '@media screen and (max-width:760px){.tn-tbl .hide-sm{display:none}}',
     ].join('\n');
     document.head.appendChild(st);
   })();
@@ -123,7 +123,7 @@
       '</span></div>';
     if (!d.ai) h += '<p class="tn-note">The AI classifier is not available on the server (no API key), so pages are classed by their title blocks alone. Check the classes below.</p>';
     h += progressHtml(d);
-    h += '<div class="tn-card"><div class="tn-card-hd">Plan set<span class="tn-r">' + (d.files || []).length + ' file' + ((d.files || []).length === 1 ? '' : 's') + '</span></div><div class="tn-card-bd">' +
+    h += '<div class="tn-card" id="tnPlanSet"><div class="tn-card-hd">Plan set<span class="tn-r">' + (d.files || []).length + ' file' + ((d.files || []).length === 1 ? '' : 's') + '</span></div><div class="tn-card-bd">' +
       '<div class="tn-drop" id="tnDrop" onclick="document.getElementById(\'tnFile\').click()"><b>Drop the plan-set PDFs here</b> or click to choose them<small>PDF only, up to ' + (window.__tenderMaxMb || 50) + ' MB a file. Architect’s and engineer’s sets together is fine — every page is read and sorted.</small></div>' +
       '<input type="file" id="tnFile" accept="application/pdf,.pdf" multiple style="display:none" onchange="_tenderFilesPicked(this.files)">' +
       filesHtml(d) + '</div></div>';
@@ -133,7 +133,7 @@
     if (!d.doc && derr && !busy()) h += '<div class="tn-err">Drafting the tender did not work: ' + esc(derr) + '. Press “Draft the tender” to try again.</div>';
     if (!d.doc && (d.status === 'indexed' || d.status === 'failed') && d.ai && (d.pages || []).length) h += '<div class="tn-next"><span>The set is read. Next, Claude reads the specification and the drawings and prices the tender.</span><button type="button" class="tn-btn" onclick="_tnDraft()">✨ Draft the tender</button></div>';
     h += '<div id="tnDocHost">' + docHtml(d) + '</div>';
-    if (d.doc) h += '<details class="tn-fold"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';
+    if (d.doc) h += '<details class="tn-fold" id="tnSheetIdx"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';
     else h += indexHtml(d);
     r.innerHTML = h;
     wireDrop();
@@ -231,9 +231,33 @@
   var UNITS = ['m2', 'lm', 'each', 'roll', 'set', 'lot'];
   var UNIT_WORD = { m2: 'm²', lm: 'lm', each: 'ea', roll: 'roll', set: 'set', lot: 'lot' };
   var QSECTIONS = [
-    ['intro', 'Introduction'], ['spec', 'Roofing specification'], ['scope', 'Scope of work'], ['exclusions', 'Exclusions'],
-    ['assumptions', 'Assumptions & clarifications'], ['price', 'Tender price'], ['programme', 'Programme'], ['terms', 'Terms'], ['accept', 'Acceptance'],
+    ['intro', 'Introduction'], ['scope', 'Scope of work'], ['exclusions', 'Exclusions'],
+    ['assumptions', 'Assumptions & clarifications'], ['price', 'Tender price'], ['org', 'Organisation structure'], ['programme', 'Programme'], ['terms', 'Terms'], ['accept', 'Acceptance'],
   ];
+  // The roofing specification is the office's working sheet, not part of the
+  // document (2026-10-27, the owner: "remove the Roofing specification from
+  // the tender document"). A quote saved with it in its order simply drops it.
+  // A section edited by describing the change: these go to /section (words,
+  // lists, the org); the rest move the price and go to /amend.
+  var SEC_TEXT = { price: 1, intro: 1, terms: 1, accept: 1, priceNote: 1, progNote: 1, exclusions: 1, assumptions: 1, rfis: 1, org: 1 };
+  var SEC_LABEL = { intro: 'Introduction', scope: 'Scope of work', exclusions: 'Exclusions', assumptions: 'Assumptions & clarifications', rfis: 'Questions for the builder',
+    price: 'Tender price', priceNote: 'Price note', org: 'Organisation structure', programme: 'Programme', terms: 'Terms', accept: 'Acceptance',
+    spec: 'Specification', pricing: 'Pricing sheet' };
+  // A roofing company's usual shape, shown until the office describes theirs.
+  var ORG_DEFAULT = [
+    { id: 'p1', role: 'Director / Contract Manager', name: '', reports_to: '', note: '' },
+    { id: 'p2', role: 'Project Manager', name: '', reports_to: 'p1', note: '' },
+    { id: 'p3', role: 'Health & Safety', name: '', reports_to: 'p1', note: '' },
+    { id: 'p4', role: 'Office & Accounts', name: '', reports_to: 'p1', note: '' },
+    { id: 'p5', role: 'Site Supervisor', name: '', reports_to: 'p2', note: '' },
+    { id: 'p6', role: 'Roofing crews', name: '', reports_to: 'p5', note: 'Lead roofer + apprentice' },
+  ];
+  function orgOf(d){
+    var doc = d.doc || {};
+    if (doc.org && (doc.org.people || []).length) return doc.org;
+    if (d.orgDefault && (d.orgDefault.people || []).length) return { people: d.orgDefault.people, described: true, fromOther: true };
+    return { people: ORG_DEFAULT, described: false };
+  }
   var DOC = { saveT: null, saving: false, dirty: false, chatBusy: false, openSheet: false };
   function money(n){ n = +n || 0; return '$' + n.toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function money0(n){ n = +n || 0; return '$' + Math.round(n).toLocaleString('en-NZ'); }
@@ -423,7 +447,7 @@
     var h = '';
     // summary
     var p = doc.project || {}, rf = doc.roof || {};
-    h += '<div class="tn-sum">' +
+    h += '<div class="tn-sum tn-anchor" id="tn-a-overview">' +
       '<div><small>Project</small><b>' + esc(p.name || d.name || 'Tender') + '</b>' + (p.address ? '<span>' + esc(p.address) + '</span>' : '') + '</div>' +
       '<div><small>Roof</small><b>' + (rf.area_m2 ? Math.round(rf.area_m2) + ' m²' : '—') + '</b><span>' + esc([rf.roof_type, rf.pitch, rf.job_kind && rf.job_kind !== 'unknown' ? rf.job_kind : ''].filter(Boolean).join(' · ')) + '</span></div>' +
       '<div><small>Tender price</small><b>' + money0(c.sub) + ' <em>+ GST</em></b><span>' + money0(c.total) + ' incl GST · GP ' + c.gpPct.toFixed(0) + '%</span></div>' +
@@ -436,20 +460,207 @@
     if (doc.confidence_notes || (doc.rfis || []).length) {
       h += '<div class="tn-warn"><b>Check these before you send it</b>' + (doc.confidence_notes ? '<div style="margin-top:4px">' + esc(doc.confidence_notes) + '</div>' : '') + '</div>';
     }
-    h += specCard(doc, c);
-    h += scopeCard(doc);
-    h += listCard(doc, 'exclusions', 'Exclusions', 'What we are not pricing. These print on the tender.');
-    h += listCard(doc, 'assumptions', 'Assumptions & clarifications', 'What the price is based on. These print on the tender.');
-    h += listCard(doc, 'rfis', 'Questions for the builder (RFIs)', 'Not printed — ask these before you commit.');
-    h += pricingCard(doc, c);
-    h += programmeCard(doc);
-    h += quoteCard(d, doc, c);
+    var A = function(id, html){ return '<div class="tn-anchor" id="tn-a-' + id + '">' + html + '</div>'; };
+    h += A('spec', specCard(doc, c));
+    h += A('scope', scopeCard(doc));
+    h += A('exclusions', listCard(doc, 'exclusions', 'Exclusions', 'What we are not pricing. These print on the tender.'));
+    h += A('assumptions', listCard(doc, 'assumptions', 'Assumptions & clarifications', 'What the price is based on. These print on the tender.'));
+    h += A('rfis', listCard(doc, 'rfis', 'Questions for the builder (RFIs)', 'Not printed — ask these before you commit.'));
+    h += A('pricing', pricingCard(doc, c));
+    h += A('programme', programmeCard(doc));
+    h += A('doc', quoteCard(d, doc, c));
+    return '<div class="tn-lay"><nav class="tn-nav" id="tnNav">' + navHtml(d, doc) + '</nav><div class="tn-main">' + h + '</div></div>';
+  }
+  // The menu down the left, like Settings': a click scrolls to that part.
+  function navHtml(d, doc){
+    var q = doc.quote || {}, hide = q.hide || {};
+    var it = function(id, label, cls){ return '<a href="#" class="tn-nav-i ' + (cls || '') + '" data-nav="' + id + '" onclick="_tnNavGo(\'' + id + '\');return false">' + esc(label) + '</a>'; };
+    var h = '<div class="tn-nav-g">Working sheet</div>' + it('tn-a-overview', 'Overview') + it('tn-a-spec', 'Specification & quantities') + it('tn-a-scope', 'Scope of work') +
+      it('tn-a-exclusions', 'Exclusions') + it('tn-a-assumptions', 'Assumptions') + it('tn-a-rfis', 'Questions (RFIs)') + it('tn-a-pricing', 'Pricing sheet') + it('tn-a-programme', 'Programme');
+    h += '<div class="tn-nav-g">Tender document</div>' + it('tn-a-doc', 'The document');
+    qOrder(doc).forEach(function(k){
+      var lab = (q['h_' + k] != null && q['h_' + k] !== '') ? q['h_' + k] : (QSECTIONS.find(function(s){ return s[0] === k; }) || [k, k])[1];
+      h += it('tq-sec-' + k, lab, 'sub' + (hide[k] ? ' off' : ''));
+    });
+    h += '<div class="tn-nav-g">Plans</div>' + it('tnPlanSet', 'Plan set') + it('tnSheetIdx', 'Sheet index');
     return h;
   }
+  window._tnNavGo = function(id){
+    var el = document.getElementById(id); if (!el) return;
+    if (el.tagName === 'DETAILS') el.open = true;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    navMark(id);
+    _spyHold = Date.now() + 1500;   // the smooth scroll must not re-light another entry
+  };
+  function navMark(id){
+    var nav = document.getElementById('tnNav'); if (!nav) return;
+    nav.querySelectorAll('.tn-nav-i').forEach(function(a){ a.classList.toggle('on', a.getAttribute('data-nav') === id); });
+  }
+  // Which part is on screen: the last one whose top has passed a line near the top.
+  var _spyT = null, _spyHold = 0;
+  function navSpy(){
+    var nav = document.getElementById('tnNav'); if (!nav || !nav.offsetParent || Date.now() < _spyHold) return;
+    var cur = null, best = -1e9;
+    nav.querySelectorAll('.tn-nav-i').forEach(function(a){
+      var id = a.getAttribute('data-nav'), el = document.getElementById(id); if (!el) return;
+      var t = el.getBoundingClientRect().top;
+      if (t < 140 && t > best) { best = t; cur = id; }
+    });
+    navMark(cur || 'tn-a-overview');
+  }
+  window.addEventListener('scroll', function(){ clearTimeout(_spyT); _spyT = setTimeout(navSpy, 60); }, true);
+
+  // ── "Edit [section]": describe the change, typed or spoken ─────────
+  function editBtn(sec, cls){
+    return '<button type="button" class="tn-edit ' + (cls || '') + '" onclick="event.stopPropagation();_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(SEC_LABEL[sec] || sec) + '</button>';
+  }
+  var EDIT = { sec: '', busy: false, rec: null };
+  var EDIT_HINT = {
+    org: 'Describe how your company is set up, e.g. “Aron Flood is the director, Ethan Smith is project manager, Mike runs the site, and we have four crews of a lead roofer and an apprentice”. It is kept for your next tenders too.',
+    price: 'Change the words under the price, or the lines added on top (P&G, travel, a provisional sum). To change the materials or labour, use Edit Pricing sheet.',
+    spec: 'e.g. “change the roofing to 0.48 Colorsteel Endura”, “add 40 lm of parapet capping”.',
+    scope: 'e.g. “take out the skylights, the builder supplies them”. The items, the price and the programme follow.',
+    pricing: 'e.g. “allow 20% more labour for the access”, “use $38/m² for the Styleline”.',
+    programme: 'e.g. “we can only start the canopies after the main roof”, “two crews, so halve the sheeting time”.',
+  };
+  function editModal(){
+    var m = document.getElementById('tnEditModal'); if (m) return m;
+    m = document.createElement('div'); m.id = 'tnEditModal'; m.className = 'tn-modal';
+    m.innerHTML = '<div class="tn-modal-card" role="dialog" aria-modal="true" aria-labelledby="tnEditTitle"><div class="tn-modal-hd"><b id="tnEditTitle"></b><button type="button" class="tn-x" onclick="_tnEditClose()" aria-label="Close">✕</button></div>' +
+      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><label class="tn-modal-lbl" for="tnEditIn">Describe your change</label>' +
+      '<textarea id="tnEditIn" rows="4" placeholder="Type it, or press Speak and say it"></textarea>' +
+      '<div class="tn-modal-ft"><button type="button" class="tn-btn sec tn-mic" id="tnEditMic" onclick="_tnMic()">🎤 Speak</button><span id="tnEditMsg" class="tn-edit-msg"></span>' +
+      '<button type="button" class="tn-btn sec" onclick="_tnEditClose()">Cancel</button><button type="button" class="tn-btn" id="tnEditGo" onclick="_tnEditGo()">Make the change</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('mousedown', function(e){ if (e.target === m && !EDIT.busy) window._tnEditClose(); });
+    m.querySelector('#tnEditIn').addEventListener('keydown', function(e){ if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); window._tnEditGo(); } if (e.key === 'Escape' && !EDIT.busy) window._tnEditClose(); });
+    return m;
+  }
+  window._tnEdit = function(sec){
+    if (!T.data || !T.data.doc) return;
+    var m = editModal();
+    EDIT.sec = sec;
+    m.querySelector('#tnEditTitle').textContent = 'Edit ' + (SEC_LABEL[sec] || sec);
+    m.querySelector('#tnEditHint').textContent = EDIT_HINT[sec] || 'Say what you want changed in this section, in your own words.';
+    var inp = m.querySelector('#tnEditIn'); inp.value = ''; inp.disabled = false;
+    m.querySelector('#tnEditMsg').textContent = '';
+    m.querySelector('#tnEditMic').style.display = speechCtor() ? '' : 'none';
+    editBusy(false);
+    m.classList.add('open');
+    setTimeout(function(){ inp.focus(); }, 30);
+  };
+  window._tnEditClose = function(){ micStop(); var m = document.getElementById('tnEditModal'); if (m) m.classList.remove('open'); };
+  function editBusy(on){
+    EDIT.busy = on;
+    var m = document.getElementById('tnEditModal'); if (!m) return;
+    var go = m.querySelector('#tnEditGo'); go.disabled = on; go.textContent = on ? 'Working on it…' : 'Make the change';
+    m.querySelector('#tnEditIn').disabled = on; m.querySelector('#tnEditMic').disabled = on;
+  }
+  // What the section says now, as plain text, for the words-only sections.
+  function secCurrent(sec){
+    if (sec === 'org') return orgOf(T.data).people;
+    var key = sec === 'price' ? 'priceNote' : sec;
+    var el = document.querySelector('#tqPage [data-qk="' + key + '"]');
+    if (!el) return '';
+    var t = '';
+    el.querySelectorAll('p,li').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
+    return t || el.textContent.trim();
+  }
+  window._tnEditGo = async function(){
+    var m = document.getElementById('tnEditModal'); if (!m || EDIT.busy) return;
+    var inp = m.querySelector('#tnEditIn'), msg = m.querySelector('#tnEditMsg');
+    var instr = inp.value.trim();
+    if (!instr) { msg.textContent = 'Say what to change first.'; inp.focus(); return; }
+    micStop();
+    var sec = EDIT.sec;
+    editBusy(true); msg.textContent = SEC_TEXT[sec] ? 'Claude is rewriting the section…' : 'Claude is changing the tender — this can take a minute…';
+    try {
+      if (DOC.dirty) await saveNow();
+      var d = T.data.doc, x;
+      if (SEC_TEXT[sec]) x = await api('POST', '/tender/' + T.id + '/section', { section: sec, instruction: instr, current: secCurrent(sec), doc: d });
+      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
+      T.data.doc = x.doc;
+      T.data.history = [{ at: new Date().toISOString(), why: 'Edit ' + (SEC_LABEL[sec] || sec) }].concat(T.data.history || []);
+      editBusy(false);
+      window._tnEditClose();
+      docRerender();
+      var target = document.getElementById(SEC_TEXT[sec] && sec !== 'exclusions' && sec !== 'assumptions' && sec !== 'rfis' ? 'tq-sec-' + sec : 'tn-a-' + sec) || document.getElementById('tq-sec-' + sec);
+      if (target) { target.classList.add('tn-flash'); setTimeout(function(){ target.classList.remove('tn-flash'); }, 1800); }
+    } catch (e) {
+      editBusy(false);
+      msg.textContent = 'That did not work: ' + (e && e.message || e);
+    }
+  };
+  // Speech to text: the browser's own recogniser (Chrome, Edge, Safari).
+  function speechCtor(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+  function micStop(){
+    if (EDIT.rec) { try { EDIT.rec.stop(); } catch (e) {} EDIT.rec = null; }
+    var b = document.getElementById('tnEditMic'); if (b) { b.classList.remove('on'); b.textContent = '🎤 Speak'; }
+  }
+  window._tnMic = function(){
+    if (EDIT.rec) { micStop(); return; }
+    var C = speechCtor(); if (!C) return;
+    var inp = document.getElementById('tnEditIn'), b = document.getElementById('tnEditMic'), msg = document.getElementById('tnEditMsg');
+    var rec = new C();
+    rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = true;
+    var base = inp.value ? inp.value.replace(/\s*$/, ' ') : '';
+    rec.onresult = function(e){
+      var fin = '', tmp = '';
+      for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript; else tmp += e.results[i][0].transcript; }
+      inp.value = base + fin + tmp;
+    };
+    rec.onerror = function(e){ msg.textContent = e && e.error === 'not-allowed' ? 'The microphone is blocked for this site — allow it in the address bar.' : 'Could not hear that (' + (e && e.error || 'error') + ').'; micStop(); };
+    rec.onend = function(){ if (EDIT.rec === rec) micStop(); };
+    try { rec.start(); } catch (e) { msg.textContent = 'Could not start the microphone.'; return; }
+    EDIT.rec = rec; b.classList.add('on'); b.textContent = '■ Stop'; msg.textContent = 'Listening…';
+  };
+
+  // ── the organisation structure ──────────────────────────────────────
+  function orgHtml(d){
+    var org = orgOf(d), ppl = org.people || [];
+    var ids = {}; ppl.forEach(function(p){ ids[p.id] = p; });
+    var kids = {}; var roots = [];
+    ppl.forEach(function(p){ if (p.reports_to && ids[p.reports_to] && p.reports_to !== p.id) (kids[p.reports_to] = kids[p.reports_to] || []).push(p); else roots.push(p); });
+    var seen = {};
+    var li = function(p){
+      if (seen[p.id]) return ''; seen[p.id] = 1;
+      var e = function(f, v, tag, ph){ return '<' + tag + ' class="tq-ed" contenteditable="true" data-oid="' + esc(p.id) + '" data-of="' + f + '" data-ph="' + ph + '">' + esc(v || '') + '</' + tag + '>'; };
+      var ch = (kids[p.id] || []).map(li).join('');
+      return '<li><div class="tq-ob">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
+        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>' + (ch ? '<ul>' + ch + '</ul>' : '') + '</li>';
+    };
+    var h = '';
+    if (!org.described) h += '<div class="tq-orgask no-print">This is a standard structure. Press <b>✎ Edit Organisation structure</b> and describe yours (who does what, and how many crews) — it is kept for your next tenders.</div>';
+    h += ce('orgNote', qText(d.doc, 'orgNote', '<p>Our team for this project:</p>'));
+    h += '<div class="tq-org"><ul>' + roots.map(li).join('') + '</ul></div>';
+    h += '<div class="no-print" style="margin-top:6px"><button type="button" class="tn-btn sec tn-add" onclick="_tnOrgAdd()">+ Add a role</button></div>';
+    return h;
+  }
+  function orgWritable(){
+    var d = T.data.doc, o = orgOf(T.data);
+    if (!d.org || !(d.org.people || []).length || o.fromOther) d.org = { people: JSON.parse(JSON.stringify(o.people)), described: !!o.described };
+    return d.org;
+  }
+  window._tnOrgSet = function(id, f, v){
+    var org = orgWritable(); var p = org.people.find(function(x){ return x.id === id; }); if (!p || p[f] === v) return;
+    p[f] = v; org.described = true; saveSoon();
+  };
+  window._tnOrgDel = function(id){
+    var org = orgWritable(); var gone = org.people.find(function(x){ return x.id === id; }); if (!gone) return;
+    org.people.forEach(function(x){ if (x.reports_to === id) x.reports_to = gone.reports_to || ''; });
+    org.people = org.people.filter(function(x){ return x.id !== id; });
+    org.described = true; saveSoon(); docRerender();
+  };
+  window._tnOrgAdd = function(){
+    var org = orgWritable();
+    var top = org.people.find(function(x){ return !x.reports_to; });
+    org.people.push({ id: 'p' + Date.now().toString(36), role: 'New role', name: '', reports_to: top ? top.id : '', note: '' });
+    org.described = true; saveSoon(); docRerender();
+  };
 
   function specCard(doc, c){
     var items = (doc.items || []).map(function(it, i){ return { it: it, i: i }; }).sort(function(a, b){ return catSort(a.it, b.it) || a.i - b.i; });
-    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities' + editBtn('spec') + '<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">';
     h += '<p class="tn-note">Read from the plans. Every box can be changed; quantities here are the ones priced below. Hover “From” for where on the plans it came from.</p>';
     h += '<div class="tn-scroll"><table class="tn-tbl tn-spec"><thead><tr><th>Type</th><th>Item</th><th>Profile</th><th>Thickness</th><th>Grade / material</th><th>Colour</th><th class="r">Qty</th><th>Unit</th><th>From</th><th></th></tr></thead><tbody>';
     items.forEach(function(x){
@@ -470,7 +681,7 @@
   }
 
   function scopeCard(doc){
-    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work' + editBtn('scope') + '<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn sec" onclick="_tnAmend(\'simplify\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'simplify' ? 'Simplifying…' : '✂ Simplify') + '</button>' +
       '<button type="button" class="tn-btn sec" onclick="_tnAmend(\'minimise\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'minimise' ? 'Minimising…' : '⇣ Minimise scope') + '</button>' +
       '<span class="tn-note" style="margin:0">Simplify rewrites it shorter and plainer. Minimise cuts it to the core roofing and moves the rest to exclusions (and out of the price).</span></div>';
@@ -493,7 +704,7 @@
   }
   function listCard(doc, key, title, note){
     var arr = doc[key] || [];
-    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd"><p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + editBtn(key) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd"><p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
     arr.forEach(function(x, i){
       if (key === 'exclusions') h += '<li><div style="flex:1"><textarea rows="1" onchange="_tnSet(\'exclusions\',' + i + ',\'text\',this.value)">' + esc(x.text) + '</textarea>' + (x.why ? '<div class="tn-why">' + esc(x.why) + '</div>' : '') + '</div>' + rowTools(key, i) + '</li>';
       else h += '<li><textarea rows="1" onchange="_tnSet(\'' + key + '\',' + i + ',\'\',this.value)">' + esc(x) + '</textarea>' + rowTools(key, i) + '</li>';
@@ -504,7 +715,7 @@
   function pricingCard(doc, c){
     var r = doc.rates || {};
     var rate = function(f, label, v, suf){ return '<label>' + label + '<span><input inputmode="decimal" value="' + esc(v) + '" onchange="_tnRate(\'' + f + '\',this.value)">' + (suf || '') + '</span></label>'; };
-    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet' + editBtn('pricing') + '<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">';
     h += '<div class="tn-rates">' + rate('bufferPct', 'Waste allowance', num(r.bufferPct, 5), '%') + rate('markupPct', 'Material mark-up', num(r.markupPct, 10), '%') +
       rate('leadPrice', 'Lead charge-out', num(r.leadPrice, 180), '/hr') + rate('leadCost', 'Lead cost', num(r.leadCost, 45), '/hr') +
       rate('appPrice', 'Apprentice charge-out', num(r.appPrice, 90), '/hr') + rate('appCost', 'Apprentice cost', num(r.appCost, 25), '/hr') + rate('gstPct', 'GST', num(r.gstPct, 15), '%') + '</div>';
@@ -543,7 +754,7 @@
   function programmeCard(doc){
     var tl = doc.timeline || [];
     var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
-    var h = '<div class="tn-card"><div class="tn-card-hd">Programme<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">';
     h += '<div class="tn-gantt">' + tl.map(function(t, i){
       var l = 100 * num(t.start_day) / end, w = Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end);
       return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
@@ -569,8 +780,7 @@
     var dep = (window.S && S.settings && S.settings.invoicing && S.settings.invoicing.deposit_percent != null) ? S.settings.invoicing.deposit_percent : 50;
     var h = '<div class="tn-card"><div class="tn-card-hd">Tender document<span class="tn-r">click any text on the page to change it</span></div><div class="tn-card-bd">';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn" onclick="_tnPdf()">⬇ Save tender as PDF</button>' +
-      '<label class="tn-chk"><input type="checkbox" ' + (q.showBreakdown ? 'checked' : '') + ' onchange="_tnQToggle(\'showBreakdown\')"> Show the price breakdown</label>' +
-      '<label class="tn-chk"><input type="checkbox" ' + (q.showQty === false ? '' : 'checked') + ' onchange="_tnQToggle(\'showQty\')"> Show quantities in the spec</label></div>';
+      '<label class="tn-chk"><input type="checkbox" ' + (q.showBreakdown ? 'checked' : '') + ' onchange="_tnQToggle(\'showBreakdown\')"> Show the price breakdown</label></div>';
     var order = qOrder(doc), hide = q.hide || {};
     var page = '<div class="tq-page" id="tqPage">';
     page += '<div class="tq-head">' + (b.logo_data_url ? '<img class="tq-logo" src="' + esc(b.logo_data_url) + '" alt="">' : '<div class="tq-co">' + esc(b.company_name || '') + '</div>') +
@@ -584,20 +794,10 @@
       '<tr><td>Our ref</td><td>' + ce('m_ref', esc(qText(doc, 'm_ref', ref)), 'span') + '</td></tr></table>';
     order.forEach(function(sec){
       var label = (QSECTIONS.find(function(s){ return s[0] === sec; }) || [sec, sec])[1];
-      var tools = '<span class="tq-tools no-print"><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
-      if (hide[sec]) { page += '<div class="tq-sec tq-hidden no-print"><h2>' + esc(label) + ' <i>(hidden)</i>' + tools + '</h2></div>'; return; }
+      var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" onclick="_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(label) + '</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
+      if (hide[sec]) { page += '<div class="tq-sec tq-hidden no-print" id="tq-sec-' + sec + '"><h2>' + esc(label) + ' <i>(hidden)</i>' + tools + '</h2></div>'; return; }
       var body = '';
       if (sec === 'intro') body = ce('intro', qText(doc, 'intro', '<p>Thank you for the opportunity to tender for the roofing on this project. We are pleased to submit our price below for the supply and installation of the roofing as described, based on the documents listed above.</p>'));
-      else if (sec === 'spec') {
-        var showQ = q.showQty !== false;
-        body = '<table class="tq-tbl"><thead><tr><th>Item</th><th>Specification</th>' + (showQ ? '<th class="r">Qty</th>' : '') + '</tr></thead><tbody>' +
-          (doc.items || []).map(function(it, i){ return { it: it, i: i }; }).filter(function(x){ return !x.it.off; }).sort(function(a, b){ return catSort(a.it, b.it) || a.i - b.i; }).map(function(x){
-            var it = x.it;
-            var spec = [it.product, it.profile, it.thickness, it.material, it.colour].filter(Boolean).join(' · ');
-            return '<tr><td>' + esc(CAT_LABEL[it.category] || it.category) + '</td><td>' + ceList('items', x.i, 'description', it.description) + (spec && spec !== it.description ? '<div class="tq-sub">' + esc(spec) + '</div>' : '') + '</td>' +
-              (showQ ? '<td class="r nw">' + (+num(it.quantity).toFixed(1)).toLocaleString('en-NZ') + ' ' + esc(UNIT_WORD[it.unit] || it.unit) + '</td>' : '') + '</tr>';
-          }).join('') + '</tbody></table>';
-      }
       else if (sec === 'scope') body = '<ul class="tq-ul">' + (doc.scope || []).map(function(s, i){ return '<li>' + ceList('scope', i, '', s) + '</li>'; }).join('') + '</ul>';
       else if (sec === 'exclusions') body = '<ul class="tq-ul">' + (doc.exclusions || []).map(function(x, i){ return '<li>' + ceList('exclusions', i, 'text', x.text) + '</li>'; }).join('') + '</ul>';
       else if (sec === 'assumptions') body = (doc.assumptions || []).length ? '<ul class="tq-ul">' + doc.assumptions.map(function(s, i){ return '<li>' + ceList('assumptions', i, '', s) + '</li>'; }).join('') + '</ul>' : '<p class="tq-sub">None.</p>';
@@ -608,6 +808,7 @@
           '<tr class="b"><td>Tender price (excluding GST)</td><td>' + money(c.sub) + '</td></tr><tr><td>GST</td><td>' + money(c.gst) + '</td></tr><tr class="b"><td>Total including GST</td><td>' + money(c.total) + '</td></tr></table>' +
           ce('priceNote', qText(doc, 'priceNote', '<p>This price is valid for 30 days from the date above.</p>'));
       }
+      else if (sec === 'org') body = orgHtml(d);
       else if (sec === 'programme') {
         var tl = doc.timeline || [];
         var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
@@ -618,7 +819,7 @@
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
-      page += '<div class="tq-sec"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2>' + body + '</div>';
+      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' ? ' tq-keep' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2>' + body + '</div>';
     });
     page += '<div class="tq-foot">' + esc(b.company_name || '') + (b.website ? ' · ' + esc(b.website) : '') + '</div></div>';
     h += '<div class="tq-wrap">' + page + '</div></div></div>';
@@ -632,9 +833,10 @@
     pg.querySelectorAll('[contenteditable]').forEach(function(el){
       el.addEventListener('blur', function(){
         var d = T.data && T.data.doc; if (!d) return;
+        if (el.hasAttribute('data-oid')) { window._tnOrgSet(el.getAttribute('data-oid'), el.getAttribute('data-of'), el.textContent.trim()); return; }
         if (el.hasAttribute('data-qk')) {
           var k = el.getAttribute('data-qk');
-          var v = /^(intro|terms|accept|priceNote|progNote)$/.test(k) ? el.innerHTML : el.textContent.trim();
+          var v = /^(intro|terms|accept|priceNote|progNote|orgNote)$/.test(k) ? el.innerHTML : el.textContent.trim();
           if ((d.quote || {})[k] === v) return;
           window._tnQuoteSet(k, v);
           return;
@@ -651,6 +853,7 @@
       });
       el.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !el.hasAttribute('data-qk')) { e.preventDefault(); el.blur(); } });
     });
+    navSpy();
     document.querySelectorAll('#tnDocHost textarea').forEach(function(t){ if (t.id !== 'tnChatIn') { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight) + 'px'; } });
     var log = document.getElementById('tnChatLog'); if (log) log.scrollTop = log.scrollHeight;
   }
@@ -672,13 +875,23 @@
     document.body.appendChild(f);
     var w = f.contentWindow, dd = w.document;
     dd.open();
-    dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' + (css ? css.textContent : '') +
-      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
+    // print-color-adjust: Chrome leaves out every background when printing
+    // unless told otherwise — the navy section bands and the programme's bars
+    // were simply missing from the PDF (2026-10-27, the owner: "the pdf
+    // doesn't look as good as the app").
+    dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
+      '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><style>' + (css ? css.textContent : '') +
+      '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
+      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
     var go = function(){ try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ f.remove(); }, 60000); };
+    var started = false; var go1 = function(){ if (started) return; started = true; go(); };
+    // Wait for the font as well as the logo, or the PDF prints in the fallback face.
+    var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.ready) { var t = setTimeout(cb, 2500); dd.fonts.ready.then(function(){ clearTimeout(t); cb(); }); return; } } catch (e) {} cb(); };
+    var go0 = go; go = function(){ whenFonts(function(){ go0(); }); };
     var imgs = dd.images; var left = imgs.length;
-    if (!left) setTimeout(go, 150);
-    else Array.prototype.forEach.call(imgs, function(im){ if (im.complete) { if (--left === 0) setTimeout(go, 150); } else im.onload = im.onerror = function(){ if (--left === 0) setTimeout(go, 150); }; });
+    if (!left) setTimeout(go1, 150);
+    else Array.prototype.forEach.call(imgs, function(im){ if (im.complete) { if (--left === 0) setTimeout(go1, 150); } else im.onload = im.onerror = function(){ if (--left === 0) setTimeout(go1, 150); }; });
   };
 
   // ── the tender's css, added to the tab's own sheet (the PDF copies it) ──
@@ -753,7 +966,44 @@
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
       '.tq-ed{outline:none;border-radius:3px}.tq-ed:hover{box-shadow:0 0 0 1px #93c5fd}.tq-ed:focus{box-shadow:0 0 0 2px #0099cc;background:#f0f9ff}',
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
-      '@media(max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
+      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
+      // the menu down the left
+      '.tn-lay{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:start}.tn-main{padding-bottom:40vh}',
+      '.tn-nav{position:sticky;top:58px;max-height:calc(100vh - 70px);overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-nav-g{margin:8px 0 4px;padding:5px 8px;border-radius:6px;background:#0a1628;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.tn-nav-g:first-child{margin-top:0}',
+      '.tn-nav-i{display:block;padding:6px 10px;border-radius:7px;font-size:13px;color:#334155;text-decoration:none;line-height:1.3}.tn-nav-i:hover{background:#f1f5f9;color:#0a1628}',
+      '.tn-nav-i.sub{padding-left:20px;font-size:12.5px}.tn-nav-i.off{color:#94a3b8;text-decoration:line-through}',
+      '.tn-nav-i.on{background:#0099cc;color:#fff;font-weight:700}',
+      '.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:64px}',
+      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr)}.tn-nav{top:56px;z-index:5;display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      // Edit [section]
+      '.tn-edit{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;background:#0099cc;color:#fff;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}.tn-edit:hover{background:#0087b4}',
+      '.tq-tools .tq-edit{background:#0099cc;font-weight:700}',
+      '.tn-modal{position:fixed;inset:0;background:rgba(10,22,40,.45);display:none;align-items:center;justify-content:center;z-index:10060;padding:16px}.tn-modal.open{display:flex}',
+      '.tn-modal-card{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:560px;padding:16px 18px;font-family:Inter,Segoe UI,Arial,sans-serif}',
+      '.tn-modal-hd{display:flex;align-items:center;margin-bottom:8px}.tn-modal-hd b{font-size:16px;color:#0a1628;margin-right:auto}',
+      '.tn-modal-lbl{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b;margin-bottom:4px}',
+      '#tnEditIn{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:10px;border:1px solid #cbd5e1;border-radius:9px;resize:vertical;min-height:96px}#tnEditIn:focus{border-color:#0099cc;outline:none}',
+      '.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
+      '.tn-mic.on{background:#fee2e2;border-color:#fca5a5;color:#991b1b}',
+      '.tn-flash{animation:tnFlash 1.8s ease}@keyframes tnFlash{0%,40%{box-shadow:0 0 0 3px #0099cc;border-radius:8px}100%{box-shadow:0 0 0 0 transparent}}',
+      // the organisation structure
+      '.tq-orgask{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:12px}',
+      '.tq-org{overflow-x:auto;padding:4px 0 2px}.tq-org ul{display:flex;justify-content:center;margin:0;padding:16px 0 0;position:relative}.tq-org>ul{padding-top:0}',
+      '.tq-org li{list-style:none;text-align:center;position:relative;padding:16px 5px 0;flex:0 1 auto}',
+      '.tq-org li::before,.tq-org li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:16px;border-top:1.5px solid #94a3b8}',
+      '.tq-org li::after{right:auto;left:50%;border-left:1.5px solid #94a3b8}',
+      '.tq-org li:only-child::before,.tq-org li:only-child::after{display:none}.tq-org li:only-child{padding-top:0}',
+      '.tq-org li:first-child::before,.tq-org li:last-child::after{border:0 none}',
+      '.tq-org li:last-child::before{border-right:1.5px solid #94a3b8;border-radius:0 5px 0 0}.tq-org li:first-child::after{border-radius:5px 0 0 0}',
+      '.tq-org ul ul::before{content:"";position:absolute;top:0;left:50%;height:16px;border-left:1.5px solid #94a3b8}',
+      '.tq-org>ul>li::before,.tq-org>ul>li::after{display:none}.tq-org>ul>li{padding-top:0}',
+      '.tq-ob{display:inline-flex;flex-direction:column;min-width:104px;max-width:150px;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
+      '.tq-ob b{display:block;background:#0a1628;color:#fff;font-size:10.5px;line-height:1.3;padding:5px 7px;letter-spacing:.02em}',
+      '.tq-ob span{display:block;font-size:11.5px;font-weight:600;color:#0f172a;padding:4px 7px 0;min-height:15px}.tq-ob small{display:block;font-size:10px;color:#64748b;padding:1px 7px 5px;min-height:6px}',
+      '@media screen{.tq-ob [contenteditable]:empty::before{content:attr(data-ph);color:#94a3b8;font-weight:400}}',
+      '.tq-ob b.tq-ed:focus{background:#0099cc}',
+      '.tq-ox{position:absolute;top:1px;right:1px;border:none;background:transparent;color:#cbd5e1;font-size:10px;cursor:pointer;padding:1px 3px;display:none}.tq-ob:hover .tq-ox{display:block}',
       '@media print{.no-print{display:none!important}}',
     ].join('\n');
   })();

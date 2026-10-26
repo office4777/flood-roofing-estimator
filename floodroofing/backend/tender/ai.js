@@ -219,4 +219,28 @@ async function amendTender(doc, instruction, facts, opts){
   return r;
 }
 
-module.exports = { MODELS, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, draftTender, amendTender };
+// One section of the tender document rewritten (2026-10-27): the words of
+// a text section, a list, or the company's organisation structure. Small
+// and fast — the whole-tender rewrite is for changes that move the price.
+const SECTION_TOOL = {
+  name: 'record_section',
+  description: 'Record the rewritten section. Fill only the field the section uses; leave the others as empty arrays.',
+  strict: true,
+  input_schema: obj({
+    paragraphs: { type: 'array', items: S('a paragraph of plain text') },
+    bullets: { type: 'array', items: S('one bullet, plain text') },
+    exclusions: { type: 'array', items: obj({ text: S(), why: S() }) },
+    lines: { type: 'array', items: obj({ desc: S(), amount: N('NZD ex GST') }) },
+    people: { type: 'array', items: obj({ id: S('short stable id, e.g. p1'), role: S(), name: S('the person\'s name, or "" if not given'), reports_to: S('id of the person above, or "" for the top'), note: S('e.g. "2 crews", qualifications, or ""') }) },
+    summary: S('one short sentence saying what you changed'),
+  }),
+};
+async function editSection(section, label, current, instruction, opts){
+  const text = ['THE SECTION: ' + label + ' (' + section + ')', '', 'AS IT IS NOW:', String(current || '(empty)').slice(0, 20000), '',
+    'THE ESTIMATOR\'S INSTRUCTION:', String(instruction || '').slice(0, 4000)].join('\n');
+  const r = await structured('extract', 'edit-section', SECTION_TOOL, text, [], Object.assign({ maxTokens: 6000 }, opts || {}));
+  r.result = r.input || {};
+  return r;
+}
+
+module.exports = { MODELS, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, SECTION_TOOL, draftTender, amendTender, editSection };
