@@ -3035,6 +3035,23 @@ Discipline (non-negotiable):
   apex because its block (13 × 20) is the bigger. Report 70: north slope 30
   sheets, the wing's triangle C1–C7 whole + ✂C8–✂C13 feet, 75 → 74 sheets.
   `fixtures-report70.json`; 3 pins in `sheetlayout.mjs` fail on the old engine.
+  AND A WING IN FRONT OF THE MAIN'S HIP END (feedback reports 71–76,
+  2026-10-27: "make sure the same logic carries through on these attached
+  roofs too"). 72 and 73 already did (a wing before the main's SLOPE). In
+  71, 74, 75 and 76 the wing's end faces the same way as the main's own hip
+  END: the main's end is the template now (`apexOf`, `adoptOn`,
+  `f.adoptedBy`; its apex cells carry `k` from `anchorT`), each column's
+  wing piece and the main end's leftover (valley to hip) are one end strip
+  — square at the main's gutter, cut once at its hip, `sheetOneCut` with its
+  own hand — fed from one offcut as the plain hip's end strip is, the foot
+  carried. Against a hip end THE LONGEST SHEETS decide the rectangle, not
+  the area (75/76: the wing is the longer block but 13.5 m sheets beside
+  15.3 m). The roof is laid BOTH ways (`opts.noApexTmpl`) and the pairing
+  kept unless the other orders fewer sheets or as many and less steel: 71's
+  wing carries the main's west slope on, so the rows that fed the main's
+  end in the plain hip are the wing's own sheets and the pairing cost 5 m —
+  its old lay stands. 74: 137 → 133, 75: 142 → 132, 76: 183 → 179.
+  Fixtures 71–76; `sheetlayout.mjs` 366.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first
