@@ -67,7 +67,7 @@ await pg.waitForTimeout(400);
 const aloneQty = await sheetQty();
 const aloneArea = await areaOf([0]);
 check('with nothing folded, the main tab sheets the main roof alone',
-  aloneQty > 0 && Math.abs(aloneQty - aloneArea) <= Math.max(2, aloneArea * 0.03),
+  aloneQty > 0 && aloneQty >= aloneArea * 0.98 && aloneQty <= aloneArea * 1.15,
   aloneQty + ' m² of sheet vs ' + r1(aloneArea) + ' m² of roof');
 
 await pg.evaluate(() => { _setRoofMode(1, 'folded'); _setRoofMode(2, 'folded'); _setRoofMode(5, 'folded'); });
@@ -79,7 +79,9 @@ const groupQty = await sheetQty();
 const groupArea = await areaOf(groupIdx);
 check('folding three roofs in puts them in the main group', groupIdx.length === 4, JSON.stringify(groupIdx));
 check('THE FIX: the main tab now sheets the whole group, not the main roof alone',
-  groupQty > aloneQty + 10 && Math.abs(groupQty - groupArea) <= Math.max(2, groupArea * 0.03),
+  // Since 2026-10-27 the sheets are the sheet layout's steel (length × cover),
+  // offcuts included — never less than the roof, and not wildly more.
+  groupQty > aloneQty + 10 && groupQty >= groupArea * 0.98 && groupQty <= groupArea * 1.15,
   groupQty + ' m² of sheet vs ' + r1(groupArea) + ' m² across the group (was ' + aloneQty + ')');
 const tileTxt = await pg.evaluate(() => {
   const bar = document.getElementById('pricingRoofSwitchBar');
