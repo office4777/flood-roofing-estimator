@@ -31,7 +31,12 @@ function mount(app, deps){
     .split(/[\s,]+/).map(function(x){ return x.trim().toLowerCase(); }).filter(Boolean);
   async function enabledFor(req){
     if (process.env.TENDERING_ALL === 'true') return true;
-    const em = String((req.user && req.user.email) || '').toLowerCase();
+    let em = String((req.user && req.user.email) || '').trim().toLowerCase();
+    // A token minted without an email still names the person: read theirs.
+    if (!em && req.user && req.user.id) {
+      try { const p = await supabase.from('profiles').select('email').eq('id', req.user.id).maybeSingle();
+        em = String((p && p.data && p.data.email) || '').trim().toLowerCase(); } catch (e) {}
+    }
     if (em && TENDER_USERS.indexOf(em) >= 0) return true;
     try {
       const row = await settingsRow(req, 'branding,company_id,user_id');

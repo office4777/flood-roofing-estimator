@@ -159,6 +159,13 @@ check('a login the server names gets the type with its business switched off, an
 liveOn = false;
 r = await pg.evaluate(async () => { await window._tenderEnabledCheck(); return { avail: _tenderingAvailable(), kept: JSON.parse(localStorage.getItem('fr_tender_on') || 'null') }; });
 check('…and a login the server says no to does not', !r.avail && r.kept.on === false, JSON.stringify(r));
+// A stored profile with no email (one sign-in path keeps the profile row as
+// it is) must not stop the check, and opening the window asks by itself.
+liveOn = true;
+r = await pg.evaluate(async () => { window.__tenderingLive = null; localStorage.setItem('fr_user', JSON.stringify({ id: 'u-1', name: 'Sam' }));
+  openJobDetailsModal('new'); await new Promise(res => setTimeout(res, 500)); const b = document.getElementById('jtBtn_tender');
+  const out = { avail: _tenderingAvailable(), shown: b.style.display !== 'none' }; closeJobDetailsModal(); return out; });
+check('a login whose stored profile has no email still gets the type, and opening the job window asks', r.avail && r.shown, JSON.stringify(r));
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 await b.close();

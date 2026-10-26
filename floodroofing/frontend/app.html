@@ -5115,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-25T07:29:45Z';
+  window.APP_BUILT_AT = '2026-10-26T18:41:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -22790,6 +22790,9 @@ function openJobDetailsModal(mode){
   // Reflect the current job's type (edit) or default to roofing (new).
   window._pendingJobType = (window._jobDetailsMode === 'edit' && S.quote) ? _quoteKindNorm(S.quote.quoteKind) : 'roofing';
   _syncJobTypeToggle();
+  // Ask the server afresh whether AI Tendering is on for this login; its
+  // answer re-draws the toggle (tender.js). Kept out of the way of the open.
+  try { if (window._tenderEnabledCheck) window._tenderEnabledCheck(); } catch(e){}
   // New job → offer the next job number from Settings (editable).
   var jn = document.getElementById('jobNo');
   if (jn && window._jobDetailsMode === 'new' && !jn.value.trim()) jn.value = _nextJobNo();

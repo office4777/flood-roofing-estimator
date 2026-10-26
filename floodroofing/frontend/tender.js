@@ -306,28 +306,56 @@
     if (!busy() && T.poll) { clearInterval(T.poll); T.poll = null; }
   }
 
-  // Is it on for whoever is signed in? Asked once a little after load (the
-  // app's api() and settings are up by then) and again on a sign-in. The
-  // last answer is kept per login so a reload shows the type straight away.
-  function _who(){ try { return String((JSON.parse(localStorage.getItem('fr_user') || 'null') || {}).email || '').toLowerCase(); } catch (e) { return ''; } }
+  // Is it on for whoever is signed in? The SERVER decides, from the session
+  // token, so this asks whenever there is a token — it never waits on
+  // fr_user carrying an email (a sign-in path that stored a profile without
+  // one left the check silently skipped and the type never offered). Asked
+  // after load (retrying until the app's api() is up), again on a sign-in,
+  // and every time the job details window opens. The last answer is kept
+  // per login so a reload shows the type straight away.
+  function _who(){
+    try {
+      var u = JSON.parse(localStorage.getItem('fr_user') || 'null') || {};
+      if (u.email) return String(u.email).toLowerCase();
+      if (u.id) return 'id:' + u.id;
+    } catch (e) {}
+    try {
+      var t = localStorage.getItem('fr_token') || '';
+      var pl = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (pl.email) return String(pl.email).toLowerCase();
+      if (pl.id || pl.sub) return 'id:' + (pl.id || pl.sub);
+    } catch (e) {}
+    return '';
+  }
   function _applyLive(on){
     window.__tenderingLive = !!on;
+    // An edit window opened before the answer came read a tender job as roofing.
+    try { if (on && window._jobDetailsMode === 'edit' && window.S && S.quote && S.quote.quoteKind === 'tender') window._pendingJobType = 'tender'; } catch (e) {}
     try { if (typeof _syncJobTypeToggle === 'function') _syncJobTypeToggle(); } catch (e) {}
     try { if (typeof _qkMenuRender === 'function') _qkMenuRender(); } catch (e) {}
     try { if (typeof _tenderNavSync === 'function') _tenderNavSync(); } catch (e) {}
   }
+  var _askTries = 0;
   window._tenderEnabledCheck = async function(){
+    if (!localStorage.getItem('fr_token')) return false;
+    if (typeof api !== 'function') {   // app.html still parsing: try again shortly
+      if (++_askTries < 30) setTimeout(window._tenderEnabledCheck, 1500);
+      return false;
+    }
     var who = _who();
-    if (!who || !localStorage.getItem('fr_token') || typeof api !== 'function') return;
     try {
       var r = await api('GET', '/tender/enabled');
       try { localStorage.setItem('fr_tender_on', JSON.stringify({ who: who, on: !!(r && r.enabled) })); } catch (e) {}
       _applyLive(r && r.enabled);
-    } catch (e) {}   // unknown stays as it was: hidden unless an earlier answer said yes
+      return true;
+    } catch (e) {   // unknown stays as it was; one more try in a while
+      if (++_askTries < 30) setTimeout(window._tenderEnabledCheck, 5000);
+      return false;
+    }
   };
   try {
     var kept = JSON.parse(localStorage.getItem('fr_tender_on') || 'null');
     if (kept && kept.who && kept.who === _who()) window.__tenderingLive = !!kept.on;
   } catch (e) {}
-  setTimeout(function(){ window._tenderEnabledCheck(); }, 3000);
+  setTimeout(function(){ window._tenderEnabledCheck(); }, 1500);
 })();
