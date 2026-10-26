@@ -303,6 +303,17 @@ THE FILL:
    roofer trims the corner at the valley — so an offcut can feed it, as a
    nick under the ridge cap (≤ 50 mm) already was. It took report 76's
    pushed-in E1 out: 177 → 176, still 48 orange and 48 purple.
+8c. THE CLOSER CARRIES THE LONGEST ROW (report 76, 2026-10-27: "double check
+   that the purple offcuts from sheets C28 through to C48/49 can't be moved
+   slightly over and be used in place of F1 ... usually it would work"). A
+   run's last sheet is lapped flush at the corner, as the plain hip closes;
+   where only a sliver of it shows (95 mm on report 76) it used to be trimmed
+   off its neighbour's offcut, so its own near-whole offcut never existed and
+   the end's longest row was an extra. Before any extra is ordered, such a
+   closer becomes a sheet of its run when its offcut feeds the open piece —
+   one sheet for one, never more steel. Report 76: E1 is now ↺C49 (49
+   purple, 48 orange, 176, nothing extra); report 20's small hip, 74 and 50
+   lose an extra each the same way; no tally moves anywhere.
 9. An extra is a sheet at its OWN length — never two extras cut from one
    sheet ("e1 should just be a full sheet with a small amount of wasteage").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
@@ -360,8 +371,12 @@ THE ORDER:
     (the hip end it stands in front of) rather than the lower block's north
     slope 10 m away: 89 → 90. Put to the owner, not yet answered.
 
-(2026-10-27 later: the pushed-in E1 below is GONE — rule 8b — and F1 is now
-E1, the one extra; report 76 is 176 sheets.)
+(2026-10-27 later: the pushed-in E1 below is GONE — rule 8b — and F1, then
+E1, the one extra, is fed from the purple closer C49 — rule 8c. A48 and A47
+STAY ORANGE, re-measured: they lie below the main's ridge, the south half of
+the plain hip's end, whose cut is the opposite hand to every purple offcut
+(a purple offcut there would have to be flipped), and every purple offcut
+C29–C49 is already on the 21 rows above them, one each.)
 ASKED, 2026-10-27, NOT DONE — report 76's wing end: he wants the strips
 where E1 (pushed in), A47/A48 (orange offcuts) and F1 (an extra) stand fed
 from the purple hip-cut sheets' offcuts. Measured: the north half of the

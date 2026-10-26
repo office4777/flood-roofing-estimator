@@ -382,11 +382,19 @@ for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 176, 183]]){
   const seq = r.pieces.filter(p => p.face === shared.id && p.ordered).sort((a, b) => a.k - b.k);
   const runs = []; seq.forEach(p => { if (!runs.length || runs[runs.length - 1].b !== p.block) runs.push({ b: p.block, n: 0, first: p }); runs[runs.length - 1].n++; });
   const bl = L => r.blocks.find(b => b.letter === L);
-  check('report 76: the main\'s two slopes carry the same number of sheets — 48 orange, 48 purple — the purple ones the wing\'s far hip cuts at the main\'s own length',
-    bl('A') && bl('C') && bl('A').count === 48 && bl('C').count === 48 && runs.map(x => x.b).join('') === 'CDC' && runs[2].n >= 17 && bl('C').Lmm === bl('A').Lmm,
+  // (48 + 1 since 2026-10-27: the purple run's closer, lapped flush at the
+  // wing's corner, is a purple sheet — its offcut feeds the end's longest
+  // row, where an extra stood: "the purple offcuts from sheets C28 through
+  // to C48/49 ... be used in place of F1".)
+  check('report 76: the main\'s two slopes carry the same number of sheets — 48 orange, 48 purple and the purple closer at the wing\'s corner — the purple ones the wing\'s far hip cuts at the main\'s own length',
+    bl('A') && bl('C') && bl('A').count === 48 && bl('C').count === 49 && runs.map(x => x.b).join('') === 'CDC' && runs[2].n >= 18 && bl('C').Lmm === bl('A').Lmm,
     JSON.stringify(runs.map(x => x.b + x.n)) + ' ' + JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + '@' + b.Lmm)));
   check('…the strip where the main\'s hip runs down onto the wing\'s ridge (82 mm of hip across one corner) is a green sheet, the corner under the hip cap',
     runs[1] && runs[1].b === 'D' && runs[1].first.longMm > bl('D').Lmm && runs[1].first.longMm - bl('D').Lmm <= 100, runs[1] ? runs[1].first.label + ' ' + runs[1].first.longMm + ' vs ' + bl('D').Lmm : '');
+  const closer = r.pieces.find(p => p.face === shared.id && p.lapped && p.ordered);
+  const endL = labels(r, gridFaces(r)[0]);
+  check('…the purple closer lapped flush at the wing\'s corner is a sheet, and its offcut feeds the end\'s longest row — nothing extra on report 76',
+    closer && closer.block === 'C' && r.extras === 0 && endL.includes('✂↺' + closer.label), (closer ? closer.label : 'no closer') + ' extras ' + r.extras + ' ' + JSON.stringify(endL));
 }
 // Report 77, THE DOUBLE CASCADE (2026-10-27: "double cascade sheet layout
 // not correct, do your best using the new logic"): a 14 × 10 m main with a
@@ -413,8 +421,8 @@ r = await lay(fx('report77'));
 // the strips its wings' far hips cut are the main's 2.82 sheets (rule 5),
 // and their offcuts feed the wings' ends: 38 sheets where it was 41.
 r = await lay(fx('report50'));
-check('report 50: the bottom slope carries the strips its wings\' far hips cut at the main\'s length — 38 sheets, 3 extras, where it was 41 and 6',
-  nOf(r) === 38 && r.extras === 3, tallyOf(r) + ' extras ' + r.extras);
+check('report 50: the bottom slope carries the strips its wings\' far hips cut at the main\'s length — 38 sheets, 2 extras (3 before the closer rule), where it was 41 and 6',
+  nOf(r) === 38 && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
 // 71: the wing carries the main's west slope on. The rows its far hip cuts
 // are the main's west-slope sheets (8.50, not the wing's 5.00), so their
 // offcuts feed the paired end strips as the plain hip's would: 70 sheets

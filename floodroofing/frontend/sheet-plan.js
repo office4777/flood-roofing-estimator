@@ -8301,6 +8301,45 @@ function _sheetPuzzleFill(pz){
   // a full sheet in at its apex.
   pushPass(false);
   matchPool();
+  // THE CLOSER CARRIES THE LONGEST ROW (feedback report 76, 2026-10-27, the
+  // owner: "double check that the purple offcuts from sheets C28 through to
+  // C48/49 can't be moved slightly over and be used in place of F1 ...
+  // usually it would work"). A run's last sheet is lapped flush at the
+  // corner, exactly as the plain hip closes; when only a few millimetres of
+  // it show (95 mm on report 76) it reads as a sliver and is trimmed off its
+  // neighbour's offcut — so the near-whole offcut that sheet leaves behind
+  // never exists, and the end's longest row, which in the plain hip is fed
+  // from exactly that offcut, is ordered as an extra. Before any extra is
+  // ordered, a lapped closer that was trimmed as a scrap becomes a sheet of
+  // its own run when its offcut feeds the open piece: one sheet for one
+  // sheet, never more steel than the extra it replaces.
+  open.slice().forEach(function(pc){
+    if (!pc.hand) return;
+    var lenX = roundUp(mmOf(pc.sheetLongPx || pc.longPx, pc.face));
+    var hit = null;
+    pz.pieces.some(function(Q){
+      if (!Q.scrap || !(Q.lapMm > 0) || !Q.hand || Q.roofIdx !== pc.roofIdx) return false;
+      var b = null;
+      blocks.forEach(function(bb){ if (!b && !bb.extra && bb.face === Q.face && bb.pieces.some(function(x){ return Math.abs(x.k - Q.k) === 1; })) b = bb; });
+      if (!b || b.Lmm > lenX + _PZ_ROUND_MM) return false;
+      var was = Q.block; Q.block = b;
+      var ocs = offcutOf(Q);
+      Q.block = was;
+      var oc = ocs.filter(function(o){ return o && fitsOc(pc, o); })[0];
+      if (!oc) return false;
+      hit = { Q: Q, b: b, oc: oc, ocs: ocs };
+      return true;
+    });
+    if (!hit) return;
+    var Q = hit.Q, b = hit.b;
+    if (Q.block && Q.block.feeds) Q.block.feeds--;
+    Q.scrap = false; Q.from = null; Q.oc = null;
+    addToBlock(b, Q); b.cutCount++;
+    Q.num = b.pieces.length; Q.label = b.letter + Q.num;
+    hit.ocs.forEach(function(o){ if (o) o.donor = Q.label; });
+    hit.ocs.forEach(function(o){ if (o) pool.push(o); });
+    feed(pc, hit.oc);
+  });
   // What nothing fits is ordered as an extra sheet, each at ITS OWN length
   // (an extras block holds several lengths; a block of real sheets one).
   //
