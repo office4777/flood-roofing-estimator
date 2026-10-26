@@ -271,6 +271,17 @@ THE LAY:
    missing purple sheets should go where green sheets d40 ... d56 are") —
    their offcuts are the ones the plain hip feeds that end from. The wing's
    own block only gets its full strips between.
+   c. ONE ROOF MAY CARRY BOTH (report 77, the DOUBLE CASCADE, 2026-10-27:
+      "double cascade sheet layout not correct, do your best using the new
+      logic"): a 14 × 10 m main with a wing off its north slope flush with the
+      west wall (4a) and a lower block off its east hip end flush with the
+      south wall (4b). Every slope facing the wing's way is a candidate, not
+      only the longest (the longest north slope there was the lower block's
+      2.2 m one, which a 4 m end can never come out of), and the wing must
+      stand behind the template ITSELF — not merely somewhere along its
+      gutter line followed through the roof (the lower block's end lies on
+      the line of the top wing's east gutter, with the main's own east end
+      between). 75 → 69 sheets, 9 extras → 2.
 6. A HIP-CAP CORNER IS NOT A LONGER SHEET. A strip a hip crosses only at a
    corner, where a hip runs onto a lower ridge (≤ 100 mm past the lower
    block), is the lower block's sheet — "c31 should be a green sheet because
@@ -287,6 +298,11 @@ THE FILL:
    full sheet in at the head of the run so every offcut moves one strip
    outward, rather than ordering short extras. A valley tail may be laid from
    its point. Slivers are scraps trimmed off an offcut.
+8b. A NICK AT THE GUTTER END IS NOT A CUT (report 77): a strip a valley clips
+   by under a tenth of a cover (76 mm) at its gutter end is square there — the
+   roofer trims the corner at the valley — so an offcut can feed it, as a
+   nick under the ridge cap (≤ 50 mm) already was. It took report 76's
+   pushed-in E1 out: 177 → 176, still 48 orange and 48 purple.
 9. An extra is a sheet at its OWN length — never two extras cut from one
    sheet ("e1 should just be a full sheet with a small amount of wasteage").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
@@ -335,7 +351,17 @@ THE ORDER:
     What it moved, measured: the hand-counted double-L 73 → 89 (the layout
     orders 34 one-off extras there), the T 71 → 74, report 75 110 → 130,
     report 71 62 → 70; typesnap's roofing quotes +2% (sheets line only).
+    THE DOUBLE-L'S MIDDLE BLOCK IS A SQUARE PYRAMID (10 × 10 m, four
+    triangles, no slope run), and every one of its strips is ordered at its
+    own length — the 34 extras. Rule 9 forbids two extras from one sheet, but
+    a pyramid's strips pair across each hip (v and L − v off one full sheet)
+    exactly as a plain hip's end is fed from its slope; nothing does that yet.
+    Since report 77 its top wing's end is laid on the pyramid's north face
+    (the hip end it stands in front of) rather than the lower block's north
+    slope 10 m away: 89 → 90. Put to the owner, not yet answered.
 
+(2026-10-27 later: the pushed-in E1 below is GONE — rule 8b — and F1 is now
+E1, the one extra; report 76 is 176 sheets.)
 ASKED, 2026-10-27, NOT DONE — report 76's wing end: he wants the strips
 where E1 (pushed in), A47/A48 (orange offcuts) and F1 (an extra) stand fed
 from the purple hip-cut sheets' offcuts. Measured: the north half of the
@@ -3210,7 +3236,7 @@ not a saving, and 49 purple to 48 orange.
   (`p.capMm` keeps the block at its own length). The roof is still laid
   BOTH ways (`opts.noApexTmpl`), fewer sheets then less steel kept. 71: 74 →
   70 (paired now: the rows its wing's far hip cuts are the main's 8.50s),
-  74: 137 → 125, 75: 142 → 130, 76: 183 → 177 (48 orange, 48 purple),
+  74: 137 → 125, 75: 142 → 130, 76: 183 → 177 (48 orange, 48 purple; 176 since rule 8b),
   and REPORT 50 (hand-counted) 41 → 38: the bottom slope carries the strips
   its wings' far hips cut at 2.82, three short extras gone. Every other
   fixture's tally is byte-identical (diffed against the previous commit).

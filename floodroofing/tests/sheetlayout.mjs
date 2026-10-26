@@ -366,7 +366,7 @@ for (const [n, want] of [[72, 69], [73, 136]]){
 // hip's end strip in each column is the wing's piece plus what is left of
 // the main's end between the valley and its hip — one sheet, fed from one
 // offcut, the foot carried. The main is the block with the longest sheets.
-for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 177, 183]]){
+for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 176, 183]]){
   r = await lay(fx('report' + n));
   const gf = gridFaces(r);
   check('report ' + n + ': the wing\'s end is laid on the main\'s hip-end strips and paired with them (feet carried), ' + want + ' sheets where it was ' + was,
@@ -387,6 +387,27 @@ for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 177, 183]]){
     JSON.stringify(runs.map(x => x.b + x.n)) + ' ' + JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + '@' + b.Lmm)));
   check('…the strip where the main\'s hip runs down onto the wing\'s ridge (82 mm of hip across one corner) is a green sheet, the corner under the hip cap',
     runs[1] && runs[1].b === 'D' && runs[1].first.longMm > bl('D').Lmm && runs[1].first.longMm - bl('D').Lmm <= 100, runs[1] ? runs[1].first.label + ' ' + runs[1].first.longMm + ' vs ' + bl('D').Lmm : '');
+}
+// Report 77, THE DOUBLE CASCADE (2026-10-27: "double cascade sheet layout
+// not correct, do your best using the new logic"): a 14 × 10 m main with a
+// wing off its north slope flush with the west wall and a lower block off
+// its east hip end flush with the south wall. The main is the rectangle;
+// the top wing's end is cut from the main's north slope (the longest north
+// slope is the lower block's 2.2 m one, and was the only one tried), and
+// the lower block's end from the main's east hip end (not the top wing's
+// slope, whose gutter line merely runs on through the roof to meet it).
+// And a strip the valley nicks by 55 mm at the gutter is square there.
+r = await lay(fx('report77'));
+{
+  const gf = gridFaces(r), T = g => r.faces.find(f => f.id === g.template);
+  const north = gf.find(g => g.d[1] > 0.5), east = gf.find(g => g.d[0] < -0.5);
+  check('report 77: the top wing\'s end takes the main\'s north slope columns (a 4 m end, a 5.1 m slope), the lower block\'s end the main\'s east hip end — 69 sheets where it was 75, 2 extra where it was 9',
+    gf.length === 2 && north && east && T(north).lay === 'run' && T(north).refLen > 5 && T(east).lay === 'apex' && T(east).d[0] < -0.5 &&
+    labels(r, north).filter(l => l[0] === '✂').length >= 4 && nOf(r) === 69 && r.extras <= 2,
+    tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => [tmplLay(r, f), labels(r, f)])));
+  const C = r.blocks.find(b => b.face === (north && north.template));
+  check('…the main\'s north slope is one run of full sheets along the whole 14 m, the plain hip\'s 19', C && C.count === 19, JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + '@' + b.Lmm)));
+  rules('report 77', r);
 }
 // Report 50 (hand-counted): the T's bottom slope runs under both wings, so
 // the strips its wings' far hips cut are the main's 2.82 sheets (rule 5),
@@ -710,7 +731,7 @@ async function labelsOf(g){
   check('…and the pricing\'s sheets row is the same sheets, by the m² of steel or the metre run',
     Math.abs(h.qty - (h.unit === 'lm' ? h.lm : h.m2)) < 0.01 && Math.abs(h.m2 - h.lm * h.cover / 1000) < 0.01 && /48 sheets from the sheet layout/.test(h.note), h.qty + ' ' + h.unit + ' — ' + h.note);
   const r = await cnt(fx('report76'));
-  check('report 76: the cut list orders the layout\'s 177 sheets', r.rows === r.pz && r.pz.split(' ').reduce((a, x) => a + +x.split('@')[0], 0) === 177, r.rows);
+  check('report 76: the cut list orders the layout\'s 176 sheets', r.rows === r.pz && r.pz.split(' ').reduce((a, x) => a + +x.split('@')[0], 0) === 176, r.rows);
   const guard = await pg.evaluate(() => ({ thin: _pzTallyCovers([{ Lmm: 1000, count: 1 }], -1), whole: _pzTallyCovers(_sheetPuzzleBuild({ roofIdxs: [-1] }).tally, -1) }));
   check('a layout covering less steel than the roof\'s own area is never the order (the engine stands in)', guard.thin === false && guard.whole === true, JSON.stringify(guard));
   const pit = await pg.evaluate(() => {

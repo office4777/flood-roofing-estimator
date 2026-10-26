@@ -7141,6 +7141,15 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     if (!topSq && eA && eB && eW >= coverPx * 0.5 &&
         Math.max(Math.abs(eA[1] - lMax), Math.abs(eB[1] - lMax)) * scaleM * (f.pf || 1) * 1000 <= 50) topSq = true;
     var botSq = !!(eA && eB && Math.abs(eA[0] - lMin) < 0.6 && Math.abs(eB[0] - lMin) < 0.6);
+    // AND A NICK AT THE GUTTER END IS NOT A CUT EITHER (feedback report 77,
+    // 2026-10-27, the double cascade): the main's end strip beside the apex
+    // ran 55 mm past where a valley starts, so the valley clipped its corner
+    // at the gutter. Read as cut at both ends, it was ordered as a whole
+    // 5.12 m sheet while the offcut that fits it lay unused. A roofer trims
+    // that corner off the sheet at the valley; under a tenth of a cover it is
+    // a square end.
+    if (!botSq && eA && eB && eW >= coverPx * 0.5 &&
+        Math.max(Math.abs(eA[0] - lMin), Math.abs(eB[0] - lMin)) * scaleM * (f.pf || 1) * 1000 <= 76) botSq = true;
     var cutTop = !topSq, cutBot = !botSq;
     // Handedness of a one-cut piece: look from the square end towards the
     // diagonal; is the long side on the left or the right? A spin keeps it,
@@ -7461,12 +7470,16 @@ function _sheetPuzzleBuild(opts){
     // sheet narrower each side", which laid report 70's 5.00 m wing end from
     // its own apex beside a 5.69 m slope and ordered four extras for it.
     var dKey = function(f){ return Math.round(f.d[0]*100) + ',' + Math.round(f.d[1]*100); };
+    // EVERY slope facing the same way is a candidate, longest first (feedback
+    // report 77, 2026-10-27, the double cascade: the longest north slope was
+    // the lower block's 2.2 m one, the top wing's 4 m end could never come out
+    // of it, and the main's own north slope behind the wing was never tried).
     var tmplOf = {};
     pend.forEach(function(f){
       if (f.lay !== 'run' && f.lay !== 'barge') return;
-      var k = dKey(f);
-      if (!tmplOf[k] || (f.T1 - f.T0) > (tmplOf[k].T1 - tmplOf[k].T0)) tmplOf[k] = f;
+      (tmplOf[dKey(f)] = tmplOf[dKey(f)] || []).push(f);
     });
+    Object.keys(tmplOf).forEach(function(k){ tmplOf[k].sort(function(a, b){ return (b.T1 - b.T0) - (a.T1 - a.T0); }); });
     // A WING IN FRONT OF THE MAIN'S HIP END (feedback reports 71, 74, 75
     // and 76, 2026-10-27, the owner: "make sure the same logic carries
     // through on these attached roofs too"). The wing's end faces the same
@@ -7491,7 +7504,7 @@ function _sheetPuzzleBuild(opts){
     pend.forEach(function(f){
       if (f.lay !== 'apex') return;
       var cands = [];
-      if (tmplOf[dKey(f)]) cands.push(tmplOf[dKey(f)]);
+      (tmplOf[dKey(f)] || []).forEach(function(T){ cands.push(T); });
       if (!f.gablet && !opts.noApexTmpl) (apexOf[dKey(f)] || []).slice().sort(function(a, b){ return vSpanOf(b) - vSpanOf(a); }).forEach(function(T){ cands.push(T); });
       cands.some(function(T){ return adoptOn(f, T); });
     });
@@ -7515,6 +7528,13 @@ function _sheetPuzzleBuild(opts){
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
       if (fT1 < T.T0 - tol || fT0 > T.T1 + tol) return false;              // beside the rectangle, not in it
+      // AND THE WING STANDS BEHIND THE TEMPLATE ITSELF, not only somewhere
+      // along its gutter line followed through the roof: the valley that
+      // cuts the template's sheets is where the wing joins it (report 77:
+      // the lower block's east end lies on the line of the top wing's east
+      // gutter, 15 m down the building with the main's own east end between
+      // — that end is the template, not the wing's slope).
+      if (fT1 < T.t0 + tol || fT0 > T.t1 - tol) return false;
       if (T.lay === 'apex') f.adoptedBy = T;
       f.lay = 'grid'; f.tSign = sgn; f.template = T; f.gridGroup = T; T.gridGroup = T; T.tSign = 1;
       T.adopters = (T.adopters || []).concat([f]);
