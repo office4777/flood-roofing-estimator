@@ -107,6 +107,17 @@ function mount(app, deps){
       const out = Object.assign({}, t, { files: files.data || [], pages: pg, tasks: tasks.data || [], ai: ai.available(),
         aiFailed: failed.length ? { pages: failed.length, error: failed[0].aiError || '' } : null });
       out.history = (Array.isArray(t.doc_history) ? t.doc_history : []).map(h => ({ at: h.at, why: h.why }));
+      // The organisation structure is the company's, not the job's: a new
+      // tender starts from the one last described on any of its tenders.
+      if (!(t.doc && t.doc.org && (t.doc.org.people || []).length)) {
+        try {
+          let q = supabase.from('tender_jobs').select('id,updated_at,org:doc->org');
+          q = t.company_id ? q.eq('company_id', t.company_id) : q.eq('user_id', t.user_id);
+          const { data: others } = await q.order('updated_at', { ascending: false }).limit(30);
+          const hit = (others || []).find(o => o.id !== t.id && o.org && o.org.described && (o.org.people || []).length);
+          out.orgDefault = hit ? hit.org : null;
+        } catch (e) { out.orgDefault = null; }
+      }
       delete out.doc_history;
       res.json(out);
     } catch (e) { oops(res, e, 'GET /tender/:id'); }
@@ -304,6 +315,47 @@ function mount(app, deps){
     } catch (e) { oops(res, e, 'POST /tender/:id/amend'); }
   });
 
+  // Edit one section of the tender document by describing the change (typed
+  // or spoken). Words, lists and the organisation structure only — a change
+  // that moves the price goes through /amend, which rewrites the tender whole.
+  const SECTION_LABEL = { price: 'Tender price', intro: 'Introduction', terms: 'Terms', accept: 'Acceptance', priceNote: 'Note under the tender price', progNote: 'Note above the programme',
+    exclusions: 'Exclusions', assumptions: 'Assumptions & clarifications', rfis: 'Questions for the builder (RFIs)', org: 'Organisation structure' };
+  app.post('/tender/:id/section', ...gate, rateLimit(40, 60000), async (req, res) => {
+    try {
+      const t = await tenderFor(req, req.params.id);
+      if (!t) return res.status(404).json({ error: 'Tender not found' });
+      if (!ai.available()) return bad(res, 'The AI is not set up on the server yet.', 'NO_AI');
+      const b = req.body || {};
+      const sec = String(b.section || '');
+      if (!SECTION_LABEL[sec]) return bad(res, 'That section cannot be edited this way: ' + sec);
+      const cur = (b.doc && typeof b.doc === 'object' && !Array.isArray(b.doc)) ? b.doc : t.doc;
+      if (!cur) return bad(res, 'There is no tender to change yet.', 'NO_DOC');
+      const instruction = String(b.instruction || '').trim().slice(0, 4000);
+      if (!instruction) return bad(res, 'Say what to change.');
+      let current;
+      if (sec === 'exclusions') current = (cur.exclusions || []).map(x => '- ' + (x.text || '') + (x.why ? '  (why: ' + x.why + ')' : '')).join('\n');
+      else if (sec === 'assumptions' || sec === 'rfis') current = (cur[sec] || []).map(x => '- ' + x).join('\n');
+      else if (sec === 'price') current = 'Note under the price: ' + String(b.current || '') + '\nLines added on top of materials and labour: ' + (JSON.stringify((cur.extraLines || []).map(x => ({ desc: x.desc, amount: x.amount }))));
+      else if (sec === 'org') current = JSON.stringify(((cur.org && cur.org.people) || b.current || []));
+      else current = String(b.current || '');
+      const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'section', model: '', prompt_version: '',
+        in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0, cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
+      let r;
+      try { r = await ai.editSection(sec, SECTION_LABEL[sec], current, instruction); }
+      catch (e) { runRow.error = String(e && e.message || e).slice(0, 400); await supabase.from('tender_ai_runs').insert(runRow); return res.status(502).json({ error: 'Claude could not make that change: ' + runRow.error }); }
+      const u = r.usage || {};
+      Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
+      await supabase.from('tender_ai_runs').insert(runRow);
+      const next = applySection(cur, sec, r.result || {});
+      next.chat = (Array.isArray(cur.chat) ? cur.chat : []).concat([
+        { who: 'you', text: 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction, at: now() },
+        { who: 'ai', text: String((r.result || {}).summary || 'Done.'), at: now() },
+      ]).slice(-40);
+      await worker.saveDoc(t, next, 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction.slice(0, 60));
+      res.json({ ok: true, doc: next, summary: String((r.result || {}).summary || '') });
+    } catch (e) { oops(res, e, 'POST /tender/:id/section'); }
+  });
+
   // Put back the version before the last AI rewrite.
   app.post('/tender/:id/undo', ...gate, async (req, res) => {
     try {
@@ -409,6 +461,33 @@ function mergeAmend(cur, res, cat){
     duration_days: res.duration_days != null ? res.duration_days : cur.duration_days,
     confidence_notes: res.confidence_notes || '', amendedAt: new Date().toISOString(),
   });
+}
+
+// A rewritten section laid onto the tender. Text sections become the HTML
+// the document's editable blocks hold; lists and the org replace their own.
+function _escHtml(x){ return String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function applySection(cur, sec, r){
+  const next = Object.assign({}, cur);
+  const clean = (a) => (Array.isArray(a) ? a : []).map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+  if (sec === 'exclusions') next.exclusions = (Array.isArray(r.exclusions) ? r.exclusions : []).filter(x => x && String(x.text || '').trim()).map(x => ({ text: String(x.text).trim(), why: String(x.why || '').trim() }));
+  else if (sec === 'assumptions' || sec === 'rfis') next[sec] = clean(r.bullets);
+  else if (sec === 'price') {
+    next.quote = Object.assign({}, cur.quote || {});
+    next.quote.priceNote = clean(r.paragraphs).map(p => '<p>' + _escHtml(p) + '</p>').join('') || (cur.quote || {}).priceNote || '';
+    if (Array.isArray(r.lines)) next.extraLines = r.lines.filter(x => x && String(x.desc || '').trim()).map(x => ({ desc: String(x.desc).trim(), amount: +x.amount || 0 }));
+  }
+  else if (sec === 'org') {
+    const ppl = (Array.isArray(r.people) ? r.people : []).filter(p => p && String(p.role || p.name || '').trim()).slice(0, 40);
+    const ids = new Set();
+    const people = ppl.map((p, i) => { let id = String(p.id || ('p' + (i + 1))).trim() || ('p' + (i + 1)); if (ids.has(id)) id = id + '_' + i; ids.add(id); return { id, role: String(p.role || '').trim(), name: String(p.name || '').trim(), reports_to: String(p.reports_to || '').trim(), note: String(p.note || '').trim() }; });
+    people.forEach(p => { if (p.reports_to && !ids.has(p.reports_to)) p.reports_to = ''; if (p.reports_to === p.id) p.reports_to = ''; });
+    next.org = { people, described: true, at: new Date().toISOString() };
+  } else {
+    const paras = clean(r.paragraphs), bullets = clean(r.bullets);
+    next.quote = Object.assign({}, cur.quote || {});
+    next.quote[sec] = paras.map(p => '<p>' + _escHtml(p) + '</p>').join('') + (bullets.length ? '<ul>' + bullets.map(b => '<li>' + _escHtml(b) + '</li>').join('') + '</ul>' : '');
+  }
+  return next;
 }
 
 function _pageOut(p){

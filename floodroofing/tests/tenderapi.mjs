@@ -65,7 +65,21 @@ const TENDER_ANSWER = () => ({
   timeline: [ { id: 't1', phase: 'Set-up', start_day: 0, days: 1, crew: 2, notes: '' }, { id: 't2', phase: 'Roofing', start_day: 1, days: 3, crew: 2, notes: '' }, { id: 't3', phase: 'Gutters & clean-up', start_day: 4, days: 1, crew: 2, notes: '' } ],
   duration_days: 5, confidence_notes: 'Gutter length scaled from the plan.',
 });
+const SECTION_CALLS = [];
 globalThis.__TEST_TENDER_AI = async (req) => {
+  if (req.tool === 'record_section') {
+    SECTION_CALLS.push(req);
+    const blank = { paragraphs: [], bullets: [], exclusions: [], lines: [], people: [], summary: '' };
+    if (/\(org\)/.test(req.text)) return Object.assign(blank, { people: [
+      { id: 'p1', role: 'Director', name: 'Aron Flood', reports_to: '', note: '' },
+      { id: 'p2', role: 'Project Manager', name: 'Ethan', reports_to: 'p1', note: '' },
+      { id: 'p3', role: 'Roofing crews', name: '', reports_to: 'p2', note: '4 crews' },
+      { id: 'p4', role: 'Ghost', name: '', reports_to: 'nobody', note: '' } ], summary: 'Set out your structure.' });
+    if (/\(terms\)/.test(req.text)) return Object.assign(blank, { paragraphs: ['Payment within 20 days <of invoice>.'], bullets: ['Variations by agreement'], summary: 'Changed the payment terms.' });
+    if (/\(exclusions\)/.test(req.text)) return Object.assign(blank, { exclusions: [{ text: 'Spouting', why: 'by the builder' }], summary: 'Cut to one.' });
+    if (/\(price\)/.test(req.text)) return Object.assign(blank, { paragraphs: ['Valid for 60 days.'], lines: [{ desc: 'P&G', amount: 1500 }], summary: 'Added P&G.' });
+    return blank;
+  }
   if (req.tool === 'record_tender') {
     DRAFT_CALLS.push(req);
     if (/^amend/.test(req.promptVersion)) {
@@ -273,6 +287,39 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   const dd = await waitFor(async () => { const p = await call(T1, 'GET', '/tender/' + TID + '/progress'); return p.body.status === 'drafted' && p.body.task && p.body.task.status === 'done' ? p.body : null; }, 30000);
   x = await call(T1, 'GET', '/tender/' + TID);
   check('…which drafts without reading the set again', dd && DRAFT_CALLS.length === n0 + 1 && x.body.doc.scope.length === 6 && x.body.history[0].why === 'AI draft', JSON.stringify([DRAFT_CALLS.length - n0, x.body.history && x.body.history[0]]));
+}
+
+// ── one section rewritten, and the company's org structure (2026-10-27) ──
+{
+  let x = await call(T1, 'GET', '/tender/' + TID);
+  const D0 = x.body.doc;
+  check('a tender with no structure yet has none to borrow', !D0.org && x.body.orgDefault === null, JSON.stringify(x.body.orgDefault));
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'org', instruction: 'Aron Flood director, Ethan PM, four crews', current: [] });
+  const O = x.body.doc || {};
+  check('Edit Organisation structure lays out the people Claude read', x.status === 200 && O.org && O.org.described === true && O.org.people.length === 4 && O.org.people[0].name === 'Aron Flood', JSON.stringify(x.body).slice(0, 300));
+  check('…a role reporting to nobody who exists is put at the top, not lost', O.org.people.find(p => p.id === 'p4').reports_to === '');
+  check('…asked of the fast extract pass with the section prompt', SECTION_CALLS.length === 1 && SECTION_CALLS[0].pass === 'extract' && SECTION_CALLS[0].promptVersion === 'edit-section.v1' && /four crews/.test(SECTION_CALLS[0].text));
+  check('…and nothing priced moves', JSON.stringify(O.items) === JSON.stringify(D0.items) && JSON.stringify(O.scope) === JSON.stringify(D0.scope));
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'terms', instruction: 'payment in 20 days', current: '- 50% deposit' });
+  check('a text section comes back as the document\'s HTML, escaped', x.status === 200 && x.body.doc.quote.terms === '<p>Payment within 20 days &lt;of invoice&gt;.</p><ul><li>Variations by agreement</li></ul>', x.body.doc && x.body.doc.quote.terms);
+  check('…keeping the org it already had', x.body.doc.org && x.body.doc.org.people.length === 4);
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'exclusions', instruction: 'just spouting' });
+  check('Edit Exclusions replaces the list', x.status === 200 && x.body.doc.exclusions.length === 1 && x.body.doc.exclusions[0].why === 'by the builder');
+  check('…and Claude was shown the list as it stood', /Scaffolding beyond edge protection/.test(SECTION_CALLS[SECTION_CALLS.length - 1].text) || /Spouting/.test(SECTION_CALLS[SECTION_CALLS.length - 1].text));
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'price', instruction: 'valid 60 days and add P&G 1500', current: 'Valid for 30 days.' });
+  check('Edit Tender price writes the note and the lines on top', x.status === 200 && x.body.doc.quote.priceNote === '<p>Valid for 60 days.</p>' && x.body.doc.extraLines.length === 1 && x.body.doc.extraLines[0].amount === 1500, JSON.stringify(x.body.doc && [x.body.doc.quote.priceNote, x.body.doc.extraLines]));
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'items', instruction: 'x' });
+  check('a section that moves the price is refused here (it goes through the whole change)', x.status === 400);
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'org', instruction: '  ' });
+  check('an empty instruction is refused', x.status === 400);
+  x = await call(T2, 'POST', '/tender/' + TID + '/section', { section: 'org', instruction: 'x' });
+  check('another company cannot edit it', x.status === 404);
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('each section edit is in the history, so Undo can take it back', /Edit Tender price/.test(x.body.history[0].why) && x.body.history.some(h => /Edit Organisation structure/.test(h.why)), JSON.stringify(x.body.history.map(h => h.why)));
+  const t2 = await call(T1, 'POST', '/tender', { name: 'Kerikeri Library', job_id: 'job-org' });
+  x = await call(T1, 'GET', '/tender/' + t2.body.id);
+  check('the next tender starts from the structure the company described', x.body.orgDefault && x.body.orgDefault.people.length === 4 && x.body.orgDefault.people[0].name === 'Aron Flood', JSON.stringify(x.body.orgDefault));
+  await call(T1, 'DELETE', '/tender/' + t2.body.id);
 }
 
 // ── pages: picture, text, correction ────────────────────────────────
