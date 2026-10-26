@@ -348,6 +348,41 @@ r = await lay(fx('report70'));
     r.tally.reduce((s, x) => s + x.count, 0) === 74 && r.extras === 1 && r.pushed === 1, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 rules('report 70', r);
+// "Make sure the same logic carries through on these attached roofs too"
+// (the owner, 2026-10-27, feedback reports 71–76). 72 and 73: a wing in
+// front of the main's SLOPE, cut from its sheets as report 70's is.
+const nOf = r2 => r2.tally.reduce((s, x) => s + x.count, 0);
+const mOf = r2 => r2.tally.reduce((s, x) => s + x.count * x.Lmm, 0);
+const tmplLay = (r2, g) => { const T = r2.faces.find(f => f.id === g.template); return T ? T.lay : null; };
+for (const [n, want] of [[72, 69], [73, 136]]){
+  r = await lay(fx('report' + n));
+  const gf = gridFaces(r);
+  check('report ' + n + ': the wing\'s end is cut from the main\'s slope sheets (whole sheets and feet), ' + want + ' sheets, nothing extra',
+    gf.length === 1 && tmplLay(r, gf[0]) === 'run' && labels(r, gf[0]).some(l => l[0] === '✂') && nOf(r) === want && r.extras === 0,
+    tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => labels(r, f))));
+  rules('report ' + n, r);
+}
+// 74, 75, 76: the wing stands in front of the main's hip END. The plain
+// hip's end strip in each column is the wing's piece plus what is left of
+// the main's end between the valley and its hip — one sheet, fed from one
+// offcut, the foot carried. The main is the block with the longest sheets.
+for (const [n, want, was] of [[74, 133, 137], [75, 132, 142], [76, 179, 183]]){
+  r = await lay(fx('report' + n));
+  const gf = gridFaces(r);
+  check('report ' + n + ': the wing\'s end is laid on the main\'s hip-end strips and paired with them (feet carried), ' + want + ' sheets where it was ' + was,
+    gf.length === 1 && tmplLay(r, gf[0]) === 'apex' && labels(r, gf[0]).filter(l => l[0] === '✂').length >= 3 && nOf(r) === want,
+    tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => [tmplLay(r, f), labels(r, f)])));
+  rules('report ' + n, r);
+}
+// 71: the wing carries the main's west slope on, so the rows that fed the
+// main's north end in the plain hip are the wing's own full sheets. Paired,
+// the end strips have nothing to come from (74 sheets, 553 m); the wing's
+// own slopes' offcuts feed its end (74 sheets, 548 m). Both are laid and
+// the cheaper kept.
+r = await lay(fx('report71'));
+check('report 71: laid both ways, the cheaper kept — the wing\'s end from its own slopes\' offcuts, 74 sheets and under 549 m of steel',
+  gridFaces(r).length === 0 && nOf(r) === 74 && mOf(r) < 549000, tallyOf(r) + ' ' + mOf(r));
+rules('report 71', r);
 // Wings off the top AND the bottom at the same end: both are cut from their
 // slope's columns, both runs start at the wings' end, and the west face —
 // now the main's hip end between two wing slopes — still anchors at its apex.
