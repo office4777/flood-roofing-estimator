@@ -6947,6 +6947,19 @@ function _pzWallKind(e, R, tol){
 // through the roof (a probe just inside the gutter), both ways, until it
 // leaves the outline. On an L's main slope the wall shows 12 m of gutter
 // and the rectangle's side is 18 m — the sheets are laid along the 18.
+// The area of the block a face belongs to: how far the outline runs from
+// the face's gutter line inward through the middle of the face, times its
+// width along the gutter (the given span, else the face's own gutter).
+function _pzBlockArea(R, f, dGut, span){
+  var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1];
+  var w = span != null ? span : (isFinite(f.tg1 - f.tg0) ? f.tg1 - f.tg0 : f.t1 - f.t0);
+  var tm = isFinite(f.tg1 + f.tg0) ? (f.tg0 + f.tg1) / 2 : (f.t0 + f.t1) / 2;
+  var inside = function(d){ return _spPointInPoly(tx*tm + dx*d, ty*tm + dy*d, R.outline); };
+  var d = dGut + 1, lim = 20000;
+  if (!inside(d)) return 0;
+  while (lim-- > 0 && inside(d + 4)) d += 4;
+  return w * (d - dGut);
+}
 function _pzVirtualSpan(R, f, tMin, tMax, probe){
   var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1];
   var dIn = f.ref.a[0]*dx + f.ref.a[1]*dy + probe*2;
@@ -7411,10 +7424,17 @@ function _sheetPuzzleBuild(opts){
     // _sheetPuzzleFill's step 0). Only a rectangle at least a sheet NARROWER
     // on each side is cut this way: a hip end as deep as the slope's sheets
     // or deeper (the main's own east end in front of the wing's 3 m slope)
-    // could never come out of them, and one within a sheet of it (a T's
-    // bar, 5.2 m deep, beside a stem 6 m wide) is the plain hip's own size,
-    // whose own hips' offcuts already fit its ends exactly — the T the
-    // owner called right, 2026-10-22 — so both keep their apex.
+    // could never come out of them, so it keeps its apex. AND THE BIGGER
+    // BLOCK IS THE RECTANGLE (feedback report 70, 2026-10-27, the owner:
+    // "use the plain hip logic first, then slice the sheets ... like a
+    // cookie cutter"; his words of 2026-10-22, "always picturing the larger
+    // area with the longest sheets as the rectangle"): a T's bar end stands
+    // in front of the stem's slope, but the bar is the bigger block, so it is
+    // the plain hip and its ends keep their apex — the T the owner called
+    // right. A wing is the smaller block and is cut from the main's sheets
+    // however close its depth is to theirs: the rule used to be "at least a
+    // sheet narrower each side", which laid report 70's 5.00 m wing end from
+    // its own apex beside a 5.69 m slope and ordered four extras for it.
     var dKey = function(f){ return Math.round(f.d[0]*100) + ',' + Math.round(f.d[1]*100); };
     var tmplOf = {};
     pend.forEach(function(f){
@@ -7426,8 +7446,13 @@ function _sheetPuzzleBuild(opts){
       if (f.lay !== 'apex') return;
       var T = tmplOf[dKey(f)];
       if (!T || T === f) return;
-      if (f.dMax > T.dMin + tol) return;                                   // not in front of the slope's gutter line
-      if ((T.dMax - T.dMin) - ((f.hipApexD || f.dMax) - f.dMin) < coverPx) return;   // not a sheet narrower each side (a gablet measured to where its hips would meet): the plain hip's own offcuts already fit it
+      if (f.dMin > T.dMin - tol) return;                                   // its gutter is not in front of the slope's gutter line
+      // (Its APEX may reach past that line: a wing standing out 4.17 m with a
+      // 5 m hip end, report 70. Each column's valley offcut is still exactly
+      // the wing's piece above it — the valley and the wing's hip are
+      // parallel, one sheet apart — so the pairing holds.)
+      if (((f.hipApexD || f.dMax) - f.dMin) > (T.dMax - T.dMin) + tol) return;   // deeper than the slope's sheets (a gablet measured to where its hips would meet): it can never come out of them
+      if (_pzBlockArea(R, f, f.dMin) >= _pzBlockArea(R, T, T.dMin, T.T1 - T.T0)) return;   // the end's own block is the bigger one: IT is the rectangle, laid by the plain hip
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
       if (fT1 < T.T0 - tol || fT0 > T.T1 + tol) return;                    // beside the rectangle, not in it
