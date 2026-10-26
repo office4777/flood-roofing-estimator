@@ -321,9 +321,33 @@ check('a 10 m wide wing on an 18 × 14 main is still two sheets narrower than th
 }
 rules('the wide-wing L', r);
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[790,140],[790,440],[1040,440],[1040,1140],[140,1140]], autoType: 'hip' });
-check('a 13 m wing on a 14 m main is within a sheet of it, so there is nothing to slice: its end keeps the apex lay (the T\'s rule)',
+check('a 13 m wing on a 14 m main: the wing\'s block (13 × 20 m) is the bigger one, so IT is the rectangle and its end keeps the apex lay (the T\'s rule)',
   gridFaces(r).length === 0 && r.faces.filter(f => f.lay === 'apex').length >= 2, r.faces.map(f => f.lay).join(','));
 rules('the too-wide wing', r);
+// FEEDBACK REPORT 70 (2026-10-27, the owner: "use the plain hip logic first,
+// then slice the sheets ... like a cookie cutter ... that plain hip logic is
+// there should be 30 sheets (same as the green southside) then that whole
+// north triangle should be cut from the purple sheets"). A 10 m wing standing
+// only 4.17 m out from a 22.78 × 11.39 m main: its end is 5.00 m deep beside
+// the main's 5.69 m slope, within a sheet, and its apex reaches past the
+// slope's gutter line — both used to keep it on its own apex, with four
+// extras (5.00, 4.24, 3.48, 2.72) ordered for it and the A sheets' offcuts in
+// its west half.
+r = await lay(fx('report70'));
+{
+  const gf = gridFaces(r), lab = gf.length ? labels(r, gf[0]) : [];
+  const north = gf.length ? r.blocks.find(b => b.face === gf[0].template) : null;
+  const south = r.blocks.find(b => b !== north && b.count === 30);
+  check('report 70: the wing\'s north triangle is cut from the main\'s north-slope sheets — seven whole and the feet of six more (C1–C7, ✂C8–✂C13), the tip off an offcut, nothing ordered for it',
+    gf.length === 1 && lab.filter(l => /^[A-Z]\d+$/.test(l)).length === 7 && lab.filter(l => l[0] === '✂').length === 6 &&
+    r.pieces.filter(p => p.face === gf[0].id && p.ordered && !p.via && !p.strung && p.block && r.blocks.find(b => b.letter === p.block && b.extra)).length === 0,
+    JSON.stringify(lab));
+  check('…the north slope is the plain hip\'s 30 sheets, the same as the south side',
+    !!north && north.count === 30 && !!south, JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + (b.extra ? '(' + b.extra + ')' : ''))));
+  check('…74 sheets where it was 75, the four extras for the wing\'s end gone: one extra and one pushed in',
+    r.tally.reduce((s, x) => s + x.count, 0) === 74 && r.extras === 1 && r.pushed === 1, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+}
+rules('report 70', r);
 // Wings off the top AND the bottom at the same end: both are cut from their
 // slope's columns, both runs start at the wings' end, and the west face —
 // now the main's hip end between two wing slopes — still anchors at its apex.

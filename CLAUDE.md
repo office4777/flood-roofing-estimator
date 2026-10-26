@@ -3018,6 +3018,23 @@ Discipline (non-negotiable):
   side), every fed piece
   the hand of its offcut (a foot is not spun), the hand-counted fixtures
   covered exactly once, five roofs in one frame. `tools/sheet-shots.mjs` is still the way to LOOK before the gate.
+  THE BIGGER BLOCK IS THE RECTANGLE (feedback report 70, 2026-10-27, the
+  owner: "use the plain hip logic first, then slice the sheets ... like a
+  cookie cutter ... there should be 30 sheets (same as the green southside)
+  then that whole north triangle should be cut from the purple sheets"). The
+  cookie cutter used to need a hip end "at least a sheet narrower each side"
+  of the slope, and wholly in front of its gutter line — report 70's 10 m wing
+  stands only 4.17 m out from a 22.78 × 11.39 main, its end 5.00 m deep beside
+  a 5.69 m slope, its apex past the gutter line, so it kept its own apex with
+  four extras ordered for it. Now an end is cut from a slope when its GUTTER is
+  in front of the slope's, its depth fits the slope's sheets, and its own block
+  (`_pzBlockArea`: the outline's run inward through the end's middle × its
+  gutter) is SMALLER than the slope's rectangle (span × depth through the
+  slope's middle). The T keeps its apex ends because the bar is the bigger
+  block, not because it is "within a sheet"; a 13 m wing on 18 × 14 keeps its
+  apex because its block (13 × 20) is the bigger. Report 70: north slope 30
+  sheets, the wing's triangle C1–C7 whole + ✂C8–✂C13 feet, 75 → 74 sheets.
+  `fixtures-report70.json`; 3 pins in `sheetlayout.mjs` fail on the old engine.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
 - The Job Pack cut list belongs to the office once touched. The first
