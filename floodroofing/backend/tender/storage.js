@@ -13,23 +13,44 @@
 const BUCKET = process.env.TENDER_BUCKET || 'tender-docs';
 const MAX_BYTES = 100 * 1024 * 1024;
 
+// A bucket's own limit may not be above the PROJECT's upload limit (Supabase
+// → Storage → Settings; 50 MB on the Free plan), and Storage refuses such a
+// bucket with "The object exceeded the maximum allowed size" — the message
+// the first real upload got on 2026-10-27, on a 14 MB file, because the
+// bucket could not be made at 100 MB and every sign failed with it. So the
+// bucket is made (or corrected) at the largest of these the project takes,
+// and that figure is the limit the route enforces and the tab shows.
+const LIMIT_STEPS = [MAX_BYTES, 50 * 1024 * 1024, 25 * 1024 * 1024];
+const _tooBig = e => /exceeded the maximum allowed size|too large|EntityTooLarge|413/i.test(String((e && (e.message || e.error || e.statusCode)) || e || ''));
+
 function create(supabase){
   if (globalThis.__TEST_TENDER_STORAGE) return globalThis.__TEST_TENDER_STORAGE;
   const st = () => supabase.storage;
   let ensured = null;
+  let limit = LIMIT_STEPS[1];  // until the bucket says, the project default
   async function ensureBucket(){
     if (ensured) return ensured;
     ensured = (async () => {
       const { data } = await st().getBucket(BUCKET);
-      if (data) return true;
-      const r = await st().createBucket(BUCKET, { public: false, fileSizeLimit: MAX_BYTES });
-      if (r.error && !/already exists|duplicate/i.test(r.error.message || '')) throw r.error;
-      return true;
+      const have = data ? (+data.file_size_limit || 0) : 0;
+      if (data && have >= MAX_BYTES) { limit = have; return true; }
+      let lastErr = null;
+      for (const n of LIMIT_STEPS) {
+        if (data && have && n <= have) { limit = have; return true; }
+        const r = data ? await st().updateBucket(BUCKET, { public: false, fileSizeLimit: n })
+                       : await st().createBucket(BUCKET, { public: false, fileSizeLimit: n });
+        if (!r.error || /already exists|duplicate/i.test(r.error.message || '')) { limit = n; return true; }
+        lastErr = r.error;
+        if (!_tooBig(r.error)) break;
+      }
+      if (data) { limit = have || LIMIT_STEPS[2]; return true; }
+      throw lastErr || new Error('could not make the ' + BUCKET + ' bucket');
     })().catch(e => { ensured = null; throw e; });
     return ensured;
   }
   return {
-    bucket: BUCKET, maxBytes: MAX_BYTES, ensureBucket,
+    bucket: BUCKET, ensureBucket,
+    get maxBytes(){ return limit; },
     async signUpload(path){
       await ensureBucket();
       const { data, error } = await st().from(BUCKET).createSignedUploadUrl(path);

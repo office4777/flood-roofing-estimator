@@ -59,7 +59,9 @@ function mount(app, deps){
 
   // Is it on? The app asks once at boot to decide whether to show the type.
   app.get('/tender/enabled', requireAuth, async (req, res) => {
-    res.json({ enabled: await enabledFor(req), ai: ai.available(), models: ai.MODELS });
+    const on = await enabledFor(req);
+    if (on) { try { await storage.ensureBucket(); } catch (e) {} }
+    res.json({ enabled: on, ai: ai.available(), models: ai.MODELS, maxMb: Math.floor(storage.maxBytes / 1048576) });
   });
 
   app.get('/tender', ...gate, async (req, res) => {
@@ -146,6 +148,7 @@ function mount(app, deps){
       const mime = String(b.mime || 'application/pdf').slice(0, 80);
       if (!/\.pdf$/i.test(name) && !/pdf/i.test(mime)) return bad(res, 'Only PDF plan sets can be uploaded here (' + (name || 'this file') + ').', 'NOT_PDF');
       if (size <= 0) return bad(res, 'The file is empty.', 'EMPTY');
+      try { await storage.ensureBucket(); } catch (e) { throw new Error('File storage is not ready (' + (e.message || e) + ').'); }
       if (size > storage.maxBytes) return bad(res, 'That file is ' + (size / 1048576).toFixed(0) + ' MB; the limit is ' + (storage.maxBytes / 1048576) + ' MB.', 'TOO_BIG');
       const { data: have } = await supabase.from('tender_files').select('id,name,size,status').eq('tender_id', t.id);
       if ((have || []).length >= MAX_FILES) return bad(res, 'A tender holds at most ' + MAX_FILES + ' files.', 'TOO_MANY');

@@ -257,6 +257,38 @@ check('…and is refused at the door, not just hidden', r.status === 403 && r.bo
 r = await call(TE, 'POST', '/tender', { name: 'Ethan\'s tender' });
 check('the named login can start a tender', r.status === 200 && !!r.body.id, JSON.stringify(r));
 
+// ── the bucket fits the project's upload limit (2026-10-27: a 14 MB file
+// refused with "The object exceeded the maximum allowed size", because the
+// project caps uploads at 50 MB and the bucket was asked for 100) ──
+{
+  const MB = 1048576;
+  const fake = (projectMb, existing) => {
+    const calls = [];
+    let bucket = existing || null;
+    const tryLimit = (n) => n > projectMb * MB ? { error: { message: 'The object exceeded the maximum allowed size', statusCode: '413' } } : null;
+    return { calls, get bucket(){ return bucket; }, storage: {
+      async getBucket(){ return { data: bucket, error: bucket ? null : { message: 'Bucket not found' } }; },
+      async createBucket(id, o){ calls.push(['create', o.fileSizeLimit]); const e = tryLimit(o.fileSizeLimit); if (e) return e; bucket = { id, file_size_limit: o.fileSizeLimit }; return { data: { name: id }, error: null }; },
+      async updateBucket(id, o){ calls.push(['update', o.fileSizeLimit]); const e = tryLimit(o.fileSizeLimit); if (e) return e; bucket.file_size_limit = o.fileSizeLimit; return { data: {}, error: null }; },
+      from(){ return { async createSignedUploadUrl(p){ return { data: { signedUrl: 'u', token: 't' }, error: null }; } }; },
+    } };
+  };
+  const keep = globalThis.__TEST_TENDER_STORAGE; delete globalThis.__TEST_TENDER_STORAGE;
+  try {
+    let f = fake(50); let s = storageMod.create(f);
+    let ok = true; try { await s.signUpload('a/b.pdf'); } catch (e) { ok = false; }
+    check('a 50 MB project: the bucket is made at 50 MB and signing works', ok && f.bucket && f.bucket.file_size_limit === 50 * MB && s.maxBytes === 50 * MB, JSON.stringify([f.calls, f.bucket, s.maxBytes]));
+    f = fake(500); s = storageMod.create(f); await s.ensureBucket();
+    check('a project that takes 100 MB gets 100 MB', s.maxBytes === 100 * MB && f.calls.length === 1, JSON.stringify(f.calls));
+    f = fake(500, { id: 'tender-docs', file_size_limit: 5 * MB }); s = storageMod.create(f); await s.ensureBucket();
+    check('a bucket already made too small is raised', f.bucket.file_size_limit === 100 * MB && s.maxBytes === 100 * MB, JSON.stringify([f.calls, f.bucket]));
+    f = fake(50, { id: 'tender-docs', file_size_limit: null }); s = storageMod.create(f); await s.ensureBucket();
+    check('a bucket with no limit of its own on a 50 MB project reads 50 MB', s.maxBytes === 50 * MB, JSON.stringify([f.calls, f.bucket, s.maxBytes]));
+  } finally { globalThis.__TEST_TENDER_STORAGE = keep; }
+}
+r = await call(T1, 'GET', '/tender/enabled');
+check('/tender/enabled says the size limit the tab shows', r.body.maxMb === 100, JSON.stringify(r.body));
+
 STORE.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

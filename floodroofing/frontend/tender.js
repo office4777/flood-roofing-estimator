@@ -124,7 +124,7 @@
     if (!d.ai) h += '<p class="tn-note">The AI classifier is not available on the server (no API key), so pages are classed by their title blocks alone. Check the classes below.</p>';
     h += progressHtml(d);
     h += '<div class="tn-card"><div class="tn-card-hd">Plan set<span class="tn-r">' + (d.files || []).length + ' file' + ((d.files || []).length === 1 ? '' : 's') + '</span></div><div class="tn-card-bd">' +
-      '<div class="tn-drop" id="tnDrop" onclick="document.getElementById(\'tnFile\').click()"><b>Drop the plan-set PDFs here</b> or click to choose them<small>PDF only, up to 100 MB a file. Architect’s and engineer’s sets together is fine — every page is read and sorted.</small></div>' +
+      '<div class="tn-drop" id="tnDrop" onclick="document.getElementById(\'tnFile\').click()"><b>Drop the plan-set PDFs here</b> or click to choose them<small>PDF only, up to ' + (window.__tenderMaxMb || 50) + ' MB a file. Architect’s and engineer’s sets together is fine — every page is read and sorted.</small></div>' +
       '<input type="file" id="tnFile" accept="application/pdf,.pdf" multiple style="display:none" onchange="_tenderFilesPicked(this.files)">' +
       filesHtml(d) + '</div></div>';
     h += indexHtml(d);
@@ -346,6 +346,7 @@
     try {
       var r = await api('GET', '/tender/enabled');
       try { localStorage.setItem('fr_tender_on', JSON.stringify({ who: who, on: !!(r && r.enabled) })); } catch (e) {}
+      if (r && r.maxMb) window.__tenderMaxMb = r.maxMb;
       _applyLive(r && r.enabled);
       return true;
     } catch (e) {   // unknown stays as it was; one more try in a while
