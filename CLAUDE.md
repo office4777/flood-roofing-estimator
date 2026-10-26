@@ -296,7 +296,7 @@ THE FILL:
 THE PICTURE:
 11. EVERY LABEL STARTS AT THE GUTTER (2026-10-27: "start all the sheet
     labelling near the gutter line so the labels are all inline and easy to
-    read"): the number (big, up to 16px) and its length (small) start a few
+    read"): the number (big, up to 16px) starts a few
     pixels in from the piece's own gutter end — the higher of its two bottom
     corners — so a face's labels make one line along its gutter. Only where
     that does not fit (a triangle narrowing to the gutter) does a label move
@@ -306,7 +306,10 @@ THE PICTURE:
     the piece where it fits, on a white halo; one too small even for that
     has its number just outside the roof's corner on a hairline, a second at
     the same corner one line further out. Only a sliver under 300 mm goes
-    without. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
+    without. THE NUMBER ONLY, NO LENGTH ON A SHEET (2026-10-27: "remove
+    the sheet measures on each individual sheet, it's confusing"); the
+    lengths are in the tally and block schedule under the picture.
+    `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
 
 ASKED, 2026-10-27, NOT DONE — report 76's wing end: he wants the strips
@@ -322,8 +325,19 @@ runs out. Tried and dropped, each worse than 177: the purple run started at
 the wing's corner (F1 still short — the wing's SE hip is drawn 1 px off 45°,
 ~30 mm over 7 m), the corner closer ordered as a purple sheet (F1 fed, but
 49 purple and 178 sheets), and the wing's rows cut apart from the main end's
-strips (193 — the 4.48 m strips come back as extras). The question is back
-with him.
+strips (193 — the 4.48 m strips come back as extras). ASKED AGAIN the same
+day ("the offcuts to purple sheets C28-48 should be long enough to be also
+used where Red F1, Yellow A48, A47 and possibly sheet E1 are") and measured
+again: purple C29–C48 are 20 usable offcuts, 1.02 → 15.14 m (C28's is
+0.28), for the 20 rows from the top corner down to the MAIN's ridge
+(0.74 → 15.22 m, F1 the last); A48 and A47 lie under the main's ridge, the
+south half of the plain hip's end, whose cut is the opposite hand to every
+purple offcut; and C48's offcut is 87 mm short of F1 because the purple run
+ends 95 mm short of the wing's corner. Also tried and dropped: the end's row
+grid shifted −0.5…+0.5 of a cover (never under 177), and the shared slope
+laid from both ends and lapped where the wing's hip starts (179). Laid from
+the wing's corner with the closer ordered, F1 IS fed at 177 sheets — a swap,
+not a saving, and 49 purple to 48 orange.
 
 ## Conventions
 
@@ -3110,8 +3124,8 @@ with him.
   THE SHEET NUMBER IS THE BIG TEXT (2026-10-23, the owner: "can you make
   the number of sheet bigger? So, for example, A7 ... And keep the
   measurements ... small like it is"): the label is sized to the strip, up
-  to 16px, shrinking only as far as it must to stay in its piece; the
-  length beside it stays 8–9px. Every label sits at its piece's middle, so
+  to 16px, shrinking only as far as it must to stay in its piece (the
+  length beside it was taken off on 2026-10-27, rule 11). Every label sits at its piece's middle, so
   the numbers run in one line down a slope; one that does not fit there (a
   hip-cut triangle) slides along its strip to where it reads largest
   instead of being dropped. `docs/SHEET_LAYOUT.md` has the lay. `tests/sheetlayout.mjs` (246): plain

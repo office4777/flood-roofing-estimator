@@ -8539,16 +8539,18 @@ function _renderSheetPuzzleCanvas(opts){
   var cwC = pz.coverPx * fit;
   if (cwC >= 10){
     ctx.textBaseline = 'middle';
-    var fsM = cwC >= 16 ? 9 : 8;
     var fsTop = Math.max(9, Math.min(16, Math.round(cwC * 0.62)));
-    var fontL = function(n){ return '800 ' + n + 'px Inter, sans-serif'; }, fontM = '600 ' + fsM + 'px Inter, sans-serif';
+    var fontL = function(n){ return '800 ' + n + 'px Inter, sans-serif'; };
     pz._outsideAt = {};
     pz.pieces.forEach(function(pc){
       var longC = pc.longPx * fit;
       var c = _ccCentroid(pc.poly), f = pc.face;
       var ang = Math.atan2(f.d[1], f.d[0]);
       if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
-      var txt = pc.label || '', len = _pzM(pc.longMm);
+      // THE NUMBER ONLY (2026-10-27, the owner: "remove the sheet measures
+      // on each individual sheet, it's confusing") — the lengths are in the
+      // tally and the block schedule under the picture.
+      var txt = pc.label || '';
       if (!txt) return;
       var ca = Math.cos(ang), sa = Math.sin(ang);
       var boxFitsAt = function(cx, cy, wC, hC){
@@ -8558,13 +8560,10 @@ function _renderSheetPuzzleCanvas(opts){
         });
         return ok;
       };
-      ctx.font = fontM; var wM = ctx.measureText(len).width;
       var pickAt = function(q, lo){
         for (var n = fsTop; n >= (lo || 8); n--){
           ctx.font = fontL(n); var wL = ctx.measureText(txt).width;
-          var wAll = wL + 5 + wM + 2;
-          if (boxFitsAt(q[0], q[1], wAll, n * 0.92)) return { n: n, wL: wL, withLen: true, c: q };
-          if (boxFitsAt(q[0], q[1], wL + 2, n * 0.92)) return { n: n, wL: wL, withLen: false, c: q };
+          if (boxFitsAt(q[0], q[1], wL + 2, n * 0.92)) return { n: n, wL: wL, c: q };
         }
         return null;
       };
@@ -8574,17 +8573,17 @@ function _renderSheetPuzzleCanvas(opts){
       // the piece's own gutter end — the higher of its two bottom corners, so
       // a valley-cut foot starts clear of its cut — and every label on a face
       // starts the same distance from that face's gutter, one line along it.
-      var atGutter = function(n, withLen){
+      var atGutter = function(n){
         if (!pc.endsA || !pc.endsB) return null;
-        ctx.font = fontL(n); var wL = ctx.measureText(txt).width, tot = wL + (withLen ? 5 + wM : 0);
+        ctx.font = fontL(n); var wL = ctx.measureText(txt).width, tot = wL;
         var base = Math.max(pc.endsA[0], pc.endsB[0]);
         var tm = (pc.tA + pc.tB) / 2, dm = base + (6 + tot / 2) / fit;
         var q = [f.t[0]*tm + f.d[0]*dm, f.t[1]*tm + f.d[1]*dm];
-        return boxFitsAt(q[0], q[1], tot + 2, n * 0.92) ? { n: n, wL: wL, withLen: withLen, c: q } : null;
+        return boxFitsAt(q[0], q[1], tot + 2, n * 0.92) ? { n: n, wL: wL, c: q } : null;
       };
       var pick = null;
       if (longC >= 22 && pc.widthPx * fit >= 8){
-        for (var n0 = fsTop; n0 >= 8 && !pick; n0--) pick = atGutter(n0, true) || atGutter(n0, false);
+        for (var n0 = fsTop; n0 >= 8 && !pick; n0--) pick = atGutter(n0);
         // Not room for it there (a hip-cut triangle narrowing to the gutter):
         // the middle of the piece, slid along the strip to where it reads.
         if (!pick){
@@ -8595,7 +8594,7 @@ function _renderSheetPuzzleCanvas(opts){
                 var q = [c[0] + ca*sg*o/fit, c[1] + sa*sg*o/fit];
                 if (!_spPointInPoly(q[0], q[1], pc.poly)) return;
                 var pq = pickAt(q);
-                if (pq && (!pick || pq.n > pick.n + 1 || (pq.n >= pick.n && pq.withLen && !pick.withLen))) pick = pq;
+                if (pq && (!pick || pq.n > pick.n + 1)) pick = pq;
               });
             });
           }
@@ -8619,7 +8618,7 @@ function _renderSheetPuzzleCanvas(opts){
         spots.sort(function(a, b){ return Math.hypot(a[0]-c[0], a[1]-c[1]) - Math.hypot(b[0]-c[0], b[1]-c[1]); });
         for (var n1 = 7; n1 >= 5 && !pick; n1--){
           ctx.font = fontL(n1); var w1 = ctx.measureText(txt).width;
-          for (var si = 0; si < spots.length && !pick; si++) if (boxFitsAt(spots[si][0], spots[si][1], w1 + 1, n1 * 0.9)) pick = { n: n1, wL: w1, withLen: false, c: spots[si] };
+          for (var si = 0; si < spots.length && !pick; si++) if (boxFitsAt(spots[si][0], spots[si][1], w1 + 1, n1 * 0.9)) pick = { n: n1, wL: w1, c: spots[si] };
         }
         // Too small to hold even its 5px number: the number goes over its
         // nearest spot on a white halo — never over the edge of the roof.
@@ -8628,7 +8627,7 @@ function _renderSheetPuzzleCanvas(opts){
           for (var sj = 0; sj < spots.length && !pick; sj++){
             var p5 = spots[sj];
             var R5 = pz.roofs.filter(function(Rr){ return _spPointInPoly(p5[0], p5[1], Rr.outline); })[0];
-            if (R5 && [[-hw5,-hh5],[hw5,-hh5],[hw5,hh5],[-hw5,hh5]].every(function(q){ return _spPointInPoly(p5[0] + q[0]*ca - q[1]*sa, p5[1] + q[0]*sa + q[1]*ca, R5.outline); })){ pick = { n: 5, wL: w5, withLen: false, c: p5 }; tiny = true; }
+            if (R5 && [[-hw5,-hh5],[hw5,-hh5],[hw5,hh5],[-hw5,hh5]].every(function(q){ return _spPointInPoly(p5[0] + q[0]*ca - q[1]*sa, p5[1] + q[0]*sa + q[1]*ca, R5.outline); })){ pick = { n: 5, wL: w5, c: p5 }; tiny = true; }
           }
         }
         // A corner triangle too small to hold it at all: its number stands
@@ -8655,13 +8654,12 @@ function _renderSheetPuzzleCanvas(opts){
         if (!pick) return;   // a sliver at the very corner: nothing to read
       }
       c = pick.c;
-      var cc = toC(c), tot = pick.wL + (pick.withLen ? 5 + wM : 0);
+      var cc = toC(c), tot = pick.wL;
       ctx.save(); ctx.translate(cc[0], cc[1]); ctx.rotate(ang);
       ctx.textAlign = 'left';
       ctx.font = fontL(pick.n);
       if (pick.n < 8){ ctx.lineWidth = tiny ? 2.2 : 1.6; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineJoin = 'round'; ctx.strokeText(txt, -tot / 2, 0); }
       ctx.fillStyle = '#0a1628'; ctx.fillText(txt, -tot / 2, 0);
-      if (pick.withLen){ ctx.fillStyle = '#334155'; ctx.font = fontM; ctx.fillText(len, -tot / 2 + pick.wL + 5, 0.5); }
       ctx.restore();
       pc._lbl = { n: pick.n, c: c, half: tot / 2 / fit };
     });
