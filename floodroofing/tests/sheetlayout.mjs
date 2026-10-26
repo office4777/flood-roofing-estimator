@@ -658,6 +658,32 @@ check('…the Sheet layout page renders the picture', ui.img);
 check('…the live card shows the puzzle at 1×, and the block-cut plan is gone', ui.liveIsPuzzle && ui.liveW === 960 && ui.oldGone, JSON.stringify(ui));
 check('…and the calc check keeps its own column helpers', ui.shared);
 
+// THE LABELS (2026-10-27, the owner on report 76: "start all the sheet
+// labelling near the gutter line so the labels are all inline and easy to
+// read, then add in smaller labels to the missing labels on the small
+// triangle sheets in the corners").
+async function labelsOf(g){
+  await lay(g);
+  return pg.evaluate(() => {
+    const cv = _renderSheetPuzzleCanvas({ roofIdxs: DRAW.roofs.length ? DRAW.roofs.map((_, i) => i) : [-1] });
+    const pz = cv._sheetPuzzle;
+    return pz.pieces.filter(p => !p.scrap).map(p => ({ face: p.face.id, full: p.full, label: p.label, longMm: p.longMm, lbl: p._lbl || null,
+      d: p._lbl ? (p._lbl.c[0]*p.face.d[0] + p._lbl.c[1]*p.face.d[1]) - (p._lbl.half || 0) - Math.max(p.endsA ? p.endsA[0] : 0, p.endsB ? p.endsB[0] : 0) : null }));
+  });
+}
+{
+  const L = await labelsOf({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'hip' });
+  const fulls = L.filter(p => p.full && p.lbl && !p.lbl.outside);
+  const byFace = {}; fulls.forEach(p => (byFace[p.face] = byFace[p.face] || []).push(p.d));
+  const spread = Math.max(...Object.values(byFace).map(ds => Math.max(...ds) - Math.min(...ds)));
+  check('labels: on a slope every full sheet\'s number starts the same distance in from the gutter, one line along it',
+    Object.keys(byFace).length >= 2 && spread < 1.5, JSON.stringify(Object.fromEntries(Object.entries(byFace).map(([k, v]) => [k, [Math.min(...v).toFixed(1), Math.max(...v).toFixed(1)]]))));
+  check('…and every piece on the plain hip carries its number, corner triangles included', L.every(p => p.lbl || p.longMm < 300), JSON.stringify(L.filter(p => !p.lbl).map(p => p.label + ':' + p.longMm)));
+  const L76 = await labelsOf(fx('report76'));
+  check('…report 76: every piece of 300 mm or more carries its number, the small corner triangles in a smaller type',
+    L76.every(p => p.lbl || p.longMm < 300) && L76.some(p => p.lbl && p.lbl.n < 8), JSON.stringify(L76.filter(p => !p.lbl).map(p => p.label + ':' + p.longMm)));
+}
+
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;
