@@ -682,6 +682,15 @@ async function labelsOf(g){
   const L76 = await labelsOf(fx('report76'));
   check('…report 76: every piece of 300 mm or more carries its number, the small corner triangles in a smaller type',
     L76.every(p => p.lbl || p.longMm < 300) && L76.some(p => p.lbl && p.lbl.n < 8), JSON.stringify(L76.filter(p => !p.lbl).map(p => p.label + ':' + p.longMm)));
+  // THE NUMBER ONLY (2026-10-27: "remove the sheet measures on each
+  // individual sheet, it's confusing"): every label is as wide as its
+  // number and nothing more, so the width-to-number ratio is one figure.
+  const ratios = await pg.evaluate((L) => {
+    const cx = document.createElement('canvas').getContext('2d');
+    return L.filter(p => p.lbl && !p.lbl.outside && p.lbl.half).map(p => { cx.font = '800 ' + p.lbl.n + 'px Inter, sans-serif'; return 2 * p.lbl.half / cx.measureText(p.label).width; });
+  }, L76);
+  const rMin = Math.min(...ratios), rMax = Math.max(...ratios);
+  check('…and each label is the sheet\'s number alone, no length beside it', ratios.length > 50 && rMax / rMin < 1.02, rMin.toFixed(4) + '–' + rMax.toFixed(4));
 }
 
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
