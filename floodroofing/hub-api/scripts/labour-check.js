@@ -124,7 +124,7 @@ function fsFig(s) {
   const lab = fnum(fpick(ci, 'labour', 'labor', 'labourCost', 'currentLabour')) || fnum(fpick(s, 'currentLabourCosts', 'labourCosts'));
   const mat = fnum(fpick(ci, 'materials', 'material', 'materialCost', 'currentMaterials')) || fnum(fpick(s, 'currentMaterialCosts', 'materialCosts'));
   const hours = Math.max(fnum(lh.total), fnum(lh.logged), fnum(lh.loggedHours), fnum(lh.incurred), fnum(lh.incurredHours), fnum(lh.actual), fnum(s.loggedHours), fnum(s.incurredHours)) || fnum(fpick(lh, 'billable'));
-  return { rev, lab, mat, hours, hPriced: fnum(fpick(qs, 'quotedHours', 'pricedHours', 'hours')), pLab: fnum(fpick(qs, 'labour', 'labourPriced')) };
+  return { rev, lab, mat, hours, billed: claimed, value: priced || claimed, hPriced: fnum(fpick(qs, 'quotedHours', 'pricedHours', 'hours')), pLab: fnum(fpick(qs, 'labour', 'labourPriced')) };
 }
 
 // ── the quote's line items, wherever Fergus nests them ──
@@ -159,6 +159,20 @@ function parseQuote(lines) {
   // "hours" the loop above read off a qty-1 line priced over $400.
   q.otherHrs = find(/./).filter(l => (l.labour || /labour/i.test(l.section || '')) && !/^Lead Roofer$|^Apprentice$|^Gutter — /.test(l.name) && !(l.qty === 1 && l.price > 400)).reduce((s, l) => s + l.qty, 0);
   q.pricedHrs = q.leadHrs + q.appHrs + q.otherHrs + q.gutterHrs;
+  if (!q.roofmap) {
+    const isLab = l => l.labour || /labour|\bLL\b|\bLA\b|lead roofer|apprentice/i.test(l.name) || /labour/i.test(l.section || '');
+    const hrsOf = l => (l.qty > 0 && l.qty <= 400 && !(l.qty === 1 && l.price > 400)) ? l.qty : 0;
+    q.leadHrs = 0; q.appHrs = 0; q.otherHrs = 0; q.gutterHrs = 0;
+    lines.forEach(l => { if (!isLab(l)) return; const h = hrsOf(l); if (/lead|\bLL\b/i.test(l.name)) q.leadHrs += h; else if (/apprentice|\bLA\b/i.test(l.name)) q.appHrs += h; else q.otherHrs += h; });
+    q.pricedHrs = q.leadHrs + q.appHrs + q.otherHrs;
+    const m2 = lines.filter(l => !isLab(l) && /\/\s*m2|\bm2\b|sq\.?m|m²|per m/i.test(l.name) && l.qty >= 15);
+    if (m2.length) { q.area = m2.reduce((s, l) => s + l.qty, 0); q.sheetsUnit = 'fergus-m2'; q.template = 'fergus'; }
+    q.flaLm = lines.filter(l => !isLab(l) && !m2.includes(l) && /flashing|ridge|barge|\bFLA\b|apron|valley/i.test(l.name) && l.qty >= 3 && l.qty <= 1000).reduce((s, l) => s + l.qty, 0);
+    const sc2 = lines.filter(l => /scaffold/i.test(l.name));
+    sc2.forEach(l => { q.scaffPrice += l.qty * l.price; q.scaffCost += l.qty * l.cost; });
+    if (sc2.length) q.scaffType = /platform/i.test(sc2.map(l => l.name).join(' ')) ? 'platform' : 'edge';
+    return q;
+  }
   const sh = find(/^Roofing sheets/);
   q.sheetsQty = sh.reduce((s, l) => s + l.qty, 0);
   q.screws = sum(/Unitites|screws/i);
@@ -186,11 +200,13 @@ function parseQuote(lines) {
 function calc(q) {
   const colsKnown = q.gutterLm > 0;
   const cols = colsKnown ? Math.round(q.gutterLm / SHEET_W) : (q.area > 0 ? Math.round(q.area / (SHEET_W * EST_SHEET_LEN)) : 0);
-  const d = { roof: q.area, sheets: cols, cuts: q.ridgeHip + q.valley, flash: q.barge + q.apron + q.cp + q.ridgeHip, pen: q.pens };
+  const approx = !q.roofmap;
+  const d = approx ? { roof: q.area, sheets: cols, cuts: 0, flash: q.flaLm || 0, pen: 0 }
+                   : { roof: q.area, sheets: cols, cuts: q.ridgeHip + q.valley, flash: q.barge + q.apron + q.cp + q.ridgeHip, pen: q.pens };
   const h = {}; let raw = 0;
   Object.keys(d).forEach(k => { h[k] = d[k] / RATES[k]; raw += h[k]; });
   const h2 = Math.ceil(raw);
-  return { drivers: d, hours: h, raw, crewHrs: h2, manHrs: 2 * h2, colsKnown };
+  return { drivers: d, hours: h, raw, crewHrs: h2, manHrs: 2 * h2, colsKnown, approx };
 }
 const bandOf = rev => BANDS.find(([lo, hi]) => rev >= lo && rev < hi);
 const median = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -199,10 +215,11 @@ const r1 = v => (Math.round(v * 10) / 10).toFixed(1);
 const money = v => '$' + Math.round(v).toLocaleString('en-NZ');
 
 // Non-negative least squares (projected gradient) of man-hours on the five drivers → implied rates.
-function fitRates(rows) {
-  const X = rows.map(r => ['roof', 'sheets', 'cuts', 'flash', 'pen'].map(k => r.calc.drivers[k])), y = rows.map(r => r.actual);
+function fitRates(rows, keys) {
+  keys = keys || ['roof', 'sheets', 'cuts', 'flash', 'pen'];
+  const X = rows.map(r => keys.map(k => r.calc.drivers[k])), y = rows.map(r => r.actual);
   if (X.length < 8) return null;
-  const n = 5; let c = [2 / RATES.roof, 2 / RATES.sheets, 2 / RATES.cuts, 2 / RATES.flash, 2 / RATES.pen];
+  const n = keys.length; let c = keys.map(k => 2 / RATES[k]);
   const scale = X[0].map((_, j) => Math.max(1e-9, Math.sqrt(X.reduce((s, x) => s + x[j] * x[j], 0) / X.length)));
   const Xs = X.map(x => x.map((v, j) => v / scale[j])); let cs = c.map((v, j) => v * scale[j]);
   const lr = 0.5 / Math.max.apply(null, Xs[0].map((_, j) => Xs.reduce((s, x) => s + x[j] * x[j], 0) / X.length));
@@ -214,7 +231,7 @@ function fitRates(rows) {
   c = cs.map((v, j) => v / scale[j]);
   const pred = X.map(x => x.reduce((s, v, j) => s + v * c[j], 0));
   const mape = pred.reduce((s, p, i) => s + Math.abs(p - y[i]) / y[i], 0) / y.length;
-  return { rates: c.map(v => v > 1e-9 ? 2 / v : Infinity), mape, pred };
+  return { keys, rates: c.map(v => v > 1e-9 ? 2 / v : Infinity), mape, pred };
 }
 
 async function main() {
@@ -222,6 +239,11 @@ async function main() {
   // 1. every completed job
   let jobs = await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Completed&page=1', 80, n => process.stdout.write('\r  completed jobs read: ' + n + '   '));
   console.log('\nCompleted jobs in Fergus: ' + jobs.length);
+  const nCompleted = jobs.length;
+  const active = await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active&page=1', 20, n => process.stdout.write('\r  active jobs read: ' + n + '   ')).catch(() => []);
+  active.forEach(j => { j._active = true; });
+  jobs = jobs.concat(active);
+  console.log('\nActive jobs in Fergus: ' + active.length + ' (kept below only when 80%+ invoiced — the hub\'s own back-costing rule)');
   const seen = new Set();
   jobs = jobs.filter(j => { const id = String(j.id != null ? j.id : j.jobId); if (!id || seen.has(id)) return false; seen.add(id); return true; });
   const describe = j => [j.jobType, j.type, j.brief, j.title, j.jobDescription, j.description, j.summary].filter(Boolean).join(' | ');
@@ -263,7 +285,7 @@ async function main() {
 
   // 4. per job: financial summary, the quote's lines, supplier invoices
   let done = 0;
-  const rows = await pool(jobs, CONC, async job => {
+  let rows = await pool(jobs, CONC, async job => {
     const id = job.id != null ? job.id : job.jobId;
     const jobNo = String(job.jobNo || job.jobNumber || '');
     const sa = job.siteAddress || {};
@@ -271,7 +293,9 @@ async function main() {
     const streetM = /^\s*(?:\d+[a-z]?[\s,]+)?([a-z][a-z']{4,})/i.exec(site || '');
     const row = { id, jobNo, site, street: streetM ? streetM[1].toLowerCase() : '', suburb: sa.addressSuburb || sa.suburb || sa.addressCity || sa.city || (site.split(',')[0] || ''), type: job.jobType || job.type || '',
       title: job.brief || job.title || '', date: String(job.completedAt || job.completedDate || job.dateCompleted || job.endDate || job.finishDate || job.lastModified || '').slice(0, 10), hasDone: !!(job.completedAt || job.completedDate || job.dateCompleted || job.endDate || job.finishDate), fs: null, q: null, lines: [], supplierScaff: [], err: '' };
+    row.active = !!job._active;
     try { row.fs = fsFig(await fergus('/jobs/' + encodeURIComponent(id) + '/financialSummary').then(j => j.data || j)); } catch (e) { row.err += 'summary: ' + e.message.slice(0, 80) + '; '; }
+    if (row.active) { const f = row.fs; if (!(f && f.value > 0 && f.billed >= 0.8 * f.value)) { row.skip = true; done++; return row; } }
     try {
       let pick = quotes ? quoteByJob[id] : null;
       if (!pick && !quotes) {
@@ -286,7 +310,7 @@ async function main() {
         // The quote that WON may be one the office wrote in Fergus; RoofMap's own push (with the m² and
         // the flashings) can be an earlier or later version on the same job. Look at up to four others.
         if (!row.q.roofmap && quotes) {
-          const others = quotes.filter(q => String(q.jobId) === String(id) && q !== pick && !q.isDraft).sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0)).slice(0, 4);
+          const others = quotes.filter(q => String(q.jobId) === String(id) && q !== pick).sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0)).slice(0, 6);
           for (const o of others) {
             const l2 = await readLines(o); const q2 = parseQuote(l2);
             if (q2.roofmap) { row.q = q2; row.lines = l2; row.quoteFromOtherVersion = true; break; }
@@ -304,6 +328,8 @@ async function main() {
     return row;
   });
   console.log('');
+  const nActiveKept = rows.filter(r => r.active && !r.skip).length;
+  rows = rows.filter(r => !r.skip);
 
   // 5. Xero supplier bills from scaffold companies, matched to a job number in the reference or a line
   const byNo = {}; rows.forEach(r => { if (r.jobNo) byNo[r.jobNo.replace(/\D/g, '')] = r; });
@@ -355,20 +381,20 @@ async function main() {
   rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   rows.forEach(r => {
     r.rev = r.fs ? r.fs.rev : 0; r.actual = r.fs ? r.fs.hours : 0;
-    r.calc = r.q && r.q.roofmap && r.q.area > 0 ? calc(r.q) : null;
+    r.calc = r.q && r.q.area > 0 ? calc(r.q) : null;
     r.priced = r.pickedHrs > 0 ? r.pickedHrs : (r.q && r.q.pricedHrs > 0 ? r.q.pricedHrs : (r.fs ? r.fs.hPriced : 0));
-    r.manual = r.q && r.calc ? Math.abs(r.q.leadHrs - r.calc.crewHrs) > 0.51 : null;
+    r.manual = r.q && r.calc && r.q.roofmap ? Math.abs(r.q.leadHrs - r.calc.crewHrs) > 0.51 : null;
     r.scaffInv = r.supplierScaff.reduce((s, x) => s + x.amt, 0);
   });
-  const cols = [['Job', 6], ['Done', 10], ['Suburb', 14], ['Revenue', 9], ['m²', 6], ['Cols', 5], ['Cuts', 6], ['Flash', 6], ['Pen', 4], ['Calc h', 7], ['Priced h', 8], ['Actual h', 8], ['Act/Calc', 8], ['Act/Prcd', 8], ['Scaffold priced', 16], ['Scaffold bought in', 30]];
+  const cols = [['Job', 6], ['Done', 10], ['Suburb', 14], ['Revenue', 9], ['m²', 6], ['Cols', 5], ['Cuts', 6], ['Flash', 6], ['Pen', 4], ['Calc h', 8], ['Priced h', 8], ['Actual h', 8], ['Act/Calc', 8], ['Act/Prcd', 8], ['Scaffold priced', 16], ['Scaffold bought in', 30]];
   console.log('\nPER JOB (hours are crew MAN-hours: the calculator\'s 2 × ceil(sum); Priced = the hours on the Fergus quote; Actual = hours logged in Fergus)');
   console.log(cols.map(([h, w], i) => pad(h, w, i >= 3 && i <= 13)).join(' '));
   console.log(cols.map(([h, w]) => '-'.repeat(w)).join(' '));
   rows.forEach(r => {
     const c = r.calc, q = r.q;
     const line = [r.jobNo, r.date, (r.suburb || '').slice(0, 14), money(r.rev),
-      c ? r1(q.area) : (q && q.roofmap ? '?' : '—'), c ? (c.drivers.sheets + (c.colsKnown ? '' : '~')) : '', c ? r1(c.drivers.cuts) : '', c ? r1(c.drivers.flash) : '', c ? c.drivers.pen : '',
-      c ? c.manHrs : '—', r.priced ? r1(r.priced) : '—', r.actual ? r1(r.actual) : '—',
+      c ? r1(q.area) : (q && q.roofmap ? '?' : '—'), c ? (c.drivers.sheets + (c.colsKnown ? '' : '~')) : '', c ? (c.approx ? '?' : r1(c.drivers.cuts)) : '', c ? r1(c.drivers.flash) + (c.approx ? '*' : '') : '', c ? (c.approx ? '?' : c.drivers.pen) : '',
+      c ? (c.manHrs + (c.approx ? '≈' : '')) : '—', r.priced ? r1(r.priced) : '—', r.actual ? r1(r.actual) : '—',
       c && r.actual ? (r.actual / c.manHrs).toFixed(2) : '', r.priced && r.actual ? (r.actual / r.priced).toFixed(2) : '',
       q && q.scaffPrice ? money(q.scaffPrice) + ' ' + q.scaffType + (q.scaffCost ? ' (cost ' + money(q.scaffCost) + ')' : '') : (q ? 'none on quote' : ''),
       r.supplierScaff.length ? r.supplierScaff.map(s => money(s.amt) + ' ' + s.supplier.slice(0, 18)).join('; ') : (q && q.scaffPrice ? 'no invoice found → own crew' : '')];
@@ -378,9 +404,10 @@ async function main() {
   // what a quote that is NOT RoofMap's looks like (the first five with lines), so a renamed line is caught
   rows.filter(r => r.lines.length && !(r.q && r.q.roofmap)).slice(0, 5).forEach(r => console.log('  non-RoofMap quote lines, job ' + r.jobNo + ': ' + r.lines.slice(0, 10).map(l => (l.section ? '[' + l.section + '] ' : '') + l.name.slice(0, 40) + ' ×' + l.qty).join(' | ')));
   // 7. aggregates
-  const usable = rows.filter(r => r.calc && r.actual > 0 && r.rev > 0);
+  const usableAll = rows.filter(r => r.calc && r.actual > 0 && r.rev > 0);
+  const usable = usableAll.filter(r => !r.calc.approx), usableApprox = usableAll.filter(r => r.calc.approx);
   const withPriced = rows.filter(r => r.priced > 0 && r.actual > 0 && r.rev > 0);
-  console.log('\nCOVERAGE: ' + rows.length + ' completed non-shed jobs · ' + rows.filter(r => r.q && r.q.roofmap).length + ' quoted through RoofMap · ' + usable.length + ' with RoofMap quantities AND logged hours (the calculator test) · ' + withPriced.length + ' with priced AND logged hours · ' + rows.filter(r => r.err).length + ' with a read error');
+  console.log('\nCOVERAGE: ' + rows.length + ' back-costed non-shed jobs (' + (rows.length - nActiveKept) + ' completed + ' + nActiveKept + ' active and 80%+ invoiced) · ' + rows.filter(r => r.q && r.q.roofmap).length + ' with RoofMap\'s itemised quote · ' + usable.length + ' of those with logged hours (the EXACT calculator test) · ' + usableApprox.length + ' more with m² on an office-written Fergus quote (APPROXIMATE: roof m² + one flashing figure, no cuts / penetrations) · ' + withPriced.length + ' with priced AND logged hours · ' + rows.filter(r => r.err).length + ' with a read error');
   function agg(title, set, pick) {
     console.log('\n' + title); console.log('='.repeat(title.length));
     const c2 = [['Revenue band', 13], ['Jobs', 5], ['Σ est h', 9], ['Σ actual h', 10], ['Act/Est', 8], ['Median', 7], ['±20%', 6], ['Under-est', 9], ['Act h/m²', 9], ['Act h/$1k', 9]];
@@ -393,18 +420,28 @@ async function main() {
       console.log([label, js.length, est.toFixed(0), act.toFixed(0), (act / est).toFixed(2), median(rat).toFixed(2), Math.round(100 * rat.filter(x => x >= 0.8 && x <= 1.2).length / js.length) + '%', Math.round(100 * rat.filter(x => x > 1.2).length / js.length) + '%', area > 0 ? (actA / area).toFixed(2) : '—', (act / (rev / 1000)).toFixed(1)].map((v, i) => pad(v, c2[i][1], i > 0)).join('  '));
     });
   }
-  agg('CALCULATOR vs ACTUAL (jobs with RoofMap quantities)', usable, r => r.calc.manHrs);
+  agg('CALCULATOR vs ACTUAL — EXACT (RoofMap\'s own quantities)', usable, r => r.calc.manHrs);
+  agg('CALCULATOR vs ACTUAL — APPROXIMATE (m² + flashing lm off an office-written Fergus quote; cuts and penetrations unknown, so the estimate reads LOW)', usableApprox, r => r.calc.manHrs);
   agg('PRICED vs ACTUAL (every job with hours on the quote)', withPriced, r => r.priced);
   console.log('\nAct/Est > 1 = the crew took LONGER than the estimate. "Under-est" = share of jobs where actual ran more than 20% over.');
-  const fit = fitRates(usable);
-  if (fit) {
-    console.log('\nWHAT THE RATES WOULD NEED TO BE (least-squares fit of logged man-hours on the five drivers, ' + usable.length + ' jobs):');
+  const showFit = (title, set, keys) => {
+    const fit = fitRates(set, keys);
+    if (!fit) { if (set.length) console.log('\n' + title + ': only ' + set.length + ' jobs — too few to fit rates (needs 8+). Median Act/Calc = ' + median(set.map(r => r.actual / r.calc.manHrs)).toFixed(2)); return; }
+    console.log('\n' + title + ' (least-squares fit of logged man-hours, ' + set.length + ' jobs):');
     console.log('  driver        RoofMap now   fitted      (units per crew-hour, 2-man crew; higher = faster)');
-    ['roof', 'sheets', 'cuts', 'flash', 'pen'].forEach((k, i) => console.log('  ' + pad(k, 12) + '  ' + pad(RATES[k], 11, true) + '   ' + pad(isFinite(fit.rates[i]) ? fit.rates[i].toFixed(1) : '∞ (no time)', 10, true)));
-    const mapeNow = usable.reduce((s, r) => s + Math.abs(r.calc.manHrs - r.actual) / r.actual, 0) / usable.length;
+    fit.keys.forEach((k, i) => console.log('  ' + pad(k, 12) + '  ' + pad(RATES[k], 11, true) + '   ' + pad(isFinite(fit.rates[i]) ? fit.rates[i].toFixed(1) : '∞ (no time)', 10, true)));
+    const mapeNow = set.reduce((s, r) => s + Math.abs(r.calc.manHrs - r.actual) / r.actual, 0) / set.length;
     console.log('  mean error per job: RoofMap now ' + Math.round(mapeNow * 100) + '% · fitted ' + Math.round(fit.mape * 100) + '%');
-    console.log('  Simplest fix: scale factor (median Act/Calc) = ' + median(usable.map(r => r.actual / r.calc.manHrs)).toFixed(2) + ' → divide every rate by it.');
-  }
+    console.log('  Simplest fix: scale factor (median Act/Calc) = ' + median(set.map(r => r.actual / r.calc.manHrs)).toFixed(2) + ' → divide every rate by it.');
+  };
+  showFit('WHAT THE RATES WOULD NEED TO BE — exact jobs', usable);
+  showFit('WHAT THE RATES WOULD NEED TO BE — approximate jobs (roof m², estimated columns and the one flashing figure only)', usableApprox, ['roof', 'sheets', 'flash']);
+  // every line name the office writes on its own Fergus quotes, so the next run can read more of them
+  const vocab = {};
+  rows.filter(r => r.lines.length && !(r.q && r.q.roofmap)).forEach(r => r.lines.forEach(l => { const k = l.name.toLowerCase().replace(/\d+(\.\d+)?/g, '#').replace(/\s+/g, ' ').trim().slice(0, 48); const v = vocab[k] || (vocab[k] = { n: 0, q: 0, lab: 0 }); v.n++; v.q += l.qty; if (l.labour) v.lab++; }));
+  const vk = Object.keys(vocab).sort((a, b) => vocab[b].n - vocab[a].n).slice(0, 70);
+  console.log('\nLINE NAMES ON OFFICE-WRITTEN FERGUS QUOTES (top ' + vk.length + ', count × name, avg qty, L = labour flag):');
+  vk.forEach(k => console.log('  ' + pad(vocab[k].n, 4, true) + ' × ' + pad(k, 50) + ' avg qty ' + (vocab[k].q / vocab[k].n).toFixed(1) + (vocab[k].lab ? '  L' : '')));
   // 8. scaffold
   const sp = rows.filter(r => r.q && r.q.scaffPrice > 0);
   const bought = sp.filter(r => r.scaffInv > 0), own = sp.filter(r => !r.scaffInv);
@@ -413,8 +450,8 @@ async function main() {
   if (XERO_PAGES > 0) console.log('  Xero: ' + xeroBills + ' supplier bills read, ' + xeroScaff + ' from scaffold suppliers, ' + xeroMatched + ' matched to a job' + (xeroUnmatched.length ? ' · ' + xeroUnmatched.length + ' scaffold bills with no job number in the reference (' + money(xeroUnmatched.reduce((s, b) => s + b.amt, 0)) + '): ' + xeroUnmatched.slice(0, 12).map(b => b.date + ' ' + b.sup.slice(0, 16) + ' ' + money(b.amt) + (b.ref ? ' "' + b.ref.slice(0, 20) + '"' : '')).join(' · ') : ''));
 
   // 9. CSV
-  const H = ['jobNo', 'date', 'type', 'title', 'site', 'revenue', 'quotedThroughRoofMap', 'quoteAccepted', 'sheetsUnit', 'area_m2', 'columns', 'columnsEstimated', 'ridgeHip_lm', 'valley_lm', 'barge_lm', 'apron_lm', 'changePitch_lm', 'gutter_lm', 'penetrations', 'calc_h_roof', 'calc_h_sheets', 'calc_h_cuts', 'calc_h_flash', 'calc_h_pen', 'calc_crew_h', 'calc_man_h', 'priced_lead_h', 'priced_app_h', 'priced_other_h', 'priced_gutter_h', 'priced_man_h', 'hoursTypedOver', 'actual_man_h', 'actual_over_calc', 'actual_over_priced', 'labour_cost', 'material_cost', 'scaffold_type', 'scaffold_price', 'scaffold_cost_priced', 'scaffold_invoiced', 'scaffold_suppliers', 'errors'];
-  const csv = [H.join(',')].concat(rows.map(r => { const q = r.q || {}, c = r.calc; return [r.jobNo, r.date, r.type, r.title, r.site, r.rev.toFixed(2), q.roofmap ? 1 : 0, r.quoteAccepted ? 1 : 0, q.sheetsUnit || '', c ? q.area.toFixed(1) : '', c ? c.drivers.sheets : '', c ? (c.colsKnown ? 0 : 1) : '', q.ridgeHip != null ? q.ridgeHip.toFixed(1) : '', q.valley != null ? q.valley.toFixed(1) : '', q.barge != null ? q.barge.toFixed(1) : '', q.apron != null ? q.apron.toFixed(1) : '', q.cp != null ? q.cp.toFixed(1) : '', q.gutterLm || '', q.pens || '', c ? c.hours.roof.toFixed(2) : '', c ? c.hours.sheets.toFixed(2) : '', c ? c.hours.cuts.toFixed(2) : '', c ? c.hours.flash.toFixed(2) : '', c ? c.hours.pen.toFixed(2) : '', c ? c.crewHrs : '', c ? c.manHrs : '', q.leadHrs || '', q.appHrs || '', q.otherHrs || '', q.gutterHrs || '', r.priced || '', r.manual == null ? '' : (r.manual ? 1 : 0), r.actual || '', c && r.actual ? (r.actual / c.manHrs).toFixed(3) : '', r.priced && r.actual ? (r.actual / r.priced).toFixed(3) : '', r.fs ? r.fs.lab.toFixed(2) : '', r.fs ? r.fs.mat.toFixed(2) : '', q.scaffType || '', q.scaffPrice || '', q.scaffCost || '', r.scaffInv || '', r.supplierScaff.map(s => s.supplier + ' ' + Math.round(s.amt)).join(' | '), r.err].map(v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }));
+  const H = ['jobNo', 'date', 'type', 'title', 'site', 'revenue', 'quotedThroughRoofMap', 'quoteAccepted', 'sheetsUnit', 'area_m2', 'columns', 'columnsEstimated', 'ridgeHip_lm', 'valley_lm', 'barge_lm', 'apron_lm', 'changePitch_lm', 'gutter_lm', 'penetrations', 'calc_h_roof', 'calc_h_sheets', 'calc_h_cuts', 'calc_h_flash', 'calc_h_pen', 'calc_crew_h', 'calc_man_h', 'calc_approximate', 'fergus_flashing_lm', 'priced_lead_h', 'priced_app_h', 'priced_other_h', 'priced_gutter_h', 'priced_man_h', 'hoursTypedOver', 'actual_man_h', 'actual_over_calc', 'actual_over_priced', 'labour_cost', 'material_cost', 'scaffold_type', 'scaffold_price', 'scaffold_cost_priced', 'scaffold_invoiced', 'scaffold_suppliers', 'errors'];
+  const csv = [H.join(',')].concat(rows.map(r => { const q = r.q || {}, c = r.calc; return [r.jobNo, r.date, r.type, r.title, r.site, r.rev.toFixed(2), q.roofmap ? 1 : 0, r.quoteAccepted ? 1 : 0, q.sheetsUnit || '', c ? q.area.toFixed(1) : '', c ? c.drivers.sheets : '', c ? (c.colsKnown ? 0 : 1) : '', q.ridgeHip != null ? q.ridgeHip.toFixed(1) : '', q.valley != null ? q.valley.toFixed(1) : '', q.barge != null ? q.barge.toFixed(1) : '', q.apron != null ? q.apron.toFixed(1) : '', q.cp != null ? q.cp.toFixed(1) : '', q.gutterLm || '', q.pens || '', c ? c.hours.roof.toFixed(2) : '', c ? c.hours.sheets.toFixed(2) : '', c ? c.hours.cuts.toFixed(2) : '', c ? c.hours.flash.toFixed(2) : '', c ? c.hours.pen.toFixed(2) : '', c ? c.crewHrs : '', c ? c.manHrs : '', c ? (c.approx ? 1 : 0) : '', q.flaLm || '', q.leadHrs || '', q.appHrs || '', q.otherHrs || '', q.gutterHrs || '', r.priced || '', r.manual == null ? '' : (r.manual ? 1 : 0), r.actual || '', c && r.actual ? (r.actual / c.manHrs).toFixed(3) : '', r.priced && r.actual ? (r.actual / r.priced).toFixed(3) : '', r.fs ? r.fs.lab.toFixed(2) : '', r.fs ? r.fs.mat.toFixed(2) : '', q.scaffType || '', q.scaffPrice || '', q.scaffCost || '', r.scaffInv || '', r.supplierScaff.map(s => s.supplier + ' ' + Math.round(s.amt)).join(' | '), r.err].map(v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }));
   fs.writeFileSync('labour-check.csv', csv.join('\n'));
   console.log('\nWrote labour-check.csv (' + rows.length + ' rows) · ' + calls + ' proxy calls · ' + Math.round((Date.now() - t0) / 1000) + 's');
 }
