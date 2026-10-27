@@ -286,21 +286,23 @@ check('…with the org chart on it and none of the office\'s buttons or prompts'
 // the section boxes: one height, scrolling inside; Expand, back to 8 lines, Minimise
 r = await pg.evaluate(() => {
   const h = id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'); return b ? Math.round(b.getBoundingClientRect().height) : -1; };
-  const out = { scope: h('q-scope'), terms: h('q-terms'), pricing: h('w-pricing'), ctl: !!document.querySelector('.tn-bxs[data-bxfor="q-scope"] [data-bx="full"]') };
+  const out = { scope: h('w-scope'), terms: h('w-exclusions'), pricing: h('w-pricing'), docBoxes: document.querySelectorAll('#tqPage .tn-box').length, ctl: !!document.querySelector('.tn-bxs[data-bxfor="w-scope"] [data-bx="full"]') };
   _tnBox('w-pricing', 'full'); out.full = h('w-pricing'); out.back = !!document.querySelector('.tn-bxs[data-bxfor="w-pricing"] [data-bx="mid"]');
   _tnBox('w-pricing', 'min'); out.min = h('w-pricing'); out.open = !!document.querySelector('.tn-bxs[data-bxfor="w-pricing"] [data-bx="mid"]');
   _tnBox('w-pricing', 'mid'); out.mid = h('w-pricing');
   return out;
 });
-check('every section box is the same height, scrolling inside', r.scope === 208 && r.terms === 208 && r.pricing === 208 && r.ctl, JSON.stringify(r));
-check('…Expand shows it whole with a button back to 8 lines, Minimise folds it, Open brings it back', r.full > 208 && r.back && r.min === 0 && r.open && r.mid === 208, JSON.stringify(r));
-r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f.contentDocument; const css = [...dd.querySelectorAll('style')].map(x => x.textContent).join(''); return { boxCssScreen: /@media screen\{\.tn-box\.mid\{height:208px/.test(css), bx: dd.querySelectorAll('.tn-bxs,.tq-pb').length }; });
+check('the working sheet\'s boxes are one height, scrolling inside (the document is whole sheets)', r.scope === 540 && r.terms === 540 && r.pricing === 540 && r.docBoxes === 0 && r.ctl, JSON.stringify(r));
+check('…Expand shows it whole with a button back to 8 lines, Minimise folds it, Open brings it back', r.full > 540 && r.back && r.min === 0 && r.open && r.mid === 540, JSON.stringify(r));
+r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f.contentDocument; const css = [...dd.querySelectorAll('style')].map(x => x.textContent).join(''); return { boxCssScreen: /@media screen\{\.tn-card \.tn-box\.mid\{height:540px/.test(css), bx: dd.querySelectorAll('.tn-bxs,.tq-pb').length }; });
 check('…and the PDF still prints every section whole, without the box buttons or page lines', r.boxCssScreen && r.bx === 0, JSON.stringify(r));
 // the page breaks: lengthen the scope until it runs onto a second page
 await pg.evaluate(() => { window.__tnRerender(d => { for (let i = 0; i < 70; i++) d.scope.push('Scope line number ' + i + ' for the page break test'); }); });
 await pg.waitForTimeout(1800);
-r = await pg.evaluate(() => { const marks = [...document.querySelectorAll('#tqPage .tq-pb')].map(m => m.textContent); return { marks, pages: document.getElementById('tqPage').getAttribute('data-pages'), label: (document.getElementById('tqPages') || {}).textContent, termsKey: document.querySelector('#tqPage [data-qk="terms"]') ? 1 : 0 }; });
-check('the document shows where each PDF page starts', r.marks.length >= 2 && r.marks[0] === 'Page 2 of the PDF starts here' && +r.pages === r.marks.length + 1 && /A4 PDF: \d+ pages/.test(r.label), JSON.stringify(r));
+r = await pg.evaluate(() => { const marks = [...document.querySelectorAll('#tqPage .tq-pb:not(.tq-pb-end)')].map(m => m.textContent); return { marks, pages: document.getElementById('tqPage').getAttribute('data-pages'), label: (document.getElementById('tqPages') || {}).textContent, sheets: [...document.querySelectorAll('#tqPage .tq-pb')].map(m => m.getBoundingClientRect().top), pgTop: document.getElementById('tqPage').getBoundingClientRect().top, rows: ['w-scope'].map(id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'), bb = b.getBoundingClientRect(); return [...b.querySelectorAll('li:not(.tq-pb)')].filter(l => { const r = l.getBoundingClientRect(); return r.top >= bb.top && r.bottom <= bb.bottom + 1; }).length; }), termsKey: document.querySelector('#tqPage [data-qk="terms"]') ? 1 : 0 }; });
+check('a working-sheet box shows 8 rows of the scope', r.rows[0] === 8, JSON.stringify(r.rows));
+check('the document is drawn as separate A4 sheets, each the height of a PDF page', r.sheets.length >= 2 && Math.abs((r.sheets[1] - r.sheets[0]) - 1148) < 3,  JSON.stringify(r.sheets));
+check('…as many as the PDF prints', r.marks.length >= 2 && r.marks[0] === 'Page 2' && +r.pages === r.marks.length + 1 && /A4 PDF: \d+ pages/.test(r.label), JSON.stringify(r));
 
 if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and the PDF as Chrome prints it
   const dir = process.env.SHOTS;
