@@ -110,7 +110,13 @@ accordingly.
   20th on `next` IS next month — the tile and its `expap` popup read `foll` and showed the month after next
   (December's $525 of bills over November's $88k). `apNextMonthSlot()` picks whichever of the two falls in the
   month after now and pairs it with `apBillsDueInMonth`; the cashflow popup still shows both 20ths. `hubui` pins
-  it on the 28th and the 10th. `hub-cash-peek.yml` → `hub-api/scripts/cash-peek.js` prints what the shared Cash
+  it on the 28th and the 10th. THE TILE IS XERO'S BILLS ALONE, AND THE MATERIALS ARE ON THE CASH TAB
+  (2026-10-28, the same morning: "remove the 'Materials likely paid 20 Nov' ... put them as likely due in
+  December 20th and move it to the cash tab (keep next months in the command center). also remove 'last month'
+  from the home tab"): the `expap` tile and popup carry the bills only; `apExp.all` keeps every active job's
+  still-to-buy and `renderMatDue()` lists it on the Cash tab's `#cash-matdue-card` under the 20th of the month
+  after next (`matDueMs`), biggest first — the 13-week forecast's own week-by-week materials are unchanged. The
+  Last Month card (`.d-last`, `#met-last`) is gone from the Command Centre; Cash at a glance takes the row. `hub-cash-peek.yml` → `hub-api/scripts/cash-peek.js` prints what the shared Cash
   state holds (bill count, bills by due month, bills due this month) from the Actions log.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
   `hub-backcost-report.yml` (the GP-margin target per revenue band from the hub's rows) and

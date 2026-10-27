@@ -978,12 +978,11 @@ html.is-desktop #cmd-tog.cmd-tog{width:auto;}
 html.is-desktop #cmd-tog .tgcol{flex:none;}
 html.is-desktop #cmd-tog .chip{flex:none;padding:7px 16px;font-size:.74rem;}
 html.is-desktop .dgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;
-  grid-template-areas:"fw fw al" "mo mo mo" "kp kp kp" "ca ca la" "pl pl pl" "r3 r3 r3" "r6 r6 r6" "sy sy sy";}
+  grid-template-areas:"fw fw al" "mo mo mo" "kp kp kp" "ca ca ca" "pl pl pl" "r3 r3 r3" "r6 r6 r6" "sy sy sy";}
 html.is-desktop .d-fw{grid-area:fw;}html.is-desktop .d-alerts{grid-area:al;}html.is-desktop .d-kpis{grid-area:kp;}
-html.is-desktop .d-cash{grid-area:ca;}html.is-desktop .d-last{grid-area:la;}html.is-desktop .d-pl{grid-area:pl;}
+html.is-desktop .d-cash{grid-area:ca;}html.is-desktop .d-pl{grid-area:pl;}
 html.is-desktop .d-month{grid-area:mo;}html.is-desktop .d-roll3{grid-area:r3;}html.is-desktop .d-roll6{grid-area:r6;}html.is-desktop .d-sync{grid-area:sy;}
 html.is-desktop .d-alerts{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:var(--shadow);}
-html.is-desktop .d-last .mg{grid-template-columns:repeat(2,1fr);}
 html.is-desktop .kpigrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
 html.is-desktop .kpi{padding:14px 15px 13px;}
 html.is-desktop .kpi .kl{font-size:.62rem;}
@@ -1300,10 +1299,6 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
         <div class="mg mg-list" id="dash-summary"></div>
       </div></div>
       <div class="d-pl sect pm-hide"><span>Profit &amp; Loss</span><button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
-      <div class="d-last pm-hide"><div class="card per-last acc-card">
-        <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
-        <div class="mg" id="met-last"></div>
-      </div></div>
       <div class="d-roll3 pm-hide"><div class="card per-3mo">
         <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
         <div class="mstrip" id="roll-strip-dash"></div>
@@ -1694,6 +1689,12 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     <div class="card per-this">
       <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
       <div class="mg mg-list" id="cash-summary"></div>
+    </div>
+    <div class="card per-last" id="cash-matdue-card">
+      <div class="ct">Materials likely due <span id="cash-matdue-when" class="period-sub"></span><span class="period-sub" style="margin-left:auto;">still to buy on active jobs</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cash-matdue-total" style="font-size:2.4rem;color:#fb923c;">—</div><div class="unit" id="cash-matdue-sub">estimated materials still to buy</div></div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto;"><table class="tb" id="cash-matdue-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Materials</th></tr></thead><tbody></tbody></table></div>
+      <div class="note" id="cash-matdue-note">Each job's materials budget (deposit % of its sale) less what's already recorded, GST inclusive — bought over the coming weeks and paid on the 20th after. Not in the Command Centre's A/P next month, which is Xero's bills alone.</div>
     </div>
     <div id="cash-stash" class="cash-hidden"></div>
     <div id="cash-modal" class="cmodal" onclick="if(event.target===this)closeCashDetail();">
@@ -4738,18 +4739,15 @@ function renderDash(){
   if(xm.length){
     const fThis=xeroFig(thisM);
     renderMonthStrip('month-strip-dash',xeroFig,perM);
-    document.getElementById('met-last').innerHTML=metGrid(xeroFig(lastM));
     document.getElementById('lbl-this').textContent=thisM+(fThis?' · partial':'');
-    document.getElementById('lbl-last').textContent=lastM;
-    document.getElementById('src-this').textContent='⚡ Xero · ';document.getElementById('src-last').textContent='⚡ Xero';
+    document.getElementById('src-this').textContent='⚡ Xero · ';
     if(pill){pill.className='livepill on';pill.textContent='⚡ Live · Xero P&L';}
     document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. The By Month strip shows each month on its own (this month to date, partial); the 3-month rolling strip shows each month averaged with the two before it. Forward workflow is from Fergus ('+(last||'not synced')+').';
   }else{
     const msg='<div class="empty" style="padding:10px;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
     document.getElementById('month-strip-dash').innerHTML=msg;
-    document.getElementById('met-last').innerHTML='';
-    document.getElementById('lbl-this').textContent='';document.getElementById('lbl-last').textContent='';
-    ['src-this','src-last'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='';});
+    document.getElementById('lbl-this').textContent='';
+    ['src-this'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='';});
     if(pill){pill.className='livepill off';pill.textContent='Xero — not connected';}
     document.getElementById('dash-note').textContent=last?('Fergus workload synced '+last+'. Set XERO_CLIENT_ID/SECRET on the proxy + Refresh for live P&L.'):'Not connected — tap ⚙, then Refresh.';
   }
@@ -4829,6 +4827,21 @@ function apNextMonthSlot(){
   const mkOf=ms=>{const d=new Date(ms);return d.getFullYear()*12+d.getMonth();};
   const slot=(ax.next&&mkOf(ax.next.ms)===mk)?ax.next:((ax.foll&&mkOf(ax.foll.ms)===mk)?ax.foll:{ms:new Date(nm.getFullYear(),nm.getMonth(),20).getTime(),ap:0,mat:0,jobs:[]});
   return {ms:slot.ms,mat:num(slot.mat),jobs:(slot.jobs||[]),bills:apBillsDueInMonth(slot.ms)};
+}
+// The Cash tab's "Materials likely due" card (2026-10-28, the owner: "put them as likely due in December 20th
+// and move it to the cash tab"): every active job's still-to-buy materials from the forecast (apExp.all),
+// as one list under the 20th of the month after next — the tile on the Command Centre is Xero's bills alone.
+function matDueMs(){const n=new Date();return new Date(n.getFullYear(),n.getMonth()+2,20).getTime();}
+function renderMatDue(){
+  const tb=document.querySelector('#cash-matdue-tbl tbody'),tot=document.getElementById('cash-matdue-total'),sub=document.getElementById('cash-matdue-sub'),whenEl=document.getElementById('cash-matdue-when');
+  if(!tb||!tot)return;
+  const ms=matDueMs();const d=new Date(ms);if(whenEl)whenEl.textContent=d.getDate()+' '+FG_MONTHS[d.getMonth()]+' '+String(d.getFullYear()).slice(2);
+  const ax=window.__apExp;const jobs=(ax&&ax.all?ax.all:[]).slice().sort((a,b)=>num(b.mat)-num(a.mat));
+  const sum=jobs.reduce((a,j)=>a+num(j.mat),0);
+  tot.textContent=jobs.length?fmtK(sum):'—';
+  if(sub)sub.textContent=jobs.length?(jobs.length+' jobs still need materials'):(ax?'no materials still to buy':'Refresh Fergus to estimate materials');
+  tb.innerHTML=jobs.length?jobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,40))+'</td><td style="text-align:right;color:#fb923c;font-weight:700;">'+fmtK(num(j.mat))+'</td></tr>').join('')+
+    '<tr class="sum"><td>Total ('+jobs.length+')</td><td style="text-align:right;font-weight:800;">'+fmtK(sum)+'</td></tr>':'<tr><td colspan="2" class="empty">'+(ax?'No materials still to buy on active jobs.':'Refresh Fergus to estimate materials.')+'</td></tr>';
 }
 // ── Forward workflow on the Command Centre (2026-10-24, the owner: "i want the forward workflow weeks/hours
 // to be brought into the first page/command center"). The same sums the Workload tab and the old tile used —
@@ -4990,10 +5003,9 @@ function renderCommand(){
     // A/P due NEXT month — actual current bills landing that month's 20th PLUS new materials likely paid
     // the same 20th. Combined here; the popup separates the two totals. This is on top of what's due this month.
     (function(){if(isPM())return '';const sl=apNextMonthSlot();if(!sl)return '';
-      const nb=sl.bills;const fm=sl.mat;const comb=nb.total+fm;if(comb<=0)return '';
+      const nb=sl.bills;if(!(nb.total>0))return '';
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
-      const sub=(nb.total>0?fmtK(nb.total)+' bills':'')+((nb.total>0&&fm>0)?' + ':'')+(fm>0?fmtK(fm)+' materials':'');
-      return tile('or','due','A/P next month',fmtK(comb),'','due '+d(sl.ms)+' · '+(sub||'on top of this month'),'expap');})()+
+      return tile('or','due','A/P next month',fmtK(nb.total),'','due '+d(sl.ms)+' · '+nb.list.length+' bills in Xero','expap');})()+
     // Jobs underway (5–100% through priced labour) — their remaining quoted value still to invoice.
     // The popup breaks it into 5–20%, 20–50% and 50–100% stages.
     (function(){const near=(fwJobs||[]).filter(j=>{if(isExcl(j))return false;const p=num(j.priced);return p>0&&(num(j.actual)/p)>=0.05&&uninvPriced(j)>0;});
@@ -5173,21 +5185,15 @@ function openCmdDetail(key,optMk){
     else{
       const when=dfull(sl.ms);
       const nb=sl.bills;
-      const matJobs=sl.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat));
-      const billTot=num(nb.total),matTot=matJobs.reduce((a,j)=>a+num(j.mat),0),comb=billTot+matTot;
+      const billTot=num(nb.total);
       // 1) actual supplier bills already in Xero, due that month's 20th (most expensive first)
       const billRows=nb.list.slice().sort((a,b)=>num(b.amt)-num(a.amt)).map(b=>'<tr><td>'+esc((b.supplier||'—').slice(0,38))+(b.no?' <span class="cfx-tag">'+esc(b.no)+'</span>':'')+'</td><td style="text-align:right;font-weight:700;">'+fmtK(num(b.amt))+'</td></tr>');
       if(!billRows.length)billRows.push('<tr><td colspan="2" class="empty">'+(nb.hasBills?'No bills already in Xero due next month.':'Sync Xero A/P to list the actual bills.')+'</td></tr>');
-      billRows.push('<tr class="tot"><td>Bills subtotal</td><td style="text-align:right;">'+fmtK(billTot)+'</td></tr>');
-      // 2) materials likely to be paid the same 20th (estimated still-to-buy on active jobs)
-      const matRows=matJobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,38))+' <span class="cfx-tag">materials</span></td><td style="text-align:right;color:#fb923c;">'+fmtK(num(j.mat))+'</td></tr>');
-      if(!matRows.length)matRows.push('<tr><td colspan="2" class="empty">No materials estimated for next month.</td></tr>');
-      matRows.push('<tr class="tot"><td>Materials subtotal</td><td style="text-align:right;">'+fmtK(matTot)+'</td></tr>');
+      billRows.push('<tr class="tot"><td>Bills total</td><td style="text-align:right;">'+fmtK(billTot)+'</td></tr>');
       const seg=(label,rows)=>'<div class="cfx-sec"><div class="cfx-sect">'+label+'</div><div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>';
-      const hero='<div class="cfx-sec" style="text-align:center;padding:14px 12px;"><div class="cfx-sect">Combined — due '+when+'</div><div style="font-size:1.7rem;font-weight:800;color:#fb923c;line-height:1.05;">'+fmtK(comb)+'</div><div class="note" style="margin-top:5px;">'+fmtK(billTot)+' current bills + '+fmtK(matTot)+' materials</div></div>';
-      const pctV=Math.round((ax.matPct||0.5)*100),leadV=num(S.get('cfMatLead','3'))||3;
-      const tune='<div class="cfx-sec"><div class="cfx-sect">Assumptions — tune the estimate</div><div class="expap-tune">Materials = <input type="number" inputmode="decimal" value="'+pctV+'" onchange="setExpApCfg(\'pct\',this.value)"> % of each job’s value · ordered <input type="number" inputmode="numeric" value="'+leadV+'" onchange="setExpApCfg(\'lead\',this.value)"> weeks before finish</div></div>';
-      body=hero+seg('Current bills due '+when,billRows)+seg('Materials likely paid '+when,matRows)+tune+
+      const hero='<div class="cfx-sec" style="text-align:center;padding:14px 12px;"><div class="cfx-sect">Bills in Xero — due '+when+'</div><div style="font-size:1.7rem;font-weight:800;color:#fb923c;line-height:1.05;">'+fmtK(billTot)+'</div><div class="note" style="margin-top:5px;">'+nb.list.length+' supplier bills already in Xero whose due date lands next month</div></div>';
+      body=hero+seg('Current bills due '+when,billRows)+
+        '<div class="note" style="margin:10px 2px 2px;">These are actual supplier invoices already in Xero, paid the 20th. Materials still to buy on active jobs are estimated on the <b>Cash</b> tab (“Materials likely due”), not counted here.</div>';
         '<div class="note" style="margin:10px 2px 2px;"><b>Current bills</b> are actual supplier invoices already in Xero whose due date lands in next month (paid the 20th). <b>Materials</b> are estimated still-to-buy on active jobs ('+pctV+'% of each job’s value, less what’s already recorded) — the bit you’ve ordered/will order but <b>haven’t had or processed a supplier invoice for yet</b> — landing on the same 20th. Already-recorded materials are subtracted, so nothing’s double-counted. This is on top of what’s already due this month.</div>';
     }}
   else if(key==='fw'){title='Forward workflow — active jobs';
@@ -6299,6 +6305,7 @@ async function diagJobMaterials(){
   }catch(e){out.textContent='diag error: '+String(e&&e.message||e);}
 }
 function renderCash(){
+  try{renderMatDue();}catch(e){}
   const kwInput=document.getElementById('cash-matkw');if(kwInput&&!kwInput.value)kwInput.value=S.get('cashMatKw','material');
   const skInput=document.getElementById('cash-saleskw');if(skInput&&!skInput.value)skInput.value=S.get('cashSalesKw','sales');
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
@@ -6737,7 +6744,7 @@ function renderCashflow(){
   // AFTER they're ordered. stb subtracts each job's already-recorded materials (aMat), so bills already in
   // Xero A/P aren't double-counted.
   const next20ms=nextTwentieth(NOW);const _n20=new Date(next20ms);const foll20ms=new Date(_n20.getFullYear(),_n20.getMonth()+1,20).getTime();
-  const apExp={next:{ms:next20ms,ap:apMat,mat:0,jobs:[]},foll:{ms:foll20ms,ap:0,mat:0,jobs:[]},matPct};
+  const apExp={next:{ms:next20ms,ap:apMat,mat:0,jobs:[]},foll:{ms:foll20ms,ap:0,mat:0,jobs:[]},all:[],matPct};
   const cfJobs=[],cfArList=[];
   sched.forEach(s=>{
     const finPayMs=s.finDate.getTime()+finLagMs;const finWk=wkBucket(finPayMs);
@@ -6746,10 +6753,12 @@ function renderCashflow(){
     const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat))*GG;                         // still-to-buy for this job, grossed to GST-inclusive cash
     const matPayMs=twentiethNextMonth(orderMs),matWk=wkBucket(matPayMs);
     if(matWk>=0&&stb>0)mOut[matWk]+=stb;                                             // …paid the 20th of the following month, if in-window
-    if(stb>0){if(matPayMs===next20ms){apExp.next.mat+=stb;apExp.next.jobs.push({job:s.job,mat:stb});}
+    if(stb>0){apExp.all.push({job:s.job,mat:stb,ms:matPayMs});
+      if(matPayMs===next20ms){apExp.next.mat+=stb;apExp.next.jobs.push({job:s.job,mat:stb});}
       else if(matPayMs===foll20ms){apExp.foll.mat+=stb;apExp.foll.jobs.push({job:s.job,mat:stb});}}
     if(s.owing>0||stb>0)cfJobs.push({id:s.id,job:s.job,finDate:s.finDate.getTime(),isSch:s.isSch,isOv:s.isOv,owing:s.owing,finWk,finPayMs,stb,matWk,matPayMs,inWin:(finWk>=0)});});
   try{window.__apExp=apExp;}catch(e){}
+  try{renderMatDue();}catch(e){}
   // Existing A/R (invoices already sent): each paid 3 days after its due date — UNLESS the bank
   // feed shows it's already been received (paid but not yet reconciled in Xero), in which case the
   // money is already in the opening balance, so we don't forecast it again.
@@ -7633,8 +7642,6 @@ function init(){
   renderAll();
   recordKpiSnapshot();
   applyAccordions();
-  // On a computer Last Month sits beside Cash at a glance, so it starts open rather than as a folded bar.
-  if(document.documentElement.classList.contains('is-desktop')){const d=document.querySelector('.d-last details.acc');if(d)d.open=true;}
   // Auto-sync ONLY Xero on open (Fergus workload renders from its saved last-sync; refresh it
   // manually with the Refresh button). Renders cached data first, then updates in the background.
   if(fergusProxyUrl()){

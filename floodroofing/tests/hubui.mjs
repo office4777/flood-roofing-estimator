@@ -429,7 +429,8 @@ check('…and the tiles run four across', lay.kpiW < lay.app / 3.5, JSON.stringi
 const byMd = await pg.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect();
   return { fwBot: Math.round(r('#cmd-fw').bottom), moTop: Math.round(r('.d-month').top), moW: Math.round(r('.d-month').width), app: Math.round(document.getElementById('app').getBoundingClientRect().width), kpis: Math.round(r('#cmd-kpis').top) }; });
 check('…and on the computer By Month runs full width under the workflow card, above the tiles', byMd.moTop > byMd.fwBot && byMd.moTop < byMd.kpis && byMd.moW > byMd.app * 0.9, JSON.stringify(byMd));
-check('…and Last Month starts open beside Cash at a glance', await pg.evaluate(() => { const d = document.querySelector('.d-last details.acc'); return !!(d && d.open); }));
+// The Last Month card came off the Command Centre on 2026-10-28 (the owner: "remove 'last month' from the home tab").
+check('…and there is no Last Month card on the Command Centre', await pg.evaluate(() => !document.querySelector('.d-last') && !document.getElementById('met-last')));
 await pg.evaluate(() => go('bc')); await pg.waitForTimeout(400);
 const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wrap').getBoundingClientRect().height > 0,
   list: document.getElementById('bc-list').getBoundingClientRect().height > 0,
@@ -469,12 +470,22 @@ const apn = await pg.evaluate(() => {
     window.__apExp = { next: { ms: next20, ap: 0, mat: 1000, jobs: [{ mat: 1000 }] }, foll: { ms: foll20, ap: 0, mat: 2000, jobs: [{ mat: 2000 }] } };
     const sl = apNextMonthSlot();
     window.Date = real;
-    out[day] = { month: new Date(sl.ms).getMonth(), want: nm.getMonth(), mat: sl.mat, jobs: sl.jobs.length, bills: sl.bills && typeof sl.bills.total === 'number' };
+    out[day] = { month: new Date(sl.ms).getMonth(), want: nm.getMonth(), bills: sl.bills && typeof sl.bills.total === 'number' };
   }
   return out;
 });
-check('on the 28th, A/P next month is next month\'s 20th (apExp.next), not the month after', apn[28].month === apn[28].want && apn[28].mat === 1000 && apn[28].jobs === 1 && apn[28].bills, JSON.stringify(apn[28]));
-check('on the 10th it is still next month (apExp.foll)', apn[10].month === apn[10].want && apn[10].mat === 2000 && apn[10].bills, JSON.stringify(apn[10]));
+check('on the 28th, A/P next month is next month\'s 20th (apExp.next), not the month after', apn[28].month === apn[28].want && apn[28].bills, JSON.stringify(apn[28]));
+check('on the 10th it is still next month (apExp.foll)', apn[10].month === apn[10].want && apn[10].bills, JSON.stringify(apn[10]));
+// The tile is Xero's bills alone; the materials still to buy sit on the Cash tab as "likely due" the 20th
+// of the month after next (2026-10-28, the owner: "put them as likely due in December 20th and move it to the cash tab").
+const mdue = await pg.evaluate(() => {
+  const now = new Date(); const want = new Date(now.getFullYear(), now.getMonth() + 2, 20);
+  window.__apExp = { next: { ms: 0, ap: 0, mat: 0, jobs: [] }, foll: { ms: 0, ap: 0, mat: 0, jobs: [] }, all: [{ job: 'A — 1 Road', mat: 1000 }, { job: 'B — 2 Road', mat: 2500 }] };
+  renderMatDue();
+  const rows = Array.from(document.querySelectorAll('#cash-matdue-tbl tbody tr')).map(r => r.textContent.trim());
+  return { when: document.getElementById('cash-matdue-when').textContent, want: want.getDate() + ' ' + FG_MONTHS[want.getMonth()], total: document.getElementById('cash-matdue-total').textContent, rows, onCash: !!document.querySelector('#page-cash #cash-matdue-card'), onDash: !!document.querySelector('#page-dash #cash-matdue-card') };
+});
+check('the Cash tab carries Materials likely due the 20th of the month after next, biggest first, and the Command Centre does not', mdue.when.startsWith(mdue.want) && mdue.total === '$3.5k' && mdue.rows.length === 3 && /^B/.test(mdue.rows[0]) && mdue.onCash && !mdue.onDash, JSON.stringify(mdue));
 await ctx.close();
 await b.close();
 
