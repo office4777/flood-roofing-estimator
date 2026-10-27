@@ -1,0 +1,47 @@
+name: Hub labour calculator check
+
+# On demand: RoofMap's labour auto-calc against the hours the crew actually logged on every completed,
+# non-pole-shed Fergus job, plus whether each job's scaffold was bought in (a scaffold supplier invoice
+# on the job) or put up by the crew. Reads Fergus and Xero through the fergus-proxy with the nightly
+# sync's secrets; prints the per-job table to the log and uploads labour-check.csv.
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Only jobs modified on/after (YYYY-MM-DD; blank = every completed job)'
+        default: ''
+        type: string
+      max_jobs:
+        description: 'Cap the number of jobs (0 = all) — for a quick trial'
+        default: '0'
+        type: string
+      xero_pages:
+        description: 'Xero supplier-bill pages to read for the scaffold check (100 bills a page; 0 = skip)'
+        default: '100'
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Labour calculator vs back-costing
+        working-directory: floodroofing/hub-api
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
+          SINCE: ${{ github.event.inputs.since }}
+          MAX_JOBS: ${{ github.event.inputs.max_jobs || '0' }}
+          XERO_PAGES: ${{ github.event.inputs.xero_pages || '100' }}
+        run: node scripts/labour-check.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: labour-check
+          path: floodroofing/hub-api/labour-check.csv
+          if-no-files-found: ignore

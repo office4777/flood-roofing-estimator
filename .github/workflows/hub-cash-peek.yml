@@ -1,0 +1,24 @@
+name: Hub cash peek
+
+# On demand: what the hub's shared Cash state holds (Xero supplier bills by due month, the ones due this
+# month), read with the nightly sync's login. Suppliers and amounts only, into this run's log.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  peek:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cash state
+        working-directory: floodroofing/hub-api
+        env:
+          HUB_API_URL: ${{ secrets.HUB_API_URL }}
+          HUB_USER: ${{ secrets.HUB_SYNC_USER }}
+          HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
+        run: node scripts/cash-peek.js

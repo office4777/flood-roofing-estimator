@@ -105,6 +105,29 @@ accordingly.
   off the right. `tests/hubui.mjs` (101, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
+  A/P NEXT MONTH IS THE CALENDAR MONTH AFTER THIS ONE (2026-10-28, the owner: "A/P next month should show
+  xero's bills to pay next month (88.3k)"): `apExp.next` is the next 20th and `foll` the one after, and from the
+  20th on `next` IS next month — the tile and its `expap` popup read `foll` and showed the month after next
+  (December's $525 of bills over November's $88k). `apNextMonthSlot()` picks whichever of the two falls in the
+  month after now and pairs it with `apBillsDueInMonth`; the cashflow popup still shows both 20ths. `hubui` pins
+  it on the 28th and the 10th. THE TILE IS XERO'S BILLS ALONE, AND THE MATERIALS ARE ON THE CASH TAB
+  (2026-10-28, the same morning: "remove the 'Materials likely paid 20 Nov' ... put them as likely due in
+  December 20th and move it to the cash tab (keep next months in the command center). also remove 'last month'
+  from the home tab"): the `expap` tile and popup carry the bills only; `apExp.all` keeps every active job's
+  still-to-buy and `renderMatDue()` lists it on the Cash tab's `#cash-matdue-card` under the 20th of the month
+  after next (`matDueMs`), biggest first — the 13-week forecast's own week-by-week materials are unchanged. The
+  Last Month card (`.d-last`, `#met-last`) is gone from the Command Centre; Cash at a glance takes the row. `hub-cash-peek.yml` → `hub-api/scripts/cash-peek.js` prints what the shared Cash
+  state holds (bill count, bills by due month, bills due this month) from the Actions log.
+  TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
+  `hub-backcost-report.yml` (the GP-margin target per revenue band from the hub's rows) and
+  `hub-labour-check.yml` → `hub-api/scripts/labour-check.js`, RoofMap's labour auto-calc against the
+  hours logged on every back-costed non-shed job, plus whether each job's scaffold was bought in
+  (Xero supplier bills naming the job — Fergus's API exposes NO supplier invoices, ten shapes 404).
+  Findings and how to read them: `docs/LABOUR_CHECK_2026-10-27.md`. The short version: only 6
+  finished jobs carry RoofMap's itemised quote so far; on the 147 office-quoted jobs with an area the
+  calculator is right under ~$14k and ~40 % low from $25k up (crews log 0.5 man-h/m², the calculator
+  prices ~0.3); the missing time is travel, own-crew scaffold, strip-off — drivers it does not have.
+  Re-run it once more RoofMap-quoted jobs have finished (the exact fit needs 8+).
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
   began answering 500 to `/enquiries?…sortField=createdAt…` on 9 Sept and
   `syncMarketing` swallowed it, so the nightly's "marketing" step read ✓ for
