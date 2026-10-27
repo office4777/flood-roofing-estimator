@@ -8483,7 +8483,7 @@ function _renderSheetPuzzleCanvas(opts){
   opts = opts || {};
   var pz = _sheetPuzzleBuild(opts);
   var scale = opts.thumb ? 1 : 2;
-  var W = 960, padX = 40, padBot = 26;
+  var W = 960, padX = 40, padBot = 34;
   function emptyCard(msg){
     var H0 = 120;
     var cv0 = document.createElement('canvas'); cv0.width = W*scale; cv0.height = H0*scale;
@@ -8503,7 +8503,7 @@ function _renderSheetPuzzleCanvas(opts){
   // Legend chips: one per block, then the offcut chip.
   var mctx = document.createElement('canvas').getContext('2d');
   mctx.font = '700 12px Inter, sans-serif';
-  var chips = [], cx = padX, crow = 0, chipGap = 16, legendTop = 64;
+  var chips = [], cx = padX, crow = 0, chipGap = 16, legendTop = 48;
   function chip(text, color, hatch){
     var w = 18 + mctx.measureText(text).width + chipGap;
     if (cx + w > W - padX && cx > padX){ cx = padX; crow++; }
@@ -8514,57 +8514,17 @@ function _renderSheetPuzzleCanvas(opts){
   blocks.forEach(function(b){ chip(b.letter + '  ' + lenText(b), b.color); });
   if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', '#94a3b8', true);
   if (pz.strungPieces) chip('✂ = the foot of that sheet, cut off at the valley and carried along its own column', '#94a3b8');
-  var padTop = legendTop + (crow + 1) * 19 + 10;
+  // Room above the roof for a corner label set just outside it.
+  var padTop = legendTop + (crow + 1) * 19 + 30;
   var bb = pz.bbox, bw = Math.max(1, bb[2]-bb[0]), bh = Math.max(1, bb[3]-bb[1]);
   var drawW = W - padX*2, fit = drawW / bw, drawH = bh * fit, maxH = 1000;
   if (drawH > maxH){ fit = maxH / bh; drawH = maxH; }
   var ox = padX + (drawW - bw*fit)/2, oy = padTop;
-  // Footer lines: the tally, then one line per block and per end face.
-  var foot = [];
-  var tallyTxt = pz.tally.map(function(t){ return t.count + ' × ' + _pzM(t.Lmm) + ' m'; }).join(' · ');
-  var totalSheets = pz.tally.reduce(function(s, t){ return s + t.count; }, 0);
-  foot.push({ bold: true, text: 'ORDER  ' + totalSheets + ' sheets: ' + tallyTxt +
-    (pz.fedPieces ? ' · ' + pz.fedPieces + ' end piece' + (pz.fedPieces === 1 ? '' : 's') + ' cut from offcuts' : '') +
-    (pz.pushSheets ? ' · ' + pz.pushSheets + ' full sheet' + (pz.pushSheets === 1 ? '' : 's') + ' pushed in to move the offcuts outward' : '') +
-    (pz.extraSheets ? ' · ' + pz.extraSheets + ' extra for pieces no offcut fitted' : '') +
-    (pz.unusedOffcuts ? ' · ' + pz.unusedOffcuts + ' offcut' + (pz.unusedOffcuts === 1 ? '' : 's') + ' left over' : '') });
-  blocks.forEach(function(b){
-    var f = b.face, roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    var t = b.letter + '  ' + roofTag + 'off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind +
-      ' · ' + lenText(b) + (b.extra === 'push' ? ', pushed in at the head of a run so every offcut moves one strip outward' : b.extra ? ', ordered for pieces no offcut fitted' : '');
-    if (b.cutCount) t += ' · ' + b.cutCount + ' cut at the hips / valleys';
-    if (b.carries) t += ' · ' + b.carries + (b.carries === 1 ? ' foot' : ' feet') + ' carried along the column';
-    if (b.feeds) t += ' · offcuts cover ' + b.feeds + ' end piece' + (b.feeds === 1 ? '' : 's');
-    foot.push({ text: t, color: b.color });
-  });
-  pz.faces.forEach(function(f){
-    if (!f.template) return;
-    var via = f.pieces.filter(function(p){ return p.viaTemplate; }), feet = f.pieces.filter(function(p){ return p.strung; });
-    var own = f.pieces.length - via.length - feet.length, letters = {};
-    via.concat(feet).forEach(function(p){ if (p.block) letters[p.block.letter] = 1; });
-    var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    foot.push({ text: roofTag + 'Hip end on the columns of ' + Object.keys(letters).sort().join(', ') + ', cut from its sheets: ' +
-      via.length + ' whole sheet' + (via.length === 1 ? '' : 's') + (feet.length ? ' and the feet of ' + feet.length + ' more' : '') + (own ? ', ' + own + ' from offcuts or extra' : '') });
-  });
-  (pz.endFaces || []).forEach(function(f){
-    var all = (f.endPieces || f.ownNeeds || f.pieces).filter(function(p){ return !p.strung && !p.viaTemplate; }), scraps = all.filter(function(p){ return p.scrap; }), fed = all.filter(function(p){ return !p.ordered && !p.scrap; }), pushed = all.filter(function(p){ return p.pushed; }), donors = {};
-    fed.forEach(function(p){ if (p.block) donors[p.block.letter] = 1; });
-    var roofTag = (pz.roofs.length > 1 && f.roof.name) ? (f.roof.name + ' · ') : '';
-    // Named by the block they sit beside, not by a face number: the picture
-    // no longer carries the F1 badges (2026-10-23, the owner: "remove the
-    // face label ... it's pushing the sheet label out of line").
-    var own = (f.blocks || []).filter(function(b){ return !b.extra; }).map(function(b){ return b.letter; });
-    var what = f.endPieces ? ((own.length ? ('Beside ' + own.join(', ') + ': ') : '') + all.length + (all.length === 1 ? ' piece' : ' pieces') + ' at the end of the run: ') : ('Hip end off the ' + (f.ref.len * pz.scaleM).toFixed(2) + ' m ' + f.ref.kind + ' · ' + all.length + ' pieces: ');
-    var parts = [];
-    if (fed.length) parts.push(fed.length + ' from offcuts (' + Object.keys(donors).sort().join(', ') + ')');
-    if (scraps.length) parts.push(scraps.length + (scraps.length === 1 ? ' sliver' : ' slivers') + ' trimmed off an offcut');
-    if (pushed.length) parts.push(pushed.length + ' full sheet' + (pushed.length === 1 ? '' : 's') + ' pushed in');
-    var ord = all.length - fed.length - scraps.length - pushed.length;
-    if (ord) parts.push(ord + ' ordered');
-    foot.push({ text: roofTag + what + (parts.length ? parts.join(', ') : 'none from offcuts') });
-  });
-  var rowH = 15, footH = 24 + foot.length * rowH;
-  var H = Math.round(padTop + drawH + padBot + footH);
+  // NO TEXT UNDER THE PICTURE AND NO EXPLANATION OVER IT (2026-10-27, the
+  // owner: "delete all the info underneath the diagram, then at the top,
+  // delete the line that starts with 'each face div...' just have the colour
+  // coded guides"). The legend chips carry each block's count and length.
+  var H = Math.round(padTop + drawH + padBot);
   var cv = document.createElement('canvas'); cv.width = W*scale; cv.height = H*scale;
   var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
@@ -8574,8 +8534,6 @@ function _renderSheetPuzzleCanvas(opts){
   ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
   ctx.fillText('SHEET LAYOUT', padX, 18);
-  ctx.fillStyle = '#6b7280'; ctx.font = '500 11.5px Inter, -apple-system, sans-serif';
-  ctx.fillText('Each face divided at sheet cover (' + (pz.coverMm/1000).toFixed(3) + ' m), square to its gutter. A block (A, B …) is ordered at one length and cut to the roof lines; the hip ends are cut from the offcuts, spun round — never flipped.', padX, 42);
   ctx.textBaseline = 'middle';
   chips.forEach(function(c){
     var y = legendTop + c.row * 19;
@@ -8756,15 +8714,6 @@ function _renderSheetPuzzleCanvas(opts){
       ctx.lineWidth = (e.kind === 'gutter' || e.kind === 'barge') ? 2.4 : 2;
       ctx.stroke();
     });
-  });
-  // Footer.
-  var fy = padTop + drawH + padBot;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  foot.forEach(function(l, i){
-    var y = fy + i * rowH + (i ? 8 : 0);
-    if (l.color){ ctx.fillStyle = l.color; _roundRect(ctx, padX, y + 2, 10, 10, 2); ctx.fill(); }
-    ctx.fillStyle = l.bold ? '#0a1628' : '#334155'; ctx.font = (l.bold ? '800' : '500') + ' 11px Inter, sans-serif';
-    ctx.fillText(l.text, padX + (l.color ? 16 : 0), y);
   });
   cv._sheetPuzzle = pz;
   return cv;

@@ -335,7 +335,12 @@ THE PICTURE:
     the same corner one line further out. Only a sliver under 300 mm goes
     without. THE NUMBER ONLY, NO LENGTH ON A SHEET (2026-10-27: "remove
     the sheet measures on each individual sheet, it's confusing"); the
-    lengths are in the tally and block schedule under the picture.
+    lengths are in the colour-coded key over the picture.
+    NOTHING ELSE BUT THE KEY (2026-10-27: "delete all the info underneath
+    the diagram, then at the top, delete the line that starts with 'each face
+    div...' just have the colour coded guides"): no explanation line under
+    the title, no ORDER / block / end-face lines under the picture — the
+    title, the key chips (block, count × length; hatched; ✂) and the roof.
     `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
 
