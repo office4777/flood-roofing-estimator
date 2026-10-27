@@ -3881,6 +3881,19 @@ not a saving, and 49 purple to 48 orange.
   is right: those say "work this roof out again". A save and reopen keeps it,
   because the lines are what is stored. Pinned in `tests/junction.mjs`, which
   drives a real mouse.
+  THE HIPS SNAP TO 45° AS IT SLIDES (2026-10-27, the owner: "snap the hips
+  to 45deg, but also show the hip degrees as i'm sliding it, and also let me
+  hold the shift button to remove the 45deg snap point (default the snap
+  point to between 42 @ 48deg it snaps to 45deg)"). The angle is each
+  hip's PLAN angle against the ridge line; a junction whose hip reads 42–48°
+  (`JUNCT_SNAP_TOL_DEG` 3) lands where it is exactly 45 — closed-form,
+  because the hip's corner end never moves (`_junctSnapT`). Valleys at the
+  junction snap the same way. While dragging, each hip carries a pill —
+  green "Hip 45.0° ✓" on the snap, amber off it (`_junctLeanLabels`). Shift
+  frees it. The drag reads the RAW cursor (`_junctRawXY`), not getXY's grid
+  and corner magnets, which pulled a 40 px slide to 25; and the selection
+  follows the junction mid-drag, so the ring and the pad's ridge length no
+  longer go blank. `tests/junction.mjs` (23).
   FOUND BESIDE IT: `_cornerRepoNudge` ended with `autosaveJob && autosaveJob()`
   — the same ghost function the back-tray switch, the custom lines and the
   roof-map background toggle were each caught calling, and inside a try, so a

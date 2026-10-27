@@ -5115,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-26T21:38:27Z';
+  window.APP_BUILT_AT = '2026-10-27T00:29:07Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -52115,6 +52115,74 @@ function _junctMoveTo(st, t){
   try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   return t;
 }
+// THE HIPS SNAP SQUARE WHILE THE RIDGE SLIDES (2026-10-27, the owner: "when
+// sliding the ridge along, can it snap the hips to 45deg, but also show the
+// hip degrees as i'm sliding it, and also let me hold the shift button to
+// remove the 45deg snap point (default the snap point to between 42 @
+// 48deg it snaps to 45deg)"). The angle is the hip's in PLAN against the
+// ridge line — 45 is the hip of a square-cornered roof at one pitch. The
+// hip's far end (the building's corner) never moves, so the junction where
+// a hip is exactly 45 is closed-form: with d = corner - start and u the
+// ridge axis, |d.u - t| = |d x u|. A valley at the junction is the same
+// kind of line and snaps the same way.
+var JUNCT_SNAP_DEG = 45, JUNCT_SNAP_TOL_DEG = 3;
+// The cursor in image px WITHOUT getXY's grid and corner magnets: the 45-degree
+// snap is the only snap this drag has, and a magnet under it pulled a 40 px
+// slide to 25.
+function _junctRawXY(e){
+  try {
+    var cv = document.getElementById('roofCanvas'), rect = cv.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    var cx = (e.clientX - rect.left) * (cv.width / rect.width) / dpr;
+    var cy = (e.clientY - rect.top)  * (cv.height / rect.height) / dpr;
+    var tr = getImgTransform();
+    return tr ? [(cx - tr.ix) / tr.s, (cy - tr.iy) / tr.s] : [cx, cy];
+  } catch(err){ return getXY(e); }
+}
+function _junctLeanEnds(st){
+  return (st.ends || []).filter(function(x){ return x.type === 'hip' || x.type === 'valley'; })
+    .map(function(x){
+      var l = DRAW.lines[x.i]; if (!l || !l.pts) return null;
+      return { i: x.i, type: x.type, far: l.pts[1 - x.e].slice() };
+    }).filter(Boolean);
+}
+// The plan angle (0-90) between the ridge line and a hip from P to its corner.
+function _junctLeanDeg(st, P, far){
+  var vx = far[0] - P[0], vy = far[1] - P[1];
+  var dot = vx * st.ux + vy * st.uy, crs = vx * st.uy - vy * st.ux;
+  if (!(Math.hypot(vx, vy) > 0.5)) return null;
+  return Math.atan2(Math.abs(crs), Math.abs(dot)) * 180 / Math.PI;
+}
+// t (from the drag's start) moved onto the nearest 45-degree position when a
+// hip at t reads within the tolerance of it; t unchanged otherwise or free.
+function _junctSnapT(st, t, free){
+  st.snapped = false;
+  if (free) return t;
+  var best = null;
+  _junctLeanEnds(st).forEach(function(h){
+    var P = [st.from[0] + st.ux * t, st.from[1] + st.uy * t];
+    var a = _junctLeanDeg(st, P, h.far);
+    if (a == null || Math.abs(a - JUNCT_SNAP_DEG) > JUNCT_SNAP_TOL_DEG) return;
+    var dx = h.far[0] - st.from[0], dy = h.far[1] - st.from[1];
+    var du = dx * st.ux + dy * st.uy, dc = Math.abs(dx * st.uy - dy * st.ux);
+    [du - dc, du + dc].forEach(function(ts){
+      if (best == null || Math.abs(ts - t) < Math.abs(best - t)) best = ts;
+    });
+  });
+  if (best == null) return t;
+  st.snapped = true;
+  return best;
+}
+// What the canvas prints beside each hip while the junction is being moved.
+function _junctLeanLabels(st){
+  if (!st || !st.now) return [];
+  return _junctLeanEnds(st).map(function(h){
+    var a = _junctLeanDeg(st, st.now, h.far);
+    if (a == null) return null;
+    return { type: h.type, deg: a, mid: [(st.now[0] + h.far[0]) / 2, (st.now[1] + h.far[1]) / 2],
+             square: Math.abs(a - JUNCT_SNAP_DEG) < 0.05 };
+  }).filter(Boolean);
+}
 // The nudge pad, the outline corner's one in every respect but its axis.
 window._junctRepo = window._junctRepo || { key: '', moved: false };
 function _junctRepoOpen(j){
@@ -53426,7 +53494,7 @@ function onCanvasMouseDown(e) {
       var _jax = _junctAxis(_jh);
       if (_jax){
         DRAG_JUNCT = { from: _jh.pt.slice(), ux: _jax.ux, uy: _jax.uy, len: _jax.len,
-                       ends: _jh.ends, start: _jxy, moved: false, t: 0,
+                       ends: _jh.ends, start: _junctRawXY(e), moved: false, t: 0,
                        preSnap: _captureSnapState() };
         try { _junctRepoOpen(_jh); } catch(err){}
         try { document.getElementById('roofCanvas').style.cursor = 'grabbing'; } catch(err){}
@@ -57479,9 +57547,15 @@ function onCanvasMove(e) {
     // Only the component along the ridge. That IS the ask — "keeping it
     // inline with the connecting ridge" — and it is also what keeps the
     // two valleys symmetrical about it instead of racking the roof.
-    var _jd = [xy[0] - DRAG_JUNCT.start[0], xy[1] - DRAG_JUNCT.start[1]];
-    _junctMoveTo(DRAG_JUNCT, _jd[0] * DRAG_JUNCT.ux + _jd[1] * DRAG_JUNCT.uy);
+    var _jxy = _junctRawXY(e);
+    var _jd = [_jxy[0] - DRAG_JUNCT.start[0], _jxy[1] - DRAG_JUNCT.start[1]];
+    // Shift frees it, as it frees every other snap on the canvas.
+    _junctMoveTo(DRAG_JUNCT, _junctSnapT(DRAG_JUNCT,
+      _jd[0] * DRAG_JUNCT.ux + _jd[1] * DRAG_JUNCT.uy, !!e.shiftKey));
     DRAG_JUNCT.moved = true;
+    // The selection is keyed by where the junction IS, so it follows it, or
+    // the ring and the pad's ridge length go blank mid-drag.
+    try { if (DRAG_JUNCT.now) window._junctRepo.key = _junctKey(DRAG_JUNCT.now); } catch(e){}
     try { _junctRepoSync(); } catch(e){}
     redrawAll();
     return;
@@ -61899,6 +61973,24 @@ function redrawAll() {
         ctx.fillStyle = on ? '#eab308' : '#0a1628'; ctx.fill();
         ctx.restore();
       });
+      // The hips' plan angle while the junction moves: green with a tick
+      // on 45, amber off it.
+      if (window.DRAG_JUNCT && DRAG_JUNCT.now){
+        _junctLeanLabels(DRAG_JUNCT).forEach(function(h){
+          var m = dp(h.mid);
+          var txt = (h.type === 'valley' ? 'Valley ' : 'Hip ') + h.deg.toFixed(1) + '°' + (h.square ? ' ✓' : '');
+          ctx.save();
+          ctx.font = 'bold 12px sans-serif';
+          var w = ctx.measureText(txt).width + 12;
+          ctx.fillStyle = h.square ? 'rgba(5,150,105,0.94)' : 'rgba(217,119,6,0.94)';
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(m[0] - w/2, m[1] - 11, w, 20, 5); else ctx.rect(m[0] - w/2, m[1] - 11, w, 20);
+          ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(txt, m[0], m[1]);
+          ctx.restore();
+        });
+      }
     } catch(e){}
   }
 

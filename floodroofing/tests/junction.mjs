@@ -155,6 +155,52 @@ const closed = await pg.evaluate(() => {
 check('the pad opens and shuts, leaving nothing selected',
   closed.open === 'block' && closed.shut === 'none' && !closed.key, JSON.stringify(closed));
 
+// ── the hips snap to 45° as the ridge slides (2026-10-27) ─────────
+// The owner: "snap the hips to 45deg, but also show the hip degrees as i'm
+// sliding it, and also let me hold the shift button to remove the 45deg snap
+// point (default the snap point to between 42 @ 48deg it snaps to 45deg)".
+// On this 600 x 320 hip the left junction sits at x 360, where both of its
+// hips are 45° in plan; 10 px along the ridge they read 43.3°, 40 px 38.7°.
+const slide = async (dx, shift, peek) => {
+  await pg.evaluate(() => { regenerateAutoRoofLines('hip'); setTool('select'); redrawAll(); });
+  await pg.waitForTimeout(150);
+  const p = await pg.evaluate(() => {
+    const j = _roofJunctions().sort((a, b) => a.pt[0] - b.pt[0])[0], t = getImgTransform();
+    const c = imgToCanvas(j.pt, t), r = document.getElementById('roofCanvas').getBoundingClientRect();
+    return { x: r.left + c[0], y: r.top + c[1], s: t.s };
+  });
+  await pg.mouse.move(p.x, p.y);
+  await pg.mouse.down();
+  if (shift) await pg.keyboard.down('Shift');
+  await pg.mouse.move(p.x + dx * p.s, p.y, { steps: 5 });
+  const during = peek ? await pg.evaluate(() => ({
+    labels: _junctLeanLabels(DRAG_JUNCT).map(h => h.type + ' ' + h.deg.toFixed(1) + (h.square ? ' sq' : '')),
+    snapped: !!DRAG_JUNCT.snapped })) : null;
+  await pg.mouse.up();
+  if (shift) await pg.keyboard.up('Shift');
+  await pg.waitForTimeout(150);
+  const x = await pg.evaluate(() => Math.round(_roofJunctions().sort((a, b) => a.pt[0] - b.pt[0])[0].pt[0] * 10) / 10);
+  try { await pg.evaluate(() => _closeJunctRepo()); } catch(e){}
+  return { x, during };
+};
+const s10 = await slide(10, false, true);
+check('a junction slid to 43° snaps back to where its hips are 45°',
+  s10.x === 360, JSON.stringify(s10));
+check('…and the canvas reads both hips at 45° with the tick while it is held',
+  s10.during && s10.during.snapped && s10.during.labels.length === 2 &&
+  s10.during.labels.every(l => l === 'hip 45.0 sq'), JSON.stringify(s10.during));
+const s10f = await slide(10, true, true);
+check('holding Shift lets it sit at 43° — no snap', Math.abs(s10f.x - 370) < 1.5, JSON.stringify(s10f));
+check('…and the hips read their real angle, not 45',
+  s10f.during && !s10f.during.snapped && s10f.during.labels.length === 2 &&
+  s10f.during.labels.every(l => /^hip 4[34]\.\d$/.test(l)), JSON.stringify(s10f.during));
+const s40 = await slide(40, false, true);
+check('outside 42–48° nothing snaps (38.7° stays 38.7°)', Math.abs(s40.x - 400) < 1.5, JSON.stringify(s40));
+check('…and the label says so', s40.during && s40.during.labels.every(l => /^hip 38\.\d$/.test(l)),
+  JSON.stringify(s40.during));
+const sNeg = await slide(-9, false, false);
+check('the snap pulls from the other side too (46.6° → 45°)', sNeg.x === 360, JSON.stringify(sNeg));
+
 // A gable has ONE line at each ridge end, not three — nothing to grab, and
 // no handle drawn where there is nothing to do.
 const gable = await pg.evaluate(() => {
