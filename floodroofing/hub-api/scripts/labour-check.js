@@ -21,7 +21,7 @@
 //   SINCE                     only jobs last modified on/after this date (YYYY-MM-DD; default: all)
 //   MAX_JOBS                  cap for a quick trial run (default 0 = no cap)
 //   CONCURRENCY               parallel Fergus reads (default 4)
-//   XERO_PAGES                supplier-bill pages to read for the scaffold check (default 40 × 100 bills; 0 = skip)
+//   XERO_PAGES                supplier-bill pages to read for the scaffold check (default 100 × 100 bills; 0 = skip)
 const fs = require('fs');
 
 const PROXY = (process.env.PROXY_URL || '').replace(/\/+$/, '');
@@ -29,7 +29,7 @@ const SECRET = process.env.PROXY_SECRET || '';
 const SINCE = process.env.SINCE ? new Date(process.env.SINCE) : null;
 const MAX_JOBS = parseInt(process.env.MAX_JOBS || '0', 10) || 0;
 const CONC = parseInt(process.env.CONCURRENCY || '4', 10) || 4;
-const XERO_PAGES = process.env.XERO_PAGES == null ? 40 : (parseInt(process.env.XERO_PAGES, 10) || 0);
+const XERO_PAGES = process.env.XERO_PAGES == null ? 100 : (parseInt(process.env.XERO_PAGES, 10) || 0);
 if (!PROXY || !SECRET) { console.error('Need PROXY_URL and PROXY_SECRET.'); process.exit(2); }
 
 // RoofMap's calculator, verbatim from app.html (LABOUR_CALC_DEFAULT_RATES, LABOUR_CALC_SHEET_WIDTH_M).
@@ -229,6 +229,7 @@ async function main() {
   jobs = jobs.filter(j => !sheds.includes(j));
   if (SINCE) jobs = jobs.filter(j => { const d = new Date(j.lastModified || j.dateModified || j.createdAt || 0); return !isNaN(d) && d >= SINCE; });
   if (MAX_JOBS) jobs = jobs.slice(0, MAX_JOBS);
+  if (jobs[0]) console.log('Job fields: ' + Object.keys(jobs[0]).join(', ') + (jobs[0].siteAddress && typeof jobs[0].siteAddress === 'object' ? ' · siteAddress: ' + Object.keys(jobs[0].siteAddress).join(', ') : ''));
   console.log('Pole sheds left out: ' + sheds.length + (SINCE ? ' · since ' + SINCE.toISOString().slice(0, 10) : '') + ' · checking ' + jobs.length + ' jobs');
 
   // 2. every quote, once (not per job) — accepted beats the rest, then the highest version
@@ -265,7 +266,11 @@ async function main() {
   const rows = await pool(jobs, CONC, async job => {
     const id = job.id != null ? job.id : job.jobId;
     const jobNo = String(job.jobNo || job.jobNumber || '');
-    const row = { id, jobNo, site: fergusAddr(job.siteAddress), suburb: (job.siteAddress && (job.siteAddress.addressSuburb || job.siteAddress.suburb)) || '', type: job.jobType || job.type || '', title: job.brief || job.title || '', date: (job.lastModified || '').slice(0, 10), fs: null, q: null, lines: [], supplierScaff: [], err: '' };
+    const sa = job.siteAddress || {};
+    const site = fergusAddr(job.siteAddress);
+    const streetM = /^\s*(?:\d+[a-z]?[\s,]+)?([a-z][a-z']{4,})/i.exec(site || '');
+    const row = { id, jobNo, site, street: streetM ? streetM[1].toLowerCase() : '', suburb: sa.addressSuburb || sa.suburb || sa.addressCity || sa.city || (site.split(',')[0] || ''), type: job.jobType || job.type || '',
+      title: job.brief || job.title || '', date: String(job.completedAt || job.completedDate || job.dateCompleted || job.endDate || job.finishDate || job.lastModified || '').slice(0, 10), hasDone: !!(job.completedAt || job.completedDate || job.dateCompleted || job.endDate || job.finishDate), fs: null, q: null, lines: [], supplierScaff: [], err: '' };
     try { row.fs = fsFig(await fergus('/jobs/' + encodeURIComponent(id) + '/financialSummary').then(j => j.data || j)); } catch (e) { row.err += 'summary: ' + e.message.slice(0, 80) + '; '; }
     try {
       let pick = quotes ? quoteByJob[id] : null;
@@ -273,10 +278,20 @@ async function main() {
         const list = arr(await fergus('/jobs/' + encodeURIComponent(id) + '/quotes'));
         list.forEach(q => { if (q.isDraft || q.voidedAt) return; if (!pick || (!!q.isAccepted && !pick.isAccepted) || ((q.versionNumber || 0) > (pick.versionNumber || 0) && !!q.isAccepted === !!pick.isAccepted)) pick = q; });
       }
+      const readLines = async q => { let lines = []; collectLines(q, lines, '', 0); if (!lines.length) { const det = await fergus('/jobs/quotes/' + encodeURIComponent(q.id)); collectLines(det.data || det, lines, '', 0); } return lines; };
       if (pick) {
-        let lines = []; collectLines(pick, lines, '', 0);
-        if (!lines.length) { const det = await fergus('/jobs/quotes/' + encodeURIComponent(pick.id)); collectLines(det.data || det, lines, '', 0); }
+        let lines = await readLines(pick);
         row.lines = lines; row.q = parseQuote(lines); row.quoteAccepted = !!pick.isAccepted; row.quoteTotal = num(pick.totals && pick.totals.total);
+        row.pickedHrs = row.q.pricedHrs;
+        // The quote that WON may be one the office wrote in Fergus; RoofMap's own push (with the m² and
+        // the flashings) can be an earlier or later version on the same job. Look at up to four others.
+        if (!row.q.roofmap && quotes) {
+          const others = quotes.filter(q => String(q.jobId) === String(id) && q !== pick && !q.isDraft).sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0)).slice(0, 4);
+          for (const o of others) {
+            const l2 = await readLines(o); const q2 = parseQuote(l2);
+            if (q2.roofmap) { row.q = q2; row.lines = l2; row.quoteFromOtherVersion = true; break; }
+          }
+        }
       }
     } catch (e) { row.err += 'quote: ' + e.message.slice(0, 80) + '; '; }
     if (supplierPath) {
@@ -295,7 +310,7 @@ async function main() {
   let xeroBills = 0, xeroScaff = 0, xeroMatched = 0, xeroUnmatched = [];
   if (XERO_PAGES > 0) {
     const oldest = rows.reduce((m, r) => (r.date && (!m || r.date < m)) ? r.date : m, '');
-    const cut = oldest ? new Date(new Date(oldest).getTime() - 90 * 86400000) : null;
+    const cut = (oldest && rows.every(r => r.hasDone)) ? new Date(new Date(oldest).getTime() - 90 * 86400000) : null;
     for (let page = 1; page <= XERO_PAGES; page++) {
       let inv;
       try { inv = arr(await xero('/Invoices?where=Type=="ACCPAY"&order=Date DESC&page=' + page)); }
@@ -314,11 +329,17 @@ async function main() {
         // a job number in the reference or a line: 4–5 digits that ARE a job (a bare year — 2024…2027 — only
         // counts when written as "job 2026" / "#2026", since a date in the text would otherwise match a job)
         const nos = new Set();
-        const re = /(job\s*#?|#)?\s*\b(\d{4,5})\b/gi; let mm;
+        const re = /(job\s*#?|#)?\s*\b(\d{4,5})[a-z]?\b/gi; let mm;
         while ((mm = re.exec(hay))) { const n = mm[2]; if (!byNo[n]) continue; if (/^20(2[4-9]|3\d)$/.test(n) && !mm[1]) continue; nos.add(n); }
-        if (!nos.size) {   // try the site: "12 Kamo" — the street number and the first word of the street
+        if (!nos.size) {   // try the site: "12 Kamo" (number + street), else the street's name alone when only
+          // one job on that street finished within five months of the bill ("Mountain Road", "Hillcrest")
           const words = ' ' + hay.toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
           rows.forEach(r => { const m2 = /^\s*(\d+[a-z]?)[\s,]+([a-z]+)/i.exec(r.site || ''); if (m2 && words.includes(' ' + m2[1].toLowerCase() + ' ' + m2[2].toLowerCase() + ' ')) nos.add(r.jobNo.replace(/\D/g, '')); });
+          if (!nos.size) {
+            const bd = d.getTime();
+            const cands = rows.filter(r => r.street && words.includes(' ' + r.street + ' ') && Math.abs(new Date(r.date).getTime() - bd) < 150 * 86400000);
+            if (cands.length === 1) nos.add(cands[0].jobNo.replace(/\D/g, ''));
+          }
         }
         if (!nos.size) { xeroUnmatched.push({ sup, date: (v.DateString || v.Date || '').slice(0, 10), amt, ref: v.Reference || '' }); return; }
         xeroMatched++;
@@ -335,7 +356,7 @@ async function main() {
   rows.forEach(r => {
     r.rev = r.fs ? r.fs.rev : 0; r.actual = r.fs ? r.fs.hours : 0;
     r.calc = r.q && r.q.roofmap && r.q.area > 0 ? calc(r.q) : null;
-    r.priced = r.q && r.q.pricedHrs > 0 ? r.q.pricedHrs : (r.fs ? r.fs.hPriced : 0);
+    r.priced = r.pickedHrs > 0 ? r.pickedHrs : (r.q && r.q.pricedHrs > 0 ? r.q.pricedHrs : (r.fs ? r.fs.hPriced : 0));
     r.manual = r.q && r.calc ? Math.abs(r.q.leadHrs - r.calc.crewHrs) > 0.51 : null;
     r.scaffInv = r.supplierScaff.reduce((s, x) => s + x.amt, 0);
   });
@@ -351,9 +372,11 @@ async function main() {
       c && r.actual ? (r.actual / c.manHrs).toFixed(2) : '', r.priced && r.actual ? (r.actual / r.priced).toFixed(2) : '',
       q && q.scaffPrice ? money(q.scaffPrice) + ' ' + q.scaffType + (q.scaffCost ? ' (cost ' + money(q.scaffCost) + ')' : '') : (q ? 'none on quote' : ''),
       r.supplierScaff.length ? r.supplierScaff.map(s => money(s.amt) + ' ' + s.supplier.slice(0, 18)).join('; ') : (q && q.scaffPrice ? 'no invoice found → own crew' : '')];
-    console.log(line.map((v, i) => pad(v, cols[i][1], i >= 3 && i <= 13)).join(' ') + (r.err ? '  ⚠ ' + r.err : '') + (r.manual ? '  (hours typed over)' : ''));
+    console.log(line.map((v, i) => pad(v, cols[i][1], i >= 3 && i <= 13)).join(' ') + (r.err ? '  ⚠ ' + r.err : '') + (r.manual ? '  (hours typed over)' : '') + (r.quoteFromOtherVersion ? '  (quantities from another quote version)' : ''));
   });
 
+  // what a quote that is NOT RoofMap's looks like (the first five with lines), so a renamed line is caught
+  rows.filter(r => r.lines.length && !(r.q && r.q.roofmap)).slice(0, 5).forEach(r => console.log('  non-RoofMap quote lines, job ' + r.jobNo + ': ' + r.lines.slice(0, 10).map(l => (l.section ? '[' + l.section + '] ' : '') + l.name.slice(0, 40) + ' ×' + l.qty).join(' | ')));
   // 7. aggregates
   const usable = rows.filter(r => r.calc && r.actual > 0 && r.rev > 0);
   const withPriced = rows.filter(r => r.priced > 0 && r.actual > 0 && r.rev > 0);
@@ -365,8 +388,9 @@ async function main() {
     BANDS.map(b => [b[2], set.filter(r => bandOf(r.rev) === b)]).concat([['ALL', set]]).forEach(([label, js]) => {
       if (!js.length) { console.log(pad(label, 13) + '  ' + pad(0, 5, true)); return; }
       const est = js.reduce((s, r) => s + pick(r), 0), act = js.reduce((s, r) => s + r.actual, 0), rat = js.map(r => r.actual / pick(r));
-      const area = js.reduce((s, r) => s + (r.q ? r.q.area : 0), 0), rev = js.reduce((s, r) => s + r.rev, 0);
-      console.log([label, js.length, est.toFixed(0), act.toFixed(0), (act / est).toFixed(2), median(rat).toFixed(2), Math.round(100 * rat.filter(x => x >= 0.8 && x <= 1.2).length / js.length) + '%', Math.round(100 * rat.filter(x => x > 1.2).length / js.length) + '%', area > 0 ? (act / area).toFixed(2) : '—', (act / (rev / 1000)).toFixed(1)].map((v, i) => pad(v, c2[i][1], i > 0)).join('  '));
+      const withArea = js.filter(r => r.q && r.q.area > 0);
+      const area = withArea.reduce((s, r) => s + r.q.area, 0), actA = withArea.reduce((s, r) => s + r.actual, 0), rev = js.reduce((s, r) => s + r.rev, 0);
+      console.log([label, js.length, est.toFixed(0), act.toFixed(0), (act / est).toFixed(2), median(rat).toFixed(2), Math.round(100 * rat.filter(x => x >= 0.8 && x <= 1.2).length / js.length) + '%', Math.round(100 * rat.filter(x => x > 1.2).length / js.length) + '%', area > 0 ? (actA / area).toFixed(2) : '—', (act / (rev / 1000)).toFixed(1)].map((v, i) => pad(v, c2[i][1], i > 0)).join('  '));
     });
   }
   agg('CALCULATOR vs ACTUAL (jobs with RoofMap quantities)', usable, r => r.calc.manHrs);

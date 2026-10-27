@@ -18,7 +18,7 @@ on:
         type: string
       xero_pages:
         description: 'Xero supplier-bill pages to read for the scaffold check (100 bills a page; 0 = skip)'
-        default: '40'
+        default: '100'
         type: string
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
           PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
           SINCE: ${{ github.event.inputs.since }}
           MAX_JOBS: ${{ github.event.inputs.max_jobs || '0' }}
-          XERO_PAGES: ${{ github.event.inputs.xero_pages || '40' }}
+          XERO_PAGES: ${{ github.event.inputs.xero_pages || '100' }}
         run: node scripts/labour-check.js
       - uses: actions/upload-artifact@v4
         if: always()
