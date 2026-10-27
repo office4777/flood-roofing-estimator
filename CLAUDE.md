@@ -105,6 +105,13 @@ accordingly.
   off the right. `tests/hubui.mjs` (101, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
+  A/P NEXT MONTH IS THE CALENDAR MONTH AFTER THIS ONE (2026-10-28, the owner: "A/P next month should show
+  xero's bills to pay next month (88.3k)"): `apExp.next` is the next 20th and `foll` the one after, and from the
+  20th on `next` IS next month — the tile and its `expap` popup read `foll` and showed the month after next
+  (December's $525 of bills over November's $88k). `apNextMonthSlot()` picks whichever of the two falls in the
+  month after now and pairs it with `apBillsDueInMonth`; the cashflow popup still shows both 20ths. `hubui` pins
+  it on the 28th and the 10th. `hub-cash-peek.yml` → `hub-api/scripts/cash-peek.js` prints what the shared Cash
+  state holds (bill count, bills by due month, bills due this month) from the Actions log.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
   `hub-backcost-report.yml` (the GP-margin target per revenue band from the hub's rows) and
   `hub-labour-check.yml` → `hub-api/scripts/labour-check.js`, RoofMap's labour auto-calc against the

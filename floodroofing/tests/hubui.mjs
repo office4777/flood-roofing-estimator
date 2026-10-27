@@ -452,6 +452,29 @@ const panel = await pg.evaluate(() => { const r = document.querySelector('#cmd-m
 check('a tile\'s window is a centred panel, not a full-height sheet', panel.w <= 1000 && panel.left > 200, JSON.stringify(panel));
 await pg.setViewportSize({ width: 800, height: 900 }); await pg.waitForTimeout(150);
 check('narrow the window and it becomes the phone layout by itself', await pg.evaluate(() => !document.documentElement.classList.contains('is-desktop')));
+// A/P NEXT MONTH IS THE CALENDAR MONTH AFTER THIS ONE (2026-10-28, the owner: "A/P next month should show
+// xero's bills to pay next month (88.3k)"). apExp.next is the next 20th — from the 20th on that IS next month,
+// and the tile, which always read foll, showed the month after next. Driven on the 28th and the 10th of a month.
+const apn = await pg.evaluate(() => {
+  const d20 = (y, m) => new Date(y, m, 20).getTime();
+  const out = {};
+  for (const day of [28, 10]) {
+    const now = new Date(); now.setDate(day); const y = now.getFullYear(), m = now.getMonth();
+    const nm = new Date(y, m + 1, 1), nm2 = new Date(y, m + 2, 1);
+    const real = Date; const fixed = now.getTime();
+    // the slot's "now" is the only clock it reads; stub it for the call
+    window.Date = class extends real { constructor(...a){ super(...(a.length ? a : [fixed])); } static now(){ return fixed; } };
+    const next20 = day >= 20 ? d20(nm.getFullYear(), nm.getMonth()) : d20(y, m);
+    const foll20 = day >= 20 ? d20(nm2.getFullYear(), nm2.getMonth()) : d20(nm.getFullYear(), nm.getMonth());
+    window.__apExp = { next: { ms: next20, ap: 0, mat: 1000, jobs: [{ mat: 1000 }] }, foll: { ms: foll20, ap: 0, mat: 2000, jobs: [{ mat: 2000 }] } };
+    const sl = apNextMonthSlot();
+    window.Date = real;
+    out[day] = { month: new Date(sl.ms).getMonth(), want: nm.getMonth(), mat: sl.mat, jobs: sl.jobs.length, bills: sl.bills && typeof sl.bills.total === 'number' };
+  }
+  return out;
+});
+check('on the 28th, A/P next month is next month\'s 20th (apExp.next), not the month after', apn[28].month === apn[28].want && apn[28].mat === 1000 && apn[28].jobs === 1 && apn[28].bills, JSON.stringify(apn[28]));
+check('on the 10th it is still next month (apExp.foll)', apn[10].month === apn[10].want && apn[10].mat === 2000 && apn[10].bills, JSON.stringify(apn[10]));
 await ctx.close();
 await b.close();
 

@@ -4818,6 +4818,18 @@ function apBillsDueInMonth(ms){
   const list=bills?bills.filter(b=>mkOf(b.due)===mk):[];
   return {total:list.reduce((s,b)=>s+num(b.amt),0),list:list,hasBills:!!(bills&&bills.length)};
 }
+// The month after this one, whichever 20th that is. apExp.next is the NEXT 20th and apExp.foll the one
+// after it — before the 20th those are this month and next month, but from the 20th on the next 20th IS
+// next month, and the Command Centre tile (which always read foll) showed the month after next: on 28 Oct
+// it read December's $525 of bills + materials while November's $88k sat unseen (2026-10-28, the owner:
+// "A/P next month should show xero's bills to pay next month (88.3k)"). The tile and its popup read this.
+function apNextMonthSlot(){
+  const ax=window.__apExp;if(!ax)return null;
+  const now=new Date();const nm=new Date(now.getFullYear(),now.getMonth()+1,1);const mk=nm.getFullYear()*12+nm.getMonth();
+  const mkOf=ms=>{const d=new Date(ms);return d.getFullYear()*12+d.getMonth();};
+  const slot=(ax.next&&mkOf(ax.next.ms)===mk)?ax.next:((ax.foll&&mkOf(ax.foll.ms)===mk)?ax.foll:{ms:new Date(nm.getFullYear(),nm.getMonth(),20).getTime(),ap:0,mat:0,jobs:[]});
+  return {ms:slot.ms,mat:num(slot.mat),jobs:(slot.jobs||[]),bills:apBillsDueInMonth(slot.ms)};
+}
 // ── Forward workflow on the Command Centre (2026-10-24, the owner: "i want the forward workflow weeks/hours
 // to be brought into the first page/command center"). The same sums the Workload tab and the old tile used —
 // totalRemaining() over capacity() — with the monthly backlog history (fwHist) as a six-month trend. The whole
@@ -4977,11 +4989,11 @@ function renderCommand(){
         '<div class="sc-splitl"><span><i class="ar"></i>Owed to you <b>'+fmtK(arv)+'</b></span><span><i class="ap"></i>Bills due <b>'+fmtK(apThis)+'</b></span></div>');})()+
     // A/P due NEXT month — actual current bills landing that month's 20th PLUS new materials likely paid
     // the same 20th. Combined here; the popup separates the two totals. This is on top of what's due this month.
-    (function(){if(isPM())return '';const ax=window.__apExp;if(!ax)return '';
-      const nb=apBillsDueInMonth(ax.foll.ms);const fm=num(ax.foll.mat);const comb=nb.total+fm;if(comb<=0)return '';
+    (function(){if(isPM())return '';const sl=apNextMonthSlot();if(!sl)return '';
+      const nb=sl.bills;const fm=sl.mat;const comb=nb.total+fm;if(comb<=0)return '';
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
       const sub=(nb.total>0?fmtK(nb.total)+' bills':'')+((nb.total>0&&fm>0)?' + ':'')+(fm>0?fmtK(fm)+' materials':'');
-      return tile('or','due','A/P next month',fmtK(comb),'','due '+d(ax.foll.ms)+' · '+(sub||'on top of this month'),'expap');})()+
+      return tile('or','due','A/P next month',fmtK(comb),'','due '+d(sl.ms)+' · '+(sub||'on top of this month'),'expap');})()+
     // Jobs underway (5–100% through priced labour) — their remaining quoted value still to invoice.
     // The popup breaks it into 5–20%, 20–50% and 50–100% stages.
     (function(){const near=(fwJobs||[]).filter(j=>{if(isExcl(j))return false;const p=num(j.priced);return p>0&&(num(j.actual)/p)>=0.05&&uninvPriced(j)>0;});
@@ -5154,14 +5166,14 @@ function openCmdDetail(key,optMk){
         body='<div class="note" style="margin:0 0 10px;">Re-sync <b>Cash</b> to switch this to the per-bill, due-date view.</div>'+wrap('<th>Code</th><th>Account</th><th style="text-align:right;">Unpaid</th>',rows,'No unpaid supplier bills.');}
       else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-bill breakdown.</div>';}}}
   else if(key==='expap'){
-    const ax=window.__apExp;
+    const ax=window.__apExp;const sl=apNextMonthSlot();
     const dfull=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);};
-    title='A/P due next month'+(ax?' · '+dfull(ax.foll.ms):'');
-    if(!ax){body='<div class="empty">Refresh Fergus + sync Xero A/P to project the 20th.</div>';}
+    title='A/P due next month'+(sl?' · '+dfull(sl.ms):'');
+    if(!ax||!sl){body='<div class="empty">Refresh Fergus + sync Xero A/P to project the 20th.</div>';}
     else{
-      const when=dfull(ax.foll.ms);
-      const nb=apBillsDueInMonth(ax.foll.ms);
-      const matJobs=ax.foll.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat));
+      const when=dfull(sl.ms);
+      const nb=sl.bills;
+      const matJobs=sl.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat));
       const billTot=num(nb.total),matTot=matJobs.reduce((a,j)=>a+num(j.mat),0),comb=billTot+matTot;
       // 1) actual supplier bills already in Xero, due that month's 20th (most expensive first)
       const billRows=nb.list.slice().sort((a,b)=>num(b.amt)-num(a.amt)).map(b=>'<tr><td>'+esc((b.supplier||'—').slice(0,38))+(b.no?' <span class="cfx-tag">'+esc(b.no)+'</span>':'')+'</td><td style="text-align:right;font-weight:700;">'+fmtK(num(b.amt))+'</td></tr>');
