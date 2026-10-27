@@ -54,7 +54,12 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
     return j({ status: TENDER.status, task: TENDER.tasks[0] || null, pages: TENDER.pages.length, classified: TENDER.pages.length, files: TENDER.files });
   }
   const im = /^\/tender\/tn-1\/pages\/(p-\d+)\/image$/.exec(p);
-  if (im) return j({ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', expiresIn: 900 });
+  if (im) {   // a stand-in A3 sheet, so the plans panel has something to show
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1188" viewBox="0 0 1680 1188"><rect width="1680" height="1188" fill="#fff"/><rect x="30" y="30" width="1620" height="1128" fill="none" stroke="#222" stroke-width="4"/>' +
+      '<rect x="320" y="260" width="760" height="520" fill="none" stroke="#111" stroke-width="6"/><line x1="320" y1="260" x2="580" y2="520" stroke="#111" stroke-width="3"/><line x1="1080" y1="260" x2="820" y2="520" stroke="#111" stroke-width="3"/><line x1="320" y1="780" x2="580" y2="520" stroke="#111" stroke-width="3"/><line x1="1080" y1="780" x2="820" y2="520" stroke="#111" stroke-width="3"/><line x1="580" y1="520" x2="820" y2="520" stroke="#111" stroke-width="4"/>' +
+      '<rect x="1300" y="900" width="330" height="240" fill="none" stroke="#222" stroke-width="3"/><text x="1320" y="960" font-family="Arial" font-size="34" font-weight="bold">' + im[1].toUpperCase() + '</text><text x="1320" y="1010" font-family="Arial" font-size="24">ROOF PLAN 1:100</text><text x="560" y="230" font-family="Arial" font-size="28">12.00 m</text></svg>';
+    return j({ url: 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64'), expiresIn: 900 });
+  }
   const pm = /^\/tender\/tn-1\/pages\/(p-\d+)$/.exec(p);
   if (pm && m === 'PUT') {
     const pgx = TENDER.pages.find(x => x.id === pm[1]);
@@ -66,9 +71,14 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   if (p === '/tender/tn-1/doc' && m === 'PUT') { TENDER.doc = body.doc; return j({ ok: true, savedAt: new Date().toISOString() }); }
   if (p === '/tender/tn-1/amend' && m === 'POST') {
     const d = JSON.parse(JSON.stringify(body.doc));
+    if (body.mode === 'chat' && !body.change && /\?\s*$/.test(body.instruction)) {
+      d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.instruction, at: '' }, { who: 'ai', text: 'Yes — two buildings joined by a covered link.', pages: 'A201', kind: 'answer', at: '' }]);
+      TENDER.doc = d;
+      return j({ ok: true, doc: d, answered: true });
+    }
     if (body.mode === 'simplify') d.scope = ['Supply and install the roof', 'Clean up'];
     else d.exclusions = d.exclusions.concat([{ text: 'Spouting', why: 'by the builder' }]);
-    d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.mode === 'chat' ? body.instruction : 'Simplify the scope', at: '' }, { who: 'ai', text: 'Done: ' + body.mode, at: '' }]);
+    d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.mode === 'chat' ? (body.said || body.instruction) : 'Simplify the scope', at: '' }, { who: 'ai', text: 'Done: ' + body.mode, at: '' }]);
     TENDER.doc = d; TENDER.history = [{ at: '', why: body.mode }].concat(TENDER.history || []);
     return j({ ok: true, doc: d });
   }
@@ -304,6 +314,74 @@ check('a working-sheet box shows 8 rows of the scope', r.rows[0] === 8, JSON.str
 check('the document is drawn as separate A4 sheets, each the height of a PDF page', r.sheets.length >= 2 && Math.abs((r.sheets[1] - r.sheets[0]) - 1148) < 3,  JSON.stringify(r.sheets));
 check('…as many as the PDF prints', r.marks.length >= 2 && r.marks[0] === 'Page 2' && +r.pages === r.marks.length + 1 && /A4 PDF: \d+ pages/.test(r.label), JSON.stringify(r));
 
+// ── the layout, the chat's questions, Tag out, the plans (2026-10-28) ──
+await pg.evaluate(() => window.scrollTo(0, 0));
+await pg.waitForTimeout(200);
+r = await pg.evaluate(async () => {
+  const side = document.querySelector('.tn-side'), chat = document.getElementById('tnChat');
+  const a = side.getBoundingClientRect();
+  window.scrollTo(0, 900); await new Promise(res => setTimeout(res, 150));
+  const b = side.getBoundingClientRect(), c = chat.getBoundingClientRect();
+  window.scrollTo(0, 2600); await new Promise(res => setTimeout(res, 150));
+  const b2 = side.getBoundingClientRect();
+  return { top0: Math.round(a.top), top1: Math.round(b.top), top2: Math.round(b2.top), w: Math.round(a.width), chatBottom: Math.round(c.bottom), vh: innerHeight, chatH: Math.round(c.height), inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height),
+    planInMain: !!document.querySelector('.tn-main #tnPlanSet'), mainW: Math.round(document.querySelector('.tn-main').getBoundingClientRect().width), rootW: Math.round(document.getElementById('tenderRoot').getBoundingClientRect().width) };
+});
+check('the menu starts at the top beside the Plan set and never moves as the page scrolls', r.planInMain && Math.abs(r.top0 - r.top1) <= 2 && Math.abs(r.top1 - r.top2) <= 2, JSON.stringify(r));
+check('…wider (360px), with the chat running to the bottom of the screen and a bigger box to type in', r.w >= 355 && r.vh - r.chatBottom <= 16 && r.chatH >= 300 && r.inH >= 90, JSON.stringify(r));
+check('the page uses the width of the screen, not a 1180px column', r.rootW > 1180 || r.rootW >= (await pg.evaluate(() => document.getElementById('tab-tender').getBoundingClientRect().width)) - 30, JSON.stringify(r));
+// a question is answered in the chat and changes nothing
+calls.length = 0;
+const histN = await pg.evaluate(() => document.querySelectorAll('.tn-bar2 button').length);
+await pg.fill('#tnChatIn', 'Are blocks 1 and 5/6 separate buildings?');
+await pg.press('#tnChatIn', 'Enter');
+await pg.waitForTimeout(700);
+const amQ = calls.filter(c => /\/amend$/.test(c.p)).pop();
+r = await pg.evaluate(() => ({ log: document.getElementById('tnChatLog').innerText, hd: document.querySelector('.tn-chat-hd').textContent, ph: document.getElementById('tnChatIn').placeholder }));
+check('the chat answers a question, naming the sheet it came from', amQ && !amQ.body.change && /two buildings/.test(r.log) && /From: A201/.test(r.log) && /questions or changes/.test(r.hd) && /question/.test(r.ph), JSON.stringify([amQ && amQ.body.change, r]));
+// Tag out: the line moves to the exclusions at once and Claude takes its items out
+calls.length = 0;
+r = await pg.evaluate(() => { const b = [...document.querySelectorAll('#tn-a-scope .tn-tagout')]; return { n: b.length, rows: document.querySelectorAll('#tn-a-scope .tn-list > li').length, first: (document.querySelector('#tn-a-scope .tn-list textarea') || {}).value }; });
+const tagLine = r.first;
+check('every scope line has a Tag out button', r.n > 0 && r.n === r.rows, JSON.stringify(r));
+await pg.click('#tn-a-scope .tn-tagout');
+await pg.waitForTimeout(700);
+const amT = calls.filter(c => /\/amend$/.test(c.p)).pop();
+r = await pg.evaluate(() => ({ scope: [...document.querySelectorAll('#tn-a-scope .tn-list textarea')].map(t => t.value), ex: [...document.querySelectorAll('#tn-a-exclusions textarea')].map(t => t.value), log: document.getElementById('tnChatLog').innerText }));
+check('Tag out moves the line to the exclusions and asks Claude to take its items out of the price', amT && amT.body.change === true && amT.body.instruction.indexOf(tagLine) >= 0 && /tagged this line OUT/.test(amT.body.instruction) && amT.body.doc.exclusions.some(e => e.text === tagLine) && !amT.body.doc.scope.includes(tagLine) && r.ex.indexOf(tagLine) >= 0 && r.scope.indexOf(tagLine) < 0 && /Tag out: /.test(amT.body.said), JSON.stringify([amT && amT.body.said, r.scope.slice(0, 2), r.ex]));
+// the plans slide-out
+r = await pg.evaluate(() => { const el = document.getElementById('tnPlansPop'); return { shown: getComputedStyle(el).display, open: el.classList.contains('is-open'), tab: getComputedStyle(document.getElementById('tnPlansTab')).display }; });
+check('a PLANS tab sits on the right edge of the tendering page', r.shown === 'flex' && !r.open && r.tab !== 'none', JSON.stringify(r));
+await pg.click('#tnPlansTab');
+await pg.waitForTimeout(500);
+r = await pg.evaluate(() => { const el = document.getElementById('tnPlansPop'), s = [...el.querySelectorAll('.tnpv-slot')], L = el.querySelector('#tnpvList').getBoundingClientRect(), s0 = s[0].getBoundingClientRect(); return { open: el.classList.contains('is-open'), slots: s.length, img: !!s[0].querySelector('img').getAttribute('src'), at: document.getElementById('tnpvAt').textContent, fit: s0.height / L.height, x: Math.round(el.getBoundingClientRect().right) }; });
+check('…which slides out with every page of the set, one page to a slot', r.open && r.slots >= 4 && r.img && new RegExp('Page 1 of ' + r.slots + '\\b').test(r.at) && r.fit > 0.8 && r.fit < 1, JSON.stringify(r));
+const slotBox = await pg.evaluate(() => { const b = document.querySelector('#tnpvList .tnpv-slot').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+await pg.mouse.move(slotBox.x, slotBox.y);
+await pg.mouse.wheel(0, 120);
+await pg.waitForTimeout(700);
+r = await pg.evaluate(() => window.__tnPlansState());
+check('…a plain wheel turns one page', r.at === 1, JSON.stringify(r));
+await pg.mouse.wheel(0, 120);
+await pg.waitForTimeout(700);
+await pg.mouse.wheel(0, -120);
+await pg.waitForTimeout(700);
+r = await pg.evaluate(() => window.__tnPlansState());
+check('…and back, one a notch', r.at === 1, JSON.stringify(r));
+const slot2 = await pg.evaluate(() => { const b = document.querySelector('#tnpvList .tnpv-slot[data-i="1"]').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+await pg.mouse.move(slot2.x, slot2.y);
+await pg.keyboard.down('Control');
+await pg.mouse.wheel(0, -300);
+await pg.keyboard.up('Control');
+await pg.waitForTimeout(200);
+const z1 = await pg.evaluate(() => window.__tnPlansState());
+await pg.mouse.down();
+await pg.mouse.move(slot2.x + 80, slot2.y + 60, { steps: 4 });
+await pg.mouse.up();
+const z2 = await pg.evaluate(() => window.__tnPlansState());
+check('Ctrl + wheel zooms the page on screen, and a press-and-drag moves around it', z1.at === 1 && z1.z.s > 1.5 && (z2.z.x !== z1.z.x || z2.z.y !== z1.z.y) && z2.z.s === z1.z.s, JSON.stringify([z1, z2]));
+await pg.evaluate(() => _tnPlans(false));
+
 if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and the PDF as Chrome prints it
   const dir = process.env.SHOTS;
   await pg.evaluate(() => { document.querySelectorAll('iframe').forEach(f => f.remove()); _tnQSection('assumptions', 'hide'); window.scrollTo(0, 0); });
@@ -327,6 +405,13 @@ if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and th
   await pp.emulateMedia({ media: 'print' });
   await pp.pdf({ path: dir + '/tender.pdf', format: 'A4', printBackground: false, preferCSSPageSize: true });
   await pp.close();
+  await pg.evaluate(() => { window.scrollTo(0, 0); _tnPlans(true); }); await pg.waitForTimeout(700);
+  await pg.screenshot({ path: dir + '/c6.png' });
+  await pg.evaluate(() => { _tnPlansZoom(1.25); _tnPlansZoom(1.25); _tnPlansZoom(1.25); }); await pg.waitForTimeout(300);
+  await pg.screenshot({ path: dir + '/c7.png' });
+  await pg.evaluate(() => _tnPlans(false)); await pg.waitForTimeout(400);
+  await pg.evaluate(() => _tnNavGo('tn-a-scope')); await pg.waitForTimeout(900);
+  await pg.screenshot({ path: dir + '/c8.png' });
   await pg.setViewportSize({ width: 390, height: 844 }); await pg.waitForTimeout(600);
   await pg.evaluate(() => _tnNavGo('tq-sec-org')); await pg.waitForTimeout(1600);
   await pg.screenshot({ path: dir + '/m1.png' });

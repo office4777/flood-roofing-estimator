@@ -92,6 +92,7 @@
     var r = root(); if (!r) return;
     T.err = '';
     if (!(window.S && S.quote && S.quote.quoteKind === 'tender')) {
+      var pp = document.getElementById('tnPlansPop'); if (pp) pp.classList.remove('has-pages');
       r.innerHTML = '<div class="tn-card"><div class="tn-card-bd"><div class="tn-empty">This job is not an AI Tendering job. Set the job type to AI Tendering in the job details (or the Quote tab’s More menu) to use the plan-set reader on it.</div></div></div>';
       return;
     }
@@ -135,11 +136,208 @@
     h += '<div id="tnDocHost">' + docHtml(d) + '</div>';
     if (d.doc) h += '<details class="tn-fold" id="tnSheetIdx"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';
     else h += indexHtml(d);
+    // With a tender drafted, the menu and the A.I. chat run down the left
+    // from the very top, so the menu never slides down before it pins
+    // (2026-10-28, the owner).
+    if (d.doc) h = '<div class="tn-lay"><aside class="tn-side" id="tnSide">' + sideHtml(d) + '</aside><div class="tn-main">' + h + '</div></div>';
     r.innerHTML = h;
+    sidePin();
     wireDrop();
     loadThumbs();
     afterDocRender();
+    plansSync();
   }
+
+  // The menu sticks exactly where it starts, so it never moves at all as the
+  // page scrolls, and runs to the foot of the screen.
+  function sidePin(){
+    var side = document.getElementById('tnSide'), lay = side && side.parentNode; if (!side || !lay.offsetParent) return;
+    if (window.innerWidth <= 900) { side.style.top = ''; side.style.height = ''; return; }
+    var y = Math.max(0, Math.round(lay.getBoundingClientRect().top + window.scrollY));
+    side.style.top = y + 'px'; side.style.height = 'calc(100vh - ' + (y + 10) + 'px)';
+  }
+  window.addEventListener('resize', function(){ sidePin(); });
+  // drawn while the tab was hidden: pin it the first time it is seen
+  window.addEventListener('scroll', function(){ var sd = document.getElementById('tnSide'); if (sd && !sd.style.top && window.scrollY < 40) sidePin(); }, { passive: true });
+
+  // ── THE PLANS SLIDE-OUT (2026-10-28, the owner: "a slide out window just
+  // like the quote photos ... each scroll changes a page, and then if I zoom
+  // in, it zooms in on that page and I can click and hold the mouse to drag
+  // around"). A tab on the right edge of the tendering page; one plan page
+  // per slot, a plain wheel turns one page, Ctrl + wheel (or − +) zooms the
+  // page on screen towards the pointer, a press-and-drag moves a zoomed page.
+  var PV = { open: false, list: [], at: 0, z: {}, wheelAcc: 0, lockUntil: 0, urls: {}, drag: null };
+  try { PV.open = sessionStorage.getItem('fr_tn_plans') === '1'; } catch (e) {}
+  (function(){
+    var st = document.createElement('style');
+    st.textContent = [
+      '#tnPlansPop{position:fixed;top:70px;right:0;bottom:16px;width:var(--tnpv-w,clamp(360px,42vw,980px));min-width:260px;max-width:96vw;z-index:76;background:#fff;border:1px solid #dbe3ec;border-right:none;border-radius:12px 0 0 12px;box-shadow:-6px 8px 24px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .28s ease;display:none;flex-direction:column}',
+      'body[data-tab="tender"] #tnPlansPop.has-pages{display:flex}#tnPlansPop.is-open{transform:translateX(0)}#tnPlansPop.is-resizing{transition:none;user-select:none}',
+      '#tnPlansTab{position:absolute;left:-46px;top:16px;width:46px;height:150px;background:#0099cc;color:#fff;border:none;border-radius:10px 0 0 10px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:6px;box-shadow:-3px 4px 12px rgba(0,153,204,.35)}',
+      '#tnPlansTab:hover{background:#007bab}#tnPlansTab .a{font-size:16px;line-height:1;transition:transform .28s ease}#tnPlansPop.is-open #tnPlansTab .a{transform:rotate(180deg)}#tnPlansTab .t{writing-mode:vertical-rl;text-orientation:mixed}',
+      '#tnPlansResize{position:absolute;left:0;top:0;bottom:0;width:12px;cursor:ew-resize;z-index:3;display:flex;align-items:center;justify-content:center;touch-action:none}#tnPlansResize::after{content:"";width:4px;height:52px;border-radius:3px;background:rgba(10,22,40,.18)}#tnPlansResize:hover::after{background:#0099cc;height:80px}',
+      '.tnpv-hd{display:flex;align-items:center;gap:6px;padding:9px 12px 9px 20px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#0a1628}.tnpv-hd b{font-weight:800}.tnpv-hd .tnpv-at{color:#64748b;font-size:12px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-b{width:30px;height:30px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;color:#0a1628;flex:0 0 auto}.tnpv-b:hover{background:#f1f5f9}',
+      '.tnpv-list{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:10px 12px 10px 20px;background:#eef2f6}',
+      '.tnpv-slot{position:relative;height:var(--tnpv-slot,74vh);margin:0 0 12px;background:#fff;border:1px solid #d5dde7;border-radius:8px;overflow:hidden;cursor:default}',
+      '.tnpv-slot.zoomed{cursor:grab}.tnpv-slot.grabbing{cursor:grabbing}',
+      '.tnpv-slot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;pointer-events:none}',
+      '.tnpv-cap{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(10,22,40,.78);color:#fff;font-size:11.5px;padding:3px 8px;border-radius:6px;max-width:80%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}',
+      '@media screen and (max-width:900px){#tnPlansPop{width:92vw}}',
+      '@media print{#tnPlansPop{display:none!important}}',
+    ].join('\n');
+    document.head.appendChild(st);
+  })();
+  function plansList(){
+    var d = T.data || {}, files = d.files || [], fno = {};
+    files.forEach(function(f, i){ fno[f.id] = i; });
+    return (d.pages || []).filter(function(p){ return p.has_image !== false; }).slice().sort(function(a, b){ return (fno[a.file_id] || 0) - (fno[b.file_id] || 0) || a.page_no - b.page_no; });
+  }
+  function plansEl(){
+    var el = document.getElementById('tnPlansPop');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'tnPlansPop';
+    el.innerHTML = '<div id="tnPlansResize" title="Drag to make the plans wider or narrower"></div>' +
+      '<button type="button" id="tnPlansTab" onclick="_tnPlans()" title="The plan set"><span class="a">◀</span><span class="t">PLANS</span><span></span></button>' +
+      '<div class="tnpv-hd"><b>Plans</b><span class="tnpv-at" id="tnpvAt"></span>' +
+      '<button type="button" class="tnpv-b" title="Previous page" onclick="_tnPlansStep(-1)">▲</button><button type="button" class="tnpv-b" title="Next page" onclick="_tnPlansStep(1)">▼</button>' +
+      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button><button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
+      '<button type="button" class="tnpv-b" title="Fit the page" onclick="_tnPlansZoom(0)">↺</button></div>' +
+      '<div class="tnpv-list" id="tnpvList"></div>';
+    document.body.appendChild(el);
+    var list = el.querySelector('#tnpvList');
+    list.addEventListener('wheel', plansWheel, { passive: false });
+    list.addEventListener('scroll', function(){ var i = plansIndexAt(); if (i !== PV.at) { PV.at = i; plansHead(); plansLoadNear(); } });
+    list.addEventListener('mousedown', plansDown);
+    window.addEventListener('mousemove', plansMove);
+    window.addEventListener('mouseup', plansUp);
+    el.querySelector('#tnPlansResize').addEventListener('pointerdown', plansResizeStart);
+    try { var w = localStorage.getItem('fr_tn_plans_w'); if (w) el.style.setProperty('--tnpv-w', w); } catch (e) {}
+    return el;
+  }
+  function plansSync(){
+    var el = plansEl(), L = plansList();
+    var sig = L.map(function(p){ return p.id; }).join(',');
+    el.classList.toggle('has-pages', L.length > 0);
+    el.classList.toggle('is-open', PV.open && L.length > 0);
+    plansFit();
+    if (sig === PV.sig) return;
+    PV.sig = sig; PV.list = L; PV.z = {}; PV.at = Math.min(PV.at, Math.max(0, L.length - 1));
+    var list = el.querySelector('#tnpvList');
+    list.innerHTML = L.map(function(p, i){
+      var cap = (p.sheet_id ? p.sheet_id + ' · ' : '') + (p.title || ('Page ' + p.page_no));
+      return '<div class="tnpv-slot" data-i="' + i + '"><div class="tnpv-load">Loading…</div><img alt="" data-pid="' + esc(p.id) + '"><span class="tnpv-cap">' + esc(cap) + '</span></div>';
+    }).join('');
+    plansHead(); plansLoadNear();
+  }
+  // One page to a slot, the next one peeking under it.
+  function plansFit(){
+    var el = document.getElementById('tnPlansPop'), list = el && el.querySelector('#tnpvList');
+    if (list && list.clientHeight > 100) el.style.setProperty('--tnpv-slot', Math.round(list.clientHeight - 20 - 48) + 'px');
+  }
+  window.addEventListener('resize', function(){ plansFit(); });
+  function plansHead(){
+    var at = document.getElementById('tnpvAt'), p = PV.list[PV.at];
+    if (at) at.textContent = PV.list.length ? ('Page ' + (PV.at + 1) + ' of ' + PV.list.length + (p && p.sheet_id ? ' · ' + p.sheet_id : '') + (p && p.title ? ' ' + p.title : '')) : '';
+  }
+  function plansSlot(i){ return document.querySelector('#tnpvList .tnpv-slot[data-i="' + i + '"]'); }
+  function plansIndexAt(){
+    var list = document.getElementById('tnpvList'), s0 = plansSlot(0); if (!list || !s0) return 0;
+    var pitch = s0.offsetHeight + 12;
+    return Math.max(0, Math.min(PV.list.length - 1, Math.round(list.scrollTop / pitch)));
+  }
+  function plansLoadNear(){
+    if (!PV.open) return;
+    for (var i = PV.at - 1; i <= PV.at + 2; i++) {
+      var p = PV.list[i]; if (!p) continue;
+      (function(p, i){
+        var slot = plansSlot(i); if (!slot) return;
+        var img = slot.querySelector('img'); if (img.getAttribute('src')) return;
+        var put = function(u){ img.onload = function(){ var l = slot.querySelector('.tnpv-load'); if (l) l.remove(); }; img.src = u; plansApply(i); };
+        if (PV.urls[p.id]) return put(PV.urls[p.id]);
+        img.setAttribute('src', '');
+        api('GET', '/tender/' + T.id + '/pages/' + p.id + '/image').then(function(x){ PV.urls[p.id] = x.url; put(x.url); }).catch(function(){ img.removeAttribute('src'); var l = slot.querySelector('.tnpv-load'); if (l) l.textContent = 'This page could not be loaded.'; });
+      })(p, i);
+    }
+  }
+  function plansApply(i){
+    var slot = plansSlot(i); if (!slot) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    var img = slot.querySelector('img'); if (img) img.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.s + ')';
+    slot.classList.toggle('zoomed', z.s > 1.001);
+  }
+  // Keep a zoomed page from being dragged right off its slot.
+  function plansClamp(i){
+    var slot = plansSlot(i), z = PV.z[i]; if (!slot || !z) return;
+    var W = slot.clientWidth, H = slot.clientHeight;
+    if (z.s <= 1.001) { PV.z[i] = { s: 1, x: 0, y: 0 }; return; }
+    z.x = Math.min(0, Math.max(W - W * z.s, z.x)); z.y = Math.min(0, Math.max(H - H * z.s, z.y));
+  }
+  function plansZoomAt(i, f, px, py){
+    var slot = plansSlot(i); if (!slot) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    if (px == null) { px = slot.clientWidth / 2; py = slot.clientHeight / 2; }
+    var s2 = f === 0 ? 1 : Math.max(1, Math.min(8, z.s * f));
+    z.x = px - (px - z.x) * (s2 / z.s); z.y = py - (py - z.y) * (s2 / z.s); z.s = s2;
+    PV.z[i] = z; plansClamp(i); plansApply(i);
+  }
+  window._tnPlansZoom = function(f){ plansZoomAt(PV.at, f); };
+  window._tnPlansStep = function(dir){
+    var list = document.getElementById('tnpvList'), i = Math.max(0, Math.min(PV.list.length - 1, PV.at + dir)), slot = plansSlot(i);
+    if (!list || !slot) return;
+    PV.at = i; plansHead(); plansLoadNear();
+    list.scrollTo({ top: slot.offsetTop - 10, behavior: 'smooth' });
+  };
+  window._tnPlans = function(open){
+    PV.open = open == null ? !PV.open : !!open;
+    try { sessionStorage.setItem('fr_tn_plans', PV.open ? '1' : '0'); } catch (e) {}
+    var el = plansEl(); el.classList.toggle('is-open', PV.open);
+    if (PV.open) plansLoadNear();
+  };
+  function plansWheel(e){
+    var slot = e.target.closest && e.target.closest('.tnpv-slot');
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (!slot) return;
+      var i = +slot.getAttribute('data-i'), r = slot.getBoundingClientRect();
+      plansZoomAt(i, Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+      return;
+    }
+    // A plain wheel turns one page a notch; a flick never skips pages.
+    e.preventDefault();
+    var now = Date.now(); if (now < PV.lockUntil) return;
+    PV.wheelAcc += e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+    if (Math.abs(PV.wheelAcc) < 40) return;
+    var dir = PV.wheelAcc > 0 ? 1 : -1; PV.wheelAcc = 0; PV.lockUntil = now + 380;
+    window._tnPlansStep(dir);
+  }
+  function plansDown(e){
+    if (e.button !== 0) return;
+    var slot = e.target.closest && e.target.closest('.tnpv-slot'); if (!slot) return;
+    var i = +slot.getAttribute('data-i'), z = PV.z[i];
+    if (!z || z.s <= 1.001) return;
+    e.preventDefault();
+    PV.drag = { i: i, x0: e.clientX, y0: e.clientY, zx: z.x, zy: z.y, slot: slot };
+    slot.classList.add('grabbing');
+  }
+  function plansMove(e){
+    var g = PV.drag; if (!g) return;
+    var z = PV.z[g.i]; z.x = g.zx + (e.clientX - g.x0); z.y = g.zy + (e.clientY - g.y0);
+    plansClamp(g.i); plansApply(g.i);
+  }
+  function plansUp(){ if (PV.drag) { PV.drag.slot.classList.remove('grabbing'); PV.drag = null; } }
+  function plansResizeStart(e){
+    var el = plansEl(); e.preventDefault(); el.classList.add('is-resizing');
+    var mv = function(ev){ var w = Math.max(260, Math.min(window.innerWidth * 0.96, window.innerWidth - ev.clientX)); el.style.setProperty('--tnpv-w', w + 'px'); };
+    var up = function(){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); el.classList.remove('is-resizing');
+      try { localStorage.setItem('fr_tn_plans_w', el.style.getPropertyValue('--tnpv-w')); } catch (e) {}
+      Object.keys(PV.z).forEach(function(i){ plansClamp(+i); plansApply(+i); }); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }
+  window.__tnPlansState = function(){ return { open: PV.open, at: PV.at, n: PV.list.length, z: PV.z[PV.at] || { s: 1, x: 0, y: 0 } }; };
+
   function statusWord(s){ return { new: 'No files yet', queued: 'Waiting to be read', processing: 'Reading the set', indexed: 'Indexed', drafted: 'Tender drafted', failed: 'Failed' }[s] || s; }
   function progressHtml(d){
     var up = T.uploads.filter(function(u){ return !u.done; });
@@ -325,6 +523,8 @@
     var sc = {}, ci = document.getElementById('tnChatIn'), typed = ci && !ci.disabled ? ci.value : '', chatFocus = ci && document.activeElement === ci;
     host.querySelectorAll('.tn-box').forEach(function(b){ sc[b.getAttribute('data-box')] = b.scrollTop; });
     host.innerHTML = docHtml(T.data);
+    var side = document.getElementById('tnSide');
+    if (side && T.data.doc) { var nv = document.getElementById('tnNav'), ns = nv ? nv.scrollTop : 0; side.innerHTML = sideHtml(T.data); nv = document.getElementById('tnNav'); if (nv) nv.scrollTop = ns; }
     host.querySelectorAll('.tn-box').forEach(function(b){ var v = sc[b.getAttribute('data-box')]; if (v) b.scrollTop = v; });
     var ci2 = document.getElementById('tnChatIn');
     if (ci2 && typed && !ci2.disabled) { ci2.value = typed; if (chatFocus) ci2.focus(); }
@@ -414,24 +614,33 @@
   }
 
   // ── Claude ─────────────────────────────────────────────────────────
-  window._tnAmend = async function(mode){
+  window._tnAmend = async function(mode, extra){
     var d = T.data && T.data.doc; if (!d || DOC.chatBusy) return;
-    var instr = '';
-    if (mode === 'chat') {
+    var instr = '', change = false;
+    if (mode === 'tagout') {
+      // A scope line tagged out (2026-10-28): it moves to the exclusions at
+      // once, then Claude takes out the items, labour and time only it needed.
+      var line = (d.scope || [])[extra]; if (line == null) return;
+      d.scope.splice(extra, 1);
+      d.exclusions = (d.exclusions || []).concat([{ text: line, why: 'Tagged out of our scope' }]);
+      DOC.dirty = true;
+      instr = 'The estimator has tagged this line OUT of our scope of work, and it is now in the exclusions: "' + line + '". Take out the items, labour and programme time that were only for that work, and keep the exclusion. Change nothing else.';
+      mode = 'chat'; change = true;
+    } else if (mode === 'chat') {
       var inp = document.getElementById('tnChatIn');
       instr = inp ? inp.value.trim() : '';
       if (!instr) { if (inp) inp.focus(); return; }
     }
     DOC.chatBusy = mode;
     d.chat = d.chat || [];
-    var pending = { who: 'you', text: mode === 'chat' ? instr : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: new Date().toISOString(), pending: true };
+    var pending = { who: 'you', text: change ? ('Tag out: ' + d.exclusions[d.exclusions.length - 1].text) : mode === 'chat' ? instr : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: new Date().toISOString(), pending: true };
     d.chat.push(pending);
     docRerender();
     try {
       if (DOC.dirty) await saveNow();
-      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, doc: d });
+      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d });
       T.data.doc = x.doc;
-      T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
+      if (!x.answered) T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
     } catch (e) {
       d.chat = d.chat.filter(function(m){ return m !== pending; });
       d.chat.push({ who: 'ai', text: 'Sorry — that did not work: ' + (e && e.message || e), at: new Date().toISOString(), err: true });
@@ -480,8 +689,9 @@
     h += A('pricing', pricingCard(doc, c));
     h += A('programme', programmeCard(doc));
     h += A('doc', quoteCard(d, doc, c));
-    return '<div class="tn-lay"><aside class="tn-side"><nav class="tn-nav" id="tnNav">' + navHtml(d, doc) + '</nav>' + chatHtml(doc) + '</aside><div class="tn-main">' + h + '</div></div>';
+    return h;
   }
+  function sideHtml(d){ return '<nav class="tn-nav" id="tnNav">' + navHtml(d, d.doc) + '</nav>' + chatHtml(d.doc); }
   // The menu down the left, like Settings': a click scrolls to that part.
   function navHtml(d, doc){
     var q = doc.quote || {}, hide = q.hide || {};
@@ -589,7 +799,7 @@
       if (DOC.dirty) await saveNow();
       var d = T.data.doc, x;
       if (SEC_TEXT[sec]) x = await api('POST', '/tender/' + T.id + '/section', { section: sec, instruction: instr, current: secCurrent(sec), doc: d });
-      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
+      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', change: true, instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
       T.data.doc = x.doc;
       T.data.history = [{ at: new Date().toISOString(), why: 'Edit ' + (SEC_LABEL[sec] || sec) }].concat(T.data.history || []);
       editBusy(false);
@@ -700,7 +910,8 @@
       '<button type="button" class="tn-btn sec" onclick="_tnAmend(\'minimise\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'minimise' ? 'Minimising…' : '⇣ Minimise scope') + '</button>' +
       '<span class="tn-note" style="margin:0">Simplify rewrites it shorter and plainer. Minimise cuts it to the core roofing and moves the rest to exclusions (and out of the price).</span></div>';
     h += '<ol class="tn-list">' + (doc.scope || []).map(function(s, i){
-      return '<li><textarea rows="1" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onchange="_tnSet(\'scope\',' + i + ',\'\',this.value)">' + esc(s) + '</textarea>' + rowTools('scope', i) + '</li>';
+      return '<li><textarea rows="1" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onchange="_tnSet(\'scope\',' + i + ',\'\',this.value)">' + esc(s) + '</textarea>' +
+        '<button type="button" class="tn-tagout" title="Take this out of our scope: it moves to the exclusions and its items come out of the price" onclick="_tnAmend(\'tagout\',' + i + ')" ' + (DOC.chatBusy ? 'disabled' : '') + '>Tag out</button>' + rowTools('scope', i) + '</li>';
     }).join('') + '</ol><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'scope\')">+ Add scope item</button>';
     h += '</div></div></div>';
     return h;
@@ -708,13 +919,13 @@
   // The A.I. chat, pinned under the menu so it is there wherever the page is.
   function chatHtml(doc){
     var chat = doc.chat || [];
-    return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. to change the tender</div><div class="tn-chat-log" id="tnChatLog">' +
-      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
-        : '<div class="tn-note" style="margin:0">e.g. “take the spouting out, the builder is doing it”, “add 20 m of 0.55 parapet capping”.</div>') +
-      '</div><textarea id="tnChatIn" rows="2" placeholder="Type, or press Speak and say it…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
+    return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. — questions or changes</div><div class="tn-chat-log" id="tnChatLog">' +
+      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
+        : '<div class="tn-note" style="margin:0">Ask about the plans or the tender — “are Blocks 1 and 5/6 separate buildings?” — or ask for a change — “take the spouting out, the builder is doing it”.</div>') +
+      '</div><textarea id="tnChatIn" rows="2" placeholder="Ask a question or say what to change — type, or press Speak…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
       '<div class="tn-chat-in"><button type="button" class="tn-btn sec tn-mic" id="tnChatMic" onclick="_tnMic(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>🎤 Speak</button><span id="tnChatMsg" class="tn-edit-msg"></span>' +
       '<button type="button" class="tn-btn" onclick="_tnAmend(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'chat' ? 'Working…' : 'Send') + '</button></div>' +
-      '<div class="tn-note tn-chat-nt" style="margin:6px 0 0;font-size:11.5px">Changes the scope, items, price and programme together. Undo puts it back.</div></div>';
+      '<div class="tn-note tn-chat-nt" style="margin:6px 0 0;font-size:11.5px">A question changes nothing. A change updates the scope, items, price and programme together — Undo puts it back.</div></div>';
   }
   // ── the section boxes: 8 lines tall and scrolling, opened out, or folded ──
   var BOX = (function(){ try { return JSON.parse(localStorage.getItem('fr_tn_box') || '{}') || {}; } catch (e) { return {}; } })();
@@ -1117,18 +1328,26 @@
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
       '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
       // the menu down the left
-      '.tn-lay{display:grid;grid-template-columns:268px minmax(0,1fr);gap:16px;align-items:start}.tn-main{padding-bottom:40vh}',
-      '.tn-side{position:sticky;top:58px;max-height:calc(100vh - 70px);display:flex;flex-direction:column;gap:10px}',
-      '.tn-nav{flex:1 1 auto;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
-      '.tn-side .tn-chat{flex:0 0 auto;margin:0;padding:10px;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-side .tn-chat-log{max-height:130px}.tn-side .tn-chat .tn-chat-nt{display:none}.tn-side .tn-chat:focus-within .tn-chat-nt{display:block}',
-      '.tn-side #tnChatIn{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 8px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:48px}',
+      // The page uses the screen (2026-10-28, the owner: "there's plenty of
+      // screen to use, but it's only sort of in the middle").
+      '#tenderRoot{max-width:1760px!important;padding-left:12px!important;padding-right:12px!important}',
+      '.tn-lay{display:grid;grid-template-columns:360px minmax(0,1fr);gap:18px;align-items:start;padding-right:44px}.tn-main{padding-bottom:40vh;min-width:0}',
+      // Pinned from the top of the page, so it never slides before it sticks;
+      // the menu takes what it needs (scrolling past about half the screen)
+      // and the chat runs to the bottom of the screen.
+      '.tn-side{position:sticky;top:52px;height:calc(100vh - 62px);display:flex;flex-direction:column;gap:10px}',
+      '.tn-nav{flex:0 1 auto;max-height:46%;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-side .tn-chat{flex:1 1 auto;min-height:240px;margin:0;padding:12px;display:flex;flex-direction:column;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-side .tn-chat-log{flex:1 1 auto;max-height:none;min-height:60px;overflow-y:auto}.tn-side .tn-chat .tn-chat-nt{display:block}',
+      '.tn-side #tnChatIn{display:block;flex:0 0 auto;width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:96px}',
+      '.tn-tagout{flex:0 0 auto;align-self:center;font:inherit;font-size:11px;font-weight:700;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}.tn-tagout:hover{background:#ffedd5}.tn-tagout:disabled{opacity:.5;cursor:default}',
+      '.tn-msg-src{display:block;margin-top:4px;font-size:11px;color:#64748b}',
       '.tn-side .tn-chat-in{align-items:center}.tn-side .tn-chat-in .tn-edit-msg{flex:1 1 auto;font-size:11.5px}.tn-side .tn-msg{max-width:92%;font-size:12.5px}',
       '.tn-nav-g{margin:8px 0 4px;padding:5px 8px;border-radius:6px;background:#0a1628;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.tn-nav-g:first-child{margin-top:0}',
       '.tn-nav-i{display:block;padding:6px 10px;border-radius:7px;font-size:13px;color:#334155;text-decoration:none;line-height:1.3}.tn-nav-i:hover{background:#f1f5f9;color:#0a1628}',
       '.tn-nav-i.sub{padding-left:20px;font-size:12.5px}.tn-nav-i.off{color:#94a3b8;text-decoration:line-through}',
       '.tn-nav-i.on{background:#0099cc;color:#fff;font-weight:700}',
       '.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:64px}',
-      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr)}.tn-side{top:56px;z-index:5;max-height:none;display:block}.tn-side .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-side .tn-chat-hd{margin-bottom:4px}.tn-side .tn-chat-log{max-height:90px}.tn-side .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-side #tnChatIn{height:38px}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr);padding-right:0}.tn-side{top:56px;z-index:5;max-height:none;height:auto;display:block}.tn-side .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-side .tn-chat-hd{margin-bottom:4px}.tn-side .tn-chat-log{max-height:90px}.tn-side .tn-chat .tn-chat-nt{display:none}.tn-side .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-side #tnChatIn{height:38px}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
       // the section boxes: one height for all, scrolling inside; print shows everything
       '@media screen{.tn-card .tn-box.mid{height:540px}.tq-sec .tn-box.mid{height:172px}.tn-box.mid{height:540px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;box-shadow:inset 0 -10px 10px -10px rgba(15,23,42,.18);padding-right:4px}.tn-box.min{display:none}',
       '}',
