@@ -4216,6 +4216,39 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-desc small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
 .pbk-unit{ color:#64748b; font-size:11.5px; }
 .pbk-price{ text-align:right; font-weight:700; color:#0a1628; }
+/* Files & Photos (2026-10-27) */
+#jobFilesModal{ position:fixed; inset:0; background:rgba(10,22,40,.5); z-index:10050; display:flex; align-items:center; justify-content:center; padding:16px; }
+.jf-box{ background:#fff; border-radius:14px; width:760px; max-width:100%; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); overflow:hidden; font-family:inherit; }
+.jf-hd{ display:flex; align-items:center; gap:10px; padding:12px 14px; background:#0a1628; color:#fff; flex-wrap:wrap; }
+.jf-hd b{ font-size:15px; } .jf-job{ font-size:12px; opacity:.75; flex:1; }
+.jf-up{ background:#0099cc; color:#fff; border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.jf-x{ border:none; background:rgba(255,255,255,.14); color:inherit; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px; }
+.jf-msg{ padding:8px 14px; font-size:12.5px; background:#e0f2fe; color:#075985; } .jf-msg-err{ background:#fee2e2; color:#991b1b; }
+.jf-body{ overflow-y:auto; padding:6px 14px 16px; }
+.jf-sec h4{ margin:14px 0 4px; font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:#0a1628; }
+.jf-note{ margin:0 0 6px; font-size:11.5px; color:#64748b; line-height:1.45; }
+.jf-row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #eef2f6; }
+.jf-ic{ width:44px; height:34px; flex:0 0 44px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+.jf-thumb{ width:44px; height:34px; object-fit:cover; border-radius:5px; background:#f1f5f9; }
+.jf-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.jf-name{ font-size:13px; font-weight:600; color:#0a1628; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-meta{ font-size:11px; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-acts{ display:flex; gap:5px; flex-shrink:0; }
+.jf-btn{ padding:5px 10px; background:#fff; color:#0a1628; border:1.5px solid #cbd5e1; border-radius:7px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+.jf-open{ background:#0099cc; border-color:#0099cc; color:#fff; } .jf-del{ color:#b91c1c; }
+.jf-empty{ font-size:12px; color:#64748b; padding:6px 0; }
+.jf-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:6px; }
+.jf-ph{ padding:0; border:1px solid #e2e8f0; border-radius:7px; overflow:hidden; cursor:pointer; background:#f8fafc; aspect-ratio:4/3; }
+.jf-ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+#jobFileViewer{ position:fixed; inset:0; z-index:10060; background:rgba(10,22,40,.92); display:flex; flex-direction:column; }
+.jfv-hd{ display:flex; align-items:center; gap:10px; padding:10px 14px; color:#fff; }
+.jfv-hd b{ flex:1; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jfv-body{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:0 14px 14px; }
+.jfv-img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; background:#fff; }
+.jfv-frame{ width:100%; height:100%; border:none; border-radius:6px; background:#fff; }
+.jfv-text{ width:100%; height:100%; margin:0; overflow:auto; background:#fff; color:#0a1628; border-radius:6px; padding:12px; font-size:12px; white-space:pre; }
+.jfv-none{ color:#fff; font-size:14px; }
+@media (max-width:640px){ .jf-acts .jf-btn:not(.jf-open){ display:none; } }
 .pbk-kind{ justify-self:start; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:999px; }
 .pbk-kind-material{ background:#e0f2fe; color:#075985; }
 .pbk-kind-other{ background:#f1f5f9; color:#475569; }
@@ -5119,7 +5152,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-27T21:25:00Z';
+  window.APP_BUILT_AT = '2026-10-27T21:36:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5694,15 +5727,24 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          a plain status strip, not a coloured button — the only colour on it is
          the green tick that says the quote has gone. The button in the job
          details window stays; both are drawn by _jobLockRender. -->
-    <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
     <!-- HISTORY & COMMUNICATIONS (2026-10-23, the owner: "put this button as a
          more accessible button in the left menu ... under the 'locked - quote
          sent' button, then move the 'change job' button up to just underneath
          the 'save job'"). The job's timeline and every email with the customer
          about it, one tap from any tab. Shown with the job's other buttons. -->
     <button type="button" id="navJobHistBtn" class="lock-ok" onclick="_jobHistoryOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <!-- FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
+         below the history and communications button ... change the colour of
+         this new button and the history button to be the same blue as 'change
+         job' and then put the 'unlocked/locked' button at the bottom of those
+         buttons"). Everything exported or sent from the job, the office's own
+         uploads, and the Fergus job's files — _jobFilesOpen. -->
+    <button type="button" id="navJobFilesBtn" class="lock-ok" onclick="_jobFilesOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
+
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -19945,6 +19987,12 @@ function _jobLockRender(){
   if (cb) cb.style.display = show ? 'block' : 'none';
   var hb = document.getElementById('navJobHistBtn');
   if (hb) hb.style.display = show ? 'block' : 'none';
+  var fb = document.getElementById('navJobFilesBtn');
+  if (fb) fb.style.display = show ? 'block' : 'none';
+  try {
+    if (show && _JF.jobId !== S.currentJobId && _JF.askedFor !== S.currentJobId){ _JF.askedFor = S.currentJobId; _jfLoad(true); }
+    _jfCountSet();
+  } catch(e){}
   var sb = document.getElementById('navJobLockSide');
   if (sb){
     sb.style.display = show ? 'block' : 'none';
@@ -20015,7 +20063,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|_jobFilesOpen|_jobFilesClose|_jf[A-Za-z]*|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -27691,6 +27739,288 @@ function _jobFileRemove(i){
   renderJobFiles();
   try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
 }
+// ── FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
+// below the history and communications button, allow the user to add in
+// photo's or files from their computer ... click into this new button to see
+// all the photo's and files and actually open the files from within
+// roofmap ... everytime the user exports a pdf or anything, that file should
+// automatically also save in the files and photos on that job (including a
+// sent job pack, or sent quote) ... this button should also load any files
+// and photos from fergus if fergus is connnected").
+// The bytes live in the server's private 'job-files' bucket (GET/POST
+// /jobs/:id/files…), NEVER in the job row: a row rewritten with megabytes on
+// every autosave is how the database stalled in September. A file goes
+// sign → PUT straight to storage → landed. `_jfKeep` is the one call every
+// export and send makes; it never throws and never asks anything.
+var _JF = { files: null, jobId: null, busy: 0, ferg: null, msg: '' };
+var JF_SOURCE_NAMES = {
+  'quote-pdf': 'Quote PDF', 'sent-quote': 'Sent quote', 'jobpack-pdf': 'Job Pack PDF', 'jobpack-print': 'Job Pack (printed)',
+  'jobpack-fergus': 'Job Pack sent to Fergus', 'quote-fergus': 'Quote sent to Fergus', 'pricing-csv': 'Pricing CSV',
+  'pricing-fergus': 'Pricing sent to Fergus', 'order-pdf': 'Material order', 'sent-order': 'Sent material order', 'export': 'Exported'
+};
+function _jfCanKeep(){
+  try {
+    if (window.__CUSTOMER_MODE || window.__PLAYGROUND) return false;
+    if (!window.S || !S.currentJobId || S.isSampleJob) return false;
+    return true;
+  } catch(e){ return false; }
+}
+function _jfBlobOf(x){
+  if (!x) return null;
+  if (typeof Blob !== 'undefined' && x instanceof Blob) return x;
+  if (typeof x === 'string' && /^data:/.test(x)){
+    var m = /^data:([^;,]*)(;base64)?,(.*)$/.exec(x); if (!m) return null;
+    var raw = m[2] ? atob(m[3]) : decodeURIComponent(m[3]);
+    var u8 = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+    return new Blob([u8], { type: m[1] || 'application/octet-stream' });
+  }
+  if (typeof x === 'string') return new Blob([x], { type: 'text/plain' });
+  return null;
+}
+// One file up: sign, PUT, landed. Answers the new file's id.
+async function _jfPut(jobId, blob, name, kind, source, onPct){
+  var sg = await api('POST', '/jobs/' + jobId + '/files/sign', { name: name, size: blob.size, mime: blob.type || 'application/octet-stream', kind: kind, source: source || '' });
+  await new Promise(function(res, rej){
+    var x = new XMLHttpRequest();
+    x.open('PUT', sg.signedUrl, true);
+    x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
+    x.setRequestHeader('x-upsert', 'false');
+    if (onPct) x.upload.onprogress = function(e){ if (e.lengthComputable) onPct(100 * e.loaded / e.total); };
+    x.onload = function(){ (x.status >= 200 && x.status < 300) ? res() : rej(new Error('storage answered ' + x.status)); };
+    x.onerror = function(){ rej(new Error('the upload did not reach storage')); };
+    x.send(blob);
+  });
+  await api('POST', '/jobs/' + jobId + '/files/' + sg.fileId + '/landed', {});
+  return sg.fileId;
+}
+// Every export and send keeps a copy here, by itself. Fire and forget.
+function _jfKeep(data, name, source){
+  try {
+    if (!_jfCanKeep()) return Promise.resolve(null);
+    var blob = _jfBlobOf(data); if (!blob || !blob.size) return Promise.resolve(null);
+    var jobId = S.currentJobId;
+    return _jfPut(jobId, blob, String(name || 'file').slice(0, 160), 'export', source || 'export')
+      .then(function(id){ if (_JF.jobId === jobId) _jfLoad(true); _jfCountSet(); return id; })
+      .catch(function(e){ try { console.warn('Files & Photos: could not keep ' + name, e && e.message); } catch(_){} return null; });
+  } catch(e){ return Promise.resolve(null); }
+}
+// The quote as it went: built from what is on screen (the Sent version, once
+// the send has switched to it) and kept as a PDF.
+async function _jfKeepQuotePdf(source){
+  if (!_jfCanKeep()) return;
+  try {
+    try { _qaMsg('Keeping a copy of the sent quote in Files & Photos\u2026'); } catch(e){}
+    var pdf = await _buildQuotePdf({ scale: 1.5 });
+    if (!pdf) { try { _qaMsg(''); } catch(e){} return; }
+    var blob = (pdf instanceof Blob) ? pdf : (pdf.output ? pdf.output('blob') : null);
+    var id = blob ? await _jfKeep(blob, (source === 'sent-quote' ? 'Sent - ' : '') + _quotePdfFilename(), source) : null;
+    try { _qaMsg(id ? '\u2713 A copy of the sent quote is in Files & Photos.' : ''); } catch(e){}
+  } catch(e){ try { console.warn('Files & Photos: quote PDF', e && e.message); } catch(_){} }
+}
+function _jfCountSet(){
+  var c = document.getElementById('navJobFilesCount'); if (!c) return;
+  var n = (_JF.jobId === (window.S && S.currentJobId) && Array.isArray(_JF.files)) ? _JF.files.length : 0;
+  c.textContent = n ? String(n) : ''; c.style.display = n ? 'inline-block' : 'none';
+}
+async function _jfLoad(quiet){
+  var jobId = window.S && S.currentJobId;
+  if (!jobId){ _JF.files = []; _JF.jobId = null; _jfRender(); return; }
+  if (_JF.jobId !== jobId){ _JF.files = null; _JF.ferg = null; }
+  _JF.jobId = jobId;
+  if (!quiet) _jfRender();
+  try {
+    var r = await api('GET', '/jobs/' + jobId + '/files');
+    if (_JF.jobId !== jobId) return;
+    _JF.files = (r && r.files) || []; _JF.err = '';
+  } catch(e){ if (_JF.jobId === jobId){ _JF.err = 'Could not read this job’s files: ' + ((e && e.message) || e); if (!_JF.files) _JF.files = []; } }
+  _jfRender(); _jfCountSet();
+}
+async function _jfLoadFergus(){
+  if (!(window.S && S.linkedJobId)) { _JF.ferg = null; return; }
+  _JF.ferg = { loading: true, files: [] }; _jfRender();
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/list?jobId=' + encodeURIComponent(String(S.linkedJobId)), { headers: { 'Authorization': 'Bearer ' + token } });
+    var data = await r.json().catch(function(){ return {}; });
+    _JF.ferg = { ok: !!(data && data.ok), files: ((data && data.files) || []).filter(function(f){ return f && f.url; }) };
+  } catch(e){ _JF.ferg = { ok: false, files: [], err: (e && e.message) || String(e) }; }
+  _jfRender();
+}
+function _jobFilesOpen(){
+  if (!(window.S && S.currentJobId)){ try { _siteToast('Save the job first — its files are kept with it.'); } catch(e){} return; }
+  var old = document.getElementById('jobFilesModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'jobFilesModal'; host.className = 'no-print';
+  host.addEventListener('click', function(e){ if (e.target === host) _jobFilesClose(); });
+  document.body.appendChild(host);
+  _JF.msg = '';
+  _jfRender();
+  _jfLoad();
+  _jfLoadFergus();
+}
+function _jobFilesClose(){ var m = document.getElementById('jobFilesModal'); if (m) m.remove(); _jfViewerClose(); }
+function _jfIsImage(mime, name){ return /^image\//.test(mime || '') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(name || ''); }
+function _jfWhen(iso){ try { var d = new Date(iso); return d.toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } }
+function _jfRow(icon, name, meta, actions, attrs){
+  return '<div class="jf-row"' + (attrs || '') + '><span class="jf-ic">' + icon + '</span>' +
+    '<span class="jf-main"><span class="jf-name" title="' + esc2(name) + '">' + esc2(name) + '</span><span class="jf-meta">' + meta + '</span></span>' +
+    '<span class="jf-acts">' + actions + '</span></div>';
+}
+function _jfRender(){
+  var host = document.getElementById('jobFilesModal'); if (!host) return;
+  var files = _JF.files, loading = (files == null);
+  var mine = (files || []), exp = mine.filter(function(f){ return f.kind === 'export'; }), up = mine.filter(function(f){ return f.kind !== 'export'; });
+  var stored = function(f){
+    var ic = _jfIsImage(f.mime, f.name) ? '<img class="jf-thumb" data-jf-thumb="' + esc2(f.id) + '" alt="">' : _jobFileIcon(f.mime || '', f.name || '');
+    var meta = esc2(_jfWhen(f.at)) + ' · ' + esc2(_jobFileFmtSize(f.size)) +
+      (f.kind === 'export' && f.source ? ' · ' + esc2(JF_SOURCE_NAMES[f.source] || f.source) : '') +
+      (f.author ? ' · ' + esc2(f.author) : '');
+    return _jfRow(ic, f.name, meta,
+      '<button type="button" class="jf-btn jf-open" onclick="_jfOpenStored(\'' + esc2(f.id) + '\')">Open</button>' +
+      '<button type="button" class="jf-btn" title="Download" onclick="_jfDownloadStored(\'' + esc2(f.id) + '\')">⬇</button>' +
+      '<button type="button" class="jf-btn jf-del" title="Delete this file" onclick="_jfDelete(\'' + esc2(f.id) + '\')">✕</button>',
+      ' data-jf-file="' + esc2(f.id) + '"');
+  };
+  var sec = function(title, note, body){ return '<section class="jf-sec"><h4>' + title + '</h4>' + (note ? '<p class="jf-note">' + note + '</p>' : '') + body + '</section>'; };
+  var empty = function(t){ return '<div class="jf-empty">' + t + '</div>'; };
+  // What the job carried already: files kept on the job and its site photos.
+  var legacy = [];
+  ((S && S.files) || []).forEach(function(f, i){ legacy.push(_jfRow(_jobFileIcon(f.mime || '', f.name || ''), f.name || 'file', esc2(_jobFileFmtSize(f.size)),
+    '<button type="button" class="jf-btn jf-open" onclick="_jfOpenLegacy(' + i + ')">Open</button>')); });
+  var photos = ((S && S.photos) || []).filter(function(p){ return p && p.src; });
+  var ferg = _JF.ferg;
+  var fergHtml = '';
+  if (window.S && S.linkedJobId){
+    if (!ferg || ferg.loading) fergHtml = empty('Loading the files on Fergus job ' + esc2(_fergusDisplayNo ? _fergusDisplayNo() : S.linkedJobId) + '…');
+    else if (!ferg.files.length) fergHtml = empty(ferg.ok === false ? 'Could not read the Fergus job’s files' + (ferg.err ? ' (' + esc2(ferg.err) + ')' : '') + '.' : 'No files on the Fergus job.');
+    else fergHtml = ferg.files.map(function(f, i){
+      var nm = f.name || ('Fergus file ' + (i + 1));
+      var ic = _fergusIsImage(f) ? '<img class="jf-thumb" data-jf-fthumb="' + i + '" alt="">' : _jobFileIcon(f.contentType || '', nm);
+      return _jfRow(ic, nm, 'Fergus' + (f.createdAt || f.created_at ? ' · ' + esc2(_jfWhen(f.createdAt || f.created_at)) : ''),
+        '<button type="button" class="jf-btn jf-open" onclick="_jfOpenFergus(' + i + ')">Open</button>', ' data-jf-ferg="' + i + '"');
+    }).join('');
+  }
+  host.innerHTML = '<div class="jf-box" role="dialog" aria-label="Files and photos">' +
+    '<div class="jf-hd"><b>📁 Files &amp; Photos</b><span class="jf-job">' + esc2((S.quote && S.quote.ref) ? 'Job ' + S.quote.ref : '') + '</span>' +
+      '<label class="jf-up">⬆ Upload files or photos<input type="file" id="jfUploadInput" multiple hidden onchange="_jfUpload(this)"></label>' +
+      '<button type="button" class="jf-x" onclick="_jobFilesClose()" title="Close">✕</button></div>' +
+    (_JF.msg ? '<div class="jf-msg">' + _JF.msg + '</div>' : '') +
+    (_JF.err ? '<div class="jf-msg jf-msg-err">' + esc2(_JF.err) + '</div>' : '') +
+    '<div class="jf-body">' +
+      sec('Exported &amp; sent from RoofMap', 'This section only holds files RoofMap has exported or sent on this job — every quote and Job Pack PDF, sent quote, pricing sheet and material order is kept here automatically, newest first.',
+        loading ? empty('Loading…') : (exp.length ? exp.map(stored).join('') : empty('Nothing exported or sent from this job yet.'))) +
+      sec('Your uploads', '', loading ? empty('Loading…') : (up.length ? up.map(stored).join('') : empty('Plans, photos, documents — use “Upload files or photos” above.'))) +
+      (photos.length ? sec('Site photos on the quote', '', '<div class="jf-grid">' + photos.map(function(p, i){
+        return '<button type="button" class="jf-ph" onclick="_jfOpenPhoto(' + i + ')" title="' + esc2(p.caption || ('Photo ' + (i + 1))) + '"><img src="' + esc2(p.src) + '" alt=""></button>'; }).join('') + '</div>') : '') +
+      (legacy.length ? sec('Kept on the job', '', legacy.join('')) : '') +
+      ((window.S && S.linkedJobId) ? sec('From Fergus', '', fergHtml) : '') +
+    '</div></div>';
+  _jfThumbs();
+}
+// Thumbnails come through short-lived links, a few at a time.
+var _JF_THUMB = {};
+function _jfThumbs(){
+  document.querySelectorAll('#jobFilesModal img[data-jf-thumb]').forEach(function(img){
+    var id = img.getAttribute('data-jf-thumb');
+    if (_JF_THUMB[id]){ img.src = _JF_THUMB[id]; return; }
+    api('GET', '/jobs/' + S.currentJobId + '/files/' + id + '/url').then(function(r){ if (r && r.url){ _JF_THUMB[id] = r.url; img.src = r.url; } }).catch(function(){});
+  });
+  var ff = (_JF.ferg && _JF.ferg.files) || [];
+  document.querySelectorAll('#jobFilesModal img[data-jf-fthumb]').forEach(function(img){
+    var f = ff[+img.getAttribute('data-jf-fthumb')]; if (!f) return;
+    _fergusDownloadBlob(f.url).then(function(b){ img.src = URL.createObjectURL(b); }).catch(function(){});
+  });
+}
+async function _jfUpload(input){
+  var list = Array.from((input && input.files) || []); if (input) input.value = '';
+  if (!list.length) return;
+  var jobId = S.currentJobId; if (!jobId) return;
+  var ok = 0, bad = [];
+  for (var i = 0; i < list.length; i++){
+    var f = list[i];
+    _JF.msg = 'Uploading ' + esc2(f.name) + ' (' + (i + 1) + ' of ' + list.length + ')…'; _jfRender();
+    try { await _jfPut(jobId, f, f.name, 'upload', '', function(p){ var m = document.querySelector('#jobFilesModal .jf-msg'); if (m) m.textContent = 'Uploading ' + f.name + ' — ' + Math.round(p) + '%'; }); ok++; }
+    catch(e){ bad.push(f.name + ' (' + ((e && e.message) || e) + ')'); }
+  }
+  _JF.msg = (ok ? '✓ ' + ok + ' file' + (ok === 1 ? '' : 's') + ' uploaded.' : '') + (bad.length ? ' Not uploaded: ' + esc2(bad.join('; ')) : '');
+  await _jfLoad(true);
+}
+async function _jfUrl(id){ var r = await api('GET', '/jobs/' + S.currentJobId + '/files/' + id + '/url'); return r; }
+// Opened from a blob of its own bytes, not the storage link: a blob is the
+// page's own and always shows in a frame, whatever headers the store sends,
+// and a PDF never turns into a download instead of opening.
+var _JF_OBJ = [];
+async function _jfOpenStored(id){
+  try {
+    var r = await _jfUrl(id);
+    var url = r.url;
+    try {
+      var resp = await fetch(r.url);
+      if (resp.ok){ var b = await resp.blob(); if (r.mime && b.type !== r.mime) b = new Blob([b], { type: r.mime }); url = URL.createObjectURL(b); _JF_OBJ.push(url); }
+    } catch(e){}
+    _jfViewer(r.name, r.mime, url);
+  }
+  catch(e){ _JF.msg = 'Could not open it: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+async function _jfDownloadStored(id){
+  try {
+    var r = await _jfUrl(id);
+    var b = await (await fetch(r.url)).blob();
+    _jfSaveBlob(b, r.name);
+  } catch(e){ _JF.msg = 'Could not download it: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+function _jfSaveBlob(blob, name){
+  var u = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = u; a.download = name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+}
+async function _jfDelete(id){
+  var f = (_JF.files || []).filter(function(x){ return x.id === id; })[0];
+  if (!confirm('Delete ' + ((f && f.name) || 'this file') + ' from the job?')) return;
+  try { await api('DELETE', '/jobs/' + S.currentJobId + '/files/' + id); _JF.msg = '✓ Deleted.'; }
+  catch(e){ _JF.msg = 'Could not delete it: ' + esc2((e && e.message) || e); }
+  await _jfLoad(true);
+}
+function _jfOpenLegacy(i){ var f = ((S && S.files) || [])[i]; if (f) _jfViewer(f.name, f.mime, f.data); }
+function _jfOpenPhoto(i){ var p = ((S && S.photos) || []).filter(function(x){ return x && x.src; })[i]; if (p) _jfViewer(p.caption || ('Photo ' + (i + 1)) + '.jpg', 'image/jpeg', p.src); }
+async function _jfOpenFergus(i){
+  var f = ((_JF.ferg && _JF.ferg.files) || [])[i]; if (!f) return;
+  try { var b = await _fergusDownloadBlob(f.url); var u = URL.createObjectURL(b); _jfViewer(f.name || 'Fergus file', b.type || f.contentType || '', u); _JF_OBJ.push(u); }
+  catch(e){ _JF.msg = 'Could not open it from Fergus: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+// THE FILE OPENS INSIDE ROOFMAP: a picture as a picture, a PDF in the
+// browser's own viewer, a text or CSV file as text; anything else the browser
+// cannot show is offered as a download.
+async function _jfViewer(name, mime, url){
+  var _old = document.getElementById('jobFileViewer'); if (_old) _old.remove();
+  var v = document.createElement('div');
+  v.id = 'jobFileViewer'; v.className = 'no-print';
+  var isImg = _jfIsImage(mime, name), isPdf = /pdf/i.test(mime || '') || /\.pdf$/i.test(name || ''),
+      isText = /^text\/|csv|json/i.test(mime || '') || /\.(csv|txt|json)$/i.test(name || '');
+  v.innerHTML = '<div class="jfv-hd"><b>' + esc2(name || 'File') + '</b>' +
+    '<button type="button" class="jf-btn" id="jfvDownload">⬇ Download</button>' +
+    '<button type="button" class="jf-x" onclick="_jfViewerClose()" title="Close">✕</button></div>' +
+    '<div class="jfv-body">' +
+      (isImg ? '<img class="jfv-img" src="' + esc2(url) + '" alt="">' :
+       isPdf ? '<iframe class="jfv-frame" src="' + esc2(url) + '" title="' + esc2(name || 'PDF') + '"></iframe>' :
+       isText ? '<pre class="jfv-text">Loading…</pre>' :
+       '<div class="jfv-none">This kind of file can’t be shown here — download it to open it.</div>') +
+    '</div>';
+  document.body.appendChild(v);
+  document.getElementById('jfvDownload').onclick = async function(){
+    try { var b = await (await fetch(url)).blob(); _jfSaveBlob(b, name); } catch(e){ window.open(url, '_blank'); }
+  };
+  if (isText){
+    try { var t = await (await fetch(url)).text(); var pre = v.querySelector('.jfv-text'); if (pre) pre.textContent = t.slice(0, 400000); }
+    catch(e){ var pre2 = v.querySelector('.jfv-text'); if (pre2) pre2.textContent = 'Could not read it: ' + ((e && e.message) || e); }
+  }
+}
+function _jfViewerClose(){ var v = document.getElementById('jobFileViewer'); if (v) v.remove(); _JF_OBJ.splice(0).forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} }); }
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('jobFileViewer')){ _jfViewerClose(); e.stopPropagation(); return; }
+  if (document.getElementById('jobFilesModal')) _jobFilesClose();
+});
 // A site photo becomes the Map Roof canvas background — the no-JMS answer
 // to "Import from Fergus". Same pipeline as Upload from PC.
 function _jobPhotoUseAsBg(i){
@@ -46920,7 +47250,9 @@ async function _quoteEmailSendNow(){
     // Only once the saves above have landed: a save is refused while a frozen
     // version is on screen, so switching first threw the last one away.
     (function(){ var tail = window.__qSendTail; window.__qSendTail = null;
-      var show = function(){ try { if (!S._qvViewing) _qvView('sent'); } catch(e){} };
+      var show = function(){ try { if (!S._qvViewing) _qvView('sent'); } catch(e){}
+        // The quote as it went, kept on the job's Files & Photos (2026-10-27).
+        try { if (!_isDemoJob()) setTimeout(function(){ _jfKeepQuotePdf('sent-quote'); }, 1200); } catch(e){} };
       if (tail && tail.then) Promise.race([tail, new Promise(function(r){ setTimeout(r, 30000); })]).then(show, show); else show(); })();
   } catch(err){
     var msg = String(err && err.message || err);
@@ -46991,6 +47323,7 @@ async function _printModernQuoteFile(){
     return;
   }
   try { pdf.save(_quotePdfFilename()); } catch(e){ console.error('quote PDF save:', e); }
+  try { _jfKeep(pdf.output('blob'), _quotePdfFilename(), 'quote-pdf'); } catch(e){}
   try { _qaMsg('Saved ' + _quotePdfFilename()); } catch(e){}
 }
 function printQuote(){
@@ -73081,6 +73414,7 @@ function saveScopePricingAsCsv(){
     var blob = new Blob([out.join('\n')], { type: 'text/csv' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = 'RoofMap pricing' + (ref ? ' ' + ref : '') + '.csv';
+    try { _jfKeep(blob, a.download, 'pricing-csv'); } catch(e){}
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
     _scopeMsg('Pricing downloaded as CSV.');
@@ -73127,7 +73461,7 @@ async function pushScopePricingToFergus(){
     var client = ((document.getElementById('jobClient')||{}).value || 'Pricing').trim();
     var jobNum = (_fergusDisplayNo() || '').toString().trim();
     var filename = ('Pricing_'+(jobNum||client)).replace(/[^A-Za-z0-9_.-]+/g,'_').slice(0,80)+'.pdf';
-    _matDownloadBlob(blob, filename);
+    _matDownloadBlob(blob, filename, 'pricing-fergus');
     _scopeMsg('Saved locally — uploading to Fergus job '+_fergusDisplayNo()+'…');
     var token = localStorage.getItem('fr_token')||'';
     _fpcForgetList();
@@ -74739,7 +75073,7 @@ async function pushQuotePdfToFergus(btn){
     if (!pdf){ _qaMsg('Quote PDF build failed.', false); alert('Sorry — the quote PDF couldn\'t be built. Please try again.'); return; }
     var blob = pdf.output('blob');
     var filename = _quotePdfFilename();
-    try { _matDownloadBlob(blob, filename); } catch(e){}
+    try { _matDownloadBlob(blob, filename, 'quote-fergus'); } catch(e){}
     _qaMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -74794,6 +75128,7 @@ async function saveMaterialsAsPdf() {
     return _legacyPrintFlow();
   }
   pdf.save(filename);
+  try { _jfKeep(pdf.output('blob'), filename, 'jobpack-pdf'); } catch(e){}
   _matMsg('✓ PDF saved: ' + filename, true);
 }
 
@@ -74814,7 +75149,7 @@ async function pushJobPackToFergus(btn) {
     var pdf = await _buildJobPackPdf();
     if (!pdf) { _matMsg('PDF build failed.', false); alert('Sorry — the Job Pack PDF couldn\'t be built. Please try again.'); return; }
     var blob = pdf.output('blob');
-    try { _matDownloadBlob(blob, filename); } catch(e){}
+    try { _matDownloadBlob(blob, filename, 'jobpack-fergus'); } catch(e){}
     _matMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -74861,6 +75196,7 @@ async function printJobPack() {
     _matMsg('PDF build failed — opening browser print instead', false);
     return _legacyPrintFlow();
   }
+  try { _jfKeep(pdf.output('blob'), 'Job Pack' + ((S.quote && S.quote.ref) ? ' ' + S.quote.ref : '') + ' (printed).pdf', 'jobpack-print'); } catch(e){}
   try { pdf.autoPrint(); } catch(e){ /* older jsPDF without autoPrint */ }
   var blobUrl;
   try {
@@ -75751,7 +76087,10 @@ async function _matBuildPdfBlob() {
 // Trigger a browser "save as" for a generated Blob — used so the user
 // always gets a local copy of the order PDF before we hand it off to
 // Fergus. Cleans up the temporary object URL after the download fires.
-function _matDownloadBlob(blob, filename) {
+function _matDownloadBlob(blob, filename, source) {
+  // Every file the Job Pack and the Pricing tab hand the office is also kept
+  // on the job's Files & Photos (2026-10-27).
+  try { _jfKeep(blob, filename, source || 'export'); } catch(e){}
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url; a.download = filename;
@@ -75780,7 +76119,7 @@ async function pushMaterialsToFergus() {
       .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
     // 1. Save a local copy first so the user has the file even if Fergus
     //    upload fails or the network drops.
-    _matDownloadBlob(blob, filename);
+    _matDownloadBlob(blob, filename, 'order-pdf');
     // 2. Base64-encode and ship to Fergus via our backend.
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -77232,7 +77571,7 @@ async function _orderEmailOpen(mode){
     var blob;
     try { blob = await _orderEmailBuildBlob(); }
     catch (e){ if (popup) try{popup.close();}catch(e2){} _orderEmailStatus('PDF build failed: ' + (e.message || e), 'err'); _matMsg('PDF build failed: ' + (e.message || e), false); return; }
-    _matDownloadBlob(blob, o.filename);
+    _matDownloadBlob(blob, o.filename, 'order-pdf');
     _orderEmailStatus('');
 
     if (mode === 'gmail'){
@@ -77341,6 +77680,7 @@ async function _orderEmailSendNow(){
     // A demo order is never stamped: the stamp saves the job, and the sample
     // or practice job must not become a row in their account behind their back.
     if (!o.test) _stampOrderSent(o);
+    if (!o.test){ try { _jfKeep(blob, 'Sent - ' + o.filename, 'sent-order'); } catch(e){} }
     setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
   } catch(err) {
     var msg = String(err && err.message || err);
@@ -77476,6 +77816,7 @@ async function _orderRoofLegacyUnused() {
           text:  body + '\n\nSend to: ' + email,
           files: [file],
         });
+        try { _jfKeep(blob, filename, 'sent-order'); } catch(e){}
         _matMsg('✓ Order sent — PDF attached to the share.', true);
         return;
       } catch (shareErr) {
@@ -77487,7 +77828,7 @@ async function _orderRoofLegacyUnused() {
 
   // Fallback: download the PDF locally + open a pre-composed mailto.
   // The user attaches the just-saved file manually before sending.
-  _matDownloadBlob(blob, filename);
+  _matDownloadBlob(blob, filename, 'order-pdf');
   var href = 'mailto:' + encodeURIComponent(email) +
              '?subject=' + encodeURIComponent(subj) +
              '&body='    + encodeURIComponent(body + '\n\n[Attach ' + filename + ' before sending]');

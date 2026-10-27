@@ -147,19 +147,27 @@ check('…Change job in blue, History in orange',
 
 // ── the left menu's order (2026-10-23, the owner: "put the new 'History &
 // Communications' button under the 'locked - quote sent' button, then move the
-// 'change job' button up to just underneath the 'save job'") ──
+// 'change job' button up to just underneath the 'save job'"; 2026-10-27: "add a
+// 'Files & Photos' button below the history and communications button ...
+// change the colour of this new button and the history button to be the same
+// blue as 'change job' and then put the 'unlocked/locked' button at the bottom
+// of those buttons") ──
 v = await pg.evaluate(() => {
   S.currentJobId = 'j1'; S.jobLocked = true;
   try { _jobLockRender(); } catch(e){}
-  const ids = ['navJobSaveBtn', 'navJobChangeBtn', 'navJobLockSide', 'navJobHistBtn'];
+  const ids = ['navJobSaveBtn', 'navJobChangeBtn', 'navJobHistBtn', 'navJobFilesBtn', 'navJobLockSide'];
   const els = ids.map(id => document.getElementById(id));
   const inOrder = els.every((e, i) => e && (i === 0 || (els[i-1].compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)));
-  return { inOrder, shown: getComputedStyle(els[3]).display !== 'none', txt: (els[3] || {}).textContent || '' };
+  const bg = (id) => getComputedStyle(document.getElementById(id)).backgroundColor;
+  return { inOrder, shown: getComputedStyle(els[2]).display !== 'none' && getComputedStyle(els[3]).display !== 'none',
+           txt: (els[2] || {}).textContent || '', ftxt: (els[3] || {}).textContent || '',
+           blues: [bg('navJobChangeBtn'), bg('navJobHistBtn'), bg('navJobFilesBtn')] };
 });
-check('the left menu reads Save job, Change job, the lock, then History & Communications',
+check('the left menu reads Save job, Change job, History & Communications, Files & Photos, then the lock',
   v.inOrder, JSON.stringify(v));
-check('…and History & Communications is a button of its own there, shown with the job',
-  v.shown && /History & Communications/.test(v.txt), JSON.stringify(v));
+check('…History & Communications and Files & Photos are buttons of their own there, shown with the job',
+  v.shown && /History & Communications/.test(v.txt) && /Files & Photos/.test(v.ftxt), JSON.stringify(v));
+check('…both the same blue as Change job', v.blues.every(b => /rgb\(0, *153, *204\)/.test(b)), JSON.stringify(v.blues));
 // ── the history window ──
 await pg.evaluate(() => { S.currentJobId = 'j1'; _jobHistoryOpen(); });
 await pg.waitForTimeout(700);

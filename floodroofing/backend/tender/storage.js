@@ -10,7 +10,8 @@
 // five methods over a Map, with a tiny HTTP server standing in for the
 // signed PUT so the upload path is exercised for real.
 'use strict';
-const BUCKET = process.env.TENDER_BUCKET || 'tender-docs';
+const DEFAULT_BUCKET = process.env.TENDER_BUCKET || 'tender-docs';
+const BUCKET = DEFAULT_BUCKET;
 const MAX_BYTES = 100 * 1024 * 1024;
 
 // A bucket's own limit may not be above the PROJECT's upload limit (Supabase
@@ -23,8 +24,14 @@ const MAX_BYTES = 100 * 1024 * 1024;
 const LIMIT_STEPS = [MAX_BYTES, 50 * 1024 * 1024, 25 * 1024 * 1024];
 const _tooBig = e => /exceeded the maximum allowed size|too large|EntityTooLarge|413/i.test(String((e && (e.message || e.error || e.statusCode)) || e || ''));
 
-function create(supabase){
-  if (globalThis.__TEST_TENDER_STORAGE) return globalThis.__TEST_TENDER_STORAGE;
+// opts: { bucket, seam } — the job's Files & Photos (2026-10-27) keep their
+// own private bucket through the same five methods (bucket 'job-files', test
+// seam globalThis.__TEST_JOBFILES_STORAGE). Called bare, it is the tender's.
+function create(supabase, opts){
+  opts = opts || {};
+  const seam = opts.seam || '__TEST_TENDER_STORAGE';
+  if (globalThis[seam]) return globalThis[seam];
+  const BUCKET = opts.bucket || DEFAULT_BUCKET;
   const st = () => supabase.storage;
   let ensured = null;
   let limit = LIMIT_STEPS[1];  // until the bucket says, the project default

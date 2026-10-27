@@ -4919,6 +4919,44 @@ not a saving, and 49 purple to 48 orange.
   Communications" (shown with the job's other buttons by `_jobLockRender`,
   a count of the thread's messages once it has been read).
   `tests/jobhistory.mjs` pins the order and the window.
+- FILES & PHOTOS ON A JOB (2026-10-27, the owner: "add a 'Files & Photos'
+  button below the history and communications button, allow the user to add
+  in photo's or files from their computer ... actually open the files from
+  within roofmap ... everytime the user exports a pdf or anything, that file
+  should automatically also save in the files and photos on that job
+  (including a sent job pack, or sent quote ...) ... this button should also
+  load any files and photos from fergus if fergus is connnected. then change
+  the colour of this new button and the history button to be the same blue as
+  'change job' and then put the 'unlocked/locked' button at the bottom").
+  THE LEFT MENU: Save job, Change job, History & Communications, Files &
+  Photos (`#navJobFilesBtn`, a count once read), then the lock strip — the
+  three middle buttons all #0099cc. `tests/jobhistory.mjs` pins the order.
+  THE BYTES NEVER GO IN THE JOB ROW (that is how the database stalled in
+  September): a private Storage bucket 'job-files' (`_jfStorage()`, the
+  tender's `tender/storage.js` made generic: `create(supabase, {bucket,
+  seam})`, seam `__TEST_JOBFILES_STORAGE`), a `job_files` row each (boot DDL;
+  company_id, user_id, job_id = the version ROOT so every version shares its
+  files, name, mime, size, kind 'upload'|'export', source, author,
+  storage_path, status 'pending'|'ready'). Routes, each scoped with
+  `_scopeCompany` IN THE QUERY: GET /jobs/:id/files, POST …/files/sign (the
+  browser PUTs straight to Storage), POST …/files/:fid/landed, GET
+  …/files/:fid/url (15 min), DELETE …/files/:fid. A failed read is a 503.
+  THE APP: `_jobFilesOpen` — Exported & sent from RoofMap (with the note the
+  owner asked for: it only holds what RoofMap exported or sent), Your
+  uploads, Site photos on the quote and Kept on the job (`S.photos` /
+  `S.files`, the in-row store that predates this, unchanged), From Fergus
+  (`/fergus-files/list`, all files, opened through `_fergusDownloadBlob`).
+  A file OPENS INSIDE ROOFMAP (`_jfViewer`): picture, PDF in a frame, CSV /
+  text as text, else a download — fetched to a blob first, which always
+  frames. `_jfKeep(blob, name, source)` is the one call every export and
+  send makes (never throws, never asks; nothing for a job never saved, the
+  sample job or the customer): `_matDownloadBlob` (every Job Pack / pricing
+  / order / Fergus-push file, with a source), the modern quote's Print/PDF,
+  Save Job Pack as PDF, Print Job Pack, the pricing CSV, the order email and
+  share, and THE SENT QUOTE — `_jfKeepQuotePdf('sent-quote')` builds the
+  Sent version's PDF 1.2 s after the send has switched to it.
+  `tests/jobfilesapi.mjs` (API), `tests/jobfilesui.mjs` (UI); the older
+  `tests/jobfiles.mjs` is the in-row files and is untouched.
 - AN ACCEPTANCE REACHES THE FERGUS JOB (2026-10-19, the owner: "can it auto
   automatically upload the accepted quote as it's pdf to the job in fergus,
   can it also add the customers choices … as the job description in fergus

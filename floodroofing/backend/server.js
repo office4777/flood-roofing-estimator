@@ -4117,6 +4117,115 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
 // Those go here: a few KB merged into the stored share, instead of the whole
 // multi-MB quote again. Keys the office's copy does not carry (the customer's
 // opens and events) are kept.
+// ── FILES & PHOTOS ON A JOB (2026-10-27, the owner: "add a 'Files & Photos'
+// button ... allow the user to add in photo's or files from their computer
+// ... actually open the files from within roofmap ... everytime the user
+// exports a pdf or anything, that file should automatically also save in the
+// files and photos on that job (including a sent job pack, or sent quote)").
+// The files live in a PRIVATE Storage bucket ('job-files'), never in the job
+// row — a job row rewritten with megabytes of PDF on every autosave is how
+// the database stalled in September. Keyed {company}/{root job}/{file id}/…
+// so a path is scoped before anything reads it; every version of a job shares
+// its root's files. The browser PUTs the bytes straight to Storage on a URL
+// signed for one exact path, then says it has landed.
+let _jfStore = null;
+function _jfStorage(){
+  if (globalThis.__TEST_JOBFILES_STORAGE) return globalThis.__TEST_JOBFILES_STORAGE;
+  return _jfStore || (_jfStore = require('./tender/storage').create(supabase,
+    { bucket: process.env.JOB_FILES_BUCKET || 'job-files', seam: '__TEST_JOBFILES_STORAGE' }));
+}
+const JOB_FILES_MAX = 500;
+async function _jfJob(req, id){
+  const read = (cols) => _scopeCompany(supabase.from('jobs').select(cols).eq('id', id), req).limit(1);
+  let { data, error } = await read('id, company_id, user_id, version_of');
+  if (error && /version_of/.test(String(error.message || ''))) ({ data, error } = await read('id, company_id, user_id'));
+  if (error) throw new Error(error.message);
+  const j = (data && data[0]) || null;
+  if (j) j.root = String(j.version_of || j.id);
+  return j;
+}
+const JF_COLS = 'id, name, mime, size, kind, source, author, status, storage_path, created_at';
+function _jfFirst(r){ if (r.error) throw new Error(r.error.message); return (r.data && r.data[0]) || null; }
+app.get('/jobs/:id/files', requireAuth, async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const { data, error } = await _scopeCompany(supabase.from('job_files').select(JF_COLS), req)
+      .eq('job_id', job.root).order('created_at', { ascending: false }).limit(JOB_FILES_MAX);
+    if (error) throw new Error(error.message);
+    const files = (data || []).filter(f => f.status === 'ready').map(f => ({
+      id: f.id, name: f.name, mime: f.mime, size: f.size, kind: f.kind, source: f.source, author: f.author, at: f.created_at }));
+    let maxBytes = 0; try { maxBytes = _jfStorage().maxBytes; } catch (e) {}
+    res.json({ ok: true, files, maxBytes });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+app.post('/jobs/:id/files/sign', requireAuth, rateLimit(120, 60000), async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const b = req.body || {};
+    const name = String(b.name || '').replace(/[\\/\u0000-\u001f]+/g, ' ').trim().slice(0, 160) || 'file';
+    const size = Math.max(0, Math.floor(+b.size || 0));
+    const mime = String(b.mime || 'application/octet-stream').slice(0, 100);
+    const kind = (b.kind === 'export') ? 'export' : 'upload';
+    const source = String(b.source || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40);
+    if (!size) return res.status(400).json({ error: 'The file is empty.', code: 'EMPTY' });
+    const st = _jfStorage();
+    try { await st.ensureBucket(); } catch (e) { throw new Error('File storage is not ready (' + (e.message || e) + ').'); }
+    if (size > st.maxBytes) return res.status(400).json({ error: name + ' is ' + (size / 1048576).toFixed(1) + ' MB; the limit is ' + Math.round(st.maxBytes / 1048576) + ' MB.', code: 'TOO_BIG' });
+    const { data: have } = await _scopeCompany(supabase.from('job_files').select('id'), req).eq('job_id', job.root).limit(JOB_FILES_MAX);
+    if ((have || []).length >= JOB_FILES_MAX) return res.status(400).json({ error: 'A job holds at most ' + JOB_FILES_MAX + ' files.', code: 'TOO_MANY' });
+    const fid = crypto.randomUUID();
+    const path = (req.companyId || ('u-' + req.user.id)) + '/' + job.root + '/' + fid + '/' + (name.replace(/[^\w.\-]+/g, '_') || 'file');
+    const signed = await st.signUpload(path);
+    const row = { id: fid, company_id: req.companyId || null, user_id: req.user.id, job_id: job.root, name, mime, size, kind, source,
+      author: String((req.user && (req.user.email || req.user.name)) || '').slice(0, 120), storage_path: path, status: 'pending',
+      created_at: new Date().toISOString() };
+    const { error } = await supabase.from('job_files').insert(row);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, fileId: fid, signedUrl: signed.signedUrl, token: signed.token, path });
+  } catch (e) { recordError('job-files', e, { route: 'POST /jobs/:id/files/sign' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+app.post('/jobs/:id/files/:fid/landed', requireAuth, async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const f = _jfFirst(await _scopeCompany(supabase.from('job_files').select(JF_COLS), req)
+      .eq('job_id', job.root).eq('id', req.params.fid).limit(1));
+    if (!f) return res.status(404).json({ error: 'File not found' });
+    if (f.status !== 'ready') {
+      const { error } = await supabase.from('job_files').update({ status: 'ready' }).eq('id', f.id).eq('job_id', job.root);
+      if (error) throw new Error(error.message);
+    }
+    res.json({ ok: true, fileId: f.id });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+// A short-lived link to read one file — the window shows it inside RoofMap.
+app.get('/jobs/:id/files/:fid/url', requireAuth, async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const f = _jfFirst(await _scopeCompany(supabase.from('job_files').select(JF_COLS), req)
+      .eq('job_id', job.root).eq('id', req.params.fid).limit(1));
+    if (!f || f.status !== 'ready') return res.status(404).json({ error: 'File not found' });
+    const url = await _jfStorage().signedUrl(f.storage_path, 900);
+    res.json({ ok: true, url, name: f.name, mime: f.mime, size: f.size });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+app.delete('/jobs/:id/files/:fid', requireAuth, async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const f = _jfFirst(await _scopeCompany(supabase.from('job_files').select(JF_COLS), req)
+      .eq('job_id', job.root).eq('id', req.params.fid).limit(1));
+    if (!f) return res.status(404).json({ error: 'File not found' });
+    try { await _jfStorage().remove([f.storage_path]); } catch (e) { recordError('job-files', e, { route: 'DELETE file storage' }); }
+    const { error } = await supabase.from('job_files').delete().eq('id', f.id).eq('job_id', job.root);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+
 // THE CORRESPONDENCE ON A JOB, read and written (2026-10-19, the owner: "let
 // me reply to them directly in Gmail, also keep history of that reply inside
 // roofmap so i can see the correspondence"). The office can reply from here
@@ -13118,6 +13227,11 @@ const _MIGRATION_SQL = [
   "alter table public.job_messages add column if not exists mail_to text not null default ''",
   "alter table public.job_messages add column if not exists mail_cc text not null default ''",
   "alter table public.job_messages enable row level security",
+  // Files & Photos on a job (2026-10-27): the bytes in the private job-files
+  // bucket, one row each here, keyed by the job's ROOT so every version shares them.
+  "create table if not exists public.job_files (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, name text not null default '', mime text not null default '', size bigint not null default 0, kind text not null default 'upload', source text not null default '', author text not null default '', storage_path text not null default '', status text not null default 'pending', created_at timestamptz not null default now())",
+  "create index if not exists idx_job_files_job on public.job_files (company_id, job_id, created_at)",
+  "alter table public.job_files enable row level security",
   "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
   "alter table public.comms_tasks enable row level security",
