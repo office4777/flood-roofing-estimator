@@ -341,7 +341,11 @@ THE PICTURE:
     div...' just have the colour coded guides"): no explanation line under
     the title, no ORDER / block / end-face lines under the picture — the
     title, the key chips (block, count × length; hatched; ✂) and the roof.
-    `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
+    THE KEY IS PAINTED AS THE SHEETS ARE (2026-10-27: "the colour code
+    doesn't match the same exact colour as the sheets"): a block's chip is
+    its 30% tint with the 90% edge, the hatched chip white with the 65%
+    hatch, the ✂ chip the 22% tint with a dashed edge — the first block's
+    colour on the two examples. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
 
 THE ORDER:

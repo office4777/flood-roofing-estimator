@@ -8507,13 +8507,20 @@ function _renderSheetPuzzleCanvas(opts){
   function chip(text, color, hatch){
     var w = 18 + mctx.measureText(text).width + chipGap;
     if (cx + w > W - padX && cx > padX){ cx = padX; crow++; }
-    chips.push({ text: text, color: color, x: cx, row: crow, hatch: !!hatch });
+    chips.push({ text: text, color: color, x: cx, row: crow, hatch: hatch || false });
     cx += w;
   }
   function lenText(b){ return (b.extra && b.lengths && b.lengths.length > 1) ? (b.count + (b.extra === 'push' ? ' pushed in: ' : ' extra: ') + b.lengths.map(_pzM).join(', ') + ' m') : (b.count + ' × ' + _pzM(b.Lmm) + ' m' + (b.extra === 'push' ? ' (pushed in)' : b.extra ? ' (extra)' : '')); }
   blocks.forEach(function(b){ chip(b.letter + '  ' + lenText(b), b.color); });
-  if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', '#94a3b8', true);
-  if (pz.strungPieces) chip('✂ = the foot of that sheet, cut off at the valley and carried along its own column', '#94a3b8');
+  // THE KEY IS THE SHEETS' OWN PAINT (2026-10-27, the owner: "the colour
+  // code doesn't match the same exact colour as the sheets, they are
+  // confusingly different"). A chip is drawn exactly as a piece of that block
+  // is: the 30% tint with the 90% edge for an ordered sheet, white hatched in
+  // the 65% tint for an offcut, the 22% tint with a dashed grey edge for a foot.
+  // The two examples wear the first block's colour, as a piece on the roof does.
+  var exCol = blocks.length ? blocks[0].color : '#94a3b8';
+  if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', exCol, 'fed');
+  if (pz.strungPieces) chip('✂ = the foot of that sheet, cut off at the valley and carried along its own column', exCol, 'foot');
   // Room above the roof for a corner label set just outside it.
   var padTop = legendTop + (crow + 1) * 19 + 30;
   var bb = pz.bbox, bw = Math.max(1, bb[2]-bb[0]), bh = Math.max(1, bb[3]-bb[1]);
@@ -8537,13 +8544,18 @@ function _renderSheetPuzzleCanvas(opts){
   ctx.textBaseline = 'middle';
   chips.forEach(function(c){
     var y = legendTop + c.row * 19;
-    if (c.hatch){
+    if (c.hatch === 'fed' || c.hatch === true){
       ctx.save(); ctx.fillStyle = '#fff'; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill(); ctx.clip();
-      ctx.strokeStyle = c.color; ctx.lineWidth = 1.2; ctx.beginPath();
-      for (var hh = -12; hh < 24; hh += 4){ ctx.moveTo(c.x + hh, y); ctx.lineTo(c.x + hh + 12, y + 12); }
+      ctx.strokeStyle = _pzTint(c.color, 0.65); ctx.lineWidth = 1.1; ctx.beginPath();
+      for (var hh = -12; hh < 24; hh += 6){ ctx.moveTo(c.x + hh, y); ctx.lineTo(c.x + hh + 12, y + 12); }
       ctx.stroke(); ctx.restore();
-      ctx.strokeStyle = c.color; ctx.lineWidth = 1; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.stroke();
-    } else { ctx.fillStyle = c.color; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill(); }
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 0.8; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.stroke();
+    } else {
+      ctx.fillStyle = _pzTint(c.color, c.hatch === 'foot' ? 0.22 : 0.30); _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill();
+      ctx.save(); if (c.hatch === 'foot') ctx.setLineDash([3, 2]);
+      ctx.strokeStyle = c.hatch === 'foot' ? '#94a3b8' : _pzTint(c.color, 0.9); ctx.lineWidth = 0.8; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.stroke();
+      ctx.restore();
+    }
     ctx.fillStyle = '#0a1628'; ctx.font = '700 12px Inter, sans-serif';
     ctx.fillText(c.text, c.x + 18, y + 6.5);
   });
