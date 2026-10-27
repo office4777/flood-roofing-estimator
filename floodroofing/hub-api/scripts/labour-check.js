@@ -385,7 +385,9 @@ async function main() {
         }
         if (!nos.size) { xeroUnmatched.push({ sup, date: (v.DateString || v.Date || '').slice(0, 10), amt, ref: v.Reference || '' }); return; }
         xeroMatched++;
-        nos.forEach(n => byNo[n].supplierScaff.push({ supplier: sup, amt, date: (v.DateString || v.Date || '').slice(0, 10), src: 'xero' }));
+        // One bill naming several jobs (a site split into jobs) is shared between them by revenue, never counted whole on each.
+        const named = [...nos].map(n => byNo[n]); const revSum = named.reduce((t, r) => t + ((r.fs && r.fs.rev) || 0), 0);
+        named.forEach(r => { const share = revSum > 0 ? ((r.fs && r.fs.rev) || 0) / revSum : 1 / named.length; r.supplierScaff.push({ supplier: sup + (named.length > 1 ? ' (1/' + named.length + ' share)' : ''), amt: amt * share, date: (v.DateString || v.Date || '').slice(0, 10), src: 'xero' }); });
       });
       process.stdout.write('\r  Xero bills read: ' + xeroBills + ' (scaffold: ' + xeroScaff + ')   ');
       if (stop || inv.length < 100) break;
