@@ -165,9 +165,22 @@ function parseQuote(lines) {
     q.leadHrs = 0; q.appHrs = 0; q.otherHrs = 0; q.gutterHrs = 0;
     lines.forEach(l => { if (!isLab(l)) return; const h = hrsOf(l); if (/lead|\bLL\b/i.test(l.name)) q.leadHrs += h; else if (/apprentice|\bLA\b/i.test(l.name)) q.appHrs += h; else q.otherHrs += h; });
     q.pricedHrs = q.leadHrs + q.appHrs + q.otherHrs;
-    const m2 = lines.filter(l => !isLab(l) && /\/\s*m2|\bm2\b|sq\.?m|m²|per m/i.test(l.name) && l.qty >= 15);
-    if (m2.length) { q.area = m2.reduce((s, l) => s + l.qty, 0); q.sheetsUnit = 'fergus-m2'; q.template = 'fergus'; }
-    q.flaLm = lines.filter(l => !isLab(l) && !m2.includes(l) && /flashing|ridge|barge|\bFLA\b|apron|valley/i.test(l.name) && l.qty >= 3 && l.qty <= 1000).reduce((s, l) => s + l.qty, 0);
+    // The office's template prices several lines "per m² of job" (sheets, underlay, screws), each carrying
+    // the SAME area — so the area is the largest of them, never their sum (the first pass summed them and
+    // read 420 m² for a 140 m² roof). The sheet line is preferred when there is one.
+    const m2 = lines.filter(l => !isLab(l) && /\/\s*m2|\/\s*m\b|\bm2\b|sq\.?m|m²|sheets only/i.test(l.name) && l.qty >= 15 && l.qty <= 3000);
+    if (m2.length) {
+      const sheetL = m2.filter(l => /maxam|zinc|sheets only|corrugate|trimdek|rib|iron|multidek|colorsteel/i.test(l.name) && !/screw|underlay|\bru\d|insul|purlin|clip/i.test(l.name));
+      q.area = Math.max.apply(null, (sheetL.length ? sheetL : m2).map(l => l.qty)); q.sheetsUnit = 'fergus-m2'; q.template = 'fergus';
+    }
+    // "FLA Colorsteel flashings (barges, ridges, …)" / "FLA Zinc flashing/gutter/ridge line" is the one
+    // flashing figure; "FLA … extras" is a count, not metres. Dektites are the penetrations; a gutter
+    // line in metres gives the eave, so the sheet columns.
+    q.flaLm = lines.filter(l => !isLab(l) && !m2.includes(l) && /\bFLA\b|flashing|ridge|barge|apron|valley/i.test(l.name) && !/extra|dektite|clearlite|laserlite/i.test(l.name) && l.qty >= 3 && l.qty <= 1000).reduce((s, l) => s + l.qty, 0);
+    q.pens = lines.filter(l => /dektite|penetration|pipe flash/i.test(l.name) && l.qty > 0 && l.qty <= 40).reduce((s, l) => s + l.qty, 0);
+    const gl = lines.filter(l => !isLab(l) && /typhoon|gutter|spouting|box maxam|magnum|\$\/lm|\/lm/i.test(l.name) && !/downpipe|bracket|labour|price|clearlite|laserlite|leaf/i.test(l.name) && l.qty >= 5 && l.qty <= 400);
+    if (gl.length) q.gutterLm = Math.max.apply(null, gl.map(l => l.qty));
+    q.cutsEst = 0.5 * q.flaLm;   // ridge / hip / valley are inside the one flashing figure; half of it is assumed
     const sc2 = lines.filter(l => /scaffold/i.test(l.name));
     sc2.forEach(l => { q.scaffPrice += l.qty * l.price; q.scaffCost += l.qty * l.cost; });
     if (sc2.length) q.scaffType = /platform/i.test(sc2.map(l => l.name).join(' ')) ? 'platform' : 'edge';
@@ -201,7 +214,7 @@ function calc(q) {
   const colsKnown = q.gutterLm > 0;
   const cols = colsKnown ? Math.round(q.gutterLm / SHEET_W) : (q.area > 0 ? Math.round(q.area / (SHEET_W * EST_SHEET_LEN)) : 0);
   const approx = !q.roofmap;
-  const d = approx ? { roof: q.area, sheets: cols, cuts: 0, flash: q.flaLm || 0, pen: 0 }
+  const d = approx ? { roof: q.area, sheets: cols, cuts: q.cutsEst || 0, flash: q.flaLm || 0, pen: q.pens || 0 }
                    : { roof: q.area, sheets: cols, cuts: q.ridgeHip + q.valley, flash: q.barge + q.apron + q.cp + q.ridgeHip, pen: q.pens };
   const h = {}; let raw = 0;
   Object.keys(d).forEach(k => { h[k] = d[k] / RATES[k]; raw += h[k]; });
@@ -217,7 +230,9 @@ const money = v => '$' + Math.round(v).toLocaleString('en-NZ');
 // Non-negative least squares (projected gradient) of man-hours on the five drivers → implied rates.
 function fitRates(rows, keys) {
   keys = keys || ['roof', 'sheets', 'cuts', 'flash', 'pen'];
-  const X = rows.map(r => keys.map(k => r.calc.drivers[k])), y = rows.map(r => r.actual);
+  // Fitted on RELATIVE error (each row divided by its own hours), so a small job counts as much as a big one.
+  const X = rows.map(r => keys.map(k => r.calc.drivers[k] / r.actual)), y = rows.map(() => 1);
+  const Xraw = rows.map(r => keys.map(k => r.calc.drivers[k])), yraw = rows.map(r => r.actual);
   if (X.length < 8) return null;
   const n = keys.length; let c = keys.map(k => 2 / RATES[k]);
   const scale = X[0].map((_, j) => Math.max(1e-9, Math.sqrt(X.reduce((s, x) => s + x[j] * x[j], 0) / X.length)));
@@ -229,9 +244,10 @@ function fitRates(rows, keys) {
     for (let j = 0; j < n; j++) cs[j] = Math.max(0, cs[j] - lr * g[j]);
   }
   c = cs.map((v, j) => v / scale[j]);
-  const pred = X.map(x => x.reduce((s, v, j) => s + v * c[j], 0));
-  const mape = pred.reduce((s, p, i) => s + Math.abs(p - y[i]) / y[i], 0) / y.length;
-  return { keys, rates: c.map(v => v > 1e-9 ? 2 / v : Infinity), mape, pred };
+  const pred = Xraw.map(x => x.reduce((s, v, j) => s + v * c[j], 0));
+  const mape = pred.reduce((s, p, i) => s + Math.abs(p - yraw[i]) / yraw[i], 0) / yraw.length;
+  const ratios = pred.map((p, i) => yraw[i] / p).filter(v => isFinite(v));
+  return { keys, rates: c.map(v => v > 1e-9 ? 2 / v : Infinity), mape, pred, medianRatio: median(ratios), within20: ratios.filter(v => v >= 0.8 && v <= 1.2).length / ratios.length };
 }
 
 async function main() {
@@ -393,11 +409,11 @@ async function main() {
   rows.forEach(r => {
     const c = r.calc, q = r.q;
     const line = [r.jobNo, r.date, (r.suburb || '').slice(0, 14), money(r.rev),
-      c ? r1(q.area) : (q && q.roofmap ? '?' : '—'), c ? (c.drivers.sheets + (c.colsKnown ? '' : '~')) : '', c ? (c.approx ? '?' : r1(c.drivers.cuts)) : '', c ? r1(c.drivers.flash) + (c.approx ? '*' : '') : '', c ? (c.approx ? '?' : c.drivers.pen) : '',
+      c ? r1(q.area) : (q && q.roofmap ? '?' : '—'), c ? (c.drivers.sheets + (c.colsKnown ? '' : '~')) : '', c ? r1(c.drivers.cuts) + (c.approx ? '*' : '') : '', c ? r1(c.drivers.flash) + (c.approx ? '*' : '') : '', c ? c.drivers.pen : '',
       c ? (c.manHrs + (c.approx ? '≈' : '')) : '—', r.priced ? r1(r.priced) : '—', r.actual ? r1(r.actual) : '—',
       c && r.actual ? (r.actual / c.manHrs).toFixed(2) : '', r.priced && r.actual ? (r.actual / r.priced).toFixed(2) : '',
       q && q.scaffPrice ? money(q.scaffPrice) + ' ' + q.scaffType + (q.scaffCost ? ' (cost ' + money(q.scaffCost) + ')' : '') : (q ? 'none on quote' : ''),
-      r.supplierScaff.length ? r.supplierScaff.map(s => money(s.amt) + ' ' + s.supplier.slice(0, 18)).join('; ') : (q && q.scaffPrice ? 'no invoice found → own crew' : '')];
+      r.supplierScaff.length ? r.supplierScaff.map(s => money(s.amt) + ' ' + s.supplier.slice(0, 18)).join('; ') : (q && q.scaffPrice ? 'no scaffold bill found' : '')];
     console.log(line.map((v, i) => pad(v, cols[i][1], i >= 3 && i <= 13)).join(' ') + (r.err ? '  ⚠ ' + r.err : '') + (r.manual ? '  (hours typed over)' : '') + (r.quoteFromOtherVersion ? '  (quantities from another quote version)' : ''));
   });
 
@@ -431,11 +447,15 @@ async function main() {
     console.log('  driver        RoofMap now   fitted      (units per crew-hour, 2-man crew; higher = faster)');
     fit.keys.forEach((k, i) => console.log('  ' + pad(k, 12) + '  ' + pad(RATES[k], 11, true) + '   ' + pad(isFinite(fit.rates[i]) ? fit.rates[i].toFixed(1) : '∞ (no time)', 10, true)));
     const mapeNow = set.reduce((s, r) => s + Math.abs(r.calc.manHrs - r.actual) / r.actual, 0) / set.length;
-    console.log('  mean error per job: RoofMap now ' + Math.round(mapeNow * 100) + '% · fitted ' + Math.round(fit.mape * 100) + '%');
+    const r20 = set.filter(r => { const v = r.actual / r.calc.manHrs; return v >= 0.8 && v <= 1.2; }).length / set.length;
+    console.log('  mean error per job: RoofMap now ' + Math.round(mapeNow * 100) + '% · fitted ' + Math.round(fit.mape * 100) + '%  ·  within ±20%: now ' + Math.round(r20 * 100) + '% · fitted ' + Math.round(fit.within20 * 100) + '%  ·  median Act/Est fitted ' + fit.medianRatio.toFixed(2));
     console.log('  Simplest fix: scale factor (median Act/Calc) = ' + median(set.map(r => r.actual / r.calc.manHrs)).toFixed(2) + ' → divide every rate by it.');
   };
   showFit('WHAT THE RATES WOULD NEED TO BE — exact jobs', usable);
-  showFit('WHAT THE RATES WOULD NEED TO BE — approximate jobs (roof m², estimated columns and the one flashing figure only)', usableApprox, ['roof', 'sheets', 'flash']);
+  showFit('WHAT THE RATES WOULD NEED TO BE — approximate jobs (roof m², columns, the one flashing figure, dektites; cuts assumed half the flashing so left out)', usableApprox, ['roof', 'sheets', 'flash', 'pen']);
+  // and the plainest model of all: man-hours per m², by band
+  console.log('\nMAN-HOURS PER m² ACTUALLY LOGGED (every job with an area, exact or approximate):');
+  BANDS.map(b => [b[2], usableAll.filter(r => bandOf(r.rev) === b)]).concat([['ALL', usableAll]]).forEach(([label, js]) => { if (!js.length) return; const v = js.map(r => r.actual / r.q.area); console.log('  ' + pad(label, 12) + pad(js.length, 5, true) + ' jobs · median ' + median(v).toFixed(2) + ' h/m² · quartiles ' + median(v.filter(x => x <= median(v))).toFixed(2) + ' – ' + median(v.filter(x => x >= median(v))).toFixed(2) + ' · RoofMap\'s roof driver alone is ' + (2 / RATES.roof).toFixed(2) + ' h/m² before cuts, flashings and penetrations'); });
   // every line name the office writes on its own Fergus quotes, so the next run can read more of them
   const vocab = {};
   rows.filter(r => r.lines.length && !(r.q && r.q.roofmap)).forEach(r => r.lines.forEach(l => { const k = l.name.toLowerCase().replace(/\d+(\.\d+)?/g, '#').replace(/\s+/g, ' ').trim().slice(0, 48); const v = vocab[k] || (vocab[k] = { n: 0, q: 0, lab: 0 }); v.n++; v.q += l.qty; if (l.labour) v.lab++; }));
