@@ -232,7 +232,7 @@ check('words typed on the document save, and a scope line goes back into the sco
 // hide a section and the PDF
 await pg.evaluate(() => _tnQSection('assumptions', 'hide'));
 r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f && f.contentDocument; return { title: dd && dd.title, text: dd && dd.body.innerText, editable: dd && dd.querySelectorAll('[contenteditable]').length, tools: dd && dd.querySelectorAll('.tq-tools').length }; });
-check('Save as PDF prints the document alone, named for the job, with nothing editable left on it', /^Tender .*Whangaroa Community Hall/.test(r.title) && /Roofing Tender — Whangaroa Hall/.test(r.text) && r.editable === 0 && r.tools === 0, JSON.stringify([r.title, r.editable, r.tools]));
+check('Save as PDF prints the document alone, named for the project and the business, with nothing editable left on it', /^Whangaroa Community Hall.* - Flood Roofing Ltd$/.test(r.title) && /Roofing Tender — Whangaroa Hall/.test(r.text) && r.editable === 0 && r.tools === 0, JSON.stringify([r.title, r.editable, r.tools]));
 check('…and a hidden section is left off the PDF', !/Access from the street/.test(r.text) && /Supply and install the whole roof/.test(r.text));
 
 // ── the document's shape, the menu, Edit [section], the org (2026-10-27) ──
@@ -240,14 +240,16 @@ r = await pg.evaluate(() => {
   const pgEl = document.getElementById('tqPage');
   const heads = [...pgEl.querySelectorAll('.tq-sec h2 [data-qk]')].map(h => h.textContent);
   return { heads, specTbl: pgEl.querySelectorAll('.tq-tbl').length, boxes: [...pgEl.querySelectorAll('.tq-ob b')].map(b => b.textContent), ask: !!pgEl.querySelector('.tq-orgask'),
-    edits: [...pgEl.querySelectorAll('.tq-edit')].map(b => b.textContent), cardEdits: [...document.querySelectorAll('.tn-card-hd .tn-edit')].map(b => b.textContent),
-    nav: [...document.querySelectorAll('#tnNav .tn-nav-i')].map(a => a.textContent), navSide: getComputedStyle(document.getElementById('tnNav')).position };
+    edits: [...pgEl.querySelectorAll('.tq-edit')].map(b => b.title + '|' + b.textContent), cardEdits: [...document.querySelectorAll('.tn-card-hd .tn-edit')].map(b => b.title + '|' + b.textContent),
+    nav: [...document.querySelectorAll('#tnNav .tn-nav-i')].map(a => a.textContent), navSide: getComputedStyle(document.querySelector('.tn-side')).position, navW: document.getElementById('tnNav').getBoundingClientRect().width,
+    chatPinned: !!document.querySelector('.tn-side #tnChat #tnChatIn') && !!document.getElementById('tnChatMic'), scopeChat: !!document.querySelector('#tn-a-scope .tn-chat') };
 });
 check('the roofing specification is no longer on the tender document', r.heads.indexOf('Roofing specification') < 0 && r.specTbl === 0, JSON.stringify(r.heads));
 check('the organisation structure sits just above the programme', r.heads.indexOf('Organisation structure') >= 0 && r.heads.indexOf('Organisation structure') === r.heads.indexOf('Programme') - 1, JSON.stringify(r.heads));
 check('…starting from a standard structure, and asking for theirs', r.boxes.indexOf('Director / Contract Manager') >= 0 && r.boxes.indexOf('Roofing crews') >= 0 && r.ask, JSON.stringify(r.boxes));
-check('every section of the document carries Edit [its name]', r.edits.length === 9 && r.edits.indexOf('✎ Edit Organisation structure') >= 0 && r.edits.indexOf('✎ Edit Terms') >= 0, JSON.stringify(r.edits));
-check('…and so do the working sheet\'s cards', ['✎ Edit Specification', '✎ Edit Scope of work', '✎ Edit Exclusions', '✎ Edit Pricing sheet', '✎ Edit Programme'].every(x => r.cardEdits.indexOf(x) >= 0), JSON.stringify(r.cardEdits));
+check('every section of the document carries ✨ Edit with A.I.', r.edits.length === 9 && r.edits.indexOf('Edit Organisation structure with A.I.|✨ Edit with A.I.') >= 0 && r.edits.indexOf('Edit Terms with A.I.|✨ Edit with A.I.') >= 0, JSON.stringify(r.edits));
+check('…and so do the working sheet\'s cards', ['Specification', 'Scope of work', 'Exclusions', 'Pricing sheet', 'Programme'].every(x => r.cardEdits.indexOf('Edit ' + x + ' with A.I.|✨ Edit with A.I.') >= 0), JSON.stringify(r.cardEdits));
+check('the menu is wider, with the A.I. chat and its Speak button pinned under it (and out of the scope card)', r.navW >= 250 && r.chatPinned && !r.scopeChat, JSON.stringify([r.navW, r.chatPinned, r.scopeChat]));
 check('a menu down the side names every part, sticky like Settings', ['Overview', 'Specification & quantities', 'Pricing sheet', 'The document', 'Organisation structure', 'Terms', 'Sheet index'].every(x => r.nav.indexOf(x) >= 0) && r.navSide === 'sticky', JSON.stringify(r.nav));
 await pg.evaluate(() => _tnNavGo('tq-sec-terms'));
 await pg.waitForTimeout(900);
@@ -257,7 +259,7 @@ check('a click in the menu jumps to that part and lights it', r.top > 30 && r.to
 calls.length = 0;
 await pg.evaluate(() => _tnEdit('org'));
 r = await pg.evaluate(() => ({ open: document.getElementById('tnEditModal').classList.contains('open'), title: document.getElementById('tnEditTitle').textContent, mic: !!document.getElementById('tnEditMic'), hint: document.getElementById('tnEditHint').textContent }));
-check('Edit opens a window to describe the change, with a Speak button', r.open && r.title === 'Edit Organisation structure' && r.mic && /crews/.test(r.hint), JSON.stringify(r));
+check('Edit opens a window to describe the change, with a Speak button', r.open && r.title === '✨ Edit Organisation structure with A.I.' && r.mic && /crews/.test(r.hint), JSON.stringify(r));
 await pg.fill('#tnEditIn', 'Aron Flood director, Ethan project manager, four two-man crews');
 await pg.click('#tnEditGo');
 await pg.waitForTimeout(700);
@@ -281,6 +283,24 @@ check('a name typed on the chart saves into the structure', putOrg && putOrg.bod
 r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f.contentDocument; const css = [...dd.querySelectorAll('style')].map(x => x.textContent).join(''); return { exact: /print-color-adjust:exact!important/.test(css), phoneOnScreen: !/@media\(max-width:760px\)/.test(css) && /@media screen and \(max-width:760px\)/.test(css), org: dd.querySelectorAll('.tq-ob').length, ask: dd.querySelectorAll('.tq-orgask').length, edits: dd.querySelectorAll('.tq-edit').length }; });
 check('the PDF prints the bands and bars (backgrounds kept) and never the phone layout', r.exact && r.phoneOnScreen, JSON.stringify(r));
 check('…with the org chart on it and none of the office\'s buttons or prompts', r.org === 3 && r.ask === 0 && r.edits === 0, JSON.stringify(r));
+// the section boxes: one height, scrolling inside; Expand, back to 8 lines, Minimise
+r = await pg.evaluate(() => {
+  const h = id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'); return b ? Math.round(b.getBoundingClientRect().height) : -1; };
+  const out = { scope: h('q-scope'), terms: h('q-terms'), pricing: h('w-pricing'), ctl: !!document.querySelector('.tn-bxs[data-bxfor="q-scope"] [data-bx="full"]') };
+  _tnBox('w-pricing', 'full'); out.full = h('w-pricing'); out.back = !!document.querySelector('.tn-bxs[data-bxfor="w-pricing"] [data-bx="mid"]');
+  _tnBox('w-pricing', 'min'); out.min = h('w-pricing'); out.open = !!document.querySelector('.tn-bxs[data-bxfor="w-pricing"] [data-bx="mid"]');
+  _tnBox('w-pricing', 'mid'); out.mid = h('w-pricing');
+  return out;
+});
+check('every section box is the same height, scrolling inside', r.scope === 208 && r.terms === 208 && r.pricing === 208 && r.ctl, JSON.stringify(r));
+check('…Expand shows it whole with a button back to 8 lines, Minimise folds it, Open brings it back', r.full > 208 && r.back && r.min === 0 && r.open && r.mid === 208, JSON.stringify(r));
+r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f.contentDocument; const css = [...dd.querySelectorAll('style')].map(x => x.textContent).join(''); return { boxCssScreen: /@media screen\{\.tn-box\.mid\{height:208px/.test(css), bx: dd.querySelectorAll('.tn-bxs,.tq-pb').length }; });
+check('…and the PDF still prints every section whole, without the box buttons or page lines', r.boxCssScreen && r.bx === 0, JSON.stringify(r));
+// the page breaks: lengthen the scope until it runs onto a second page
+await pg.evaluate(() => { window.__tnRerender(d => { for (let i = 0; i < 70; i++) d.scope.push('Scope line number ' + i + ' for the page break test'); }); });
+await pg.waitForTimeout(1800);
+r = await pg.evaluate(() => { const marks = [...document.querySelectorAll('#tqPage .tq-pb')].map(m => m.textContent); return { marks, pages: document.getElementById('tqPage').getAttribute('data-pages'), label: (document.getElementById('tqPages') || {}).textContent, termsKey: document.querySelector('#tqPage [data-qk="terms"]') ? 1 : 0 }; });
+check('the document shows where each PDF page starts', r.marks.length >= 2 && r.marks[0] === 'Page 2 of the PDF starts here' && +r.pages === r.marks.length + 1 && /A4 PDF: \d+ pages/.test(r.label), JSON.stringify(r));
 
 if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and the PDF as Chrome prints it
   const dir = process.env.SHOTS;
@@ -292,12 +312,16 @@ if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and th
   await pg.screenshot({ path: dir + '/c2.png' });
   await pg.evaluate(() => _tnNavGo('tq-sec-org')); await pg.waitForTimeout(900);
   await pg.screenshot({ path: dir + '/c3.png' });
+  await pg.evaluate(() => { _tnBox('q-scope', 'full'); const m = document.querySelector('#tqPage .tq-pb'); if (m) m.scrollIntoView({ block: 'center' }); }).catch(() => 0);
+  await pg.waitForTimeout(500);
+  await pg.screenshot({ path: dir + '/c5.png' });
+  await pg.evaluate(() => _tnBox('q-scope', 'mid'));
   await pg.evaluate(() => _tnEdit('org')); await pg.fill('#tnEditIn', 'Aron Flood is director, Ethan project manager, four two-man crews'); await pg.waitForTimeout(200);
   await pg.screenshot({ path: dir + '/c4.png' });
   await pg.evaluate(() => _tnEditClose());
   const html = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); return f.contentDocument.documentElement.outerHTML; });
   const pp = await pg.context().newPage();
-  await pp.setContent(html, { waitUntil: 'load' });
+  await pp.setContent('<!doctype html>' + html, { waitUntil: 'load' });
   await pp.emulateMedia({ media: 'print' });
   await pp.pdf({ path: dir + '/tender.pdf', format: 'A4', printBackground: false, preferCSSPageSize: true });
   await pp.close();

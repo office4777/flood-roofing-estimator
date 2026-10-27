@@ -311,13 +311,24 @@
     } finally { DOC.saving = false; }
   }
   window._tenderSaveNow = saveNow;
+  window.__tnRerender = function(fn){ if (fn && T.data && T.data.doc) fn(T.data.doc); docRerender(); };   // a test seam
   function docRerender(){
     var host = document.getElementById('tnDocHost');
     if (!host || !T.data) { render(); return; }
     var y = window.scrollY;
-    host.innerHTML = docHtml(T.data);
-    afterDocRender();
+    hostFill(host);
     window.scrollTo(0, y);
+  }
+  // Redraw the working sheet without losing where each box was scrolled to,
+  // or what was half typed into the chat.
+  function hostFill(host){
+    var sc = {}, ci = document.getElementById('tnChatIn'), typed = ci && !ci.disabled ? ci.value : '', chatFocus = ci && document.activeElement === ci;
+    host.querySelectorAll('.tn-box').forEach(function(b){ sc[b.getAttribute('data-box')] = b.scrollTop; });
+    host.innerHTML = docHtml(T.data);
+    host.querySelectorAll('.tn-box').forEach(function(b){ var v = sc[b.getAttribute('data-box')]; if (v) b.scrollTop = v; });
+    var ci2 = document.getElementById('tnChatIn');
+    if (ci2 && typed && !ci2.disabled) { ci2.value = typed; if (chatFocus) ci2.focus(); }
+    afterDocRender();
   }
 
   // ── edits ──────────────────────────────────────────────────────────
@@ -469,7 +480,7 @@
     h += A('pricing', pricingCard(doc, c));
     h += A('programme', programmeCard(doc));
     h += A('doc', quoteCard(d, doc, c));
-    return '<div class="tn-lay"><nav class="tn-nav" id="tnNav">' + navHtml(d, doc) + '</nav><div class="tn-main">' + h + '</div></div>';
+    return '<div class="tn-lay"><aside class="tn-side"><nav class="tn-nav" id="tnNav">' + navHtml(d, doc) + '</nav>' + chatHtml(doc) + '</aside><div class="tn-main">' + h + '</div></div>';
   }
   // The menu down the left, like Settings': a click scrolls to that part.
   function navHtml(d, doc){
@@ -512,7 +523,7 @@
 
   // ── "Edit [section]": describe the change, typed or spoken ─────────
   function editBtn(sec, cls){
-    return '<button type="button" class="tn-edit ' + (cls || '') + '" onclick="event.stopPropagation();_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(SEC_LABEL[sec] || sec) + '</button>';
+    return '<button type="button" class="tn-edit ' + (cls || '') + '" title="Edit ' + esc(SEC_LABEL[sec] || sec) + ' with A.I." onclick="event.stopPropagation();_tnEdit(\'' + sec + '\')">✨ Edit with A.I.</button>';
   }
   var EDIT = { sec: '', busy: false, rec: null };
   var EDIT_HINT = {
@@ -540,7 +551,7 @@
     if (!T.data || !T.data.doc) return;
     var m = editModal();
     EDIT.sec = sec;
-    m.querySelector('#tnEditTitle').textContent = 'Edit ' + (SEC_LABEL[sec] || sec);
+    m.querySelector('#tnEditTitle').textContent = '✨ Edit ' + (SEC_LABEL[sec] || sec) + ' with A.I.';
     m.querySelector('#tnEditHint').textContent = EDIT_HINT[sec] || 'Say what you want changed in this section, in your own words.';
     var inp = m.querySelector('#tnEditIn'); inp.value = ''; inp.disabled = false;
     m.querySelector('#tnEditMsg').textContent = '';
@@ -563,7 +574,7 @@
     var el = document.querySelector('#tqPage [data-qk="' + key + '"]');
     if (!el) return '';
     var t = '';
-    el.querySelectorAll('p,li').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
+    el.querySelectorAll('p:not(.tq-pb),li:not(.tq-pb)').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
     return t || el.textContent.trim();
   }
   window._tnEditGo = async function(){
@@ -595,12 +606,15 @@
   function speechCtor(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
   function micStop(){
     if (EDIT.rec) { try { EDIT.rec.stop(); } catch (e) {} EDIT.rec = null; }
-    var b = document.getElementById('tnEditMic'); if (b) { b.classList.remove('on'); b.textContent = '🎤 Speak'; }
+    ['tnEditMic', 'tnChatMic'].forEach(function(id){ var b = document.getElementById(id); if (b) { b.classList.remove('on'); b.textContent = '🎤 Speak'; } });
+    var cm = document.getElementById('tnChatMsg'); if (cm && cm.textContent === 'Listening…') cm.textContent = '';
   }
-  window._tnMic = function(){
+  window._tnMic = function(where){
     if (EDIT.rec) { micStop(); return; }
     var C = speechCtor(); if (!C) return;
-    var inp = document.getElementById('tnEditIn'), b = document.getElementById('tnEditMic'), msg = document.getElementById('tnEditMsg');
+    var chat = where === 'chat';
+    var inp = document.getElementById(chat ? 'tnChatIn' : 'tnEditIn'), b = document.getElementById(chat ? 'tnChatMic' : 'tnEditMic'), msg = document.getElementById(chat ? 'tnChatMsg' : 'tnEditMsg');
+    if (!inp || !b || !msg) return;
     var rec = new C();
     rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = true;
     var base = inp.value ? inp.value.replace(/\s*$/, ' ') : '';
@@ -660,7 +674,7 @@
 
   function specCard(doc, c){
     var items = (doc.items || []).map(function(it, i){ return { it: it, i: i }; }).sort(function(a, b){ return catSort(a.it, b.it) || a.i - b.i; });
-    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities' + editBtn('spec') + '<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities' + editBtn('spec') + boxCtl('w-spec') + '<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">' + boxOpen('w-spec') + '';
     h += '<p class="tn-note">Read from the plans. Every box can be changed; quantities here are the ones priced below. Hover “From” for where on the plans it came from.</p>';
     h += '<div class="tn-scroll"><table class="tn-tbl tn-spec"><thead><tr><th>Type</th><th>Item</th><th>Profile</th><th>Thickness</th><th>Grade / material</th><th>Colour</th><th class="r">Qty</th><th>Unit</th><th>From</th><th></th></tr></thead><tbody>';
     items.forEach(function(x){
@@ -676,46 +690,65 @@
         '<td class="tn-from" title="' + esc([it.qty_basis, it.spec_ref, it.source_pages].filter(Boolean).join(' — ')) + '">' + esc(it.source_pages || it.spec_ref || '') + '</td>' +
         '<td class="nw"><button type="button" class="tn-x" title="' + (it.off ? 'Put back in the price' : 'Leave out of the price') + '" onclick="_tnToggleItem(' + i + ')">' + (it.off ? '↺' : '⊘') + '</button><button type="button" class="tn-x" title="Delete" onclick="_tnDel(\'items\',' + i + ')">✕</button></td></tr>';
     });
-    h += '</tbody></table></div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'items\')">+ Add item</button></div></div>';
+    h += '</tbody></table></div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'items\')">+ Add item</button></div></div></div>';
     return h;
   }
 
   function scopeCard(doc){
-    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work' + editBtn('scope') + '<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work' + editBtn('scope') + boxCtl('w-scope') + '<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">' + boxOpen('w-scope') + '';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn sec" onclick="_tnAmend(\'simplify\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'simplify' ? 'Simplifying…' : '✂ Simplify') + '</button>' +
       '<button type="button" class="tn-btn sec" onclick="_tnAmend(\'minimise\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'minimise' ? 'Minimising…' : '⇣ Minimise scope') + '</button>' +
       '<span class="tn-note" style="margin:0">Simplify rewrites it shorter and plainer. Minimise cuts it to the core roofing and moves the rest to exclusions (and out of the price).</span></div>';
     h += '<ol class="tn-list">' + (doc.scope || []).map(function(s, i){
       return '<li><textarea rows="1" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onchange="_tnSet(\'scope\',' + i + ',\'\',this.value)">' + esc(s) + '</textarea>' + rowTools('scope', i) + '</li>';
     }).join('') + '</ol><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'scope\')">+ Add scope item</button>';
-    // the chat
-    var chat = doc.chat || [];
-    h += '<div class="tn-chat"><div class="tn-chat-hd">✨ Ask Claude to change the tender</div><div class="tn-chat-log" id="tnChatLog">' +
-      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
-        : '<div class="tn-note" style="margin:0">e.g. “take the spouting out, the builder is doing it”, “add 20 m of 0.55 parapet capping”, “we are not stripping the existing roof”.</div>') +
-      '</div><div class="tn-chat-in"><textarea id="tnChatIn" rows="2" placeholder="Tell Claude what to change…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
-      '<button type="button" class="tn-btn" onclick="_tnAmend(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'chat' ? 'Working…' : 'Send') + '</button></div>' +
-      '<div class="tn-note" style="margin:6px 0 0">Claude changes the scope, the items, the price and the programme together. Undo puts the last change back.</div></div>';
-    h += '</div></div>';
+    h += '</div></div></div>';
     return h;
   }
+  // The A.I. chat, pinned under the menu so it is there wherever the page is.
+  function chatHtml(doc){
+    var chat = doc.chat || [];
+    return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. to change the tender</div><div class="tn-chat-log" id="tnChatLog">' +
+      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
+        : '<div class="tn-note" style="margin:0">e.g. “take the spouting out, the builder is doing it”, “add 20 m of 0.55 parapet capping”.</div>') +
+      '</div><textarea id="tnChatIn" rows="2" placeholder="Type, or press Speak and say it…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
+      '<div class="tn-chat-in"><button type="button" class="tn-btn sec tn-mic" id="tnChatMic" onclick="_tnMic(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>🎤 Speak</button><span id="tnChatMsg" class="tn-edit-msg"></span>' +
+      '<button type="button" class="tn-btn" onclick="_tnAmend(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'chat' ? 'Working…' : 'Send') + '</button></div>' +
+      '<div class="tn-note tn-chat-nt" style="margin:6px 0 0;font-size:11.5px">Changes the scope, items, price and programme together. Undo puts it back.</div></div>';
+  }
+  // ── the section boxes: 8 lines tall and scrolling, opened out, or folded ──
+  var BOX = (function(){ try { return JSON.parse(localStorage.getItem('fr_tn_box') || '{}') || {}; } catch (e) { return {}; } })();
+  function boxMode(id){ var m = BOX[id]; return m === 'full' || m === 'min' ? m : 'mid'; }
+  function boxCtl(id){
+    var m = boxMode(id);
+    var b = function(to, lab, t){ return '<button type="button" class="tn-bx" data-bx="' + to + '" title="' + t + '" onclick="event.stopPropagation();_tnBox(\'' + id + '\',\'' + to + '\')">' + lab + '</button>'; };
+    return '<span class="tn-bxs no-print" data-bxfor="' + id + '">' +
+      (m === 'full' ? b('mid', '▭ 8 lines', 'Back to the 8-line view') : b('full', '⤢ Expand', 'Show the whole section')) +
+      (m === 'min' ? b('mid', '▾ Open', 'Open it to the 8-line view') : b('min', '– Minimise', 'Fold this section away')) + '</span>';
+  }
+  function boxOpen(id){ return '<div class="tn-box ' + boxMode(id) + '" data-box="' + id + '">'; }
+  window._tnBox = function(id, to){
+    BOX[id] = to; try { localStorage.setItem('fr_tn_box', JSON.stringify(BOX)); } catch (e) {}
+    document.querySelectorAll('.tn-box[data-box="' + id + '"]').forEach(function(el){ el.className = 'tn-box ' + boxMode(id); if (to !== 'mid') el.scrollTop = 0; });
+    document.querySelectorAll('.tn-bxs[data-bxfor="' + id + '"]').forEach(function(el){ el.outerHTML = boxCtl(id); });
+  };
   function rowTools(list, i){
     return '<span class="tn-tools"><button type="button" class="tn-x" title="Up" onclick="_tnMove(\'' + list + '\',' + i + ',-1)">↑</button><button type="button" class="tn-x" title="Down" onclick="_tnMove(\'' + list + '\',' + i + ',1)">↓</button><button type="button" class="tn-x" title="Delete" onclick="_tnDel(\'' + list + '\',' + i + ')">✕</button></span>';
   }
   function listCard(doc, key, title, note){
     var arr = doc[key] || [];
-    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + editBtn(key) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd"><p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + editBtn(key) + boxCtl('w-' + key) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd">' + boxOpen('w-' + key) + '<p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
     arr.forEach(function(x, i){
       if (key === 'exclusions') h += '<li><div style="flex:1"><textarea rows="1" onchange="_tnSet(\'exclusions\',' + i + ',\'text\',this.value)">' + esc(x.text) + '</textarea>' + (x.why ? '<div class="tn-why">' + esc(x.why) + '</div>' : '') + '</div>' + rowTools(key, i) + '</li>';
       else h += '<li><textarea rows="1" onchange="_tnSet(\'' + key + '\',' + i + ',\'\',this.value)">' + esc(x) + '</textarea>' + rowTools(key, i) + '</li>';
     });
-    return h + '</ul><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'' + key + '\')">+ Add</button></div></div>';
+    return h + '</ul><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'' + key + '\')">+ Add</button></div></div></div>';
   }
 
   function pricingCard(doc, c){
     var r = doc.rates || {};
     var rate = function(f, label, v, suf){ return '<label>' + label + '<span><input inputmode="decimal" value="' + esc(v) + '" onchange="_tnRate(\'' + f + '\',this.value)">' + (suf || '') + '</span></label>'; };
-    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet' + editBtn('pricing') + '<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet' + editBtn('pricing') + boxCtl('w-pricing') + '<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">' + boxOpen('w-pricing') + '';
     h += '<div class="tn-rates">' + rate('bufferPct', 'Waste allowance', num(r.bufferPct, 5), '%') + rate('markupPct', 'Material mark-up', num(r.markupPct, 10), '%') +
       rate('leadPrice', 'Lead charge-out', num(r.leadPrice, 180), '/hr') + rate('leadCost', 'Lead cost', num(r.leadCost, 45), '/hr') +
       rate('appPrice', 'Apprentice charge-out', num(r.appPrice, 90), '/hr') + rate('appCost', 'Apprentice cost', num(r.appCost, 25), '/hr') + rate('gstPct', 'GST', num(r.gstPct, 15), '%') + '</div>';
@@ -748,20 +781,20 @@
       (c.scOn ? '<tr><td>Scaffolding</td><td>' + money(c.scPrice) + '</td></tr>' : '') + (c.extras ? '<tr><td>Other lines</td><td>' + money(c.extras) + '</td></tr>' : '') +
       '<tr class="b"><td>Tender price ex GST</td><td>' + money(c.sub) + '</td></tr><tr><td>GST ' + num(r.gstPct, 15) + '%</td><td>' + money(c.gst) + '</td></tr><tr class="b"><td>Total incl GST</td><td>' + money(c.total) + '</td></tr>' +
       '<tr class="gp"><td>Gross profit</td><td>' + money(c.gp) + ' · ' + c.gpPct.toFixed(1) + '% · ' + money(c.gpHr) + '/hr</td></tr></table>';
-    return h + '</div></div>';
+    return h + '</div></div></div>';
   }
 
   function programmeCard(doc){
     var tl = doc.timeline || [];
     var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
-    var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + boxCtl('w-programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">' + boxOpen('w-programme') + '';
     h += '<div class="tn-gantt">' + tl.map(function(t, i){
       var l = 100 * num(t.start_day) / end, w = Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end);
       return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
         '<div class="tn-g-num">Day ' + inp('timeline', i, 'start_day', t.start_day, 'xs r', 'n') + ' for ' + inp('timeline', i, 'days', t.days, 'xs r', 'n') + '</div>' +
         '<div class="tn-g-track"><i style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%"></i></div>' + rowTools('timeline', i) + '</div>';
     }).join('') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
-    return h + '</div></div>';
+    return h + '</div></div></div>';
   }
 
   // ── the tender document: an editable page that prints as the PDF ───
@@ -778,7 +811,7 @@
     var ref = (window.S && S.quote && S.quote.ref) || '';
     var today = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
     var dep = (window.S && S.settings && S.settings.invoicing && S.settings.invoicing.deposit_percent != null) ? S.settings.invoicing.deposit_percent : 50;
-    var h = '<div class="tn-card"><div class="tn-card-hd">Tender document<span class="tn-r">click any text on the page to change it</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Tender document<span class="tn-r"><span id="tqPages"></span>click any text on the page to change it</span></div><div class="tn-card-bd">';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn" onclick="_tnPdf()">⬇ Save tender as PDF</button>' +
       '<label class="tn-chk"><input type="checkbox" ' + (q.showBreakdown ? 'checked' : '') + ' onchange="_tnQToggle(\'showBreakdown\')"> Show the price breakdown</label></div>';
     var order = qOrder(doc), hide = q.hide || {};
@@ -794,7 +827,7 @@
       '<tr><td>Our ref</td><td>' + ce('m_ref', esc(qText(doc, 'm_ref', ref)), 'span') + '</td></tr></table>';
     order.forEach(function(sec){
       var label = (QSECTIONS.find(function(s){ return s[0] === sec; }) || [sec, sec])[1];
-      var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" onclick="_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(label) + '</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
+      var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" title="Edit ' + esc(label) + ' with A.I." onclick="_tnEdit(\'' + sec + '\')">✨ Edit with A.I.</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>' + (hide[sec] ? '' : boxCtl('q-' + sec));
       if (hide[sec]) { page += '<div class="tq-sec tq-hidden no-print" id="tq-sec-' + sec + '"><h2>' + esc(label) + ' <i>(hidden)</i>' + tools + '</h2></div>'; return; }
       var body = '';
       if (sec === 'intro') body = ce('intro', qText(doc, 'intro', '<p>Thank you for the opportunity to tender for the roofing on this project. We are pleased to submit our price below for the supply and installation of the roofing as described, based on the documents listed above.</p>'));
@@ -819,7 +852,7 @@
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
-      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' ? ' tq-keep' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2>' + body + '</div>';
+      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' ? ' tq-keep' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2>' + boxOpen('q-' + sec) + body + '</div></div>';
     });
     page += '<div class="tq-foot">' + esc(b.company_name || '') + (b.website ? ' · ' + esc(b.website) : '') + '</div></div>';
     h += '<div class="tq-wrap">' + page + '</div></div></div>';
@@ -836,7 +869,7 @@
         if (el.hasAttribute('data-oid')) { window._tnOrgSet(el.getAttribute('data-oid'), el.getAttribute('data-of'), el.textContent.trim()); return; }
         if (el.hasAttribute('data-qk')) {
           var k = el.getAttribute('data-qk');
-          var v = /^(intro|terms|accept|priceNote|progNote|orgNote)$/.test(k) ? el.innerHTML : el.textContent.trim();
+          var v = /^(intro|terms|accept|priceNote|progNote|orgNote)$/.test(k) ? pbStripped(el) : el.textContent.trim();
           if ((d.quote || {})[k] === v) return;
           window._tnQuoteSet(k, v);
           return;
@@ -849,13 +882,104 @@
         window._tnSet(list, i, f, t, true);
         // the cards above show the same words: redraw them, not the page under the caret
         var y = window.scrollY; var host = document.getElementById('tnDocHost');
-        if (host && !host.contains(document.activeElement)) { host.innerHTML = docHtml(T.data); afterDocRender(); window.scrollTo(0, y); }
+        if (host && !host.contains(document.activeElement)) { hostFill(host); window.scrollTo(0, y); }
       });
       el.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !el.hasAttribute('data-qk')) { e.preventDefault(); el.blur(); } });
     });
+    pg.addEventListener('focusout', function(){ clearTimeout(_pbT); _pbT = setTimeout(function(){ if (!pg.contains(document.activeElement)) pageBreaks(); }, 250); });
+    pageBreaks();
+    if (!_pbFonts && document.fonts && document.fonts.ready) { _pbFonts = 1; document.fonts.ready.then(function(){ pageBreaks(); }); }
     navSpy();
     document.querySelectorAll('#tnDocHost textarea').forEach(function(t){ if (t.id !== 'tnChatIn') { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight) + 'px'; } });
     var log = document.getElementById('tnChatLog'); if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  // ── where the PDF's pages will break, drawn on the page as dashed lines ──
+  // The page is copied into a hidden frame exactly as the PDF copies it (the
+  // tender's own styles, none of the app's, every box opened) at the PDF's
+  // width — A4 less the 13 mm margins — and walked block by block as Chrome
+  // paginates: a section kept whole stays whole, a heading keeps its first
+  // line. The lines then go on the live page against the same elements.
+  var PB_W = 695, PB_H = 1016, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
+  function pbStripped(el){
+    if (!el.querySelector('.tq-pb')) return el.innerHTML;
+    var c = el.cloneNode(true); c.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); }); return c.innerHTML;
+  }
+  function pbLeaves(el, out){
+    var kids = el.children;
+    if (el.matches('li,tr,p,h1,h2,h3,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
+    for (var i = 0; i < kids.length; i++) pbLeaves(kids[i], out);
+  }
+  // every element of the page the PDF keeps, in order: the same list in the
+  // live page and in its printed copy, so an index in one is the other's
+  function pbKept(root){
+    var out = [];
+    (function walk(el){ for (var i = 0; i < el.children.length; i++) { var k = el.children[i]; if (k.classList.contains('no-print')) continue; out.push(k); walk(k); } })(root);
+    return out;
+  }
+  function pbPrintHtml(pg, extra){
+    var clone = pg.cloneNode(true);
+    clone.querySelectorAll('.no-print').forEach(function(n){ n.remove(); });
+    clone.querySelectorAll('[contenteditable]').forEach(function(n){ n.removeAttribute('contenteditable'); });
+    var css = document.getElementById('tenderCss');
+    return { clone: clone, css: (css ? css.textContent : '') };
+  }
+  function pageBreaks(){
+    var pg = document.getElementById('tqPage'); if (!pg) return;
+    pg.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); });
+    if (!pg.offsetParent) return;
+    var gen = ++_pbGen;
+    var pc = pbPrintHtml(pg);
+    if (!_pbFrame || !_pbFrame.isConnected) {
+      _pbFrame = document.createElement('iframe');
+      _pbFrame.setAttribute('aria-hidden', 'true'); _pbFrame.tabIndex = -1;
+      // wider than 760px, or the tender's phone rules lay the copy out as a phone
+      _pbFrame.style.cssText = 'position:fixed;left:-20000px;top:0;width:1100px;height:600px;border:0;visibility:hidden;pointer-events:none';
+      document.body.appendChild(_pbFrame);
+    }
+    var dd = _pbFrame.contentWindow.document;
+    dd.open();
+    dd.write('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><style>' + pc.css +
+      'html,body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important;width:' + PB_W + 'px!important}' +
+      '.tn-box{height:auto!important;overflow:visible!important;display:block!important;box-shadow:none!important;padding:0!important}</style></head><body>' + pc.clone.outerHTML + '</body></html>');
+    dd.close();
+    var measure = function(){
+      if (gen !== _pbGen) return;
+      var cp = dd.getElementById('tqPage'); if (!cp) return;
+      var live = pbKept(pg), copy = pbKept(cp);
+      if (live.length !== copy.length) return;   // changed under us; the next pass will do it
+      var ix = new Map(); copy.forEach(function(el, i){ ix.set(el, i); });
+      var top0 = cp.getBoundingClientRect().top, blocks = [];
+      var add = function(el, a, b){ var r1 = a.getBoundingClientRect(), r2 = (b || a).getBoundingClientRect(); if (r2.bottom - r1.top > 0) blocks.push({ el: el, top: r1.top - top0, bot: r2.bottom - top0 }); };
+      Array.prototype.forEach.call(cp.children, function(ch){
+        if (!ch.classList.contains('tq-sec')) { add(ch, ch); return; }
+        if (ch.classList.contains('tq-keep') && ch.getBoundingClientRect().height <= PB_H) { add(ch, ch); return; }
+        var h2 = ch.querySelector('h2'), leaves = [], box = ch.querySelector('.tn-box');
+        if (box) pbLeaves(box, leaves);
+        if (h2) add(ch, h2, leaves[0] || h2);
+        leaves.slice(h2 ? 1 : 0).forEach(function(l){ add(l, l); });
+      });
+      var pageTop = 0, page = 1, marks = [];
+      blocks.forEach(function(b){
+        if (b.bot - pageTop > PB_H && b.top > pageTop + 1) { page++; pageTop = b.top; marks.push({ el: b.el, page: page }); }
+        while (b.bot - pageTop > PB_H) { pageTop += PB_H; page++; }
+      });
+      pg.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); });
+      marks.forEach(function(m){
+        var el = live[ix.get(m.el)]; if (!el || !el.parentNode) return;
+        var tag = el.tagName === 'LI' ? 'li' : el.tagName === 'TR' ? 'tr' : 'div';
+        var mk = document.createElement(tag);
+        mk.className = 'tq-pb no-print'; mk.setAttribute('contenteditable', 'false');
+        var lab = '<span>Page ' + m.page + ' of the PDF starts here</span>';
+        mk.innerHTML = tag === 'tr' ? '<td colspan="9">' + lab + '</td>' : lab;
+        el.parentNode.insertBefore(mk, el);
+      });
+      var n = document.getElementById('tqPages'); if (n) n.textContent = 'A4 PDF: ' + page + (page === 1 ? ' page' : ' pages') + ' · ';
+      pg.setAttribute('data-pages', page);
+    };
+    var done = false, once = function(){ if (done) return; done = true; measure(); };
+    try { if (dd.fonts && dd.fonts.ready) { dd.fonts.ready.then(function(){ setTimeout(once, 0); }); setTimeout(once, 1500); return; } } catch (e) {}
+    setTimeout(once, 0);
   }
 
   // The PDF: the page above, alone, through the browser's own Save as PDF —
@@ -867,9 +991,11 @@
     clone.querySelectorAll('.no-print').forEach(function(n){ n.remove(); });
     clone.querySelectorAll('[contenteditable]').forEach(function(n){ n.removeAttribute('contenteditable'); });
     var css = document.getElementById('tenderCss');
-    var p = (T.data.doc && T.data.doc.project) || {};
-    var ref = (window.S && S.quote && S.quote.ref) || '';
-    var title = ('Tender ' + [ref, p.name || T.data.name || ''].filter(Boolean).join(' - ')).replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 100);
+    var dc = T.data.doc || {}, p = dc.project || {}, bz = brand();
+    // The file is named for the job and the business: Chrome takes the name
+    // from the printed page's title (2026-10-27, the owner).
+    var proj = String(qText(dc, 'm_project', p.name || T.data.name || '') || '').replace(/<[^>]*>/g, '').trim() || 'Tender';
+    var title = [proj, bz.company_name || ''].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
     var f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
     document.body.appendChild(f);
@@ -884,7 +1010,7 @@
       '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
       '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
-    var go = function(){ try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ f.remove(); }, 60000); };
+    var go = function(){ var was = document.title; document.title = title; try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ document.title = was; }, 1500); setTimeout(function(){ f.remove(); }, 60000); };
     var started = false; var go1 = function(){ if (started) return; started = true; go(); };
     // Wait for the font as well as the logo, or the PDF prints in the fallback face.
     var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.ready) { var t = setTimeout(cb, 2500); dd.fonts.ready.then(function(){ clearTimeout(t); cb(); }); return; } } catch (e) {} cb(); };
@@ -968,14 +1094,26 @@
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
       '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
       // the menu down the left
-      '.tn-lay{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:start}.tn-main{padding-bottom:40vh}',
-      '.tn-nav{position:sticky;top:58px;max-height:calc(100vh - 70px);overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-lay{display:grid;grid-template-columns:268px minmax(0,1fr);gap:16px;align-items:start}.tn-main{padding-bottom:40vh}',
+      '.tn-side{position:sticky;top:58px;max-height:calc(100vh - 70px);display:flex;flex-direction:column;gap:10px}',
+      '.tn-nav{flex:1 1 auto;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-side .tn-chat{flex:0 0 auto;margin:0;padding:10px;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-side .tn-chat-log{max-height:130px}.tn-side .tn-chat .tn-chat-nt{display:none}.tn-side .tn-chat:focus-within .tn-chat-nt{display:block}',
+      '.tn-side #tnChatIn{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 8px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:48px}',
+      '.tn-side .tn-chat-in{align-items:center}.tn-side .tn-chat-in .tn-edit-msg{flex:1 1 auto;font-size:11.5px}.tn-side .tn-msg{max-width:92%;font-size:12.5px}',
       '.tn-nav-g{margin:8px 0 4px;padding:5px 8px;border-radius:6px;background:#0a1628;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.tn-nav-g:first-child{margin-top:0}',
       '.tn-nav-i{display:block;padding:6px 10px;border-radius:7px;font-size:13px;color:#334155;text-decoration:none;line-height:1.3}.tn-nav-i:hover{background:#f1f5f9;color:#0a1628}',
       '.tn-nav-i.sub{padding-left:20px;font-size:12.5px}.tn-nav-i.off{color:#94a3b8;text-decoration:line-through}',
       '.tn-nav-i.on{background:#0099cc;color:#fff;font-weight:700}',
       '.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:64px}',
-      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr)}.tn-nav{top:56px;z-index:5;display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr)}.tn-side{top:56px;z-index:5;max-height:none;display:block}.tn-side .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-side .tn-chat-hd{margin-bottom:4px}.tn-side .tn-chat-log{max-height:90px}.tn-side .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-side #tnChatIn{height:38px}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      // the section boxes: one height for all, scrolling inside; print shows everything
+      '@media screen{.tn-box.mid{height:208px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;box-shadow:inset 0 -10px 10px -10px rgba(15,23,42,.18);padding-right:4px}.tn-box.min{display:none}',
+      '}',
+      '@media screen{.tn-card-bd:has(>.tn-box.min){display:none}}',
+      '.tn-bxs{display:inline-flex;gap:4px;flex:0 0 auto}.tn-bx{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:0;text-transform:none;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap}.tn-bx:hover{background:rgba(255,255,255,.3)}',
+      '.tq-pb{list-style:none;display:block;position:relative;height:0;border-top:2px dashed #ef4444;margin:14px 0}.tq-pb td{padding:0;border:0;height:0}.tq-pb span{position:absolute;right:0;top:-10px;background:#fff;color:#b91c1c;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border:1px solid #fecaca;border-radius:999px;white-space:nowrap}',
+      'tr.tq-pb{display:table-row;height:14px;border:0}tr.tq-pb td{border-top:2px dashed #ef4444;position:relative}',
+      '#tqPages{font-weight:700;color:#fca5a5}',
       // Edit [section]
       '.tn-edit{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;background:#0099cc;color:#fff;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}.tn-edit:hover{background:#0087b4}',
       '.tq-tools .tq-edit{background:#0099cc;font-weight:700}',
