@@ -1,0 +1,36 @@
+name: Hub back-costing report
+
+# On demand: the GP-margin target each revenue band needs to make a GP-per-hour target, from the
+# hub's own back-costing rows. Reads the shared state with the nightly sync's credentials and prints
+# aggregates only (no job names or numbers) into this run's log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      gp_hr:
+        description: 'GP per hour target ($)'
+        default: '100'
+        type: string
+      months:
+        description: 'Also show the last N months (0 = skip)'
+        default: '0'
+        type: string
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Back-costing by job size
+        working-directory: floodroofing/hub-api
+        env:
+          HUB_API_URL: ${{ secrets.HUB_API_URL }}
+          HUB_USER: ${{ secrets.HUB_SYNC_USER }}
+          HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
+          GP_HR: ${{ github.event.inputs.gp_hr || '100' }}
+          WINDOW_MONTHS: ${{ github.event.inputs.months || '0' }}
+        run: node scripts/backcost-report.js
