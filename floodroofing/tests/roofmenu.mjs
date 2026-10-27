@@ -248,7 +248,9 @@ const bump = await pg.evaluate(async () => {
   // an ordinary pause when you are reading a pitch off a plan.
   rtp().style.display = 'none';
   _roofPanelReveal();
-  const pitch = document.getElementById('calPitchInput') ||
+  // The panel's OWN pitch box. #calPitchInput is outside the panel, so this
+  // pin used to pass only because 2.8 s was inside the old 3 s window.
+  const pitch = rtp().querySelector('#roofPitchInput') ||
                 rtp().querySelector('input[type="number"], input[type="text"]');
   out.hadField = !!pitch;
   if (pitch) pitch.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -278,6 +280,27 @@ check('a field being typed in keeps the panel open',
   bump.hadField && bump.whileTyping === 'block', JSON.stringify(bump));
 check('a panel opened BY HAND is never closed by a press inside it',
   bump.handOpened === 'block' && bump.handStill === 'block', JSON.stringify(bump));
+
+// 1.5 SECONDS, NOT 3 (2026-10-27, the owner: "close the 'Main Roof — roof
+// settings' drop down menu after 1.5sec of it being open"). Left alone, the
+// reveal starts folding at 1.5 s and is gone after its half-second fold.
+const quick = await pg.evaluate(async () => {
+  const rtp = () => document.getElementById('roofTypePanel');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const out = {};
+  rtp().style.display = 'none';
+  _roofPanelReveal();
+  out.at0 = rtp().style.display;
+  await sleep(1200);
+  out.at1_2 = rtp().style.display;
+  await sleep(1200);
+  out.at2_4 = rtp().style.display;
+  return out;
+});
+check('the automatic reveal is still open at 1.2 s…',
+  quick.at0 === 'block' && quick.at1_2 === 'block', JSON.stringify(quick));
+check('…and has folded itself away by 2.4 s (1.5 s + the half-second fold)',
+  quick.at2_4 === 'none', JSON.stringify(quick));
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'clean');
 

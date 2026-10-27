@@ -4208,7 +4208,9 @@ not a saving, and 49 purple to 48 orange.
   browser contexts as his two devices, including offline).
 
 - THE ROOF PANEL FOLDS TWO SECONDS AFTER THE LAST PRESS (2026-10-18): the
-  reveal's three seconds (`RTP_HIDE_MS`) are for reading the row; a press on a
+  reveal's own window (`RTP_HIDE_MS`, 1.5 s since 2026-10-27 — the owner:
+  "close the 'Main Roof — roof settings' drop down menu after 1.5sec of it
+  being open"; it was three) is for seeing where the row is; a press on a
   BUTTON inside restarts `RTP_CLICK_HIDE_MS` (2 s) via `_roofPanelAutoHideBump`,
   so a run of presses is never cut short. A field being typed in keeps it open
   until the caret leaves (two seconds between keystrokes is an ordinary pause

@@ -5115,7 +5115,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-27T00:29:07Z';
+  window.APP_BUILT_AT = '2026-10-27T00:40:53Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -81876,7 +81876,9 @@ function _roofPanelReveal(){
 // reading a pitch off a plan, and a panel that folds mid-number is the same
 // fault as one that shuts while you reach for it.
 var _RTP_T = null;
-var RTP_HIDE_MS = 3000;         // the reveal's own window
+// 1.5 s since 2026-10-27 (the owner: "close the 'Main Roof — roof settings'
+// drop down menu after 1.5sec of it being open"); it was 3 s.
+var RTP_HIDE_MS = 1500;         // the reveal's own window
 var RTP_CLICK_HIDE_MS = 2000;   // after a press on a control inside it
 function _roofPanelAutoHideCancel(){
   if (_RTP_T){ clearTimeout(_RTP_T); _RTP_T = null; }
