@@ -105,6 +105,16 @@ accordingly.
   off the right. `tests/hubui.mjs` (101, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
+  TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
+  `hub-backcost-report.yml` (the GP-margin target per revenue band from the hub's rows) and
+  `hub-labour-check.yml` → `hub-api/scripts/labour-check.js`, RoofMap's labour auto-calc against the
+  hours logged on every back-costed non-shed job, plus whether each job's scaffold was bought in
+  (Xero supplier bills naming the job — Fergus's API exposes NO supplier invoices, ten shapes 404).
+  Findings and how to read them: `docs/LABOUR_CHECK_2026-10-27.md`. The short version: only 6
+  finished jobs carry RoofMap's itemised quote so far; on the 147 office-quoted jobs with an area the
+  calculator is right under ~$14k and ~40 % low from $25k up (crews log 0.5 man-h/m², the calculator
+  prices ~0.3); the missing time is travel, own-crew scaffold, strip-off — drivers it does not have.
+  Re-run it once more RoofMap-quoted jobs have finished (the exact fit needs 8+).
   THE MARKETING SYNC FALLS BACK THROUGH REQUEST SHAPES (2026-10-18): Fergus
   began answering 500 to `/enquiries?…sortField=createdAt…` on 9 Sept and
   `syncMarketing` swallowed it, so the nightly's "marketing" step read ✓ for
