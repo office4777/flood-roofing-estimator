@@ -5284,6 +5284,8 @@ const CUSTOMER_HIDDEN_FIELDS = [
   'roofLabour', 'roofLabourCalc', 'gutterLabour',
   'gutterPrices', 'gutterUnitPrices', 'selectionPrices',
   'psSubtotal', 'shedEst', 'showLabourCalc',
+  // Price-book materials on the job carry the supplier's COST (2026-10-27).
+  'cpbMat',
 ];
 function _customerQuoteView(quote){
   if (!quote || typeof quote !== 'object') return quote;

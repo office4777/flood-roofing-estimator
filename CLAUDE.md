@@ -3284,6 +3284,41 @@ not a saving, and 49 purple to 48 orange.
   quote, allow me to delete the roof colour section"): `_qbColour` carries
   Delete this page (office only), `_qbSectionRemove('colour')` parks it and
   `_qbPicksAuto` already drops its pick. `tests/quoteeditor.mjs`.
+- A PRICE-BOOK MATERIAL IS A MATERIAL (2026-10-27, Scott at
+  info@wellingtonroof.co.nz, now a paying customer: "Include Address in CSV
+  export. For custom pricing suggest adding a tag if the item is a Materials
+  item. Then when the item is selected for a job or roof it can be listed and
+  directly included in the Materials list and total for Materials at Cost.
+  All other Custom Price Book items included in a job can then be listed with
+  separate total as … 3. Other lines on the quote"). He had found a real
+  contradiction: "📖 Add from price book" made a CUSTOM LINE at the item's
+  SELL price, outside the buffer and mark-up; the CSV printed it under Roof
+  materials while the profitability list counted it under "Other lines on the
+  quote · at cost" — so the item's own mark-up read as zero margin.
+  A Custom Price Book item has `kind` 'material' | 'other' (`_cpbKind`; NO
+  KIND = MATERIAL, the owner's call — a supplier list is almost all
+  materials), a Type select on Settings → Custom Price Book and a chip in the
+  price-book window. `_pbkAddToJob`: a MATERIAL goes to `S.quote.cpbMat[key]`
+  (`_cpbMatAdd`; keyed like customLines, 'material' / 'material#<idx>';
+  {id, cpbId, code, desc, unit, supplier, qty, cost}, the cost frozen at add)
+  whichever card's button was pressed, and `_cpbMatRows` makes each a row of
+  `_buildMaterialPriceRows` (`cpb:<id>`, priced at COST, `decimalQty`) — so the
+  qty/$ boxes, the buffer and the JOB's mark-up (the item's own mark-up is NOT
+  used, the owner's answer), S.materials, the profitability, the CSV's
+  Materials at cost and the Fergus push all take it for nothing; its ✕ removes
+  the entry (`_cpbMatRemove`), it follows `_qCustomRemap` / `_qCustomFoldInto`,
+  and a shed keeps the old custom line. An OTHER item stays a custom line at
+  its price; `_qCustomLineCost(row)` reads its real cost off the book by
+  `cpbId`, so "Other lines on the quote" carries price-book items at cost and
+  their mark-up shows as margin (hand-typed lines stay at cost). `cpbMat` is in
+  the server's CUSTOMER_HIDDEN_FIELDS — it carries supplier cost.
+  THE CSV (`_scopePricingRows`): Site address under Client; on the main roof's
+  and the Quote Total sheet the lines typed on the scaffold / labour /
+  material cards leave those sections for an "Other lines on the quote" block
+  (each at charge and cost, then Total other lines — the panel's own item to
+  the cent); an extra roof's sheet keeps them in its cards (it is priced as a
+  lump). Lines already on jobs did not move. `tests/pricebookpick.mjs`,
+  `custompb.mjs`, `profititems.mjs`.
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
@@ -5357,8 +5392,9 @@ session, and none has been confirmed done since the date beside it.**
   become the shipped default; four aerial screenshots for the demo
   slideshow (Mapbox is unreachable from the build environment, so those
   slides are placeholders).
-- UNANSWERED: should a Custom Price Book line's mark-up REPLACE the job's
-  material mark-up for that item? And Nearmap stays OFF until privacy.html
+- ANSWERED 2026-10-27: a Custom Price Book item tagged Material, added to a
+  job, carries the JOB's buffer and material mark-up, not its own (see A
+  PRICE-BOOK MATERIAL IS A MATERIAL). Nearmap stays OFF until privacy.html
   v1.2 names it + 30 days' notice.
 - ASKED 2026-10-21, no answer yet — two questions already put to him, so do
   not ask again, just pick them up if he answers (the third, the step-down

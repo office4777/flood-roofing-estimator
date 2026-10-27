@@ -4144,9 +4144,9 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .cpb-lo{ display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; }
 .cpb-status{ margin-left:auto; font-size:12px; color:#64748b; }
 .cpb-tablewrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:#fff; }
-.cpb-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; table-layout:fixed; }
-.cpb-table th:nth-child(1){ width:92px; } .cpb-table th:nth-child(3){ width:58px; } .cpb-table th:nth-child(4){ width:118px; }
-.cpb-table th:nth-child(5), .cpb-table th:nth-child(6), .cpb-table th:nth-child(7){ width:78px; } .cpb-table th:nth-child(8){ width:34px; }
+.cpb-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:810px; table-layout:fixed; }
+.cpb-table th:nth-child(1){ width:92px; } .cpb-table th:nth-child(3){ width:92px; } .cpb-table th:nth-child(4){ width:58px; } .cpb-table th:nth-child(5){ width:118px; }
+.cpb-table th:nth-child(6), .cpb-table th:nth-child(7), .cpb-table th:nth-child(8){ width:78px; } .cpb-table th:nth-child(9){ width:34px; }
 .cpb-th-sub{ font-weight:500; opacity:.75; text-transform:none; letter-spacing:0; }
 .cpb-desc-td .cpb-desc{ font-weight:600; }
 .cpb-desc-td .cpb-link{ margin-top:2px; font-size:11.5px; color:#64748b; }
@@ -4208,7 +4208,7 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-addf{ margin-top:8px; width:100%; padding:7px; border:1px dashed #94a3b8; border-radius:7px; background:#fff; font:600 12.5px inherit; color:#0a1628; cursor:pointer; }
 .pbk-right{ flex:1; min-width:0; overflow-y:auto; position:relative; }
 .pbk-list{ padding:6px 8px; }
-.pbk-item{ display:grid; grid-template-columns:96px minmax(0,1fr) 56px 84px; gap:8px; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; border-bottom:1px solid #f1f5f9; user-select:none; }
+.pbk-item{ display:grid; grid-template-columns:96px minmax(0,1fr) 62px 56px 84px; gap:8px; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; border-bottom:1px solid #f1f5f9; user-select:none; }
 .pbk-item:hover{ background:#f0f8fb; }
 .pbk-item.sel{ background:#dbeafe; }
 .pbk-code{ color:#64748b; font-size:11.5px; overflow:hidden; text-overflow:ellipsis; }
@@ -4216,6 +4216,10 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-desc small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
 .pbk-unit{ color:#64748b; font-size:11.5px; }
 .pbk-price{ text-align:right; font-weight:700; color:#0a1628; }
+.pbk-kind{ justify-self:start; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:999px; }
+.pbk-kind-material{ background:#e0f2fe; color:#075985; }
+.pbk-kind-other{ background:#f1f5f9; color:#475569; }
+.cpb-kind{ font-size:12px; padding:3px 4px; margin:0; width:auto; }
 .pbk-selbar{ position:sticky; bottom:0; background:#0a1628; color:#fff; padding:8px 12px; font-size:12.5px; display:flex; gap:8px; align-items:center; }
 .pbk-selbar select{ padding:4px 6px; border-radius:6px; font-size:12px; margin:0; width:auto; }
 .pbk-empty{ padding:24px; text-align:center; color:#64748b; font-size:13px; }
@@ -5115,7 +5119,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-27T00:40:53Z';
+  window.APP_BUILT_AT = '2026-10-27T21:25:00Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -15577,6 +15581,25 @@ function _cpbBook(create){
 function _cpbId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function _cpbNum(v){ var n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; }
 function _cpbSell(it){ var c = _cpbNum(it && it.cost), m = _cpbNum(it && it.markup); return Math.round(c * (1 + m / 100) * 100) / 100; }
+// MATERIAL OR OTHER (2026-10-27, Scott at info@wellingtonroof.co.nz: "For
+// custom pricing suggest adding a tag if the item is a Materials item. Then
+// when the item is selected for a job or roof it can be listed and directly
+// included in the Materials list and total for Materials at Cost"). A
+// Material item added to a job becomes a row of the material take-off at its
+// COST, under the job's own buffer and mark-up; an Other item (skip hire,
+// disposal, a crane) stays a line of its own. No tag means Material — a
+// supplier's list is almost all materials (the owner's call).
+function _cpbKind(it){ return (it && it.kind === 'other') ? 'other' : 'material'; }
+// What a price-book line on a job really cost us: the item's cost × the
+// line's quantity, read off the book by the line's cpbId. A line typed by hand
+// (or whose item has left the book) is at cost — nobody told us its margin.
+function _qCustomLineCost(row){
+  var amt = parseFloat(row && row.amount) || 0;
+  var it = (row && row.cpbId) ? _cpbItem(row.cpbId) : null;
+  if (!it || String(it.cost == null ? '' : it.cost).trim() === '') return amt;
+  var q = parseFloat(row.qty); if (!isFinite(q)) q = 1;
+  return Math.round(q * _cpbNum(it.cost) * 100) / 100;
+}
 // Every edit: stamp the book, re-price, save.
 function _cpbTouch(noSave){
   var cb = _cpbBook(true); if (!cb) return;
@@ -15706,7 +15729,8 @@ function _cpbRender(){
   };
   host.innerHTML =
     '<p class="cpb-intro"><b>This tab is your supplier’s own list</b>, kept as they wrote it — codes, descriptions and your real cost. <b>Default Items</b> is RoofMap’s own list of the things it measures off the roof; link a line here to one of those and it is priced from your supplier from then on.</p>' +
-    '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade. Every change saves by itself, and earlier versions are kept.</p>' +
+    '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade.</p>' +
+    '<p class="cpb-intro"><b>Type</b> says what an item is when you add it to a job with “📖 Add from price book”: a <b>Material</b> joins that roof’s materials list at your <b>cost</b>, and the job’s quantity buffer and material mark-up go on it like every other material (the mark-up on the line here is not used); an <b>Other</b> item — skip hire, disposal, a crane — goes on as a line of its own at the price used. Every change saves by itself, and earlier versions are kept.</p>' +
     '<div class="cpb-bar">' +
       '<label class="qa-btn qa-btn-primary cpb-upload">⬆ Upload price list (CSV or PDF)<input type="file" id="cpbFile" accept=".csv,.txt,.pdf,text/csv,application/pdf" onchange="_cpbFile(this)" hidden></label>' +
       '<button type="button" class="qa-btn" onclick="_cpbAdd()">+ Add item</button>' +
@@ -15748,7 +15772,7 @@ function _cpbRenderTable(){
   }
   wrap.innerHTML =
     '<div class="cpb-tablewrap"><table class="cpb-table"><thead><tr>' +
-      '<th>Code</th><th>Description <span class="cpb-th-sub">\u00B7 replaces RoofMap item</span></th><th>Unit</th><th>Supplier</th><th class="r">Cost $</th><th class="r">Mark-up %</th><th class="r">Price used</th><th></th>' +
+      '<th>Code</th><th>Description <span class="cpb-th-sub">\u00B7 replaces RoofMap item</span></th><th title="Material: added to a job it joins the materials list at its cost, under the job\u2019s buffer and mark-up. Other: it stays a line of its own.">Type</th><th>Unit</th><th>Supplier</th><th class="r">Cost $</th><th class="r">Mark-up %</th><th class="r">Price used</th><th></th>' +
     '</tr></thead><tbody>' +
     slice.map(function(it){
       var id = esc2(it.id);
@@ -15756,6 +15780,9 @@ function _cpbRenderTable(){
       return '<tr data-cpb-row="' + id + '"' + (it.replaces ? ' class="cpb-on"' : '') + '>' +
         '<td>' + f('code', 'cpb-code') + '</td>' +
         '<td class="cpb-desc-td">' + f('desc', 'cpb-desc') + '<select class="cpb-link" data-cpb="' + id + '" data-f="replaces" onchange="_cpbLink(\'' + id + '\',this.value)" title="The RoofMap item this line prices">' + opts(it.replaces || '') + '</select></td>' +
+        '<td><select class="cpb-kind" data-cpb="' + id + '" data-f="kind" onchange="_cpbSet(\'' + id + '\',\'kind\',this.value)" title="Material: joins the job\u2019s materials at its cost. Other: a line of its own.">' +
+          '<option value="material"' + (_cpbKind(it) === 'material' ? ' selected' : '') + '>Material</option>' +
+          '<option value="other"' + (_cpbKind(it) === 'other' ? ' selected' : '') + '>Other</option></select></td>' +
         '<td>' + f('unit', 'cpb-unit') + '</td>' +
         '<td>' + f('supplier', 'cpb-sup', '', ' list="cpbSupList"') + '</td>' +
         '<td class="r">' + f('cost', 'cpb-num', 'number', ' step="0.01"') + '</td>' +
@@ -15815,8 +15842,8 @@ function _cpbSetDefaultMarkup(v){ var cb = _cpbBook(true); if (!cb) return; cb.d
 function _cpbExportCsv(){
   var cb = _cpbBook(); if (!cb || !cb.items.length){ try { _siteToast('Nothing to download yet'); } catch(e){} return; }
   var q = function(v){ v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  var lines = ['Code,Description,Unit,Supplier,Cost,Markup %,Price used,Replaces RoofMap item'];
-  cb.items.forEach(function(it){ lines.push([it.code, it.desc, it.unit, it.supplier, it.cost, it.markup, _cpbSell(it) || '', it.replaces ? _cpbTargetLabel(it.replaces) : ''].map(q).join(',')); });
+  var lines = ['Code,Description,Type,Unit,Supplier,Cost,Markup %,Price used,Replaces RoofMap item'];
+  cb.items.forEach(function(it){ lines.push([it.code, it.desc, _cpbKind(it) === 'material' ? 'Material' : 'Other', it.unit, it.supplier, it.cost, it.markup, _cpbSell(it) || '', it.replaces ? _cpbTargetLabel(it.replaces) : ''].map(q).join(',')); });
   var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Custom price book.csv';
   document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -16161,6 +16188,7 @@ function _pbkRender(){
             ' onclick="_pbkItemClick(event,\'' + esc2(it.id) + '\')">' +
             '<span class="pbk-code">' + esc2(it.code || '') + '</span>' +
             '<span class="pbk-desc">' + esc2(it.desc || '') + (it.supplier ? '<small>' + esc2(it.supplier) + '</small>' : '') + '</span>' +
+            '<span class="pbk-kind pbk-kind-' + _cpbKind(it) + '" title="' + (_cpbKind(it) === 'material' ? 'Joins the job\u2019s materials at its cost' : 'Added as a line of its own') + '">' + (_cpbKind(it) === 'material' ? 'Material' : 'Other') + '</span>' +
             '<span class="pbk-unit">' + esc2(it.unit || '') + '</span>' +
             '<span class="pbk-price">' + (_cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—') + '</span>' +
           '</div>';
@@ -16247,9 +16275,86 @@ function _pbkDeleteFolder(id){
 function _pbkAddToJob(id){
   var it = _cpbItem(id); if (!it) return;
   var area = _PBK.area || 'material';
+  // A MATERIAL goes into the roof's materials at its cost, whichever card's
+  // button was pressed — the job's buffer and mark-up go on it like every
+  // other material. A pole shed's take-off is its estimator's, so a shed
+  // keeps the line it always got.
+  if (_cpbKind(it) === 'material' && !_psIsShed()){
+    _cpbMatAdd(it);
+    _pbPickClose();
+    if (_qCustomBaseArea(area) !== 'material'){ try { _siteToast('Added to this roof\u2019s materials \u2014 it is a Material item in your price book'); } catch(e){} }
+    return;
+  }
   var unit = _cpbSell(it);
   _qAddCustom(area, { desc: ((it.code ? it.code + ' ' : '') + (it.desc || '')).trim(), qty: 1, unit: unit, uom: it.unit || '', amount: Math.round(unit * 100) / 100, cpbId: it.id });
   _pbPickClose();
+}
+// ── PRICE-BOOK MATERIALS ON A JOB ──
+// S.quote.cpbMat[key] = [{id, cpbId, code, desc, unit, supplier, qty, cost}],
+// keyed by the pricing tab exactly as the custom lines are ('material' for the
+// main roof, 'material#<idx>' for an extra roof's own tab). Each is one row of
+// that roof's material take-off (_cpbMatRows), so the qty and $/unit boxes,
+// the ✕, the buffer, the mark-up, the materials total, the profitability
+// panel, the pricing CSV and the Fergus push all take it as they take every
+// other material. The cost is the one the book held when it was added — a
+// price on a job does not move because the supplier list did.
+function _cpbMatAdd(it, idx){
+  if (!S.quote) return;
+  var key = _qCustomArea('material', idx);
+  if (!S.quote.cpbMat || typeof S.quote.cpbMat !== 'object') S.quote.cpbMat = {};
+  if (!Array.isArray(S.quote.cpbMat[key])) S.quote.cpbMat[key] = [];
+  S.quote.cpbMat[key].push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    cpbId: it.id, code: it.code || '', desc: it.desc || '', unit: it.unit || 'ea', supplier: it.supplier || '',
+    qty: 1, cost: _cpbNum(it.cost) });
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
+}
+// The tabs a take-off covers: one tab while the pricing drawer scopes it, every
+// tab on the selection (the Job Pack's all-roofs view). A folded roof is priced
+// on the main roof's tab, and that is where its lines live.
+function _cpbMatKeysInScope(){
+  var multi = !!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  if (!multi) return ['material'];
+  var keys = [];
+  (_matSelectedRoofIndices() || [0]).forEach(function(i){
+    var tab = (i > 0) ? i : 0;
+    try { if (tab > 0 && _roofQuoteMode(tab) === 'folded') tab = 0; } catch(e){}
+    var k = _qCustomArea('material', tab);
+    if (keys.indexOf(k) < 0) keys.push(k);
+  });
+  return keys;
+}
+function _cpbMatRows(rows){
+  var store = (window.S && S.quote && S.quote.cpbMat) || null;
+  if (!store || typeof store !== 'object') return;
+  _cpbMatKeysInScope().forEach(function(k){
+    (Array.isArray(store[k]) ? store[k] : []).forEach(function(e){
+      if (!e || !e.id) return;
+      var u = e.unit || 'ea';
+      var lbl = ((e.code ? e.code + ' ' : '') + (e.desc || '')).trim() || 'Price book item';
+      rows.push({ key: 'cpb:' + e.id, label: lbl, autoQty: parseFloat(e.qty) || 0, autoUnit: u,
+                  variants: [{ value: 'cpb', label: e.supplier ? e.supplier : 'Your price book', price: parseFloat(e.cost) || 0, unit: u }],
+                  defaultVariant: 'cpb', singleVariant: true, decimalQty: true, isCpb: true,
+                  note: 'from your price book, at cost' });
+    });
+  });
+}
+// ✕ on a price-book material takes it off the job (it was added, not worked
+// out, so there is nothing to restore it to).
+function _cpbMatRemove(entryId){
+  var store = (window.S && S.quote && S.quote.cpbMat) || null;
+  if (!store) return false;
+  var hit = false;
+  Object.keys(store).forEach(function(k){
+    if (!Array.isArray(store[k])) return;
+    var n = store[k].length;
+    store[k] = store[k].filter(function(e){ return !(e && e.id === entryId); });
+    if (store[k].length !== n) hit = true;
+    if (!store[k].length) delete store[k];
+  });
+  return hit;
 }
 // ── the Defaults tab ──
 function _pbkDefaultsHtml(){
@@ -16888,7 +16993,9 @@ async function _matSaveAsDefault(path, n, label){
   }
 }
 function _deleteMatRow(key){
-  MATERIAL_DELETED[key] = true;
+  var _cm = /(?:^|:)cpb:(.+)$/.exec(String(key || ''));
+  if (_cm && _cpbMatRemove(_cm[1])) delete MATERIAL_OVERRIDES[key];
+  else MATERIAL_DELETED[key] = true;
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
@@ -17420,6 +17527,8 @@ function _buildMaterialPriceRows(){
   // The supplier's own product where the Custom Price Book links one: the
   // row reads "DFE80 Dektite EPDM 80mm — Steel & Tube", not RoofMap's name.
   try { _cpbBrandRows(rows); } catch(e){}
+  // Price-book items the office added as materials, at their cost.
+  try { _cpbMatRows(rows); } catch(e){}
   return rows;
 }
 function _cpbPathForVariant(row, v){
@@ -26862,7 +26971,19 @@ function _profitFigures(view){
         if (li && (li._base || li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding')) return;
         other += (parseFloat(li && li.qty) || 0) * (parseFloat(li && li.unit) || 0);
       });
-      if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: other, hrs: 0, sub:'typed on the quote · at cost' });
+      // A line from the price book cost us the item's cost, not its price
+      // (2026-10-27): the margin its mark-up carries is real and shows here.
+      // Every line typed by hand stays at cost.
+      var otherCost = other;
+      try {
+        ['labour', 'material', 'scaffold'].forEach(function(area){
+          _qCustomBaseLines(area).forEach(function(row){
+            otherCost -= (parseFloat(row && row.amount) || 0) - _qCustomLineCost(row);
+          });
+        });
+      } catch(e){ otherCost = other; }
+      if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: otherCost, hrs: 0,
+        sub: (Math.abs(other - otherCost) >= 0.005) ? 'typed on the quote · price-book items at their cost' : 'typed on the quote · at cost' });
     } catch(e){}
   }
   out.items = items;
@@ -38145,14 +38266,20 @@ function _qCustomLinesForCsv(area, idx){
 function _qCustomFoldInto(idx){
   if (!(idx >= 1)) return;
   var q = (window.S && S.quote) || null;
-  if (!q || !q.customLines) return;
+  if (!q) return;
   ['labour', 'material', 'scaffold'].forEach(function(area){
+    if (!q.customLines) return;
     var from = q.customLines[_qCustomArea(area, idx)];
     if (!Array.isArray(from) || !from.length) return;
     var to = _qCustom(area);
     from.forEach(function(r){ to.push(r); });
     delete q.customLines[_qCustomArea(area, idx)];
   });
+  var cm = q.cpbMat && q.cpbMat[_qCustomArea('material', idx)];
+  if (Array.isArray(cm) && cm.length){
+    q.cpbMat.material = (q.cpbMat.material || []).concat(cm);
+    delete q.cpbMat[_qCustomArea('material', idx)];
+  }
 }
 function _qCustomBaseLines(area){
   var cl = (window.S && S.quote && S.quote.customLines) || {}, out = [];
@@ -38166,9 +38293,9 @@ function _qCustomBaseLines(area){
 // '<area>' as roof 0. 'gutter' is the job's own trade and never moves.
 function _qCustomRemap(mapFn){
   var q = (window.S && S.quote) || null;
-  if (!q || !q.customLines || typeof q.customLines !== 'object') return;
+  if (!q) return;
   var AREAS = ['labour', 'material', 'scaffold'];
-  var src = q.customLines, out = {};
+  var src = (q.customLines && typeof q.customLines === 'object') ? q.customLines : {}, out = {};
   Object.keys(src).forEach(function(k){
     var h = k.indexOf('#');
     var area = (h < 0) ? k : k.slice(0, h);
@@ -38182,6 +38309,20 @@ function _qCustomRemap(mapFn){
     else out[key] = src[k];
   });
   q.customLines = out;
+  // The price-book materials are keyed the same way, so they move the same way.
+  if (q.cpbMat && typeof q.cpbMat === 'object'){
+    var cm = {};
+    Object.keys(q.cpbMat).forEach(function(k){
+      var h = k.indexOf('#');
+      var idx = (h < 0) ? 0 : parseInt(k.slice(h + 1), 10);
+      if (!isFinite(idx)){ cm[k] = q.cpbMat[k]; return; }
+      var m = mapFn(idx);
+      if (!(m >= 0)) return;
+      var key = (m > 0) ? ('material#' + m) : 'material';
+      cm[key] = (cm[key] || []).concat(q.cpbMat[k] || []);
+    });
+    q.cpbMat = cm;
+  }
 }
 // QUANTITY × UNIT PRICE (2026-09-25: a custom line "needs to have a quantity
 // and unit price just like the other set prices"). `amount` stays the line's
@@ -72703,10 +72844,21 @@ function _scopePricingRows(){
   }
   if (scope === 'total') idx = 0;
   var g = _profitFigures(scope);
+  // MATERIALS, THEN THE OTHER LINES, THEN THE SUMMARY (2026-10-27, Scott:
+  // "M1 … M5, Total Materials; C1 … C3, Total Other Lines; 1. Scaffolding,
+  // 2. Roofing labour + materials, 3. Other lines on the quote, 4. Total").
+  // The lines typed on the main roof's cards reach the quote as lines of
+  // their own, and the profitability list counts them as "Other lines on the
+  // quote" — so on the main roof's and the Quote Total sheet they are listed
+  // there, once, and not inside the card they were typed on. An extra roof is
+  // priced as a lump, so on its own sheet its lines stay in its cards.
+  var linesApart = (idx === 0);
   var scopeName = (scope === 'total') ? ((_tabN > 1) ? 'the whole quote \u2014 every roof; the cards below are the Main Roof\u2019s' : 'the whole quote') : _pricingRoofName(idx);
   try {
     put('Job', 'Quote', (S.quote && S.quote.ref) ? String(S.quote.ref) : '');
     put('Job', 'Client', (S.quote && S.quote.clientName) || '');
+    // (2026-10-27, Scott: "Include Address in CSV export".)
+    put('Job', 'Site address', (S.quote && S.quote.addr) || '');
     put('Job', 'This sheet covers', scopeName);
     put('Job', 'Roof area', (scope === 'total' && _tabN > 1) ? 'along the pitch, every roof on the quote' : 'along the pitch', num(g.area, 1), 'm²');
     put('Job', 'Pitch', '', num(DRAW && DRAW.calPitch, 1), '°');
@@ -72717,7 +72869,7 @@ function _scopePricingRows(){
     var sc = _scaffoldEff(_roofScaffold(idx));
     var scType = (_roofScaffold(idx).type === 'platform') ? 'full working platform' : 'edge protection';
     gap(); put('Scaffolding', 'Scaffolding', scType, null, null, null, sc.price, sc.cost);
-    _qCustomLinesForCsv('scaffold', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('scaffold', idx).forEach(function(cl){
       put('Scaffolding', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
   } catch(e){}
@@ -72746,7 +72898,7 @@ function _scopePricingRows(){
       put('Roof labour', (x && x.name) || 'Labourer', byArea ? 'hours (cost only)' : '', h, 'hrs',
           pr, byArea ? null : h * pr, h * co, h);
     });
-    _qCustomLinesForCsv('labour', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('labour', idx).forEach(function(cl){
       put('Roof labour', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
     put('Roof labour', 'Labour total', '', null, null, null,
@@ -72768,13 +72920,14 @@ function _scopePricingRows(){
       var price = _matOvPrice(ov, picked ? picked.price : 0);
       var line = (qty || 0) * (price || 0);
       matBase += line;
-      var detail = (picked && picked.label && picked.label !== row.label) ? picked.label : '';
+      var detail = row.isCpb ? ('from your price book, at cost' + (picked && picked.label && picked.label !== 'Your price book' ? ' \u00b7 ' + picked.label : ''))
+                 : ((picked && picked.label && picked.label !== row.label) ? picked.label : '');
       put('Roof materials', row.label || row.key, detail, qty, unit, price, line);
     });
     // The lines typed on this tab sit where the table puts them: under the
     // items, OUTSIDE the buffer and the mark-up (a typed figure is the price).
     var _mCustom = 0;
-    _qCustomLinesForCsv('material', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('material', idx).forEach(function(cl){
       _mCustom += cl.amount;
       put('Roof materials', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
@@ -72843,6 +72996,40 @@ function _scopePricingRows(){
           gOwn ? (gBuffered * (1 + gMk / 100) + _gutterLabourCharge(glm) + gDown) : window._gdCardTotal);
     }
   } catch(e){ try { console.warn('pricing csv gutter', e); } catch(_){} }
+
+  // ── OTHER LINES ON THE QUOTE, one by one ──────────────────────
+  // Exactly what the profitability list's "Other lines on the quote" adds
+  // up: every line typed on the main roof's cards (price-book items at their
+  // cost), then any other line on the quote.
+  if (linesApart){
+    try {
+      var oRows = [], oRev = 0, oCost = 0;
+      var AREA_NM = { labour: 'on the labour card', material: 'on the materials card', scaffold: 'on the scaffolding card' };
+      ['labour', 'material', 'scaffold'].forEach(function(area){
+        _qCustomBaseLines(area).forEach(function(row){
+          _qCustomNorm(row);
+          var amt = parseFloat(row && row.amount) || 0, desc = ((row && row.desc) || '').trim();
+          if (!amt && !desc) return;
+          var c = _qCustomLineCost(row);
+          oRows.push([desc || ('Custom ' + area + ' line'), (row.cpbId ? 'price-book item ' : 'line you typed ') + AREA_NM[area],
+                      row.qty, row.uom || '', row.unit, amt, c]);
+          oRev += amt; oCost += c;
+        });
+      });
+      (S.quote.lineItems || []).forEach(function(li){
+        if (!li || li._custom || li._base || li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding') return;
+        var q = parseFloat(li.qty) || 0, u = parseFloat(li.unit) || 0, a = q * u;
+        if (!a && !String(li.desc || '').trim()) return;
+        oRows.push([String(li.desc || '').trim() || 'Quote line', 'line on the quote', q, '', u, a, a]);
+        oRev += a; oCost += a;
+      });
+      if (oRows.length){
+        gap();
+        oRows.forEach(function(r){ put('Other lines on the quote', r[0], r[1], r[2], r[3], r[4], r[5], r[6]); });
+        put('Other lines on the quote', 'Total other lines', '', null, null, null, oRev, oCost);
+      }
+    } catch(e){ try { console.warn('pricing csv other lines', e); } catch(_){} }
+  }
 
   // ── JOB PROFITABILITY, the panel's own list ───────────────────
   gap();
