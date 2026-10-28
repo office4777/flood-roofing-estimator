@@ -54,6 +54,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
     return j({ status: TENDER.status, task: TENDER.tasks[0] || null, pages: TENDER.pages.length, classified: TENDER.pages.length, files: TENDER.files });
   }
   const im = /^\/tender\/tn-1\/pages\/(p-\d+)\/image$/.exec(p);
+  if (im && u.searchParams.get('kind') === 'pdf') return j({ url: 'https://storage.test/plans.pdf', page: 1, fileId: 'f-1', expiresIn: 3600 });
   if (im) {   // a stand-in A3 sheet, so the plans panel has something to show
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1188" viewBox="0 0 1680 1188"><rect width="1680" height="1188" fill="#fff"/><rect x="30" y="30" width="1620" height="1128" fill="none" stroke="#222" stroke-width="4"/>' +
       '<rect x="320" y="260" width="760" height="520" fill="none" stroke="#111" stroke-width="6"/><line x1="320" y1="260" x2="580" y2="520" stroke="#111" stroke-width="3"/><line x1="1080" y1="260" x2="820" y2="520" stroke="#111" stroke-width="3"/><line x1="320" y1="780" x2="580" y2="520" stroke="#111" stroke-width="3"/><line x1="1080" y1="780" x2="820" y2="520" stroke="#111" stroke-width="3"/><line x1="580" y1="520" x2="820" y2="520" stroke="#111" stroke-width="4"/>' +
@@ -125,6 +126,12 @@ function finish(){
 const puts = [];
 await pg.route('**/stub.storage.test/**', async r => { puts.push({ url: r.request().url(), size: (r.request().postDataBuffer() || Buffer.alloc(0)).length, ct: r.request().headers()['content-type'] }); return r.fulfill({ status: 200, contentType: 'application/json', body: '{"Key":"x"}' }); });
 
+await pg.addInitScript(() => {   // a stand-in pdf.js: records each sharp redraw of a zoomed plan page
+  window.__pdfRenders = [];
+  window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: o => ({ promise: Promise.resolve({ numPages: 1, getPage: () => Promise.resolve({
+    getViewport: ({ scale }) => ({ width: 1190 * scale, height: 842 * scale, scale }),
+    render: ({ canvasContext, viewport, transform }) => { window.__pdfRenders.push({ url: o.url, scale: viewport.scale, t: transform, w: canvasContext.canvas.width }); canvasContext.fillStyle = '#123'; canvasContext.fillRect(transform[4], transform[5], 1190 * viewport.scale, 842 * viewport.scale); return { promise: Promise.resolve(), cancel(){} }; } }) }) }) };
+});
 await pg.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.removeItem('fr_settings');
   localStorage.setItem('fr_user', JSON.stringify({ email: 'sam@floodroofing.co.nz', name: 'Sam Blake' }));
   localStorage.setItem('fr_company', JSON.stringify({ id: 'c1', name: 'Flood Roofing Ltd' }));
@@ -336,10 +343,10 @@ r = await pg.evaluate(async () => {
   const a = document.getElementById('tnSide').getBoundingClientRect(), m = document.querySelector('.tn-main').getBoundingClientRect(), tab = document.getElementById('tab-tender').getBoundingClientRect(), c = document.getElementById('tnChat').getBoundingClientRect();
   window.scrollTo(0, 1500); await new Promise(res => setTimeout(res, 150));
   const a2 = document.getElementById('tnSide').getBoundingClientRect(), c2 = document.getElementById('tnChat').getBoundingClientRect();
-  return { navLeft: Math.round(a.left - tab.left), navRight: Math.round(a.right), mainLeft: Math.round(m.left), mainRight: Math.round(m.right), mainW: Math.round(m.width), chatLeft: Math.round(c.left), chatTop: Math.round(c.top), navTop: Math.round(a.top), chatTop2: Math.round(c2.top), navTop2: Math.round(a2.top), chatBottom: Math.round(c.bottom), vh: innerHeight, inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height) };
+  return { navLeft: Math.round(a.left - tab.left), navRight: Math.round(a.right), mainLeft: Math.round(m.left), mainRight: Math.round(m.right), mainW: Math.round(m.width), chatLeft: Math.round(c.left), chatTop: Math.round(c.top), navTop: Math.round(a.top), chatTop2: Math.round(c2.top), navTop2: Math.round(a2.top), chatBottom: Math.round(c.bottom), vh: innerHeight, inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height), navH: Math.round(a.height), chatH: Math.round(c.height), lastGap: Math.round(document.getElementById('tnNav').getBoundingClientRect().bottom - [...document.querySelectorAll('#tnNav .tn-nav-i')].pop().getBoundingClientRect().bottom) };
 });
 check('on a wide screen the menu sits at the far left, the chat on the right, the tender full width between them', r.navLeft <= 10 && r.mainLeft > r.navRight && r.chatLeft > r.mainRight && Math.abs(r.chatTop - r.navTop) <= 2 && r.mainW > 900, JSON.stringify(r));
-check('…both pinned from the top, never moving, the chat running to the foot of the screen', Math.abs(r.chatTop2 - r.chatTop) <= 2 && Math.abs(r.navTop2 - r.navTop) <= 2 && r.vh - r.chatBottom <= 16 && r.inH >= 90, JSON.stringify(r));
+check('…both pinned from the top, never moving; the menu ends just below Sheet index and the chat is the same height', Math.abs(r.chatTop2 - r.chatTop) <= 2 && Math.abs(r.navTop2 - r.navTop) <= 2 && r.lastGap >= 0 && r.lastGap <= 24 && Math.abs(r.chatH - r.navH) <= 2 && r.vh - r.chatBottom > 40 && r.inH >= 90, JSON.stringify(r));
 // a narrow window (the owner's, beside the PDF): the sheet is shrunk to fit, never cut off at the right, and still drawn to A4
 await pg.setViewportSize({ width: 1000, height: 900 }); await pg.waitForTimeout(500);
 await pg.evaluate(() => _tnNavGo('tn-a-doc')); await pg.waitForTimeout(1600);
@@ -400,6 +407,17 @@ await pg.mouse.move(slot2.x + 80, slot2.y + 60, { steps: 4 });
 await pg.mouse.up();
 const z2 = await pg.evaluate(() => window.__tnPlansState());
 check('Ctrl + wheel zooms the page on screen, and a press-and-drag moves around it', z1.at === 1 && z1.z.s > 1.5 && (z2.z.x !== z1.z.x || z2.z.y !== z1.z.y) && z2.z.s === z1.z.s, JSON.stringify([z1, z2]));
+await pg.waitForTimeout(500);
+r = await pg.evaluate(() => { const st = window.__tnPlansState(), slot = document.querySelector('#tnpvList .tnpv-slot[data-i="' + st.at + '"]'), cv = slot.querySelector('canvas.tnpv-hi'), R = window.__pdfRenders, last = R[R.length - 1];
+  return { renders: R.length, url: last && last.url, shown: cv && getComputedStyle(cv).display, cvW: cv && cv.width, slotW: slot.clientWidth, dpr: devicePixelRatio, scale: last && last.scale, f: Math.min(slot.clientWidth / 1190, slot.clientHeight / 842), s: st.z.s, slider: +document.getElementById('tnpvZoom').value, pct: document.getElementById('tnpvPct').textContent }; });
+check('a zoomed page is drawn again sharp from the plan set itself, at the screen\'s own resolution', r.renders >= 1 && r.url === 'https://storage.test/plans.pdf' && r.shown === 'block' && r.cvW === Math.round(r.slotW * Math.min(3, r.dpr)) && Math.abs(r.scale - r.f * r.s * Math.min(3, r.dpr)) < 0.01, JSON.stringify(r));
+check('…and the zoom slider follows the wheel', r.slider > 5 && r.pct === Math.round(r.s * 100) + '%', JSON.stringify(r));
+await pg.evaluate(() => _tnPlansZoomTo(50)); await pg.waitForTimeout(500);
+r = await pg.evaluate(() => { const st = window.__tnPlansState(), R = window.__pdfRenders; return { s: st.z.s, pct: document.getElementById('tnpvPct').textContent, scale: R[R.length - 1].scale }; });
+check('the zoom slider zooms the page (half way is 3.5×) and the sharp drawing follows', Math.abs(r.s - Math.sqrt(12)) < 0.01 && r.pct === '346%', JSON.stringify(r));
+await pg.evaluate(() => _tnPlansZoomTo(0)); await pg.waitForTimeout(300);
+r = await pg.evaluate(() => { const st = window.__tnPlansState(), slot = document.querySelector('#tnpvList .tnpv-slot[data-i="' + st.at + '"]'), cv = slot.querySelector('canvas.tnpv-hi'); return { s: st.z.s, shown: cv && getComputedStyle(cv).display, pct: document.getElementById('tnpvPct').textContent }; });
+check('…and back to the left fits the page again, the picture alone', r.s === 1 && r.shown === 'none' && r.pct === '100%', JSON.stringify(r));
 await pg.evaluate(() => _tnPlans(false));
 
 if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and the PDF as Chrome prints it

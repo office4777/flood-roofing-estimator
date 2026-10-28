@@ -178,6 +178,12 @@
       if (chat) chat.style.left = Math.round(lay.getBoundingClientRect().left + 8) + 'px';
       return;
     }
+    if (both.length === 2) {   // three columns: the menu ends just below its last link (Sheet index) and the chat is the same height (2026-10-28, the owner)
+      side.style.top = cs.style.top = y + 'px'; side.style.height = 'auto';
+      var h = Math.min(window.innerHeight - y - 10, Math.max(360, Math.ceil(side.getBoundingClientRect().height)));
+      side.style.height = cs.style.height = h + 'px';
+      return;
+    }
     both.forEach(function(el){ el.style.top = y + 'px'; el.style.height = 'calc(100vh - ' + (y + 10) + 'px)'; });
   }
   window.addEventListener('resize', function(){ sidePin(); });
@@ -207,6 +213,8 @@
       '.tnpv-slot.zoomed{cursor:grab}.tnpv-slot.grabbing{cursor:grabbing}',
       '.tnpv-slot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;pointer-events:none}',
       '.tnpv-cap{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(10,22,40,.78);color:#fff;font-size:11.5px;padding:3px 8px;border-radius:6px;max-width:80%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-slot canvas.tnpv-hi{position:absolute;left:0;top:0;z-index:1;transform-origin:0 0;pointer-events:none;display:none}',
+      '.tnpv-zoom{display:flex;align-items:center;gap:6px;flex:0 1 170px;min-width:90px}.tnpv-zoom input{flex:1 1 auto;min-width:60px;accent-color:#0099cc;cursor:pointer}.tnpv-zoom span{font-size:11.5px;color:#475569;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}',
       '.tnpv-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}',
       '@media screen and (max-width:900px){#tnPlansPop{width:92vw}}',
       '@media print{#tnPlansPop{display:none!important}}',
@@ -227,7 +235,9 @@
       '<button type="button" id="tnPlansTab" onclick="_tnPlans()" title="The plan set"><span class="a">◀</span><span class="t">PLANS</span><span></span></button>' +
       '<div class="tnpv-hd"><b>Plans</b><span class="tnpv-at" id="tnpvAt"></span>' +
       '<button type="button" class="tnpv-b" title="Previous page" onclick="_tnPlansStep(-1)">▲</button><button type="button" class="tnpv-b" title="Next page" onclick="_tnPlansStep(1)">▼</button>' +
-      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button><button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
+      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button>' +
+      '<label class="tnpv-zoom" title="Zoom"><input type="range" id="tnpvZoom" min="0" max="100" step="1" value="0" oninput="_tnPlansZoomTo(this.value)" aria-label="Zoom"><span id="tnpvPct">100%</span></label>' +
+      '<button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
       '<button type="button" class="tnpv-b" title="Fit the page" onclick="_tnPlansZoom(0)">↺</button></div>' +
       '<div class="tnpv-list" id="tnpvList"></div>';
     document.body.appendChild(el);
@@ -265,7 +275,20 @@
   function plansHead(){
     var at = document.getElementById('tnpvAt'), p = PV.list[PV.at];
     if (at) at.textContent = PV.list.length ? ('Page ' + (PV.at + 1) + ' of ' + PV.list.length + (p && p.sheet_id ? ' · ' + p.sheet_id : '') + (p && p.title ? ' ' + p.title : '')) : '';
+    plansZoomSync();
   }
+  // THE ZOOM SLIDER (2026-10-28, the owner: "add a zoom slider bar"): 0..100
+  // on a log scale, so the first doubling is not crammed into the left tenth.
+  var PV_ZMAX = 12;
+  function plansZoomSync(){
+    var sl = document.getElementById('tnpvZoom'), pc = document.getElementById('tnpvPct'), z = PV.z[PV.at] || { s: 1 };
+    if (sl && document.activeElement !== sl) sl.value = Math.round(100 * Math.log(z.s) / Math.log(PV_ZMAX));
+    if (pc) pc.textContent = Math.round(z.s * 100) + '%';
+  }
+  window._tnPlansZoomTo = function(v){
+    var s2 = Math.pow(PV_ZMAX, Math.max(0, Math.min(100, +v || 0)) / 100), z = PV.z[PV.at] || { s: 1 };
+    plansZoomAt(PV.at, s2 / z.s);
+  };
   function plansSlot(i){ return document.querySelector('#tnpvList .tnpv-slot[data-i="' + i + '"]'); }
   function plansIndexAt(){
     var list = document.getElementById('tnpvList'), s0 = plansSlot(0); if (!list || !s0) return 0;
@@ -291,6 +314,60 @@
     var z = PV.z[i] || { s: 1, x: 0, y: 0 };
     var img = slot.querySelector('img'); if (img) img.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.s + ')';
     slot.classList.toggle('zoomed', z.s > 1.001);
+    plansHiAlign(i); plansSharpSoon(i);
+    if (i === PV.at) plansZoomSync();
+  }
+  // SHARP WHEN ZOOMED (2026-10-28, the owner: "the plans are blurry on zoom
+  // in"). The page picture is at most 2000 px, so blown up it goes soft. Once
+  // a zoom settles, the part of the page in view is drawn again from the plan
+  // set itself (pdf.js, range requests, so only the bytes needed come down)
+  // at the screen's own resolution, on a canvas over the picture. While the
+  // page is moving the last drawing is carried along with it; if the PDF
+  // cannot be had the picture alone stays, as before.
+  var PDFS = {}, sharpT = {};
+  function plansDoc(p){
+    if (PDFS[p.file_id]) return PDFS[p.file_id];
+    var pr = PDFS[p.file_id] = api('GET', '/tender/' + T.id + '/pages/' + p.id + '/image?kind=pdf').then(function(x){
+      if (!x || !x.url || !x.page || typeof window._pdfjsLoad !== 'function') throw new Error('no plan set');
+      return window._pdfjsLoad().then(function(lib){ return lib.getDocument({ url: x.url, disableAutoFetch: true, disableStream: true }).promise; });
+    });
+    pr.catch(function(){ setTimeout(function(){ if (PDFS[p.file_id] === pr) delete PDFS[p.file_id]; }, 60000); });
+    return pr;
+  }
+  function plansHiAlign(i){
+    var slot = plansSlot(i), cv = slot && slot.querySelector('canvas.tnpv-hi'), z = PV.z[i];
+    if (!cv || !cv._z) return;
+    if (!z || z.s <= 1.001 || cv._W !== slot.clientWidth || cv._H !== slot.clientHeight) { cv.style.display = 'none'; return; }
+    var k = z.s / cv._z.s;
+    cv.style.transform = 'translate(' + (z.x - k * cv._z.x) + 'px,' + (z.y - k * cv._z.y) + 'px) scale(' + k + ')';
+    cv.style.display = 'block';
+  }
+  function plansSharpSoon(i){ clearTimeout(sharpT[i]); sharpT[i] = setTimeout(function(){ plansSharp(i); }, 220); }
+  function plansSharp(i){
+    var slot = plansSlot(i), p = PV.list[i], z = PV.z[i];
+    if (!slot || !p || !z || z.s <= 1.001 || !PV.open) return;
+    var want = { s: z.s, x: z.x, y: z.y }, W = slot.clientWidth, H = slot.clientHeight;
+    plansDoc(p).then(function(doc){ return doc.getPage(p.page_no); }).then(function(pg){
+      var cur = PV.z[i]; if (!cur || cur.s !== want.s || cur.x !== want.x || cur.y !== want.y || slot.clientWidth !== W) return;   // moved on; the next settle draws it
+      var dpr = Math.min(3, window.devicePixelRatio || 1), v1 = pg.getViewport({ scale: 1 });
+      var f = Math.min(W / v1.width, H / v1.height), ox = (W - v1.width * f) / 2, oy = (H - v1.height * f) / 2;
+      var cv = slot.querySelector('canvas.tnpv-hi');
+      if (!cv) { cv = document.createElement('canvas'); cv.className = 'tnpv-hi'; slot.insertBefore(cv, slot.querySelector('.tnpv-cap')); }
+      if (cv._task) { try { cv._task.cancel(); } catch (e) {} }
+      var off = document.createElement('canvas'); off.width = Math.round(W * dpr); off.height = Math.round(H * dpr);
+      var ctx = off.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, off.width, off.height);
+      var task = pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: f * want.s * dpr }), transform: [1, 0, 0, 1, dpr * (want.x + want.s * ox), dpr * (want.y + want.s * oy)] });
+      cv._task = task;
+      return task.promise.then(function(){
+        cv._task = null;
+        cv.width = off.width; cv.height = off.height; cv.getContext('2d').drawImage(off, 0, 0);
+        cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv._z = want; cv._W = W; cv._H = H;
+        plansHiAlign(i);
+      });
+    }).catch(function(e){
+      if (e && /Cancel/i.test(e.name || '')) return;
+      if (e && /40[13]|expired|Unexpected server response/i.test(String(e.message || e))) delete PDFS[p.file_id];   // the hour-long link ran out: ask again next time
+    });
   }
   // Keep a zoomed page from being dragged right off its slot.
   function plansClamp(i){
@@ -303,7 +380,7 @@
     var slot = plansSlot(i); if (!slot) return;
     var z = PV.z[i] || { s: 1, x: 0, y: 0 };
     if (px == null) { px = slot.clientWidth / 2; py = slot.clientHeight / 2; }
-    var s2 = f === 0 ? 1 : Math.max(1, Math.min(8, z.s * f));
+    var s2 = f === 0 ? 1 : Math.max(1, Math.min(PV_ZMAX, z.s * f));
     z.x = px - (px - z.x) * (s2 / z.s); z.y = py - (py - z.y) * (s2 / z.s); z.s = s2;
     PV.z[i] = z; plansClamp(i); plansApply(i);
   }

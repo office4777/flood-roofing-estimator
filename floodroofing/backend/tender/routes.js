@@ -432,6 +432,15 @@ function mount(app, deps){
     try {
       const x = await pageFor(req, res); if (!x) return;
       const kind = String(req.query.kind || 'image');
+      // The plan set itself, so the Plans window can draw a zoomed page sharp
+      // from the drawing's own lines rather than blowing up a 2000 px picture
+      // (2026-10-28, the owner: "the plans are blurry on zoom in").
+      if (kind === 'pdf') {
+        const { data: fs } = await supabase.from('tender_files').select('id,storage_path').eq('id', x.p.file_id).eq('tender_id', x.t.id);
+        const f = (fs || [])[0];
+        if (!f || !f.storage_path) return res.status(404).json({ error: 'The plan set is not stored' });
+        return res.json({ url: await storage.signedUrl(f.storage_path, 3600), page: x.p.page_no, fileId: f.id, expiresIn: 3600 });
+      }
       const path = kind === 'thumb' ? x.p.thumb_path : kind === 'tb' ? x.p.tb_path : x.p.image_path;
       if (!path) return res.status(404).json({ error: 'No picture of this page' });
       res.json({ url: await storage.signedUrl(path, 900), expiresIn: 900 });

@@ -351,6 +351,10 @@ r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind
 check('a page picture comes as a short-lived URL', r.status === 200 && /^http/.test(r.body.url));
 const img = await fetch(r.body.url);
 check('…that serves a JPEG', img.status === 200 && /jpeg/.test(img.headers.get('content-type')));
+r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind=pdf');
+check('the plan set itself comes as a short-lived URL with the page number, for a sharp zoom', r.status === 200 && /^http/.test(r.body.url) && r.body.page === pg(4).page_no, JSON.stringify(r.body));
+r = await call(T2, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind=pdf');
+check('…never to another company', r.status === 404 || r.status === 403);
 r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/text?words=1');
 check('a page\'s text and words with positions', r.status === 200 && /PITCH 15 DEG/.test(r.body.text) && r.body.words && r.body.words.words.some(w => /ROOF/.test(w.s) && w.x > 0 && w.y > 0), JSON.stringify(r.body).slice(0, 200));
 r = await call(T1, 'PUT', '/tender/' + TID + '/pages/' + pg(5).id, { cls: 'section', title: 'SECTIONS A-A' });
