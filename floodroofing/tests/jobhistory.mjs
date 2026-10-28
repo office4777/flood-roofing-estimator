@@ -161,13 +161,20 @@ v = await pg.evaluate(() => {
   const bg = (id) => getComputedStyle(document.getElementById(id)).backgroundColor;
   return { inOrder, shown: getComputedStyle(els[2]).display !== 'none' && getComputedStyle(els[3]).display !== 'none',
            txt: (els[2] || {}).textContent || '', ftxt: (els[3] || {}).textContent || '',
-           blues: [bg('navJobChangeBtn'), bg('navJobHistBtn'), bg('navJobFilesBtn')] };
+           blues: [bg('navJobChangeBtn')],
+           greys: [bg('navJobHistBtn'), bg('navJobFilesBtn'), bg('navJobLockSide')],
+           align: ['navJobHistBtn', 'navJobFilesBtn'].map(id => getComputedStyle(document.getElementById(id)).textAlign) };
 });
 check('the left menu reads Save job, Change job, History & Communications, Files & Photos, then the lock',
   v.inOrder, JSON.stringify(v));
 check('…History & Communications and Files & Photos are buttons of their own there, shown with the job',
   v.shown && /History & Communications/.test(v.txt) && /Files & Photos/.test(v.ftxt), JSON.stringify(v));
-check('…both the same blue as Change job', v.blues.every(b => /rgb\(0, *153, *204\)/.test(b)), JSON.stringify(v.blues));
+check('…Change job stays blue', v.blues.every(b => /rgb\(0, *153, *204\)/.test(b)), JSON.stringify(v.blues));
+// 2026-10-28, the owner: "change the blue buttons to a grey button, same as
+// 'locked/unlocked' and center the words like save job and change job is".
+check('…History and Files are the lock strip\'s grey, words centred',
+  v.greys[0] === v.greys[2] && v.greys[1] === v.greys[2] && !/rgb\(0, *153, *204\)/.test(v.greys[0]) &&
+  v.align.every(a => a === 'center'), JSON.stringify([v.greys, v.align]));
 // ── the history window ──
 await pg.evaluate(() => { S.currentJobId = 'j1'; _jobHistoryOpen(); });
 await pg.waitForTimeout(700);

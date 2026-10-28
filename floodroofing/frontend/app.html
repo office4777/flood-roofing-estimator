@@ -5173,7 +5173,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T18:26:19Z';
+  window.APP_BUILT_AT = '2026-10-28T19:28:42Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5754,17 +5754,19 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          the 'save job'"). The job's timeline and every email with the customer
          about it, one tap from any tab. Shown with the job's other buttons. -->
     <button type="button" id="navJobHistBtn" class="lock-ok" onclick="_jobHistoryOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
     <!-- FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
          below the history and communications button ... change the colour of
          this new button and the history button to be the same blue as 'change
          job' and then put the 'unlocked/locked' button at the bottom of those
-         buttons"). Everything exported or sent from the job, the office's own
+         buttons"); 2026-10-28: "change the blue buttons to a grey button, same
+         as 'locked/unlocked' and center the words" — both are the lock strip's
+         grey now, words centred, the count a small blue chip). Everything exported or sent from the job, the office's own
          uploads, and the Fergus job's files — _jobFilesOpen. -->
     <button type="button" id="navJobFilesBtn" class="lock-ok" onclick="_jobFilesOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
     <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center"></button>
 
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
