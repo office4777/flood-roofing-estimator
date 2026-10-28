@@ -487,6 +487,11 @@ html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
+#cornerBumpRow{padding:0 9px 8px}
+#cornerBumpRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
+#cornerBumpRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+#cornerBumpRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
+#cornerBumpRow .crn-bump:hover:not(.on){background:rgba(255,255,255,.08)}
 html.site-mode #cornerRepoPopup{width:132px!important}   /* !important beats the inline width */
 html.site-mode #cornerRepoPopup .crn-btn{width:28px;height:28px;font-size:13px;border-radius:7px}
 html.site-mode #cornerRepoPopup .crn-grid{grid-template-columns:repeat(3,28px)!important;gap:4px!important;padding:7px!important}
@@ -5159,7 +5164,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T03:12:28Z';
+  window.APP_BUILT_AT = '2026-10-28T03:41:23Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6497,6 +6502,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.01m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.01m">▶</button>
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
+        <div id="cornerBumpRow" style="display:none"></div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
       <!-- Ridge / valley junction nudge pad — the corner pad's twin, with one
@@ -19737,7 +19743,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -19941,6 +19947,7 @@ function restoreFromJob(j){
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
     DRAW.ridgeBreaks = Array.isArray(snap.draw.ridgeBreaks) ? snap.draw.ridgeBreaks : [];
     DRAW.hipEnds = (snap.draw.hipEnds && typeof snap.draw.hipEnds === 'object') ? snap.draw.hipEnds : null;
+    DRAW.bumpModes = (snap.draw.bumpModes && typeof snap.draw.bumpModes === 'object') ? snap.draw.bumpModes : null;
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -52675,7 +52682,7 @@ function _roofGeometryPayload(){
       activeRoofIdx: DRAW.activeRoofIdx,
       // The builder's own inputs, so a report re-builds the same roof.
       roofType: DRAW.roofType || '', rotation: DRAW.rotation || 0, roofBaseHoriz: DRAW.roofBaseHoriz,
-      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null,
+      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null,
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
       // Everything the CUT LIST is built from besides the geometry — the
       // typed quantities and lengths, sheets deleted off the plan, measure
@@ -52814,7 +52821,12 @@ function _cornerRepoOpen(idx){
   if (idx == null || idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
   window._cornerRepo.idx = idx;
   var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
+  // Grabbing a bump's corner fixes the kind of roof over it as it stands, so
+  // the drag that follows can make it deeper or shallower but never turn it
+  // into the other kind (reports 78 and 79).
+  _bumpLockModes();
   pop.style.display = 'block';
+  try { _cornerBumpRowRender(); } catch(e){}
   // First open (or not yet user-moved this session): pin it to the top-left
   // corner of the canvas so it always lands in a predictable, out-of-the-way
   // spot. The moving corner itself is highlighted (yellow ring) on the canvas,
@@ -53490,6 +53502,139 @@ function _ridgeBreakBoxRender(l){
 // _gblPushRidge in buildGableRoofLines).
 var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg', 'hipEnd'];
 function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
+// ══ A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH ══
+// Feedback reports 78 and 79 (2026-10-28, the owner on job 3302): "inside the
+// fine adjustments window ... show a button to convert this section/corner
+// from hip & valley to mono-extension, because as you can see from the
+// background, the roof extends slightly but it doesn't have hip and valley
+// like what appears if i go too far", and "i also don't want it to auto change
+// to a mono-extension if i make it short". A BUMP is a short wall standing out
+// from a straight one (A-B-C-D below: B and C the outer corners, A and D on the
+// wall it stands out from). Built as a hip roof, a deep one got its own little
+// hip end (two hips, two valleys, a ridge) and a shallow one — under
+// _roofSquareUp's squaring tolerance, about half a metre here — was squared
+// into the wall and got nothing, so the KIND of roof over it was decided by
+// how far the corner happened to be dragged.
+// DRAW.bumpModes[<index of B>] = 'hv' | 'mono' is the choice, per roof. 'mono'
+// is the main slope carried out over the bump: the hips are built as if the
+// bump were not there, its outer wall is gutter and its two sides are barges.
+// 'hv' is its own little hip end at any depth (_SQ_KEEP keeps its outer wall
+// out of the squaring). Grabbing a corner of a bump LOCKS what is on screen
+// (_bumpLockModes), so a drag never changes the kind by itself; the pad's two
+// buttons are the only way to change it. Hip roofs only.
+var _SQ_KEEP = null;
+function _outlineBumps(ol){
+  var out = [];
+  if (!ol || ol.length < 8) return out;
+  var n = ol.length, area = 0, i;
+  for (i = 0; i < n; i++){ var p0 = ol[i], q0 = ol[(i + 1) % n]; area += p0[0] * q0[1] - q0[0] * p0[1]; }
+  var sg = area > 0 ? 1 : -1;
+  var P = function(k){ return ol[((k % n) + n) % n]; };
+  var turn = function(k){ var a = P(k - 1), b = P(k), c = P(k + 1);
+    return ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])) * sg; };
+  var unit = function(a, b){ var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    return l < 1e-6 ? null : [dx / l, dy / l, l]; };
+  for (i = 0; i < n; i++){
+    var ia = i, ib = (i + 1) % n, ic = (i + 2) % n, id = (i + 3) % n;
+    if (!(turn(ib) > 0 && turn(ic) > 0 && turn(ia) < 0 && turn(id) < 0)) continue;   // B, C stand out; A, D are inside corners
+    var A = P(ia), B = P(ib), C = P(ic), D = P(id);
+    var uAB = unit(A, B), uBC = unit(B, C), uCD = unit(C, D), uPA = unit(P(i - 1), A), uDN = unit(D, P(i + 4));
+    if (!uAB || !uBC || !uCD || !uPA || !uDN) continue;
+    if (Math.abs(uAB[0] * uBC[0] + uAB[1] * uBC[1]) > 0.26) continue;
+    if (Math.abs(uBC[0] * uCD[0] + uBC[1] * uCD[1]) > 0.26) continue;
+    if (uPA[0] * uBC[0] + uPA[1] * uBC[1] < 0.96 || uDN[0] * uBC[0] + uDN[1] * uBC[1] < 0.96) continue;   // one straight wall either side
+    var off = (D[0] - A[0]) * -uBC[1] + (D[1] - A[1]) * uBC[0];
+    if (Math.abs(off) > Math.max(3, 0.25 * Math.min(uAB[2], uCD[2]))) continue;   // A and D on that one wall
+    out.push({ a: ia, b: ib, c: ic, d: id, key: String(ib), depth: (uAB[2] + uCD[2]) / 2, width: uBC[2],
+               axis: Math.abs(uBC[0]) >= Math.abs(uBC[1]) ? 1 : 0 });
+  }
+  return out;
+}
+function _bumpForCorner(idx){
+  var bs = _outlineBumps(DRAW.outline);
+  for (var i = 0; i < bs.length; i++){ var b = bs[i]; if (idx === b.a || idx === b.b || idx === b.c || idx === b.d) return b; }
+  return null;
+}
+// What the roof over a bump IS on screen: hip & valley when a hip or valley
+// ends at one of its corners, otherwise the main slope carried over it.
+function _bumpShownMode(b){
+  var cs = [b.a, b.b, b.c, b.d].map(function(k){ return DRAW.outline[k]; });
+  var hv = (DRAW.lines || []).some(function(l){
+    return l && (l.type === 'hip' || l.type === 'valley') && l.pts && l.pts.some(function(p){
+      return cs.some(function(c){ return Math.hypot(p[0] - c[0], p[1] - c[1]) < 4; });
+    });
+  });
+  return hv ? 'hv' : 'mono';
+}
+function _bumpLockModes(){
+  try {
+    if (_detectAutoRoofType() !== 'hip') return;
+    var bs = _outlineBumps(DRAW.outline); if (!bs.length) return;
+    var m = DRAW.bumpModes || {};
+    bs.forEach(function(b){ if (m[b.key] !== 'hv' && m[b.key] !== 'mono') m[b.key] = _bumpShownMode(b); });
+    DRAW.bumpModes = m;
+  } catch(e){}
+}
+function _hipLinesWithBumps(outline){
+  var modes = (window.DRAW && DRAW.bumpModes) || null;
+  // Keyed to the drawing's own corners: only that outline carries them.
+  if (!modes || !outline || !DRAW.outline || outline.length !== DRAW.outline.length ||
+      outline.some(function(p, k){ return p[0] !== DRAW.outline[k][0] || p[1] !== DRAW.outline[k][1]; })) return buildHipValleyLines(outline);
+  var bs = _outlineBumps(outline).filter(function(b){ return modes[b.key] === 'hv' || modes[b.key] === 'mono'; });
+  if (!bs.length) return buildHipValleyLines(outline);
+  var drop = {}, extra = [], keep = [];
+  bs.forEach(function(b){
+    var A = outline[b.a], B = outline[b.b], C = outline[b.c], D = outline[b.d];
+    if (modes[b.key] === 'mono'){
+      drop[b.b] = 1; drop[b.c] = 1;
+      extra.push({ type: 'barge', pts: [A.slice(), B.slice()], bumpSide: true },
+                 { type: 'barge', pts: [C.slice(), D.slice()], bumpSide: true });
+    } else {
+      keep.push({ axis: b.axis, vals: [B[b.axis], C[b.axis]] });
+      // Its own hip end has eaves all round, the short sides included (the
+      // outline pass only guttered a side over about 0.8 m of drawing).
+      extra.push({ type: 'gutter', pts: [A.slice(), B.slice()], bumpSide: true },
+                 { type: 'gutter', pts: [C.slice(), D.slice()], bumpSide: true });
+    }
+  });
+  var ol = outline.filter(function(_, k){ return !drop[k]; });
+  var lines;
+  _SQ_KEEP = keep.length ? keep : null;
+  try { lines = buildHipValleyLines(ol) || []; } finally { _SQ_KEEP = null; }
+  return lines.concat(extra);
+}
+// The pad's two buttons.
+function _cornerBumpRowRender(){
+  var row = document.getElementById('cornerBumpRow'); if (!row) return;
+  var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
+  var b = (idx >= 0 && _detectAutoRoofType() === 'hip') ? _bumpForCorner(idx) : null;
+  if (!b){ row.style.display = 'none'; row.innerHTML = ''; return; }
+  var cur = (DRAW.bumpModes && DRAW.bumpModes[b.key]) || _bumpShownMode(b);
+  var btn = function(mode, label, tip){
+    var on = cur === mode;
+    return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-bump="' + mode + '" title="' + tip + '" onclick="_bumpSetMode(\'' + mode + '\')">' + (on ? '✓ ' : '') + label + '</button>';
+  };
+  row.style.display = 'block';
+  row.innerHTML = '<div class="crn-bump-hd">This bump’s roof</div>' +
+    btn('hv', 'Hip &amp; valley', 'Its own small hip end: two hips, two valleys and a ridge') +
+    btn('mono', 'Mono extension', 'The main roof carried out over it: gutter on the end, barges on the sides');
+}
+function _bumpSetMode(mode){
+  if (mode !== 'hv' && mode !== 'mono') return;
+  var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
+  var b = idx >= 0 ? _bumpForCorner(idx) : null; if (!b) return;
+  saveSnapshot();
+  _bumpLockModes();
+  DRAW.bumpModes[b.key] = mode;
+  try { regenerateAutoRoofLines('hip'); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  redrawAll();
+  try { updateMeasTotals(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  _cornerBumpRowRender();
+}
+
 function regenerateAutoRoofLines(roofType){
   if (!roofType || !DRAW.outline || DRAW.outline.length < 3) return;
   _squareDrawnOutline();
@@ -53500,7 +53645,7 @@ function regenerateAutoRoofLines(roofType){
   }));
   try {
     var lines = null;
-    if      (roofType === 'hip')   lines = buildHipValleyLines(DRAW.outline);
+    if      (roofType === 'hip')   lines = _hipLinesWithBumps(DRAW.outline);
     // Straight gable keeps its ROTATED axis across corner drags — a
     // regen without the flip snapped the ridge back to the long axis.
     else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')
@@ -54323,7 +54468,16 @@ function onCanvasMouseDown(e) {
     var vxy = getXY(e);
     var tr = getImgTransform();
     var GRAB = tr ? OUTLINE_VERT_GRAB/tr.s : OUTLINE_VERT_GRAB;
-    for(var vi=0; vi<DRAW.outline.length; vi++){
+    // The NEAREST corner in reach, not the first one listed: a shallow bump's
+    // outer corner sits a few pixels from the inside corner below it, and the
+    // first-found rule grabbed the inside one and moved the whole wall
+    // (feedback reports 78 and 79).
+    var _vBest = -1, _vBestD = GRAB;
+    for (var _vk = 0; _vk < DRAW.outline.length; _vk++){
+      var _vd = Math.hypot(DRAW.outline[_vk][0]-vxy[0], DRAW.outline[_vk][1]-vxy[1]);
+      if (_vd < _vBestD){ _vBestD = _vd; _vBest = _vk; }
+    }
+    for(var vi=(_vBest >= 0 ? _vBest : DRAW.outline.length); vi<DRAW.outline.length; vi++){
       var v = DRAW.outline[vi];
       var vdx = v[0]-vxy[0], vdy = v[1]-vxy[1];
       if(Math.sqrt(vdx*vdx + vdy*vdy) < GRAB){
@@ -59230,6 +59384,7 @@ function finishCurrent() {
   if(t==='outline'&&pts.length>=3){
     DRAW.outline=_outlineDropRepeats(pts);
     DRAW.outlineDone=true;
+    DRAW.bumpModes=null;   // a new outline's bumps carry no choice yet
     DRAW.currentPts=[];
     // Lazily seed roofs[] for the very first outline so subsequent
     // outlines extend the multi-roof model.
@@ -60046,6 +60201,7 @@ function _captureSnapState() {
     sheetTextScale: DRAW.sheetTextScale || {},
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
     tapes: JSON.parse(JSON.stringify(DRAW.tapes || [])),
+    bumpModes: DRAW.bumpModes ? JSON.parse(JSON.stringify(DRAW.bumpModes)) : null,
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
     matSheetFrozen: DRAW.matSheetFrozen || null,
@@ -60127,6 +60283,7 @@ function _applySnapState(snapStr) {
   if ('calibratePixels' in s) DRAW.calibratePixels = s.calibratePixels || 0;
   if ('calPitch' in s)        DRAW.calPitch        = s.calPitch || 0;
   if ('lowPitch' in s)        DRAW.lowPitch        = s.lowPitch || 0;
+  if ('bumpModes' in s)       DRAW.bumpModes       = s.bumpModes ? JSON.parse(JSON.stringify(s.bumpModes)) : null;
   if ('calMeasType' in s)     DRAW.calMeasType     = s.calMeasType || 'flat';
   if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
   if ('calPitchAtCal' in s)   DRAW.calPitchAtCal   = s.calPitchAtCal || 0;
@@ -60286,7 +60443,7 @@ function clearAll(silent) {
   DRAW.editMode = 'scaled';
   DRAW.offScale = null;
   // A new job never inherits the last roof's broken ridge or hipped ends.
-  DRAW.ridgeBreaks = []; DRAW.hipEnds = null;
+  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -80116,10 +80273,22 @@ function _roofSquareUp(outline){
     return false;
   };
   if (moves(xs) || moves(ys)) needs = true;
+  // A bump the office has said is HIP & VALLEY (_hipLinesWithBumps) keeps its
+  // outer wall however shallow it is: its two corners square to each other
+  // and never into the wall it stands out from.
+  var _keep = (typeof _SQ_KEEP !== 'undefined' && _SQ_KEEP) ? _SQ_KEEP : null;
+  if (_keep && _keep.length) needs = true;
   // Square to the pixel already: nothing to do.
   if (!needs) return null;
-  function cluster(vals){
-    var s2 = vals.slice().sort(function(p, q){ return p - q; }), map = {}, k = 0;
+  function cluster(vals, axis){
+    var map = {};
+    (_keep || []).forEach(function(g){
+      if (g.axis !== axis) return;
+      var m0 = (g.vals[0] + g.vals[1]) / 2;
+      g.vals.forEach(function(v){ map[v] = m0; });
+    });
+    vals = vals.filter(function(v){ return !(v in map); });
+    var s2 = vals.slice().sort(function(p, q){ return p - q; }), k = 0;
     while (k < s2.length){
       var e = k;
       while (e + 1 < s2.length && s2[e + 1] - s2[k] <= tol) e++;
@@ -80130,7 +80299,7 @@ function _roofSquareUp(outline){
     }
     return map;
   }
-  var mx = cluster(xs), my = cluster(ys);
+  var mx = cluster(xs, 0), my = cluster(ys, 1);
   var ol = outline.map(function(p){ return [mx[p[0]], my[p[1]]]; });
   var clean = [];
   for (i = 0; i < ol.length; i++){
@@ -82355,7 +82524,7 @@ function _roofOrientForOutline(outline){
 // through-ridge and longer sheets across the corner.)
 function _roofLinesForType(type, outline, rot){
   var rotSteps = Math.round(((rot || 0) % 360 + 360) % 360 / 90) % 4;
-  if (type === 'hip')       return buildHipValleyLines(outline);
+  if (type === 'hip')       return _hipLinesWithBumps(outline);
   if (type === 'gable')     return buildGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'stepgable') return buildStepGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'gable-hv')  return buildGableRoofLines_legacy(outline);
@@ -82562,7 +82731,7 @@ function _clearBuiltRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -82579,7 +82748,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null,
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -82591,7 +82760,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, lowPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }
