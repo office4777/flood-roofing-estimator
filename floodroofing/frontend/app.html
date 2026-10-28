@@ -5159,7 +5159,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T00:27:21Z';
+  window.APP_BUILT_AT = '2026-10-28T03:12:28Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -40887,9 +40887,19 @@ var MARLEY_COLOURS = [
   { name:'Lichen®',        hex:'#8a8b6c' },
   { name:'Slate®',         hex:'#4a4f54' },
 ];
-// Marley Typhoon's own colour range, for a Gutters only quote (2026-10-28).
-// PENDING THE OWNER'S CHART: until it is copied in, the Marley swatches above.
-var MARLEY_TYPHOON_COLOURS = MARLEY_COLOURS.slice();
+// Marley Typhoon's own colour range, for a Gutters only quote (2026-10-28),
+// from marley.co.nz/products/rainwater/spouting/typhoon (the owner's chart):
+// White, then the Stratus design series.
+var MARLEY_TYPHOON_COLOURS = [
+  { name:'White',          hex:'#ffffff' },
+  { name:'Black',          hex:'#161616' },
+  { name:'Grey Friars®',   hex:'#50535a' },
+  { name:'Ironsand®',      hex:'#363334' },
+  { name:'Gull Grey',      hex:'#c8c8c5' },
+  { name:'FlaxBlack®',     hex:'#2b2725' },
+  { name:'Titanium',       hex:'#abaeb6' },
+  { name:'Copper',         hex:'#7c5026' },
+];
 var STEEL_GUTTER_PROFILES = [
   { key:'quad',       name:'Continuous Quad',     blurb:'Square-fronted, the New Zealand standard — bold lines, sharp edges.' },
   { key:'smoothline', name:'Smoothline',          blurb:'Internal bracketing for a fully concealed look — modern architectural choice.' },

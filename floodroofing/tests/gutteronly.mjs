@@ -120,6 +120,19 @@ check('…Marley Typhoon shows the Typhoon chart', v.ty.kind === 'typhoon' && v.
 check('…and Marley Classic is white, compulsory, with nothing else to pick', v.cl.kind === 'classic' && v.classic === 'White' && v.classicSw === 1 && !v.classicUndecided, JSON.stringify(v));
 check('a colour the new gutter does not come in is cleared when the gutter changes', v.kept === 'Ironsand®' && v.afterTy === '', JSON.stringify([v.kept, v.afterTy]));
 
+// ── Typhoon's own chart, the owner's (marley.co.nz) ──
+v = await pg.evaluate(() => {
+  _setProposalOption_gutter('box125'); _setProposalOption_gutterColour('Ironsand®');
+  _setProposalOption_gutter('marley_typhoon');
+  const keptAcross = S.quote.proposalOptions.gutterColour;
+  const html = _qbGutterColour();
+  return { names: MARLEY_TYPHOON_COLOURS.map(c => c.name), keptAcross, sw: (html.match(/class="qb-sw( on)?"/g) || []).length,
+           copper: /Copper/.test(html), white: /White/.test(html) };
+});
+check('Typhoon offers its own eight: White and the Stratus range',
+  v.names.join() === 'White,Black,Grey Friars®,Ironsand®,Gull Grey,FlaxBlack®,Titanium,Copper' && v.sw === 8 && v.copper && v.white, JSON.stringify(v));
+check('…and a colour both gutters come in is kept when the gutter changes', v.keptAcross === 'Ironsand®', JSON.stringify(v));
+
 // ── it stays a gutters job across a save and reopen ──
 v = await pg.evaluate(() => {
   const snap = snapshotCurrentJob();
