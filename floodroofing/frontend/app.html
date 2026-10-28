@@ -5152,7 +5152,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-27T21:36:50Z';
+  window.APP_BUILT_AT = '2026-10-28T00:19:54Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -13750,6 +13750,16 @@ try {
       if (!S.settings) S.settings = {};
       if (s.selectables && typeof s.selectables === 'object') S.settings.selectables = s.selectables;
       if (s.price_book && typeof s.price_book === 'object') S.settings.price_book = Object.assign({}, S.settings.price_book || {}, s.price_book);
+      // …and the email wordings, so a tab open since before they were written
+      // never sends the old ones back (2026-10-28). Not under the office's
+      // hands: the Settings tab on screen keeps what is being typed.
+      try {
+        if (s.quote_defaults && s.quote_defaults.email && typeof s.quote_defaults.email === 'object' && document.body.getAttribute('data-tab') !== 'settings'){
+          var _qd0 = S.settings.quote_defaults || {};
+          S.settings.quote_defaults = Object.assign({}, _qd0, { email: Object.assign({}, _qd0.email || {}, s.quote_defaults.email) });
+          window.__settingsUiFilled = false;
+        }
+      } catch(e){}
       try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
       try { _qbBindExtraSetters(); } catch(e){}
       try { if (document.body.getAttribute('data-tab') === 'quote') refreshQuoteProposal(); } catch(e){}
@@ -14252,7 +14262,15 @@ function mergeSettings(s){
       var lp = Object.assign({}, d.labour_pricing, s.labour_pricing || {});
       lp.per_item_hours = Object.assign({}, d.labour_pricing.per_item_hours, (s.labour_pricing && s.labour_pricing.per_item_hours) || {});
       return lp;
-    })()
+    })(),
+    // THE PRODUCTS THE BUSINESS SELLS (2026-10-28, the owner: "the gutter
+    // profile pictures i upload ... disappear after an app reload"). This
+    // function never carried them, so every load set S.settings.selectables
+    // to nothing: the quote fell back to the shipped defaults, opening
+    // Settings seeded those defaults, and the next save from anywhere wrote
+    // them over the stored list — pictures, rates, own grades and options.
+    // Absent stays absent: a save without the key keeps what is stored.
+    selectables: (s.selectables && typeof s.selectables === 'object' && !Array.isArray(s.selectables)) ? s.selectables : undefined
   };
 }
 
@@ -14310,8 +14328,19 @@ async function loadSettings(){
 var _settingsAutosaveTimer = null;
 function _scheduleSettingsAutosave(){
   clearTimeout(_settingsAutosaveTimer);
-  _settingsAutosaveTimer = setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 900);
+  _settingsAutosaveTimer = setTimeout(function(){ _settingsAutosaveTimer = null; try { saveSettings(true); } catch(e){} }, 900);
 }
+// A reload (an app update, a closed tab) inside that 900 ms used to lose what
+// was just typed. Leaving the page saves it now rather than after the beat.
+try {
+  var _settingsFlush = function(){
+    if (!_settingsAutosaveTimer) return;
+    clearTimeout(_settingsAutosaveTimer); _settingsAutosaveTimer = null;
+    try { saveSettings(true); } catch(e){}
+  };
+  window.addEventListener('pagehide', _settingsFlush);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') _settingsFlush(); });
+} catch(e){}
 // A Save button that SHOWS it saved (2026-09-22): a spinner for at least a
 // second, then a green tick with the time, or a red "Not saved" — the
 // owner could not tell whether a click had done anything.
@@ -14378,6 +14407,8 @@ async function saveSettings(auto){
     // silent about keep what is already in memory.
     S.settings.branding = Object.assign({}, S.settings.branding || {}, saved.branding || {});
     S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults || {}, saved.quote_defaults || {});
+    // The reset marks have done their job once a save has landed.
+    try { window.__emxTouched = {}; if (S.settings.quote_defaults && S.settings.quote_defaults.email){ S.settings.quote_defaults.email = Object.assign({}, S.settings.quote_defaults.email); delete S.settings.quote_defaults.email.__reset; } } catch(e){}
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
     if (saved.billing_email !== undefined) S.settings.billing_email = saved.billing_email;
     // …and put the menu back in step with whatever that merge settled on.
@@ -14500,6 +14531,13 @@ function collectSettingsFromUI(){
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
   try { _emxCollect(q.email); } catch(e){}
+  // An email wording the office emptied or put back to the standard ON THIS
+  // SCREEN is a deliberate reset; the server keeps any stored wording over a
+  // blank otherwise (2026-10-28: a stale tab's save wiped a custom quote email).
+  try {
+    var _rs = Object.keys(window.__emxTouched || {}).filter(function(k){ return !q.email[k]; });
+    if (_rs.length) q.email.__reset = _rs; else delete q.email.__reset;
+  } catch(e){}
   q.email.reminder_enabled = !!((document.getElementById('emReminderOn')||{}).checked);
   var _rd = parseInt(((document.getElementById('emReminderDays')||{}).value || ''), 10);
   q.email.reminder_days = (isFinite(_rd) && _rd >= 1 && _rd <= 30) ? _rd : 3;
@@ -19142,7 +19180,8 @@ async function _swSave(){
       labour_pricing: S.settings.labour_pricing || {},
       // The company's products. This was missing, so everything set up in
       // Settings → Products stayed in the browser it was typed into.
-      selectables: S.settings.selectables || null,
+      // Left out when this screen has none: null would erase the stored list.
+      selectables: S.settings.selectables || undefined,
     });
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
     try { applyBranding(); } catch(e){}
@@ -20008,6 +20047,8 @@ function _jobLockRender(){
   // edit, so the chip says that instead of "more info".
   var more = document.getElementById('navJobMore');
   if (more) more.textContent = (show && sent) ? 'Click for new version or info' : 'Click for more info';
+  // The Viewing menu says "locked" or "editing" — keep it in step.
+  try { if (document.getElementById('qvViewingMenu') && typeof _qvRenderBar === 'function') _qvRenderBar(); } catch(e){}
 }
 async function _jobLockToggle(){
   if (!S.currentJobId) return;
@@ -32221,7 +32262,12 @@ function _qvBackToDraft(opts){
   var keep = S.quote.versions;
   if (S._qvWork){ S.quote = JSON.parse(JSON.stringify(S._qvWork)); S.quote.versions = keep; }
   S._qvViewing = null; S._qvWork = null;
-  if (!(opts && opts.stayLocked)){ S.jobLocked = false; try { _jobLockRender(); } catch(e){} }
+  // A SENT QUOTE STAYS LOCKED (2026-10-28, the owner on job 3299: "this
+  // quote has been sent, why is the quote not locked?"). Choosing the draft
+  // from the Viewing menu unlocked the job silently; now a job whose quote
+  // has gone out keeps its lock there, and the first edit asks to unlock.
+  if (opts && opts.relock){ S.jobLocked = !!(S.currentJobId && _quoteWasSent()); try { _jobLockRender(); } catch(e){} }
+  else if (!(opts && opts.stayLocked)){ S.jobLocked = false; try { _jobLockRender(); } catch(e){} }
   try { buildQuote(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { recalcQuoteTotals(); } catch(e){}
@@ -32429,10 +32475,10 @@ function _qvRenderBar(){
   var viewingSend = (cur === 'sent') ? (sends.find(function(d){ return d.id === viewing.id; }) || v.sent) : null;
   var name = cur === 'sent' ? 'Sent quote' + (viewingSend ? sendNo(viewingSend) : '') : cur === 'accepted' ? 'Accepted quote' : workingName;
   var html = '<details class="qv-menu lock-ok" id="qvViewingMenu"><summary class="qv-btn qv-viewing">Viewing: <b>' + name + '</b>' +
-    (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">editing</span>') +
+    (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">' + ((typeof _jobLockActive === 'function' && _jobLockActive()) ? 'locked' : 'editing') + '</span>') +
     ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
     '<div class="qv-menu-hd">Versions</div>' +
-    item(viewing ? '_qvBackToDraft()' : '', workingName, 'The editable quote', cur === 'draft') +
+    item(viewing ? '_qvBackToDraft({relock:true})' : '', workingName, 'The editable quote', cur === 'draft') +
     // Every send, newest first: "Sent quote 2 · latest", "Sent quote 1".
     sends.slice().reverse().map(function(d){
       var latest = d === v.sent;
@@ -46309,7 +46355,17 @@ function _emxTag(k, t){
   el.focus();
   try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
 }
+// The email wordings typed on THIS screen since the last save, by stored key.
+window.__emxTouched = window.__emxTouched || {};
+function _emxTouch(k){ window.__emxTouched[k + '_subject'] = 1; window.__emxTouched[k + '_body'] = 1; }
+document.addEventListener('input', function(ev){
+  try {
+    var id = ev.target && ev.target.id; if (!id) return;
+    Object.keys(EMX_TPL).forEach(function(k){ if (EMX_TPL[k].indexOf(id) >= 0) _emxTouch(k); });
+  } catch(e){}
+}, true);
 function _emxReset(k){
+  _emxTouch(k);
   if (k === 'quote') return _resetQuoteEmailTemplate();
   var d = _emxDefault(k), ids = EMX_TPL[k] || [];
   var su = document.getElementById(ids[0]), bo = document.getElementById(ids[1]);

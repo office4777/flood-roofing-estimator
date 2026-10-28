@@ -281,6 +281,25 @@ check('Change job is back in the left menu under the selected job',
   chg.there && chg.inBox && chg.shown && /openSelectJobModal/.test(chg.opens), JSON.stringify(chg));
 check('…and is not left duplicated inside the job details window', chg.notInModal, JSON.stringify(chg));
 
+// A SENT QUOTE STAYS LOCKED (2026-10-28, job 3299: "this quote has been sent,
+// why is the quote not locked?"). Choosing the Draft from the Viewing menu,
+// after the send had put the Sent quote on screen, unlocked the job silently.
+const rl = await pg.evaluate(async () => {
+  await openJob('job-88'); await new Promise(r => setTimeout(r, 400));
+  S.quote.share = Object.assign({}, S.quote.share || {}, { token: 'tok', sentAt: new Date().toISOString(), sentTo: 'r@p.nz' });
+  _qvMarkSent(); _qvView('sent');
+  const onSent = S.jobLocked;
+  gotoTab('quote'); _qvRenderBar();
+  const item = [...document.querySelectorAll('#qvViewingMenu [onclick]')].find(x => /_qvBackToDraft/.test(x.getAttribute('onclick')));
+  if (item) item.click();
+  await new Promise(r => setTimeout(r, 200));
+  const sum = (document.querySelector('#qvViewingMenu summary') || {}).textContent || '';
+  return { onSent, item: !!item, back: !S._qvViewing, locked: _jobLockActive(), sum,
+    strip: (document.getElementById('navJobLockSide') || {}).textContent || '' };
+});
+check('back on the draft of a SENT quote the job stays locked', rl.onSent && rl.item && rl.back && rl.locked, JSON.stringify(rl));
+check('…and the Viewing menu and the left menu say so', /locked/i.test(rl.sum) && /Locked/.test(rl.strip), JSON.stringify(rl));
+
 check('the page threw no errors', errs.length === 0, errs.join(' | ') || 'clean');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

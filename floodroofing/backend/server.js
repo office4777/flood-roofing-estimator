@@ -4758,7 +4758,8 @@ app.put('/settings', requireAuth, async (req, res) => {
   // phone, not on the office machine, not for anyone else on the team, and
   // gone with the cache. Undefined means "the client did not carry them" —
   // an older build, or a partial save — and must not erase what is stored.
-  if (selectables !== undefined) payload.selectables = selectables;
+  // A null is the same: a screen that never loaded them (2026-10-28).
+  if (selectables !== undefined && selectables !== null) payload.selectables = selectables;
   // Where billing mail goes. Undefined means the writer didn't carry it (an
   // older build, a partial save) and must not erase it; an empty string is a
   // deliberate clear, which falls back to the account's own login address.
@@ -4859,6 +4860,29 @@ app.put('/settings', requireAuth, async (req, res) => {
       const hasInE = F.some(k => String(inE[k] || '').trim());
       if (hasExE && !hasInE && !inE.__cleared){
         payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, inE, { quote_cc: exE.quote_cc || '', accept_to: exE.accept_to || '', order_cc: exE.order_cc || '', copy_all: exE.copy_all || '' }) });
+      }
+      // THE EMAIL WORDINGS (2026-10-28, the owner: "my custom email quote
+      // template keeps reverting back to default after an update or reload").
+      // Every settings save carries the whole email block, and a tab or device
+      // that loaded before the wording was written sends it back blank — the
+      // standard wording is stored as ''. A stored wording is kept over a blank
+      // unless the save names it in `__reset` (the office emptied it, or pressed
+      // Reset, on a live screen).
+      const inE2 = (payload.quote_defaults && payload.quote_defaults.email) || null;
+      if (inE2 && typeof inE2 === 'object'){
+        const reset = Array.isArray(inE2.__reset) ? inE2.__reset.map(String) : [];
+        const kept = {};
+        for (const k of Object.keys(exE)){
+          if (!/_(subject|body)$/.test(k)) continue;
+          if (!String(exE[k] || '').trim()) continue;
+          if (String(inE2[k] || '').trim()) continue;
+          if (reset.includes(k)) continue;
+          kept[k] = exE[k];
+        }
+        if (Object.keys(kept).length || '__reset' in inE2){
+          const e2 = Object.assign({}, inE2, kept); delete e2.__reset;
+          payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: e2 });
+        }
       }
       if (payload.quote_defaults && payload.quote_defaults.email && payload.quote_defaults.email.__cleared){
         payload.quote_defaults = Object.assign({}, payload.quote_defaults, { email: Object.assign({}, payload.quote_defaults.email) });

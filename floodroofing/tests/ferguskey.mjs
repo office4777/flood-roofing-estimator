@@ -169,6 +169,37 @@ check('…and does not wipe the stored Fergus key',
 r = await as(B, '/fergus/jobs?pageSize=5');
 check('…so the connection still stands', r.status === 502, 'status ' + r.status);
 
+// ── the email wordings and the products survive a stale writer (2026-10-28) ──
+// The owner: "my custom email quote template keeps reverting back to default
+// after an update or reload" and "the gutter profile pictures i upload ...
+// disappear after an app reload".
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' },
+  quote_defaults: { email: { quote_subject: 'Our quote {ref}', quote_body: 'Kia ora {client}, our own words.' } },
+  selectables: { gutters: [{ id: 'box125', name: '125mm box', img: 'data:image/png;base64,AAAA' }] },
+}) });
+check('a custom quote email and a gutter picture save', r.status === 200, 'status ' + r.status);
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' },
+  quote_defaults: { email: { quote_subject: '', quote_body: '' } },
+  selectables: null,
+}) });
+body = await j(await as(B, '/settings'));
+check('a save carrying the standard wording as blanks keeps the custom quote email',
+  body.quote_defaults && body.quote_defaults.email && body.quote_defaults.email.quote_body === 'Kia ora {client}, our own words.' && body.quote_defaults.email.quote_subject === 'Our quote {ref}',
+  JSON.stringify((body.quote_defaults || {}).email || {}).slice(0, 160));
+check('a save carrying no products (null) keeps the stored list and its picture',
+  body.selectables && body.selectables.gutters && body.selectables.gutters[0].img === 'data:image/png;base64,AAAA',
+  JSON.stringify(body.selectables || null).slice(0, 120));
+r = await as(B, '/settings', { method: 'PUT', body: JSON.stringify({
+  branding: { company_name: 'John Doe Roofing' },
+  quote_defaults: { email: { quote_subject: '', quote_body: '', __reset: ['quote_subject', 'quote_body'] } },
+}) });
+body = await j(await as(B, '/settings'));
+check('…while a deliberate Reset to the standard wording is honoured',
+  body.quote_defaults && body.quote_defaults.email && !body.quote_defaults.email.quote_body && !body.quote_defaults.email.quote_subject && !('__reset' in body.quote_defaults.email),
+  JSON.stringify((body.quote_defaults || {}).email || {}).slice(0, 160));
+
 // ── the download proxy never carries the key off Fergus ───────────
 // endsWith on the raw host let attacker-registerable lookalikes through
 // (notfergus.com ends with fergus.com). Only the exact allowed host or a
