@@ -294,6 +294,21 @@ function mount(app, deps){
       const mode = AMEND_MODES[b.mode] ? b.mode : 'chat';
       const instruction = mode === 'chat' ? String(b.instruction || '').trim().slice(0, 4000) : AMEND_MODES[mode];
       if (!instruction) return bad(res, 'Say what to change.');
+      // The chat box answers questions too (2026-10-28): a question is
+      // answered from the tender and the plans and changes nothing.
+      if (mode === 'chat' && !b.change) {
+        const asked = await askFirst(req, t, cur, instruction);
+        if (asked.error) return res.status(502).json({ error: 'Claude could not answer that: ' + asked.error });
+        if (asked.kind === 'question') {
+          const next = Object.assign({}, cur, { chat: (Array.isArray(cur.chat) ? cur.chat : []).concat([
+            { who: 'you', text: instruction, at: now() },
+            { who: 'ai', text: asked.answer || 'I could not find an answer to that in the plans.', pages: asked.pages || '', kind: 'answer', at: now() },
+          ]).slice(-40) });
+          // Not an undo point: nothing in the tender moved.
+          await supabase.from('tender_jobs').update({ doc: next, updated_at: now() }).eq('id', t.id);
+          return res.json({ ok: true, doc: next, answered: true });
+        }
+      }
       const forAi = {};
       ['project', 'roof', 'items', 'labour', 'scaffold', 'scope', 'exclusions', 'assumptions', 'rfis', 'timeline', 'duration_days', 'confidence_notes'].forEach(k => { forAi[k] = cur[k]; });
       const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'amend', model: '', prompt_version: '',
@@ -306,14 +321,44 @@ function mount(app, deps){
       await supabase.from('tender_ai_runs').insert(runRow);
       const st = await worker.settingsFor(t);
       const next = mergeAmend(cur, r.result, require('./pricebook').catalog(st));
+      // "Check these before you send it" is the draft's warnings; what the
+      // change did goes in the chat, not over them.
+      next.confidence_notes = cur.confidence_notes || '';
       next.chat = (Array.isArray(cur.chat) ? cur.chat : []).concat([
-        { who: 'you', text: mode === 'chat' ? instruction : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: now() },
+        { who: 'you', text: mode === 'chat' ? (String(b.said || '').trim().slice(0, 600) || instruction) : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: now() },
         { who: 'ai', text: String(r.result.confidence_notes || 'Done.'), at: now() },
       ]).slice(-40);
       await worker.saveDoc(t, next, mode === 'chat' ? ('Claude: ' + instruction.slice(0, 80)) : (mode === 'simplify' ? 'Simplify' : 'Minimise'));
       res.json({ ok: true, doc: next });
     } catch (e) { oops(res, e, 'POST /tender/:id/amend'); }
   });
+
+  // Read a chat message: a question (answered here) or a change.
+  const ASK_IMG_CLS = ['roof_plan', 'site_plan', 'elevation'];
+  async function askFirst(req, t, cur, message){
+    const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'ask', model: '', prompt_version: '',
+      in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0, cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
+    let plans = [], images = [];
+    try {
+      const { data: pages } = await supabase.from('tender_pages').select('id,page_no,file_id,sheet_id,title,revision,cls,text,image_path').eq('tender_id', t.id).order('page_no', { ascending: true });
+      const list = (pages || []).map(p => ({ cls: p.cls, image_path: p.image_path, pageNo: p.page_no,
+        label: 'p' + p.page_no + (p.sheet_id ? (' sheet ' + p.sheet_id) : '') + (p.revision ? (' rev ' + p.revision) : '') + (p.title ? (' "' + p.title + '"') : '') + ' [' + String(p.cls || 'other').replace(/_/g, ' ') + ']',
+        text: p.text || '' }));
+      plans = list;
+      const want = list.filter(p => p.image_path && ASK_IMG_CLS.indexOf(p.cls) >= 0)
+        .sort((a, b) => ASK_IMG_CLS.indexOf(a.cls) - ASK_IMG_CLS.indexOf(b.cls) || a.pageNo - b.pageNo).slice(0, 3);
+      await Promise.all(want.map(async (p) => { try { images.push({ mime: 'image/jpeg', base64: (await storage.download(p.image_path)).toString('base64'), label: 'Picture of ' + p.label + ':' }); } catch (e) {} }));
+    } catch (e) { /* the plans are a help, not a requirement */ }
+    const forAi = {};
+    ['project', 'roof', 'items', 'labour', 'scaffold', 'scope', 'exclusions', 'assumptions', 'rfis', 'timeline', 'duration_days', 'confidence_notes', 'org'].forEach(k => { if (cur[k] !== undefined) forAi[k] = cur[k]; });
+    let r;
+    try { r = await ai.askTender(forAi, message, plans, images, cur.chat); }
+    catch (e) { runRow.error = String(e && e.message || e).slice(0, 400); await supabase.from('tender_ai_runs').insert(runRow); return { error: runRow.error }; }
+    const u = r.usage || {};
+    Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
+    await supabase.from('tender_ai_runs').insert(runRow);
+    return r.result;
+  }
 
   // Edit one section of the tender document by describing the change (typed
   // or spoken). Words, lists and the organisation structure only — a change

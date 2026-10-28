@@ -43,7 +43,7 @@ globalThis.__TEST_TENDER_STORAGE = STORE;
 
 // The classifier: answers from the title-block text it is handed, the way
 // the model would, and keeps every request so the pins can read them.
-const AI_CALLS = [], DRAFT_CALLS = [];
+const AI_CALLS = [], DRAFT_CALLS = [], ASK_CALLS = [];
 // The tender itself (2026-10-27): a roof read off the set, one item matched
 // to the price book at a wrong price (the book's must win) and one not in
 // the book at all (the estimate must stand).
@@ -79,6 +79,12 @@ globalThis.__TEST_TENDER_AI = async (req) => {
     if (/\(exclusions\)/.test(req.text)) return Object.assign(blank, { exclusions: [{ text: 'Spouting', why: 'by the builder' }], summary: 'Cut to one.' });
     if (/\(price\)/.test(req.text)) return Object.assign(blank, { paragraphs: ['Valid for 60 days.'], lines: [{ desc: 'P&G', amount: 1500 }], summary: 'Added P&G.' });
     return blank;
+  }
+  if (req.tool === 'record_reply') {
+    ASK_CALLS.push(req);
+    const msg = req.text.split("THE ESTIMATOR'S MESSAGE:")[1] || '';
+    if (/\?\s*$/.test(msg)) return { kind: 'question', answer: 'Yes — A201 shows them as two buildings joined by a covered link.', pages: 'A201' };
+    return { kind: 'change', answer: '', pages: '' };
   }
   if (req.tool === 'record_tender') {
     DRAFT_CALLS.push(req);
@@ -273,6 +279,22 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   check('a chat instruction changes items, scope and exclusions together', x.status === 200 && !B.items.some(i => i.category === 'gutter') && B.exclusions.some(e => /Spouting/.test(e.text)), JSON.stringify(x.body).slice(0, 300));
   const cap = B.items.find(i => /Parapet/.test(i.description));
   check('…a new item gets an id and the book\'s price when it names a key', cap && cap.id && cap.unit_cost === 22 && cap.cost_source === 'pricebook', JSON.stringify(cap));
+  // A question is answered and changes nothing (2026-10-28)
+  const nAmend = DRAFT_CALLS.length;
+  x = await call(T1, 'GET', '/tender/' + TID);
+  const histBefore = (x.body.history || []).length, itemsBefore = JSON.stringify(x.body.doc.items);
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'Are blocks 1 and 5/6 separate buildings?', doc: B });
+  const Q = x.body.doc || {};
+  check('a question is answered in the chat', x.status === 200 && x.body.answered === true && /two buildings/.test(Q.chat[Q.chat.length - 1].text) && Q.chat[Q.chat.length - 1].pages === 'A201', JSON.stringify(x.body).slice(0, 300));
+  check('…without rewriting the tender', DRAFT_CALLS.length === nAmend && JSON.stringify(Q.items) === itemsBefore && Q.confidence_notes === B.confidence_notes);
+  check('…read with the plan set and the ask prompt', ASK_CALLS.length && ASK_CALLS[ASK_CALLS.length - 1].promptVersion === 'ask-tender.v1' && /THE PLAN SET, PAGE BY PAGE/.test(ASK_CALLS[ASK_CALLS.length - 1].text));
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…and is not an undo point', (x.body.history || []).length === histBefore && x.body.doc.chat.length === Q.chat.length);
+  const nAsk = ASK_CALLS.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', change: true, said: 'Tag out: Spouting', instruction: 'take the spouting out', doc: B });
+  check('a change asked for as one (Tag out, Edit with A.I.) skips the question step', x.status === 200 && ASK_CALLS.length === nAsk && !x.body.answered && x.body.doc.chat[x.body.doc.chat.length - 2].text === 'Tag out: Spouting');
+  check('…and leaves the draft\'s warnings alone', x.body.doc.confidence_notes === B.confidence_notes);
+  x = await call(T1, 'POST', '/tender/' + TID + '/undo', {});
   x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: '   ' });
   check('an empty instruction is refused', x.status === 400);
   x = await call(T1, 'GET', '/tender/' + TID);

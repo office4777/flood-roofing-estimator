@@ -243,4 +243,38 @@ async function editSection(section, label, current, instruction, opts){
   return r;
 }
 
-module.exports = { MODELS, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, SECTION_TOOL, draftTender, amendTender, editSection };
+// The chat box (2026-10-28, the owner: "I would like the chat bot not to be
+// focused on just changing the tender. But also asking questions"). Every
+// message is read first: a question is answered from the tender and the
+// plan set and changes nothing; only a change goes on to amendTender.
+const ASK_TOOL = {
+  name: 'record_reply',
+  description: 'Record whether the estimator asked a question or asked for a change, and the answer to a question.',
+  strict: true,
+  input_schema: obj({
+    kind: { type: 'string', enum: ['question', 'change'] },
+    answer: S('the answer to a question, plain text, or "" for a change'),
+    pages: S('the sheets or pages the answer came from, e.g. "A201, A403", or ""'),
+  }),
+};
+// `plans` = [{label, text}], `images` = [{mime, base64, label}].
+async function askTender(doc, message, plans, images, chat, opts){
+  const parts = ['THE TENDER AS IT IS NOW (JSON):', JSON.stringify(doc), ''];
+  const recent = (chat || []).slice(-8).map(m => (m.who === 'ai' ? 'A.I.: ' : 'Estimator: ') + String(m.text || '').slice(0, 1500));
+  if (recent.length) parts.push('THE CONVERSATION SO FAR:', recent.join('\n'), '');
+  parts.push('THE PLAN SET, PAGE BY PAGE:');
+  let budget = 240000;
+  for (const pg of (plans || [])) {
+    const t = String(pg.text || '').slice(0, Math.min(10000, budget));
+    budget -= t.length;
+    parts.push('', '=== ' + pg.label + ' ===', t || '(no text layer on this page)');
+    if (budget <= 0) { parts.push('', '(the rest of the set\'s text is left out for length)'); break; }
+  }
+  parts.push('', 'THE ESTIMATOR\'S MESSAGE:', String(message || '').slice(0, 4000));
+  const r = await structured('extract', 'ask-tender', ASK_TOOL, parts.join('\n'), images || [], Object.assign({ maxTokens: 6000 }, opts || {}));
+  const i = r.input || {};
+  r.result = { kind: i.kind === 'question' ? 'question' : 'change', answer: String(i.answer || '').trim().slice(0, 6000), pages: String(i.pages || '').trim().slice(0, 300) };
+  return r;
+}
+
+module.exports = { MODELS, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, SECTION_TOOL, ASK_TOOL, draftTender, amendTender, editSection, askTender };
