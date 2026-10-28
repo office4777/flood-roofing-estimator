@@ -2332,6 +2332,33 @@ not a saving, and 49 purple to 48 orange.
   (`_jobLockRender` re-renders the bar). New draft / Change template / Open
   saved draft still unlock — they are the office asking to edit.
   `tests/joblock.mjs`.
+- GUTTERS ONLY IS A THIRD JOB TYPE (2026-10-28, the owner: "add an job type
+  called 'Gutters only' and the canvas is very basic, only allows to draw the
+  gutter line, the quote gets changed to suit gutter ... no steel grade, no
+  profile, no thickness, no 'the old roofing', re-roof in the summary changes
+  to 'Gutters', the roofmap & aerial image just shows the aerial image and the
+  gutter lines, no basic map"). `S.quote.quoteKind === 'gutters'`
+  (`_isGutterJob`, `_gutterJobSync` puts `body.gutter-job` on), offered as
+  `#jtBtn_gutters` in the job details window and in the Quote tab's More menu
+  (`_setJobType`). THE CANVAS: Move, the Gutter line (`#btn-gjgutter`), the tape
+  and Custom Scale; no outline, no roof-lines menu, and a roof tool asked for
+  anyway becomes the gutter line; gutter lines need no outline to count.
+  THE QUOTE is the modern layout (`_gjSections`): cover, a Guttering Proposal,
+  the gutter (no "No new guttering"), its colour (`gcolour`), brackets and
+  downpipes, the quote's own options and the total — no grade, profile,
+  thickness, roof colour or old roofing. The summary's first line is "Gutters —
+  <the gutter>" with the scaffold beside it, the picks are `_gjPicksAuto`, the
+  map is the aerial and the gutter lines alone, and the Pricing drawer is the
+  scaffold and the gutter card with no platform uplift. THE GUTTER'S COLOUR
+  (`_gjPalette`): the Colorsteel chart for the box gutter, Marley Typhoon's own
+  eight (`MARLEY_TYPHOON_COLOURS` — White, then the Stratus range: Black, Grey
+  Friars, Ironsand, Gull Grey, FlaxBlack, Titanium, Copper — from the owner's
+  chart off marley.co.nz), White only and compulsory for Marley Classic; a
+  colour the new gutter does not come in is cleared on a change of gutter, one
+  both come in is kept. The SERVER keeps the customer's gutter colour, lists a
+  gutters job's own picks in the acceptance email and the Fergus text, and
+  follows it up as a guttering quote (`REMINDER_EMAIL_GUTTERS`). Roofing, pole
+  shed and tender are untouched. `tests/gutteronly.mjs` (26, UI list).
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.
