@@ -2399,7 +2399,7 @@ not a saving, and 49 purple to 48 orange.
   differ, on the sent/accepted view and on a draft duplicated from one
   (`S.quote.dupFrom`, in Q_FRESH_DROP); "Keep the sent prices on this draft"
   (`_asSentCarry`) adds a visible "As sent …" custom line per card for the
-  difference. `tests/dupcarry.mjs` (14). ASK THE OWNER what that box names on
+  difference. THE SAME NOTE IS ON THE QUOTE TAB (`#qAsSentBar` under the Viewing sentence, `_asSentBarRender`, 2026-10-29: he duplicated with the drawer shut and never saw it), and on a duplicate it names an "Options" difference too: `dupFrom.sub` is the version's EMAILED total ex GST (`_asSentVersionSub(S._qvViewing.total)` — never `_quoteMoney()` on the sent view, which reads live option prices), found by `dupFrom.at` for a draft duplicated before it was recorded; what the three base lines do not explain is `diffs.other`, carried as an "As sent — options" material line. `tests/dupcarry.mjs` (18). ASK THE OWNER what that box names on
   job 3306 before guessing at the cause.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row

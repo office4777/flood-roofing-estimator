@@ -417,6 +417,11 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 #roofTypePanel .rtp-close:hover{ background:#16314f; }
 #roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#3f5873; margin:0 0 8px; }
 #roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+#qAsSentBar{ flex:1 1 100%; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:4px; padding:8px 12px; background:#fffbeb; border:1px solid #fcd34d; border-left:4px solid #f59e0b; border-radius:9px; font-size:12.5px; color:#0a1628; line-height:1.45; }
+#qAsSentBar .qas-ico{ color:#b45309; font-size:15px; }
+#qAsSentBar .qas-txt{ flex:1 1 320px; }
+#qAsSentBar .qas-btn{ padding:7px 12px; border-radius:8px; border:none; background:#0a1628; color:#fff; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; }
+#qAsSentBar .qas-btn2{ padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#0a1628; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; }
 #prAsSent{ margin:0 0 12px; padding:12px 14px; background:#fffbeb; border:1px solid #fcd34d; border-left:4px solid #f59e0b; border-radius:10px; font-size:12.5px; color:#0a1628; }
 #prAsSent .pas-hd{ font-weight:800; font-size:13px; margin-bottom:6px; }
 #prAsSent .pas-t{ border-collapse:collapse; width:100%; max-width:560px; margin:2px 0 6px; }
@@ -5173,7 +5178,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T19:29:55Z';
+  window.APP_BUILT_AT = '2026-10-28T19:36:05Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27317,8 +27322,14 @@ function _qBaseToday(){
   ['labour', 'materials', 'scaffold'].forEach(function(k){ o[k] = Math.round((o[k] || 0) * 100) / 100; });
   return o;
 }
-var _AS_SENT_LBL = { labour: 'Labour', materials: 'Materials', scaffold: 'Scaffolding' };
-var _AS_SENT_AREA = { labour: 'labour', materials: 'material', scaffold: 'scaffold' };
+// A version's stored total is incl GST; the comparison is ex GST.
+function _asSentVersionSub(totIncl){
+  var t = parseFloat(totIncl); if (!isFinite(t) || t <= 0) return null;
+  var r = ((S.quote && S.quote.gstRate) || 0) / 100;
+  return Math.round(t / (1 + r) * 100) / 100;
+}
+var _AS_SENT_LBL = { labour: 'Labour', materials: 'Materials', scaffold: 'Scaffolding', other: 'Options (profile, gauge, grade)' };
+var _AS_SENT_AREA = { labour: 'labour', materials: 'material', scaffold: 'scaffold', other: 'material' };
 function _asSentInfo(){
   if (!window.S || !S.quote || window.__CUSTOMER_MODE || _psIsShed()) return null;
   var v = S._qvViewing, src = null, sent = null, carried = false;
@@ -27335,11 +27346,33 @@ function _asSentInfo(){
     var d = Math.round(((sent[k] || 0) - (today[k] || 0)) * 100) / 100;
     if (Math.abs(d) >= 1){ diffs[k] = d; tot += d; }
   });
-  return { src: src, sent: sent, today: today, diffs: diffs, total: Math.round(tot * 100) / 100, draft: !v, carried: carried };
+  // On a duplicated draft whose sent sub-total is known, whatever the three
+  // base lines do not explain is the options (a profile, a gauge, a grade
+  // priced differently today) — named, so the two totals add up.
+  var _dsub = null;
+  if (!v && S.quote.dupFrom){
+    _dsub = (S.quote.dupFrom.sub != null) ? parseFloat(S.quote.dupFrom.sub) : null;
+    // A draft duplicated before the sub-total was recorded: the send it came
+    // from is found by its time, and its stored total stands in.
+    if (_dsub == null && S.quote.dupFrom.at){
+      try { var _vs = _qvStore(); var _hit = _qvSends(_vs).concat(_vs.accepted ? [_vs.accepted] : []).filter(function(d){ return d && d.at === S.quote.dupFrom.at; })[0];
+            if (_hit) _dsub = _asSentVersionSub(_hit.total); } catch(e){}
+    }
+  }
+  if (_dsub != null && isFinite(_dsub)){
+    try {
+      var all = Math.round((_dsub - (_quoteMoney().sub || 0)) * 100) / 100;
+      var other = Math.round((all - tot) * 100) / 100;
+      if (Math.abs(other) >= 1){ diffs.other = other; tot += other; }
+    } catch(e){}
+  }
+  return { src: src, sent: sent, today: today, diffs: diffs, total: Math.round(tot * 100) / 100, draft: !v, carried: carried,
+           sentSub: _dsub };
 }
 function _asSentRender(){
   var el = document.getElementById('prAsSent'); if (!el) return;
   var i = null; try { i = _asSentInfo(); } catch(e){}
+  try { _asSentBarRender(i); } catch(e){}
   if (!i || !Object.keys(i.diffs).length || i.carried){ el.style.display = 'none'; el.innerHTML = ''; return; }
   var m = function(n){ return '$' + (Math.round(n * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
   var rows = ['labour', 'materials', 'scaffold'].map(function(k){
@@ -27347,7 +27380,9 @@ function _asSentRender(){
     return '<tr><td>' + _AS_SENT_LBL[k] + '</td><td class="n">' + m(i.sent[k] || 0) + '</td><td class="n">' + m(i.today[k] || 0) + '</td>' +
       '<td class="n" style="font-weight:800;color:' + (d == null ? '#94a3b8' : (d > 0 ? '#b45309' : '#047857')) + '">' +
       (d == null ? 'same' : (d > 0 ? m(d) + ' less today' : m(-d) + ' more today')) + '</td></tr>';
-  }).join('');
+  }).join('') + (i.diffs.other != null
+    ? '<tr><td>' + _AS_SENT_LBL.other + '</td><td class="n"></td><td class="n"></td><td class="n" style="font-weight:800;color:' + (i.diffs.other > 0 ? '#b45309' : '#047857') + '">' +
+      (i.diffs.other > 0 ? m(i.diffs.other) + ' less today' : m(-i.diffs.other) + ' more today') + '</td></tr>' : '');
   el.style.display = 'block';
   el.innerHTML =
     '<div class="pas-hd">' + esc(i.src) + ' was priced differently from today’s working-out</div>' +
@@ -27359,13 +27394,37 @@ function _asSentRender(){
         '<span class="pas-sub">adds a line for the difference on each card above, so this draft comes to what was sent — delete it any time</span>'
       : '<div class="pas-sub">Create new draft → Duplicate this quote, and the draft can keep the sent prices.</div>');
 }
+// THE SAME COMPARISON ON THE QUOTE TAB (2026-10-29, job 3306: the owner
+// duplicated Sent quote 2 and saw a lower total with the Pricing drawer shut,
+// so the yellow box inside it was never seen). One line under the Viewing
+// sentence: how much less (or more) this draft comes to than what was sent,
+// part by part, with the same button.
+function _asSentBarRender(info){
+  var bar = document.getElementById('qaVersions'); if (!bar) return;
+  var el = document.getElementById('qAsSentBar');
+  var i = (info !== undefined) ? info : null;
+  if (info === undefined){ try { i = _asSentInfo(); } catch(e){ i = null; } }
+  if (!i || !i.draft || i.carried || !Object.keys(i.diffs).length){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'qAsSentBar'; el.className = 'no-print'; }
+  if (el.parentNode !== bar) bar.appendChild(el);
+  var m = function(n){ return '$' + (Math.round(Math.abs(n) * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var parts = ['materials', 'labour', 'scaffold', 'other'].filter(function(k){ return i.diffs[k] != null; }).map(function(k){
+    var d = i.diffs[k]; return '<b>' + _AS_SENT_LBL[k] + '</b> ' + m(d) + (d > 0 ? ' less' : ' more');
+  });
+  var t = i.total;
+  el.innerHTML = '<span class="qas-ico">⚠</span><span class="qas-txt">This draft comes to <b>' + m(t) + ' ' + (t > 0 ? 'less' : 'more') + '</b> (ex GST) than ' +
+    esc(String(i.src || 'the sent quote').replace(/^This draft was duplicated from /, '').replace(/, which$/, '')) + ' — ' + parts.join(' · ') +
+    '. Today’s figures come from the roof, the price book and the products as they are now.</span>' +
+    '<button type="button" class="qas-btn" onclick="_asSentCarry()">Keep the sent prices</button>' +
+    '<button type="button" class="qas-btn2" onclick="try{_openPricingPanel()}catch(e){}">See in Pricing</button>';
+}
 function _asSentCarry(){
   var i = null; try { i = _asSentInfo(); } catch(e){}
   if (!i || !i.draft) return;
   var when = (S.quote.dupFrom && S.quote.dupFrom.at) ? ' ' + _qvWhen(S.quote.dupFrom.at) : '';
   Object.keys(i.diffs).forEach(function(k){
     var d = i.diffs[k];
-    _qAddCustom(_AS_SENT_AREA[k], { desc: 'As sent' + when + ' (difference from today’s working-out)', qty: 1, unit: d, uom: '', amount: d });
+    _qAddCustom(_AS_SENT_AREA[k], { desc: 'As sent' + when + (k === 'other' ? ' — options' : '') + ' (difference from today’s working-out)', qty: 1, unit: d, uom: '', amount: d });
   });
   S.quote.dupFrom.carried = true;
   try { calcLabour(); } catch(e){}
@@ -27373,6 +27432,7 @@ function _asSentCarry(){
   try { recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   _asSentRender();
+  try { _asSentBarRender(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast('The sent prices are carried onto this draft'); } catch(e){}
 }
@@ -32559,6 +32619,13 @@ function _qvNewDraft(){
     if (S._qvViewing && (S._qvViewing.kind === 'sent' || S._qvViewing.kind === 'accepted')){
       var _bp = _qBaseParts(S.quote);
       if (_bp.found) _dupFrom = { label: S._qvViewing.kind === 'accepted' ? 'the accepted quote' : 'the sent quote', at: S._qvViewing.at || null, parts: _bp };
+      // The whole sub-total too (ex GST), so a difference in the options —
+      // a profile or a gauge priced differently today — is named as well as
+      // the three base lines (2026-10-29, job 3306).
+      // The figure EMAILED (the version's own stored total, as the Viewing
+      // menu shows it), not the copy worked out again on screen — the office
+      // reads live option prices even on a sent copy.
+      if (_dupFrom){ try { var _sv = _asSentVersionSub(S._qvViewing.total); if (_sv != null) _dupFrom.sub = _sv; } catch(e){} }
     }
   } catch(e){}
   var go = function(){
@@ -32736,6 +32803,7 @@ function _qvRenderBar(){
   if (host){ host.innerHTML = html.slice(0, cut); bar.innerHTML = '<div class="qv-status">' + status + '</div>'; }
   else bar.innerHTML = html + '<div class="qv-status">' + status + '</div>';
   bar.style.display = 'flex';
+  try { _asSentBarRender(); } catch(e){}
 }
 // Undoing an acceptance has to REACH THE CUSTOMER'S LINK, which reads this
 // job's saved quote. It used to clear the flag in memory and call

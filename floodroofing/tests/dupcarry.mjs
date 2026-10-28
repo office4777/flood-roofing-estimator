@@ -116,6 +116,44 @@ check('the duplicate is priced today, and says what it was duplicated from', a.d
 check('"Keep the sent prices" brings the draft back to the sent total, as a visible line',
   Math.abs(a.carriedTot - a.sentTot) < 0.02 && a.lines.some(l => /^As sent/.test(l)), a.carriedTot + ' vs ' + a.sentTot + ' ' + JSON.stringify(a.lines));
 check('…and the note goes once it is carried', a.afterStrip === '', a.afterStrip);
+// ── THE SAME NOTE ON THE QUOTE TAB, AND THE OPTIONS NAMED (2026-10-29, job
+// 3306 again: the drawer was shut, so the yellow box was never seen; and the
+// RI-925 / 0.55 gauge row moves with the material price too) ──
+const q = await pg.evaluate(() => {
+  const o = {};
+  const settle = () => { try { renderMaterialPriceTable(); } catch(e){} try { calcLabour(); } catch(e){} try { _syncQuoteBaseLineItems(); } catch(e){} try { recalcQuoteTotals(); } catch(e){} };
+  S.quote.customLines = {}; delete S.quote.dupFrom;
+  S.settings.price_book.ridge_lm = 40;
+  S.quote.proposalOptions.steelGrade = 'colourcote';
+  settle();
+  o.sentSub = Math.round(_quoteMoney().sub * 100) / 100;
+  o.sentDelta = Math.round(_quoteMoney().deltaSum * 100) / 100;
+  _qStampCustomerCopy(); _qvMarkSent();
+  S.settings.price_book.ridge_lm = 10;
+  // and an option's price moves too: ColorCote's percentage in Settings
+  S.settings.selectables.grades.forEach(g => { if (g.id === 'colourcote') g.pct = -0.2; });
+  _qvView('sent'); settle();
+  _qvNewDraft(); settle(); try { renderProfitability(); } catch(e){} try { _qvRenderBar(); } catch(e){}
+  const bar = () => { const el = document.getElementById('qAsSentBar'); return el ? el.innerText : ''; };
+  o.dupSub = S.quote.dupFrom && S.quote.dupFrom.sub;
+  o.draftSub = Math.round(_quoteMoney().sub * 100) / 100;
+  o.draftDelta = Math.round(_quoteMoney().deltaSum * 100) / 100;
+  const i = _asSentInfo();
+  o.diffs = i && i.diffs; o.total = i && i.total;
+  o.bar = bar();
+  o.inQuoteTab = !!document.querySelector('#qaVersions #qAsSentBar .qas-btn');
+  document.querySelector('#qAsSentBar .qas-btn').click(); settle();
+  o.carriedSub = Math.round(_quoteMoney().sub * 100) / 100;
+  o.barAfter = bar();
+  return o;
+});
+check('a duplicate remembers the sent sub-total', Math.abs((q.dupSub || 0) - q.sentSub) < 0.01, q.dupSub + ' / ' + q.sentSub);
+check('…the options that moved with the price are named beside the base lines',
+  q.sentDelta !== q.draftDelta && q.diffs && q.diffs.other != null && Math.abs(q.total - (q.sentSub - q.draftSub)) < 0.02, JSON.stringify(q));
+check('the Quote tab itself says how much less the draft comes to, part by part, with the button',
+  q.inQuoteTab && /less<\/?|less/.test(q.bar) && /Materials/.test(q.bar) && /Options/.test(q.bar), q.bar);
+check('…the button there brings the draft to the sent sub-total, and the note goes',
+  Math.abs(q.carriedSub - q.sentSub) < 0.02 && q.barAfter === '', q.carriedSub + ' vs ' + q.sentSub + ' | ' + q.barAfter);
 check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;
