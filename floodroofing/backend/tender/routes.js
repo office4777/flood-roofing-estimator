@@ -291,14 +291,36 @@ function mount(app, deps){
       const b = req.body || {};
       const cur = (b.doc && typeof b.doc === 'object') ? b.doc : t.doc;
       if (!cur) return bad(res, 'There is no tender to change yet.', 'NO_DOC');
+      // The page shows the message as "working on it…" while it waits; the
+      // copy kept is the one added below, never that placeholder.
+      if (Array.isArray(cur.chat)) cur.chat = cur.chat.filter(m => !(m && m.pending));
       const mode = AMEND_MODES[b.mode] ? b.mode : 'chat';
-      const instruction = mode === 'chat' ? String(b.instruction || '').trim().slice(0, 4000) : AMEND_MODES[mode];
+      let instruction = mode === 'chat' ? String(b.instruction || '').trim().slice(0, 4000) : AMEND_MODES[mode];
+      let asked0 = null;
       if (!instruction) return bad(res, 'Say what to change.');
       // The chat box answers questions too (2026-10-28): a question is
       // answered from the tender and the plans and changes nothing.
       if (mode === 'chat' && !b.change) {
         const asked = await askFirst(req, t, cur, instruction);
         if (asked.error) return res.status(502).json({ error: 'Claude could not answer that: ' + asked.error });
+        asked0 = asked;
+        if (asked.kind === 'clarify') {
+          // Not sure what was meant (2026-10-28, the owner: "ask a clarifying
+          // question first"): ask, keep the conversation, change nothing.
+          const next = Object.assign({}, cur, { chat: (Array.isArray(cur.chat) ? cur.chat : []).concat([
+            { who: 'you', text: String(b.said || '').trim().slice(0, 600) || instruction, at: now() },
+            { who: 'ai', text: asked.answer, kind: 'clarify', at: now() },
+          ]).slice(-40) });
+          await supabase.from('tender_jobs').update({ doc: next, updated_at: now() }).eq('id', t.id);
+          return res.json({ ok: true, doc: next, answered: true, clarify: true, question: asked.answer });
+        }
+        if (asked.kind === 'change' && SECTION_LABEL[asked.section]) {
+          // A wording change to one section of the document: edit just that.
+          const secs = (b.secs && typeof b.secs === 'object') ? b.secs : {};
+          const out = await sectionEdit(req, t, cur, asked.section, asked.instruction || instruction, secs[asked.section] || '', String(b.said || '').trim().slice(0, 600) || instruction);
+          if (out.error) return res.status(502).json({ error: 'Claude could not make that change: ' + out.error });
+          return res.json(out);
+        }
         if (asked.kind === 'question') {
           const next = Object.assign({}, cur, { chat: (Array.isArray(cur.chat) ? cur.chat : []).concat([
             { who: 'you', text: instruction, at: now() },
@@ -309,6 +331,8 @@ function mount(app, deps){
           return res.json({ ok: true, doc: next, answered: true });
         }
       }
+      const typed = instruction;
+      if (asked0 && asked0.instruction) instruction = asked0.instruction;
       const forAi = {};
       ['project', 'roof', 'items', 'labour', 'scaffold', 'scope', 'exclusions', 'assumptions', 'rfis', 'timeline', 'duration_days', 'confidence_notes'].forEach(k => { forAi[k] = cur[k]; });
       const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'amend', model: '', prompt_version: '',
@@ -325,7 +349,7 @@ function mount(app, deps){
       // change did goes in the chat, not over them.
       next.confidence_notes = cur.confidence_notes || '';
       next.chat = (Array.isArray(cur.chat) ? cur.chat : []).concat([
-        { who: 'you', text: mode === 'chat' ? (String(b.said || '').trim().slice(0, 600) || instruction) : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: now() },
+        { who: 'you', text: mode === 'chat' ? (String(b.said || '').trim().slice(0, 600) || typed) : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: now() },
         { who: 'ai', text: String(r.result.confidence_notes || 'Done.'), at: now() },
       ]).slice(-40);
       await worker.saveDoc(t, next, mode === 'chat' ? ('Claude: ' + instruction.slice(0, 80)) : (mode === 'simplify' ? 'Simplify' : 'Minimise'));
@@ -377,29 +401,49 @@ function mount(app, deps){
       if (!cur) return bad(res, 'There is no tender to change yet.', 'NO_DOC');
       const instruction = String(b.instruction || '').trim().slice(0, 4000);
       if (!instruction) return bad(res, 'Say what to change.');
-      let current;
-      if (sec === 'exclusions') current = (cur.exclusions || []).map(x => '- ' + (x.text || '') + (x.why ? '  (why: ' + x.why + ')' : '')).join('\n');
-      else if (sec === 'assumptions' || sec === 'rfis') current = (cur[sec] || []).map(x => '- ' + x).join('\n');
-      else if (sec === 'price') current = 'Note under the price: ' + String(b.current || '') + '\nLines added on top of materials and labour: ' + (JSON.stringify((cur.extraLines || []).map(x => ({ desc: x.desc, amount: x.amount }))));
-      else if (sec === 'org') current = JSON.stringify(((cur.org && cur.org.people) || b.current || []));
-      else current = String(b.current || '');
-      const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'section', model: '', prompt_version: '',
-        in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0, cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
-      let r;
-      try { r = await ai.editSection(sec, SECTION_LABEL[sec], current, instruction); }
-      catch (e) { runRow.error = String(e && e.message || e).slice(0, 400); await supabase.from('tender_ai_runs').insert(runRow); return res.status(502).json({ error: 'Claude could not make that change: ' + runRow.error }); }
-      const u = r.usage || {};
-      Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
-      await supabase.from('tender_ai_runs').insert(runRow);
-      const next = applySection(cur, sec, r.result || {});
-      next.chat = (Array.isArray(cur.chat) ? cur.chat : []).concat([
-        { who: 'you', text: 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction, at: now() },
-        { who: 'ai', text: String((r.result || {}).summary || 'Done.'), at: now() },
-      ]).slice(-40);
-      await worker.saveDoc(t, next, 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction.slice(0, 60));
-      res.json({ ok: true, doc: next, summary: String((r.result || {}).summary || '') });
+      const out = await sectionEdit(req, t, cur, sec, instruction, b.current, 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction);
+      if (out.error) return res.status(502).json({ error: 'Claude could not make that change: ' + out.error });
+      res.json(out);
     } catch (e) { oops(res, e, 'POST /tender/:id/section'); }
   });
+
+  // One section rewritten, or a clarifying question back when the
+  // instruction could mean more than one thing (nothing changes then).
+  async function sectionEdit(req, t, cur, sec, instruction, given, said){
+    let current;
+    if (sec === 'exclusions') current = (cur.exclusions || []).map(x => '- ' + (x.text || '') + (x.why ? '  (why: ' + x.why + ')' : '')).join('\n');
+    else if (sec === 'assumptions' || sec === 'rfis') current = (cur[sec] || []).map(x => '- ' + x).join('\n');
+    else if (sec === 'price') current = 'Note under the price: ' + String(given || '') + '\nLines added on top of materials and labour: ' + (JSON.stringify((cur.extraLines || []).map(x => ({ desc: x.desc, amount: x.amount }))));
+    else if (sec === 'org') current = JSON.stringify(((cur.org && cur.org.people) || (Array.isArray(given) ? given : [])));
+    else current = String(given || '');
+    const runRow = { id: crypto.randomUUID(), tender_id: t.id, company_id: t.company_id || null, user_id: req.user.id, page_id: null, pass: 'section', model: '', prompt_version: '',
+      in_tokens: 0, out_tokens: 0, cache_read: 0, cache_write: 0, cost_usd: 0, ms: 0, ok: false, error: '', created_at: now() };
+    let r;
+    try { r = await ai.editSection(sec, SECTION_LABEL[sec], current, instruction, { chat: Array.isArray(cur.chat) ? cur.chat : [] }); }
+    catch (e) { runRow.error = String(e && e.message || e).slice(0, 400); await supabase.from('tender_ai_runs').insert(runRow); return { error: runRow.error }; }
+    const u = r.usage || {};
+    Object.assign(runRow, { model: r.model, prompt_version: r.promptVersion, in_tokens: u.input_tokens || 0, out_tokens: u.output_tokens || 0, cost_usd: +ai.costUsd(r.model, u).toFixed(5), ms: r.ms, ok: true });
+    await supabase.from('tender_ai_runs').insert(runRow);
+    const res = r.result || {};
+    const q = String(res.question || '').trim();
+    const chat = Array.isArray(cur.chat) ? cur.chat : [];
+    if (q) {
+      // applySection would empty the section on a reply with no fields.
+      const next = Object.assign({}, cur, { chat: chat.concat([
+        { who: 'you', text: said, at: now() },
+        { who: 'ai', text: q, kind: 'clarify', section: sec, at: now() },
+      ]).slice(-40) });
+      await supabase.from('tender_jobs').update({ doc: next, updated_at: now() }).eq('id', t.id);
+      return { ok: true, doc: next, clarify: true, question: q, section: sec, answered: true };
+    }
+    const next = applySection(cur, sec, res);
+    next.chat = chat.concat([
+      { who: 'you', text: said, at: now() },
+      { who: 'ai', text: String(res.summary || 'Done.'), at: now() },
+    ]).slice(-40);
+    await worker.saveDoc(t, next, 'Edit ' + SECTION_LABEL[sec] + ': ' + instruction.slice(0, 60));
+    return { ok: true, doc: next, summary: String(res.summary || ''), section: sec };
+  }
 
   // Put back the version before the last AI rewrite.
   app.post('/tender/:id/undo', ...gate, async (req, res) => {
@@ -429,6 +473,15 @@ function mount(app, deps){
     try {
       const x = await pageFor(req, res); if (!x) return;
       const kind = String(req.query.kind || 'image');
+      // The plan set itself, so the Plans window can draw a zoomed page sharp
+      // from the drawing's own lines rather than blowing up a 2000 px picture
+      // (2026-10-28, the owner: "the plans are blurry on zoom in").
+      if (kind === 'pdf') {
+        const { data: fs } = await supabase.from('tender_files').select('id,storage_path').eq('id', x.p.file_id).eq('tender_id', x.t.id);
+        const f = (fs || [])[0];
+        if (!f || !f.storage_path) return res.status(404).json({ error: 'The plan set is not stored' });
+        return res.json({ url: await storage.signedUrl(f.storage_path, 3600), page: x.p.page_no, fileId: f.id, expiresIn: 3600 });
+      }
       const path = kind === 'thumb' ? x.p.thumb_path : kind === 'tb' ? x.p.tb_path : x.p.image_path;
       if (!path) return res.status(404).json({ error: 'No picture of this page' });
       res.json({ url: await storage.signedUrl(path, 900), expiresIn: 900 });

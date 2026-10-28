@@ -136,10 +136,10 @@
     h += '<div id="tnDocHost">' + docHtml(d) + '</div>';
     if (d.doc) h += '<details class="tn-fold" id="tnSheetIdx"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';
     else h += indexHtml(d);
-    // With a tender drafted, the menu and the A.I. chat run down the left
-    // from the very top, so the menu never slides down before it pins
-    // (2026-10-28, the owner).
-    if (d.doc) h = '<div class="tn-lay"><aside class="tn-side" id="tnSide">' + sideHtml(d) + '</aside><div class="tn-main">' + h + '</div></div>';
+    // With a tender drafted, the menu runs down the far left and the A.I.
+    // chat down the right, both from the very top, with the tender full
+    // width between them (2026-10-28, the owner).
+    if (d.doc) h = '<div class="tn-lay"><aside class="tn-side" id="tnSide">' + sideHtml(d) + '</aside><div class="tn-main">' + h + '</div><aside class="tn-side tn-chatside" id="tnChatSide">' + chatHtml(d.doc) + '</aside></div>';
     r.innerHTML = h;
     sidePin();
     wireDrop();
@@ -150,11 +150,41 @@
 
   // The menu sticks exactly where it starts, so it never moves at all as the
   // page scrolls, and runs to the foot of the screen.
+  // Three columns when there is room for the tender between them (menu far
+  // left, chat on the right); on a narrower screen the chat goes back under
+  // the menu so the tender keeps a width it can be read at.
+  var LAY3_MIN = 1300;
+  var LAY1_MAX = 1000;   // narrower than this, the menu and the chat leave the side
+  function layMode(){
+    var lay = document.querySelector('#tenderRoot .tn-lay'), side = document.getElementById('tnSide'), cs = document.getElementById('tnChatSide'), main = lay && lay.querySelector('.tn-main');
+    if (!lay || !side || !cs || !main || !lay.offsetParent) return;
+    var wide = window.innerWidth > 900 && lay.clientWidth >= LAY3_MIN;
+    lay.classList.toggle('tn-3', wide);
+    lay.classList.toggle('tn-1', window.innerWidth > 900 && lay.clientWidth < LAY1_MAX);
+    if (wide && cs.parentNode !== lay) lay.appendChild(cs);
+    else if (!wide && cs.parentNode !== side) side.appendChild(cs);
+  }
   function sidePin(){
+    layMode();
     var side = document.getElementById('tnSide'), lay = side && side.parentNode; if (!side || !lay.offsetParent) return;
-    if (window.innerWidth <= 900) { side.style.top = ''; side.style.height = ''; return; }
+    var cs = document.getElementById('tnChatSide');
+    var both = [side, cs && cs.parentNode === lay ? cs : null].filter(Boolean);
+    if (cs && cs.parentNode !== lay) { cs.style.top = ''; cs.style.height = ''; }
+    var chat = document.getElementById('tnChat'); if (chat) chat.style.left = '';
+    if (window.innerWidth <= 900) { both.forEach(function(el){ el.style.top = ''; el.style.height = ''; }); return; }
     var y = Math.max(0, Math.round(lay.getBoundingClientRect().top + window.scrollY));
-    side.style.top = y + 'px'; side.style.height = 'calc(100vh - ' + (y + 10) + 'px)';
+    if (lay.classList.contains('tn-1')) {   // the strip of links stays at the top; the chat runs along the foot of the tender's column
+      side.style.top = y + 'px'; side.style.height = '';
+      if (chat) chat.style.left = Math.round(lay.getBoundingClientRect().left + 8) + 'px';
+      return;
+    }
+    if (both.length === 2) {   // three columns: the menu ends just below its last link (Sheet index) and the chat is the same height (2026-10-28, the owner)
+      side.style.top = cs.style.top = y + 'px'; side.style.height = 'auto';
+      var h = Math.min(window.innerHeight - y - 10, Math.max(360, Math.ceil(side.getBoundingClientRect().height)));
+      side.style.height = cs.style.height = h + 'px';
+      return;
+    }
+    both.forEach(function(el){ el.style.top = y + 'px'; el.style.height = 'calc(100vh - ' + (y + 10) + 'px)'; });
   }
   window.addEventListener('resize', function(){ sidePin(); });
   // drawn while the tab was hidden: pin it the first time it is seen
@@ -183,6 +213,8 @@
       '.tnpv-slot.zoomed{cursor:grab}.tnpv-slot.grabbing{cursor:grabbing}',
       '.tnpv-slot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;pointer-events:none}',
       '.tnpv-cap{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(10,22,40,.78);color:#fff;font-size:11.5px;padding:3px 8px;border-radius:6px;max-width:80%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-slot canvas.tnpv-hi{position:absolute;left:0;top:0;z-index:1;transform-origin:0 0;pointer-events:none;display:none}',
+      '.tnpv-zoom{display:flex;align-items:center;gap:6px;flex:0 1 170px;min-width:90px}.tnpv-zoom input{flex:1 1 auto;min-width:60px;accent-color:#0099cc;cursor:pointer}.tnpv-zoom span{font-size:11.5px;color:#475569;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}',
       '.tnpv-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}',
       '@media screen and (max-width:900px){#tnPlansPop{width:92vw}}',
       '@media print{#tnPlansPop{display:none!important}}',
@@ -203,7 +235,9 @@
       '<button type="button" id="tnPlansTab" onclick="_tnPlans()" title="The plan set"><span class="a">◀</span><span class="t">PLANS</span><span></span></button>' +
       '<div class="tnpv-hd"><b>Plans</b><span class="tnpv-at" id="tnpvAt"></span>' +
       '<button type="button" class="tnpv-b" title="Previous page" onclick="_tnPlansStep(-1)">▲</button><button type="button" class="tnpv-b" title="Next page" onclick="_tnPlansStep(1)">▼</button>' +
-      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button><button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
+      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button>' +
+      '<label class="tnpv-zoom" title="Zoom"><input type="range" id="tnpvZoom" min="0" max="100" step="1" value="0" oninput="_tnPlansZoomTo(this.value)" aria-label="Zoom"><span id="tnpvPct">100%</span></label>' +
+      '<button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
       '<button type="button" class="tnpv-b" title="Fit the page" onclick="_tnPlansZoom(0)">↺</button></div>' +
       '<div class="tnpv-list" id="tnpvList"></div>';
     document.body.appendChild(el);
@@ -241,17 +275,42 @@
   function plansHead(){
     var at = document.getElementById('tnpvAt'), p = PV.list[PV.at];
     if (at) at.textContent = PV.list.length ? ('Page ' + (PV.at + 1) + ' of ' + PV.list.length + (p && p.sheet_id ? ' · ' + p.sheet_id : '') + (p && p.title ? ' ' + p.title : '')) : '';
+    plansZoomSync();
   }
+  // THE ZOOM SLIDER (2026-10-28, the owner: "add a zoom slider bar"): 0..100
+  // on a log scale, so the first doubling is not crammed into the left tenth.
+  var PV_ZMAX = 12;
+  function plansZoomSync(){
+    var sl = document.getElementById('tnpvZoom'), pc = document.getElementById('tnpvPct'), z = PV.z[PV.at] || { s: 1 };
+    if (sl && document.activeElement !== sl) sl.value = Math.round(100 * Math.log(z.s) / Math.log(PV_ZMAX));
+    if (pc) pc.textContent = Math.round(z.s * 100) + '%';
+  }
+  window._tnPlansZoomTo = function(v){
+    var s2 = Math.pow(PV_ZMAX, Math.max(0, Math.min(100, +v || 0)) / 100), z = PV.z[PV.at] || { s: 1 };
+    plansZoomAt(PV.at, s2 / z.s);
+  };
   function plansSlot(i){ return document.querySelector('#tnpvList .tnpv-slot[data-i="' + i + '"]'); }
   function plansIndexAt(){
     var list = document.getElementById('tnpvList'), s0 = plansSlot(0); if (!list || !s0) return 0;
     var pitch = s0.offsetHeight + 12;
     return Math.max(0, Math.min(PV.list.length - 1, Math.round(list.scrollTop / pitch)));
   }
+  // ONE ZOOM FOR THE SET (2026-10-28, the owner: "i zoom into one page to
+  // 150%, then i go to the next page it jumps back to 100% but i want it to
+  // keep the zoom i set"): the zoom and its place carry to the pages either
+  // side, so the next page arrives as zoomed as the last.
+  function plansCarry(i){
+    var k = PV.keep; if (!k || !plansSlot(i)) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    if (z.s === k.s && z.x === k.x && z.y === k.y) return;
+    PV.z[i] = { s: k.s, x: k.x, y: k.y }; plansClamp(i); plansApply(i);
+  }
+  function plansKeep(i){ if (i === PV.at) { var z = PV.z[i] || { s: 1, x: 0, y: 0 }; PV.keep = { s: z.s, x: z.x, y: z.y }; } }
   function plansLoadNear(){
     if (!PV.open) return;
     for (var i = PV.at - 1; i <= PV.at + 2; i++) {
       var p = PV.list[i]; if (!p) continue;
+      plansCarry(i);
       (function(p, i){
         var slot = plansSlot(i); if (!slot) return;
         var img = slot.querySelector('img'); if (img.getAttribute('src')) return;
@@ -267,6 +326,60 @@
     var z = PV.z[i] || { s: 1, x: 0, y: 0 };
     var img = slot.querySelector('img'); if (img) img.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.s + ')';
     slot.classList.toggle('zoomed', z.s > 1.001);
+    plansHiAlign(i); plansSharpSoon(i);
+    if (i === PV.at) plansZoomSync();
+  }
+  // SHARP WHEN ZOOMED (2026-10-28, the owner: "the plans are blurry on zoom
+  // in"). The page picture is at most 2000 px, so blown up it goes soft. Once
+  // a zoom settles, the part of the page in view is drawn again from the plan
+  // set itself (pdf.js, range requests, so only the bytes needed come down)
+  // at the screen's own resolution, on a canvas over the picture. While the
+  // page is moving the last drawing is carried along with it; if the PDF
+  // cannot be had the picture alone stays, as before.
+  var PDFS = {}, sharpT = {};
+  function plansDoc(p){
+    if (PDFS[p.file_id]) return PDFS[p.file_id];
+    var pr = PDFS[p.file_id] = api('GET', '/tender/' + T.id + '/pages/' + p.id + '/image?kind=pdf').then(function(x){
+      if (!x || !x.url || !x.page || typeof window._pdfjsLoad !== 'function') throw new Error('no plan set');
+      return window._pdfjsLoad().then(function(lib){ return lib.getDocument({ url: x.url, disableAutoFetch: true, disableStream: true }).promise; });
+    });
+    pr.catch(function(){ setTimeout(function(){ if (PDFS[p.file_id] === pr) delete PDFS[p.file_id]; }, 60000); });
+    return pr;
+  }
+  function plansHiAlign(i){
+    var slot = plansSlot(i), cv = slot && slot.querySelector('canvas.tnpv-hi'), z = PV.z[i];
+    if (!cv || !cv._z) return;
+    if (!z || z.s <= 1.001 || cv._W !== slot.clientWidth || cv._H !== slot.clientHeight) { cv.style.display = 'none'; return; }
+    var k = z.s / cv._z.s;
+    cv.style.transform = 'translate(' + (z.x - k * cv._z.x) + 'px,' + (z.y - k * cv._z.y) + 'px) scale(' + k + ')';
+    cv.style.display = 'block';
+  }
+  function plansSharpSoon(i){ clearTimeout(sharpT[i]); sharpT[i] = setTimeout(function(){ plansSharp(i); }, 220); }
+  function plansSharp(i){
+    var slot = plansSlot(i), p = PV.list[i], z = PV.z[i];
+    if (!slot || !p || !z || z.s <= 1.001 || !PV.open) return;
+    var want = { s: z.s, x: z.x, y: z.y }, W = slot.clientWidth, H = slot.clientHeight;
+    plansDoc(p).then(function(doc){ return doc.getPage(p.page_no); }).then(function(pg){
+      var cur = PV.z[i]; if (!cur || cur.s !== want.s || cur.x !== want.x || cur.y !== want.y || slot.clientWidth !== W) return;   // moved on; the next settle draws it
+      var dpr = Math.min(3, window.devicePixelRatio || 1), v1 = pg.getViewport({ scale: 1 });
+      var f = Math.min(W / v1.width, H / v1.height), ox = (W - v1.width * f) / 2, oy = (H - v1.height * f) / 2;
+      var cv = slot.querySelector('canvas.tnpv-hi');
+      if (!cv) { cv = document.createElement('canvas'); cv.className = 'tnpv-hi'; slot.insertBefore(cv, slot.querySelector('.tnpv-cap')); }
+      if (cv._task) { try { cv._task.cancel(); } catch (e) {} }
+      var off = document.createElement('canvas'); off.width = Math.round(W * dpr); off.height = Math.round(H * dpr);
+      var ctx = off.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, off.width, off.height);
+      var task = pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: f * want.s * dpr }), transform: [1, 0, 0, 1, dpr * (want.x + want.s * ox), dpr * (want.y + want.s * oy)] });
+      cv._task = task;
+      return task.promise.then(function(){
+        cv._task = null;
+        cv.width = off.width; cv.height = off.height; cv.getContext('2d').drawImage(off, 0, 0);
+        cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv._z = want; cv._W = W; cv._H = H;
+        plansHiAlign(i);
+      });
+    }).catch(function(e){
+      if (e && /Cancel/i.test(e.name || '')) return;
+      if (e && /40[13]|expired|Unexpected server response/i.test(String(e.message || e))) delete PDFS[p.file_id];   // the hour-long link ran out: ask again next time
+    });
   }
   // Keep a zoomed page from being dragged right off its slot.
   function plansClamp(i){
@@ -279,9 +392,9 @@
     var slot = plansSlot(i); if (!slot) return;
     var z = PV.z[i] || { s: 1, x: 0, y: 0 };
     if (px == null) { px = slot.clientWidth / 2; py = slot.clientHeight / 2; }
-    var s2 = f === 0 ? 1 : Math.max(1, Math.min(8, z.s * f));
+    var s2 = f === 0 ? 1 : Math.max(1, Math.min(PV_ZMAX, z.s * f));
     z.x = px - (px - z.x) * (s2 / z.s); z.y = py - (py - z.y) * (s2 / z.s); z.s = s2;
-    PV.z[i] = z; plansClamp(i); plansApply(i);
+    PV.z[i] = z; plansClamp(i); plansKeep(i); plansApply(i);
   }
   window._tnPlansZoom = function(f){ plansZoomAt(PV.at, f); };
   window._tnPlansStep = function(dir){
@@ -325,7 +438,7 @@
   function plansMove(e){
     var g = PV.drag; if (!g) return;
     var z = PV.z[g.i]; z.x = g.zx + (e.clientX - g.x0); z.y = g.zy + (e.clientY - g.y0);
-    plansClamp(g.i); plansApply(g.i);
+    plansClamp(g.i); plansKeep(g.i); plansApply(g.i);
   }
   function plansUp(){ if (PV.drag) { PV.drag.slot.classList.remove('grabbing'); PV.drag = null; } }
   function plansResizeStart(e){
@@ -524,7 +637,10 @@
     host.querySelectorAll('.tn-box').forEach(function(b){ sc[b.getAttribute('data-box')] = b.scrollTop; });
     host.innerHTML = docHtml(T.data);
     var side = document.getElementById('tnSide');
-    if (side && T.data.doc) { var nv = document.getElementById('tnNav'), ns = nv ? nv.scrollTop : 0; side.innerHTML = sideHtml(T.data); nv = document.getElementById('tnNav'); if (nv) nv.scrollTop = ns; }
+    // the nav alone: on a narrower screen the chat lives inside the same aside
+    if (side && T.data.doc) { var nv = document.getElementById('tnNav'), ns = nv ? nv.scrollTop : 0; if (nv) nv.outerHTML = sideHtml(T.data); else side.insertAdjacentHTML('afterbegin', sideHtml(T.data)); nv = document.getElementById('tnNav'); if (nv) nv.scrollTop = ns; }
+    var cs = document.getElementById('tnChatSide');
+    if (cs && T.data.doc) { layMode(); var lg = document.getElementById('tnChatLog'), ls = lg ? lg.scrollTop : 0, atEnd = !lg || lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 4; cs.innerHTML = chatHtml(T.data.doc); lg = document.getElementById('tnChatLog'); if (lg) lg.scrollTop = atEnd ? lg.scrollHeight : ls; }
     host.querySelectorAll('.tn-box').forEach(function(b){ var v = sc[b.getAttribute('data-box')]; if (v) b.scrollTop = v; });
     var ci2 = document.getElementById('tnChatIn');
     if (ci2 && typed && !ci2.disabled) { ci2.value = typed; if (chatFocus) ci2.focus(); }
@@ -638,7 +754,7 @@
     docRerender();
     try {
       if (DOC.dirty) await saveNow();
-      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d });
+      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d, secs: change ? undefined : secsNow() });
       T.data.doc = x.doc;
       if (!x.answered) T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
     } catch (e) {
@@ -691,7 +807,7 @@
     h += A('doc', quoteCard(d, doc, c));
     return h;
   }
-  function sideHtml(d){ return '<nav class="tn-nav" id="tnNav">' + navHtml(d, d.doc) + '</nav>' + chatHtml(d.doc); }
+  function sideHtml(d){ return '<nav class="tn-nav" id="tnNav">' + navHtml(d, d.doc) + '</nav>'; }
   // The menu down the left, like Settings': a click scrolls to that part.
   function navHtml(d, doc){
     var q = doc.quote || {}, hide = q.hide || {};
@@ -748,7 +864,7 @@
     var m = document.getElementById('tnEditModal'); if (m) return m;
     m = document.createElement('div'); m.id = 'tnEditModal'; m.className = 'tn-modal';
     m.innerHTML = '<div class="tn-modal-card" role="dialog" aria-modal="true" aria-labelledby="tnEditTitle"><div class="tn-modal-hd"><b id="tnEditTitle"></b><button type="button" class="tn-x" onclick="_tnEditClose()" aria-label="Close">✕</button></div>' +
-      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><label class="tn-modal-lbl" for="tnEditIn">Describe your change</label>' +
+      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><div class="tn-edit-ask" id="tnEditAsk" style="display:none"></div><label class="tn-modal-lbl" for="tnEditIn" id="tnEditLbl">Describe your change</label>' +
       '<textarea id="tnEditIn" rows="4" placeholder="Type it, or press Speak and say it"></textarea>' +
       '<div class="tn-modal-ft"><button type="button" class="tn-btn sec tn-mic" id="tnEditMic" onclick="_tnMic()">🎤 Speak</button><span id="tnEditMsg" class="tn-edit-msg"></span>' +
       '<button type="button" class="tn-btn sec" onclick="_tnEditClose()">Cancel</button><button type="button" class="tn-btn" id="tnEditGo" onclick="_tnEditGo()">Make the change</button></div></div>';
@@ -765,6 +881,7 @@
     m.querySelector('#tnEditHint').textContent = EDIT_HINT[sec] || 'Say what you want changed in this section, in your own words.';
     var inp = m.querySelector('#tnEditIn'); inp.value = ''; inp.disabled = false;
     m.querySelector('#tnEditMsg').textContent = '';
+    EDIT.ask = null; editAsk('');
     m.querySelector('#tnEditMic').style.display = speechCtor() ? '' : 'none';
     editBusy(false);
     m.classList.add('open');
@@ -777,6 +894,12 @@
     var go = m.querySelector('#tnEditGo'); go.disabled = on; go.textContent = on ? 'Working on it…' : 'Make the change';
     m.querySelector('#tnEditIn').disabled = on; m.querySelector('#tnEditMic').disabled = on;
   }
+  // Every words-only section as it reads now: a chat change may land on one.
+  function secsNow(){
+    var o = {};
+    Object.keys(SEC_TEXT).forEach(function(k){ if (k !== 'org') { try { o[k] = secCurrent(k); } catch (e) {} } });
+    return o;
+  }
   // What the section says now, as plain text, for the words-only sections.
   function secCurrent(sec){
     if (sec === 'org') return orgOf(T.data).people;
@@ -787,11 +910,21 @@
     el.querySelectorAll('p:not(.tq-pb),li:not(.tq-pb)').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
     return t || el.textContent.trim();
   }
+  // A clarifying question from Claude (2026-10-28, the owner: "keep the
+  // conversation open and ask a clarifying question first"): shown in the
+  // window, which stays open for the answer.
+  function editAsk(q){
+    var m = document.getElementById('tnEditModal'); if (!m) return;
+    var a = m.querySelector('#tnEditAsk'), l = m.querySelector('#tnEditLbl');
+    a.style.display = q ? '' : 'none'; a.textContent = q ? '❓ ' + q : '';
+    l.textContent = q ? 'Your answer' : 'Describe your change';
+  }
   window._tnEditGo = async function(){
     var m = document.getElementById('tnEditModal'); if (!m || EDIT.busy) return;
     var inp = m.querySelector('#tnEditIn'), msg = m.querySelector('#tnEditMsg');
-    var instr = inp.value.trim();
-    if (!instr) { msg.textContent = 'Say what to change first.'; inp.focus(); return; }
+    var typed = inp.value.trim();
+    if (!typed) { msg.textContent = EDIT.ask ? 'Answer the question first.' : 'Say what to change first.'; inp.focus(); return; }
+    var instr = EDIT.ask ? (EDIT.ask.instr + '\n(You asked: "' + EDIT.ask.q + '" My answer: ' + typed + ')') : typed;
     micStop();
     var sec = EDIT.sec;
     editBusy(true); msg.textContent = SEC_TEXT[sec] ? 'Claude is rewriting the section…' : 'Claude is changing the tender — this can take a minute…';
@@ -799,8 +932,15 @@
       if (DOC.dirty) await saveNow();
       var d = T.data.doc, x;
       if (SEC_TEXT[sec]) x = await api('POST', '/tender/' + T.id + '/section', { section: sec, instruction: instr, current: secCurrent(sec), doc: d });
-      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', change: true, instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
+      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, said: 'Edit ' + (SEC_LABEL[sec] || sec) + ': ' + typed, doc: d, secs: secsNow() });
       T.data.doc = x.doc;
+      if (x.answered) {
+        editBusy(false); docRerender();
+        if (x.clarify) { EDIT.ask = { instr: instr, q: x.question || '' }; editAsk(x.question || ''); inp.value = ''; msg.textContent = ''; setTimeout(function(){ inp.focus(); }, 30); }
+        else { var last = (x.doc.chat || [])[x.doc.chat.length - 1]; EDIT.ask = null; editAsk(''); msg.textContent = last ? last.text : 'Nothing was changed.'; }
+        return;
+      }
+      EDIT.ask = null;
       T.data.history = [{ at: new Date().toISOString(), why: 'Edit ' + (SEC_LABEL[sec] || sec) }].concat(T.data.history || []);
       editBusy(false);
       window._tnEditClose();
@@ -845,18 +985,29 @@
     var ids = {}; ppl.forEach(function(p){ ids[p.id] = p; });
     var kids = {}; var roots = [];
     ppl.forEach(function(p){ if (p.reports_to && ids[p.reports_to] && p.reports_to !== p.id) (kids[p.reports_to] = kids[p.reports_to] || []).push(p); else roots.push(p); });
-    var seen = {};
-    var li = function(p){
-      if (seen[p.id]) return ''; seen[p.id] = 1;
+    // ROW BY ROW, NOT A NESTED TREE (2026-10-28, the owner: "i still want
+    // Paula and Aron brought in closer ... don't allow a scroll left/right
+    // function, the org structure must fit to size"). A nested tree spreads
+    // a manager's siblings out to the edges of the widest team under them;
+    // here each level is one centred row, packed close, and every box shrinks
+    // to fit the page. The lines are drawn after layout (orgLines).
+    var seen = {}, rows = [];
+    var box = function(p){
       var e = function(f, v, tag, ph){ return '<' + tag + ' class="tq-ed" contenteditable="true" data-oid="' + esc(p.id) + '" data-of="' + f + '" data-ph="' + ph + '">' + esc(v || '') + '</' + tag + '>'; };
-      var ch = (kids[p.id] || []).map(li).join('');
-      return '<li><div class="tq-ob">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
-        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>' + (ch ? '<ul>' + ch + '</ul>' : '') + '</li>';
+      return '<div class="tq-ob" data-oid="' + esc(p.id) + '" data-up="' + esc(p.reports_to && ids[p.reports_to] && p.reports_to !== p.id ? p.reports_to : '') + '">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
+        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>';
     };
+    var level = roots.filter(function(p){ return !seen[p.id] && (seen[p.id] = 1); });
+    while (level.length) {
+      rows.push(level);
+      var next = [];
+      level.forEach(function(p){ (kids[p.id] || []).forEach(function(c){ if (!seen[c.id]) { seen[c.id] = 1; next.push(c); } }); });
+      level = next;
+    }
     var h = '';
     if (!org.described) h += '<div class="tq-orgask no-print">This is a standard structure. Press <b>✎ Edit Organisation structure</b> and describe yours (who does what, and how many crews) — it is kept for your next tenders.</div>';
     h += ce('orgNote', qText(d.doc, 'orgNote', '<p>Our team for this project:</p>'));
-    h += '<div class="tq-org"><ul>' + roots.map(li).join('') + '</ul></div>';
+    h += '<div class="tq-org"><svg class="tq-org-ln" aria-hidden="true"></svg>' + rows.map(function(r){ return '<div class="tq-org-row">' + r.map(box).join('') + '</div>'; }).join('') + '</div>';
     h += '<div class="no-print" style="margin-top:6px"><button type="button" class="tn-btn sec tn-add" onclick="_tnOrgAdd()">+ Add a role</button></div>';
     return h;
   }
@@ -916,11 +1067,11 @@
     h += '</div></div></div>';
     return h;
   }
-  // The A.I. chat, pinned under the menu so it is there wherever the page is.
+  // The A.I. chat, pinned down the right so it is there wherever the page is.
   function chatHtml(doc){
     var chat = doc.chat || [];
     return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. — questions or changes</div><div class="tn-chat-log" id="tnChatLog">' +
-      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
+      (chat.length ? chat.filter(function(m){ return !m.pending || DOC.chatBusy; }).map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + (m.kind === 'clarify' ? ' ask' : '') + '">' + (m.kind === 'clarify' ? '❓ ' : '') + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
         : '<div class="tn-note" style="margin:0">Ask about the plans or the tender — “are Blocks 1 and 5/6 separate buildings?” — or ask for a change — “take the spouting out, the builder is doing it”.</div>') +
       '</div><textarea id="tnChatIn" rows="2" placeholder="Ask a question or say what to change — type, or press Speak…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
       '<div class="tn-chat-in"><button type="button" class="tn-btn sec tn-mic" id="tnChatMic" onclick="_tnMic(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>🎤 Speak</button><span id="tnChatMsg" class="tn-edit-msg"></span>' +
@@ -995,16 +1146,22 @@
     return h + '</div></div></div>';
   }
 
+  // THE TOTAL UNDER THE GANTT (2026-10-28, the owner: "an arrow points from
+  // the start (left) of gantt start to the end (right) with the total days").
+  function ganttArrow(end){
+    var n = Math.ceil(end) || 0;
+    return '<div class="tq-g-arr" title="Day 0 to day ' + n + '"><i></i><b>' + n + ' working day' + (n === 1 ? '' : 's') + ' in total</b></div>';
+  }
   function programmeCard(doc){
     var tl = doc.timeline || [];
     var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
     var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + boxCtl('w-programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">' + boxOpen('w-programme') + '';
     h += '<div class="tn-gantt">' + tl.map(function(t, i){
       var l = 100 * num(t.start_day) / end, w = Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end);
-      return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
+      return '<div class="tn-g-row"><div class="tn-g-lbl"><textarea class="tn-g-ph" rows="2" title="' + esc(t.phase || '') + '" onchange="_tnSet(\'timeline\',' + i + ',\'phase\',this.value)">' + esc(t.phase == null ? '' : t.phase) + '</textarea></div>' +
         '<div class="tn-g-num">Day ' + inp('timeline', i, 'start_day', t.start_day, 'xs r', 'n') + ' for ' + inp('timeline', i, 'days', t.days, 'xs r', 'n') + '</div>' +
         '<div class="tn-g-track"><i style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%"></i></div>' + rowTools('timeline', i) + '</div>';
-    }).join('') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
+    }).join('') + (tl.length ? '<div class="tn-g-row tn-g-totrow"><div></div><div></div>' + ganttArrow(end) + '<span class="tn-tools" style="visibility:hidden" aria-hidden="true"><span class="tn-x">↑</span><span class="tn-x">↓</span><span class="tn-x">✕</span></span></div>' : '') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
     return h + '</div></div></div>';
   }
 
@@ -1059,7 +1216,7 @@
         body = ce('progNote', qText(doc, 'progNote', '<p>Our programme for the roofing works, in working days from our start on site (weather permitting):</p>')) +
           '<div class="tq-gantt">' + tl.map(function(t){
             return '<div class="tq-g"><span>' + esc(t.phase) + '</span><span class="tq-g-d">' + (num(t.days) ? num(t.days) + (num(t.days) === 1 ? ' day' : ' days') : '') + '</span><span class="tq-g-t"><i style="left:' + (100 * num(t.start_day) / end).toFixed(2) + '%;width:' + Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end).toFixed(2) + '%"></i></span></div>';
-          }).join('') + '</div><p class="tq-sub">Total: ' + Math.ceil(end) + ' working days on site.</p>';
+          }).join('') + (tl.length ? '<div class="tq-g tq-g-tot"><span></span><span></span>' + ganttArrow(end) + '</div>' : '') + '</div>';
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
@@ -1072,8 +1229,60 @@
   // A word changed on the page goes back where it came from: a list line
   // into its list (so the scope on the page and the scope above are one),
   // anything else into doc.quote.
+  // The sheet is always laid out at A4's own width, the PDF's, and shrunk to
+  // fit a narrower column rather than reflowed or run off the right
+  // (2026-10-28, the owner: "it's falling off to the right hand side").
+  var PG_W = 794 + 2 * Math.round(49 / (695 / 794)), _pgRO = null;   // the content's 794 + its margins, all at the PDF's scale
+  function pageFitScale(){
+    var pg = document.getElementById('tqPage'); return pg ? (+pg.getAttribute('data-scale') || 1) : 1;
+  }
+  function pageFit(){
+    var pg = document.getElementById('tqPage'), wrap = pg && pg.parentNode; if (!pg || !wrap || !wrap.offsetParent) return;
+    var cs = getComputedStyle(wrap), avail = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var s = window.innerWidth <= 760 ? 1 : Math.min(PB_K, avail / PG_W);
+    if (s > 0.9999) {
+      if (pg.getAttribute('data-scale')) { pg.removeAttribute('data-scale'); pg.style.transform = ''; pg.style.transformOrigin = ''; pg.style.marginLeft = ''; wrap.style.height = ''; }
+      return;
+    }
+    pg.setAttribute('data-scale', s.toFixed(4));
+    pg.style.transformOrigin = '0 0'; pg.style.transform = 'scale(' + s.toFixed(4) + ')'; pg.style.marginLeft = '0';
+    wrap.style.height = Math.ceil(pg.offsetHeight * s + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)) + 'px';
+  }
+  function pageFitWatch(){
+    var pg = document.getElementById('tqPage'); if (!pg || !window.ResizeObserver) return;
+    if (_pgRO) _pgRO.disconnect();
+    _pgRO = new ResizeObserver(function(){ pageFit(); });
+    _pgRO.observe(pg); _pgRO.observe(pg.parentNode);
+  }
+  // a new window size can change how the live sheet lays out (the app's own
+  // narrow-screen rules), so the sheets are measured again once it settles
+  var _pgRsT = null;
+  window.addEventListener('resize', function(){ pageFit(); clearTimeout(_pgRsT); _pgRsT = setTimeout(function(){ if (document.getElementById('tqPage')) pageBreaks(); }, 350); });
+  // The org chart's lines: from each box down to a bar over its team, and a
+  // drop to every box in it. Worked from where the boxes landed, so they are
+  // right at any width; redrawn whenever the chart changes size.
+  function orgLines(root){
+    (root || document).querySelectorAll('.tq-org').forEach(function(o){
+      var svg = o.querySelector('.tq-org-ln'); if (!svg) return;
+      var R = o.getBoundingClientRect(), k = o.offsetWidth ? R.width / o.offsetWidth : 1, at = {}, out = '';
+      if (!R.width) return;
+      o.querySelectorAll('.tq-ob[data-oid]').forEach(function(b){ var r = b.getBoundingClientRect(); at[b.getAttribute('data-oid')] = { x: (r.left + r.width / 2 - R.left) / k, top: (r.top - R.top) / k, bot: (r.bottom - R.top) / k }; });
+      var team = {};
+      o.querySelectorAll('.tq-ob[data-up]').forEach(function(b){ var u = b.getAttribute('data-up'); if (u && at[u]) (team[u] = team[u] || []).push(at[b.getAttribute('data-oid')]); });
+      Object.keys(team).forEach(function(u){
+        var P = at[u], C = team[u], top = Math.min.apply(null, C.map(function(c){ return c.top; })), y = Math.max(P.bot + 4, top - 13);
+        var xs = C.map(function(c){ return c.x; }).concat([P.x]), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        out += 'M' + P.x + ' ' + P.bot + 'V' + y + 'M' + x0 + ' ' + y + 'H' + x1;
+        C.forEach(function(c){ out += 'M' + c.x + ' ' + y + 'V' + c.top; });
+      });
+      svg.innerHTML = '<path d="' + out + '" fill="none" stroke="#94a3b8" stroke-width="1.5"/>';
+      if (!root && !o._ro && window.ResizeObserver) { o._ro = new ResizeObserver(function(){ orgLines(); }); o._ro.observe(o); }
+    });
+  }
   function afterDocRender(){
     var pg = document.getElementById('tqPage'); if (!pg) return;
+    orgLines();
+    pageFit(); pageFitWatch();
     pg.querySelectorAll('[contenteditable]').forEach(function(el){
       el.addEventListener('blur', function(){
         var d = T.data && T.data.doc; if (!d) return;
@@ -1111,14 +1320,24 @@
   // width — A4 less the 13 mm margins — and walked block by block as Chrome
   // paginates: a section kept whole stays whole, a heading keeps its first
   // line. The lines then go on the live page against the same elements.
-  var PB_W = 695, PB_H = 1016, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
+  // the app's own fonts, in the app's order (Google's Inter, then rsms.me's,
+  // which wins), so the PDF wraps every line where the screen does
+  var PDF_FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"><style>@import url("https://rsms.me/inter/inter.css");</style>';
+  // THE PDF IS LAID OUT 794px WIDE AND PRINTED AT 87.5% (2026-10-28). The
+  // sheet's content is 794px, A4's printable width is 184 mm = 695px, so
+  // Chrome shrank it to fit — and the app, laying it out at 695px, wrapped
+  // lines sooner and broke every page early (the owner: "the page break on
+  // the app is too high"). Now it is explicit everywhere: the content is laid
+  // out at PB_W and drawn at PB_K, on screen (the sheet's own scale) and on
+  // paper (zoom), so a page holds PB_H of it.
+  var PB_K = 695 / 794, PB_W = 794, PB_H = 1016 / PB_K, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
   function pbStripped(el){
     if (!el.querySelector('.tq-pb')) return el.innerHTML;
     var c = el.cloneNode(true); c.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); }); return c.innerHTML;
   }
   function pbLeaves(el, out){
     var kids = el.children;
-    if (el.matches('li,tr,p,h1,h2,h3,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
+    if (el.matches('li,tr,p,h1,h2,h3,.tq-price,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
     for (var i = 0; i < kids.length; i++) pbLeaves(kids[i], out);
   }
   // every element of the page the PDF keeps, in order: the same list in the
@@ -1141,22 +1360,23 @@
     if (!pg.offsetParent) return;
     var gen = ++_pbGen;
     var pc = pbPrintHtml(pg);
+    // Measured in this page, in the fonts this page has loaded, on a copy at
+    // the PDF's width — the PDF loads the same fonts (PDF_FONTS), so the
+    // breaks drawn here are the PDF's (2026-10-28, the owner: "the page break
+    // on the app is too high"; an iframe of its own measured before its font
+    // had arrived, and the app's Inter is not Google's).
     if (!_pbFrame || !_pbFrame.isConnected) {
-      _pbFrame = document.createElement('iframe');
-      _pbFrame.setAttribute('aria-hidden', 'true'); _pbFrame.tabIndex = -1;
-      // wider than 760px, or the tender's phone rules lay the copy out as a phone
-      _pbFrame.style.cssText = 'position:fixed;left:-20000px;top:0;width:1100px;height:600px;border:0;visibility:hidden;pointer-events:none';
+      _pbFrame = document.createElement('div');
+      _pbFrame.id = 'tqMeasure'; _pbFrame.setAttribute('aria-hidden', 'true');
+      _pbFrame.style.cssText = 'position:absolute;left:-30000px;top:0;width:' + PB_W + 'px;visibility:hidden;pointer-events:none;contain:layout';
       document.body.appendChild(_pbFrame);
     }
-    var dd = _pbFrame.contentWindow.document;
-    dd.open();
-    dd.write('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><style>' + pc.css +
-      'html,body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important;width:' + PB_W + 'px!important}' +
-      '.tn-box{height:auto!important;overflow:visible!important;display:block!important;box-shadow:none!important;padding:0!important}</style></head><body>' + pc.clone.outerHTML + '</body></html>');
-    dd.close();
+    pc.clone.removeAttribute('id'); pc.clone.querySelectorAll('[id]').forEach(function(n){ n.removeAttribute('id'); });
+    _pbFrame.innerHTML = '';
+    _pbFrame.appendChild(pc.clone);
     var measure = function(){
       if (gen !== _pbGen) return;
-      var cp = dd.getElementById('tqPage'); if (!cp) return;
+      var cp = _pbFrame.querySelector('.tq-page'); if (!cp) return;
       var live = pbKept(pg), copy = pbKept(cp);
       if (live.length !== copy.length) return;   // changed under us; the next pass will do it
       var ix = new Map(); copy.forEach(function(el, i){ ix.set(el, i); });
@@ -1184,10 +1404,11 @@
       // sheet is drawn to A4's height: the content, white to the foot of the
       // sheet, a gap, the next sheet's top margin. On a phone the width is
       // not the PDF's, so only the gap is drawn.
-      var pgR = pg.getBoundingClientRect(), cs = getComputedStyle(pg);
-      var exact = Math.abs(pgR.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - PB_W) < 6;
+      var sc = pageFitScale(), pgR = pg.getBoundingClientRect(), cs = getComputedStyle(pg);
+      var exact = Math.abs(pgR.width / sc - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - PB_W) < 6;
       var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
       var liveOf = function(cel){ var i = ix.get(cel); return i == null ? null : live[i]; };
+      var startY = pgR.top + padT * sc;
       marks.forEach(function(m){
         var el = liveOf(m.el); if (!el || !el.parentNode) return;
         if (el.tagName === 'TR') el = el.closest('table') || el;
@@ -1196,23 +1417,27 @@
         mk.innerHTML = '<div class="tq-pb-f"></div><div class="tq-pb-g"><span>Page ' + m.page + '</span></div><div class="tq-pb-t"></div>';
         el.parentNode.insertBefore(mk, el);
         var r = mk.getBoundingClientRect();
-        mk.style.marginLeft = (pgR.left - r.left) + 'px'; mk.style.width = pgR.width + 'px';
-        var fill = 0, endEl = liveOf(m.endEl);
-        if (exact && endEl) fill = Math.max(0, PB_H - m.used - (mk.getBoundingClientRect().top - endEl.getBoundingClientRect().bottom));
+        mk.style.marginLeft = ((pgR.left - r.left) / sc) + 'px'; mk.style.width = (pgR.width / sc) + 'px';
+        // the sheet is filled out to A4's height from where it starts on
+        // screen, not from the copy's figure: the live page carries the
+        // editing buttons the PDF leaves out, so its content runs a little
+        // longer, and the sheets must still be drawn one height
+        var fill = exact ? Math.max(0, PB_H - (mk.getBoundingClientRect().top - startY) / sc) : 0;
         mk.querySelector('.tq-pb-f').style.height = (exact ? fill + padB : 14) + 'px';
         mk.querySelector('.tq-pb-t').style.height = (exact ? padT : 14) + 'px';
+        startY = mk.getBoundingClientRect().bottom;
       });
       if (exact && lastEnd) {   // the last sheet is a whole sheet too
         var tail = document.createElement('div'); tail.className = 'tq-pb tq-pb-end no-print';
         pg.appendChild(tail);
-        var le = liveOf(lastEnd);
-        tail.style.height = Math.max(0, PB_H - lastUsed - (le ? tail.getBoundingClientRect().top - le.getBoundingClientRect().bottom : 0)) + 'px';
+        tail.style.height = Math.max(0, PB_H - (tail.getBoundingClientRect().top - startY) / sc) + 'px';
       }
+      pageFit();
       var n = document.getElementById('tqPages'); if (n) n.textContent = 'A4 PDF: ' + page + (page === 1 ? ' page' : ' pages') + ' · ';
       pg.setAttribute('data-pages', page);
     };
     var done = false, once = function(){ if (done) return; done = true; measure(); };
-    try { if (dd.fonts && dd.fonts.ready) { dd.fonts.ready.then(function(){ setTimeout(once, 0); }); setTimeout(once, 1500); return; } } catch (e) {}
+    try { if (document.fonts && document.fonts.ready) { document.fonts.ready.then(function(){ setTimeout(once, 0); }); setTimeout(once, 1500); return; } } catch (e) {}
     setTimeout(once, 0);
   }
 
@@ -1240,15 +1465,17 @@
     // were simply missing from the PDF (2026-10-27, the owner: "the pdf
     // doesn't look as good as the app").
     dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
-      '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><style>' + (css ? css.textContent : '') +
+      PDF_FONTS + '<style>' + (css ? css.textContent : '') + '.tq-page{width:794px!important;zoom:' + PB_K.toFixed(5) + '}' +
       '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
-      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
+      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
     var go = function(){ var was = document.title; document.title = title; try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ document.title = was; }, 1500); setTimeout(function(){ f.remove(); }, 60000); };
     var started = false; var go1 = function(){ if (started) return; started = true; go(); };
     // Wait for the font as well as the logo, or the PDF prints in the fallback face.
-    var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.ready) { var t = setTimeout(cb, 2500); dd.fonts.ready.then(function(){ clearTimeout(t); cb(); }); return; } } catch (e) {} cb(); };
-    var go0 = go; go = function(){ whenFonts(function(){ go0(); }); };
+    // the stylesheets first, then every weight the tender uses, so nothing
+    // prints in a stand-in face
+    var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.load) { var t = setTimeout(cb, 4000), fin = function(){ clearTimeout(t); cb(); }; var links = [].slice.call(dd.querySelectorAll('link[rel=stylesheet]')), n = links.length; var loadAll = function(){ Promise.all(['400', '500', '600', '700', '800'].map(function(wt){ return dd.fonts.load(wt + ' 12.5px Inter').catch(function(){}); })).then(function(){ return dd.fonts.ready; }).then(fin, fin); }; if (!n) { loadAll(); return; } links.forEach(function(l){ if (l.sheet) { if (--n === 0) loadAll(); } else l.onload = l.onerror = function(){ if (--n === 0) loadAll(); }; }); return; } } catch (e) {} cb(); };
+    var go0 = go; go = function(){ whenFonts(function(){ try { orgLines(dd); } catch (e) {} go0(); }); };
     var imgs = dd.images; var left = imgs.length;
     if (!left) setTimeout(go1, 150);
     else Array.prototype.forEach.call(imgs, function(im){ if (im.complete) { if (--left === 0) setTimeout(go1, 150); } else im.onload = im.onerror = function(){ if (--left === 0) setTimeout(go1, 150); }; });
@@ -1286,7 +1513,7 @@
       '.tn-chat-hd{font-weight:800;color:#312e81;font-size:13px;margin-bottom:8px}',
       '.tn-chat-log{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}',
       '.tn-msg{padding:7px 10px;border-radius:10px;font-size:13px;max-width:85%;white-space:pre-wrap}.tn-msg.you{align-self:flex-end;background:#0099cc;color:#fff}',
-      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}',
+      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}.tn-msg.ask{background:#fffbeb;border-color:#fcd34d}',
       '.tn-chat-in{display:flex;gap:8px;align-items:flex-end}.tn-chat-in textarea{flex:1;font:inherit;font-size:13.5px;padding:8px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical}',
       '.tn-rates{display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px}',
       '.tn-rates label{display:flex;flex-direction:column;font-size:11px;color:#64748b;font-weight:700;letter-spacing:.03em;text-transform:uppercase;gap:3px}',
@@ -1298,7 +1525,8 @@
       '.tn-totals{margin:16px 0 0 auto;border-collapse:collapse;font-size:13.5px;min-width:300px}.tn-totals td{padding:5px 8px}.tn-totals td:last-child{text-align:right;white-space:nowrap}',
       '.tn-totals tr.b td{font-weight:800;border-top:1px solid #e2e8f0}.tn-totals tr.gp td{color:#166534;font-weight:700;font-size:12.5px}',
       '.tn-gantt{display:flex;flex-direction:column;gap:6px}',
-      '.tn-g-row{display:grid;grid-template-columns:minmax(150px,240px) 170px 1fr auto;gap:8px;align-items:center}',
+      '.tq-g-arr{position:relative;height:24px;margin-top:2px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tq-g-arr i{position:absolute;left:0;right:7px;top:11px;border-top:2px solid #0a1628}.tq-g-arr i:before{content:"";position:absolute;left:0;top:-7px;height:12px;border-left:2px solid #0a1628}.tq-g-arr i:after{content:"";position:absolute;right:-8px;top:-7px;border-left:9px solid #0a1628;border-top:6px solid transparent;border-bottom:6px solid transparent}.tq-g-arr b{position:relative;display:inline-block;background:#fff;padding:0 8px;font-size:12px;line-height:24px;color:#0a1628;font-weight:700}',
+      '.tn-g-row{display:grid;grid-template-columns:minmax(180px,1.15fr) 170px 1fr auto;gap:8px;align-items:center}.tn-g-row+.tn-g-row:not(.tn-g-totrow){padding-top:6px;border-top:1px solid #eef2f6}.tn-g-ph{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:13px;line-height:18px;height:46px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;resize:none;overflow-y:auto;color:#0a1628}.tn-g-ph:focus{background:#fff;outline:2px solid #0099cc33;border-color:#0099cc}',
       '.tn-g-row input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box}.tn-g-row input.wide{width:100%}.tn-g-row input.xs{width:46px;text-align:right}',
       '.tn-g-num{font-size:12px;color:#64748b;white-space:nowrap}',
       '.tn-g-track,.tq-g-t{position:relative;height:16px;background:#f1f5f9;border-radius:5px}.tn-g-track i,.tq-g-t i{position:absolute;top:0;bottom:0;background:#0099cc;border-radius:5px}',
@@ -1307,8 +1535,8 @@
       '.tn-fold:not([open])>summary .tn-card-hd::after{content:"▸"}',
       '.tn-next{padding:16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:#1e3a8a}',
       // the document
-      '.tq-wrap{background:#e2e8f0;padding:18px;border-radius:10px;overflow-x:auto}',
-      '.tq-page{background:#fff;width:794px;max-width:794px;margin:0 auto;padding:53px 49px;box-shadow:0 2px 14px rgba(15,23,42,.14);font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;font-size:12.5px;line-height:1.5;box-sizing:border-box}',
+      '.tq-wrap{background:#e2e8f0;padding:18px;border-radius:10px;overflow:hidden;box-sizing:border-box}',
+      '.tq-page{background:#fff;width:906px;max-width:906px;margin:0 auto;padding:61px 56px;box-shadow:0 2px 14px rgba(15,23,42,.14);font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;font-size:12.5px;line-height:1.5;box-sizing:border-box}',
       '.tq-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:3px solid #0a1628;padding-bottom:14px;margin-bottom:18px}',
       '.tq-logo{max-height:70px;max-width:230px;object-fit:contain}.tq-co{font-size:20px;font-weight:800;color:#0a1628}.tq-cod{text-align:right;font-size:11px;color:#475569;line-height:1.5}',
       '.tq-title{font-size:26px;margin:0 0 12px;color:#0a1628;font-weight:800}',
@@ -1320,34 +1548,47 @@
       '.tq-tbl td{padding:5px 6px;border-bottom:1px solid #e2e8f0;vertical-align:top}.tq-tbl td:first-child{white-space:nowrap;color:#475569;font-weight:600;width:110px}',
       '.tq-tbl .r{text-align:right}.tq-sub{color:#64748b;font-size:11px}',
       '.tq-ul{margin:0;padding-left:18px}.tq-ul li{margin:2px 0}',
-      '.tq-price{border-collapse:collapse;margin:0 0 8px auto;min-width:320px}.tq-price td{padding:4px 8px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
+      '.tq-price{border-collapse:collapse;margin:0 0 10px auto;min-width:480px;font-size:25px;line-height:1.35}.tq-price td{padding:6px 10px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
       '.tq-price tr.b td{font-weight:800;border-top:1.5px solid #0a1628}',
-      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:3px 0}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
+      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:0;padding:5px 0;border-bottom:1px solid #e2e8f0}.tq-gantt .tq-g:first-child{border-top:1px solid #e2e8f0}.tq-g.tq-g-tot{border-bottom:0;padding-top:6px}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
       '.tq-ed{outline:none;border-radius:3px}.tq-ed:hover{box-shadow:0 0 0 1px #93c5fd}.tq-ed:focus{box-shadow:0 0 0 2px #0099cc;background:#f0f9ff}',
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
-      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
+      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t,.tq-g-arr{grid-column:1/-1}.tq-g-tot>span{display:none}.tn-g-totrow>:not(.tq-g-arr){display:none}.tn-g-totrow .tq-g-arr{grid-column:1/-1}.tq-wrap{padding:6px}}',
       // the menu down the left
       // The page uses the screen (2026-10-28, the owner: "there's plenty of
       // screen to use, but it's only sort of in the middle").
-      '#tenderRoot{max-width:1760px!important;padding-left:12px!important;padding-right:12px!important}',
-      '.tn-lay{display:grid;grid-template-columns:360px minmax(0,1fr);gap:18px;align-items:start;padding-right:44px}.tn-main{padding-bottom:40vh;min-width:0}',
+      'body[data-tab="tender"] .content{max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:12px!important;padding-right:12px!important}',
+      '#tenderRoot{max-width:none!important;margin:0!important;padding-left:6px!important;padding-right:6px!important}',
+      // menu far left | the tender, full width | the A.I. chat on the right
+      // (2026-10-28, the owner); the 44px on the right keeps the PLANS tab clear
+      '.tn-lay{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;align-items:start;padding-right:44px}.tn-main{padding-bottom:40vh;min-width:0}',
+      '.tn-lay.tn-3{grid-template-columns:240px minmax(0,1fr) 340px;gap:16px}',
+      // a narrow window on a computer (the owner's, half the screen beside the PDF):
+      // the menu becomes a strip of jump links over the tender and the chat a bar
+      // along the foot, as on a phone, so the sheet keeps a readable width
+      '.tn-lay.tn-1{grid-template-columns:minmax(0,1fr);gap:10px;padding-right:44px}.tn-lay.tn-1 > .tn-side{z-index:5;max-height:none;height:auto!important;display:block}.tn-lay.tn-1 .tn-chatside .tn-chat{position:fixed;right:150px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-lay.tn-1 .tn-side > .tn-chatside{min-height:0;display:block}.tn-lay.tn-1 .tn-chatside .tn-chat-hd{margin-bottom:4px}.tn-lay.tn-1 .tn-chatside .tn-chat-log{max-height:120px}.tn-lay.tn-1 .tn-chatside .tn-chat .tn-chat-nt{display:none}.tn-lay.tn-1 .tn-chatside .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-lay.tn-1 .tn-chatside #tnChatIn{height:38px!important;min-height:0!important;resize:none}.tn-lay.tn-1 .tn-nav{display:flex;align-items:center;min-height:0;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px}.tn-lay.tn-1 .tn-nav-g{display:none}.tn-lay.tn-1 .tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-lay.tn-1 .tn-nav-i.sub{padding-left:10px}',
+      '@media screen and (min-width:1900px){.tn-lay.tn-3{grid-template-columns:270px minmax(0,1fr) 380px}}',
+      '.tn-lay.tn-3 > .tn-chatside .tn-chat{height:100%;box-sizing:border-box}',
+      // the chat back under the menu: it takes what the menu leaves
+      '.tn-side > .tn-chatside{position:static;height:auto;flex:1 1 auto;min-height:240px;display:flex;flex-direction:column}.tn-side > .tn-chatside .tn-chat{flex:1 1 auto}',
+      '.tn-lay:not(.tn-3) .tn-nav{max-height:46%}',
       // Pinned from the top of the page, so it never slides before it sticks;
       // the menu takes what it needs (scrolling past about half the screen)
       // and the chat runs to the bottom of the screen.
       '.tn-side{position:sticky;top:52px;height:calc(100vh - 62px);display:flex;flex-direction:column;gap:10px}',
-      '.tn-nav{flex:0 1 auto;max-height:46%;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
-      '.tn-side .tn-chat{flex:1 1 auto;min-height:240px;margin:0;padding:12px;display:flex;flex-direction:column;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-side .tn-chat-log{flex:1 1 auto;max-height:none;min-height:60px;overflow-y:auto}.tn-side .tn-chat .tn-chat-nt{display:block}',
-      '.tn-side #tnChatIn{display:block;flex:0 0 auto;width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:96px}',
+      '.tn-nav{flex:1 1 auto;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-chatside .tn-chat{flex:1 1 auto;min-height:240px;margin:0;padding:12px;display:flex;flex-direction:column;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-chatside .tn-chat-log{flex:1 1 auto;max-height:none;min-height:60px;overflow-y:auto}.tn-chatside .tn-chat .tn-chat-nt{display:block}',
+      '.tn-chatside #tnChatIn{display:block;flex:0 0 auto;width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:96px}',
       '.tn-tagout{flex:0 0 auto;align-self:center;font:inherit;font-size:11px;font-weight:700;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}.tn-tagout:hover{background:#ffedd5}.tn-tagout:disabled{opacity:.5;cursor:default}',
       '.tn-msg-src{display:block;margin-top:4px;font-size:11px;color:#64748b}',
-      '.tn-side .tn-chat-in{align-items:center}.tn-side .tn-chat-in .tn-edit-msg{flex:1 1 auto;font-size:11.5px}.tn-side .tn-msg{max-width:92%;font-size:12.5px}',
+      '.tn-chatside .tn-chat-in{align-items:center}.tn-chatside .tn-chat-in .tn-edit-msg{flex:1 1 auto;font-size:11.5px}.tn-side .tn-msg{max-width:92%;font-size:12.5px}',
       '.tn-nav-g{margin:8px 0 4px;padding:5px 8px;border-radius:6px;background:#0a1628;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.tn-nav-g:first-child{margin-top:0}',
       '.tn-nav-i{display:block;padding:6px 10px;border-radius:7px;font-size:13px;color:#334155;text-decoration:none;line-height:1.3}.tn-nav-i:hover{background:#f1f5f9;color:#0a1628}',
       '.tn-nav-i.sub{padding-left:20px;font-size:12.5px}.tn-nav-i.off{color:#94a3b8;text-decoration:line-through}',
       '.tn-nav-i.on{background:#0099cc;color:#fff;font-weight:700}',
       '.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:64px}',
-      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr);padding-right:0}.tn-side{top:56px;z-index:5;max-height:none;height:auto;display:block}.tn-side .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-side .tn-chat-hd{margin-bottom:4px}.tn-side .tn-chat-log{max-height:90px}.tn-side .tn-chat .tn-chat-nt{display:none}.tn-side .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-side #tnChatIn{height:38px}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr);padding-right:0}.tn-side{top:56px;z-index:5;max-height:none;height:auto;display:block}.tn-chatside .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-chatside .tn-chat-hd{margin-bottom:4px}.tn-chatside .tn-chat-log{max-height:90px}.tn-chatside .tn-chat .tn-chat-nt{display:none}.tn-chatside .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-chatside #tnChatIn{height:38px;min-height:0}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;align-items:center;min-height:0;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
       // the section boxes: one height for all, scrolling inside; print shows everything
       '@media screen{.tn-card .tn-box.mid{height:540px}.tq-sec .tn-box.mid{height:172px}.tn-box.mid{height:540px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;box-shadow:inset 0 -10px 10px -10px rgba(15,23,42,.18);padding-right:4px}.tn-box.min{display:none}',
       '}',
@@ -1357,6 +1598,8 @@
       '.tq-pb{list-style:none;display:block;margin-top:0;margin-bottom:0;box-sizing:border-box;user-select:none}.tq-pb-f,.tq-pb-t{background:#fff}',
       '.tq-pb-g{height:26px;background:#e2e8f0;margin:0 -16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 6px 8px -6px rgba(15,23,42,.25),inset 0 -6px 8px -6px rgba(15,23,42,.25)}.tq-pb-g span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b}',
       '#tqPages{font-weight:700;color:#fca5a5}',
+      // the copy the page breaks are measured on: the PDF's own box
+      '#tqMeasure .tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important;width:794px!important;transform:none!important}#tqMeasure .tn-box{height:auto!important;overflow:visible!important;display:block!important;box-shadow:none!important;padding:0!important}',
       // Edit [section]
       '.tn-edit{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;background:#0099cc;color:#fff;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}.tn-edit:hover{background:#0087b4}',
       '.tq-tools .tq-edit{background:#0099cc;font-weight:700}',
@@ -1365,21 +1608,14 @@
       '.tn-modal-hd{display:flex;align-items:center;margin-bottom:8px}.tn-modal-hd b{font-size:16px;color:#0a1628;margin-right:auto}',
       '.tn-modal-lbl{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b;margin-bottom:4px}',
       '#tnEditIn{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:10px;border:1px solid #cbd5e1;border-radius:9px;resize:vertical;min-height:96px}#tnEditIn:focus{border-color:#0099cc;outline:none}',
-      '.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
+      '.tn-edit-ask{background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;margin:0 0 8px;font-size:13.5px;color:#0a1628}.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
       '.tn-mic.on{background:#fee2e2;border-color:#fca5a5;color:#991b1b}',
       '.tn-flash{animation:tnFlash 1.8s ease}@keyframes tnFlash{0%,40%{box-shadow:0 0 0 3px #0099cc;border-radius:8px}100%{box-shadow:0 0 0 0 transparent}}',
       // the organisation structure
       '.tq-orgask{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:12px}',
-      '.tq-org{overflow-x:auto;padding:4px 0 2px}.tq-org ul{display:flex;justify-content:center;margin:0;padding:16px 0 0;position:relative}.tq-org>ul{padding-top:0}',
-      '.tq-org li{list-style:none;text-align:center;position:relative;padding:16px 5px 0;flex:0 1 auto}',
-      '.tq-org li::before,.tq-org li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:16px;border-top:1.5px solid #94a3b8}',
-      '.tq-org li::after{right:auto;left:50%;border-left:1.5px solid #94a3b8}',
-      '.tq-org li:only-child::before,.tq-org li:only-child::after{display:none}.tq-org li:only-child{padding-top:0}',
-      '.tq-org li:first-child::before,.tq-org li:last-child::after{border:0 none}',
-      '.tq-org li:last-child::before{border-right:1.5px solid #94a3b8;border-radius:0 5px 0 0}.tq-org li:first-child::after{border-radius:5px 0 0 0}',
-      '.tq-org ul ul::before{content:"";position:absolute;top:0;left:50%;height:16px;border-left:1.5px solid #94a3b8}',
-      '.tq-org>ul>li::before,.tq-org>ul>li::after{display:none}.tq-org>ul>li{padding-top:0}',
-      '.tq-ob{display:inline-flex;flex-direction:column;min-width:104px;max-width:150px;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
+      '.tq-org{position:relative;padding:2px 0;overflow:hidden}.tq-org-row{display:flex;justify-content:center;align-items:flex-start;gap:12px;margin-top:26px;position:relative;z-index:1}.tq-org-row:first-of-type{margin-top:0}',
+      '.tq-org-row .tq-ob{flex:0 1 150px;min-width:0;max-width:150px}.tq-org-ln{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}',
+      '.tq-ob{display:inline-flex;flex-direction:column;min-width:0;max-width:150px;overflow-wrap:anywhere;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
       '.tq-ob b{display:block;background:#0a1628;color:#fff;font-size:10.5px;line-height:1.3;padding:5px 7px;letter-spacing:.02em}',
       '.tq-ob span{display:block;font-size:11.5px;font-weight:600;color:#0f172a;padding:4px 7px 0;min-height:15px}.tq-ob small{display:block;font-size:10px;color:#64748b;padding:1px 7px 5px;min-height:6px}',
       '@media screen{.tq-ob [contenteditable]:empty::before{content:attr(data-ph);color:#94a3b8;font-weight:400}}',
