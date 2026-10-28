@@ -2301,6 +2301,37 @@ not a saving, and 49 purple to 48 orange.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.
+- THE PRODUCT LIST SURVIVES A RELOAD, AND SO DOES THE EMAIL WORDING
+  (2026-10-28, the owner: "the gutter profile pictures i upload ... disappear
+  after an app reload" and "my custom email quote template keeps reverting
+  back to default after an update or reload"). `mergeSettings` had NEVER
+  carried `selectables`, so every load set `S.settings.selectables` to
+  nothing: the quote fell back to the shipped defaults, opening Settings
+  seeded those (`_selWorking`), and the next settings save from anywhere
+  wrote them over the stored list — gutter and profile pictures, own grades,
+  profile rates, own options. It is carried now (absent stays absent), the
+  setup wizard leaves it out when empty, and the server treats `null` like a
+  missing key. A list already overwritten is gone; the office re-uploads.
+  THE EMAIL WORDING: every settings save carries the whole email block, and
+  the standard wording is stored as `''` — so a tab or device that loaded
+  before a custom wording was written sent it back blank on its next save
+  (any of ~28 saves made off the Settings tab). The server now keeps a stored
+  `*_subject` / `*_body` over an incoming blank unless the save names it in
+  `email.__reset`, which the app sets only for a wording emptied or Reset on
+  a live screen (`window.__emxTouched`, `_emxTouch`); the mark is dropped
+  once a save lands. Returning to a tab re-reads the wording (not while on
+  the Settings tab), and a pending settings autosave is flushed on
+  `pagehide` / hidden. `tests/settingssave.mjs` (app), `tests/ferguskey.mjs`
+  (server).
+- A SENT QUOTE STAYS LOCKED (2026-10-28, job 3299: "this quote has been sent,
+  why is the quote not locked?"). Opening a sent job locks it, but choosing
+  the Draft from the Viewing menu after a send called `_qvBackToDraft()` with
+  no options, which unlocks. The menu item passes `{relock:true}`: a job whose
+  quote has been sent (`_quoteWasSent()`) keeps its lock and the first edit
+  asks. The Viewing menu reads "locked" or "editing" to match
+  (`_jobLockRender` re-renders the bar). New draft / Change template / Open
+  saved draft still unlock — they are the office asking to edit.
+  `tests/joblock.mjs`.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.
