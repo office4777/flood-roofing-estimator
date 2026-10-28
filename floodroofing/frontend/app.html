@@ -5173,7 +5173,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T19:28:42Z';
+  window.APP_BUILT_AT = '2026-10-28T19:29:55Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5736,12 +5736,12 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          _saveClick says what happened either way. -->
     <button type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
             title="Save this job now"
-            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:var(--fr-dark,#0a1628);color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
+            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
     <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
          into the job details window on 2026-09-29 and swapping jobs is a thing
          you do from anywhere, not something to open a window to reach. -->
     <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
