@@ -252,7 +252,7 @@ r = await pg.evaluate(() => {
   return { heads, specTbl: pgEl.querySelectorAll('.tq-tbl').length, boxes: [...pgEl.querySelectorAll('.tq-ob b')].map(b => b.textContent), ask: !!pgEl.querySelector('.tq-orgask'),
     edits: [...pgEl.querySelectorAll('.tq-edit')].map(b => b.title + '|' + b.textContent), cardEdits: [...document.querySelectorAll('.tn-card-hd .tn-edit')].map(b => b.title + '|' + b.textContent),
     nav: [...document.querySelectorAll('#tnNav .tn-nav-i')].map(a => a.textContent), navSide: getComputedStyle(document.querySelector('.tn-side')).position, navW: document.getElementById('tnNav').getBoundingClientRect().width,
-    chatPinned: !!document.querySelector('.tn-side #tnChat #tnChatIn') && !!document.getElementById('tnChatMic'), scopeChat: !!document.querySelector('#tn-a-scope .tn-chat') };
+    chatPinned: !!document.querySelector('.tn-chatside #tnChat #tnChatIn') && !!document.getElementById('tnChatMic'), scopeChat: !!document.querySelector('#tn-a-scope .tn-chat') };
 });
 check('the roofing specification is no longer on the tender document', r.heads.indexOf('Roofing specification') < 0 && r.specTbl === 0, JSON.stringify(r.heads));
 check('the organisation structure sits just above the programme', r.heads.indexOf('Organisation structure') >= 0 && r.heads.indexOf('Organisation structure') === r.heads.indexOf('Programme') - 1, JSON.stringify(r.heads));
@@ -309,27 +309,47 @@ check('…and the PDF still prints every section whole, without the box buttons 
 // the page breaks: lengthen the scope until it runs onto a second page
 await pg.evaluate(() => { window.__tnRerender(d => { for (let i = 0; i < 70; i++) d.scope.push('Scope line number ' + i + ' for the page break test'); }); });
 await pg.waitForTimeout(1800);
-r = await pg.evaluate(() => { const marks = [...document.querySelectorAll('#tqPage .tq-pb:not(.tq-pb-end)')].map(m => m.textContent); return { marks, pages: document.getElementById('tqPage').getAttribute('data-pages'), label: (document.getElementById('tqPages') || {}).textContent, sheets: [...document.querySelectorAll('#tqPage .tq-pb')].map(m => m.getBoundingClientRect().top), pgTop: document.getElementById('tqPage').getBoundingClientRect().top, rows: ['w-scope'].map(id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'), bb = b.getBoundingClientRect(); return [...b.querySelectorAll('li:not(.tq-pb)')].filter(l => { const r = l.getBoundingClientRect(); return r.top >= bb.top && r.bottom <= bb.bottom + 1; }).length; }), termsKey: document.querySelector('#tqPage [data-qk="terms"]') ? 1 : 0 }; });
+r = await pg.evaluate(() => { const marks = [...document.querySelectorAll('#tqPage .tq-pb:not(.tq-pb-end)')].map(m => m.textContent); return { marks, pages: document.getElementById('tqPage').getAttribute('data-pages'), label: (document.getElementById('tqPages') || {}).textContent, sheets: [...document.querySelectorAll('#tqPage .tq-pb-g')].map(m => m.getBoundingClientRect().top), scale: +document.getElementById('tqPage').getAttribute('data-scale') || 1, pgTop: document.getElementById('tqPage').getBoundingClientRect().top, rows: ['w-scope'].map(id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'), bb = b.getBoundingClientRect(); return [...b.querySelectorAll('li:not(.tq-pb)')].filter(l => { const r = l.getBoundingClientRect(); return r.top >= bb.top && r.bottom <= bb.bottom + 1; }).length; }), termsKey: document.querySelector('#tqPage [data-qk="terms"]') ? 1 : 0 }; });
 check('a working-sheet box shows 8 rows of the scope', r.rows[0] === 8, JSON.stringify(r.rows));
-check('the document is drawn as separate A4 sheets, each the height of a PDF page', r.sheets.length >= 2 && Math.abs((r.sheets[1] - r.sheets[0]) - 1148) < 3,  JSON.stringify(r.sheets));
+check('the document is drawn as separate A4 sheets, each the height of a PDF page', r.sheets.length >= 2 && Math.abs((r.sheets[1] - r.sheets[0]) / (r.scale || 1) - 1308.8) < 4, JSON.stringify([r.sheets, r.scale]));
 check('…as many as the PDF prints', r.marks.length >= 2 && r.marks[0] === 'Page 2' && +r.pages === r.marks.length + 1 && /A4 PDF: \d+ pages/.test(r.label), JSON.stringify(r));
 
 // ── the layout, the chat's questions, Tag out, the plans (2026-10-28) ──
 await pg.evaluate(() => window.scrollTo(0, 0));
 await pg.waitForTimeout(200);
 r = await pg.evaluate(async () => {
-  const side = document.querySelector('.tn-side'), chat = document.getElementById('tnChat');
-  const a = side.getBoundingClientRect();
+  const side = document.getElementById('tnSide'), chat = document.getElementById('tnChat');
+  const a = side.getBoundingClientRect(), m0 = document.querySelector('.tn-main').getBoundingClientRect(), tab = document.getElementById('tab-tender').getBoundingClientRect(), c0 = chat.getBoundingClientRect();
   window.scrollTo(0, 900); await new Promise(res => setTimeout(res, 150));
   const b = side.getBoundingClientRect(), c = chat.getBoundingClientRect();
   window.scrollTo(0, 2600); await new Promise(res => setTimeout(res, 150));
   const b2 = side.getBoundingClientRect();
-  return { top0: Math.round(a.top), top1: Math.round(b.top), top2: Math.round(b2.top), w: Math.round(a.width), chatBottom: Math.round(c.bottom), vh: innerHeight, chatH: Math.round(c.height), inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height),
+  return { navLeft: Math.round(a.left - tab.left), chatLeft: Math.round(c0.left), mainRight: Math.round(m0.right), mainLeft: Math.round(m0.left), navRight: Math.round(a.right), chatTop0: Math.round(c0.top), top0: Math.round(a.top), top1: Math.round(b.top), top2: Math.round(b2.top), w: Math.round(a.width), chatBottom: Math.round(c.bottom), vh: innerHeight, chatH: Math.round(c.height), inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height),
     planInMain: !!document.querySelector('.tn-main #tnPlanSet'), mainW: Math.round(document.querySelector('.tn-main').getBoundingClientRect().width), rootW: Math.round(document.getElementById('tenderRoot').getBoundingClientRect().width) };
 });
 check('the menu starts at the top beside the Plan set and never moves as the page scrolls', r.planInMain && Math.abs(r.top0 - r.top1) <= 2 && Math.abs(r.top1 - r.top2) <= 2, JSON.stringify(r));
-check('…wider (360px), with the chat running to the bottom of the screen and a bigger box to type in', r.w >= 355 && r.vh - r.chatBottom <= 16 && r.chatH >= 300 && r.inH >= 90, JSON.stringify(r));
+check('at 1440 wide the chat sits under the menu so the tender keeps its width', r.chatLeft < r.mainLeft && r.w >= 335 && r.vh - r.chatBottom <= 16 && r.chatH >= 240 && r.inH >= 90 && r.mainW > 700, JSON.stringify(r));
 check('the page uses the width of the screen, not a 1180px column', r.rootW > 1180 || r.rootW >= (await pg.evaluate(() => document.getElementById('tab-tender').getBoundingClientRect().width)) - 30, JSON.stringify(r));
+await pg.setViewportSize({ width: 1920, height: 1000 }); await pg.waitForTimeout(400);
+r = await pg.evaluate(async () => {
+  window.scrollTo(0, 0); await new Promise(res => setTimeout(res, 120));
+  const a = document.getElementById('tnSide').getBoundingClientRect(), m = document.querySelector('.tn-main').getBoundingClientRect(), tab = document.getElementById('tab-tender').getBoundingClientRect(), c = document.getElementById('tnChat').getBoundingClientRect();
+  window.scrollTo(0, 1500); await new Promise(res => setTimeout(res, 150));
+  const a2 = document.getElementById('tnSide').getBoundingClientRect(), c2 = document.getElementById('tnChat').getBoundingClientRect();
+  return { navLeft: Math.round(a.left - tab.left), navRight: Math.round(a.right), mainLeft: Math.round(m.left), mainRight: Math.round(m.right), mainW: Math.round(m.width), chatLeft: Math.round(c.left), chatTop: Math.round(c.top), navTop: Math.round(a.top), chatTop2: Math.round(c2.top), navTop2: Math.round(a2.top), chatBottom: Math.round(c.bottom), vh: innerHeight, inH: Math.round(document.getElementById('tnChatIn').getBoundingClientRect().height) };
+});
+check('on a wide screen the menu sits at the far left, the chat on the right, the tender full width between them', r.navLeft <= 10 && r.mainLeft > r.navRight && r.chatLeft > r.mainRight && Math.abs(r.chatTop - r.navTop) <= 2 && r.mainW > 900, JSON.stringify(r));
+check('…both pinned from the top, never moving, the chat running to the foot of the screen', Math.abs(r.chatTop2 - r.chatTop) <= 2 && Math.abs(r.navTop2 - r.navTop) <= 2 && r.vh - r.chatBottom <= 16 && r.inH >= 90, JSON.stringify(r));
+// a narrow window (the owner's, beside the PDF): the sheet is shrunk to fit, never cut off at the right, and still drawn to A4
+await pg.setViewportSize({ width: 1000, height: 900 }); await pg.waitForTimeout(500);
+await pg.evaluate(() => _tnNavGo('tn-a-doc')); await pg.waitForTimeout(1600);
+r = await pg.evaluate(() => { const pg = document.getElementById('tqPage'), w = pg.parentNode.getBoundingClientRect(), p = pg.getBoundingClientRect(), sh = [...pg.querySelectorAll('.tq-pb-g')].map(m => m.getBoundingClientRect().top); return { s: +pg.getAttribute('data-scale'), pr: Math.round(p.right), wr: Math.round(w.right), pw: Math.round(p.width), gap: sh.length > 1 ? Math.round((sh[1] - sh[0]) / (+pg.getAttribute('data-scale') || 1)) : null, n: sh.length }; });
+check('in a narrow window the tender sheet is shrunk to fit, not cut off on the right', r.s > 0.6 && r.s < 1 && r.pr <= r.wr && Math.abs(r.pw - 906 * r.s) < 3, JSON.stringify(r));
+check('…and its sheets are still A4 high, so the breaks fall where the PDF\'s do', r.n >= 2 && Math.abs(r.gap - 1308.8) < 5, JSON.stringify(r));
+r = await pg.evaluate(() => { const lay = document.querySelector('.tn-lay'), sd = document.getElementById('tnSide').getBoundingClientRect(), m = document.querySelector('.tn-main').getBoundingClientRect(), c = document.getElementById('tnChat').getBoundingClientRect(); return { one: lay.classList.contains('tn-1'), sideBottom: Math.round(sd.bottom), sideH: Math.round(sd.height), mainTop: Math.round(m.top), mainW: Math.round(m.width), layW: lay.clientWidth, chatLeft: Math.round(c.left), layLeft: Math.round(lay.getBoundingClientRect().left), chatBottom: Math.round(c.bottom), vh: innerHeight }; });
+check('…the menu becomes a strip of links over the tender and the chat a bar along the foot, so the tender keeps the width', r.one && r.sideH < 60 && r.mainW > r.layW - 60 && r.chatLeft >= r.layLeft && r.vh - r.chatBottom <= 12, JSON.stringify(r));
+await pg.setViewportSize({ width: 1440, height: 950 }); await pg.waitForTimeout(400);
+await pg.evaluate(() => window.scrollTo(0, 0));
 // a question is answered in the chat and changes nothing
 calls.length = 0;
 const histN = await pg.evaluate(() => document.querySelectorAll('.tn-bar2 button').length);
@@ -395,10 +415,18 @@ if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and th
   await pg.evaluate(() => { _tnBox('q-scope', 'full'); const m = document.querySelector('#tqPage .tq-pb'); if (m) m.scrollIntoView({ block: 'center' }); }).catch(() => 0);
   await pg.waitForTimeout(500);
   await pg.screenshot({ path: dir + '/c5.png' });
+  for (const [w, h, f] of [[1920, 1000, 'w1'], [1000, 900, 'n1']]) {
+    await pg.setViewportSize({ width: w, height: h }); await pg.waitForTimeout(900);
+    await pg.evaluate(() => { const m = document.querySelector('#tqPage .tq-pb'); if (m) m.scrollIntoView({ block: 'center' }); }); await pg.waitForTimeout(500);
+    await pg.screenshot({ path: dir + '/' + f + '.png' });
+  }
+  await pg.setViewportSize({ width: 1400, height: 900 }); await pg.waitForTimeout(600);
   await pg.evaluate(() => _tnBox('q-scope', 'mid'));
   await pg.evaluate(() => _tnEdit('org')); await pg.fill('#tnEditIn', 'Aron Flood is director, Ethan project manager, four two-man crews'); await pg.waitForTimeout(200);
   await pg.screenshot({ path: dir + '/c4.png' });
   await pg.evaluate(() => _tnEditClose());
+
+
   const html = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); return f.contentDocument.documentElement.outerHTML; });
   const pp = await pg.context().newPage();
   await pp.setContent('<!doctype html>' + html, { waitUntil: 'load' });

@@ -283,9 +283,11 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   const nAmend = DRAFT_CALLS.length;
   x = await call(T1, 'GET', '/tender/' + TID);
   const histBefore = (x.body.history || []).length, itemsBefore = JSON.stringify(x.body.doc.items);
-  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'Are blocks 1 and 5/6 separate buildings?', doc: B });
+  const Bp = Object.assign({}, B, { chat: (B.chat || []).concat([{ who: 'you', text: 'Are blocks 1 and 5/6 separate buildings?', pending: true }]) });
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'Are blocks 1 and 5/6 separate buildings?', doc: Bp });
   const Q = x.body.doc || {};
   check('a question is answered in the chat', x.status === 200 && x.body.answered === true && /two buildings/.test(Q.chat[Q.chat.length - 1].text) && Q.chat[Q.chat.length - 1].pages === 'A201', JSON.stringify(x.body).slice(0, 300));
+  check('…the page\'s "working on it" copy of the question is not kept beside the real one', !Q.chat.some(m => m.pending) && Q.chat.filter(m => m.text === 'Are blocks 1 and 5/6 separate buildings?').length === 1, JSON.stringify(Q.chat.slice(-3)));
   check('…without rewriting the tender', DRAFT_CALLS.length === nAmend && JSON.stringify(Q.items) === itemsBefore && Q.confidence_notes === B.confidence_notes);
   check('…read with the plan set and the ask prompt', ASK_CALLS.length && ASK_CALLS[ASK_CALLS.length - 1].promptVersion === 'ask-tender.v1' && /THE PLAN SET, PAGE BY PAGE/.test(ASK_CALLS[ASK_CALLS.length - 1].text));
   x = await call(T1, 'GET', '/tender/' + TID);

@@ -291,6 +291,9 @@ function mount(app, deps){
       const b = req.body || {};
       const cur = (b.doc && typeof b.doc === 'object') ? b.doc : t.doc;
       if (!cur) return bad(res, 'There is no tender to change yet.', 'NO_DOC');
+      // The page shows the message as "working on it…" while it waits; the
+      // copy kept is the one added below, never that placeholder.
+      if (Array.isArray(cur.chat)) cur.chat = cur.chat.filter(m => !(m && m.pending));
       const mode = AMEND_MODES[b.mode] ? b.mode : 'chat';
       const instruction = mode === 'chat' ? String(b.instruction || '').trim().slice(0, 4000) : AMEND_MODES[mode];
       if (!instruction) return bad(res, 'Say what to change.');
